@@ -85,6 +85,17 @@ export const mediaRoutes = {
   download: (id: string) => `/api/media/${id}/download`,
 }
 
+/** Avatar route URL; the version query changes whenever the photo does. */
+export function avatarUrl(userId: string, avatarPath: string | null) {
+  if (!avatarPath) return null
+  const version =
+    avatarPath
+      .split("/")
+      .pop()
+      ?.replace(/\.webp$/, "") ?? ""
+  return `/api/avatars/${userId}?v=${version}`
+}
+
 function toView(row: Row): MediaItemView {
   const ready = row.upload_state === "ready"
   return {

@@ -2,8 +2,7 @@ import { logout } from "@/app/_media/actions"
 import { AppShell } from "@/components/nabalens"
 import { requireActiveStaff, uploadBlockReason } from "@/lib/auth"
 import { getMediaActor } from "@/lib/server/media/context"
-import { listOwnMedia } from "@/lib/server/media/library"
-import { avatarUrl } from "@/lib/server/media/profile"
+import { avatarUrl, listOwnMedia } from "@/lib/server/media/library"
 
 import { StaffPortfolio } from "./staff-portfolio"
 

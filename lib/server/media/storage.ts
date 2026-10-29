@@ -39,28 +39,62 @@ export async function statMediaObject(
   return size
 }
 
-/** A `VideoRangeSource` over one stored object; every read is a Range request. */
+/** Smallest Range request: video probes read many tiny box headers. */
+const READ_BLOCK_BYTES = 256 * 1024
+/** Blocks kept per source (at most ~2 MiB plus one large read). */
+const CACHED_BLOCKS = 8
+
+async function fetchRange(
+  env: StorageEnv,
+  key: string,
+  offset: number,
+  end: number
+): Promise<Uint8Array> {
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(objectUrl(env, key), {
+      headers: { ...authHeaders(env), range: `bytes=${offset}-${end}` },
+      cache: "no-store",
+      signal: AbortSignal.timeout(30_000),
+    })
+    if (res.status === 206 || res.status === 200) {
+      const bytes = new Uint8Array(await res.arrayBuffer())
+      // A server that ignores Range answers 200 with the whole object.
+      return res.status === 200 ? bytes.subarray(offset, end + 1) : bytes
+    }
+    await res.body?.cancel()
+    if (res.status < 500 || attempt >= 1) {
+      throw new Error(`storage_range_${res.status}`)
+    }
+  }
+}
+
+/**
+ * A `VideoRangeSource` over one stored object. Reads are served from a small
+ * cache of blocks fetched with HTTP Range requests of at least 256 KiB, so a
+ * probe of box headers costs a few round trips instead of dozens.
+ */
 export function mediaRangeSource(
   env: StorageEnv,
   key: string,
   size: number
 ): VideoRangeSource {
+  const blocks: { start: number; bytes: Uint8Array }[] = []
   return {
     size,
     async read(offset, length) {
       if (length <= 0 || offset >= size) return new Uint8Array(0)
-      const end = Math.min(size, offset + length) - 1
-      const res = await fetch(objectUrl(env, key), {
-        headers: { ...authHeaders(env), range: `bytes=${offset}-${end}` },
-        cache: "no-store",
-        signal: AbortSignal.timeout(30_000),
-      })
-      if (res.status !== 206 && res.status !== 200) {
-        throw new Error(`storage_range_${res.status}`)
+      const end = Math.min(size, offset + length)
+      const hit = blocks.find(
+        (b) => b.start <= offset && b.start + b.bytes.byteLength >= end
+      )
+      if (hit) return hit.bytes.subarray(offset - hit.start, end - hit.start)
+      const fetchEnd = Math.min(size, Math.max(end, offset + READ_BLOCK_BYTES))
+      const bytes = await fetchRange(env, key, offset, fetchEnd - 1)
+      if (bytes.byteLength <= READ_BLOCK_BYTES) {
+        blocks.push({ start: offset, bytes })
+        if (blocks.length > CACHED_BLOCKS) blocks.shift()
       }
-      const bytes = new Uint8Array(await res.arrayBuffer())
-      // A server that ignores Range answers 200 with the whole object.
-      return res.status === 200 ? bytes.subarray(offset, end + 1) : bytes
+      return bytes.subarray(0, end - offset)
     },
   }
 }

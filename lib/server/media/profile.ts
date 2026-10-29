@@ -130,17 +130,6 @@ export async function updateOwnProfile(
   return { ok: true }
 }
 
-/** Avatar route URL; the version query changes whenever the photo does. */
-export function avatarUrl(userId: string, avatarPath: string | null) {
-  if (!avatarPath) return null
-  const version =
-    avatarPath
-      .split("/")
-      .pop()
-      ?.replace(/\.webp$/, "") ?? ""
-  return `/api/avatars/${userId}?v=${version}`
-}
-
 /** Signed 60 s URL for a profile photo the caller may read (own, or any as admin). */
 export async function signAvatar(
   actor: MediaActor,
