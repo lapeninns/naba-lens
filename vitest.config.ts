@@ -19,6 +19,7 @@ export default defineConfig({
             "tests/unit/**/*.test.ts",
             "tests/ui/**/*.test.{ts,tsx}",
             "tests/media/**/*.test.ts",
+            "tests/upload/**/*.test.ts",
           ],
           environment: "node",
         },
