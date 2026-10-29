@@ -14,11 +14,13 @@
     "test:integration": "vitest run --project integration",
     "test:e2e": "playwright test",
     "test:security": "node tests/security/run.mjs",
+    "test:lifecycle": "node tests/lifecycle/run.mjs",
     "db:start": "supabase start",
     "db:reset": "supabase db reset",
     "db:types": "supabase gen types typescript --local --schema public > lib/db/types.ts && prettier --write lib/db/types.ts",
     "bootstrap:admin": "tsx scripts/bootstrap-admin.ts",
-    "seed:venues": "tsx scripts/seed-venues.ts"
+    "seed:venues": "tsx scripts/seed-venues.ts",
+    "cleanup": "tsx scripts/cleanup.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
