@@ -93,15 +93,10 @@ export function StaffDirectoryTable({
   className,
   ...actions
 }: StaffDirectoryTableProps) {
-  const portfolioLink = (member: StaffMember, compact = false) => (
+  const portfolioLink = (member: StaffMember) => (
     <Link
       href={getPortfolioHref(member)}
-      className={cn(
-        buttonVariants({
-          variant: "outline",
-          size: compact ? "touch" : "default",
-        })
-      )}
+      className={cn(buttonVariants({ variant: "outline" }))}
       aria-label={`Open ${member.displayName}'s portfolio`}
     >
       Portfolio
@@ -109,28 +104,39 @@ export function StaffDirectoryTable({
   )
 
   return (
-    <div className={className}>
+    <div className={cn("min-w-0", className)}>
       <ul
         aria-label="Staff"
         className="divide-y rounded-lg border bg-card md:hidden"
       >
         {staff.map((member) => (
-          <li key={member.id} className="flex items-center gap-3 px-3 py-3">
-            <ProfileAvatar name={member.displayName} src={member.avatarUrl} />
-            <div className="min-w-0 flex-1">
-              <p className="flex items-center gap-2">
-                <span className="truncate text-sm font-medium">
+          <li
+            key={member.id}
+            className="flex items-center gap-1 py-1 pr-1 pl-3"
+          >
+            <Link
+              href={getPortfolioHref(member)}
+              aria-label={`${member.displayName}, open portfolio`}
+              className="flex min-h-14 min-w-0 flex-1 items-center gap-3 rounded-md py-1.5 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              <ProfileAvatar name={member.displayName} src={member.avatarUrl} />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium">
                   {member.displayName}
                 </span>
-                <StaffStatusBadge status={member.status} className="shrink-0" />
-              </p>
-              <p className="truncate text-xs text-muted-foreground">
-                {[member.jobTitle, member.venueName ?? "No venue"]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </p>
-            </div>
-            {portfolioLink(member, true)}
+                <span className="mt-0.5 flex min-w-0 items-center gap-2">
+                  <StaffStatusBadge
+                    status={member.status}
+                    className="shrink-0"
+                  />
+                  <span className="truncate text-xs text-muted-foreground">
+                    {[member.jobTitle, member.venueName ?? "No venue"]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </span>
+                </span>
+              </span>
+            </Link>
             <RowActions member={member} {...actions} />
           </li>
         ))}
@@ -141,7 +147,7 @@ export function StaffDirectoryTable({
           <TableHeader>
             <TableRow className="hover:bg-transparent">
               <TableHead className="pl-4">Name</TableHead>
-              <TableHead>Job title</TableHead>
+              <TableHead className="hidden lg:table-cell">Job title</TableHead>
               <TableHead>Venue</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="pr-4 text-right">
@@ -152,7 +158,7 @@ export function StaffDirectoryTable({
           <TableBody>
             {staff.map((member) => (
               <TableRow key={member.id}>
-                <TableCell className="py-2.5 pl-4">
+                <TableCell className="max-w-64 py-2.5 pl-4 whitespace-normal">
                   <div className="flex min-w-0 items-center gap-3">
                     <ProfileAvatar
                       name={member.displayName}
@@ -163,18 +169,21 @@ export function StaffDirectoryTable({
                       <p className="truncate font-medium">
                         {member.displayName}
                       </p>
+                      <p className="truncate text-xs text-muted-foreground lg:hidden">
+                        {member.jobTitle ?? "No job title"}
+                      </p>
                       {member.email ? (
-                        <p className="truncate text-xs text-muted-foreground">
+                        <p className="hidden truncate text-xs text-muted-foreground lg:block">
                           {member.email}
                         </p>
                       ) : null}
                     </div>
                   </div>
                 </TableCell>
-                <TableCell className="text-muted-foreground">
+                <TableCell className="hidden text-muted-foreground lg:table-cell">
                   {member.jobTitle ?? "—"}
                 </TableCell>
-                <TableCell>
+                <TableCell className="min-w-32 whitespace-normal">
                   {member.venueName ?? (
                     <span className="text-muted-foreground">No venue</span>
                   )}

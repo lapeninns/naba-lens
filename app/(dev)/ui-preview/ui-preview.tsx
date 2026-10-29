@@ -104,13 +104,14 @@ function Frame({ children }: { children: React.ReactNode }) {
 
 function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme()
+  // Static label: the resolved theme is unknown during server rendering.
   return (
     <Button
       variant="outline"
       size="touch"
       onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
     >
-      Switch to {resolvedTheme === "dark" ? "light" : "dark"} theme
+      Toggle light or dark theme
     </Button>
   )
 }

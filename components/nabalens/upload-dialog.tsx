@@ -336,7 +336,13 @@ export function UploadDialog({
               Retry failed
             </Button>
           ) : summary.selected > 0 ? (
-            <Button size="touch" onClick={queue.start}>
+            <Button
+              size="touch"
+              onClick={() => {
+                setRejected([])
+                queue.start()
+              }}
+            >
               <UploadSimpleIcon data-icon="inline-start" aria-hidden />
               Upload {summary.selected}{" "}
               {summary.selected === 1 ? "file" : "files"}

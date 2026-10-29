@@ -67,7 +67,9 @@ export function useUploadQueue({
 
 /** Object URL for a local file preview, revoked on change/unmount. */
 export function useObjectUrl(file: File | null | undefined): string | null {
-  const [entry, setEntry] = React.useState<{ file: File; url: string } | null>(null)
+  const [entry, setEntry] = React.useState<{ file: File; url: string } | null>(
+    null
+  )
   React.useEffect(() => {
     if (!file || typeof URL.createObjectURL !== "function") return
     const url = URL.createObjectURL(file)

@@ -9,7 +9,10 @@ type ProfileHeaderProps = {
   venueName?: string | null
   /** Shown when the profile has no venue yet (staff cannot upload until set). */
   missingVenueLabel?: string
-  /** Primary and secondary actions, e.g. Upload and Edit profile. */
+  /**
+   * Actions, secondary first and primary last (e.g. Edit profile, then Upload).
+   * On phones the order flips so the primary action sits on top.
+   */
   actions?: React.ReactNode
   /** Extra line under the details, e.g. an "Inactive" status for admin. */
   meta?: React.ReactNode
@@ -33,7 +36,7 @@ export function ProfileHeader({
     <section
       aria-label="Profile"
       className={cn(
-        "flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between",
+        "flex w-full min-w-0 flex-col gap-5 sm:flex-row sm:items-center sm:justify-between",
         className
       )}
     >
@@ -56,7 +59,7 @@ export function ProfileHeader({
         </div>
       </div>
       {actions ? (
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center [&>*]:w-full sm:[&>*]:w-auto">
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center [&>*]:w-full sm:[&>*]:w-auto">
           {actions}
         </div>
       ) : null}
