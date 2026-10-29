@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, expectTypeOf, it } from "vitest"
+
+import type { UploadLimits } from "@/components/nabalens"
 
 import {
   abandonedUploadInterval,
@@ -16,7 +18,7 @@ const MiB = 1024 * 1024
 describe("MEDIA_LIMITS (spec v0.2 §5)", () => {
   it("matches the chosen product limits", () => {
     expect(MEDIA_LIMITS).toEqual({
-      maxFilesPerBatch: 10,
+      maxBatchFiles: 10,
       maxParallelUploads: 2,
       maxPhotoBytes: 20 * MiB,
       maxVideoBytes: 200 * MiB,
@@ -25,6 +27,10 @@ describe("MEDIA_LIMITS (spec v0.2 §5)", () => {
       pageSize: 24,
       abandonedUploadWindowHours: 24,
     })
+  })
+
+  it("can be passed straight to the UI kit's upload limits", () => {
+    expectTypeOf(MEDIA_LIMITS).toExtend<UploadLimits>()
   })
 
   it("picks the per-kind byte limit", () => {

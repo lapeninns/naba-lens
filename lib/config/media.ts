@@ -8,7 +8,7 @@ const MiB = 1024 * 1024
 
 export const MEDIA_LIMITS = {
   /** Files a staff member can add to one upload batch. */
-  maxFilesPerBatch: 10,
+  maxBatchFiles: 10,
   /** Simultaneous transfers per batch. */
   maxParallelUploads: 2,
   /** Largest photo original, in bytes (20 MiB). */
