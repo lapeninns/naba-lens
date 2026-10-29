@@ -40,12 +40,12 @@ export type CreateUploaderOptions = {
   tusAdapters?: TusAdapters
 }
 
-export type Uploader = UploadFn & {
+export type MediaUploader = UploadFn & {
   /** Number of uploads currently in flight (for the beforeunload guard). */
   activeCount(): number
 }
 
-export function createUploader(options: CreateUploaderOptions): Uploader {
+export function createUploader(options: CreateUploaderOptions): MediaUploader {
   const {
     reserve,
     finalise,
@@ -97,6 +97,10 @@ export function createUploader(options: CreateUploaderOptions): Uploader {
         })
       }
       assetId = reservation.assetId
+      uploadOptions.onReserved?.({
+        assetId,
+        resumable: reservation.resumable,
+      })
       if (signal?.aborted) return fail(aborted())
 
       if (reservation.state === "ready") {

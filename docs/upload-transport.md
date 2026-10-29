@@ -54,20 +54,40 @@ A preflight rejection or a cancel emits only `failed`.
 
 `upload.activeCount()` returns the number of uploads in flight.
 
-### With the ui track's `useUploadQueue`
+### With the ui track's upload queue / `UploadDialog`
 
-`toQueueUploader(upload)` adapts the function to the queue's injected
-`Uploader` `(file, { signal, onProgress, onProcessing, resumeToken,
-setResumeToken })`. On the first attempt it creates the idempotency key
-(`crypto.randomUUID()`) and stores it as the queue's resume token, so the
-queue's `retry()` reuses the same asset. Failures reject with a
-`QueueUploadError` whose `.message` is the user-facing text and `.error` holds
-the code. A cancel rejects with `name === "AbortError"`.
+`toQueueUploader(upload, { newKey? })` returns an `Uploader`: exactly the ui
+track's injected type `(file, context: UploadContext) => Promise<void>`. Both
+types are copied verbatim into `lib/upload/types.ts` (lib must not import
+`components/`), and a type test asserts that they match. Pass the result
+straight to `useUploadQueue` / `UploadDialog`:
 
 ```ts
-const uploader = useMemo(() => toQueueUploader(upload), [upload])
-useUploadQueue({ upload: uploader, limits: MEDIA_LIMITS })
+const queueUpload = useMemo(() => toQueueUploader(upload), [upload])
+useUploadQueue({ upload: queueUpload, limits: MEDIA_LIMITS })
 ```
+
+The mapping:
+
+- `context.onProgress` receives the transfer progress (0..1).
+- `context.onProcessing()` fires once, when the bytes are stored and
+  `finalise` starts.
+- `context.signal` is the cancel signal. A cancel rejects with
+  `name === "AbortError"` and never finalises.
+- Resolves when the asset is `ready`. Otherwise it rejects with a
+  `QueueUploadError`: `.message` is the user-facing text and `.error` holds
+  `{ code, retryable }`.
+- Resume token (`QueueResumeToken`): on the first attempt it is set to
+  `{ idempotencyKey }`, where the key comes from `crypto.randomUUID()` by
+  default. Once the server reserves the asset it becomes
+  `{ idempotencyKey, assetId, tusFingerprint? }`. The fingerprint is
+  `nabalens-media:{assetId}` and is set only for TUS transfers. On the queue's
+  `retry()` the same key reserves the same asset, and its fingerprint finds the
+  stored TUS upload URL. The transfer then resumes from the server offset with
+  no duplicate asset.
+
+`upload()` itself also accepts `onReserved({ assetId, resumable })`, which the
+adapter uses to record the asset id.
 
 ### `beforeunload`
 
@@ -171,7 +191,10 @@ killed and restarted mid-transfer; same-key retries creating no second
 reservation or asset; 409 after a lost final response (TUS and signed PUT);
 abort with no finalise and no further chunks; preflight rejections with zero
 network calls; HEIC/MOV recognised by extension when the MIME type is empty;
-the queue adapter keeping one key across retries; and the `beforeunload`
+the queue adapter run through a driver that mimics `UploadQueue` (progress,
+the processing switch, resume token with asset id and fingerprint, a retry
+resuming the same asset, and cancel → `AbortError` → no finalise, then resume);
+and the `beforeunload`
 guard.
 
 **Not verified here:** a real local Supabase Storage. The foundation track owns

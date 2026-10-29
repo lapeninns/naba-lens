@@ -84,6 +84,8 @@ export type UploadOptions = {
   /** Fraction 0..1 of bytes stored. */
   onProgress?: (fraction: number) => void
   onStateChange?: (state: UploadState) => void
+  /** Called once the server has reserved the asset, before the transfer. */
+  onReserved?: (reservation: { assetId: string; resumable: boolean }) => void
   signal?: AbortSignal
 }
 
@@ -98,3 +100,21 @@ export type UploadFn = (
   file: File,
   options: UploadOptions
 ) => Promise<UploadResult>
+
+// Copied verbatim from the ui track's components/nabalens/upload-queue.ts so
+// lib/ never imports from components/. Keep the two in sync.
+
+export type UploadContext = {
+  signal: AbortSignal
+  /** Report transfer progress as a fraction between 0 and 1. */
+  onProgress: (fraction: number) => void
+  /** Call once the bytes are stored and the server is validating them. */
+  onProcessing: () => void
+  /** Token stored by a previous attempt for this file, if any. */
+  resumeToken: unknown
+  setResumeToken: (token: unknown) => void
+  attempt: number
+}
+
+/** Injected upload function. Resolve when the asset is ready; reject on failure. */
+export type Uploader = (file: File, context: UploadContext) => Promise<void>

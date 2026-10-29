@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import {
   createUploader,
   guardBeforeUnload,
-  toQueueUploader,
   type CreateUploaderOptions,
   type UploadState,
 } from "../../lib/upload"
@@ -382,32 +381,6 @@ describe("idempotency", () => {
     expect(result.state).toBe("ready")
     expect(storage.requests.length).toBe(before)
     expect(backend.calls.finalise).toHaveLength(2)
-  })
-
-  it("the queue adapter keeps one idempotency key across retries", async () => {
-    let token: unknown
-    const queueUpload = toQueueUploader(makeUploader({ retryDelays: [] }))
-    const context = () => ({
-      signal: new AbortController().signal,
-      onProgress: () => {},
-      onProcessing: vi.fn(),
-      resumeToken: token,
-      setResumeToken: (t: unknown) => (token = t),
-    })
-
-    storage.fault = (req) =>
-      req.method === "PATCH" && req.offset === CHUNK ? "fail-500" : "pass"
-    await expect(queueUpload(video(), context())).rejects.toThrow(/HTTP 500/)
-    expect(typeof token).toBe("string")
-
-    storage.fault = () => "pass"
-    const ctx = context()
-    await queueUpload(video(), ctx)
-    expect(ctx.onProcessing).toHaveBeenCalledOnce()
-    expect(new Set(backend.calls.reserve.map((r) => r.idempotencyKey))).toEqual(
-      new Set([token])
-    )
-    expect(backend.assets.size).toBe(1)
   })
 })
 
