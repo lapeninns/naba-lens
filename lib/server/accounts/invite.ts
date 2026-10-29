@@ -33,9 +33,10 @@ export function supabaseInviteMailer(service: Db): InviteMailer {
   }
 }
 
-function asError(result: AccountError): InviteOutcome {
-  const { ok: _ok, ...rest } = result
-  return { status: "error", ...rest }
+function asError({ code, error, fieldErrors }: AccountError): InviteOutcome {
+  return fieldErrors
+    ? { status: "error", code, error, fieldErrors }
+    : { status: "error", code, error }
 }
 
 /**
