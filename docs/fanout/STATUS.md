@@ -64,7 +64,10 @@ merge #2. All wave-1 tracks are merged.
   @tus/server 2.4.6 and @tus/file-store 2.1.1. The security track's report of 25 rejected
   entries came from its stale foundation-era lockfile, which was not used.
 - **Worktrees.** The `feat/nl-foundation` and `feat/nl-ui` worktrees were removed after
-  merge #1. All branches are kept.
+  merge #1. The `feat/nl-media`, `feat/nl-transport` and `feat/nl-security` worktrees are
+  clean but were **kept**: each is still the working directory of a live agent session
+  (claude, bash, node REPLs). Run `git worktree remove` on them once those threads are closed.
+  `review-nl-media` is not a merged branch and was not touched. All branches are kept.
 - **Stack restart.** The `nabalens` stack was started from the foundation worktree, so after
   that worktree was removed, Kong's email-template bind mounts pointed at a deleted directory.
   Auth then logged `templatemailer ... 404` and sent no magic links, and the e2e run failed.
