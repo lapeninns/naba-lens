@@ -47,3 +47,6 @@ next-env.d.ts
 # supabase local
 /supabase/.temp/
 /supabase/.branches/
+
+# private QA artefacts (screenshots, traces, logs)
+/.artifacts/
