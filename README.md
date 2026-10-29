@@ -56,11 +56,24 @@ no account is created.
 ```bash
 pnpm typecheck
 pnpm lint
-pnpm test               # unit tests, no services needed
+pnpm test               # unit, UI component, media and upload-transport tests; no services needed
 pnpm test:integration   # RLS/storage/auth tests against the LOCAL stack (separate identities)
 pnpm test:e2e           # Playwright, starts next dev on :3417 (override with E2E_PORT); needs the local stack
+pnpm test:security "$W" # adversarial access suite on an ISOLATED stack, see below
 pnpm build
+node tests/media/benchmark-heic.mjs   # optional: HEIC worker memory benchmark (docs/media-pipeline.md)
 ```
+
+The security suite needs its own stack (project `nabalens-security`, ports 564xx) so it
+never touches the default one:
+
+```bash
+W=$(node tests/security/prepare-stack.mjs)
+supabase --workdir "$W" start && supabase --workdir "$W" db reset
+pnpm test:security "$W"
+```
+
+Details are in `docs/security-tests.md`.
 
 Integration and e2e tests read connection details from `supabase status`, so they
 don't need `.env.local`, and they refuse to run against a non-localhost Supabase URL.
