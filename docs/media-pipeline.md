@@ -27,3 +27,16 @@ serverless deployment and actual browser codec playback are untested.
 
 The shared lib/config/media.ts was created as the explicitly requested ownership
 exception; foundation should preserve the same exported MEDIA_LIMITS names.
+
+probeVideo accepts Uint8Array, a local file path, or VideoRangeSource
+{size, read(offset,length)}. ISO-BMFF reads box headers and skips mdat by length,
+so tail moov is found without downloading 200 MiB. Limits: 4 MiB per read and
+16 MiB total metadata. Oversized metadata fails probe_limit. WebM reads initial
+metadata within 4 MiB and requires a cluster marker. It returns codec identifiers
+and likelyBrowserPlayable; this is a conservative hint, not browser capability
+negotiation. Container tests and malicious-input fuzzing remain required.
+
+Validation attempted: pnpm typecheck, pnpm lint, pnpm test, pnpm build all
+exit 1 at automatic install, with the same minimum release age policy failure.
+Direct node node_modules/typescript/bin/tsc --noEmit exits 2:
+lib/media/index.ts(1,19): TS2307 Cannot find module 'sharp'.
