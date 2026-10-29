@@ -15,7 +15,11 @@ export default defineConfig({
         test: {
           name: "unit",
           // UI component tests opt into jsdom per file (`// @vitest-environment jsdom`).
-          include: ["tests/unit/**/*.test.ts", "tests/ui/**/*.test.{ts,tsx}"],
+          include: [
+            "tests/unit/**/*.test.ts",
+            "tests/ui/**/*.test.{ts,tsx}",
+            "tests/media/**/*.test.ts",
+          ],
           environment: "node",
         },
       },

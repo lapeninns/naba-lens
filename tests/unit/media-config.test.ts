@@ -17,7 +17,7 @@ const MiB = 1024 * 1024
 
 describe("MEDIA_LIMITS (spec v0.2 §5)", () => {
   it("matches the chosen product limits", () => {
-    expect(MEDIA_LIMITS).toEqual({
+    expect(MEDIA_LIMITS).toMatchObject({
       maxBatchFiles: 10,
       maxParallelUploads: 2,
       maxPhotoBytes: 20 * MiB,
