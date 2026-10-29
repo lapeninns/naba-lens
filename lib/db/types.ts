@@ -11,6 +11,7 @@ export type Database = {
     Tables: {
       media_assets: {
         Row: {
+          client_upload_key: string | null
           created_at: string
           deleted_at: string | null
           duration_seconds: number | null
@@ -30,6 +31,7 @@ export type Database = {
           width: number | null
         }
         Insert: {
+          client_upload_key?: string | null
           created_at?: string
           deleted_at?: string | null
           duration_seconds?: number | null
@@ -49,6 +51,7 @@ export type Database = {
           width?: number | null
         }
         Update: {
+          client_upload_key?: string | null
           created_at?: string
           deleted_at?: string | null
           duration_seconds?: number | null
@@ -167,6 +170,7 @@ export type Database = {
       }
       reserve_media_asset: {
         Args: {
+          p_client_upload_key?: string
           p_extension: string
           p_media_type: Database["public"]["Enums"]["media_type"]
           p_original_filename: string
@@ -175,6 +179,8 @@ export type Database = {
         Returns: {
           id: string
           original_path: string
+          reused: boolean
+          upload_state: Database["public"]["Enums"]["upload_state"]
           venue_id: string
         }[]
       }

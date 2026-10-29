@@ -1,17 +1,53 @@
-import { SignOutButton } from "@/app/auth/sign-out-button"
+import { logout } from "@/app/_media/actions"
+import { AppShell } from "@/components/nabalens"
 import { requireActiveAdmin } from "@/lib/auth"
+import { getMediaActor } from "@/lib/server/media/context"
+import {
+  libraryFilterOptions,
+  listLibrary,
+  parseLibraryFilters,
+} from "@/lib/server/media/library"
 
-// PLACEHOLDER (foundation track): replaced by the admin library in wave 2.
-export default async function AdminPage() {
+import { AdminLibrary } from "./admin-library"
+
+export const metadata = { title: "Content · NabaLens" }
+
+/**
+ * Admin library: every ready upload across venues, newest first, filtered by
+ * venue, staff member and type through URL search params (server-side).
+ */
+export default async function AdminPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
   const profile = await requireActiveAdmin()
+  const auth = await getMediaActor("admin")
+  if (!auth.ok) throw new Error("Not authorised.")
+  const filters = parseLibraryFilters(await searchParams)
+  const [options, page] = await Promise.all([
+    libraryFilterOptions(auth.actor),
+    listLibrary(auth.actor, filters),
+  ])
+  if (!page.ok) throw new Error(page.message)
 
   return (
-    <main className="flex min-h-svh flex-col gap-4 p-6">
-      <h1 className="font-heading text-2xl font-semibold">Content</h1>
-      <p className="text-sm text-muted-foreground">
-        Signed in as {profile.displayName}.
-      </p>
-      <SignOutButton />
-    </main>
+    <AppShell
+      variant="admin"
+      active="content"
+      userName={profile.displayName}
+      logoutAction={logout}
+    >
+      <AdminLibrary
+        venues={options.venues}
+        staff={options.staff}
+        filters={{
+          venueId: filters.venueId,
+          staffId: filters.staffId,
+          type: filters.type ?? "all",
+        }}
+        initialPage={{ items: page.items, nextCursor: page.nextCursor }}
+      />
+    </AppShell>
   )
 }
