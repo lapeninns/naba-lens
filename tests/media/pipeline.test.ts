@@ -117,7 +117,7 @@ describe("video", () => {
         width: 320,
         height: 240,
         codec,
-        likelyBrowserPlayable: true,
+        likelyBrowserPlayable: ext !== "mov",
       })
       expect(p.durationSeconds).toBeCloseTo(0.2, 1)
       expect(

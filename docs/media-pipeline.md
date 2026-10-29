@@ -1,132 +1,211 @@
 # Server media pipeline
 
-`lib/media/index.ts` exports pure server functions with no Supabase imports.
-Use the Node runtime, not Edge. Originals are never modified. Call validation
-before marking an asset ready; storage/upload completion alone is insufficient.
+This library processes media in the Node runtime, with no Supabase imports.
+Original bytes are retained unchanged by the caller. Client filenames and MIME
+labels do not establish safe content, and validation is not publication clearance.
 
-## Formats and contracts
+## Upload API: one image decode
 
-- `sniffMedia(bytes)` returns `{kind,mime,ext}` or null. JPEG, PNG, WebP,
-  HEIC/HEIF brands (heic/heix/hevc/hevx/mif1/msf1), MP4, QuickTime MOV and
-  WebM are recognised. Signatures are identification only, not validation.
-- `validateMedia({bytes?,size?,declaredMime,filename}, limits)` returns
-  `{ok:true,kind,mime,ext,size}` or `{ok:false,error}`. Size-only calls return
-  `bytes_required`; supplied size must equal the bytes. Filename is untrusted
-  display metadata and never establishes type. MIME mismatch fails closed;
-  image/heif is an alias for image/heic. Image content is fully decoded;
-  video metadata is probed. HTML, SVG and executables fail regardless of name.
-- `createImageDerivatives(bytes,mime)` returns WebP `preview` (1600px bounding
-  box), `thumb` (480px bounding box) and oriented original width/height.
-  No enlargement, source EXIF/GPS or other source metadata is retained.
-  JPEG orientation is applied by sharp; libheif applies HEIF container transforms
-  while rendering pixels. Animated/multi-image input uses its primary image.
-- `createAvatarDerivative(bytes)` returns a cropped 256×256 WebP Buffer.
-- Image processing rejects above 40 million pixels, photos above 20 MiB and
-  avatars above 5 MiB. Shared defaults are in `lib/config/media.ts`.
-  Derivative functions throw; validation converts failures into an error result.
+For an image upload call `processImage(bytes, declaredMime?)` once. It validates,
+decodes once into oriented raw pixels and builds WebP `preview` (1600px bounding
+box) and `thumb` (480px bounding box), returning width/height and detected MIME.
+Dimensions come from raw decode information, without a full-resolution encode.
+Alternatively, call `validateMedia`: its successful image result already includes
+these derivatives. **Persist that result; do not call createImageDerivatives after
+validation.** The compatibility `createImageDerivatives` wrapper calls processImage
+and is an alternative entry point, not a second upload stage.
 
-## HEIC decoder proof
+`createAvatarDerivative` is a separate profile-photo operation: one decode and a
+cropped 256×256 WebP. sharp operations have a 10-second native processing timeout.
+Only resized WebP output is returned. EXIF (including GPS/Artist), XMP, orientation
+and source ICC metadata do not propagate; tests assert each of these.
 
-Installed policy-compliant dependencies: sharp 0.35.5, heic-decode 2.1.0,
-libheif-js 1.23.5 (transitive), vitest 5.0.5. The decoder imports
-`libheif-js/wasm-bundle`, whose WebAssembly is embedded in JavaScript; it needs
-no system libheif, HEVC-enabled libvips, executable, model download or external
-wasm asset. sharp uses its normal prebuilt platform binary. Package-manager
-platform selection must run on the deployment target; do not copy macOS
-node_modules into Linux. Keep both packages in the server function bundle.
+Limits live in `lib/config/media.ts`: 20 MiB photos, 200 MiB videos, 5 MiB avatars,
+40 million image pixels, decoder deadlines and budgets, worker V8 limits, image
+output sizes and video dimensions. Decode errors are typed `MediaError`; validation
+returns `{ok:false,error}` including pixel_limit, decode_timeout, decoder_busy,
+corrupt_media and VideoProbeError codes such as probe_limit. Oversize and size
+mismatch failures occur before decoding.
 
-`heic-decode.all` exposes dimensions before allocating the RGBA output. We
-reject above the pixel ceiling, decode the primary frame and dispose native
-WASM handles in finally. The image enters sharp as raw RGBA, so no source
-metadata can reach the WebP. A missing decoder is no longer stubbed with
-unsupported_heic_decoder: the installed WASM decoder genuinely works.
+## Detection and declared MIME
 
-Reproduce synthetic fixtures with:
+`sniffMedia` inspects signatures/container brands using Buffer views without copying
+the input. Recognised images: JPEG, PNG, WebP and HEIC/HEIF. HEIC requires a matching
+**major** brand (heic/heix/hevc/hevx/mif1/msf1), matching the decoder's rules. AVIF and
+AVIS are unsupported even when compatible brands include mif1. ftyp parsing skips
+the minor version and reads separate 4-byte compatible brands. Unknown video brands
+are unsupported; QuickTime fallback is permitted only without an ftyp box.
 
-```
-node tests/fixtures/media/generate.mjs
-/usr/bin/time -l node tests/media/benchmark-heic.mjs
-```
+`normalizeDeclaredMime` lowercases, trims and strips parameters. Empty, generic
+binary labels and ambiguous aliases (HEIF/HEIC, image/jpg/pjpeg, QuickTime/M4V) are
+advisory unknowns. Contradictions between recognised unambiguous labels and detected
+content fail; the stored MIME always comes from sniffing and video probing, never
+the browser label. For videos those two results must agree, and validation returns
+the probe's dimensions, duration, codec list and playability hint.
 
-Generation uses sharp for a deterministic 4000×3000 RGB gradient and macOS
-`sips -s format heic`; ffmpeg 9.0.2 makes blue 320×240 H.264 MP4/MOV and VP9
-WebM videos. No downloaded or identifiable-person media is included.
+Signatures identify content; they do not sanitize originals. HTML/SVG/executable
+files presented directly are rejected, including misleading extensions. JPEG/PNG
+with trailing payloads or video free boxes containing other data can still pass.
+The tests explicitly demonstrate this polyglot policy. Derivatives contain newly
+encoded pixels, but original bytes remain untrusted and must be served as below.
 
-Measured on Node v24.16.0, Darwin arm64, 12 MP gradient HEIC (337286 bytes):
-module import 22.40 ms; decode 158.80 ms; process RSS 221462528 bytes;
-OS peak RSS 221954048 bytes; elapsed process time 0.20 seconds. These are one
-cold-process measurement, not throughput or worst-case limits. Initial solid
-colour measurement was 78.88 ms and is superseded by the gradient benchmark.
-Tests additionally decode the sample through validation, avatar and derivatives.
+## HEIC worker lifecycle and measurements
 
-This is a Node/WASM deployability proof on the local host, not a Vercel deployment
-or Linux load test. Configure a Node function with at least 1 GiB memory, a
-30-second processing allowance and one image decode at a time per instance;
-measure the actual deployment before release. Two parallel uploads are a
-transfer setting, not permission for unrestricted parallel decoding. WASM work
-can block the event loop; an external request timeout does not cancel it.
-Adversarial CPU use, retained WASM heap growth, HDR/colour fidelity and physical
-phone orientation need staging tests. Pixel limits are checked after libheif
-has parsed the container, so do not claim a hard process-memory cap.
+Dependencies: sharp 0.35.5; heic-decode 2.1.0; libheif-js 1.23.5 (transitive).
+The embedded WASM bundle needs no system HEVC decoder, ffmpeg or external wasm file.
+The decoder is imported **only inside** `lib/media/heic-worker.mjs`.
 
-## Video range strategy and limits
+Every operation creates a fresh worker_thread, including its own WASM context.
+Only one HEIC worker may run per module instance. A concurrent request returns
+`decoder_busy`; retry through the caller's bounded job scheduling. There is no
+in-memory queue retaining arbitrary upload buffers. The 15-second wall deadline
+covers worker startup, decode and derivatives. The parent awaits termination on
+success, error or timeout before releasing the slot. Decoder stdout/stderr is drained
+without copying attacker-controlled parser diagnostics into application logs.
+Worker resourceLimits are 128 MiB old V8 generation, 16 MiB young generation and
+4 MiB stack. **V8 resourceLimits do not cap WASM linear memory, raw buffers or native
+sharp/libvips memory.** Worker disposal addresses retained decoder contexts; it is
+not an OS hard memory sandbox. Use host memory limits and load testing as well.
 
-`probeVideo` accepts Uint8Array, local path, or `VideoRangeSource`:
-`{size, read(offset,length): Promise<Uint8Array>}`. Supply the full object size
-and exact ranges; concatenated first/last fragments lose offsets and are invalid.
-ISO-BMFF follows box headers, skips mdat by declared length and reads moov
-wherever located, including after a 200 MiB payload. Tests prove this using a
-virtual payload whose read callback throws if payload is requested. At most
-4 MiB per read and 16 MiB aggregate metadata are allowed; larger metadata
-fails `probe_limit`. WebM Info/Tracks must be within the first 4 MiB; a cluster
-marker is required. Large files never require a native ffmpeg process.
+The decoder exposes top-level images but does not expose primary-image identity.
+We process the first top-level image, **not a guaranteed HEIF primary image**.
+Container transforms are handled by libheif's display path; physical-phone rotation,
+HDR/colour fidelity and multi-image primary ordering remain staging coverage gaps.
+Pixel limits are checked after container parse and before output RGBA allocation;
+they do not prove a hard peak memory ceiling for malicious containers.
 
-Result includes MIME, dimensions, duration where present, codec identifiers,
-and `likelyBrowserPlayable`. H.264/AAC, VP8/9, AV1, Opus/Vorbis are likely;
-HEVC and unknown codecs return false. The UI should feature-detect playback
-and show “Preview unavailable in this browser” when needed. This flag cannot
-promise playback on a particular browser, codec profile or device.
-
-Container validation detects malformed/truncated structure and missing metadata,
-but does not decode every video frame or verify every packet/sample offset.
-Corruption inside an otherwise valid mdat/cluster can escape metadata probing.
-Full bitstream validation/transcoding requires a separate bounded processing
-solution; do not describe this probe as complete video integrity certification.
-
-## Verification and integration
-
-`pnpm install --frozen-lockfile` passes after rebasing on the policy fix (CI=true
-was needed to permit replacing this worktree's old node_modules without a TTY).
-No release-age policy was bypassed. `pnpm add sharp heic-decode` and
-`pnpm add -D vitest` succeed. Unit tests cover valid images/video, disguised,
-unsupported, MIME mismatch, oversized, corrupt/truncated inputs, metadata stripping,
-orientation, avatar dimensions, HEIC output and bounded video range reads.
-
-No browser journey applies to this server library: e2e is NOT_APPLICABLE.
-Actual phone capture/playback, hosted storage, Linux/serverless execution and
-UI integration are NOT_RUN. The app build currently contains only the starter
-routes, so its success does not demonstrate upload-to-library integration.
-
-Ownership exceptions explicitly requested by the brief: shared MEDIA_LIMITS
-file, minimal vitest config and test script/dependencies, and this document.
-Foundation should reconcile those files without dropping exports or media tests.
-
-Final local checks (2026-10-29, feat/nl-media):
+Reproduce fixtures with `node tests/fixtures/media/generate.mjs` (macOS sips + sharp)
+and `node tests/fixtures/media/review-generate.mjs` (local ffmpeg). All inputs are
+synthetic gradients/colour frames, with no identifiable people. Run the worker
+memory regression and print measurements with:
 
 ```
-CI=true pnpm install --frozen-lockfile
-# Lockfile passes supply-chain policies; Already up to date; exit 0
+node tests/media/benchmark-heic.mjs
+# invokes vitest run tests/media/heic-memory.test.ts --disableConsoleIntercept --silent=false
+```
+
+Measured 2026-10-29 on Node v24.16.0, Darwin arm64, one test process. Times include
+worker startup, one HEIC decode, both derivatives, result delivery and termination.
+RSS is sampled every 5 ms; peaks can miss shorter spikes. These replace the earlier
+in-process decoder measurements and the unsupported 1 GiB sizing claim.
+
+| Scenario | Input bytes | Count | Total ms | Starting RSS bytes | Sampled peak RSS bytes | Ending RSS bytes |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 12 MP (4000×3000) | 337286 | 1 | 336 | 86294528 | 359251968 | 281690112 |
+| 39 MP (7500×5200) | 1083818 | 1 | 757 | 281706496 | 690929664 | 461307904 |
+| Sequential 12 MP | 337286 | 30 | 11077 | 461307904 | 599752704 | 512851968 |
+| Malformed HEIC-branded garbage | 19922944 | 100 | 8215 | 512851968 | 649904128 | 524730368 |
+
+The memory regression bounds peak growth for a single 12 MP operation below 512 MiB,
+39 MP below 1 GiB, and ending RSS growth for each repeated/failure series below
+384 MiB. These broad allocator tolerances catch the prior multi-GB retention;
+they are test thresholds, not a promise about all hosts/files. Native allocators
+retain memory after workers exit, so zero RSS growth is not expected.
+
+Start staging with a 2 GiB Node function, one decode at a time and a host timeout
+longer than the 15-second worker deadline. This is a measurement-led staging
+starting point, not a certified production minimum. Limits are per module instance;
+multiple server processes/instances each have their own slot.
+
+Deployment must include the unbundled heic-worker.mjs and its resolvable heic-decode
+and sharp dependencies. Next/Vercel integration must explicitly trace/include the
+worker (for example outputFileTracingIncludes) and smoke-test worker startup in the
+deployed Linux function. Do not copy macOS node_modules into Linux. This library's
+starter app build does not exercise a hosted media route, so hosted worker packaging
+and Linux memory/load tests are NOT_RUN and remain release requirements.
+
+## Video validation by ranges
+
+`validateMedia({source, declaredMime, filename, size?})` accepts a local path or
+`VideoRangeSource {size,read(offset,length)}`. It reads at most the first 64 KiB for
+sniffing, then uses the same source for probing. Whole-file Uint8Array input remains
+supported through zero-copy views. Images still require their complete bytes.
+Size-only requests return bytes_required and never approve content.
+
+Use stable object size/content for the lifetime of a probe; paths must be trusted
+server-generated local paths. Source adapters need their own network timeouts.
+Never concatenate first/last fragments: range offsets must refer to the full object.
+ISO-BMFF follows headers and skips mdat to find moov at the tail. Tests send a full
+200 MiB virtual source and a sparse local file through validation, return dimensions,
+and assert fewer than 12 reads and 100 KB transferred for that test source.
+Probe budgets: 4 MiB per read, 16 MiB aggregate, 96 requests, 64 top-level boxes.
+Validation adds one head read. WebM metadata must be within the initial 4 MiB;
+out-of-budget metadata returns probe_limit. Corruption of media packets can escape
+metadata probing: this does not certify complete bitstream integrity.
+
+Only enabled video/audio tracks participate. Dimensions come from the first enabled
+video track and tkhd orthogonal rotation is applied; unsupported transforms fail.
+Metadata/disabled poster tracks do not change codecs or dimensions. WebM dimensions
+must be positive and at most 32768; larger values fail rather than overflow DB fields.
+Fragmented MP4 and zero/unknown movie duration return undefined.
+
+`likelyBrowserPlayable` is deliberately narrow: MP4 with baseline/main H.264, or
+High with explicit 8-bit 4:2:0 AVC configuration, level ≤5.1, and accompanying AAC;
+WebM VP8/VP9 with Opus/Vorbis. QuickTime, HEVC, AV1, other profiles/codecs and uncertain
+configurations return false. This can produce false negatives for capable browsers.
+**The UI decides using canPlayType and the video element's onerror**, offering
+“Preview unavailable in this browser” plus an authorised original download.
+No universal transcoding or guaranteed cross-browser playback is claimed.
+
+## Requirements for download/sign routes
+
+These routes belong to the integration track. Before serving any original:
+
+- Authorise the current caller and asset; use only ready, non-deleted validated media.
+- Set `Content-Type` from persisted validated MIME, never the client label/filename.
+- Set `Content-Disposition: attachment` with safely encoded/sanitized filenames.
+- Set `X-Content-Type-Options: nosniff`. Do not render originals as HTML or serve
+  attacker-supplied Content-Type/disposition parameters.
+- A signed URL must enforce attachment and validated Content-Type at the storage
+  response. Verify nosniff at the actual response; if storage cannot enforce all
+  required headers, proxy the download through an authorised route that can.
+- Keep responses private and use the shared short signing TTL. Derivative preview
+  access still requires authorisation; a sanitized derivative does not make it public.
+
+These are required integration contracts, not claims that routes or provider headers
+have been implemented or deployed in this library track.
+
+## Verification scope
+
+Deterministic tests cover worker recycling/concurrency/deadline recovery, memory
+regression, single-entry processing, metadata stripping, MIME aliases/contradictions,
+major/minor brand parsing, polyglots, range/path validation, rotation and enabled
+tracks, fMP4 unknown duration, real locally generated HEVC MOV, absent WebM Duration,
+metadata budgets, dimension overflow and the original valid/corrupt/truncated cases.
+Physical iPhone samples and hosted Linux execution are NOT_RUN. No applicable browser
+journey exists in this server library; e2e is NOT_APPLICABLE per qa-with-e2e guidance.
+Shared config and this document are the explicitly requested ownership exceptions.
+
+## Review remediation and final local checks
+
+Review findings 1–4, 6, 8–11 are fixed in the library. Finding 5 is documented
+accurately with mandatory response-header requirements for the route-owning track;
+trailing-payload rejection was optional and is not implemented. Finding 7 now uses
+HEIC major brands and explicitly documents first-top-level-image behaviour rather
+than claiming primary-image selection. Finding 12 has regression coverage including
+real synthetic HEVC; physical iPhone footage remains NOT_RUN.
+
+Final command output (2026-10-29, feat/nl-media):
+
+```
 pnpm typecheck
-# tsc --noEmit; exit 0
+$ tsc --noEmit
+# exit 0
 pnpm lint
-# eslint; exit 0
+$ eslint
+# exit 0
 pnpm test
-# Test Files 2 passed (2); Tests 20 passed (20); exit 0
+Test Files 5 passed (5)
+Tests 41 passed (41)
+Duration 26.41s
+# exit 0
 pnpm build
-# Compiled successfully; Finished TypeScript; static pages 4/4; exit 0
+Compiled successfully in 445ms
+Finished TypeScript in 1411ms
+Generating static pages ... 4/4
+# exit 0
 git diff --check
 # no output; exit 0
 ```
 
-The HEVC fallback test alters a sample-description codec label; it tests the
-fallback policy only and is not an actual HEVC bitstream playback fixture.
+No provider mutation, push, PR, merge or deployment was performed.

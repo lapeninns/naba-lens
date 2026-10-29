@@ -37,3 +37,35 @@ for (const [ext, args] of [
     "-loglevel",
     "error",
   ])
+
+// 39 MP gradient fixture, still below the shared 40 MP pixel ceiling.
+const largeWidth = 7500,
+  largeHeight = 5200
+const large = Buffer.alloc(largeWidth * largeHeight * 3)
+for (let y = 0; y < largeHeight; y++)
+  for (let x = 0; x < largeWidth; x++) {
+    const i = (y * largeWidth + x) * 3
+    large[i] = x % 256
+    large[i + 1] = y % 256
+    large[i + 2] = (x + y) % 256
+  }
+const { mkdtemp, rm } = await import("node:fs/promises")
+const { tmpdir } = await import("node:os")
+const temporary = await mkdtemp(tmpdir() + "/nabalens-media-")
+try {
+  await sharp(large, {
+    raw: { width: largeWidth, height: largeHeight, channels: 3 },
+  })
+    .png()
+    .toFile(temporary + "/39mp.png")
+  execFileSync("sips", [
+    "-s",
+    "format",
+    "heic",
+    temporary + "/39mp.png",
+    "--out",
+    dir + "synthetic-39mp.heic",
+  ])
+} finally {
+  await rm(temporary, { recursive: true, force: true })
+}
