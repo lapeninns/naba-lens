@@ -255,7 +255,8 @@ function parseMoov(bytes: Uint8Array, result: VideoProbe): boolean {
       matrix: number[] | undefined
     let descriptions: Uint8Array | undefined
     const walk = (data: Uint8Array, depth = 0) => {
-      if (depth > 8) invalid("Excessive box nesting")
+      if (depth > MEDIA_LIMITS.maxContainerDepth)
+        invalid("Excessive box nesting")
       boxes(data, (type, body) => {
         if (type === "tkhd") {
           if (body.length < 4 || (body[0] !== 0 && body[0] !== 1))
@@ -395,9 +396,11 @@ function probeWebm(bytes: Uint8Array, total: number): VideoProbe {
   }
   const tracks: Track[] = []
   const walk = (start: number, end: number, depth: number, track?: Track) => {
-    if (depth > 8) invalid("Excessive EBML nesting")
+    if (depth > MEDIA_LIMITS.maxContainerDepth)
+      invalid("Excessive EBML nesting")
     for (let offset = start; offset < end;) {
-      if (++elements > 20000) invalid("Too many EBML elements")
+      if (++elements > MEDIA_LIMITS.maxEbmlElements)
+        invalid("Too many EBML elements")
       const id = vint(offset, true),
         size = vint(offset + id.length)
       const begin = offset + id.length + size.length
