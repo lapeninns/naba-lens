@@ -34,7 +34,7 @@ async function latestSignInLink(email: string): Promise<string> {
 
 async function requestLink(page: Page, email: string) {
   await page.goto("/login")
-  await page.getByLabel("Work email").fill(email)
+  await page.getByLabel("Email").fill(email)
   await page.getByRole("button", { name: "Send sign-in link" }).click()
   await expect(
     page.getByRole("heading", { name: "Check your email" })
@@ -128,8 +128,8 @@ test.describe("authentication and role routing", () => {
     await page.context().clearCookies()
     await openLink(page, link, baseURL!)
     await expect(page).toHaveURL(/\/login\?error=link_invalid$/)
-    await expect(page.getByText(/expired or was already used/)).toBeVisible()
-    await expect(page.getByLabel("Work email")).toBeVisible()
+    await expect(page.getByText(/sign-in link has expired/)).toBeVisible()
+    await expect(page.getByLabel("Email")).toBeVisible()
   })
 
   test("a deactivated account is blocked, even with an existing session", async ({

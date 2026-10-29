@@ -37,7 +37,7 @@ At `06d6040` (base of `feat/nabalens-mvp`):
 
 | Spec / contract name                      | Real path                                                                                                               |
 | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `/login`                                  | `app/login/page.tsx`, `login-form.tsx`, `actions.ts` (Server Function `requestSignInLink`)                              |
+| `/login`                                  | `app/login/page.tsx` (renders `LoginCard`), `actions.ts` (Server Function `requestSignInLink`)                            |
 | Auth callback / confirm                   | `app/auth/confirm/route.ts` (token_hash; used by our templates), `app/auth/callback/route.ts` (PKCE `code` fallback)    |
 | Logout                                    | `app/auth/logout/route.ts` (POST) + `app/auth/sign-out-button.tsx`                                                      |
 | Blocked account page                      | `app/auth/blocked/page.tsx` (`/auth/blocked`)                                                                           |
