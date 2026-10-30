@@ -79,7 +79,11 @@ export function ProvenanceCard({ version, className }: ProvenanceCardProps) {
   if (source.notes) {
     rows.push({
       term: "Source notes",
-      value: <span className="whitespace-pre-line">{source.notes}</span>,
+      value: (
+        <span className="[overflow-wrap:anywhere] whitespace-pre-line">
+          {source.notes}
+        </span>
+      ),
     })
   }
   rows.push(

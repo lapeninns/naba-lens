@@ -58,12 +58,17 @@ export function AppShell(props: AppShellProps) {
         Skip to content
       </a>
       <header className="border-b bg-background">
-        <div className="mx-auto flex h-14 w-full max-w-7xl items-center gap-2 px-4 sm:gap-6 sm:px-6">
+        {/* Phones: the admin sections wrap onto their own full-width row (three
+            sections plus Log out do not fit beside the wordmark at 360px). */}
+        <div className="mx-auto flex min-h-14 w-full max-w-7xl flex-wrap items-center gap-x-2 px-4 sm:h-14 sm:flex-nowrap sm:gap-6 sm:px-6">
           <span className="text-base font-semibold tracking-tight">
             NabaLens
           </span>
           {props.variant === "admin" ? (
-            <nav aria-label="Admin" className="flex min-w-0 items-center gap-1">
+            <nav
+              aria-label="Admin"
+              className="order-last -mx-4 flex w-[calc(100%+2rem)] min-w-0 items-center gap-1 border-t px-3 sm:order-none sm:mx-0 sm:w-auto sm:border-t-0 sm:px-0"
+            >
               {NAV.map((item) => {
                 const current = props.active === item.id
                 return (
