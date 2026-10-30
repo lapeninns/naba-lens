@@ -1,10 +1,22 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+} from "@testing-library/react"
+import type * as React from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { filtersToSearch } from "@/app/admin/library-search"
 import { MediaGallery, type LoadPage } from "@/app/_media/media-gallery"
-import { parseMediaRoute, versioned } from "@/app/_media/preview-recovery"
+import {
+  parseMediaRoute,
+  usePreviewRecovery,
+  versioned,
+} from "@/app/_media/preview-recovery"
 import {
   EMPTY_LIBRARY_FILTERS,
   type LibraryFilterValue,
@@ -85,10 +97,11 @@ describe("preview route URLs", () => {
     expect(parseMediaRoute(`/api/media/${ID_A}/thumb`)).toEqual({
       id: ID_A,
       slot: "thumb",
+      version: 0,
     })
     expect(
       parseMediaRoute(`http://127.0.0.1:3000/api/media/${ID_A}/stream?r=2`)
-    ).toEqual({ id: ID_A, slot: "stream" })
+    ).toEqual({ id: ID_A, slot: "stream", version: 2 })
     expect(parseMediaRoute(`/api/media/${ID_A}/download`)).toBeNull()
     expect(parseMediaRoute("https://storage.example/x/thumb")).toBeNull()
     expect(parseMediaRoute(null)).toBeNull()
@@ -162,6 +175,29 @@ describe("signed-URL recovery", () => {
       `/api/media/${ID_B}/thumb`
     )
     vi.restoreAllMocks()
+  })
+
+  it("counts each URL version once (mount scan + a late event, or a stale URL)", () => {
+    const { result } = renderHook(() => usePreviewRecovery([item(ID_A)]))
+    const errorFrom = (src: string) => {
+      const img = document.createElement("img")
+      img.setAttribute("src", src)
+      act(() => {
+        result.current.onError({
+          target: img,
+        } as unknown as React.SyntheticEvent<HTMLElement>)
+      })
+    }
+    const thumb = () => result.current.display[0].thumbnailUrl
+    errorFrom(`/api/media/${ID_A}/thumb`)
+    expect(thumb()).toBe(`/api/media/${ID_A}/thumb?r=1`)
+    // The same first failure reported again: ignored, no broken state.
+    errorFrom(`/api/media/${ID_A}/thumb`)
+    expect(result.current.brokenCount).toBe(0)
+    expect(thumb()).toBe(`/api/media/${ID_A}/thumb?r=1`)
+    // The re-signed URL failing is the second failure.
+    errorFrom(`/api/media/${ID_A}/thumb?r=1`)
+    expect(result.current.brokenCount).toBe(1)
   })
 
   it("recovers the viewer's preview the same way", async () => {

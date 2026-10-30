@@ -35,20 +35,28 @@ type SlotState = { version: number; retried: boolean; broken: boolean }
 const ROUTE =
   /^\/api\/media\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/(thumb|preview|stream)$/i
 
-/** `{ id, slot }` for a gallery media route URL (relative or absolute), else null. */
+/**
+ * `{ id, slot, version }` for a gallery media route URL (relative or absolute),
+ * else null. `version` is the `?r=` re-sign marker, 0 when absent.
+ */
 export function parseMediaRoute(
   src: string | null | undefined
-): { id: string; slot: PreviewSlot } | null {
+): { id: string; slot: PreviewSlot; version: number } | null {
   if (!src) return null
-  let path: string
+  let url: URL
   try {
-    path = new URL(src, "http://local.invalid").pathname
+    url = new URL(src, "http://local.invalid")
   } catch {
     return null
   }
-  const match = ROUTE.exec(path)
+  const match = ROUTE.exec(url.pathname)
   if (!match) return null
-  return { id: match[1].toLowerCase(), slot: match[2] as PreviewSlot }
+  const r = url.searchParams.get("r")
+  return {
+    id: match[1].toLowerCase(),
+    slot: match[2] as PreviewSlot,
+    version: r && /^\d+$/.test(r) ? Number(r) : 0,
+  }
 }
 
 /** The route URL with a re-sign marker; version 0 is the plain URL. */
@@ -96,7 +104,10 @@ export function usePreviewRecovery(items: MediaItem[]): PreviewRecovery {
     const k = key(route.id, route.slot)
     setSlots((current) => {
       const slot = current[k] ?? { version: 0, retried: false, broken: false }
-      if (slot.broken) return current
+      // Count each URL version once: the mount scan and a late React event
+      // can both report the same failed load, and an event from a replaced
+      // URL is stale.
+      if (slot.broken || route.version !== slot.version) return current
       const next = slot.retried
         ? { ...slot, broken: true }
         : { version: slot.version + 1, retried: true, broken: false }
