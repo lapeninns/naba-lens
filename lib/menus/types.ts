@@ -87,7 +87,10 @@ export type SourceMetaValue = string | number | boolean | null | string[]
 export type SourceMeta = Record<string, SourceMetaValue>
 
 export type MenuDocVariant = {
-  /** Stable menu_variants.id, or null for "new / match by name in this item". */
+  /**
+   * Stable menu_variants.id, or null = create a NEW variant (amendment A1:
+   * the database never matches by name; matchImportToBase fills ids).
+   */
   variantId: string | null
   name: string
 }
@@ -99,7 +102,11 @@ export type MenuDocReview = {
 }
 
 export type MenuDocItem = {
-  /** Stable menu_items.id, or null for a new item (see save_menu_draft). */
+  /**
+   * Stable menu_items.id, or null = create a NEW item (amendment A1: the
+   * database never reuses an item by source key or name; the import matcher
+   * and the editor carry ids forward explicitly).
+   */
   itemId: string | null
   sourceKey: string
   name: string
@@ -337,6 +344,7 @@ export type SaveLabelsErrorCode =
   | "not_found"
   | "forbidden"
   | "invalid"
+  | "catalogue_changed"
   | "unavailable"
 
 export type SaveLabelsResult =
