@@ -171,7 +171,8 @@ export function MediaViewer({
               ))}
             </dl>
             {downloadable || getPortfolioHref || onDelete ? (
-              <DialogFooter className="mx-0 mb-0 sm:justify-between">
+              // Sticky so Delete/Download stay on screen below a tall preview.
+              <DialogFooter className="sticky bottom-0 mx-0 mb-0 bg-popover sm:justify-between">
                 {onDelete ? (
                   <Button
                     variant="destructive"

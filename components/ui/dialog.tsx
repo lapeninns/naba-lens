@@ -65,7 +65,8 @@ function DialogContent({
             render={
               <Button
                 variant="ghost"
-                className="absolute top-2 right-2"
+                // 44px touch target on phones, compact from sm up.
+                className="absolute top-1 right-1 size-11 sm:top-2 sm:right-2 sm:size-7"
                 size="icon-sm"
               />
             }

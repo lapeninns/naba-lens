@@ -57,7 +57,12 @@ export function OptionSelect({
       <SelectTrigger
         id={id}
         aria-invalid={invalid || undefined}
-        className={cn("h-11 w-full sm:h-9", className)}
+        // The trigger sizes itself with data-[size=default]:h-8, which beats a
+        // plain h-* class; override at the same specificity (44px on phones).
+        className={cn(
+          "w-full data-[size=default]:h-11 sm:data-[size=default]:h-9",
+          className
+        )}
         {...aria}
       >
         <SelectValue placeholder={placeholder} />

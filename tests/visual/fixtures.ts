@@ -49,8 +49,12 @@ function check<T>(result: { data: T; error: unknown }): NonNullable<T> {
   return result.data as NonNullable<T>
 }
 
-async function venue(db: Db, name: string, suffix: string) {
-  const slug = `dev-fixture-visual-${name.length > 40 ? "long" : "a"}-${suffix}`
+async function venue(db: Db, name: string, slug: string) {
+  // Names are unique (case-insensitive); the long-name venue is shared by runs.
+  const existing = check(
+    await db.from("venues").select("id, name").ilike("name", name).maybeSingle()
+  )
+  if (existing) return existing
   return check(
     await db
       .from("venues")
@@ -72,7 +76,12 @@ async function person(
   suffix: string
 ): Promise<VisualPerson> {
   const email = `visual-${opts.label}-${suffix}@nabalens.test`
-  const created = await db.auth.admin.createUser({ email, email_confirm: true })
+  // Local auth answers 504 "please retry" when many stacks share the machine.
+  // Retry that fixture step only; nothing under test is retried.
+  let created = await db.auth.admin.createUser({ email, email_confirm: true })
+  for (let i = 0; created.error?.status === 504 && i < 3; i++) {
+    created = await db.auth.admin.createUser({ email, email_confirm: true })
+  }
   if (created.error) throw created.error
   const id = created.data.user.id
   check(
@@ -222,13 +231,13 @@ export async function seedVisualFixtures(): Promise<VisualFixtures> {
   const mainVenue = await venue(
     db,
     `DEV FIXTURE Visual Venue ${suffix}`,
-    suffix
+    `dev-fixture-visual-${suffix}`
   )
-  const longVenue = await venue(db, LONG_VENUE, suffix)
+  const longVenue = await venue(db, LONG_VENUE, "dev-fixture-visual-long-venue")
   const pausedVenue = await venue(
     db,
     `DEV FIXTURE Paused Venue ${suffix}`,
-    `${suffix}-p`
+    `dev-fixture-visual-paused-${suffix}`
   )
 
   const admin = await person(

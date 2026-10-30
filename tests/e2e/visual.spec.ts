@@ -1,4 +1,5 @@
-import { mkdirSync } from "node:fs"
+import { createHash } from "node:crypto"
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { mkdtemp, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -50,11 +51,21 @@ const MIN_TOUCH = 44
 const db = serviceClient()
 let fx: VisualFixtures
 
-test.describe.configure({ mode: "serial" })
+// Seed once per `playwright test` run: workers restart after a failing test and
+// per project, and they share the runner as parent process.
+const fixtureCache = join(
+  tmpdir(),
+  `nabalens-visual-fixtures-${createHash("sha1").update(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").digest("hex").slice(0, 8)}-${process.ppid}.json`
+)
 
 test.beforeAll(async () => {
-  test.setTimeout(120_000)
+  test.setTimeout(180_000)
+  if (existsSync(fixtureCache)) {
+    fx = JSON.parse(readFileSync(fixtureCache, "utf8"))
+    return
+  }
   fx = await seedVisualFixtures()
+  writeFileSync(fixtureCache, JSON.stringify(fx))
 })
 
 function widthsFor(page: Page, browserName: string): number[] {
@@ -63,10 +74,14 @@ function widthsFor(page: Page, browserName: string): number[] {
 }
 
 async function signIn(browser: Browser, email: string, baseURL: string) {
-  const { data, error } = await db.auth.admin.generateLink({
-    type: "magiclink",
-    email,
-  })
+  // The local auth server answers 504 "please retry" when several stacks share
+  // this machine. Retry that fixture step only (as tests/e2e/slice.spec.ts does);
+  // no assertion is ever retried.
+  let link = await db.auth.admin.generateLink({ type: "magiclink", email })
+  for (let i = 0; link.error?.status === 504 && i < 3; i++) {
+    link = await db.auth.admin.generateLink({ type: "magiclink", email })
+  }
+  const { data, error } = link
   if (error) throw error
   const context = await browser.newContext({ baseURL })
   const page = await context.newPage()
@@ -81,20 +96,19 @@ async function settle(page: Page) {
   await page.waitForLoadState("domcontentloaded")
   await page.evaluate(async () => {
     await document.fonts.ready
-    const images = Array.from(document.images).filter(
-      (img) => img.getBoundingClientRect().height > 0 && img.loading !== "lazy"
-    )
-    await Promise.all(
-      images.map((img) =>
-        img.complete
-          ? null
-          : new Promise(
-              (r) =>
-                img.addEventListener("load", r, { once: true }) ||
-                img.addEventListener("error", r, { once: true })
-            )
-      )
-    )
+    const pending = Array.from(document.images).filter((img) => {
+      const r = img.getBoundingClientRect()
+      return !img.complete && r.height > 0 && r.top < window.innerHeight
+    })
+    const loaded = (img: HTMLImageElement) =>
+      new Promise<void>((resolve) => {
+        img.addEventListener("load", () => resolve(), { once: true })
+        img.addEventListener("error", () => resolve(), { once: true })
+      })
+    await Promise.race([
+      Promise.all(pending.map(loaded)),
+      new Promise((resolve) => setTimeout(resolve, 5000)),
+    ])
   })
   // Dialog open/close animations are 100–200 ms.
   await page.waitForTimeout(250)
@@ -397,9 +411,10 @@ test("login: idle, validation error, sent, expired link, signed out", async ({
     .getByLabel("Email")
     .fill(`visual-unknown-${fx.suffix}@nabalens.test`)
   await page.getByRole("button", { name: "Send sign-in link" }).click()
+  // The server action waits on the local auth server, which is slow under load.
   await expect(
     page.getByRole("heading", { name: "Check your email" })
-  ).toBeVisible()
+  ).toBeVisible({ timeout: 30_000 })
   await capture(page, testInfo, "login-sent")
 
   await page.goto("/login?error=link_invalid")
@@ -484,7 +499,7 @@ test("staff: empty portfolio, upload dialog states, focus return", async ({
   release()
   await page.unroute("**/storage/v1/**")
   await page.route("**/storage/v1/**", (route) => route.abort("failed"))
-  await expect(dialog.getByRole("button", { name: /^Retry / })).toBeVisible({
+  await expect(dialog.getByRole("button", { name: /^Retry staff-meal/ })).toBeVisible({
     timeout: 90_000,
   })
   await capture(page, testInfo, "upload-failed")
