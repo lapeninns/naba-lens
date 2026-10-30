@@ -23,11 +23,13 @@ type MediaTileProps = {
 }
 
 function describe(item: MediaItem, showAttribution: boolean) {
-  const parts = [item.mediaType === "video" ? "Video" : "Photo"]
+  const parts = [
+    item.mediaType === "video" ? "Video" : "Photo",
+    item.originalFilename,
+  ]
   // The visible duration badge must be part of the accessible name (WCAG 2.5.3).
   if (item.mediaType === "video" && item.durationSeconds)
     parts.push(formatDuration(item.durationSeconds))
-  parts.push(item.originalFilename)
   if (showAttribution) parts.push(`by ${item.contributorName}`, item.venueName)
   parts.push(`uploaded ${formatDate(item.createdAt)}`)
   if (item.uploadState !== "ready")

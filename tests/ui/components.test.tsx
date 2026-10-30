@@ -71,7 +71,7 @@ describe("MediaGrid and EmptyState", () => {
   it("renders keyboard-focusable tiles with a video badge and opens on Enter", async () => {
     const onOpen = vi.fn()
     render(<MediaGrid label="Library" items={[item]} onOpen={onOpen} showAttribution />)
-    const tile = screen.getByRole("button", { name: /Video, clip\.mov, by Test contributor/ })
+    const tile = screen.getByRole("button", { name: /Video, clip\.mov, 0:42, by Test contributor/ })
     expect(screen.getByText("0:42")).toBeTruthy()
     tile.focus()
     await userEvent.keyboard("{Enter}")

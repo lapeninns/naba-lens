@@ -397,12 +397,6 @@ async function useDark(page: Page) {
   await expect(page.locator("html")).toHaveClass(/dark/)
 }
 
-async function useLight(page: Page) {
-  await page.emulateMedia({ colorScheme: "light" })
-  await page.reload()
-  await expect(page.locator("html")).not.toHaveClass(/dark/)
-}
-
 /** The previewed image keeps its aspect ratio and fits inside the viewport. */
 async function expectWholeImage(page: Page, label: string) {
   const img = page.getByRole("dialog").locator("img").first()
