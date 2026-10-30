@@ -29,8 +29,8 @@ export function AdminPortfolio({
     [staffId]
   )
   const refreshPage = React.useCallback(
-    (signal: AbortSignal) =>
-      fetchMediaPage("/api/library", { staff: staffId }, signal),
+    (signal: AbortSignal, cursor?: string | null) =>
+      fetchMediaPage("/api/library", { staff: staffId, cursor }, signal),
     [staffId]
   )
   return (

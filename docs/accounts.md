@@ -54,10 +54,13 @@ Function reached by a direct POST is refused even if the page was never rendered
      step 4.
    - **No profile, some other auth user** → refused. Ask the system owner.
 3. `auth.admin.createUser({ email_confirm: false })`. This sends no email. A
-   concurrent duplicate fails here with `email_exists`, so two parallel invites create
-   one account.
-4. Insert the `staff` profile. On failure the new auth user is deleted again. If that
-   delete also fails, step 2 adopts the user on retry.
+   concurrent create fails here with `email_exists`; a request that sees the newly
+   created user before its profile exists may adopt it through step 2.
+4. Insert the `staff` profile. On failure the marked auth user is retained so a
+   retry can adopt it through step 2. The unique profile ID lets only one request
+   create the profile. A failed request never deletes the Auth user, because a
+   concurrent invitation may already have adopted it. Without a profile the user
+   has no application access; no email is sent by the failed request.
 5. `auth.admin.inviteUserByEmail(email)` sends the invite template
    (`supabase/templates/invite.html`). Its link is
    `/auth/confirm?token_hash=…&type=invite`, which shows "Accept your invitation" with a

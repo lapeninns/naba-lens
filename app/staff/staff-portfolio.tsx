@@ -35,8 +35,8 @@ type StaffPortfolioProps = {
 }
 
 /** Abortable foreground refresh of the own portfolio (see MediaGallery). */
-function refreshMyMedia(signal: AbortSignal) {
-  return fetchMediaPage("/api/portfolio", {}, signal)
+function refreshMyMedia(signal: AbortSignal, cursor?: string | null) {
+  return fetchMediaPage("/api/portfolio", { cursor }, signal)
 }
 
 async function saveProfile(values: ProfileFormValues): Promise<ActionResult> {

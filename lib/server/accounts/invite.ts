@@ -46,10 +46,11 @@ function asError({ code, error, fieldErrors }: AccountError): InviteOutcome {
 /**
  * Invites a new STAFF member (never an admin). Steps, each recoverable:
  *
- * 1. Create the auth user without sending email. A duplicate address fails here,
- *    before anything is written, so two concurrent invites cannot both succeed.
- * 2. Insert the `staff` profile. If that fails, the new auth user is deleted
- *    again; if even that fails, the user is marked as ours and a retry adopts it.
+ * 1. Create the auth user without sending email, or adopt a marked invitation
+ *    left without a profile by an earlier attempt.
+ * 2. Insert the `staff` profile. If that fails, keep the marked auth user for a
+ *    retry. Another request may already have adopted it, so this request must
+ *    never delete it. The unique profile ID lets only one insertion succeed.
  * 3. Send the invitation email. If sending fails, the account stays (shown as
  *    Invited) and the result is `partial`, never `sent`: "Resend invitation"
  *    recovers it.
@@ -74,7 +75,6 @@ export async function inviteStaff(
   if (venueError) return asError(venueError)
 
   let userId: string
-  let createdNow = false
   let existing: Awaited<ReturnType<typeof findAuthUserByEmail>>
   try {
     existing = await findAuthUserByEmail(
@@ -138,7 +138,6 @@ export async function inviteStaff(
       )
     }
     userId = data.user.id
-    createdNow = true
   }
 
   // role is fixed here: invitations can only ever create staff accounts.
@@ -151,14 +150,10 @@ export async function inviteStaff(
     active: true,
   })
   if (insertError) {
-    if (createdNow) {
-      const { error: undoError } = await service.auth.admin.deleteUser(userId)
-      if (undoError) {
-        console.error("[accounts] invite: rollback failed", {
-          code: undoError.code ?? null,
-        })
-      }
-    }
+    // Even an auth user created by this request is shared as soon as another
+    // invitation can adopt it. A check-before-delete would still race that
+    // adoption. Retaining an unprofiled user is safe (it grants no app access)
+    // and lets a later attempt recover without destroying another invite.
     if (insertError.code === "23505") {
       return asError(
         fail("email_exists", "This email already has an account.", {

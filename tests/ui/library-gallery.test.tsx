@@ -6,6 +6,7 @@ import {
   render,
   renderHook,
   screen,
+  within,
 } from "@testing-library/react"
 import type * as React from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -407,9 +408,9 @@ describe("foreground refresh", () => {
       ok: true,
       page: feedPage(all, Number(cursor?.split(":")[1])),
     }))
-    const refreshPage = vi.fn<RefreshPage>(async () => ({
+    const refreshPage = vi.fn<RefreshPage>(async (_signal, cursor) => ({
       ok: true,
-      page: feedPage(all, 0),
+      page: feedPage(all, cursor ? Number(cursor.split(":")[1]) : 0),
     }))
     render(
       <MediaGallery
@@ -429,14 +430,7 @@ describe("foreground refresh", () => {
     await act(async () => {
       window.dispatchEvent(new Event("focus"))
     })
-    // The disjoint first page restarts pagination instead of retaining a gap.
-    expect(screen.getAllByRole("button", { name: /^Photo, / })).toHaveLength(24)
-    for (const cursor of ["offset:24", "offset:48", "offset:72"]) {
-      await act(async () => {
-        fireEvent.click(screen.getByRole("button", { name: "Load more" }))
-      })
-      expect(loadPage).toHaveBeenLastCalledWith(cursor)
-    }
+    // Read through the old end of the range, retaining both old and new files.
     const tiles = screen.getAllByRole("button", { name: /^Photo, / })
     expect(tiles).toHaveLength(78)
     expect(
@@ -445,15 +439,15 @@ describe("foreground refresh", () => {
     expect(screen.queryByRole("button", { name: "Load more" })).toBeNull()
   })
 
-  it("preserves loaded older pages and their cursor during an overlapping refresh", async () => {
+  it("preserves loaded page depth and advances its cursor during refresh", async () => {
     const all = feed(54)
     const loadPage = vi.fn<LoadPage>(async (cursor) => ({
       ok: true,
       page: feedPage(all, Number(cursor?.split(":")[1])),
     }))
-    const refreshPage = vi.fn<RefreshPage>(async () => ({
+    const refreshPage = vi.fn<RefreshPage>(async (_signal, cursor) => ({
       ok: true,
-      page: feedPage(all, 0),
+      page: feedPage(all, cursor ? Number(cursor.split(":")[1]) : 0),
     }))
     render(
       <MediaGallery
@@ -472,8 +466,234 @@ describe("foreground refresh", () => {
       window.dispatchEvent(new Event("focus"))
     })
     expect(screen.getAllByRole("button", { name: /^Photo, / })).toHaveLength(54)
-    expect(screen.queryByRole("button", { name: "Load more" })).toBeNull()
     expect(loadPage).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole("button", { name: "Load more" })).toBeNull()
+  })
+
+  it("updates older pending files and removes older deleted files without dropping loaded pages", async () => {
+    const all = feed(48)
+    const pending = {
+      ...all[30],
+      uploadState: "processing" as const,
+      thumbnailUrl: null,
+    }
+    const old = all.map((i) => (i.id === pending.id ? pending : i))
+    const current = all.filter((i) => i.id !== all[31].id)
+    const loadPage = vi.fn<LoadPage>(async () => ({
+      ok: true,
+      page: feedPage(old, 24),
+    }))
+    const refreshPage = vi.fn<RefreshPage>(async (_signal, cursor) => ({
+      ok: true,
+      page: feedPage(current, cursor ? Number(cursor.split(":")[1]) : 0),
+    }))
+    const { container } = render(
+      <MediaGallery
+        label="Library"
+        initialPage={feedPage(old, 0)}
+        loadPage={loadPage}
+        refreshPage={refreshPage}
+        empty={<p>Empty</p>}
+      />
+    )
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Load more" }))
+    })
+    expect(
+      screen
+        .getByRole("button", { name: /^Photo, photo-30\.jpg/ })
+        .getAttribute("aria-label")
+    ).toContain("Processing")
+    expect(thumbOf(container, pending.id)).toBeNull()
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"))
+    })
+    expect(screen.getAllByRole("button", { name: /^Photo, / })).toHaveLength(47)
+    expect(
+      screen
+        .getByRole("button", { name: /^Photo, photo-30\.jpg/ })
+        .getAttribute("aria-label")
+    ).not.toContain("Processing")
+    expect(thumbOf(container, pending.id)).not.toBeNull()
+    expect(
+      screen.queryByRole("button", { name: /^Photo, photo-31\.jpg/ })
+    ).toBeNull()
+    expect(screen.queryByRole("button", { name: "Load more" })).toBeNull()
+    expect(refreshPage).toHaveBeenCalledTimes(2)
+  })
+
+  it("preserves a deep open viewer and loaded range when new uploads arrive", async () => {
+    const all = feed(216)
+    const loadPage = vi.fn<LoadPage>(async (cursor) => ({
+      ok: true,
+      page: feedPage(all, Number(cursor?.split(":")[1])),
+    }))
+    const refreshPage = vi.fn<RefreshPage>(async (_signal, cursor) => ({
+      ok: true,
+      page: feedPage(all, cursor ? Number(cursor.split(":")[1]) : 0),
+    }))
+    const { container } = render(
+      <MediaGallery
+        label="Library"
+        initialPage={feedPage(all, 24)}
+        loadPage={loadPage}
+        refreshPage={refreshPage}
+        empty={<p>Empty</p>}
+      />
+    )
+    for (let i = 0; i < 6; i++) {
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Load more" }))
+      })
+    }
+    fireEvent.click(
+      screen.getByRole("button", { name: /^Photo, photo-170\.jpg/ })
+    )
+    expect(screen.getByRole("dialog").textContent).toContain("photo-170.jpg")
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"))
+    })
+    expect(refreshPage).toHaveBeenCalledTimes(8)
+    expect(
+      container.querySelectorAll("button[aria-label^='Photo, ']")
+    ).toHaveLength(192)
+    expect(screen.getByRole("dialog").textContent).toContain("photo-170.jpg")
+  })
+
+  it("stops after crossing a deleted oldest item's sort boundary", async () => {
+    const all = feed(72)
+    const current = all.filter((i) => i.id !== all[47].id)
+    const loadPage = vi.fn<LoadPage>(async () => ({
+      ok: true,
+      page: feedPage(all, 24),
+    }))
+    const refreshPage = vi.fn<RefreshPage>(async (_signal, cursor) => ({
+      ok: true,
+      page: feedPage(current, cursor ? Number(cursor.split(":")[1]) : 0),
+    }))
+    render(
+      <MediaGallery
+        label="Library"
+        initialPage={feedPage(all, 0)}
+        loadPage={loadPage}
+        refreshPage={refreshPage}
+        empty={<p>Empty</p>}
+      />
+    )
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Load more" }))
+    })
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"))
+    })
+    expect(refreshPage).toHaveBeenCalledTimes(2)
+    expect(screen.getAllByRole("button", { name: /^Photo, / })).toHaveLength(48)
+    expect(
+      screen.queryByRole("button", { name: /^Photo, photo-47\.jpg/ })
+    ).toBeNull()
+    expect(
+      screen.getByRole("button", { name: /^Photo, photo-48\.jpg/ })
+    ).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Load more" })).toBeTruthy()
+  })
+
+  it("keeps the prior snapshot on a later-page timeout and refreshes it on retry", async () => {
+    vi.useFakeTimers()
+    const all = feed(48)
+    const current = all.filter((i) => i.id !== all[30].id)
+    const loadPage = vi.fn<LoadPage>(async () => ({
+      ok: true,
+      page: feedPage(all, 24),
+    }))
+    const refreshPage = vi
+      .fn<RefreshPage>()
+      .mockImplementationOnce(async () => ({
+        ok: true,
+        page: feedPage(current, 0),
+      }))
+      .mockImplementationOnce(
+        (signal) =>
+          new Promise((_, reject) =>
+            signal.addEventListener("abort", () =>
+              reject(new DOMException("Aborted", "AbortError"))
+            )
+          )
+      )
+      .mockImplementation(async (_signal, cursor) => ({
+        ok: true,
+        page: feedPage(current, cursor ? Number(cursor.split(":")[1]) : 0),
+      }))
+    render(
+      <MediaGallery
+        label="Library"
+        initialPage={feedPage(all, 0)}
+        loadPage={loadPage}
+        refreshPage={refreshPage}
+        empty={<p>Empty</p>}
+      />
+    )
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Load more" }))
+    })
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"))
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(REFRESH_TIMEOUT_MS)
+    })
+    expect(screen.getAllByRole("button", { name: /^Photo, / })).toHaveLength(48)
+    expect(screen.getByRole("status").textContent).toContain(
+      "Could not refresh"
+    )
+    expect(refreshPage).toHaveBeenCalledTimes(2)
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"))
+    })
+    expect(screen.getAllByRole("button", { name: /^Photo, / })).toHaveLength(47)
+    expect(screen.queryByRole("status")).toBeNull()
+  })
+
+  it("does not resurrect a locally deleted file from an in-flight refresh", async () => {
+    let settle: (result: Awaited<ReturnType<RefreshPage>>) => void = () => {}
+    let signal: AbortSignal | undefined
+    const refreshPage = vi.fn<RefreshPage>((nextSignal) => {
+      signal = nextSignal
+      return new Promise((resolve) => {
+        settle = resolve
+      })
+    })
+    render(
+      <MediaGallery
+        label="Library"
+        initialPage={{ items: [item(ID_A), item(ID_B)], nextCursor: null }}
+        loadPage={vi.fn<LoadPage>()}
+        refreshPage={refreshPage}
+        canDelete
+        empty={<p>Empty</p>}
+      />
+    )
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"))
+    })
+    fireEvent.click(screen.getByRole("button", { name: /^Photo, 01\.jpg/ }))
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }))
+    await act(async () => {
+      fireEvent.click(
+        within(screen.getByRole("alertdialog")).getByRole("button", {
+          name: "Delete",
+        })
+      )
+    })
+    expect(signal?.aborted).toBe(true)
+    await act(async () => {
+      settle({
+        ok: true,
+        page: { items: [item(ID_A), item(ID_B)], nextCursor: null },
+      })
+    })
+    expect(screen.queryByRole("button", { name: /^Photo, 01\.jpg/ })).toBeNull()
+    expect(screen.getByRole("button", { name: /^Photo, 02\.jpg/ })).toBeTruthy()
+    expect(screen.queryByRole("status")).toBeNull()
   })
 
   it("ignores an older load-more result that arrives after a refresh reset", async () => {
@@ -488,9 +708,9 @@ describe("foreground refresh", () => {
         ok: true,
         page: feedPage(all, Number(cursor?.split(":")[1])),
       }))
-    const refreshPage = vi.fn<RefreshPage>(async () => ({
+    const refreshPage = vi.fn<RefreshPage>(async (_signal, cursor) => ({
       ok: true,
-      page: feedPage(all, 0),
+      page: feedPage(all, cursor ? Number(cursor.split(":")[1]) : 0),
     }))
     render(
       <MediaGallery
@@ -508,15 +728,15 @@ describe("foreground refresh", () => {
     await act(async () => {
       settle({ ok: true, page: feedPage(all, 54) })
     })
-    expect(screen.getAllByRole("button", { name: /^Photo, / })).toHaveLength(24)
+    expect(screen.getAllByRole("button", { name: /^Photo, / })).toHaveLength(72)
     expect(
       screen.getByRole("button", { name: "Load more" }).hasAttribute("disabled")
     ).toBe(false)
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Load more" }))
     })
-    expect(loadPage).toHaveBeenLastCalledWith("offset:24")
-    expect(screen.getAllByRole("button", { name: /^Photo, / })).toHaveLength(48)
+    expect(loadPage).toHaveBeenLastCalledWith("offset:72")
+    expect(screen.getAllByRole("button", { name: /^Photo, / })).toHaveLength(78)
   })
 
   // Final review F5: the refresh is an abortable GET, so a hung one is really

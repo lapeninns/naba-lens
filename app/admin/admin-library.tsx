@@ -55,7 +55,8 @@ export function AdminLibrary({
     [params]
   )
   const refreshPage = React.useCallback(
-    (signal: AbortSignal) => fetchMediaPage("/api/library", params, signal),
+    (signal: AbortSignal, cursor?: string | null) =>
+      fetchMediaPage("/api/library", { ...params, cursor }, signal),
     [params]
   )
 

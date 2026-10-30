@@ -92,6 +92,7 @@ export function VersionEditor({
     local !== null && !sameDocument(local.document, version.document)
   // New items get ids only on save: no edits until the saved draft is shown.
   const refreshing = awaiting !== null && !caughtUp
+  const readOnly = !isDraft || saving || refreshing
 
   React.useEffect(() => {
     if (!dirty) return
@@ -120,6 +121,7 @@ export function VersionEditor({
   )
 
   function edit(next: MenuDocument) {
+    if (readOnly) return
     setAwaiting(null)
     setNotice(null)
     setLocalState({
@@ -129,6 +131,7 @@ export function VersionEditor({
   }
 
   function decide(sourceKey: string, decision: ReviewDecision) {
+    if (readOnly) return
     try {
       edit(
         decideInDraft(
@@ -152,7 +155,7 @@ export function VersionEditor({
   }
 
   async function save() {
-    if (!local || saving) return
+    if (!local || saving || refreshing) return
     setSaving(true)
     setNotice(null)
     try {
@@ -234,8 +237,8 @@ export function VersionEditor({
             document={version.document}
             labelCounts={version.labelCounts}
             decisions={decisions}
-            onDecide={isDraft ? decide : undefined}
-            readOnly={!isDraft}
+            onDecide={readOnly ? undefined : decide}
+            readOnly={readOnly}
           />
         </section>
       ) : isDraft ? (
@@ -264,7 +267,7 @@ export function VersionEditor({
               <Button
                 size="touch"
                 onClick={save}
-                disabled={!dirty || saving || conflict !== null}
+                disabled={!dirty || saving || refreshing || conflict !== null}
                 aria-busy={saving || undefined}
               >
                 {saving ? "Saving…" : "Save draft"}
@@ -338,7 +341,7 @@ export function VersionEditor({
           makeSourceKey={makeSourceKey}
           slugify={slugify}
           issues={validationIssues}
-          readOnly={!isDraft || saving || refreshing}
+          readOnly={readOnly}
           archivedItemIds={version.archivedItemIds}
           labelCounts={version.labelCounts}
           renderItemActions={renderItemActions}

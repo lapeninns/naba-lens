@@ -20,9 +20,10 @@ export type LoadPage = (
   cursor: string | null
 ) => Promise<{ ok: true; page: MediaPage } | { ok: false; message: string }>
 
-/** A fresh first page for the foreground refresh; must honour `signal`. */
+/** A fresh cursor page for the foreground refresh; must honour `signal`. */
 export type RefreshPage = (
-  signal: AbortSignal
+  signal: AbortSignal,
+  cursor?: string | null
 ) => Promise<{ ok: true; page: MediaPage } | { ok: false; message: string }>
 
 type MediaGalleryProps = {
@@ -34,7 +35,7 @@ type MediaGalleryProps = {
    * Foreground refresh (interval, focus, refreshSignal). Pass an abortable GET
    * (fetchMediaPage): a Server Function cannot be cancelled and runs in Next's
    * one-at-a-time action queue, ahead of later uploads. Without it, refresh
-   * uses `loadPage(null)` and waits for each call to settle before the next.
+   * uses `loadPage(cursor)` and waits for each call to settle before the next.
    */
   refreshPage?: RefreshPage
   /** Shown when there is nothing to list. */
@@ -68,6 +69,14 @@ export const REFRESH_TIMEOUT_MS = 10_000
 
 const REFRESH_FAILED = "Could not refresh. Check your connection."
 
+/** True once a descending (created_at, id) page reaches the old range's end. */
+function reachesBoundary(item: MediaItem, boundary: MediaItem) {
+  return (
+    item.createdAt < boundary.createdAt ||
+    (item.createdAt === boundary.createdAt && item.id <= boundary.id)
+  )
+}
+
 /**
  * Why a download of `href` fails, or null when it works. A native download
  * gives the page no signal, so the gallery asks for the first byte of the same
@@ -89,13 +98,6 @@ export async function probeDownload(href: string): Promise<string | null> {
   if (response.status === 404)
     return "This original could not be found, so it was not downloaded. It may have been removed."
   return "The download failed. Try again."
-}
-
-/** True when `a` sorts after `b` in the (created_at desc, id desc) feed. */
-function isOlder(a: MediaItem, b: MediaItem) {
-  return (
-    a.createdAt < b.createdAt || (a.createdAt === b.createdAt && a.id < b.id)
-  )
 }
 
 /**
@@ -122,6 +124,7 @@ export function MediaGallery({
   const [page, setPage] = React.useState(initialPage)
   const { items, nextCursor } = page
   const [loadingMore, setLoadingMore] = React.useState(false)
+  const [refreshPending, setRefreshPending] = React.useState(false)
   const [loadError, setLoadError] = React.useState<string | null>(null)
   const [refreshError, setRefreshError] = React.useState<string | null>(null)
   const [openId, setOpenId] = React.useState<string | null>(null)
@@ -132,7 +135,24 @@ export function MediaGallery({
     message: string
   } | null>(null)
   const pageGeneration = React.useRef(0)
+  const loadedRange = React.useRef(page)
+  const loadingMoreRequest = React.useRef(false)
   const refreshing = React.useRef(false)
+  const activeRefresh = React.useRef<AbortController | null>(null)
+
+  React.useLayoutEffect(() => {
+    loadedRange.current = page
+  }, [page])
+
+  const invalidatePageRequests = React.useCallback(() => {
+    pageGeneration.current += 1
+    activeRefresh.current?.abort()
+  }, [])
+
+  React.useEffect(
+    () => () => invalidatePageRequests(),
+    [invalidatePageRequests]
+  )
 
   const { display, brokenCount, onError, attach, retryBroken } =
     usePreviewRecovery(items)
@@ -144,7 +164,11 @@ export function MediaGallery({
   const refresh = React.useCallback(async () => {
     if (refreshing.current) return
     refreshing.current = true
+    setRefreshPending(true)
+    // Older pagination responses cannot append to a newly refreshed snapshot.
+    const generation = ++pageGeneration.current
     const controller = new AbortController()
+    activeRefresh.current = controller
     const timer = window.setTimeout(
       () => controller.abort(),
       REFRESH_TIMEOUT_MS
@@ -152,18 +176,43 @@ export function MediaGallery({
     const aborted = new Promise<"timeout">((resolve) => {
       controller.signal.addEventListener("abort", () => resolve("timeout"))
     })
-    const request = refreshPage
-      ? refreshPage(controller.signal)
-      : loadPage(null)
+    const boundary = loadedRange.current.items.at(-1)
+    const deadline = Date.now() + REFRESH_TIMEOUT_MS
+    const request = (async () => {
+      const fresh: MediaPage = { items: [], nextCursor: null }
+      const seen = new Set<string>()
+      let reached = false
+      do {
+        if (Date.now() >= deadline) controller.abort()
+        controller.signal.throwIfAborted()
+        const cursor = fresh.nextCursor
+        const result = refreshPage
+          ? await refreshPage(controller.signal, cursor)
+          : await loadPage(cursor)
+        if (!result.ok) return result
+        for (const item of result.page.items) {
+          if (!seen.has(item.id)) fresh.items.push(item)
+          seen.add(item.id)
+        }
+        fresh.nextCursor = result.page.nextCursor
+        const last = result.page.items.at(-1)
+        reached = !boundary || (!!last && reachesBoundary(last, boundary))
+        if (fresh.nextCursor && (!last || fresh.nextCursor === cursor))
+          throw new Error("Refresh cursor did not advance")
+      } while (fresh.nextCursor && !reached)
+      return { ok: true as const, page: fresh }
+    })()
     try {
       const result = await Promise.race([request, aborted])
       if (result === "timeout") {
-        setRefreshError(REFRESH_FAILED)
+        if (generation === pageGeneration.current)
+          setRefreshError(REFRESH_FAILED)
         // An aborted fetch ends at once; a Server Function (no refreshPage)
         // cannot be aborted, so keep the guard until it settles.
         await request.catch(() => undefined)
         return
       }
+      if (generation !== pageGeneration.current) return
       if (!result.ok) {
         setRefreshError(result.message)
         return
@@ -171,33 +220,17 @@ export function MediaGallery({
       setRefreshError(null)
       // Broken previews get one fresh, re-signed attempt per refresh.
       retryBroken()
-      const fresh = result.page
-      // A pending older-page request belongs to the range before this refresh.
-      // Its result must not replace the refreshed cursor or restore old items.
-      pageGeneration.current += 1
       setLoadError(null)
-      setPage((current) => {
-        const last = fresh.items.at(-1)
-        const loadedIds = new Set(current.items.map((i) => i.id))
-        const overlaps = fresh.items.some((i) => loadedIds.has(i.id))
-        // Without overlap, unseen uploads may fill the gap between the fresh
-        // page and the old range. Start from its cursor to keep them reachable.
-        if (!fresh.nextCursor || !last || !overlaps) return fresh
-        // Ordinary polling preserves the loaded range and its older cursor.
-        // Only the fresh first page is authoritative for removals/updates.
-        return {
-          items: [
-            ...fresh.items,
-            ...current.items.filter((i) => isOlder(i, last)),
-          ],
-          nextCursor: current.nextCursor,
-        }
-      })
+      // Replace through the previous oldest sort boundary, even if that item
+      // was deleted. New arrivals cannot evict older loaded files or a viewer.
+      setPage(result.page)
     } catch {
-      setRefreshError(REFRESH_FAILED)
+      if (generation === pageGeneration.current) setRefreshError(REFRESH_FAILED)
     } finally {
       window.clearTimeout(timer)
+      activeRefresh.current = null
       refreshing.current = false
+      setRefreshPending(false)
     }
   }, [loadPage, refreshPage, retryBroken])
 
@@ -230,7 +263,8 @@ export function MediaGallery({
   }, [interval, refresh])
 
   async function loadMore() {
-    if (!nextCursor) return
+    if (!nextCursor || refreshing.current || loadingMoreRequest.current) return
+    loadingMoreRequest.current = true
     const generation = pageGeneration.current
     setLoadingMore(true)
     setLoadError(null)
@@ -255,6 +289,7 @@ export function MediaGallery({
       if (generation === pageGeneration.current)
         setLoadError("Could not load more. Check your connection.")
     } finally {
+      loadingMoreRequest.current = false
       setLoadingMore(false)
     }
   }
@@ -300,7 +335,7 @@ export function MediaGallery({
       )}
       <LoadMoreButton
         hasMore={nextCursor !== null}
-        loading={loadingMore}
+        loading={loadingMore || refreshPending}
         error={loadError}
         onLoadMore={loadMore}
         shownCount={items.length}
@@ -336,6 +371,7 @@ export function MediaGallery({
             if (!open) setLabelIds(null)
           }}
           onSaved={(results) => {
+            invalidatePageRequests()
             // Show the saved labels at once, wherever the file is loaded.
             const saved = new Map(
               results.flatMap((r) => (r.ok ? [[r.assetId, r.labels]] : []))
@@ -360,6 +396,7 @@ export function MediaGallery({
           if (!deleting) return
           const result = await deleteMedia(deleting.id)
           if (!result.ok) return result
+          invalidatePageRequests()
           const id = deleting.id
           setPage((current) => ({
             ...current,

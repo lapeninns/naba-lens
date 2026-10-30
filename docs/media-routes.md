@@ -100,6 +100,18 @@ previews once. Images that failed before hydration are detected on mount.
 - Shared client pieces are in `app/_media/`:
   - `MediaGallery`, used by all three pages; `/admin/staff/[id]` pages with
     `loadLibraryPage({ staff: id }, cursor)` from `app/admin/library-actions.ts`.
+    Refresh replaces the loaded range atomically, including older files whose
+    processing state or availability changed. It reads one cursor page at a time,
+    through the previous oldest file's `(created_at, id)` sort boundary (or the
+    end of the feed), under one shared 10-second abort deadline. New arrivals
+    cannot evict older loaded files or close their open viewer. A deleted oldest
+    file is handled by crossing its sort boundary rather than searching for its ID.
+    A failure on any page retains the previous snapshot with a refresh warning;
+    a later successful refresh retries the range. Very large or slow ranges can
+    exceed the deadline; reloading starts again from the newest page if needed.
+    Load-more responses from before
+    a refresh, and refreshes overtaken by local deletion or label saves, cannot
+    restore stale content.
   - `useMediaUploader`.
   - `deleteMedia`, which calls lifecycle's `removeMediaAsset` after the spec's
     confirmation copy. 401, 403 and 404 become plain messages. `storage: "pending"` still

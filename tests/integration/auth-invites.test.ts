@@ -223,7 +223,7 @@ describe("invitations", { timeout: 60_000 }, () => {
       expect(authUserCount(email)).toBe(1)
     })
 
-    it("profile write fails: the new auth user is rolled back, a retry works", async () => {
+    it("profile write fails: retain the marked user and recover it on retry", async () => {
       const email = testEmail("inv-db-down")
       const failing = serviceClient()
       const from = failing.from.bind(failing)
@@ -242,38 +242,10 @@ describe("invitations", { timeout: 60_000 }, () => {
         venueId: venue.id,
       })
       expect(result).toMatchObject({ status: "error", code: "database_failed" })
-      expect(authUserCount(email)).toBe(0)
-
-      expect(await invite(email)).toEqual({ status: "sent" })
-      expect(authUserCount(email)).toBe(1)
-    })
-
-    it("profile write and rollback both fail: the retry adopts the same auth user", async () => {
-      const email = testEmail("inv-orphan")
-      const failing = serviceClient()
-      const from = failing.from.bind(failing)
-      failing.from = ((table: string) =>
-        table === "profiles"
-          ? {
-              insert: async () => ({
-                error: { code: "XX000", message: "simulated" },
-              }),
-            }
-          : from(table as never)) as never
-      failing.auth.admin.deleteUser = async () =>
-        ({
-          data: { user: null },
-          error: { code: "unexpected_failure", message: "down", status: 500 },
-        }) as never
-      const result = await inviteStaff(ctx({ service: failing }), {
-        displayName: "TEST Orphan",
-        email,
-        jobTitle: null,
-        venueId: venue.id,
-      })
-      expect(result).toMatchObject({ status: "error", code: "database_failed" })
       expect(authUserCount(email)).toBe(1)
       const orphanId = await idOf(email)
+      expect(await profileOf(orphanId)).toBeNull()
+      expect(await mailCount(email, INVITED)).toBe(0)
 
       expect(await invite(email)).toEqual({ status: "sent" })
       expect(authUserCount(email)).toBe(1)
@@ -282,6 +254,75 @@ describe("invitations", { timeout: 60_000 }, () => {
         active: true,
       })
     })
+
+    it.each(["duplicate", "database"] as const)(
+      "a %s profile failure never removes an account adopted by another invitation",
+      async (failure) => {
+        const email = testEmail(`inv-adopt-${failure}`)
+        const firstService = serviceClient()
+        const from = firstService.from.bind(firstService)
+        let reachedInsert!: () => void
+        let releaseInsert!: () => void
+        const inserting = new Promise<void>((resolve) => {
+          reachedInsert = resolve
+        })
+        const released = new Promise<void>((resolve) => {
+          releaseInsert = resolve
+        })
+        firstService.from = ((table: string) =>
+          table === "profiles"
+            ? {
+                insert: async (row: unknown) => {
+                  reachedInsert()
+                  await released
+                  return failure === "duplicate"
+                    ? from("profiles").insert(row as never)
+                    : { error: { code: "XX000", message: "simulated" } }
+                },
+              }
+            : from(table as never)) as never
+        const deleteUser = vi.spyOn(firstService.auth.admin, "deleteUser")
+        const mailer = vi.fn(async () => ({ error: null }))
+        const input = {
+          displayName: "TEST First invitation",
+          email,
+          jobTitle: null,
+          venueId: venue.id,
+        }
+
+        // A creates Auth but stops before inserting its profile. B sees the
+        // marked orphan, adopts it and completes before A's insertion resumes.
+        const first = inviteStaff(ctx({ service: firstService, mailer }), input)
+        await inserting
+        let adopted: Awaited<ReturnType<typeof inviteStaff>>
+        try {
+          adopted = await inviteStaff(ctx({ mailer }), {
+            ...input,
+            displayName: "TEST Adopted invitation",
+          })
+        } finally {
+          releaseInsert()
+        }
+        const original = await first
+
+        expect(adopted).toMatchObject({ status: "sent" })
+        expect(original).toMatchObject({
+          status: "error",
+          code: failure === "duplicate" ? "email_exists" : "database_failed",
+        })
+        expect(authUserCount(email)).toBe(1)
+        expect(deleteUser).not.toHaveBeenCalled()
+        const id = await idOf(email)
+        expect(adopted).toEqual({ status: "sent", userId: id })
+        expect(await profileOf(id)).toMatchObject({
+          display_name: "TEST Adopted invitation",
+          role: "staff",
+          venue_id: venue.id,
+          active: true,
+        })
+        expect(mailer).toHaveBeenCalledExactlyOnceWith(email)
+      }
+    )
   })
 
   it("activation changes report the new status for the admin UI", async () => {
