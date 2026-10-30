@@ -428,10 +428,8 @@ test.describe("release negatives", () => {
   test("admin portfolio offers download and delete (spec §3)", async ({
     browser,
   }) => {
-    // KNOWN DEFECT on this base (078b60a): /admin/staff/[id] renders a
-    // preview-only viewer. feat/nl-library f3ee17b moves it onto MediaGallery.
-    // When that merges this test passes and test.fail() must be removed.
-    test.fail()
+    // Was defect 1 (preview-only viewer); fixed by feat/nl-library, which moved
+    // /admin/staff/[id] onto MediaGallery.
     const photo = await syntheticJpeg(`portfolio-${world.tag}.jpg`)
     const staff = await signedInPage(browser, world.staffA)
     await uploadThroughDialog(staff, [photo])

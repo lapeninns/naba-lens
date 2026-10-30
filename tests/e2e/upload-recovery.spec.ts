@@ -22,6 +22,7 @@ import {
   serviceClient,
   type TestIdentity,
 } from "../support/identities"
+import { firefoxLaunchOptions } from "./helpers/firefox"
 
 /**
  * Upload recovery and video handling in the real app (spec §5, §10: partial
@@ -60,8 +61,8 @@ const TUS = /\/storage\/v1\/upload\/resumable/
 // Chromium-only flows; the browser matrix below launches all three engines.
 test.beforeEach(({}, testInfo) => {
   test.skip(
-    testInfo.project.name !== "desktop",
-    "Upload recovery runs once, in the desktop project"
+    testInfo.project.name !== "chromium",
+    "Upload recovery runs once, in the chromium (desktop) project"
   )
 })
 
@@ -714,7 +715,12 @@ test.describe("upload recovery in the real UI", () => {
     for (const [engine, type] of engines) {
       let b: Browser
       try {
-        b = engine === "chromium" ? browser : await type.launch()
+        b =
+          engine === "chromium"
+            ? browser
+            : await type.launch(
+                engine === "firefox" ? firefoxLaunchOptions() : undefined
+              )
       } catch (error) {
         unavailable[engine] = String(error)
           .split("\n")

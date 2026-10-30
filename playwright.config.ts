@@ -1,9 +1,9 @@
 import { execFileSync } from "node:child_process"
-import { mkdirSync } from "node:fs"
 import { resolve } from "node:path"
 
 import { defineConfig, devices } from "@playwright/test"
 
+import { firefoxLaunchOptions } from "./tests/e2e/helpers/firefox"
 import { getLocalSupabaseEnv } from "./tests/support/local-supabase"
 
 /**
@@ -57,14 +57,12 @@ if (workdir && !process.env.E2E_STACK_RESOLVED) {
 }
 const supabase = getLocalSupabaseEnv()
 
-// Firefox reads ~/Library/Application Support/Firefox at startup; on this macOS
-// that folder can be denied to Playwright's build ("Could not find profile
-// folder."). Give it a private app-data folder instead.
-const firefoxAppData = resolve(".artifacts/firefox-appdata")
-mkdirSync(firefoxAppData, { recursive: true })
-
 // Core journey on every engine; the rest of the release suite on Chromium.
 const CORE = /@core/
+// Phone-width Chromium: the core journey plus the suites that already ran at
+// phone width before the release suite (`grep` sees the project name, the file
+// name and the test title, so file names select whole files here).
+const PHONE = /@core|\b(auth|slice|staff-accounts|library|gaps)\.spec\.ts\b/
 
 export default defineConfig({
   testDir: "tests/e2e",
@@ -96,9 +94,7 @@ export default defineConfig({
       use: {
         ...devices["Desktop Firefox"],
         viewport: { width: 1280, height: 800 },
-        launchOptions: {
-          env: { ...process.env, MOZ_APP_DATA: firefoxAppData },
-        },
+        launchOptions: firefoxLaunchOptions(),
       },
     },
     {
@@ -113,7 +109,7 @@ export default defineConfig({
     {
       // Mobile-emulated width (412 CSS px, touch) in Chromium: not a phone test.
       name: "mobile-chromium",
-      grep: CORE,
+      grep: PHONE,
       use: { ...devices["Pixel 7"] },
     },
   ],

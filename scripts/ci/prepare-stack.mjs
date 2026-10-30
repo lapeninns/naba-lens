@@ -14,6 +14,14 @@ for (const port of ports) await new Promise((resolve, reject) => {
 })
 config = config.replace(/^project_id = .*$/m, `project_id = "${basename(work).toLowerCase().replace(/[^a-z0-9-]/g, '-')}"`)
   .replace(/^(\s*(?:\w+_)?port = )554(\d\d)$/gm, (_, prefix, offset) => `${prefix}${base + Number(offset)}`)
+// Auth links point at the e2e app server (as tests/e2e/prepare-stack.mjs does); every
+// browser context shares one IP, so only this throwaway stack's per-IP sign-in and
+// verification limits are raised. Invite-only sign-up settings are unchanged.
+const site = `http://127.0.0.1:${Number(process.env.E2E_PORT ?? 3457)}`
+config = config.replace(/^site_url = ".*"$/m, `site_url = "${site}"`)
+  .replace(/^additional_redirect_urls = .*$/m, `additional_redirect_urls = ["${site}/auth/callback", "${site}/auth/confirm"]`)
+  .replace(/^sign_in_sign_ups = \d+$/m, 'sign_in_sign_ups = 300')
+  .replace(/^token_verifications = \d+$/m, 'token_verifications = 300')
 for (const section of ['studio', 'realtime', 'analytics', 'edge_runtime']) {
   config = config.replace(new RegExp(`(\\[${section}\\]\\s*\\n)enabled = true`), '$1enabled = false')
 }
