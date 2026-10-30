@@ -1,5 +1,6 @@
 import { defineConfig, devices } from "@playwright/test"
 
+import { firefoxLaunchOptions } from "./tests/e2e/helpers/firefox"
 import { getLocalSupabaseEnv } from "./tests/support/local-supabase"
 
 // The spec skips itself under the default e2e config (next dev, long run).
@@ -31,15 +32,26 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 800 } },
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 1280, height: 800 },
+      },
     },
     {
       name: "firefox",
-      use: { ...devices["Desktop Firefox"], viewport: { width: 1280, height: 800 } },
+      use: {
+        ...devices["Desktop Firefox"],
+        viewport: { width: 1280, height: 800 },
+        // macOS blocks Playwright's Firefox from the default profile folder.
+        launchOptions: firefoxLaunchOptions(),
+      },
     },
     {
       name: "webkit",
-      use: { ...devices["Desktop Safari"], viewport: { width: 1280, height: 800 } },
+      use: {
+        ...devices["Desktop Safari"],
+        viewport: { width: 1280, height: 800 },
+      },
     },
   ],
   webServer: {
