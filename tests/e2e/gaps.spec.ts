@@ -385,16 +385,13 @@ test.describe("GAP-11 over HTTP: cross-staff denial and private headers", () => 
     const portfolio = await pageB.request.get(`/admin/staff/${staffA.id}`, {
       maxRedirects: 0,
     })
-    // app/admin/loading.tsx makes the page stream, so Next may send the
-    // redirect inside a 200 body instead of a 3xx. Either way: to /staff, and
-    // none of staff A's data in the response.
+    // A server redirect before anything streams (privacy R3: app/admin/layout.tsx
+    // checks the role outside loading.tsx's Suspense boundary), never a 200
+    // carrying a client-side redirect.
     const html = await portfolio.text()
-    if (portfolio.status() === 200) {
-      expect(html).toMatch(/NEXT_REDIRECT[^"]*\/staff|url=\/staff/)
-    } else {
-      expect([303, 307, 308]).toContain(portfolio.status())
-      expect(portfolio.headers()["location"]).toMatch(/\/staff$/)
-    }
+    expect(portfolio.status()).toBe(307)
+    expect(portfolio.headers()["location"]).toMatch(/\/staff$/)
+    expect(html).not.toContain('data-slot="skeleton"')
     expect(html).not.toContain("TEST e2e-gaps-http-a")
     expect(html).not.toContain(photoA)
     expect(await portfolio.text()).not.toContain("private-dish")

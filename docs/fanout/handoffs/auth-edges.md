@@ -88,6 +88,11 @@ replace `= 554xx` ports with `586xx`, set `[studio]`/`[realtime]` `enabled = fal
   or emails. 3 of 4 fail with 200 when the layouts are removed. Integration:
   layouts redirect/allow per role (`auth-access`). Also checked under
   `next start`: staff `/admin` 307 → `/staff`.
+- `feat/nl-gaps` is already in this branch (via `feat/nabalens-mvp`). Its
+  `tests/e2e/gaps.spec.ts` GAP-11 HTTP test accepted a 200 with an in-body
+  redirect; it now requires 307 → `/staff` and no skeleton (fails with 200
+  when `app/admin/layout.tsx` is removed). `tests/integration/gaps-http.test.ts`
+  has no page-status assertion, so nothing to tighten there.
 - Next's redirect shell still carries the route's static `<title>` (e.g.
   "Content · NabaLens"); a fixed string, also in the JS bundle, not data.
 
