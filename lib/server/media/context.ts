@@ -1,6 +1,7 @@
 import "server-only"
 
 import { getAuthState, type AppRole } from "@/lib/auth"
+import { redactError } from "@/lib/server/log/redact"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { getSupabasePublicEnv } from "@/lib/supabase/env"
 import { createClient } from "@/lib/supabase/server"
@@ -29,8 +30,12 @@ export async function getMediaActor(role?: AppRole): Promise<ActorResult> {
   let state: Awaited<ReturnType<typeof getAuthState>>
   try {
     state = await getAuthState()
-  } catch {
-    // A failed profile read is not a denial: answer "retry", never a 500.
+  } catch (error) {
+    // A failed profile read is not a denial: answer "retry", never a 500. The
+    // cause (database outage, missing config or a bug) is logged, redacted.
+    console.error("[media] account check failed", {
+      error: redactError(error),
+    })
     return PROFILE_UNAVAILABLE
   }
   if (state.status === "signed_out") {

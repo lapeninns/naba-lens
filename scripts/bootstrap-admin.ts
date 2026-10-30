@@ -14,6 +14,7 @@ import type { SupabaseClient, User } from "@supabase/supabase-js"
 import { pathToFileURL } from "node:url"
 
 import type { Database } from "../lib/db/types"
+import { findAuthUserByEmail } from "../lib/server/accounts/auth-users"
 import { createServiceClientFromEnv, parseArgs } from "./lib/service-client"
 
 export type BootstrapResult = {
@@ -21,29 +22,11 @@ export type BootstrapResult = {
   action: "created_profile" | "promoted" | "already_admin"
 }
 
-export async function findAuthUserByEmail(
-  admin: SupabaseClient<Database>,
-  email: string
-): Promise<User | null> {
-  const target = email.trim().toLowerCase()
-  for (let page = 1; ; page++) {
-    const { data, error } = await admin.auth.admin.listUsers({
-      page,
-      perPage: 1000,
-    })
-    if (error) throw new Error(`Could not list users: ${error.message}`)
-    const match = data.users.find((u) => u.email?.toLowerCase() === target)
-    if (match) return match
-    if (data.users.length < 1000) return null
-  }
-}
-
-export async function findAuthUserIdByEmail(
-  admin: SupabaseClient<Database>,
-  email: string
-): Promise<string | null> {
-  return (await findAuthUserByEmail(admin, email))?.id ?? null
-}
+/**
+ * A one-off operator command, not a page render: it may wait far longer for
+ * Supabase Auth than the app's 4 s lookup deadline.
+ */
+const LOOKUP_DEADLINE_MS = 60_000
 
 /**
  * An account deactivated in the app is also banned in Auth (refresh tokens and
@@ -65,7 +48,7 @@ export async function bootstrapAdmin(
   admin: SupabaseClient<Database>,
   input: { email: string; displayName?: string }
 ): Promise<BootstrapResult> {
-  const user = await findAuthUserByEmail(admin, input.email)
+  const user = await findAuthUserByEmail(admin, input.email, LOOKUP_DEADLINE_MS)
   if (!user) {
     throw new Error(
       "No auth user with that email. Create/invite the user first; this script never creates accounts."
@@ -100,11 +83,13 @@ export async function bootstrapAdmin(
     return { userId, action: "created_profile" }
   }
 
+  // Before the early return too: an active admin can still carry a ban left by
+  // an older version of this script promoting a deactivated account.
+  await liftDeactivationBan(admin, user)
   if (existing.role === "admin" && existing.active) {
     return { userId, action: "already_admin" }
   }
 
-  await liftDeactivationBan(admin, user)
   const { error } = await admin
     .from("profiles")
     .update({ role: "admin", active: true })

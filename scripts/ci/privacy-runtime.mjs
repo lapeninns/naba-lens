@@ -15,6 +15,7 @@ import {
   readdirSync,
   statSync,
 } from "node:fs"
+import net from "node:net"
 import { join } from "node:path"
 
 const work = process.argv[2]
@@ -34,6 +35,25 @@ const env = {
   MAILPIT_URL: status.MAILPIT_URL ?? status.INBUCKET_URL,
   NEXT_PUBLIC_SITE_URL: base,
   CLEANUP_SECRET: randomBytes(32).toString("hex"),
+}
+
+// The suite must talk to the server this script starts. If something already
+// listens on the port (say a Playwright server that outlived the e2e step),
+// `next start` would exit with EADDRINUSE and the probe below would pass
+// against the old server: refuse up front, before any build.
+const portTaken = await new Promise((resolve) => {
+  const socket = net.connect({ host: "127.0.0.1", port })
+  socket.once("connect", () => {
+    socket.destroy()
+    resolve(true)
+  })
+  socket.once("error", () => resolve(false))
+})
+if (portTaken) {
+  console.log(
+    `privacy-runtime: port ${port} is already in use; stop that server first: FAIL`
+  )
+  process.exit(1)
 }
 
 // The suite reads Server Function IDs from .next, so the server must serve that
@@ -77,13 +97,26 @@ const stop = () => {
   } catch {}
 }
 process.on("exit", stop)
+// Our child, not merely "something on the port", must be the one answering.
+let exited = null
+server.once("exit", (code, signal) => {
+  exited = signal ?? code
+})
+const logTail = () =>
+  readFileSync(log, "utf8").trim().split("\n").slice(-5).join("\n")
 
 let ready = false
-for (let i = 0; i < 120 && !ready; i++) {
+for (let i = 0; i < 120 && !ready && exited === null; i++) {
   try {
     ready = (await fetch(`${base}/login`)).ok
   } catch {}
   if (!ready) await new Promise((r) => setTimeout(r, 1000))
+}
+if (exited !== null || server.exitCode !== null) {
+  console.log(
+    `privacy-runtime: next start exited (${exited ?? server.exitCode}) before the suite ran: FAIL\n${logTail()}`
+  )
+  process.exit(1)
 }
 if (!ready) {
   console.log(`privacy-runtime: server did not start on ${base}`)
@@ -113,8 +146,17 @@ const run = spawnSync(
     },
   }
 )
+// spawnSync blocked the event loop: let the child's exit event, if any, land.
+await new Promise((r) => setTimeout(r, 200))
+const survived = exited === null
 stop()
 closeSync(out)
+if (!survived) {
+  console.log(
+    `privacy-runtime: next start exited (${exited}) during the suite: FAIL\n${logTail()}`
+  )
+  process.exit(1)
+}
 
 const result = JSON.parse(readFileSync(report, "utf8"))
 const skipped = result.numPendingTests + result.numTodoTests
