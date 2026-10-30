@@ -4,7 +4,170 @@ Track: `merge-precheck`, branch `feat/nl-mergeplan`. Documentation only.
 Only the integrator may merge into `feat/nabalens-mvp`. No remote, push, PR,
 application edits, database changes, or running stacks are needed for this track.
 
-## Latest: snapshot 2, 2026-10-30 00:35:46 UTC
+## Latest: snapshot 3, 2026-10-30 00:56:17 UTC
+
+Integration base is still `3a23c9bf065a5e7d369a7bdac0006e5c38a0dfbd`.
+All times below are **30 October 2026, UTC**; `%cr` is the observed relative age.
+No refs moved during the pinned scan. Compare quietness against snapshot 2,
+20m30s earlier, not against the initial snapshot.
+
+| Branch | Pinned tip | Last commit UTC | `%cr` | Quiet since snapshot 2? |
+| --- | --- | --- | --- | --- |
+| `feat/nabalens-mvp` | `3a23c9b` | 00:06:35 | 50 minutes ago | yes, base |
+| `feat/nl-journey` | `52cdddf` | 00:55:44 | 33 seconds ago | no |
+| `feat/nl-visual` | `b849d83` | 00:25:59 | 30 minutes ago | yes |
+| `feat/nl-library` | `88e7ae9` | 00:54:41 | 2 minutes ago | no |
+| `feat/nl-authedge` | `3e56a0a` | 00:53:41 | 3 minutes ago | no |
+| `feat/nl-uploads` | `bd4d377` | 00:52:13 | 4 minutes ago | no |
+| `feat/nl-ci` | `e4f7b91` | 00:37:43 | 19 minutes ago | no |
+| `feat/nl-docs2` | `be8a897` | 00:18:42 | 38 minutes ago | yes |
+| `feat/nl-docs` | `575c336` | 00:05:25 | 51 minutes ago | superseded |
+| `feat/nl-acceptance` | `1193e85` | 00:36:33 | 20 minutes ago | no |
+| `feat/nl-privacy` | `cf9ca90` | 00:54:29 | 2 minutes ago | no |
+| `feat/nl-migrations` | `81c9322` | 00:55:47 | 32 seconds ago | no |
+| `feat/nl-load` | `6dcee2a` | 00:53:59 | 2 minutes ago | no |
+| `review/nl-wave3` | `ce09ae1` | 00:17:37 | 39 minutes ago | yes |
+| `review/nl-scope` | `3894911` | 00:13:37 | 43 minutes ago | yes |
+| `review/nl-upload-path2` | `0b169e5` | 00:34:50 | 21 minutes ago | yes |
+
+Actual check output:
+
+```text
+COUNTS {"checks": 120, "clean": 119, "conflicting": 1}
+CONFLICT: feat/nl-journey + feat/nl-library
+CONFLICT (content): Merge conflict in app/admin/admin-library.tsx
+CUMULATIVE {"checks": 6, "clean": 5, "conflicting": 1}
+MIGRATION_DIVERGENCE {}
+QUIET: interval_seconds=1230.217004, quiet=5/14, majority=false
+MOVED {}
+```
+
+All 15 base checks remain clean. Of 105 branch pairs, only journey/library
+conflicts. The raw cumulative order stops on journey, step 6: five clean merges,
+then one conflict; remaining steps are **not** an unassisted cumulative pass.
+Five quiet refs are visual, docs2 and the three review branches. The other nine
+implementation/evidence refs changed or are recent. Next sweep: **01:15:04 UTC**.
+
+### Exact textual conflict: keep optimistic state AND shared serialization
+
+`app/admin/admin-library.tsx`: journey `3bb05d4` fixes rapid filter choices built
+from stale server props; library extracts `toSearch` to tested
+`filtersToSearch` in `app/admin/library-search.ts`. Neither whole side wins.
+Resolve as follows:
+
+```tsx
+import { filtersToSearch } from "./library-search"
+
+const [pending, startTransition] = React.useTransition()
+const [shown, setShown] = React.useOptimistic(filters)
+const search = filtersToSearch(filters)
+// LibraryFilters value={shown}
+// onChange:
+const qs = filtersToSearch(next)
+startTransition(() => {
+  setShown(next)
+  router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+})
+```
+
+Keep `search`, `MediaGallery`'s key, and page loading tied to the **committed**
+`filters`/`initialPage`, not optimistic `shown`. Only controls show the pending
+choices. Retain library's serializer import/file and remove the local `toSearch`
+implementation. Verify rapid Venue → Staff → Type interaction and filter/page
+round-trip tests after the real merge.
+
+This exact recipe was simulated with `hash-object`/`mktree`/`commit-tree` on
+unreferenced objects, without checking out/editing application files or refs:
+
+```text
+PROPOSED_RESOLUTION_CUMULATIVE:
+  steps=14, clean_automerges=13, manual_resolution_steps=1
+  resolution_blob=13842e348da452cd07265b2f1c3200c69428fd59
+  tree=1de9d57dfa64cb8de90dd232561432f9ad85ff7c
+```
+
+This confirms the rest of the chosen order has no additional textual conflict
+after the proposed filter resolution. It does not certify compilation or behavior.
+
+### Clean merge with a semantic bug: duplicate video duration
+
+Journey `6eb963a` appends `duration m:ss` to the accessible tile name. Visual
+`be2c4da` prepends `m:ss` before the filename. Git cleanly keeps **both**, so the
+combined `components/nabalens/media-tile.tsx` announces duration twice and changes
+the filename prefix expected by upload selectors.
+
+**Journey's trailing-duration variant wins for this function only.** Keep exactly
+one `duration ${formatDuration(item.durationSeconds)}` at the end; remove visual's
+prepended duration. This still contains the visible badge text for WCAG 2.5.3,
+preserves `Video, <filename>, ...` selectors, and drops no other visual fixes.
+Keep visual's touch-target/sticky-footer changes and library's viewer recovery.
+This supersedes snapshot 2's suggestion to adapt every selector to a prepended
+duration: first unify the name contract, then update only genuinely stale tests.
+
+The semantic deduplication was also simulated in scratch objects:
+
+```text
+SEMANTIC_RESOLUTION:
+  tree=a27846f6c84a44c0b2fe121d86a63ba6375f07d2
+  tile_blob=fe0f7d6255f5f6c9bb664770e88362413cb3747b
+```
+
+Neither proposed resolution is a commit on any branch or a tested app tree.
+They are recipes for the integrator, not application changes by this track.
+
+### New shared behavior and test/config consolidation
+
+- **Library:** keep its mount-time failed-image scan (`ref={attach}`), URL-version
+  deduplication, gallery `onError` and visible retry/error states together.
+  `b1cdd35` prevents a pre-hydration failure plus a late event from consuming both
+  recovery attempts. Keep the unit next/image guard and privacy's complementary
+  runtime optimiser-denial test; these are different checks, not duplicate tests.
+- **Privacy:** keep `app/auth/redirect.ts`'s new `private, no-store` on session-
+  setting redirects, alongside global `nosniff`. These merge cleanly with auth's
+  cleanup/bootstrap changes. Its runtime suite still references
+  `loadMorePortfolioAction`, which library deletes: adapt that HTTP action probe
+  to authorised `loadLibraryPage({ staff: id }, cursor)` and retain cross-role
+  checks. Do not restore the interim account query to satisfy the old test.
+- **Privacy invitation semantics:** the log audit now accepts `sent` or `partial`
+  after account creation. That is only evidence about safe logging, never proof
+  that an invitation email was delivered. Preserve a separate full delivery
+  assertion in auth/accounts/journey; do not relabel a partial result as success.
+- **Journey expected failure:** its QA draft says the individual-portfolio action
+  gap is represented by `test.fail()`. Once library fixes the screen, remove that
+  expected-failure annotation and require success, rather than treating the
+  resulting unexpected pass as a regression.
+- **Retry policy:** journey removes the old hidden 504 retry in `slice.spec.ts`.
+  Keep that deletion. Upload/visual/library fixture retry loops noted in snapshot
+  2 still require reconciliation; app transfer retries are separate.
+- **Upload matrix completeness:** the updated spec records engines that cannot
+  launch as `unavailable` and continues for diagnostics. Required CI engine gates
+  must fail/be explicitly NOT RUN when any required engine is absent; a passing
+  Chromium-only result is not full matrix coverage. The `desktop` versus journey
+  `chromium` project guard remains unresolved at these tips.
+- **Migrations runner now requires phases.** Replace snapshot 2's one-argument
+  CI command with all five checked commands on an owned isolated workdir:
+  `node tests/migrations/run.mjs "$W" db-reset upgrade`, then `"$W" upgrade`,
+  `"$W" db-reset reset`, `"$W" reset`, and `"$W" lint` with the same script.
+  Do not combine reset/upgrade evidence or point these destructive test steps at
+  another worktree's stack. No new production migration timestamps are present.
+- **Load changes HEIC admission, not config limits.** `6dcee2a` introduces FIFO
+  waiting for the one decoder slot, up to `heicTimeoutMs`, before `decoder_busy`;
+  decode then has its own deadline. Keep release-after-termination, the waiter
+  deadline/FIFO tests, and canonical concurrency/budgets. Queued callers still
+  retain their input bytes, even though the queue stores resolvers, so measure
+  aggregate memory/backpressure rather than describing the queue as memory-free.
+  Merge load's current concurrency explanation and uploads' format/playback notes
+  in `docs/media-pipeline.md`; neither whole document wins. The load handoff is
+  stale and `docs/runtime-sizing.md` is not present at this tip, so do not certify
+  final runtime sizing from the draft.
+- **Evidence remains revision-scoped.** Acceptance's new map audits `3a23c9b` and
+  explicitly reports failing/flaky E2E; its stale branch/test references need a
+  final-head reconciliation. Journey's QA results section is still a draft.
+  CI's new commit changes only its handoff, not the previously noted isolation,
+  discovery, auth-URL or Linux fixture wiring. No main signed-read,
+  delete/finalise-race or stale-processing security fix has landed in these tips.
+
+## Historical snapshot 2: 2026-10-30 00:35:46 UTC
 
 Base remains `3a23c9bf065a5e7d369a7bdac0006e5c38a0dfbd`. Pinned refs did not
 move during the scan. Relative ages below are actual `git log -1 --format=%cr`
@@ -263,8 +426,9 @@ to merge unfinished branches just because they currently have no conflicts.
 
 ## Resolution rules and semantic overlaps
 
-No textual conflicts need resolving in snapshot 1. The following are explicit
-resolution recipes for shared-file changes that appear in later commits.
+Snapshots 1–2 were textually clean. Snapshot 3 adds the real admin filter conflict
+and semantic duration duplication documented above. The remaining shared-file
+resolution rules follow.
 
 - **`package.json`: combine, do not choose an entire side.** Retain the integration
   scripts and all new suite commands. Keep additive browser-test dependencies from
@@ -442,16 +606,18 @@ started, reset, reused, or stopped.
 
 ## Cadence and remaining work
 
-Complete scans: **00:15:10 UTC** and **00:35:46 UTC**; next scheduled
-**00:55:04 UTC, 30 October 2026**, then every 20 minutes. Only **2/14** tracked
-non-superseded refs met the quiet criterion in snapshot 2, so this is not final.
+Complete scans: **00:15:10**, **00:35:46**, **00:56:17 UTC**. Next expected
+schedule tick: **01:15:04 UTC, 30 October 2026**, then every 20 minutes.
+Only **5/14** non-superseded refs met the quiet criterion in snapshot 3,
+so this is not final. Compare each new sweep with the latest previous snapshot.
 Each follow-up must pin fresh refs, record
 `git log -1 --format=%cr <branch>`, rerun all base and pairwise merge-tree checks,
 inspect new shared-file changes and cumulative merge trees, then commit both
 this plan and `docs/fanout/handoffs/merge-precheck.md`.
 
 The continuation is bound to this thread; the first scheduled run changed its
-interval to 1,200,000 ms. Its exact task ID is in the continuity handoff. This lets the requested periodic
+interval to 1,200,000 ms. Its exact task ID is in the continuity handoff. This lets
+the requested periodic
 work continue without a sleeping shell, polling loop, server, or occupied stack.
 
 Stop recurring sweeps when a majority of tracked (non-superseded) branches have
