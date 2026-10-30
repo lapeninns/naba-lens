@@ -41,7 +41,8 @@ export async function tusTransfer(options: TusTransferOptions): Promise<void> {
   const { signal } = options
   if (signal?.aborted) throw new AbortedError()
 
-  const initialToken = await options.getAccessToken()
+  const initialToken = await accessTokenUntilCancelled(options)
+  if (signal?.aborted) throw new AbortedError()
   if (!initialToken) {
     throw new TransferError("Your session has expired. Sign in and retry.")
   }
@@ -77,7 +78,8 @@ export async function tusTransfer(options: TusTransferOptions): Promise<void> {
       },
       // Refresh the bearer token per request: video transfers can outlive it.
       onBeforeRequest: async (req) => {
-        const token = (await options.getAccessToken()) ?? initialToken
+        const token = (await accessTokenUntilCancelled(options)) ?? initialToken
+        if (signal?.aborted) throw new AbortedError()
         req.setHeader("authorization", `Bearer ${token}`)
       },
       onShouldRetry: (err, attempt, opts) => {
@@ -119,6 +121,37 @@ export async function tusTransfer(options: TusTransferOptions): Promise<void> {
         // URL storage unavailable (e.g. private mode): start fresh.
         if (!settled) upload.start()
       })
+  })
+}
+
+/** Auth refresh cannot be cancelled, but it must not hold or restart a cancelled transfer. */
+async function accessTokenUntilCancelled({
+  getAccessToken,
+  signal,
+}: Pick<TusTransferOptions, "getAccessToken" | "signal">) {
+  if (signal?.aborted) throw new AbortedError()
+  const pending = getAccessToken()
+  if (!signal) return pending
+
+  return new Promise<string | null>((resolve, reject) => {
+    const onAbort = () => {
+      signal.removeEventListener("abort", onAbort)
+      reject(new AbortedError())
+    }
+    signal.addEventListener("abort", onAbort, { once: true })
+    // Always observe the auth promise, including rejection after cancellation.
+    pending.then(
+      (token) => {
+        signal.removeEventListener("abort", onAbort)
+        if (signal.aborted) reject(new AbortedError())
+        else resolve(token)
+      },
+      (error) => {
+        signal.removeEventListener("abort", onAbort)
+        reject(signal.aborted ? new AbortedError() : error)
+      }
+    )
+    if (signal.aborted) onAbort()
   })
 }
 

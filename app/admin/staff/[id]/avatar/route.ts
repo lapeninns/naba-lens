@@ -8,6 +8,7 @@ import {
   type AccountErrorCode,
 } from "@/lib/server/accounts"
 import { accountsContext } from "@/lib/server/accounts/request"
+import { isSameOriginRequest } from "@/lib/server/http/same-origin"
 
 // A Route Handler rather than a Server Function: avatars may be 4 MiB and Server
 // Functions default to a 1 MB body limit.
@@ -39,8 +40,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   // Same-origin only; session cookies are SameSite=Lax but check anyway.
-  const origin = request.headers.get("origin")
-  if (origin && origin !== request.nextUrl.origin) {
+  if (!isSameOriginRequest(request.headers)) {
     return json(403, { ok: false, error: "Forbidden." })
   }
 
