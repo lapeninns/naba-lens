@@ -14,15 +14,20 @@ describe("schema checks", () => {
   it("passes supabase db lint at warning level", () => {
     const out = supabase(
       "db", "lint", "--local", "--schema", "public,private",
-      "--level", "warning", "--fail-on", "warning"
+      "--level", "warning", "--fail-on", "warning", "--output-format", "json"
     )
     console.log(out.trim())
-    expect(out).toMatch(/No schema errors found/i)
+    const result = JSON.parse(out) as { results: unknown[] }
+    expect(result.results).toEqual([])
   })
 
   it("shows no drift between the migrations and the database", () => {
-    const out = supabase("db", "diff", "--local", "--schema", "public,private")
-    console.log(out.trim() || "(empty diff)")
-    expect(out).not.toMatch(/\b(create|alter|drop|grant|revoke)\b/i)
+    const out = supabase(
+      "db", "diff", "--local", "--schema", "public,private", "--output-format", "json"
+    )
+    console.log(out.trim())
+    const result = JSON.parse(out) as { diff: string; dropStatements: unknown[] }
+    expect(result.diff).toBe("")
+    expect(result.dropStatements).toEqual([])
   })
 })

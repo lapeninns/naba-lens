@@ -8,7 +8,13 @@
 #
 # Layout of <backup-dir>:
 #   roles.sql              cluster roles (supabase db dump --role-only)
-#   schema.sql             app schemas (supabase db dump; Supabase-managed schemas excluded)
+#   schema.sql             app schemas (supabase db dump). Supabase-managed schemas
+#                          (auth, storage, supabase_migrations, ...) are NOT in it.
+#   storage-policies.sql   CREATE POLICY statements for storage.* tables, generated
+#                          from pg_policies: schema.sql omits them, and without them
+#                          the private buckets would have no read/upload policies
+#   migrations-schema.sql  supabase_migrations schema and
+#   migrations-data.sql    its rows: the applied migration history
 #   data.sql               all data incl. auth.* and storage.buckets (COPY), except
 #                          storage.objects, which the object import recreates
 #   migrations.txt         applied migration versions at backup time
@@ -46,9 +52,21 @@ supabase --workdir "$workdir" db dump --local --role-only -f "$out/roles.sql"
 supabase --workdir "$workdir" db dump --local -f "$out/schema.sql"
 supabase --workdir "$workdir" db dump --local --data-only --use-copy \
   -x storage.objects -f "$out/data.sql"
-psql "$db_url" -X -A -t -c \
+supabase --workdir "$workdir" db dump --local --schema supabase_migrations \
+  -f "$out/migrations-schema.sql"
+supabase --workdir "$workdir" db dump --local --data-only --schema supabase_migrations \
+  -f "$out/migrations-data.sql"
+psql "$db_url" -X -A -t -v ON_ERROR_STOP=1 -c \
   "select version from supabase_migrations.schema_migrations order by version" \
   >"$out/migrations.txt"
+psql "$db_url" -X -A -t -v ON_ERROR_STOP=1 -c "
+  select format('create policy %I on %I.%I as %s for %s to %s%s%s;',
+    policyname, schemaname, tablename, permissive, cmd,
+    (select string_agg(quote_ident(r), ', ') from unnest(roles) r),
+    ' using (' || qual || ')', ' with check (' || with_check || ')')
+  from pg_policies where schemaname = 'storage'
+  order by tablename, policyname" >"$out/storage-policies.sql"
+echo "   $(grep -c . "$out/storage-policies.sql") storage policies, $(grep -c . "$out/migrations.txt") migrations"
 
 echo "== copying storage objects"
 (cd "$repo" && pnpm exec tsx scripts/db/storage-objects.ts export \

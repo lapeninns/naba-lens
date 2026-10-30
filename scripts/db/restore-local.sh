@@ -11,10 +11,12 @@
 # storage schemas only). The script refuses a target that already has app tables,
 # auth users or storage objects, and refuses the default 554xx stack.
 #
-# Steps: verify SHA256SUMS -> roles.sql -> schema.sql -> data.sql (one
-# transaction, triggers off via session_replication_role = replica, as the
-# Supabase restore guide does) -> upload storage objects through the Storage API
-# -> verify keys and sha256.
+# Steps, database in ONE transaction: verify SHA256SUMS -> roles.sql ->
+# schema.sql -> migrations-schema.sql -> storage-policies.sql -> data.sql and
+# migrations-data.sql with triggers off (session_replication_role = replica, as
+# the Supabase restore guide does) -> compare migration history and storage
+# policies with the backup -> upload storage objects through the Storage API ->
+# verify keys and sha256.
 set -euo pipefail
 
 if [[ $# -ne 2 ]]; then
@@ -49,8 +51,11 @@ echo "== restoring database"
 psql "$db_url" -X -q -v ON_ERROR_STOP=1 --single-transaction \
   --file "$backup/roles.sql" \
   --file "$backup/schema.sql" \
+  --file "$backup/migrations-schema.sql" \
+  --file "$backup/storage-policies.sql" \
   --command "set session_replication_role = replica" \
-  --file "$backup/data.sql" >/dev/null
+  --file "$backup/data.sql" \
+  --file "$backup/migrations-data.sql" >/dev/null
 
 restored=$(q "select string_agg(version, ',' order by version) from supabase_migrations.schema_migrations")
 expected=$(paste -sd, "$backup/migrations.txt")
@@ -59,7 +64,21 @@ if [[ "$restored" != "$expected" ]]; then
   exit 1
 fi
 
+policies=$(psql "$db_url" -X -A -t -v ON_ERROR_STOP=1 -c "
+  select format('create policy %I on %I.%I as %s for %s to %s%s%s;',
+    policyname, schemaname, tablename, permissive, cmd,
+    (select string_agg(quote_ident(r), ', ') from unnest(roles) r),
+    ' using (' || qual || ')', ' with check (' || with_check || ')')
+  from pg_policies where schemaname = 'storage'
+  order by tablename, policyname")
+if [[ "$policies" != "$(cat "$backup/storage-policies.sql")" ]]; then
+  echo "Storage policies differ from the backup after restore." >&2
+  exit 1
+fi
+echo "   migrations: $restored"
+echo "   storage policies: $(grep -c . <<<"$policies") restored and identical"
+
 echo "== restoring storage objects"
 (cd "$repo" && pnpm exec tsx scripts/db/storage-objects.ts import \
   --workdir "$workdir" --from "$backup/storage")
-echo "== restore complete: migrations $restored"
+echo "== restore complete"
