@@ -56,9 +56,12 @@ The embedded WASM bundle needs no system HEVC decoder, ffmpeg or external wasm f
 The decoder is imported **only inside** `lib/media/heic-worker.mjs`.
 
 Every operation creates a fresh worker_thread, including its own WASM context.
-Only one HEIC worker may run per module instance. A concurrent request returns
-`decoder_busy`; retry through the caller's bounded job scheduling. There is no
-in-memory queue retaining arbitrary upload buffers. The 15-second wall deadline
+Only one HEIC worker may run per module instance. A concurrent request waits for the
+slot in arrival order for at most one decode deadline (`heicTimeoutMs`), then returns
+`decoder_busy`; retry through the caller's bounded job scheduling. The wait queue holds
+only resolvers, never upload buffers (each caller already holds its own bytes). It
+replaced immediate `decoder_busy`, whose caller-side polling left the decoder idle
+between jobs and failed 11 of 20 simultaneous finalises (`docs/runtime-sizing.md`). The 15-second wall deadline
 covers worker startup, decode and derivatives. The parent awaits termination on
 success, error or timeout before releasing the slot. Decoder stdout/stderr is drained
 without copying attacker-controlled parser diagnostics into application logs.

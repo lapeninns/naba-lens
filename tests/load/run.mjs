@@ -15,6 +15,9 @@
 //   node tests/load/stack-env.mjs "$W" pnpm build
 //   node tests/load/run.mjs --workdir "$W" --fixtures "$F" --scenario all
 //
+// Options: --staff N (a), --batch mixed|heic (a), --heic N (b), --port, --out,
+// --parallel-actions.
+//
 // Synthetic fixtures and throwaway `.test` accounts only. Never point this at a
 // hosted project: stack-env.mjs refuses non-local hosts.
 import { execFile, spawn } from "node:child_process"
@@ -57,6 +60,8 @@ const PORT = Number(args.port ?? 3615)
 const BASE = `http://127.0.0.1:${PORT}`
 const STAFF = Number(args.staff ?? 10)
 const HEIC_CONCURRENT = Number(args.heic ?? 5)
+/** Scenario a's batch: "mixed" (default) or "heic" (an all-iPhone batch). */
+const BATCH = String(args.batch ?? "mixed")
 const PARALLEL_ACTIONS = args["parallel-actions"] === true
 const OUT = resolve(
   args.out ?? join("tests/load/results", `run-${Date.now()}.json`)
@@ -592,11 +597,19 @@ async function scenarioA() {
       Array.from({ length: STAFF }, (_, i) => createStaff(`a${i}`))
     )
     const batches = await Promise.all(
-      staff.map((s, i) => pool(mixedBatch(i), 2, (f) => uploadOne(s, f)))
+      staff.map((s, i) =>
+        pool(
+          BATCH === "heic"
+            ? Array.from({ length: 10 }, () => fixture("photo-12mp.heic"))
+            : mixedBatch(i),
+          2,
+          (f) => uploadOne(s, f)
+        )
+      )
     )
     const results = batches.flat()
     return {
-      scenario: `a: ${STAFF} staff x 10-file mixed batch, 2 parallel per client`,
+      scenario: `a: ${STAFF} staff x 10-file ${BATCH} batch, 2 parallel per client`,
       summary: summarise(results),
       results,
     }
