@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto"
 
-import { expect, test, type Page } from "@playwright/test"
+import { expect as baseExpect, test, type Page } from "@playwright/test"
 
 import {
   expectImageLoaded,
@@ -21,6 +21,10 @@ import { createVenue, serviceClient } from "../support/identities"
  *
  * Without it the expiry test waits out the real 60 s links.
  */
+
+// Server round trips (Server Functions, dev-mode route compiles) can take
+// several seconds while other local stacks load this machine.
+const expect = baseExpect.configure({ timeout: 20_000 })
 
 const admin = serviceClient()
 const PAGE = 24

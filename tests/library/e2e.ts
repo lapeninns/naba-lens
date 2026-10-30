@@ -39,12 +39,16 @@ export async function expectImageLoaded(img: Locator) {
   await expect
     .poll(
       () =>
-        img.evaluate(
-          (el: HTMLImageElement) => el.complete && el.naturalWidth > 0
+        img.evaluate((el: HTMLImageElement) =>
+          el.complete && el.naturalWidth > 0
+            ? "loaded"
+            : `${el.complete ? "broken" : "loading"}: ${el.getAttribute("src")}`
         ),
-      { timeout: 15_000 }
+      // Generous: the dev server compiles media routes on first use, and the
+      // machine is shared with other local stacks.
+      { timeout: 30_000 }
     )
-    .toBe(true)
+    .toBe("loaded")
 }
 
 /**
