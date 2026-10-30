@@ -213,13 +213,16 @@ test.describe("admin library refreshes on focus", () => {
     await page.goto(`/admin?staff=${staff.id}`)
     const library = page.getByRole("list", { name: "Library" })
     await expect(page.getByText("Nothing matches these filters.")).toBeVisible()
-    expect(
-      await page.evaluate(
-        () =>
-          (window as unknown as { __libraryIntervals: number[] })
-            .__libraryIntervals
+    // The empty state is server-rendered: wait for hydration to start the timer.
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            (window as unknown as { __libraryIntervals: number[] })
+              .__libraryIntervals
+        )
       )
-    ).toContain(15_000)
+      .toContain(15_000)
 
     const tile = (name: string) =>
       page.getByRole("button", { name: new RegExp(`^Photo, ${name}`) })
