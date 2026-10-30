@@ -12,6 +12,7 @@ import {
   accessMatrix,
   expectedRows,
   expectedSha,
+  storedObjectShas,
   type FixtureManifest,
   stackEnv,
 } from "./lib/drill"
@@ -41,6 +42,15 @@ for (const who of ["admin", "staffA", "staffB", "anon"] as const) {
     failures.push(`${who} rows: got ${rows[who].length}, want ${want.length}`)
   }
 }
+// End users cannot read Storage directly (security hardening), so byte integrity of
+// the restored objects is proven with the service role.
+let intact = 0
+for (const d of await storedObjectShas(env, manifest)) {
+  const o = objects.find((x) => x.bucket === d.bucket && x.name === d.name)!
+  if (d.sha256 === o.sha256) intact++
+  else failures.push(`${d.bucket}/${d.name}: restored bytes ${d.sha256 ? "differ" : "missing"}`)
+}
+console.log(`service role: ${intact}/${objects.length} restored objects byte-identical`)
 const granted = downloads.filter((d) => d.sha256 !== null)
 console.log(
   `signed in: admin, staffA, staffB (magic-link token); ${downloads.length} download checks, ${granted.length} granted with matching sha256, ${downloads.length - granted.length} denied as expected`
@@ -52,4 +62,4 @@ if (failures.length) {
   console.error(failures.join("\n"))
   process.exit(1)
 }
-console.log("verified: sign-in, row visibility and byte-identical downloads match the manifest")
+console.log("verified: sign-in, row visibility, direct-Storage denial and byte-identical restored objects match the manifest")

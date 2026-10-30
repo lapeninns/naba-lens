@@ -237,13 +237,15 @@ export async function seedFixtureMedia(
     client: Db,
     type: "image" | "video",
     ext: string,
-    filename: string
+    filename: string,
+    sizeBytes: number
   ) {
     const { data } = check(
       await client.rpc("reserve_media_asset", {
         p_media_type: type,
         p_extension: ext,
         p_original_filename: filename,
+        p_size_bytes: sizeBytes,
         p_client_upload_key: `drill-${randomUUID()}`,
       }),
       "reserve_media_asset"
@@ -263,7 +265,8 @@ export async function seedFixtureMedia(
       client,
       "image",
       "jpg",
-      `DEV FIXTURE ${label}.jpg`
+      `DEV FIXTURE ${label}.jpg`,
+      original.byteLength
     )
     await uploadAsOwner(client, originalPath, original, "image/jpeg")
     const objects = [objectOf("media", originalPath, original, "image/jpeg")]
@@ -324,7 +327,8 @@ export async function seedFixtureMedia(
     staffA,
     "video",
     "mp4",
-    "DEV FIXTURE Staff A clip.mp4"
+    "DEV FIXTURE Staff A clip.mp4",
+    video.byteLength
   )
   await uploadAsOwner(staffA, v.originalPath, video, "video/mp4")
   check(
@@ -410,6 +414,30 @@ export type AccessResult = {
 
 export type RowVisibility = Record<FixtureUser | "anon", string[]>
 
+/**
+ * sha256 of every manifest object as the service role downloads it, so byte
+ * integrity of retained media is proven without end-user Storage access.
+ */
+export async function storedObjectShas(
+  env: StackEnv,
+  manifest: FixtureManifest
+): Promise<{ bucket: string; name: string; sha256: string | null }[]> {
+  const service = serviceClient(env)
+  const objects = [
+    ...manifest.assets.flatMap((a) => a.objects),
+    manifest.avatar.object,
+  ]
+  const out = []
+  for (const o of objects) {
+    out.push({
+      bucket: o.bucket,
+      name: o.name,
+      sha256: await tryDownload(service, o.bucket, o.name),
+    })
+  }
+  return out
+}
+
 async function tryDownload(
   client: Db,
   bucket: string,
@@ -469,25 +497,20 @@ export async function accessMatrix(
 }
 
 /**
- * The access rules the migrations promise (spec §5, storage migration):
- * owners read their own *ready* media, admins read every ready object,
- * deleted and unfinished assets are unreadable, other staff and anon get nothing;
- * avatars are readable by their owner and admins.
+ * The direct-Storage access rules the migrations promise. Since
+ * 20261030100000_security_hardening, end users (staff, admin, anon) cannot read or
+ * sign objects in `media` or `avatars` directly: every read goes through the app's
+ * routes, which sign with the service role after their own caller/asset checks
+ * (docs/media-routes.md). So every direct download by a user JWT is denied. Byte
+ * integrity of retained objects is checked separately with the service role
+ * (storage object checksums in the snapshot and restore verification).
  */
 export function expectedSha(
-  manifest: FixtureManifest,
-  who: FixtureUser | "anon",
-  o: ManifestObject
+  _manifest: FixtureManifest,
+  _who: FixtureUser | "anon",
+  _o: ManifestObject
 ): string | null {
-  if (who === "anon") return null
-  if (o.bucket === "avatars") {
-    return who === "admin" || who === manifest.avatar.owner ? o.sha256 : null
-  }
-  const asset = manifest.assets.find((a) =>
-    a.objects.some((x) => x.name === o.name)
-  )!
-  if (asset.state !== "ready") return null
-  return who === "admin" || who === asset.owner ? o.sha256 : null
+  return null
 }
 
 export function expectedRows(

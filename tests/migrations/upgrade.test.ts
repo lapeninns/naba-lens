@@ -18,6 +18,7 @@ import {
   seedFixtureMedia,
   signIn,
   snapshot,
+  storedObjectShas,
   type Db,
   type FixtureManifest,
   type FixtureUser,
@@ -101,10 +102,17 @@ describe("upgrade with retained data", () => {
     for (const who of ["admin", "staffA", "staffB", "anon"] as const) {
       expect(beforeAccess.rows[who]).toEqual(expectedRows(manifest, who))
     }
-    // Not vacuous: owners and admin really download bytes, others are really denied.
+    // Since the security hardening no end user reads Storage directly (the app's
+    // routes sign with the service role after their own checks): all 48 direct
+    // downloads by admin, staff and anon are denied.
     const granted = beforeAccess.downloads.filter((d) => d.sha256 !== null)
-    expect(granted.length).toBe(16)
-    expect(beforeAccess.downloads.length - granted.length).toBe(32)
+    expect(beforeAccess.downloads).toHaveLength(48)
+    expect(granted).toHaveLength(0)
+    // Not vacuous: the bytes are really there and intact (service role).
+    for (const d of await storedObjectShas(env, manifest)) {
+      const o = objects.find((x) => x.bucket === d.bucket && x.name === d.name)!
+      expect(d.sha256).toBe(o.sha256)
+    }
     before = snapshot(env)
   })
 
@@ -123,8 +131,15 @@ describe("upgrade with retained data", () => {
     ).toBe("1")
   })
 
-  it("keeps every retained row, object and policy unchanged", () => {
+  it("keeps every retained row, object and policy unchanged", async () => {
     const after = snapshot(env)
+    for (const d of await storedObjectShas(env, manifest)) {
+      const o = [
+        ...manifest.assets.flatMap((a) => a.objects),
+        manifest.avatar.object,
+      ].find((x) => x.bucket === d.bucket && x.name === d.name)!
+      expect(d.sha256).toBe(o.sha256)
+    }
     expect(after.venues).toEqual(before.venues)
     expect(after.profiles).toEqual(before.profiles)
     expect(after.mediaAssets).toEqual(before.mediaAssets)

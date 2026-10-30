@@ -63,7 +63,9 @@ loaded machine, one reset can take several minutes.
   - It records the access matrix: for each of admin, Staff A, Staff B and anon, every
     object's download result (sha256 or denied) and every visible `media_assets` row. Each
     entry is checked against the rules: owners and admins read ready media, and nobody reads
-    deleted or unfinished media. That gives 16 granted downloads and 32 denied.
+    deleted or unfinished media. Since the security hardening (`20261030100000`), no end user reads
+    Storage directly, so all 48 direct downloads are denied; byte integrity is proven with the
+    service role instead (`storedObjectShas`).
   - It copies the **TEST-ONLY** migration
     `tests/migrations/later/20261101090000_test_only_additive.sql` into the workdir. The
     migration is never committed to `supabase/migrations`. It applies with
