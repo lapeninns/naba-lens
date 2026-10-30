@@ -210,7 +210,7 @@ whole access matrix against the manifest written **before** the backup:
 
 It proves:
 
-- The logical dump plus object copy is **complete enough for NabaLens**. Auth users and
+- The logical dump plus object copy is **complete enough for Naba-Lens**. Auth users and
   identities, profiles, venue snapshots, tombstones, migration history, buckets, storage
   policies, app-owned managed-table triggers and object bytes all come back, and the
   tested security boundaries still hold after the restore.

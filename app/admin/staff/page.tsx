@@ -11,7 +11,7 @@ import { signOutAction } from "./actions"
 import { AuthDetailsNotice } from "./auth-details-notice"
 import { StaffDirectory } from "./staff-directory"
 
-export const metadata: Metadata = { title: "Staff · NabaLens" }
+export const metadata: Metadata = { title: "Staff · Naba-Lens" }
 
 export default async function StaffDirectoryPage() {
   const admin = await requireActiveAdmin()

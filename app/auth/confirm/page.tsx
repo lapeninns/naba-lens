@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { parseEmailLink } from "@/lib/auth/email-link"
 
 export const metadata: Metadata = {
-  title: "Continue to NabaLens",
+  title: "Continue to Naba-Lens",
   robots: { index: false, follow: false },
   // The token hash is in this page's URL; never send it to another site in a
   // Referer. ("no-referrer" would also make the Continue POST send Origin: null.)
@@ -40,11 +40,11 @@ export default async function ConfirmPage({
         className="flex w-full max-w-sm flex-col gap-4"
       >
         <h1 className="font-heading text-2xl font-semibold">
-          {invite ? "Accept your invitation" : "Sign in to NabaLens"}
+          {invite ? "Accept your invitation" : "Sign in to Naba-Lens"}
         </h1>
         <p className="text-sm text-muted-foreground">
           {invite
-            ? "Continue to activate your NabaLens account and sign in on this device."
+            ? "Continue to activate your Naba-Lens account and sign in on this device."
             : "Continue to finish signing in on this device."}
         </p>
         <input type="hidden" name="token_hash" value={link.tokenHash} />

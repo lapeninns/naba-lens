@@ -7,7 +7,7 @@ import { productionOrigin, runProductionSmoke } from "./smoke-production.mjs"
 
 const ORIGIN = "https://nabalens.example.test"
 const LOGIN =
-  '<!doctype html><title>Sign in · NabaLens</title><form><input type="email"><button>Send sign-in link</button></form>'
+  '<!doctype html><title>Sign in · Naba-Lens</title><form><input type="email"><button>Send sign-in link</button></form>'
 const PRIVATE_HEADERS = {
   "cache-control": "private, no-store",
   "x-content-type-options": "nosniff",

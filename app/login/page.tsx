@@ -7,7 +7,7 @@ import { getAuthState, homePathFor, ROUTES } from "@/lib/auth"
 import { getLoginCaptchaConfig } from "@/lib/auth/captcha"
 
 export const metadata: Metadata = {
-  title: "Sign in · NabaLens",
+  title: "Sign in · Naba-Lens",
 }
 
 export default async function LoginPage({

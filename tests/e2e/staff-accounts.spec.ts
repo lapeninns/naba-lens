@@ -93,7 +93,7 @@ test.describe("admin staff management", () => {
     await adminPage.getByRole("option", { name: venue.name }).click()
     await dialog.getByRole("button", { name: "Send invitation" }).click()
     await expect(
-      dialog.getByText("This email already has a NabaLens account", {
+      dialog.getByText("This email already has a Naba-Lens account", {
         exact: false,
       })
     ).toBeVisible()

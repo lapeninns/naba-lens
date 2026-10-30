@@ -1,6 +1,6 @@
 # Sign-in CAPTCHA
 
-NabaLens can require Cloudflare Turnstile through Supabase Auth's native CAPTCHA
+Naba-Lens can require Cloudflare Turnstile through Supabase Auth's native CAPTCHA
 validation. The browser obtains a token; the sign-in Server Function forwards it
 once in `signInWithOtp`'s `options.captchaToken`. Supabase validates it. The app
 does not call Siteverify separately, because the token is single-use.

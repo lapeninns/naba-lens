@@ -106,8 +106,8 @@ export async function inviteStaff(
         fail(
           "email_exists",
           profile
-            ? "This email already has a NabaLens account. If they have not signed in yet, use “Resend invitation” in the staff list."
-            : "This email belongs to an account that is not set up for NabaLens. Ask the system owner to check it.",
+            ? "This email already has a Naba-Lens account. If they have not signed in yet, use “Resend invitation” in the staff list."
+            : "This email belongs to an account that is not set up for Naba-Lens. Ask the system owner to check it.",
           { email: "This email already has an account." }
         )
       )

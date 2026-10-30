@@ -1,4 +1,4 @@
-# NabaLens
+# Naba-Lens
 
 Private staff portfolios and an admin marketing media library for one organisation
 with ten owner-confirmed venues. Staff upload to their own portfolio; admins see

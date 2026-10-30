@@ -18,7 +18,7 @@ import { AuthDetailsNotice } from "../auth-details-notice"
 import { AccountHeader } from "./account-header"
 import { AdminPortfolio } from "./admin-portfolio"
 
-export const metadata: Metadata = { title: "Staff portfolio · NabaLens" }
+export const metadata: Metadata = { title: "Staff portfolio · Naba-Lens" }
 
 export default async function StaffPortfolioPage({
   params,

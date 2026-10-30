@@ -62,7 +62,7 @@ export function AppShell(props: AppShellProps) {
             sections plus Log out do not fit beside the wordmark at 360px). */}
         <div className="mx-auto flex min-h-14 w-full max-w-7xl flex-wrap items-center gap-x-2 px-4 sm:h-14 sm:flex-nowrap sm:gap-6 sm:px-6">
           <span className="text-base font-semibold tracking-tight">
-            NabaLens
+            Naba-Lens
           </span>
           {props.variant === "admin" ? (
             <nav

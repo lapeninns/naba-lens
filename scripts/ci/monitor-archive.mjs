@@ -9,9 +9,9 @@ import { promisify } from "node:util"
 
 import { productionOrigin, runProductionSmoke } from "./smoke-production.mjs"
 
-export const ARCHIVE_MONITOR_ORIGIN = "https://nabalens.vercel.app"
+export const ARCHIVE_MONITOR_ORIGIN = "https://naba-lens.vercel.app"
 export const ARCHIVE_MONITOR_KEYCHAIN_SERVICE =
-  "nabalens-production-archive-monitor"
+  "naba-lens-production-archive-monitor"
 const MAX_AGE_MS = 26 * 60 * 60 * 1000
 const MAX_BODY_BYTES = 16 * 1024
 const TIMEOUT_MS = 15_000
@@ -114,7 +114,7 @@ export async function runArchiveMonitor(
         headers: {
           accept: "application/json",
           authorization: `Bearer ${secret}`,
-          "user-agent": "NabaLens-read-only-archive-monitor/1",
+          "user-agent": "Naba-Lens-read-only-archive-monitor/1",
         },
         signal: AbortSignal.timeout(TIMEOUT_MS),
       }
@@ -190,7 +190,7 @@ async function main() {
   const withSmoke = args[0] === "--with-smoke"
   assert(
     args.length === (withSmoke ? 2 : 1),
-    "Usage: node scripts/ci/monitor-archive.mjs [--with-smoke] https://nabalens.vercel.app"
+    "Usage: node scripts/ci/monitor-archive.mjs [--with-smoke] https://naba-lens.vercel.app"
   )
   const origin = args[withSmoke ? 1 : 0]
   let archive
@@ -203,7 +203,7 @@ async function main() {
       )
     }
     console.log(
-      `NabaLens signed-out smoke: ${result.smoke.ok ? "PASS" : "FAIL"}`
+      `Naba-Lens signed-out smoke: ${result.smoke.ok ? "PASS" : "FAIL"}`
     )
     archive = result.archive
     ok = result.ok
@@ -212,7 +212,7 @@ async function main() {
     ok = archive.ok
   }
   console.log(
-    `NabaLens archive freshness: ${archive.ok ? "PASS" : "FAIL"}${archive.message ? `: ${archive.message}` : ""}`
+    `Naba-Lens archive freshness: ${archive.ok ? "PASS" : "FAIL"}${archive.message ? `: ${archive.message}` : ""}`
   )
   process.exitCode = ok ? 0 : 1
 }
@@ -223,7 +223,7 @@ if (
 ) {
   main().catch(() => {
     console.error(
-      "NabaLens archive monitor could not run with its configured origin."
+      "Naba-Lens archive monitor could not run with its configured origin."
     )
     process.exitCode = 1
   })

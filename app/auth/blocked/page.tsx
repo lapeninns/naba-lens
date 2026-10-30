@@ -5,10 +5,10 @@ import { SignOutButton } from "@/app/auth/sign-out-button"
 import { getAuthState, homePathFor, ROUTES } from "@/lib/auth"
 
 export const metadata: Metadata = {
-  title: "Account unavailable · NabaLens",
+  title: "Account unavailable · Naba-Lens",
 }
 
-/** Shown to a signed-in account without an active NabaLens profile. */
+/** Shown to a signed-in account without an active Naba-Lens profile. */
 export default async function BlockedPage() {
   const state = await getAuthState()
   if (state.status === "signed_out") redirect(ROUTES.login)
@@ -22,9 +22,9 @@ export default async function BlockedPage() {
         </h1>
         <p className="text-sm text-muted-foreground">
           {state.status === "inactive"
-            ? "Your NabaLens account has been deactivated."
-            : "This sign-in is not linked to an active NabaLens account."}{" "}
-          Ask a NabaLens admin at your organisation if you think this is a
+            ? "Your Naba-Lens account has been deactivated."
+            : "This sign-in is not linked to an active Naba-Lens account."}{" "}
+          Ask a Naba-Lens admin at your organisation if you think this is a
           mistake.
         </p>
         <SignOutButton />

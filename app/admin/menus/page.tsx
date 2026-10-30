@@ -7,7 +7,7 @@ import { requireActiveAdmin } from "@/lib/auth"
 import { getMediaActor } from "@/lib/server/media/context"
 import { listMenuVenues } from "@/lib/server/menus"
 
-export const metadata: Metadata = { title: "Menus · NabaLens" }
+export const metadata: Metadata = { title: "Menus · Naba-Lens" }
 
 const venueHref = (venueId: string) =>
   `/admin/menus/${encodeURIComponent(venueId)}`

@@ -175,7 +175,7 @@ describe("LoginCard", () => {
     await userEvent.click(screen.getByRole("button", { name: "Send sign-in link" }))
     expect(onSubmit).toHaveBeenCalledWith("someone@example.invalid")
     expect(await screen.findByText("Check your email")).toBeTruthy()
-    expect(screen.getByText(/If/).textContent).toContain("has a NabaLens account")
+    expect(screen.getByText(/If/).textContent).toContain("has a Naba-Lens account")
   })
 
   it("explains an expired link", () => {

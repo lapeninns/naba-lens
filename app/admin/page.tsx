@@ -12,7 +12,7 @@ import { libraryLabelFilterOptions } from "@/lib/server/media/library-labels"
 import { AdminLibrary } from "./admin-library"
 import { toFilterValue } from "./library-search"
 
-export const metadata = { title: "Content · NabaLens" }
+export const metadata = { title: "Content · Naba-Lens" }
 
 /**
  * Admin library: every ready upload across venues, newest first, filtered

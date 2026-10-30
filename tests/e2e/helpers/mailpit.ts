@@ -20,8 +20,8 @@ export async function mailboxIds(to: string): Promise<Set<string>> {
 }
 
 export const SUBJECTS = {
-  invite: "You have been invited to NabaLens",
-  signIn: "Your NabaLens sign-in link",
+  invite: "You have been invited to Naba-Lens",
+  signIn: "Your Naba-Lens sign-in link",
 } as const
 
 /**

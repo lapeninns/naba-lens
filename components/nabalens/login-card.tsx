@@ -115,7 +115,7 @@ export function LoginCard({
         className
       )}
     >
-      <p className="text-base font-semibold tracking-tight">NabaLens</p>
+      <p className="text-base font-semibold tracking-tight">Naba-Lens</p>
       {state === "sent" ? (
         <div className="mt-6 grid gap-4" role="status">
           <EnvelopeSimpleIcon
@@ -131,7 +131,7 @@ export function LoginCard({
           <p className="text-sm text-muted-foreground">
             If{" "}
             <span className="font-medium text-foreground">{email.trim()}</span>{" "}
-            has a NabaLens account, a sign-in link is on its way. Open it on
+            has a Naba-Lens account, a sign-in link is on its way. Open it on
             this device. It can only be used once.
           </p>
           <Button

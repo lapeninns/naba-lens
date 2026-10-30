@@ -73,11 +73,12 @@ test("a current archive passes with exactly one read-only status request", async
 test("origin is pinned before any credential lookup or request", async () => {
   for (const origin of [
     "https://attacker.test",
-    "http://nabalens.vercel.app",
-    "https://nabalens.vercel.app.attacker.test",
-    `https://user:${SECRET}@nabalens.vercel.app`,
-    `https://nabalens.vercel.app/?secret=${SECRET}`,
-    "https://nabalens.vercel.app/path",
+    "https://nabalens.vercel.app",
+    "http://naba-lens.vercel.app",
+    "https://naba-lens.vercel.app.attacker.test",
+    `https://user:${SECRET}@naba-lens.vercel.app`,
+    `https://naba-lens.vercel.app/?secret=${SECRET}`,
+    "https://naba-lens.vercel.app/path",
   ]) {
     let calls = 0
     const result = await runArchiveMonitor(origin, {
@@ -101,6 +102,11 @@ test("origin is pinned before any credential lookup or request", async () => {
 })
 
 test("Keychain invocation has no secret in arguments, environment or diagnostics", async () => {
+  assert.equal(ARCHIVE_MONITOR_ORIGIN, "https://naba-lens.vercel.app")
+  assert.equal(
+    ARCHIVE_MONITOR_KEYCHAIN_SERVICE,
+    "naba-lens-production-archive-monitor"
+  )
   const secret = await readMonitorSecret({
     execFileImpl: async (command, args, options) => {
       assert.equal(command, "/usr/bin/security")

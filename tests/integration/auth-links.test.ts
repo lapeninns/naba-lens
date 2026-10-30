@@ -242,7 +242,7 @@ describe("email link scanners (GET must not use the token)", () => {
         action: "/auth/confirm/verify",
         method: "post",
         fields: { token_hash: tokenHashOf(link), type: "email" },
-        heading: "Sign in to NabaLens",
+        heading: "Sign in to Naba-Lens",
       })
     }
     expect(scanner.authCookies()).toEqual([])

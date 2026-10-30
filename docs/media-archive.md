@@ -129,13 +129,13 @@ volume, more frequent invocations or a resumable larger budget may be needed; a
 stale status is an operational failure, not permission to weaken the threshold.
 
 The local checker reads the narrow credential from macOS Keychain using service
-`nabalens-production-archive-monitor` and account `https://nabalens.vercel.app`.
+`naba-lens-production-archive-monitor` and account `https://naba-lens.vercel.app`.
 It pins that production origin before accessing Keychain and never sends the
 credential to another origin or follows a redirect. Run the combined signed-out
 smoke checks and authenticated archive health check with:
 
 ```sh
-node scripts/ci/monitor-archive.mjs --with-smoke https://nabalens.vercel.app
+node scripts/ci/monitor-archive.mjs --with-smoke https://naba-lens.vercel.app
 ```
 
 The checker preserves the existing signed-out smoke checks and then makes one
@@ -146,7 +146,7 @@ cycle may be in progress while an earlier complete cycle is still fresh. Missing
 invalid or unavailable Keychain credentials fail with exit code 1 and a redacted
 message; the checker never falls back to the more powerful cleanup credential.
 It also fails on timeouts, redirects, oversized or malformed responses and stale
-or incomplete health. A successful run prints `NabaLens archive freshness: PASS`;
+or incomplete health. A successful run prints `Naba-Lens archive freshness: PASS`;
 a failure prints `FAIL` with a safe reason and exits nonzero.
 
 The existing local `com.lapeninns.local-ci.smoke` LaunchAgent is loaded with an

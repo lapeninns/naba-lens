@@ -201,7 +201,7 @@ There is no `RESEND_API_KEY`, database URL, media-limit or HEIC-memory environme
 setting in the application. SMTP is Supabase Auth configuration. Template-only
 `env(...)` placeholders in `supabase/config.toml` (`OPENAI_API_KEY` for disabled
 Studio, disabled Twilio/Apple provider keys and experimental `S3_*`) are CLI
-scaffolding, not NabaLens prerequisites. Do not provision unused services.
+scaffolding, not Naba-Lens prerequisites. Do not provision unused services.
 
 ## 4. Checks and isolated test stacks
 

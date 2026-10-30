@@ -164,7 +164,7 @@ export async function setStaffActive(
         ok: true,
         status: "inactive",
         warning:
-          "The account is deactivated and blocked from NabaLens. Signing out its other devices failed; they are still refused on their next request.",
+          "The account is deactivated and blocked from Naba-Lens. Signing out its other devices failed; they are still refused on their next request.",
       }
     }
     return { ok: true, status: "inactive" }

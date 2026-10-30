@@ -1,4 +1,4 @@
-# NabaLens architecture (M0 discovery + M1 foundation)
+# Naba-Lens architecture (M0 discovery + M1 foundation)
 
 Written by the foundation track on 29 October 2026. It records what the repository
 actually contained, how the spec's proposed names map to real paths, the commands

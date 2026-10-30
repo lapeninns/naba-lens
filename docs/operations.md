@@ -14,7 +14,7 @@ There is no operations dashboard or deployed scheduler implied by this guide.
 - **Presence in the admin library is not publishing clearance.** Technical
   validation checks a file, not legal rights, consent or suitability for a
   particular campaign. The person publishing must check the intended use and
-  permission separately. NabaLens has no editorial approval or publishing tool.
+  permission separately. Naba-Lens has no editorial approval or publishing tool.
 
 ## Routine checks
 

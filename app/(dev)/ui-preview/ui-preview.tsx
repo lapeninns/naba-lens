@@ -1,6 +1,6 @@
 "use client"
 
-// DEV FIXTURE: interactive preview of every NabaLens component with fake data
+// DEV FIXTURE: interactive preview of every Naba-Lens component with fake data
 // and a fake uploader. Never linked from the app; the route 404s in production.
 
 import * as React from "react"
@@ -158,7 +158,7 @@ export function UiPreview() {
     <div className="mx-auto grid max-w-7xl gap-12 px-4 py-8 sm:px-6">
       <header className="grid gap-3">
         <h1 className="text-2xl font-semibold tracking-tight">
-          NabaLens UI preview
+          Naba-Lens UI preview
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
           Development only. Every name, venue, image and upload here is a fake
@@ -518,7 +518,7 @@ export function UiPreview() {
           if (inviteOutcome === "error") {
             return {
               status: "error",
-              error: "This email already has a NabaLens account.",
+              error: "This email already has a Naba-Lens account.",
               fieldErrors: { email: "Already in use." },
             }
           }

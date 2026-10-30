@@ -65,7 +65,7 @@ async function requestLinkViaForm(page: Page, email: string) {
     page.getByRole("heading", { name: "Check your email" })
   ).toBeVisible()
   await expect(
-    page.getByText(`If ${email} has a NabaLens account`, { exact: false })
+    page.getByText(`If ${email} has a Naba-Lens account`, { exact: false })
   ).toBeVisible()
 }
 

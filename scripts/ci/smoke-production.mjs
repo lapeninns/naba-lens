@@ -120,7 +120,7 @@ export async function runProductionSmoke(
         cache: "no-store",
         headers: {
           accept: "text/html, application/json, text/plain",
-          "user-agent": "NabaLens-read-only-production-smoke/1",
+          "user-agent": "Naba-Lens-read-only-production-smoke/1",
         },
         signal: AbortSignal.timeout(TIMEOUT_MS),
       })
@@ -150,14 +150,14 @@ export async function runProductionSmoke(
       "Login page was not HTML."
     )
     assert(
-      /<title>\s*Sign in\s*[·&].*NabaLens\s*<\/title>/i.test(body) &&
+      /<title>\s*Sign in\s*[·&].*Naba-Lens\s*<\/title>/i.test(body) &&
         /<form\b/i.test(body) &&
         /<input\b[^>]*\btype=["']email["']/i.test(body) &&
         /Send sign-in link/.test(body) &&
         !/id=["']__next_error__["']|NEXT_HTTP_ERROR_FALLBACK|Application error:/i.test(
           body
         ),
-      "Expected the NabaLens sign-in form; a provider login or error page is not success."
+      "Expected the Naba-Lens sign-in form; a provider login or error page is not success."
     )
   })
 
@@ -272,7 +272,7 @@ async function main() {
     )
   }
   console.log(
-    `NabaLens signed-out smoke: ${result.ok ? "PASS" : "FAIL"} (${result.results.filter((check) => check.ok).length}/${result.results.length})`
+    `Naba-Lens signed-out smoke: ${result.ok ? "PASS" : "FAIL"} (${result.results.filter((check) => check.ok).length}/${result.results.length})`
   )
   process.exitCode = result.ok ? 0 : 1
 }
@@ -283,7 +283,7 @@ if (
 ) {
   main().catch(() => {
     console.error(
-      "NabaLens smoke could not run. Supply one production HTTPS origin without credentials, a path, query or fragment."
+      "Naba-Lens smoke could not run. Supply one production HTTPS origin without credentials, a path, query or fragment."
     )
     process.exitCode = 1
   })

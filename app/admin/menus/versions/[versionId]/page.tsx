@@ -16,7 +16,7 @@ import { getMenuVersion } from "@/lib/server/menus"
 
 import { VersionEditor } from "../../version-editor"
 
-export const metadata: Metadata = { title: "Menus · NabaLens" }
+export const metadata: Metadata = { title: "Menus · Naba-Lens" }
 
 /** One menu version: provenance, diff vs active, editor and lifecycle. */
 export default async function MenuVersionPage({

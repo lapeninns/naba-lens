@@ -172,7 +172,7 @@ enable_refresh_token_rotation = true
 # Requires enable_refresh_token_rotation = true.
 refresh_token_reuse_interval = 10
 # Allow/disallow new user signups to your project.
-# NabaLens is invite-only: no public sign-up. Admin invitations use the service role.
+# Naba-Lens is invite-only: no public sign-up. Admin invitations use the service role.
 enable_signup = false
 # Allow/disallow anonymous sign-ins to your project.
 enable_anonymous_sign_ins = false
@@ -246,14 +246,14 @@ otp_expiry = 3600
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
 
-# NabaLens templates link to /auth/confirm with a token_hash, so a link opened in a
+# Naba-Lens templates link to /auth/confirm with a token_hash, so a link opened in a
 # different browser than the one that requested it still works (no PKCE verifier needed).
 [auth.email.template.invite]
-subject = "You have been invited to NabaLens"
+subject = "You have been invited to Naba-Lens"
 content_path = "./supabase/templates/invite.html"
 
 [auth.email.template.magic_link]
-subject = "Your NabaLens sign-in link"
+subject = "Your Naba-Lens sign-in link"
 content_path = "./supabase/templates/magic_link.html"
 
 # Uncomment to customize notification email template

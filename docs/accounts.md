@@ -47,7 +47,7 @@ Function reached by a direct POST is refused even if the page was never rendered
 
 1. Validate the input; the venue must exist and be active.
 2. Look the email up among auth users.
-   - **Has a profile** → refused: "already has a NabaLens account". Nothing changes. If
+   - **Has a profile** → refused: "already has a Naba-Lens account". Nothing changes. If
      they have not signed in, use **Resend invitation**.
    - **No profile, created by an earlier interrupted invite** (user metadata
      `nabalens_invite: true` and never signed in) → adopted; the flow continues from
@@ -92,7 +92,7 @@ admin uses **Resend invitation**.
     new sign-in links. A failed ban is reported as a warning; the account is still
     deactivated.
   - Access tokens already issued (`jwt_expiry`, 1 h) still authenticate to Supabase,
-    but every NabaLens check denies an inactive profile.
+    but every Naba-Lens check denies an inactive profile.
   - Retained media stays visible to admins.
 - **Reactivate** lifts the ban first, then sets `active = true`. The person signs in
   again with a new link.
@@ -118,7 +118,7 @@ the hosted project (Dashboard → Authentication → Emails → SMTP Settings). 
 | Port              | `465` (TLS) or `587` (STARTTLS)                                         |
 | Username          | `resend`                                                                |
 | Password          | A Resend API key with sending access only (store it as a secret only)   |
-| Sender email/name | An address on a domain verified in Resend (SPF + DKIM), e.g. `NabaLens` |
+| Sender email/name | An address on a domain verified in Resend (SPF + DKIM), e.g. `Naba-Lens` |
 
 Also on the hosted project:
 
@@ -142,11 +142,11 @@ For a self-hosted or CLI-managed config, the same values go in `[auth.email.smtp
 ## Short admin guide
 
 1. **Staff → Invite staff.** Enter name, email, optional job title and venue. The person
-   gets an email titled "You have been invited to NabaLens".
+   gets an email titled "You have been invited to Naba-Lens".
 2. If the dialog says the email was not sent, or the person cannot find it or the link
    expired, choose **⋯ → Resend invitation**.
 3. To move someone to another venue, choose **⋯ → Edit details → Venue**. Their earlier
    photos keep the old venue.
-4. When someone leaves, choose **⋯ → Deactivate**. They are signed out of NabaLens
+4. When someone leaves, choose **⋯ → Deactivate**. They are signed out of Naba-Lens
    everywhere on their next action. Their uploads stay in the library. **Reactivate**
    restores access.

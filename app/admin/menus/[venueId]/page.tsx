@@ -21,7 +21,7 @@ import { ImportFlow } from "../import-flow"
 import { itemOptions } from "../review"
 import { NewDraftButtons, SuggestionsPanel } from "../venue-controls"
 
-export const metadata: Metadata = { title: "Menus · NabaLens" }
+export const metadata: Metadata = { title: "Menus · Naba-Lens" }
 
 const versionHref = (id: string) =>
   `/admin/menus/versions/${encodeURIComponent(id)}`
