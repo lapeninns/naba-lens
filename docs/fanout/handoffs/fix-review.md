@@ -5,8 +5,8 @@ Review: `git show review/nl-final:docs/reviews/final-review.md`.
 
 ## Status
 
-In progress: all fixes committed with regression tests; full integration,
-build, affected e2e and the privacy step still to run (see Next steps).
+Done. All fixes committed with regression tests; every check below is green.
+The isolated stack is stopped.
 
 ## Done (one regression test each; each new test was seen failing without its fix unless noted)
 
@@ -46,13 +46,31 @@ build, affected e2e and the privacy step still to run (see Next steps).
   `tests/unit/privacy-runtime-probe.test.ts` (not run against the old script:
   it would start a full `next build`).
 
-## Next steps
+## Results (real, on the final head)
 
-1. `pnpm test:integration` (full), `pnpm build`.
-2. Affected e2e (chromium): auth-guards, library, slice, staff-accounts, gaps,
-   upload-recovery, profile-outage, refresh-hang.
-3. `E2E_PORT=3497 node scripts/ci/privacy-runtime.mjs /tmp/nl-fix-review`.
-4. Stop the stack.
+- `pnpm typecheck`: clean. `pnpm lint`: clean (0 problems).
+- `pnpm test`: 26 files, 163 passed.
+- `pnpm test:integration`: 19 files passed, 1 skipped; 206 passed, 12 skipped
+  (privacy-runtime without a server, plus existing skips).
+- `pnpm build`: ok; `/api/portfolio` and `/api/library` are dynamic (ƒ).
+- Playwright chromium, `E2E_SKIP_BUILD=1`, isolated stack: profile-outage,
+  refresh-hang, auth-guards, library, staff-accounts: 10 passed; slice, gaps,
+  upload-recovery, journey, auth: 17 passed.
+- `E2E_PORT=3497 node scripts/ci/privacy-runtime.mjs /tmp/nl-fix-review`:
+  `privacy-runtime: 12 passed, 0 failed, 0 skipped: PASS`.
+- `pnpm test:security /tmp/nl-fix-review`: 153 passed.
+  `pnpm test:lifecycle /tmp/nl-fix-review`: 23 passed.
+- Not run: firefox/webkit/mobile e2e projects, `pnpm test:visual` (a11y track
+  owns it), `lci` (runs once on the integrated head).
+
+## Notes for the integrator
+
+- Outside slice paths only where needed: `app/error.tsx`, `app/global-error.tsx`
+  (root), `lib/server/log/redact.ts` (new), `tests/unit/scope-guard.test.ts`
+  allow-list (two new routes). Nothing under `components/nabalens/**` or
+  `tests/visual/**`.
+- `app/staff/staff-portfolio.tsx` and `app/admin/admin-library.tsx` gained a
+  `refreshPage` prop; small, but a11y may touch them too.
 
 ## How to run my stack
 
