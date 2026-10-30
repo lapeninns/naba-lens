@@ -2,6 +2,7 @@
 // Final review F9: saving an edit that changes activation refreshed the page
 // twice (once on confirming the status, again after the save). One refresh is
 // enough; each re-render re-reads Auth, media and venues on the server.
+import * as React from "react"
 import { act, cleanup, render } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -46,10 +47,17 @@ const member: StaffMember = {
   status: "active",
 }
 
-let controls: ReturnType<typeof useAccountControls> | null = null
-function Harness() {
-  controls = useAccountControls({ venues: [], maxAvatarBytes: 5 << 20 })
-  return controls.dialogs
+// The hook's handlers, captured through a callback prop (lint: no writes to
+// module variables during render).
+type Controls = ReturnType<typeof useAccountControls>
+let controls: Controls | null = null
+function Harness({ onRender }: { onRender: (c: Controls) => void }) {
+  const current = useAccountControls({ venues: [], maxAvatarBytes: 5 << 20 })
+  React.useEffect(() => onRender(current))
+  return current.dialogs
+}
+const capture = (c: Controls) => {
+  controls = c
 }
 
 beforeEach(() => {
@@ -62,7 +70,7 @@ afterEach(cleanup)
 describe("account controls refresh the page once per change (final review F9)", () => {
   it("an edit that deactivates refreshes once", async () => {
     updateStaffAccountAction.mockResolvedValue({ ok: true, status: "inactive" })
-    render(<Harness />)
+    render(<Harness onRender={capture} />)
     act(() => controls!.edit(member))
     await act(async () => {
       await dialog!.onSubmit({ displayName: "TEST Sam", active: false })
@@ -73,7 +81,7 @@ describe("account controls refresh the page once per change (final review F9)", 
 
   it("reactivating from the list still refreshes once", async () => {
     setStaffActiveAction.mockResolvedValue({ ok: true, status: "active" })
-    render(<Harness />)
+    render(<Harness onRender={capture} />)
     await act(async () => {
       controls!.setActive({ ...member, status: "inactive" }, true)
     })

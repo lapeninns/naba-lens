@@ -31,7 +31,7 @@ describe("scripts/ci/privacy-runtime.mjs readiness", () => {
           resolve(
             spawnSync(process.execPath, ["scripts/ci/privacy-runtime.mjs", work], {
               encoding: "utf8",
-              env: { PATH: process.env.PATH, E2E_PORT: String(port) },
+              env: { ...process.env, E2E_PORT: String(port) },
               timeout: 20_000,
             })
           )
