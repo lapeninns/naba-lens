@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation"
 import { fetchMediaPage } from "@/app/_media/fetch-page"
 import { MediaGallery } from "@/app/_media/media-gallery"
 import { useMediaUploader } from "@/app/_media/use-media-uploader"
+import { LabelEditorHost } from "@/app/_labels/label-editor-host"
 import {
   EditProfileDialog,
   EmptyState,
@@ -61,6 +62,8 @@ export function StaffPortfolio({
   const [uploadOpen, setUploadOpen] = React.useState(false)
   const [editOpen, setEditOpen] = React.useState(false)
   const [refreshSignal, setRefreshSignal] = React.useState(0)
+  // Optional labelling right after an upload (v0.3); skipping changes nothing.
+  const [labelIds, setLabelIds] = React.useState<string[] | null>(null)
   const refreshGallery = React.useCallback(
     () => setRefreshSignal((n) => n + 1),
     []
@@ -109,6 +112,8 @@ export function StaffPortfolio({
         refreshPage={refreshMyMedia}
         canDelete
         refreshSignal={refreshSignal}
+        canLabel
+        showLabelBadge
         empty={<EmptyState action={uploadButton} />}
       />
       <UploadDialog
@@ -120,6 +125,15 @@ export function StaffPortfolio({
         uploader={uploader}
         limits={MEDIA_LIMITS}
         onUploaded={refreshGallery}
+        onLabel={(ids) => setLabelIds(ids)}
+      />
+      <LabelEditorHost
+        assetIds={labelIds ?? []}
+        open={labelIds !== null}
+        onOpenChange={(open) => {
+          if (!open) setLabelIds(null)
+        }}
+        onSaved={refreshGallery}
       />
       <EditProfileDialog
         open={editOpen}

@@ -2,6 +2,7 @@
 
 import * as React from "react"
 
+import { LabelEditorHost } from "@/app/_labels/label-editor-host"
 import {
   ConfirmDeleteDialog,
   LoadMoreButton,
@@ -49,6 +50,13 @@ type MediaGalleryProps = {
   refreshIntervalMs?: number
   /** Change this value to refresh now (for example after an upload). */
   refreshSignal?: number
+  /**
+   * v0.3 optional labels: "Add/Edit labels" in the viewer for ready files
+   * (staff: own files; admin: any). The server re-checks every save.
+   */
+  canLabel?: boolean
+  /** Small labels badge on ready tiles (staff portfolio). */
+  showLabelBadge?: boolean
 }
 
 /**
@@ -107,7 +115,10 @@ export function MediaGallery({
   canDelete = false,
   refreshIntervalMs,
   refreshSignal,
+  canLabel = false,
+  showLabelBadge = false,
 }: MediaGalleryProps) {
+  const [labelIds, setLabelIds] = React.useState<string[] | null>(null)
   const [items, setItems] = React.useState<MediaItem[]>(initialPage.items)
   const [nextCursor, setNextCursor] = React.useState(initialPage.nextCursor)
   const [loadingMore, setLoadingMore] = React.useState(false)
@@ -258,6 +269,7 @@ export function MediaGallery({
           items={display}
           label={label}
           showAttribution={showAttribution}
+          showLabelBadge={showLabelBadge}
           onOpen={(item) => {
             setDownloadError(null)
             setOpenId(item.id)
@@ -293,7 +305,28 @@ export function MediaGallery({
         }
         getPortfolioHref={getPortfolioHref}
         onDelete={canDelete ? (item) => setDeleting(item) : undefined}
+        onEditLabels={canLabel ? (item) => setLabelIds([item.id]) : undefined}
       />
+      {canLabel ? (
+        <LabelEditorHost
+          assetIds={labelIds ?? []}
+          open={labelIds !== null}
+          onOpenChange={(open) => {
+            if (!open) setLabelIds(null)
+          }}
+          onSaved={(results) => {
+            // Show the saved labels at once, wherever the file is loaded.
+            const saved = new Map(
+              results.flatMap((r) => (r.ok ? [[r.assetId, r.labels]] : []))
+            )
+            setItems((current) =>
+              current.map((i) =>
+                saved.has(i.id) ? { ...i, labels: saved.get(i.id) } : i
+              )
+            )
+          }}
+        />
+      ) : null}
       <ConfirmDeleteDialog
         open={deleting !== null}
         onOpenChange={(open) => {
