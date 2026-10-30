@@ -27,6 +27,31 @@ then in the temp copy only: `project_id = "nabalens-followups"`, `email_sent = 1
 `supabase --workdir $W start -x imgproxy,postgres-meta,vector,logflare,supavisor`,
 `supabase --workdir $W db reset`. Stop with `supabase --workdir $W stop`.
 
-## Status
+Stack is **stopped**. Integration needs `MAILPIT_URL` exported too when using env vars.
 
-See the bottom of this file (updated as checks run).
+## Also fixed (post-merge #4b test drift found while running the affected suites)
+
+- `tests/integration/privacy-runtime.test.ts`: probed the deleted `loadMorePortfolioAction`;
+  now calls `loadLibraryPage({ staff }, null)` from `/admin/staff/[A]` (as merge-plan.md asked).
+- `tests/e2e/library.spec.ts`: wrote the download fixture's original after the row was
+  `ready`, which secfix's `guard_media_original_write` refuses (`media_reservation_closed`).
+  Now stored through `seedAsset({ original })` while still `uploading`.
+- `tests/e2e/gaps.spec.ts`: read the captured 15 s interval right after server-rendered text
+  appeared (before hydration); now `expect.poll`s it. Failed 1/1 cold, passed 3/3 warm before.
+- `tests/e2e/negative.spec.ts`: the missing-original test now asserts the in-app alert.
+
+## Status: done
+
+Results (load average 3.3 to 4.1, one stack): typecheck, lint clean; unit 147/147;
+integration 137 passed, 12 skipped (privacy-runtime without a server); privacy-runtime with
+strict invitation 11/11 three runs; security 153/153; lifecycle 23/23; build + scan-bundle
+clean; e2e chromium negative 8/8, library 3/3, gaps 4/4, slice + upload-recovery 6/6,
+responsive passed; journey @core 4/4 engines.
+
+## Next
+
+- Integrator: merge `feat/nl-followups`. `components/nabalens/media-viewer.tsx` overlaps
+  `visual-a11y`: keep both its changes and the `onDownload`/`downloadError` props.
+- Release: set `export const maxDuration = 120` with the deployment (`docs/runtime-sizing.md`).
+- Open: pages (`app/staff/page.tsx`, `app/admin/page.tsx`) still throw to the error boundary
+  when the profile read fails; layouts call `lib/auth` (auth-edges owns it).
