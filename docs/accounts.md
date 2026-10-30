@@ -60,7 +60,8 @@ Function reached by a direct POST is refused even if the page was never rendered
    delete also fails, step 2 adopts the user on retry.
 5. `auth.admin.inviteUserByEmail(email)` sends the invite template
    (`supabase/templates/invite.html`). Its link is
-   `/auth/confirm?token_hash=…&type=invite`.
+   `/auth/confirm?token_hash=…&type=invite`, which shows "Accept your invitation" with a
+   Continue button; only Continue uses the token (mail scanners that prefetch links cannot).
    - **Email fails** → the account stays and shows as **Invited**. The dialog says
      "Account created, email not sent", never "sent". **Resend invitation** recovers.
 

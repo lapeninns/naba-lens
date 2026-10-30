@@ -30,7 +30,6 @@ import { GET as previewRoute } from "@/app/api/media/[id]/preview/route"
 import { GET as streamRoute } from "@/app/api/media/[id]/stream/route"
 import { GET as thumbRoute } from "@/app/api/media/[id]/thumb/route"
 import { POST as profileRoute } from "@/app/api/profile/route"
-import { GET as confirm } from "@/app/auth/confirm/route"
 import BlockedPage from "@/app/auth/blocked/page"
 import LoginPage from "@/app/login/page"
 import RootPage from "@/app/page"
@@ -58,6 +57,7 @@ import {
   readSessionCookie,
   redirectOf,
 } from "./auth-support"
+import { followEmailLink } from "./auth-confirm"
 
 const service = serviceClient()
 const sha256 = (bytes: Uint8Array) =>
@@ -83,8 +83,8 @@ async function person(
   })
   const browser = new Browser(label)
   const link = await issueSignInLink(service, identity.email)
-  const res = await browser.run(() => confirm(appRequest(browser, link)))
-  expect(res.headers.get("location")).toBe("/")
+  const res = await followEmailLink(browser, link)
+  expect(res.location).toBe("/")
   return { ...identity, browser, rest: await restClientFor(browser) }
 }
 

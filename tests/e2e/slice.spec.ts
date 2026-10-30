@@ -52,6 +52,7 @@ async function signIn(
   await page.goto(
     `/auth/confirm?token_hash=${data.properties.hashed_token}&type=email`
   )
+  await page.getByRole("button", { name: "Continue" }).click()
   return page
 }
 

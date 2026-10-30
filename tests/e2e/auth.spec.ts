@@ -45,6 +45,8 @@ async function requestLink(page: Page, email: string) {
 async function openLink(page: Page, link: string, baseURL: string) {
   const url = new URL(link)
   await page.goto(new URL(url.pathname + url.search, baseURL).toString())
+  // Opening the link never uses it (mail scanners prefetch); Continue does.
+  await page.getByRole("button", { name: "Continue" }).click()
 }
 
 test.describe("authentication and role routing", () => {

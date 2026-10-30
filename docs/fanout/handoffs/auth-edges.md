@@ -51,7 +51,33 @@ replace `= 554xx` ports with `586xx`, set `[studio]`/`[realtime]` `enabled = fal
   provider failures then recovery (one auth user), admin emails refused, staff
   only; admin self-/peer-lockout.
 
-## Results (isolated stack, 586xx; load average 28-39 throughout)
+## Review finding #8 (wave 3): `/auth/confirm` used the token on GET (fixed)
+- `app/auth/confirm/route.ts` is replaced by `app/auth/confirm/page.tsx`: GET only
+  renders "Sign in to NabaLens" / "Accept your invitation" with a Continue form
+  (no token use, `noindex`, `Referrer-Policy: same-origin`). Bad params redirect
+  to `/login?error=link_invalid`.
+- `app/auth/confirm/verify/route.ts` (POST only) verifies the token. It refuses
+  cross-site posts via `Sec-Fetch-Site`, falling back to Origin vs Host
+  (`Origin: null` refused). Expired, used and malformed links go to the login
+  recovery state.
+- Parser shared in `lib/auth/email-link.ts`. Email template URLs are unchanged.
+- A first version used `referrer: "no-referrer"`. Real browsers then send
+  `Origin: null` on the form POST, so the check refused real sign-ins; only e2e
+  caught it. The policy is now `same-origin`.
+- Tests: `auth-links` "email link scanners" (repeated GETs by a scanner leave
+  the link usable, invite variant, four cross-site header cases, metadata);
+  `tests/integration/auth-confirm.ts` makes every suite open links the way a
+  person does (GET page, submit its form).
+- Out-of-track edits: e2e helpers click Continue (`tests/e2e/auth.spec.ts`,
+  `slice.spec.ts`, `staff-accounts.spec.ts`); `docs/architecture.md` and
+  `docs/accounts.md` describe the Continue step.
+
+## Results after finding #8 (isolated stack, 586xx, load ~18)
+`pnpm test:integration` 12 files / 138 passed (all-green, incl. auth-bootstrap
+5/5); `pnpm test:e2e` (E2E_PORT=3586) 18 passed; `pnpm test` 102 passed;
+typecheck, lint, build pass.
+
+## Earlier results (load average 28-39)
 | Suite | Result |
 | --- | --- |
 | auth-links | 10/10 in one run |

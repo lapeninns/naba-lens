@@ -11,7 +11,6 @@ vi.mock("next/headers", () =>
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }))
 
 import { setStaffActiveAction } from "@/app/admin/staff/actions"
-import { GET as confirm } from "@/app/auth/confirm/route"
 import RootPage from "@/app/page"
 import { getAuthState } from "@/lib/auth"
 
@@ -23,12 +22,12 @@ import {
 } from "../support/identities"
 import { getLocalSupabaseEnv } from "../support/local-supabase"
 import {
-  appRequest,
   authUserCount,
   Browser,
   issueSignInLink,
   redirectOf,
 } from "./auth-support"
+import { followEmailLink } from "./auth-confirm"
 
 const service = serviceClient()
 
@@ -68,9 +67,9 @@ async function profile(id: string) {
 async function signInAndLand(email: string) {
   const browser = new Browser(email)
   const link = await issueSignInLink(service, email)
-  const res = await browser.run(() => confirm(appRequest(browser, link)))
-  if (res.headers.get("location") !== "/") {
-    return { browser, landed: res.headers.get("location") }
+  const res = await followEmailLink(browser, link)
+  if (res.location !== "/") {
+    return { browser, landed: res.location }
   }
   const root = await browser.run(() => redirectOf(RootPage))
   return { browser, landed: root.location }

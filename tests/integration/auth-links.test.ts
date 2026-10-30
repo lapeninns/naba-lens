@@ -10,7 +10,6 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {} }))
 
 import { requestSignInLink } from "@/app/login/actions"
 import LoginPage from "@/app/login/page"
-import { GET as confirm } from "@/app/auth/confirm/route"
 import { GET as callback } from "@/app/auth/callback/route"
 import { POST as logout } from "@/app/auth/logout/route"
 import { GET as download } from "@/app/api/media/[id]/download/route"
@@ -34,6 +33,7 @@ import {
 import { getLocalSupabaseEnv } from "../support/local-supabase"
 import {
   ageEmailLinks,
+  APP_ORIGIN,
   appRequest,
   authUserCount,
   issueSignInLink,
@@ -46,6 +46,7 @@ import {
   tokenHashOf,
   writeSessionCookie,
 } from "./auth-support"
+import { followEmailLink, loadConfirmPage, submitConfirm } from "./auth-confirm"
 
 const service = serviceClient()
 
@@ -58,8 +59,8 @@ async function requestLink(browser: Browser, email: string) {
 }
 
 async function open(browser: Browser, confirmPath: string) {
-  const res = await browser.run(() => confirm(appRequest(browser, confirmPath)))
-  return { status: res.status, location: res.headers.get("location") }
+  const res = await followEmailLink(browser, confirmPath)
+  return { status: res.status, location: res.location }
 }
 
 async function signedIn(browser: Browser, email: string) {
@@ -179,13 +180,32 @@ describe("magic links", () => {
 
   it("malformed links and the PKCE callback without a valid code are refused", async () => {
     const browser = new Browser("malformed")
+    // Unusable links are turned away by the page itself, without a verify call.
     for (const path of [
       "/auth/confirm",
       "/auth/confirm?token_hash=abc&type=email",
-      "/auth/confirm?token_hash=abc&type=recovery",
-      "/auth/confirm?token_hash=abc&type=signup",
+      `/auth/confirm?token_hash=${"a".repeat(56)}&type=recovery`,
+      `/auth/confirm?token_hash=${"a".repeat(56)}&type=signup`,
+      `/auth/confirm?token_hash=${"a".repeat(56)}`,
     ]) {
-      expect(await open(browser, path)).toEqual({
+      expect(await loadConfirmPage(browser, path)).toEqual({
+        form: null,
+        location: "/login?error=link_invalid",
+      })
+    }
+    // A well-formed but unknown token fails at Continue.
+    expect(
+      await open(
+        browser,
+        `/auth/confirm?token_hash=${"a".repeat(56)}&type=email`
+      )
+    ).toEqual({ status: 303, location: "/login?error=link_invalid" })
+    for (const fields of [
+      {},
+      { token_hash: "abc", type: "email" },
+      { token_hash: "a".repeat(56), type: "recovery" },
+    ] as Record<string, string>[]) {
+      expect(await submitConfirm(browser, fields)).toEqual({
         status: 303,
         location: "/login?error=link_invalid",
       })
@@ -208,6 +228,90 @@ describe("magic links", () => {
     await new Promise((resolve) => setTimeout(resolve, 500))
     expect(await mailCount(email)).toBe(0)
     expect(authUserCount(email)).toBe(0)
+  })
+})
+
+describe("email link scanners (GET must not use the token)", () => {
+  it("opening the link only shows a Continue page and starts no session", async () => {
+    const link = await issueSignInLink(service, staff.email)
+    const scanner = new Browser("scanner")
+    for (let i = 0; i < 3; i++) {
+      const page = await loadConfirmPage(scanner, link)
+      expect(page.location).toBeNull()
+      expect(page.form).toEqual({
+        action: "/auth/confirm/verify",
+        method: "post",
+        fields: { token_hash: tokenHashOf(link), type: "email" },
+        heading: "Sign in to NabaLens",
+      })
+    }
+    expect(scanner.authCookies()).toEqual([])
+    expect((await scanner.run(getAuthState)).status).toBe("signed_out")
+
+    // The person opening the same link afterwards still signs in.
+    const person = new Browser("person")
+    expect(await open(person, link)).toEqual({ status: 303, location: "/" })
+    expect((await person.run(getAuthState)).status).toBe("active")
+  })
+
+  it("an invitation link says so and also survives prefetching", async () => {
+    const email = testEmail("links-invitee")
+    const seen = await mailCount(email)
+    const invited = await service.auth.admin.inviteUserByEmail(email)
+    expect(invited.error).toBeNull()
+    const { error } = await service.from("profiles").insert({
+      id: invited.data.user!.id,
+      display_name: "TEST links invitee",
+      role: "staff",
+      venue_id: venue.id,
+    })
+    expect(error).toBeNull()
+    const link = await nextConfirmLink(email, seen)
+    expect(link).toContain("type=invite")
+
+    const scanned = await loadConfirmPage(new Browser("scanner"), link)
+    expect(scanned.form?.heading).toBe("Accept your invitation")
+    expect(scanned.form?.fields.type).toBe("invite")
+
+    const person = new Browser("invitee")
+    expect(await open(person, link)).toEqual({ status: 303, location: "/" })
+    expect((await person.run(() => redirectOf(RootPage))).location).toBe(
+      "/staff"
+    )
+  })
+
+  it("a cross-site form cannot submit someone's token", async () => {
+    const link = await issueSignInLink(service, staff.email)
+    const fields = { token_hash: tokenHashOf(link), type: "email" }
+    const victim = new Browser("victim")
+    for (const headers of [
+      { origin: "https://evil.example", "sec-fetch-site": "cross-site" },
+      { origin: APP_ORIGIN, "sec-fetch-site": "same-site" },
+      // Older browsers without Fetch Metadata: Origin decides.
+      { origin: "https://evil.example", "sec-fetch-site": null },
+      { origin: "null", "sec-fetch-site": null },
+    ]) {
+      expect(await submitConfirm(victim, fields, headers)).toEqual({
+        status: 403,
+        location: null,
+      })
+    }
+    expect(victim.authCookies()).toEqual([])
+    // The refused POST did not use the token either.
+    expect(await submitConfirm(victim, fields)).toEqual({
+      status: 303,
+      location: "/",
+    })
+  })
+
+  it("the page keeps the token out of Referer headers and search indexes", async () => {
+    const page = await import("@/app/auth/confirm/page")
+    expect(page.metadata).toMatchObject({
+      referrer: "same-origin",
+      robots: { index: false, follow: false },
+    })
+    const verify = await import("@/app/auth/confirm/verify/route")
+    expect("GET" in verify).toBe(false)
   })
 })
 
@@ -286,7 +390,10 @@ describe("session expiry", () => {
     const env = getLocalSupabaseEnv()
     const get = (token: string) =>
       fetch(`${env.url}/rest/v1/profiles?select=id,display_name`, {
-        headers: { apikey: env.publishableKey, authorization: `Bearer ${token}` },
+        headers: {
+          apikey: env.publishableKey,
+          authorization: `Bearer ${token}`,
+        },
       })
 
     // Control: the same claims with a future exp are accepted (own row only).
@@ -313,7 +420,10 @@ describe("session expiry", () => {
     expect(storage.ok).toBe(false)
 
     const user = await fetch(`${env.url}/auth/v1/user`, {
-      headers: { apikey: env.publishableKey, authorization: `Bearer ${expired}` },
+      headers: {
+        apikey: env.publishableKey,
+        authorization: `Bearer ${expired}`,
+      },
     })
     expect(user.status).toBe(403)
     expect(await user.text()).not.toContain(staff.email)

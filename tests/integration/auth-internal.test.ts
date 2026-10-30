@@ -10,10 +10,10 @@ vi.mock("next/headers", () =>
 )
 
 import { GET, POST } from "@/app/api/internal/cleanup/route"
-import { GET as confirm } from "@/app/auth/confirm/route"
 
 import { createIdentity, serviceClient } from "../support/identities"
 import { appRequest, Browser, issueSignInLink } from "./auth-support"
+import { followEmailLink } from "./auth-confirm"
 
 const service = serviceClient()
 const saved = process.env.CLEANUP_SECRET
@@ -28,7 +28,7 @@ beforeAll(async () => {
   })
   adminBrowser = new Browser("internal-admin")
   const link = await issueSignInLink(service, admin.email)
-  await adminBrowser.run(() => confirm(appRequest(adminBrowser, link)))
+  await followEmailLink(adminBrowser, link)
   expect(adminBrowser.authCookies().length).toBeGreaterThan(0)
 })
 

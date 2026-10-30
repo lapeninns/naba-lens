@@ -22,6 +22,7 @@ async function signInAs(page: Page, email: string) {
   await page.goto(
     `/auth/confirm?token_hash=${data.properties.hashed_token}&type=email`
   )
+  await page.getByRole("button", { name: "Continue" }).click()
 }
 
 /** The invitation link from the real email in the local Mailpit inbox. */
@@ -102,6 +103,10 @@ test.describe("admin staff management", () => {
     const staffContext = await browser.newContext()
     const staffPage = await staffContext.newPage()
     await staffPage.goto(await invitationLink(email))
+    await expect(
+      staffPage.getByRole("heading", { name: "Accept your invitation" })
+    ).toBeVisible()
+    await staffPage.getByRole("button", { name: "Continue" }).click()
     await expect(staffPage).toHaveURL(/\/staff$/)
     await expect(staffPage.getByRole("heading", { name })).toBeVisible()
 

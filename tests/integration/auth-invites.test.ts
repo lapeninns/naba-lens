@@ -16,7 +16,6 @@ import {
   updateStaffAccountAction,
 } from "@/app/admin/staff/actions"
 import AdminPage from "@/app/admin/page"
-import { GET as confirm } from "@/app/auth/confirm/route"
 import RootPage from "@/app/page"
 import { getAuthState } from "@/lib/auth"
 import {
@@ -35,7 +34,6 @@ import {
   type Db,
 } from "../support/identities"
 import {
-  appRequest,
   authUserCount,
   authUserIds,
   Browser,
@@ -45,6 +43,7 @@ import {
   readSessionCookie,
   redirectOf,
 } from "./auth-support"
+import { followEmailLink } from "./auth-confirm"
 
 const service = serviceClient()
 const INVITED = /invited/i
@@ -55,8 +54,8 @@ let admin: { id: string; email: string; browser: Browser; rest: Db }
 async function signIn(email: string) {
   const browser = new Browser(email)
   const link = await issueSignInLink(service, email)
-  const res = await browser.run(() => confirm(appRequest(browser, link)))
-  expect(res.headers.get("location")).toBe("/")
+  const res = await followEmailLink(browser, link)
+  expect(res.location).toBe("/")
   const { session } = readSessionCookie(browser)
   const rest = anonClient()
   await rest.auth.setSession({
@@ -97,8 +96,8 @@ async function acceptLatestInvite(email: string, seenBefore: number) {
   const link = await nextConfirmLink(email, seenBefore)
   expect(link).toContain("type=invite")
   const browser = new Browser(`invitee ${email}`)
-  const res = await browser.run(() => confirm(appRequest(browser, link)))
-  return { browser, link, location: res.headers.get("location") }
+  const res = await followEmailLink(browser, link)
+  return { browser, link, location: res.location }
 }
 
 beforeAll(async () => {
@@ -150,8 +149,8 @@ describe("invitations", { timeout: 60_000 }, () => {
     ).toBe("/staff")
 
     const stale = new Browser("stale invite")
-    const res = await stale.run(() => confirm(appRequest(stale, firstLink)))
-    expect(res.headers.get("location")).toBe("/login?error=link_invalid")
+    const res = await followEmailLink(stale, firstLink)
+    expect(res.location).toBe("/login?error=link_invalid")
 
     // Once they have signed in, resend is refused and sends nothing.
     const seen = await mailCount(email, INVITED)
