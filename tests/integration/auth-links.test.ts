@@ -369,6 +369,7 @@ describe("session expiry", () => {
     expect(await run(() => loadMyMedia(null))).toEqual({
       ok: false,
       message: "Sign in to continue.",
+      status: 401,
     })
     expect(await run(() => loadLibraryPage({}, null))).toEqual({
       ok: false,
