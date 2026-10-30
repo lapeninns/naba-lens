@@ -582,6 +582,9 @@ describe("slice: reserve, upload, finalise, read (local Supabase)", () => {
         const { data, error } = await prolific.client.rpc(
           "reserve_media_asset",
           {
+            // Required by reserve_media_asset (wave 3 finding 5 / upload-path F5).
+            p_client_upload_key: crypto.randomUUID(),
+            p_size_bytes: 4,
             p_media_type: i % 9 === 0 ? "video" : "image",
             p_extension: i % 9 === 0 ? "mp4" : "jpg",
             p_original_filename: `item-${i}`,

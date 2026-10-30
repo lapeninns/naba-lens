@@ -9,7 +9,17 @@ const root = fileURLToPath(new URL("../../", import.meta.url))
 // with real signed-in identities.
 export default defineConfig({
   resolve: {
-    alias: [{ find: /^@\//, replacement: root }],
+    alias: [
+      { find: /^@\//, replacement: root },
+      // lib/server code imported by the regression tests is server-only; that
+      // guard throws outside Next's react-server build.
+      {
+        find: /^server-only$/,
+        replacement: fileURLToPath(
+          new URL("../lifecycle/server-only-stub.ts", import.meta.url)
+        ),
+      },
+    ],
   },
   test: {
     include: ["tests/security/**/*.test.ts"],

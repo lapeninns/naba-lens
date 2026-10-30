@@ -4,6 +4,16 @@
   as real users. The decisions and the evidence are in `docs/reviews/wave3-fixes.md`.
 - **Branch:** `feat/nl-secfix`. Base: `feat/nabalens-mvp` @ 3a23c9b, plus a merge of
   `review/nl-wave3`.
+- **Round 2 (orchestrator, after the upload-path review on `review/nl-upload-path2`):**
+  - F5: `reserve_media_asset` now also requires a client upload key and a size, and caps
+    size per type (20/200 MiB).
+  - F1: the admin portfolio no longer signs video originals; videos play through
+    `/api/media/[id]/stream`. I measured that Storage serves the backend-stored client
+    Content-Type, so a DB-side fix is not possible. Originals are therefore unreachable
+    except through `streamOriginal`.
+  - The reviewer's repros R2b, R4, R4b, R4c, R7 and R10 are now regressions in
+    `tests/security/upload-path.regression.test.ts`.
+  - I made no further `finalise.ts` edits; it is owned by uploads now (see below).
 - **Status:** DONE. All suites are green (see below). Nothing is in progress.
 
 ## Done
@@ -37,9 +47,16 @@
 
 ## Edits outside the track's paths (unavoidable; for the integrator)
 
-- **`lib/server/media/finalise.ts`:** finding 6 needs it.
+- **`lib/server/media/finalise.ts`:** finding 6 needed it. This was done before the
+  uploads thread took over the file, and nothing changed since. The uploads track's F2
+  fix sits next to the lost-claim branch, so merge them deliberately (see
+  `docs/reviews/wave3-fixes.md`, "Left for others").
 - **`lib/server/media/errors.ts`, `lib/config/media.ts`, `lib/db/types.ts`:** small,
   additive changes.
+- **`portfolio.ts`, round 2:** never signs originals; a video's `previewUrl` is the
+  stream route.
+- **Tests calling the RPC directly:** every test that called `reserve_media_asset`
+  directly gained `p_client_upload_key` and `p_size_bytes`.
 - **`lib/server/accounts/{directory,portfolio}.ts`:** one line each to sign with
   `ctx.service`. Without it, the admin directory avatars and the portfolio would break
   once the SELECT policies were gone.

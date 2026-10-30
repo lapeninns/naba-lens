@@ -117,6 +117,9 @@ async function objectRequest(
 }
 async function reserve(user: TestIdentity) {
   const result = await user.client.rpc("reserve_media_asset", {
+    // Required by reserve_media_asset (wave 3 finding 5 / upload-path F5).
+    p_client_upload_key: crypto.randomUUID(),
+    p_size_bytes: 4,
     p_media_type: "image",
     p_extension: "jpg",
     p_original_filename: "TEST security.jpg",
@@ -528,6 +531,9 @@ for (const actor of actors) {
       "/rest/v1/rpc/reserve_media_asset",
       "POST",
       {
+        // Required by reserve_media_asset (wave 3 finding 5 / upload-path F5).
+        p_client_upload_key: crypto.randomUUID(),
+        p_size_bytes: 4,
         p_media_type: "image",
         p_extension: "jpg",
         p_original_filename: "TEST rpc.jpg",

@@ -86,13 +86,17 @@ create trigger nabalens_guard_media_original_write
 -- ---------------------------------------------------------------------------
 -- The RPC stays callable by authenticated staff (it derives owner, venue, key and
 -- the idempotent retry from the JWT), but it no longer trusts the route to have
--- checked the request:
+-- checked the request (also upload-path review F5):
+--   * a client upload key is required, so every reservation is bound to the
+--     finalise that carries the same key (a NULL key disabled that check);
 --   * the key extension must be on the media type's allow-list (same list as
---     lib/server/media/reserve.ts; these are formats, not tunable limits);
---   * a declared size must be positive and within the `media` bucket's size cap
---     (read from storage.buckets, so no limit is duplicated here; the per-type
---     product limits in lib/config/media.ts are enforced on the stored bytes at
---     finalise);
+--     lib/server/media/reserve.ts; these are formats, not tunable limits), so
+--     `original.html` and the like cannot be reserved;
+--   * a declared size is required, positive, and within the per-type product cap.
+--     The caps mirror MEDIA_LIMITS.maxPhotoBytes / maxVideoBytes in
+--     lib/config/media.ts (20 MiB / 200 MiB); tests/security/hardening.test.ts
+--     reserves exactly at and one byte over each limit, so a change to one side
+--     without the other fails the suite;
 --   * an uploader may hold at most 20 open (uploading, processing or failed,
 --     non-deleted) reservations. That is two full upload batches
 --     (MEDIA_LIMITS.maxBatchFiles = 10); idempotent retries of an existing key do
@@ -126,34 +130,34 @@ declare
   v_ext text := lower(btrim(p_extension, '. '));
   v_path text;
   v_existing public.media_assets;
-  v_bucket_limit bigint;
   v_open integer;
+  v_max_bytes bigint;
   c_max_open constant integer := 20;
+  c_max_image_bytes constant bigint := 20 * 1024 * 1024;
+  c_max_video_bytes constant bigint := 200 * 1024 * 1024;
 begin
   if v_uid is null or not private.is_active_staff() then
     raise exception 'not_active_staff' using errcode = '42501';
   end if;
 
-  if p_client_upload_key is not null and p_client_upload_key !~ '^[A-Za-z0-9_-]{8,128}$' then
+  if p_client_upload_key is null or p_client_upload_key !~ '^[A-Za-z0-9_-]{8,128}$' then
     raise exception 'invalid_upload_key' using errcode = '22023';
   end if;
 
   -- A retry returns the original reservation, whatever the caller's venue is now:
   -- the venue snapshot belongs to the first reservation.
-  if p_client_upload_key is not null then
-    select a.* into v_existing
-    from public.media_assets a
-    where a.uploader_id = v_uid and a.client_upload_key = p_client_upload_key;
+  select a.* into v_existing
+  from public.media_assets a
+  where a.uploader_id = v_uid and a.client_upload_key = p_client_upload_key;
 
-    if found then
-      if v_existing.deleted_at is not null then
-        raise exception 'media_asset_not_found' using errcode = 'P0002',
-          detail = 'This upload was removed.';
-      end if;
-      return query select v_existing.id, v_existing.original_path, v_existing.venue_id,
-        v_existing.upload_state, true;
-      return;
+  if found then
+    if v_existing.deleted_at is not null then
+      raise exception 'media_asset_not_found' using errcode = 'P0002',
+        detail = 'This upload was removed.';
     end if;
+    return query select v_existing.id, v_existing.original_path, v_existing.venue_id,
+      v_existing.upload_state, true;
+    return;
   end if;
 
   v_venue := private.uploadable_venue_id();
@@ -168,11 +172,14 @@ begin
     raise exception 'invalid_extension' using errcode = '22023';
   end if;
 
-  if p_size_bytes is not null then
-    select b.file_size_limit into v_bucket_limit from storage.buckets b where b.id = 'media';
-    if p_size_bytes <= 0 or (v_bucket_limit is not null and p_size_bytes > v_bucket_limit) then
-      raise exception 'invalid_size' using errcode = '22023';
-    end if;
+  -- (No CASE expression here: the Supabase CLI's statement splitter misreads it.)
+  if p_media_type = 'image' then
+    v_max_bytes := c_max_image_bytes;
+  else
+    v_max_bytes := c_max_video_bytes;
+  end if;
+  if p_size_bytes is null or p_size_bytes <= 0 or p_size_bytes > v_max_bytes then
+    raise exception 'invalid_size' using errcode = '22023';
   end if;
 
   -- Serialise this uploader's new reservations so concurrent calls cannot all

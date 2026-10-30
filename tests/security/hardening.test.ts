@@ -37,6 +37,9 @@ async function reserve(
   overrides: Record<string, unknown> = {}
 ) {
   const { data, error } = await user.client.rpc("reserve_media_asset", {
+    // Required by reserve_media_asset (wave 3 finding 5 / upload-path F5).
+    p_client_upload_key: crypto.randomUUID(),
+    p_size_bytes: 4,
     p_media_type: "image",
     p_extension: "jpg",
     p_original_filename: "TEST hardening.jpg",
@@ -498,6 +501,33 @@ describe("finding 5: reserve_media_asset enforces its own limits", () => {
       expect(error?.message).toMatch(/invalid_extension|invalid_size/)
     })
   }
+
+  it("a reservation without a client upload key or a size is refused", async () => {
+    const keyless = await reserve(staff, { p_client_upload_key: null })
+    expect(keyless.error?.message).toBe("invalid_upload_key")
+    const sizeless = await reserve(staff, { p_size_bytes: null })
+    expect(sizeless.error?.message).toBe("invalid_size")
+  })
+
+  it("per-type size caps match MEDIA_LIMITS exactly", async () => {
+    for (const [type, ext, max] of [
+      ["image", "jpg", MEDIA_LIMITS.maxPhotoBytes],
+      ["video", "mp4", MEDIA_LIMITS.maxVideoBytes],
+    ] as const) {
+      const at = await reserve(staff, {
+        p_media_type: type,
+        p_extension: ext,
+        p_size_bytes: max,
+      })
+      expect(at.error, `${type} at the limit`).toBeNull()
+      const over = await reserve(staff, {
+        p_media_type: type,
+        p_extension: ext,
+        p_size_bytes: max + 1,
+      })
+      expect(over.error?.message, `${type} one byte over`).toBe("invalid_size")
+    }
+  })
 
   it("allow-listed types and a size within the bucket cap are accepted", async () => {
     for (const [type, ext] of [

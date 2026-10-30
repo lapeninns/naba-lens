@@ -109,12 +109,11 @@ export async function listMediaForUploader(
   if (error) return dbFailed()
 
   const rows = data.slice(0, limit)
-  // Images preview from their derivative; videos play the validated original.
+  // Only server-written WebP derivatives are ever signed. Originals keep the
+  // uploader's Content-Type in storage, so videos play through the stream route
+  // (validated type, nosniff, re-authorised per request) instead.
   const paths = rows
-    .flatMap((r) => [
-      ...(r.thumbnail_path ? [r.thumbnail_path] : []),
-      r.media_type === "video" ? r.original_path : (r.preview_path ?? null),
-    ])
+    .flatMap((r) => [r.thumbnail_path, r.preview_path])
     .filter((p): p is string => !!p)
 
   const urls = new Map<string, string>()
@@ -130,8 +129,12 @@ export async function listMediaForUploader(
   }
 
   const items: PortfolioMediaItem[] = rows.map((r) => {
-    const previewPath =
-      r.media_type === "video" ? r.original_path : r.preview_path
+    const previewUrl =
+      r.media_type === "video"
+        ? `/api/media/${r.id}/stream`
+        : r.preview_path
+          ? (urls.get(r.preview_path) ?? null)
+          : null
     return {
       id: r.id,
       mediaType: r.media_type,
@@ -139,7 +142,7 @@ export async function listMediaForUploader(
       thumbnailUrl: r.thumbnail_path
         ? (urls.get(r.thumbnail_path) ?? null)
         : null,
-      previewUrl: previewPath ? (urls.get(previewPath) ?? null) : null,
+      previewUrl,
       mimeType: r.validated_mime_type,
       originalFilename: r.original_filename,
       createdAt: r.created_at,

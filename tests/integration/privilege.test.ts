@@ -115,6 +115,9 @@ describe("privilege escalation is refused server-side", () => {
     expect(insert.error).not.toBeNull()
 
     const { data } = await staff.client.rpc("reserve_media_asset", {
+      // Required by reserve_media_asset (wave 3 finding 5 / upload-path F5).
+      p_client_upload_key: crypto.randomUUID(),
+      p_size_bytes: 4,
       p_media_type: "image",
       p_extension: "jpg",
       p_original_filename: "x.jpg",
@@ -143,6 +146,9 @@ describe("privilege escalation is refused server-side", () => {
     expect(a.error).not.toBeNull()
 
     const { data } = await other.client.rpc("reserve_media_asset", {
+      // Required by reserve_media_asset (wave 3 finding 5 / upload-path F5).
+      p_client_upload_key: crypto.randomUUID(),
+      p_size_bytes: 4,
       p_media_type: "image",
       p_extension: "jpg",
       p_original_filename: "o.jpg",

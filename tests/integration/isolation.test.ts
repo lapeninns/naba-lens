@@ -56,6 +56,8 @@ describe("staff isolation (RLS + storage, separate identities)", () => {
     })
 
     const { data, error } = await staffA.client.rpc("reserve_media_asset", {
+      // Required by reserve_media_asset (wave 3 finding 5 / upload-path F5).
+      p_client_upload_key: crypto.randomUUID(),
       p_media_type: "image",
       p_extension: "jpg",
       p_original_filename: "dish.jpg",

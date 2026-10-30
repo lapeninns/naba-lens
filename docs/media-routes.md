@@ -19,9 +19,11 @@ builds the actor per request after `lib/auth` has authorised the caller.
      the `guard_media_original_write` trigger, which refuses it unless the reservation is
      still `uploading`, not deleted, its uploader active staff and its venue active
      (wave 3 finding 4, `20261030100000_security_hardening.sql`).
-   - `reserve_media_asset` itself enforces the extension allow-list per media type, a
-     positive size within the `media` bucket cap, and at most 20 open reservations per
-     uploader, so calling the RPC directly cannot skip the route's checks (finding 5).
+   - `reserve_media_asset` itself requires a client upload key and a declared size, and
+     enforces the extension allow-list per media type, the per-type size cap (20 MiB photo,
+     200 MiB video, mirroring `MEDIA_LIMITS`) and at most 20 open reservations per
+     uploader. Calling the RPC directly cannot skip the route's checks or reserve
+     `original.html` (wave 3 finding 5, upload-path review F5).
    - A retry of a stored-but-failed or stored-but-unconfirmed asset returns
      `state: "processing"`, so the client finalises again instead of re-uploading.
 2. The browser uploads straight to the private `media` bucket (`lib/upload`).

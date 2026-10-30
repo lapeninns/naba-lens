@@ -55,13 +55,16 @@ let staff: TestIdentity
 
 /** A reserved asset with a real JPEG stored, claimed by a finalise (`processing`). */
 async function claimedAsset(user = staff) {
+  const key = crypto.randomUUID()
   const { data, error } = await user.client.rpc("reserve_media_asset", {
+    p_client_upload_key: key,
+    p_size_bytes: 4,
     p_media_type: "image",
     p_extension: "jpg",
     p_original_filename: "stale.jpg",
   })
   if (error) throw error
-  const asset = data[0]
+  const asset = { ...data[0], key }
   const put = await user.client.storage
     .from("media")
     .upload(asset.original_path, await syntheticJpeg(64, 48), {
@@ -155,7 +158,7 @@ describe("finding 3: cleanup reaps crashed finalise claims", () => {
 
     const result = await finaliseAsset(await actorFor(staff), {
       assetId: asset.id,
-      idempotencyKey: "unused-for-keyless",
+      idempotencyKey: asset.key,
     })
     expect(result).toEqual({ ok: true, state: "ready" })
   })
@@ -199,7 +202,7 @@ describe("finding 6: stale-claim takeover uses database time only", () => {
 
     const result = await finaliseAsset(await actorFor(staff), {
       assetId: asset.id,
-      idempotencyKey: "unused-for-keyless",
+      idempotencyKey: asset.key,
     })
     expect(result).toMatchObject({ ok: false, status: 409 })
     expect(await row(asset.id)).toEqual(before)
@@ -210,7 +213,7 @@ describe("finding 6: stale-claim takeover uses database time only", () => {
     ageClaim(asset.id, 3)
     const result = await finaliseAsset(await actorFor(staff), {
       assetId: asset.id,
-      idempotencyKey: "unused-for-keyless",
+      idempotencyKey: asset.key,
     })
     expect(result).toEqual({ ok: true, state: "ready" })
   })

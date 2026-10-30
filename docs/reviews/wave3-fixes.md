@@ -21,6 +21,32 @@ not in this track. Everything database-side is in one migration,
   - The app read path still issues 60 s URLs (the token's `exp - iat` is checked) that
     serve the bytes, for the owner and for an admin.
   - It returns 404 to other staff, to a deactivated owner, and for deleted assets.
+- **No signed original, anywhere:** `lib/server/accounts/portfolio.ts` used to sign a
+  video's original for the admin portfolio. It now signs only the WebP derivatives, and
+  videos play through `/api/media/[id]/stream`. Every service-signed URL now points at a
+  server-written WebP: a derivative (written by finalise with `contentType: image/webp`)
+  or an avatar (written by the server; the `avatars` bucket only accepts `image/webp`).
+  Originals reach a browser only through `streamOriginal`, which sends the validated
+  type, `attachment`, `nosniff` and `private, no-store`.
+- **Client Content-Type on originals (upload-path review F1):**
+  - Storage serves the Content-Type that the backend stored from the upload request, not
+    the `storage.objects.metadata` row. I measured this: rewriting
+    `metadata.mimetype` in the DB did not change what was served. So a database trigger
+    cannot normalise it.
+  - Rewriting each original after validation would mean a copy of up to 200 MiB in
+    finalise, which the uploads track owns.
+  - Given the two points above, the client's label on an original is now unreachable:
+    no end-user read, no signed original, and download/stream override every header.
+  - Restricting the `media` bucket's `allowed_mime_types` was rejected. Phones send HEIC
+    with empty or odd labels, so it would break real uploads.
+- **Regression tests:** `tests/security/upload-path.regression.test.ts` ports the
+  reviewer's repros with the fixed expectations:
+  - R4: no staff-minted read URL, and no authenticated GET of an original.
+  - R4b: a polyglot sent as `text/html` is served only as `image/jpeg` with `attachment`
+    and `nosniff`.
+  - R4c: for six hostile client types, the derivative URLs serve `image/webp`, and the
+    admin portfolio contains no signed original (a video's `previewUrl` is the stream
+    route).
 - **Other suites:** the existing matrix in `tests/security/access.test.ts` now expects no
   direct reads. Four integration tests and two lifecycle tests now read through the app
   path (`getReadableAsset` + `streamOriginal`, or `signAvatar`) and assert that direct
@@ -68,19 +94,30 @@ the user's JWT, and the policy is not evaluated then.
     by other tracks.
   - Checking inside the function also protects any future caller.
 - **Limits now in the function:**
+  - **A client upload key is required** (`invalid_upload_key`). Before this, a keyless
+    reservation turned off finalise's key binding (upload-path review F5). Every
+    test that called the RPC directly now passes a key and a size.
   - Extension allow-list per media type: `jpg|png|webp|heic|heif` for images,
-    `mp4|mov|webm` for videos. These are formats, not tunable limits.
-  - A declared size must be positive and no larger than the `media` bucket's
-    `file_size_limit`, which is read from `storage.buckets` rather than duplicated. The
-    per-type product limits stay in `lib/config/media.ts` and are enforced on the stored
-    bytes at finalise.
+    `mp4|mov|webm` for videos. These are formats, not tunable limits. `original.html`
+    cannot be reserved.
+  - **A declared size is required**, must be positive, and must be within the per-type
+    cap: 20 MiB for images and 200 MiB for videos (`invalid_size`).
+    - The caps mirror `MEDIA_LIMITS.maxPhotoBytes` and `maxVideoBytes`.
+    - SQL cannot import `lib/config/media.ts`, so `hardening.test.ts` reserves exactly at
+      and one byte over each `MEDIA_LIMITS` value. A change on only one side fails the
+      suite.
+    - The stored bytes are still checked again at finalise.
+    - The function avoids a `CASE` expression, because the Supabase CLI's statement
+      splitter cuts the function body there.
   - At most **20 open reservations** per uploader: `uploading`, `processing` or `failed`,
     and not deleted. That is two full batches. Retries of an existing key do not count.
     A per-uploader advisory transaction lock stops concurrent calls from overshooting.
     The error is `too_many_open_uploads`, which the route maps to a 409 with a plain
     message.
 - **Proof:** HTML or SVG extensions, a type/extension mismatch, a size over the cap, and
-  zero or negative sizes are all refused. Allowed types are accepted. The cap holds,
+  zero, negative or missing sizes and a missing key are all refused. Regression R10
+  replays the reviewer's exact call (`html`, 999999999999 bytes, no key) and finds no
+  `.html` reservation afterwards. Allowed types are accepted. The cap holds,
   ignores retries, and frees up after a ready or deleted asset. 30 concurrent calls give
   exactly 20 reservations.
 
@@ -158,7 +195,26 @@ usb=()`.
     - A cross-origin POST to `/api/profile` gets 403.
   - The full e2e suite passes against both `next dev` and a production `next start`.
 
+## Upload-path review F6
+
+F6 is the same issue as finding 4 above, with the same fix. Regression R2b: after a delete,
+a TUS completion and a replay of the server-issued signed URL both store nothing.
+
 ## Left for others
+
+- **`lib/server/media/finalise.ts`:** I changed it on this branch for finding 6, before
+  the uploads thread took ownership of the file. The change:
+  - the stale-claim takeover calls the `take_over_stale_media_claim` RPC instead of
+    comparing `Date.now()` with `updated_at`;
+  - when the final `ready` update matches no rows, finalise re-reads the row, returns
+    `ready` if it is ready, and otherwise returns 409 without touching it.
+
+  I made no further edits after being told the file belongs to uploads. The uploads
+  track's F2 fix (adding `deleted_at is null` to the ready update) sits next to my
+  lost-claim branch. Merge them so a lost update that finds a tombstoned row removes the
+  derivatives and returns not-found, as the reviewer suggested.
+
+- **Upload-path F2 and F4:** uploads track.
 
 - **Finding 2:** `library` track.
 - **Admin avatar route:** `app/admin/staff/[id]/avatar/route.ts` (accounts) still uses
