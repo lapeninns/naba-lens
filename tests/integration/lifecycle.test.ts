@@ -259,4 +259,24 @@ describe("bootstrap-admin", () => {
       ).action
     ).toBe("created_profile")
   })
+
+  // Final review F10: an active admin still banned in Auth (left by an older
+  // script promoting a deactivated account) could never sign in.
+  it("lifts a stale Auth ban from an already-active admin", async () => {
+    const user = await createIdentity(admin, {
+      label: "boot-banned",
+      role: "admin",
+      session: false,
+    })
+    const ban = await admin.auth.admin.updateUserById(user.id, {
+      ban_duration: "876000h",
+    })
+    expect(ban.error).toBeNull()
+    expect((await bootstrapAdmin(admin, { email: user.email })).action).toBe(
+      "already_admin"
+    )
+    const { data } = await admin.auth.admin.getUserById(user.id)
+    const bannedUntil = data.user?.banned_until
+    expect(!bannedUntil || Date.parse(bannedUntil) <= Date.now()).toBe(true)
+  })
 })
