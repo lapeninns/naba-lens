@@ -242,3 +242,106 @@ everything on your branch before handing off.
 | 13  | Original bytes, upload, preview, download unchanged                                 | existing suites, J    |
 | 14  | Phone widths, accessible names, keyboard focus, recovery                            | E, G, J               |
 | 15  | Failures/retries/concurrent stale updates: no silent loss/duplicates                | B, F, G               |
+
+## 8. Scope guard (`tests/unit/scope-guard.test.ts`, lead-owned)
+
+`pnpm test` fails if (a) a page/route handler exists outside its allow-list,
+or (b) application source in `app/`, `lib/`, `components/`, `proxy.ts` or
+`supabase/migrations/*.sql` (comments and `comment on` stripped) matches a
+banned-feature term: `approv`, `comment(s)`/`comment_`, `like(s)`, **`tag`,
+`tags`, `tagged`, `tag_id`**, `zip`, `analytics`, `notification`,
+`leaderboard`, `campaign`. Use the vocabulary **label / labelled / content
+type / review / activate / suggestion**, never "tag" or "approve". Allowed
+new routes: pages `/admin/menus`, `/admin/menus/[venueId]`,
+`/admin/menus/versions/[versionId]`; handler `/api/admin/menus/import-preview`.
+Labels use Server Functions (no new route handler); ask the lead first if you
+truly need another route.
+
+## 9. Amendment A1 (after independent contract review I0; overrides §3–§5 where they differ)
+
+1. **Admin label reads:** admins may read all catalogue rows and audit events.
+   For `media_labels`/`media_label_items` admins need the asset non-deleted and
+   `ready`. No unrestricted admin policy on those two tables (permissive
+   policies OR together).
+2. **Composite identity FKs** (all components NOT NULL unless documented
+   nullable): `menu_entries(section_id, version_id, venue_id) →
+   menu_sections(id, version_id, venue_id)`; `menu_entry_variants(entry_id,
+   item_id) → menu_entries(id, item_id)`; `menu_versions(based_on_version_id,
+   venue_id) → menu_versions(id, venue_id)`; `menu_item_suggestions(asset_id,
+   venue_id) → media_assets(id, venue_id)`; `media_label_items(version_id,
+   venue_id) → menu_versions(id, venue_id)`. Add the referenced unique keys.
+3. **No implicit identity reuse in SQL:** in `save_menu_draft`/
+   `create_menu_draft`, `itemId: null` ⇒ a **new** `menu_items` row and
+   `variantId: null` ⇒ a **new** `menu_variants` row. There is no
+   source-key or name fallback in the database. The import matcher (C) fills
+   ids for exact source-key matches and variant names (case-insensitive,
+   `lower(btrim())`) within a matched item; the editor (E/D) carries ids
+   forward. `applyReviewDecision(..., {kind:"new"})` sets `itemId: null` and
+   `variantId: null` on that item's variants. The database rejects two
+   variants in one entry with the same `lower(btrim(name))`, an `itemId`
+   used twice in a document, and a `variantId` not belonging to its item.
+4. **One lock order for every catalogue/label write:**
+   `pg_advisory_xact_lock(hashtextextended('nabalens_menu:'||venue_id,0))`
+   (exclusive) for draft create/save, activate, retire, discard, item
+   archive/unarchive, suggestion resolve; then `SELECT … FOR UPDATE` on the
+   target version/item; then check status and expected revision. Content
+   replacement and revision increment happen in that transaction.
+5. **`save_media_labels` locking:** lock the `media_assets` row `FOR UPDATE`
+   (no column changes) **before** checking owner/state/tombstone and before
+   reading/creating `media_labels`; treat a missing label row as revision 0.
+   When the save adds any new tuple, also take the venue lock **shared**
+   (`pg_advisory_xact_lock_shared`, same key) before validating availability.
+6. **Stale catalogue:** `save_media_labels` gains
+   `p_catalogue_version_id uuid default null` (final signature:
+   `save_media_labels(p_asset_id uuid, p_expected_revision int,
+   p_content_types text[], p_note text, p_items jsonb, p_missing_item text
+   default null, p_catalogue_version_id uuid default null)`). If the save adds
+   any new tuple and `p_catalogue_version_id IS DISTINCT FROM` the venue's
+   current active version id → `menu_catalogue_conflict` (40001; TS code
+   `catalogue_changed`, HTTP 409). Note/content-type edits and keeping or
+   removing existing tuples are always allowed.
+7. **Existing tuple** = exact `(item_id, variant_id)` with `IS NOT DISTINCT
+   FROM`; its snapshot and `added_by/added_at` are preserved. A changed
+   variant is a new tuple with all availability checks.
+8. **Version header immutability:** `id, venue_id, created_by, created_at,
+   based_on_version_id` never change; `title` and source fields change only
+   while `draft`; after leaving draft only the documented status and
+   lifecycle audit fields change (`draft→active|discarded`,
+   `active→retired`). Being the RPC owner does not bypass the non-draft
+   content guard; the RPCs only write content of drafts.
+9. **Staff catalogue reads are narrow:** staff may read `menu_items`/
+   `menu_variants` only for identities present in an active version they may
+   read or attached to their own visible assets. Current-name rule (used
+   everywhere): name from the venue's **active** version entry; else the most
+   recently **activated** (now retired) version's entry; else the label
+   snapshot. Never-activated drafts and discarded versions never supply
+   names. B adds `media_label_details(p_asset_ids uuid[]) returns table
+   (asset_id uuid, item_id uuid, variant_id uuid, name text, variant_name
+   text, section_name text, section_slug text, snapshot_name text,
+   snapshot_variant_name text, snapshot_section_name text, state text
+   /* current | not_on_active_menu | archived */, added_at timestamptz)`,
+   `security definer`, `stable`, returning rows only for assets the caller
+   could read under the label RLS rules (≤ 100 ids). F's
+   `loadLabelSummaries` uses it plus a plain RLS read of `media_labels`.
+10. **`library_assets` has no function-level `SET` clause** (that blocks SQL
+    function inlining in PG17): `LANGUAGE sql STABLE SECURITY INVOKER`, not
+    STRICT, fully schema-qualified names, one SELECT, no internal
+    pagination. B attaches `EXPLAIN` evidence as `authenticated` (staff and
+    admin) showing inlining.
+11. **Indexes:** also `media_assets (uploader_id, venue_id) where deleted_at
+    is null`; asset-leading index on label items (unique constraint). Wrap
+    caller-constant helpers as `(select private.is_active_admin())`,
+    `(select auth.uid())` in policies.
+12. **Filter semantics:** `p_item` + `p_variant` must match the **same** label
+    tuple; `p_variant` alone matches that variant; category is asset-wide.
+    H keeps SQL-side filtering then strict `(created_at, id) <` cursor,
+    `order by created_at desc, id desc`, `limit pageSize + 1`; any filter
+    change resets the cursor (new first page).
+13. **Audit:** every mutation writes its event atomically, actor from the
+    current profile: `menu_events` actions `draft_created, draft_saved,
+    activated, retired, discarded, item_archived, item_unarchived,
+    suggestion_resolved, suggestion_dismissed`; `media_label_events` actions
+    `labels_saved` (before/after include content types, note, tuples and
+    the caller's suggestion change). Revoke `update, delete, truncate` on
+    both event tables from `service_role` (and everyone); app code never
+    writes catalogue/label tables with the service role.
