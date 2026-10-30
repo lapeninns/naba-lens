@@ -57,7 +57,14 @@ export function OptionSelect({
       <SelectTrigger
         id={id}
         aria-invalid={invalid || undefined}
-        className={cn("h-11 w-full sm:h-9", className)}
+        // The trigger sizes itself with data-[size=default]:h-8, which beats a
+        // plain h-* class; override at the same specificity (44px on phones).
+        className={cn(
+          // The kit shows the value as display:flex, which cuts a long name
+          // mid-character; block + truncate ends it with an ellipsis.
+          "w-full min-w-0 data-[size=default]:h-11 sm:data-[size=default]:h-9 *:data-[slot=select-value]:block *:data-[slot=select-value]:truncate",
+          className
+        )}
         {...aria}
       >
         <SelectValue placeholder={placeholder} />
@@ -67,7 +74,7 @@ export function OptionSelect({
           <SelectItem
             key={item.value}
             value={item.value}
-            className="py-2 sm:py-1"
+            className="min-h-11 py-2 sm:min-h-0 sm:py-1"
           >
             {item.label}
           </SelectItem>

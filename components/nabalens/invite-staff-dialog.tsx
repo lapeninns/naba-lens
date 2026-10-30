@@ -177,7 +177,11 @@ function InviteForm({
   )
 
   return (
-    <form onSubmit={submit} className="grid gap-5" noValidate>
+    <form
+      onSubmit={submit}
+      className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-5"
+      noValidate
+    >
       <DialogHeader>
         <DialogTitle>Invite staff</DialogTitle>
         <DialogDescription>

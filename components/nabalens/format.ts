@@ -27,6 +27,8 @@ export function formatBytes(bytes: number): string {
 }
 
 export function formatDuration(seconds: number): string {
+  // A real but sub-second clip would otherwise read "0:00", like an empty one.
+  if (seconds > 0 && Math.round(seconds) === 0) return "<0:01"
   const total = Math.max(0, Math.round(seconds))
   const h = Math.floor(total / 3600)
   const m = Math.floor((total % 3600) / 60)
