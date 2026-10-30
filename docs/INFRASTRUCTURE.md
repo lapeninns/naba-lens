@@ -92,3 +92,19 @@ function output (checked in `.nft.json` and by an isolated decode test). No
 | Verify on staging that `security_hardening.sql`'s `storage.objects` trigger applies (table owned by `supabase_storage_admin`)   | no                        |
 | Turnstile `captchaToken` wiring; R2 media export job                                                                            | no (code)                 |
 | Real-phone HEIC and video evidence; restore rehearsal ([release checklist](release-checklist.md))                               | tester                    |
+
+## Staging environment (created 30 Oct 2026)
+
+| Piece      | Value                                                                                                                                                                                                               |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| App        | Vercel project `nabalens-staging` (team `lapen-inns-projects`), <https://nabalens-staging-lapen-inns-projects.vercel.app>, functions in `lhr1`, behind Vercel Authentication (Deployment Protection)                |
+| Supabase   | `nabalens-staging`, ref `kpdzufznpaaqxoahyrsw`, eu-west-2, Micro, in "lapeninns's Org". DB password is in the operator's macOS Keychain (`supabase-db-password-nabalens-staging`)                                   |
+| Migrations | All 8 applied with `supabase db push` (no seed). RLS on all 14 public tables. Buckets private (`media` 200 MiB, `avatars` 5 MiB WebP)                                                                               |
+| Auth       | Sign-ups off, anonymous/phone off, NabaLens templates, site URL and `/auth/callback` allowlist for both staging aliases. **Still on Supabase's built-in SMTP**: email only reaches org team members, a few per hour |
+| Env        | The five `.env.example` variables plus `CRON_SECRET` (= `CLEANUP_SECRET`), Production target only                                                                                                                   |
+| Deploys    | `vercel deploy --prod` from a clean `git archive HEAD` copy, so local `.env.local` and `.next` are never uploaded. There is no Git integration yet                                                                  |
+
+`supabase config push` applies without waiting for confirmation when stdin is not a
+TTY. To review the diff, use `supabase config diff` and do not pipe answers into
+push. Push Auth settings from a scratch copy of `supabase/` with staging URLs, never
+the local `127.0.0.1` values.
