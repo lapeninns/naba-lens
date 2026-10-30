@@ -76,3 +76,13 @@ Statuses: NOT STARTED / IN PROGRESS / IMPLEMENTED / VERIFIED / BLOCKED.
 - `feat/nl-privacy` cf9ca90 relaxed one invitation assertion to accept `partial` under auth timeouts; restore the strict expectation if invites deliver reliably on a quiet machine.
 - CI run (`feat/nl-ci`) showed 24 skipped integration tests; identify why and make required ones run.
 - All e2e results produced while load average was 20–40 are not evidence; the lead reruns the critical suite twice on a quiet machine.
+
+## Final status (2026-10-30)
+
+Overall: **READY FOR STAGING REVIEW** on `0d7ce65`. Every requirement R1–R20, R23 and R24
+passed on that revision (evidence: `docs/release/FINAL-REPORT.md` §3–§4). R21 (physical
+phones) and R22 (staging, deployed email, deployed decoder, cleanup schedule) remain
+BLOCKED. The lead verification notes above are resolved: the privacy runtime suite runs in
+CI and passed 12/12; the strict invitation assertion was restored; the skipped integration
+tests are only the two privacy suites, both run separately; all e2e evidence comes from load
+below 8.
