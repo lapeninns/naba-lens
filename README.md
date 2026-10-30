@@ -26,7 +26,8 @@ Use Node **24.16.0** and the team's approved **pnpm** (this pass used 10.30.1),
 Docker and Supabase CLI (observed: 2.117.0). `package.json` has no Node/pnpm pin;
 the lockfile has stricter requirements than Next's minimum. The
 [prerequisites and dependency policy](docs/setup.md#1-prerequisites-and-dependency-policy)
-explain exact versions, `minimumReleaseAge: 1440` and `allowBuilds`.
+explain exact versions, `minimumReleaseAge: 1440` and `allowBuilds` (including
+the merged `esbuild: false` install-policy fix).
 
 ```sh
 pnpm install --frozen-lockfile

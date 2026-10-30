@@ -3,8 +3,46 @@
 ## Goal and boundaries
 
 Expand README and setup, staff/admin usage, operations and release-checklist docs
-against actual source. Branch: `feat/nl-docs2`. No application/config changes,
-hosted writes, deploys, pushes or PRs. This handoff is the mandatory extra path.
+against actual source. Branch: `feat/nl-docs2`. No authored application/config
+changes, hosted writes, deploys, pushes or PRs. The requested integration merge
+imports the upstream dependency-policy change; this handoff is the mandatory
+extra documentation path.
+
+## Merged baseline follow-up
+
+- Ran `git merge feat/nabalens-mvp` successfully, then
+  `CI=true pnpm install --frozen-lockfile` successfully, in that order.
+- Merge commit `505f172` includes integration head `3a23c9b`. Ancestry check:
+  `git merge-base --is-ancestor 3a23c9b HEAD`, exit 0.
+- `git diff a4ebc8d..HEAD --name-only` reported only `pnpm-workspace.yaml`.
+  The application, routes, components, scripts, migrations and lockfile are
+  unchanged by this merge, so the existing source audit still applies.
+- Merged policy adds `allowBuilds.esbuild: false`, the explicit pnpm 11 denial
+  decision. README/setup now document that merged policy, not the old omission.
+- CI install actual output: `Lockfile is up to date, resolution step is skipped`,
+  `Already up to date`, `Ignored build scripts: esbuild@0.28.2.`,
+  `Done in 342ms using pnpm v10.30.1`, exit 0. pnpm 11 itself was not run.
+- Post-merge `pnpm typecheck`, `pnpm lint`, `pnpm test` and `pnpm build`
+  all exited 0. Actual output excerpts:
+
+  ```text
+  pnpm typecheck
+  > tsc --noEmit
+  # exit 0
+  pnpm lint
+  > eslint
+  # exit 0, no diagnostics
+  pnpm test
+  Test Files  12 passed (12)
+       Tests  102 passed (102)
+    Duration  25.74s (tests 82%, import 11%, transform 5%, environment 3%)
+  # exit 0
+  pnpm build
+  ✓ Compiled successfully in 1003ms
+  Finished TypeScript in 1779ms ...
+  ✓ Generating static pages using 17 workers (15/15) in 190ms
+  # exit 0
+  ```
 
 ## Done
 
@@ -37,7 +75,7 @@ hosted writes, deploys, pushes or PRs. This handoff is the mandatory extra path.
 
 ## In progress
 
-None. Documentation implementation and validation are complete. No stubs added.
+None. Merged-baseline documentation and validation are complete. No stubs added.
 
 ## Changed paths and purpose
 
@@ -51,7 +89,8 @@ None. Documentation implementation and validation are complete. No stubs added.
 - `docs/release-checklist.md`: four evidence-based gates and two-venue pilot;
   documented individual-portfolio implementation gap.
 - `docs/fanout/handoffs/docs-expand.md`: mandatory continuity file, the only extra
-  path beyond the six owned docs. No application, config or dependency edits.
+  authored path beyond the six owned docs. The authorised integration merge also
+  imports upstream `pnpm-workspace.yaml`; no independent dependency-policy edit.
 
 ## Usage-guide source audit
 
@@ -75,7 +114,7 @@ before another field fails; closing uploads clears retry context.
 4. Keep all hosted checklist items NOT DONE until that environment's real evidence
    exists. Do not infer production readiness from this documentation milestone.
 
-## Actual validation output (2026-10-30)
+## Initial validation output (2026-10-30, before integration-policy merge)
 
 ```text
 pnpm install --frozen-lockfile

@@ -32,8 +32,13 @@ pnpm install --frozen-lockfile
 `pnpm-workspace.yaml` is dependency policy, not a suggestion:
 
 - `minimumReleaseAge: 1440` is a 1,440-minute (one-day) release-age gate. Keep it.
-- `allowBuilds` allows `sharp` and `unrs-resolver`, and denies `msw`.
-- This install exited 0 but warned `Ignored build scripts: esbuild@0.28.2`.
+- `allowBuilds` allows `sharp` and `unrs-resolver`, and explicitly denies
+  `esbuild` and `msw`. The merged `3a23c9b` fix adds `esbuild: false` so pnpm 11
+  has an explicit decision for that install script; do not change it to `true`.
+- After merging `feat/nabalens-mvp`, `CI=true pnpm install --frozen-lockfile`
+  exited 0 with this shell's pnpm 10.30.1. It still warned
+  `Ignored build scripts: esbuild@0.28.2`; that is not permission to run the
+  intentionally denied script. pnpm 11 was not exercised by this docs track.
   Do not blanket-approve scripts, add a placeholder `allowBuilds` entry, disable
   the age gate, or change policy just to silence a warning. An authorised
   maintainer must review any policy change; verify the actual tests/build.
