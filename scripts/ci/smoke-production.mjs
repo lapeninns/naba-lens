@@ -205,7 +205,12 @@ export async function runProductionSmoke(
     })
   }
 
-  for (const kind of ["thumb", "download"]) {
+  // The admin-only original route deliberately hides its access denial behind
+  // "Not found."; derivatives return the signed-out authentication message.
+  for (const [kind, denial] of [
+    ["thumb", "Sign in to continue."],
+    ["download", "Not found."],
+  ]) {
     await check(
       `/api/media/${SYNTHETIC_ASSET_ID}/${kind}`,
       (response, body) => {
@@ -217,7 +222,7 @@ export async function runProductionSmoke(
         assert(
           /^text\/plain(?:\s*;|$)/i.test(
             response.headers.get("content-type") ?? ""
-          ) && body === "Sign in to continue.",
+          ) && body === denial,
           "Private media did not return the expected application denial."
         )
       }

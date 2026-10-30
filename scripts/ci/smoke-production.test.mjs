@@ -35,7 +35,7 @@ function applicationResponse(path) {
     return {
       status: 401,
       headers: { ...PRIVATE_HEADERS, "content-type": "text/plain" },
-      body: "Sign in to continue.",
+      body: path.endsWith("/download") ? "Not found." : "Sign in to continue.",
     }
   }
   if (path === "/api/internal/cleanup") {
@@ -218,6 +218,48 @@ test("a private API response containing a media page cannot pass as a denial", a
   )
   assert.equal(result.ok, false)
   assert.ok(!JSON.stringify(result).includes("private-file"))
+})
+
+test("private media require their route-specific denial and security protections", async (t) => {
+  for (const kind of ["thumb", "download"]) {
+    const path = `/api/media/00000000-0000-4000-8000-000000000000/${kind}`
+    for (const [name, mutate] of [
+      [
+        "wrong route's denial",
+        (response) => ({
+          ...response,
+          body: kind === "download" ? "Sign in to continue." : "Not found.",
+        }),
+      ],
+      ["access allowed", (response) => ({ ...response, status: 200 })],
+      ["wrong status", (response) => ({ ...response, status: 404 })],
+      ...[
+        ["content-type", "text/html"],
+        ["cache-control", "no-store"],
+        ["cache-control", "private, max-age=60"],
+        ["x-content-type-options", ""],
+        ["referrer-policy", ""],
+      ].map(([header, value]) => [
+        `${header}: ${value || "missing"}`,
+        (response) => ({
+          ...response,
+          headers: { ...response.headers, [header]: value },
+        }),
+      ]),
+    ]) {
+      await t.test(`${kind}: ${name}`, async (subtest) => {
+        const { result } = await fixture(subtest, (requestedPath, response) =>
+          requestedPath === path ? mutate(response) : response
+        )
+        assert.equal(result.ok, false)
+        assert.equal(result.results.filter((entry) => !entry.ok).length, 1)
+        assert.equal(
+          result.results.find((entry) => entry.path === path).ok,
+          false
+        )
+      })
+    }
+  }
 })
 
 test("media header and cleanup configuration failures are independently reported", async (t) => {
