@@ -65,6 +65,25 @@ synthetic frames) is a stream copy of `tests/fixtures/media/review-hevc.mov`.
 Re-run on 30 Oct 2026 after the fix: Chromium + WebKit 30 passed; `pnpm test` 103 passed;
 typecheck, lint and build pass.
 
+### Cosmetic fixes from the journey QA report (`feat/nl-journey:docs/qa-report.md`)
+
+| Defect | Fix | Evidence |
+|---|---|---|
+| Staff filter value cut mid-character at 768 px | `option-select.tsx`: the value is `block truncate` at the trigger's specificity, so it ends with an ellipsis (asserted in the spec) | `admin-filter-empty-light-768.png` |
+| Expired-link alert body squeezed into a narrow column at 360 px | `login-card.tsx`: `text-pretty` instead of the kit's `text-balance` | `login-expired-light-360.png` |
+| Avatar file input looked like a bare native control | `edit-profile-dialog.tsx`: styled "Choose File" button inside the field | `admin-edit-staff-light-390.png` |
+| Video tiles without a poster showed the photo icon | `media-tile.tsx`: film-strip icon for videos (no poster frames: no transcoding in the MVP) | `staff-populated-light-390.png` |
+| Sub-second clips showed "0:00" | `format.ts`: `formatDuration` returns "<0:01" (unit + e2e asserted) | `staff-populated-light-390.png` |
+
+**Merge coordination:** `media-tile.tsx` and `staff-directory-table.tsx` now carry
+`feat/nl-journey`'s exact label-in-name fixes. The tile name ends with `duration m:ss`, and
+the row link names itself from its content plus a screen-reader-only ", open portfolio".
+My earlier variant is gone, so the merge cannot add a second duration. On this branch,
+the only remaining difference from journey's `media-tile.tsx` is the film-strip icon.
+
+Re-run after these fixes: Chromium + WebKit 30 passed; `pnpm test` 104 passed;
+typecheck, lint and build pass.
+
 ## Known upstream exception
 
 WebKit only: Base UI renders each modal's hidden focus-trap sentinels as unnamed

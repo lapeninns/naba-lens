@@ -700,6 +700,10 @@ test("staff: video playback by codec (MOV tried, HEVC falls back)", async ({
 
   // H.264 in a MOV: Chromium's canPlayType("video/quicktime") is "", but the
   // element can decode it, so the viewer must try instead of pre-rejecting.
+  // Sub-second clip: "<0:01", not "0:00"; a film icon marks a video tile.
+  const movTile = await tile(page, "iphone-h264.mov")
+  await expect(movTile).toContainText("<0:01")
+  await expect(movTile).toHaveAccessibleName(/duration <0:01$/)
   expect(await videoOutcome(page, "iphone-h264.mov")).toBe("plays")
   await capture(page, testInfo, "viewer-video-mov", {
     widths: some(page, testInfo, [390, 1280]),
@@ -878,6 +882,17 @@ test("admin: library and filters", async ({ browser, baseURL }, testInfo) => {
   // Staff member with no uploads: empty filter result, then clear.
   await page.goto(`/admin?staff=${fx.empty.id}`)
   await expect(page.getByText("Nothing matches these filters.")).toBeVisible()
+  // A long selected name ends in an ellipsis, not a mid-character cut.
+  const staffValue = page
+    .getByRole("combobox", { name: "Staff member" })
+    .locator("[data-slot=select-value]")
+  await page.setViewportSize({ width: 768, height: 1024 })
+  expect(
+    await staffValue.evaluate((el) => ({
+      overflow: el.scrollWidth > el.clientWidth,
+      ellipsis: getComputedStyle(el).textOverflow,
+    }))
+  ).toEqual({ overflow: true, ellipsis: "ellipsis" })
   await capture(page, testInfo, "admin-filter-empty")
   await page.getByRole("button", { name: "Clear filters" }).click()
   await expect(page).toHaveURL(/\/admin$/)

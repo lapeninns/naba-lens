@@ -60,7 +60,9 @@ export function OptionSelect({
         // The trigger sizes itself with data-[size=default]:h-8, which beats a
         // plain h-* class; override at the same specificity (44px on phones).
         className={cn(
-          "w-full min-w-0 data-[size=default]:h-11 sm:data-[size=default]:h-9",
+          // The kit shows the value as display:flex, which cuts a long name
+          // mid-character; block + truncate ends it with an ellipsis.
+          "w-full min-w-0 data-[size=default]:h-11 sm:data-[size=default]:h-9 *:data-[slot=select-value]:block *:data-[slot=select-value]:truncate",
           className
         )}
         {...aria}

@@ -138,6 +138,7 @@ type AssetSpec =
       file?: URL
       ext?: "mp4" | "mov"
       mime?: "video/mp4" | "video/quicktime"
+      durationSeconds?: number
     }
   | {
       kind: "pending"
@@ -191,7 +192,7 @@ async function asset(
         size_bytes: bytes.byteLength,
         width: 320,
         height: 240,
-        duration_seconds: 12,
+        duration_seconds: spec.durationSeconds ?? 12,
       })
     )
     return
@@ -365,6 +366,7 @@ export async function seedVisualFixtures(): Promise<VisualFixtures> {
       file: new URL("../fixtures/media/synthetic.mov", import.meta.url),
       ext: "mov",
       mime: "video/quicktime",
+      durationSeconds: 0.2,
     },
     {
       kind: "video",

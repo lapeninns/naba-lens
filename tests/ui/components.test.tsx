@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
+import { formatDuration } from "@/components/nabalens/format"
 import {
   ConfirmDeleteDialog,
   DELETE_CONFIRM_COPY,
@@ -71,7 +72,7 @@ describe("MediaGrid and EmptyState", () => {
   it("renders keyboard-focusable tiles with a video badge and opens on Enter", async () => {
     const onOpen = vi.fn()
     render(<MediaGrid label="Library" items={[item]} onOpen={onOpen} showAttribution />)
-    const tile = screen.getByRole("button", { name: /Video, clip\.mov, 0:42, by Test contributor/ })
+    const tile = screen.getByRole("button", { name: /Video, clip\.mov, by Test contributor, .*, duration 0:42$/ })
     expect(screen.getByText("0:42")).toBeTruthy()
     tile.focus()
     await userEvent.keyboard("{Enter}")
@@ -83,6 +84,15 @@ describe("MediaGrid and EmptyState", () => {
     expect(
       screen.getByText("Your portfolio starts here. Upload your first photo or video.")
     ).toBeTruthy()
+  })
+})
+
+describe("formatDuration", () => {
+  it("never shows a real clip as 0:00", () => {
+    expect(formatDuration(0.2)).toBe("<0:01")
+    expect(formatDuration(0.6)).toBe("0:01")
+    expect(formatDuration(42)).toBe("0:42")
+    expect(formatDuration(3725)).toBe("1:02:05")
   })
 })
 

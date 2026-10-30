@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import {
+  FilmStripIcon,
   ImageIcon,
   PlayIcon,
   SpinnerGapIcon,
@@ -27,13 +28,13 @@ function describe(item: MediaItem, showAttribution: boolean) {
     item.mediaType === "video" ? "Video" : "Photo",
     item.originalFilename,
   ]
-  // The visible duration badge must be part of the accessible name (WCAG 2.5.3).
-  if (item.mediaType === "video" && item.durationSeconds)
-    parts.push(formatDuration(item.durationSeconds))
   if (showAttribution) parts.push(`by ${item.contributorName}`, item.venueName)
   parts.push(`uploaded ${formatDate(item.createdAt)}`)
   if (item.uploadState !== "ready")
     parts.push(UPLOAD_STATE_LABEL[item.uploadState])
+  // The visible duration badge must be part of the name (WCAG 2.5.3).
+  if (item.mediaType === "video" && item.durationSeconds)
+    parts.push(`duration ${formatDuration(item.durationSeconds)}`)
   return parts.join(", ")
 }
 
@@ -84,7 +85,12 @@ export function MediaTile({
             ) : item.uploadState === "failed" ? (
               <WarningCircleIcon className="size-6 text-negative" aria-hidden />
             ) : (
-              <ImageIcon className="size-6" aria-hidden />
+              // No video poster frames (no transcoding); a neutral video tile.
+              item.mediaType === "video" ? (
+                <FilmStripIcon className="size-8" aria-hidden />
+              ) : (
+                <ImageIcon className="size-6" aria-hidden />
+              )
             )}
           </span>
         )}
