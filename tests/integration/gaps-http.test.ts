@@ -17,7 +17,7 @@ import {
   setupIdentity,
   setupSession,
   uploadAs,
-  useLocalEnv,
+  applyLocalEnv,
   type CookieJar,
 } from "./gaps-support"
 
@@ -33,7 +33,7 @@ const jar = vi.hoisted<CookieJar>(() => ({ current: new Map() }))
 vi.mock("server-only", () => ({}))
 vi.mock("next/headers", () => cookiesModule(jar))
 
-useLocalEnv()
+applyLocalEnv()
 // Setup creates five identities and real uploads; generous on a shared machine.
 vi.setConfig({ hookTimeout: 240_000, testTimeout: 90_000 })
 

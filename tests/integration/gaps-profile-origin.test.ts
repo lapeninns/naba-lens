@@ -12,7 +12,7 @@ import {
   sessionCookies,
   setupIdentity,
   setupSession,
-  useLocalEnv,
+  applyLocalEnv,
   type CookieJar,
 } from "./gaps-support"
 
@@ -25,7 +25,7 @@ const jar = vi.hoisted<CookieJar>(() => ({ current: new Map() }))
 vi.mock("server-only", () => ({}))
 vi.mock("next/headers", () => cookiesModule(jar))
 
-useLocalEnv()
+applyLocalEnv()
 vi.setConfig({ hookTimeout: 240_000, testTimeout: 90_000 })
 
 const ORIGIN = "http://127.0.0.1:3000"

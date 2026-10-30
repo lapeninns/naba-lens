@@ -22,7 +22,7 @@ import { getLocalSupabaseEnv } from "../support/local-supabase"
 export type CookieJar = { current: Map<string, string> }
 
 /** Points the app's env readers at the local stack the tests use. */
-export function useLocalEnv() {
+export function applyLocalEnv() {
   const env = getLocalSupabaseEnv()
   process.env.NEXT_PUBLIC_SUPABASE_URL = env.url
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = env.publishableKey
