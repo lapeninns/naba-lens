@@ -94,14 +94,7 @@ export async function tusTransfer(options: TusTransferOptions): Promise<void> {
           return settle()
         }
         const status = statusOf(err)
-        settle(
-          new TransferError(
-            status
-              ? `Storage rejected the upload (HTTP ${status}).`
-              : "The connection was interrupted.",
-            status
-          )
-        )
+        settle(new TransferError(tusFailureMessage(status), status))
       },
       ...options.adapters,
     })
@@ -127,6 +120,18 @@ export async function tusTransfer(options: TusTransferOptions): Promise<void> {
         if (!settled) upload.start()
       })
   })
+}
+
+/** What the person can do about a failed resumable transfer. */
+export function tusFailureMessage(status: number | null): string {
+  if (status === null) {
+    return "The connection was interrupted. Check your connection, then retry: the upload continues where it stopped."
+  }
+  if (status === 401 || status === 403) {
+    return "Your session expired or your account cannot upload. Sign in again, then retry this file."
+  }
+  if (status === 413) return "This file is larger than the storage limit."
+  return `Storage rejected the upload (HTTP ${status}).`
 }
 
 function statusOf(err: Error): number | null {

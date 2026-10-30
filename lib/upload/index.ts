@@ -1,5 +1,6 @@
 // Browser upload transport. Client-only: import from "use client" modules.
 export { guardBeforeUnload } from "./before-unload"
+export { ReservationGoneError } from "./errors"
 export {
   DEFAULT_IMAGE_TYPES,
   DEFAULT_VIDEO_TYPES,
@@ -18,4 +19,10 @@ export {
   DEFAULT_RETRY_DELAYS,
 } from "./uploader"
 export type { CreateUploaderOptions, MediaUploader } from "./uploader"
+export {
+  fileIdentity,
+  localUploadKeyStore,
+  UPLOAD_KEYS_STORAGE_KEY,
+} from "./upload-keys"
+export type { LocalUploadKeyStoreOptions, UploadKeyStore } from "./upload-keys"
 export type * from "./types"
