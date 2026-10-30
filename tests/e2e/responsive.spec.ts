@@ -38,7 +38,6 @@ type Finding = {
   }[]
 }
 
-test.describe.configure({ mode: "serial" })
 test.skip(({ browserName }) => browserName !== "chromium", "Chromium only")
 
 let world: World
