@@ -88,7 +88,9 @@ test.describe("profile read outage on the role-gated layouts", () => {
     ).toBeVisible()
     await staffPage.getByRole("button", { name: "Try again" }).click()
     await expect(
-      staffPage.getByRole("button", { name: "Upload photos or videos" })
+      staffPage
+        .getByRole("button", { name: "Upload photos or videos" })
+        .first()
     ).toBeVisible()
 
     await staffPage.context().close()

@@ -30,7 +30,7 @@ test.describe("a hung gallery refresh", () => {
     })
     const page = await signedInPage(browser, staff)
     await expect(
-      page.getByRole("button", { name: "Upload photos or videos" })
+      page.getByRole("button", { name: "Upload photos or videos" }).first()
     ).toBeVisible()
 
     // Every refresh hangs: the request is held and never answered.
