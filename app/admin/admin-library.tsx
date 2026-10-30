@@ -34,6 +34,9 @@ export function AdminLibrary({
   const router = useRouter()
   const pathname = usePathname()
   const [pending, startTransition] = React.useTransition()
+  // Filters being navigated to: a second change made before the first
+  // navigation returns must build on it, not on the stale server props.
+  const [shown, setShown] = React.useOptimistic(filters)
   const search = filtersToSearch(filters)
 
   const loadPage = React.useCallback(
@@ -59,10 +62,11 @@ export function AdminLibrary({
       <LibraryFilters
         venues={venues}
         staff={staff}
-        value={filters}
+        value={shown}
         onChange={(next) => {
           const qs = filtersToSearch(next)
           startTransition(() => {
+            setShown(next)
             router.replace(qs ? `${pathname}?${qs}` : pathname, {
               scroll: false,
             })

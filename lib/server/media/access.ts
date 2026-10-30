@@ -159,7 +159,10 @@ export async function streamOriginal(
     range
   )
   if (upstream.status !== 200 && upstream.status !== 206) {
-    await upstream.body?.cancel()
+    // Drain the small error body. Awaiting body.cancel() here never settled
+    // under `next start` (Next's fetch hands back a tee'd stream), so a missing
+    // original hung the download instead of answering 404.
+    await upstream.arrayBuffer().catch(() => undefined)
     if (upstream.status === 416) {
       return new Response(null, {
         status: 416,
