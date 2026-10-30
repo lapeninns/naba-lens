@@ -86,7 +86,7 @@ through the real `/auth/confirm?token_hash=…` landing route, and the suite kee
 5. The suite requests every page in HTML and RSC form, and every media, avatar and download
    route, as anon, staff A, staff B and admin. Pages: `/`, `/login`, `/auth/blocked`,
    `/staff`, `/admin`, `/admin/staff`, `/admin/staff/[A]`, `/admin/staff/[B]`, `/ui-preview`.
-   It also calls `loadMyMedia`, `loadLibraryPage` and `loadMorePortfolioAction`, makes
+   It also calls `loadMyMedia` and `loadLibraryPage` (library and admin portfolio), makes
    unauthorised `POST`s to `/admin/staff/[id]/avatar` and `/api/profile`, and calls
    `/api/internal/cleanup` with a wrong secret and with the right one.
 6. The suite requests `/_next/image?url=<private route>` as admin, staff and anon.
@@ -234,4 +234,6 @@ runs load-induced failures that show the safe log format:
   stacks), local auth admin calls (`createUser`, `generateLink`, ban) and template fetches often
   hit GoTrue's 10 s timeout. `pnpm test:integration` failures in `staff-accounts`, `slice-media`
   and `accounts` in this track's run were all `AuthRetryableFetchError` or an invitation
-  `partial` caused by that. None are privacy failures.
+  `partial` caused by that. None are privacy failures. The runtime suite briefly accepted a
+  `partial` invitation for that reason; the followups track restored the strict `sent`
+  assertion after it passed on a quiet isolated stack.

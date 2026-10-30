@@ -285,10 +285,7 @@ describe.skipIf(!BASE)("privacy: runtime headers, bodies and logs", () => {
         },
       ]
     )
-    // "partial" = account created, email not sent (GoTrue timeouts under load).
-    // Delivery is the accounts suite's concern; both paths log, which is what
-    // the log check below audits.
-    expect(["sent", "partial"]).toContain(invited.value.status)
+    expect(invited.value.status).toBe("sent")
 
     // Anonymous sign-in link requests: a known and an unknown address.
     for (const email of [emails.staffB, testEmail("privacy-unknown")]) {
@@ -337,8 +334,9 @@ describe.skipIf(!BASE)("privacy: runtime headers, bodies and logs", () => {
     await callAction("staffA", "/staff", "loadMyMedia", [null])
     await callAction("staffB", "/staff", "loadMyMedia", [null])
     await callAction("admin", "/admin", "loadLibraryPage", [{}, null])
-    await callAction("admin", "/admin/staff", "loadMorePortfolioAction", [
-      ids.staffA,
+    // The admin portfolio pages through the library action (merge #4b).
+    await callAction("admin", `/admin/staff/${ids.staffA}`, "loadLibraryPage", [
+      { staff: ids.staffA },
       null,
     ])
     // Mutating routes without the right credential.
