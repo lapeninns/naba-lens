@@ -12,10 +12,13 @@ import {
   type Route,
 } from "@playwright/test"
 
-import { uploadAs } from "../integration/gaps-support"
+import {
+  setupIdentity,
+  setupSession,
+  uploadAs,
+} from "../integration/gaps-support"
 import { actorFor, syntheticJpeg } from "../slice/media-actor"
 import {
-  createIdentity,
   createVenue,
   serviceClient,
   signIn as signInApi,
@@ -40,11 +43,14 @@ async function signIn(
   identity: TestIdentity,
   baseURL: string
 ) {
-  const { data, error } = await admin.auth.admin.generateLink({
-    type: "magiclink",
-    email: identity.email,
+  const data = await setupSession(identity.email, async () => {
+    const { data, error } = await admin.auth.admin.generateLink({
+      type: "magiclink",
+      email: identity.email,
+    })
+    if (error) throw error
+    return data
   })
-  if (error) throw error
   const context = await browser.newContext({ baseURL })
   const page = await context.newPage()
   await page.goto(
@@ -55,13 +61,16 @@ async function signIn(
 
 /** A staff identity with an API session (for server-side uploads) too. */
 async function staffWithSession(label: string, venueId: string) {
-  const identity = await createIdentity(admin, {
+  const identity = await setupIdentity(admin, {
     label,
     role: "staff",
     venueId,
     session: false,
   })
-  return { ...identity, client: await signInApi(admin, identity.email) }
+  return {
+    ...identity,
+    client: await setupSession(label, () => signInApi(admin, identity.email)),
+  }
 }
 
 async function readyPhoto(identity: TestIdentity, filename: string) {
@@ -79,7 +88,7 @@ test.describe("GAP-19: leave warning during an active upload", () => {
   }) => {
     test.setTimeout(120_000)
     const venue = await createVenue(admin, "e2e-gaps-leave")
-    const staff = await createIdentity(admin, {
+    const staff = await setupIdentity(admin, {
       label: "e2e-gaps-leave",
       role: "staff",
       venueId: venue.id,
@@ -136,7 +145,7 @@ test.describe("GAP-19: leave warning during an active upload", () => {
 
     // Navigate away while the transfer is in flight.
     await page.evaluate(() => {
-      window.location.href = "/login"
+      window.location.href = "about:blank"
     })
     await expect
       .poll(() => dialogs, { timeout: 10_000 })
@@ -153,11 +162,11 @@ test.describe("GAP-19: leave warning during an active upload", () => {
     await page.unroute(/\/storage\/v1\//)
     dialogs.length = 0
     await dialog.getByRole("button", { name: "Done" }).click()
+    // Leave the app entirely: /login would send a signed-in staff member back.
     await page.evaluate(() => {
-      window.location.href = "/login"
+      window.location.href = "about:blank"
     })
-    await page.waitForURL(/\/(login|staff)/)
-    await expect(page).not.toHaveURL(/\/staff$/, { timeout: 15_000 })
+    await page.waitForURL("about:blank", { timeout: 15_000 })
     expect(dialogs).toEqual([])
   })
 })
@@ -170,7 +179,7 @@ test.describe("admin library refreshes on focus", () => {
     test.setTimeout(120_000)
     const venue = await createVenue(admin, "e2e-gaps-focus")
     const staff = await staffWithSession("e2e-gaps-focus", venue.id)
-    const adminUser = await createIdentity(admin, {
+    const adminUser = await setupIdentity(admin, {
       label: "e2e-gaps-focus-admin",
       role: "admin",
       session: false,
@@ -253,7 +262,7 @@ test.describe("GAP-12: staff at a deactivated venue", () => {
     test.setTimeout(120_000)
     const venue = await createVenue(admin, "e2e-gaps-paused")
     const staff = await staffWithSession("e2e-gaps-paused", venue.id)
-    const adminUser = await createIdentity(admin, {
+    const adminUser = await setupIdentity(admin, {
       label: "e2e-gaps-paused-admin",
       role: "admin",
       session: false,
@@ -304,13 +313,13 @@ test.describe("GAP-11 over HTTP: cross-staff denial and private headers", () => 
     test.setTimeout(120_000)
     const venue = await createVenue(admin, "e2e-gaps-http")
     const staffA = await staffWithSession("e2e-gaps-http-a", venue.id)
-    const staffB = await createIdentity(admin, {
+    const staffB = await setupIdentity(admin, {
       label: "e2e-gaps-http-b",
       role: "staff",
       venueId: venue.id,
       session: false,
     })
-    const adminUser = await createIdentity(admin, {
+    const adminUser = await setupIdentity(admin, {
       label: "e2e-gaps-http-admin",
       role: "admin",
       session: false,
@@ -373,8 +382,18 @@ test.describe("GAP-11 over HTTP: cross-staff denial and private headers", () => 
     const portfolio = await pageB.request.get(`/admin/staff/${staffA.id}`, {
       maxRedirects: 0,
     })
-    expect([303, 307, 308]).toContain(portfolio.status())
-    expect(portfolio.headers()["location"]).toMatch(/\/staff$/)
+    // app/admin/loading.tsx makes the page stream, so Next may send the
+    // redirect inside a 200 body instead of a 3xx. Either way: to /staff, and
+    // none of staff A's data in the response.
+    const html = await portfolio.text()
+    if (portfolio.status() === 200) {
+      expect(html).toMatch(/NEXT_REDIRECT[^"]*\/staff|url=\/staff/)
+    } else {
+      expect([303, 307, 308]).toContain(portfolio.status())
+      expect(portfolio.headers()["location"]).toMatch(/\/staff$/)
+    }
+    expect(html).not.toContain("TEST e2e-gaps-http-a")
+    expect(html).not.toContain(photoA)
     expect(await portfolio.text()).not.toContain("private-dish")
     await pageB.goto(`/admin/staff/${staffA.id}`)
     await expect(pageB).toHaveURL(/\/staff$/)
