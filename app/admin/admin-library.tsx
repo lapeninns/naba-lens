@@ -86,6 +86,7 @@ export function AdminLibrary({
           // New filters mean a new server-rendered first page.
           key={search}
           label="Library"
+          canLabel
           initialPage={initialPage}
           loadPage={loadPage}
           refreshPage={refreshPage}
