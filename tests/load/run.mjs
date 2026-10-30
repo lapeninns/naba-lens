@@ -19,7 +19,7 @@
 // hosted project: stack-env.mjs refuses non-local hosts.
 import { execFile, spawn } from "node:child_process"
 import { randomUUID } from "node:crypto"
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { createRequire } from "node:module"
 import { loadavg, tmpdir } from "node:os"
 import { join, resolve } from "node:path"
@@ -133,8 +133,9 @@ async function startServer(label) {
     tmpdir(),
     `nabalens-load-workers-${RUN_ID}-${label}.jsonl`
   )
-  rmSync(workerLog, { force: true })
+  const fetchLog = workerLog.replace("-workers-", "-fetch-")
   writeFileSync(workerLog, "")
+  writeFileSync(fetchLog, "")
   const child = spawn(
     process.execPath,
     [
@@ -149,7 +150,8 @@ async function startServer(label) {
       env: appEnv(env, {
         NODE_ENV: "production",
         NABALENS_WORKER_LOG: workerLog,
-        NODE_OPTIONS: `--require ${resolve("tests/load/worker-probe.cjs")}`,
+        NABALENS_FETCH_LOG: fetchLog,
+        NODE_OPTIONS: `--require ${resolve("tests/load/server-probe.cjs")}`,
         NEXT_PUBLIC_SITE_URL: BASE,
       }),
       stdio: ["ignore", "pipe", "pipe"],
@@ -179,6 +181,7 @@ async function startServer(label) {
     pid: child.pid,
     samples,
     workerLog,
+    fetchLog,
     logs,
     mark: () => samples.length,
     async stop() {
@@ -231,6 +234,32 @@ function workerStats(path, t0, t1) {
     },
     runs: runs.map((r) => ({ start: r.start - t0, end: r.end - t0 })),
   }
+}
+
+/** Server-side fetches to the stack, grouped: where finalise time goes. */
+function fetchStats(path, t0, t1) {
+  const groups = {}
+  for (const line of readFileSync(path, "utf8").split("\n")) {
+    if (!line) continue
+    const e = JSON.parse(line)
+    if (e.t < t0 || e.t > t1) continue
+    const key = `${e.service} ${e.method}${e.range ? " range" : ""}`
+    const g = (groups[key] ??= { ms: [], statuses: {} })
+    g.ms.push(e.ms)
+    g.statuses[e.status] = (g.statuses[e.status] ?? 0) + 1
+  }
+  return Object.fromEntries(
+    Object.entries(groups).map(([k, g]) => [
+      k,
+      {
+        n: g.ms.length,
+        p50: pct(g.ms, 50),
+        p95: pct(g.ms, 95),
+        max: Math.max(...g.ms),
+        statuses: g.statuses,
+      },
+    ])
+  )
 }
 
 // ---------------------------------------------------------------- identities
@@ -399,11 +428,13 @@ async function uploadOne(staff, file) {
     const t1 = now()
     await transfer(staff, reservation, file)
     r.transferMs = now() - t1
+    r.finaliseAt = Date.now()
     const fin = await callAction(staff, "finaliseUpload", {
       assetId: reservation.assetId,
       idempotencyKey: key,
     })
     r.finaliseMs = fin.ms
+    r.finaliseEndAt = Date.now()
     r.finaliseWaitMs = fin.waitMs
     r.finaliseStatus = fin.status
     if (fin.value?.ok && fin.value.result.state === "ready") r.outcome = "ready"
@@ -529,7 +560,7 @@ async function withServer(label, body) {
     const t0 = Date.now()
     http5xx.length = 0
     const load = [loadavg()[0]]
-    const result = await body()
+    const result = await body(server)
     load.push(loadavg()[0])
     const t1 = Date.now()
     await sleep(300)
@@ -541,6 +572,7 @@ async function withServer(label, body) {
         ...rssStats(server.samples, from),
       },
       heicWorkers: workerStats(server.workerLog, t0, t1 + 300),
+      serverFetches: fetchStats(server.fetchLog, t0, t1 + 300),
       http5xx: [...http5xx],
       hostLoadAvg1m: load.map((l) => Math.round(l * 10) / 10),
       serverLogTail: server.logs
@@ -581,23 +613,23 @@ async function scenarioB() {
     const staff = await Promise.all(
       Array.from({ length: HEIC_CONCURRENT }, (_, i) => createStaff(`b${i}`))
     )
-    const prepared = await Promise.all(
-      staff.map(async (s) => {
-        const key = randomUUID().replaceAll("-", "")
-        const reserve = await callAction(s, "reserveUpload", {
-          idempotencyKey: key,
-          filename: heic.name,
-          sizeBytes: heic.bytes.byteLength,
-          contentType: heic.contentType,
-          mediaType: "image",
-          preferResumable: false,
-        })
-        if (!reserve.value?.ok)
-          throw new Error(`reserve: ${reserve.value?.message}`)
-        await transfer(s, reserve.value.reservation, heic)
-        return { s, key, assetId: reserve.value.reservation.assetId }
+    // Setup only, 4 at a time: the burst below is what is measured, and 20
+    // simultaneous signs exhaust the local Storage DB pool (544 DatabaseTimeout).
+    const prepared = await pool(staff, 4, async (s) => {
+      const key = randomUUID().replaceAll("-", "")
+      const reserve = await callAction(s, "reserveUpload", {
+        idempotencyKey: key,
+        filename: heic.name,
+        sizeBytes: heic.bytes.byteLength,
+        contentType: heic.contentType,
+        mediaType: "image",
+        preferResumable: false,
       })
-    )
+      if (!reserve.value?.ok)
+        throw new Error(`reserve: ${reserve.value?.message}`)
+      await transfer(s, reserve.value.reservation, heic)
+      return { s, key, assetId: reserve.value.reservation.assetId }
+    })
     const t0 = Date.now()
     const results = await Promise.all(
       prepared.map(async ({ s, key, assetId }) => {
@@ -637,13 +669,20 @@ async function scenarioB() {
 }
 
 async function scenarioC() {
-  return withServer("c", async () => {
+  return withServer("c", async (server) => {
     const video = fixture("video-200mib.mp4")
     const s = await createStaff("c")
     const result = await uploadOne(s, video)
     return {
       scenario: `c: one ${(video.bytes.byteLength / MiB).toFixed(1)} MiB video upload + finalise`,
       summary: summarise([result]),
+      // RSS while only the finalise ran (the TUS transfer never touches Next).
+      finaliseRss: rssStats(
+        server.samples.filter(
+          (x) =>
+            x.t >= result.finaliseAt - 200 && x.t <= result.finaliseEndAt + 200
+        )
+      ),
       results: [result],
     }
   })

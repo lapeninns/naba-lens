@@ -2,11 +2,28 @@
 // Never prints keys. Refuses anything but a local host.
 import { execFileSync, spawn } from "node:child_process"
 
+function status(workdir) {
+  // `supabase status` occasionally fails while Docker is saturated; the stack
+  // itself is fine. Setup only: measured requests are never retried.
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return execFileSync(
+        "supabase",
+        ["--workdir", workdir, "status", "-o", "json"],
+        {
+          encoding: "utf8",
+          stdio: ["ignore", "pipe", "ignore"],
+        }
+      )
+    } catch (e) {
+      if (attempt >= 4) throw e
+      execFileSync("sleep", ["2"])
+    }
+  }
+}
+
 export function stackEnv(workdir) {
-  const raw = execFileSync("supabase", ["--workdir", workdir, "status", "-o", "json"], {
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "ignore"],
-  })
+  const raw = status(workdir)
   const s = JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1))
   const env = {
     url: s.API_URL,
@@ -36,7 +53,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const [workdir, cmd, ...args] = process.argv.slice(2)
   const child = spawn(cmd, args, {
     stdio: "inherit",
-    env: appEnv(stackEnv(workdir), { NEXT_PUBLIC_SITE_URL: "http://127.0.0.1:3615" }),
+    env: appEnv(stackEnv(workdir), {
+      NEXT_PUBLIC_SITE_URL: "http://127.0.0.1:3615",
+    }),
   })
   child.on("exit", (code) => process.exit(code ?? 1))
 }
