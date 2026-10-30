@@ -44,6 +44,11 @@ cause, fix it without suppressing the rule, prove it with 3 consecutive passes o
     test tabbed before Base UI moved initial focus into the dialog on the next frame. It now
     polls until focus is inside the dialog or viewer before tabbing. The assertions are
     unchanged and there are no retries.
+  - Second half of the same flake (it recurred once after the b633b11 merge): `tabTo` read
+    `activeElement` while a focus guard was still handing focus on in the next frame, so the
+    walk could skip its target. After each Tab, `tabTo` now waits until focus is off a guard,
+    plus two animation frames. Targets and assertions are unchanged. Result: 6/6, then
+    3/3, full green runs.
 
 ## Also fixed: review finding F3
 
@@ -51,7 +56,8 @@ cause, fix it without suppressing the rule, prove it with 3 consecutive passes o
 the new interstitial, so every signed-in visual test stayed on `/auth/confirm`. It now calls
 `openEmailLink` from `tests/e2e/helpers/email-link.ts`.
 
-`feat/nabalens-mvp` @ 2471677 (privacy fix) is merged into this branch, with no conflicts.
+`feat/nabalens-mvp` @ 2471677 (privacy fix) and then @ b633b11 (review fixes F4–F11) are
+merged into this branch, with no conflicts.
 
 ## Evidence (isolated stack `nl-fix-a11y`, ports 592xx, app :3561)
 
@@ -64,6 +70,11 @@ the new interstitial, so every signed-in visual test stayed on `/auth/confirm`. 
     just before, by the runner): **30 passed (5.4m)**. Chromium covers 360/390/768/1280/1440;
     WebKit covers 1280.
   - `pnpm typecheck` exit 0, `pnpm lint` clean, `pnpm test` 21 files / 153 passed, `pnpm build` compiled.
+- On the final merged head (b633b11 merged, `431902f`), on a freshly reset stack:
+  - `responsive.spec.ts --project chromium`: 3 consecutive full runs (first one with a fresh
+    `next build`), 7 passed each.
+  - `pnpm test:visual $W --project chromium --project webkit` (it builds first): **30 passed (5.2m)**.
+  - `pnpm typecheck` exit 0, `pnpm lint` clean, `pnpm test` 26 files / 163 passed, `pnpm build` compiled.
 - Firefox for the visual suite was not run (the visual-a11y handoff records it as blocked locally).
 
 ## How to run the stack
