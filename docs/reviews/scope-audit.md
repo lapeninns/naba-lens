@@ -58,3 +58,43 @@ Swept `app/` and `components/` for "approve", "pending review", "submitted"/"sub
 4. **`supabase/config.toml:87`** — `[realtime] enabled = true` is a stock local-stack service; the app never uses it (polling per spec §3). No violation.
 5. **`supabase/config.toml:224`** — `[auth.email] enable_signup = true` enables the email provider for magic links; public sign-up stays blocked by `[auth] enable_signup = false` (`:176`) and `shouldCreateUser: false` (`lib/auth/magic-link.ts:27`). Documented in the file's comments.
 6. **`media_assets.client_upload_key`** — one column beyond spec §6; it is the documented contract amendment (`docs/fanout/CONTRACT.md`, `supabase/migrations/20261029160000_media_client_upload_key.sql`), an idempotency key, not a product feature.
+
+## Final candidate 5d28d64
+
+**Audited:** `feat/nabalens-mvp` @ `5d28d64` (re-audit of `3a23c9b` above; same checklist, plus everything merged since).
+**Method:** full read of `git diff 3a23c9b..5d28d64` across `app/`, `components/`, `lib/`, `supabase/`, `scripts/`, CI config and `package.json`/`pnpm-lock.yaml`; every original checklist claim re-verified against the tree; the forbidden-feature sweeps re-run.
+
+### Verdict: PASS
+
+Nothing merged since `3a23c9b` adds a product feature. The product surface is still exactly the two-interface MVP. The audit's one in-scope gap is now closed: the admin portfolio page runs the same library gallery with working preview, download and delete (`app/admin/staff/[id]/admin-portfolio.tsx:29-39`).
+
+### Checklist re-verified at 5d28d64
+
+- **Two roles.** `app_role` is still `('staff','admin')` (`supabase/migrations/20261029120000_nabalens_schema.sql:13`); generated types unchanged (`lib/db/types.ts:208,335`); no third role in code or policies.
+- **Staff isolation.** `listOwnMedia` still filters to the caller (`lib/server/media/library.ts:166-173`); the staff gallery still gets no `getDownloadHref` (`app/staff/staff-portfolio.tsx:99-116`); RLS own-row policies unchanged. New `app/staff/layout.tsx` only rejects non-staff earlier (real 307 before streaming).
+- **Admin navigation.** Still exactly Content and Staff (`components/nabalens/app-shell.tsx:27-30`).
+- **Routes.** The inventory adds only `/auth/confirm` (page) and `/auth/confirm/verify` (handler) — email-link landing infrastructure — plus `/staff` and `/admin` layout gates. No new product screen or API.
+- **Forbidden features.** All sweeps clean: no approval/review states, comments, likes, tagging, captions, notifications, analytics, ZIP export, AI, tasks, venue management UI, public profiles, multi-org fields or realtime refresh. `upload_state` is unchanged. The only new dependency is `@axe-core/playwright` (devDependency, accessibility checks in the visual suite).
+- **Copy.** New user-visible strings are the email-link landing ("Accept your invitation" / "Sign in to NabaLens" + Continue), the auth-outage notice, and 503 retry messages — all in-scope plumbing, no feature language.
+
+### New pieces since the audit — in-scope infrastructure, not features
+
+| Piece | What it is | Scope call |
+|---|---|---|
+| Security headers (`next.config.ts`) | Static CSP plus nosniff, Referrer-Policy, Permissions-Policy and X-Frame-Options on every route (wave-3 finding 7) | Hardening; adds no surface |
+| Cleanup reaper | `fail_stale_media_processing` RPC and DB-side `take_over_stale_media_claim` reap crashed finalises; `runCleanup` batches storage removal behind a lease (`lib/server/lifecycle/cleanup.ts`). `/api/internal/cleanup` already existed; it gains a GET twin for Vercel Cron and a constant-time secret check | Spec §5/§7 maintenance job, not a user feature |
+| CI scripts | `.github/workflows/ci.yml` (three browser lanes) and `scripts/ci/*`: frozen installs, isolated stack prep, suite runner, privacy runtime, `scan-bundle.mjs` secret-leak gate | Test/CI plumbing |
+| Visual tests | `playwright.visual.config.ts`, `tests/visual/*`, axe-core accessibility and screenshot QA across widths/browsers | Test plumbing |
+| Auth interstitial | `/auth/confirm` renders a Continue form; only its POST to `/auth/confirm/verify` spends the one-time token (mail scanners prefetch GETs), behind a same-origin check | Auth plumbing for the existing magic-link/invite flow |
+| Directory degradation | Auth admin-API calls bounded (`AUTH_LOOKUP_DEADLINE_MS`, 20 pages max in `lib/server/accounts/auth-users.ts`); on an Auth outage `/admin/staff` renders with `AuthDetailsNotice` instead of failing | Reliability on the existing directory |
+
+Everything else in the range is a fix or hardening inside an existing feature: `proxy.ts` session refresh (Next 16 proxy), `lib/server/http/same-origin.ts` CSRF backstop on cookie-bearing POSTs, `lib/upload/upload-keys.ts` resume idempotency, `app/_media/preview-recovery.ts` re-sign on stale preview URLs, the `20261030100000_security_hardening` migration (drops end-user storage SELECT, re-checks reservations on every original write, enforces reserve-time limits), `scripts/db/*` local-only backup/restore drill, and UI polish (hit areas, contrast, ellipsis, download-error alert, video decode fallback). `lib/server/accounts/portfolio.ts` was removed; the portfolio page reuses `listLibrary` via `loadLibraryPage`, which is also what fixed the gap.
+
+### Scope-guard
+
+`pnpm exec vitest run tests/unit/scope-guard.test.ts`: **10/10 pass** — route allow-list, forbidden-feature scan over `app/`+`lib/`+`components/`+`proxy.ts`+migrations, dependency scan, and the self-check. The guard itself encodes the route inventory audited above.
+
+### Observations carried forward
+
+- Observations 2–6 from the `3a23c9b` audit stand unchanged (test title wording, dev-only `/ui-preview` 404-gated in production, stock `[realtime]` local service, `[auth.email] enable_signup` for magic links with public sign-up still off, the documented `client_upload_key` column).
+- Observation 1 is resolved: `/admin/staff/[id]` preview/download/delete now work through the shared `MediaGallery`.
