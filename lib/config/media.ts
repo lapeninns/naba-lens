@@ -15,8 +15,12 @@ export const MEDIA_LIMITS = {
   maxPhotoBytes: 20 * MiB,
   /** Largest video original, in bytes (200 MiB). */
   maxVideoBytes: 200 * MiB,
-  /** Largest avatar upload before the server makes its derivative (5 MiB). */
-  maxAvatarBytes: 5 * MiB,
+  /**
+   * Largest avatar upload before the server makes its derivative (4 MiB). Avatars
+   * pass through a function, so file + multipart framing must stay under the
+   * host's 4.5 MB request body limit (Vercel).
+   */
+  maxAvatarBytes: 4 * MiB,
   /** Lifetime of newly issued signed read URLs, in seconds. */
   signedUrlExpirySeconds: 60,
   /** Assets per gallery page (cursor pagination on created_at + id). */

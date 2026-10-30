@@ -86,7 +86,7 @@ Stop only the stack you own.
   `/admin/menus/versions/[versionId]`. Auth email templates use `/auth/confirm`;
   `/auth/callback` supports PKCE fallback.
 - Limits in `lib/config/media.ts`: 10 files/batch, 2 parallel transfers,
-  20 MiB photos, 200 MiB videos, 5 MiB avatar inputs, 60-second signed reads,
+  20 MiB photos, 200 MiB videos, 4 MiB avatar inputs, 60-second signed reads,
   24-hour abandoned-upload window. Provider/plan caps still need verification.
 - [Architecture/security boundaries](docs/architecture.md)
 - [Media pipeline and HEIC deployment constraints](docs/media-pipeline.md)

@@ -16,6 +16,10 @@ const BLOCKED_COPY = {
 
 export const metadata = { title: "Your portfolio · NabaLens" }
 
+// finaliseUpload (Server Action on this page) decodes HEIC/images; keep the
+// bound explicit and below MEDIA_LIMITS.staleProcessingMinutes.
+export const maxDuration = 120
+
 /** Staff home: own profile, Upload action and newest-first own gallery. */
 export default async function StaffPage() {
   const profile = await requireActiveStaff()

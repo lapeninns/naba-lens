@@ -9,7 +9,7 @@ import {
 } from "@/lib/server/accounts"
 import { accountsContext } from "@/lib/server/accounts/request"
 
-// A Route Handler rather than a Server Function: avatars may be 5 MiB and Server
+// A Route Handler rather than a Server Function: avatars may be 4 MiB and Server
 // Functions default to a 1 MB body limit.
 
 const STATUS: Partial<Record<AccountErrorCode, number>> = {
@@ -21,6 +21,10 @@ const STATUS: Partial<Record<AccountErrorCode, number>> = {
 
 // Multipart framing on top of the file itself.
 const MAX_BODY_BYTES = MEDIA_LIMITS.maxAvatarBytes + 64 * 1024
+const AVATAR_MB = Math.round(MEDIA_LIMITS.maxAvatarBytes / (1024 * 1024))
+
+// HEIC decode (15 s deadline) plus queueing; well inside every plan's cap.
+export const maxDuration = 120
 
 function json(status: number, body: object) {
   return NextResponse.json(body, {
@@ -48,8 +52,8 @@ export async function POST(
   if (declared > MAX_BODY_BYTES) {
     return json(413, {
       ok: false,
-      error: "Profile photos can be up to 5 MB.",
-      fieldErrors: { avatar: "Profile photos can be up to 5 MB." },
+      error: `Profile photos can be up to ${AVATAR_MB} MB.`,
+      fieldErrors: { avatar: `Profile photos can be up to ${AVATAR_MB} MB.` },
     })
   }
 
@@ -69,8 +73,8 @@ export async function POST(
   if (file.size > MEDIA_LIMITS.maxAvatarBytes) {
     return json(413, {
       ok: false,
-      error: "Profile photos can be up to 5 MB.",
-      fieldErrors: { avatar: "Profile photos can be up to 5 MB." },
+      error: `Profile photos can be up to ${AVATAR_MB} MB.`,
+      fieldErrors: { avatar: `Profile photos can be up to ${AVATAR_MB} MB.` },
     })
   }
 

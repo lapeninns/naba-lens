@@ -14,7 +14,7 @@ especially on shared devices.
 ## Update your profile
 
 Choose **Edit profile**, change **Display name** or **Profile photo**, then
-**Save changes**. Photos can be up to 5 MiB (shown as **5.0 MB**).
+**Save changes**. Photos can be up to 4 MiB (shown as **4.0 MB**).
 Your admin controls job title, venue and access. Ask them to fix a missing or
 inactive venue if uploads are paused.
 

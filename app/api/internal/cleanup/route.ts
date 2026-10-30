@@ -52,7 +52,18 @@ async function runAuthorised(request: Request) {
 
   try {
     const report = await runCleanup()
-    return Response.json(report, { headers: NO_STORE })
+    // Counts only: asset ids and object keys stay out of logs.
+    const failed = "failed" in report ? report.failed.length : 0
+    console.info("media cleanup done", {
+      failed,
+      more: "more" in report ? report.more : false,
+    })
+    // A failure status makes Vercel Cron / CI history show the run as failed;
+    // the next run retries those removals.
+    return Response.json(report, {
+      status: failed > 0 ? 500 : 200,
+      headers: NO_STORE,
+    })
   } catch (error) {
     console.error("media cleanup failed", error)
     return Response.json(

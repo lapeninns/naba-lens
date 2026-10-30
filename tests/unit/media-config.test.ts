@@ -22,7 +22,7 @@ describe("MEDIA_LIMITS (spec v0.2 §5)", () => {
       maxParallelUploads: 2,
       maxPhotoBytes: 20 * MiB,
       maxVideoBytes: 200 * MiB,
-      maxAvatarBytes: 5 * MiB,
+      maxAvatarBytes: 4 * MiB,
       signedUrlExpirySeconds: 60,
       pageSize: 24,
       abandonedUploadWindowHours: 24,

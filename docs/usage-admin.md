@@ -78,7 +78,7 @@ Invitations create staff only; additional admins use [setup](setup.md).
 
 Choose **Edit details** in the menu or portfolio header. **Edit staff account**
 allows **Display name**, **Profile photo** (up to
-5 MiB, shown as **5.0 MB**), **Job title**, **Venue** or **Account active**,
+4 MiB, shown as **4.0 MB**), **Job title**, **Venue** or **Account active**,
 then **Save changes**. Email and role are not editable here.
 Venue changes affect new uploads only; old media keeps its original venue.
 A photo may save before a later field fails; recheck errors.

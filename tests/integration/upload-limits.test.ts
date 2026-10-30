@@ -102,7 +102,7 @@ describe("storage limits and TUS on the local stack", () => {
     })
     expect(avatars.data).toMatchObject({
       public: false,
-      file_size_limit: MEDIA_LIMITS.maxAvatarBytes,
+      file_size_limit: 5 * 1024 * 1024, // 256px WebP derivatives; inputs are capped lower
       allowed_mime_types: ["image/webp"],
     })
   })

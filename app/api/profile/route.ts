@@ -8,8 +8,11 @@ import { updateOwnProfile } from "@/lib/server/media/profile"
 /**
  * Staff edit their own display name and profile photo (multipart: `displayName`,
  * optional `avatar`). A Route Handler rather than a Server Function because a
- * 5 MiB photo exceeds the Server Function body limit (1 MB by default).
+ * 4 MiB photo exceeds the Server Function body limit (1 MB by default).
  */
+// HEIC decode (15 s deadline) plus queueing; well inside every plan's cap.
+export const maxDuration = 120
+
 export async function POST(request: Request) {
   const noStore = { "cache-control": "private, no-store" }
   // Same-origin only (wave 3 finding 7): session cookies are SameSite=Lax, but

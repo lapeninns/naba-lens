@@ -389,9 +389,9 @@ send real invitations or schedule a job.
    HEIC V8 worker limits are 128 MiB old / 16 MiB young / 4 MiB stack, with one
    worker per module instance; they do **not** cap WASM/native memory. Host
    timeout must exceed decoding plus storage/network work and existing bounded
-   contention retries; a 15-second function is insufficient. Finalise has no
-   configured `maxDuration`. Cleanup alone exports `maxDuration = 60`.
-   Verify the actual platform timeout/memory/request/stream limits, full 5 MiB
+   contention retries; a 15-second function is insufficient. Finalise (`app/staff/page.tsx`) and both avatar
+   handlers export `maxDuration = 120`; cleanup exports `maxDuration = 60`.
+   Verify the actual platform timeout/memory/request/stream limits, full 4 MiB
    avatars and 200 MiB resumable videos. Include `lib/media/heic-worker.mjs`,
    sharp and heic-decode in Linux deployment output and test through the actual
    production route. `next.config.ts` is currently empty: no explicit worker

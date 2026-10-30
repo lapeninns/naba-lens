@@ -13,6 +13,8 @@ import {
 import { dbFailed, notFound } from "./invite"
 import { isUuid } from "./validation"
 
+const AVATAR_MB = Math.round(MEDIA_LIMITS.maxAvatarBytes / (1024 * 1024))
+
 /** Turns uploaded bytes into the avatar WebP; lib/media's createAvatarDerivative. */
 export type AvatarDeriver = (bytes: Uint8Array) => Promise<Uint8Array>
 
@@ -55,8 +57,8 @@ export async function replaceProfileAvatar(
     bytes.byteLength === 0 ||
     bytes.byteLength > MEDIA_LIMITS.maxAvatarBytes
   ) {
-    return fail("invalid_input", "Choose a photo up to 5 MB.", {
-      avatar: "Profile photos can be up to 5 MB.",
+    return fail("invalid_input", `Choose a photo up to ${AVATAR_MB} MB.`, {
+      avatar: `Profile photos can be up to ${AVATAR_MB} MB.`,
     })
   }
 
