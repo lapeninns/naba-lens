@@ -383,6 +383,136 @@ describe("foreground refresh", () => {
     expect(loadPage).not.toHaveBeenCalled()
   })
 
+  it("coalesces upload signals during a refresh into one follow-up that shows the ready upload", async () => {
+    const newer = item(ID_A)
+    let settle: (result: Awaited<ReturnType<RefreshPage>>) => void = () => {}
+    const refreshPage = vi
+      .fn<RefreshPage>()
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            settle = resolve
+          })
+      )
+      .mockResolvedValue({
+        ok: true,
+        page: { items: [newer], nextCursor: null },
+      })
+    const loadPage = vi.fn<LoadPage>()
+    const gallery = (signal: number, refresh = refreshPage) => (
+      <MediaGallery
+        label="Library"
+        initialPage={{ items: [], nextCursor: null }}
+        loadPage={loadPage}
+        refreshPage={refresh}
+        refreshSignal={signal}
+        empty={<p>Empty</p>}
+      />
+    )
+    const { rerender } = render(gallery(0))
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"))
+    })
+    rerender(gallery(1))
+    rerender(gallery(2))
+    expect(refreshPage).toHaveBeenCalledTimes(1)
+    await act(async () => {
+      settle({ ok: true, page: { items: [], nextCursor: null } })
+    })
+    expect(refreshPage).toHaveBeenCalledTimes(2)
+    expect(screen.getByRole("button", { name: /^Photo, 01\.jpg/ })).toBeTruthy()
+    expect(loadPage).not.toHaveBeenCalled()
+
+    // A new callback identity must not replay an already consumed signal.
+    const replacement = vi.fn<RefreshPage>().mockResolvedValue({
+      ok: true,
+      page: { items: [newer], nextCursor: null },
+    })
+    rerender(gallery(2, replacement))
+    expect(replacement).not.toHaveBeenCalled()
+    await act(async () => {
+      rerender(gallery(3, replacement))
+    })
+    expect(replacement).toHaveBeenCalledTimes(1)
+  })
+
+  it("waits for a timed-out unabortable request to settle before running the queued upload refresh", async () => {
+    vi.useFakeTimers()
+    let settle: (result: Awaited<ReturnType<LoadPage>>) => void = () => {}
+    const loadPage = vi
+      .fn<LoadPage>()
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            settle = resolve
+          })
+      )
+      .mockResolvedValue({
+        ok: true,
+        page: { items: [item(ID_A)], nextCursor: null },
+      })
+    const gallery = (signal: number) => (
+      <MediaGallery
+        label="Library"
+        initialPage={{ items: [], nextCursor: null }}
+        loadPage={loadPage}
+        refreshSignal={signal}
+        empty={<p>Empty</p>}
+      />
+    )
+    const { rerender } = render(gallery(0))
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"))
+    })
+    rerender(gallery(1))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(REFRESH_TIMEOUT_MS)
+    })
+    expect(loadPage).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole("status").textContent).toContain(
+      "Could not refresh"
+    )
+    await act(async () => {
+      settle({ ok: true, page: { items: [], nextCursor: null } })
+    })
+    expect(loadPage).toHaveBeenCalledTimes(2)
+    expect(screen.getByRole("button", { name: /^Photo, 01\.jpg/ })).toBeTruthy()
+    expect(screen.queryByRole("status")).toBeNull()
+  })
+
+  it("aborts active refresh and discards its queued follow-up on unmount", async () => {
+    let settle: (result: Awaited<ReturnType<RefreshPage>>) => void = () => {}
+    let signal: AbortSignal | undefined
+    const refreshPage = vi.fn<RefreshPage>((nextSignal) => {
+      signal = nextSignal
+      return new Promise((resolve) => {
+        settle = resolve
+      })
+    })
+    const loadPage = vi.fn<LoadPage>()
+    const gallery = (value: number) => (
+      <MediaGallery
+        label="Library"
+        initialPage={{ items: [], nextCursor: null }}
+        loadPage={loadPage}
+        refreshPage={refreshPage}
+        refreshSignal={value}
+        empty={<p>Empty</p>}
+      />
+    )
+    const { rerender, unmount } = render(gallery(0))
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"))
+    })
+    rerender(gallery(1))
+    unmount()
+    expect(signal?.aborted).toBe(true)
+    await act(async () => {
+      settle({ ok: true, page: { items: [], nextCursor: null } })
+    })
+    expect(refreshPage).toHaveBeenCalledTimes(1)
+  })
+
   function feed(count: number) {
     return Array.from({ length: count }, (_, index) =>
       item(
@@ -653,48 +783,66 @@ describe("foreground refresh", () => {
     expect(screen.queryByRole("status")).toBeNull()
   })
 
-  it("does not resurrect a locally deleted file from an in-flight refresh", async () => {
-    let settle: (result: Awaited<ReturnType<RefreshPage>>) => void = () => {}
-    let signal: AbortSignal | undefined
-    const refreshPage = vi.fn<RefreshPage>((nextSignal) => {
-      signal = nextSignal
-      return new Promise((resolve) => {
-        settle = resolve
-      })
-    })
-    render(
-      <MediaGallery
-        label="Library"
-        initialPage={{ items: [item(ID_A), item(ID_B)], nextCursor: null }}
-        loadPage={vi.fn<LoadPage>()}
-        refreshPage={refreshPage}
-        canDelete
-        empty={<p>Empty</p>}
-      />
-    )
-    await act(async () => {
-      window.dispatchEvent(new Event("focus"))
-    })
-    fireEvent.click(screen.getByRole("button", { name: /^Photo, 01\.jpg/ }))
-    fireEvent.click(screen.getByRole("button", { name: "Delete" }))
-    await act(async () => {
-      fireEvent.click(
-        within(screen.getByRole("alertdialog")).getByRole("button", {
-          name: "Delete",
+  it.each([false, true])(
+    "does not resurrect a locally deleted file from an in-flight refresh (queued upload: %s)",
+    async (queueUpload) => {
+      let settle: (result: Awaited<ReturnType<RefreshPage>>) => void = () => {}
+      let signal: AbortSignal | undefined
+      const refreshPage = vi
+        .fn<RefreshPage>()
+        .mockImplementationOnce((nextSignal) => {
+          signal = nextSignal
+          return new Promise((resolve) => {
+            settle = resolve
+          })
         })
+        .mockResolvedValue({
+          ok: true,
+          page: { items: [item(ID_B)], nextCursor: null },
+        })
+      const loadPage = vi.fn<LoadPage>()
+      const gallery = (value: number) => (
+        <MediaGallery
+          label="Library"
+          initialPage={{ items: [item(ID_A), item(ID_B)], nextCursor: null }}
+          loadPage={loadPage}
+          refreshPage={refreshPage}
+          refreshSignal={value}
+          canDelete
+          empty={<p>Empty</p>}
+        />
       )
-    })
-    expect(signal?.aborted).toBe(true)
-    await act(async () => {
-      settle({
-        ok: true,
-        page: { items: [item(ID_A), item(ID_B)], nextCursor: null },
+      const { rerender } = render(gallery(0))
+      await act(async () => {
+        window.dispatchEvent(new Event("focus"))
       })
-    })
-    expect(screen.queryByRole("button", { name: /^Photo, 01\.jpg/ })).toBeNull()
-    expect(screen.getByRole("button", { name: /^Photo, 02\.jpg/ })).toBeTruthy()
-    expect(screen.queryByRole("status")).toBeNull()
-  })
+      if (queueUpload) rerender(gallery(1))
+      fireEvent.click(screen.getByRole("button", { name: /^Photo, 01\.jpg/ }))
+      fireEvent.click(screen.getByRole("button", { name: "Delete" }))
+      await act(async () => {
+        fireEvent.click(
+          within(screen.getByRole("alertdialog")).getByRole("button", {
+            name: "Delete",
+          })
+        )
+      })
+      expect(signal?.aborted).toBe(true)
+      await act(async () => {
+        settle({
+          ok: true,
+          page: { items: [item(ID_A), item(ID_B)], nextCursor: null },
+        })
+      })
+      expect(
+        screen.queryByRole("button", { name: /^Photo, 01\.jpg/ })
+      ).toBeNull()
+      expect(
+        screen.getByRole("button", { name: /^Photo, 02\.jpg/ })
+      ).toBeTruthy()
+      expect(screen.queryByRole("status")).toBeNull()
+      expect(refreshPage).toHaveBeenCalledTimes(queueUpload ? 2 : 1)
+    }
+  )
 
   it("ignores an older load-more result that arrives after a refresh reset", async () => {
     const all = feed(78)

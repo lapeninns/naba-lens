@@ -112,6 +112,11 @@ previews once. Images that failed before hydration are detected on mount.
     Load-more responses from before
     a refresh, and refreshes overtaken by local deletion or label saves, cannot
     restore stale content.
+    Upload signals received during an active refresh coalesce into one follow-up
+    after that request settles, so a pre-upload response cannot hide a new ready
+    file indefinitely. Repeated focus/interval events do not queue extra work.
+    Timed-out unabortable calls still finish before a follow-up starts; unmount
+    aborts the active request and drops queued work.
   - `useMediaUploader`.
   - `deleteMedia`, which calls lifecycle's `removeMediaAsset` after the spec's
     confirmation copy. 401, 403 and 404 become plain messages. `storage: "pending"` still

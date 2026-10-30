@@ -138,6 +138,8 @@ export function MediaGallery({
   const loadedRange = React.useRef(page)
   const loadingMoreRequest = React.useRef(false)
   const refreshing = React.useRef(false)
+  const queuedRefresh = React.useRef(false)
+  const mounted = React.useRef(false)
   const activeRefresh = React.useRef<AbortController | null>(null)
 
   React.useLayoutEffect(() => {
@@ -149,10 +151,14 @@ export function MediaGallery({
     activeRefresh.current?.abort()
   }, [])
 
-  React.useEffect(
-    () => () => invalidatePageRequests(),
-    [invalidatePageRequests]
-  )
+  React.useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+      queuedRefresh.current = false
+      invalidatePageRequests()
+    }
+  }, [invalidatePageRequests])
 
   const { display, brokenCount, onError, attach, retryBroken } =
     usePreviewRecovery(items)
@@ -161,84 +167,107 @@ export function MediaGallery({
     (i) => i.uploadState === "uploading" || i.uploadState === "processing"
   )
 
-  const refresh = React.useCallback(async () => {
-    if (refreshing.current) return
-    refreshing.current = true
-    setRefreshPending(true)
-    // Older pagination responses cannot append to a newly refreshed snapshot.
-    const generation = ++pageGeneration.current
-    const controller = new AbortController()
-    activeRefresh.current = controller
-    const timer = window.setTimeout(
-      () => controller.abort(),
-      REFRESH_TIMEOUT_MS
-    )
-    const aborted = new Promise<"timeout">((resolve) => {
-      controller.signal.addEventListener("abort", () => resolve("timeout"))
-    })
-    const boundary = loadedRange.current.items.at(-1)
-    const deadline = Date.now() + REFRESH_TIMEOUT_MS
-    const request = (async () => {
-      const fresh: MediaPage = { items: [], nextCursor: null }
-      const seen = new Set<string>()
-      let reached = false
-      do {
-        if (Date.now() >= deadline) controller.abort()
-        controller.signal.throwIfAborted()
-        const cursor = fresh.nextCursor
-        const result = refreshPage
-          ? await refreshPage(controller.signal, cursor)
-          : await loadPage(cursor)
-        if (!result.ok) return result
-        for (const item of result.page.items) {
-          if (!seen.has(item.id)) fresh.items.push(item)
-          seen.add(item.id)
-        }
-        fresh.nextCursor = result.page.nextCursor
-        const last = result.page.items.at(-1)
-        reached = !boundary || (!!last && reachesBoundary(last, boundary))
-        if (fresh.nextCursor && (!last || fresh.nextCursor === cursor))
-          throw new Error("Refresh cursor did not advance")
-      } while (fresh.nextCursor && !reached)
-      return { ok: true as const, page: fresh }
-    })()
-    try {
-      const result = await Promise.race([request, aborted])
-      if (result === "timeout") {
-        if (generation === pageGeneration.current)
-          setRefreshError(REFRESH_FAILED)
-        // An aborted fetch ends at once; a Server Function (no refreshPage)
-        // cannot be aborted, so keep the guard until it settles.
-        await request.catch(() => undefined)
+  const refresh = React.useCallback(
+    async (queueIfBusy = false) => {
+      if (!mounted.current) return
+      if (refreshing.current) {
+        // Uploads can finish after the active request took its snapshot. One
+        // follow-up covers every upload signal received while it is in flight.
+        if (queueIfBusy) queuedRefresh.current = true
         return
       }
-      if (generation !== pageGeneration.current) return
-      if (!result.ok) {
-        setRefreshError(result.message)
-        return
+      refreshing.current = true
+      setRefreshPending(true)
+      try {
+        do {
+          queuedRefresh.current = false
+          await (async () => {
+            // Older pagination responses cannot append to a newly refreshed snapshot.
+            const generation = ++pageGeneration.current
+            const controller = new AbortController()
+            activeRefresh.current = controller
+            const timer = window.setTimeout(
+              () => controller.abort(),
+              REFRESH_TIMEOUT_MS
+            )
+            const aborted = new Promise<"timeout">((resolve) => {
+              controller.signal.addEventListener("abort", () =>
+                resolve("timeout")
+              )
+            })
+            const boundary = loadedRange.current.items.at(-1)
+            const deadline = Date.now() + REFRESH_TIMEOUT_MS
+            const request = (async () => {
+              const fresh: MediaPage = { items: [], nextCursor: null }
+              const seen = new Set<string>()
+              let reached = false
+              do {
+                if (Date.now() >= deadline) controller.abort()
+                controller.signal.throwIfAborted()
+                const cursor = fresh.nextCursor
+                const result = refreshPage
+                  ? await refreshPage(controller.signal, cursor)
+                  : await loadPage(cursor)
+                if (!result.ok) return result
+                for (const item of result.page.items) {
+                  if (!seen.has(item.id)) fresh.items.push(item)
+                  seen.add(item.id)
+                }
+                fresh.nextCursor = result.page.nextCursor
+                const last = result.page.items.at(-1)
+                reached =
+                  !boundary || (!!last && reachesBoundary(last, boundary))
+                if (fresh.nextCursor && (!last || fresh.nextCursor === cursor))
+                  throw new Error("Refresh cursor did not advance")
+              } while (fresh.nextCursor && !reached)
+              return { ok: true as const, page: fresh }
+            })()
+            try {
+              const result = await Promise.race([request, aborted])
+              if (result === "timeout") {
+                if (generation === pageGeneration.current)
+                  setRefreshError(REFRESH_FAILED)
+                // An aborted fetch ends at once; a Server Function (no refreshPage)
+                // cannot be aborted, so keep the guard until it settles.
+                await request.catch(() => undefined)
+                return
+              }
+              if (generation !== pageGeneration.current) return
+              if (!result.ok) {
+                setRefreshError(result.message)
+                return
+              }
+              setRefreshError(null)
+              // Broken previews get one fresh, re-signed attempt per refresh.
+              retryBroken()
+              setLoadError(null)
+              // Replace through the previous oldest sort boundary, even if that item
+              // was deleted. New arrivals cannot evict older loaded files or a viewer.
+              loadedRange.current = result.page
+              setPage(result.page)
+            } catch {
+              if (generation === pageGeneration.current)
+                setRefreshError(REFRESH_FAILED)
+            } finally {
+              window.clearTimeout(timer)
+              activeRefresh.current = null
+            }
+          })()
+        } while (queuedRefresh.current && mounted.current)
+      } finally {
+        refreshing.current = false
+        if (mounted.current) setRefreshPending(false)
       }
-      setRefreshError(null)
-      // Broken previews get one fresh, re-signed attempt per refresh.
-      retryBroken()
-      setLoadError(null)
-      // Replace through the previous oldest sort boundary, even if that item
-      // was deleted. New arrivals cannot evict older loaded files or a viewer.
-      setPage(result.page)
-    } catch {
-      if (generation === pageGeneration.current) setRefreshError(REFRESH_FAILED)
-    } finally {
-      window.clearTimeout(timer)
-      activeRefresh.current = null
-      refreshing.current = false
-      setRefreshPending(false)
-    }
-  }, [loadPage, refreshPage, retryBroken])
+    },
+    [loadPage, refreshPage, retryBroken]
+  )
 
   // Refresh after an upload (or any caller signal).
-  const firstSignal = React.useRef(refreshSignal)
+  const lastSignal = React.useRef(refreshSignal)
   React.useEffect(() => {
-    if (refreshSignal === firstSignal.current) return
-    void refresh()
+    if (refreshSignal === lastSignal.current) return
+    lastSignal.current = refreshSignal
+    void refresh(true)
   }, [refreshSignal, refresh])
 
   // Foreground refresh: on an interval while visible, and on focus/visibility.
