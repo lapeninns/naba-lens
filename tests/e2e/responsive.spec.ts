@@ -354,6 +354,11 @@ test("keyboard only: upload, open the viewer, download", async () => {
   await staff.keyboard.press("Enter")
   const dialog = staff.getByRole("dialog")
   await expect(dialog).toBeVisible()
+  // Base UI moves initial focus into the dialog in the next frame; tabbing
+  // before that walks the page behind it.
+  await expect
+    .poll(() => dialog.evaluate((el) => el.contains(document.activeElement)))
+    .toBe(true)
   await tabTo(staff, /^Choose files$/)
   const [chooser] = await Promise.all([
     staff.waitForEvent("filechooser"),
@@ -376,9 +381,9 @@ test("keyboard only: upload, open the viewer, download", async () => {
   await staff.keyboard.press("Enter")
   const viewer = staff.getByRole("dialog")
   await expect(viewer).toBeVisible()
-  expect(
-    await viewer.evaluate((el) => el.contains(document.activeElement))
-  ).toBe(true)
+  await expect
+    .poll(() => viewer.evaluate((el) => el.contains(document.activeElement)))
+    .toBe(true)
   await staff.keyboard.press("Escape")
   await expect(viewer).toBeHidden()
   await expect(keyboardTile).toBeFocused()
@@ -389,6 +394,13 @@ test("keyboard only: upload, open the viewer, download", async () => {
   await expect(tile(libraryList(admin), "Photo", extra.name)).toBeVisible()
   await tabTo(admin, new RegExp(`^Photo, ${extra.name.replace(".", "\\.")}`))
   await admin.keyboard.press("Enter")
+  const adminViewer = admin.getByRole("dialog")
+  await expect(adminViewer).toBeVisible()
+  await expect
+    .poll(() =>
+      adminViewer.evaluate((el) => el.contains(document.activeElement))
+    )
+    .toBe(true)
   await tabTo(admin, /^Download original$/)
   const [download] = await Promise.all([
     admin.waitForEvent("download"),
