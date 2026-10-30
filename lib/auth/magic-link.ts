@@ -10,7 +10,7 @@ export function normaliseEmail(input: unknown): string | null {
   return email
 }
 
-export type SignInLinkResult = { status: "sent" }
+export type SignInLinkResult = { status: "sent" | "captcha_failed" }
 
 /**
  * Requests a magic link without ever creating an account. The result is the same
@@ -20,12 +20,20 @@ export type SignInLinkResult = { status: "sent" }
 export async function sendSignInLink(
   supabase: SupabaseClient,
   email: string,
-  emailRedirectTo: string
+  emailRedirectTo: string,
+  captchaToken?: string
 ): Promise<SignInLinkResult> {
   const { error } = await supabase.auth.signInWithOtp({
     email,
-    options: { shouldCreateUser: false, emailRedirectTo },
+    options: {
+      shouldCreateUser: false,
+      emailRedirectTo,
+      ...(captchaToken ? { captchaToken } : {}),
+    },
   })
+
+  // This reveals challenge validity, never whether the email has an account.
+  if (error?.code === "captcha_failed") return { status: "captcha_failed" }
 
   if (error && !isExpectedNeutralError(error)) {
     console.error("[auth] sign-in link request failed", {

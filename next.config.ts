@@ -1,4 +1,5 @@
 import type { NextConfig } from "next"
+import { getLoginCaptchaConfig } from "./lib/auth/captcha"
 
 /**
  * Baseline security headers (docs/reviews/wave3-review.md finding 7). The CSP is
@@ -6,12 +7,13 @@ import type { NextConfig } from "next"
  * content-security-policy.md "Without Nonces"), so pages can stay statically
  * rendered; it is a backstop against injected scripts, framing and exfiltration.
  *
- * The browser talks to exactly one other origin, Supabase:
+ * The browser talks to Supabase for application data:
  *   - connect-src: Auth, signed PUT and TUS uploads;
  *   - img-src / media-src: the app's /api/media/* and /api/avatars/* routes
  *     redirect to 60 s signed Storage URLs.
  * blob: and data: cover local upload previews (object URLs) and inline images.
  * NEXT_PUBLIC_SUPABASE_URL must be set when building, like the client code itself.
+ * Configured Turnstile adds only its documented script/frame origin.
  */
 const isDev = process.env.NODE_ENV === "development"
 
@@ -29,11 +31,15 @@ function contentSecurityPolicy(): string {
   const supabase = supabaseOrigin()
   const remote = supabase ? ` ${supabase}` : ""
   const secure = supabase?.startsWith("https://") ?? false
+  const turnstile = getLoginCaptchaConfig().enabled
+    ? " https://challenges.cloudflare.com"
+    : ""
   const directives = [
     "default-src 'self'",
     // Next's inline bootstrap scripts need 'unsafe-inline' without nonces; React
     // dev tooling needs 'unsafe-eval' in development only.
-    `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
+    `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}${turnstile}`,
+    `frame-src 'self'${turnstile}`,
     "style-src 'self' 'unsafe-inline'",
     `img-src 'self' blob: data:${remote}`,
     `media-src 'self' blob:${remote}`,
@@ -65,6 +71,9 @@ const securityHeaders = [
 ]
 
 const nextConfig: NextConfig = {
+  // Next 16 development logs include Server Function arguments by default.
+  // Sign-in arguments contain single-use CAPTCHA tokens and email addresses.
+  logging: { serverFunctions: false },
   experimental: {
     serverActions: {
       // v0.3 menu drafts: MENU_IMPORT_LIMITS.documentMaxBytes (3 MiB) plus

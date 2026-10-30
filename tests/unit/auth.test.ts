@@ -91,4 +91,41 @@ describe("magic link", () => {
       },
     })
   })
+
+  it("forwards a challenge token only to Supabase and exposes challenge failure", async () => {
+    const signInWithOtp = vi.fn().mockResolvedValue({
+      error: { code: "captcha_failed", status: 400 },
+    })
+    const supabase = { auth: { signInWithOtp } } as never
+    await expect(
+      sendSignInLink(
+        supabase,
+        "staff@example.test",
+        "https://app.test/auth/callback",
+        "one-use-token"
+      )
+    ).resolves.toEqual({ status: "captcha_failed" })
+    expect(signInWithOtp).toHaveBeenCalledExactlyOnceWith({
+      email: "staff@example.test",
+      options: {
+        shouldCreateUser: false,
+        emailRedirectTo: "https://app.test/auth/callback",
+        captchaToken: "one-use-token",
+      },
+    })
+  })
+
+  it("keeps valid-challenge unknown-account responses neutral", async () => {
+    const signInWithOtp = vi
+      .fn()
+      .mockResolvedValue({ error: { code: "user_not_found", status: 400 } })
+    await expect(
+      sendSignInLink(
+        { auth: { signInWithOtp } } as never,
+        "unknown@example.test",
+        "https://app.test/auth/callback",
+        "token"
+      )
+    ).resolves.toEqual({ status: "sent" })
+  })
 })

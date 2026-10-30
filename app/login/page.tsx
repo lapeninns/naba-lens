@@ -4,6 +4,7 @@ import { redirect } from "next/navigation"
 import { requestSignInLink } from "@/app/login/actions"
 import { LoginCard } from "@/components/nabalens"
 import { getAuthState, homePathFor, ROUTES } from "@/lib/auth"
+import { getLoginCaptchaConfig } from "@/lib/auth/captcha"
 
 export const metadata: Metadata = {
   title: "Sign in · NabaLens",
@@ -20,6 +21,7 @@ export default async function LoginPage({
     redirect(ROUTES.blocked)
 
   const params = await searchParams
+  const captcha = getLoginCaptchaConfig()
 
   return (
     <main className="flex min-h-svh items-center justify-center p-6">
@@ -27,6 +29,8 @@ export default async function LoginPage({
         onSubmit={requestSignInLink}
         linkExpired={params.error === "link_invalid"}
         notice={params.signed_out ? "You have signed out." : null}
+        captchaRequired={captcha.enabled}
+        captchaSiteKey={captcha.siteKey}
       />
     </main>
   )
