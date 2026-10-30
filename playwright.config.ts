@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process"
+import { mkdirSync } from "node:fs"
 import { resolve } from "node:path"
 
 import { defineConfig, devices } from "@playwright/test"
@@ -56,6 +57,12 @@ if (workdir && !process.env.E2E_STACK_RESOLVED) {
 }
 const supabase = getLocalSupabaseEnv()
 
+// Firefox reads ~/Library/Application Support/Firefox at startup; on this macOS
+// that folder can be denied to Playwright's build ("Could not find profile
+// folder."). Give it a private app-data folder instead.
+const firefoxAppData = resolve(".artifacts/firefox-appdata")
+mkdirSync(firefoxAppData, { recursive: true })
+
 // Core journey on every engine; the rest of the release suite on Chromium.
 const CORE = /@core/
 
@@ -71,6 +78,7 @@ export default defineConfig({
   use: {
     baseURL,
     trace: "retain-on-failure",
+    screenshot: "only-on-failure",
     actionTimeout: 15_000,
     navigationTimeout: 30_000,
   },
@@ -88,6 +96,9 @@ export default defineConfig({
       use: {
         ...devices["Desktop Firefox"],
         viewport: { width: 1280, height: 800 },
+        launchOptions: {
+          env: { ...process.env, MOZ_APP_DATA: firefoxAppData },
+        },
       },
     },
     {

@@ -44,6 +44,12 @@ let config = readFileSync(configPath, "utf8")
     /^additional_redirect_urls = .*$/m,
     `additional_redirect_urls = ["${site}/auth/callback", "${site}/auth/confirm"]`
   )
+// Every browser context shares one client IP, and the suite signs in far more
+// often than one person would. Raise only the per-IP sign-in/verification
+// limits of this throwaway stack; the committed config keeps the real values.
+config = config
+  .replace(/^sign_in_sign_ups = \d+$/m, "sign_in_sign_ups = 300")
+  .replace(/^token_verifications = \d+$/m, "token_verifications = 300")
 for (const section of ["realtime", "studio", "analytics", "edge_runtime"]) {
   config = disable(config, section)
 }

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto"
 
 import type { Browser, BrowserContextOptions, Page } from "@playwright/test"
 
-import { provisioner } from "./stack"
+import { provisioner, psql } from "./stack"
 
 /**
  * DEV FIXTURE world for one spec, on the isolated stack only: two test venues,
@@ -37,59 +37,106 @@ export function fixtureEmail(label: string, tag: string) {
   return `e2e-${label}-${tag}@nabalens.test`
 }
 
-async function venue(label: string, tag: string): Promise<Venue> {
-  const { data, error } = await provisioner()
-    .from("venues")
-    .insert({
-      name: `DEV FIXTURE ${label} ${tag}`,
-      slug: `dev-fixture-${label.toLowerCase().replace(/\s+/g, "-")}-${tag}`,
-      active: true,
-    })
-    .select("id, name")
-    .single()
-  if (error) throw error
-  return data
+const quote = (v: string | null) =>
+  v === null ? "null" : `'${v.replace(/'/g, "''")}'`
+
+type PersonSpec = {
+  label: string
+  role: "staff" | "admin"
+  venueId: string | null
+  jobTitle?: string | null
 }
 
-export async function person(
-  label: string,
-  tag: string,
-  role: "staff" | "admin",
-  venueId: string | null,
-  jobTitle: string | null = null
-): Promise<Person> {
-  const admin = provisioner()
-  const email = fixtureEmail(label.toLowerCase().replace(/\s+/g, "-"), tag)
-  const { data, error } = await admin.auth.admin.createUser({
-    email,
-    email_confirm: true,
-  })
-  if (error) throw new Error(`createUser ${email}: ${error.message}`)
-  const name = `DEV FIXTURE ${label} ${tag}`
-  const { error: profileError } = await admin.from("profiles").insert({
-    id: data.user.id,
-    display_name: name,
-    job_title: jobTitle,
-    role,
-    venue_id: venueId,
-    active: true,
-  })
-  if (profileError) throw profileError
-  return { id: data.user.id, email, name, role }
+/**
+ * Creates auth users, identities and profiles in ONE SQL statement, in the same
+ * shape as supabase/seed.sql. Provisioning deliberately bypasses the auth API:
+ * under machine load GoTrue's admin endpoint hits its 10 s request deadline
+ * (504), and fixture setup is not what these tests assert. Sign-in and
+ * invitation still go through the real auth server.
+ */
+export function createPeople(tag: string, specs: PersonSpec[]): Person[] {
+  const people = specs.map((spec) => ({
+    id: randomUUID(),
+    email: fixtureEmail(spec.label.toLowerCase().replace(/\s+/g, "-"), tag),
+    name: `DEV FIXTURE ${spec.label} ${tag}`,
+    role: spec.role,
+    venueId: spec.venueId,
+    jobTitle: spec.jobTitle ?? null,
+  }))
+  const values = people
+    .map((p) => `(${quote(p.id)}::uuid, ${quote(p.email)})`)
+    .join(", ")
+  const profiles = people
+    .map(
+      (p) =>
+        `(${quote(p.id)}::uuid, ${quote(p.name)}, ${quote(p.jobTitle)}, ${quote(p.role)}::public.app_role, ${p.venueId ? `${quote(p.venueId)}::uuid` : "null"}, true)`
+    )
+    .join(", ")
+  psql(`
+    with fixture_users (id, email) as (values ${values}),
+    users as (
+      insert into auth.users (
+        instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+        raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+        confirmation_token, recovery_token, email_change_token_new, email_change,
+        email_change_token_current, phone_change, phone_change_token, reauthentication_token
+      )
+      select '00000000-0000-0000-0000-000000000000', id, 'authenticated', 'authenticated',
+        email, '', now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb,
+        now(), now(), '', '', '', '', '', '', '', ''
+      from fixture_users
+      returning id, email
+    ),
+    identities as (
+      insert into auth.identities (id, user_id, provider_id, provider, identity_data, last_sign_in_at, created_at, updated_at)
+      select gen_random_uuid(), u.id, u.id::text, 'email',
+        jsonb_build_object('sub', u.id::text, 'email', u.email, 'email_verified', true),
+        now(), now(), now()
+      from users u
+      returning user_id
+    )
+    insert into public.profiles (id, display_name, job_title, role, venue_id, active)
+    select v.* from (values ${profiles}) as v (id, display_name, job_title, role, venue_id, active)
+    where v.id in (select user_id from identities);
+  `)
+  return people.map(({ id, email, name, role }) => ({ id, email, name, role }))
+}
+
+export async function createVenues(tag: string, labels: string[]) {
+  const { data, error } = await provisioner()
+    .from("venues")
+    .insert(
+      labels.map((label) => ({
+        name: `DEV FIXTURE ${label} ${tag}`,
+        slug: `dev-fixture-${label.toLowerCase().replace(/\s+/g, "-")}-${tag}`,
+        active: true,
+      }))
+    )
+    .select("id, name, slug")
+  if (error) throw error
+  return labels.map(
+    (label) =>
+      data.find((v) => v.name === `DEV FIXTURE ${label} ${tag}`)! as Venue & {
+        slug: string
+      }
+  )
 }
 
 export async function provisionWorld(): Promise<World> {
   const tag = uniqueTag()
-  const [venue1, venue2] = await Promise.all([
-    venue("Venue One", tag),
-    venue("Venue Two", tag),
+  const [venue1, venue2] = await createVenues(tag, ["Venue One", "Venue Two"])
+  const [adminA, adminB, staffA, staffB, staffC] = createPeople(tag, [
+    { label: "Admin A", role: "admin", venueId: null },
+    { label: "Admin B", role: "admin", venueId: null },
+    { label: "Staff A", role: "staff", venueId: venue1.id, jobTitle: "Chef" },
+    {
+      label: "Staff B",
+      role: "staff",
+      venueId: venue1.id,
+      jobTitle: "Bartender",
+    },
+    { label: "Staff C", role: "staff", venueId: venue2.id, jobTitle: "Server" },
   ])
-  // Sequential: the local auth server is the bottleneck under load.
-  const adminA = await person("Admin A", tag, "admin", null)
-  const adminB = await person("Admin B", tag, "admin", null)
-  const staffA = await person("Staff A", tag, "staff", venue1.id, "Chef")
-  const staffB = await person("Staff B", tag, "staff", venue1.id, "Bartender")
-  const staffC = await person("Staff C", tag, "staff", venue2.id, "Server")
   return { tag, venue1, venue2, adminA, adminB, staffA, staffB, staffC }
 }
 
