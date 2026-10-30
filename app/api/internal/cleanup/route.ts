@@ -15,11 +15,24 @@ function secretMatches(given: string, expected: string): boolean {
 }
 
 /**
- * Media cleanup trigger for a scheduler (docs/cleanup.md). POST only, with
+ * Media cleanup trigger for a scheduler (docs/cleanup.md), with
  * `Authorization: Bearer <CLEANUP_SECRET>`. No user session is involved; the
  * shared secret is the only credential. Other methods get Next's 405.
  */
 export async function POST(request: Request) {
+  return runAuthorised(request)
+}
+
+/**
+ * Same as POST, for Vercel Cron, which can only send GET (with
+ * `Authorization: Bearer $CRON_SECRET`; set CLEANUP_SECRET to the same value).
+ * The secret check is identical, so a link or prefetch cannot trigger it.
+ */
+export async function GET(request: Request) {
+  return runAuthorised(request)
+}
+
+async function runAuthorised(request: Request) {
   const secret = process.env.CLEANUP_SECRET
   if (!secret || secret.length < 32) {
     return Response.json(

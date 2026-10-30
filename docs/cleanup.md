@@ -86,10 +86,11 @@ removes the object.
 
 ## Running it
 
-**Endpoint:** `POST /api/internal/cleanup` with `Authorization: Bearer
-$CLEANUP_SECRET`.
+**Endpoint:** `POST /api/internal/cleanup` (or `GET`, for Vercel Cron) with
+`Authorization: Bearer $CLEANUP_SECRET`.
 
-- The secret is compared in constant time, and other methods get 405.
+- The secret is compared in constant time, and other methods get 405. `GET` runs
+  the same check; a session cookie is never enough.
 - It returns `503` when `CLEANUP_SECRET` is unset or shorter than 32 characters,
   `401` on a wrong or missing secret, and `200` with the JSON report otherwise.
   Responses are `Cache-Control: no-store`.
@@ -140,11 +141,10 @@ secret are per environment.
 
 ### Vercel Cron
 
-Vercel Cron sends a **GET** request with `Authorization: Bearer $CRON_SECRET`. This
-endpoint is POST-only, so using Vercel Cron needs a `GET` export in
-`app/api/internal/cleanup/route.ts` with the same secret check, plus
-`CLEANUP_SECRET` equal to `CRON_SECRET` and a `crons` entry in `vercel.json`. Check
-the plan's cron frequency limits. Not done in this MVP.
+Vercel Cron sends a **GET** request with `Authorization: Bearer $CRON_SECRET`. The
+endpoint accepts that GET with the same secret check, so using Vercel Cron needs
+only `CLEANUP_SECRET` equal to `CRON_SECRET` and a `crons` entry in `vercel.json`.
+Check the plan's cron frequency limits. Not done in this MVP.
 
 ### Any external scheduler or an operator
 

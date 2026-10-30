@@ -35,6 +35,7 @@ import { getLocalSupabaseEnv } from "../support/local-supabase"
 import {
   ageEmailLinks,
   appRequest,
+  authUserCount,
   issueSignInLink,
   Browser,
   resignAccessToken,
@@ -206,8 +207,7 @@ describe("magic links", () => {
     expect(result).toEqual({})
     await new Promise((resolve) => setTimeout(resolve, 500))
     expect(await mailCount(email)).toBe(0)
-    const { data } = await service.auth.admin.listUsers({ perPage: 1000 })
-    expect(data.users.some((u) => u.email === email)).toBe(false)
+    expect(authUserCount(email)).toBe(0)
   })
 })
 

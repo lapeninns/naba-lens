@@ -69,16 +69,19 @@ function activeJar(): Browser {
   return current
 }
 
-/** Module body for vi.mock("next/headers"). */
+/**
+ * Module body for vi.mock("next/headers"). Like Next, each cookies() call returns
+ * the store of the request it was made in, so a write that @supabase/ssr makes
+ * after the handler returned still lands in that browser's jar.
+ */
 export function nextHeadersMock() {
-  const store = {
-    getAll: () =>
-      [...activeJar().jar].map(([name, value]) => ({ name, value })),
+  const storeFor = (browser: Browser) => ({
+    getAll: () => [...browser.jar].map(([name, value]) => ({ name, value })),
     get: (name: string) => {
-      const value = activeJar().jar.get(name)
+      const value = browser.jar.get(name)
       return value === undefined ? undefined : { name, value }
     },
-    has: (name: string) => activeJar().jar.has(name),
+    has: (name: string) => browser.jar.has(name),
     set: (
       name: string | { name: string; value: string; maxAge?: number },
       value?: string,
@@ -88,14 +91,14 @@ export function nextHeadersMock() {
         typeof name === "string"
           ? { name, value: value ?? "", maxAge: options?.maxAge }
           : name
-      activeJar().absorb([c])
+      browser.absorb([c])
     },
     delete: (name: string) => {
-      activeJar().jar.delete(name)
+      browser.jar.delete(name)
     },
-  }
+  })
   return {
-    cookies: async () => store,
+    cookies: async () => storeFor(activeJar()),
     headers: async () => new Headers(),
     draftMode: async () => ({ isEnabled: false }),
   }
@@ -251,6 +254,19 @@ export function localSql(sql: string): string {
     [localDbUrl(), "-v", "ON_ERROR_STOP=1", "-At", "-c", sql],
     { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }
   ).trim()
+}
+
+/**
+ * Auth users with this email (case-insensitive), straight from auth.users: exact,
+ * and fast even when GoTrue's paged admin listing is slow on a loaded machine.
+ */
+export function authUserCount(email: string): number {
+  if (!/^[A-Za-z0-9._@+ -]+$/.test(email)) throw new Error("unexpected email")
+  return Number(
+    localSql(
+      `select count(*) from auth.users where lower(email) = lower(btrim('${email}'))`
+    )
+  )
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
