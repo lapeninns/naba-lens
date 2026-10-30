@@ -29,10 +29,5 @@ export {
   type StaffAccountStatus,
   type StaffDirectoryEntry,
 } from "./directory"
-export {
-  listMediaForUploader,
-  type PortfolioMediaItem,
-  type PortfolioPage,
-} from "./portfolio"
 export { replaceProfileAvatar, type AvatarDeriver } from "./avatar"
 export type { AccountPatch, InviteInput } from "./validation"

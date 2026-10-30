@@ -10,8 +10,8 @@ export type LibraryPageResult =
 /**
  * A page of the admin library with the given filters (`venue`, `staff`, `type`,
  * as in the URL). Without a cursor it returns a fresh first page, used by the
- * 15-second foreground refresh. The accounts track's portfolio view can call it
- * with `{ staff: id }`.
+ * 15-second foreground refresh. The admin portfolio (/admin/staff/[id]) calls
+ * it with `{ staff: id }`.
  */
 export async function loadLibraryPage(
   filters: {

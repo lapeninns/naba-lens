@@ -6,12 +6,10 @@ import { redirect } from "next/navigation"
 import { ROUTES } from "@/lib/auth"
 import {
   inviteStaff,
-  listMediaForUploader,
   resendInvitation,
   setStaffActive,
   updateStaffAccount,
   type AccountResult,
-  type PortfolioPage,
 } from "@/lib/server/accounts"
 import { accountsContext } from "@/lib/server/accounts/request"
 import { createClient } from "@/lib/supabase/server"
@@ -101,17 +99,6 @@ export async function setStaffActiveAction(
   const result = await setStaffActive(await accountsContext(), staffId, active)
   if (result.ok) refreshStaffPages()
   return toActionResult(result)
-}
-
-export async function loadMorePortfolioAction(
-  staffId: unknown,
-  cursor: unknown
-): Promise<({ ok: true } & PortfolioPage) | { ok: false; error: string }> {
-  const result = await listMediaForUploader(await accountsContext(), staffId, {
-    cursor,
-  })
-  if (!result.ok) return { ok: false, error: result.error }
-  return { ok: true, items: result.items, nextCursor: result.nextCursor }
 }
 
 /** Log out from the admin shell (same behaviour as POST /auth/logout). */

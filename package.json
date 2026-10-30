@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "scan:bundle": "node scripts/ci/scan-bundle.mjs",
     "start": "next start",
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
@@ -15,6 +16,7 @@
     "test:e2e": "playwright test",
     "test:security": "node tests/security/run.mjs",
     "test:lifecycle": "node tests/lifecycle/run.mjs",
+    "test:migrations": "node tests/migrations/run.mjs",
     "db:start": "supabase start",
     "db:reset": "supabase db reset",
     "db:types": "supabase gen types typescript --local --schema public > lib/db/types.ts && prettier --write lib/db/types.ts",

@@ -69,3 +69,10 @@ Statuses: NOT STARTED / IN PROGRESS / IMPLEMENTED / VERIFIED / BLOCKED.
 - 2026-10-29: added nullable `media_assets.client_upload_key` (+ unique per uploader) for idempotent reserve retries — the only schema addition beyond spec §6.
 - 2026-10-29: owner chose local-only; staging creation not authorised.
 - Local stack ports 554xx because NabaPerks already uses 543xx.
+
+## Lead notes for final verification (must be resolved before any readiness claim)
+
+- Privacy runtime suite skips unless `PRIVACY_BASE_URL` is set; the final gate must run it (a skip is not a pass).
+- `feat/nl-privacy` cf9ca90 relaxed one invitation assertion to accept `partial` under auth timeouts; restore the strict expectation if invites deliver reliably on a quiet machine.
+- CI run (`feat/nl-ci`) showed 24 skipped integration tests; identify why and make required ones run.
+- All e2e results produced while load average was 20–40 are not evidence; the lead reruns the critical suite twice on a quiet machine.

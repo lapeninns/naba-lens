@@ -1,117 +1,103 @@
 # NabaLens
 
-A private staff portfolio and marketing media library for one group of venues.
-Staff upload photos and videos to their own portfolio; admins see every ready
-asset in one library and download originals. Two roles only: `staff` and `admin`.
+Private staff portfolios and an admin marketing media library for one organisation
+with ten owner-confirmed venues. Staff upload to their own portfolio; admins see
+the **same ready asset** centrally and download the unchanged original. There is
+no editorial approval step or publishing tool. Exactly two roles: `staff` and
+`admin`.
 
-- Product spec: `docs/spec/NabaLens-MVP-Execution-v0.2.md`
-- Architecture, paths, security model: `docs/architecture.md`
-- Parallel-build contract: `docs/fanout/CONTRACT.md`
+**Release status: NOT READY.** Local source/checks are not a hosted launch,
+physical-phone certification or proof of publishing permission. See the
+[release gates and two-venue pilot](docs/release-checklist.md).
 
-Stack: Next.js 16.4 (App Router, `proxy.ts`), React 19, Tailwind 4 + shadcn/Base UI,
-Supabase Auth/Postgres/Storage via `@supabase/ssr`. Package manager: pnpm.
+## Start here
 
-## Local setup
+| You need to… | Read |
+| --- | --- |
+| Run locally, configure env or prepare staging/production | [Setup runbook](docs/setup.md) |
+| Sign in, edit your profile, upload or remove your own media | [Staff guide](docs/usage-staff.md) |
+| Filter/download originals, invite/manage/deactivate staff | [Admin guide](docs/usage-admin.md) |
+| Handle capture safety, failed uploads, cleanup, retention or a lost phone | [Operations](docs/operations.md) |
+| Decide whether staging, a two-venue pilot or production is allowed | [Release checklist](docs/release-checklist.md) |
 
-Requirements: Node 24, pnpm 10, Docker, Supabase CLI 2.x.
+## Local development
 
-```bash
+Use Node **24.16.0** and the team's approved **pnpm** (this pass used 10.30.1),
+Docker and Supabase CLI (observed: 2.117.0). `package.json` has no Node/pnpm pin;
+the lockfile has stricter requirements than Next's minimum. The
+[prerequisites and dependency policy](docs/setup.md#1-prerequisites-and-dependency-policy)
+explain exact versions, `minimumReleaseAge: 1440` and `allowBuilds` (including
+the merged `esbuild: false` install-policy fix).
+
+```sh
 pnpm install --frozen-lockfile
-pnpm db:start          # supabase start: local stack on ports 554xx
-pnpm db:reset          # apply migrations + DEV FIXTURE seed (supabase/seed.sql)
-supabase status        # shows API URL, publishable/anon key, service role key
 ```
 
-Create `.env.local` (git-ignored) with the variable names from `.env.example`, filled
-with the values `supabase status` prints:
+**Shared Mac:** do not run bare `pnpm db:start` / `pnpm db:reset`.
+The default project/554xx ports and the security/lifecycle helper stacks' fixed
+ports may belong to another worktree. Follow the
+[temporary owned-stack quick start](docs/setup.md#2-local-quick-start-without-colliding-with-another-worktree),
+which copies the config, assigns a unique ID/unused ports and disables extra
+services without committing config changes.
 
-| Variable                               | Local value                                    |
-| -------------------------------------- | ---------------------------------------------- |
-| `NEXT_PUBLIC_SUPABASE_URL`             | `API_URL` (http://127.0.0.1:55421)             |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `PUBLISHABLE_KEY` (or `ANON_KEY`)              |
-| `SUPABASE_SERVICE_ROLE_KEY`            | `SERVICE_ROLE_KEY`; server only, never shipped |
-| `NEXT_PUBLIC_SITE_URL`                 | `http://127.0.0.1:3000`                        |
+Then create your own ignored `.env.local` using `.env.example`, with your stack's
+public URL/key, server-only service key, app origin and cleanup secret. Run:
 
-Then `pnpm dev` and open http://127.0.0.1:3000 (use `127.0.0.1`, which matches the
-auth Site URL in `supabase/config.toml`).
+```sh
+pnpm dev --hostname 127.0.0.1 --port 3000
+```
 
-### Signing in locally
-
-Accounts are invite-only and sign-in is by magic link. The DEV FIXTURE seed creates
-these local-only accounts (no passwords):
-
-| Email                              | Role / state               |
-| ---------------------------------- | -------------------------- |
-| `dev-admin@nabalens.test`          | admin                      |
-| `dev-staff-a@nabalens.test`        | staff, DEV FIXTURE Venue A |
-| `dev-staff-b@nabalens.test`        | staff, DEV FIXTURE Venue A |
-| `dev-staff-inactive@nabalens.test` | staff, deactivated         |
-
-Enter one on `/login` and open the link from the local inbox (Mailpit) at
-http://127.0.0.1:55424. Unknown emails get the same "Check your email" response and
-no account is created.
+Match that port to your owned stack's Auth Site URL. Local sign-in uses Mailpit,
+not real delivery. The local seed has explicitly labelled DEV FIXTURE accounts;
+never load it into staging or production. Setup covers their identities, inbox
+ports, first-admin bootstrap and **owner-confirmed-only** venue seeding.
+`supabase/seed/venues.json` is intentionally empty until the owner supplies data.
 
 ## Checks
 
-```bash
+```sh
 pnpm typecheck
 pnpm lint
-pnpm test               # unit, UI component, media and upload-transport tests; no services needed
-pnpm test:integration   # RLS/storage/auth tests against the LOCAL stack (separate identities)
-pnpm test:e2e           # Playwright, starts next dev on :3417 (override with E2E_PORT); needs the local stack
-pnpm test:security "$W" # adversarial access suite on an ISOLATED stack, see below
+pnpm test
 pnpm build
-node tests/media/benchmark-heic.mjs   # optional: HEIC worker memory benchmark (docs/media-pipeline.md)
+pnpm scan:bundle   # after build: client bundle secret scan
 ```
 
-The security suite needs its own stack (project `nabalens-security`, ports 564xx) so it
-never touches the default one:
+These do not need a Supabase stack. For `pnpm test:integration`,
+`pnpm test:security "$W"`, `pnpm test:lifecycle "$W"`, `pnpm test:e2e` and
+`pnpm test:migrations "$W" <phase>` ([backup and restore](docs/backup-restore.md)),
+follow [isolated test setup](docs/setup.md#4-checks-and-isolated-test-stacks).
+`bash scripts/ci/local-ci.sh` runs the whole fixture gate ([CI](docs/ci.md)).
+Integration/e2e's bare-status fallback does not discover a temporary `$W`:
+supply its explicit credentials privately. Tests write local test data.
+E2e starts its own server (:3417 by default, `E2E_PORT` override); align Auth's
+Site URL, install Chromium and do not run another dev server on that port.
+Stop only the stack you own.
 
-```bash
-W=$(node tests/security/prepare-stack.mjs)
-supabase --workdir "$W" start && supabase --workdir "$W" db reset
-pnpm test:security "$W"
-```
+## Implementation reference
 
-Details are in `docs/security-tests.md`.
+- Stack: Next **16.4.2** App Router (`proxy.ts`), React **19.3.1**,
+  TypeScript **5.9.3**, Tailwind **4.3.3** + shadcn/Base UI,
+  Supabase Auth/Postgres/private Storage via `@supabase/ssr`.
+- Routes: `/login`, `/staff`, `/admin`, `/admin/staff`,
+  `/admin/staff/[id]`. Auth email templates use `/auth/confirm`;
+  `/auth/callback` supports PKCE fallback.
+- Limits in `lib/config/media.ts`: 10 files/batch, 2 parallel transfers,
+  20 MiB photos, 200 MiB videos, 5 MiB avatar inputs, 60-second signed reads,
+  24-hour abandoned-upload window. Provider/plan caps still need verification.
+- [Architecture/security boundaries](docs/architecture.md)
+- [Media pipeline and HEIC deployment constraints](docs/media-pipeline.md)
+- [Upload transport](docs/upload-transport.md)
+- [Removal and cleanup](docs/cleanup.md)
+- [Security tests](docs/security-tests.md)
+- [Privacy audit](docs/privacy-audit.md) and [backup/restore drill](docs/backup-restore.md)
+- [CI gate](docs/ci.md) and [acceptance map](docs/acceptance.md)
+- Reviews: [wave 3](docs/reviews/wave3-review.md),
+  [upload path](docs/reviews/upload-path-review.md), [scope](docs/reviews/scope-audit.md)
+- [Product specification v0.2](docs/spec/NabaLens-MVP-Execution-v0.2.md)
+- [Coding-agent brief](docs/spec/NabaLens-Coding-Agent-Prompt.md)
+- [Parallel-build ownership/limits](docs/fanout/CONTRACT.md)
 
-Integration and e2e tests read connection details from `supabase status`, so they
-don't need `.env.local`, and they refuse to run against a non-localhost Supabase URL.
-They leave `TEST …` users and venues behind; `pnpm db:reset` clears them. After
-changing migrations, run `pnpm db:reset` and then `pnpm db:types`.
-
-## Venues
-
-Real venue names must be confirmed by the owner. Put them in
-`supabase/seed/venues.json` (see `supabase/seed/README.md`) and load them with
-`pnpm seed:venues`, which upserts by slug and never deletes. The `DEV FIXTURE` venues
-in `supabase/seed.sql` are for local development only.
-
-## First admin
-
-No one becomes an admin by signing up. To create the first admin (and later admins in
-this MVP):
-
-1. In the Supabase dashboard for the target environment, invite the person
-   (Authentication → Users → Invite user), so an auth user exists. Locally, a seeded
-   user or any existing auth user works.
-2. With that environment's URL and service role key in your shell environment, run:
-
-   ```bash
-   pnpm bootstrap:admin --email owner@example.com --name "Their Name"
-   # or, reading a local env file:
-   pnpm exec tsx --env-file=.env.local scripts/bootstrap-admin.ts --email owner@example.com --name "Their Name"
-   ```
-
-   It looks the user up by email. If they have no profile it creates an active admin
-   profile (`--name` required); otherwise it promotes and activates the existing
-   profile. Running it again changes nothing. It never creates auth users. Run it
-   only from a trusted operator machine: the service role key bypasses RLS.
-
-## Hosted environments (not configured yet)
-
-There is no hosted project. Before staging, set up the following: run the migrations,
-use the same email templates (`supabase/templates/*.html`) and Site URL/redirect URLs,
-configure SMTP, keep sign-ups disabled, confirm bucket limits for your plan, load the
-confirmed venues, and bootstrap the first admin. See `docs/architecture.md` §6–7 for
-the cleanup job and the auth details.
+No hosted provider writes, secret/DNS changes, database push or deployment is
+authorised by these docs. Complete each **NOT DONE, requires owner authorisation**
+item in the setup runbook before release.
