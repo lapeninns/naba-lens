@@ -37,6 +37,9 @@ import { seedVisualFixtures, type VisualFixtures } from "../visual/fixtures"
  * created per run (tests/visual/fixtures.ts), so the spec runs on any LOCAL stack.
  */
 
+// Spec §5 copy, as rendered by components/nabalens/media-viewer.tsx.
+const PREVIEW_UNAVAILABLE = "Preview unavailable in this browser"
+
 const QA_WIDTHS = [360, 390, 768, 1280, 1440] as const
 const HEIGHT: Record<number, number> = {
   360: 740,
@@ -628,6 +631,90 @@ test("staff: populated portfolio and photo viewer", async ({
       )
       .toBe(true)
   }
+  await page.context().close()
+})
+
+/**
+ * Opens a video tile and reports what the viewer did: "plays" when the element
+ * decoded frames (videoWidth > 0 and currentTime advanced after a muted,
+ * test-initiated play), "fallback" when it shows the explicit message instead.
+ * Also asserts it never started by itself.
+ */
+async function videoOutcome(page: Page, name: string) {
+  await (await tile(page, name)).click()
+  const dialog = page.getByRole("dialog")
+  await expect(dialog).toBeVisible()
+  const video = dialog.locator("video")
+  // The rendered fallback paragraph, not the <video>'s own no-support content.
+  const fallback = dialog.locator("p", { hasText: PREVIEW_UNAVAILABLE })
+  // Either the element loads metadata, or it errors and the fallback replaces it.
+  await expect
+    .poll(
+      async () =>
+        (await fallback.isVisible())
+          ? "fallback"
+          : await video
+              .evaluate((v: HTMLVideoElement) =>
+                v.videoWidth > 0 ? "loaded" : "pending"
+              )
+              .catch(() => "pending"),
+      { timeout: 20_000 }
+    )
+    .not.toBe("pending")
+  if (await fallback.isVisible()) {
+    await expect(video).toHaveCount(0)
+    return "fallback" as const
+  }
+  const state = await video.evaluate((v: HTMLVideoElement) => ({
+    autoplay: v.autoplay,
+    paused: v.paused,
+    controls: v.controls,
+  }))
+  expect(state, `${name}: never autoplays`).toEqual({
+    autoplay: false,
+    paused: true,
+    controls: true,
+  })
+  await video.evaluate(async (v: HTMLVideoElement) => {
+    v.muted = true
+    await v.play()
+  })
+  await expect
+    .poll(
+      () =>
+        video.evaluate((v: HTMLVideoElement) => v.currentTime > 0 || v.ended),
+      {
+        timeout: 10_000,
+      }
+    )
+    .toBe(true)
+  return "plays" as const
+}
+
+test("staff: video playback by codec (MOV tried, HEVC falls back)", async ({
+  browser,
+  baseURL,
+}, testInfo) => {
+  const page = await populatedStaff(browser, baseURL!)
+  const engine = page.context().browser()!.browserType().name()
+
+  // H.264 in a MOV: Chromium's canPlayType("video/quicktime") is "", but the
+  // element can decode it, so the viewer must try instead of pre-rejecting.
+  expect(await videoOutcome(page, "iphone-h264.mov")).toBe("plays")
+  await capture(page, testInfo, "viewer-video-mov", {
+    widths: some(page, testInfo, [390, 1280]),
+  })
+  await page.keyboard.press("Escape")
+  await expect(page.getByRole("dialog")).toBeHidden()
+
+  // HEVC in an MP4: Chromium (Playwright build) cannot decode it -> explicit
+  // fallback, never a broken player. WebKit decodes HEVC.
+  const hevc = await videoOutcome(page, "iphone-hevc.mp4")
+  expect(hevc).toBe(engine === "chromium" ? "fallback" : "plays")
+  await capture(page, testInfo, `viewer-video-hevc-${hevc}`, {
+    widths: some(page, testInfo, [390, 1280]),
+  })
+  await page.keyboard.press("Escape")
   await page.context().close()
 })
 

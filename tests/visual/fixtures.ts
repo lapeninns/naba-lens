@@ -131,7 +131,14 @@ async function upload(db: Db, key: string, bytes: Buffer, contentType: string) {
 
 type AssetSpec =
   | { kind: "photo"; name: string; width: number; height: number; hue: number }
-  | { kind: "video"; name: string }
+  | {
+      kind: "video"
+      name: string
+      /** Fixture file (default: the H.264 MP4 from tests/fixtures/media). */
+      file?: URL
+      ext?: "mp4" | "mov"
+      mime?: "video/mp4" | "video/quicktime"
+    }
   | {
       kind: "pending"
       name: string
@@ -145,7 +152,7 @@ async function asset(
   spec: AssetSpec
 ) {
   const id = randomUUID()
-  const ext = spec.kind === "video" ? "mp4" : "jpg"
+  const ext = spec.kind === "video" ? (spec.ext ?? "mp4") : "jpg"
   const prefix = `${owner.id}/${id}`
   check(
     await db.from("media_assets").insert({
@@ -170,14 +177,17 @@ async function asset(
 
   check(await update({ upload_state: "processing" }))
   if (spec.kind === "video") {
+    const mime = spec.mime ?? "video/mp4"
     const bytes = await readFile(
-      fileURLToPath(new URL("../fixtures/media/synthetic.mp4", import.meta.url))
+      fileURLToPath(
+        spec.file ?? new URL("../fixtures/media/synthetic.mp4", import.meta.url)
+      )
     )
-    await upload(db, `${prefix}/original.mp4`, bytes, "video/mp4")
+    await upload(db, `${prefix}/original.${ext}`, bytes, mime)
     check(
       await update({
         upload_state: "ready",
-        validated_mime_type: "video/mp4",
+        validated_mime_type: mime,
         size_bytes: bytes.byteLength,
         width: 320,
         height: 240,
@@ -347,6 +357,21 @@ export async function seedVisualFixtures(): Promise<VisualFixtures> {
       hue: 300,
     },
     { kind: "video", name: "kitchen-pass.mp4" },
+    // Codec matrix: H.264 in a MOV (Chromium: canPlayType "" yet it plays) and
+    // HEVC in an MP4 (Chromium: "maybe" yet it cannot decode -> fallback).
+    {
+      kind: "video",
+      name: "iphone-h264.mov",
+      file: new URL("../fixtures/media/synthetic.mov", import.meta.url),
+      ext: "mov",
+      mime: "video/quicktime",
+    },
+    {
+      kind: "video",
+      name: "iphone-hevc.mp4",
+      // `ffmpeg -i tests/fixtures/media/review-hevc.mov -c copy -tag:v hvc1 -movflags +faststart`
+      file: new URL("./media/hevc.mp4", import.meta.url),
+    },
     {
       kind: "photo",
       name: "IMG_20261030_dessert-with-a-very-long-original-filename-from-the-phone-camera.jpg",

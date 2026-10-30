@@ -53,6 +53,18 @@ Screenshots: `.artifacts/screenshots/visual/<project>/<screen>-<light|dark>-<wid
 | 11 | Viewer Delete/Download scrolled below a tall preview (phones and 1280×800) | `media-viewer.tsx` sticky footer | `viewer-photo-portrait-light-360.png` |
 | 12 | Dark mode: destructive text 4.43:1 on its tint (axe color-contrast) | `globals.css` dark `--destructive` 0.70→0.73 L | `viewer-photo-landscape-dark-390.png` |
 
+| 13 | Viewer pre-rejected video by `canPlayType` (Chromium returns "" for `video/quicktime`), so an H.264 MOV showed "Preview unavailable" without trying (found by the uploads track) | `media-viewer.tsx`: no pre-check and no `<source type>`; `<video src>` reads the real bytes, and a decode failure fires `error` on the `<video>`, which shows the fallback. Still no autoplay | `viewer-video-mov-light-1280.png`, `viewer-video-hevc-fallback-light-390.png` |
+
+The codec test `staff: video playback by codec` checks that an H.264 MOV **plays** in
+Chromium and WebKit. It checks that an HEVC MP4 shows the **fallback** in Chromium and
+**plays** in WebKit. Unit tests in `tests/ui/components.test.tsx` cover the same
+behaviour. As a negative control, the old viewer fails the test: Expected "plays",
+Received "fallback". The HEVC MP4 fixture (`tests/visual/media/hevc.mp4`, 3.5 KB of
+synthetic frames) is a stream copy of `tests/fixtures/media/review-hevc.mov`.
+
+Re-run on 30 Oct 2026 after the fix: Chromium + WebKit 30 passed; `pnpm test` 103 passed;
+typecheck, lint and build pass.
+
 ## Known upstream exception
 
 WebKit only: Base UI renders each modal's hidden focus-trap sentinels as unnamed
