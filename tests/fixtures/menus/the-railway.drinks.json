@@ -1,0 +1,1876 @@
+{
+  "format": "nabalens-menu@1",
+  "title": "The Railway drinks (DEV FIXTURE)",
+  "source": {
+    "label": "venues/TheRailwayLP/data/drinks-menu.json",
+    "revision": "42274d283035d6bfdfe2f9f75ce7bab4eb28b899",
+    "capturedAt": "2026-09-14T20:58:35+01:00",
+    "notes": "DEV FIXTURE converted 2026-10-30 from venues/TheRailwayLP/data/drinks-menu.json sha256 79438f7abfa0e276e1263bb413ca92f51ed475713eaa17413ac1a24d68e3e3c2; menuUpdated 2026-09-14; not proof the venue currently serves these items; prices/labels are source metadata"
+  },
+  "sections": [
+    {
+      "key": "draught-beer-cider",
+      "name": "Draught Beer & Cider",
+      "kind": "drinks",
+      "items": [
+        {
+          "key": "draught-beer-cider--landlord",
+          "name": "Landlord",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "4.30",
+            "tier": "plowhorse",
+            "note": "Cask",
+            "measure": "Pint"
+          }
+        },
+        {
+          "key": "draught-beer-cider--tribute",
+          "name": "Tribute",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "4.10",
+            "tier": "plowhorse",
+            "note": "Cask",
+            "measure": "Pint"
+          }
+        },
+        {
+          "key": "draught-beer-cider--foster-s",
+          "name": "Foster's",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "3.80",
+            "tier": "plowhorse",
+            "measure": "Pint"
+          }
+        },
+        {
+          "key": "draught-beer-cider--cruzcampo",
+          "name": "Cruzcampo",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "5.10",
+            "tier": "plowhorse",
+            "measure": "Pint"
+          }
+        },
+        {
+          "key": "draught-beer-cider--birra-moretti",
+          "name": "Birra Moretti",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "5.30",
+            "tier": "star",
+            "badge": "House Lager",
+            "measure": "Pint"
+          }
+        },
+        {
+          "key": "draught-beer-cider--john-smith-s",
+          "name": "John Smith's",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "3.50",
+            "tier": "plowhorse",
+            "measure": "Pint"
+          }
+        },
+        {
+          "key": "draught-beer-cider--guinness",
+          "name": "Guinness",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "5.50",
+            "tier": "star",
+            "badge": "House Pint",
+            "measure": "Pint"
+          }
+        },
+        {
+          "key": "draught-beer-cider--inch-s",
+          "name": "Inch's",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "4.30",
+            "tier": "plowhorse",
+            "measure": "Pint"
+          }
+        },
+        {
+          "key": "draught-beer-cider--neck-oil",
+          "name": "Neck Oil",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "6.10",
+            "tier": "puzzle",
+            "measure": "Pint"
+          }
+        },
+        {
+          "key": "draught-beer-cider--heineken",
+          "name": "Heineken",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "5.00",
+            "tier": "plowhorse",
+            "measure": "Pint"
+          }
+        }
+      ]
+    },
+    {
+      "key": "bottled-ciders",
+      "name": "Bottled Ciders",
+      "kind": "drinks",
+      "items": [
+        {
+          "key": "bottled-ciders--magners",
+          "name": "Magners",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "5.75",
+            "tier": "plowhorse",
+            "measure": "Bottle"
+          }
+        },
+        {
+          "key": "bottled-ciders--bulmers-red-berries",
+          "name": "Bulmers Red Berries",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "5.75",
+            "tier": "plowhorse",
+            "measure": "Bottle"
+          }
+        },
+        {
+          "key": "bottled-ciders--old-mout-flavours",
+          "name": "Old Mout Flavours",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "5.80",
+            "tier": "plowhorse",
+            "measure": "Bottle"
+          }
+        }
+      ]
+    },
+    {
+      "key": "bottled-lager-beer",
+      "name": "Bottled Lager & Beer",
+      "kind": "drinks",
+      "items": [
+        {
+          "key": "bottled-lager-beer--peroni",
+          "name": "Peroni",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "4.60",
+            "tier": "plowhorse",
+            "measure": "Bottle"
+          }
+        },
+        {
+          "key": "bottled-lager-beer--sol",
+          "name": "Sol",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "4.60",
+            "tier": "plowhorse",
+            "measure": "Bottle"
+          }
+        },
+        {
+          "key": "bottled-lager-beer--tiger",
+          "name": "Tiger",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "4.60",
+            "tier": "plowhorse",
+            "measure": "Bottle"
+          }
+        },
+        {
+          "key": "bottled-lager-beer--desperado",
+          "name": "Desperado",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "4.60",
+            "tier": "plowhorse",
+            "measure": "Bottle"
+          }
+        },
+        {
+          "key": "bottled-lager-beer--corona",
+          "name": "Corona",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "4.60",
+            "tier": "plowhorse",
+            "measure": "Bottle"
+          }
+        },
+        {
+          "key": "bottled-lager-beer--budweiser",
+          "name": "Budweiser",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "4.60",
+            "tier": "plowhorse",
+            "measure": "Bottle"
+          }
+        },
+        {
+          "key": "bottled-lager-beer--smirnoff-ice",
+          "name": "Smirnoff Ice",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "5.00",
+            "tier": "plowhorse",
+            "measure": "Bottle"
+          }
+        },
+        {
+          "key": "bottled-lager-beer--wkd-blue",
+          "name": "WKD Blue",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "4.00",
+            "tier": "plowhorse",
+            "measure": "Bottle"
+          }
+        },
+        {
+          "key": "bottled-lager-beer--newcastle-brown",
+          "name": "Newcastle Brown",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "5.75",
+            "tier": "plowhorse",
+            "measure": "Bottle"
+          }
+        }
+      ]
+    },
+    {
+      "key": "soft-drinks",
+      "name": "Soft Drinks",
+      "kind": "drinks",
+      "items": [
+        {
+          "key": "soft-drinks--pepsi-pepsi-max-lemonade",
+          "name": "Pepsi / Pepsi Max / Lemonade",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "Glass",
+            "Pint unless shown"
+          ],
+          "meta": {
+            "price": "2.95",
+            "price2": "3.95",
+            "tier": "plowhorse",
+            "note": "Glass / Pint",
+            "measure": "Glass / Pint unless shown",
+            "variantPrices": [
+              "2.95",
+              "3.95"
+            ]
+          }
+        },
+        {
+          "key": "soft-drinks--elderflower",
+          "name": "Elderflower",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "3.75",
+            "tier": "star",
+            "badge": "Premium Soft",
+            "measure": "Glass / Pint unless shown"
+          }
+        },
+        {
+          "key": "soft-drinks--ginger-beer",
+          "name": "Ginger Beer",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "3.75",
+            "tier": "plowhorse",
+            "measure": "Glass / Pint unless shown"
+          }
+        },
+        {
+          "key": "soft-drinks--ginger-ale",
+          "name": "Ginger Ale",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "3.75",
+            "tier": "plowhorse",
+            "measure": "Glass / Pint unless shown"
+          }
+        },
+        {
+          "key": "soft-drinks--tonic-water",
+          "name": "Tonic Water",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "3.25",
+            "tier": "plowhorse",
+            "measure": "Glass / Pint unless shown"
+          }
+        },
+        {
+          "key": "soft-drinks--appletiser",
+          "name": "Appletiser",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "3.75",
+            "tier": "plowhorse",
+            "measure": "Glass / Pint unless shown"
+          }
+        },
+        {
+          "key": "soft-drinks--j20",
+          "name": "J20",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "3.75",
+            "tier": "plowhorse",
+            "measure": "Glass / Pint unless shown"
+          }
+        }
+      ]
+    },
+    {
+      "key": "no-low-alcohol-beer-cider",
+      "name": "No & Low Alcohol Beer & Cider",
+      "kind": "drinks",
+      "items": [
+        {
+          "key": "no-low-alcohol-beer-cider--ghost-ship",
+          "name": "Ghost Ship",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "5.00",
+            "tier": "plowhorse",
+            "labels": [
+              "0.5%"
+            ],
+            "measure": "Bottle / Draught"
+          }
+        },
+        {
+          "key": "no-low-alcohol-beer-cider--guinness-0-0",
+          "name": "Guinness 0.0",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "5.20",
+            "tier": "plowhorse",
+            "labels": [
+              "0.0%"
+            ],
+            "measure": "Bottle / Draught"
+          }
+        },
+        {
+          "key": "no-low-alcohol-beer-cider--old-mout-berries-cherries-0-0",
+          "name": "Old Mout Berries & Cherries 0.0",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "5.60",
+            "tier": "plowhorse",
+            "labels": [
+              "0.0%"
+            ],
+            "measure": "Bottle / Draught"
+          }
+        },
+        {
+          "key": "no-low-alcohol-beer-cider--peroni-0-0",
+          "name": "Peroni 0.0",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "4.75",
+            "tier": "plowhorse",
+            "labels": [
+              "0.0%"
+            ],
+            "measure": "Bottle / Draught"
+          }
+        }
+      ]
+    },
+    {
+      "key": "juices-water",
+      "name": "Juices & Water",
+      "kind": "drinks",
+      "items": [
+        {
+          "key": "juices-water--apple-orange-pineapple-cranberry-juice",
+          "name": "Apple / Orange / Pineapple / Cranberry Juice",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "Bottle",
+            "Glass"
+          ],
+          "meta": {
+            "price": "2.95",
+            "price2": "3.95",
+            "tier": "plowhorse",
+            "note": "Glass / Pint",
+            "measure": "Bottle / Glass",
+            "variantPrices": [
+              "2.95",
+              "3.95"
+            ]
+          }
+        },
+        {
+          "key": "juices-water--fruit-shoot-orange-blackcurrant",
+          "name": "Fruit Shoot Orange & Blackcurrant",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "2.00",
+            "tier": "plowhorse",
+            "measure": "Bottle / Glass"
+          }
+        },
+        {
+          "key": "juices-water--still-sparkling-water",
+          "name": "Still / Sparkling Water",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "2.95",
+            "tier": "plowhorse",
+            "labels": [
+              "Bottled"
+            ],
+            "measure": "Bottle / Glass"
+          }
+        }
+      ]
+    },
+    {
+      "key": "hot-drinks",
+      "name": "Hot Drinks",
+      "kind": "drinks",
+      "items": [
+        {
+          "key": "hot-drinks--coffee",
+          "name": "Coffee",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "3.95",
+            "tier": "plowhorse",
+            "measure": "Cup / Pot"
+          }
+        },
+        {
+          "key": "hot-drinks--hot-chocolate",
+          "name": "Hot Chocolate",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "3.95",
+            "tier": "plowhorse",
+            "measure": "Cup / Pot"
+          }
+        }
+      ]
+    },
+    {
+      "key": "hot-drinks-loose-leaf-tea",
+      "name": "Loose Leaf Tea",
+      "kind": "drinks",
+      "items": [
+        {
+          "key": "hot-drinks-loose-leaf-tea--english-breakfast",
+          "name": "English Breakfast",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "4.00",
+            "tier": "plowhorse",
+            "measure": "Pot"
+          }
+        },
+        {
+          "key": "hot-drinks-loose-leaf-tea--earl-grey",
+          "name": "Earl Grey",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "4.00",
+            "tier": "plowhorse",
+            "measure": "Pot"
+          }
+        },
+        {
+          "key": "hot-drinks-loose-leaf-tea--peppermint",
+          "name": "Peppermint",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "4.00",
+            "tier": "plowhorse",
+            "measure": "Pot"
+          }
+        },
+        {
+          "key": "hot-drinks-loose-leaf-tea--nepalese-guranse",
+          "name": "Nepalese Guranse",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "4.50",
+            "tier": "plowhorse",
+            "detail": "Bright highland green tea from the Guranse estate — floral and clean.",
+            "measure": "Pot"
+          }
+        },
+        {
+          "key": "hot-drinks-loose-leaf-tea--decaf-english-breakfast",
+          "name": "Decaf English Breakfast",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "4.00",
+            "tier": "plowhorse",
+            "measure": "Pot"
+          }
+        }
+      ]
+    },
+    {
+      "key": "sparkling-champagne",
+      "name": "Sparkling & Champagne",
+      "kind": "drinks",
+      "items": [
+        {
+          "key": "sparkling-champagne--house-prosecco",
+          "name": "House Prosecco",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "24.00",
+            "tier": "star",
+            "measure": "Bottle / Quarter Bottle"
+          }
+        },
+        {
+          "key": "sparkling-champagne--prosecco-quarter-bottle",
+          "name": "Prosecco Quarter Bottle",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "7.00",
+            "tier": "plowhorse",
+            "measure": "Bottle / Quarter Bottle"
+          }
+        },
+        {
+          "key": "sparkling-champagne--prosecco-large-bottle",
+          "name": "Prosecco Large Bottle",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "22.00",
+            "tier": "puzzle",
+            "measure": "Bottle / Quarter Bottle"
+          }
+        },
+        {
+          "key": "sparkling-champagne--champagne",
+          "name": "Champagne",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "52.00",
+            "tier": "puzzle",
+            "measure": "Bottle / Quarter Bottle"
+          }
+        }
+      ]
+    },
+    {
+      "key": "white-wine",
+      "name": "White Wine",
+      "kind": "drinks",
+      "items": [
+        {
+          "key": "white-wine--sauvignon-blanc",
+          "name": "Sauvignon Blanc",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "Medium",
+            "Large",
+            "Bottle"
+          ],
+          "meta": {
+            "price": "5.75",
+            "price2": "6.75",
+            "price3": "21.00",
+            "tier": "star",
+            "measure": "Medium / Large / Bottle",
+            "variantPrices": [
+              "5.75",
+              "6.75",
+              "21.00"
+            ]
+          }
+        },
+        {
+          "key": "white-wine--kotuku-marlborough-sauvignon-blanc",
+          "name": "Kotuku Marlborough Sauvignon Blanc",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "Medium",
+            "Large",
+            "Bottle"
+          ],
+          "meta": {
+            "price": "8.45",
+            "price2": "9.75",
+            "price3": "32.50",
+            "tier": "puzzle",
+            "badge": "Marlborough Pick",
+            "measure": "Medium / Large / Bottle",
+            "variantPrices": [
+              "8.45",
+              "9.75",
+              "32.50"
+            ]
+          }
+        },
+        {
+          "key": "white-wine--chardonnay",
+          "name": "Chardonnay",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "Medium",
+            "Large",
+            "Bottle"
+          ],
+          "meta": {
+            "price": "5.75",
+            "price2": "6.75",
+            "price3": "21.00",
+            "tier": "plowhorse",
+            "measure": "Medium / Large / Bottle",
+            "variantPrices": [
+              "5.75",
+              "6.75",
+              "21.00"
+            ]
+          }
+        },
+        {
+          "key": "white-wine--pinot",
+          "name": "Pinot",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "Medium",
+            "Large",
+            "Bottle"
+          ],
+          "meta": {
+            "price": "5.75",
+            "price2": "6.75",
+            "price3": "21.00",
+            "tier": "plowhorse",
+            "measure": "Medium / Large / Bottle",
+            "variantPrices": [
+              "5.75",
+              "6.75",
+              "21.00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "key": "red-wine",
+      "name": "Red Wine",
+      "kind": "drinks",
+      "items": [
+        {
+          "key": "red-wine--shiraz",
+          "name": "Shiraz",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "Medium",
+            "Large",
+            "Bottle"
+          ],
+          "meta": {
+            "price": "5.75",
+            "price2": "6.75",
+            "price3": "21.00",
+            "tier": "star",
+            "measure": "Medium / Large / Bottle",
+            "variantPrices": [
+              "5.75",
+              "6.75",
+              "21.00"
+            ]
+          }
+        },
+        {
+          "key": "red-wine--malbec",
+          "name": "Malbec",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "Medium",
+            "Large",
+            "Bottle"
+          ],
+          "meta": {
+            "price": "5.75",
+            "price2": "6.75",
+            "price3": "21.00",
+            "tier": "plowhorse",
+            "measure": "Medium / Large / Bottle",
+            "variantPrices": [
+              "5.75",
+              "6.75",
+              "21.00"
+            ]
+          }
+        },
+        {
+          "key": "red-wine--merlot",
+          "name": "Merlot",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "Medium",
+            "Large",
+            "Bottle"
+          ],
+          "meta": {
+            "price": "5.50",
+            "price2": "6.50",
+            "price3": "20.00",
+            "tier": "plowhorse",
+            "measure": "Medium / Large / Bottle",
+            "variantPrices": [
+              "5.50",
+              "6.50",
+              "20.00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "key": "rose-wine",
+      "name": "Rosé Wine",
+      "kind": "drinks",
+      "items": [
+        {
+          "key": "rose-wine--white-zinfandel",
+          "name": "White Zinfandel",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "Medium",
+            "Large",
+            "Bottle"
+          ],
+          "meta": {
+            "price": "5.75",
+            "price2": "6.75",
+            "price3": "21.00",
+            "tier": "plowhorse",
+            "measure": "Medium / Large / Bottle",
+            "variantPrices": [
+              "5.75",
+              "6.75",
+              "21.00"
+            ]
+          }
+        },
+        {
+          "key": "rose-wine--amoranza-garnacha-rose",
+          "name": "Amoranza Garnacha Rosé",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "Medium",
+            "Large",
+            "Bottle"
+          ],
+          "meta": {
+            "price": "6.25",
+            "price2": "7.25",
+            "price3": "24.00",
+            "tier": "puzzle",
+            "measure": "Medium / Large / Bottle",
+            "variantPrices": [
+              "6.25",
+              "7.25",
+              "24.00"
+            ]
+          }
+        },
+        {
+          "key": "rose-wine--blush",
+          "name": "Blush",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "Medium",
+            "Large",
+            "Bottle"
+          ],
+          "meta": {
+            "price": "5.75",
+            "price2": "6.75",
+            "price3": "21.00",
+            "tier": "star",
+            "measure": "Medium / Large / Bottle",
+            "variantPrices": [
+              "5.75",
+              "6.75",
+              "21.00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "key": "gin",
+      "name": "Gin",
+      "kind": "drinks",
+      "items": [
+        {
+          "key": "gin--gordon-s",
+          "name": "Gordon’s",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "25ml",
+            "50ml"
+          ],
+          "meta": {
+            "price": "4.25",
+            "price2": "5.75",
+            "tier": "plowhorse",
+            "labels": [
+              "Flavours"
+            ],
+            "measure": "25ml / 50ml",
+            "variantPrices": [
+              "4.25",
+              "5.75"
+            ]
+          }
+        },
+        {
+          "key": "gin--bombay-sapphire",
+          "name": "Bombay Sapphire",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "25ml",
+            "50ml"
+          ],
+          "meta": {
+            "price": "4.75",
+            "price2": "6.25",
+            "tier": "plowhorse",
+            "measure": "25ml / 50ml",
+            "variantPrices": [
+              "4.75",
+              "6.25"
+            ]
+          }
+        },
+        {
+          "key": "gin--tanqueray",
+          "name": "Tanqueray",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "25ml",
+            "50ml"
+          ],
+          "meta": {
+            "price": "4.75",
+            "price2": "6.25",
+            "tier": "plowhorse",
+            "measure": "25ml / 50ml",
+            "variantPrices": [
+              "4.75",
+              "6.25"
+            ]
+          }
+        },
+        {
+          "key": "gin--whitley-neill",
+          "name": "Whitley Neill",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "25ml",
+            "50ml"
+          ],
+          "meta": {
+            "price": "5.00",
+            "price2": "6.50",
+            "tier": "plowhorse",
+            "measure": "25ml / 50ml",
+            "variantPrices": [
+              "5.00",
+              "6.50"
+            ]
+          }
+        },
+        {
+          "key": "gin--rhubarb-ginger-gin",
+          "name": "Rhubarb & Ginger Gin",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "25ml",
+            "50ml"
+          ],
+          "meta": {
+            "price": "5.00",
+            "price2": "6.50",
+            "tier": "plowhorse",
+            "measure": "25ml / 50ml",
+            "variantPrices": [
+              "5.00",
+              "6.50"
+            ]
+          }
+        },
+        {
+          "key": "gin--hendrick-s",
+          "name": "Hendrick's",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "25ml",
+            "50ml"
+          ],
+          "meta": {
+            "price": "5.00",
+            "price2": "6.50",
+            "tier": "star",
+            "badge": "House Gin",
+            "measure": "25ml / 50ml",
+            "variantPrices": [
+              "5.00",
+              "6.50"
+            ]
+          }
+        },
+        {
+          "key": "gin--botanist",
+          "name": "Botanist",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "25ml",
+            "50ml"
+          ],
+          "meta": {
+            "price": "5.25",
+            "price2": "6.75",
+            "tier": "puzzle",
+            "badge": "Top Shelf Gin",
+            "measure": "25ml / 50ml",
+            "variantPrices": [
+              "5.25",
+              "6.75"
+            ]
+          }
+        },
+        {
+          "key": "gin--beefeater",
+          "name": "Beefeater",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "25ml",
+            "50ml"
+          ],
+          "meta": {
+            "price": "4.50",
+            "price2": "6.00",
+            "tier": "plowhorse",
+            "measure": "25ml / 50ml",
+            "variantPrices": [
+              "4.50",
+              "6.00"
+            ]
+          }
+        },
+        {
+          "key": "gin--malfy",
+          "name": "Malfy",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "25ml",
+            "50ml"
+          ],
+          "meta": {
+            "price": "5.00",
+            "price2": "6.50",
+            "tier": "plowhorse",
+            "measure": "25ml / 50ml",
+            "variantPrices": [
+              "5.00",
+              "6.50"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "key": "vodka",
+      "name": "Vodka",
+      "kind": "drinks",
+      "items": [
+        {
+          "key": "vodka--smirnoff",
+          "name": "Smirnoff",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "25ml",
+            "50ml"
+          ],
+          "meta": {
+            "price": "4.00",
+            "price2": "5.50",
+            "tier": "plowhorse",
+            "measure": "25ml / 50ml",
+            "variantPrices": [
+              "4.00",
+              "5.50"
+            ]
+          }
+        },
+        {
+          "key": "vodka--j-j-whitley",
+          "name": "J.J. Whitley",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "25ml",
+            "50ml"
+          ],
+          "meta": {
+            "price": "4.25",
+            "price2": "5.75",
+            "tier": "plowhorse",
+            "measure": "25ml / 50ml",
+            "variantPrices": [
+              "4.25",
+              "5.75"
+            ]
+          }
+        },
+        {
+          "key": "vodka--absolut",
+          "name": "Absolut",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "25ml",
+            "50ml"
+          ],
+          "meta": {
+            "price": "4.25",
+            "price2": "5.75",
+            "tier": "plowhorse",
+            "labels": [
+              "Flavours"
+            ],
+            "measure": "25ml / 50ml",
+            "variantPrices": [
+              "4.25",
+              "5.75"
+            ]
+          }
+        },
+        {
+          "key": "vodka--au",
+          "name": "Au",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "25ml",
+            "50ml"
+          ],
+          "meta": {
+            "price": "5.00",
+            "price2": "6.50",
+            "tier": "puzzle",
+            "badge": "Gold Vodka",
+            "measure": "25ml / 50ml",
+            "variantPrices": [
+              "5.00",
+              "6.50"
+            ]
+          }
+        },
+        {
+          "key": "vodka--grey-goose",
+          "name": "Grey Goose",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "25ml",
+            "50ml"
+          ],
+          "meta": {
+            "price": "5.25",
+            "price2": "6.75",
+            "tier": "star",
+            "badge": "Top Shelf Vodka",
+            "measure": "25ml / 50ml",
+            "variantPrices": [
+              "5.25",
+              "6.75"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "key": "rum",
+      "name": "Rum",
+      "kind": "drinks",
+      "items": [
+        {
+          "key": "rum--captain-morgan",
+          "name": "Captain Morgan",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "25ml",
+            "50ml"
+          ],
+          "meta": {
+            "price": "4.00",
+            "price2": "5.50",
+            "tier": "plowhorse",
+            "labels": [
+              "Flavours"
+            ],
+            "measure": "25ml / 50ml",
+            "variantPrices": [
+              "4.00",
+              "5.50"
+            ]
+          }
+        },
+        {
+          "key": "rum--bacardi",
+          "name": "Bacardí",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "25ml",
+            "50ml"
+          ],
+          "meta": {
+            "price": "4.25",
+            "price2": "5.75",
+            "tier": "plowhorse",
+            "measure": "25ml / 50ml",
+            "variantPrices": [
+              "4.25",
+              "5.75"
+            ]
+          }
+        },
+        {
+          "key": "rum--kraken",
+          "name": "Kraken",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "25ml",
+            "50ml"
+          ],
+          "meta": {
+            "price": "4.50",
+            "price2": "6.00",
+            "tier": "star",
+            "labels": [
+              "Flavours"
+            ],
+            "badge": "Popular Rum",
+            "measure": "25ml / 50ml",
+            "variantPrices": [
+              "4.50",
+              "6.00"
+            ]
+          }
+        },
+        {
+          "key": "rum--dead-man-s-fingers",
+          "name": "Dead Man's Fingers",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "25ml",
+            "50ml"
+          ],
+          "meta": {
+            "price": "4.50",
+            "price2": "6.00",
+            "tier": "plowhorse",
+            "measure": "25ml / 50ml",
+            "variantPrices": [
+              "4.50",
+              "6.00"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "key": "whisky",
+      "name": "Whisky",
+      "kind": "drinks",
+      "items": [
+        {
+          "key": "whisky--jack-daniel-s",
+          "name": "Jack Daniel's",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "25ml",
+            "50ml"
+          ],
+          "meta": {
+            "price": "4.50",
+            "price2": "6.00",
+            "tier": "plowhorse",
+            "measure": "25ml / 50ml",
+            "variantPrices": [
+              "4.50",
+              "6.00"
+            ]
+          }
+        },
+        {
+          "key": "whisky--jameson",
+          "name": "Jameson",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "25ml",
+            "50ml"
+          ],
+          "meta": {
+            "price": "4.50",
+            "price2": "6.00",
+            "tier": "plowhorse",
+            "measure": "25ml / 50ml",
+            "variantPrices": [
+              "4.50",
+              "6.00"
+            ]
+          }
+        },
+        {
+          "key": "whisky--famous-grouse",
+          "name": "Famous Grouse",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "25ml",
+            "50ml"
+          ],
+          "meta": {
+            "price": "4.25",
+            "price2": "5.75",
+            "tier": "plowhorse",
+            "measure": "25ml / 50ml",
+            "variantPrices": [
+              "4.25",
+              "5.75"
+            ]
+          }
+        },
+        {
+          "key": "whisky--bell-s",
+          "name": "Bell's",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "25ml",
+            "50ml"
+          ],
+          "meta": {
+            "price": "4.25",
+            "price2": "5.75",
+            "tier": "plowhorse",
+            "measure": "25ml / 50ml",
+            "variantPrices": [
+              "4.25",
+              "5.75"
+            ]
+          }
+        },
+        {
+          "key": "whisky--glenfiddich",
+          "name": "Glenfiddich",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "25ml",
+            "50ml"
+          ],
+          "meta": {
+            "price": "5.00",
+            "price2": "6.50",
+            "tier": "star",
+            "badge": "Single Malt",
+            "measure": "25ml / 50ml",
+            "variantPrices": [
+              "5.00",
+              "6.50"
+            ]
+          }
+        },
+        {
+          "key": "whisky--southern-comfort",
+          "name": "Southern Comfort",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "25ml",
+            "50ml"
+          ],
+          "meta": {
+            "price": "4.50",
+            "price2": "6.00",
+            "tier": "plowhorse",
+            "measure": "25ml / 50ml",
+            "variantPrices": [
+              "4.50",
+              "6.00"
+            ]
+          }
+        },
+        {
+          "key": "whisky--jura",
+          "name": "Jura",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "25ml",
+            "50ml"
+          ],
+          "meta": {
+            "price": "5.00",
+            "price2": "6.50",
+            "tier": "plowhorse",
+            "measure": "25ml / 50ml",
+            "variantPrices": [
+              "5.00",
+              "6.50"
+            ]
+          }
+        },
+        {
+          "key": "whisky--glenmorangie",
+          "name": "Glenmorangie",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "25ml",
+            "50ml"
+          ],
+          "meta": {
+            "price": "5.00",
+            "price2": "6.50",
+            "tier": "plowhorse",
+            "measure": "25ml / 50ml",
+            "variantPrices": [
+              "5.00",
+              "6.50"
+            ]
+          }
+        },
+        {
+          "key": "whisky--drambuie",
+          "name": "Drambuie",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "25ml",
+            "50ml"
+          ],
+          "meta": {
+            "price": "4.50",
+            "price2": "6.00",
+            "tier": "plowhorse",
+            "measure": "25ml / 50ml",
+            "variantPrices": [
+              "4.50",
+              "6.00"
+            ]
+          }
+        },
+        {
+          "key": "whisky--monkey-shoulder",
+          "name": "Monkey Shoulder",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "25ml",
+            "50ml"
+          ],
+          "meta": {
+            "price": "4.75",
+            "price2": "6.25",
+            "tier": "plowhorse",
+            "measure": "25ml / 50ml",
+            "variantPrices": [
+              "4.75",
+              "6.25"
+            ]
+          }
+        },
+        {
+          "key": "whisky--maker-s-mark",
+          "name": "Maker's Mark",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "25ml",
+            "50ml"
+          ],
+          "meta": {
+            "price": "4.75",
+            "price2": "6.25",
+            "tier": "plowhorse",
+            "measure": "25ml / 50ml",
+            "variantPrices": [
+              "4.75",
+              "6.25"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "key": "liqueurs-shots",
+      "name": "Liqueurs & Shots",
+      "kind": "drinks",
+      "items": [
+        {
+          "key": "liqueurs-shots--malibu",
+          "name": "Malibu",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "25ml",
+            "50ml"
+          ],
+          "meta": {
+            "price": "3.75",
+            "price2": "5.25",
+            "tier": "plowhorse",
+            "measure": "25ml / 50ml",
+            "variantPrices": [
+              "3.75",
+              "5.25"
+            ]
+          }
+        },
+        {
+          "key": "liqueurs-shots--baileys",
+          "name": "Baileys",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "25ml",
+            "50ml"
+          ],
+          "meta": {
+            "price": "4.00",
+            "price2": "5.50",
+            "tier": "star",
+            "badge": "After-Dinner",
+            "measure": "25ml / 50ml",
+            "variantPrices": [
+              "4.00",
+              "5.50"
+            ]
+          }
+        },
+        {
+          "key": "liqueurs-shots--martini",
+          "name": "Martini",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "25ml",
+            "50ml"
+          ],
+          "meta": {
+            "price": "3.75",
+            "price2": "5.25",
+            "tier": "plowhorse",
+            "measure": "25ml / 50ml",
+            "variantPrices": [
+              "3.75",
+              "5.25"
+            ]
+          }
+        },
+        {
+          "key": "liqueurs-shots--tia-maria",
+          "name": "Tia Maria",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "25ml",
+            "50ml"
+          ],
+          "meta": {
+            "price": "3.75",
+            "price2": "5.25",
+            "tier": "plowhorse",
+            "measure": "25ml / 50ml",
+            "variantPrices": [
+              "3.75",
+              "5.25"
+            ]
+          }
+        },
+        {
+          "key": "liqueurs-shots--disaronno",
+          "name": "Disaronno",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "25ml",
+            "50ml"
+          ],
+          "meta": {
+            "price": "4.00",
+            "price2": "5.50",
+            "tier": "plowhorse",
+            "measure": "25ml / 50ml",
+            "variantPrices": [
+              "4.00",
+              "5.50"
+            ]
+          }
+        },
+        {
+          "key": "liqueurs-shots--sambuca",
+          "name": "Sambuca",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "25ml",
+            "50ml"
+          ],
+          "meta": {
+            "price": "3.75",
+            "price2": "5.25",
+            "tier": "plowhorse",
+            "measure": "25ml / 50ml",
+            "variantPrices": [
+              "3.75",
+              "5.25"
+            ]
+          }
+        },
+        {
+          "key": "liqueurs-shots--jagermeister",
+          "name": "Jägermeister",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "25ml",
+            "50ml"
+          ],
+          "meta": {
+            "price": "4.00",
+            "price2": "5.50",
+            "tier": "plowhorse",
+            "measure": "25ml / 50ml",
+            "variantPrices": [
+              "4.00",
+              "5.50"
+            ]
+          }
+        },
+        {
+          "key": "liqueurs-shots--tequila",
+          "name": "Tequila",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "25ml",
+            "50ml"
+          ],
+          "meta": {
+            "price": "3.75",
+            "price2": "5.25",
+            "tier": "plowhorse",
+            "measure": "25ml / 50ml",
+            "variantPrices": [
+              "3.75",
+              "5.25"
+            ]
+          }
+        },
+        {
+          "key": "liqueurs-shots--sourz",
+          "name": "Sourz",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "25ml",
+            "50ml"
+          ],
+          "meta": {
+            "price": "3.75",
+            "price2": "5.25",
+            "tier": "plowhorse",
+            "labels": [
+              "Flavours"
+            ],
+            "measure": "25ml / 50ml",
+            "variantPrices": [
+              "3.75",
+              "5.25"
+            ]
+          }
+        },
+        {
+          "key": "liqueurs-shots--pimm-s",
+          "name": "Pimm's",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "25ml",
+            "50ml"
+          ],
+          "meta": {
+            "price": "3.75",
+            "price2": "5.25",
+            "tier": "plowhorse",
+            "measure": "25ml / 50ml",
+            "variantPrices": [
+              "3.75",
+              "5.25"
+            ]
+          }
+        },
+        {
+          "key": "liqueurs-shots--archers",
+          "name": "Archers",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "25ml",
+            "50ml"
+          ],
+          "meta": {
+            "price": "3.75",
+            "price2": "5.25",
+            "tier": "plowhorse",
+            "measure": "25ml / 50ml",
+            "variantPrices": [
+              "3.75",
+              "5.25"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "key": "brandy",
+      "name": "Brandy",
+      "kind": "drinks",
+      "items": [
+        {
+          "key": "brandy--courvoisier",
+          "name": "Courvoisier",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "25ml",
+            "50ml"
+          ],
+          "meta": {
+            "price": "4.75",
+            "price2": "6.25",
+            "tier": "puzzle",
+            "badge": "Cognac Pick",
+            "measure": "25ml / 50ml",
+            "variantPrices": [
+              "4.75",
+              "6.25"
+            ]
+          }
+        },
+        {
+          "key": "brandy--remy-martin",
+          "name": "Rémy Martin",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "25ml",
+            "50ml"
+          ],
+          "meta": {
+            "price": "5.00",
+            "price2": "6.50",
+            "tier": "star",
+            "badge": "Premium Cognac",
+            "measure": "25ml / 50ml",
+            "variantPrices": [
+              "5.00",
+              "6.50"
+            ]
+          }
+        },
+        {
+          "key": "brandy--martell",
+          "name": "Martell",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "25ml",
+            "50ml"
+          ],
+          "meta": {
+            "price": "4.75",
+            "price2": "6.25",
+            "tier": "plowhorse",
+            "measure": "25ml / 50ml",
+            "variantPrices": [
+              "4.75",
+              "6.25"
+            ]
+          }
+        },
+        {
+          "key": "brandy--three-barrels-brandy",
+          "name": "Three Barrels Brandy",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "25ml",
+            "50ml"
+          ],
+          "meta": {
+            "price": "4.00",
+            "price2": "5.50",
+            "tier": "plowhorse",
+            "measure": "25ml / 50ml",
+            "variantPrices": [
+              "4.00",
+              "5.50"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

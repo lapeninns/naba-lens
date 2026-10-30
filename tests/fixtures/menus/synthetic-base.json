@@ -1,0 +1,20 @@
+{
+  "format": "nabalens-menu@1",
+  "title": "SYNTHETIC TEST DATA",
+  "sections": [
+    {
+      "key": "food",
+      "name": "Food",
+      "items": [
+        {
+          "key": "food--chicken",
+          "name": "Chicken",
+          "variants": [
+            "Veg",
+            "Chicken"
+          ]
+        }
+      ]
+    }
+  ]
+}
