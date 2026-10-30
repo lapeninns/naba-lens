@@ -12,6 +12,10 @@ import {
   type TestIdentity,
 } from "../support/identities"
 import type { Database } from "../../lib/db/types"
+import { MEDIA_LIMITS } from "../../lib/config/media"
+import { signDerivative } from "../../lib/server/media/access"
+import { signAvatar } from "../../lib/server/media/profile"
+import { actorFor } from "../slice/media-actor"
 import { getLocalSupabaseEnv } from "../support/local-supabase"
 
 const service = serviceClient()
@@ -222,6 +226,142 @@ describe("finding 1: end users cannot sign or read storage objects directly", ()
   }
 })
 
+describe("finding 1: the app read path still serves authorised callers", () => {
+  let assetId: string
+  let avatar: string
+  let other: TestIdentity
+  let leaver: TestIdentity
+
+  /** Seconds between iat and exp of the signed URL's token. */
+  function lifetime(url: string) {
+    const token = new URL(url).searchParams.get("token")!
+    const payload = JSON.parse(
+      Buffer.from(token.split(".")[1], "base64url").toString()
+    )
+    return payload.exp - payload.iat
+  }
+
+  async function fetchBytes(url: string) {
+    const res = await fetch(url)
+    return { ok: res.ok, bytes: new Uint8Array(await res.arrayBuffer()) }
+  }
+
+  beforeAll(async () => {
+    other = await createIdentity(service, {
+      label: "hardening-other",
+      role: "staff",
+      venueId: venue,
+    })
+    leaver = await createIdentity(service, {
+      label: "hardening-leaver",
+      role: "staff",
+      venueId: venue,
+    })
+    const row = await reserveOk(staff)
+    assetId = row.id
+    const put = await staff.client.storage
+      .from("media")
+      .upload(row.original_path, TINY_BYTES)
+    if (put.error) throw put.error
+    const preview = row.original_path.replace("original.jpg", "preview.webp")
+    const derivative = await service.storage
+      .from("media")
+      .upload(preview, TINY_BYTES, { contentType: "image/webp" })
+    if (derivative.error) throw derivative.error
+    await setRow(row.id, { upload_state: "processing", preview_path: preview })
+    await markReady(service, row.id)
+    avatar = `${staff.id}/${crypto.randomUUID()}.webp`
+    const avatarPut = await service.storage
+      .from("avatars")
+      .upload(avatar, TINY_BYTES, { contentType: "image/webp" })
+    if (avatarPut.error) throw avatarPut.error
+    const linked = await service
+      .from("profiles")
+      .update({ avatar_path: avatar })
+      .eq("id", staff.id)
+    if (linked.error) throw linked.error
+  })
+
+  for (const who of ["owner", "admin"] as const) {
+    it(`${who}: derivative and avatar URLs are issued for 60 s and serve the bytes`, async () => {
+      const actor = await actorFor(who === "admin" ? admin : staff)
+      const derivative = await signDerivative(actor, assetId, "preview")
+      expect(derivative.ok).toBe(true)
+      if (!derivative.ok) return
+      expect(lifetime(derivative.url)).toBe(MEDIA_LIMITS.signedUrlExpirySeconds)
+      expect(await fetchBytes(derivative.url)).toEqual({
+        ok: true,
+        bytes: TINY_BYTES,
+      })
+      const photo = await signAvatar(actor, staff.id)
+      expect(photo.ok).toBe(true)
+      if (!photo.ok) return
+      expect(lifetime(photo.url)).toBe(MEDIA_LIMITS.signedUrlExpirySeconds)
+      expect((await fetchBytes(photo.url)).ok).toBe(true)
+    })
+  }
+
+  it("another staff member gets nothing for someone else's asset or avatar", async () => {
+    const actor = await actorFor(other)
+    expect(await signDerivative(actor, assetId, "preview")).toMatchObject({
+      ok: false,
+      status: 404,
+    })
+    expect(await signAvatar(actor, staff.id)).toMatchObject({
+      ok: false,
+      status: 404,
+    })
+  })
+
+  it("a deactivated staff member is denied their own asset and avatar", async () => {
+    const row = await reserveOk(leaver)
+    const put = await leaver.client.storage
+      .from("media")
+      .upload(row.original_path, TINY_BYTES)
+    if (put.error) throw put.error
+    const preview = row.original_path.replace("original.jpg", "preview.webp")
+    await service.storage
+      .from("media")
+      .upload(preview, TINY_BYTES, { contentType: "image/webp" })
+    await setRow(row.id, { upload_state: "processing", preview_path: preview })
+    await markReady(service, row.id)
+    // Built while active (as a request already in flight would be), then deactivated.
+    const actor = await actorFor(leaver)
+    await setActive(leaver, false)
+    try {
+      expect(await signDerivative(actor, row.id, "preview")).toMatchObject({
+        ok: false,
+        status: 404,
+      })
+    } finally {
+      await setActive(leaver, true)
+    }
+  })
+
+  it("a deleted asset is denied to its owner and to admins", async () => {
+    const row = await reserveOk(staff)
+    const put = await staff.client.storage
+      .from("media")
+      .upload(row.original_path, TINY_BYTES)
+    if (put.error) throw put.error
+    const preview = row.original_path.replace("original.jpg", "preview.webp")
+    await service.storage
+      .from("media")
+      .upload(preview, TINY_BYTES, { contentType: "image/webp" })
+    await setRow(row.id, { upload_state: "processing", preview_path: preview })
+    await markReady(service, row.id)
+    const del = await staff.client.rpc("delete_media_asset", {
+      p_asset_id: row.id,
+    })
+    expect(del.error).toBeNull()
+    for (const user of [staff, admin]) {
+      expect(
+        await signDerivative(await actorFor(user), row.id, "preview")
+      ).toMatchObject({ ok: false, status: 404 })
+    }
+  })
+})
+
 describe("finding 4: every write of an original re-checks the reservation", () => {
   it("a signed upload token still works while the reservation is open (control)", async () => {
     const row = await reserveOk(staff)
@@ -427,4 +567,22 @@ describe("finding 5: reserve_media_asset enforces its own limits", () => {
       results.filter((r) => r.error?.message === "too_many_open_uploads")
     ).toHaveLength(10)
   })
+})
+
+describe("findings 3 and 6: claim maintenance RPCs are service-role only", () => {
+  for (const who of ["staff", "admin"] as const) {
+    it(`${who} cannot call fail_stale_media_processing or take_over_stale_media_claim`, async () => {
+      const user = who === "admin" ? admin : staff
+      const reap = await user.client.rpc("fail_stale_media_processing", {
+        p_stale_after: "10 minutes",
+      })
+      expect(reap.error).not.toBeNull()
+      const row = await reserveOk(staff)
+      const take = await user.client.rpc("take_over_stale_media_claim", {
+        p_asset_id: row.id,
+        p_stale_after: "1 minute",
+      })
+      expect(take.error).not.toBeNull()
+    })
+  }
 })

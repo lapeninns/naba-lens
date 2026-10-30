@@ -105,7 +105,9 @@ export async function runMediaCleanup(
       p_stale_after: staleProcessingInterval(MEDIA_LIMITS),
     })
     if (stale.error)
-      throw new Error(`fail_stale_media_processing_failed: ${stale.error.message}`)
+      throw new Error(
+        `fail_stale_media_processing_failed: ${stale.error.message}`
+      )
     reaped.push(...stale.data.map((row) => row.asset_id))
 
     for (let batch = 0; ; batch++) {

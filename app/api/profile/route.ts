@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server"
+import { NextResponse, type NextRequest } from "next/server"
 
 import { MEDIA_LIMITS } from "@/lib/config/media"
 import { getMediaActor } from "@/lib/server/media/context"
@@ -9,8 +9,18 @@ import { updateOwnProfile } from "@/lib/server/media/profile"
  * optional `avatar`). A Route Handler rather than a Server Function because a
  * 5 MiB photo exceeds the Server Function body limit (1 MB by default).
  */
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   const noStore = { "cache-control": "private, no-store" }
+  // Same-origin only (as app/admin/staff/[id]/avatar/route.ts). Session cookies
+  // are SameSite=Lax, but this must not depend on that (wave 3 finding 7). A
+  // cross-site form or fetch always carries Origin on a POST.
+  const origin = request.headers.get("origin")
+  if (origin && origin !== request.nextUrl.origin) {
+    return NextResponse.json(
+      { ok: false, error: "Forbidden." },
+      { status: 403, headers: noStore }
+    )
+  }
   const auth = await getMediaActor("staff")
   if (!auth.ok) {
     return NextResponse.json(

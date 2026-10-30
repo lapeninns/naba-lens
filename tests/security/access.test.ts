@@ -285,10 +285,12 @@ for (const actor of actors)
       ).toEqual([])
     })
     for (const state of ["ready", "uploading", "failed", "deleted"] as const) {
-      it(`§7/§10: ${state} objects list/download/sign only when ready, live and authorised`, async () => {
+      it(`§7/§10: ${state} objects cannot be listed, downloaded or signed directly by any end user`, async () => {
         const key = assets[state].original_path
-        const allowed =
-          state === "ready" && (actor === "A" || actor === "admin")
+        // Wave 3 finding 1: no end-user storage read policy. Authorised reads go
+        // through the app routes, which check the caller and sign for 60 s with
+        // the service role (tests/security/hardening.test.ts).
+        const allowed = false
         const download = await objectRequest(actor, "media", key)
         expect(download.ok).toBe(allowed)
         if (allowed)
@@ -356,8 +358,9 @@ for (const actor of actors)
           ).ok
         ).toBe(false)
     })
-    it("§7: avatar list/download/sign is own-or-admin; all direct avatar writes are denied", async () => {
-      const allowed = actor === "A" || actor === "admin"
+    it("§7: avatars cannot be listed, downloaded or signed directly; all direct avatar writes are denied", async () => {
+      // Wave 3 finding 1: own-or-admin reads go through /api/avatars/[id] only.
+      const allowed = false
       expect((await objectRequest(actor, "avatars", avatar)).ok).toBe(allowed)
       expect(
         (
