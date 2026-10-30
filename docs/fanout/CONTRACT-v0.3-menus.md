@@ -345,3 +345,23 @@ truly need another route.
     the caller's suggestion change). Revoke `update, delete, truncate` on
     both event tables from `service_role` (and everyone); app code never
     writes catalogue/label tables with the service role.
+
+## 10. Amendment A2 (after B integration, for D/F/H)
+
+1. **Label presence in views:** `MediaItemView.labels` is `null` when labels
+   were not loaded or the asset is not `ready`; for a ready asset whose
+   labels were loaded but has none, use `EMPTY_LABEL_SUMMARY` (so tiles can
+   show "Needs labels"). `listOwnMedia` and `listLibrary` both load labels.
+2. **Error mapping:** map RPC failures by `error.message` (the code) or
+   `error.code` (SQLSTATE), never by HTTP status: PostgREST returns 500 for
+   `P0002`. Full code list: `docs/menus-data-model.md`.
+3. **`library_assets` via PostgREST:** include every column used in
+   `order`/cursor filters (`created_at`, `id`) in `select(...)`.
+4. **Suggestions after deletion:** the suggestions RLS lets staff read their
+   own suggestion rows even when the asset is deleted; server code shows a
+   staff member's missing-item text only through visible label summaries,
+   never by listing suggestions directly.
+5. Labels UI components: `components/nabalens/labels` (G) and menus UI:
+   `components/nabalens/menus` (E) are merged and re-exported from
+   `@/components/nabalens`. The viewer has `onEditLabels`; `MediaGrid`/
+   `MediaTile` have `showLabelBadge` (lead wiring).
