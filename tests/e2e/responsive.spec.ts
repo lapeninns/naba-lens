@@ -397,3 +397,93 @@ test("keyboard only: upload, open the viewer, download", async () => {
   expect(download.suggestedFilename()).toBe(extra.name)
   expect(await download.failure()).toBeNull()
 })
+
+test("row actions menu: axe holds wherever the trigger sits; guards still move focus", async () => {
+  test.setTimeout(120_000)
+  const width = 360
+  const height = 800
+  await admin.setViewportSize({ width, height })
+  await admin.goto("/admin/staff")
+  const trigger = admin.getByRole("button", {
+    name: `More actions for ${world.staffA.name}`,
+  })
+  await expect(trigger).toBeVisible()
+
+  // axe only excuses focusable aria-hidden content while it detects a modal,
+  // and it detects one by sampling five points (inset 12.5%) for a full-screen
+  // layer. The menu backdrop has a hole over its trigger, so a trigger on a
+  // sample point hid the overlay from axe. That is where the final CI run put
+  // it (134 accounts in the directory). Put it there on purpose: room above
+  // and below, then scroll its centre onto (0.875w, 0.875h).
+  await admin.evaluate(() => {
+    document.body.style.padding = `${innerHeight}px 0`
+  })
+  await trigger.scrollIntoViewIfNeeded()
+  const before = (await trigger.boundingBox())!
+  await admin.evaluate(
+    (dy) => window.scrollBy(0, dy),
+    before.y + before.height / 2 - height * 0.875
+  )
+  const box = (await trigger.boundingBox())!
+  expect(box.x).toBeLessThanOrEqual(width * 0.875)
+  expect(box.x + box.width).toBeGreaterThanOrEqual(width * 0.875)
+  expect(Math.abs(box.y + box.height / 2 - height * 0.875)).toBeLessThan(1)
+
+  await trigger.click()
+  await expect(
+    admin.getByRole("menuitem", { name: "Edit details" })
+  ).toBeVisible()
+  await admin.waitForFunction(() =>
+    document.getAnimations().every((a) => a.playState !== "running")
+  )
+  const result = await new AxeBuilder({ page: admin })
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
+    .analyze()
+  expect(
+    result.violations
+      .filter((v) => v.impact === "serious" || v.impact === "critical")
+      .map((v) => `${v.id}: ${v.nodes.map((n) => n.html).join(" | ")}`)
+  ).toEqual([])
+
+  // The guards are 0×0 now; they must still catch Tab. Tab out of the open
+  // menu closes it and lands outside the menu, not on a guard.
+  await admin.keyboard.press("Tab")
+  await expect(admin.getByRole("menu")).toHaveCount(0)
+  await expect
+    .poll(() =>
+      admin.evaluate(
+        () =>
+          document.activeElement !== document.body &&
+          !document.activeElement?.hasAttribute("data-base-ui-focus-guard")
+      )
+    )
+    .toBe(true)
+
+  // A modal dialog still traps focus through its guards, both directions.
+  await admin.evaluate(() => {
+    document.body.style.padding = ""
+  })
+  await admin.getByRole("button", { name: "Invite staff" }).click()
+  const dialog = admin.getByRole("dialog")
+  await expect(dialog).toBeVisible()
+  for (const key of ["Tab", "Shift+Tab"]) {
+    for (let i = 0; i < 12; i++) {
+      await admin.keyboard.press(key)
+      // A guard hands focus on in the next animation frame.
+      await expect
+        .poll(
+          () =>
+            dialog.evaluate((el) => {
+              const a = document.activeElement
+              return {
+                inside: el.contains(a),
+                guard: !!a?.hasAttribute("data-base-ui-focus-guard"),
+              }
+            }),
+          { message: `${key} #${i + 1}`, timeout: 2_000 }
+        )
+        .toEqual({ inside: true, guard: false })
+    }
+  }
+  await closeDialog(admin)
+})
