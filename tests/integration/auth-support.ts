@@ -29,14 +29,8 @@ export class Browser {
   constructor(readonly label: string) {}
 
   /** Runs `fn` as a request from this browser (cookies() reads/writes this jar). */
-  async run<T>(fn: () => Promise<T>): Promise<T> {
-    const previous = current
-    current = this
-    try {
-      return await fn()
-    } finally {
-      current = previous
-    }
+  run<T>(fn: () => Promise<T>): Promise<T> {
+    return runAs(this, fn)
   }
 
   cookieHeader(): string {
@@ -61,6 +55,16 @@ export class Browser {
 }
 
 let current: Browser | null = null
+
+async function runAs<T>(browser: Browser, fn: () => Promise<T>): Promise<T> {
+  const previous = current
+  current = browser
+  try {
+    return await fn()
+  } finally {
+    current = previous
+  }
+}
 
 function activeJar(): Browser {
   if (!current) {
@@ -131,7 +135,7 @@ export const APP_ORIGIN = "http://127.0.0.1:3000"
 export function appRequest(
   browser: Browser,
   path: string,
-  init: RequestInit = {}
+  init: ConstructorParameters<typeof NextRequest>[1] = {}
 ): NextRequest {
   const headers = new Headers(init.headers)
   const cookie = browser.cookieHeader()
@@ -261,12 +265,16 @@ export function localSql(sql: string): string {
  * and fast even when GoTrue's paged admin listing is slow on a loaded machine.
  */
 export function authUserCount(email: string): number {
+  return authUserIds(email).length
+}
+
+/** IDs of the auth users with this email (case-insensitive), from auth.users. */
+export function authUserIds(email: string): string[] {
   if (!/^[A-Za-z0-9._@+ -]+$/.test(email)) throw new Error("unexpected email")
-  return Number(
-    localSql(
-      `select count(*) from auth.users where lower(email) = lower(btrim('${email}'))`
-    )
+  const out = localSql(
+    `select id from auth.users where lower(email) = lower(btrim('${email}'))`
   )
+  return out ? out.split("\n") : []
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/

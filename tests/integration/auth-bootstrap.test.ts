@@ -42,6 +42,7 @@ function bootstrap(...args: string[]) {
       encoding: "utf8",
       env: {
         PATH: process.env.PATH,
+        NODE_ENV: "test",
         NEXT_PUBLIC_SUPABASE_URL: env.url,
         SUPABASE_SERVICE_ROLE_KEY: env.serviceRoleKey,
       },
@@ -92,7 +93,10 @@ describe("scripts/bootstrap-admin.ts", { timeout: 90_000 }, () => {
     const noEnv = spawnSync(
       "node_modules/.bin/tsx",
       ["scripts/bootstrap-admin.ts", "--email", "x@nabalens.test"],
-      { encoding: "utf8", env: { PATH: process.env.PATH } }
+      {
+        encoding: "utf8",
+        env: { PATH: process.env.PATH, NODE_ENV: "test" },
+      }
     )
     expect(noEnv.status).toBe(1)
     expect(noEnv.stderr).toContain("SUPABASE_SERVICE_ROLE_KEY")
