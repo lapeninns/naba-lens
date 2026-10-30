@@ -461,7 +461,7 @@ test("rows 2+4: re-import with rename, removal, key change and category move; un
     )
     await confirm.getByRole("button", { name: "Archive item" }).click()
     await expect(
-      admin.getByRole("button", { name: "Unarchive Momo" })
+      admin.getByRole("button", { name: "Unarchive item: Momo" })
     ).toBeVisible()
     expect(
       psql(
