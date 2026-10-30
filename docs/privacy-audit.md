@@ -166,10 +166,11 @@ Response headers measured (from `PRIVACY_REPORT`):
 | Proxy 307 to `/login` (anonymous, protected path)                   | none                                                      | no body, no cookies; 307 is not heuristically cacheable |
 | `/ui-preview` (production 404 prerender)                            | `s-maxage=31536000`                                       | same bytes for every role, no data                      |
 
-Server log during the passing runs: start-up lines plus, in some runs, load-induced failures
-that show the safe log format:
+Server log during the passing runs: start-up lines, the optimiser lines from R8, and in some
+runs load-induced failures that show the safe log format:
 
 ```
+⨯ internal image response failed for /api/media/<uuid>/thumb 401
 [auth] sign-in link request failed { code: null, status: 504 }
 [accounts] deactivate: session revocation failed { code: null }
 [accounts] invite: email failed { code: null }
@@ -223,6 +224,12 @@ that show the safe log format:
   `/auth/confirm` query string. `next start` does not log them, but a hosting platform's access
   logs (for example Vercel) will. They are single-use and short-lived. Keep platform log access
   restricted.
+- **R8. The optimiser logs the internal URL it was refused.** The image-optimiser probe makes
+  `next start` log `⨯ internal image response failed for /api/media/<asset uuid>/thumb 401`,
+  and the same for avatars, with the user's UUID. These lines contain UUIDs only, no tokens or
+  emails, so the log check passes. Anyone can trigger them, though, so log volume is
+  attacker-controlled. Setting `images.unoptimized: true` (the app never uses `next/image`)
+  would remove the optimiser path entirely. Not changed.
 - **R7. Load flakiness in other suites.** On this Mac (load average 27–40, about 15 Supabase
   stacks), local auth admin calls (`createUser`, `generateLink`, ban) and template fetches often
   hit GoTrue's 10 s timeout. `pnpm test:integration` failures in `staff-accounts`, `slice-media`
