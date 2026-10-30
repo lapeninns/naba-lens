@@ -446,6 +446,28 @@ describe.skipIf(!BASE)("privacy: runtime headers, bodies and logs", () => {
     expect(avatar("anon", ids.staffA).status).toBe(401)
   })
 
+  it("cannot pull private media through the image optimiser", async () => {
+    // /_next/image fetches local URLs without the caller's cookies, so the
+    // media routes answer 401 and nothing private is optimised or cached.
+    for (const role of ["admin", "staffA", "anon"] as const) {
+      for (const path of [
+        `/api/media/${assetId}/thumb`,
+        `/api/media/${assetId}/preview`,
+        `/api/avatars/${ids.staffA}`,
+      ]) {
+        const r = await request(
+          role,
+          `/_next/image?url=${encodeURIComponent(path)}&w=64&q=75`,
+          { record: false }
+        )
+        expect(r.status, `${role} ${path}`).not.toBe(200)
+        expect(r.headers.get("content-type") ?? "", path).not.toMatch(
+          /^image\//
+        )
+      }
+    }
+  })
+
   it("signs derivative and avatar redirects for 60 seconds at most", () => {
     const redirects = observed.filter((r) => r.status === 302)
     expect(redirects.length).toBeGreaterThanOrEqual(4)
