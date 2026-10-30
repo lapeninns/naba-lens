@@ -33,18 +33,10 @@ async function signIn(
   identity: TestIdentity,
   baseURL: string
 ) {
-  // The local auth server occasionally times out (504) when several stacks
-  // share this machine; retry that, nothing else.
-  let link = await admin.auth.admin.generateLink({
+  const link = await admin.auth.admin.generateLink({
     type: "magiclink",
     email: identity.email,
   })
-  for (let i = 0; link.error?.status === 504 && i < 3; i++) {
-    link = await admin.auth.admin.generateLink({
-      type: "magiclink",
-      email: identity.email,
-    })
-  }
   const { data, error } = link
   if (error) throw error
   const context = await browser.newContext({ baseURL })
