@@ -40,6 +40,21 @@ Stack is **stopped**. Integration needs `MAILPIT_URL` exported too when using en
   appeared (before hydration); now `expect.poll`s it. Before the fix: failed twice cold, then passed 3/3. After: 3/3 (load ~8).
 - `tests/e2e/negative.spec.ts`: the missing-original test now asserts the in-app alert.
 
+## Privacy runtime in CI (orchestrator item, test defect 3)
+
+- The probe of `loadMorePortfolioAction` now calls `loadLibraryPage({ staff }, null)` (what
+  `app/admin/staff/[id]/admin-portfolio.tsx` pages with), asserts `ok` with only staff A's
+  items, and that staff A and B get `{ ok: false, "Not allowed." }`. Every response is still
+  recorded for the no-store / no-foreign-PII / log checks. The 3e0a499 file: 1 failed / 10
+  passed; now 11/11 (3 consecutive runs through the CI script).
+- New CI step `privacy-runtime` in `scripts/ci/local-ci.sh` → `scripts/ci/privacy-runtime.mjs`:
+  reuses Playwright's stack build (rebuilds if `.next` does not target the stack; that
+  rebuild path is untested), `next start` on the e2e port with a captured log, fresh
+  `CLEANUP_SECRET`, `PRIVACY_RUNTIME_REQUIRED=1`, requires ≥ 11 passed and 0 skipped.
+- `PRIVACY_RUNTIME_REQUIRED=1` without `PRIVACY_BASE_URL` fails the file at collection.
+- `scripts/ci/prepare-stack.mjs`: `email_sent = 100` in the CI stack's temp copy only.
+- Full `local-ci.sh` was not run (one shared runner; the lead runs it).
+
 ## Status: done
 
 Results (load average 3.3 to 4.1, one stack): typecheck, lint clean; unit 147/147;

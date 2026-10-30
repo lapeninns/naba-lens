@@ -69,6 +69,12 @@ PRIVACY_REPORT=/tmp/privacy-report.json \
 supabase --workdir "$W" stop
 ```
 
+In CI, `scripts/ci/local-ci.sh` runs it as the `privacy-runtime` step
+(`scripts/ci/privacy-runtime.mjs`): after the browser suites it serves their stack build on
+the e2e port with a captured log, sets `PRIVACY_RUNTIME_REQUIRED=1` (a missing server then
+fails the file instead of skipping it) and requires at least 11 passed, none skipped. The CI
+stack raises `email_sent` to 100 in its temp copy for the same reason as above.
+
 The suite refuses a 554xx stack. It reads Server Function IDs from this checkout's `.next`,
 so the server must serve that build.
 

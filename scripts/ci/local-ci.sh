@@ -44,4 +44,6 @@ run start supabase --workdir "$work" start || exit 1
 run reset supabase --workdir "$work" db reset || exit 1
 supabase --workdir "$work" status -o json > "$work/status.json" 2>/dev/null || exit 1
 run database-and-browser node scripts/ci/run-suites.mjs "$work" || true
+# After the browser suites: reuses their stack build and e2e port (never skipped).
+run privacy-runtime node scripts/ci/privacy-runtime.mjs "$work" || true
 exit "$failed"
