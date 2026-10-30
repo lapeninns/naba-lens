@@ -157,23 +157,19 @@ export function newestFirst<T extends { id: string; createdAt: string }>(
 }
 
 /**
- * createIdentity for test SETUP, retrying only the local auth server's
- * "retryable" timeout (HTTP 504), which it returns when several local stacks
- * load this machine. Assertions never go through this; any other error throws.
+ * createIdentity for test SETUP. No retries (merge plan, fixture-retry policy):
+ * a local auth timeout (HTTP 504, usually machine load from several stacks)
+ * fails once with a diagnostic instead of being retried.
  */
 export async function setupIdentity(
   admin: Db,
   opts: Parameters<typeof createIdentity>[1]
 ): Promise<TestIdentity> {
-  for (let attempt = 1; ; attempt++) {
-    try {
-      return await createIdentity(admin, opts)
-    } catch (error) {
-      const retryable =
-        error instanceof Error && error.name === "AuthRetryableFetchError"
-      if (!retryable || attempt >= 5) throw error
-      console.warn(`setupIdentity(${opts.label}): auth timed out, retrying`)
-      await new Promise((r) => setTimeout(r, 2000))
-    }
+  try {
+    return await createIdentity(admin, opts)
+  } catch (error) {
+    if (error instanceof Error && error.name === "AuthRetryableFetchError")
+      error.message = `setupIdentity(${opts.label}): local auth timed out (machine load?): ${error.message}`
+    throw error
   }
 }

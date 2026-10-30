@@ -60,11 +60,14 @@ pnpm typecheck
 pnpm lint
 pnpm test
 pnpm build
+pnpm scan:bundle   # after build: client bundle secret scan
 ```
 
 These do not need a Supabase stack. For `pnpm test:integration`,
-`pnpm test:security "$W"`, `pnpm test:lifecycle "$W"` and `pnpm test:e2e`,
+`pnpm test:security "$W"`, `pnpm test:lifecycle "$W"`, `pnpm test:e2e` and
+`pnpm test:migrations "$W" <phase>` ([backup and restore](docs/backup-restore.md)),
 follow [isolated test setup](docs/setup.md#4-checks-and-isolated-test-stacks).
+`bash scripts/ci/local-ci.sh` runs the whole fixture gate ([CI](docs/ci.md)).
 Integration/e2e's bare-status fallback does not discover a temporary `$W`:
 supply its explicit credentials privately. Tests write local test data.
 E2e starts its own server (:3417 by default, `E2E_PORT` override); align Auth's
@@ -87,6 +90,10 @@ Stop only the stack you own.
 - [Upload transport](docs/upload-transport.md)
 - [Removal and cleanup](docs/cleanup.md)
 - [Security tests](docs/security-tests.md)
+- [Privacy audit](docs/privacy-audit.md) and [backup/restore drill](docs/backup-restore.md)
+- [CI gate](docs/ci.md) and [acceptance map](docs/acceptance.md)
+- Reviews: [wave 3](docs/reviews/wave3-review.md),
+  [upload path](docs/reviews/upload-path-review.md), [scope](docs/reviews/scope-audit.md)
 - [Product specification v0.2](docs/spec/NabaLens-MVP-Execution-v0.2.md)
 - [Coding-agent brief](docs/spec/NabaLens-Coding-Agent-Prompt.md)
 - [Parallel-build ownership/limits](docs/fanout/CONTRACT.md)

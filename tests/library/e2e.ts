@@ -4,8 +4,8 @@ import type { Db, TestIdentity } from "../support/identities"
 
 /**
  * Signs in through the app's own /auth/confirm route with a magic-link token
- * (as tests/e2e/slice.spec.ts does). Only the local auth server's retryable 504
- * is retried, a setup-only concession to machine load.
+ * (as tests/e2e/slice.spec.ts does). Not retried: a local auth 504 fails the
+ * setup with a diagnostic.
  */
 export async function signInAs(
   browser: Browser,
@@ -13,17 +13,12 @@ export async function signInAs(
   identity: TestIdentity,
   baseURL: string
 ): Promise<Page> {
-  let link = await admin.auth.admin.generateLink({
+  const { data, error } = await admin.auth.admin.generateLink({
     type: "magiclink",
     email: identity.email,
   })
-  for (let i = 0; link.error?.status === 504 && i < 3; i++) {
-    link = await admin.auth.admin.generateLink({
-      type: "magiclink",
-      email: identity.email,
-    })
-  }
-  const { data, error } = link
+  if (error?.status === 504)
+    throw new Error(`signInAs(${identity.email}): local auth timed out (machine load?)`, { cause: error })
   if (error) throw error
   const context = await browser.newContext({ baseURL })
   const page = await context.newPage()

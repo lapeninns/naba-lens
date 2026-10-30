@@ -138,39 +138,36 @@ const isAuthTimeout = (e: unknown) =>
   ((e as { status?: number }).status === 504 ||
     (e as { name?: string }).name === "AuthRetryableFetchError")
 
+/** Labels a local auth timeout so a load failure is recognisable in the log. */
+function labelTimeout(e: unknown, what: string): unknown {
+  if (isAuthTimeout(e) && e instanceof Error)
+    e.message = `[gaps] local auth timed out ${what} (machine load?): ${e.message}`
+  return e
+}
+
 /**
- * Fixture setup only: `createIdentity`, retried when the local auth server
- * answers 504 (its 10 s request deadline) because several stacks share this
- * machine. Each attempt uses a fresh email, so a half-finished attempt cannot
- * collide. Logged, never applied to an assertion.
+ * Fixture setup only: `createIdentity`. No retries (merge plan, fixture-retry
+ * policy); a local auth 504 fails once with a diagnostic.
  */
 export async function setupIdentity(
   admin: Db,
-  opts: Parameters<typeof createIdentity>[1],
-  attempts = 4
+  opts: Parameters<typeof createIdentity>[1]
 ): Promise<TestIdentity> {
-  for (let i = 1; ; i++) {
-    try {
-      return await createIdentity(admin, opts)
-    } catch (e) {
-      if (!isAuthTimeout(e) || i >= attempts) throw e
-      console.warn(`[gaps] auth timeout creating ${opts.label}; retry ${i}`)
-    }
+  try {
+    return await createIdentity(admin, opts)
+  } catch (e) {
+    throw labelTimeout(e, `creating ${opts.label}`)
   }
 }
 
-/** Fixture setup only: a session for an existing user, retried on auth 504s. */
+/** Fixture setup only: a session for an existing user. Not retried. */
 export async function setupSession<T>(
   label: string,
-  fn: () => Promise<T>,
-  attempts = 4
+  fn: () => Promise<T>
 ): Promise<T> {
-  for (let i = 1; ; i++) {
-    try {
-      return await fn()
-    } catch (e) {
-      if (!isAuthTimeout(e) || i >= attempts) throw e
-      console.warn(`[gaps] auth timeout signing in ${label}; retry ${i}`)
-    }
+  try {
+    return await fn()
+  } catch (e) {
+    throw labelTimeout(e, `signing in ${label}`)
   }
 }
