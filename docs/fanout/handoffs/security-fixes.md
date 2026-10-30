@@ -75,9 +75,10 @@
   The helper `/tmp/nl-secfix-prep.mjs` does these edits.
 
 - **Start:** `supabase --workdir /tmp/nl-secfix-stack start`.
-- **Status exits non-zero:** with services disabled, `supabase status` exits non-zero.
-  That makes `pnpm test:security` and `pnpm test:lifecycle` (`run.mjs`) throw. I ran the
-  same vitest configs through `/tmp/nl-secfix-run.sh <security|lifecycle|integration>`,
-  which exports the env from `status -o json` and refuses any stack outside 631xx.
+- **Run the suites:** `pnpm test:security /tmp/nl-secfix-stack` and
+  `pnpm test:lifecycle /tmp/nl-secfix-stack`. Early on, `supabase status` exited non-zero
+  once while the stack was still settling, and `run.mjs` failed on it. For that case and
+  for the integration project, `/tmp/nl-secfix-run.sh <security|lifecycle|integration>`
+  exports the env from `status -o json` and refuses any stack outside 631xx.
 - **E2E:** export the same env with `E2E_PORT=3631`, then run `pnpm exec playwright test`.
 - **Stop:** `supabase --workdir /tmp/nl-secfix-stack stop`.
