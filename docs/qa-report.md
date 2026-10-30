@@ -28,20 +28,69 @@ venue filter open, video viewer, `/admin/staff`, invite dialog, row actions menu
 
 ## Results
 
-_Filled in from the final runs below._
+Gate commit `bd366d0` (fixes below included), `retries: 0`, 1 worker, fresh `next build`
+before each run's first command. Isolated stack `nabalens-journey` (583xx) after the
+orchestrator freed Docker memory.
+
+| Command                                            | Run 1                                          | Run 2                            |
+| -------------------------------------------------- | ---------------------------------------------- | -------------------------------- |
+| A: chromium, `journey` + `negative` + `filters`    | 10/10 (9 passed + 1 expected failure), 1.1 min | 10/10 (same), 1.1 min            |
+| B: chromium, `responsive` (5 widths + keyboard)    | 6/6, 59 s                                      | 6/6, 1.0 min                     |
+| C: `journey` on firefox / webkit / mobile-chromium | 3/3 (1 each), 1.9 min                          | 3/3 (1 each), 1.9 min            |
+| **Total**                                          | **19/19, 0 unexpected, 0 flaky**               | **19/19, 0 unexpected, 0 flaky** |
+
+Per browser, each run: chromium 16 (journey 1, negatives 7 + 1 expected failure, filters 1,
+viewport/keyboard 6), firefox 1, webkit 1, mobile-chromium 1.
+
+`uptime` load average: run 1 started at 11.22 and ended at 5.54; run 2 started at 5.09 and
+ended at 4.21 (18-core Mac). The expected failure is the admin-portfolio download/delete
+check (defect 1).
+
+Observed in both runs:
+
+- Admin B's open library showed new uploads 14–15 s after the upload settled, on every engine,
+  without a reload.
+- The HEVC MP4 showed "Preview unavailable in this browser" in Playwright Chromium, and its
+  original downloaded byte-identical.
+- Axe found 0 serious/critical violations in every state at every width, with no horizontal
+  overflow, and every primary action was inside the viewport. JSON summaries are in
+  `.artifacts/gate/run{1,2}-axe-summary.json`.
+
+The pre-existing `auth`, `slice` and `staff-accounts` specs also pass on this stack
+(chromium, 9/9). They are not part of the gate.
 
 ## Defects found
 
-| #   | Defect                                                                                                                                                                                                                               | Where                                        | Status                                                                                                                                |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Admin individual portfolio viewer has no **Download original** or **Delete** (spec §3: "Admin's preview/download/delete actions work here too").                                                                                     | `app/admin/staff/[id]/portfolio-gallery.tsx` | Not fixed here: already fixed on `feat/nl-library` f3ee17b. `negative.spec.ts` keeps a `test.fail()` check that flips when it merges. |
-| 2   | Library filters race: choosing Venue, then Staff, then Photos before each navigation returns drops earlier choices (ended at `?type=image`). Each change was built from stale server props. Reproduced deterministically under load. | `app/admin/admin-library.tsx`                | **Fixed** with `React.useOptimistic` (3 lines). `filters.spec.ts` failed before, passes after.                                        |
-| 3   | WCAG 2.5.3 label-in-name (axe `label-content-name-mismatch`, serious): video tiles show a duration badge ("0:00") not contained in the button's `aria-label`.                                                                        | `components/nabalens/media-tile.tsx`         | **Fixed**: name ends with `duration m:ss`. UI unit tests 21/21.                                                                       |
-| 4   | A gallery refresh that hangs (no response) blocks every later refresh: `refreshing.current` stays true and `fetch` has no timeout. Seen when the auth/storage stack stalled.                                                         | `app/_media/media-gallery.tsx`               | Reported, not fixed (slice/library own it).                                                                                           |
-| 5   | `/admin/staff` fails to render at all when GoTrue `listUsers` is slow/fails ("Could not list auth users").                                                                                                                           | `lib/server/accounts`                        | Reported, not fixed (accounts own it).                                                                                                |
-| 6   | A failed original download gives no in-app message (the browser shows a failed download; page stays usable).                                                                                                                         | viewer                                       | Reported.                                                                                                                             |
+| #   | Defect                                                                                                                                                                                                                                                                                     | Where                                                                    | Status                                                                                                                                |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Admin individual portfolio viewer has no **Download original** or **Delete** (spec §3: "Admin's preview/download/delete actions work here too").                                                                                                                                           | `app/admin/staff/[id]/portfolio-gallery.tsx`                             | Not fixed here: already fixed on `feat/nl-library` f3ee17b. `negative.spec.ts` keeps a `test.fail()` check that flips when it merges. |
+| 2   | Library filters race: choosing Venue, then Staff, then Photos before each navigation returns drops earlier choices (ended at `?type=image`). Each change was built from stale server props. Reproduced deterministically under load.                                                       | `app/admin/admin-library.tsx`                                            | **Fixed** with `React.useOptimistic` (3 lines). `filters.spec.ts` failed before, passes after.                                        |
+| 3   | WCAG 2.5.3 label-in-name (axe `label-content-name-mismatch`, serious): video tiles show a duration badge ("0:00") not contained in the button's `aria-label`.                                                                                                                              | `components/nabalens/media-tile.tsx`                                     | **Fixed**: name ends with `duration m:ss`. UI unit tests 21/21.                                                                       |
+| 4   | A gallery refresh that hangs (no response) blocks every later refresh: `refreshing.current` stays true and `fetch` has no timeout. Seen when the auth/storage stack stalled.                                                                                                               | `app/_media/media-gallery.tsx`                                           | Reported, not fixed (slice/library own it).                                                                                           |
+| 5   | `/admin/staff` fails to render at all when GoTrue `listUsers` is slow/fails ("Could not list auth users").                                                                                                                                                                                 | `lib/server/accounts`                                                    | Reported, not fixed (accounts own it).                                                                                                |
+| 6   | `/api/media/[id]/download` (and `/stream`) **hung forever** when the original is missing from storage: `streamOriginal` awaited `upstream.body.cancel()`, which never settles on the body Next's `fetch` returns under `next start`. Thumb/preview answered 404 in ~20 ms; download >90 s. | `lib/server/media/access.ts` (same pattern in `storage.ts` `fetchRange`) | **Fixed**: drain the small error body instead. Download now 404 in 21 ms.                                                             |
+| 7   | Mobile staff-directory rows: link `aria-label` ("Name, open portfolio") did not contain the visible status/job/venue text (axe `label-content-name-mismatch`, serious).                                                                                                                    | `components/nabalens/staff-directory-table.tsx`                          | **Fixed**: name from visible content plus sr-only ", open portfolio".                                                                 |
+| 8   | A failed original download gives no in-app message (the browser shows a failed download; page stays usable).                                                                                                                                                                               | viewer                                                                   | Reported.                                                                                                                             |
 
-Visual review notes (screenshots read, not just captured): see "Visual review" below.
+## Visual review
+
+I read the screenshots in `.artifacts/screenshots/` (75 states: 15 screens/dialogs × 5 widths)
+rather than only capturing them. Defects 3 and 7 were found this way and through axe, and
+both are fixed. The cosmetic issues below are not fixed (UI track):
+
+- Video tiles have no poster frame and show the generic _image_ icon plus the duration badge.
+- A sub-second clip shows the duration "0:00" (on the tile and in the viewer).
+- The edit-staff dialog uses an unstyled native file input ("Choose File No file chosen")
+  for the profile photo.
+- At 768 px the staff filter select clips its value mid-character, with no ellipsis.
+- The expired-link alert on `/login` wraps its body text into a narrow column at 360 px.
+- `/admin/staff` is unpaginated. On this test stack (~200 accumulated fixture accounts) the
+  390 px page is 14,150 px tall. That is fine for one organisation's staff, but worth knowing.
+- At first paint the viewer's image area collapses until the signed preview loads. The
+  screenshots now wait for images.
+
+No issue found with layout overflow, hidden primary actions, focus order through upload and
+viewer, or dialog footers at 360 px. The footers stack their actions full-width.
 
 ## Flakiness investigation
 

@@ -58,7 +58,7 @@ pnpm typecheck
 pnpm lint
 pnpm test               # unit, UI component, media and upload-transport tests; no services needed
 pnpm test:integration   # RLS/storage/auth tests against the LOCAL stack (separate identities)
-pnpm test:e2e           # Playwright, starts next dev on :3417 (override with E2E_PORT); needs the local stack
+pnpm test:e2e           # Playwright: next build + next start on :3457 (E2E_PORT); release suite needs E2E_SUPABASE_WORKDIR (docs/qa-report.md)
 pnpm test:security "$W" # adversarial access suite on an ISOLATED stack, see below
 pnpm build
 node tests/media/benchmark-heic.mjs   # optional: HEIC worker memory benchmark (docs/media-pipeline.md)
