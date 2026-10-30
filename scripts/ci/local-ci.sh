@@ -24,12 +24,17 @@ run() {
   fi
 }
 finish() {
+  local exit_status=$?
+  trap - EXIT
   if [[ $started == 1 ]]; then
     run stop supabase --workdir "$work" stop --no-backup || true
   fi
   printf '\n%-24s %s\n' CHECK RESULT
   for ((i=0;i<${#steps[@]};i++)); do printf '%-24s %s\n' "${steps[$i]}" "${results[$i]}"; done
   printf 'Logs: %s\n' "$logdir"
+  # Cleanup is part of the gate, even when the checks selected exit 0 already.
+  if [[ $exit_status == 0 && $failed != 0 ]]; then exit_status=1; fi
+  exit "$exit_status"
 }
 trap finish EXIT
 trap 'exit 130' INT TERM
