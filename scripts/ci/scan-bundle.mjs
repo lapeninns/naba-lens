@@ -142,6 +142,12 @@ for (const name of [
   }
 }
 
+const PLAIN_RULES = new Set([
+  "secret-name",
+  "service-role-claim",
+  "server-module-path",
+  "server-only-export",
+])
 const redact = (s) => (s.length <= 12 ? s : `${s.slice(0, 10)}…(${s.length})`)
 
 const findings = []
@@ -159,7 +165,8 @@ for (const file of files) {
         rule: rule.id,
         file: relative(root, file),
         offset: m.index,
-        match: redact(m[0]),
+        // Names and paths are not secret; values and shapes are redacted.
+        match: PLAIN_RULES.has(rule.id) ? m[0] : redact(m[0]),
       })
     }
   }
