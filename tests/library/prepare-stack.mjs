@@ -31,7 +31,10 @@ if (/= 554\d\d$/m.test(config)) {
   throw new Error("A 554xx port was left in the isolated config")
 }
 for (const section of ["studio", "realtime", "analytics", "edge_runtime"]) {
-  const header = new RegExp(`^\\[${section}\\]\\n(?:#.*\\n)*enabled = true$`, "m")
+  const header = new RegExp(
+    `^\\[${section}\\]\\n(?:#.*\\n)*enabled = true$`,
+    "m"
+  )
   config = config.replace(header, (block) =>
     block.replace(/enabled = true$/, "enabled = false")
   )
