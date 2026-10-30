@@ -18,11 +18,24 @@ one git worktree per writer under `~/.t3/worktrees/nabalens/nlm-*`.
 | D catalogue server | claude-team-05 opus-5.5 | nlm-catalogue @cc79f17 → cc1c29c | B, C, E | integrated; menus-server 14/14, browser smoke | — |
 | F labels server | claude-team-06 opus-5.5 | nlm-labels @cc79f17 → e99727f | B, G | integrated; labels-server 16/16 | — |
 | H library discovery | claude-team-08 opus-5.5 | nlm-library @cc79f17 → 62935e9 | B, F | integrated; library-filters suite pass | — |
-| I final review | codex gpt-6.1-sol, read-only | feat-nabalens-menus @6cb8dd5 | all | active | fix findings |
-| J QA (e2e runner) | claude-team-01 opus-5.5 | nlm-qa @6cb8dd5 (stack 624xx) | all | active | fix defects |
+| I final review | codex gpt-6.1-sol, read-only | feat-nabalens-menus @6cb8dd5 | all | done: 5 findings fixed (3351844), re-review confirmed, race test added (a75b458) | — |
+| J QA (e2e runner) | claude-team-01 opus-5.5 | nlm-qa @6cb8dd5 → 2402336 (stack 624xx) | all | done: 14/15 rows, D1/D2 fixed (33cecc7, ef33ddb) | — |
 
 Lead integrated checks @6cb8dd5 (own stack 625xx, fresh reset): migrations
 apply; `pnpm test:security` 7 files 222/222; `test:integration` 194 passed,
 13 skipped, 11 failed (auth-invites 9, auth-bootstrap 1, auth-links 1),
 identical on base 1741ccb against the same stack, so pre-existing; unit 338/338;
 `pnpm build` OK; `pnpm scan:bundle` no findings.
+
+## Final candidate `ef33ddb` (lead)
+
+- `scripts/ci/local-ci.sh` (one run, own temp stack, on 33cecc7): install,
+  typecheck, lint, unit 341/341, build, scan-bundle (no findings), stack
+  start/reset, lifecycle 23/23, security 240/240, privacy-runtime 12/12 PASS;
+  Playwright 84 passed / 1 failed / 2 not run / 16 skipped: the failure was a
+  stale `Unarchive Momo` locator after the D2 rename, fixed in ef33ddb; the
+  whole `menus-admin.spec.ts` then passed 4/4 on a fresh isolated stack.
+  Integration 195 passed / 11 failed / 12 skipped: the same 11 auth/invite
+  tests fail on base 1741ccb (pre-existing, unrelated).
+- `pnpm test:visual` (own stack 625xx, Chromium 360–1440 + Firefox + WebKit):
+  45/45 passed.
