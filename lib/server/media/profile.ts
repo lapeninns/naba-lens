@@ -148,7 +148,9 @@ export async function signAvatar(
     .eq("id", userId)
     .maybeSingle()
   if (!data?.avatar_path) return notFound
-  const signed = await actor.db.storage
+  // Service role, after the own-or-admin check and the RLS read above: end users
+  // have no storage read policy (wave 3 finding 1).
+  const signed = await actor.service.storage
     .from(STORAGE_BUCKETS.avatars)
     .createSignedUrl(data.avatar_path, signedUrlTtlSeconds())
   if (signed.error || !signed.data) return notFound

@@ -15,8 +15,12 @@ export type FinaliseResponse =
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-/** A `processing` claim older than this is treated as a crashed finalise. */
-const STALE_PROCESSING_MS = 2 * 60 * 1000
+/**
+ * A `processing` claim older than this is treated as a crashed finalise. Measured
+ * by the database (`take_over_stale_media_claim`) against the claim's updated_at
+ * stamp, never with this host's clock (wave 3 finding 6).
+ */
+const STALE_CLAIM_INTERVAL = "2 minutes"
 /** How long a second finalise waits for one already running. */
 const WAIT_FOR_OTHER_MS = 20_000
 /** HEIC decodes run one at a time per process (`decoder_busy` means retry). */
@@ -89,17 +93,14 @@ async function claim(actor: MediaActor, row: AssetRow) {
         return "claimed" as const
       continue
     }
-    if (Date.now() - Date.parse(current.updated_at) > STALE_PROCESSING_MS) {
-      // Reset then re-claim, each step a compare-and-set.
-      const { data } = await actor.service
-        .from("media_assets")
-        .update({ upload_state: "failed" })
-        .eq("id", row.id)
-        .eq("upload_state", "processing")
-        .eq("updated_at", current.updated_at)
-        .select("id")
-      if (data?.length) continue
-    }
+    // Reset a stale claim to `failed` (compare-and-set in SQL), then re-claim.
+    const { data: tookOver, error } = await actor.service.rpc(
+      "take_over_stale_media_claim",
+      { p_asset_id: row.id, p_stale_after: STALE_CLAIM_INTERVAL }
+    )
+    if (error) throw new Error(`asset_takeover_${error.code ?? "unknown"}`)
+    if (tookOver) continue
+    // Elapsed time of this request only; never compared with database times.
     if (Date.now() - started > WAIT_FOR_OTHER_MS) return "busy" as const
     await sleep(500)
   }
@@ -323,7 +324,19 @@ export async function finaliseAsset(
       .eq("id", row.id)
       .eq("upload_state", "processing")
       .select("id")
-    if (error || !data?.length) throw new Error("asset_ready_update")
+    if (error) throw new Error("asset_ready_update")
+    if (!data?.length) {
+      // Our claim was taken over (stale-claim takeover or the cleanup reaper).
+      // If another finalise has since made the asset ready, that is success.
+      // Otherwise leave the row alone: it belongs to whoever holds it now.
+      const current = await readOwnAsset(actor, row.id)
+      if (current?.upload_state === "ready") return { ok: true, state: "ready" }
+      return {
+        ok: false,
+        status: 409,
+        message: "This file is still processing. Try again in a moment.",
+      }
+    }
   } catch {
     await setState(actor, row.id, ["processing"], "failed").catch(() => {})
     return {

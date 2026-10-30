@@ -51,14 +51,17 @@ export function staffStatus(
   return user?.last_sign_in_at ? "active" : "invited"
 }
 
-/** Short-lived signed avatar URLs, issued through the admin's own client (RLS applies). */
+/**
+ * Short-lived signed avatar URLs. Callers pass the service client only after
+ * requireAdminCaller: end users have no storage read policy (wave 3 finding 1).
+ */
 async function signAvatars(
-  caller: Db,
+  service: Db,
   paths: string[]
 ): Promise<Map<string, string>> {
   const urls = new Map<string, string>()
   if (paths.length === 0) return urls
-  const { data, error } = await caller.storage
+  const { data, error } = await service.storage
     .from(STORAGE_BUCKETS.avatars)
     .createSignedUrls(paths, MEDIA_LIMITS.signedUrlExpirySeconds)
   if (error || !data) return urls
@@ -109,7 +112,7 @@ export async function listStaffDirectory(
     (await listAuthUsers(ctx.service)).map((u) => [u.id, u])
   )
   const avatarUrls = await signAvatars(
-    ctx.caller,
+    ctx.service,
     rows.flatMap((r) => (r.avatar_path ? [r.avatar_path] : []))
   )
   return {
@@ -140,7 +143,7 @@ export async function getStaffAccount(
 
   const { data: authUser } = await ctx.service.auth.admin.getUserById(row.id)
   const avatarUrls = await signAvatars(
-    ctx.caller,
+    ctx.service,
     row.avatar_path ? [row.avatar_path] : []
   )
   return {
