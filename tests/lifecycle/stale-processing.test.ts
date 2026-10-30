@@ -56,9 +56,11 @@ let staff: TestIdentity
 /** A reserved asset with a real JPEG stored, claimed by a finalise (`processing`). */
 async function claimedAsset(user = staff) {
   const key = crypto.randomUUID()
+  const jpeg = await syntheticJpeg(64, 48)
   const { data, error } = await user.client.rpc("reserve_media_asset", {
     p_client_upload_key: key,
-    p_size_bytes: 4,
+    // The real size: finalise refuses a stored size that differs from it.
+    p_size_bytes: jpeg.byteLength,
     p_media_type: "image",
     p_extension: "jpg",
     p_original_filename: "stale.jpg",
@@ -67,7 +69,7 @@ async function claimedAsset(user = staff) {
   const asset = { ...data[0], key }
   const put = await user.client.storage
     .from("media")
-    .upload(asset.original_path, await syntheticJpeg(64, 48), {
+    .upload(asset.original_path, jpeg, {
       contentType: "image/jpeg",
     })
   if (put.error) throw put.error
