@@ -2,6 +2,8 @@
 // I-1 a resolved suggestion is never silently lost by a later save, I-3 the
 // labelling catalogue is complete beyond PostgREST's 1000-row page, and I-5 a
 // variant dropped from the active menu stays filterable while labels use it.
+import { spawn } from "node:child_process"
+
 import { beforeAll, describe, expect, it } from "vitest"
 
 import { getLabellingCatalogue } from "../../lib/server/labels"
@@ -83,6 +85,95 @@ describe("I-1: suggestion changes after an admin resolved the suggestion", () =>
       (events!.at(-1)!.after as { missingItem: string | null }).missingItem
     ).toBe("TEST Mystery curry, renamed")
   })
+})
+
+/**
+ * Holds the resolve side of the race in a separate database session: takes
+ * the venue menu lock exclusively (as resolve_menu_item_suggestion does),
+ * dismisses the suggestion, waits, then commits. Local stack only.
+ */
+function resolveConcurrently(venueId: string, suggestionId: string) {
+  const url = process.env.NABALENS_TEST_DB_URL
+  if (!url || !/^postgresql:\/\/[^@]+@(127\.0\.0\.1|localhost):/.test(url)) {
+    throw new Error("Run through `pnpm test:security <workdir>` (local DB).")
+  }
+  if (![venueId, suggestionId].every((v) => /^[0-9a-f-]{36}$/.test(v))) {
+    throw new Error("bad fixture")
+  }
+  const sql = [
+    "begin;",
+    `select pg_advisory_xact_lock(hashtextextended('nabalens_menu:${venueId}', 0));`,
+    `update public.menu_item_suggestions set status = 'dismissed', resolved_at = now() where id = '${suggestionId}';`,
+    "select pg_sleep(1.5);",
+    "commit;",
+  ].join("\n")
+  const child = spawn("psql", [url, "-v", "ON_ERROR_STOP=1", "-qAt"], {
+    stdio: ["pipe", "ignore", "pipe"],
+  })
+  let stderr = ""
+  child.stderr.on("data", (d) => (stderr += String(d)))
+  child.stdin.end(sql)
+  return new Promise<void>((resolve, reject) =>
+    child.on("exit", (code) =>
+      code === 0 ? resolve() : reject(new Error(`psql failed: ${stderr}`))
+    )
+  )
+}
+
+describe("I-1: a save racing a concurrent resolve", () => {
+  it("waits for the resolve, then keeps the edit as a new open suggestion", async () => {
+    const asset = await reserveReady(service, staff)
+    const first = await saveOk(staff, {
+      asset: asset.id,
+      revision: 0,
+      missing: "TEST Race curry",
+    })
+    const { data: open } = await service
+      .from("menu_item_suggestions")
+      .select("id")
+      .eq("asset_id", asset.id)
+      .eq("status", "open")
+      .single()
+
+    const resolving = resolveConcurrently(venue, open!.id)
+    // Let the other session take the lock and dismiss (uncommitted) first.
+    await new Promise((r) => setTimeout(r, 400))
+    const started = Date.now()
+    const saved = await saveOk(staff, {
+      asset: asset.id,
+      revision: first.revision,
+      missing: "TEST Race curry, edited",
+    })
+    const waited = Date.now() - started
+    await resolving
+
+    // The save blocked on the venue lock until the resolve committed ...
+    expect(waited).toBeGreaterThan(700)
+    expect(saved.revision).toBe(first.revision + 1)
+    // ... and then saw the dismissal, so the edit became a new suggestion
+    // rather than an update that silently matched nothing.
+    const { data: rows } = await service
+      .from("menu_item_suggestions")
+      .select("suggested_name, status")
+      .eq("asset_id", asset.id)
+      .order("created_at")
+    expect(rows).toEqual([
+      { suggested_name: "TEST Race curry", status: "dismissed" },
+      { suggested_name: "TEST Race curry, edited", status: "open" },
+    ])
+    const { data: events } = await service
+      .from("media_label_events")
+      .select("before, after")
+      .eq("asset_id", asset.id)
+      .order("id")
+    const last = events!.at(-1)!
+    expect((last.before as { missingItem: string | null }).missingItem).toBe(
+      null
+    )
+    expect((last.after as { missingItem: string | null }).missingItem).toBe(
+      "TEST Race curry, edited"
+    )
+  }, 30_000)
 })
 
 describe("I-3: labelling catalogue beyond 1000 items in one section", () => {

@@ -19,3 +19,14 @@ CAS; composite FKs; append-only audit; current-name rule; `library_assets`
 EXISTS semantics, same-tuple item+variant, LIKE escaping; import route
 authorization-before-body, size bounds, private caching; no HTML injection
 sinks or client secrets; upload independence.
+
+## Re-review of 3351844
+
+Same reviewer, read-only: I-1..I-5 **fixed**; no new defect and no new
+deadlock cycle across the v0.3 functions, finalise, delete and cleanup.
+Noted trade-off: the 4 MB Server Action limit applies to every action (bounded
+parse cost before each action's own authorisation). Coverage gap raised for
+I-1 (test was sequential) → added a two-session test that holds the venue lock
+in `psql`, dismisses, and commits while a save runs. It **fails on the pre-fix
+migration** (edit lost: one dismissed row) and passes with the fix (lead's
+stack, 625xx).
