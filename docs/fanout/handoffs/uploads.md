@@ -112,3 +112,24 @@ exports `API_URL`, the keys and `DB_URL` without printing them.
 - Integrator: merge `feat/nl-uploads`, then pass findings 1–2 to visual-a11y/library and 3 to slice.
 - Firefox column: run the matrix test on a machine where Playwright Firefox launches.
 - Physical iPhone/Android MOV/HEVC and HEIC: still untested (spec §10).
+
+## Wave-3 review finding 6 (stale-claim takeover clock)
+
+Assigned to this track; **no change on this branch, on purpose.** `feat/nl-secfix`
+commit 8efbd1d already fixes it:
+
+- `finalise.ts` calls a new `take_over_stale_media_claim(p_asset_id, p_stale_after)`
+  RPC (migration `20261030100000_security_hardening.sql`), which compares `updated_at`
+  with the database's `now()` and is a compare-and-set.
+- A final `ready` update that matches no row now returns ready when another finalise
+  already finished, otherwise 409.
+
+Its tests are in `tests/lifecycle/stale-processing.test.ts`: database-time takeover, a
+`Date.now()` skewed one hour ahead does not take over a live claim, and a stale claim
+is taken over and completed.
+
+This branch never modified `lib/server/media/finalise.ts`, so the two branches merge
+without conflict. Re-implementing it here would only duplicate the migration and
+conflict. Claim semantics are unchanged by this track: `processing` plus the
+trigger-stamped `updated_at` (database clock). The security-fixes reaper
+(`fail_stale_media_processing`) can rely on them.
