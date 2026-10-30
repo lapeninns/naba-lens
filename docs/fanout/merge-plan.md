@@ -4,7 +4,185 @@ Track: `merge-precheck`, branch `feat/nl-mergeplan`. Documentation only.
 Only the integrator may merge into `feat/nabalens-mvp`. No remote, push, PR,
 application edits, database changes, or running stacks are needed for this track.
 
-## Latest: snapshot 4, 2026-10-30 01:16:11 UTC
+## Final scheduled sweep: snapshot 5, 2026-10-30 01:36:50 UTC
+
+**Quiet stopping criterion met: 11/14**, unchanged since snapshot 4 across
+**1238.857054 seconds (20m39s)**, with each qualifying commit at least 20 minutes
+old. This ends the requested recurring precheck, **not** integration work or
+release validation. Pause confirmation is recorded in the continuity handoff.
+No ref moved during this pinned scan.
+
+Integration is now `455d34588434316f034c41d3e6894d6c666b9ac8`.
+It contains journey, uploads, load and secfix as well as merge #4a's ancestors.
+Only **visual and the latest authedge tip** remain unmerged among the original
+targets. This branch's newer documentation delta also remains for the integrator.
+Do not merge ancestor tips again.
+
+All commit times below are **30 October 2026, UTC**; `%cr` was observed at the
+scan. Quiet is an unchanged-ref/age observation, never a completion claim.
+
+| Branch | Full pinned SHA | Last commit UTC | `%cr` | Quiet / integration state |
+| --- | --- | --- | --- | --- |
+| `feat/nabalens-mvp` | `455d34588434316f034c41d3e6894d6c666b9ac8` | 01:36:41 | 9 seconds ago | active base, excluded |
+| `feat/nl-journey` | `ff5325ec8bc377c73699177c5f35bf4de7c82ef3` | 01:19:29 | 17 minutes ago | changed/recent, integrated |
+| `feat/nl-visual` | `93ed9d05d09231580b3bce3aa50aa0e572b2504f` | 01:36:39 | 11 seconds ago | changed/recent, unmerged |
+| `feat/nl-library` | `e83de829c842db3b19e75eeddf637148431e9a37` | 01:02:14 | 35 minutes ago | quiet, integrated |
+| `feat/nl-authedge` | `5dc15a58acbf0d4c9224cee71210eaa136aced06` | 01:29:37 | 7 minutes ago | changed/recent, unmerged |
+| `feat/nl-uploads` | `ac58e9c8a55a759e0900947cd3cced78a35f82c8` | 01:10:06 | 27 minutes ago | quiet, integrated |
+| `feat/nl-ci` | `e4f7b9197680a3983c4b591961080f29530f0180` | 00:37:43 | 59 minutes ago | quiet, integrated |
+| `feat/nl-docs2` | `be8a8979d3577d6a653c3fa40789d7ffda590b41` | 00:18:42 | 78 minutes ago | quiet, integrated |
+| `feat/nl-docs` | `575c336d6ae391c42bfa36030dbb2c4331a20bf7` | 00:05:25 | 2 hours ago | superseded, integrated |
+| `feat/nl-acceptance` | `1193e85d219964a20075f0b4e210d5308e85f6fa` | 00:36:33 | 60 minutes ago | quiet, integrated |
+| `feat/nl-privacy` | `cf9ca902facc76adb4f6f1ab76012ba6b4efc4dd` | 00:54:29 | 42 minutes ago | quiet, integrated |
+| `feat/nl-migrations` | `75dc8ace00aab0f7164b64b58bd790cb54137829` | 01:03:44 | 33 minutes ago | quiet, integrated |
+| `feat/nl-load` | `6349632bb7c6da84696016a4a73b4c2c827e0ee5` | 01:13:09 | 24 minutes ago | quiet, integrated |
+| `review/nl-wave3` | `ce09ae157bb431dad74b96a7708b74912c99f207` | 00:17:37 | 79 minutes ago | quiet, integrated |
+| `review/nl-scope` | `3894911154c53518e77ecf86c21ef5bd08fa4840` | 00:13:37 | 83 minutes ago | quiet, integrated |
+| `review/nl-upload-path2` | `0b169e55a9a2225474b3bfdcf9b48cc364765968` | 00:34:50 | 62 minutes ago | quiet, integrated |
+
+Remaining changed/recent tracked refs are explicitly **journey, visual and
+authedge**. Supplemental secfix also advanced, to
+`0166b9898389f96e9a83619f63e3cc967367ddac`, committed **01:23:35 UTC**
+(`%cr`: **13 minutes ago**), and is already integrated. It and the active
+integration base are outside the original 14-ref quiet denominator.
+
+Actual outputs:
+
+```text
+COUNTS {"checks":120,"clean":115,"conflicting":5}
+BASE: 14 clean / 1 conflicting check
+PAIRS: 101 clean / 4 conflicting checks
+RAW_CUMULATIVE: steps=7, clean=6, conflicting=1 (stops at visual)
+SECFIX_SUPPLEMENT: checks=16, clean=12, conflicting=4
+MIGRATIONS: diverged={}, duplicate_timestamps={}
+QUIET: interval_seconds=1238.857054, quiet=11/14, majority=true
+MOVED {}
+```
+
+Both docs branches were checked; only superseded docs is excluded from
+quietness. The five conflicting calls are:
+
+| Check | Conflicted paths | Concrete resolution |
+| --- | --- | --- |
+| integration / visual | `components/nabalens/staff-directory-table.tsx` | Keep visible-content naming and one hidden suffix; discard the comment-only conflict |
+| journey / visual | same | Same row-link recipe |
+| journey / library | `app/admin/admin-library.tsx` | Shared `filtersToSearch` plus optimistic controls, as in snapshots 3–4 |
+| journey / authedge | `README.md`, `app/admin/admin-library.tsx` | Keep the richer journey command descriptions plus current operational links; same filter recipe |
+| journey / docs2 | `README.md` | Keep journey's command descriptions, but separate service-dependent commands from the no-services block |
+
+README pair conflicts concern expanded test commands versus a bare `pnpm test`,
+not competing product behavior. Preserve typecheck/lint/unit/build/bundle commands
+and isolated integration/security/lifecycle/migration/browser instructions.
+Use the actual **3457** E2E default, not stale 3417 prose, and do not say the
+service-dependent commands need no stack. These pair conflicts do **not** imply
+a current integration/authedge README conflict: that base check is clean.
+Likewise, integration already contains the correct combined filter recipe.
+
+### Remaining textual and semantic resolutions
+
+The only current base conflict is visual's mobile row-link comment versus
+journey's comment. Use the previously checked comment-free row blob
+`76fd4a8ad97a089228800790fdf1e6c1ee45521a`. Preserve visible name/status/job/venue,
+one hidden `, open portfolio` suffix, and all actions; do not restore an
+overriding mobile `aria-label`.
+
+**Duration precedence changes at these new tips.** Visual `72cad4a` now puts
+the filename first, then the duration, and updates its component test to
+`Video, clip.mov, 0:42, by ...`. Thus the old reason to reject that variant
+(duration before filename) no longer applies. Git still cleanly combines both
+duration additions. Keep **latest visual's one duration immediately after the
+filename**, and delete journey's trailing `duration m:ss` block. This preserves
+upload filename-prefix selectors and the new exact component-name assertion.
+It supersedes snapshots 3–4's trailing-duration recommendation at these tips.
+Resolved tile blob: `4abea6a4a4e46c9dcc6efe00f43606c5e897b0a8`.
+
+The same 14-step historical order, including ancestor no-ops for comparability,
+was checked again with unreferenced objects:
+
+```text
+PROPOSED_CUMULATIVE: steps=14, automatic=13, manual_textual_steps=1
+  tree=daa783cff9093a32f30bc358228acc95b93d6e1d
+SEMANTIC_SINGLE_DURATION:
+  tree=06027ab41dbbd3470cecd8b8fc2d053c94ac2fad
+SECFIX_AFTER_PROPOSED_CUMULATIVE: exit=0, same tree (already integrated)
+```
+
+The 16 supplemental secfix pairs still conflict with library, authedge, uploads
+and privacy at their standalone historical bases; integration/secfix is now
+clean because secfix is an ancestor. Do not reapply the old four-path manual
+secfix recipe to the current base. No proposed tree was installed or tested.
+
+### Final integration gates, not a release pass
+
+- **Contract mismatch introduced by `c83af95`:** the sixth migration now rejects
+  a missing/null upload key, but integration's `CONTRACT.md` still promises a
+  nullable column and **optional fifth RPC argument**. SQL still declares its
+  default null; the new body throws `invalid_upload_key`. Snapshot 4's
+  compatibility statement is now false. The written contract takes precedence
+  until an explicitly authorised amendment: preserve the documented legacy/
+  keyless API through a forward correction and regression tests, without losing
+  actor/resource checks or other validation. A mandatory-key redesign needs
+  explicit contract approval and a safe legacy transition, not just rewritten
+  keyed fixtures. Required size is also a new behavior to reconcile. This track
+  changes neither SQL nor the contract.
+- **Migrations:** the original five blobs remain unchanged. Integration/secfix
+  agree on sixth blob `e25aa6bd3b1f8d98bb93de3e2a93c5fcd1ce702d`, with no
+  timestamp collision. It changed since snapshot 4's supplemental secfix tip;
+  old applied-sandbox evidence does not prove this revision. Never silently
+  rewrite an already-applied migration to fix compatibility.
+- **Security integration advanced:** integration now retains service signing after
+  current-resource checks with shortening-only TTL, deleted interim portfolio,
+  missing-original body draining, DB-time takeover, and uploads' tombstone/
+  lost-claim/size checks. `5f19b58` ports the no-signed-original regression to
+  the shared library. Preserve these actual resolutions, not an old whole side.
+  Profile Origin protection is now present; the earlier reported failing test
+  must pass in the final run. No combined-head pass is claimed here.
+- **Authedge `5dc15a5`:** keep the confirmed status flowing from server result
+  through actions to account header/directory until fresh props arrive. Keep
+  `active` versus `invited` semantics from Auth and the frozen-props/UI and
+  five-second E2E regressions. Do not replace this with a guessed client toggle
+  or a longer assertion timeout. It also fixes auth-access's deleted portfolio
+  import/calls and Continue steps in library/gaps; those snapshot-4 findings
+  are resolved on the pending branch.
+- **Scanner-safe login still requires cross-suite changes:** after authedge,
+  adapt journey/world and real-email journeys, visual/upload helpers and the
+  security-header browser suite to submit Continue. Privacy runtime still probes
+  deleted `loadMorePortfolioAction` and assumes a GET establishes cookies;
+  use authorised library paging and the non-consuming GET + form POST contract.
+  Keep cross-role, no-store, leak and scanner assertions.
+- **CI corrections now landed in `be3ba67`:** root projects are reused by the
+  engine wrapper; mobile retains core plus previous phone suites; E2E workdir
+  and actual Auth URLs are forwarded; upload/gaps run-once guards now select
+  `chromium`; Firefox app-data setup is shared; the obsolete portfolio
+  `test.fail()` was removed. Do not repeat these as absent fixes.
+  Still supply matching integration `SUPABASE_DB_URL`/`SUPABASE_JWT_SECRET`,
+  production privacy runtime inputs/logs, a real Linux HEIC fixture, explicit
+  visual exclusion plus an independently executed visual gate, and no hidden
+  fixture retries. Visual still retries `generateLink` at this tip.
+- **Backup/migration tests are not final-schema proof:** integration adds some
+  required key/size fixtures and stores originals before closing reservations.
+  But `scripts/db/lib/drill.ts`'s reserve helper still omits `p_size_bytes`, so
+  the new SQL rejects it; pass the actual synthetic byte length, not a dummy.
+  Its direct end-user Storage download grants still conflict with read
+  lockdown. Retain denied direct reads and authorised app-path hash checks,
+  then rerun all migration phases and restore including the trigger/RPCs.
+- **Reported results remain branch-scoped:** journey reports two 19/19 gates;
+  visual reports 28 Chromium/WebKit passes but Firefox blocked, and exempts
+  exactly WebKit Base UI focus-guard nodes for one axe rule. This is not an
+  unqualified zero-serious-violations/full-browser pass; require an explicit
+  upstream waiver or fix, without broadening the exemption. Authedge reports
+  171 integration passes/1 profile-Origin failure/11 skips on its older base,
+  not on current integration with secfix. Do not transplant any of these results
+  to the final tree or conceal skips/unavailable engines.
+- **Other release gates remain:** the ~170-second overload finalise budget
+  versus 2-minute takeover needs reconciliation; load evidence is macOS-only,
+  sometimes contended. Journey reports unresolved hung gallery refresh,
+  slow-directory 500s and missing in-app download error feedback. Cleanup
+  scheduling, hosted Storage-trigger permission/restore, Linux production
+  worker packaging, owner inputs and physical-device/email/deployment evidence
+  are still separate gates. No stack was touched by this track.
+
+## Historical snapshot 4, 2026-10-30 01:16:11 UTC
 
 Integration advanced to `69f3d081fada8067a414f1dd8da66d7e9e1b4fee`.
 Its merge #4a contains the pinned migrations, privacy, library, CI, three review,
@@ -615,19 +793,21 @@ branch ref, or application file changed. These trees were not installed or teste
 
 ## Recommended order
 
-At integration `69f3d08`, migrations, privacy, library, CI, the three review tips,
-docs2 and acceptance are already ancestors. Do not remerge them or superseded
-docs. Their later new commits, if any, require a new pinned check.
+At final pinned integration `455d345`, every original target except the latest
+authedge and visual tips is already an ancestor. Secfix is also integrated.
+Do not remerge ancestors or superseded docs.
 
 1. Read both security reviews and secfix's implementation/evidence first.
    Preserve library's shared portfolio rather than resurrecting the deleted query.
-2. The tested scratch order for remaining code is **authedge → uploads → journey
-   → visual → load → secfix**. Apply the filter, row-name and duration recipes,
-   then the four security conflict recipes above. Recheck against the actual
-   integration head before each real merge. The integrator alone performs merges.
+2. Remaining code order is **authedge → visual**. The first base check is clean;
+   visual needs the row-link comment resolution. Apply snapshot 5's updated
+   filename-first/single-duration rule, not the earlier trailing-duration rule.
+   Recheck the actual integration head before each real merge. Only the
+   integrator merges; the 14-step scratch run is not 14 pending real merges.
 3. Consolidate auth confirmation helpers, CI discovery/isolation, no-retry fixtures,
    privacy runtime probes and migration/backup access assertions. Keep all
-   security fixes and the sixth migration before accepting browser/release evidence.
+   security fixes and resolve the newly introduced optional-key contract mismatch
+   before accepting browser/release evidence.
 4. Run the integrated install/typecheck/lint/unit/build/bundle gates, then actual
    security, lifecycle, migration, integration, browser and independent visual
    gates on owned isolated stacks. Require nonzero cases, the formerly failing
@@ -636,15 +816,17 @@ docs. Their later new commits, if any, require a new pinned check.
 5. Reconcile docs2/acceptance and runtime-sizing evidence with the final tree.
    Require hosted trigger permission, cleanup scheduling and deployment/phone
    evidence separately. Old audit passes do not certify the new tree.
-6. Integrate this branch's newer documentation delta when useful; its prior
-   `4c03805` is already merged. No proposed scratch commit is a branch to merge.
+6. Integrate this branch's final documentation delta and reconcile STATUS/handoffs
+   with actual final-head results. Its prior `4c03805` is already merged.
+   No proposed scratch commit is a branch to merge. Recurring precheck stops
+   because its quiet criterion is met, not because these release gates passed.
 
 ## Resolution rules and semantic overlaps
 
-Snapshots 1–2 were textually clean. Snapshot 3 adds the admin filter conflict
-and duration duplication; snapshot 4 adds the row-name conflict and supplemental
-secfix conflicts. The latest section's exact resolutions take precedence over
-historical findings below.
+Snapshots 1–2 were textually clean. Snapshots 3–4 introduced the filter/row and
+supplemental secfix conflicts. Snapshot 5 distinguishes historical pair conflicts
+from the one remaining base conflict and changes duration precedence for the new
+visual tip. Its exact resolutions take precedence over earlier recommendations.
 
 - **`package.json`: combine, do not choose an entire side.** Retain the integration
   scripts and all new suite commands. Keep additive browser-test dependencies from
@@ -699,35 +881,32 @@ historical findings below.
   Keep the existing unit globs and integration isolation. New
   `tests/integration/upload-*.test.ts` already match its integration glob, not
   `pnpm test`'s unit project. Preserve security/lifecycle standalone configs.
-- Keep journey's root `playwright.config.ts`, visual's
-  `playwright.visual.config.ts`, and CI's `scripts/ci/playwright.config.ts` until
-  their discovery and environment contracts are reconciled. Do not flatten them
-  into a config that silently omits a suite or runs visual tests in every journey
+- Keep the consolidated root `playwright.config.ts` and CI's engine wrapper,
+  which now reuses its projects (`be3ba67`). Preserve visual's independent config
+  and command. Do not silently omit a suite or run visual tests in every journey
   project. Keep `workers: 1`, `retries: 0`, no hidden retries and no server reuse.
 - **Fix unrestricted test discovery before treating CI as integrated.** Journey's
   root config discovers all of `tests/e2e`. Visual now self-skips without its
   config's environment marker, but this does not establish visual coverage.
   Explicitly exclude `visual.spec.ts` from ordinary discovery and run the
-  preserved visual config as its own gate. Resolve uploads' project-name mismatch
-  as described in snapshot 2 so that the opposite failure, silent skipping of
-  an intended ordinary suite, cannot pass unnoticed.
-- **Connect CI to journey's isolation contract.** CI's
-  `scripts/ci/run-suites.mjs` exports credentials, but not
-  `E2E_SUPABASE_WORKDIR`. Pass its isolated workdir through journey's resolver,
-  which sets `E2E_ISOLATED_STACK` and `E2E_DB_URL`. Keep
-  `tests/e2e/helpers/stack.ts`'s fail-closed `requireIsolatedStack()`.
-- **Fix CI auth URLs, not auth enforcement.** CI's preparation script currently
-  rewrites Supabase ports but leaves auth redirects on port 3000. Reuse journey's
-  site/callback/confirm URL transformation for the actual CI app port, without
-  changing invite-only settings.
+  preserved visual config as its own gate. Upload/gaps run-once guards now use
+  `chromium`; retain the fix and require nonzero executed cases.
+- **Preserve CI's E2E isolation fix.** `run-suites.mjs` now forwards
+  `E2E_SUPABASE_WORKDIR`; root resolves isolated API credentials and `E2E_DB_URL`.
+  Keep `requireIsolatedStack()` fail-closed. Integration auth tests still need
+  their matching `SUPABASE_DB_URL` and `SUPABASE_JWT_SECRET`; E2E forwarding is
+  not a substitute for these separate inputs.
+- **Preserve CI's corrected Auth URLs.** `prepare-stack.mjs` now uses the actual
+  E2E app port for Site URL and callback/confirm URLs. Keep invite-only settings;
+  suite-only rate-limit changes must stay in owned temporary stack configs.
 - **Make HEIC fixtures deployable on CI's platform.** Journey's
   `tests/e2e/helpers/media.ts` invokes macOS `sips` unconditionally from the core
   journey. Ubuntu CI needs a real synthetic HEIC fixture or supported encoder,
   not a skipped assertion or fake JPEG substitute. Preserve ffmpeg/HEVC coverage.
-- **Keep CI's project matrix explicit.** Its wrapper replaces journey projects
-  with desktop/phone projects per engine, losing journey's `@core` filtering and
-  mobile device settings. Decide and document the deliberate matrix, preserving
-  actual browser/device settings, one worker, zero retries and all core assertions.
+- **Keep CI's now-explicit project matrix.** Its wrapper retains root projects:
+  Chromium full desktop plus phone core/previous phone suites, Firefox/WebKit
+  core. Preserve actual device settings and assertions; do not revert to the
+  old wrapper's generic desktop/phone replacements or claim physical devices.
 - **Keep privacy's checked post-build bundle scan.** Integration `a964290`
   wires it into local CI. Preserve the checked exit status and same build
   environment when consolidating later commands. Runtime privacy cases still
@@ -759,9 +938,9 @@ not needed. Never share another worktree's containers or stop them.
 
 ### Migration ledger
 
-Across the original 15 pinned target tips, the five production migrations remain
-identical with no duplicate timestamps or divergent blobs. Supplemental secfix
-adds a sixth, uniquely timestamped forward migration:
+The original five migration blobs are unchanged across the pinned refs.
+Integration and secfix now also contain the sixth forward migration. Current
+shared paths have no divergent blobs or duplicate timestamps:
 
 | Order | Filename | Dependency / reason to retain |
 | --- | --- | --- |
@@ -772,10 +951,11 @@ adds a sixth, uniquely timestamped forward migration:
 | 5 | `20261029160000_media_client_upload_key.sql` | Contract amendment; immutable key/index, five-argument reserve replacing four-argument RPC |
 | 6, secfix | `20261030100000_security_hardening.sql` | Drops end-user Storage reads; adds original-write guard, reserve hardening and DB-time claim/reaper RPCs; depends on the preceding five |
 
-Keep the first five once and unchanged. Append secfix's sixth; no timestamp
-renumbering is justified. Its nullable key and optional RPC arguments remain
-compatible with the existing amendment. Reconcile backup/access-test expectations
-with its intentionally changed read policy, as detailed in snapshot 4.
+Keep all six once; secfix's sixth is already integrated. No timestamp renumbering
+is justified. Its latest body rejects null keys despite the unchanged optional
+RPC contract, as detailed in snapshot 5; the earlier compatibility claim applies
+only to the old supplemental tip. Reconcile that mismatch explicitly and rerun
+backup/access tests against the final migration revision.
 `feat/nl-migrations` equalled base in snapshot 1 and adds test/backup scripts in
 snapshot 2, with no production SQL corrections yet. Prefer a new uniquely timestamped
 forward migration after its dependencies. For two future new files sharing a
@@ -827,23 +1007,18 @@ started, reset, reused, or stopped.
 
 ## Cadence and remaining work
 
-Complete scans: **00:15:10**, **00:35:46**, **00:56:17**, **01:16:11 UTC**.
-Next expected schedule tick: **01:35:04 UTC, 30 October 2026**, then every
-20 minutes. Only **7/14** non-superseded refs met the quiet criterion in snapshot 4,
-so this is not final. Compare each new sweep with the latest previous snapshot.
-Each follow-up must pin fresh refs, record
-`git log -1 --format=%cr <branch>`, rerun all base and pairwise merge-tree checks,
-inspect new shared-file changes and cumulative merge trees, then commit both
-this plan and `docs/fanout/handoffs/merge-precheck.md`.
-Also repin secfix and recheck its supplemental overlaps; do not silently mix its
-extra checks into the fixed 120-check matrix or original quiet denominator.
+Complete scans: **00:15:10**, **00:35:46**, **00:56:17**, **01:16:11** and
+**01:36:50 UTC, 30 October 2026**. Snapshot 5 meets the requested stopping
+criterion: **11/14** unchanged across **20m39s**, all qualifying commits at
+least 20 minutes old. The exact schedule pause result is in the handoff;
+there is no further requested recurring sweep.
 
-The continuation is bound to this thread; the first scheduled run changed its
-interval to 1,200,000 ms. Its exact task ID is in the continuity handoff. This lets
-the requested periodic
-work continue without a sleeping shell, polling loop, server, or occupied stack.
+Remaining changed/recent original refs: **journey, visual, authedge**. Journey
+is already integrated; visual/latest authedge are not. Supplemental secfix and
+integration also changed, outside the fixed denominator. These are committed-ref
+observations, not assertions that any uncommitted work or release gate is done.
 
-Stop recurring sweeps when a majority of tracked (non-superseded) branches have
-unchanged tips across a roughly 20-minute interval and their latest commits are
-at least 20 minutes old. This is an observable quiet-ref criterion, not proof that
-uncommitted work has stopped. List remaining active tracks explicitly.
+The integrator must repin against its actual current head before the remaining
+real merges, apply the final semantic recipes, resolve the contract mismatch and
+run the real combined-tree gates. This track's baseline application is unchanged,
+so its previously recorded checks were not rerun for these documentation updates.
