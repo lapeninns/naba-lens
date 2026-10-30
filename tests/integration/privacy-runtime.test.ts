@@ -104,7 +104,8 @@ async function request(
   const entry = {
     role,
     method: init.method ?? "GET",
-    path,
+    // Kept out of assertion messages, although each link is single-use.
+    path: path.replace(/token_hash=[^&]+/, "token_hash=…"),
     status: res.status,
     headers: res.headers,
     body,
@@ -370,7 +371,7 @@ describe.skipIf(!BASE)("privacy: runtime headers, bodies and logs", () => {
       if (sharedCacheable.test(cc)) {
         // Only a build-time prerender (the production 404 for /ui-preview) may
         // be shared, and only if every role received the same bytes.
-        expect(r.headers.get("x-nextjs-prerender"), where).toBe("1")
+        expect(r.headers.get("x-nextjs-prerender"), where).toMatch(/^1(, 1)*$/)
         const variants = observed.filter(
           (o) => o.path === r.path && o.method === r.method && o.rsc === r.rsc
         )
@@ -382,6 +383,10 @@ describe.skipIf(!BASE)("privacy: runtime headers, bodies and logs", () => {
       // must be private and no-store. Redirects without a body may omit it
       // (307/303 are not cacheable without explicit freshness).
       const isRedirect = r.status >= 300 && r.status < 400
+      // A response that sets cookies (a session) must never be stored.
+      if (r.headers.getSetCookie().length > 0) {
+        expect(cc, `${where} sets cookies`).toMatch(/no-store/)
+      }
       // no-store forbids every cache from storing it, so `private` is optional.
       if (r.path.startsWith("/api/") || (r.role !== "anon" && !isRedirect)) {
         expect(cc, where).toMatch(/no-store/)

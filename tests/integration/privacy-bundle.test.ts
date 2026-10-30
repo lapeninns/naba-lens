@@ -40,10 +40,8 @@ function scan(root: string, env: Record<string, string> = {}) {
     [SCRIPT, "--root", root, "--json"],
     {
       encoding: "utf8",
-      env: {
-        PATH: process.env.PATH ?? "",
-        ...env,
-      },
+      // Only the values under test: never the caller's real secrets.
+      env: { NODE_ENV: "test", PATH: process.env.PATH ?? "", ...env },
     }
   )
   const report =
