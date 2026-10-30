@@ -2,6 +2,7 @@
 
 import * as React from "react"
 
+import { fetchMediaPage } from "@/app/_media/fetch-page"
 import { MediaGallery } from "@/app/_media/media-gallery"
 import { loadLibraryPage } from "@/app/admin/library-actions"
 import { EmptyState } from "@/components/nabalens"
@@ -27,11 +28,17 @@ export function AdminPortfolio({
     (cursor: string | null) => loadLibraryPage({ staff: staffId }, cursor),
     [staffId]
   )
+  const refreshPage = React.useCallback(
+    (signal: AbortSignal) =>
+      fetchMediaPage("/api/library", { staff: staffId }, signal),
+    [staffId]
+  )
   return (
     <MediaGallery
       label={`${staffName}'s portfolio`}
       initialPage={initialPage}
       loadPage={loadPage}
+      refreshPage={refreshPage}
       showAttribution
       canDelete
       refreshIntervalMs={REFRESH_MS}

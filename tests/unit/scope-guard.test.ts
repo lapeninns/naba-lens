@@ -42,6 +42,10 @@ const ALLOWED_HANDLERS = new Set([
   "/admin/staff/[id]/avatar",
   "/api/avatars/[id]",
   "/api/profile",
+  // Gallery refresh as an abortable GET (final review F5): same reads as the
+  // loadMyMedia / loadLibraryPage Server Functions.
+  "/api/portfolio",
+  "/api/library",
   "/api/media/[id]/download",
   "/api/media/[id]/preview",
   "/api/media/[id]/stream",

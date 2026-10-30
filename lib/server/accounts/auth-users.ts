@@ -45,16 +45,21 @@ export async function withAuthDeadline<T>(
  * Every auth user, read with the service role. GoTrue's admin API has no
  * lookup by email, so this pages through the list; one organisation's staff
  * fit in one page. Bounded: at most MAX_PAGES requests and `deadlineMs` in
- * total. Throws AuthLookupError; callers decide how to degrade.
+ * total, and no further page is requested after the deadline. Throws
+ * AuthLookupError; callers decide how to degrade.
  */
 export async function listAuthUsers(
   service: Db,
   deadlineMs = AUTH_LOOKUP_DEADLINE_MS
 ): Promise<User[]> {
+  // Set once the caller stops waiting (deadline or error): the loop then stops
+  // asking an already slow GoTrue for further pages.
+  let abandoned = false
   return withAuthDeadline(
     (async () => {
       const users: User[] = []
       for (let page = 1; page <= MAX_PAGES; page++) {
+        if (abandoned) throw new AuthLookupError("timeout")
         const { data, error } = await service.auth.admin.listUsers({
           page,
           perPage: PAGE_SIZE,
@@ -66,7 +71,9 @@ export async function listAuthUsers(
       throw new AuthLookupError("too_many")
     })(),
     deadlineMs
-  )
+  ).finally(() => {
+    abandoned = true
+  })
 }
 
 export async function findAuthUserByEmail(

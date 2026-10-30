@@ -135,7 +135,6 @@ export function useAccountControls({
         [member.id]: { status, basis },
       }))
     }
-    router.refresh()
   }
 
   /** The member as rendered from props, with a status the server confirmed since. */
@@ -165,7 +164,10 @@ export function useAccountControls({
   async function reactivate(member: StaffMember) {
     setNotice(null)
     const result = await setStaffActiveAction(member.id, true)
-    if (result.ok) confirmStatus(member, result.status)
+    if (result.ok) {
+      confirmStatus(member, result.status)
+      router.refresh()
+    }
     setNotice(
       result.ok
         ? {
@@ -195,6 +197,7 @@ export function useAccountControls({
         return
       }
       confirmStatus(deactivating, result.status)
+      router.refresh()
       setNotice({
         tone: result.warning ? "warning" : "success",
         text:
@@ -233,7 +236,8 @@ export function useAccountControls({
       }
       return result
     } finally {
-      // Picks up a new photo even when a later field failed.
+      // The only refresh for an edit (also after an activation change): picks
+      // up a new photo even when a later field failed.
       router.refresh()
     }
   }
