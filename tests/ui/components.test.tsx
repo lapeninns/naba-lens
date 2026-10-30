@@ -36,7 +36,7 @@ const item: MediaItem = {
 }
 
 describe("ConfirmDeleteDialog", () => {
-  it("uses the exact spec copy and confirms", async () => {
+  it("discloses indefinite backup retention and confirms", async () => {
     const onConfirm = vi.fn().mockResolvedValue({ ok: true })
     const onOpenChange = vi.fn()
     render(
@@ -44,7 +44,7 @@ describe("ConfirmDeleteDialog", () => {
     )
     expect(
       screen.getByText(
-        "Remove this file from your portfolio and the admin library? Previously downloaded copies cannot be recalled."
+        "Remove this file from your portfolio and the admin library? When backups are enabled, copies are retained indefinitely for recovery. Previously downloaded copies cannot be recalled."
       )
     ).toBeTruthy()
     expect(DELETE_CONFIRM_COPY).toContain("cannot be recalled")

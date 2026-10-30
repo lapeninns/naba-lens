@@ -15,9 +15,9 @@ import { Button } from "@/components/ui/button"
 
 import type { ActionResult } from "./types"
 
-/** Exact copy from the spec (section 7). */
+/** Spec section7 removal copy plus the owner-approved indefinite backup disclosure. */
 export const DELETE_CONFIRM_COPY =
-  "Remove this file from your portfolio and the admin library? Previously downloaded copies cannot be recalled."
+  "Remove this file from your portfolio and the admin library? When backups are enabled, copies are retained indefinitely for recovery. Previously downloaded copies cannot be recalled."
 
 type ConfirmDeleteDialogProps = {
   open: boolean

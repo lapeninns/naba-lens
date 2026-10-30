@@ -13,6 +13,10 @@
 #   storage-policies.sql   CREATE POLICY statements for storage.* tables, generated
 #                          from pg_policies: schema.sql omits them, and without them
 #                          the private buckets would have no read/upload policies
+#   managed-triggers.sql   app-owned triggers on managed auth/storage tables,
+#                          including the original-write guard and enabled state
+#   app-acls.json          exact schema/table/column/sequence/function/type/default
+#                          grants, compared after restore (source role names)
 #   migrations-schema.sql  supabase_migrations schema and
 #   migrations-data.sql    its rows: the applied migration history
 #   data.sql               all data incl. auth.* and storage.buckets (COPY), except
@@ -85,6 +89,10 @@ psql "$db_url" -X -A -t -v ON_ERROR_STOP=1 -c "
     ' using (' || qual || ')', ' with check (' || with_check || ')')
   from pg_policies where schemaname = 'storage'
   order by tablename, policyname" >"$out/storage-policies.sql"
+psql "$db_url" -X -q -A -t -v ON_ERROR_STOP=1 \
+  -f "$repo/scripts/db/managed-triggers.sql" >"$out/managed-triggers.sql"
+psql "$db_url" -X -q -A -t -v ON_ERROR_STOP=1 \
+  -f "$repo/scripts/db/app-acls.sql" >"$out/app-acls.json"
 echo "   $(grep -c . "$out/storage-policies.sql") storage policies, $(grep -c . "$out/migrations.txt") migrations"
 
 echo "== copying storage objects"

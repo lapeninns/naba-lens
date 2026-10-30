@@ -75,10 +75,13 @@ codecs. Format acceptance does not guarantee playback on every device.
 
 To remove an item, open it and choose **Delete**. Read:
 
-> Remove this file from your portfolio and the admin library? Previously downloaded copies cannot be recalled.
+> Remove this file from your portfolio and the admin library? When backups are enabled, copies are retained indefinitely for recovery. Previously downloaded copies cannot be recalled.
 
 Choose **Keep file** to cancel or **Delete** to confirm. The same asset disappears
 from both views. Existing signed links may work until expiry; saved copies remain.
+When the original-media archive is enabled, deletion does not erase its private
+recovery copy. The owner has chosen indefinite archive retention; local/staging
+environments may explicitly disable archival. See [archive operations](media-archive.md).
 
 Capture safely and follow your organisation's privacy and permission rules.
 Uploading is not publishing clearance. See [capture guidance](operations.md).

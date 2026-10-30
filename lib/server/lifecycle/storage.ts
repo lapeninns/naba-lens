@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import { STORAGE_BUCKETS } from "@/lib/config/storage"
 import type { Database } from "@/lib/db/types"
+import { ensureArchiveBeforeRemoval } from "@/lib/server/archive"
 
 export type ServiceClient = SupabaseClient<Database>
 
@@ -13,8 +14,11 @@ export type ServiceClient = SupabaseClient<Database>
 export type RemoveObjects = (keys: string[]) => Promise<void>
 
 export function storageRemover(service: ServiceClient): RemoveObjects {
+  // One budget for the whole cleanup/request, not a fresh timeout per asset.
+  const signal = AbortSignal.timeout(45_000)
   return async (keys) => {
     if (keys.length === 0) return
+    await ensureArchiveBeforeRemoval(service, keys, signal)
     const { error } = await service.storage
       .from(STORAGE_BUCKETS.media)
       .remove(keys)

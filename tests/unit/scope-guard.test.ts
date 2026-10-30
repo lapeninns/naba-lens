@@ -57,6 +57,9 @@ const ALLOWED_HANDLERS = new Set([
   "/api/media/[id]/stream",
   "/api/media/[id]/thumb",
   "/api/internal/cleanup",
+  // Owner-approved indefinite original retention and authenticated health checks.
+  "/api/internal/media-archive",
+  "/api/internal/media-archive/status",
   // v0.3: JSON/CSV import preview upload (> Server Action body limit).
   "/api/admin/menus/import-preview",
 ])

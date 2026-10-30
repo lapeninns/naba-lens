@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Read-only, signed-out availability/access smoke. Never sends application
-// credentials, follows redirects, submits a login form, or authorises cleanup.
+// credentials, follows redirects, submits a login form, or authorises internal jobs.
 // Usage: node scripts/ci/smoke-production.mjs https://your-production-origin
 import { randomUUID } from "node:crypto"
 import { resolve } from "node:path"
@@ -63,7 +63,10 @@ async function boundedBody(response) {
   return Buffer.concat(chunks).toString("utf8")
 }
 
-function noStore(response, { privateResponse = false } = {}) {
+function noStore(
+  response,
+  { privateResponse = false, privateCache = privateResponse } = {}
+) {
   const directives = new Set(
     (response.headers.get("cache-control") ?? "")
       .toLowerCase()
@@ -71,8 +74,10 @@ function noStore(response, { privateResponse = false } = {}) {
       .map((value) => value.trim())
   )
   assert(directives.has("no-store"), "Missing no-store cache protection.")
-  if (privateResponse) {
+  if (privateCache) {
     assert(directives.has("private"), "Missing private cache protection.")
+  }
+  if (privateResponse) {
     assert(
       response.headers.get("x-content-type-options")?.toLowerCase() ===
         "nosniff",
@@ -230,6 +235,23 @@ export async function runProductionSmoke(
       "Unexpected cleanup denial."
     )
   })
+
+  for (const path of [
+    "/api/internal/media-archive",
+    "/api/internal/media-archive/status",
+  ]) {
+    await check(path, (response, body) => {
+      assert(
+        response.status === 401,
+        "Archive endpoint must be configured and reject an unauthorised request (HTTP 401)."
+      )
+      noStore(response, { privateCache: true })
+      assert(
+        jsonBody(response, body)?.error === "unauthorized",
+        "Unexpected archive denial."
+      )
+    })
+  }
 
   await check(`/nabalens-smoke-missing-${randomUUID()}`, (response) => {
     assert(response.status === 404, "Unknown route did not return HTTP 404.")

@@ -257,7 +257,7 @@ test.describe("vertical slice: upload, portfolio, library, download, isolation",
     const confirm = adminPage.getByRole("alertdialog")
     await expect(
       confirm.getByText(
-        "Remove this file from your portfolio and the admin library? Previously downloaded copies cannot be recalled."
+        "Remove this file from your portfolio and the admin library? When backups are enabled, copies are retained indefinitely for recovery. Previously downloaded copies cannot be recalled."
       )
     ).toBeVisible()
     await confirm.getByRole("button", { name: "Delete" }).click()

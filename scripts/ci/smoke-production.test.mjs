@@ -48,6 +48,21 @@ function applicationResponse(path) {
       body: JSON.stringify({ error: "unauthorized" }),
     }
   }
+  if (
+    [
+      "/api/internal/media-archive",
+      "/api/internal/media-archive/status",
+    ].includes(path)
+  ) {
+    return {
+      status: 401,
+      headers: {
+        "cache-control": "private, no-store",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ error: "unauthorized" }),
+    }
+  }
   return {
     status: 404,
     headers: { "content-type": "text/html" },
@@ -83,8 +98,8 @@ async function fixture(t, change = (_path, response) => response) {
 test("the expected application passes all read-only checks without credentials", async (t) => {
   const { requests, result } = await fixture(t)
   assert.equal(result.ok, true)
-  assert.equal(result.results.length, 11)
-  assert.equal(requests.length, 11)
+  assert.equal(result.results.length, 13)
+  assert.equal(requests.length, 13)
   assert.ok(requests.every((request) => request.method === "GET"))
   assert.ok(
     requests.every(
@@ -96,6 +111,12 @@ test("the expected application passes all read-only checks without credentials",
       .length,
     1
   )
+  for (const path of [
+    "/api/internal/media-archive",
+    "/api/internal/media-archive/status",
+  ]) {
+    assert.equal(requests.filter((request) => request.path === path).length, 1)
+  }
 })
 
 test("target validation rejects missing/insecure/credential-bearing/non-origin URLs", () => {
@@ -128,7 +149,7 @@ test("Vercel SSO redirects are failures and are never followed", async (t) => {
     result.results.find((entry) => entry.path === "/login").ok,
     false
   )
-  assert.equal(requests.length, 11)
+  assert.equal(requests.length, 13)
   assert.ok(!JSON.stringify(result).includes("do-not-log"))
 })
 
@@ -218,6 +239,64 @@ test("media header and cleanup configuration failures are independently reported
   assert.equal(result.results.filter((entry) => !entry.ok).length, 2)
 })
 
+test("both archive endpoints fail closed on access, configuration, JSON and cache regressions", async (t) => {
+  for (const path of [
+    "/api/internal/media-archive",
+    "/api/internal/media-archive/status",
+  ]) {
+    for (const [name, mutate] of [
+      ["access allowed", (response) => ({ ...response, status: 200 })],
+      [
+        "unconfigured",
+        (response) => ({
+          ...response,
+          status: 503,
+          body: JSON.stringify({ error: "unconfigured" }),
+        }),
+      ],
+      [
+        "cacheable denial",
+        (response) => ({
+          ...response,
+          headers: {
+            ...response.headers,
+            "cache-control": "private, max-age=60",
+          },
+        }),
+      ],
+      [
+        "wrong denial",
+        (response) => ({
+          ...response,
+          body: JSON.stringify({ error: "provider-login" }),
+        }),
+      ],
+    ]) {
+      await t.test(`${path}: ${name}`, async (subtest) => {
+        const { requests, result } = await fixture(
+          subtest,
+          (requestedPath, response) =>
+            requestedPath === path ? mutate(response) : response
+        )
+        assert.equal(result.ok, false)
+        assert.equal(result.results.filter((entry) => !entry.ok).length, 1)
+        assert.equal(
+          result.results.find((entry) => entry.path === path).ok,
+          false
+        )
+        assert.ok(
+          requests.every(
+            (request) =>
+              request.method === "GET" &&
+              !request.headers.authorization &&
+              !request.headers.cookie
+          )
+        )
+      })
+    }
+  }
+})
+
 test("soft-404 fallbacks fail and oversized/error responses do not leak body data", async (t) => {
   const { result } = await fixture(t, (path, response) => {
     if (path.startsWith("/nabalens-smoke-missing-"))
@@ -238,6 +317,6 @@ test("transport errors are redacted rather than exposing error-provided URLs", a
     },
   })
   assert.equal(result.ok, false)
-  assert.equal(result.results.length, 11)
+  assert.equal(result.results.length, 13)
   assert.ok(!JSON.stringify(result).includes("secret=private"))
 })

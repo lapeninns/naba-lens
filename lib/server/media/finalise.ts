@@ -1,6 +1,7 @@
 import { maxBytesFor, MEDIA_LIMITS } from "@/lib/config/media"
 import { mediaObjectKeys, STORAGE_BUCKETS } from "@/lib/config/storage"
 import { sniffMedia, validateMedia } from "@/lib/media"
+import { ensureMediaOriginalArchived } from "@/lib/server/archive"
 import { touchMediaReservation } from "@/lib/server/lifecycle/cleanup"
 
 import { validationMessage } from "./errors"
@@ -343,6 +344,12 @@ export async function finaliseAsset(
   }
 
   try {
+    // A successful upload must have a verified durable original + attribution
+    // receipt before it can become ready. Archival failure remains retryable.
+    await ensureMediaOriginalArchived(actor.service, row.id, {
+      sizeBytes: validation.size,
+      mimeType: validation.mime,
+    })
     if (validation.preview && validation.thumb) {
       const bucket = actor.service.storage.from(STORAGE_BUCKETS.media)
       // upsert: a crashed earlier attempt may have stored one already. These are

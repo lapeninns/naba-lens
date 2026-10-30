@@ -9,6 +9,69 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      media_archive_receipts: {
+        Row: {
+          id: number
+          asset_id: string
+          sha256: string
+          size_bytes: number
+          mime_type: string
+          source_project_ref: string
+          source_key: string
+          blob_key: string
+          manifest_key: string
+          manifest_sha256: string
+          manifest: Json
+          archived_at: string
+        }
+        Insert: {
+          id?: never
+          asset_id: string
+          sha256: string
+          size_bytes: number
+          mime_type: string
+          source_project_ref: string
+          source_key: string
+          blob_key: string
+          manifest_key: string
+          manifest_sha256: string
+          manifest: Json
+          archived_at?: string
+        }
+        Update: { [_ in never]: never }
+        Relationships: [
+          {
+            foreignKeyName: "media_archive_receipts_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      media_archive_audit_state: {
+        Row: {
+          name: string
+          cursor_id: number
+          last_run_at: string | null
+          last_complete_at: string | null
+          last_error: string | null
+        }
+        Insert: {
+          name: string
+          cursor_id?: number
+          last_run_at?: string | null
+          last_complete_at?: string | null
+          last_error?: string | null
+        }
+        Update: {
+          cursor_id?: number
+          last_run_at?: string | null
+          last_complete_at?: string | null
+          last_error?: string | null
+        }
+        Relationships: []
+      }
       media_assets: {
         Row: {
           client_upload_key: string | null
@@ -811,6 +874,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      media_archive_backfill_candidates: {
+        Args: { p_limit?: number }
+        Returns: { asset_id: string }[]
+      }
+      media_archive_missing_count: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
       acquire_maintenance_lease: {
         Args: { p_holder: string; p_name: string; p_ttl: string }
         Returns: boolean
