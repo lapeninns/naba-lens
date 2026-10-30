@@ -7,14 +7,18 @@ import {
   listLibrary,
   parseLibraryFilters,
 } from "@/lib/server/media/library"
+import { libraryLabelFilterOptions } from "@/lib/server/media/library-labels"
 
 import { AdminLibrary } from "./admin-library"
+import { toFilterValue } from "./library-search"
 
 export const metadata = { title: "Content · NabaLens" }
 
 /**
- * Admin library: every ready upload across venues, newest first, filtered by
- * venue, staff member and type through URL search params (server-side).
+ * Admin library: every ready upload across venues, newest first, filtered
+ * server-side through URL search params: venue, staff member and type, plus
+ * the optional labels (menu item and variant, category, content type,
+ * labelled or not, label/note search and an upload date range).
  */
 export default async function AdminPage({
   searchParams,
@@ -25,8 +29,9 @@ export default async function AdminPage({
   const auth = await getMediaActor("admin")
   if (!auth.ok) throw new Error("Not authorised.")
   const filters = parseLibraryFilters(await searchParams)
-  const [options, page] = await Promise.all([
+  const [options, menu, page] = await Promise.all([
     libraryFilterOptions(auth.actor),
+    libraryLabelFilterOptions(auth.actor, filters.venueId),
     listLibrary(auth.actor, filters),
   ])
   if (!page.ok) throw new Error(page.message)
@@ -41,11 +46,10 @@ export default async function AdminPage({
       <AdminLibrary
         venues={options.venues}
         staff={options.staff}
-        filters={{
-          venueId: filters.venueId,
-          staffId: filters.staffId,
-          type: filters.type ?? "all",
-        }}
+        menuOptions={
+          filters.venueId ? { ...menu, venueId: filters.venueId } : null
+        }
+        filters={toFilterValue(filters)}
         initialPage={{ items: page.items, nextCursor: page.nextCursor }}
       />
     </AppShell>

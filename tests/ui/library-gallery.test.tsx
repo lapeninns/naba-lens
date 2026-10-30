@@ -29,6 +29,8 @@ import {
 import { parseLibraryFilters } from "@/lib/server/media/library"
 import type { MediaItemView } from "@/lib/server/media/types"
 
+// lib/server/media/library loads label summaries from a server-only module.
+vi.mock("server-only", () => ({}))
 // The gallery's delete Server Function pulls in server-only modules.
 vi.mock("@/app/_media/actions", () => ({
   deleteMedia: vi.fn(async () => ({ ok: true })),
@@ -74,7 +76,12 @@ describe("library URL params", () => {
     for (const venueId of venues)
       for (const staffId of staff)
         for (const type of types) {
-          const value: LibraryFilterValue = { venueId, staffId, type }
+          const value: LibraryFilterValue = {
+            ...EMPTY_LIBRARY_FILTERS,
+            venueId,
+            staffId,
+            type,
+          }
           const search = filtersToSearch(value)
           const params = Object.fromEntries(new URLSearchParams(search))
           const back = parseLibraryFilters(params)
@@ -84,6 +91,39 @@ describe("library URL params", () => {
     expect(filtersToSearch(EMPTY_LIBRARY_FILTERS)).toBe("")
   })
 
+  it("round-trips the label filters in one fixed param order", () => {
+    const value: LibraryFilterValue = {
+      venueId: VENUE,
+      staffId: STAFF,
+      type: "video",
+      itemId: ID_A,
+      variantId: ID_B,
+      category: "curries",
+      contentType: "plating",
+      labelState: "labelled",
+      query: "lamb bhuna",
+      from: "2026-10-01",
+      to: "2026-10-31",
+    }
+    const search = filtersToSearch(value)
+    expect([...new URLSearchParams(search).keys()]).toEqual([
+      "venue",
+      "staff",
+      "type",
+      "item",
+      "variant",
+      "category",
+      "content",
+      "labels",
+      "q",
+      "from",
+      "to",
+    ])
+    expect(
+      parseLibraryFilters(Object.fromEntries(new URLSearchParams(search)))
+    ).toEqual(value)
+  })
+
   it("drops invalid or repeated params instead of passing them to the query", () => {
     expect(
       parseLibraryFilters({
@@ -91,10 +131,15 @@ describe("library URL params", () => {
         staff: `${STAFF}),or(id.gt.0`,
         type: "document",
       })
-    ).toEqual({ venueId: null, staffId: null, type: null })
+    ).toEqual({
+      ...EMPTY_LIBRARY_FILTERS,
+      venueId: null,
+      staffId: null,
+      type: null,
+    })
     expect(
       parseLibraryFilters({ venue: [VENUE, "x"], staff: [], type: ["video"] })
-    ).toEqual({ venueId: VENUE, staffId: null, type: "video" })
+    ).toEqual({ ...EMPTY_LIBRARY_FILTERS, venueId: VENUE, type: "video" })
   })
 })
 
