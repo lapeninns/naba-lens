@@ -1,0 +1,185 @@
+{
+ "runId": "710377",
+ "startedAt": "2026-10-30T00:26:08.792Z",
+ "host": {
+  "platform": "darwin arm64",
+  "node": "v24.16.0",
+  "note": "Local macOS numbers on a shared dev Mac, not deployed proof."
+ },
+ "serverActionDispatch": "one at a time per client (browser)",
+ "scenarios": {
+  "b": {
+   "scenario": "b: 5 simultaneous 12 MP HEIC finalises",
+   "soloFinaliseMs": 1382,
+   "summary": {
+    "files": 5,
+    "ready": 5,
+    "successRate": 1,
+    "outcomes": {
+     "ready": 5
+    },
+    "errors": {},
+    "finaliseMs": {
+     "all": {
+      "n": 5,
+      "p50": 4489,
+      "p95": 9444,
+      "max": 9444
+     },
+     "heic": {
+      "n": 5,
+      "p50": 4489,
+      "p95": 9444,
+      "max": 9444
+     },
+     "otherImage": {
+      "n": 0,
+      "p50": null,
+      "p95": null,
+      "max": null
+     },
+     "video": {
+      "n": 0,
+      "p50": null,
+      "p95": null,
+      "max": null
+     }
+    },
+    "finaliseActionQueueMs": {
+     "n": 5,
+     "p50": 0,
+     "p95": 0,
+     "max": 0
+    },
+    "reserveMs": {
+     "n": 0,
+     "p50": null,
+     "p95": null,
+     "max": null
+    },
+    "transferMs": {
+     "n": 0,
+     "p50": null,
+     "p95": null,
+     "max": null
+    },
+    "fileTotalMs": {
+     "n": 5,
+     "p50": 4489,
+     "p95": 9444,
+     "max": 9444
+    }
+   },
+   "queueWaitMs": [
+    955,
+    1716,
+    3107,
+    4823,
+    8063
+   ],
+   "burstStartedAt": 1793319981466,
+   "results": [
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 2336.4372500000027,
+     "finaliseWaitMs": 0.016042000002926216,
+     "totalMs": 2336.4372500000027,
+     "finaliseStatus": 200,
+     "outcome": "ready"
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 6204.837082999991,
+     "finaliseWaitMs": 0.17970900000364054,
+     "totalMs": 6204.837082999991,
+     "finaliseStatus": 200,
+     "outcome": "ready"
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 9444.474208,
+     "finaliseWaitMs": 0.2372919999907026,
+     "totalMs": 9444.474208,
+     "finaliseStatus": 200,
+     "outcome": "ready"
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 3098.2830419999955,
+     "finaliseWaitMs": 0.28237499999522697,
+     "totalMs": 3098.2830419999955,
+     "finaliseStatus": 200,
+     "outcome": "ready"
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 4488.717833000002,
+     "finaliseWaitMs": 0.4575420000037411,
+     "totalMs": 4488.717833000002,
+     "finaliseStatus": 200,
+     "outcome": "ready"
+    }
+   ],
+   "wallMs": 20021,
+   "serverRss": {
+    "idleAfterWarmMiB": 304,
+    "startMiB": 304,
+    "peakMiB": 618,
+    "endMiB": 535,
+    "samples": 152
+   },
+   "heicWorkers": {
+    "workers": 6,
+    "maxConcurrent": 1,
+    "decodeMs": {
+     "p50": 1003,
+     "p95": 1052,
+     "max": 1052
+    },
+    "runs": [
+     {
+      "start": 614,
+      "end": 1666
+     },
+     {
+      "start": 10936,
+      "end": 11908
+     },
+     {
+      "start": 11947,
+      "end": 12923
+     },
+     {
+      "start": 13483,
+      "end": 14494
+     },
+     {
+      "start": 15636,
+      "end": 16639
+     },
+     {
+      "start": 18578,
+      "end": 19625
+     }
+    ]
+   },
+   "http5xx": [],
+   "hostLoadAvg1m": [
+    27.3,
+    33.5
+   ],
+   "serverLogTail": [
+    "▲ Next.js 16.4.2",
+    "- Local:         http://127.0.0.1:3615",
+    "- Network:       http://127.0.0.1:3615",
+    "✓ Ready in 163ms",
+    "✓ Running next.config.ts took 64ms"
+   ]
+  }
+ }
+}

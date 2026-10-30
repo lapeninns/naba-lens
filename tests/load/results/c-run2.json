@@ -1,0 +1,175 @@
+{
+ "runId": "f65138",
+ "startedAt": "2026-10-30T01:00:23.444Z",
+ "host": {
+  "platform": "darwin arm64",
+  "node": "v24.16.0",
+  "note": "Local macOS numbers on a shared dev Mac, not deployed proof."
+ },
+ "serverActionDispatch": "one at a time per client (browser)",
+ "scenarios": {
+  "c": {
+   "scenario": "c: one 199.5 MiB video upload + finalise",
+   "summary": {
+    "files": 1,
+    "ready": 1,
+    "successRate": 1,
+    "outcomes": {
+     "ready": 1
+    },
+    "errors": {},
+    "finaliseMs": {
+     "all": {
+      "n": 1,
+      "p50": 901,
+      "p95": 901,
+      "max": 901
+     },
+     "heic": {
+      "n": 0,
+      "p50": null,
+      "p95": null,
+      "max": null
+     },
+     "otherImage": {
+      "n": 0,
+      "p50": null,
+      "p95": null,
+      "max": null
+     },
+     "video": {
+      "n": 1,
+      "p50": 901,
+      "p95": 901,
+      "max": 901
+     }
+    },
+    "finaliseActionQueueMs": {
+     "n": 1,
+     "p50": 0,
+     "p95": 0,
+     "max": 0
+    },
+    "reserveMs": {
+     "n": 1,
+     "p50": 29,
+     "p95": 29,
+     "max": 29
+    },
+    "transferMs": {
+     "n": 1,
+     "p50": 2190,
+     "p95": 2190,
+     "max": 2190
+    },
+    "fileTotalMs": {
+     "n": 1,
+     "p50": 3120,
+     "p95": 3120,
+     "max": 3120
+    }
+   },
+   "finaliseRss": {
+    "startMiB": 302,
+    "peakMiB": 303,
+    "endMiB": 303,
+    "samples": 9
+   },
+   "results": [
+    {
+     "file": "video-200mib.mp4",
+     "kind": "video",
+     "bytes": 209228757,
+     "reserveMs": 29.35674999999992,
+     "reserveWaitMs": 0.0014999999998508429,
+     "transferMs": 2189.6202500000004,
+     "finaliseAt": 1793322027522,
+     "finaliseMs": 901.4165000000003,
+     "finaliseEndAt": 1793322028424,
+     "finaliseWaitMs": 0.004582999999911408,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 3120.455875
+    }
+   ],
+   "wallMs": 3280,
+   "serverRss": {
+    "idleAfterWarmMiB": 302,
+    "startMiB": 302,
+    "peakMiB": 303,
+    "endMiB": 303,
+    "samples": 28
+   },
+   "heicWorkers": {
+    "workers": 0,
+    "maxConcurrent": 0,
+    "decodeMs": {
+     "p50": null,
+     "p95": null,
+     "max": 0
+    },
+    "runs": []
+   },
+   "serverFetches": {
+    "rest GET": {
+     "n": 3,
+     "p50": 4,
+     "p95": 11,
+     "max": 11,
+     "statuses": {
+      "200": 3
+     }
+    },
+    "rest POST": {
+     "n": 1,
+     "p50": 5,
+     "p95": 5,
+     "max": 5,
+     "statuses": {
+      "200": 1
+     }
+    },
+    "rest PATCH": {
+     "n": 4,
+     "p50": 3,
+     "p95": 4,
+     "max": 4,
+     "statuses": {
+      "200": 2,
+      "204": 2
+     }
+    },
+    "storage HEAD": {
+     "n": 1,
+     "p50": 4,
+     "p95": 4,
+     "max": 4,
+     "statuses": {
+      "200": 1
+     }
+    },
+    "storage GET range": {
+     "n": 2,
+     "p50": 402,
+     "p95": 462,
+     "max": 462,
+     "statuses": {
+      "206": 2
+     }
+    }
+   },
+   "http5xx": [],
+   "hostLoadAvg1m": [
+    14.3,
+    14.1
+   ],
+   "serverLogTail": [
+    "▲ Next.js 16.4.2",
+    "- Local:         http://127.0.0.1:3615",
+    "- Network:       http://127.0.0.1:3615",
+    "✓ Ready in 136ms",
+    "✓ Running next.config.ts took 27ms"
+   ]
+  }
+ }
+}

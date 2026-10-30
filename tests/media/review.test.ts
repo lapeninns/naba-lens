@@ -100,11 +100,34 @@ it("returns derivatives from validation without a second decode API call", async
     thumb: expect.any(Buffer),
   })
 })
-it("enforces HEIC concurrency one", async () => {
+it("runs HEIC decodes one at a time, in arrival order", async () => {
+  const b = await fixture("synthetic-12mp.heic")
+  const done: number[] = []
+  await Promise.all(
+    [0, 1, 2].map((i) => processImage(b).then(() => done.push(i)))
+  )
+  expect(done).toEqual([0, 1, 2])
+})
+it("returns decoder_busy after waiting one decode deadline for the slot", async () => {
+  const { MEDIA_LIMITS } = await import("../../lib/config/media")
+  const config = MEDIA_LIMITS as { heicTimeoutMs: number }
+  const old = config.heicTimeoutMs
   const b = await fixture("synthetic-12mp.heic")
   const pending = processImage(b)
-  await expect(processImage(b)).rejects.toMatchObject({ code: "decoder_busy" })
-  await pending
+  // Let the first decode start its worker (and its own 15 s deadline).
+  await new Promise((r) => setTimeout(r, 0))
+  try {
+    // Only the waiter's deadline is short.
+    config.heicTimeoutMs = 1
+    await expect(processImage(b)).rejects.toMatchObject({
+      code: "decoder_busy",
+    })
+  } finally {
+    config.heicTimeoutMs = old
+  }
+  expect((await pending).width).toBe(4000)
+  // The slot is free again after a waiter gave up.
+  expect((await processImage(b)).width).toBe(4000)
 })
 it("terminates timed-out workers and releases slot before next decode", async () => {
   const { MEDIA_LIMITS } = await import("../../lib/config/media")

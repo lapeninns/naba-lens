@@ -1,0 +1,127 @@
+{
+ "runId": "19c4aa",
+ "startedAt": "2026-10-30T00:20:52.306Z",
+ "host": {
+  "platform": "darwin arm64",
+  "node": "v24.16.0",
+  "note": "Local macOS numbers on a shared dev Mac, not deployed proof."
+ },
+ "serverActionDispatch": "one at a time per client (browser)",
+ "scenarios": {
+  "c": {
+   "scenario": "c: one 199.5 MiB video upload + finalise",
+   "summary": {
+    "files": 1,
+    "ready": 1,
+    "successRate": 1,
+    "outcomes": {
+     "ready": 1
+    },
+    "errors": {},
+    "finaliseMs": {
+     "all": {
+      "n": 1,
+      "p50": 12288,
+      "p95": 12288,
+      "max": 12288
+     },
+     "heic": {
+      "n": 0,
+      "p50": null,
+      "p95": null,
+      "max": null
+     },
+     "otherImage": {
+      "n": 0,
+      "p50": null,
+      "p95": null,
+      "max": null
+     },
+     "video": {
+      "n": 1,
+      "p50": 12288,
+      "p95": 12288,
+      "max": 12288
+     }
+    },
+    "finaliseActionQueueMs": {
+     "n": 1,
+     "p50": 0,
+     "p95": 0,
+     "max": 0
+    },
+    "reserveMs": {
+     "n": 1,
+     "p50": 41,
+     "p95": 41,
+     "max": 41
+    },
+    "transferMs": {
+     "n": 1,
+     "p50": 23485,
+     "p95": 23485,
+     "max": 23485
+    },
+    "fileTotalMs": {
+     "n": 1,
+     "p50": 35814,
+     "p95": 35814,
+     "max": 35814
+    }
+   },
+   "finaliseRss": {
+    "startMiB": 283,
+    "peakMiB": 283,
+    "endMiB": 212,
+    "samples": 96
+   },
+   "results": [
+    {
+     "file": "video-200mib.mp4",
+     "kind": "video",
+     "bytes": 209228757,
+     "reserveMs": 40.95683300000019,
+     "reserveWaitMs": 0.0012500000011641532,
+     "transferMs": 23484.871167,
+     "finaliseAt": 1793319677977,
+     "finaliseMs": 12287.880375,
+     "finaliseEndAt": 1793319690265,
+     "finaliseWaitMs": 0.003792000003159046,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 35813.799375
+    }
+   ],
+   "wallMs": 36013,
+   "serverRss": {
+    "idleAfterWarmMiB": 305,
+    "startMiB": 305,
+    "peakMiB": 305,
+    "endMiB": 212,
+    "samples": 277
+   },
+   "heicWorkers": {
+    "workers": 0,
+    "maxConcurrent": 0,
+    "decodeMs": {
+     "p50": null,
+     "p95": null,
+     "max": 0
+    },
+    "runs": []
+   },
+   "http5xx": [],
+   "hostLoadAvg1m": [
+    27.2,
+    31.2
+   ],
+   "serverLogTail": [
+    "▲ Next.js 16.4.2",
+    "- Local:         http://127.0.0.1:3615",
+    "- Network:       http://127.0.0.1:3615",
+    "✓ Ready in 129ms",
+    "✓ Running next.config.ts took 66ms"
+   ]
+  }
+ }
+}
