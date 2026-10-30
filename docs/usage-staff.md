@@ -42,6 +42,30 @@ inactive venue if uploads are paused.
    Closing clears the queue and retry context. Do not rely on uploads continuing
    after browser closure; recheck your portfolio before reselecting.
 
+## Add labels (optional)
+
+Labels help admins find your photos and videos later. They are optional:
+skipping them never affects the upload, and every upload appears in the admin
+library straight away, labelled or not.
+
+- After an upload finishes, choose **Label these files** (or **Done** to skip).
+  You can also open any ready photo or video later and choose **Add labels**
+  or **Edit labels**.
+- Search the menu of the venue the file was **uploaded at** (not your current
+  venue, if you have moved). Results show the section, so "Chicken" under Korma
+  and "Chicken" under Masala are different items. Pick a variant if asked.
+- Add up to four content types (Finished dish, Preparation, Plating, Drinks,
+  Kitchen, Team, Venue, Event) and an optional short note (280 characters).
+- Dish not listed? Use **Item not on the menu?** and type its name; an admin
+  reviews it. Don't pick an item that isn't really in the photo.
+- With several files, the **Common to all files** choices apply to every file;
+  open a file's **Adjust** panel to change just that one.
+- If someone else changed the labels, or the venue's menu changed while you
+  were editing, the dialog tells you and keeps your edits so you can retry.
+
+A label describes what is in the file. It is not a claim about allergens,
+dietary suitability, price or availability, and not permission to publish.
+
 ## View or delete your media
 
 Your newest-first gallery contains only your uploads, including incomplete

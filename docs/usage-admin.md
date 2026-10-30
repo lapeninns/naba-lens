@@ -27,6 +27,40 @@ Individual portfolios have previews and **Load more**, but **no download or
 delete actions**. Use **Content** filtered by **Staff member** instead.
 Reload a portfolio page if its previews expire.
 
+## Filter by labels and correct them
+
+The Content filters also include **More filters**: menu item (and variant) and
+menu category (choose a venue first), content type, **Labelled / Needs
+labels**, a date range, and a search box over item names, aliases, notes and
+missing-item suggestions. Filters combine; each file appears once. Open a file
+and choose **Edit labels** to correct its labels (ready files only). Labels are
+optional, so unlabelled uploads still appear immediately.
+
+## Menus (catalogue for labelling)
+
+**Menus** holds each venue's menu, used only for labelling. It is not a public
+menu, does not change any venue website, and an active menu does not mean the
+venue is serving a dish today.
+
+1. Open **Menus → venue**. Start an empty draft, a draft from the active menu,
+   or import a file. Only structured **JSON** (`nabalens-menu@1`) and **CSV**
+   files are supported (see `docs/menus-import.md`); PDF, image, Word and
+   JavaScript menus are not read.
+2. The preview lists added, changed, removed and **uncertain** items. Items are
+   matched only by their source key; a same-name match is uncertain until you
+   choose **Same item as …** or **Treat as new item**. Create the draft.
+3. Edit sections, items, variants and aliases, then **Save**. If another admin
+   saved first, you get a conflict and can reload the latest copy.
+4. **Activate** when there are no unresolved items or errors. The previous
+   active version is retired; existing labels are kept. **Retire** removes a
+   venue's active menu; **Archive** stops one item being used for new labels.
+   Nothing that has labels is ever deleted.
+5. Review **missing-item suggestions** on the venue page: link them to an item
+   or dismiss them.
+
+Prices, dietary and spice values from an import are stored only as source
+details for reference.
+
 ## Invite staff and recover email failures
 
 In **Staff**, choose **Invite staff**. Fill **Name**, **Email**,

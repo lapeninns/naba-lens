@@ -82,7 +82,8 @@ Stop only the stack you own.
   TypeScript **5.9.3**, Tailwind **4.3.3** + shadcn/Base UI,
   Supabase Auth/Postgres/private Storage via `@supabase/ssr`.
 - Routes: `/login`, `/staff`, `/admin`, `/admin/staff`,
-  `/admin/staff/[id]`. Auth email templates use `/auth/confirm`;
+  `/admin/staff/[id]`, and (v0.3) `/admin/menus`, `/admin/menus/[venueId]`,
+  `/admin/menus/versions/[versionId]`. Auth email templates use `/auth/confirm`;
   `/auth/callback` supports PKCE fallback.
 - Limits in `lib/config/media.ts`: 10 files/batch, 2 parallel transfers,
   20 MiB photos, 200 MiB videos, 5 MiB avatar inputs, 60-second signed reads,
@@ -97,6 +98,8 @@ Stop only the stack you own.
 - Reviews: [wave 3](docs/reviews/wave3-review.md),
   [upload path](docs/reviews/upload-path-review.md), [scope](docs/reviews/scope-audit.md)
 - [Product specification v0.2](docs/spec/NabaLens-MVP-Execution-v0.2.md)
+- [v0.3 menu catalogue and labels amendment](docs/spec/NabaLens-Menus-Labels-v0.3.md),
+  [data model](docs/menus-data-model.md), [import formats](docs/menus-import.md)
 - [Coding-agent brief](docs/spec/NabaLens-Coding-Agent-Prompt.md)
 - [Parallel-build ownership/limits](docs/fanout/CONTRACT.md)
 
