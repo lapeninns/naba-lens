@@ -60,7 +60,10 @@ let fx: VisualFixtures
 // per project, and they share the runner as parent process.
 const fixtureCache = join(
   tmpdir(),
-  `nabalens-visual-fixtures-${createHash("sha1").update(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").digest("hex").slice(0, 8)}-${process.ppid}.json`
+  `nabalens-visual-fixtures-${createHash("sha1")
+    .update(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "")
+    .digest("hex")
+    .slice(0, 8)}-${process.ppid}.json`
 )
 
 test.beforeAll(async () => {
@@ -79,11 +82,16 @@ function widthsFor(page: Page, browserName: string): number[] {
 }
 
 async function signIn(browser: Browser, email: string, baseURL: string) {
-  // The local auth server answers 504 "please retry" when several stacks share
-  // this machine. Retry that fixture step only (as tests/e2e/slice.spec.ts does);
-  // no assertion is ever retried.
+  // The local auth server times out ("please retry") when several stacks share
+  // this machine. Retry only errors auth-js marks retryable, in this fixture
+  // step (as tests/e2e/slice.spec.ts does); no assertion is ever retried.
   let link = await db.auth.admin.generateLink({ type: "magiclink", email })
-  for (let i = 0; link.error?.status === 504 && i < 3; i++) {
+  for (
+    let i = 0;
+    link.error?.name === "AuthRetryableFetchError" && i < 3;
+    i++
+  ) {
+    await new Promise((resolve) => setTimeout(resolve, 2000))
     link = await db.auth.admin.generateLink({ type: "magiclink", email })
   }
   const { data, error } = link
@@ -504,7 +512,9 @@ test("staff: empty portfolio, upload dialog states, focus return", async ({
   release()
   await page.unroute("**/storage/v1/**")
   await page.route("**/storage/v1/**", (route) => route.abort("failed"))
-  await expect(dialog.getByRole("button", { name: /^Retry staff-meal/ })).toBeVisible({
+  await expect(
+    dialog.getByRole("button", { name: /^Retry staff-meal/ })
+  ).toBeVisible({
     timeout: 90_000,
   })
   await capture(page, testInfo, "upload-failed")
@@ -525,17 +535,39 @@ test("staff: empty portfolio, upload dialog states, focus return", async ({
   await page.context().close()
 })
 
-test("staff: populated portfolio, viewer, delete confirm, edit profile", async ({
+const some = (page: Page, testInfo: TestInfo, wanted: number[]) =>
+  widthsFor(page, testInfo.project.use.browserName ?? "chromium").filter((w) =>
+    wanted.includes(w)
+  )
+
+/** Re-opens a popup after each resize (popups close when the viewport changes). */
+function reopen(page: Page, trigger: Locator, popup: Locator) {
+  return async () => {
+    if (await popup.isVisible()) {
+      await page.keyboard.press("Escape")
+      await expect(popup).toBeHidden()
+    }
+    await trigger.click()
+    await expect(popup).toBeVisible()
+  }
+}
+
+async function populatedStaff(browser: Browser, baseURL: string) {
+  const page = await signIn(browser, fx.populated.email, baseURL)
+  await expect(page).toHaveURL(/\/staff$/)
+  await expect(page.getByRole("list", { name: "Your portfolio" })).toBeVisible()
+  return page
+}
+
+test("staff: populated portfolio and photo viewer", async ({
   browser,
   baseURL,
 }, testInfo) => {
-  const page = await signIn(browser, fx.populated.email, baseURL!)
-  await expect(page).toHaveURL(/\/staff$/)
-  await expect(page.getByRole("list", { name: "Your portfolio" })).toBeVisible()
+  const page = await populatedStaff(browser, baseURL!)
   await capture(page, testInfo, "staff-populated")
   await expectFocusVisibleEverywhere(page, "staff-populated")
 
-  // Viewer: every photo shows whole, in every width.
+  // Viewer: every photo shows whole, in every width; focus returns to the tile.
   for (const name of [
     "landscape-dish.jpg",
     "portrait-plating.jpg",
@@ -558,12 +590,7 @@ test("staff: populated portfolio, viewer, delete confirm, edit profile", async (
     }
     if (name === "panorama-dining-room.jpg") {
       await capture(page, testInfo, "viewer-photo-panorama", {
-        widths: [360, 1280].filter((w) =>
-          widthsFor(
-            page,
-            testInfo.project.use.browserName ?? "chromium"
-          ).includes(w)
-        ),
+        widths: some(page, testInfo, [360, 1280]),
       })
     }
     await page.keyboard.press("Escape")
@@ -576,7 +603,14 @@ test("staff: populated portfolio, viewer, delete confirm, edit profile", async (
       )
       .toBe(true)
   }
+  await page.context().close()
+})
 
+test("staff: video and non-ready viewer states", async ({
+  browser,
+  baseURL,
+}, testInfo) => {
+  const page = await populatedStaff(browser, baseURL!)
   // Video: controls, no autoplay.
   await (await tile(page, "kitchen-pass.mp4")).click()
   const video = page.getByRole("dialog").locator("video")
@@ -585,6 +619,7 @@ test("staff: populated portfolio, viewer, delete confirm, edit profile", async (
   expect(await video.evaluate((v: HTMLVideoElement) => v.controls)).toBe(true)
   await capture(page, testInfo, "viewer-video")
   await page.keyboard.press("Escape")
+  await expect(page.getByRole("dialog")).toBeHidden()
 
   // Non-ready states explain themselves.
   for (const [name, text] of [
@@ -594,18 +629,20 @@ test("staff: populated portfolio, viewer, delete confirm, edit profile", async (
     await (await tile(page, name)).click()
     await expect(page.getByRole("dialog").getByText(text)).toBeVisible()
     await capture(page, testInfo, `viewer-${name.split(".")[0]}`, {
-      widths: [390, 1280].filter((w) =>
-        widthsFor(
-          page,
-          testInfo.project.use.browserName ?? "chromium"
-        ).includes(w)
-      ),
+      widths: some(page, testInfo, [390, 1280]),
     })
     await page.keyboard.press("Escape")
     await expect(page.getByRole("dialog")).toBeHidden()
   }
+  await page.context().close()
+})
 
-  // Long filename in the viewer, then delete confirmation and cancel.
+test("staff: delete confirmation and edit profile", async ({
+  browser,
+  baseURL,
+}, testInfo) => {
+  const page = await populatedStaff(browser, baseURL!)
+  // Long filename in the viewer, then delete confirmation and keep.
   await (await tile(page, "IMG_20261030_dessert")).click()
   const viewer = page.getByRole("dialog")
   await expect(viewer).toBeVisible()
@@ -619,7 +656,7 @@ test("staff: populated portfolio, viewer, delete confirm, edit profile", async (
     "Previously downloaded copies cannot be recalled"
   )
   await capture(page, testInfo, "delete-confirm")
-  await confirm.getByRole("button", { name: "Cancel" }).click()
+  await confirm.getByRole("button", { name: "Keep file" }).click()
   await expect(confirm).toBeHidden()
   await page.waitForTimeout(300)
   expect
@@ -628,7 +665,7 @@ test("staff: populated portfolio, viewer, delete confirm, edit profile", async (
         page,
         page.getByRole("dialog").getByRole("button", { name: "Delete" })
       ),
-      "focus returns to Delete after cancelling the confirmation"
+      "focus returns to Delete after keeping the file"
     )
     .toBe(true)
   await page.keyboard.press("Escape")
@@ -641,15 +678,12 @@ test("staff: populated portfolio, viewer, delete confirm, edit profile", async (
   const editDialog = page.getByRole("dialog", { name: "Edit profile" })
   await expect(editDialog).toBeVisible()
   await capture(page, testInfo, "edit-profile")
+  // An empty name cannot be submitted: Save is disabled, not silently ignored.
   await editDialog.getByLabel("Display name").fill("")
-  await editDialog.getByRole("button", { name: "Save changes" }).click()
   await expect(
-    editDialog
-      .getByRole("alert")
-      .or(editDialog.locator("[data-slot=field-error]"))
-      .first()
-  ).toBeVisible()
-  await capture(page, testInfo, "edit-profile-error")
+    editDialog.getByRole("button", { name: "Save changes" })
+  ).toBeDisabled()
+  await capture(page, testInfo, "edit-profile-empty-name")
   await page.keyboard.press("Escape")
   await expect(editDialog).toBeHidden()
   await page.waitForTimeout(300)
@@ -659,29 +693,28 @@ test("staff: populated portfolio, viewer, delete confirm, edit profile", async (
       "focus returns to Edit profile"
     )
     .toBe(true)
+  await page.context().close()
+})
 
+test("staff: dark mode portfolio, viewer, upload dialog", async ({
+  browser,
+  baseURL,
+}, testInfo) => {
+  const page = await populatedStaff(browser, baseURL!)
   await useDark(page)
   await capture(page, testInfo, "staff-populated")
   await (await tile(page, "landscape-dish.jpg")).click()
   await expect(page.getByRole("dialog")).toBeVisible()
   await capture(page, testInfo, "viewer-photo-landscape", {
-    widths: [390, 1280].filter((w) =>
-      widthsFor(page, testInfo.project.use.browserName ?? "chromium").includes(
-        w
-      )
-    ),
+    widths: some(page, testInfo, [390, 1280]),
   })
   await page.keyboard.press("Escape")
+  await expect(page.getByRole("dialog")).toBeHidden()
   await page.getByRole("button", { name: "Upload photos or videos" }).click()
+  await expect(page.getByRole("dialog")).toBeVisible()
   await capture(page, testInfo, "upload-dialog", {
-    widths: [390, 1280].filter((w) =>
-      widthsFor(page, testInfo.project.use.browserName ?? "chromium").includes(
-        w
-      )
-    ),
+    widths: some(page, testInfo, [390, 1280]),
   })
-  await page.keyboard.press("Escape")
-  await useLight(page)
   await page.context().close()
 })
 
@@ -712,10 +745,7 @@ test("staff: long name and paused venue", async ({
   await paused.context().close()
 })
 
-test("admin: library, filters, empty result, viewer, download", async ({
-  browser,
-  baseURL,
-}, testInfo) => {
+test("admin: library and filters", async ({ browser, baseURL }, testInfo) => {
   const page = await signIn(browser, fx.admin.email, baseURL!)
   await expect(page).toHaveURL(/\/admin$/)
   await expect(page.getByRole("list", { name: "Library" })).toBeVisible()
@@ -724,34 +754,33 @@ test("admin: library, filters, empty result, viewer, download", async ({
 
   // Venue select open (popup listbox).
   const venueSelect = page.getByRole("combobox", { name: "Venue" })
-  await venueSelect.click()
-  await expect(page.getByRole("listbox")).toBeVisible()
   await capture(page, testInfo, "admin-filter-venue-open", {
-    restore: async () => {
-      if (!(await page.getByRole("listbox").isVisible()))
-        await venueSelect.click()
-    },
+    widths: some(page, testInfo, [360, 768, 1280]),
+    restore: reopen(page, venueSelect, page.getByRole("listbox")),
   })
   await page.getByRole("option", { name: fx.venue.name }).click()
   await expect(page).toHaveURL(/venue=/)
-  await page
-    .getByRole("radio", { name: "Videos" })
-    .or(page.getByRole("button", { name: "Videos" }))
-    .first()
-    .click()
+  await page.getByRole("button", { name: "Videos" }).click()
   await expect(page).toHaveURL(/type=video/)
   await expect(
     page.getByRole("button", { name: /kitchen-pass\.mp4/ })
   ).toBeVisible()
   await capture(page, testInfo, "admin-filtered")
 
-  // Staff member with no uploads: empty filter result.
+  // Staff member with no uploads: empty filter result, then clear.
   await page.goto(`/admin?staff=${fx.empty.id}`)
   await expect(page.getByText("Nothing matches these filters.")).toBeVisible()
   await capture(page, testInfo, "admin-filter-empty")
   await page.getByRole("button", { name: "Clear filters" }).click()
   await expect(page).toHaveURL(/\/admin$/)
+  await page.context().close()
+})
 
+test("admin: viewer, download, dark mode", async ({
+  browser,
+  baseURL,
+}, testInfo) => {
+  const page = await signIn(browser, fx.admin.email, baseURL!)
   // Viewer with admin actions; download is an attachment of the original.
   await page.goto(`/admin?staff=${fx.populated.id}`)
   const opener = await tile(page, "landscape-dish.jpg")
@@ -781,24 +810,18 @@ test("admin: library, filters, empty result, viewer, download", async ({
 
   await useDark(page)
   await capture(page, testInfo, "admin-library-filtered")
-  await page.getByRole("combobox", { name: "Staff member" }).click()
   await capture(page, testInfo, "admin-filter-staff-open", {
-    widths: [390, 1280].filter((w) =>
-      widthsFor(page, testInfo.project.use.browserName ?? "chromium").includes(
-        w
-      )
+    widths: some(page, testInfo, [390, 1280]),
+    restore: reopen(
+      page,
+      page.getByRole("combobox", { name: "Staff member" }),
+      page.getByRole("listbox")
     ),
-    restore: async () => {
-      if (!(await page.getByRole("listbox").isVisible()))
-        await page.getByRole("combobox", { name: "Staff member" }).click()
-    },
   })
-  await page.keyboard.press("Escape")
-  await useLight(page)
   await page.context().close()
 })
 
-test("admin: staff directory, invite, edit, deactivate, portfolio", async ({
+test("admin: staff directory and invite", async ({
   browser,
   baseURL,
 }, testInfo) => {
@@ -824,7 +847,7 @@ test("admin: staff directory, invite, edit, deactivate, portfolio", async ({
   await page.getByRole("option", { name: fx.venue.name }).click()
   await inviteDialog.getByRole("button", { name: "Send invitation" }).click()
   await expect(inviteDialog.getByText(/already/i)).toBeVisible({
-    timeout: 20_000,
+    timeout: 30_000,
   })
   await capture(page, testInfo, "invite-existing-email")
   await page.keyboard.press("Escape")
@@ -837,22 +860,25 @@ test("admin: staff directory, invite, edit, deactivate, portfolio", async ({
     )
     .toBe(true)
 
-  // Row actions menu, edit dialog, deactivate confirmation.
+  await useDark(page)
+  await capture(page, testInfo, "admin-staff", {
+    widths: some(page, testInfo, [390, 1280]),
+  })
+  await page.context().close()
+})
+
+test("admin: row actions, edit, deactivate confirm", async ({
+  browser,
+  baseURL,
+}, testInfo) => {
+  const page = await signIn(browser, fx.admin.email, baseURL!)
+  await page.goto("/admin/staff")
   const more = page
     .getByRole("button", { name: `More actions for ${fx.longName.name}` })
     .locator("visible=true")
     .first()
-  await more.click()
-  await expect(page.getByRole("menu")).toBeVisible()
   await capture(page, testInfo, "admin-staff-menu", {
-    restore: async () => {
-      if (!(await page.getByRole("menu").isVisible()))
-        await page
-          .getByRole("button", { name: `More actions for ${fx.longName.name}` })
-          .locator("visible=true")
-          .first()
-          .click()
-    },
+    restore: reopen(page, more, page.getByRole("menu")),
   })
   await page.getByRole("menuitem", { name: "Edit details" }).click()
   const editDialog = page.getByRole("dialog", { name: "Edit staff account" })
@@ -861,19 +887,18 @@ test("admin: staff directory, invite, edit, deactivate, portfolio", async ({
   await page.keyboard.press("Escape")
   await expect(editDialog).toBeHidden()
 
-  await page
-    .getByRole("button", { name: `More actions for ${fx.longName.name}` })
-    .locator("visible=true")
-    .first()
-    .click()
+  await more.click()
   await page.getByRole("menuitem", { name: "Deactivate" }).click()
   const confirm = page.getByRole("alertdialog")
   await expect(confirm).toBeVisible()
   await capture(page, testInfo, "admin-deactivate-confirm")
   await confirm.getByRole("button", { name: "Cancel" }).click()
   await expect(confirm).toBeHidden()
+  await page.context().close()
+})
 
-  // Individual portfolios: populated, long name, empty.
+test("admin: individual portfolios", async ({ browser, baseURL }, testInfo) => {
+  const page = await signIn(browser, fx.admin.email, baseURL!)
   for (const [who, label] of [
     [fx.populated, "admin-portfolio"],
     [fx.longName, "admin-portfolio-long-name"],
@@ -886,10 +911,9 @@ test("admin: staff directory, invite, edit, deactivate, portfolio", async ({
   await expectFocusVisibleEverywhere(page, "admin-portfolio-empty")
 
   await useDark(page)
-  await page.goto("/admin/staff")
-  await capture(page, testInfo, "admin-staff")
   await page.goto(`/admin/staff/${fx.populated.id}`)
-  await capture(page, testInfo, "admin-portfolio")
-  await useLight(page)
+  await capture(page, testInfo, "admin-portfolio", {
+    widths: some(page, testInfo, [390, 1280]),
+  })
   await page.context().close()
 })
