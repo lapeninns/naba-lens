@@ -34,3 +34,6 @@ export {
   type InviteResult,
 } from "./invite-staff-dialog"
 export { LoginCard } from "./login-card"
+
+// v0.3 admin menu catalogue (packet E)
+export * from "./menus"
