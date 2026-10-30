@@ -30,8 +30,18 @@ export function rpcFailure(error: DbError): Outcome<never> {
         "Your account is not assigned to an active venue, so uploads are paused. Ask an admin to check your venue.",
     }
   }
+  if (message.includes("too_many_open_uploads")) {
+    // reserve_media_asset caps open reservations per uploader (wave 3 finding 5).
+    return {
+      ok: false,
+      status: 409,
+      message:
+        "You have too many unfinished uploads. Retry or delete the failed ones, then try again.",
+    }
+  }
   if (
     message.includes("invalid_extension") ||
+    message.includes("invalid_size") ||
     message.includes("invalid_upload_key")
   ) {
     return {

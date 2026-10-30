@@ -14,13 +14,23 @@ builds the actor per request after `lib/auth` has authorised the caller.
      ID and key, and a repeated key returns the same asset (contract amendment).
    - Returns either `resumable: true` (videos, photos > 6 MiB → TUS with the user's own token)
      or a signed upload URL. That URL is signed **as the caller**, so the storage insert policy
-     applies: another user signing someone else's key gets 403.
+     applies: another user signing someone else's key gets 403. The token is good for 2 h,
+     but every write of an original (signed PUT, TUS completion, standard upload) also passes
+     the `guard_media_original_write` trigger, which refuses it unless the reservation is
+     still `uploading`, not deleted, its uploader active staff and its venue active
+     (wave 3 finding 4, `20261030100000_security_hardening.sql`).
+   - `reserve_media_asset` itself enforces the extension allow-list per media type, a
+     positive size within the `media` bucket cap, and at most 20 open reservations per
+     uploader, so calling the RPC directly cannot skip the route's checks (finding 5).
    - A retry of a stored-but-failed or stored-but-unconfirmed asset returns
      `state: "processing"`, so the client finalises again instead of re-uploading.
 2. The browser uploads straight to the private `media` bucket (`lib/upload`).
 3. `finaliseUpload` → `finaliseAsset`. It checks that the caller owns the asset and that the
    key matches, then claims it with a compare-and-set to `processing`:
-   - A second, concurrent call waits for the first. A claim older than 2 min is taken over.
+   - A second, concurrent call waits for the first. A claim older than 2 min **by the database
+     clock** (`take_over_stale_media_claim`) is taken over; the app clock is never compared
+     with database timestamps. If a taken-over finalise later finds the asset `ready`, it
+     reports success. Claims that nobody retries are reaped by cleanup (see `docs/cleanup.md`).
    - Reads the object through HTTP Range requests (blocks of at least 256 KiB, cached) and
      sniffs the bytes. The content must match the reserved media type.
    - **Images:** one full read, then `validateMedia` (single decode; HEIC runs in the worker;
@@ -40,14 +50,19 @@ builds the actor per request after `lib/auth` has authorised the caller.
 
 ## Read paths (all `Cache-Control: private, no-store`, `nosniff`)
 
-| Route                          | Who                  | What                                                                                                                       |
-| ------------------------------ | -------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `GET /api/media/[id]/thumb`    | owner, admin         | 302 to a 60 s signed URL, issued per request and signed as the caller                                                      |
-| `GET /api/media/[id]/preview`  | owner, admin         | same, for the 1600 px WebP preview                                                                                         |
-| `GET /api/media/[id]/stream`   | owner, admin (video) | proxies the original with Range, re-authorised on every request, so playback survives the 60 s window                      |
-| `GET /api/media/[id]/download` | admin                | proxies the unchanged original: validated `Content-Type`, `attachment` filename forced to the validated extension          |
-| `GET /api/avatars/[id]?v=`     | self, admin          | 302 to a 60 s signed avatar URL                                                                                            |
-| `POST /api/profile`            | staff                | name + optional avatar (≤ 5 MiB, `createAvatarDerivative`). A Route Handler because the Server Function body limit is 1 MB |
+| Route                          | Who                  | What                                                                                                                                                                 |
+| ------------------------------ | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/media/[id]/thumb`    | owner, admin         | 302 to a 60 s signed URL, issued per request with the service role after the caller and asset checks                                                                 |
+| `GET /api/media/[id]/preview`  | owner, admin         | same, for the 1600 px WebP preview                                                                                                                                   |
+| `GET /api/media/[id]/stream`   | owner, admin (video) | proxies the original with Range, re-authorised on every request, so playback survives the 60 s window                                                                |
+| `GET /api/media/[id]/download` | admin                | proxies the unchanged original: validated `Content-Type`, `attachment` filename forced to the validated extension                                                    |
+| `GET /api/avatars/[id]?v=`     | self, admin          | 302 to a 60 s signed avatar URL                                                                                                                                      |
+| `POST /api/profile`            | staff                | name + optional avatar (≤ 5 MiB, `createAvatarDerivative`). A Route Handler because the Server Function body limit is 1 MB. Same-origin only (`isSameOriginRequest`) |
+
+End users have **no** storage read policy (wave 3 finding 1): they cannot list, download or
+sign objects in `media` or `avatars` themselves, so the 60 s expiry is a server decision and
+nobody can mint a long-lived link. These routes authorise the caller (fresh profile read)
+and the asset first, then sign or stream with the service role.
 
 Unknown, forbidden, deleted and non-ready assets all answer 404. `media_asset_not_found`
 from the delete RPC (HTTP 500 from PostgREST) is mapped to 404 (`rpcFailure`).
