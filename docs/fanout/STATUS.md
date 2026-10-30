@@ -1,7 +1,86 @@
 # NabaLens fan-out status
 
-Integration branch: `feat/nabalens-mvp`. Updated 29 October 2026 by the integrator after
-merge #2. All wave-1 tracks are merged.
+Integration branch: `feat/nabalens-mvp`. Updated 30 October 2026 by the integrator after
+merge #4a. Wave 1, wave 2 (slice, lifecycle, accounts) and the finished wave-3 tracks below
+are merged. Not pushed; `main` untouched.
+
+## Merge #4a (30 October 2026, base `88fc61b`)
+
+Merged with `git merge --no-ff`, in the merge plan's order. All 11 merged without a textual
+conflict. The journey/library `admin-library.tsx` conflict and the visual/journey duplicate
+duration in the plan only arise once journey and visual land, so neither applied here.
+
+| Branch                   | Tip       | Merge commit | Notes                                                                        |
+| ------------------------ | --------- | ------------ | ---------------------------------------------------------------------------- |
+| `feat/nl-migrations`     | `75dc8ac` | `61908c9`    | Migration-safety suite (`tests/migrations`), backup/restore drill scripts.   |
+| `feat/nl-privacy`        | `cf9ca90` | `001dd1c`    | Bundle secret scanner, runtime header/log audit, global `nosniff`.           |
+| `feat/nl-library`        | `e83de82` | `8a560c9`    | Admin portfolio on `MediaGallery`, preview recovery; interim portfolio gone. |
+| `feat/nl-gaps`           | `566d1e0` | `2d208a4`    | GAP-11/12/16/19 tests, including the deliberate failing BUG test below.      |
+| `feat/nl-ci`             | `e4f7b91` | `91e3e8b`    | Workflow, `scripts/ci/local-ci.sh`, isolated stack, browser matrix adapter.  |
+| `review/nl-wave3`        | `ce09ae1` | `6986881`    | `docs/reviews/wave3-review.md`.                                              |
+| `review/nl-upload-path2` | `0b169e5` | `c14f462`    | `docs/reviews/upload-path-review.md`.                                        |
+| `review/nl-scope`        | `3894911` | `c786772`    | `docs/reviews/scope-audit.md`.                                               |
+| `feat/nl-docs2`          | `be8a897` | `e71be84`    | Supersedes `feat/nl-docs` (contained; not merged separately).                |
+| `feat/nl-acceptance`     | `1193e85` | `7787d5b`    | `docs/acceptance.md` (audits `3a23c9b`; reconcile at final head).            |
+| `feat/nl-mergeplan`      | `4c03805` | `b5c85a3`    | `docs/fanout/merge-plan.md`.                                                 |
+
+**Pending, still running elsewhere, not merged:** `feat/nl-journey`, `feat/nl-visual`,
+`feat/nl-authedge`, `feat/nl-uploads`, `feat/nl-load`, `feat/nl-secfix`.
+
+### Integration changes, merge #4a (`a964290`)
+
+- **Scripts.** Added `"test:migrations": "node tests/migrations/run.mjs"` (documented by the
+  migrations handoff, usage `pnpm test:migrations "$W" <phase>`) and
+  `"scan:bundle": "node scripts/ci/scan-bundle.mjs"`. No dependency change; the lockfile is
+  untouched. `minimumReleaseAge: 1440` and `allowBuilds` are unchanged.
+- **Bundle scan in CI.** `scripts/ci/local-ci.sh` runs `scan-bundle` right after a passing
+  build, so the workflow (which calls that script) now fails on a finding.
+- **Fixture retries removed** (merge plan, "fixture retries are a visible policy issue"):
+  `tests/library/seed.ts` `setupIdentity`, `tests/library/e2e.ts` `signInAs` and
+  `tests/integration/gaps-support.ts` `setupIdentity`/`setupSession` now fail once on a local
+  auth 504, with a "machine load?" diagnostic, instead of looping.
+- **Configs.** Root `vitest.config.ts` stays authoritative and already discovers the new unit
+  (`library-gallery`, `no-image-optimiser`, `scope-guard`) and integration files. The
+  standalone `tests/{security,lifecycle,migrations}/vitest.config.ts` stay separate. Root
+  `playwright.config.ts` and `scripts/ci/playwright.config.ts` are unchanged; the plan's
+  Playwright consolidation (journey/visual configs, `desktop` vs `chromium` project names,
+  visual exclusion) waits for journey and visual.
+- **Docs.** One `README.md`; it now links `docs/acceptance.md`, `docs/privacy-audit.md`,
+  `docs/backup-restore.md`, `docs/ci.md` and the three `docs/reviews/*`. The POST-only
+  cleanup wording stays correct until authedge (GET support) lands.
+
+### Known failing test (intentional)
+
+`tests/integration/gaps-profile-origin.test.ts` > "/api/profile refuses a cross-origin POST
+and changes nothing" **fails on purpose** until `feat/nl-secfix` lands: `/api/profile`
+accepts a cross-origin POST (`display_name` becomes "TEST cross-origin rename"). It is not
+skipped. `pnpm test:integration` therefore exits 1 with exactly this one failure.
+
+### Checks on merge #4a (`a964290`), 30 October 2026
+
+| Check                                                                    | Result                                                           |
+| ------------------------------------------------------------------------ | ---------------------------------------------------------------- |
+| `CI=true pnpm install --frozen-lockfile` (10.30.1)                       | exit 0, lockfile up to date                                      |
+| `CI=true pnpm@11 install --frozen-lockfile` (11.28.9)                    | exit 0                                                           |
+| `pnpm typecheck`                                                         | exit 0                                                           |
+| `pnpm lint`                                                              | exit 0                                                           |
+| `pnpm test`                                                              | 15 files, 124 passed                                             |
+| `pnpm build`                                                             | exit 0                                                           |
+| `node scripts/ci/scan-bundle.mjs` (after build)                          | 57 files, 1701 KiB, no findings                                  |
+| `pnpm test:integration` (default 554xx stack, fresh `supabase db reset`) | 116 passed, 11 skipped, **1 failed** (the intentional one above) |
+
+- Load: `uptime` load averages 8.80 / 11.21 / 18.58 at the start of integration and 8.53 /
+  10.84 / 18.11 at the end (01:09–01:10 local); no timeouts were seen.
+- The 11 skipped are `privacy-runtime.test.ts`, which needs `PRIVACY_BASE_URL`,
+  `PRIVACY_SERVER_LOG` and `CLEANUP_SECRET` against a production server (`docs/privacy-audit.md`).
+  `privacy-bundle.test.ts` ran, because `.next/static` existed after the build.
+- The default stack was started from this checkout only for this run, then stopped.
+- **Not run here** (the lead runs them at the end): e2e (`pnpm test:e2e`, `library.spec.ts`,
+  `gaps.spec.ts`), security, lifecycle, the migration suite and the backup/restore drill.
+- Still open from the merge plan: migration suite as an explicit CI stage, the privacy
+  runtime suite in CI, CI auth URLs/`E2E_SUPABASE_WORKDIR` wiring, and the signed-read,
+  delete/finalise and stale-processing security fixes from the reviews (expected from
+  secfix).
 
 ## Merged
 
