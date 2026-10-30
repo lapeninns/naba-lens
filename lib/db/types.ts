@@ -165,6 +165,12 @@ export type Database = {
         Returns: boolean
       }
       delete_media_asset: { Args: { p_asset_id: string }; Returns: undefined }
+      fail_stale_media_processing: {
+        Args: { p_limit?: number; p_stale_after: string }
+        Returns: {
+          asset_id: string
+        }[]
+      }
       prepare_media_cleanup: {
         Args: { p_abandoned_after: string; p_limit?: number; p_now?: string }
         Returns: {
@@ -192,6 +198,10 @@ export type Database = {
           upload_state: Database["public"]["Enums"]["upload_state"]
           venue_id: string
         }[]
+      }
+      take_over_stale_media_claim: {
+        Args: { p_asset_id: string; p_stale_after: string }
+        Returns: boolean
       }
     }
     Enums: {

@@ -119,7 +119,9 @@ export async function listMediaForUploader(
 
   const urls = new Map<string, string>()
   if (paths.length > 0) {
-    const { data: signed } = await ctx.caller.storage
+    // Service role after requireAdminCaller and the RLS row read above: end
+    // users have no storage read policy (wave 3 finding 1).
+    const { data: signed } = await ctx.service.storage
       .from(STORAGE_BUCKETS.media)
       .createSignedUrls(paths, MEDIA_LIMITS.signedUrlExpirySeconds)
     for (const item of signed ?? []) {

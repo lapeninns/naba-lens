@@ -11,6 +11,7 @@ import {
   TINY_BYTES,
   type TestIdentity,
 } from "../support/identities"
+import type { Database } from "../../lib/db/types"
 import { getLocalSupabaseEnv } from "../support/local-supabase"
 
 const service = serviceClient()
@@ -56,7 +57,10 @@ async function stored(key: string) {
   )
 }
 
-async function setRow(id: string, patch: Record<string, unknown>) {
+async function setRow(
+  id: string,
+  patch: Database["public"]["Tables"]["media_assets"]["Update"]
+) {
   const { error } = await service
     .from("media_assets")
     .update(patch)
@@ -112,7 +116,7 @@ async function tusPatch(
       "upload-offset": String(offset),
       "content-type": "application/offset+octet-stream",
     },
-    body,
+    body: new Blob([body as Uint8Array<ArrayBuffer>]),
     signal: AbortSignal.timeout(20_000),
   })
   await res.body?.cancel()
@@ -132,7 +136,7 @@ async function putSigned(signedUrl: string) {
   const res = await fetch(signedUrl, {
     method: "PUT",
     headers: { "content-type": "image/jpeg", "x-upsert": "false" },
-    body: TINY_BYTES,
+    body: new Blob([TINY_BYTES]),
   })
   await res.body?.cancel()
   return res
