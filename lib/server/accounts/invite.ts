@@ -1,7 +1,11 @@
+import type { User } from "@supabase/supabase-js"
+
 import {
+  AuthLookupError,
   findAuthUserByEmail,
   INVITE_METADATA_KEY,
   isOrphanedInvite,
+  withAuthDeadline,
 } from "./auth-users"
 import {
   fail,
@@ -71,7 +75,25 @@ export async function inviteStaff(
 
   let userId: string
   let createdNow = false
-  const existing = await findAuthUserByEmail(service, input.email)
+  let existing: Awaited<ReturnType<typeof findAuthUserByEmail>>
+  try {
+    existing = await findAuthUserByEmail(
+      service,
+      input.email,
+      ctx.authDeadlineMs
+    )
+  } catch (error) {
+    if (!(error instanceof AuthLookupError)) throw error
+    console.error("[accounts] invite: auth lookup unavailable", {
+      reason: error.reason,
+    })
+    return asError(
+      fail(
+        "auth_failed",
+        "The sign-in service is not responding. Nothing was saved. Try again in a minute."
+      )
+    )
+  }
   if (existing) {
     const { data: profile, error } = await service
       .from("profiles")
@@ -191,9 +213,27 @@ export async function resendInvitation(
     )
   }
 
-  const { data: authUser, error: userError } =
-    await ctx.service.auth.admin.getUserById(staffId)
-  if (userError || !authUser.user?.email) return notFound()
+  let authUser: { user: User | null }
+  try {
+    authUser = await withAuthDeadline(
+      ctx.service.auth.admin.getUserById(staffId).then(({ data, error }) => {
+        // GoTrue answers 404 for a missing user; anything else is an outage.
+        if (error && error.status !== 404) throw new AuthLookupError("failed")
+        return { user: data.user }
+      }),
+      ctx.authDeadlineMs
+    )
+  } catch (error) {
+    if (!(error instanceof AuthLookupError)) throw error
+    console.error("[accounts] resend: auth lookup unavailable", {
+      reason: error.reason,
+    })
+    return fail(
+      "auth_failed",
+      "The sign-in service is not responding. No email was sent. Try again in a minute."
+    )
+  }
+  if (!authUser.user?.email) return notFound()
   if (authUser.user.last_sign_in_at)
     return alreadySignedIn(profile.display_name)
 

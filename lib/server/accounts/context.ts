@@ -24,6 +24,8 @@ export type AccountsContext = {
   service: Db
   /** Defaults to Supabase Auth's invite email (`auth.admin.inviteUserByEmail`). */
   mailer?: InviteMailer
+  /** Wait limit for Supabase Auth admin calls (default AUTH_LOOKUP_DEADLINE_MS). */
+  authDeadlineMs?: number
 }
 
 export type AccountError = {

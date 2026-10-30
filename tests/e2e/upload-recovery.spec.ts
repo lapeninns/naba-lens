@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process"
 import { createHash } from "node:crypto"
+import { openEmailLink } from "./helpers/email-link"
 import { readFile, writeFile } from "node:fs/promises"
 
 import {
@@ -85,7 +86,8 @@ async function signIn(
   if (link.error) throw link.error
   const context = await browser.newContext({ baseURL })
   const page = await context.newPage()
-  await page.goto(
+  await openEmailLink(
+    page,
     `/auth/confirm?token_hash=${link.data.properties.hashed_token}&type=email`
   )
   await expect(page).toHaveURL(home)

@@ -6,6 +6,8 @@ import { fileURLToPath } from "node:url"
 import { expect, test, type Browser, type Page } from "@playwright/test"
 import sharp from "sharp"
 
+import { openEmailLink } from "./helpers/email-link"
+
 import {
   createIdentity,
   createVenue,
@@ -51,7 +53,8 @@ async function signIn(
     if (/Content Security Policy/i.test(message.text()))
       consoleViolations.push(message.text())
   })
-  await page.goto(
+  await openEmailLink(
+    page,
     `/auth/confirm?token_hash=${data.properties.hashed_token}&type=email`
   )
   return { page, consoleViolations }

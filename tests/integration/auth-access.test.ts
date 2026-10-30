@@ -562,14 +562,17 @@ describe("staff venue states", () => {
           preferResumable: false,
         })
       )
-      expect(reserve).toEqual({
+      expect(reserve).toMatchObject({
         ok: false,
         message: expect.stringMatching(/venue/i),
       })
+      // A valid upload key, so the database reaches its venue check.
       const rpc = await worker.rest.rpc("reserve_media_asset", {
         p_media_type: "image",
         p_extension: "jpg",
         p_original_filename: "dish.jpg",
+        p_size_bytes: 100,
+        p_client_upload_key: randomUUID(),
       })
       expect(rpc.error?.message).toBe("venue_unavailable")
       const put = await worker.rest.storage
@@ -761,8 +764,11 @@ describe("profile reads", () => {
       const folder = key.split("/")[0]
       expect((await bucket.list(folder)).data ?? []).toEqual([])
     }
-    // Control: their own photo is readable.
+    // Since the security hardening (review finding 1) nobody reads Storage
+    // directly, not even their own photo: reads go through /api/avatars/[id],
+    // which serves the owner (asserted above) and admins only.
     const ownKey = (await profileRow(staff.id)).avatar_path!
-    expect((await bucket.download(ownKey)).data).not.toBeNull()
+    expect((await bucket.download(ownKey)).data).toBeNull()
+    expect((await bucket.createSignedUrl(ownKey, 60)).data).toBeNull()
   })
 })
