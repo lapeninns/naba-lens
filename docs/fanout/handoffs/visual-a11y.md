@@ -84,6 +84,21 @@ the only remaining difference from journey's `media-tile.tsx` is the film-strip 
 Re-run after these fixes: Chromium + WebKit 30 passed; `pnpm test` 104 passed;
 typecheck, lint and build pass.
 
+### Integrated with `feat/nabalens-mvp` @ 3e0a499 (merge `c30610a`)
+
+- Clean merge. The tile's accessible name has one `duration m:ss` (journey's wording). The
+  staff row link has one ", open portfolio". The viewer keeps `<video src>` (no
+  `canPlayType` pre-check), the sticky actions and the mvp-side `failedUrl` retry for
+  re-signed URLs.
+- `20261030100000_security_hardening.sql` refuses writes to an original once the
+  reservation has left `uploading` (`media_reservation_closed`). The visual fixtures now
+  write the original first, then move to processing, as the real pipeline does. The guard
+  was not weakened.
+- On the integrated tree, after `db reset` of the isolated stack:
+  - Chromium + WebKit visual suite: 30 passed (4.7m).
+  - `pnpm test`: 18 files, 140 tests passed.
+  - Typecheck, lint (0 problems) and build pass.
+
 ## Known upstream exception
 
 WebKit only: Base UI renders each modal's hidden focus-trap sentinels as unnamed

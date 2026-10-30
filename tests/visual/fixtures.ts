@@ -176,7 +176,8 @@ async function asset(
     return
   }
 
-  check(await update({ upload_state: "processing" }))
+  // Like the real pipeline: the original is written while the reservation is
+  // still `uploading` (storage refuses it afterwards), then processed.
   if (spec.kind === "video") {
     const mime = spec.mime ?? "video/mp4"
     const bytes = await readFile(
@@ -185,6 +186,7 @@ async function asset(
       )
     )
     await upload(db, `${prefix}/original.${ext}`, bytes, mime)
+    check(await update({ upload_state: "processing" }))
     check(
       await update({
         upload_state: "ready",
@@ -200,6 +202,7 @@ async function asset(
 
   const files = await photo(spec.width, spec.height, spec.hue)
   await upload(db, `${prefix}/original.jpg`, files.original, "image/jpeg")
+  check(await update({ upload_state: "processing" }))
   await upload(db, `${prefix}/preview.webp`, files.preview, "image/webp")
   await upload(db, `${prefix}/thumb.webp`, files.thumb, "image/webp")
   check(
