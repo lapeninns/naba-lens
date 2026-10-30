@@ -37,3 +37,6 @@ export { LoginCard } from "./login-card"
 
 // v0.3 admin menu catalogue (packet E)
 export * from "./menus"
+
+// v0.3 media labels (packet G)
+export * from "./labels"
