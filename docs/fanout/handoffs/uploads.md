@@ -133,3 +133,55 @@ without conflict. Re-implementing it here would only duplicate the migration and
 conflict. Claim semantics are unchanged by this track: `processing` plus the
 trigger-stamped `updated_at` (database clock). The security-fixes reaper
 (`fail_stale_media_processing`) can rely on them.
+
+## Upload-path review F2, F4, F7 (`review/nl-upload-path2`), fixed in `finalise.ts`
+
+- **F2 (delete during processing).** The `ready` update now also requires
+  `deleted_at is null`. When it matches nothing, finalise re-reads the row with the
+  service role:
+  - tombstoned: remove `preview.webp`, `thumb.webp` and the original, and return
+    **404**. The row is never `ready` + deleted, and no derivatives outlive the delete;
+  - already `ready` (another finalise finished it): return **ready** (F7);
+  - otherwise: return 409 "still processing".
+- **F4 (size and failed bytes).**
+  - After `stat`, and before any read, finalise fails `file_too_large` when the stored
+    size exceeds `maxBytesFor(media_type)`. It fails `size_mismatch` when the size
+    differs from the size declared at reserve (`size_bytes`, the browser's exact
+    `File.size`; skipped when null).
+  - On terminal validation failures (everything except `decoder_busy` and transient
+    storage errors), the original is removed straight away. The row stays `failed` for
+    the UI.
+  - A repeated finalise on a failed row with no bytes stays `failed`; it no longer
+    reopens it. A retry through `reserve` reopens it for a new transfer, as before.
+- **Tests** (`tests/integration/upload-recovery.test.ts`, all on the real local stack):
+  - delete racing the first derivative write, and the ready update;
+  - another finalise completing first (F7);
+  - 25 MiB stored in a 1 KiB reservation: failed without any GET or Range read of the
+    object, and removed;
+  - declared-size mismatch;
+  - failed originals removed (disguised, corrupt, wrong kind).
+
+  All 8 fail on the previous `finalise.ts` and pass now.
+- **Outside my paths:** `tests/integration/slice-media.test.ts` asserted the old
+  "failed bytes kept; retry re-validates them" behaviour. It now asserts the bytes are
+  removed, a repeated finalise stays failed, and a retry reopens the reservation
+  (`uploading`).
+- **Merge with `feat/nl-secfix` (not merged yet): expect one conflict** in
+  `finalise.ts`, at the block after the `ready` update. Secfix rewrote it as "no
+  match → re-read → ready means success, else 409". Resolve it as follows:
+  - take **this branch's** version of that block (`claimLost` / `settleLostClaim`,
+    plus `.is("deleted_at", null)`). It is a superset of theirs and adds the tombstone
+    case;
+  - take **secfix's** `claim()` changes (`take_over_stale_media_claim`, finding 6)
+    unchanged. This branch did not touch `claim()`.
+- **Claim semantics unchanged:** `processing` plus the trigger-stamped `updated_at`. A
+  tombstoned row whose finalise lost the race stays `processing` + `deleted_at`.
+  Secfix's reaper only touches non-deleted rows, and cleanup lists tombstoned rows'
+  objects (none are left).
+- **Checks after this change** (isolated stack, 588xx):
+  - typecheck and lint: pass;
+  - `pnpm test`: 109 passed;
+  - `pnpm test:integration`: 9 files, 105 passed;
+  - `pnpm test:lifecycle` and `pnpm test:security`: 17 and 114 passed;
+  - e2e upload-recovery + slice: 8 passed, 4 skipped;
+  - `pnpm build`: pass.

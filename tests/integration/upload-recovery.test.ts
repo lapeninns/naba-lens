@@ -1,9 +1,12 @@
 import { execFileSync } from "node:child_process"
 import { readFile } from "node:fs/promises"
 
-import { beforeAll, describe, expect, it } from "vitest"
+import { createClient } from "@supabase/supabase-js"
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 
+import type { Database } from "../../lib/db/types"
 import { runMediaCleanup } from "../../lib/server/lifecycle/cleanup"
+import { removeMediaAssetWith } from "../../lib/server/lifecycle/remove-media"
 import { finaliseAsset } from "../../lib/server/media/finalise"
 import {
   reserveAsset,
@@ -17,6 +20,7 @@ import {
   serviceClient,
   type TestIdentity,
 } from "../support/identities"
+import { getLocalSupabaseEnv } from "../support/local-supabase"
 
 /**
  * Upload recovery against the LOCAL stack (spec §5, §10 "Partial batch",
@@ -31,6 +35,26 @@ const fixture = async (name: string) =>
   new Uint8Array(await readFile(fixtures.files[name.replace(/[.-]/g, "_")]))
 
 const HOUR = 60 * 60 * 1000
+const MiB = 1024 * 1024
+
+/**
+ * A service client whose requests pass through `intercept` first: used to run
+ * a competing action (a delete, another finalise) at an exact point in finalise.
+ */
+function interceptedService(
+  intercept: (url: string, init?: RequestInit) => Promise<void>
+) {
+  const env = getLocalSupabaseEnv()
+  return createClient<Database>(env.url, env.serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: {
+      fetch: async (url, init) => {
+        await intercept(String(url), init)
+        return fetch(url, init)
+      },
+    },
+  })
+}
 
 function request(
   bytes: Uint8Array,
@@ -297,6 +321,103 @@ describe("upload recovery (local Supabase)", () => {
     })
   })
 
+  describe("finalise races", () => {
+    async function stored() {
+      const bytes = await syntheticJpeg()
+      const input = request(bytes)
+      const reserved = await reserveAsset(actor, input)
+      if (!reserved.ok) throw new Error(reserved.message)
+      await put(reserved.objectKey, reserved.token!, bytes)
+      return { input, reserved, bytes }
+    }
+
+    it("a delete during processing wins: no ready tombstone, no derivatives left, 404", async () => {
+      const { input, reserved } = await stored()
+      let deleted: unknown = null
+      // The owner presses Delete just before the first derivative is written.
+      const service = interceptedService(async (url) => {
+        if (!deleted && url.includes("/preview.webp")) {
+          deleted = await removeMediaAssetWith(
+            { user: staff.client, service: admin },
+            reserved.assetId
+          )
+        }
+      })
+      const finalised = await finaliseAsset(
+        { ...actor, service },
+        { assetId: reserved.assetId, idempotencyKey: input.idempotencyKey }
+      )
+      expect(deleted).toMatchObject({ ok: true, storage: "removed" })
+      expect(finalised).toMatchObject({ ok: false, status: 404 })
+      const [row] = await rowsFor(input.idempotencyKey)
+      expect(row.deleted_at).not.toBeNull()
+      expect(row.upload_state).not.toBe("ready")
+      expect(await objectsUnder(reserved.assetId)).toEqual([])
+    })
+
+    it("a delete just before the ready update also leaves nothing behind", async () => {
+      const { input, reserved } = await stored()
+      let deleted: unknown = null
+      const service = interceptedService(async (url, init) => {
+        if (
+          !deleted &&
+          init?.method === "PATCH" &&
+          url.includes("/rest/v1/media_assets") &&
+          String(init.body).includes('"ready"')
+        ) {
+          deleted = await removeMediaAssetWith(
+            { user: staff.client, service: admin },
+            reserved.assetId
+          )
+        }
+      })
+      const finalised = await finaliseAsset(
+        { ...actor, service },
+        { assetId: reserved.assetId, idempotencyKey: input.idempotencyKey }
+      )
+      expect(deleted).toMatchObject({ ok: true })
+      expect(finalised).toMatchObject({ ok: false, status: 404 })
+      const [row] = await rowsFor(input.idempotencyKey)
+      expect(row.upload_state).not.toBe("ready")
+      expect(await objectsUnder(reserved.assetId)).toEqual([])
+    })
+
+    it("a finalise whose claim another finalise completed answers ready, not 503", async () => {
+      const { input, reserved, bytes } = await stored()
+      let finishedElsewhere = false
+      // Another finalise (after a stale-claim takeover) makes the asset ready
+      // just before this one's ready update.
+      const service = interceptedService(async (url, init) => {
+        if (
+          !finishedElsewhere &&
+          init?.method === "PATCH" &&
+          url.includes("/rest/v1/media_assets") &&
+          String(init.body).includes('"ready"')
+        ) {
+          finishedElsewhere = true
+          const { error } = await admin
+            .from("media_assets")
+            .update({
+              upload_state: "ready",
+              validated_mime_type: "image/jpeg",
+              size_bytes: bytes.byteLength,
+            })
+            .eq("id", reserved.assetId)
+          if (error) throw error
+        }
+      })
+      const finalised = await finaliseAsset(
+        { ...actor, service },
+        { assetId: reserved.assetId, idempotencyKey: input.idempotencyKey }
+      )
+      expect(finishedElsewhere).toBe(true)
+      expect(finalised).toEqual({ ok: true, state: "ready" })
+      const rows = await rowsFor(input.idempotencyKey)
+      expect(rows).toHaveLength(1)
+      expect(rows[0].upload_state).toBe("ready")
+    })
+  })
+
   describe("content validation: nothing invalid becomes ready", () => {
     async function uploadAs(
       name: string,
@@ -328,6 +449,8 @@ describe("upload recovery (local Supabase)", () => {
       const [row] = await rowsFor(input.idempotencyKey)
       expect(row.upload_state).toBe("failed")
       expect(row.validated_mime_type).toBeNull()
+      // Terminal failure: the original is removed now, not after 24 h.
+      expect(await objectsUnder(row.id)).toEqual([])
       // Failed again on a retry, still one row, still not ready.
       const again = await finaliseAsset(actor, {
         assetId: row.id,
@@ -337,24 +460,80 @@ describe("upload recovery (local Supabase)", () => {
       expect(await rowsFor(input.idempotencyKey)).toHaveLength(1)
     })
 
-    it("an oversized photo is refused at reserve, and bytes smuggled past a small declared size fail", async () => {
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
+    it("an oversized photo is refused at reserve", async () => {
       const big = await fixture("oversized.jpg")
-      expect(big.byteLength).toBeGreaterThan(20 * 1024 * 1024)
+      expect(big.byteLength).toBeGreaterThan(20 * MiB)
       expect(
         await reserveAsset(actor, request(big, { filename: "big.jpg" }))
       ).toMatchObject({ ok: false, status: 400 })
-      // Lie about the size; the server measures the stored object.
-      const { input, finalised } = await uploadAs("big.jpg", big, {
-        sizeBytes: 1000,
+    })
+
+    it("25 MiB stored in a 1 KiB photo reservation fails without being read, and is removed", async () => {
+      const small = await syntheticJpeg()
+      const big = new Uint8Array(25 * MiB)
+      big.set(small)
+      const input = request(big, { filename: "big.jpg", sizeBytes: 1024 })
+      const reserved = await reserveAsset(actor, input)
+      if (!reserved.ok) throw new Error(reserved.message)
+      // The signed URL accepts anything up to the bucket limit (200 MiB).
+      await put(reserved.objectKey, reserved.token!, big)
+
+      const fetches = vi.spyOn(globalThis, "fetch")
+      const finalised = await finaliseAsset(actor, {
+        assetId: reserved.assetId,
+        idempotencyKey: input.idempotencyKey,
       })
-      expect(finalised).toMatchObject({
+      const reads = fetches.mock.calls.filter(([url, init]) => {
+        const headers = new Headers((init as RequestInit | undefined)?.headers)
+        return (
+          (String(url).includes(reserved.objectKey) &&
+            (init?.method ?? "GET") === "GET") ||
+          headers.has("range")
+        )
+      })
+      expect(reads).toEqual([])
+      expect(finalised).toEqual({
         ok: true,
         state: "failed",
         error: "This file is larger than the upload limit.",
       })
+      const [row] = await rowsFor(input.idempotencyKey)
+      expect(row.upload_state).toBe("failed")
+      expect(await objectsUnder(reserved.assetId)).toEqual([])
+    })
+
+    it("bytes that differ from the declared size fail, even when they are a valid photo", async () => {
+      const bytes = await syntheticJpeg()
+      const input = request(bytes, { sizeBytes: bytes.byteLength + 1 })
+      const reserved = await reserveAsset(actor, input)
+      if (!reserved.ok) throw new Error(reserved.message)
+      await put(reserved.objectKey, reserved.token!, bytes)
+      const finalised = await finaliseAsset(actor, {
+        assetId: reserved.assetId,
+        idempotencyKey: input.idempotencyKey,
+      })
+      expect(finalised).toMatchObject({ ok: true, state: "failed" })
+      expect(await objectsUnder(reserved.assetId)).toEqual([])
+      // A repeated finalise stays failed rather than reopening the upload.
+      expect(
+        await finaliseAsset(actor, {
+          assetId: reserved.assetId,
+          idempotencyKey: input.idempotencyKey,
+        })
+      ).toMatchObject({ ok: true, state: "failed" })
       expect((await rowsFor(input.idempotencyKey))[0].upload_state).toBe(
         "failed"
       )
+      // The person's retry (same key) reopens the reservation for new bytes.
+      expect(await reserveAsset(actor, input)).toMatchObject({
+        ok: true,
+        assetId: reserved.assetId,
+        state: "uploading",
+      })
     })
 
     it("a photo declared as a video fails the type check", async () => {
@@ -364,9 +543,9 @@ describe("upload recovery (local Supabase)", () => {
         contentType: "video/mp4",
       })
       expect(finalised).toMatchObject({ ok: true, state: "failed" })
-      expect((await rowsFor(input.idempotencyKey))[0].upload_state).toBe(
-        "failed"
-      )
+      const [row] = await rowsFor(input.idempotencyKey)
+      expect(row.upload_state).toBe("failed")
+      expect(await objectsUnder(row.id)).toEqual([])
     })
 
     it("no row of this uploader is ready without a validated type and size", async () => {

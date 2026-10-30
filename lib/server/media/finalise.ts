@@ -1,4 +1,4 @@
-import { MEDIA_LIMITS } from "@/lib/config/media"
+import { maxBytesFor, MEDIA_LIMITS } from "@/lib/config/media"
 import { mediaObjectKeys, STORAGE_BUCKETS } from "@/lib/config/storage"
 import { sniffMedia, validateMedia } from "@/lib/media"
 import { touchMediaReservation } from "@/lib/server/lifecycle/cleanup"
@@ -32,6 +32,8 @@ type AssetRow = {
   media_type: "image" | "video"
   upload_state: "uploading" | "processing" | "ready" | "failed"
   client_upload_key: string | null
+  /** Declared by the browser at reserve (its exact File.size); null if unknown. */
+  size_bytes: number | null
   updated_at: string
 }
 
@@ -46,7 +48,7 @@ async function readOwnAsset(actor: MediaActor, assetId: string) {
   const { data, error } = await actor.db
     .from("media_assets")
     .select(
-      "id, uploader_id, original_path, original_filename, media_type, upload_state, client_upload_key, updated_at"
+      "id, uploader_id, original_path, original_filename, media_type, upload_state, client_upload_key, size_bytes, updated_at"
     )
     .eq("id", assetId)
     .eq("uploader_id", actor.profile.id)
@@ -123,6 +125,15 @@ async function validateStored(
   row: AssetRow,
   size: number
 ): Promise<Validation> {
+  // Size checks come first, so an oversized object is never read.
+  if (size > maxBytesFor(row.media_type)) {
+    return { ok: false, error: "file_too_large" }
+  }
+  // The browser declares its exact File.size at reserve: any difference means
+  // different bytes were stored under this reservation.
+  if (row.size_bytes !== null && Number(row.size_bytes) !== size) {
+    return { ok: false, error: "size_mismatch" }
+  }
   const source = mediaRangeSource(actor.storage, row.original_path, size)
   const head = await source.read(0, Math.min(size, MEDIA_LIMITS.sniffHeadBytes))
   const type = sniffMedia(head)
@@ -239,6 +250,16 @@ export async function finaliseAsset(
   let validation: Validation
   try {
     const size = await statMediaObject(actor.storage, row.original_path)
+    if (size === null && row.upload_state === "failed") {
+      // Failed validation earlier and its bytes were removed: still failed.
+      // (A retry through reserve reopens the reservation for a new transfer.)
+      await setState(actor, row.id, ["processing"], "failed")
+      return {
+        ok: true,
+        state: "failed",
+        error: "This file could not be used. Choose it again to upload it.",
+      }
+    }
     if (size === null) {
       // Nothing stored yet: reopen the reservation so the transfer can run.
       await setState(actor, row.id, ["processing"], "uploading")
@@ -268,6 +289,9 @@ export async function finaliseAsset(
         message: "The server is busy processing photos. Try again.",
       }
     }
+    // Terminal: the bytes can never become ready, so don't keep them for the
+    // 24 h cleanup. Best effort; cleanup still removes a failed row's objects.
+    await removeObjects(actor, [row.original_path])
     return {
       ok: true,
       state: "failed",
@@ -276,6 +300,7 @@ export async function finaliseAsset(
   }
 
   const keys = mediaObjectKeys(row.uploader_id, row.id, "bin")
+  let claimLost = false
   const update: {
     upload_state: "ready"
     validated_mime_type: string
@@ -322,8 +347,10 @@ export async function finaliseAsset(
       .update(update)
       .eq("id", row.id)
       .eq("upload_state", "processing")
+      .is("deleted_at", null)
       .select("id")
-    if (error || !data?.length) throw new Error("asset_ready_update")
+    if (error) throw new Error("asset_ready_update")
+    claimLost = !data?.length
   } catch {
     await setState(actor, row.id, ["processing"], "failed").catch(() => {})
     return {
@@ -333,5 +360,55 @@ export async function finaliseAsset(
     }
   }
 
+  if (claimLost) return settleLostClaim(actor, row, keys)
   return { ok: true, state: "ready" }
+}
+
+/**
+ * The `ready` update matched nothing: the asset was deleted while it was being
+ * processed, or another finalise took the claim over. A deleted asset must not
+ * keep the derivatives just written (the delete has already reported its
+ * objects removed), so remove them and the original and answer 404. An asset
+ * another finalise made ready is a success, not an error.
+ */
+async function settleLostClaim(
+  actor: MediaActor,
+  row: AssetRow,
+  keys: ReturnType<typeof mediaObjectKeys>
+): Promise<Outcome<FinaliseResponse>> {
+  const { data: current, error } = await actor.service
+    .from("media_assets")
+    .select("upload_state, deleted_at")
+    .eq("id", row.id)
+    .maybeSingle()
+  if (error) {
+    return {
+      ok: false,
+      status: 503,
+      message: "Could not check this file right now. Try again.",
+    }
+  }
+  if (!current || current.deleted_at !== null) {
+    await removeObjects(actor, [
+      keys.preview,
+      keys.thumbnail,
+      row.original_path,
+    ])
+    return notFound
+  }
+  if (current.upload_state === "ready") return { ok: true, state: "ready" }
+  return {
+    ok: false,
+    status: 409,
+    message: "This file is still processing. Try again in a moment.",
+  }
+}
+
+/** Service-role removal that never throws; cleanup retries what is left. */
+async function removeObjects(actor: MediaActor, names: string[]) {
+  try {
+    await actor.service.storage.from(STORAGE_BUCKETS.media).remove(names)
+  } catch {
+    // Left for the cleanup job, which lists objects of failed/deleted assets.
+  }
 }
