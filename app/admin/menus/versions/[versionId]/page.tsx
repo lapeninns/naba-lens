@@ -61,7 +61,10 @@ export default async function MenuVersionPage({
             <MenuVersionStatusBadge status={version.status} />
           </div>
         </div>
-        <ProvenanceCard version={version} />
+        <ProvenanceCard
+          version={version}
+          className="[&_dd]:[overflow-wrap:anywhere]"
+        />
         <VersionEditor
           version={version}
           diff={diff}

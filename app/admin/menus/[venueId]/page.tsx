@@ -170,7 +170,10 @@ export default async function VenueMenusPage({
                   View active menu
                 </Link>
               </div>
-              <ProvenanceCard version={active} />
+              <ProvenanceCard
+                version={active}
+                className="[&_dd]:[overflow-wrap:anywhere]"
+              />
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">
