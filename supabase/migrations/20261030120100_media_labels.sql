@@ -457,9 +457,17 @@ begin
       detail = jsonb_build_object('revision', v_revision)::text;
   end if;
 
+  -- Lock order for every label save: asset row (above), label row, then the
+  -- venue menu lock SHARED, then the caller's open suggestion row. Activation
+  -- and suggestion resolution take the venue lock exclusively, so neither can
+  -- change the active version or this suggestion until the save commits
+  -- (final review I-1: a resolve between read and update lost the edit).
+  perform private.lock_venue_menu(v_asset.venue_id, true);
+
   select s.suggested_name into v_suggestion_before
   from public.menu_item_suggestions s
-  where s.asset_id = p_asset_id and s.created_by = v_uid and s.status = 'open';
+  where s.asset_id = p_asset_id and s.created_by = v_uid and s.status = 'open'
+  for update;
 
   v_before := jsonb_build_object(
     'revision', v_revision,
@@ -483,7 +491,6 @@ begin
   v_new_count := jsonb_array_length(v_new);
 
   if v_new_count > 0 then
-    perform private.lock_venue_menu(v_asset.venue_id, true);
     v_active := private.active_menu_version_id(v_asset.venue_id);
 
     if p_catalogue_version_id is distinct from v_active then

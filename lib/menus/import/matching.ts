@@ -42,6 +42,12 @@ function variants(item: MenuDocItem, base: MenuDocItem): boolean {
   })
   return ambiguous
 }
+const REVIEW_MAX_CANDIDATES = 20
+const REVIEW_REASON_MAX = 200
+const truncate = (text: string, max: number) => {
+  const chars = [...text]
+  return chars.length <= max ? text : chars.slice(0, max - 1).join("") + "…"
+}
 export function matchImportToBase(
   base: MenuDocument | null,
   incoming: MenuDocument
@@ -69,11 +75,21 @@ export function matchImportToBase(
     const found = candidates.filter(
       (r) => r.item.itemId && names.includes(nameKey(r.item.name))
     )
-    if (found.length)
+    if (found.length) {
+      // Bounded to the save contract (≤20 candidates, ≤200-char reason; final
+      // review I-4). Candidate names are shown from the diff, not the reason.
+      const shown = found.slice(0, REVIEW_MAX_CANDIDATES)
+      const reason =
+        found.length > shown.length
+          ? `Same name as ${found.length} existing items (first ${shown.length} listed); confirm one of them or treat it as a new dish`
+          : found.length === 1
+            ? `Same name as an existing item in ${shown[0].sectionName}; confirm it is the same dish or a new one`
+            : `Same name as ${found.length} existing items; confirm which one it is or treat it as a new dish`
       item.review = {
-        candidates: found.map((r) => r.item.itemId!),
-        reason: `Same name as ${found.map((r) => `${r.item.name} in ${r.sectionName}`).join("; ")}; confirm it is the same dish or a new one`,
+        candidates: shown.map((r) => r.item.itemId!),
+        reason: truncate(reason, REVIEW_REASON_MAX),
       }
+    }
   }
   return doc
 }

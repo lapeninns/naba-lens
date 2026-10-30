@@ -128,6 +128,16 @@ async function readOptions(
   const seenSlugs = new Set<string>()
   const seenItems = new Set<string>()
 
+  // Variants that labels use, by item, named from the label snapshot.
+  const variantsOf = new Map<string, { id: string; name: string }[]>()
+  for (const v of labelledVariants) {
+    const name = v.labels[0]?.variant_name
+    if (!name) continue
+    const list = variantsOf.get(v.item_id) ?? []
+    list.push({ id: v.id, name })
+    variantsOf.set(v.item_id, list)
+  }
+
   if (activeId) {
     const activeSections = sections
       .filter((s) => s.version_id === activeId)
@@ -155,13 +165,21 @@ async function readOptions(
     const sectionName = new Map(activeSections.map((s) => [s.id, s.name]))
     for (const e of entries) {
       seenItems.add(e.item_id)
+      const current = [...e.menu_entry_variants]
+        .sort((a, b) => a.position - b.position)
+        .map((v) => ({ id: v.variant_id, name: v.name }))
+      // Variants dropped from the active menu but still on labels stay
+      // filterable (final review I-5), marked as historical.
+      const currentIds = new Set(current.map((v) => v.id))
+      const past = (variantsOf.get(e.item_id) ?? [])
+        .filter((v) => !currentIds.has(v.id))
+        .map((v) => ({ id: v.id, name: `${v.name} ${NOT_ON_ACTIVE_MENU}` }))
+        .sort(byName)
       items.push({
         id: e.item_id,
         name: e.name,
         sectionName: sectionName.get(e.section_id) ?? null,
-        variants: [...e.menu_entry_variants]
-          .sort((a, b) => a.position - b.position)
-          .map((v) => ({ id: v.variant_id, name: v.name })),
+        variants: [...current, ...past],
       })
     }
   }
@@ -190,14 +208,6 @@ async function readOptions(
       venueId,
       past.map((i) => i.id)
     )
-    const variantsOf = new Map<string, { id: string; name: string }[]>()
-    for (const v of labelledVariants) {
-      const name = v.labels[0]?.variant_name
-      if (!name) continue
-      const list = variantsOf.get(v.item_id) ?? []
-      list.push({ id: v.id, name })
-      variantsOf.set(v.item_id, list)
-    }
     const pastItems = past.map((i) => {
       const snapshot = i.labels[0]
       const known = latest.get(i.id)

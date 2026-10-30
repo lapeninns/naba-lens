@@ -67,6 +67,12 @@ export const MENU_IMPORT_LIMITS = {
   sourceKeyMax: 160,
   /** Serialised `sourceMeta` per item. */
   sourceMetaMaxBytes: 4096,
+  /**
+   * Serialised MenuDocument (UTF-8 JSON) sent to create/save a draft. Server
+   * Actions are allowed 4 MB bodies (next.config.ts) to leave protocol room;
+   * a 1 MiB import expands to well under this (final review I-2).
+   */
+  documentMaxBytes: 3 * 1024 * 1024,
 } as const
 
 /** Source key: lowercase slug segments; `--` joins section and item. */

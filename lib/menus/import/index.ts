@@ -65,6 +65,14 @@ export function validateMenuDocument(document: MenuDocument): ImportIssue[] {
       add(p, `Expected ${empty ? "0" : "1"}..${max} characters`)
   }
   if (!object(document)) return [issue("document", "Expected an object")]
+  if (
+    new TextEncoder().encode(JSON.stringify(document)).length >
+    L.documentMaxBytes
+  )
+    add(
+      "document",
+      `Menu is too large to save (over ${Math.floor(L.documentMaxBytes / (1024 * 1024))} MB); split it or shorten descriptions`
+    )
   str(document.title, "title", L.titleMax)
   if (!Array.isArray(document.sections))
     return [...issues, issue("sections", "Expected an array")]

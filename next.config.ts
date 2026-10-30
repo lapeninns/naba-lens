@@ -65,6 +65,14 @@ const securityHeaders = [
 ]
 
 const nextConfig: NextConfig = {
+  experimental: {
+    serverActions: {
+      // v0.3 menu drafts: MENU_IMPORT_LIMITS.documentMaxBytes (3 MiB) plus
+      // protocol overhead. Every action still authorises and validates its own
+      // input; the default 1 MB rejected valid large drafts (final review I-2).
+      bodySizeLimit: "4mb",
+    },
+  },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }]
   },

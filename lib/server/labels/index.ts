@@ -69,6 +69,7 @@ function logFailure(where: string, error: unknown) {
 // ---------------------------------------------------------------------------
 
 type EntryRow = {
+  section_id: string
   item_id: string
   name: string
   description: string | null
@@ -84,8 +85,10 @@ type SectionRow = {
   name: string
   kind: string
   position: number
-  menu_entries: EntryRow[]
 }
+
+/** PostgREST answers at most `max_rows` (1000) rows per request. */
+const ENTRY_PAGE = 1000
 
 const byPosition = (a: { position: number }, b: { position: number }) =>
   a.position - b.position
@@ -149,14 +152,41 @@ export async function getLabellingCatalogue(
 
   const sectionsRead = await actor.db
     .from("menu_sections")
-    .select(
-      "id, slug, name, kind, position, menu_entries(item_id, name, description, aliases, position, item:menu_items(archived_at), menu_entry_variants(variant_id, name, position))"
-    )
+    .select("id, slug, name, kind, position")
     .eq("version_id", version.id)
     .order("position")
   if (sectionsRead.error) {
     logFailure("catalogue read", sectionsRead.error)
     return unavailable
+  }
+
+  // Entries are paged in a total order: a menu may hold up to 2000 items, and a
+  // single embedded read would stop silently at max_rows (final review I-3).
+  const entries: EntryRow[] = []
+  for (let from = 0; ; from += ENTRY_PAGE) {
+    const page = await actor.db
+      .from("menu_entries")
+      .select(
+        "section_id, item_id, name, description, aliases, position, item:menu_items(archived_at), menu_entry_variants(variant_id, name, position)"
+      )
+      .eq("version_id", version.id)
+      .order("section_id")
+      .order("position")
+      .order("item_id")
+      .range(from, from + ENTRY_PAGE - 1)
+    if (page.error) {
+      logFailure("catalogue read", page.error)
+      return unavailable
+    }
+    const rows = page.data as unknown as EntryRow[]
+    entries.push(...rows)
+    if (rows.length < ENTRY_PAGE) break
+  }
+  const bySection = new Map<string, EntryRow[]>()
+  for (const entry of entries) {
+    const list = bySection.get(entry.section_id) ?? []
+    list.push(entry)
+    bySection.set(entry.section_id, list)
   }
 
   const sections: CatalogueSection[] = (
@@ -168,7 +198,7 @@ export async function getLabellingCatalogue(
       slug: s.slug,
       name: s.name,
       kind: s.kind as MenuSectionKind,
-      items: [...s.menu_entries]
+      items: [...(bySection.get(s.id) ?? [])]
         .filter((e) => !e.item?.archived_at)
         .sort(byPosition)
         .map((e) => ({
