@@ -4,7 +4,223 @@ Track: `merge-precheck`, branch `feat/nl-mergeplan`. Documentation only.
 Only the integrator may merge into `feat/nabalens-mvp`. No remote, push, PR,
 application edits, database changes, or running stacks are needed for this track.
 
-## Latest: snapshot 3, 2026-10-30 00:56:17 UTC
+## Latest: snapshot 4, 2026-10-30 01:16:11 UTC
+
+Integration advanced to `69f3d081fada8067a414f1dd8da66d7e9e1b4fee`.
+Its merge #4a contains the pinned migrations, privacy, library, CI, three review,
+docs2 and acceptance tips, plus gaps and this planning branch through `4c03805`.
+Those ancestors need **no second merge**. Authedge has incorporated integration
+through `a964290`. Only committed refs were inspected; none moved during the
+original matrix. Historical findings below are revision-scoped and superseded by
+this section where explicitly corrected.
+
+All commit times below are **30 October 2026, UTC**. `%cr` is the observed value,
+not a completion signal. Quietness compares snapshot 3 with this pinned scan,
+**19m54s** later, and also requires a commit age of at least 20 minutes.
+
+| Branch | Full pinned SHA | Last commit UTC | `%cr` | Quiet? |
+| --- | --- | --- | --- | --- |
+| `feat/nabalens-mvp` | `69f3d081fada8067a414f1dd8da66d7e9e1b4fee` | 01:11:06 | 5 minutes ago | base, changed |
+| `feat/nl-journey` | `bd366d0ca2ee79b3cb2d4f5152855e9359a6e339` | 01:06:52 | 9 minutes ago | no |
+| `feat/nl-visual` | `d139fe69f325f26dafe1b4e1aaf843e7b6d6f8d1` | 01:08:55 | 7 minutes ago | no |
+| `feat/nl-library` | `e83de829c842db3b19e75eeddf637148431e9a37` | 01:02:14 | 14 minutes ago | no, integrated |
+| `feat/nl-authedge` | `0c61e759603c216eda3f68c816b92bf09d3f7237` | 01:09:44 | 6 minutes ago | no |
+| `feat/nl-uploads` | `ac58e9c8a55a759e0900947cd3cced78a35f82c8` | 01:10:06 | 6 minutes ago | no |
+| `feat/nl-ci` | `e4f7b9197680a3983c4b591961080f29530f0180` | 00:37:43 | 38 minutes ago | yes, integrated |
+| `feat/nl-docs2` | `be8a8979d3577d6a653c3fa40789d7ffda590b41` | 00:18:42 | 57 minutes ago | yes, integrated |
+| `feat/nl-docs` | `575c336d6ae391c42bfa36030dbb2c4331a20bf7` | 00:05:25 | 71 minutes ago | superseded |
+| `feat/nl-acceptance` | `1193e85d219964a20075f0b4e210d5308e85f6fa` | 00:36:33 | 40 minutes ago | yes, integrated |
+| `feat/nl-privacy` | `cf9ca902facc76adb4f6f1ab76012ba6b4efc4dd` | 00:54:29 | 22 minutes ago | yes, integrated |
+| `feat/nl-migrations` | `75dc8ace00aab0f7164b64b58bd790cb54137829` | 01:03:44 | 12 minutes ago | no, integrated |
+| `feat/nl-load` | `6349632bb7c6da84696016a4a73b4c2c827e0ee5` | 01:13:09 | 3 minutes ago | no |
+| `review/nl-wave3` | `ce09ae157bb431dad74b96a7708b74912c99f207` | 00:17:37 | 59 minutes ago | yes, integrated |
+| `review/nl-scope` | `3894911154c53518e77ecf86c21ef5bd08fa4840` | 00:13:37 | 63 minutes ago | yes, integrated |
+| `review/nl-upload-path2` | `0b169e55a9a2225474b3bfdcf9b48cc364765968` | 00:34:50 | 41 minutes ago | yes, integrated |
+
+Actual original-matrix output:
+
+```text
+COUNTS {"checks":120,"clean":116,"conflicting":4}
+BASE: 14 clean / 1 conflict
+PAIRS: 102 clean / 3 conflicts
+CUMULATIVE {"checks":6,"clean":5,"conflicting":1}
+MIGRATION_DIVERGENCE {}
+QUIET: interval_seconds=1194.127837, quiet=7/14, majority=false
+MOVED {}
+```
+
+Both docs branches remain in all checks; only superseded docs is excluded from
+the quiet denominator. Seven is **not** a majority. Changed/recent refs are
+journey, visual, library, authedge, uploads, migrations and load; two are already
+integrated, not pending merges. Monitoring remains active; next expected tick
+**01:35:04 UTC**.
+
+### Four textual conflicts, two underlying resolutions
+
+| Check | Conflicted path | Resolution |
+| --- | --- | --- |
+| integration / journey | `app/admin/admin-library.tsx` | Shared serializer plus optimistic controls, as below |
+| journey / library | same | Same recipe |
+| journey / authedge | same | Same recipe, inherited through integration/library |
+| journey / visual | `components/nabalens/staff-directory-table.tsx` | Visible row content names the link; no overriding mobile `aria-label`; one hidden `, open portfolio` suffix |
+
+The filter recipe from snapshot 3 remains exact: keep `filtersToSearch`, remove
+local `toSearch`, retain `useOptimistic(filters)` and `value={shown}`, and call
+`setShown(next)` inside the navigation transition. Gallery key, page loading and
+search still use **committed** filters. Resolved blob:
+`13842e348da452cd07265b2f1c3200c69428fd59`.
+
+The row-link conflict is only journey's explanatory comment versus visual's
+comment removal. Both remove the mobile overriding label and add the same
+hidden suffix. Use visual's resolved blob
+`76fd4a8ad97a089228800790fdf1e6c1ee45521a`, preserving visible display name,
+status/job/venue text, and all row actions. Do not put back the shorter label
+that excludes visible text. No whole-side UI rollback is needed.
+
+The raw cumulative order still stops at journey, step 6. Applying the two
+recipes in **unreferenced objects only** gives:
+
+```text
+PROPOSED_RESOLUTION_CUMULATIVE:
+  steps=14, clean_automerges=12, manual_resolution_steps=2
+  tree=ac38e5b5e5dac06e26ef20f74af5c98bd49f2faa
+SEMANTIC_DURATION_DEDUP:
+  tree=e31290cb94dab874d075800f622f6f5c7cacc24b
+  tile_blob=fe0f7d6255f5f6c9bb664770e88362413cb3747b
+```
+
+The 14-step simulation retains the previous order, including ancestors for
+comparability; it does not mean 14 real merges remain. Journey's single trailing
+`duration m:ss` still wins over visual's prepended duplicate, preserving the
+`Video, <filename>, ...` selector contract. Neither tree was installed or tested.
+
+### Supplemental security-fix branch, separate from the 120 checks
+
+Integrator's merge #4b handoff names `feat/nl-secfix`, outside the original
+15-branch matrix. A later scoped inspection pinned
+`de6b03172e19aaa916b48a6b00babd4acc5fd6b4`, committed **01:12:48 UTC**;
+its observed `%cr` was **7 minutes ago**. Do not silently change the original
+14-ref quiet denominator or count its handoff's DONE as our test evidence.
+
+This branch **does contain** the forward read-policy lockdown, service-role
+signing after checks, stale-processing reaper, DB-time claim takeover, reservation
+write guard/limits and profile Origin/CSP corrections. Thus snapshot 3's
+"no target contains these fixes" is no longer the current planning conclusion.
+They are not yet in pinned integration. The branch's own evidence is documented
+in `docs/reviews/wave3-fixes.md`; this track has not reproduced it.
+
+Actual supplemental checks against all 16 original pinned refs:
+
+```text
+SECFIX_PAIRS: checks=16, clean=11, conflicting=5
+CONFLICTING_WITH: integration, library, authedge, uploads, privacy
+SECFIX_AFTER_PROPOSED_CUMULATIVE: exit=1, conflicted_paths=4
+```
+
+Resolve these four cumulative paths precisely:
+
+1. **`lib/server/accounts/portfolio.ts`: keep library's deletion.** Security's
+   one-line signing change targets the removed interim implementation. Do not
+   resurrect it or its exports/actions. Retain the independent service-client
+   avatar changes in `accounts/directory.ts` and `media/profile.ts`.
+2. **`lib/server/media/access.ts`: combine, not either whole side.** Retain
+   library's shortening-only `signedUrlTtlSeconds()` and call it when signing.
+   Use `actor.service.storage` only **after** `getReadableAsset` authorises the
+   current actor/resource. Retain journey `9e7df13`'s error-body drain, which
+   fixes hanging missing-original downloads; do not restore awaited `cancel()`.
+   Correct the comment that still says signing uses the caller. Proposed blob:
+   `392a8ebb03ea0f25817ea648e064d139f011b654`.
+3. **`lib/server/media/finalise.ts`: preserve both security corrections.** Keep
+   secfix's `take_over_stale_media_claim` RPC and DB clock, not the old host-clock
+   comparison. Keep uploads' size checks **before reads**, failed-original
+   removal, ready update's `deleted_at IS NULL`, and `claimLost` dispatch to
+   `settleLostClaim` **outside** the write catch. Its service re-read handles a
+   tombstone/missing row by removing late derivatives/original and returning
+   404; already ready succeeds; another state returns 409 without failing its
+   claim. Do not choose secfix's older inline no-match block, which lacks the
+   tombstone cleanup. Proposed blob:
+   `f3476745d44506115cf0eaa95550aef9c39dd751`.
+4. **`next.config.ts`: use one combined `headers()` implementation.** At these
+   exact tips secfix's `securityHeaders` already includes privacy's `nosniff`;
+   retain its CSP, framing, permissions and referrer headers too. Keep the
+   production Supabase origin/build environment consistent with the app.
+   Do not duplicate `headers()` or revert to privacy's single-header version.
+   Pinned resolved blob: `0624a9fd7510fb96e687bc77a1d346d800f72c90`.
+
+These four recipes were applied to scratch trees, including the duration fix:
+`c14a65c84def551b049f8309e79285cc7e4720ef`. This is **not** a clean
+automatic secfix merge or an application-test pass. The original raw failures
+remain failures in the reported counts.
+
+### Current semantic and evidence gates
+
+- **Scanner-safe auth changes the login contract.** Authedge replaces GET
+  token consumption with a confirmation page and POST `/auth/confirm/verify`.
+  Preserve that behavior and the malformed/expired/cross-origin/scanner tests.
+  Update every browser helper to click **Continue** after opening the link,
+  including journey's `helpers/world.ts` and invitation/sign-in journeys,
+  `tests/library/e2e.ts`, gaps, visual and upload helpers. Authedge updates
+  slice/accounts helpers but not all of these. Privacy runtime currently expects
+  the GET to return 303 with cookies: change it to check a non-consuming GET,
+  then submit the form and retain redirect/cookie/no-store/leak assertions.
+  Do not revert to GET consumption or use service-role sessions to mask failures.
+- **Origin helper consolidation:** secfix adds
+  `lib/server/http/same-origin.ts`. Retain its Host/forwarded-Host-aware profile
+  check, and use the same tested primitive for the admin avatar route's known
+  `nextUrl.origin`/127.0.0.1 mismatch. Reconcile auth verify's local guard with
+  that shared contract and its Origin/Fetch-Site tests before consolidating;
+  never weaken cross-site rejection to fix test setup.
+- **Upload/security fixes must be tested together.** `ac58e9c` implements the
+  deletion/finalise correction and measured-size validation; secfix implements
+  stale claims and read lockdown. Require the upload race/oversize tests plus
+  security/lifecycle suites after their real merge. Keep the documented nullable
+  upload key/optional fifth RPC argument; secfix's migration preserves them.
+- **Integration already wires bundle scanning.** `a964290` adds `scan:bundle`
+  and `test:migrations`, runs the scan after a successful build in local CI, and
+  removes library/gaps fixture 504 retry loops. Keep those changes. Journey's
+  slice retry removal also survives. Visual `d139fe6` still contains a
+  `generateLink` retry loop, and upload/visual wrappers must not reintroduce
+  hidden fixture retries. Production transport retries are a separate contract.
+- **Remaining CI wiring is not fixed by that commit:** isolate the matching
+  E2E workdir and DB/JWT credentials, correct callback/confirm URLs for CI's port,
+  supply real Linux HEIC fixtures, reconcile project names (`desktop` versus
+  `chromium`), and keep the visual gate separate with nonzero executed cases.
+  Preserve privacy runtime's explicit production-server/log/secret inputs.
+  Adapt its deleted `loadMorePortfolioAction` probe to `loadLibraryPage`, and
+  remove journey's portfolio `test.fail()` when the integrated library passes.
+  Authedge's `tests/integration/auth-access.test.ts` also still statically imports
+  and calls that deleted action in the proposed tree. Replace its import/calls
+  with the authorised library paging action and retain every role/deactivation
+  assertion; otherwise the clean merge retains a broken API dependency.
+- **Migration/backup evidence advanced:** migrations' final handoff reports
+  upgrade 7/7, reset 3/3, lint 3/3, plus a 12-object hash-checked local restore
+  with 48 access checks. These are that track's results on the five-migration
+  schema, not our runs or evidence for the new security migration. Rerun on the
+  six-migration tree. `scripts/db/lib/drill.ts` currently downloads directly with
+  end-user Storage clients, and upgrade expects 16 grants/32 denials. Read
+  lockdown invalidates those grants: add denied-direct-read checks and retain
+  authorised **app-path** byte/hash checks. Verify the new guard trigger/RPCs,
+  policies and migration history survive restore, not just the old three-policy
+  count. Hosted restore/PITR and post-restore upgrade remain unverified.
+- **Load evidence now exists:** `docs/runtime-sizing.md` and raw reports are
+  committed. Its final local set reports 100/100 mixed and HEIC batches,
+  20/20 HEIC burst and 1/1 near-200-MiB video, with mixed peak RSS 1289 MiB.
+  These are macOS/shared-host results; the mixed final run even starts at load
+  8.9 despite the "quiet at start" heading. Some runs are explicitly contended.
+  Do not call them Linux/hosted sizing proof. Preserve FIFO one-slot admission,
+  bounded waits and retained-buffer accounting. Reconcile the existing 8
+  finalise busy-retries with the new per-attempt queue wait: the report bounds
+  overload around 170 seconds, longer than the 2-minute stale takeover window.
+  Set a coherent retry/claim/route budget before deployment; no limit is changed
+  by this planning track. Union load and upload `docs/media-pipeline.md` edits.
+- **Release remains blocked:** integration's own handoff reports typecheck,
+  lint, 124 unit tests, build and bundle scan passing, but integration has one
+  intentional **failing** `gaps-profile-origin` test. After secfix it must pass,
+  not become skipped/expected-failing. Cleanup is still unscheduled, and hosted
+  permission for the new `storage.objects` trigger still needs confirmation.
+  No stack or combined-tree application checks were run by this track.
+
+## Historical snapshot 3, 2026-10-30 00:56:17 UTC
 
 Integration base is still `3a23c9bf065a5e7d369a7bdac0006e5c38a0dfbd`.
 All times below are **30 October 2026, UTC**; `%cr` is the observed relative age.
@@ -399,36 +615,36 @@ branch ref, or application file changed. These trees were not installed or teste
 
 ## Recommended order
 
-This is conditional on final track commits and review findings, not an instruction
-to merge unfinished branches just because they currently have no conflicts.
+At integration `69f3d08`, migrations, privacy, library, CI, the three review tips,
+docs2 and acceptance are already ancestors. Do not remerge them or superseded
+docs. Their later new commits, if any, require a new pinned check.
 
-1. Read `review/nl-wave3`, `review/nl-upload-path2`, and the privacy/migration
-   findings first. Merge any required security/schema corrections before accepting
-   browser evidence. The latest snapshot above identifies unresolved signed-read,
-   delete/finalise and stale-processing corrections; review documents themselves
-   do not implement them.
-2. `feat/nl-migrations`, then `feat/nl-authedge` and `feat/nl-privacy` if they gain
-   actual changes. Keep append-only migration history and current-account checks.
-3. `feat/nl-library`. This supplies download/delete/refresh in the admin's
-   individual portfolio and removes the interim duplicate gallery/query.
-4. `feat/nl-uploads`. Preserve transport recovery and validation/idempotency tests;
-   rerun them against any preceding schema/auth changes.
-5. `feat/nl-journey`, then `feat/nl-visual`. Keep both suites and their appropriate
-   independent configs instead of overwriting the root browser config twice.
-6. `feat/nl-load`, then `feat/nl-ci`. Consolidate CI discovery once the actual
-   browser/load commands and isolation requirements are known.
-7. `review/nl-scope` and any remaining review documents. Its current audit is a
-   PASS on `3a23c9b`, not on the future integrated tree.
-8. `feat/nl-docs2`, then `feat/nl-acceptance`. Reconcile operational commands and
-   release evidence with the integrated tests, never with an anticipated pass.
-9. Merge this documentation branch when useful; rerun its precheck against the
-   then-current integration head immediately before each real merge.
+1. Read both security reviews and secfix's implementation/evidence first.
+   Preserve library's shared portfolio rather than resurrecting the deleted query.
+2. The tested scratch order for remaining code is **authedge → uploads → journey
+   → visual → load → secfix**. Apply the filter, row-name and duration recipes,
+   then the four security conflict recipes above. Recheck against the actual
+   integration head before each real merge. The integrator alone performs merges.
+3. Consolidate auth confirmation helpers, CI discovery/isolation, no-retry fixtures,
+   privacy runtime probes and migration/backup access assertions. Keep all
+   security fixes and the sixth migration before accepting browser/release evidence.
+4. Run the integrated install/typecheck/lint/unit/build/bundle gates, then actual
+   security, lifecycle, migration, integration, browser and independent visual
+   gates on owned isolated stacks. Require nonzero cases, the formerly failing
+   Origin test passing, and retained authorisation/race assertions. These are
+   integrator steps, not checks claimed by this planning track.
+5. Reconcile docs2/acceptance and runtime-sizing evidence with the final tree.
+   Require hosted trigger permission, cleanup scheduling and deployment/phone
+   evidence separately. Old audit passes do not certify the new tree.
+6. Integrate this branch's newer documentation delta when useful; its prior
+   `4c03805` is already merged. No proposed scratch commit is a branch to merge.
 
 ## Resolution rules and semantic overlaps
 
-Snapshots 1–2 were textually clean. Snapshot 3 adds the real admin filter conflict
-and semantic duration duplication documented above. The remaining shared-file
-resolution rules follow.
+Snapshots 1–2 were textually clean. Snapshot 3 adds the admin filter conflict
+and duration duplication; snapshot 4 adds the row-name conflict and supplemental
+secfix conflicts. The latest section's exact resolutions take precedence over
+historical findings below.
 
 - **`package.json`: combine, do not choose an entire side.** Retain the integration
   scripts and all new suite commands. Keep additive browser-test dependencies from
@@ -512,10 +728,10 @@ resolution rules follow.
   with desktop/phone projects per engine, losing journey's `@core` filtering and
   mobile device settings. Decide and document the deliberate matrix, preserving
   actual browser/device settings, one worker, zero retries and all core assertions.
-- **Run privacy's bundle scan after the production build.** At privacy
-  `8e788ec`, `scripts/ci/scan-bundle.mjs` fails for missing build/findings, but CI
-  does not invoke it. Wire a checked invocation against the same build environment
-  and propagate its exit status. Never relax scanner rules to make the gate pass.
+- **Keep privacy's checked post-build bundle scan.** Integration `a964290`
+  wires it into local CI. Preserve the checked exit status and same build
+  environment when consolidating later commands. Runtime privacy cases still
+  need their separate production-server/log inputs. Never relax scanner rules.
 - **Keep CI's toolchain pin deliberate.** `scripts/ci/local-ci.sh` and its workflow
   pin pnpm 10.30.1. Do not remove the baseline pnpm-11 install-policy fix or claim
   a pnpm-11 CI run from the old pin; document/test each supported version.
@@ -543,8 +759,9 @@ not needed. Never share another worktree's containers or stop them.
 
 ### Migration ledger
 
-Across the audited committed tips there are **no new migration paths, duplicate
-timestamps, divergent migration blobs, or timestamp collisions**. Migrations are:
+Across the original 15 pinned target tips, the five production migrations remain
+identical with no duplicate timestamps or divergent blobs. Supplemental secfix
+adds a sixth, uniquely timestamped forward migration:
 
 | Order | Filename | Dependency / reason to retain |
 | --- | --- | --- |
@@ -553,8 +770,12 @@ timestamps, divergent migration blobs, or timestamp collisions**. Migrations are
 | 3 | `20261029120200_nabalens_storage.sql` | Depends on access helpers; private buckets/policies, original cleanup |
 | 4 | `20261029150000_nabalens_media_cleanup.sql` | Cleanup leases/replacement RPC; drops prior two-argument cleanup |
 | 5 | `20261029160000_media_client_upload_key.sql` | Contract amendment; immutable key/index, five-argument reserve replacing four-argument RPC |
+| 6, secfix | `20261030100000_security_hardening.sql` | Drops end-user Storage reads; adds original-write guard, reserve hardening and DB-time claim/reaper RPCs; depends on the preceding five |
 
-Keep these files once and unchanged. No renumbering is justified now.
+Keep the first five once and unchanged. Append secfix's sixth; no timestamp
+renumbering is justified. Its nullable key and optional RPC arguments remain
+compatible with the existing amendment. Reconcile backup/access-test expectations
+with its intentionally changed read policy, as detailed in snapshot 4.
 `feat/nl-migrations` equalled base in snapshot 1 and adds test/backup scripts in
 snapshot 2, with no production SQL corrections yet. Prefer a new uniquely timestamped
 forward migration after its dependencies. For two future new files sharing a
@@ -606,14 +827,16 @@ started, reset, reused, or stopped.
 
 ## Cadence and remaining work
 
-Complete scans: **00:15:10**, **00:35:46**, **00:56:17 UTC**. Next expected
-schedule tick: **01:15:04 UTC, 30 October 2026**, then every 20 minutes.
-Only **5/14** non-superseded refs met the quiet criterion in snapshot 3,
+Complete scans: **00:15:10**, **00:35:46**, **00:56:17**, **01:16:11 UTC**.
+Next expected schedule tick: **01:35:04 UTC, 30 October 2026**, then every
+20 minutes. Only **7/14** non-superseded refs met the quiet criterion in snapshot 4,
 so this is not final. Compare each new sweep with the latest previous snapshot.
 Each follow-up must pin fresh refs, record
 `git log -1 --format=%cr <branch>`, rerun all base and pairwise merge-tree checks,
 inspect new shared-file changes and cumulative merge trees, then commit both
 this plan and `docs/fanout/handoffs/merge-precheck.md`.
+Also repin secfix and recheck its supplemental overlaps; do not silently mix its
+extra checks into the fixed 120-check matrix or original quiet denominator.
 
 The continuation is bound to this thread; the first scheduled run changed its
 interval to 1,200,000 ms. Its exact task ID is in the continuity handoff. This lets
