@@ -1,6 +1,9 @@
 packages: []
 
 allowBuilds:
+  esbuild: false
   sharp: true
   unrs-resolver: true
   msw: false
+
+minimumReleaseAge: 1440

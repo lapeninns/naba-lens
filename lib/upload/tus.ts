@@ -1,0 +1,187 @@
+// Resumable path for large photos and all videos: Supabase Storage's TUS
+// endpoint via tus-js-client.
+// https://supabase.com/docs/guides/storage/uploads/resumable-uploads
+
+import * as tus from "tus-js-client"
+
+import { AbortedError, isAlreadyExists, TransferError } from "./errors"
+
+/** Supabase requires exactly 6 MiB chunks on its resumable endpoint. */
+export const SUPABASE_TUS_CHUNK_SIZE = 6 * 1024 * 1024
+
+/** tus-js-client hooks that tests (and unusual runtimes) may replace. */
+export type TusAdapters = Pick<
+  tus.UploadOptions,
+  "urlStorage" | "fileReader" | "httpStack"
+>
+
+export type TusTransferOptions = {
+  endpoint: string
+  file: Blob
+  assetId: string
+  bucket: string
+  objectKey: string
+  contentType: string
+  getAccessToken: () => Promise<string | null>
+  apiKey?: string
+  chunkSize: number
+  retryDelays: number[]
+  onProgress: (fraction: number) => void
+  signal?: AbortSignal
+  adapters?: TusAdapters
+}
+
+/** Stable per reservation, so a retry of the same asset resumes its transfer. */
+export function tusFingerprint(assetId: string) {
+  return `nabalens-media:${assetId}`
+}
+
+/** Resolves when every byte is stored (or the object already existed). */
+export async function tusTransfer(options: TusTransferOptions): Promise<void> {
+  const { signal } = options
+  if (signal?.aborted) throw new AbortedError()
+
+  const initialToken = await accessTokenUntilCancelled(options)
+  if (signal?.aborted) throw new AbortedError()
+  if (!initialToken) {
+    throw new TransferError("Your session has expired. Sign in and retry.")
+  }
+
+  return new Promise<void>((resolve, reject) => {
+    let settled = false
+    const settle = (error?: Error) => {
+      if (settled) return
+      settled = true
+      signal?.removeEventListener("abort", onAbort)
+      if (error) reject(error)
+      else resolve()
+    }
+
+    const upload = new tus.Upload(options.file, {
+      endpoint: options.endpoint,
+      chunkSize: options.chunkSize,
+      retryDelays: options.retryDelays,
+      // Supabase: POST without data, then PATCH 6 MiB chunks.
+      uploadDataDuringCreation: false,
+      removeFingerprintOnSuccess: true,
+      storeFingerprintForResuming: true,
+      fingerprint: async () => tusFingerprint(options.assetId),
+      headers: {
+        "x-upsert": "false",
+        ...(options.apiKey ? { apikey: options.apiKey } : {}),
+      },
+      metadata: {
+        bucketName: options.bucket,
+        objectName: options.objectKey,
+        contentType: options.contentType || "application/octet-stream",
+        cacheControl: "3600",
+      },
+      // Refresh the bearer token per request: video transfers can outlive it.
+      onBeforeRequest: async (req) => {
+        const token = (await accessTokenUntilCancelled(options)) ?? initialToken
+        if (signal?.aborted) throw new AbortedError()
+        req.setHeader("authorization", `Bearer ${token}`)
+      },
+      onShouldRetry: (err, attempt, opts) => {
+        if (isCreateConflict(err)) return false
+        return tus.defaultOptions.onShouldRetry!(err, attempt, opts)
+      },
+      onProgress: (sent, total) => {
+        if (total > 0) options.onProgress(sent / total)
+      },
+      onSuccess: () => settle(),
+      onError: (err) => {
+        if (isCreateConflict(err)) {
+          options.onProgress(1)
+          return settle()
+        }
+        const status = statusOf(err)
+        settle(new TransferError(tusFailureMessage(status), status))
+      },
+      ...options.adapters,
+    })
+
+    const onAbort = () => {
+      // Keep the server-side upload (no terminate) so a retry can resume it;
+      // abandoned uploads are removed by the server's cleanup job.
+      void upload.abort(false)
+      settle(new AbortedError())
+    }
+    signal?.addEventListener("abort", onAbort, { once: true })
+
+    upload
+      .findPreviousUploads()
+      .then((previous) => {
+        if (settled) return
+        const match = previous.find((p) => p.size === options.file.size)
+        if (match) upload.resumeFromPreviousUpload(match)
+        upload.start()
+      })
+      .catch(() => {
+        // URL storage unavailable (e.g. private mode): start fresh.
+        if (!settled) upload.start()
+      })
+  })
+}
+
+/** Auth refresh cannot be cancelled, but it must not hold or restart a cancelled transfer. */
+async function accessTokenUntilCancelled({
+  getAccessToken,
+  signal,
+}: Pick<TusTransferOptions, "getAccessToken" | "signal">) {
+  if (signal?.aborted) throw new AbortedError()
+  const pending = getAccessToken()
+  if (!signal) return pending
+
+  return new Promise<string | null>((resolve, reject) => {
+    const onAbort = () => {
+      signal.removeEventListener("abort", onAbort)
+      reject(new AbortedError())
+    }
+    signal.addEventListener("abort", onAbort, { once: true })
+    // Always observe the auth promise, including rejection after cancellation.
+    pending.then(
+      (token) => {
+        signal.removeEventListener("abort", onAbort)
+        if (signal.aborted) reject(new AbortedError())
+        else resolve(token)
+      },
+      (error) => {
+        signal.removeEventListener("abort", onAbort)
+        reject(signal.aborted ? new AbortedError() : error)
+      }
+    )
+    if (signal.aborted) onAbort()
+  })
+}
+
+/** What the person can do about a failed resumable transfer. */
+export function tusFailureMessage(status: number | null): string {
+  if (status === null) {
+    return "The connection was interrupted. Check your connection, then retry: the upload continues where it stopped."
+  }
+  if (status === 401 || status === 403) {
+    return "Your session expired or your account cannot upload. Sign in again, then retry this file."
+  }
+  if (status === 413) return "This file is larger than the storage limit."
+  return `Storage rejected the upload (HTTP ${status}).`
+}
+
+function statusOf(err: Error): number | null {
+  const res = (err as tus.DetailedError).originalResponse
+  return res ? res.getStatus() : null
+}
+
+/**
+ * Creating the upload failed because the object already exists: an earlier
+ * attempt stored every byte but its final response was lost.
+ */
+function isCreateConflict(err: Error): boolean {
+  const { originalRequest, originalResponse } = err as tus.DetailedError
+  if (!originalRequest || !originalResponse) return false
+  if (originalRequest.getMethod() !== "POST") return false
+  return isAlreadyExists(
+    originalResponse.getStatus(),
+    originalResponse.getBody()
+  )
+}
