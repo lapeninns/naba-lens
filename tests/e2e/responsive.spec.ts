@@ -328,15 +328,19 @@ for (const width of WIDTHS) {
 
 /** Presses Tab until the focused element's accessible name matches. */
 async function tabTo(page: Page, name: RegExp, max = 60) {
+  const visited: string[] = []
   for (let i = 0; i < max; i++) {
     await page.keyboard.press("Tab")
     const focused = await page.evaluate(() => {
       const el = document.activeElement as HTMLElement | null
       return (el?.getAttribute("aria-label") ?? el?.innerText ?? "").trim()
     })
+    visited.push(focused)
     if (name.test(focused)) return
   }
-  throw new Error(`Tab never reached ${name}`)
+  throw new Error(
+    `Tab never reached ${name}; focus went: ${[...new Set(visited)].join(" | ")}`
+  )
 }
 
 test("keyboard only: upload, open the viewer, download", async () => {
@@ -344,6 +348,8 @@ test("keyboard only: upload, open the viewer, download", async () => {
   const extra = await syntheticJpeg(`keyboard-${world.tag}.jpg`)
   await staff.setViewportSize({ width: 390, height: 800 })
   await staff.goto("/staff")
+  // Wait for the streamed page, not just the load event, before tabbing.
+  await expect(portfolioList(staff)).toBeVisible()
   await tabTo(staff, /^Upload photos or videos$/)
   await staff.keyboard.press("Enter")
   const dialog = staff.getByRole("dialog")
