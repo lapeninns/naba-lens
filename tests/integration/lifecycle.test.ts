@@ -1,5 +1,8 @@
 import { beforeAll, describe, expect, it } from "vitest"
 
+import { getReadableAsset } from "@/lib/server/media/access"
+import { actorFor } from "../slice/media-actor"
+
 import { bootstrapAdmin } from "../../scripts/bootstrap-admin"
 import {
   createIdentity,
@@ -29,6 +32,9 @@ describe("media lifecycle", () => {
 
   async function reserve(client = staff.client) {
     const { data, error } = await client.rpc("reserve_media_asset", {
+      // Required by reserve_media_asset (wave 3 finding 5 / upload-path F5).
+      p_client_upload_key: crypto.randomUUID(),
+      p_size_bytes: 4,
       p_media_type: "image",
       p_extension: "JPG",
       p_original_filename: "dish.jpg",
@@ -112,10 +118,15 @@ describe("media lifecycle", () => {
         .error
     ).not.toBeNull()
     await markReady(admin, asset.id)
+    // Once ready it is readable only through the app's read path; direct
+    // storage reads stay denied (wave 3 finding 1).
     expect(
       (await staff.client.storage.from("media").download(asset.original_path))
         .error
-    ).toBeNull()
+    ).not.toBeNull()
+    const actor = await actorFor(staff)
+    const found = await getReadableAsset(actor, asset.id)
+    expect(found.ok).toBe(true)
   })
 
   it("an inactive venue cannot receive uploads or assignments", async () => {
@@ -128,6 +139,9 @@ describe("media lifecycle", () => {
 
     await admin.from("venues").update({ active: false }).eq("id", venueA.id)
     const blocked = await staff.client.rpc("reserve_media_asset", {
+      // Required by reserve_media_asset (wave 3 finding 5 / upload-path F5).
+      p_client_upload_key: crypto.randomUUID(),
+      p_size_bytes: 4,
       p_media_type: "image",
       p_extension: "jpg",
       p_original_filename: "x.jpg",

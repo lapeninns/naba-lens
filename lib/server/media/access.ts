@@ -80,8 +80,22 @@ export async function getReadableAsset(
 }
 
 /**
- * A fresh signed URL (MEDIA_LIMITS.signedUrlExpirySeconds = 60 s) for an image
- * derivative, signed as the caller so the storage read policy applies too.
+ * Lifetime of newly issued signed read URLs: MEDIA_LIMITS.signedUrlExpirySeconds
+ * (60 s). Tests can SHORTEN it with NABALENS_SIGNED_URL_TTL_SECONDS to exercise
+ * expiry; the override can never lengthen it, so it cannot weaken production.
+ */
+export function signedUrlTtlSeconds(): number {
+  const limit = MEDIA_LIMITS.signedUrlExpirySeconds
+  const raw = process.env.NABALENS_SIGNED_URL_TTL_SECONDS
+  const override = raw && /^\d+$/.test(raw) ? Number(raw) : NaN
+  return override >= 1 && override < limit ? override : limit
+}
+
+/**
+ * A fresh signed URL (signedUrlTtlSeconds(), at most 60 s) for an image
+ * derivative. Signed with the service role only after `getReadableAsset` has
+ * authorised the caller and the asset: end users have no storage read policy, so
+ * they cannot mint signed URLs (of any lifetime) themselves (wave 3 finding 1).
  */
 export async function signDerivative(
   actor: MediaActor,
@@ -93,9 +107,9 @@ export async function signDerivative(
   const path =
     which === "thumbnail" ? found.asset.thumbnailPath : found.asset.previewPath
   if (!path) return notFound
-  const { data, error } = await actor.db.storage
+  const { data, error } = await actor.service.storage
     .from(STORAGE_BUCKETS.media)
-    .createSignedUrl(path, MEDIA_LIMITS.signedUrlExpirySeconds)
+    .createSignedUrl(path, signedUrlTtlSeconds())
   if (error || !data) return notFound
   return { ok: true, url: data.signedUrl }
 }
@@ -145,7 +159,10 @@ export async function streamOriginal(
     range
   )
   if (upstream.status !== 200 && upstream.status !== 206) {
-    await upstream.body?.cancel()
+    // Drain the small error body. Awaiting body.cancel() here never settled
+    // under `next start` (Next's fetch hands back a tee'd stream), so a missing
+    // original hung the download instead of answering 404.
+    await upstream.arrayBuffer().catch(() => undefined)
     if (upstream.status === 416) {
       return new Response(null, {
         status: 416,

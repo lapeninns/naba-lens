@@ -1,4 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest"
+import { getReadableAsset, streamOriginal } from "@/lib/server/media/access"
+import { actorFor } from "../slice/media-actor"
 
 import { sendSignInLink } from "@/lib/auth/magic-link"
 import { loadProfile, toAuthState } from "@/lib/auth/profile"
@@ -64,6 +66,9 @@ describe("invite-only sign-in", () => {
     const venues = await user.client.from("venues").select("id")
     expect(venues.data ?? []).toEqual([])
     const reserve = await user.client.rpc("reserve_media_asset", {
+      // Required by reserve_media_asset (wave 3 finding 5 / upload-path F5).
+      p_client_upload_key: crypto.randomUUID(),
+      p_size_bytes: 4,
       p_media_type: "image",
       p_extension: "jpg",
       p_original_filename: "x.jpg",
@@ -87,6 +92,9 @@ describe("deactivation blocks an existing session", () => {
       venueId: venue.id,
     })
     const { data, error } = await staff.client.rpc("reserve_media_asset", {
+      // Required by reserve_media_asset (wave 3 finding 5 / upload-path F5).
+      p_client_upload_key: crypto.randomUUID(),
+      p_size_bytes: 4,
       p_media_type: "image",
       p_extension: "jpg",
       p_original_filename: "dish.jpg",
@@ -135,6 +143,9 @@ describe("deactivation blocks an existing session", () => {
 
   it("cannot upload, edit their profile or delete media", async () => {
     const reserve = await staff.client.rpc("reserve_media_asset", {
+      // Required by reserve_media_asset (wave 3 finding 5 / upload-path F5).
+      p_client_upload_key: crypto.randomUUID(),
+      p_size_bytes: 4,
       p_media_type: "image",
       p_extension: "jpg",
       p_original_filename: "x.jpg",
@@ -164,10 +175,19 @@ describe("deactivation blocks an existing session", () => {
       .select("id")
       .eq("id", assetId)
     expect(rows.data).toHaveLength(1)
+    // Through the app's read path; direct storage reads are denied to end
+    // users (wave 3 finding 1).
     const download = await adminUser.client.storage
       .from("media")
       .download(originalPath)
-    expect(download.error).toBeNull()
+    expect(download.error).not.toBeNull()
+    const actor = await actorFor(adminUser)
+    const found = await getReadableAsset(actor, assetId)
+    expect(found.ok).toBe(true)
+    if (!found.ok) return
+    const response = await streamOriginal(actor, found.asset, null)
+    expect(response.status).toBe(200)
+    await response.body?.cancel()
   })
 
   it("an inactive admin loses admin access too", async () => {

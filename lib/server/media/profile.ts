@@ -4,6 +4,7 @@ import { MEDIA_LIMITS } from "@/lib/config/media"
 import { avatarObjectKey, STORAGE_BUCKETS } from "@/lib/config/storage"
 import { createAvatarDerivative, MediaError } from "@/lib/media"
 
+import { signedUrlTtlSeconds } from "./access"
 import { validationMessage } from "./errors"
 import type { Db, MediaActor, Outcome } from "./types"
 
@@ -147,9 +148,11 @@ export async function signAvatar(
     .eq("id", userId)
     .maybeSingle()
   if (!data?.avatar_path) return notFound
-  const signed = await actor.db.storage
+  // Service role, after the own-or-admin check and the RLS read above: end users
+  // have no storage read policy (wave 3 finding 1).
+  const signed = await actor.service.storage
     .from(STORAGE_BUCKETS.avatars)
-    .createSignedUrl(data.avatar_path, MEDIA_LIMITS.signedUrlExpirySeconds)
+    .createSignedUrl(data.avatar_path, signedUrlTtlSeconds())
   if (signed.error || !signed.data) return notFound
   return { ok: true, url: signed.data.signedUrl }
 }

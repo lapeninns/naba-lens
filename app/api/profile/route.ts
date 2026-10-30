@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { MEDIA_LIMITS } from "@/lib/config/media"
+import { isSameOriginRequest } from "@/lib/server/http/same-origin"
 import { getMediaActor } from "@/lib/server/media/context"
 import { updateOwnProfile } from "@/lib/server/media/profile"
 
@@ -11,6 +12,14 @@ import { updateOwnProfile } from "@/lib/server/media/profile"
  */
 export async function POST(request: Request) {
   const noStore = { "cache-control": "private, no-store" }
+  // Same-origin only (wave 3 finding 7): session cookies are SameSite=Lax, but
+  // this must not depend on that.
+  if (!isSameOriginRequest(request.headers)) {
+    return NextResponse.json(
+      { ok: false, error: "Forbidden." },
+      { status: 403, headers: noStore }
+    )
+  }
   const auth = await getMediaActor("staff")
   if (!auth.ok) {
     return NextResponse.json(

@@ -40,6 +40,8 @@ const result = spawnSync(
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
         status.ANON_KEY ?? status.PUBLISHABLE_KEY,
       SUPABASE_SERVICE_ROLE_KEY: status.SERVICE_ROLE_KEY ?? status.SECRET_KEY,
+      // Regression R7 ages a claim by database time with psql (local only).
+      NABALENS_TEST_DB_URL: status.DB_URL,
     },
   }
 )

@@ -13,6 +13,7 @@ import {
 import type { MediaPage } from "@/lib/server/media/types"
 
 import { loadLibraryPage } from "./library-actions"
+import { filtersToSearch } from "./library-search"
 
 type AdminLibraryProps = {
   venues: Option[]
@@ -22,14 +23,6 @@ type AdminLibraryProps = {
 }
 
 const REFRESH_MS = 15_000
-
-function toSearch(filters: LibraryFilterValue) {
-  const params = new URLSearchParams()
-  if (filters.venueId) params.set("venue", filters.venueId)
-  if (filters.staffId) params.set("staff", filters.staffId)
-  if (filters.type !== "all") params.set("type", filters.type)
-  return params.toString()
-}
 
 /** Admin library: URL-driven filters over a server-filtered, refreshed gallery. */
 export function AdminLibrary({
@@ -41,7 +34,10 @@ export function AdminLibrary({
   const router = useRouter()
   const pathname = usePathname()
   const [pending, startTransition] = React.useTransition()
-  const search = toSearch(filters)
+  // Filters being navigated to: a second change made before the first
+  // navigation returns must build on it, not on the stale server props.
+  const [shown, setShown] = React.useOptimistic(filters)
+  const search = filtersToSearch(filters)
 
   const loadPage = React.useCallback(
     (cursor: string | null) =>
@@ -66,10 +62,11 @@ export function AdminLibrary({
       <LibraryFilters
         venues={venues}
         staff={staff}
-        value={filters}
+        value={shown}
         onChange={(next) => {
-          const qs = toSearch(next)
+          const qs = filtersToSearch(next)
           startTransition(() => {
+            setShown(next)
             router.replace(qs ? `${pathname}?${qs}` : pathname, {
               scroll: false,
             })

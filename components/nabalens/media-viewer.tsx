@@ -55,7 +55,9 @@ function Unavailable({
 }
 
 function Preview({ item }: { item: MediaItem }) {
-  const [failed, setFailed] = React.useState(false)
+  // Track the URL that failed so a re-signed URL gets a fresh attempt.
+  const [failedUrl, setFailedUrl] = React.useState<string | null>(null)
+  const failed = failedUrl !== null && failedUrl === item.previewUrl
 
   if (item.uploadState !== "ready") {
     const message =
@@ -83,7 +85,7 @@ function Preview({ item }: { item: MediaItem }) {
         playsInline
         preload="metadata"
         className="max-h-[65svh] w-full bg-black"
-        onError={() => setFailed(true)}
+        onError={() => setFailedUrl(item.previewUrl)}
       >
         {PREVIEW_UNAVAILABLE}
       </video>
@@ -98,7 +100,7 @@ function Preview({ item }: { item: MediaItem }) {
       src={item.previewUrl}
       alt={`Photo ${item.originalFilename}`}
       className="mx-auto max-h-[65svh] w-auto max-w-full object-contain"
-      onError={() => setFailed(true)}
+      onError={() => setFailedUrl(item.previewUrl)}
     />
   )
 }

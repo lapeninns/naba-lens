@@ -8,6 +8,18 @@ export class AbortedError extends Error {
   }
 }
 
+/**
+ * Thrown by a `reserve` implementation when the reservation for this
+ * idempotency key no longer exists (removed by its owner, or cleaned up after
+ * the abandoned-upload window). Retrying needs a new key.
+ */
+export class ReservationGoneError extends Error {
+  constructor(message = "This upload was removed.") {
+    super(message)
+    this.name = "ReservationGoneError"
+  }
+}
+
 /** Thrown by a transport when the request finally failed. */
 export class TransferError extends Error {
   constructor(

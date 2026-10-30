@@ -9,9 +9,11 @@ import {
   MediaViewer,
   type MediaItem,
 } from "@/components/nabalens"
+import { Button } from "@/components/ui/button"
 import type { MediaPage } from "@/lib/server/media/types"
 
 import { deleteMedia } from "./actions"
+import { usePreviewRecovery } from "./preview-recovery"
 
 export type LoadPage = (
   cursor: string | null
@@ -72,7 +74,9 @@ export function MediaGallery({
   const pagesLoaded = React.useRef(1)
   const refreshing = React.useRef(false)
 
-  const openItem = items.find((item) => item.id === openId) ?? null
+  const { display, brokenCount, onError, attach, retryBroken } =
+    usePreviewRecovery(items)
+  const openItem = display.find((item) => item.id === openId) ?? null
   const hasPending = items.some(
     (i) => i.uploadState === "uploading" || i.uploadState === "processing"
   )
@@ -87,6 +91,8 @@ export function MediaGallery({
         return
       }
       setRefreshError(null)
+      // Broken previews get one fresh, re-signed attempt per refresh.
+      retryBroken()
       const fresh = result.page
       setItems((current) => {
         // The fresh first page replaces the top; older pages already loaded stay.
@@ -100,7 +106,7 @@ export function MediaGallery({
     } finally {
       refreshing.current = false
     }
-  }, [loadPage])
+  }, [loadPage, retryBroken])
 
   // Refresh after an upload (or any caller signal).
   const firstSignal = React.useRef(refreshSignal)
@@ -154,17 +160,34 @@ export function MediaGallery({
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    // Media load errors from the grid and the viewer (a portal, but inside this
+    // tree) reach this handler; see preview-recovery.ts.
+    <div ref={attach} className="flex flex-col gap-4" onError={onError}>
       {refreshError ? (
         <p role="status" className="text-sm text-muted-foreground">
           {refreshError}
         </p>
       ) : null}
+      {brokenCount > 0 ? (
+        <div
+          role="alert"
+          className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-negative/40 px-4 py-2 text-sm"
+        >
+          <span>
+            {brokenCount === 1
+              ? "1 preview could not load."
+              : `${brokenCount} previews could not load.`}
+          </span>
+          <Button variant="outline" size="touch" onClick={retryBroken}>
+            Try again
+          </Button>
+        </div>
+      ) : null}
       {items.length === 0 ? (
         empty
       ) : (
         <MediaGrid
-          items={items}
+          items={display}
           label={label}
           showAttribution={showAttribution}
           onOpen={(item) => {

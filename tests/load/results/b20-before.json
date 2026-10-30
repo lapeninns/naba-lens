@@ -1,0 +1,365 @@
+{
+ "runId": "a0883b",
+ "startedAt": "2026-10-30T00:37:44.766Z",
+ "host": {
+  "platform": "darwin arm64",
+  "node": "v24.16.0",
+  "note": "Local macOS numbers on a shared dev Mac, not deployed proof."
+ },
+ "serverActionDispatch": "one at a time per client (browser)",
+ "scenarios": {
+  "b": {
+   "scenario": "b: 20 simultaneous 12 MP HEIC finalises",
+   "soloFinaliseMs": 1019,
+   "summary": {
+    "files": 20,
+    "ready": 9,
+    "successRate": 0.45,
+    "outcomes": {
+     "finalise_failed": 11,
+     "ready": 9
+    },
+    "errors": {
+     "The server is busy processing photos. Try again.": 11
+    },
+    "finaliseMs": {
+     "all": {
+      "n": 20,
+      "p50": 23271,
+      "p95": 23314,
+      "max": 23982
+     },
+     "heic": {
+      "n": 20,
+      "p50": 23271,
+      "p95": 23314,
+      "max": 23982
+     },
+     "otherImage": {
+      "n": 0,
+      "p50": null,
+      "p95": null,
+      "max": null
+     },
+     "video": {
+      "n": 0,
+      "p50": null,
+      "p95": null,
+      "max": null
+     }
+    },
+    "finaliseActionQueueMs": {
+     "n": 20,
+     "p50": 1,
+     "p95": 1,
+     "max": 1
+    },
+    "reserveMs": {
+     "n": 0,
+     "p50": null,
+     "p95": null,
+     "max": null
+    },
+    "transferMs": {
+     "n": 0,
+     "p50": null,
+     "p95": null,
+     "max": null
+    },
+    "fileTotalMs": {
+     "n": 20,
+     "p50": 23271,
+     "p95": 23314,
+     "max": 23982
+    }
+   },
+   "queueWaitMs": [
+    347,
+    1465,
+    6829,
+    6855,
+    7861,
+    11291,
+    15007,
+    18791,
+    22251,
+    22251,
+    22255,
+    22278,
+    22279,
+    22280,
+    22287,
+    22290,
+    22290,
+    22295,
+    22295,
+    22963
+   ],
+   "burstStartedAt": 1793320669091,
+   "results": [
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 23270.837708,
+     "finaliseWaitMs": 0.014832999999271124,
+     "totalMs": 23270.837708,
+     "finaliseStatus": 200,
+     "outcome": "finalise_failed",
+     "error": "The server is busy processing photos. Try again."
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 1366.4883340000006,
+     "finaliseWaitMs": 0.22295799999938026,
+     "totalMs": 1366.4883340000006,
+     "finaliseStatus": 200,
+     "outcome": "ready"
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 8880.261292000001,
+     "finaliseWaitMs": 0.2943329999998241,
+     "totalMs": 8880.261292000001,
+     "finaliseStatus": 200,
+     "outcome": "ready"
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 23274.303125000002,
+     "finaliseWaitMs": 0.33341699999982666,
+     "totalMs": 23274.303125000002,
+     "finaliseStatus": 200,
+     "outcome": "finalise_failed",
+     "error": "The server is busy processing photos. Try again."
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 7874.185583,
+     "finaliseWaitMs": 0.3627089999999953,
+     "totalMs": 7874.185583,
+     "finaliseStatus": 200,
+     "outcome": "ready"
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 2484.48275,
+     "finaliseWaitMs": 0.40287499999976717,
+     "totalMs": 2484.48275,
+     "finaliseStatus": 200,
+     "outcome": "ready"
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 23299.183167000003,
+     "finaliseWaitMs": 0.43370799999956944,
+     "totalMs": 23299.183167000003,
+     "finaliseStatus": 200,
+     "outcome": "finalise_failed",
+     "error": "The server is busy processing photos. Try again."
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 12310.211541,
+     "finaliseWaitMs": 0.4626250000001164,
+     "totalMs": 12310.211541,
+     "finaliseStatus": 200,
+     "outcome": "ready"
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 23270.41425,
+     "finaliseWaitMs": 0.5028329999995549,
+     "totalMs": 23270.41425,
+     "finaliseStatus": 200,
+     "outcome": "finalise_failed",
+     "error": "The server is busy processing photos. Try again."
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 16026.587792000002,
+     "finaliseWaitMs": 0.5278330000001006,
+     "totalMs": 16026.587792000002,
+     "finaliseStatus": 200,
+     "outcome": "ready"
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 7848.833375,
+     "finaliseWaitMs": 0.5527080000001661,
+     "totalMs": 7848.833375,
+     "finaliseStatus": 200,
+     "outcome": "ready"
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 23314.176084,
+     "finaliseWaitMs": 0.576958000000559,
+     "totalMs": 23314.176084,
+     "finaliseStatus": 200,
+     "outcome": "finalise_failed",
+     "error": "The server is busy processing photos. Try again."
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 19810.655292,
+     "finaliseWaitMs": 0.609958000000006,
+     "totalMs": 19810.655292,
+     "finaliseStatus": 200,
+     "outcome": "ready"
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 23297.816208,
+     "finaliseWaitMs": 0.6398749999998472,
+     "totalMs": 23297.816208,
+     "finaliseStatus": 200,
+     "outcome": "finalise_failed",
+     "error": "The server is busy processing photos. Try again."
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 23982.167542,
+     "finaliseWaitMs": 0.6719580000008136,
+     "totalMs": 23982.167542,
+     "finaliseStatus": 200,
+     "outcome": "ready"
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 23306.059583000002,
+     "finaliseWaitMs": 0.6999580000001515,
+     "totalMs": 23306.059583000002,
+     "finaliseStatus": 200,
+     "outcome": "finalise_failed",
+     "error": "The server is busy processing photos. Try again."
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 23309.195833,
+     "finaliseWaitMs": 0.7312499999998181,
+     "totalMs": 23309.195833,
+     "finaliseStatus": 200,
+     "outcome": "finalise_failed",
+     "error": "The server is busy processing photos. Try again."
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 23309.123,
+     "finaliseWaitMs": 0.7577080000000933,
+     "totalMs": 23309.123,
+     "finaliseStatus": 200,
+     "outcome": "finalise_failed",
+     "error": "The server is busy processing photos. Try again."
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 23314.004291999998,
+     "finaliseWaitMs": 0.7819170000002487,
+     "totalMs": 23314.004291999998,
+     "finaliseStatus": 200,
+     "outcome": "finalise_failed",
+     "error": "The server is busy processing photos. Try again."
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 23298.858292,
+     "finaliseWaitMs": 0.8053330000002461,
+     "totalMs": 23298.858292,
+     "finaliseStatus": 200,
+     "outcome": "finalise_failed",
+     "error": "The server is busy processing photos. Try again."
+    }
+   ],
+   "wallMs": 26782,
+   "serverRss": {
+    "idleAfterWarmMiB": 299,
+    "startMiB": 299,
+    "peakMiB": 785,
+    "endMiB": 642,
+    "samples": 203
+   },
+   "heicWorkers": {
+    "workers": 10,
+    "maxConcurrent": 1,
+    "decodeMs": {
+     "p50": 947,
+     "p95": 1261,
+     "max": 1261
+    },
+    "runs": [
+     {
+      "start": 303,
+      "end": 1191
+     },
+     {
+      "start": 3237,
+      "end": 4143
+     },
+     {
+      "start": 4443,
+      "end": 5252
+     },
+     {
+      "start": 5956,
+      "end": 6930
+     },
+     {
+      "start": 8102,
+      "end": 9363
+     },
+     {
+      "start": 10624,
+      "end": 11571
+     },
+     {
+      "start": 13629,
+      "end": 14615
+     },
+     {
+      "start": 17145,
+      "end": 18171
+     },
+     {
+      "start": 21147,
+      "end": 22168
+     },
+     {
+      "start": 25652,
+      "end": 26567
+     }
+    ]
+   },
+   "http5xx": [],
+   "hostLoadAvg1m": [
+    28.6,
+    34.6
+   ],
+   "serverLogTail": [
+    "▲ Next.js 16.4.2",
+    "- Local:         http://127.0.0.1:3615",
+    "- Network:       http://127.0.0.1:3615",
+    "✓ Ready in 113ms",
+    "✓ Running next.config.ts took 59ms"
+   ]
+  }
+ }
+}

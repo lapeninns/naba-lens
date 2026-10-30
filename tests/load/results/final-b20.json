@@ -1,0 +1,462 @@
+{
+ "runId": "597f5b",
+ "startedAt": "2026-10-30T01:05:14.695Z",
+ "host": {
+  "platform": "darwin arm64",
+  "node": "v24.16.0",
+  "note": "Local macOS numbers on a shared dev Mac, not deployed proof."
+ },
+ "serverActionDispatch": "one at a time per client (browser)",
+ "scenarios": {
+  "b": {
+   "scenario": "b: 20 simultaneous 12 MP HEIC finalises",
+   "soloFinaliseMs": 1025,
+   "summary": {
+    "files": 20,
+    "ready": 20,
+    "successRate": 1,
+    "outcomes": {
+     "ready": 20
+    },
+    "errors": {},
+    "finaliseMs": {
+     "all": {
+      "n": 20,
+      "p50": 10342,
+      "p95": 19990,
+      "max": 21035
+     },
+     "heic": {
+      "n": 20,
+      "p50": 10342,
+      "p95": 19990,
+      "max": 21035
+     },
+     "otherImage": {
+      "n": 0,
+      "p50": null,
+      "p95": null,
+      "max": null
+     },
+     "video": {
+      "n": 0,
+      "p50": null,
+      "p95": null,
+      "max": null
+     }
+    },
+    "finaliseActionQueueMs": {
+     "n": 20,
+     "p50": 1,
+     "p95": 1,
+     "max": 1
+    },
+    "reserveMs": {
+     "n": 0,
+     "p50": null,
+     "p95": null,
+     "max": null
+    },
+    "transferMs": {
+     "n": 0,
+     "p50": null,
+     "p95": null,
+     "max": null
+    },
+    "fileTotalMs": {
+     "n": 20,
+     "p50": 10342,
+     "p95": 19990,
+     "max": 21035
+    }
+   },
+   "queueWaitMs": [
+    578,
+    1555,
+    2505,
+    3443,
+    4434,
+    5363,
+    6358,
+    7404,
+    8379,
+    9316,
+    10254,
+    11188,
+    12105,
+    13042,
+    14060,
+    15226,
+    17022,
+    18002,
+    18964,
+    20010
+   ],
+   "burstStartedAt": 1793322319082,
+   "results": [
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 11279.249334,
+     "finaliseWaitMs": 0.017374999999447027,
+     "totalMs": 11279.249334,
+     "finaliseStatus": 200,
+     "outcome": "ready"
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 7382.669542000001,
+     "finaliseWaitMs": 0.2851250000003347,
+     "totalMs": 7382.669542000001,
+     "finaliseStatus": 200,
+     "outcome": "ready"
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 6387.807375,
+     "finaliseWaitMs": 0.3748750000004293,
+     "totalMs": 6387.807375,
+     "finaliseStatus": 200,
+     "outcome": "ready"
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 1603.0970420000003,
+     "finaliseWaitMs": 0.4254160000000411,
+     "totalMs": 1603.0970420000003,
+     "finaliseStatus": 200,
+     "outcome": "ready"
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 2580.0951669999995,
+     "finaliseWaitMs": 0.4640829999998459,
+     "totalMs": 2580.0951669999995,
+     "finaliseStatus": 200,
+     "outcome": "ready"
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 3529.757290999999,
+     "finaliseWaitMs": 0.5391670000008162,
+     "totalMs": 3529.757290999999,
+     "finaliseStatus": 200,
+     "outcome": "ready"
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 4468.303625,
+     "finaliseWaitMs": 0.5811250000006112,
+     "totalMs": 4468.303625,
+     "finaliseStatus": 200,
+     "outcome": "ready"
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 5458.777,
+     "finaliseWaitMs": 0.6266249999998763,
+     "totalMs": 5458.777,
+     "finaliseStatus": 200,
+     "outcome": "ready"
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 8429.39175,
+     "finaliseWaitMs": 0.6604999999999563,
+     "totalMs": 8429.39175,
+     "finaliseStatus": 200,
+     "outcome": "ready"
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 15084.991541,
+     "finaliseWaitMs": 0.691541999999572,
+     "totalMs": 15084.991541,
+     "finaliseStatus": 200,
+     "outcome": "ready"
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 10341.640958,
+     "finaliseWaitMs": 0.7256250000000364,
+     "totalMs": 10341.640958,
+     "finaliseStatus": 200,
+     "outcome": "ready"
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 9404.024416,
+     "finaliseWaitMs": 0.7621670000007725,
+     "totalMs": 9404.024416,
+     "finaliseStatus": 200,
+     "outcome": "ready"
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 18047.426417000002,
+     "finaliseWaitMs": 0.795708000000559,
+     "totalMs": 18047.426417000002,
+     "finaliseStatus": 200,
+     "outcome": "ready"
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 13129.741750000001,
+     "finaliseWaitMs": 0.8382079999992129,
+     "totalMs": 13129.741750000001,
+     "finaliseStatus": 200,
+     "outcome": "ready"
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 16250.897791000001,
+     "finaliseWaitMs": 0.8782919999994192,
+     "totalMs": 16250.897791000001,
+     "finaliseStatus": 200,
+     "outcome": "ready"
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 19027.044332999998,
+     "finaliseWaitMs": 0.920458000000508,
+     "totalMs": 19027.044332999998,
+     "finaliseStatus": 200,
+     "outcome": "ready"
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 14066.782625000002,
+     "finaliseWaitMs": 1.1447920000000522,
+     "totalMs": 14066.782625000002,
+     "finaliseStatus": 200,
+     "outcome": "ready"
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 12213.022416,
+     "finaliseWaitMs": 1.2529999999997017,
+     "totalMs": 12213.022416,
+     "finaliseStatus": 200,
+     "outcome": "ready"
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 19989.631,
+     "finaliseWaitMs": 1.310750000000553,
+     "totalMs": 19989.631,
+     "finaliseStatus": 200,
+     "outcome": "ready"
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 21035.445541,
+     "finaliseWaitMs": 1.355833999999959,
+     "totalMs": 21035.445541,
+     "finaliseStatus": 200,
+     "outcome": "ready"
+    }
+   ],
+   "wallMs": 24057,
+   "serverRss": {
+    "idleAfterWarmMiB": 311,
+    "startMiB": 311,
+    "peakMiB": 766,
+    "endMiB": 595,
+    "samples": 185
+   },
+   "heicWorkers": {
+    "workers": 21,
+    "maxConcurrent": 1,
+    "decodeMs": {
+     "p50": 978,
+     "p95": 1056,
+     "max": 1168
+    },
+    "runs": [
+     {
+      "start": 295,
+      "end": 1214
+     },
+     {
+      "start": 3563,
+      "end": 4591
+     },
+     {
+      "start": 4591,
+      "end": 5569
+     },
+     {
+      "start": 5569,
+      "end": 6520
+     },
+     {
+      "start": 6520,
+      "end": 7449
+     },
+     {
+      "start": 7450,
+      "end": 8457
+     },
+     {
+      "start": 8457,
+      "end": 9375
+     },
+     {
+      "start": 9375,
+      "end": 10372
+     },
+     {
+      "start": 10372,
+      "end": 11350
+     },
+     {
+      "start": 11351,
+      "end": 12399
+     },
+     {
+      "start": 12399,
+      "end": 13337
+     },
+     {
+      "start": 13338,
+      "end": 14275
+     },
+     {
+      "start": 14275,
+      "end": 15204
+     },
+     {
+      "start": 15204,
+      "end": 16114
+     },
+     {
+      "start": 16114,
+      "end": 17060
+     },
+     {
+      "start": 17061,
+      "end": 18072
+     },
+     {
+      "start": 18072,
+      "end": 19240
+     },
+     {
+      "start": 20032,
+      "end": 21038
+     },
+     {
+      "start": 21039,
+      "end": 22017
+     },
+     {
+      "start": 22017,
+      "end": 22982
+     },
+     {
+      "start": 22982,
+      "end": 24038
+     }
+    ]
+   },
+   "serverFetches": {
+    "rest GET": {
+     "n": 63,
+     "p50": 14,
+     "p95": 29,
+     "max": 31,
+     "statuses": {
+      "200": 63
+     }
+    },
+    "rest POST": {
+     "n": 21,
+     "p50": 9,
+     "p95": 19,
+     "max": 23,
+     "statuses": {
+      "200": 21
+     }
+    },
+    "rest PATCH": {
+     "n": 84,
+     "p50": 7,
+     "p95": 24,
+     "max": 39,
+     "statuses": {
+      "200": 42,
+      "204": 42
+     }
+    },
+    "storage POST": {
+     "n": 63,
+     "p50": 11,
+     "p95": 18,
+     "max": 47,
+     "statuses": {
+      "200": 63
+     }
+    },
+    "storage HEAD": {
+     "n": 21,
+     "p50": 29,
+     "p95": 70,
+     "max": 75,
+     "statuses": {
+      "200": 21
+     }
+    },
+    "storage GET range": {
+     "n": 42,
+     "p50": 224,
+     "p95": 252,
+     "max": 266,
+     "statuses": {
+      "206": 42
+     }
+    }
+   },
+   "http5xx": [],
+   "hostLoad": {
+    "before": [
+     6.6,
+     13.5,
+     21.8
+    ],
+    "after": [
+     8.1,
+     13.4,
+     21.6
+    ],
+    "max1m": 8.4,
+    "contended": true
+   },
+   "serverLogTail": [
+    "▲ Next.js 16.4.2",
+    "- Local:         http://127.0.0.1:3615",
+    "- Network:       http://127.0.0.1:3615",
+    "✓ Ready in 88ms",
+    "✓ Running next.config.ts took 22ms"
+   ]
+  }
+ }
+}

@@ -7,7 +7,6 @@ import {
   getStaffAccount,
   inviteStaff,
   listAssignableVenues,
-  listMediaForUploader,
   listStaffDirectory,
   replaceProfileAvatar,
   resendInvitation,
@@ -17,6 +16,9 @@ import {
   type AccountsContext,
   type InviteMailer,
 } from "@/lib/server/accounts"
+import { listLibrary } from "@/lib/server/media/library"
+
+import { actorFor } from "../slice/media-actor"
 
 import {
   anonClient,
@@ -31,6 +33,15 @@ import {
   type TestIdentity,
 } from "../support/identities"
 import { getLocalSupabaseEnv } from "../support/local-supabase"
+
+/** /admin/staff/[id]: the admin library filtered to one contributor. */
+async function portfolioOf(adminIdentity: TestIdentity, staffId: string) {
+  return listLibrary(await actorFor(adminIdentity), {
+    venueId: null,
+    staffId,
+    type: null,
+  })
+}
 
 const service = serviceClient()
 const ctxFor = (caller: Db, mailer?: InviteMailer): AccountsContext => ({
@@ -78,6 +89,9 @@ async function inviteEmailCount(email: string, atLeast = 0): Promise<number> {
 
 async function reserve(client: Db) {
   const { data, error } = await client.rpc("reserve_media_asset", {
+    // Required by reserve_media_asset (wave 3 finding 5 / upload-path F5).
+    p_client_upload_key: crypto.randomUUID(),
+    p_size_bytes: 4,
     p_media_type: "image",
     p_extension: "jpg",
     p_original_filename: "dish.jpg",
@@ -429,10 +443,13 @@ describe("staff cannot use admin account operations", () => {
       ok: false,
       code: "forbidden",
     })
-    expect(await listMediaForUploader(ctx, victim.id)).toMatchObject({
-      ok: false,
-      code: "forbidden",
-    })
+    expect(
+      await listLibrary(await actorFor(staff), {
+        venueId: null,
+        staffId: victim.id,
+        type: null,
+      })
+    ).toMatchObject({ ok: false, status: 403 })
     expect(
       await replaceProfileAvatar(ctx, victim.id, TINY_BYTES, async () => {
         throw new Error("must not be reached")
@@ -589,10 +606,7 @@ describe("venue transfer", () => {
       .single()
     expect(old?.venue_id).toBe(venueA.id)
 
-    const portfolio = await listMediaForUploader(
-      ctxFor(adminUser.client),
-      staff.id
-    )
+    const portfolio = await portfolioOf(adminUser, staff.id)
     expect(portfolio.ok && portfolio.items.map((i) => i.venueName)).toEqual([
       venueA.name,
     ])
@@ -684,10 +698,7 @@ describe("deactivation and reactivation", () => {
   })
 
   it("keeps retained media visible to admin", async () => {
-    const portfolio = await listMediaForUploader(
-      ctxFor(adminUser.client),
-      staff.id
-    )
+    const portfolio = await portfolioOf(adminUser, staff.id)
     expect(portfolio.ok && portfolio.items.map((i) => i.id)).toEqual([assetId])
   })
 
@@ -768,25 +779,18 @@ describe("directory and portfolio data", () => {
     // Not ready: never listed.
     await reserve(staff.client)
 
-    const seen: string[] = []
-    let cursor: string | null = null
-    for (let page = 0; page < 5; page++) {
-      const result = await listMediaForUploader(
-        ctxFor(adminUser.client),
-        staff.id,
-        { cursor, limit: 2 }
-      )
-      if (!result.ok) throw new Error(result.error)
-      seen.push(...result.items.map((i) => i.id))
-      cursor = result.nextCursor
-      if (!cursor) break
-    }
-    expect(seen).toEqual([...ids].reverse())
+    // Multi-page cursor behaviour is covered in tests/integration/library.test.ts.
+    const result = await portfolioOf(adminUser, staff.id)
+    if (!result.ok) throw new Error(result.message)
+    expect(result.items.map((i) => i.id)).toEqual([...ids].reverse())
+    expect(result.nextCursor).toBeNull()
     expect(
-      await listMediaForUploader(ctxFor(adminUser.client), staff.id, {
-        cursor: "garbage",
-      })
-    ).toMatchObject({ ok: false, code: "invalid_input" })
+      await listLibrary(
+        await actorFor(adminUser),
+        { venueId: null, staffId: staff.id, type: null },
+        "garbage"
+      )
+    ).toMatchObject({ ok: false, status: 400 })
   })
 })
 

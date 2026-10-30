@@ -1,7 +1,196 @@
 # NabaLens fan-out status
 
-Integration branch: `feat/nabalens-mvp`. Updated 29 October 2026 by the integrator after
-merge #2. All wave-1 tracks are merged.
+Integration branch: `feat/nabalens-mvp`. Updated 30 October 2026 by the integrator after
+merge #4b. Wave 1, wave 2 (slice, lifecycle, accounts) and the finished wave-3 tracks below
+are merged. Not pushed; `main` untouched.
+
+## Merge #4b (30 October 2026, base `69f3d08`)
+
+Merged with `git merge --no-ff` in this order. **Still running elsewhere, not merged:**
+`feat/nl-authedge`, `feat/nl-visual`.
+
+| Branch            | Tip       | Merge commit | Conflicts and resolution                                                                                                                                                                                                                                                         |
+| ----------------- | --------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `feat/nl-secfix`  | `0166b98` | `1c5db9b`    | `access.ts`: library's `signedUrlTtlSeconds()` + secfix's service-role signing after `getReadableAsset`. `portfolio.ts` kept deleted. `next.config.ts`: secfix's headers (includes global `nosniff`). `gaps-support.ts`: merge #4a's no-retry version.                           |
+| `feat/nl-uploads` | `ac58e9c` | `3fd04cc`    | `finalise.ts`: uploads' lost-claim block (`.is("deleted_at", null)`, `settleLostClaim`: tombstone → remove derivatives + original, 404; ready → ready; else 409) + secfix's `claim()` (`take_over_stale_media_claim`). Uploads' F4 size checks and failed-original removal kept. |
+| `feat/nl-journey` | `ff5325e` | `9fc4d95`    | `admin-library.tsx`: merge-plan recipe (`useOptimistic` `shown` for the controls; `search`, gallery key and paging on committed `filters`; library's `filtersToSearch`). `README.md`: docs2 layout kept.                                                                         |
+| `feat/nl-load`    | `6349632` | `137c7a8`    | None.                                                                                                                                                                                                                                                                            |
+
+### Integration changes, merge #4b
+
+- **`5f19b58`** `tests/security/upload-path.regression.test.ts` (F1/R4) imported the deleted
+  `lib/server/accounts/portfolio.ts`. It now pages `listLibrary` filtered to the staff
+  member, with the same assertions: nothing links a signed original; a video's
+  `previewUrl` is `/api/media/[id]/stream`. No code signs originals (`createSignedUrl` is
+  used only in `signDerivative` and `signAvatar`, both after their access checks; the
+  directory signs avatars only).
+- **`be3ba67` Playwright: one root config** (`playwright.config.ts`), journey's, with:
+  - projects `chromium` (every spec, 1280×800), `firefox` and `webkit` (`@core`), and
+    `mobile-chromium` (Pixel 7: `@core` **plus** auth, slice, staff-accounts, library and
+    gaps, which ran at phone width before journey's config replaced the old
+    `mobile`/`desktop` projects). `workers: 1`, `retries: 0`, no server reuse;
+  - the Firefox private app-data fix moved to `tests/e2e/helpers/firefox.ts`, also used
+    by upload-recovery's own Firefox launch for the playback matrix;
+  - `upload-recovery.spec.ts` and `gaps.spec.ts` (GAP-11 HTTP) ran only in a project named
+    `desktop`, which no longer exists, so they would have skipped silently. They now
+    target `chromium`. `--list` shows 4 upload-recovery tests under `chromium`;
+  - `negative.spec.ts`: `test.fail()` removed from "admin portfolio offers download and
+    delete" (fixed by library); it passes;
+  - the CI wrapper `scripts/ci/playwright.config.ts` now reuses the root projects for
+    `CI_BROWSER` (chromium → `chromium` + `mobile-chromium`; firefox/webkit → `@core`)
+    instead of its own `*-desktop`/`*-phone` projects; `run-suites.mjs` passes the CI stack
+    as `E2E_SUPABASE_WORKDIR`; `scripts/ci/prepare-stack.mjs` points the CI stack's Auth
+    Site URL/redirects at `E2E_PORT` (3457) and raises only its per-IP sign-in/verify
+    limits, like journey's stack. Not run end to end through `local-ci.sh` here;
+  - docs (`README.md`, `docs/setup.md`, `docs/ci.md`): port 3457, production build,
+    project matrix.
+  - Not applicable yet: `playwright.visual.config.ts` and the visual exclusion (visual is
+    not merged).
+- **`bac072f` semantic conflicts in merge #4a's tests** (no assertion weakened):
+  - `library.test.ts` and `gaps-http.test.ts` called `reserve_media_asset` without the key
+    and size secfix now requires. They pass both. The gaps direct-RPC test previously
+    accepted any error; it now requires `venue_unavailable`.
+  - `gaps-http.test.ts`: `reserveUpload`'s refusal now also carries `status: 403`
+    (uploads' `app/staff/actions.ts`); asserted exactly.
+  - `tests/library/seed.ts`: new `original` option stores the original while the
+    reservation is `uploading`. Secfix's storage trigger refuses writes to an original
+    once the reservation is closed, including service-role writes, so the old "upsert
+    after ready" fixture was refused.
+  - `tests/migrations/upgrade.test.ts` passes key and size (not run here; the migration
+    suite needs its own phases).
+- **`455d345`** `tests/lifecycle/stale-processing.test.ts` (secfix) declared 4 bytes for a
+  ~1 KiB JPEG; uploads' F4 check then failed finalise with `size_mismatch`. The fixture
+  declares the real size.
+- **Media tile duration:** `media-tile.tsx` announces the duration once, at the end
+  (journey). Upload selectors match by prefix (`^Video, <file>`) and still match.
+  Revisit when visual lands (merge plan: journey's trailing variant wins).
+- **Staff directory:** journey's visible-text link name; no test used the old
+  `aria-label`.
+- **HEIC** (load, `lib/media/heic.ts`): callers now queue for the single decode slot in
+  arrival order, for at most `heicTimeoutMs`, instead of getting `decoder_busy` at once.
+
+### Checks on merge #4b (`455d345`), 30 October 2026
+
+| Check                                                                       | Result                                                                         |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `CI=true pnpm install --frozen-lockfile` (10.30.1)                          | exit 0 (added `@axe-core/playwright` 4.14.0 from the lockfile)                 |
+| `CI=true pnpm@11 install --frozen-lockfile --ignore-scripts` (11.28.9)      | exit 0, scratch copy of `package.json` + lockfile                              |
+| `pnpm typecheck` / `pnpm lint`                                              | exit 0 / exit 0                                                                |
+| `pnpm test`                                                                 | 18 files, 138 passed                                                           |
+| `pnpm build` + `pnpm scan:bundle`                                           | exit 0; 57 files, 1703 KiB, no findings; `[worker thread]` HEIC chunks present |
+| `pnpm test:integration` (default 554xx, fresh `supabase db reset`)          | 13 files passed, 1 skipped; **138 passed, 11 skipped, 0 failed**               |
+| `pnpm test:security "$W"` (isolated 564xx, `nabalens-merge4b`, fresh reset) | 3 files, 153 passed                                                            |
+| `pnpm test:lifecycle "$W"` (same stack)                                     | 2 files, 23 passed                                                             |
+| `tests/e2e/negative.spec.ts --project=chromium` (journey stack, 583xx)      | 8 passed, including the former `test.fail()` case                              |
+
+- `gaps-profile-origin.test.ts` now **passes** (finding 7 fixed by secfix). The
+  intentional failure recorded for merge #4a is gone.
+- The 11 skipped are `privacy-runtime.test.ts` (needs a production server, as before).
+- Load (`uptime`): 4.28 / 4.17 / 7.82 before starting; 3.73 / 3.98 / 6.96 → 4.76 / 4.23 /
+  6.90 across the full integration run; 2.87 / 3.81 / 6.55 at the security run; 3.80 /
+  3.85 / 6.07 after e2e. Other stacks up: `Nabaperks`, `nabalens-visual`. No timeouts.
+- Stacks: default `nabalens` started from this checkout, reset, stopped. Isolated
+  `/tmp/nl-merge4b-sec` (564xx; studio, realtime, analytics, edge runtime off) and
+  `/tmp/nl-merge4b-e2e` (583xx, `tests/e2e/prepare-stack.mjs`) stopped.
+- **Not run here** (the lead runs them): full e2e on every project, `local-ci.sh`, the
+  migration suite and the backup/restore drill. `.next` was last built against the e2e
+  stack; rebuild before serving against another.
+
+### Open items after merge #4b
+
+- From load: `finalise.ts` `BUSY_RETRIES = 8` now compounds with the 15 s HEIC FIFO wait
+  (worst case ~170 s); lower it or set `maxDuration`. `reserveUpload`/`finaliseUpload`
+  answer HTTP 500 when `loadProfile` throws on a PostgREST error.
+- From secfix: `app/admin/staff/[id]/avatar/route.ts` should use `isSameOriginRequest`;
+  confirm a `storage.objects` trigger is allowed on hosted Supabase; cleanup (and so the
+  stale-processing reaper) is still unscheduled.
+- From uploads: viewer `canPlay` rejects H.264 MOV in Chromium (visual/library); stale
+  `uploading` rows labelled "Uploading" (visual/library); Server Functions serialise
+  reserve/finalise per client (slice); hosted bucket/global upload limits (M6).
+- From journey: defects 4 (hung refresh blocks later refreshes), 5 (`/admin/staff` 500 on
+  slow `listUsers`), 8 (no in-app message on a failed download).
+- CI: HEIC fixtures use macOS `sips` (Ubuntu needs another encoder); privacy runtime
+  suite and migration suite are not CI stages yet.
+- On visual/authedge merge: visual Playwright config and explicit visual exclusion,
+  duration-label dedupe, upload selector check, authedge's GET cleanup wording.
+
+## Merge #4a (30 October 2026, base `88fc61b`)
+
+Merged with `git merge --no-ff`, in the merge plan's order. All 11 merged without a textual
+conflict. The journey/library `admin-library.tsx` conflict and the visual/journey duplicate
+duration in the plan only arise once journey and visual land, so neither applied here.
+
+| Branch                   | Tip       | Merge commit | Notes                                                                        |
+| ------------------------ | --------- | ------------ | ---------------------------------------------------------------------------- |
+| `feat/nl-migrations`     | `75dc8ac` | `61908c9`    | Migration-safety suite (`tests/migrations`), backup/restore drill scripts.   |
+| `feat/nl-privacy`        | `cf9ca90` | `001dd1c`    | Bundle secret scanner, runtime header/log audit, global `nosniff`.           |
+| `feat/nl-library`        | `e83de82` | `8a560c9`    | Admin portfolio on `MediaGallery`, preview recovery; interim portfolio gone. |
+| `feat/nl-gaps`           | `566d1e0` | `2d208a4`    | GAP-11/12/16/19 tests, including the deliberate failing BUG test below.      |
+| `feat/nl-ci`             | `e4f7b91` | `91e3e8b`    | Workflow, `scripts/ci/local-ci.sh`, isolated stack, browser matrix adapter.  |
+| `review/nl-wave3`        | `ce09ae1` | `6986881`    | `docs/reviews/wave3-review.md`.                                              |
+| `review/nl-upload-path2` | `0b169e5` | `c14f462`    | `docs/reviews/upload-path-review.md`.                                        |
+| `review/nl-scope`        | `3894911` | `c786772`    | `docs/reviews/scope-audit.md`.                                               |
+| `feat/nl-docs2`          | `be8a897` | `e71be84`    | Supersedes `feat/nl-docs` (contained; not merged separately).                |
+| `feat/nl-acceptance`     | `1193e85` | `7787d5b`    | `docs/acceptance.md` (audits `3a23c9b`; reconcile at final head).            |
+| `feat/nl-mergeplan`      | `4c03805` | `b5c85a3`    | `docs/fanout/merge-plan.md`.                                                 |
+
+Pending at merge #4a: journey, visual, authedge, uploads, load, secfix (journey, uploads,
+load and secfix landed in merge #4b above).
+
+### Integration changes, merge #4a (`a964290`)
+
+- **Scripts.** Added `"test:migrations": "node tests/migrations/run.mjs"` (documented by the
+  migrations handoff, usage `pnpm test:migrations "$W" <phase>`) and
+  `"scan:bundle": "node scripts/ci/scan-bundle.mjs"`. No dependency change; the lockfile is
+  untouched. `minimumReleaseAge: 1440` and `allowBuilds` are unchanged.
+- **Bundle scan in CI.** `scripts/ci/local-ci.sh` runs `scan-bundle` right after a passing
+  build, so the workflow (which calls that script) now fails on a finding.
+- **Fixture retries removed** (merge plan, "fixture retries are a visible policy issue"):
+  `tests/library/seed.ts` `setupIdentity`, `tests/library/e2e.ts` `signInAs` and
+  `tests/integration/gaps-support.ts` `setupIdentity`/`setupSession` now fail once on a local
+  auth 504, with a "machine load?" diagnostic, instead of looping.
+- **Configs.** Root `vitest.config.ts` stays authoritative and already discovers the new unit
+  (`library-gallery`, `no-image-optimiser`, `scope-guard`) and integration files. The
+  standalone `tests/{security,lifecycle,migrations}/vitest.config.ts` stay separate. Root
+  `playwright.config.ts` and `scripts/ci/playwright.config.ts` are unchanged; the plan's
+  Playwright consolidation (journey/visual configs, `desktop` vs `chromium` project names,
+  visual exclusion) waits for journey and visual.
+- **Docs.** One `README.md`; it now links `docs/acceptance.md`, `docs/privacy-audit.md`,
+  `docs/backup-restore.md`, `docs/ci.md` and the three `docs/reviews/*`. The POST-only
+  cleanup wording stays correct until authedge (GET support) lands.
+
+### Known failing test (intentional, at merge #4a only; passes since merge #4b)
+
+`tests/integration/gaps-profile-origin.test.ts` > "/api/profile refuses a cross-origin POST
+and changes nothing" **failed on purpose** until `feat/nl-secfix` landed: `/api/profile`
+accepts a cross-origin POST (`display_name` becomes "TEST cross-origin rename"). It is not
+skipped. `pnpm test:integration` therefore exits 1 with exactly this one failure.
+
+### Checks on merge #4a (`a964290`), 30 October 2026
+
+| Check                                                                    | Result                                                           |
+| ------------------------------------------------------------------------ | ---------------------------------------------------------------- |
+| `CI=true pnpm install --frozen-lockfile` (10.30.1)                       | exit 0, lockfile up to date                                      |
+| `CI=true pnpm@11 install --frozen-lockfile` (11.28.9)                    | exit 0                                                           |
+| `pnpm typecheck`                                                         | exit 0                                                           |
+| `pnpm lint`                                                              | exit 0                                                           |
+| `pnpm test`                                                              | 15 files, 124 passed                                             |
+| `pnpm build`                                                             | exit 0                                                           |
+| `node scripts/ci/scan-bundle.mjs` (after build)                          | 57 files, 1701 KiB, no findings                                  |
+| `pnpm test:integration` (default 554xx stack, fresh `supabase db reset`) | 116 passed, 11 skipped, **1 failed** (the intentional one above) |
+
+- Load: `uptime` load averages 8.80 / 11.21 / 18.58 at the start of integration and 8.53 /
+  10.84 / 18.11 at the end (01:09–01:10 local); no timeouts were seen.
+- The 11 skipped are `privacy-runtime.test.ts`, which needs `PRIVACY_BASE_URL`,
+  `PRIVACY_SERVER_LOG` and `CLEANUP_SECRET` against a production server (`docs/privacy-audit.md`).
+  `privacy-bundle.test.ts` ran, because `.next/static` existed after the build.
+- The default stack was started from this checkout only for this run, then stopped.
+- **Not run here** (the lead runs them at the end): e2e (`pnpm test:e2e`, `library.spec.ts`,
+  `gaps.spec.ts`), security, lifecycle, the migration suite and the backup/restore drill.
+- Still open from the merge plan: migration suite as an explicit CI stage, the privacy
+  runtime suite in CI, CI auth URLs/`E2E_SUPABASE_WORKDIR` wiring, and the signed-read,
+  delete/finalise and stale-processing security fixes from the reviews (expected from
+  secfix).
 
 ## Merged
 
@@ -193,8 +382,9 @@ service role, so `auth.uid()` applies):
 - **Use the derivatives these return.** Don't run a second image stage.
 - `createAvatarDerivative(bytes)` → WebP buffer for `avatarObjectKey`.
 - Also exported: `sniffMedia`, `probeVideo` and `MediaError` (`.code`). HEIC decoding is limited
-  to one at a time per process; a second concurrent call gets `decoder_busy`, which means
-  "retry".
+  to one at a time per process; concurrent calls queue for the slot in arrival order
+  (since merge #4b, `feat/nl-load`) and get `decoder_busy` ("retry") only after waiting
+  `heicTimeoutMs`.
 - Download and sign routes must send `Content-Disposition: attachment`, the validated
   `Content-Type` and `X-Content-Type-Options: nosniff` (`docs/media-pipeline.md`).
 

@@ -61,7 +61,8 @@ async function fetchRange(
       // A server that ignores Range answers 200 with the whole object.
       return res.status === 200 ? bytes.subarray(offset, end + 1) : bytes
     }
-    await res.body?.cancel()
+    // Drain rather than cancel: awaiting cancel() on Next's fetch body can hang.
+    await res.arrayBuffer().catch(() => undefined)
     if (res.status < 500 || attempt >= 1) {
       throw new Error(`storage_range_${res.status}`)
     }
