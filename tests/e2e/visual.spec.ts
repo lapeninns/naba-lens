@@ -18,6 +18,8 @@ import sharp from "sharp"
 import { serviceClient } from "../support/identities"
 import { seedVisualFixtures, type VisualFixtures } from "../visual/fixtures"
 
+import { openEmailLink } from "./helpers/email-link"
+
 /**
  * Visual and accessibility regression pass (spec §4). For every screen and
  * dialog state it saves a full-page screenshot to
@@ -102,7 +104,9 @@ async function signIn(browser: Browser, email: string, baseURL: string) {
   if (error) throw error
   const context = await browser.newContext({ baseURL })
   const page = await context.newPage()
-  await page.goto(
+  // /auth/confirm is an interstitial now: press Continue like a person.
+  await openEmailLink(
+    page,
     `/auth/confirm?token_hash=${data.properties.hashed_token}&type=email`
   )
   return page
