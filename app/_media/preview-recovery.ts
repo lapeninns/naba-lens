@@ -22,7 +22,10 @@ import type { MediaItem } from "@/components/nabalens"
  *
  * Errors are caught with one `onError` on a wrapper element: React dispatches
  * `<img>`/`<video>`/`<source>` errors through the component tree (including the
- * viewer's portal), so the presentational components stay unchanged.
+ * viewer's portal), so the presentational components stay unchanged. A
+ * server-rendered `<img>` can fail before hydration, when React is not yet
+ * listening; the wrapper's callback ref (`attach`) finds those on mount (`complete` with no pixels)
+ * and handles them the same way.
  */
 
 export type PreviewSlot = "thumb" | "preview" | "stream"
@@ -76,8 +79,10 @@ export type PreviewRecovery = {
   display: MediaItem[]
   /** Number of files whose preview failed twice and is shown as broken. */
   brokenCount: number
-  /** Pass to a wrapper element around the grid and viewer. */
+  /** Pass both to a wrapper element around the grid and viewer. */
   onError: React.ReactEventHandler<HTMLElement>
+  /** Callback ref: finds images that failed before hydration. */
+  attach: React.RefCallback<HTMLElement>
   /** Give every broken preview one fresh, re-signed attempt. */
   retryBroken: () => void
 }
@@ -85,21 +90,36 @@ export type PreviewRecovery = {
 export function usePreviewRecovery(items: MediaItem[]): PreviewRecovery {
   const [slots, setSlots] = React.useState<Record<string, SlotState>>({})
 
+  const failed = React.useCallback((src: string | null) => {
+    const route = parseMediaRoute(src)
+    if (!route) return
+    const k = key(route.id, route.slot)
+    setSlots((current) => {
+      const slot = current[k] ?? { version: 0, retried: false, broken: false }
+      if (slot.broken) return current
+      const next = slot.retried
+        ? { ...slot, broken: true }
+        : { version: slot.version + 1, retried: true, broken: false }
+      return { ...current, [k]: next }
+    })
+  }, [])
+
   const onError = React.useCallback<React.ReactEventHandler<HTMLElement>>(
-    (event) => {
-      const route = parseMediaRoute(sourceOf(event.target))
-      if (!route) return
-      const k = key(route.id, route.slot)
-      setSlots((current) => {
-        const slot = current[k] ?? { version: 0, retried: false, broken: false }
-        if (slot.broken) return current
-        const next = slot.retried
-          ? { ...slot, broken: true }
-          : { version: slot.version + 1, retried: true, broken: false }
-        return { ...current, [k]: next }
-      })
+    (event) => failed(sourceOf(event.target)),
+    [failed]
+  )
+
+  // Images that already failed before hydration (no error event reached React).
+  const attach = React.useCallback<React.RefCallback<HTMLElement>>(
+    (node) => {
+      if (!node) return
+      for (const img of node.querySelectorAll("img")) {
+        if (img.complete && img.naturalWidth === 0 && img.getAttribute("src")) {
+          failed(img.getAttribute("src"))
+        }
+      }
     },
-    []
+    [failed]
   )
 
   const retryBroken = React.useCallback(() => {
@@ -150,5 +170,5 @@ export function usePreviewRecovery(items: MediaItem[]): PreviewRecovery {
     return broken.size
   }, [items, slots])
 
-  return { display, brokenCount, onError, retryBroken }
+  return { display, brokenCount, onError, attach, retryBroken }
 }

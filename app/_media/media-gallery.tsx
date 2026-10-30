@@ -74,9 +74,8 @@ export function MediaGallery({
   const pagesLoaded = React.useRef(1)
   const refreshing = React.useRef(false)
 
-  const recovery = usePreviewRecovery(items)
-  const { retryBroken } = recovery
-  const display = recovery.display
+  const { display, brokenCount, onError, attach, retryBroken } =
+    usePreviewRecovery(items)
   const openItem = display.find((item) => item.id === openId) ?? null
   const hasPending = items.some(
     (i) => i.uploadState === "uploading" || i.uploadState === "processing"
@@ -163,21 +162,21 @@ export function MediaGallery({
   return (
     // Media load errors from the grid and the viewer (a portal, but inside this
     // tree) reach this handler; see preview-recovery.ts.
-    <div className="flex flex-col gap-4" onError={recovery.onError}>
+    <div ref={attach} className="flex flex-col gap-4" onError={onError}>
       {refreshError ? (
         <p role="status" className="text-sm text-muted-foreground">
           {refreshError}
         </p>
       ) : null}
-      {recovery.brokenCount > 0 ? (
+      {brokenCount > 0 ? (
         <div
           role="alert"
           className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-negative/40 px-4 py-2 text-sm"
         >
           <span>
-            {recovery.brokenCount === 1
+            {brokenCount === 1
               ? "1 preview could not load."
-              : `${recovery.brokenCount} previews could not load.`}
+              : `${brokenCount} previews could not load.`}
           </span>
           <Button variant="outline" size="touch" onClick={retryBroken}>
             Try again

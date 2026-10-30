@@ -171,8 +171,9 @@ export async function setupIdentity(
     } catch (error) {
       const retryable =
         error instanceof Error && error.name === "AuthRetryableFetchError"
-      if (!retryable || attempt >= 3) throw error
+      if (!retryable || attempt >= 5) throw error
       console.warn(`setupIdentity(${opts.label}): auth timed out, retrying`)
+      await new Promise((r) => setTimeout(r, 2000))
     }
   }
 }

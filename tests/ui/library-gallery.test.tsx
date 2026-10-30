@@ -147,6 +147,23 @@ describe("signed-URL recovery", () => {
     expect(loadPage).not.toHaveBeenCalled()
   })
 
+  it("also recovers an image that failed before hydration (no error event)", () => {
+    // The server-rendered <img> for A already failed: complete, no pixels.
+    vi.spyOn(HTMLImageElement.prototype, "complete", "get").mockImplementation(
+      function (this: HTMLImageElement) {
+        return this.getAttribute("src") === `/api/media/${ID_A}/thumb`
+      }
+    )
+    const { container } = renderGallery(vi.fn<LoadPage>())
+    expect(thumbOf(container, ID_A)!.getAttribute("src")).toBe(
+      `/api/media/${ID_A}/thumb?r=1`
+    )
+    expect(thumbOf(container, ID_B)!.getAttribute("src")).toBe(
+      `/api/media/${ID_B}/thumb`
+    )
+    vi.restoreAllMocks()
+  })
+
   it("recovers the viewer's preview the same way", async () => {
     const { container } = renderGallery(vi.fn<LoadPage>())
     fireEvent.click(screen.getByRole("button", { name: /^Photo, 01\.jpg/ }))
