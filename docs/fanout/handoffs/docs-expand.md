@@ -22,19 +22,60 @@ hosted writes, deploys, pushes or PRs. This handoff is the mandatory extra path.
 - `pnpm typecheck`: exit 0 (`tsc --noEmit`).
 - `pnpm test`: exit 0, `Test Files 12 passed (12)`, `Tests 102 passed (102)`,
   `Duration 24.80s`. Includes actual synthetic HEIC worker memory regression.
+- `pnpm lint`: exit 0 (`eslint`), no diagnostics.
+- `pnpm build`: exit 0, Next.js 16.4.2, compiled in 4.8s, TypeScript in 5.3s,
+  static pages 15/15. Route table includes the actual staff/admin, Auth, private
+  media/profile/avatar and cleanup routes. No env file was read by this track.
 
 ## In progress
 
-- Parent: final documentation review and required lint/build.
+- Parent: final documentation/usage-guide review and handoff.
 - One shared-checkout delegate: only `docs/usage-staff.md` and
   `docs/usage-admin.md`, checking exact UI labels against source. No child commits.
 
 ## Next exact steps
 
 1. Verify delegate's usage-guide report and exact UI labels, then cross-links.
-2. Run `pnpm lint` and `pnpm build`; retain actual output.
-3. Update this handoff, review staged diff and commit. Do not change dependency
+2. Record final verified guide changes and validation/not-run limitations.
+3. Review staged diff and commit. Do not change dependency
    approval policy or other tracks' code to conceal failures.
+
+## Actual validation output (2026-10-30)
+
+```text
+pnpm install --frozen-lockfile
+Lockfile is up to date, resolution step is skipped
+Ignored build scripts: esbuild@0.28.2.
+Done in 3.1s using pnpm v10.30.1
+# exit 0
+
+pnpm typecheck
+> tsc --noEmit
+# exit 0
+
+pnpm test
+Test Files  12 passed (12)
+     Tests  102 passed (102)
+  Duration  24.80s (tests 79%, import 13%, transform 6%, environment 3%)
+# exit 0
+
+pnpm lint
+> eslint
+# exit 0, no diagnostics
+
+pnpm build
+▲ Next.js 16.4.2 (Turbopack)
+✓ Compiled successfully in 4.8s
+Finished TypeScript in 5.3s ...
+✓ Generating static pages using 17 workers (15/15) in 311ms
+# exit 0
+```
+
+Not run: integration, security, lifecycle or e2e service suites (docs-only work;
+no stack started), hosted SMTP/auth/processing/cleanup, phone/browser journeys,
+deployment, backup or restore. pnpm 11 was not exercised. The documented config
+recipe was executed against a temporary directory only; no containers or provider
+state changed. Private media/credentials were not used.
 
 ## Stack and safety
 
