@@ -154,6 +154,8 @@ describe("upgrade with retained data", () => {
       p_media_type: "image",
       p_extension: "jpg",
       p_original_filename: "DEV FIXTURE after upgrade.jpg",
+      p_size_bytes: 4,
+      p_client_upload_key: "migrations-after-upgrade-key-1",
     })
     expect(error).toBeNull()
     const path = data![0].original_path

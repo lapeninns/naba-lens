@@ -427,6 +427,7 @@ describe("GAP-12: staff whose venue is deactivated", () => {
     )
     expect(result).toEqual({
       ok: false,
+      status: 403,
       message: expect.stringMatching(/venue/i),
     })
     expect(!result.ok && result.message).toMatch(/not taking uploads/i)
@@ -443,8 +444,10 @@ describe("GAP-12: staff whose venue is deactivated", () => {
       p_extension: "jpg",
       p_original_filename: "direct.jpg",
       p_size_bytes: 1000,
+      p_client_upload_key: "gaps-paused-direct-key-1",
     })
-    expect(error).not.toBeNull()
+    // Refused for the venue, not for a missing key or size.
+    expect(error?.message).toBe("venue_unavailable")
   })
 
   it("admin still sees and downloads the retained media", async () => {
