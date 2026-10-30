@@ -149,7 +149,11 @@ function EditProfileForm({
   const fieldErrors = result && !result.ok ? (result.fieldErrors ?? {}) : {}
 
   return (
-    <form onSubmit={submit} className="grid gap-5" noValidate>
+    <form
+      onSubmit={submit}
+      className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-5"
+      noValidate
+    >
       <DialogHeader>
         <DialogTitle>
           {isAdmin ? "Edit staff account" : "Edit profile"}

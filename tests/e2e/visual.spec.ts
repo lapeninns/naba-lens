@@ -208,7 +208,15 @@ async function smallTouchTargets(page: Page): Promise<Offender[]> {
       if (el.closest("[aria-hidden=true], [inert]")) continue
       // Skip link is visible only on keyboard focus.
       if (el.getAttribute("href") === "#main") continue
-      if (rect.width + 0.5 < min || rect.height + 0.5 < min) {
+      // An absolutely positioned ::after with negative insets extends the hit area.
+      let { width, height } = rect
+      const after = getComputedStyle(el, "::after")
+      if (after.content !== "none" && after.position === "absolute") {
+        const px = (v: string) => (v.endsWith("px") ? parseFloat(v) : 0)
+        width = Math.max(width, width - px(after.left) - px(after.right))
+        height = Math.max(height, height - px(after.top) - px(after.bottom))
+      }
+      if (width + 0.5 < min || height + 0.5 < min) {
         const label =
           el.getAttribute("aria-label") ||
           (el.textContent ?? "").trim().slice(0, 40) ||
@@ -500,7 +508,8 @@ test("staff: empty portfolio, upload dialog states, focus return", async ({
   const held = new Promise<void>((r) => (release = r))
   await page.route("**/storage/v1/**", async (route) => {
     await held
-    await route.abort("failed")
+    // The handler may outlive unroute(); then the route is already settled.
+    await route.abort("failed").catch(() => {})
   })
   await dialog.getByRole("button", { name: /^Upload 1 file$/ }).click()
   await expect(dialog.getByText(/Uploading \d+%/)).toBeVisible({
@@ -846,7 +855,11 @@ test("admin: staff directory and invite", async ({
   await inviteDialog.getByRole("combobox", { name: "Venue" }).click()
   await page.getByRole("option", { name: fx.venue.name }).click()
   await inviteDialog.getByRole("button", { name: "Send invitation" }).click()
-  await expect(inviteDialog.getByText(/already/i)).toBeVisible({
+  await expect(
+    inviteDialog
+      .getByRole("alert")
+      .filter({ hasText: "already has an account" })
+  ).toBeVisible({
     timeout: 30_000,
   })
   await capture(page, testInfo, "invite-existing-email")

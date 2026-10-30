@@ -60,7 +60,7 @@ export function OptionSelect({
         // The trigger sizes itself with data-[size=default]:h-8, which beats a
         // plain h-* class; override at the same specificity (44px on phones).
         className={cn(
-          "w-full data-[size=default]:h-11 sm:data-[size=default]:h-9",
+          "w-full min-w-0 data-[size=default]:h-11 sm:data-[size=default]:h-9",
           className
         )}
         {...aria}
@@ -72,7 +72,7 @@ export function OptionSelect({
           <SelectItem
             key={item.value}
             value={item.value}
-            className="py-2 sm:py-1"
+            className="min-h-11 py-2 sm:min-h-0 sm:py-1"
           >
             {item.label}
           </SelectItem>

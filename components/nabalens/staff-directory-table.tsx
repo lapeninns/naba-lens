@@ -116,7 +116,6 @@ export function StaffDirectoryTable({
           >
             <Link
               href={getPortfolioHref(member)}
-              aria-label={`${member.displayName}, open portfolio`}
               className="flex min-h-14 min-w-0 flex-1 items-center gap-3 rounded-md py-1.5 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
             >
               <ProfileAvatar name={member.displayName} src={member.avatarUrl} />
@@ -136,6 +135,7 @@ export function StaffDirectoryTable({
                   </span>
                 </span>
               </span>
+              <span className="sr-only">, open portfolio</span>
             </Link>
             <RowActions member={member} {...actions} />
           </li>
