@@ -382,6 +382,143 @@ describe("foreground refresh", () => {
     expect(loadPage).not.toHaveBeenCalled()
   })
 
+  function feed(count: number) {
+    return Array.from({ length: count }, (_, index) =>
+      item(
+        `00000000-0000-4000-8000-${String(count - index).padStart(12, "0")}`,
+        {
+          originalFilename: `photo-${index}.jpg`,
+        }
+      )
+    )
+  }
+
+  function feedPage(all: MediaItemView[], start: number) {
+    const end = start + 24
+    return {
+      items: all.slice(start, end),
+      nextCursor: end < all.length ? `offset:${end}` : null,
+    }
+  }
+
+  it("keeps every upload reachable when more than a page arrives after all pages were loaded", async () => {
+    const all = feed(78)
+    const loadPage = vi.fn<LoadPage>(async (cursor) => ({
+      ok: true,
+      page: feedPage(all, Number(cursor?.split(":")[1])),
+    }))
+    const refreshPage = vi.fn<RefreshPage>(async () => ({
+      ok: true,
+      page: feedPage(all, 0),
+    }))
+    render(
+      <MediaGallery
+        label="Library"
+        initialPage={feedPage(all, 30)}
+        loadPage={loadPage}
+        refreshPage={refreshPage}
+        empty={<p>Empty</p>}
+      />
+    )
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Load more" }))
+    })
+    expect(screen.getAllByRole("button", { name: /^Photo, / })).toHaveLength(48)
+    expect(screen.queryByRole("button", { name: "Load more" })).toBeNull()
+
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"))
+    })
+    // The disjoint first page restarts pagination instead of retaining a gap.
+    expect(screen.getAllByRole("button", { name: /^Photo, / })).toHaveLength(24)
+    for (const cursor of ["offset:24", "offset:48", "offset:72"]) {
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Load more" }))
+      })
+      expect(loadPage).toHaveBeenLastCalledWith(cursor)
+    }
+    const tiles = screen.getAllByRole("button", { name: /^Photo, / })
+    expect(tiles).toHaveLength(78)
+    expect(
+      new Set(tiles.map((tile) => tile.getAttribute("aria-label"))).size
+    ).toBe(78)
+    expect(screen.queryByRole("button", { name: "Load more" })).toBeNull()
+  })
+
+  it("preserves loaded older pages and their cursor during an overlapping refresh", async () => {
+    const all = feed(54)
+    const loadPage = vi.fn<LoadPage>(async (cursor) => ({
+      ok: true,
+      page: feedPage(all, Number(cursor?.split(":")[1])),
+    }))
+    const refreshPage = vi.fn<RefreshPage>(async () => ({
+      ok: true,
+      page: feedPage(all, 0),
+    }))
+    render(
+      <MediaGallery
+        label="Library"
+        initialPage={feedPage(all, 6)}
+        loadPage={loadPage}
+        refreshPage={refreshPage}
+        empty={<p>Empty</p>}
+      />
+    )
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Load more" }))
+    })
+    expect(screen.getAllByRole("button", { name: /^Photo, / })).toHaveLength(48)
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"))
+    })
+    expect(screen.getAllByRole("button", { name: /^Photo, / })).toHaveLength(54)
+    expect(screen.queryByRole("button", { name: "Load more" })).toBeNull()
+    expect(loadPage).toHaveBeenCalledTimes(1)
+  })
+
+  it("ignores an older load-more result that arrives after a refresh reset", async () => {
+    const all = feed(78)
+    let settle: (result: Awaited<ReturnType<LoadPage>>) => void = () => {}
+    const loadPage = vi
+      .fn<LoadPage>()
+      .mockImplementationOnce(
+        () => new Promise((resolve) => (settle = resolve))
+      )
+      .mockImplementation(async (cursor) => ({
+        ok: true,
+        page: feedPage(all, Number(cursor?.split(":")[1])),
+      }))
+    const refreshPage = vi.fn<RefreshPage>(async () => ({
+      ok: true,
+      page: feedPage(all, 0),
+    }))
+    render(
+      <MediaGallery
+        label="Library"
+        initialPage={feedPage(all, 30)}
+        loadPage={loadPage}
+        refreshPage={refreshPage}
+        empty={<p>Empty</p>}
+      />
+    )
+    fireEvent.click(screen.getByRole("button", { name: "Load more" }))
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"))
+    })
+    await act(async () => {
+      settle({ ok: true, page: feedPage(all, 54) })
+    })
+    expect(screen.getAllByRole("button", { name: /^Photo, / })).toHaveLength(24)
+    expect(
+      screen.getByRole("button", { name: "Load more" }).hasAttribute("disabled")
+    ).toBe(false)
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Load more" }))
+    })
+    expect(loadPage).toHaveBeenLastCalledWith("offset:24")
+    expect(screen.getAllByRole("button", { name: /^Photo, / })).toHaveLength(48)
+  })
+
   // Final review F5: the refresh is an abortable GET, so a hung one is really
   // cancelled and never holds up later Server Functions (uploads).
   it("aborts a hung refresh so the interval and focus refreshes keep working", async () => {

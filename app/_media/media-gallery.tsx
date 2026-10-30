@@ -119,8 +119,8 @@ export function MediaGallery({
   showLabelBadge = false,
 }: MediaGalleryProps) {
   const [labelIds, setLabelIds] = React.useState<string[] | null>(null)
-  const [items, setItems] = React.useState<MediaItem[]>(initialPage.items)
-  const [nextCursor, setNextCursor] = React.useState(initialPage.nextCursor)
+  const [page, setPage] = React.useState(initialPage)
+  const { items, nextCursor } = page
   const [loadingMore, setLoadingMore] = React.useState(false)
   const [loadError, setLoadError] = React.useState<string | null>(null)
   const [refreshError, setRefreshError] = React.useState<string | null>(null)
@@ -131,7 +131,7 @@ export function MediaGallery({
     id: string
     message: string
   } | null>(null)
-  const pagesLoaded = React.useRef(1)
+  const pageGeneration = React.useRef(0)
   const refreshing = React.useRef(false)
 
   const { display, brokenCount, onError, attach, retryBroken } =
@@ -172,13 +172,27 @@ export function MediaGallery({
       // Broken previews get one fresh, re-signed attempt per refresh.
       retryBroken()
       const fresh = result.page
-      setItems((current) => {
-        // The fresh first page replaces the top; older pages already loaded stay.
+      // A pending older-page request belongs to the range before this refresh.
+      // Its result must not replace the refreshed cursor or restore old items.
+      pageGeneration.current += 1
+      setLoadError(null)
+      setPage((current) => {
         const last = fresh.items.at(-1)
-        if (!fresh.nextCursor || !last) return fresh.items
-        return [...fresh.items, ...current.filter((i) => isOlder(i, last))]
+        const loadedIds = new Set(current.items.map((i) => i.id))
+        const overlaps = fresh.items.some((i) => loadedIds.has(i.id))
+        // Without overlap, unseen uploads may fill the gap between the fresh
+        // page and the old range. Start from its cursor to keep them reachable.
+        if (!fresh.nextCursor || !last || !overlaps) return fresh
+        // Ordinary polling preserves the loaded range and its older cursor.
+        // Only the fresh first page is authoritative for removals/updates.
+        return {
+          items: [
+            ...fresh.items,
+            ...current.items.filter((i) => isOlder(i, last)),
+          ],
+          nextCursor: current.nextCursor,
+        }
       })
-      if (pagesLoaded.current <= 1) setNextCursor(fresh.nextCursor)
     } catch {
       setRefreshError(REFRESH_FAILED)
     } finally {
@@ -217,22 +231,29 @@ export function MediaGallery({
 
   async function loadMore() {
     if (!nextCursor) return
+    const generation = pageGeneration.current
     setLoadingMore(true)
     setLoadError(null)
     try {
       const result = await loadPage(nextCursor)
+      if (generation !== pageGeneration.current) return
       if (!result.ok) {
         setLoadError(result.message)
         return
       }
-      pagesLoaded.current += 1
-      setItems((current) => {
-        const seen = new Set(current.map((i) => i.id))
-        return [...current, ...result.page.items.filter((i) => !seen.has(i.id))]
+      setPage((current) => {
+        const seen = new Set(current.items.map((i) => i.id))
+        return {
+          items: [
+            ...current.items,
+            ...result.page.items.filter((i) => !seen.has(i.id)),
+          ],
+          nextCursor: result.page.nextCursor,
+        }
       })
-      setNextCursor(result.page.nextCursor)
     } catch {
-      setLoadError("Could not load more. Check your connection.")
+      if (generation === pageGeneration.current)
+        setLoadError("Could not load more. Check your connection.")
     } finally {
       setLoadingMore(false)
     }
@@ -319,11 +340,13 @@ export function MediaGallery({
             const saved = new Map(
               results.flatMap((r) => (r.ok ? [[r.assetId, r.labels]] : []))
             )
-            setItems((current) =>
-              current.map((i) =>
-                saved.has(i.id) ? { ...i, labels: saved.get(i.id) } : i
-              )
-            )
+            setPage((current) => ({
+              ...current,
+              items: current.items.map((i) => {
+                const labels = saved.get(i.id)
+                return labels === undefined ? i : { ...i, labels }
+              }),
+            }))
           }}
         />
       ) : null}
@@ -338,7 +361,10 @@ export function MediaGallery({
           const result = await deleteMedia(deleting.id)
           if (!result.ok) return result
           const id = deleting.id
-          setItems((current) => current.filter((i) => i.id !== id))
+          setPage((current) => ({
+            ...current,
+            items: current.items.filter((i) => i.id !== id),
+          }))
           setViewerOpen(false)
           setOpenId(null)
           return { ok: true }
