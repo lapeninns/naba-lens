@@ -70,8 +70,10 @@ follow [isolated test setup](docs/setup.md#4-checks-and-isolated-test-stacks).
 `bash scripts/ci/local-ci.sh` runs the whole fixture gate ([CI](docs/ci.md)).
 Integration/e2e's bare-status fallback does not discover a temporary `$W`:
 supply its explicit credentials privately. Tests write local test data.
-E2e starts its own server (:3417 by default, `E2E_PORT` override); align Auth's
-Site URL, install Chromium and do not run another dev server on that port.
+E2e builds and starts a production server (`next build && next start`, :3457 by
+default, `E2E_PORT` override) against an isolated stack from
+`tests/e2e/prepare-stack.mjs` (`E2E_SUPABASE_WORKDIR`, which also sets Auth's Site
+URL); install Chromium and do not run another server on that port.
 Stop only the stack you own.
 
 ## Implementation reference

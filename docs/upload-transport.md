@@ -89,6 +89,26 @@ The mapping:
 `upload()` itself also accepts `onReserved({ assetId, resumable })`, which the
 adapter uses to record the asset id.
 
+### Resuming after a reload (`keys`)
+
+`toQueueUploader(upload, { keys: localUploadKeyStore() })` (what
+`app/_media/use-media-uploader.ts` passes) remembers each unfinished file's
+idempotency key in `localStorage` (`nabalens-upload-keys`). Entries are indexed
+by a SHA-256 of name, size, type and modification time, so file names are not
+stored, and expire after 20 hours: before the server's 24-hour abandoned-upload
+cleanup. When the same file is chosen again after a reload or a closed tab,
+`reserve` returns the same asset and the TUS transfer resumes from the server
+offset. tus-js-client's own upload URLs also live in `localStorage`.
+
+- The key is forgotten once the file is `ready` or fails validation, so the same
+  file chosen later is a new upload.
+- The same file added twice in one batch gets two keys.
+- If `reserve` throws `ReservationGoneError` (the app maps HTTP 404: the
+  reservation was removed or cleaned up), the upload fails with
+  `reservation_gone` and "This unfinished upload was removed or expired. Retry to
+  upload the file again." The key is dropped, so the retry reserves a new asset.
+  Other reserve failures keep the key, so a retry cannot create a duplicate.
+
 ### `beforeunload`
 
 ```ts

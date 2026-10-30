@@ -1,7 +1,7 @@
 // Browser upload orchestration: preflight -> reserve -> transfer -> finalise.
 // Client-only; reserve/finalise are injected (server actions in the app).
 
-import { AbortedError, TransferError } from "./errors"
+import { AbortedError, ReservationGoneError, TransferError } from "./errors"
 import { preflight } from "./preflight"
 import { signedPut, type XhrLike } from "./signed-put"
 import { SUPABASE_TUS_CHUNK_SIZE, tusTransfer, type TusAdapters } from "./tus"
@@ -90,6 +90,14 @@ export function createUploader(options: CreateUploaderOptions): MediaUploader {
             checked.kind === "video" || file.size > resumableThresholdBytes,
         })
       } catch (error) {
+        if (error instanceof ReservationGoneError) {
+          return fail({
+            code: "reservation_gone",
+            message:
+              "This unfinished upload was removed or expired. Retry to upload the file again.",
+            retryable: true,
+          })
+        }
         return fail({
           code: "reserve_failed",
           message: messageOf(error, "Could not start the upload."),

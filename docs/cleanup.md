@@ -45,14 +45,25 @@ Not recalled: signed URLs issued before removal stay valid until they expire (60
    pooled transaction, so a session advisory lock cannot span a run. A lease row
    in `private.maintenance_leases` with a 10-minute expiry does this instead, and is
    released when the run ends.
-2. Calls `prepare_media_cleanup(24 hours, 100, now)`, which:
+2. Calls `fail_stale_media_processing(MEDIA_LIMITS.staleProcessingMinutes)` (30 min).
+   A finalise killed after its claim (timeout, OOM, lost connection) would otherwise
+   leave the asset `processing` forever. Claims older than the window, measured by the
+   database clock against the claim's own `updated_at`, become `failed`; the run
+   reports them in `reaped` with reason `stale_processing`. Bytes are kept, so the
+   uploader can retry (finalise validates again) or delete. `failed` re-stamps
+   `updated_at`, so the 24 h abandoned window then starts afresh. The window must stay
+   well above the finalise route's `maxDuration`; the database refuses less than 10
+   minutes, so an in-flight finalise is never touched.
+3. Calls `prepare_media_cleanup(24 hours, 100[, now])`. `now` is passed only when the
+   caller sets `options.now` (tests); otherwise the database uses its own `now()`, so
+   the app host's clock never decides what is abandoned. It:
    - tombstones `uploading` and `failed` assets whose row **and** every object under
      their key prefix are older than `MEDIA_LIMITS.abandonedUploadWindowHours` (24
      h). `processing` and `ready` assets are never abandoned.
    - returns every tombstoned asset that still has objects in storage. These are
      user removals whose storage call failed, abandoned reservations' stored bytes,
      and failed uploads' leftovers.
-3. Removes those objects through the Storage API. A failure is reported in
+4. Removes those objects through the Storage API. A failure is reported in
    `failed`. Storage is the record of what is left, so the asset comes back on the
    next run. Up to 10 batches of 100 assets run per pass; `more: true` means the
    next pass continues.

@@ -5,7 +5,9 @@ const status = JSON.parse(readFileSync(`${work}/status.json`, 'utf8'))
 const env = { ...process.env, NEXT_PUBLIC_SUPABASE_URL: status.API_URL,
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: status.ANON_KEY ?? status.PUBLISHABLE_KEY,
   SUPABASE_SERVICE_ROLE_KEY: status.SERVICE_ROLE_KEY ?? status.SECRET_KEY,
-  MAILPIT_URL: status.MAILPIT_URL ?? status.INBUCKET_URL }
+  MAILPIT_URL: status.MAILPIT_URL ?? status.INBUCKET_URL,
+  // Playwright's resolver: isolated-stack checks, E2E_DB_URL for fixtures.
+  E2E_SUPABASE_WORKDIR: work }
 let failed = false
 for (const args of [['test:integration'], ['test:lifecycle', work], ['test:security', work], ['exec', 'playwright', 'test', '--config', 'scripts/ci/playwright.config.ts']]) {
   const result = spawnSync('pnpm', args, { stdio: 'inherit', env })

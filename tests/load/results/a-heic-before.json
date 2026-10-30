@@ -1,0 +1,1977 @@
+{
+ "runId": "40a30b",
+ "startedAt": "2026-10-30T00:45:58.102Z",
+ "host": {
+  "platform": "darwin arm64",
+  "node": "v24.16.0",
+  "note": "Local macOS numbers on a shared dev Mac, not deployed proof."
+ },
+ "serverActionDispatch": "one at a time per client (browser)",
+ "scenarios": {
+  "a": {
+   "scenario": "a: 10 staff x 10-file heic batch, 2 parallel per client",
+   "summary": {
+    "files": 100,
+    "ready": 69,
+    "successRate": 0.69,
+    "outcomes": {
+     "ready": 69,
+     "finalise_failed": 18,
+     "transfer_failed": 5,
+     "reserve_failed": 8
+    },
+    "errors": {
+     "Could not check this file right now. Try again.": 6,
+     "The server is busy processing photos. Try again.": 8,
+     "put_500": 3,
+     "HTTP 500 0:{\"a\":\"$@1\",\"q\":\"\",\"i\":false,\"b\":\"Yu8mTTIqu1QEgZH-ys-F6\"}\n1:E{\"digest\":\"3800426382\"}\n": 5,
+     "Could not save this file right now. Try again.": 4,
+     "Could not prepare the upload. Try again.": 3,
+     "put_544": 2
+    },
+    "finaliseMs": {
+     "all": {
+      "n": 87,
+      "p50": 23420,
+      "p95": 62779,
+      "max": 71970
+     },
+     "heic": {
+      "n": 87,
+      "p50": 23420,
+      "p95": 62779,
+      "max": 71970
+     },
+     "otherImage": {
+      "n": 0,
+      "p50": null,
+      "p95": null,
+      "max": null
+     },
+     "video": {
+      "n": 0,
+      "p50": null,
+      "p95": null,
+      "max": null
+     }
+    },
+    "finaliseActionQueueMs": {
+     "n": 87,
+     "p50": 0,
+     "p95": 45112,
+     "max": 54857
+    },
+    "reserveMs": {
+     "n": 100,
+     "p50": 97,
+     "p95": 37990,
+     "max": 47880
+    },
+    "transferMs": {
+     "n": 87,
+     "p50": 521,
+     "p95": 10496,
+     "max": 48388
+    },
+    "fileTotalMs": {
+     "n": 100,
+     "p50": 44494,
+     "p95": 106380,
+     "max": 149788
+    }
+   },
+   "results": [
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 83.46537499999977,
+     "reserveWaitMs": 0.16945900000064285,
+     "transferMs": 230.97154199999932,
+     "finaliseAt": 1793321160307,
+     "finaliseMs": 2384.401833,
+     "finaliseEndAt": 1793321162692,
+     "finaliseWaitMs": 0.001834000002418179,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 2699.418791
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 68.68537500000093,
+     "reserveWaitMs": 83.64483399999881,
+     "transferMs": 476.3105829999986,
+     "finaliseAt": 1793321160621,
+     "finaliseMs": 1115.8895410000005,
+     "finaliseEndAt": 1793321163808,
+     "finaliseWaitMs": 2070.5662090000005,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 3815.329375000001
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 46.23345899999913,
+     "reserveWaitMs": 1115.6836660000008,
+     "transferMs": 240.66995900000256,
+     "finaliseAt": 1793321164095,
+     "finaliseMs": 4330.23875,
+     "finaliseEndAt": 1793321168425,
+     "finaliseWaitMs": 0.0017499999994470272,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 5733.267875000001
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 91.16216699999859,
+     "reserveWaitMs": 45.92545800000153,
+     "transferMs": 412.92891600000075,
+     "finaliseAt": 1793321164358,
+     "finaliseMs": 3299.3030000000035,
+     "finaliseEndAt": 1793321171724,
+     "finaliseWaitMs": 4067.034917000001,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 7916.596708000001
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 219.12250000000495,
+     "reserveWaitMs": 3299.096916999999,
+     "transferMs": 1904.2094999999972,
+     "finaliseAt": 1793321173848,
+     "finaliseMs": 45355.44025,
+     "finaliseEndAt": 1793321219204,
+     "finaliseWaitMs": 0.0024579999953857623,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 50778.28474999999
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 1115.201000000001,
+     "reserveWaitMs": 218.88274999999703,
+     "transferMs": 1032.5099159999954,
+     "finaliseAt": 1793321174091,
+     "finaliseMs": 55083.05770799999,
+     "finaliseEndAt": 1793321274287,
+     "finaliseWaitMs": 45112.101917,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 102561.99629200001
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 58.986667000019224,
+     "reserveWaitMs": 55082.815707999995,
+     "transferMs": 357.96662500000093,
+     "finaliseAt": 1793321274704,
+     "finaliseMs": 33905.00562499999,
+     "finaliseEndAt": 1793321308609,
+     "finaliseWaitMs": 0.0029159999976400286,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 89405.160083
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 62.65274999997928,
+     "reserveWaitMs": 58.76154200002202,
+     "transferMs": 396.88362500001676,
+     "finaliseAt": 1793321274805,
+     "finaliseMs": 71970.330334,
+     "finaliseEndAt": 1793321380580,
+     "finaliseWaitMs": 33803.621125000005,
+     "finaliseStatus": 200,
+     "outcome": "finalise_failed",
+     "error": "Could not check this file right now. Try again.",
+     "totalMs": 106292.589542
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 58.12579099999857,
+     "reserveWaitMs": 71970.13458400001,
+     "transferMs": 11127.906292,
+     "finaliseAt": 1793321391766,
+     "finaliseMs": 8688.026291999966,
+     "finaliseEndAt": 1793321435291,
+     "finaliseWaitMs": 34836.5025,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 126680.943417
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 197.21670799999265,
+     "reserveWaitMs": 57.772125000017695,
+     "transferMs": 9948.508917,
+     "finaliseAt": 1793321390784,
+     "finaliseMs": 35818.837499999994,
+     "finaliseEndAt": 1793321426603,
+     "finaliseWaitMs": 0.0027500000142026693,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 46022.55100000001
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 86.04020899999887,
+     "reserveWaitMs": 0.3042910000003758,
+     "transferMs": 249.9666670000006,
+     "finaliseAt": 1793321160329,
+     "finaliseMs": 5503.195625,
+     "finaliseEndAt": 1793321165832,
+     "finaliseWaitMs": 0.0025830000013229437,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 5840.0665420000005
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 82.72925000000032,
+     "reserveWaitMs": 86.36095799999748,
+     "transferMs": 1635.9520830000001,
+     "finaliseAt": 1793321161797,
+     "finaliseMs": 4141.822082999999,
+     "finaliseEndAt": 1793321169974,
+     "finaliseWaitMs": 4034.830708999998,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 9981.869959
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 297.3075000000026,
+     "reserveWaitMs": 4141.565082999998,
+     "transferMs": 1739.604041999999,
+     "finaliseAt": 1793321172011,
+     "finaliseMs": 11607.002375000004,
+     "finaliseEndAt": 1793321183619,
+     "finaliseWaitMs": 0.002165999998396728,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 17785.902000000002
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 231.06316700000025,
+     "reserveWaitMs": 297.1421249999985,
+     "transferMs": 2985.918166000003,
+     "finaliseAt": 1793321173488,
+     "finaliseMs": 4174.003791000003,
+     "finaliseEndAt": 1793321187793,
+     "finaliseWaitMs": 10129.790416999997,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 17818.167583000002
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 332.5163750000065,
+     "reserveWaitMs": 4173.706290999995,
+     "transferMs": 1048.3550420000029,
+     "finaliseAt": 1793321189174,
+     "finaliseMs": 31530.381624999995,
+     "finaliseEndAt": 1793321220704,
+     "finaliseWaitMs": 0.003416999999899417,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 37085.416458
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 551.211000000003,
+     "reserveWaitMs": 332.2867499999993,
+     "transferMs": 24574.839292000004,
+     "finaliseAt": 1793321213251,
+     "finaliseMs": 53584.721667000005,
+     "finaliseEndAt": 1793321274289,
+     "finaliseWaitMs": 7452.945915999997,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 86496.176541
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 69.76495899999281,
+     "reserveWaitMs": 53584.54545800001,
+     "transferMs": 496.9812090000196,
+     "finaliseAt": 1793321274856,
+     "finaliseMs": 69360.08454099999,
+     "finaliseEndAt": 1793321370494,
+     "finaliseWaitMs": 26276.53450000001,
+     "finaliseStatus": 200,
+     "outcome": "finalise_failed",
+     "error": "Could not check this file right now. Try again.",
+     "totalMs": 149788.307167
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 58.2573750000156,
+     "reserveWaitMs": 69.56512499999371,
+     "transferMs": 393.13770900000236,
+     "finaliseAt": 1793321274810,
+     "finaliseMs": 26322.40175000002,
+     "finaliseEndAt": 1793321301133,
+     "finaliseWaitMs": 0.0019579999789129943,
+     "finaliseStatus": 200,
+     "outcome": "finalise_failed",
+     "error": "The server is busy processing photos. Try again.",
+     "totalMs": 26843.508625000017
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 6441.462708000006,
+     "reserveWaitMs": 69359.94279199999,
+     "transferMs": 395.19550000000163,
+     "finaliseAt": 1793321377330,
+     "finaliseMs": 13661.484250000009,
+     "finaliseEndAt": 1793321390992,
+     "finaliseWaitMs": 0.002957999997306615,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 89858.463625
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 77.47099999999045,
+     "reserveWaitMs": 6441.398541000002,
+     "transferMs": 324.1320410000044,
+     "finaliseAt": 1793321377337,
+     "finaliseMs": 43492.659209000005,
+     "finaliseEndAt": 1793321434485,
+     "finaliseWaitMs": 13655.244250000018,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 63990.94324999998
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 117.82716599999912,
+     "reserveWaitMs": 0.40991700000085984,
+     "transferMs": 192.16200000000026,
+     "finaliseAt": 1793321160303,
+     "finaliseMs": 22618.725,
+     "finaliseEndAt": 1793321182922,
+     "finaliseWaitMs": 0.0016249999971478246,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 22929.649042
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 97.22912500000166,
+     "reserveWaitMs": 118.25545899999997,
+     "transferMs": 406.4069579999996,
+     "finaliseAt": 1793321160614,
+     "finaliseMs": 6256.696665999996,
+     "finaliseEndAt": 1793321189179,
+     "finaliseWaitMs": 22307.471459,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 29186.286833000002
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 893.5845420000041,
+     "reserveWaitMs": 6256.380375000001,
+     "transferMs": 29121.598499999993,
+     "finaliseAt": 1793321219194,
+     "finaliseMs": 55104.62620799999,
+     "finaliseEndAt": 1793321274299,
+     "finaliseWaitMs": 0.0026670000079320744,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 91376.66054200001
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 23062.187708000005,
+     "reserveWaitMs": 893.3882499999963,
+     "transferMs": 6307.36783399999,
+     "finaliseAt": 1793321219442,
+     "finaliseMs": 34359.35916699999,
+     "finaliseEndAt": 1793321308659,
+     "finaliseWaitMs": 54856.88862499999,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 119479.385709
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 21667.826624999987,
+     "reserveWaitMs": 34359.14604200001,
+     "outcome": "transfer_failed",
+     "error": "put_500",
+     "totalMs": 96265.18675
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 40148.48662499999,
+     "reserveWaitMs": 21667.662582999998,
+     "outcome": "reserve_failed",
+     "error": "HTTP 500 0:{\"a\":\"$@1\",\"q\":\"\",\"i\":false,\"b\":\"Yu8mTTIqu1QEgZH-ys-F6\"}\n1:E{\"digest\":\"3800426382\"}\n",
+     "totalMs": 61816.186833000014
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 6455.423916,
+     "reserveWaitMs": 0.0006669999856967479,
+     "transferMs": 406.9617090000247,
+     "finaliseAt": 1793321377338,
+     "finaliseMs": 28165.184125,
+     "finaliseEndAt": 1793321415167,
+     "finaliseWaitMs": 9663.478124999994,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 44691.480416000006
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 83.22279200001503,
+     "reserveWaitMs": 6365.767707999999,
+     "transferMs": 258.7955420000071,
+     "finaliseAt": 1793321377273,
+     "finaliseMs": 9728.572249999997,
+     "finaliseEndAt": 1793321387002,
+     "finaliseWaitMs": 0.0024590000102762133,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 16436.684542000003
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 69.79308299999684,
+     "reserveWaitMs": 28164.86375000002,
+     "transferMs": 542.3236669999897,
+     "finaliseAt": 1793321415779,
+     "finaliseMs": 2807.237958999991,
+     "finaliseEndAt": 1793321418587,
+     "finaliseWaitMs": 0.0019580000080168247,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 31584.668875000003
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 203.7090839999728,
+     "reserveWaitMs": 69.57716600003187,
+     "transferMs": 1249.1661249999888,
+     "finaliseAt": 1793321416690,
+     "finaliseMs": 10456.622291999985,
+     "finaliseEndAt": 1793321429043,
+     "finaliseWaitMs": 1896.8513329999987,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 13875.965250000008
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 87.91137499999968,
+     "reserveWaitMs": 0.47754100000020117,
+     "transferMs": 558.2429169999996,
+     "finaliseAt": 1793321160639,
+     "finaliseMs": 2682.055500000002,
+     "finaliseEndAt": 1793321186278,
+     "finaliseWaitMs": 22956.003875,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 26285.097749999997
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 75.23695800000132,
+     "reserveWaitMs": 88.40154199999961,
+     "transferMs": 389.1932080000006,
+     "finaliseAt": 1793321160545,
+     "finaliseMs": 23049.905790999997,
+     "finaliseEndAt": 1793321183596,
+     "finaliseWaitMs": 0.00204200000007404,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 23602.991584
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 29.443209000004572,
+     "reserveWaitMs": 2681.8219580000004,
+     "transferMs": 108.96279199999844,
+     "finaliseAt": 1793321186416,
+     "finaliseMs": 32497.178499999995,
+     "finaliseEndAt": 1793321218913,
+     "finaliseWaitMs": 0.002541000001656357,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 35317.691375
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 24.560417000000598,
+     "reserveWaitMs": 29.189999999995052,
+     "transferMs": 148.31141699999716,
+     "finaliseAt": 1793321186480,
+     "finaliseMs": 55180.40829200001,
+     "finaliseEndAt": 1793321274094,
+     "finaliseWaitMs": 32433.401333,
+     "finaliseStatus": 200,
+     "outcome": "finalise_failed",
+     "error": "Could not save this file right now. Try again.",
+     "totalMs": 87815.99291599999
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 226.06845800002338,
+     "reserveWaitMs": 55180.26816699999,
+     "transferMs": 253.98137499997392,
+     "finaliseAt": 1793321274574,
+     "finaliseMs": 32998.365499999985,
+     "finaliseEndAt": 1793321307573,
+     "finaliseWaitMs": 0.0026249999937135726,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 88659.03779199999
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 50.235000000015134,
+     "reserveWaitMs": 225.9668749999837,
+     "transferMs": 427.68700000000536,
+     "finaliseAt": 1793321274798,
+     "finaliseMs": 62901.92537499999,
+     "finaliseEndAt": 1793321370475,
+     "finaliseWaitMs": 32774.59812499999,
+     "finaliseStatus": 200,
+     "outcome": "finalise_failed",
+     "error": "Could not check this file right now. Try again.",
+     "totalMs": 96380.600959
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 6473.068375000003,
+     "reserveWaitMs": 62901.75354199999,
+     "transferMs": 106.18762499999139,
+     "finaliseAt": 1793321377055,
+     "finaliseMs": 1268.1543339999916,
+     "finaliseEndAt": 1793321378323,
+     "finaliseWaitMs": 0.0016659999964758754,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 70749.532125
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 69.5223330000008,
+     "reserveWaitMs": 6472.887625000003,
+     "transferMs": 232.37049999999,
+     "finaliseAt": 1793321377250,
+     "finaliseMs": 1066.6109590000124,
+     "finaliseEndAt": 1793321379390,
+     "finaliseWaitMs": 1072.6113750000077,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 8914.159833999991
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 28.141042000002926,
+     "reserveWaitMs": 1066.404749999987,
+     "transferMs": 96.01554100000067,
+     "finaliseAt": 1793321379514,
+     "finaliseMs": 1204.5957500000077,
+     "finaliseEndAt": 1793321380719,
+     "finaliseWaitMs": 0.001832999987527728,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 2395.5159169999824
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 28.146332999982405,
+     "reserveWaitMs": 28.00195900001563,
+     "transferMs": 90.67658400000073,
+     "finaliseAt": 1793321379537,
+     "finaliseMs": 27478.154374999984,
+     "finaliseEndAt": 1793321408197,
+     "finaliseWaitMs": 1181.9368749999849,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 28806.96208300002
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 126.89987499999916,
+     "reserveWaitMs": 0.5291250000009313,
+     "transferMs": 460.66591699999844,
+     "finaliseAt": 1793321160581,
+     "finaliseMs": 24041.910459,
+     "finaliseEndAt": 1793321184623,
+     "finaliseWaitMs": 0.0018750000017462298,
+     "finaliseStatus": 200,
+     "outcome": "finalise_failed",
+     "error": "The server is busy processing photos. Try again.",
+     "totalMs": 24630.425625
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 90.74054099999921,
+     "reserveWaitMs": 127.4496250000011,
+     "transferMs": 393.872583999997,
+     "finaliseAt": 1793321160604,
+     "finaliseMs": 28481.571167000002,
+     "finaliseEndAt": 1793321213105,
+     "finaliseWaitMs": 24018.141125,
+     "finaliseStatus": 200,
+     "outcome": "finalise_failed",
+     "error": "The server is busy processing photos. Try again.",
+     "totalMs": 53111.987958
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 142.81795799999963,
+     "reserveWaitMs": 28481.325333999994,
+     "transferMs": 6200.518916999994,
+     "finaliseAt": 1793321219448,
+     "finaliseMs": 54664.244042000006,
+     "finaliseEndAt": 1793321274113,
+     "finaliseWaitMs": 0.0017499999958090484,
+     "finaliseStatus": 200,
+     "outcome": "finalise_failed",
+     "error": "Could not save this file right now. Try again.",
+     "totalMs": 89489.289292
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 4964.198958000008,
+     "reserveWaitMs": 142.60737499999232,
+     "transferMs": 1308.6110830000107,
+     "finaliseAt": 1793321219520,
+     "finaliseMs": 1510.900290999998,
+     "finaliseEndAt": 1793321275624,
+     "finaliseWaitMs": 54592.141042,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 62518.674833
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 25.90616700000828,
+     "reserveWaitMs": 1510.714082999999,
+     "transferMs": 88.38120800000615,
+     "finaliseAt": 1793321275738,
+     "finaliseMs": 31975.037833999988,
+     "finaliseEndAt": 1793321307714,
+     "finaliseWaitMs": 0.0017909999878611416,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 33600.400209000014
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 32.42908300002455,
+     "reserveWaitMs": 25.702041999989888,
+     "transferMs": 69.30954199997359,
+     "finaliseAt": 1793321275751,
+     "finaliseMs": 62779.41445899999,
+     "finaliseEndAt": 1793321370493,
+     "finaliseWaitMs": 31961.876333000022,
+     "finaliseStatus": 200,
+     "outcome": "finalise_failed",
+     "error": "Could not check this file right now. Try again.",
+     "totalMs": 94868.922708
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 6443.784416999988,
+     "reserveWaitMs": 62779.256041000015,
+     "transferMs": 411.77624999999534,
+     "finaliseAt": 1793321377349,
+     "finaliseMs": 21367.444542000012,
+     "finaliseEndAt": 1793321409975,
+     "finaliseWaitMs": 11257.7935,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 102260.406792
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 73.8327500000014,
+     "reserveWaitMs": 6443.601082999987,
+     "transferMs": 250.0995830000029,
+     "finaliseAt": 1793321377261,
+     "finaliseMs": 11345.753916999995,
+     "finaliseEndAt": 1793321388607,
+     "finaliseWaitMs": 0.0019169999868609011,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 18113.454499999993
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 75.09008300001733,
+     "reserveWaitMs": 21367.303333999997,
+     "transferMs": 404.20845799997915,
+     "finaliseAt": 1793321410454,
+     "finaliseMs": 13857.504083000007,
+     "finaliseEndAt": 1793321424312,
+     "finaliseWaitMs": 0.0028329999768175185,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 35704.594417000015
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 94.15841700002784,
+     "reserveWaitMs": 74.90787499997532,
+     "transferMs": 617.827249999973,
+     "finaliseAt": 1793321410762,
+     "finaliseMs": 9240.855333000014,
+     "finaliseEndAt": 1793321433552,
+     "finaliseWaitMs": 13549.903583999956,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 23577.699459000025
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 146.76004100000137,
+     "reserveWaitMs": 0.5568339999990712,
+     "transferMs": 1614.3203329999997,
+     "finaliseAt": 1793321161754,
+     "finaliseMs": 34281.833834000005,
+     "finaliseEndAt": 1793321218913,
+     "finaliseWaitMs": 22876.333625,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 58920.229833
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 103.10016699999687,
+     "reserveWaitMs": 147.34162500000093,
+     "transferMs": 1478.7043750000012,
+     "finaliseAt": 1793321161722,
+     "finaliseMs": 22908.972250000003,
+     "finaliseEndAt": 1793321184631,
+     "finaliseWaitMs": 0.0019169999977748375,
+     "finaliseStatus": 200,
+     "outcome": "finalise_failed",
+     "error": "The server is busy processing photos. Try again.",
+     "totalMs": 24638.388959000004
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 454.7318749999977,
+     "reserveWaitMs": 34281.559959,
+     "transferMs": 190.7824580000015,
+     "finaliseAt": 1793321219558,
+     "finaliseMs": 3811.6868340000074,
+     "finaliseEndAt": 1793321223370,
+     "finaliseWaitMs": 0.0017910000024130568,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 38738.991083
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 60.27700000000186,
+     "reserveWaitMs": 454.47404200000165,
+     "transferMs": 279.56350000000384,
+     "finaliseAt": 1793321219707,
+     "finaliseMs": 1378.8013749999955,
+     "finaliseEndAt": 1793321224749,
+     "finaliseWaitMs": 3662.6939170000114,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 5836.049750000006
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 905.0093329999945,
+     "reserveWaitMs": 1378.6388750000042,
+     "transferMs": 48388.332582999996,
+     "finaliseAt": 1793321274043,
+     "finaliseMs": 2518.2133329999924,
+     "finaliseEndAt": 1793321276561,
+     "finaliseWaitMs": 0.002666999993380159,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 53190.63083299999
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 47879.53541700001,
+     "reserveWaitMs": 904.7748750000028,
+     "transferMs": 801.0290420000092,
+     "finaliseAt": 1793321274335,
+     "finaliseMs": 24595.95637499998,
+     "finaliseEndAt": 1793321301157,
+     "finaliseWaitMs": 2226.122000000003,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 76407.63100000001
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 9050.418540999992,
+     "reserveWaitMs": 24595.68654200001,
+     "outcome": "reserve_failed",
+     "error": "Could not prepare the upload. Try again.",
+     "totalMs": 33646.271792000014
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 32309.742624999984,
+     "reserveWaitMs": 9050.245083999995,
+     "outcome": "reserve_failed",
+     "error": "Could not prepare the upload. Try again.",
+     "totalMs": 41360.14137500001
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 37990.280625000014,
+     "reserveWaitMs": 32309.56362499998,
+     "outcome": "reserve_failed",
+     "error": "HTTP 500 0:{\"a\":\"$@1\",\"q\":\"\",\"i\":false,\"b\":\"Yu8mTTIqu1QEgZH-ys-F6\"}\n1:E{\"digest\":\"3800426382\"}\n",
+     "totalMs": 70300.045041
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 59.10591700000805,
+     "reserveWaitMs": 37990.11712499999,
+     "transferMs": 3765.704207999981,
+     "finaliseAt": 1793321384333,
+     "finaliseMs": 25495.15066700001,
+     "finaliseEndAt": 1793321409828,
+     "finaliseWaitMs": 0.001832999987527728,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 67310.12416700003
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 124.1083749999998,
+     "reserveWaitMs": 0.5902089999981399,
+     "transferMs": 1698.3056670000005,
+     "finaliseAt": 1793321161816,
+     "finaliseMs": 35327.23979199999,
+     "finaliseEndAt": 1793321218907,
+     "finaliseWaitMs": 21763.527583,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 58914.345291000005
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 92.00479199999972,
+     "reserveWaitMs": 124.72187499999927,
+     "transferMs": 1531.2691669999986,
+     "finaliseAt": 1793321161740,
+     "finaliseMs": 21838.817958,
+     "finaliseEndAt": 1793321183580,
+     "finaliseWaitMs": 0.0017090000001189765,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 23587.063375
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 437.1219579999888,
+     "reserveWaitMs": 35326.984042000004,
+     "transferMs": 584.1480420000007,
+     "finaliseAt": 1793321219928,
+     "finaliseMs": 34429.24966599999,
+     "finaliseEndAt": 1793321308727,
+     "finaliseWaitMs": 54368.88745899999,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 125146.79233400001
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 60.81616699999722,
+     "reserveWaitMs": 436.84737499999756,
+     "transferMs": 283.38387499999953,
+     "finaliseAt": 1793321219688,
+     "finaliseMs": 54608.999667,
+     "finaliseEndAt": 1793321274298,
+     "finaliseWaitMs": 0.0018330000020796433,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 55390.246459
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 31737.432459000003,
+     "reserveWaitMs": 34429.06441599998,
+     "outcome": "transfer_failed",
+     "error": "put_500",
+     "totalMs": 96297.195042
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 40042.056290999986,
+     "reserveWaitMs": 31737.239292000013,
+     "outcome": "reserve_failed",
+     "error": "HTTP 500 0:{\"a\":\"$@1\",\"q\":\"\",\"i\":false,\"b\":\"Yu8mTTIqu1QEgZH-ys-F6\"}\n1:E{\"digest\":\"3800426382\"}\n",
+     "totalMs": 71779.52262500001
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 63.94337500000256,
+     "reserveWaitMs": 9911.399292000016,
+     "transferMs": 5212.881625000009,
+     "finaliseAt": 1793321385784,
+     "finaliseMs": 32402.309582999995,
+     "finaliseEndAt": 1793321418187,
+     "finaliseWaitMs": 0.002917000005254522,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 47590.93941699996
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 56.932915999990655,
+     "reserveWaitMs": 63.72787500001141,
+     "transferMs": 6317.8055830000085,
+     "finaliseAt": 1793321386946,
+     "finaliseMs": 6815.1173749999725,
+     "finaliseEndAt": 1793321425002,
+     "finaliseWaitMs": 31240.653833999997,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 44494.400333
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 1458.3456669999869,
+     "reserveWaitMs": 6814.927207999979,
+     "transferMs": 3856.6291670000064,
+     "finaliseAt": 1793321430317,
+     "finaliseMs": 6375.79025000002,
+     "finaliseEndAt": 1793321436693,
+     "finaliseWaitMs": 0.0021669999696314335,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 18506.193792000005
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 2088.0461249999935,
+     "reserveWaitMs": 1458.1934159999946,
+     "transferMs": 2460.2107499999693,
+     "finaliseAt": 1793321431008,
+     "finaliseMs": 2625.8515830000397,
+     "finaliseEndAt": 1793321439319,
+     "finaliseWaitMs": 5684.467000000004,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 14316.808582999976
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 138.1820829999997,
+     "reserveWaitMs": 0.616874999999709,
+     "transferMs": 1640.797125000001,
+     "finaliseAt": 1793321161773,
+     "finaliseMs": 34904.23570900001,
+     "finaliseEndAt": 1793321218914,
+     "finaliseWaitMs": 22236.307291,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 58920.969459
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 98.68920900000012,
+     "reserveWaitMs": 138.8312500000029,
+     "transferMs": 359.14604099999997,
+     "finaliseAt": 1793321160589,
+     "finaliseMs": 23419.898584000002,
+     "finaliseEndAt": 1793321184009,
+     "finaliseWaitMs": 0.0026250000009895302,
+     "finaliseStatus": 200,
+     "outcome": "finalise_failed",
+     "error": "The server is busy processing photos. Try again.",
+     "totalMs": 24016.869292000003
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 436.78887499999837,
+     "reserveWaitMs": 34903.933208,
+     "transferMs": 661.0490839999984,
+     "finaliseAt": 1793321220012,
+     "finaliseMs": 33629.65720799999,
+     "finaliseEndAt": 1793321307724,
+     "finaliseWaitMs": 54081.75541700001,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 123713.58937500001
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 57.463667000003625,
+     "reserveWaitMs": 436.6092079999944,
+     "transferMs": 281.4565830000065,
+     "finaliseAt": 1793321219689,
+     "finaliseMs": 54404.027375000005,
+     "finaliseEndAt": 1793321274094,
+     "finaliseWaitMs": 0.0012500000011641532,
+     "finaliseStatus": 200,
+     "outcome": "finalise_failed",
+     "error": "Could not save this file right now. Try again.",
+     "totalMs": 55179.743334
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 794.3242500000051,
+     "reserveWaitMs": 33629.475999999995,
+     "outcome": "transfer_failed",
+     "error": "put_544",
+     "totalMs": 67377.52679100001
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 32681.820833999984,
+     "reserveWaitMs": 794.0683750000026,
+     "outcome": "transfer_failed",
+     "error": "put_500",
+     "totalMs": 72875.440209
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 39035.549667000014,
+     "reserveWaitMs": 0.002582999994046986,
+     "outcome": "reserve_failed",
+     "error": "HTTP 500 0:{\"a\":\"$@1\",\"q\":\"\",\"i\":false,\"b\":\"Yu8mTTIqu1QEgZH-ys-F6\"}\n1:E{\"digest\":\"3800426382\"}\n",
+     "totalMs": 39035.57883300001
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 58.564541999978246,
+     "reserveWaitMs": 0.001125000009778887,
+     "transferMs": 10020.788874999998,
+     "finaliseAt": 1793321390587,
+     "finaliseMs": 6897.995832999994,
+     "finaliseEndAt": 1793321416916,
+     "finaliseWaitMs": 19430.382957999973,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 36407.93549999999
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 63.78570799998124,
+     "reserveWaitMs": 0.002334000018890947,
+     "transferMs": 7148.228084000002,
+     "finaliseAt": 1793321387812,
+     "finaliseMs": 22205.61266700001,
+     "finaliseEndAt": 1793321410018,
+     "finaliseWaitMs": 0.003124999988358468,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 29417.894792000006
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 202.27737499994691,
+     "reserveWaitMs": 6897.753083000018,
+     "transferMs": 1424.84704100003,
+     "finaliseAt": 1793321418543,
+     "finaliseMs": 10738.324459000025,
+     "finaliseEndAt": 1793321429281,
+     "finaliseWaitMs": 0.002540999965276569,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 19263.242790999997
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 142.4689580000013,
+     "reserveWaitMs": 0.6390419999988808,
+     "transferMs": 1588.1642919999977,
+     "finaliseAt": 1793321161724,
+     "finaliseMs": 34518.223915999995,
+     "finaliseEndAt": 1793321219130,
+     "finaliseWaitMs": 22886.997667,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 59136.822625
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 96.03125,
+     "reserveWaitMs": 143.12320799999725,
+     "transferMs": 606.9410829999979,
+     "finaliseAt": 1793321160839,
+     "finaliseMs": 23772.313000000002,
+     "finaliseEndAt": 1793321184611,
+     "finaliseWaitMs": 0.0016660000001138542,
+     "finaliseStatus": 200,
+     "outcome": "finalise_failed",
+     "error": "The server is busy processing photos. Try again.",
+     "totalMs": 24618.659458
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 237.22529100000975,
+     "reserveWaitMs": 34517.965208999995,
+     "transferMs": 681.5552499999903,
+     "finaliseAt": 1793321220048,
+     "finaliseMs": 51891.38770800001,
+     "finaliseEndAt": 1793321274275,
+     "finaliseWaitMs": 2334.413916999998,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 89662.912875
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 63.61849999999686,
+     "reserveWaitMs": 237.07141600000614,
+     "transferMs": 261.57212500000605,
+     "finaliseAt": 1793321219692,
+     "finaliseMs": 2690.9037919999973,
+     "finaliseEndAt": 1793321222383,
+     "finaliseWaitMs": 0.0016250000044237822,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 3253.4209160000028
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 67.47229099998367,
+     "reserveWaitMs": 51891.136167000004,
+     "transferMs": 504.62495800000033,
+     "finaliseAt": 1793321274847,
+     "finaliseMs": 9837.223667000013,
+     "finaliseEndAt": 1793321310963,
+     "finaliseWaitMs": 26278.786625000008,
+     "finaliseStatus": 200,
+     "outcome": "finalise_failed",
+     "error": "Could not check this file right now. Try again.",
+     "totalMs": 88579.62574999999
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 65.52170800001477,
+     "reserveWaitMs": 67.29608299999381,
+     "transferMs": 392.9323329999752,
+     "finaliseAt": 1793321274801,
+     "finaliseMs": 26325.104374999995,
+     "finaliseEndAt": 1793321301126,
+     "finaliseWaitMs": 0.002166000020224601,
+     "finaliseStatus": 200,
+     "outcome": "finalise_failed",
+     "error": "The server is busy processing photos. Try again.",
+     "totalMs": 26851.040959000005
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 31544.468792,
+     "reserveWaitMs": 9837.060333000001,
+     "outcome": "reserve_failed",
+     "error": "Could not prepare the upload. Try again.",
+     "totalMs": 41381.691332999995
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 38000.361917,
+     "reserveWaitMs": 31544.284083000006,
+     "outcome": "reserve_failed",
+     "error": "HTTP 500 0:{\"a\":\"$@1\",\"q\":\"\",\"i\":false,\"b\":\"Yu8mTTIqu1QEgZH-ys-F6\"}\n1:E{\"digest\":\"3800426382\"}\n",
+     "totalMs": 69544.77583299999
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 56.50212499999907,
+     "reserveWaitMs": 38000.204,
+     "transferMs": 10495.795125000004,
+     "finaliseAt": 1793321391061,
+     "finaliseMs": 2909.5938329999917,
+     "finaliseEndAt": 1793321414282,
+     "finaliseWaitMs": 20311.174959000025,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 71773.447083
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 63.640250000025844,
+     "reserveWaitMs": 56.39199999999255,
+     "transferMs": 9720.132417000015,
+     "finaliseAt": 1793321390349,
+     "finaliseMs": 21023.282584,
+     "finaliseEndAt": 1793321411372,
+     "finaliseWaitMs": 0.0035829999833367765,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 30863.713667000004
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 165.43433300000106,
+     "reserveWaitMs": 0.649874999999156,
+     "transferMs": 324.93854199999987,
+     "finaliseAt": 1793321160484,
+     "finaliseMs": 24763.450417000004,
+     "finaliseEndAt": 1793321185248,
+     "finaliseWaitMs": 0.002957999997306615,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 25254.895959
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 74.46783299999879,
+     "reserveWaitMs": 166.09579200000007,
+     "transferMs": 1562.5901249999988,
+     "finaliseAt": 1793321161796,
+     "finaliseMs": 27856.475583,
+     "finaliseEndAt": 1793321213104,
+     "finaliseWaitMs": 23451.526167,
+     "finaliseStatus": 200,
+     "outcome": "finalise_failed",
+     "error": "The server is busy processing photos. Try again.",
+     "totalMs": 53111.415667
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 132.37562500000058,
+     "reserveWaitMs": 27856.253249999994,
+     "transferMs": 6220.792916999999,
+     "finaliseAt": 1793321219457,
+     "finaliseMs": 1876.9922500000102,
+     "finaliseEndAt": 1793321221335,
+     "finaliseWaitMs": 0.001624999989871867,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 36086.74533400001
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 4975.75,
+     "reserveWaitMs": 132.0755419999914,
+     "transferMs": 1283.814167000004,
+     "finaliseAt": 1793321219496,
+     "finaliseMs": 52792.90712499998,
+     "finaliseEndAt": 1793321274128,
+     "finaliseWaitMs": 1838.3797500000073,
+     "finaliseStatus": 200,
+     "outcome": "finalise_failed",
+     "error": "Could not save this file right now. Try again.",
+     "totalMs": 61023.08449999998
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 188.8293330000015,
+     "reserveWaitMs": 52792.734333,
+     "transferMs": 403.48608299999614,
+     "finaliseAt": 1793321274720,
+     "finaliseMs": 33910.38145799999,
+     "finaliseEndAt": 1793321308631,
+     "finaliseWaitMs": 0.002082999999402091,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 87295.75070799999
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 55.499457999976585,
+     "reserveWaitMs": 188.67612499999814,
+     "transferMs": 390.1057079999882,
+     "finaliseAt": 1793321274762,
+     "finaliseMs": 71877.52600000001,
+     "finaliseEndAt": 1793321380509,
+     "finaliseWaitMs": 33868.418416,
+     "finaliseStatus": 200,
+     "outcome": "finalise_failed",
+     "error": "Could not check this file right now. Try again.",
+     "totalMs": 106380.323167
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 54.30354200000875,
+     "reserveWaitMs": 71877.370042,
+     "outcome": "transfer_failed",
+     "error": "put_544",
+     "totalMs": 86710.84258300002
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 66.76283299998613,
+     "reserveWaitMs": 54.23125000001164,
+     "transferMs": 6408.375666000007,
+     "finaliseAt": 1793321387038,
+     "finaliseMs": 25587.778542000015,
+     "finaliseEndAt": 1793321412626,
+     "finaliseWaitMs": 0.0022909999825060368,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 32117.424333000003
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 32.4859169999836,
+     "reserveWaitMs": 17283.772916000016,
+     "transferMs": 384.4100000000326,
+     "finaliseAt": 1793321413043,
+     "finaliseMs": 7698.619666000013,
+     "finaliseEndAt": 1793321420742,
+     "finaliseWaitMs": 0.002709000022150576,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 25399.771959000005
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "bytes": 5249707,
+     "reserveMs": 51.79395799996564,
+     "reserveWaitMs": 32.16116700001294,
+     "transferMs": 521.3358330000192,
+     "finaliseAt": 1793321413232,
+     "finaliseMs": 8640.79700000002,
+     "finaliseEndAt": 1793321429383,
+     "finaliseWaitMs": 7510.199457999959,
+     "finaliseStatus": 200,
+     "outcome": "ready",
+     "totalMs": 16756.332374999998
+    }
+   ],
+   "wallMs": 279542,
+   "serverRss": {
+    "idleAfterWarmMiB": 303,
+    "startMiB": 303,
+    "peakMiB": 699,
+    "endMiB": 468,
+    "samples": 2081
+   },
+   "heicWorkers": {
+    "workers": 73,
+    "maxConcurrent": 1,
+    "decodeMs": {
+     "p50": 969,
+     "p95": 1161,
+     "max": 1504
+    },
+    "runs": [
+     {
+      "start": 1904,
+      "end": 2872
+     },
+     {
+      "start": 3053,
+      "end": 3989
+     },
+     {
+      "start": 4603,
+      "end": 5644
+     },
+     {
+      "start": 6408,
+      "end": 7442
+     },
+     {
+      "start": 8789,
+      "end": 9719
+     },
+     {
+      "start": 10218,
+      "end": 11135
+     },
+     {
+      "start": 12110,
+      "end": 13027
+     },
+     {
+      "start": 14828,
+      "end": 15743
+     },
+     {
+      "start": 15755,
+      "end": 16646
+     },
+     {
+      "start": 19660,
+      "end": 20561
+     },
+     {
+      "start": 24191,
+      "end": 25241
+     },
+     {
+      "start": 25532,
+      "end": 26455
+     },
+     {
+      "start": 26582,
+      "end": 27513
+     },
+     {
+      "start": 27571,
+      "end": 28496
+     },
+     {
+      "start": 29449,
+      "end": 30334
+     },
+     {
+      "start": 32098,
+      "end": 33602
+     },
+     {
+      "start": 35605,
+      "end": 36766
+     },
+     {
+      "start": 39146,
+      "end": 40251
+     },
+     {
+      "start": 43151,
+      "end": 44195
+     },
+     {
+      "start": 47703,
+      "end": 48738
+     },
+     {
+      "start": 59592,
+      "end": 60535
+     },
+     {
+      "start": 60624,
+      "end": 61525
+     },
+     {
+      "start": 61641,
+      "end": 62556
+     },
+     {
+      "start": 62601,
+      "end": 63530
+     },
+     {
+      "start": 63686,
+      "end": 64655
+     },
+     {
+      "start": 65231,
+      "end": 66248
+     },
+     {
+      "start": 66848,
+      "end": 68073
+     },
+     {
+      "start": 68333,
+      "end": 69756
+     },
+     {
+      "start": 69852,
+      "end": 70840
+     },
+     {
+      "start": 70884,
+      "end": 71849
+     },
+     {
+      "start": 73377,
+      "end": 74335
+     },
+     {
+      "start": 74390,
+      "end": 75322
+     },
+     {
+      "start": 77476,
+      "end": 78459
+     },
+     {
+      "start": 79173,
+      "end": 80200
+     },
+     {
+      "start": 114793,
+      "end": 115787
+     },
+     {
+      "start": 115798,
+      "end": 116755
+     },
+     {
+      "start": 116868,
+      "end": 117805
+     },
+     {
+      "start": 118558,
+      "end": 119527
+     },
+     {
+      "start": 119626,
+      "end": 120643
+     },
+     {
+      "start": 121813,
+      "end": 122965
+     },
+     {
+      "start": 124937,
+      "end": 125976
+     },
+     {
+      "start": 128440,
+      "end": 129376
+     },
+     {
+      "start": 132693,
+      "end": 133630
+     },
+     {
+      "start": 137199,
+      "end": 138343
+     },
+     {
+      "start": 217536,
+      "end": 218511
+     },
+     {
+      "start": 218632,
+      "end": 219586
+     },
+     {
+      "start": 219834,
+      "end": 220809
+     },
+     {
+      "start": 222172,
+      "end": 223208
+     },
+     {
+      "start": 224677,
+      "end": 225679
+     },
+     {
+      "start": 227737,
+      "end": 228747
+     },
+     {
+      "start": 233864,
+      "end": 234787
+     },
+     {
+      "start": 246646,
+      "end": 247669
+     },
+     {
+      "start": 247765,
+      "end": 248759
+     },
+     {
+      "start": 249125,
+      "end": 250130
+     },
+     {
+      "start": 250374,
+      "end": 251412
+     },
+     {
+      "start": 251811,
+      "end": 252802
+     },
+     {
+      "start": 253246,
+      "end": 254217
+     },
+     {
+      "start": 254315,
+      "end": 255271
+     },
+     {
+      "start": 255414,
+      "end": 256331
+     },
+     {
+      "start": 256673,
+      "end": 257650
+     },
+     {
+      "start": 257655,
+      "end": 258553
+     },
+     {
+      "start": 259394,
+      "end": 260351
+     },
+     {
+      "start": 261077,
+      "end": 262064
+     },
+     {
+      "start": 262398,
+      "end": 263365
+     },
+     {
+      "start": 263524,
+      "end": 264480
+     },
+     {
+      "start": 264540,
+      "end": 265525
+     },
+     {
+      "start": 265543,
+      "end": 266519
+     },
+     {
+      "start": 266702,
+      "end": 267649
+     },
+     {
+      "start": 270699,
+      "end": 271633
+     },
+     {
+      "start": 272038,
+      "end": 273019
+     },
+     {
+      "start": 273830,
+      "end": 274751
+     },
+     {
+      "start": 275548,
+      "end": 276495
+     },
+     {
+      "start": 278459,
+      "end": 279415
+     }
+    ]
+   },
+   "serverFetches": {
+    "rest GET": {
+     "n": 274,
+     "p50": 11,
+     "p95": 391,
+     "max": 40132,
+     "statuses": {
+      "200": 269,
+      "500": 5
+     }
+    },
+    "rest POST": {
+     "n": 95,
+     "p50": 15,
+     "p95": 241,
+     "max": 541,
+     "statuses": {
+      "200": 95
+     }
+    },
+    "rest PATCH": {
+     "n": 356,
+     "p50": 14,
+     "p95": 815,
+     "max": 37987,
+     "statuses": {
+      "200": 170,
+      "204": 182,
+      "500": 4
+     }
+    },
+    "storage POST": {
+     "n": 237,
+     "p50": 143,
+     "p95": 31667,
+     "max": 47766,
+     "statuses": {
+      "200": 230,
+      "500": 4,
+      "544": 3
+     }
+    },
+    "storage HEAD": {
+     "n": 87,
+     "p50": 27,
+     "p95": 1180,
+     "max": 41781,
+     "statuses": {
+      "200": 85,
+      "544": 2
+     }
+    },
+    "storage GET range": {
+     "n": 167,
+     "p50": 200,
+     "p95": 9498,
+     "max": 30002,
+     "statuses": {
+      "206": 163,
+      "TimeoutError": 4
+     }
+    }
+   },
+   "http5xx": [
+    {
+     "name": "storage-put",
+     "status": 544
+    },
+    {
+     "name": "reserveUpload",
+     "status": 500
+    },
+    {
+     "name": "storage-put",
+     "status": 500
+    },
+    {
+     "name": "storage-put",
+     "status": 500
+    },
+    {
+     "name": "reserveUpload",
+     "status": 500
+    },
+    {
+     "name": "reserveUpload",
+     "status": 500
+    },
+    {
+     "name": "reserveUpload",
+     "status": 500
+    },
+    {
+     "name": "reserveUpload",
+     "status": 500
+    },
+    {
+     "name": "storage-put",
+     "status": 500
+    },
+    {
+     "name": "storage-put",
+     "status": 544
+    }
+   ],
+   "hostLoadAvg1m": [
+    26.8,
+    33.3
+   ],
+   "serverLogTail": [
+    "    at b (.next/server/chunks/ssr/[root-of-the-server]__12y11mw3e0zgt._.js:1:1111)",
+    "    at async g (.next/server/chunks/ssr/[root-of-the-server]__12y11mw3e0zgt._.js:1:503)",
+    "    at async f (.next/server/chunks/ssr/_163clk9x12p3e._.js:1:2701)",
+    "    at async k (.next/server/chunks/ssr/[root-of-the-server]__0aatwap43q4wu._.js:1:695)",
+    "    at async n (.next/server/chunks/ssr/1_y5_next_dist_1h7p8_r7kxalt._.js:1:11619) {",
+    "  digest: '3800426382'",
+    "}",
+    "⨯ Error: Could not load profile: unknown",
+    "    at b (.next/server/chunks/ssr/[root-of-the-server]__12y11mw3e0zgt._.js:1:1111)",
+    "    at async g (.next/server/chunks/ssr/[root-of-the-server]__12y11mw3e0zgt._.js:1:503)",
+    "    at async f (.next/server/chunks/ssr/_163clk9x12p3e._.js:1:2701)",
+    "    at async k (.next/server/chunks/ssr/[root-of-the-server]__0aatwap43q4wu._.js:1:695)",
+    "    at async n (.next/server/chunks/ssr/1_y5_next_dist_1h7p8_r7kxalt._.js:1:11619) {",
+    "  digest: '3800426382'",
+    "}"
+   ]
+  }
+ }
+}

@@ -25,6 +25,11 @@ export type SeedOptions = {
   filename?: string
   /** Store real WebP derivatives (images) so thumbnails and previews load. */
   derivatives?: boolean
+  /**
+   * Original bytes, stored while the reservation is still `uploading`: the
+   * storage guard refuses writes to an original once it is processing or ready.
+   */
+  original?: { bytes: Uint8Array; contentType: string }
 }
 
 export type SeededAsset = {
@@ -91,6 +96,15 @@ export async function seedAsset(
       if (name === "thumb") thumbnail = path
       else preview = path
     }
+  }
+
+  if (opts.original) {
+    const { error: originalError } = await service.storage
+      .from("media")
+      .upload(`${prefix}/original.${ext}`, opts.original.bytes, {
+        contentType: opts.original.contentType,
+      })
+    if (originalError) throw originalError
   }
 
   const { error: processingError } = await service

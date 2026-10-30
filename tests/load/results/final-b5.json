@@ -1,0 +1,252 @@
+{
+ "runId": "784ee2",
+ "startedAt": "2026-10-30T01:05:05.480Z",
+ "host": {
+  "platform": "darwin arm64",
+  "node": "v24.16.0",
+  "note": "Local macOS numbers on a shared dev Mac, not deployed proof."
+ },
+ "serverActionDispatch": "one at a time per client (browser)",
+ "scenarios": {
+  "b": {
+   "scenario": "b: 5 simultaneous 12 MP HEIC finalises",
+   "soloFinaliseMs": 1056,
+   "summary": {
+    "files": 5,
+    "ready": 5,
+    "successRate": 1,
+    "outcomes": {
+     "ready": 5
+    },
+    "errors": {},
+    "finaliseMs": {
+     "all": {
+      "n": 5,
+      "p50": 3004,
+      "p95": 4935,
+      "max": 4935
+     },
+     "heic": {
+      "n": 5,
+      "p50": 3004,
+      "p95": 4935,
+      "max": 4935
+     },
+     "otherImage": {
+      "n": 0,
+      "p50": null,
+      "p95": null,
+      "max": null
+     },
+     "video": {
+      "n": 0,
+      "p50": null,
+      "p95": null,
+      "max": null
+     }
+    },
+    "finaliseActionQueueMs": {
+     "n": 5,
+     "p50": 0,
+     "p95": 0,
+     "max": 0
+    },
+    "reserveMs": {
+     "n": 0,
+     "p50": null,
+     "p95": null,
+     "max": null
+    },
+    "transferMs": {
+     "n": 0,
+     "p50": null,
+     "p95": null,
+     "max": null
+    },
+    "fileTotalMs": {
+     "n": 5,
+     "p50": 3004,
+     "p95": 4935,
+     "max": 4935
+    }
+   },
+   "queueWaitMs": [
+    90,
+    956,
+    1948,
+    2940,
+    3879
+   ],
+   "burstStartedAt": 1793322308978,
+   "results": [
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 3996.1420409999996,
+     "finaliseWaitMs": 0.012375000000247383,
+     "totalMs": 3996.1420409999996,
+     "finaliseStatus": 200,
+     "outcome": "ready"
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 1146.5444590000002,
+     "finaliseWaitMs": 0.157416000000012,
+     "totalMs": 1146.5444590000002,
+     "finaliseStatus": 200,
+     "outcome": "ready"
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 2012.7575000000006,
+     "finaliseWaitMs": 0.21037499999965803,
+     "totalMs": 2012.7575000000006,
+     "finaliseStatus": 200,
+     "outcome": "ready"
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 4935.457791999999,
+     "finaliseWaitMs": 0.24691600000005565,
+     "totalMs": 4935.457791999999,
+     "finaliseStatus": 200,
+     "outcome": "ready"
+    },
+    {
+     "file": "photo-12mp.heic",
+     "kind": "image",
+     "finaliseMs": 3004.2304590000003,
+     "finaliseWaitMs": 0.2858329999999114,
+     "totalMs": 3004.2304590000003,
+     "finaliseStatus": 200,
+     "outcome": "ready"
+    }
+   ],
+   "wallMs": 7093,
+   "serverRss": {
+    "idleAfterWarmMiB": 321,
+    "startMiB": 321,
+    "peakMiB": 634,
+    "endMiB": 550,
+    "samples": 58
+   },
+   "heicWorkers": {
+    "workers": 6,
+    "maxConcurrent": 1,
+    "decodeMs": {
+     "p50": 941,
+     "p95": 986,
+     "max": 986
+    },
+    "runs": [
+     {
+      "start": 300,
+      "end": 1241
+     },
+     {
+      "start": 2358,
+      "end": 3271
+     },
+     {
+      "start": 3272,
+      "end": 4148
+     },
+     {
+      "start": 4148,
+      "end": 5133
+     },
+     {
+      "start": 5133,
+      "end": 6119
+     },
+     {
+      "start": 6119,
+      "end": 7072
+     }
+    ]
+   },
+   "serverFetches": {
+    "rest GET": {
+     "n": 18,
+     "p50": 5,
+     "p95": 17,
+     "max": 17,
+     "statuses": {
+      "200": 18
+     }
+    },
+    "rest POST": {
+     "n": 6,
+     "p50": 5,
+     "p95": 10,
+     "max": 10,
+     "statuses": {
+      "200": 6
+     }
+    },
+    "rest PATCH": {
+     "n": 24,
+     "p50": 3,
+     "p95": 4,
+     "max": 8,
+     "statuses": {
+      "200": 12,
+      "204": 12
+     }
+    },
+    "storage POST": {
+     "n": 18,
+     "p50": 10,
+     "p95": 29,
+     "max": 29,
+     "statuses": {
+      "200": 18
+     }
+    },
+    "storage HEAD": {
+     "n": 6,
+     "p50": 6,
+     "p95": 9,
+     "max": 9,
+     "statuses": {
+      "200": 6
+     }
+    },
+    "storage GET range": {
+     "n": 12,
+     "p50": 46,
+     "p95": 67,
+     "max": 67,
+     "statuses": {
+      "206": 12
+     }
+    }
+   },
+   "http5xx": [],
+   "hostLoad": {
+    "before": [
+     6.1,
+     13.7,
+     22
+    ],
+    "after": [
+     6.7,
+     13.7,
+     21.9
+    ],
+    "max1m": 6.7,
+    "contended": false
+   },
+   "serverLogTail": [
+    "▲ Next.js 16.4.2",
+    "- Local:         http://127.0.0.1:3615",
+    "- Network:       http://127.0.0.1:3615",
+    "✓ Ready in 70ms",
+    "✓ Running next.config.ts took 14ms"
+   ]
+  }
+ }
+}

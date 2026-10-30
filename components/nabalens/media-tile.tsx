@@ -31,6 +31,9 @@ function describe(item: MediaItem, showAttribution: boolean) {
   parts.push(`uploaded ${formatDate(item.createdAt)}`)
   if (item.uploadState !== "ready")
     parts.push(UPLOAD_STATE_LABEL[item.uploadState])
+  // The visible duration badge must be part of the name (WCAG 2.5.3).
+  if (item.mediaType === "video" && item.durationSeconds)
+    parts.push(`duration ${formatDuration(item.durationSeconds)}`)
   return parts.join(", ")
 }
 

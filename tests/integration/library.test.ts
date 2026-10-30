@@ -463,6 +463,8 @@ describe("filters", () => {
       p_media_type: "image",
       p_extension: "jpg",
       p_original_filename: "pending.jpg",
+      p_size_bytes: 1000,
+      p_client_upload_key: randomUUID(),
     })
     expect(error).toBeNull()
 
@@ -566,20 +568,14 @@ describe("signed reads", () => {
   it("original responses carry attachment, validated type, nosniff and private, no-store", async () => {
     const venue = await createVenue(service, "lib-headers")
     const staff = solo
+    const bytes = new Uint8Array([0xff, 0xd8, 0xff, 0xd9])
     const asset = await seedAsset(service, {
       uploaderId: staff.id,
       venueId: venue.id,
       filename: "menu.html",
+      // What a hostile browser might have declared; never echoed back.
+      original: { bytes, contentType: "text/html" },
     })
-    const bytes = new Uint8Array([0xff, 0xd8, 0xff, 0xd9])
-    const { error } = await service.storage
-      .from("media")
-      .upload(`${staff.id}/${asset.id}/original.jpg`, bytes, {
-        // What a hostile browser might have declared; never echoed back.
-        contentType: "text/html",
-        upsert: true,
-      })
-    expect(error).toBeNull()
 
     const found = await getReadableAsset(admin, asset.id)
     if (!found.ok) throw new Error(found.message)

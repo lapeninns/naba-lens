@@ -178,7 +178,7 @@ Verified from `.env.example` and `process.env` references in `lib/`, `app/`,
 | `CLEANUP_SECRET` | **Server/scheduler only**, at least 32 characters; authenticates POST `/api/internal/cleanup`. Missing/short value returns 503. Not needed by `pnpm cleanup`, which uses the service role. |
 | `SUPABASE_URL` | Optional **operator-script** URL alias, not read by web clients. `scripts/lib/service-client.ts` prefers it over `NEXT_PUBLIC_SUPABASE_URL`; unset stale aliases before targeting another environment. Not in `.env.example`. |
 | `MAILPIT_URL` | Local test-only inbox URL when using explicit test credentials. Required for email-based e2e paths; otherwise status supplies `MAILPIT_URL` or `INBUCKET_URL`. Never a hosted email credential. |
-| `E2E_PORT` | Local Playwright server port, default **3417**; not a runtime app setting. Match the stack Auth Site URL to it when running email e2e. |
+| `E2E_PORT` | Local Playwright server port, default **3457**; not a runtime app setting. Match the stack Auth Site URL to it when running email e2e. |
 | `NABALENS_TEST_DB_URL` | **Test/operator only**, local DB connection (contains credentials) used by lifecycle `psql` timestamp tests. Lifecycle runner obtains `DB_URL` from its workdir. Never point it at a hosted database. |
 | `NODE_ENV` | Framework-controlled development/test/production mode; production disables `/ui-preview`. No custom app secret or manual mode override is needed. |
 
@@ -214,7 +214,7 @@ scaffolding, not NabaLens prerequisites. Do not provision unused services.
 | `pnpm test:integration` | Vitest integration project; local Supabase, separate identities, runs files serially. |
 | `pnpm test:security "$W"` | `tests/security/run.mjs`; requires an explicit isolated workdir outside 554xx. |
 | `pnpm test:lifecycle "$W"` | `tests/lifecycle/run.mjs`; explicit isolated workdir outside 554xx, plus `psql`. |
-| `pnpm test:e2e` | Playwright, one worker, **zero retries**, mobile Pixel 7 emulation and 1280×800 desktop Chromium; starts its own `next dev`, default :3417. |
+| `pnpm test:e2e` | Playwright, one worker, **zero retries**; projects `chromium` (1280×800, every spec), `firefox`/`webkit` (`@core` journey) and `mobile-chromium` (Pixel 7: `@core` plus auth, slice, staff-accounts, library and gaps); runs `next build && next start`, default :3457. Release specs need `E2E_SUPABASE_WORKDIR` from `tests/e2e/prepare-stack.mjs`. |
 | `node tests/media/benchmark-heic.mjs` | Optional disposable-worker memory regression/measurements; see [media pipeline](media-pipeline.md). |
 
 The prepare scripts are useful copy helpers, **not per-worktree isolation**:
@@ -264,9 +264,10 @@ These tests write local TEST identities/data. They are not a read-only smoke tes
 Their localhost checks do not prove you own a stack; workdir/port checks still
 matter. Restore a disposable stack with its **own** reset if needed.
 
-For e2e, create/configure the owned copy with `APP_PORT=3417` (or your chosen
-`E2E_PORT`) **before starting it**: email templates use Supabase's Site URL,
-not just the Playwright env. Do not leave a separate dev server on that port.
+For e2e, create the owned copy with `W=$(node tests/e2e/prepare-stack.mjs)` (it
+points Auth's Site URL at `E2E_PORT`, default 3457) **before starting it**, and
+run with `E2E_SUPABASE_WORKDIR="$W"`: email templates use Supabase's Site URL,
+not just the Playwright env. Do not leave a separate server on that port.
 
 ```sh
 pnpm exec playwright install chromium

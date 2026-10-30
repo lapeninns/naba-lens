@@ -312,7 +312,7 @@ test.describe("GAP-11 over HTTP: cross-staff denial and private headers", () => 
     baseURL,
   }, testInfo) => {
     // Pure HTTP checks: viewport-independent, so once is enough.
-    test.skip(testInfo.project.name !== "desktop", "HTTP only; desktop run")
+    test.skip(testInfo.project.name !== "chromium", "HTTP only; chromium run")
     test.setTimeout(120_000)
     const venue = await createVenue(admin, "e2e-gaps-http")
     const staffA = await staffWithSession("e2e-gaps-http-a", venue.id)

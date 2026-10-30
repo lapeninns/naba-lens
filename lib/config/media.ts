@@ -23,6 +23,12 @@ export const MEDIA_LIMITS = {
   pageSize: 24,
   /** Reservations untouched for this long are abandoned and cleaned up (24 h). */
   abandonedUploadWindowHours: 24,
+  /**
+   * A finalise claim (`processing`) older than this is a crashed finalise, and
+   * cleanup marks it `failed` so the uploader can retry or delete it. Must stay
+   * well above the finalise route's maxDuration; the database requires >= 10.
+   */
+  staleProcessingMinutes: 30,
 
   // Server processing budgets used by lib/media (see docs/media-pipeline.md).
   /** Largest decoded image, in pixels (width x height). */
@@ -63,6 +69,13 @@ export function abandonedUploadInterval(
   limits: Pick<MediaLimits, "abandonedUploadWindowHours"> = MEDIA_LIMITS
 ): string {
   return `${limits.abandonedUploadWindowHours} hours`
+}
+
+/** The stale-processing window as a Postgres interval for `fail_stale_media_processing`. */
+export function staleProcessingInterval(
+  limits: Pick<MediaLimits, "staleProcessingMinutes"> = MEDIA_LIMITS
+): string {
+  return `${limits.staleProcessingMinutes} minutes`
 }
 
 export function maxBytesFor(

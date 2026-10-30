@@ -37,9 +37,13 @@ credentials. Actions are pinned to commit SHAs.
 The gate runs frozen installation, typecheck, lint, unit tests and production
 build; then prepares and starts an isolated Supabase stack, resets only that
 stack, runs integration, lifecycle and security suites, and executes Playwright.
-The CI-owned Playwright wrapper preserves the foundation harness while selecting
-the requested engine at desktop and phone viewport sizes. Tests have zero
-retries. Phone viewport tests do not certify physical devices, camera selection,
+The CI-owned Playwright wrapper (`scripts/ci/playwright.config.ts`) reuses the
+root config's projects unchanged and keeps only those for the requested engine:
+Chromium runs `chromium` (every spec, 1280×800) and `mobile-chromium` (Pixel 7:
+the `@core` journey plus auth, slice, staff-accounts, library and gaps); Firefox
+and WebKit run the `@core` journey. `run-suites.mjs` passes the CI stack as
+`E2E_SUPABASE_WORKDIR`, and `prepare-stack.mjs` points its Auth Site URL at the
+e2e server (`E2E_PORT`, default 3457). One worker and zero retries. Phone viewport tests do not certify physical devices, camera selection,
 background transfer behavior or actual phone HEIC files.
 
 The script prints a PASS/FAIL summary and log location, returns nonzero on a

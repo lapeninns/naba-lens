@@ -10,6 +10,8 @@ import { getSupabasePublicEnv } from "@/lib/supabase/env"
 import {
   createUploader,
   guardBeforeUnload,
+  localUploadKeyStore,
+  ReservationGoneError,
   toQueueUploader,
 } from "@/lib/upload"
 
@@ -17,6 +19,8 @@ import {
  * The real transport for UploadDialog: reserve (Server Function) -> signed PUT or
  * TUS straight to the private `media` bucket -> finalise (Server Function).
  * Server errors arrive as values and are re-thrown here so the dialog shows them.
+ * Unfinished uploads' keys are kept in localStorage per file, so choosing the
+ * same file after a reload reuses the same asset and resumes a TUS transfer.
  */
 export function useMediaUploader(): Uploader {
   const upload = React.useMemo(() => {
@@ -25,7 +29,12 @@ export function useMediaUploader(): Uploader {
     return createUploader({
       reserve: async (input) => {
         const result = await reserveUpload(input)
-        if (!result.ok) throw new Error(result.message)
+        if (!result.ok) {
+          // 404: the reservation for this key was removed or cleaned up.
+          throw result.status === 404
+            ? new ReservationGoneError(result.message)
+            : new Error(result.message)
+        }
         return result.reservation
       },
       finalise: async (input) => {
@@ -46,5 +55,9 @@ export function useMediaUploader(): Uploader {
     [upload]
   )
 
-  return React.useMemo(() => toQueueUploader(upload), [upload])
+  // Choosing the same file again after a reload resumes its reservation.
+  return React.useMemo(
+    () => toQueueUploader(upload, { keys: localUploadKeyStore() }),
+    [upload]
+  )
 }

@@ -18,6 +18,8 @@ import {
   type Db,
   type TestIdentity,
 } from "../support/identities"
+import { getReadableAsset, streamOriginal } from "@/lib/server/media/access"
+import { actorFor } from "../slice/media-actor"
 
 const service = serviceClient()
 const media = () => service.storage.from("media")
@@ -72,6 +74,9 @@ type Asset = { id: string; uploaderId: string; originalPath: string }
 
 async function reserve(staff: TestIdentity, upload = true): Promise<Asset> {
   const { data, error } = await staff.client.rpc("reserve_media_asset", {
+    // Required by reserve_media_asset (wave 3 finding 5 / upload-path F5).
+    p_client_upload_key: crypto.randomUUID(),
+    p_size_bytes: 4,
     p_media_type: "image",
     p_extension: "jpg",
     p_original_filename: "lifecycle.jpg",
@@ -139,6 +144,16 @@ async function canSign(client: Db, path: string) {
   return !error && Boolean(data?.signedUrl)
 }
 
+/** The app's read path: authorise caller and asset, then serve the original. */
+async function readsThroughApp(identity: TestIdentity, assetId: string) {
+  const actor = await actorFor(identity)
+  const found = await getReadableAsset(actor, assetId)
+  if (!found.ok) return false
+  const response = await streamOriginal(actor, found.asset, null)
+  await response.body?.cancel()
+  return response.status === 200
+}
+
 const failingRemover = async () => {
   throw new Error("simulated storage outage")
 }
@@ -177,7 +192,11 @@ describe("media lifecycle: removal, cleanup, deactivation", () => {
       const asset = await readyAsset(staffA)
       expect(await visibleTo(staffA.client, asset.id)).toBe(true)
       expect(await visibleTo(admin.client, asset.id)).toBe(true)
-      expect(await canSign(admin.client, asset.originalPath)).toBe(true)
+      // End users never sign storage URLs themselves (wave 3 finding 1); the
+      // object exists, and the app's authorised read path serves it.
+      expect(await canSign(admin.client, asset.originalPath)).toBe(false)
+      expect(await canSign(service, asset.originalPath)).toBe(true)
+      expect(await readsThroughApp(admin, asset.id)).toBe(true)
 
       const result = await remove(staffA.client, asset.id)
       expect(result).toEqual({
@@ -191,6 +210,7 @@ describe("media lifecycle: removal, cleanup, deactivation", () => {
       expect(await visibleTo(admin.client, asset.id)).toBe(false)
       expect(await canSign(staffA.client, asset.originalPath)).toBe(false)
       expect(await canSign(admin.client, asset.originalPath)).toBe(false)
+      expect(await readsThroughApp(admin, asset.id)).toBe(false)
       // Not even the service role can sign: the bytes are gone.
       expect(await canSign(service, asset.originalPath)).toBe(false)
       expect(await objectsOf(asset)).toEqual([])
@@ -364,6 +384,7 @@ describe("media lifecycle: removal, cleanup, deactivation", () => {
       const second = await runMediaCleanup(service)
       expect(second).toEqual({
         status: "completed",
+        reaped: { assetIds: [], reason: "stale_processing" },
         removed: {
           assets: 0,
           objects: 0,
@@ -490,11 +511,14 @@ describe("media lifecycle: removal, cleanup, deactivation", () => {
 
       // Admins keep access to the retained portfolio.
       expect(await visibleTo(admin.client, asset.id)).toBe(true)
-      expect(await canSign(admin.client, asset.originalPath)).toBe(true)
-      const { data: download } = await admin.client.storage
-        .from("media")
-        .download(asset.originalPath)
-      expect(new Uint8Array(await download!.arrayBuffer())).toEqual(TINY_BYTES)
+      // Through the app's authorised read path (wave 3 finding 1).
+      const actor = await actorFor(admin)
+      const found = await getReadableAsset(actor, asset.id)
+      expect(found.ok).toBe(true)
+      if (!found.ok) return
+      const download = await streamOriginal(actor, found.asset, null)
+      expect(download.status).toBe(200)
+      expect(new Uint8Array(await download.arrayBuffer())).toEqual(TINY_BYTES)
     })
   })
 
