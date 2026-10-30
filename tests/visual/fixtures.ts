@@ -32,6 +32,8 @@ export type VisualFixtures = {
   admin: VisualPerson
   populated: VisualPerson
   empty: VisualPerson
+  /** Used only by the upload-dialog test, so `empty` stays empty. */
+  uploader: VisualPerson
   longName: VisualPerson
   pausedVenue: VisualPerson
   inactive: VisualPerson
@@ -157,8 +159,7 @@ async function asset(
   )
   const update = (
     values: Database["public"]["Tables"]["media_assets"]["Update"]
-  ) =>
-    db.from("media_assets").update(values).eq("id", id)
+  ) => db.from("media_assets").update(values).eq("id", id)
 
   if (spec.kind === "pending") {
     if (spec.state === "uploading") return
@@ -267,6 +268,16 @@ export async function seedVisualFixtures(): Promise<VisualFixtures> {
     },
     suffix
   )
+  const uploader = await person(
+    db,
+    {
+      label: "uploader",
+      name: "DEV FIXTURE Upload Tester",
+      role: "staff",
+      venueId: mainVenue.id,
+    },
+    suffix
+  )
   const longName = await person(
     db,
     {
@@ -369,6 +380,7 @@ export async function seedVisualFixtures(): Promise<VisualFixtures> {
     admin,
     populated,
     empty,
+    uploader,
     longName,
     pausedVenue: paused,
     inactive,

@@ -14,7 +14,9 @@ import { resolve } from "node:path"
 
 const [workdir, ...rest] = process.argv.slice(2)
 if (!workdir)
-  throw new Error("Usage: node tests/visual/run.mjs <isolated Supabase workdir>")
+  throw new Error(
+    "Usage: node tests/visual/run.mjs <isolated Supabase workdir>"
+  )
 const raw = execFileSync(
   "supabase",
   ["--workdir", resolve(workdir), "status", "-o", "json"],
@@ -33,7 +35,8 @@ if (
 const env = {
   ...process.env,
   NEXT_PUBLIC_SUPABASE_URL: status.API_URL,
-  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: status.PUBLISHABLE_KEY ?? status.ANON_KEY,
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
+    status.PUBLISHABLE_KEY ?? status.ANON_KEY,
   SUPABASE_SERVICE_ROLE_KEY: status.SERVICE_ROLE_KEY ?? status.SECRET_KEY,
   MAILPIT_URL: status.MAILPIT_URL ?? status.INBUCKET_URL ?? "",
 }

@@ -463,15 +463,22 @@ test("blocked: deactivated account", async ({ browser, baseURL }, testInfo) => {
   await page.context().close()
 })
 
-test("staff: empty portfolio, upload dialog states, focus return", async ({
-  browser,
-  baseURL,
-}, testInfo) => {
+test("staff: empty portfolio", async ({ browser, baseURL }, testInfo) => {
   const page = await signIn(browser, fx.empty.email, baseURL!)
   await expect(page).toHaveURL(/\/staff$/)
   await expect(page.getByText("Your portfolio starts here")).toBeVisible()
   await capture(page, testInfo, "staff-empty")
   await expectFocusVisibleEverywhere(page, "staff-empty")
+  await page.context().close()
+})
+
+test("staff: upload dialog states and focus return", async ({
+  browser,
+  baseURL,
+}, testInfo) => {
+  // A separate account, so the upload never fills the empty portfolio above.
+  const page = await signIn(browser, fx.uploader.email, baseURL!)
+  await expect(page).toHaveURL(/\/staff$/)
 
   // Open by keyboard so focus return is meaningful.
   const uploadButton = page
@@ -503,13 +510,13 @@ test("staff: empty portfolio, upload dialog states, focus return", async ({
   await expect(dialog.getByText("1 file was not added")).toBeVisible()
   await capture(page, testInfo, "upload-selected")
 
-  // Hold the storage transfer so the uploading state is visible.
+  // Hold the storage transfer so the uploading state is visible, then fail
+  // it (and every retry). One handler: unroute() would let held requests through.
   let release: () => void = () => {}
   const held = new Promise<void>((r) => (release = r))
   await page.route("**/storage/v1/**", async (route) => {
     await held
-    // The handler may outlive unroute(); then the route is already settled.
-    await route.abort("failed").catch(() => {})
+    await route.abort("failed")
   })
   await dialog.getByRole("button", { name: /^Upload 1 file$/ }).click()
   await expect(dialog.getByText(/Uploading \d+%/)).toBeVisible({
@@ -517,17 +524,11 @@ test("staff: empty portfolio, upload dialog states, focus return", async ({
   })
   await capture(page, testInfo, "upload-uploading")
 
-  // Let the held transfer fail; the transport may retry before giving up.
   release()
-  await page.unroute("**/storage/v1/**")
-  await page.route("**/storage/v1/**", (route) => route.abort("failed"))
   await expect(
     dialog.getByRole("button", { name: /^Retry staff-meal/ })
-  ).toBeVisible({
-    timeout: 90_000,
-  })
+  ).toBeVisible({ timeout: 90_000 })
   await capture(page, testInfo, "upload-failed")
-  await page.unroute("**/storage/v1/**")
 
   await page.keyboard.press("Escape")
   await expect(dialog).toBeHidden()
