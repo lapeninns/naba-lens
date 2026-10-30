@@ -115,3 +115,13 @@ use the same email templates (`supabase/templates/*.html`) and Site URL/redirect
 configure SMTP, keep sign-ups disabled, confirm bucket limits for your plan, load the
 confirmed venues, and bootstrap the first admin. See `docs/architecture.md` §6–7 for
 the cleanup job and the auth details.
+
+## Operator and user guides
+
+- [Setup and owner-only production checklist](docs/setup.md)
+- [Staff guide](docs/usage-staff.md)
+- [Admin guide](docs/usage-admin.md)
+- [Operations and capture guidance](docs/operations.md)
+- [Two-venue pilot and release blockers](docs/release-checklist.md)
+
+On a shared Mac, follow the isolated-stack instructions in setup before any start or reset command above. Default and security port blocks may already belong to another worktree.
