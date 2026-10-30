@@ -47,7 +47,7 @@ export function ProfileHeader({
           className="size-16 text-lg sm:size-20 sm:text-xl"
         />
         <div className="min-w-0">
-          <Heading className="truncate text-xl font-semibold tracking-tight sm:text-2xl">
+          <Heading className="text-xl font-semibold tracking-tight break-words sm:text-2xl">
             {displayName}
           </Heading>
           <p className="mt-0.5 text-sm text-muted-foreground">

@@ -41,12 +41,6 @@ type MediaViewerProps = {
   showAttribution?: boolean
 }
 
-function canPlay(mime: string | null): boolean {
-  if (typeof document === "undefined") return true
-  if (!mime) return true // let the element try; onError catches failure
-  return document.createElement("video").canPlayType(mime) !== ""
-}
-
 function Unavailable({
   children = PREVIEW_UNAVAILABLE,
 }: {
@@ -77,18 +71,22 @@ function Preview({ item }: { item: MediaItem }) {
   if (!item.previewUrl || failed) return <Unavailable />
 
   if (item.mediaType === "video") {
-    if (!canPlay(item.mimeType)) return <Unavailable />
+    // No canPlayType() pre-check and no <source type>: the container type says
+    // little about the codec (Chromium answers "" for video/quicktime yet plays
+    // H.264 MOV, and "maybe" for an HEVC MP4 it cannot decode). The element reads
+    // the actual bytes; a real decode or format failure fires `error` on the
+    // <video> itself and swaps in the explicit fallback.
     return (
       // Never autoplay; the user starts playback with sound under their control.
       <video
         key={item.previewUrl}
+        src={item.previewUrl}
         controls
         playsInline
         preload="metadata"
         className="max-h-[65svh] w-full bg-black"
         onError={() => setFailedUrl(item.previewUrl)}
       >
-        <source src={item.previewUrl} type={item.mimeType ?? undefined} />
         {PREVIEW_UNAVAILABLE}
       </video>
     )
@@ -173,7 +171,8 @@ export function MediaViewer({
               ))}
             </dl>
             {downloadable || getPortfolioHref || onDelete ? (
-              <DialogFooter className="mx-0 mb-0 sm:justify-between">
+              // Sticky so Delete/Download stay on screen below a tall preview.
+              <DialogFooter className="sticky bottom-0 mx-0 mb-0 bg-popover sm:justify-between">
                 {onDelete ? (
                   <Button
                     variant="destructive"

@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import {
+  FilmStripIcon,
   ImageIcon,
   PlayIcon,
   SpinnerGapIcon,
@@ -84,7 +85,12 @@ export function MediaTile({
             ) : item.uploadState === "failed" ? (
               <WarningCircleIcon className="size-6 text-negative" aria-hidden />
             ) : (
-              <ImageIcon className="size-6" aria-hidden />
+              // No video poster frames (no transcoding); a neutral video tile.
+              item.mediaType === "video" ? (
+                <FilmStripIcon className="size-8" aria-hidden />
+              ) : (
+                <ImageIcon className="size-6" aria-hidden />
+              )
             )}
           </span>
         )}

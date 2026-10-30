@@ -22,7 +22,8 @@
     "db:types": "supabase gen types typescript --local --schema public > lib/db/types.ts && prettier --write lib/db/types.ts",
     "bootstrap:admin": "tsx scripts/bootstrap-admin.ts",
     "seed:venues": "tsx scripts/seed-venues.ts",
-    "cleanup": "tsx scripts/cleanup.ts"
+    "cleanup": "tsx scripts/cleanup.ts",
+    "test:visual": "node tests/visual/run.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

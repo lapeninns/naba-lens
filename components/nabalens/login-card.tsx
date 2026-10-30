@@ -116,7 +116,7 @@ export function LoginCard({
             <Alert variant="warning">
               <WarningCircleIcon aria-hidden />
               <AlertTitle>That sign-in link has expired</AlertTitle>
-              <AlertDescription>
+              <AlertDescription className="text-pretty">
                 Links work once and for a short time. Enter your email to get a
                 new one.
               </AlertDescription>
@@ -124,7 +124,7 @@ export function LoginCard({
           ) : null}
           {notice ? (
             <Alert variant="warning">
-              <AlertDescription>{notice}</AlertDescription>
+              <AlertDescription className="text-pretty">{notice}</AlertDescription>
             </Alert>
           ) : null}
           <Field className="gap-1.5">

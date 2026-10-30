@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
+import { formatDuration } from "@/components/nabalens/format"
 import {
   ConfirmDeleteDialog,
   DELETE_CONFIRM_COPY,
@@ -71,7 +72,7 @@ describe("MediaGrid and EmptyState", () => {
   it("renders keyboard-focusable tiles with a video badge and opens on Enter", async () => {
     const onOpen = vi.fn()
     render(<MediaGrid label="Library" items={[item]} onOpen={onOpen} showAttribution />)
-    const tile = screen.getByRole("button", { name: /Video, clip\.mov, by Test contributor/ })
+    const tile = screen.getByRole("button", { name: /Video, clip\.mov, by Test contributor, .*, duration 0:42$/ })
     expect(screen.getByText("0:42")).toBeTruthy()
     tile.focus()
     await userEvent.keyboard("{Enter}")
@@ -86,12 +87,35 @@ describe("MediaGrid and EmptyState", () => {
   })
 })
 
+describe("formatDuration", () => {
+  it("never shows a real clip as 0:00", () => {
+    expect(formatDuration(0.2)).toBe("<0:01")
+    expect(formatDuration(0.6)).toBe("0:01")
+    expect(formatDuration(42)).toBe("0:42")
+    expect(formatDuration(3725)).toBe("1:02:05")
+  })
+})
+
 describe("MediaViewer", () => {
-  it("shows the explicit fallback when the browser cannot play the video", () => {
-    // jsdom's canPlayType returns "" for everything, like a browser without the codec.
+  it("lets the element try a MOV even when canPlayType says no, without autoplay", () => {
+    // jsdom's canPlayType returns "" for everything, as Chromium does for
+    // video/quicktime although it plays H.264 MOV. No pre-rejection.
+    expect(document.createElement("video").canPlayType("video/quicktime")).toBe("")
     render(<MediaViewer item={item} open onOpenChange={() => {}} />)
-    expect(screen.getByText(PREVIEW_UNAVAILABLE)).toBeTruthy()
+    const video = document.querySelector("video")!
+    expect(video.getAttribute("src")).toBe(item.previewUrl)
+    expect(video.querySelector("source")).toBeNull()
+    expect(video.autoplay).toBe(false)
+    expect(video.controls).toBe(true)
     expect(screen.getByText("Test venue")).toBeTruthy()
+  })
+
+  it("shows the explicit fallback when the element cannot decode (HEVC in Chromium)", () => {
+    const hevc = { ...item, previewUrl: "https://example.invalid/clip-hevc.mp4", mimeType: "video/mp4" }
+    render(<MediaViewer item={hevc} open onOpenChange={() => {}} />)
+    fireEvent.error(document.querySelector("video")!)
+    expect(document.querySelector("video")).toBeNull()
+    expect(screen.getByText(PREVIEW_UNAVAILABLE)).toBeTruthy()
   })
 
   it("renders only the actions it is given", () => {

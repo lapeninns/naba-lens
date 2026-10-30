@@ -149,7 +149,11 @@ function EditProfileForm({
   const fieldErrors = result && !result.ok ? (result.fieldErrors ?? {}) : {}
 
   return (
-    <form onSubmit={submit} className="grid gap-5" noValidate>
+    <form
+      onSubmit={submit}
+      className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-5"
+      noValidate
+    >
       <DialogHeader>
         <DialogTitle>
           {isAdmin ? "Edit staff account" : "Edit profile"}
@@ -182,7 +186,7 @@ function EditProfileForm({
             onChange={pickAvatar}
             aria-describedby={ids.photoHelp}
             aria-invalid={!!avatarError || !!fieldErrors.avatar || undefined}
-            className="h-11 sm:h-9"
+            className="h-11 cursor-pointer py-1.5 file:mr-3 file:h-full file:cursor-pointer file:rounded-md file:bg-muted file:px-3 sm:h-9 sm:py-1"
           />
           <FieldDescription id={ids.photoHelp}>
             JPEG, PNG, WebP or HEIC, up to {formatBytes(maxAvatarBytes)}.
