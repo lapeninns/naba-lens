@@ -68,6 +68,8 @@ const OUT = resolve(
   args.out ?? join("tests/load/results", `run-${Date.now()}.json`)
 )
 const RUN_ID = randomUUID().slice(0, 6)
+/** 1-minute load average above which a measurement is flagged as contended. */
+const CONTENDED_LOAD = 8
 
 const env = stackEnv(WORKDIR)
 const service = createClient(env.url, env.serviceRoleKey, {
@@ -565,9 +567,17 @@ async function withServer(label, body) {
     const from = server.mark()
     const t0 = Date.now()
     http5xx.length = 0
-    const load = [loadavg()[0]]
+    // Host load (1/5/15 min, as `uptime` prints) before, during and after.
+    const loadBefore = loadavg()
+    let loadMax1m = loadBefore[0]
+    const loadTimer = setInterval(
+      () => (loadMax1m = Math.max(loadMax1m, loadavg()[0])),
+      1000
+    )
     const result = await body(server)
-    load.push(loadavg()[0])
+    clearInterval(loadTimer)
+    const loadAfter = loadavg()
+    loadMax1m = Math.max(loadMax1m, loadAfter[0])
     const t1 = Date.now()
     await sleep(300)
     return {
@@ -580,7 +590,13 @@ async function withServer(label, body) {
       heicWorkers: workerStats(server.workerLog, t0, t1 + 300),
       serverFetches: fetchStats(server.fetchLog, t0, t1 + 300),
       http5xx: [...http5xx],
-      hostLoadAvg1m: load.map((l) => Math.round(l * 10) / 10),
+      hostLoad: {
+        before: loadBefore.map((l) => Math.round(l * 10) / 10),
+        after: loadAfter.map((l) => Math.round(l * 10) / 10),
+        max1m: Math.round(loadMax1m * 10) / 10,
+        // Flag: the 1-minute load average exceeded 8 at some point in the run.
+        contended: loadMax1m > CONTENDED_LOAD,
+      },
       serverLogTail: server.logs
         .join("")
         .split("\n")

@@ -34,6 +34,14 @@ Then recommend Node function memory, timeout and concurrency. This track owns
   - Results: 20 simultaneous HEIC finalises went from 9/20 ready to 20/20. The all-HEIC
     batch went from 69/100 to 100/100.
 
+## Host-load protocol
+
+- Every run records `uptime` load (1, 5 and 15 min) before and after, the maximum 1-minute load
+  during the run, and a `contended` flag (1-minute load above 8).
+- `tests/load/final-set.sh` waits (until-loop) for the load to drop below 8 before each
+  scenario. The final set (`results/final-*.json`) is the one to size from.
+- Exploratory runs were all contended (load 14 to 41).
+
 ## Outside this track's paths (unavoidable, listed)
 
 - `lib/media/heic.ts`, `tests/media/review.test.ts`, `docs/media-pipeline.md` (media track).

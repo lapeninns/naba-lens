@@ -4,8 +4,11 @@ Measured 30 October 2026 by the load-sanity track (`feat/nl-load`).
 
 **These are macOS arm64 numbers, not deployed proof.** Everything ran on one Apple M5 Pro
 (18 cores, 64 GiB) with Node v24.16.0, using `pnpm build` and `next start`. The Mac was
-shared with other worktrees' Supabase stacks and agents, and the 1-minute load average stayed
-between 14 and 41 throughout. Supabase ran as a local Docker stack with the **file** storage
+shared with about 12 other Supabase stacks and many agents. **Every measurement records the
+host's `uptime` load averages.** A run is flagged **contended** if the 1-minute load went above
+8 at any point. The exploratory runs (load 14 to 41, all contended) are kept below for the
+before/after comparison. The **final set** was repeated once the load had dropped below 8,
+and it is the set to size from. Supabase ran as a local Docker stack with the **file** storage
 backend. Hosted Supabase (S3-backed Storage, different pool sizes) and a Linux/Vercel function
 were **not** tested. Use these numbers to choose staging settings, then repeat the runs there.
 
@@ -49,7 +52,73 @@ the stack. It does not change any app code.
 
 Raw reports are in `tests/load/results/*.json`.
 
-## Results
+## Final set (host quiet at start)
+
+Run with `sh tests/load/final-set.sh "$W" "$F" final`. Before each scenario the script waits
+(using an until-loop) for the 1-minute load to drop below 8. All runs include the HEIC fix
+(see "Defects found").
+
+- "Load before" and "Load after" are `uptime`'s 1, 5 and 15-minute averages.
+- "Max 1m" is the highest 1-minute load sampled each second during the run.
+- In (b20) and both (a) runs, the load rose above 8 during the run itself, partly from the
+  run's own Next, sharp and Docker work. They are flagged _mildly contended_.
+
+| Scenario                 | Ready       | Finalise p50 / p95 / max (s)                                                    | Peak RSS (MiB, idle) | Next 5xx | Storage errors | Load before   | Load after     | Max 1m | Flag             |
+| ------------------------ | ----------- | ------------------------------------------------------------------------------- | -------------------- | -------- | -------------- | ------------- | -------------- | ------ | ---------------- |
+| (a) 10 × 10 mixed        | **100/100** | 0.41 / 7.9 / 8.5                                                                | **1289** (304)       | 0        | 0              | 8.9 11.4 19.2 | 11.2 11.9 19.2 | 11.8   | mildly contended |
+| (a) by type              |             | HEIC 6.9 / 8.5 / 8.5; other images 0.38 / 1.05 / 1.28; video 0.10 / 0.24 / 0.59 |                      |          |                |               |                |        |                  |
+| (a) 10 × 10 HEIC         | **100/100** | 8.6 / 9.0 / 9.1                                                                 | 734 (324)            | 0        | 0              | 7.6 10.4 17.8 | 8.7 10.2 17.0  | 10.0   | mildly contended |
+| (b) 5 simultaneous HEIC  | 5/5         | 3.0 / 4.9 / 4.9                                                                 | 634 (321)            | 0        | 0              | 6.1 13.7 22.0 | 6.7 13.7 21.9  | 6.7    | quiet            |
+| (b) 20 simultaneous HEIC | 20/20       | 10.3 / 20.0 / 21.0                                                              | 766 (311)            | 0        | 0              | 6.6 13.5 21.8 | 8.1 13.4 21.6  | 8.4    | mildly contended |
+| (c) 199.5 MiB video      | 1/1         | 0.71                                                                            | 307, flat (307)      | 0        | 0              | 5.6 13.7 22.0 | 5.6 13.7 22.0  | 5.6    | quiet            |
+
+What the quiet host changes:
+
+- **(a) mixed.** With a quieter host there were **no Storage `544`s**, the success rate was
+  100%, and the finalise p95 dropped from 21 to 27 s to **7.9 s**.
+  - The remaining tail is the HEIC queue. 20 HEIC finalises took about 0.94 s each, back to
+    back, so the last one waited about 7 s.
+  - JPEG, PNG and WebP finalise p95 was 1.05 s, and video p95 was 0.24 s.
+  - Server-side Storage Range p95 was 0.19 s and PostgREST p95 was 0.02 s.
+  - **Peak RSS was 1.29 GiB, close to the contended 1.33 GiB.** Memory depends on concurrency,
+    not on host load.
+  - Transfers: p50 0.15 s, p95 0.8 s. Reserve p95 was 0.11 s.
+- **(a) all-HEIC.** 100 decodes ran strictly one at a time, back to back, at about
+  0.87 s p50 each (88 s wall).
+  - Each tab's finalises queue behind one another. The wait for the other slot's Server
+    Action was p95 8.7 s, so a 10-photo iPhone batch took about 17 to 18 s per file
+    end to end.
+- **(b) queue wait.** The wait is linear: 0.09, 0.96, 1.95, 2.94 and 3.88 s for 5 requests
+  (solo finalise 1.06 s). With 20 requests it ran from 0.6 to 20.0 s, about 0.96 s per
+  position.
+  - Only the last few requests in the 20-burst waited past the 15 s per-attempt limit. The
+    one 0.8 s idle gap in the worker log is a request re-queueing through finalise's
+    busy-retry. All of them finished, the last at 21.0 s.
+  - No `decode_timeout` occurred.
+- **(c) video.** Finalise took 0.71 s: two Range GETs at about 0.34 s each. Memory stayed flat
+  at 307 MiB.
+
+## Exploratory results (contended host, kept for the before/after comparison)
+
+All runs in this section are **contended**. The 1-minute load at the start and end of each run
+was:
+
+| Run                      | 1-min load (start, end) |
+| ------------------------ | ----------------------- |
+| (a) run 1                | 32.1, 28.1              |
+| (a) run 2                | 29.6, 27.7              |
+| (a) after the fix        | 22.1, 33.6              |
+| (a) HEIC, before the fix | 26.8, 33.3              |
+| (a) HEIC, after the fix  | 29.6, 15.9              |
+| (b) 5, before the fix    | 27.3, 33.5              |
+| (b) 5, after the fix     | 33.0, 31.2              |
+| (b) 10, before the fix   | 30.6, 32.7              |
+| (b) 20, before the fix   | 28.6, 34.6              |
+| (b) 20, after the fix    | 30.9, 24.7              |
+| (c) run 1                | 27.2, 31.2              |
+| (c) run 2                | 14.3, 14.1              |
+
+These runs recorded only the 1-minute value, at start and end.
 
 ### (a) 10 staff, each uploading a 10-file mixed batch, 2 transfers at once per tab
 
@@ -176,14 +245,14 @@ cost grows with object size. Hosted Storage is S3-backed and was not measured.
 These are starting points chosen from these local numbers. Verify each one on the deployed
 Linux function.
 
-| Setting                                                           | Recommendation                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Runtime                                                           | Node.js. `lib/media` needs `worker_threads`, sharp and WASM.                                                                                                                                                                                                                                                                                                                                                                         |
-| Function memory                                                   | **2 GiB minimum.** Measured peak was 1.33 GiB with 10 concurrent finalises in one process (idle about 300 MiB, HEIC-only bursts 0.53 to 0.79 GiB). That leaves about 1.5× headroom. If one instance will regularly handle more than about 10 concurrent image finalises, use about 3 to 4 GiB, or keep the per-instance request concurrency low. Linux glibc and sharp memory behaviour differs from macOS, so re-measure RSS there. |
-| `maxDuration` on `app/staff/page.tsx` (covers its Server Actions) | **300 s** while finalise keeps 8 busy-retries. Local finalise maximum was 50 s, Storage-bound. The code-bounded worst case is about 170 s plus Storage reads (each `fetchRange` can take 30 s, with one retry on 5xx). If slice lowers `BUSY_RETRIES` to 1 or 2, use **120 s**. Never go below about 60 s: a killed finalise leaves the asset in `processing` until the 2-minute stale-claim takeover.                               |
-| HEIC concurrency (`maxHeicConcurrency`)                           | **Keep at 1 per instance** at 2 GiB. Throughput is about 1 decode per second per instance for 12 MP (M5 Pro; expect slower on a function vCPU). 100 iPhone photos therefore take about 100 s of decoding on one instance. Raise it to 2 only after measuring Linux RSS with 3 to 4 GiB.                                                                                                                                              |
-| Instance concurrency                                              | Memory scales with concurrent in-process sharp decodes of JPEG, PNG and WebP (about 46 MiB of raw RGBA per 12 MP image, plus the libvips working set). If the platform allows a per-instance concurrency cap, about 10 matches the measured 1.33 GiB at 2 GiB.                                                                                                                                                                       |
-| Request body                                                      | Not a limit here: originals go straight to Storage (signed PUT or TUS). Only Server Action payloads reach the function.                                                                                                                                                                                                                                                                                                              |
+| Setting                                                           | Recommendation                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runtime                                                           | Node.js. `lib/media` needs `worker_threads`, sharp and WASM.                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Function memory                                                   | **2 GiB minimum.** Measured peak was 1.29 GiB on the quiet host and 1.33 GiB under contention, with 10 concurrent finalises in one process (idle about 300 MiB, HEIC-only bursts 0.53 to 0.79 GiB). That leaves about 1.5× headroom. If one instance will regularly handle more than about 10 concurrent image finalises, use about 3 to 4 GiB, or keep the per-instance request concurrency low. Linux glibc and sharp memory behaviour differs from macOS, so re-measure RSS there.   |
+| `maxDuration` on `app/staff/page.tsx` (covers its Server Actions) | **300 s** while finalise keeps 8 busy-retries. Local finalise maximum was 21 s on the quiet host (the last of 20 simultaneous HEICs) and 50 s under contention (Storage-bound). The code-bounded worst case is about 170 s plus Storage reads (each `fetchRange` can take 30 s, with one retry on 5xx). If slice lowers `BUSY_RETRIES` to 1 or 2, use **120 s**. Never go below about 60 s: a killed finalise leaves the asset in `processing` until the 2-minute stale-claim takeover. |
+| HEIC concurrency (`maxHeicConcurrency`)                           | **Keep at 1 per instance** at 2 GiB. Throughput is about 1.1 decodes per second per instance for 12 MP (0.87 to 0.94 s each on the quiet host) (M5 Pro; expect slower on a function vCPU). 100 iPhone photos therefore take about 100 s of decoding on one instance. Raise it to 2 only after measuring Linux RSS with 3 to 4 GiB.                                                                                                                                                      |
+| Instance concurrency                                              | Memory scales with concurrent in-process sharp decodes of JPEG, PNG and WebP (about 46 MiB of raw RGBA per 12 MP image, plus the libvips working set). If the platform allows a per-instance concurrency cap, about 10 matches the measured 1.33 GiB at 2 GiB.                                                                                                                                                                                                                          |
+| Request body                                                      | Not a limit here: originals go straight to Storage (signed PUT or TUS). Only Server Action payloads reach the function.                                                                                                                                                                                                                                                                                                                                                                 |
 
 ## How to run
 
