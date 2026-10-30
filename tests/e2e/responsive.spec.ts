@@ -30,7 +30,12 @@ type Finding = {
   state: string
   overflowPx: number
   primaryVisible: boolean
-  axe: { id: string; impact: string | null | undefined; nodes: number }[]
+  axe: {
+    id: string
+    impact: string | null | undefined
+    nodes: number
+    targets: string[]
+  }[]
 }
 
 test.describe.configure({ mode: "serial" })
@@ -79,6 +84,18 @@ async function check(
   await page.waitForFunction(() =>
     document.getAnimations().every((a) => a.playState !== "running")
   )
+  // Signed thumbnails/previews are lazy; wait until every image has settled
+  // (loaded or failed) so the capture shows what a user would see.
+  await page.waitForFunction(
+    () =>
+      Array.from(document.images).every((img) => {
+        const r = img.getBoundingClientRect()
+        const offscreen = r.bottom < 0 || r.top > window.innerHeight
+        return img.complete || offscreen
+      }),
+    undefined,
+    { timeout: 20_000 }
+  )
   const overflowPx = await page.evaluate(() => {
     const doc = document.documentElement
     let worst = doc.scrollWidth - window.innerWidth
@@ -103,7 +120,17 @@ async function check(
   const result = await axe.analyze()
   const serious = result.violations
     .filter((v) => v.impact === "serious" || v.impact === "critical")
-    .map((v) => ({ id: v.id, impact: v.impact, nodes: v.nodes.length }))
+    .map((v) => ({
+      id: v.id,
+      impact: v.impact,
+      nodes: v.nodes.length,
+      targets: v.nodes
+        .slice(0, 3)
+        .map(
+          (n) =>
+            `${n.target.join(" ")} :: ${n.failureSummary?.split("\n")[1]?.trim() ?? ""}`
+        ),
+    }))
   findings.push({ width, state, overflowPx, primaryVisible, axe: serious })
   await page.screenshot({
     path: join(SHOTS, `${String(width).padStart(4, "0")}-${state}.png`),
@@ -111,7 +138,12 @@ async function check(
   })
   expect.soft(overflowPx, `${state}@${width}: horizontal overflow`).toBe(0)
   expect.soft(primaryVisible, `${state}@${width}: primary action`).toBe(true)
-  expect.soft(serious, `${state}@${width}: axe serious/critical`).toEqual([])
+  expect
+    .soft(
+      serious.map((v) => v.id),
+      `${state}@${width}: axe serious/critical`
+    )
+    .toEqual([])
 }
 
 /** A unique CSS selector for a dialog locator (axe include). */
@@ -206,7 +238,7 @@ for (const width of WIDTHS) {
       confirm.getByRole("button", { name: "Delete" }),
       confirm
     )
-    await confirm.getByRole("button", { name: "Cancel" }).click()
+    await confirm.getByRole("button", { name: "Keep file" }).click()
     await closeDialog(staff)
 
     // --- /admin library, filters and viewer
