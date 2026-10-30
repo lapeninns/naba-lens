@@ -285,7 +285,10 @@ describe.skipIf(!BASE)("privacy: runtime headers, bodies and logs", () => {
         },
       ]
     )
-    expect(invited.value.status).toBe("sent")
+    // "partial" = account created, email not sent (GoTrue timeouts under load).
+    // Delivery is the accounts suite's concern; both paths log, which is what
+    // the log check below audits.
+    expect(["sent", "partial"]).toContain(invited.value.status)
 
     // Anonymous sign-in link requests: a known and an unknown address.
     for (const email of [emails.staffB, testEmail("privacy-unknown")]) {
