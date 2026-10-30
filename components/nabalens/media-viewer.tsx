@@ -35,6 +35,10 @@ type MediaViewerProps = {
    * delete on their own media; admin get download, portfolio and delete.
    */
   getDownloadHref?: (item: MediaItem) => string
+  /** Called as a download starts (the browser download is not prevented). */
+  onDownload?: (item: MediaItem) => void
+  /** Why the last download failed, shown in the viewer. */
+  downloadError?: string | null
   getPortfolioHref?: (item: MediaItem) => string
   onDelete?: (item: MediaItem) => void
   /** Show contributor and venue. Off on a staff member's own portfolio. */
@@ -112,6 +116,8 @@ export function MediaViewer({
   open,
   onOpenChange,
   getDownloadHref,
+  onDownload,
+  downloadError,
   getPortfolioHref,
   onDelete,
   showAttribution = true,
@@ -172,6 +178,18 @@ export function MediaViewer({
                 </div>
               ))}
             </dl>
+            {downloadable && downloadError ? (
+              <p
+                role="alert"
+                className="mx-4 mb-4 flex items-start gap-2 rounded-md border border-negative/40 px-4 py-2 text-sm"
+              >
+                <WarningCircleIcon
+                  className="mt-0.5 size-4 shrink-0"
+                  aria-hidden
+                />
+                {downloadError}
+              </p>
+            ) : null}
             {downloadable || getPortfolioHref || onDelete ? (
               <DialogFooter className="mx-0 mb-0 sm:justify-between">
                 {onDelete ? (
@@ -203,6 +221,7 @@ export function MediaViewer({
                     <a
                       href={getDownloadHref(item)}
                       download
+                      onClick={onDownload ? () => onDownload(item) : undefined}
                       className={cn(buttonVariants({ size: "touch" }))}
                     >
                       <DownloadSimpleIcon

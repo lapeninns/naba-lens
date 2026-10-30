@@ -13,7 +13,11 @@ export async function GET(
   ctx: { params: Promise<{ id: string }> }
 ) {
   const auth = await getMediaActor("admin")
-  if (!auth.ok) return fail(auth.status === 401 ? 401 : 404, "Not found.")
+  if (!auth.ok) {
+    // Non-admins get the same 404 as an unknown asset; 503 means "retry".
+    if (auth.status === 503) return fail(503, auth.message)
+    return fail(auth.status === 401 ? 401 : 404, "Not found.")
+  }
   const { id } = await ctx.params
   const found = await getReadableAsset(auth.actor, id)
   if (!found.ok) return fail(found.status, found.message)

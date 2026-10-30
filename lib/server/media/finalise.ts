@@ -23,8 +23,27 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const STALE_CLAIM_INTERVAL = "2 minutes"
 /** How long a second finalise waits for one already running. */
 const WAIT_FOR_OTHER_MS = 20_000
-/** HEIC decodes run one at a time per process (`decoder_busy` means retry). */
-const BUSY_RETRIES = 8
+/**
+ * HEIC decodes run one at a time per process. lib/media already queues each
+ * caller (FIFO) for up to one decode deadline before answering `decoder_busy`,
+ * so each retry adds a full queue wait: keep this small (docs/runtime-sizing.md).
+ */
+export const BUSY_RETRIES = 1
+/** Pause before busy-retry `attempt` (0-based). */
+const busyRetryDelayMs = (attempt: number) => 1000 + attempt * 500
+
+/**
+ * Code-bounded worst case of the HEIC step of one finalise: every attempt
+ * waits its full queue deadline, the last one gets the slot just in time and
+ * decodes up to the deadline. Storage reads come on top.
+ */
+export const HEIC_FINALISE_WORST_CASE_MS =
+  (BUSY_RETRIES + 1) * MEDIA_LIMITS.heicTimeoutMs +
+  MEDIA_LIMITS.heicTimeoutMs +
+  Array.from({ length: BUSY_RETRIES }, (_, i) => busyRetryDelayMs(i)).reduce(
+    (a, b) => a + b,
+    0
+  )
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
@@ -171,7 +190,7 @@ async function validateStored(
         }
       }
       if (attempt >= BUSY_RETRIES) return result
-      await sleep(1000 + attempt * 500)
+      await sleep(busyRetryDelayMs(attempt))
     }
   }
 

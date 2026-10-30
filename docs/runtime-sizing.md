@@ -213,22 +213,32 @@ cost grows with object size. Hosted Storage is S3-backed and was not measured.
      `docs/media-pipeline.md`.
    - _Result._ 20 of 20 were ready, and the HEIC batch went from 69/100 to 100/100.
 
-2. **Open (slice owns `lib/server/media/finalise.ts`): the retry loop now multiplies the wait.**
+2. **Fixed (followups): the retry loop multiplied the wait.**
    `BUSY_RETRIES = 8` was sized for an immediate `decoder_busy`. Each attempt can now wait up
-   to 15 s. Under sustained overload, the worst case grows from about 40 s to about 170 s
-   (9 × 15 s waits + a 15 s decode + 22 s of sleeps). This never happened in these runs: the
-   maximum HEIC finalise after the fix was 27.7 s. Suggestion: lower `BUSY_RETRIES` to 1 or
-   2 (worst case about 50 to 70 s), and set the page `maxDuration` below.
+   to 15 s, so under sustained overload the worst case had grown from about 40 s to about
+   170 s (9 × 15 s waits + a 15 s decode + 22 s of sleeps). This never happened in these
+   runs: the maximum HEIC finalise after the fix was 27.7 s.
+   - _Chosen value:_ **`BUSY_RETRIES = 1`** (`lib/server/media/finalise.ts`). Worst case of
+     the HEIC step: 2 × 15 s queue waits + 1 s pause + a 15 s decode = **46 s**
+     (`HEIC_FINALISE_WORST_CASE_MS`, pinned by `tests/unit/finalise-budget.test.ts` at ≤ 60 s,
+     half the 120 s `maxDuration` below). One retry still gives a request 30 s of queue
+     patience, about 30 queued 12 MP decodes at the measured ~1 s each, before the user
+     sees "The server is busy processing photos. Try again."
+   - Storage reads come on top: each `fetchRange` aborts at 30 s and retries once on a 5xx.
 
-3. **Open (foundation `lib/auth/profile.ts` / slice actions): a failed profile read becomes
-   an HTTP 500.**
+3. **Fixed (followups): a failed profile read became an HTTP 500.**
    - When PostgREST returned 500 on the profile read (stack starved, all-HEIC "before" run),
      `loadProfile` threw. `reserveUpload` then answered HTTP 500 with a digest instead of a
      `{ ok: false, message }` value.
-   - The browser's `createUploader` catches this as "Could not start the upload." and marks
-     it retryable, so users are not stuck. It is still a 5xx in logs, and the cause is lost.
+   - _Fix._ `getMediaActor` (`lib/server/media/context.ts`) catches the failed read and
+     returns `503` "Could not check your account right now. Try again in a moment." It is
+     not a denial: a missing or inactive profile still answers 403. `reserveUpload`,
+     `finaliseUpload` and `loadMyMedia` return it as a value with its status, and the media
+     routes answer `503` with `Retry-After: 5` (`/download` included; it no longer turns
+     every non-401 failure into 404). `lib/auth/profile.ts` is unchanged.
    - _Repro._ Make PostgREST fail the `profiles` select, for example by pausing the db
-     container for longer than PostgREST's timeout, then call `reserveUpload`.
+     container for longer than PostgREST's timeout, then call `reserveUpload`. Unit
+     regression: `tests/unit/media-actor-unavailable.test.ts`.
 
 4. **Local stack only, not a NabaLens defect.**
    - Local Storage's Postgres pool returns `544 DatabaseTimeout` when about 20 sign/PUT
@@ -245,14 +255,14 @@ cost grows with object size. Hosted Storage is S3-backed and was not measured.
 These are starting points chosen from these local numbers. Verify each one on the deployed
 Linux function.
 
-| Setting                                                           | Recommendation                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Runtime                                                           | Node.js. `lib/media` needs `worker_threads`, sharp and WASM.                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| Function memory                                                   | **2 GiB minimum.** Measured peak was 1.29 GiB on the quiet host and 1.33 GiB under contention, with 10 concurrent finalises in one process (idle about 300 MiB, HEIC-only bursts 0.53 to 0.79 GiB). That leaves about 1.5× headroom. If one instance will regularly handle more than about 10 concurrent image finalises, use about 3 to 4 GiB, or keep the per-instance request concurrency low. Linux glibc and sharp memory behaviour differs from macOS, so re-measure RSS there.   |
-| `maxDuration` on `app/staff/page.tsx` (covers its Server Actions) | **300 s** while finalise keeps 8 busy-retries. Local finalise maximum was 21 s on the quiet host (the last of 20 simultaneous HEICs) and 50 s under contention (Storage-bound). The code-bounded worst case is about 170 s plus Storage reads (each `fetchRange` can take 30 s, with one retry on 5xx). If slice lowers `BUSY_RETRIES` to 1 or 2, use **120 s**. Never go below about 60 s: a killed finalise leaves the asset in `processing` until the 2-minute stale-claim takeover. |
-| HEIC concurrency (`maxHeicConcurrency`)                           | **Keep at 1 per instance** at 2 GiB. Throughput is about 1.1 decodes per second per instance for 12 MP (0.87 to 0.94 s each on the quiet host) (M5 Pro; expect slower on a function vCPU). 100 iPhone photos therefore take about 100 s of decoding on one instance. Raise it to 2 only after measuring Linux RSS with 3 to 4 GiB.                                                                                                                                                      |
-| Instance concurrency                                              | Memory scales with concurrent in-process sharp decodes of JPEG, PNG and WebP (about 46 MiB of raw RGBA per 12 MP image, plus the libvips working set). If the platform allows a per-instance concurrency cap, about 10 matches the measured 1.33 GiB at 2 GiB.                                                                                                                                                                                                                          |
-| Request body                                                      | Not a limit here: originals go straight to Storage (signed PUT or TUS). Only Server Action payloads reach the function.                                                                                                                                                                                                                                                                                                                                                                 |
+| Setting                                                           | Recommendation                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runtime                                                           | Node.js. `lib/media` needs `worker_threads`, sharp and WASM.                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Function memory                                                   | **2 GiB minimum.** Measured peak was 1.29 GiB on the quiet host and 1.33 GiB under contention, with 10 concurrent finalises in one process (idle about 300 MiB, HEIC-only bursts 0.53 to 0.79 GiB). That leaves about 1.5× headroom. If one instance will regularly handle more than about 10 concurrent image finalises, use about 3 to 4 GiB, or keep the per-instance request concurrency low. Linux glibc and sharp memory behaviour differs from macOS, so re-measure RSS there.                                               |
+| `maxDuration` on `app/staff/page.tsx` (covers its Server Actions) | **120 s.** Finalise uses `BUSY_RETRIES = 1`, so the code-bounded HEIC step is at most 46 s, plus Storage reads (each `fetchRange` can take 30 s, with one retry on 5xx). Local finalise maximum was 21 s on the quiet host (the last of 20 simultaneous HEICs) and 50 s under contention (Storage-bound). Not set in code yet: `app/staff/page.tsx` has no `maxDuration` export; set it with the deployment. Never go below about 60 s: a killed finalise leaves the asset in `processing` until the 2-minute stale-claim takeover. |
+| HEIC concurrency (`maxHeicConcurrency`)                           | **Keep at 1 per instance** at 2 GiB. Throughput is about 1.1 decodes per second per instance for 12 MP (0.87 to 0.94 s each on the quiet host) (M5 Pro; expect slower on a function vCPU). 100 iPhone photos therefore take about 100 s of decoding on one instance. Raise it to 2 only after measuring Linux RSS with 3 to 4 GiB.                                                                                                                                                                                                  |
+| Instance concurrency                                              | Memory scales with concurrent in-process sharp decodes of JPEG, PNG and WebP (about 46 MiB of raw RGBA per 12 MP image, plus the libvips working set). If the platform allows a per-instance concurrency cap, about 10 matches the measured 1.33 GiB at 2 GiB.                                                                                                                                                                                                                                                                      |
+| Request body                                                      | Not a limit here: originals go straight to Storage (signed PUT or TUS). Only Server Action payloads reach the function.                                                                                                                                                                                                                                                                                                                                                                                                             |
 
 ## How to run
 

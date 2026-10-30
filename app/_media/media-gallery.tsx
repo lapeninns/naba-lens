@@ -39,6 +39,38 @@ type MediaGalleryProps = {
   refreshSignal?: number
 }
 
+/**
+ * A foreground refresh that has not answered by now is abandoned: its result is
+ * ignored and the next interval or focus refresh may start. Server Functions
+ * take no AbortSignal, so the request itself is left to finish or fail.
+ */
+export const REFRESH_TIMEOUT_MS = 10_000
+
+const REFRESH_FAILED = "Could not refresh. Check your connection."
+
+/**
+ * Why a download of `href` fails, or null when it works. A native download
+ * gives the page no signal, so the gallery asks for the first byte of the same
+ * route alongside it (same authorisation, same storage read, 1 byte).
+ */
+export async function probeDownload(href: string): Promise<string | null> {
+  let response: Response
+  try {
+    response = await fetch(href, {
+      headers: { range: "bytes=0-0" },
+      cache: "no-store",
+    })
+  } catch {
+    return "The download failed. Check your connection and try again."
+  }
+  await response.arrayBuffer().catch(() => undefined)
+  if (response.ok) return null
+  if (response.status === 401) return "Sign in again to download this file."
+  if (response.status === 404)
+    return "This original could not be found, so it was not downloaded. It may have been removed."
+  return "The download failed. Try again."
+}
+
 /** True when `a` sorts after `b` in the (created_at desc, id desc) feed. */
 function isOlder(a: MediaItem, b: MediaItem) {
   return (
@@ -71,6 +103,10 @@ export function MediaGallery({
   const [openId, setOpenId] = React.useState<string | null>(null)
   const [viewerOpen, setViewerOpen] = React.useState(false)
   const [deleting, setDeleting] = React.useState<MediaItem | null>(null)
+  const [downloadError, setDownloadError] = React.useState<{
+    id: string
+    message: string
+  } | null>(null)
   const pagesLoaded = React.useRef(1)
   const refreshing = React.useRef(false)
 
@@ -84,8 +120,17 @@ export function MediaGallery({
   const refresh = React.useCallback(async () => {
     if (refreshing.current) return
     refreshing.current = true
+    let timer: number | undefined
+    const timedOut = new Promise<"timeout">((resolve) => {
+      timer = window.setTimeout(() => resolve("timeout"), REFRESH_TIMEOUT_MS)
+    })
     try {
-      const result = await loadPage(null)
+      // A late answer after the timeout is dropped with the race.
+      const result = await Promise.race([loadPage(null), timedOut])
+      if (result === "timeout") {
+        setRefreshError(REFRESH_FAILED)
+        return
+      }
       if (!result.ok) {
         setRefreshError(result.message)
         return
@@ -102,8 +147,9 @@ export function MediaGallery({
       })
       if (pagesLoaded.current <= 1) setNextCursor(fresh.nextCursor)
     } catch {
-      setRefreshError("Could not refresh. Check your connection.")
+      setRefreshError(REFRESH_FAILED)
     } finally {
+      window.clearTimeout(timer)
       refreshing.current = false
     }
   }, [loadPage, retryBroken])
@@ -191,6 +237,7 @@ export function MediaGallery({
           label={label}
           showAttribution={showAttribution}
           onOpen={(item) => {
+            setDownloadError(null)
             setOpenId(item.id)
             setViewerOpen(true)
           }}
@@ -209,6 +256,19 @@ export function MediaGallery({
         onOpenChange={setViewerOpen}
         showAttribution={showAttribution}
         getDownloadHref={getDownloadHref}
+        onDownload={
+          getDownloadHref
+            ? (item) => {
+                setDownloadError(null)
+                void probeDownload(getDownloadHref(item)).then((message) => {
+                  if (message) setDownloadError({ id: item.id, message })
+                })
+              }
+            : undefined
+        }
+        downloadError={
+          downloadError?.id === openId ? downloadError.message : null
+        }
         getPortfolioHref={getPortfolioHref}
         onDelete={canDelete ? (item) => setDeleting(item) : undefined}
       />
