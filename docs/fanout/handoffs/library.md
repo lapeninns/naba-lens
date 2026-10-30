@@ -95,3 +95,16 @@ supabase --workdir "$W" stop             # when finished
   them to the `/api/avatars/[id]` route (as `/staff` does) is a small accounts change.
 - Machine load: with ~10 local stacks running, the local auth server returns 504s
   (Docker DNS timeouts in its logs). This is environmental.
+
+## Compatibility with `security-fixes` (service-client signing)
+
+- Gallery recovery never signs in the browser and never uses the browser Supabase client.
+  It only re-requests the app routes (`/api/media/{id}/thumb|preview|stream?r=N`), so it
+  keeps working when routes sign with the service client after their caller and asset checks.
+- Expected merge overlap: `lib/server/media/access.ts` (`signDerivative`) and
+  `lib/server/media/profile.ts` (`signAvatar`). Here the TTL argument changed to
+  `signedUrlTtlSeconds()`; security-fixes changes the client on the same lines. To resolve,
+  keep their client and this branch's `signedUrlTtlSeconds()`.
+- The tests don't depend on which client signs. `tests/integration/library.test.ts` calls
+  `signDerivative` and fetches the returned URL. The e2e checks only that the 302 `Location`
+  has the `/storage/v1/object/sign/media/` form.
