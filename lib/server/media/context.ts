@@ -9,16 +9,30 @@ import type { Db, MediaActor } from "./types"
 
 export type ActorResult =
   | { ok: true; actor: MediaActor }
-  | { ok: false; status: 401 | 403; message: string }
+  | { ok: false; status: 401 | 403 | 503; message: string }
+
+/** The profile could not be read (database trouble), so access is unknown. */
+export const PROFILE_UNAVAILABLE = {
+  ok: false,
+  status: 503,
+  message: "Could not check your account right now. Try again in a moment.",
+} as const
 
 /**
  * Authorises the current request (fresh profile read: deactivation applies to
  * existing sessions) and builds the clients a media operation needs. Pass a role
  * to require it, or omit it for routes both roles use. Returns a status instead
  * of redirecting, for Route Handlers and Server Functions that report errors.
+ * A profile read that fails (not a missing or inactive profile) is a 503.
  */
 export async function getMediaActor(role?: AppRole): Promise<ActorResult> {
-  const state = await getAuthState()
+  let state: Awaited<ReturnType<typeof getAuthState>>
+  try {
+    state = await getAuthState()
+  } catch {
+    // A failed profile read is not a denial: answer "retry", never a 500.
+    return PROFILE_UNAVAILABLE
+  }
   if (state.status === "signed_out") {
     return { ok: false, status: 401, message: "Sign in to continue." }
   }

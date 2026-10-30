@@ -38,7 +38,9 @@ async function seedPhotos(
   venueId: string,
   count: number,
   prefix: string,
-  base = new Date(Date.now() - 60_000)
+  base = new Date(Date.now() - 60_000),
+  /** Original bytes for the newest photo (stored before it becomes ready). */
+  firstOriginal?: Uint8Array
 ) {
   const assets = []
   for (let i = 0; i < count; i++) {
@@ -49,6 +51,9 @@ async function seedPhotos(
         createdAt: secondsBefore(base, i),
         filename: `${prefix}-${String(i).padStart(2, "0")}.jpg`,
         derivatives: true,
+        ...(i === 0 && firstOriginal
+          ? { original: { bytes: firstOriginal, contentType: "image/jpeg" } }
+          : {}),
       })
     )
   }
@@ -302,16 +307,17 @@ test.describe("signed previews", () => {
       role: "admin",
       session: false,
     })
-    const photos = await seedPhotos(staff.id, venue.id, PAGE + 2, `x-${t}`)
-    // A real original for the download check.
+    // A real original for the download check, stored while still uploading
+    // (the storage guard refuses writes to a ready asset's original).
     const original = new Uint8Array([0xff, 0xd8, 0xff, 0xd9])
-    const { error } = await admin.storage
-      .from("media")
-      .upload(`${staff.id}/${photos[0].id}/original.jpg`, original, {
-        contentType: "image/jpeg",
-        upsert: true,
-      })
-    expect(error).toBeNull()
+    const photos = await seedPhotos(
+      staff.id,
+      venue.id,
+      PAGE + 2,
+      `x-${t}`,
+      undefined,
+      original
+    )
 
     // --- Staff portfolio.
     const staffPage = await signInAs(browser, admin, staff, baseURL!)

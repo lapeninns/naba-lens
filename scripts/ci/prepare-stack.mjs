@@ -22,6 +22,9 @@ config = config.replace(/^site_url = ".*"$/m, `site_url = "${site}"`)
   .replace(/^additional_redirect_urls = .*$/m, `additional_redirect_urls = ["${site}/auth/callback", "${site}/auth/confirm"]`)
   .replace(/^sign_in_sign_ups = \d+$/m, 'sign_in_sign_ups = 300')
   .replace(/^token_verifications = \d+$/m, 'token_verifications = 300')
+  // The privacy runtime step sends real invitation/sign-in emails after the e2e
+  // run; the committed 2/hour would turn its strict "sent" check into a rate limit.
+  .replace(/^email_sent = \d+$/m, 'email_sent = 100')
 for (const section of ['studio', 'realtime', 'analytics', 'edge_runtime']) {
   config = config.replace(new RegExp(`(\\[${section}\\]\\s*\\n)enabled = true`), '$1enabled = false')
 }

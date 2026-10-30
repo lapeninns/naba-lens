@@ -178,6 +178,12 @@ const EMAIL =
   /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}/g
 const SIGNED_URL = /\/storage\/v1\/object\/sign\/[^"'\s\\]+/g
 
+// CI (scripts/ci/privacy-runtime.mjs) sets this, so a missing server fails
+// the file instead of skipping the whole suite.
+if (process.env.PRIVACY_RUNTIME_REQUIRED === "1" && !BASE) {
+  throw new Error("PRIVACY_RUNTIME_REQUIRED is set but PRIVACY_BASE_URL is not")
+}
+
 describe.skipIf(!BASE)("privacy: runtime headers, bodies and logs", () => {
   const admin = serviceClient()
   const ids = {} as Record<"staffA" | "staffB" | "admin", string>
@@ -285,10 +291,7 @@ describe.skipIf(!BASE)("privacy: runtime headers, bodies and logs", () => {
         },
       ]
     )
-    // "partial" = account created, email not sent (GoTrue timeouts under load).
-    // Delivery is the accounts suite's concern; both paths log, which is what
-    // the log check below audits.
-    expect(["sent", "partial"]).toContain(invited.value.status)
+    expect(invited.value.status).toBe("sent")
 
     // Anonymous sign-in link requests: a known and an unknown address.
     for (const email of [emails.staffB, testEmail("privacy-unknown")]) {
@@ -337,10 +340,32 @@ describe.skipIf(!BASE)("privacy: runtime headers, bodies and logs", () => {
     await callAction("staffA", "/staff", "loadMyMedia", [null])
     await callAction("staffB", "/staff", "loadMyMedia", [null])
     await callAction("admin", "/admin", "loadLibraryPage", [{}, null])
-    await callAction("admin", "/admin/staff", "loadMorePortfolioAction", [
-      ids.staffA,
-      null,
-    ])
+    // The admin portfolio (/admin/staff/[id]) pages through the library action
+    // with a staff filter (merge #4b removed loadMorePortfolioAction).
+    type Paged = {
+      ok: boolean
+      page?: { items: { contributorId: string }[] }
+    }
+    const portfolio = await callAction<Paged>(
+      "admin",
+      `/admin/staff/${ids.staffA}`,
+      "loadLibraryPage",
+      [{ staff: ids.staffA }, null]
+    )
+    expect(portfolio.value.ok).toBe(true)
+    expect(portfolio.value.page!.items.length).toBeGreaterThan(0)
+    for (const item of portfolio.value.page!.items)
+      expect(item.contributorId).toBe(ids.staffA)
+    // Staff (even the portfolio's owner) cannot call the admin action.
+    for (const role of ["staffA", "staffB"] as const) {
+      const denied = await callAction<Paged>(
+        role,
+        "/staff",
+        "loadLibraryPage",
+        [{ staff: ids.staffA }, null]
+      )
+      expect(denied.value).toEqual({ ok: false, message: "Not allowed." })
+    }
     // Mutating routes without the right credential.
     await request("staffB", `/admin/staff/${ids.staffA}/avatar`, {
       method: "POST",

@@ -419,10 +419,10 @@ test.describe("release negatives", () => {
     await expect(
       viewer.getByRole("link", { name: "Download original" })
     ).toBeVisible()
-    test.info().annotations.push({
-      type: "failed download UX",
-      description: `browser download failure: ${await download.failure()}; no in-app message`,
-    })
+    // Spec §10: failed downloads have usable UI (was journey defect 8).
+    await expect(viewer.getByRole("alert")).toContainText(
+      "This original could not be found"
+    )
   })
 
   test("admin portfolio offers download and delete (spec §3)", async ({

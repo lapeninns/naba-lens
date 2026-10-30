@@ -19,7 +19,7 @@ export async function reserveUpload(
   input: unknown
 ): Promise<Result<{ reservation: ReserveResponse }>> {
   const auth = await getMediaActor("staff")
-  if (!auth.ok) return { ok: false, message: auth.message }
+  if (!auth.ok) return { ok: false, message: auth.message, status: auth.status }
   const result = await reserveAsset(
     auth.actor,
     (input ?? {}) as Parameters<typeof reserveAsset>[1]
@@ -36,12 +36,13 @@ export async function finaliseUpload(
   input: unknown
 ): Promise<Result<{ result: FinaliseResponse }>> {
   const auth = await getMediaActor("staff")
-  if (!auth.ok) return { ok: false, message: auth.message }
+  if (!auth.ok) return { ok: false, message: auth.message, status: auth.status }
   const result = await finaliseAsset(
     auth.actor,
     (input ?? {}) as Parameters<typeof finaliseAsset>[1]
   )
-  if (!result.ok) return { ok: false, message: result.message }
+  if (!result.ok)
+    return { ok: false, message: result.message, status: result.status }
   return {
     ok: true,
     result:
@@ -56,7 +57,7 @@ export async function loadMyMedia(
   cursor: string | null
 ): Promise<Result<{ page: MediaPage }>> {
   const auth = await getMediaActor("staff")
-  if (!auth.ok) return { ok: false, message: auth.message }
+  if (!auth.ok) return { ok: false, message: auth.message, status: auth.status }
   const result = await listOwnMedia(auth.actor, cursor)
   if (!result.ok) return { ok: false, message: result.message }
   return {

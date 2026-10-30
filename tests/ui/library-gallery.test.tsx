@@ -11,7 +11,11 @@ import type * as React from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { filtersToSearch } from "@/app/admin/library-search"
-import { MediaGallery, type LoadPage } from "@/app/_media/media-gallery"
+import {
+  MediaGallery,
+  REFRESH_TIMEOUT_MS,
+  type LoadPage,
+} from "@/app/_media/media-gallery"
 import {
   parseMediaRoute,
   usePreviewRecovery,
@@ -110,7 +114,11 @@ describe("preview route URLs", () => {
   })
 })
 
-function renderGallery(loadPage: LoadPage, refreshIntervalMs?: number) {
+function renderGallery(
+  loadPage: LoadPage,
+  refreshIntervalMs?: number,
+  getDownloadHref?: (item: { id: string }) => string
+) {
   return render(
     <MediaGallery
       label="Library"
@@ -118,6 +126,7 @@ function renderGallery(loadPage: LoadPage, refreshIntervalMs?: number) {
       loadPage={loadPage}
       empty={<p>Empty</p>}
       refreshIntervalMs={refreshIntervalMs}
+      getDownloadHref={getDownloadHref}
     />
   )
 }
@@ -316,5 +325,113 @@ describe("foreground refresh", () => {
       await vi.advanceTimersByTimeAsync(120_000)
     })
     expect(loadPage).not.toHaveBeenCalled()
+  })
+
+  it("abandons a hung refresh so the interval and focus refreshes keep working", async () => {
+    vi.useFakeTimers()
+    const newer = item("0a6f3c2e-6a51-4f43-9a6a-2f1f8d1c0a03", {
+      createdAt: "2026-10-29T12:05:00.000000+00:00",
+    })
+    // The first refresh never answers; later ones do.
+    const loadPage = vi
+      .fn<LoadPage>()
+      .mockImplementationOnce(() => new Promise(() => {}))
+      .mockImplementation(async () => ({
+        ok: true,
+        page: { items: [newer, item(ID_A), item(ID_B)], nextCursor: null },
+      }))
+    renderGallery(loadPage, 15_000)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(15_000)
+    })
+    expect(loadPage).toHaveBeenCalledTimes(1)
+    // Still hung: focus does not stack a second request on top of it.
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"))
+    })
+    expect(loadPage).toHaveBeenCalledTimes(1)
+
+    // The hung request times out with a visible message...
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(REFRESH_TIMEOUT_MS)
+    })
+    expect(screen.getByRole("status").textContent).toContain(
+      "Could not refresh"
+    )
+    // ...and the next focus refresh runs and shows the new upload.
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"))
+    })
+    expect(loadPage).toHaveBeenCalledTimes(2)
+    expect(screen.queryByRole("status")).toBeNull()
+    expect(
+      screen
+        .getAllByRole("button", { name: /^Photo, / })[0]
+        .getAttribute("aria-label")
+    ).toMatch(/^Photo, 03\.jpg/)
+
+    // The interval keeps running too.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(15_000)
+    })
+    expect(loadPage).toHaveBeenCalledTimes(3)
+  })
+})
+
+describe("failed downloads", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  async function openAndDownload(fetchImpl: typeof fetch) {
+    const fetchMock = vi.fn(fetchImpl)
+    vi.stubGlobal("fetch", fetchMock)
+    renderGallery(
+      vi.fn<LoadPage>(),
+      undefined,
+      (i) => `/api/media/${i.id}/download`
+    )
+    fireEvent.click(screen.getByRole("button", { name: /^Photo, 01\.jpg/ }))
+    const dialog = await screen.findByRole("dialog")
+    const link = screen.getByRole("link", { name: "Download original" })
+    // jsdom does not navigate; the browser's own download is not prevented.
+    link.addEventListener("click", (e) => {
+      expect(e.defaultPrevented).toBe(false)
+      e.preventDefault()
+    })
+    await act(async () => {
+      fireEvent.click(link)
+    })
+    expect(fetchMock).toHaveBeenCalledWith(
+      `/api/media/${ID_A}/download`,
+      expect.objectContaining({ headers: { range: "bytes=0-0" } })
+    )
+    return dialog
+  }
+
+  it("shows an accessible error in the viewer when the original is missing", async () => {
+    const dialog = await openAndDownload(
+      async () => new Response("Not found.", { status: 404 })
+    )
+    const alert = await screen.findByRole("alert")
+    expect(dialog.contains(alert)).toBe(true)
+    expect(alert.textContent).toMatch(/could not be found/i)
+  })
+
+  it("explains a network failure", async () => {
+    await openAndDownload(async () => {
+      throw new TypeError("Failed to fetch")
+    })
+    expect((await screen.findByRole("alert")).textContent).toMatch(
+      /check your connection/i
+    )
+  })
+
+  it("shows nothing when the download works", async () => {
+    await openAndDownload(
+      async () => new Response(new Uint8Array([1]), { status: 206 })
+    )
+    expect(screen.queryByRole("alert")).toBeNull()
   })
 })
