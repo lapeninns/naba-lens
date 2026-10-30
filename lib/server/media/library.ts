@@ -122,6 +122,7 @@ function toView(row: Row): MediaItemView {
     durationSeconds:
       row.duration_seconds === null ? null : Number(row.duration_seconds),
     sizeBytes: row.size_bytes === null ? null : Number(row.size_bytes),
+    labels: null,
   }
 }
 

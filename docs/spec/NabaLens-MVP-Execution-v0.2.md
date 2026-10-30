@@ -2,6 +2,7 @@
 
 **Version:** 0.2 · 29 October 2026  
 **Status:** Implementation handoff; no application, deployment or repository inspection is claimed by this document.  
+**Amended by:** [v0.3 menu catalogue and media labels](NabaLens-Menus-Labels-v0.3.md) (30 Oct 2026), which authorises optional labelling and replaces the "captions or tagging workflow" exclusion below for that feature only.  
 **Supersedes:** The earlier v0.1 feature scope. Content requests, review/approval, campaign tools and extra user roles must not carry over.
 
 ## 1. Product contract

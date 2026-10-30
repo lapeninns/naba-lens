@@ -56,6 +56,7 @@ function item(id: string, overrides: Partial<MediaItemView> = {}) {
     height: 48,
     durationSeconds: null,
     sizeBytes: 4,
+    labels: null,
     ...overrides,
   } satisfies MediaItemView
 }

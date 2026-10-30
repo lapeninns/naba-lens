@@ -1,6 +1,8 @@
 // View-model types for NabaLens presentational components. Pages map database
 // rows (see lib/db/types.ts) onto these; components never fetch data.
 
+import type { MediaLabelSummary } from "@/lib/menus/types"
+
 export type MediaType = "image" | "video"
 
 /** Technical pipeline states. These are not editorial approval states. */
@@ -27,6 +29,8 @@ export type MediaItem = {
   height?: number | null
   durationSeconds?: number | null
   sizeBytes?: number | null
+  /** v0.3 optional labels (absent or null: none visible/loaded). */
+  labels?: MediaLabelSummary | null
 }
 
 export type Option = { id: string; name: string }

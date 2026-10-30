@@ -1,5 +1,11 @@
 # NabaLens fan-out contract
 
+> **v0.3 (30 Oct 2026):** the menu catalogue / media labels feature uses
+> [CONTRACT-v0.3-menus.md](CONTRACT-v0.3-menus.md) for branches, ownership and
+> interfaces. The wave-era branch (`feat/nabalens-mvp`), track names and the
+> "exactly the spec's columns" rule below are historical for that feature;
+> the hard limits still apply.
+
 Several coding agents build NabaLens in parallel, each on its own branch and git
 worktree. This file fixes the shared names and file ownership so their work merges
 cleanly. The product spec is `docs/spec/NabaLens-MVP-Execution-v0.2.md`; the agent

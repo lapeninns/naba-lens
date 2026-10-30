@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { CurrentProfile } from "@/lib/auth/profile"
 import type { Database } from "@/lib/db/types"
+import type { MediaLabelSummary } from "@/lib/menus/types"
 
 import type { StorageEnv } from "./storage"
 
@@ -51,6 +52,8 @@ export type MediaItemView = {
   height: number | null
   durationSeconds: number | null
   sizeBytes: number | null
+  /** v0.3 optional labels, read as the caller; null when none are visible. */
+  labels: MediaLabelSummary | null
 }
 
 export type MediaPage = { items: MediaItemView[]; nextCursor: string | null }
