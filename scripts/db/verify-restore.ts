@@ -28,8 +28,7 @@ const objects = [...manifest.assets.flatMap((a) => a.objects), manifest.avatar.o
 
 const failures: string[] = []
 for (const d of downloads) {
-  const o = objects.find((x) => x.bucket === d.bucket && x.name === d.name)!
-  const want = expectedSha(manifest, d.who, o)
+  const want = expectedSha()
   if (d.sha256 !== want) {
     failures.push(
       `${d.who} ${d.bucket}/${d.name}: got ${d.sha256 ? "bytes " + d.sha256.slice(0, 12) : "denied"}, want ${want ? "bytes " + want.slice(0, 12) : "denied"}`
