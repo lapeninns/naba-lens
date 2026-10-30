@@ -9,9 +9,10 @@ No application code changes.
 - Isolated stack prepared at /tmp/nl-uppath2-stack (project_id nabalens-uppath2, ports 600xx,
   studio/realtime/analytics/edge/smtp/vector/s3 disabled).
 
-## In progress
-- Repro tests (uncommitted scratch): tests/security/upload-path-review.repro.test.ts
-  + tests/security/upload-path-review.vitest.config.ts
+## Status: COMPLETE
+- Review written: docs/reviews/upload-path-review.md (F1-F7, verdict: conditional pass).
+- Repros (13/13 run green on the isolated stack) were scratch files, not committed per brief;
+  Appendix A of the review describes each one. Stack stopped.
 
 ## How to run the stack
     W=/tmp/nl-uppath2-stack
@@ -21,7 +22,7 @@ No application code changes.
     supabase --workdir $W stop   # when done
 
 ## Next steps
-- Run repros, write review doc, stop stack.
+- Owners: fix F1-F3 before production; F4/F5 hardening in the same PR.
 
 ## Open questions
 - none yet
