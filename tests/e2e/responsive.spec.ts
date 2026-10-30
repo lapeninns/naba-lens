@@ -331,6 +331,17 @@ async function tabTo(page: Page, name: RegExp, max = 60) {
   const visited: string[] = []
   for (let i = 0; i < max; i++) {
     await page.keyboard.press("Tab")
+    // Base UI focus guards pass focus on in the next animation frame; read
+    // focus once that has happened, as a person's next key press would.
+    await page.waitForFunction(
+      () => !document.activeElement?.hasAttribute("data-base-ui-focus-guard")
+    )
+    await page.evaluate(
+      () =>
+        new Promise((done) =>
+          requestAnimationFrame(() => requestAnimationFrame(done))
+        )
+    )
     const focused = await page.evaluate(() => {
       const el = document.activeElement as HTMLElement | null
       return (el?.getAttribute("aria-label") ?? el?.innerText ?? "").trim()
