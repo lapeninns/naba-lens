@@ -35,9 +35,9 @@ Stack is **stopped**. Integration needs `MAILPIT_URL` exported too when using en
   now calls `loadLibraryPage({ staff }, null)` from `/admin/staff/[A]` (as merge-plan.md asked).
 - `tests/e2e/library.spec.ts`: wrote the download fixture's original after the row was
   `ready`, which secfix's `guard_media_original_write` refuses (`media_reservation_closed`).
-  Now stored through `seedAsset({ original })` while still `uploading`.
+  Now stored through `seedAsset({ original })` while still `uploading`. After: 3/3 (load ~7).
 - `tests/e2e/gaps.spec.ts`: read the captured 15 s interval right after server-rendered text
-  appeared (before hydration); now `expect.poll`s it. Failed 1/1 cold, passed 3/3 warm before.
+  appeared (before hydration); now `expect.poll`s it. Before the fix: failed twice cold, then passed 3/3. After: 3/3 (load ~8).
 - `tests/e2e/negative.spec.ts`: the missing-original test now asserts the in-app alert.
 
 ## Status: done
