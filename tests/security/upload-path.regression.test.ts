@@ -8,7 +8,6 @@ import { execFileSync } from "node:child_process"
 import { beforeAll, describe, expect, it } from "vitest"
 
 import { MEDIA_LIMITS } from "../../lib/config/media"
-import { listMediaForUploader } from "../../lib/server/accounts/portfolio"
 import { runMediaCleanup } from "../../lib/server/lifecycle/cleanup"
 import { removeMediaAssetWith } from "../../lib/server/lifecycle/remove-media"
 import {
@@ -16,12 +15,13 @@ import {
   signDerivative,
   streamOriginal,
 } from "../../lib/server/media/access"
+import { listLibrary } from "../../lib/server/media/library"
 import { finaliseAsset } from "../../lib/server/media/finalise"
 import {
   reserveAsset,
   type ReserveRequest,
 } from "../../lib/server/media/reserve"
-import type { MediaActor } from "../../lib/server/media/types"
+import type { MediaActor, MediaItemView } from "../../lib/server/media/types"
 import { actorFor, newKey, syntheticJpeg } from "../slice/media-actor"
 import {
   createIdentity,
@@ -275,8 +275,9 @@ describe("upload path review: regressions (fixed behaviour)", () => {
       }
     }
 
-    // The admin portfolio (lib/server/accounts) signs derivatives only; a video
-    // plays through the authorised stream route, never a signed original.
+    // The admin portfolio (the library filtered to one staff member) links
+    // derivatives only through the authorised routes; a video plays through the
+    // stream route, never a signed original.
     const videoKey = newKey()
     const video = await A.client.rpc("reserve_media_asset", {
       p_media_type: "video",
@@ -288,13 +289,20 @@ describe("upload path review: regressions (fixed behaviour)", () => {
     if (video.error) throw video.error
     const videoId = video.data[0].id
     await markReady(admin, videoId, "video/mp4")
-    const page = await listMediaForUploader(
-      { caller: adminUser.client, service: admin },
-      A.id,
-      { limit: 100 }
-    )
-    expect(page.ok).toBe(true)
-    if (!page.ok) return
+    const items: MediaItemView[] = []
+    let cursor: string | null = null
+    do {
+      const page = await listLibrary(
+        actorAdmin,
+        { venueId: null, staffId: A.id, type: null },
+        cursor
+      )
+      expect(page.ok).toBe(true)
+      if (!page.ok) return
+      items.push(...page.items)
+      cursor = page.nextCursor
+    } while (cursor)
+    const page = { items }
     const urls = page.items.flatMap((i) => [i.thumbnailUrl, i.previewUrl])
     expect(urls.filter(Boolean).length).toBeGreaterThan(0)
     for (const url of urls)
