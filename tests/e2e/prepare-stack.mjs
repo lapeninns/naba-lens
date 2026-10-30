@@ -14,7 +14,8 @@ import { join, resolve } from "node:path"
 
 const APP_PORT = Number(process.env.E2E_PORT ?? 3457)
 const BLOCK = process.env.E2E_PORT_BLOCK ?? "583"
-if (!/^\d{3}$/.test(BLOCK) || BLOCK === "554") throw new Error("E2E_PORT_BLOCK must be three digits other than 554")
+if (!/^\d{3}$/.test(BLOCK) || BLOCK === "554")
+  throw new Error("E2E_PORT_BLOCK must be three digits other than 554")
 const workdir = resolve(
   process.argv[2] ?? join(tmpdir(), "nabalens-journey-stack")
 )

@@ -5,6 +5,7 @@ import { expect, test, type Page } from "@playwright/test"
 import { mailboxIds, SUBJECTS, waitForLink } from "./helpers/mailpit"
 import {
   sha256,
+  type SourceFile,
   supportedMp4,
   syntheticHeic,
   syntheticJpeg,
@@ -209,9 +210,10 @@ test.describe("release journey @core", () => {
     await expect(tile(library, "Photo", heic.name, attribution)).toBeVisible()
     await expect(tile(library, "Video", mp4.name)).toHaveCount(0)
 
-    // Preview, then open the contributor's portfolio from the viewer.
-    await tile(library, "Photo", jpeg.name).click()
+    // Preview in the library viewer, and download originals there: the bytes
+    // equal the uploaded sources (photos, then the video under "Videos").
     const viewer = adminB.getByRole("dialog")
+    await tile(library, "Photo", jpeg.name).click()
     const preview = viewer.getByRole("img", { name: `Photo ${jpeg.name}` })
     await expect
       .poll(() =>
@@ -221,25 +223,39 @@ test.describe("release journey @core", () => {
       )
       .toBeGreaterThan(0)
     await expect(viewer.getByText(venue1.name)).toBeVisible()
+    await adminB.keyboard.press("Escape")
+    await expect(viewer).toBeHidden()
+
+    const downloadFrom = async (kind: "Photo" | "Video", file: SourceFile) => {
+      await tile(library, kind, file.name).click()
+      const got = await downloadOriginal(adminB)
+      expect(got.name, file.name).toBe(file.name)
+      expect(got.sha256, file.name).toBe(file.sha256)
+      await adminB.keyboard.press("Escape")
+      await expect(viewer).toBeHidden()
+    }
+    await downloadFrom("Photo", jpeg)
+    await downloadFrom("Photo", heic)
+    await adminB
+      .getByRole("group", { name: "Media type" })
+      .getByRole("button", { name: "Videos" })
+      .click()
+    await expect(adminB).toHaveURL(/type=video/)
+    await expect(library.getByRole("button")).toHaveCount(1)
+    await downloadFrom("Video", mp4)
+
+    // Open the contributor's portfolio from the viewer.
+    await tile(library, "Video", mp4.name).click()
     await viewer.getByRole("link", { name: "Open portfolio" }).click()
     await expect(adminB).toHaveURL(new RegExp(`/admin/staff/${inviteeId}$`))
     await expect(
       adminB.getByRole("heading", { name: inviteeName })
     ).toBeVisible()
-
-    // Download originals from the portfolio: bytes equal the uploaded sources.
-    for (const [kind, file] of [
-      ["Photo", jpeg],
-      ["Photo", heic],
-      ["Video", mp4],
-    ] as const) {
-      await tile(adminB, kind, file.name).click()
-      const got = await downloadOriginal(adminB)
-      expect(got.name, file.name).toBe(file.name)
-      expect(got.sha256, file.name).toBe(file.sha256)
-      await adminB.keyboard.press("Escape")
-      await expect(adminB.getByRole("dialog")).toBeHidden()
-    }
+    await expect(
+      adminB
+        .getByRole("list", { name: `${inviteeName}'s portfolio` })
+        .getByRole("button")
+    ).toHaveCount(3)
 
     // --- Staff deletes their JPEG. Capture its grants first.
     const jpegId = idOf(jpeg.name)
