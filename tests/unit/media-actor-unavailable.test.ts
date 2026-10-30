@@ -56,6 +56,46 @@ describe("media actor when the profile read fails", () => {
     expect(res.headers.get("cache-control")).toBe("private, no-store")
   })
 
+  // Final review F6: the 503 used to swallow every cause without a trace.
+  it("logs the cause server-side without tokens, emails or signed URLs", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {})
+    getAuthState.mockRejectedValue(
+      new Error(
+        "fetch failed for staff.one@nabalens.test at http://127.0.0.1:54321/storage/v1/object/sign/media/a/b/original.jpg?token=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.c2ln with key sb_secret_N7UND0UgjKTVK-Uodkm0Hg"
+      )
+    )
+    try {
+      await expect(getMediaActor("staff")).resolves.toMatchObject({
+        status: 503,
+      })
+      expect(log).toHaveBeenCalledTimes(1)
+      const logged = JSON.stringify(log.mock.calls[0])
+      expect(logged).toContain("[media] account check failed")
+      expect(logged).toContain("Error: fetch failed for [email] at [url]")
+      for (const secret of [
+        "staff.one",
+        "nabalens.test",
+        "54321",
+        "token=",
+        "eyJ",
+        "sb_secret",
+        "N7UND0UgjKTVK",
+      ])
+        expect(logged).not.toContain(secret)
+
+      log.mockClear()
+      getAuthState.mockRejectedValue(
+        new Error("Could not load profile: PGRST205")
+      )
+      await getMediaActor("staff")
+      expect(JSON.stringify(log.mock.calls[0])).toContain(
+        "Error: Could not load profile: PGRST205"
+      )
+    } finally {
+      log.mockRestore()
+    }
+  })
+
   it("keeps real denials: signed out 401, inactive 403, non-admin download 404", async () => {
     getAuthState.mockResolvedValue({ status: "signed_out" })
     await expect(getMediaActor("staff")).resolves.toMatchObject({ status: 401 })
