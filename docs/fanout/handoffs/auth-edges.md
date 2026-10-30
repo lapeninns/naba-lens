@@ -72,6 +72,25 @@ replace `= 554xx` ports with `586xx`, set `[studio]`/`[realtime]` `enabled = fal
   `slice.spec.ts`, `staff-accounts.spec.ts`); `docs/architecture.md` and
   `docs/accounts.md` describe the Continue step.
 
+## Privacy audit R3 (staff got 200 on admin pages), fixed
+- **Cause:** `app/admin/loading.tsx` and `app/staff/loading.tsx` put each page in
+  a Suspense boundary, so Next flushed the shell with 200 before the page's
+  `requireActiveAdmin()`/`requireActiveStaff()` redirect; that redirect then
+  became a client-side meta redirect (Next 16 `redirect()` docs, streaming).
+- **Fix:** `app/admin/layout.tsx` and `app/staff/layout.tsx` run the same check
+  outside that boundary, so the response is a real 307 before any HTML. Pages,
+  Server Functions and routes keep their own checks (layouts do not re-render on
+  client navigation). `proxy.ts` stays optimistic (session only), as Next advises.
+- **Tests:** `tests/e2e/auth-guards.spec.ts` (raw HTTP, no redirect following):
+  staff → every admin page 307 `/staff`; admin → `/staff` 307 `/admin`;
+  no-profile and deactivated → 307 `/auth/blocked`; signed out → 307 `/login`;
+  bodies contain no app shell, skeleton, upload action or other people's names
+  or emails. 3 of 4 fail with 200 when the layouts are removed. Integration:
+  layouts redirect/allow per role (`auth-access`). Also checked under
+  `next start`: staff `/admin` 307 → `/staff`.
+- Next's redirect shell still carries the route's static `<title>` (e.g.
+  "Content · NabaLens"); a fixed string, also in the JS bundle, not data.
+
 ## Mobile staff-accounts flake (acceptance-map report), fixed
 - **Symptom:** after Deactivate on `/admin/staff/[id]`, the toast said
   "deactivated" but the header kept "Active" and the Deactivate button for 30 s+.

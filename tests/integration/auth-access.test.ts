@@ -12,6 +12,7 @@ vi.mock("next/headers", () =>
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }))
 
 import { deleteMedia } from "@/app/_media/actions"
+import AdminLayout from "@/app/admin/layout"
 import AdminPage from "@/app/admin/page"
 import { loadLibraryPage } from "@/app/admin/library-actions"
 import StaffDirectoryPage from "@/app/admin/staff/page"
@@ -33,6 +34,7 @@ import BlockedPage from "@/app/auth/blocked/page"
 import LoginPage from "@/app/login/page"
 import RootPage from "@/app/page"
 import { finaliseUpload, loadMyMedia, reserveUpload } from "@/app/staff/actions"
+import StaffLayout from "@/app/staff/layout"
 import StaffPage from "@/app/staff/page"
 import { getAuthState } from "@/lib/auth"
 import { proxy } from "@/proxy"
@@ -370,6 +372,52 @@ describe("inactive admin with a still-valid session", () => {
     expect(page.ok && page.page.items.some((i) => i.id === asset.assetId)).toBe(
       true
     )
+  })
+})
+
+describe("segment layouts reject before anything renders (privacy R3)", () => {
+  const children = "CHILD"
+  it("admin layout sends staff to /staff and lets admins through", async () => {
+    expect(
+      (
+        await staff.browser.run(() =>
+          redirectOf(() => AdminLayout({ children }))
+        )
+      ).location
+    ).toBe("/staff")
+    expect(
+      (
+        await admin.browser.run(() =>
+          redirectOf(() => AdminLayout({ children }))
+        )
+      ).value
+    ).toBe(children)
+  })
+
+  it("staff layout sends admins to /admin and lets staff through", async () => {
+    expect(
+      (
+        await admin.browser.run(() =>
+          redirectOf(() => StaffLayout({ children }))
+        )
+      ).location
+    ).toBe("/admin")
+    expect(
+      (
+        await staff.browser.run(() =>
+          redirectOf(() => StaffLayout({ children }))
+        )
+      ).value
+    ).toBe(children)
+  })
+
+  it("signed-out browsers go to /login from both", async () => {
+    const anon = new Browser("anon")
+    for (const layout of [AdminLayout, StaffLayout]) {
+      expect(
+        (await anon.run(() => redirectOf(() => layout({ children })))).location
+      ).toBe("/login")
+    }
   })
 })
 
