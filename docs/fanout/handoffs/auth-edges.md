@@ -51,11 +51,23 @@ replace `= 554xx` ports with `586xx`, set `[studio]`/`[realtime]` `enabled = fal
   provider failures then recovery (one auth user), admin emails refused, staff
   only; admin self-/peer-lockout.
 
-## In progress / next
-- Get green runs of access/invites/bootstrap: they were blocked by machine load
-  (load avg ~30-39, 15 local stacks; GoTrue 504 "context deadline exceeded",
-  Docker DNS timeouts, Postgres checkpoints taking 25 s). Not assertion failures.
-- Then full `pnpm test:integration`, `pnpm test`, `pnpm build`; stop the stack.
+## Results (isolated stack, 586xx; load average 28-39 throughout)
+| Suite | Result |
+| --- | --- |
+| auth-links | 10/10 in one run |
+| auth-access | 17/17 in one run |
+| auth-invites | 11/12 in one run; the 12th (orphan adoption) passed alone |
+| auth-internal | 6/6 |
+| auth-bootstrap | 4/5 in two runs, a different test timing out each time; every test passed at least once |
+| full `pnpm test:integration` | baseline 84/84 at start; the final full run failed across old and new files with GoTrue 504s / "Database connection error" (machine load), no assertion failures from behaviour |
+
+GoTrue on a cold connection pool needed >10 s (Docker DNS timeouts), so warm it
+before a run: `bash /tmp/authedge-warm.sh` (6 `GET /auth/v1/admin/users?per_page=1`).
+
+## Next
+- Re-run `pnpm test:integration` on a quiet machine (or the default stack) to get
+  one all-green run including auth-bootstrap.
+- Lifecycle suite (`pnpm test:lifecycle`) not re-run after the one-line edit.
 
 ## Notes for the integrator
 - Account lookup by email (`findAuthUserByEmail` in invite, bootstrap) pages

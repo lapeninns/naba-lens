@@ -266,12 +266,13 @@ describe("invitations", { timeout: 60_000 }, () => {
           data: { user: null },
           error: { code: "unexpected_failure", message: "down", status: 500 },
         }) as never
-      await inviteStaff(ctx({ service: failing }), {
+      const result = await inviteStaff(ctx({ service: failing }), {
         displayName: "TEST Orphan",
         email,
         jobTitle: null,
         venueId: venue.id,
       })
+      expect(result).toMatchObject({ status: "error", code: "database_failed" })
       expect(authUserCount(email)).toBe(1)
       const orphanId = await idOf(email)
 
