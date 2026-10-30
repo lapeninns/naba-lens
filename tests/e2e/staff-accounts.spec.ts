@@ -143,7 +143,22 @@ test.describe("admin staff management", () => {
       .getByRole("button", { name: "Deactivate" })
       .click()
     await expect(adminPage.getByText(/is deactivated/)).toBeVisible()
-    await expect(adminPage.getByText("Inactive", { exact: true })).toBeVisible()
+    // The header follows the confirmed result at once; it must not wait for the
+    // page re-render, which took over 30 s on a loaded machine (mobile run).
+    const fast = { timeout: 5_000 }
+    await expect(adminPage.getByText("Inactive", { exact: true })).toBeVisible(
+      fast
+    )
+    await expect(adminPage.getByText("Active", { exact: true })).toHaveCount(
+      0,
+      fast
+    )
+    await expect(
+      adminPage.getByRole("button", { name: "Reactivate" })
+    ).toBeVisible(fast)
+    await expect(
+      adminPage.getByRole("button", { name: "Deactivate" })
+    ).toHaveCount(0, fast)
 
     // The staff member's existing session is refused on its next request.
     await staffPage.goto("/staff")
@@ -152,6 +167,9 @@ test.describe("admin staff management", () => {
     // Reactivation restores access with a fresh sign-in.
     await adminPage.getByRole("button", { name: "Reactivate" }).click()
     await expect(adminPage.getByText(/can sign in again/)).toBeVisible()
+    await expect(adminPage.getByText("Active", { exact: true })).toBeVisible(
+      fast
+    )
     await staffContext.clearCookies()
     await signInAs(staffPage, email)
     await expect(staffPage).toHaveURL(/\/staff$/)

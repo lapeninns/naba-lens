@@ -116,6 +116,38 @@ export function useAccountControls({
   const [deactivateError, setDeactivateError] = React.useState<string | null>(
     null
   )
+  // Statuses the server has confirmed, keyed by account, with the server props
+  // object they apply to. The action's own re-render of the page can arrive long
+  // after its result (it re-reads Auth, media and venues: over 30 s on a loaded
+  // host), so the header and buttons must not wait for it. Any server render
+  // brings new props objects, and fresh props always win.
+  const [confirmed, setConfirmed] = React.useState<
+    Record<string, { status: StaffMember["status"]; basis: StaffMember }>
+  >({})
+  // Copies made by withConfirmedStatus -> the props object they came from.
+  const basisOf = React.useRef(new WeakMap<StaffMember, StaffMember>())
+
+  function confirmStatus(member: StaffMember, status?: StaffMember["status"]) {
+    if (status) {
+      const basis = basisOf.current.get(member) ?? member
+      setConfirmed((current) => ({
+        ...current,
+        [member.id]: { status, basis },
+      }))
+    }
+    router.refresh()
+  }
+
+  /** The member as rendered from props, with a status the server confirmed since. */
+  function withConfirmedStatus(member: StaffMember): StaffMember {
+    const entry = confirmed[member.id]
+    if (!entry || entry.basis !== member || entry.status === member.status) {
+      return member
+    }
+    const shown = { ...member, status: entry.status }
+    basisOf.current.set(shown, member)
+    return shown
+  }
 
   async function resend(member: StaffMember) {
     setNotice(null)
@@ -133,6 +165,7 @@ export function useAccountControls({
   async function reactivate(member: StaffMember) {
     setNotice(null)
     const result = await setStaffActiveAction(member.id, true)
+    if (result.ok) confirmStatus(member, result.status)
     setNotice(
       result.ok
         ? {
@@ -161,6 +194,7 @@ export function useAccountControls({
         setDeactivateError(result.error)
         return
       }
+      confirmStatus(deactivating, result.status)
       setNotice({
         tone: result.warning ? "warning" : "success",
         text:
@@ -191,6 +225,7 @@ export function useAccountControls({
         ...(values.active !== undefined ? { active: values.active } : {}),
       })
       if (result.ok) {
+        if (result.status) confirmStatus(member, result.status)
         setNotice({
           tone: result.warning ? "warning" : "success",
           text: result.warning ?? `Saved ${values.displayName}.`,
@@ -274,6 +309,7 @@ export function useAccountControls({
     edit: (member: StaffMember) => setEditing(member),
     resend,
     setActive,
+    withConfirmedStatus,
     dialogs,
   }
 }

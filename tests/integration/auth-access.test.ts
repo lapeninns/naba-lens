@@ -19,7 +19,6 @@ import StaffPortfolioPage from "@/app/admin/staff/[id]/page"
 import { POST as adminAvatarPost } from "@/app/admin/staff/[id]/avatar/route"
 import {
   inviteStaffAction,
-  loadMorePortfolioAction,
   resendInvitationAction,
   setStaffActiveAction,
   updateStaffAccountAction,
@@ -291,9 +290,9 @@ describe("inactive admin with a still-valid session", () => {
     expect((await run(() => setStaffActiveAction(staff.id, false))).ok).toBe(
       false
     )
-    expect((await run(() => loadMorePortfolioAction(staff.id, null))).ok).toBe(
-      false
-    )
+    expect(
+      (await run(() => loadLibraryPage({ staff: staff.id }, null))).ok
+    ).toBe(false)
     expect((await run(() => deleteMedia(asset.assetId))).ok).toBe(false)
 
     expect(await profileRow(staff.id)).toEqual(before)
@@ -575,9 +574,9 @@ describe("staff venue states", () => {
       expect(sha256(await bodyBytes(dl))).toBe(sha256(retained.bytes))
 
       const portfolio = await admin.browser.run(() =>
-        loadMorePortfolioAction(worker.id, null)
+        loadLibraryPage({ staff: worker.id }, null)
       )
-      expect(portfolio.ok && portfolio.items.map((i) => i.id)).toEqual([
+      expect(portfolio.ok && portfolio.page.items.map((i) => i.id)).toEqual([
         retained.assetId,
       ])
     })
@@ -672,7 +671,7 @@ describe("profile reads", () => {
       expect((await run(() => redirectOf(page))).location).toBe("/staff")
     }
     expect(
-      (await run(() => loadMorePortfolioAction(otherStaff.id, null))).ok
+      (await run(() => loadLibraryPage({ staff: otherStaff.id }, null))).ok
     ).toBe(false)
     expect((await run(() => loadLibraryPage({}, null))).ok).toBe(false)
     expect(

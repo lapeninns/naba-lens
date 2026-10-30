@@ -72,6 +72,42 @@ replace `= 554xx` ports with `586xx`, set `[studio]`/`[realtime]` `enabled = fal
   `slice.spec.ts`, `staff-accounts.spec.ts`); `docs/architecture.md` and
   `docs/accounts.md` describe the Continue step.
 
+## Mobile staff-accounts flake (acceptance-map report), fixed
+- **Symptom:** after Deactivate on `/admin/staff/[id]`, the toast said
+  "deactivated" but the header kept "Active" and the Deactivate button for 30 s+.
+- **Root cause:** the header's status and buttons came only from server props,
+  which update only when the action's in-roundtrip re-render of the page
+  arrives. The action's result (and so the toast) resolves before that streamed
+  re-render. The re-render re-reads Auth (`getUserById`), the portfolio,
+  signed URLs and venues, and under load GoTrue alone took 10 s+ per call.
+  Nothing mobile-specific: mobile ran when the machine was busiest. Reproduced by
+  delaying that re-render 40 s (temporary, uncommitted): the toast assertion
+  passed and the header assertion timed out, exactly as reported.
+- **Fix:** `setStaffActive` / the action return the new `status` (`inactive`;
+  reactivation gives `active` or `invited` from the unbanned user's last
+  sign-in). `useAccountControls().withConfirmedStatus` shows it for that member
+  while the page still holds the same props object, then fresh props win; it also
+  calls `router.refresh()`. Used by `AccountHeader` and the staff directory.
+- **Guards:** `tests/ui/account-header.test.tsx` (props never change; 3 of 4
+  fail with the fix disabled); the e2e checks the header within 5 s (Inactive,
+  Reactivate, no Active/Deactivate), and passed with the 40 s delay in place;
+  integration checks the returned status.
+- **Merged `feat/nabalens-mvp` (a964290) into this branch** to fix the real
+  integrated code. Follow-ups from the merge: `loadMorePortfolioAction` usage in
+  auth-access → `loadLibraryPage({ staff })`; Continue click in
+  `tests/e2e/gaps.spec.ts` and `tests/library/e2e.ts`; `/auth/confirm` page +
+  `/auth/confirm/verify` in `tests/unit/scope-guard.test.ts`; exact
+  `{ ok: true }` results in `tests/integration/staff-accounts.test.ts`.
+- **Not mine, still failing on `feat/nabalens-mvp`:**
+  `tests/integration/gaps-profile-origin.test.ts` "/api/profile refuses a
+  cross-origin POST" — the GAP-11 test is merged but `/api/profile` has no
+  Origin check yet (review finding #7); a cross-origin POST renames the profile.
+
+Results after this fix (isolated stack, load ~4-13): `pnpm test` 16 files / 128
+passed; `pnpm test:integration` 171 passed, 1 failed (the GAP-11 test above),
+11 skipped; `pnpm test:e2e` 31 passed, 1 skipped; mobile staff-accounts spec 3/3;
+typecheck, lint, build pass.
+
 ## Results after finding #8 (isolated stack, 586xx, load ~18)
 `pnpm test:integration` 12 files / 138 passed (all-green, incl. auth-bootstrap
 5/5); `pnpm test:e2e` (E2E_PORT=3586) 18 passed; `pnpm test` 102 passed;

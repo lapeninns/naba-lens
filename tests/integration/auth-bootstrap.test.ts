@@ -184,7 +184,7 @@ describe("scripts/bootstrap-admin.ts", { timeout: 90_000 }, () => {
     const off = await adminBrowser.run(() =>
       setStaffActiveAction(user.id, false)
     )
-    expect(off).toEqual({ ok: true })
+    expect(off).toEqual({ ok: true, status: "inactive" })
     expect((await signInAndLand(user.email)).landed).toBe(
       "/login?error=link_invalid"
     )

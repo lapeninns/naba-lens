@@ -284,6 +284,28 @@ describe("invitations", { timeout: 60_000 }, () => {
     })
   })
 
+  it("activation changes report the new status for the admin UI", async () => {
+    const email = testEmail("inv-status")
+    expect(await invite(email)).toEqual({ status: "sent" })
+    const id = await idOf(email)
+    const run = <T>(fn: () => Promise<T>) => admin.browser.run(fn)
+    expect(await run(() => setStaffActiveAction(id, false))).toEqual({
+      ok: true,
+      status: "inactive",
+    })
+    // Never signed in: back to Invited, so "Resend invitation" applies again.
+    expect(await run(() => setStaffActiveAction(id, true))).toEqual({
+      ok: true,
+      status: "invited",
+    })
+    expect(
+      await run(() => updateStaffAccountAction(id, { active: false }))
+    ).toEqual({ ok: true, status: "inactive" })
+    expect(
+      await run(() => updateStaffAccountAction(id, { jobTitle: "Chef" }))
+    ).toEqual({ ok: true })
+  })
+
   it("an email that belongs to an admin is refused, and the admin is untouched", async () => {
     const other = await createIdentity(service, {
       label: "inv-other-admin",
