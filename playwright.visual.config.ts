@@ -2,6 +2,9 @@ import { defineConfig, devices } from "@playwright/test"
 
 import { getLocalSupabaseEnv } from "./tests/support/local-supabase"
 
+// The spec skips itself under the default e2e config (next dev, long run).
+process.env.NABALENS_VISUAL = "1"
+
 const PORT = Number(process.env.VISUAL_PORT ?? 3517)
 const baseURL = `http://127.0.0.1:${PORT}`
 const supabase = getLocalSupabaseEnv()

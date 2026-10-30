@@ -48,6 +48,11 @@ const HEIGHT: Record<number, number> = {
 const PHONE_MAX = 480
 const MIN_TOUCH = 44
 
+test.skip(
+  !process.env.NABALENS_VISUAL,
+  "Visual pass runs with `pnpm test:visual <workdir>` (production build)."
+)
+
 const db = serviceClient()
 let fx: VisualFixtures
 
