@@ -28,7 +28,7 @@ describe("/auth/confirm/verify origin check (final review F7)", () => {
         origin: "https://nabalens.example",
       },
       { host: "NabaLens.Example", origin: "https://nabalens.example" },
-    ]) {
+    ] as Record<string, string>[]) {
       const res = await post(headers)
       expect(res.status).toBe(303)
       expect(res.headers.get("location")).toBe("/login?error=link_invalid")
@@ -42,7 +42,7 @@ describe("/auth/confirm/verify origin check (final review F7)", () => {
       { host: "nabalens.example", "sec-fetch-site": "same-site" },
       { host: "nabalens.example", origin: "https://evil.example" },
       { host: "nabalens.example", origin: "null" },
-    ]) {
+    ] as Record<string, string>[]) {
       expect((await post(headers)).status).toBe(403)
     }
   })
