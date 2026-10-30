@@ -34,18 +34,41 @@ correctness tests; verified download/sign headers.
      combinations including cleared; empty results; filters on every page;
      ready/non-deleted only; TTL override; expired link fails and re-sign works;
      deleted asset gets no new link; original headers.
-   - `tests/ui/library-gallery.test.tsx` (8): URL round-trip for every filter
+   - `tests/ui/library-gallery.test.tsx` (10): URL round-trip for every filter
      combination; invalid params dropped; recovery (one re-fetch, then visible
-     error, Try again, refresh retry) in grid and viewer; 15 s refresh pauses when
-     hidden and fires on visibility/focus.
+     error, Try again, refresh retry) in grid and viewer; pre-hydration failures;
+     one count per URL version; 15 s refresh pauses when hidden and fires on
+     visibility/focus.
+   - `tests/e2e/library.spec.ts` (3 x mobile/desktop): filters via UI and URL,
+     paging under filters, clear, empty result, reload round-trip; refresh hidden /
+     visible / interval / focus (Playwright clock); previews after link expiry in the
+     staff portfolio and the admin portfolio, retry-once and visible error with Try
+     again, download/thumb/preview headers, admin delete, no `/_next/image` requests.
+   - `tests/unit/no-image-optimiser.test.ts`: no `next/image` in app/components/lib,
+     no remote image patterns.
+4. **Bugs found by the e2e and fixed.** A server-rendered thumbnail that failed
+   before hydration never reached React's `onError`, so it stayed blank with no
+   message. The gallery now scans for complete-but-empty images on mount, and
+   counts each `?r=` version's failure once. Without that, the scan and a late
+   event double-counted on mobile.
    - `tests/library/seed.ts`: seeds ready assets with chosen `created_at`/`id`
      and real WebP derivatives; `setupIdentity` retries only auth 504s in setup.
    - `tests/library/prepare-stack.mjs`: isolated stack `nabalens-library` (579xx),
      studio/realtime/analytics/edge runtime disabled.
 
-## In progress / next
+## Status
 
-See the bottom of this file (updated at each milestone).
+Complete. Final results on `nabalens-library` (579xx) are in the branch's final
+handoff message. Nothing is in progress.
+
+Next steps for the integrator:
+
+- Merge. The only edits outside this track's paths are `components/nabalens/media-viewer.tsx`
+  (3 lines, ui) and `tests/integration/staff-accounts.test.ts` (accounts tests moved
+  to `listLibrary`).
+- The `uploads` track must keep `MediaGallery`'s `refreshSignal` / `loadPage` API.
+  This branch did not touch `use-media-uploader.ts`, `reserve.ts`, `finalise.ts` or
+  `lib/upload/**`.
 
 ## Run the stack and tests
 

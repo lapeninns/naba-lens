@@ -56,7 +56,14 @@ Originals are proxied rather than served from signed storage URLs. Measured on t
 stack: storage serves the uploader-supplied Content-Type and sends no `nosniff` header, which
 `docs/media-pipeline.md` forbids for originals. Gallery tiles use the stable route URLs, so
 lazy-loaded thumbnails never hold expired signatures. No private media goes through
-`next/image`.
+`next/image` (guarded by `tests/unit/no-image-optimiser.test.ts`).
+
+Signed-link expiry: new links last `signedUrlTtlSeconds()` (60 s;
+`NABALENS_SIGNED_URL_TTL_SECONDS` can only shorten it, for tests). An open gallery recovers
+without a reload (`app/_media/preview-recovery.ts`): a failed thumbnail, preview or video load
+is re-requested once with a `?r=` marker, which re-authorises and re-signs; a second failure
+shows "N previews could not load." with Try again; each foreground refresh retries broken
+previews once. Images that failed before hydration are detected on mount.
 
 ## Pages
 
@@ -69,9 +76,12 @@ lazy-loaded thumbnails never hold expired signatures. No private media goes thro
   - Cursor pages of 24.
   - Refreshes every 15 s while the tab is visible, and on focus.
   - Viewer shows contributor, venue at upload and date, with download, an "Open portfolio"
-    link to `/admin/staff/{id}` (accounts track) and delete.
+    link to `/admin/staff/{id}` and delete.
+- `/admin/staff/[id]`: the accounts track's profile header and controls, then the admin
+  library filtered to that person (`listLibrary(actor, { staffId })`) in the same
+  `MediaGallery`: preview, download, delete and the 15 s refresh.
 - Shared client pieces are in `app/_media/`:
-  - `MediaGallery` is reusable for `/admin/staff/[id]`, with
+  - `MediaGallery`, used by all three pages; `/admin/staff/[id]` pages with
     `loadLibraryPage({ staff: id }, cursor)` from `app/admin/library-actions.ts`.
   - `useMediaUploader`.
   - `deleteMedia`, which calls lifecycle's `removeMediaAsset` after the spec's
