@@ -1,0 +1,2065 @@
+{
+  "format": "nabalens-menu@1",
+  "title": "The Railway food (DEV FIXTURE)",
+  "source": {
+    "label": "venues/LapenInnsLP/data/menus/the-railway.json",
+    "revision": "78a0719",
+    "capturedAt": "2026-10-21T17:23:43+01:00",
+    "notes": "DEV FIXTURE converted 2026-10-30 from venues/LapenInnsLP/data/menus/the-railway.json sha256 a997109ecb68977b095d8ccd0a573b3c5078de62d15726cab18d5000ddaca41c; menuUpdated 2026-05-06; not proof the venue currently serves these items; prices/labels are source metadata"
+  },
+  "sections": [
+    {
+      "key": "house-special",
+      "name": "House Special",
+      "kind": "food",
+      "items": [
+        {
+          "key": "house-special--railway-lamb-flame-sizzler",
+          "name": "Railway Lamb Flame Sizzler",
+          "description": "Slow-cooked lamb with homemade spices and white wine, finished over the flame and served sizzling.",
+          "aliases": [],
+          "variants": [
+            "Lamb"
+          ],
+          "meta": {
+            "labels": [
+              "spice-2"
+            ],
+            "note": "Not available as a meal deal",
+            "badge": "Premium Pick",
+            "variantPrices": [
+              "15.95"
+            ],
+            "sectionSubtitle": "Only at The Railway"
+          }
+        }
+      ]
+    },
+    {
+      "key": "appetisers",
+      "name": "Appetisers",
+      "kind": "food",
+      "items": [
+        {
+          "key": "appetisers--mixed-platter",
+          "name": "Mixed Platter",
+          "description": "Includes onion bhaji, chicken tikka, seekh kebab",
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "7.50",
+            "labels": [
+              "spice-1"
+            ],
+            "badge": "Perfect for Sharing",
+            "sectionSubtitle": "Sharers, snacks and Nepalese favourites"
+          }
+        },
+        {
+          "key": "appetisers--veg-platter",
+          "name": "Veg Platter",
+          "description": "includes onion bhaji, veg samosa, onion rings and gobi pakora",
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "7.00",
+            "labels": [
+              "veg",
+              "spice-1"
+            ],
+            "sectionSubtitle": "Sharers, snacks and Nepalese favourites"
+          }
+        },
+        {
+          "key": "appetisers--onion-bhaji",
+          "name": "Onion Bhaji",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "4.25",
+            "labels": [
+              "veg",
+              "GF"
+            ],
+            "sectionSubtitle": "Sharers, snacks and Nepalese favourites"
+          }
+        },
+        {
+          "key": "appetisers--samosas-veg-meat",
+          "name": "Samosas (Veg/Meat)",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "4.50",
+            "sectionSubtitle": "Sharers, snacks and Nepalese favourites"
+          }
+        },
+        {
+          "key": "appetisers--spring-roll",
+          "name": "Spring Roll",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "4.50",
+            "labels": [
+              "veg"
+            ],
+            "sectionSubtitle": "Sharers, snacks and Nepalese favourites"
+          }
+        },
+        {
+          "key": "appetisers--duck-spring-roll",
+          "name": "Duck Spring Roll",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "5.00",
+            "sectionSubtitle": "Sharers, snacks and Nepalese favourites"
+          }
+        },
+        {
+          "key": "appetisers--samosa-chaat",
+          "name": "Samosa Chaat",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "6.25",
+            "labels": [
+              "veg"
+            ],
+            "sectionSubtitle": "Sharers, snacks and Nepalese favourites"
+          }
+        },
+        {
+          "key": "appetisers--momo-veg-chicken",
+          "name": "Momo",
+          "description": null,
+          "aliases": [],
+          "variants": [
+            "Veg",
+            "Chicken"
+          ],
+          "meta": {
+            "price": "6.25/7.25",
+            "variantPrices": [
+              "6.25",
+              "7.25"
+            ],
+            "sectionSubtitle": "Sharers, snacks and Nepalese favourites"
+          }
+        },
+        {
+          "key": "appetisers--lamb-sekuwa",
+          "name": "Lamb Sekuwa",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "7.50",
+            "labels": [
+              "GF",
+              "spice-1"
+            ],
+            "sectionSubtitle": "Sharers, snacks and Nepalese favourites"
+          }
+        },
+        {
+          "key": "appetisers--chilli-mogo",
+          "name": "Chilli Mogo",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "5.25",
+            "labels": [
+              "veg",
+              "GF",
+              "spice-2"
+            ],
+            "sectionSubtitle": "Sharers, snacks and Nepalese favourites"
+          }
+        },
+        {
+          "key": "appetisers--chilli-paneer",
+          "name": "Chilli Paneer",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "6.25",
+            "labels": [
+              "veg",
+              "GF",
+              "spice-2"
+            ],
+            "sectionSubtitle": "Sharers, snacks and Nepalese favourites"
+          }
+        },
+        {
+          "key": "appetisers--garlic-mushroom",
+          "name": "Garlic Mushroom",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "5.75",
+            "labels": [
+              "veg",
+              "GF"
+            ],
+            "sectionSubtitle": "Sharers, snacks and Nepalese favourites"
+          }
+        },
+        {
+          "key": "appetisers--chicken-wings",
+          "name": "Chicken Wings",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "6.75",
+            "labels": [
+              "GF",
+              "spice-1"
+            ],
+            "sectionSubtitle": "Sharers, snacks and Nepalese favourites"
+          }
+        },
+        {
+          "key": "appetisers--crispy-hot-wings",
+          "name": "Crispy Hot Wings",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "7.25",
+            "labels": [
+              "GF",
+              "spice-2"
+            ],
+            "badge": "Popular",
+            "sectionSubtitle": "Sharers, snacks and Nepalese favourites"
+          }
+        },
+        {
+          "key": "appetisers--chicken-tikka",
+          "name": "Chicken Tikka",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "7.50",
+            "labels": [
+              "GF",
+              "spice-1"
+            ],
+            "sectionSubtitle": "Sharers, snacks and Nepalese favourites"
+          }
+        },
+        {
+          "key": "appetisers--chicken-pakora",
+          "name": "Chicken Pakora",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "7.00",
+            "labels": [
+              "GF"
+            ],
+            "sectionSubtitle": "Sharers, snacks and Nepalese favourites"
+          }
+        },
+        {
+          "key": "appetisers--chilli-chicken",
+          "name": "Chilli Chicken",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "7.50",
+            "labels": [
+              "GF",
+              "spice-2"
+            ],
+            "sectionSubtitle": "Sharers, snacks and Nepalese favourites"
+          }
+        },
+        {
+          "key": "appetisers--sheek-kebab",
+          "name": "Sheek Kebab",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "7.50",
+            "labels": [
+              "GF",
+              "spice-1"
+            ],
+            "sectionSubtitle": "Sharers, snacks and Nepalese favourites"
+          }
+        },
+        {
+          "key": "appetisers--lamb-chops",
+          "name": "Lamb Chops",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "8.25",
+            "labels": [
+              "GF",
+              "spice-1"
+            ],
+            "badge": "Chef's Pick",
+            "sectionSubtitle": "Sharers, snacks and Nepalese favourites"
+          }
+        },
+        {
+          "key": "appetisers--fish-pakora",
+          "name": "Fish Pakora",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "6.75",
+            "labels": [
+              "GF"
+            ],
+            "sectionSubtitle": "Sharers, snacks and Nepalese favourites"
+          }
+        },
+        {
+          "key": "appetisers--garlic-chilli-king-prawn",
+          "name": "Garlic Chilli King Prawn",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "8.50",
+            "labels": [
+              "GF",
+              "spice-2"
+            ],
+            "sectionSubtitle": "Sharers, snacks and Nepalese favourites"
+          }
+        },
+        {
+          "key": "appetisers--crispy-squid",
+          "name": "Crispy Squid",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "6.50",
+            "sectionSubtitle": "Sharers, snacks and Nepalese favourites"
+          }
+        }
+      ]
+    },
+    {
+      "key": "chefs-specials",
+      "name": "Chef's Specials",
+      "kind": "food",
+      "items": [
+        {
+          "key": "chefs-specials--himali-lamb",
+          "name": "Himali Lamb",
+          "description": "Green curry seasoned with Himalayan salt and yoghurt blend with fresh mint, green chilli and Nepalese spice",
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "14.00",
+            "labels": [
+              "GF",
+              "spice-1"
+            ],
+            "note": "Excellent with pilau rice.",
+            "badge": "Chef Recommends",
+            "sectionSubtitle": "Our signature Himalayan creations"
+          }
+        },
+        {
+          "key": "chefs-specials--aloo-bodi-tama",
+          "name": "Aloo Bodi Tama",
+          "description": "Potato, beans and bamboo shoots cooked with aromatic Nepalese spices.",
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "12.00",
+            "labels": [
+              "veg",
+              "GF",
+              "spice-1"
+            ],
+            "badge": "New",
+            "sectionSubtitle": "Our signature Himalayan creations"
+          }
+        },
+        {
+          "key": "chefs-specials--bhutuwa-chicken-lamb",
+          "name": "Bhutuwa",
+          "description": "Traditional Nepalese speciality cooked with dried crushed chilli and crushed garlic",
+          "aliases": [],
+          "variants": [
+            "Chicken",
+            "Lamb"
+          ],
+          "meta": {
+            "price": "13.00 / 14.00",
+            "labels": [
+              "GF",
+              "spice-1"
+            ],
+            "variantPrices": [
+              "13.00",
+              "14.00"
+            ],
+            "sectionSubtitle": "Our signature Himalayan creations"
+          }
+        },
+        {
+          "key": "chefs-specials--special-butter-chicken",
+          "name": "Special Butter Chicken",
+          "description": "One butter chicken is irresistibility creamy with methi flavour and a hint of chilli. Fancy a mild one? Let us know.",
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "14.00",
+            "labels": [
+              "GF",
+              "spice-1"
+            ],
+            "badge": "Guest Favourite",
+            "sectionSubtitle": "Our signature Himalayan creations"
+          }
+        },
+        {
+          "key": "chefs-specials--lasun-kukhura-khursani-lkk-chicken-llk-lamb",
+          "name": "Lasun Kukhura Khursani",
+          "description": "Tender pieces of chicken or lamb cooked with garlic, crushed chilli, spring onions, fresh cream in the chef's special Nepalese sauce",
+          "aliases": [],
+          "variants": [
+            "LKK (Chicken)",
+            "LLK (Lamb)"
+          ],
+          "meta": {
+            "price": "13.00 / 14.00",
+            "labels": [
+              "GF",
+              "spice-1"
+            ],
+            "variantPrices": [
+              "13.00",
+              "14.00"
+            ],
+            "sectionSubtitle": "Our signature Himalayan creations"
+          }
+        },
+        {
+          "key": "chefs-specials--khasi-ko-masu",
+          "name": "Khasi Ko Masu",
+          "description": "A rich and flavoursome slow cooked goat on the bone/off the bone with unique blend of Nepalese spices",
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "14.50",
+            "labels": [
+              "GF",
+              "spice-1"
+            ],
+            "sectionSubtitle": "Our signature Himalayan creations"
+          }
+        },
+        {
+          "key": "chefs-specials--pokhareli-fish-curry",
+          "name": "Pokhareli Fish Curry",
+          "description": "Another traditional flavourful curry with a hint of mustard, coconut milk, exhilarating",
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "15.00",
+            "labels": [
+              "GF",
+              "spice-1"
+            ],
+            "sectionSubtitle": "Our signature Himalayan creations"
+          }
+        },
+        {
+          "key": "chefs-specials--chicken-rum-rum",
+          "name": "Chicken Rum Rum",
+          "description": "Must try Nepalese dish. Chicken cooked with himalayan herbs, nepalese black peppers (timur)",
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "14.00",
+            "labels": [
+              "GF",
+              "spice-1"
+            ],
+            "sectionSubtitle": "Our signature Himalayan creations"
+          }
+        },
+        {
+          "key": "chefs-specials--rara-king-prawn",
+          "name": "Rara King Prawn",
+          "description": "King prawn cooked in coconut based medium sauce with blend of Nepalese spices, tarmind and mustard",
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "16.00",
+            "labels": [
+              "GF"
+            ],
+            "note": "Best with special rice.",
+            "badge": "Signature",
+            "sectionSubtitle": "Our signature Himalayan creations"
+          }
+        },
+        {
+          "key": "chefs-specials--kathmandu-tikka-masala",
+          "name": "Kathmandu Tikka Masala",
+          "description": "Absolutely delicious and succulent, this chicken dish is to die for or shall we say to live for!",
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "14.00",
+            "labels": [
+              "GF"
+            ],
+            "sectionSubtitle": "Our signature Himalayan creations"
+          }
+        },
+        {
+          "key": "chefs-specials--sherpali-chicken",
+          "name": "Sherpali Chicken",
+          "description": "A warming Nepalese chicken curry finished with aromatic spices (jimbu) and chef's special herbs.",
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "14.00",
+            "labels": [
+              "GF",
+              "spice-1"
+            ],
+            "badge": "New",
+            "sectionSubtitle": "Our signature Himalayan creations"
+          }
+        },
+        {
+          "key": "chefs-specials--akabare-chicken",
+          "name": "Akabare Chicken",
+          "description": "Chicken cooked with fiery akabare chilli, bold Nepalese spices and a hot warming finish.",
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "14.00",
+            "labels": [
+              "GF",
+              "spice-2"
+            ],
+            "badge": "New",
+            "sectionSubtitle": "Our signature Himalayan creations"
+          }
+        }
+      ]
+    },
+    {
+      "key": "clay-oven",
+      "name": "From the Clay Oven",
+      "kind": "food",
+      "items": [
+        {
+          "key": "clay-oven--kathmandu-tikka",
+          "name": "Kathmandu Tikka",
+          "description": "Succulent chicken breast cubes marinated in cheese and cream with a hint of crushed black peppers",
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "14.00",
+            "labels": [
+              "GF",
+              "dry"
+            ],
+            "badge": "Served in Grill",
+            "sectionSubtitle": "Sizzling dry tandoori dishes"
+          }
+        },
+        {
+          "key": "clay-oven--rack-of-lamb",
+          "name": "Rack of Lamb",
+          "description": "Lamb chops marinated overnight for extra softness and tenderness, cooked in tandoor",
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "15.50",
+            "labels": [
+              "GF",
+              "dry",
+              "spice-1"
+            ],
+            "badge": "Signature",
+            "sectionSubtitle": "Sizzling dry tandoori dishes"
+          }
+        },
+        {
+          "key": "clay-oven--paneer-saslick",
+          "name": "Paneer Saslick",
+          "description": "Soft cheese cooked in tandoor oven, served in sizzler with onion and peppers",
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "13.00",
+            "labels": [
+              "veg",
+              "GF",
+              "dry",
+              "spice-1"
+            ],
+            "sectionSubtitle": "Sizzling dry tandoori dishes"
+          }
+        },
+        {
+          "key": "clay-oven--salmon-tikka",
+          "name": "Salmon Tikka",
+          "description": "Pieces of salmon flavoured with cumin seeds and chargrilled in tandoor",
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "18.00",
+            "labels": [
+              "GF",
+              "dry",
+              "spice-1"
+            ],
+            "sectionSubtitle": "Sizzling dry tandoori dishes"
+          }
+        },
+        {
+          "key": "clay-oven--tandoori-king-prawn",
+          "name": "Tandoori King Prawn",
+          "description": "King prawn marinated in Nepalese spices and herbs and cooked in tandoor",
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "19.00",
+            "labels": [
+              "GF",
+              "dry",
+              "spice-1"
+            ],
+            "sectionSubtitle": "Sizzling dry tandoori dishes"
+          }
+        }
+      ]
+    },
+    {
+      "key": "biryani",
+      "name": "Dum Biryani",
+      "kind": "food",
+      "items": [
+        {
+          "key": "biryani--veggie-biryani",
+          "name": "Veggie Biryani",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "13.00",
+            "labels": [
+              "veg",
+              "GF"
+            ],
+            "sectionSubtitle": "Well seasoned one pot dish, made by layering fragrant basmati rice. Best with raita or curry sauce."
+          }
+        },
+        {
+          "key": "biryani--chicken-biryani",
+          "name": "Chicken Biryani",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "14.00",
+            "labels": [
+              "GF"
+            ],
+            "sectionSubtitle": "Well seasoned one pot dish, made by layering fragrant basmati rice. Best with raita or curry sauce."
+          }
+        },
+        {
+          "key": "biryani--lamb-biryani",
+          "name": "Lamb Biryani",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "15.00",
+            "labels": [
+              "GF"
+            ],
+            "badge": "Most Ordered",
+            "sectionSubtitle": "Well seasoned one pot dish, made by layering fragrant basmati rice. Best with raita or curry sauce."
+          }
+        },
+        {
+          "key": "biryani--king-prawn-biryani",
+          "name": "King Prawn Biryani",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "16.00",
+            "labels": [
+              "GF"
+            ],
+            "badge": "Premium Pick",
+            "sectionSubtitle": "Well seasoned one pot dish, made by layering fragrant basmati rice. Best with raita or curry sauce."
+          }
+        }
+      ]
+    },
+    {
+      "key": "chowmein",
+      "name": "Chowmein",
+      "kind": "food",
+      "items": [
+        {
+          "key": "chowmein--chowmein-veg",
+          "name": "Chowmein Veg",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "12.00",
+            "labels": [
+              "veg"
+            ],
+            "sectionSubtitle": "Nepalese-style noodles, wok tossed to order"
+          }
+        },
+        {
+          "key": "chowmein--chowmein-chicken",
+          "name": "Chowmein Chicken",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "14.00",
+            "sectionSubtitle": "Nepalese-style noodles, wok tossed to order"
+          }
+        },
+        {
+          "key": "chowmein--chowmein-prawn",
+          "name": "Chowmein Prawn",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "15.00",
+            "sectionSubtitle": "Nepalese-style noodles, wok tossed to order"
+          }
+        }
+      ]
+    },
+    {
+      "key": "mixed-grills",
+      "name": "Our Mixed Grills",
+      "kind": "food",
+      "items": [
+        {
+          "key": "mixed-grills--veg-grill",
+          "name": "Veg Grill",
+          "description": "Onion bhaji, mogo, samosa and paneer",
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "11.00",
+            "labels": [
+              "veg"
+            ],
+            "groupNote": "Swap your chicken wings to crispy wings.",
+            "sectionSubtitle": "Start small, then trade up for lamb chops, Kathmandu tikka, and king prawn."
+          }
+        },
+        {
+          "key": "mixed-grills--small-mixed-grill",
+          "name": "Small Mixed Grill",
+          "description": "Chicken wings, tikka, sheekh kebab, pakora",
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "12.00",
+            "labels": [
+              "GF",
+              "spice-1"
+            ],
+            "groupNote": "Swap your chicken wings to crispy wings.",
+            "sectionSubtitle": "Start small, then trade up for lamb chops, Kathmandu tikka, and king prawn."
+          }
+        },
+        {
+          "key": "mixed-grills--regular-mixed-grill",
+          "name": "Regular Mixed Grill",
+          "description": "Small grill plus lamb chops",
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "15.00",
+            "labels": [
+              "GF",
+              "spice-1"
+            ],
+            "badge": "Most Ordered",
+            "groupNote": "Swap your chicken wings to crispy wings.",
+            "sectionSubtitle": "Start small, then trade up for lamb chops, Kathmandu tikka, and king prawn."
+          }
+        },
+        {
+          "key": "mixed-grills--large-mixed-grill",
+          "name": "Large Mixed Grill",
+          "description": "Regular grill plus Kathmandu Tikka and fish pakora",
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "18.00",
+            "labels": [
+              "GF",
+              "spice-1"
+            ],
+            "badge": "For Sharing",
+            "groupNote": "Swap your chicken wings to crispy wings.",
+            "sectionSubtitle": "Start small, then trade up for lamb chops, Kathmandu tikka, and king prawn."
+          }
+        },
+        {
+          "key": "mixed-grills--xtra-large-special-mixed-grill",
+          "name": "Xtra Large Special Mixed Grill",
+          "description": "Large grill plus king prawn",
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "22.00",
+            "labels": [
+              "GF",
+              "spice-1"
+            ],
+            "badge": "Best Value",
+            "groupNote": "Swap your chicken wings to crispy wings.",
+            "sectionSubtitle": "Start small, then trade up for lamb chops, Kathmandu tikka, and king prawn."
+          }
+        }
+      ]
+    },
+    {
+      "key": "curries",
+      "name": "Authentic Curries",
+      "kind": "food",
+      "items": [
+        {
+          "key": "curries--curry--veg",
+          "name": "Veg",
+          "description": null,
+          "aliases": [
+            "Veg Curry"
+          ],
+          "variants": [],
+          "meta": {
+            "price": "10.00",
+            "labels": [
+              "veg",
+              "GF"
+            ],
+            "group": "Curry",
+            "sectionSubtitle": "Choose your curry style, then pair it with pilau rice or our Signature Naan. From Balti onwards, the heat builds gradually through to Phaal."
+          }
+        },
+        {
+          "key": "curries--curry--chicken",
+          "name": "Chicken",
+          "description": null,
+          "aliases": [
+            "Chicken Curry"
+          ],
+          "variants": [],
+          "meta": {
+            "price": "11.00",
+            "labels": [
+              "GF"
+            ],
+            "group": "Curry",
+            "sectionSubtitle": "Choose your curry style, then pair it with pilau rice or our Signature Naan. From Balti onwards, the heat builds gradually through to Phaal."
+          }
+        },
+        {
+          "key": "curries--curry--lamb",
+          "name": "Lamb",
+          "description": null,
+          "aliases": [
+            "Lamb Curry"
+          ],
+          "variants": [],
+          "meta": {
+            "price": "12.00",
+            "labels": [
+              "GF"
+            ],
+            "group": "Curry",
+            "sectionSubtitle": "Choose your curry style, then pair it with pilau rice or our Signature Naan. From Balti onwards, the heat builds gradually through to Phaal."
+          }
+        },
+        {
+          "key": "curries--curry--king-prawn",
+          "name": "King Prawn",
+          "description": null,
+          "aliases": [
+            "King Prawn Curry"
+          ],
+          "variants": [],
+          "meta": {
+            "price": "14.00",
+            "labels": [
+              "GF"
+            ],
+            "group": "Curry",
+            "sectionSubtitle": "Choose your curry style, then pair it with pilau rice or our Signature Naan. From Balti onwards, the heat builds gradually through to Phaal."
+          }
+        },
+        {
+          "key": "curries--korma--veg",
+          "name": "Veg",
+          "description": null,
+          "aliases": [
+            "Veg Korma"
+          ],
+          "variants": [],
+          "meta": {
+            "price": "11.00",
+            "labels": [
+              "veg",
+              "GF"
+            ],
+            "group": "Korma",
+            "sectionSubtitle": "Choose your curry style, then pair it with pilau rice or our Signature Naan. From Balti onwards, the heat builds gradually through to Phaal."
+          }
+        },
+        {
+          "key": "curries--korma--chicken",
+          "name": "Chicken",
+          "description": null,
+          "aliases": [
+            "Chicken Korma"
+          ],
+          "variants": [],
+          "meta": {
+            "price": "12.00",
+            "labels": [
+              "GF"
+            ],
+            "group": "Korma",
+            "sectionSubtitle": "Choose your curry style, then pair it with pilau rice or our Signature Naan. From Balti onwards, the heat builds gradually through to Phaal."
+          }
+        },
+        {
+          "key": "curries--korma--lamb",
+          "name": "Lamb",
+          "description": null,
+          "aliases": [
+            "Lamb Korma"
+          ],
+          "variants": [],
+          "meta": {
+            "price": "13.00",
+            "labels": [
+              "GF"
+            ],
+            "group": "Korma",
+            "sectionSubtitle": "Choose your curry style, then pair it with pilau rice or our Signature Naan. From Balti onwards, the heat builds gradually through to Phaal."
+          }
+        },
+        {
+          "key": "curries--korma--king-prawn",
+          "name": "King Prawn",
+          "description": null,
+          "aliases": [
+            "King Prawn Korma"
+          ],
+          "variants": [],
+          "meta": {
+            "price": "15.00",
+            "labels": [
+              "GF"
+            ],
+            "group": "Korma",
+            "sectionSubtitle": "Choose your curry style, then pair it with pilau rice or our Signature Naan. From Balti onwards, the heat builds gradually through to Phaal."
+          }
+        },
+        {
+          "key": "curries--masala--veg",
+          "name": "Veg",
+          "description": null,
+          "aliases": [
+            "Veg Masala"
+          ],
+          "variants": [],
+          "meta": {
+            "price": "12.00",
+            "labels": [
+              "veg",
+              "GF"
+            ],
+            "group": "Masala",
+            "sectionSubtitle": "Choose your curry style, then pair it with pilau rice or our Signature Naan. From Balti onwards, the heat builds gradually through to Phaal."
+          }
+        },
+        {
+          "key": "curries--masala--chicken",
+          "name": "Chicken",
+          "description": null,
+          "aliases": [
+            "Chicken Masala"
+          ],
+          "variants": [],
+          "meta": {
+            "price": "13.00",
+            "labels": [
+              "GF"
+            ],
+            "group": "Masala",
+            "sectionSubtitle": "Choose your curry style, then pair it with pilau rice or our Signature Naan. From Balti onwards, the heat builds gradually through to Phaal."
+          }
+        },
+        {
+          "key": "curries--masala--lamb",
+          "name": "Lamb",
+          "description": null,
+          "aliases": [
+            "Lamb Masala"
+          ],
+          "variants": [],
+          "meta": {
+            "price": "14.00",
+            "labels": [
+              "GF"
+            ],
+            "group": "Masala",
+            "sectionSubtitle": "Choose your curry style, then pair it with pilau rice or our Signature Naan. From Balti onwards, the heat builds gradually through to Phaal."
+          }
+        },
+        {
+          "key": "curries--masala--king-prawn",
+          "name": "King Prawn",
+          "description": null,
+          "aliases": [
+            "King Prawn Masala"
+          ],
+          "variants": [],
+          "meta": {
+            "price": "16.00",
+            "labels": [
+              "GF"
+            ],
+            "group": "Masala",
+            "sectionSubtitle": "Choose your curry style, then pair it with pilau rice or our Signature Naan. From Balti onwards, the heat builds gradually through to Phaal."
+          }
+        },
+        {
+          "key": "curries--house-styles--veg",
+          "name": "Veg",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "11.00",
+            "labels": [
+              "veg",
+              "GF"
+            ],
+            "group": "Balti / Karahi / Bhuna / Saag / Dhansak / Jalfrezi / Madras / Vindaloo / Phaal",
+            "sectionSubtitle": "Choose your curry style, then pair it with pilau rice or our Signature Naan. From Balti onwards, the heat builds gradually through to Phaal."
+          }
+        },
+        {
+          "key": "curries--house-styles--chicken",
+          "name": "Chicken",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "12.00",
+            "labels": [
+              "GF"
+            ],
+            "group": "Balti / Karahi / Bhuna / Saag / Dhansak / Jalfrezi / Madras / Vindaloo / Phaal",
+            "sectionSubtitle": "Choose your curry style, then pair it with pilau rice or our Signature Naan. From Balti onwards, the heat builds gradually through to Phaal."
+          }
+        },
+        {
+          "key": "curries--house-styles--lamb",
+          "name": "Lamb",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "13.00",
+            "labels": [
+              "GF"
+            ],
+            "group": "Balti / Karahi / Bhuna / Saag / Dhansak / Jalfrezi / Madras / Vindaloo / Phaal",
+            "sectionSubtitle": "Choose your curry style, then pair it with pilau rice or our Signature Naan. From Balti onwards, the heat builds gradually through to Phaal."
+          }
+        },
+        {
+          "key": "curries--house-styles--king-prawn",
+          "name": "King Prawn",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "15.00",
+            "labels": [
+              "GF"
+            ],
+            "group": "Balti / Karahi / Bhuna / Saag / Dhansak / Jalfrezi / Madras / Vindaloo / Phaal",
+            "sectionSubtitle": "Choose your curry style, then pair it with pilau rice or our Signature Naan. From Balti onwards, the heat builds gradually through to Phaal."
+          }
+        }
+      ]
+    },
+    {
+      "key": "rice-naan-sides",
+      "name": "Kitchen Companions",
+      "kind": "food",
+      "items": [
+        {
+          "key": "rice-naan-sides--rice--boiled-rice",
+          "name": "Boiled Rice",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "4.00",
+            "labels": [
+              "veg"
+            ],
+            "group": "Rice",
+            "sectionSubtitle": "Rice, naan breads and sides"
+          }
+        },
+        {
+          "key": "rice-naan-sides--rice--pilau-rice",
+          "name": "Pilau Rice",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "4.50",
+            "labels": [
+              "veg"
+            ],
+            "badge": "Most Added",
+            "group": "Rice",
+            "sectionSubtitle": "Rice, naan breads and sides"
+          }
+        },
+        {
+          "key": "rice-naan-sides--rice--mushroom-rice",
+          "name": "Mushroom Rice",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "4.75",
+            "labels": [
+              "veg"
+            ],
+            "group": "Rice",
+            "sectionSubtitle": "Rice, naan breads and sides"
+          }
+        },
+        {
+          "key": "rice-naan-sides--rice--egg-fried-rice",
+          "name": "Egg Fried Rice",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "4.75",
+            "group": "Rice",
+            "sectionSubtitle": "Rice, naan breads and sides"
+          }
+        },
+        {
+          "key": "rice-naan-sides--rice--special-rice",
+          "name": "Special Rice",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "5.50",
+            "badge": "Trade Up",
+            "group": "Rice",
+            "sectionSubtitle": "Rice, naan breads and sides"
+          }
+        },
+        {
+          "key": "rice-naan-sides--naan-breads--plain-naan",
+          "name": "Plain Naan",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "3.75",
+            "group": "Naan Breads",
+            "sectionSubtitle": "Rice, naan breads and sides"
+          }
+        },
+        {
+          "key": "rice-naan-sides--naan-breads--garlic-naan",
+          "name": "Garlic Naan",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "4.25",
+            "badge": "Most Added",
+            "group": "Naan Breads",
+            "sectionSubtitle": "Rice, naan breads and sides"
+          }
+        },
+        {
+          "key": "rice-naan-sides--naan-breads--garlic-cheese-naan",
+          "name": "Garlic Cheese Naan",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "4.75",
+            "badge": "New",
+            "group": "Naan Breads",
+            "sectionSubtitle": "Rice, naan breads and sides"
+          }
+        },
+        {
+          "key": "rice-naan-sides--naan-breads--garlic-chilli-naan",
+          "name": "Garlic Chilli Naan",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "4.75",
+            "labels": [
+              "spice-2"
+            ],
+            "group": "Naan Breads",
+            "sectionSubtitle": "Rice, naan breads and sides"
+          }
+        },
+        {
+          "key": "rice-naan-sides--naan-breads--peshwari-naan",
+          "name": "Peshwari Naan",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "4.75",
+            "group": "Naan Breads",
+            "sectionSubtitle": "Rice, naan breads and sides"
+          }
+        },
+        {
+          "key": "rice-naan-sides--naan-breads--cheese-naan",
+          "name": "Cheese Naan",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "4.75",
+            "group": "Naan Breads",
+            "sectionSubtitle": "Rice, naan breads and sides"
+          }
+        },
+        {
+          "key": "rice-naan-sides--naan-breads--keema-naan",
+          "name": "Keema Naan",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "4.75",
+            "group": "Naan Breads",
+            "sectionSubtitle": "Rice, naan breads and sides"
+          }
+        },
+        {
+          "key": "rice-naan-sides--naan-breads--roti",
+          "name": "Roti",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "3.50",
+            "labels": [
+              "veg"
+            ],
+            "group": "Naan Breads",
+            "sectionSubtitle": "Rice, naan breads and sides"
+          }
+        },
+        {
+          "key": "rice-naan-sides--naan-breads--signature-naan",
+          "name": "Signature Naan",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "5.25",
+            "badge": "Best Seller",
+            "group": "Naan Breads",
+            "sectionSubtitle": "Rice, naan breads and sides"
+          }
+        },
+        {
+          "key": "rice-naan-sides--sides--green-salad",
+          "name": "Green Salad",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "3.50",
+            "labels": [
+              "veg"
+            ],
+            "group": "Sides",
+            "sectionSubtitle": "Rice, naan breads and sides"
+          }
+        },
+        {
+          "key": "rice-naan-sides--sides--tadka-daal",
+          "name": "Tadka Daal",
+          "description": "Lentil",
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "6.00",
+            "labels": [
+              "veg"
+            ],
+            "group": "Sides",
+            "sectionSubtitle": "Rice, naan breads and sides"
+          }
+        },
+        {
+          "key": "rice-naan-sides--sides--gurkha-aalo",
+          "name": "Gurkha Aalo",
+          "description": "Dry potato in Nepalese herbs",
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "6.00",
+            "labels": [
+              "veg"
+            ],
+            "group": "Sides",
+            "sectionSubtitle": "Rice, naan breads and sides"
+          }
+        },
+        {
+          "key": "rice-naan-sides--sides--saag-aalo",
+          "name": "Saag Aalo",
+          "description": "Spinach and potato",
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "6.00",
+            "labels": [
+              "veg"
+            ],
+            "group": "Sides",
+            "sectionSubtitle": "Rice, naan breads and sides"
+          }
+        },
+        {
+          "key": "rice-naan-sides--sides--chana-masala",
+          "name": "Chana Masala",
+          "description": "Chickpeas",
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "6.00",
+            "labels": [
+              "veg"
+            ],
+            "group": "Sides",
+            "sectionSubtitle": "Rice, naan breads and sides"
+          }
+        },
+        {
+          "key": "rice-naan-sides--sides--saag-bhaji",
+          "name": "Saag Bhaji",
+          "description": "Spinach",
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "6.00",
+            "labels": [
+              "veg"
+            ],
+            "group": "Sides",
+            "sectionSubtitle": "Rice, naan breads and sides"
+          }
+        },
+        {
+          "key": "rice-naan-sides--sides--mushroom-bhaji",
+          "name": "Mushroom Bhaji",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "6.00",
+            "labels": [
+              "veg"
+            ],
+            "group": "Sides",
+            "sectionSubtitle": "Rice, naan breads and sides"
+          }
+        },
+        {
+          "key": "rice-naan-sides--sides--saag-paneer",
+          "name": "Saag Paneer",
+          "description": "Fresh spinach & cottage cheese",
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "6.50",
+            "labels": [
+              "veg"
+            ],
+            "group": "Sides",
+            "sectionSubtitle": "Rice, naan breads and sides"
+          }
+        },
+        {
+          "key": "rice-naan-sides--sides--matar-paneer",
+          "name": "Matar Paneer",
+          "description": "Green peas & cottage cheese",
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "6.50",
+            "labels": [
+              "veg"
+            ],
+            "group": "Sides",
+            "sectionSubtitle": "Rice, naan breads and sides"
+          }
+        }
+      ]
+    },
+    {
+      "key": "pub-favourites",
+      "name": "Pub Favourites",
+      "kind": "food",
+      "items": [
+        {
+          "key": "pub-favourites--pub-classics--fish-chips",
+          "name": "Fish & Chips",
+          "description": "Battered cod with tartar sauce",
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "13.00",
+            "badge": "Pub Classic",
+            "group": "Pub Classics",
+            "sectionSubtitle": "Proper pub classics and fresh wraps"
+          }
+        },
+        {
+          "key": "pub-favourites--pub-classics--veg-vegan-burger-chips",
+          "name": "Veg / Vegan Burger & Chips",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "10.00",
+            "labels": [
+              "veg"
+            ],
+            "group": "Pub Classics",
+            "sectionSubtitle": "Proper pub classics and fresh wraps"
+          }
+        },
+        {
+          "key": "pub-favourites--pub-classics--chicken-burger-chips",
+          "name": "Chicken Burger & Chips",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "11.00",
+            "group": "Pub Classics",
+            "sectionSubtitle": "Proper pub classics and fresh wraps"
+          }
+        },
+        {
+          "key": "pub-favourites--pub-classics--beef-burger-chips",
+          "name": "Beef Burger & Chips",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "12.00",
+            "group": "Pub Classics",
+            "sectionSubtitle": "Proper pub classics and fresh wraps"
+          }
+        },
+        {
+          "key": "pub-favourites--pub-classics--chicken-strips-with-chips",
+          "name": "Chicken Strips with Chips",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "10.50",
+            "group": "Pub Classics",
+            "sectionSubtitle": "Proper pub classics and fresh wraps"
+          }
+        },
+        {
+          "key": "pub-favourites--wraps--cheesy-chips-wrap",
+          "name": "Cheesy Chips Wrap",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "9.00",
+            "labels": [
+              "veg"
+            ],
+            "group": "Wraps",
+            "groupNote": "Served with chips, salad, mayo and sweet chilli sauce. Upgrade to any chips option for a heartier plate.*",
+            "sectionSubtitle": "Proper pub classics and fresh wraps"
+          }
+        },
+        {
+          "key": "pub-favourites--wraps--chicken-tikka-wrap",
+          "name": "Chicken Tikka Wrap",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "10.50",
+            "group": "Wraps",
+            "groupNote": "Served with chips, salad, mayo and sweet chilli sauce. Upgrade to any chips option for a heartier plate.*",
+            "sectionSubtitle": "Proper pub classics and fresh wraps"
+          }
+        },
+        {
+          "key": "pub-favourites--wraps--kebab-wrap",
+          "name": "Kebab Wrap",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "10.75",
+            "group": "Wraps",
+            "groupNote": "Served with chips, salad, mayo and sweet chilli sauce. Upgrade to any chips option for a heartier plate.*",
+            "sectionSubtitle": "Proper pub classics and fresh wraps"
+          }
+        },
+        {
+          "key": "pub-favourites--wraps--special-wrap-mix",
+          "name": "Special Wrap (Mix)",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "11.75",
+            "note": "Best value wrap for mixed-grill fans.",
+            "badge": "Full Plate",
+            "group": "Wraps",
+            "groupNote": "Served with chips, salad, mayo and sweet chilli sauce. Upgrade to any chips option for a heartier plate.*",
+            "sectionSubtitle": "Proper pub classics and fresh wraps"
+          }
+        },
+        {
+          "key": "pub-favourites--wraps--sweet-chilli-wrap",
+          "name": "Sweet Chilli Wrap",
+          "description": "Crispy chicken",
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "10.50",
+            "group": "Wraps",
+            "groupNote": "Served with chips, salad, mayo and sweet chilli sauce. Upgrade to any chips option for a heartier plate.*",
+            "sectionSubtitle": "Proper pub classics and fresh wraps"
+          }
+        }
+      ]
+    },
+    {
+      "key": "chips-and-fries",
+      "name": "Chips & Fries",
+      "kind": "food",
+      "items": [
+        {
+          "key": "chips-and-fries--chips",
+          "name": "Chips",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "3.50",
+            "labels": [
+              "veg"
+            ]
+          }
+        },
+        {
+          "key": "chips-and-fries--peri-peri-chips",
+          "name": "Peri-Peri Chips",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "3.75",
+            "labels": [
+              "veg",
+              "spice-1"
+            ]
+          }
+        },
+        {
+          "key": "chips-and-fries--chilli-chips",
+          "name": "Chilli Chips",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "6.00",
+            "labels": [
+              "veg",
+              "spice-2"
+            ]
+          }
+        },
+        {
+          "key": "chips-and-fries--cheesy-chips",
+          "name": "Cheesy Chips",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "6.00",
+            "labels": [
+              "veg"
+            ]
+          }
+        },
+        {
+          "key": "chips-and-fries--loaded-chips",
+          "name": "Loaded Chips",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "7.50",
+            "note": "Easy trade-up from plain chips.",
+            "badge": "Upgrade Pick"
+          }
+        },
+        {
+          "key": "chips-and-fries--sweet-potato-chips",
+          "name": "Sweet Potato Chips",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "4.25",
+            "labels": [
+              "veg"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "key": "kids",
+      "name": "Kids Plates",
+      "kind": "food",
+      "items": [
+        {
+          "key": "kids--nuggets",
+          "name": "Nuggets",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "6.00",
+            "groupNote": "Choose chips or rice."
+          }
+        },
+        {
+          "key": "kids--scampi",
+          "name": "Scampi",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "6.00",
+            "groupNote": "Choose chips or rice."
+          }
+        },
+        {
+          "key": "kids--chicken-pakora",
+          "name": "Chicken Pakora",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "6.00",
+            "labels": [
+              "GF"
+            ],
+            "groupNote": "Choose chips or rice."
+          }
+        },
+        {
+          "key": "kids--popcorn-chicken",
+          "name": "Popcorn Chicken",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "5.75",
+            "groupNote": "Choose chips or rice."
+          }
+        },
+        {
+          "key": "kids--ctm-korma",
+          "name": "CTM / Korma",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "8.50",
+            "labels": [
+              "GF"
+            ],
+            "groupNote": "Choose chips or rice."
+          }
+        }
+      ]
+    },
+    {
+      "key": "desserts",
+      "name": "Sweet Finish",
+      "kind": "food",
+      "items": [
+        {
+          "key": "desserts--gulab-jamun",
+          "name": "Gulab Jamun",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "4.95",
+            "labels": [
+              "veg"
+            ],
+            "sectionSubtitle": "Desserts"
+          }
+        },
+        {
+          "key": "desserts--nepalese-rice-pudding",
+          "name": "Nepalese Rice Pudding",
+          "description": "Kheer",
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "4.95",
+            "labels": [
+              "veg"
+            ],
+            "sectionSubtitle": "Desserts"
+          }
+        },
+        {
+          "key": "desserts--vanilla-honey-toffee-ice-cream",
+          "name": "Vanilla & Honey Toffee Ice Cream",
+          "description": null,
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "6.95",
+            "labels": [
+              "veg"
+            ],
+            "sectionSubtitle": "Desserts"
+          }
+        },
+        {
+          "key": "desserts--punky-ice-cream",
+          "name": "Punky Ice Cream",
+          "description": "Classic vanilla ice cream served in the playful Punky cup.",
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "5.25",
+            "labels": [
+              "veg"
+            ],
+            "badge": "Kids Favourite",
+            "sectionSubtitle": "Desserts"
+          }
+        },
+        {
+          "key": "desserts--chocolate-fondant",
+          "name": "Chocolate Fondant",
+          "description": "Chocolate sponge with liquid center",
+          "aliases": [],
+          "variants": [],
+          "meta": {
+            "price": "4.95",
+            "labels": [
+              "veg"
+            ],
+            "note": "Easy add-on to finish the table.",
+            "badge": "Best Seller",
+            "sectionSubtitle": "Desserts"
+          }
+        }
+      ]
+    },
+    {
+      "key": "sister-pub-specials",
+      "name": "Sister Pub Specials",
+      "kind": "food",
+      "items": [
+        {
+          "key": "sister-pub-specials--old-school-house-ko-piro-babari",
+          "name": "Old School House ko Piro Babari",
+          "description": "Your choice of veg, chicken, lamb or prawn in a vibrant green masala sauce.",
+          "aliases": [],
+          "variants": [
+            "Veg",
+            "Chicken",
+            "Lamb",
+            "Prawn"
+          ],
+          "meta": {
+            "labels": [
+              "spice-3"
+            ],
+            "note": "From The Old School House, London Rd, Stony Stratford, MK11 1JA",
+            "badge": "Guest Favourite",
+            "variantPrices": [
+              "12.45",
+              "13.45",
+              "14.45",
+              "15.45"
+            ],
+            "groupNote": "Make it a meal: add 1 rice + 1 naan for £6.95. Railway Lamb Flame Sizzler is a premium standalone special.",
+            "sectionSubtitle": "Shared curry pricing across our sister pub specials, with one easy rice-and-naan upgrade."
+          }
+        },
+        {
+          "key": "sister-pub-specials--barley-mow-ko-farsi-masala",
+          "name": "Barley Mow ko Farsi Masala",
+          "description": "Your choice of veg, chicken, lamb or prawn cooked with Pumpkin, Nepalese herbs and warming spices for a rich, distinctive curry.",
+          "aliases": [],
+          "variants": [
+            "Veg",
+            "Chicken",
+            "Lamb",
+            "Prawn"
+          ],
+          "meta": {
+            "labels": [
+              "spice-2"
+            ],
+            "note": "From The Barley Mow, 42 Main St, Hartford, PE29 1XU",
+            "badge": "Regional Pick",
+            "variantPrices": [
+              "12.45",
+              "13.45",
+              "14.45",
+              "15.45"
+            ],
+            "groupNote": "Make it a meal: add 1 rice + 1 naan for £6.95. Railway Lamb Flame Sizzler is a premium standalone special.",
+            "sectionSubtitle": "Shared curry pricing across our sister pub specials, with one easy rice-and-naan upgrade."
+          }
+        },
+        {
+          "key": "sister-pub-specials--bell-ko-special-curry",
+          "name": "Bell Ko Special Curry",
+          "description": "Your choice of veg, chicken, lamb or prawn with fresh garlic, ginger and green chilli in a bright tomato sauce.",
+          "aliases": [],
+          "variants": [
+            "Veg",
+            "Chicken",
+            "Lamb",
+            "Prawn"
+          ],
+          "meta": {
+            "labels": [
+              "spice-2"
+            ],
+            "note": "From The Bell, 82 Green End Road, Sawtry, PE28 5UY",
+            "badge": "House Favourite",
+            "variantPrices": [
+              "12.45",
+              "13.45",
+              "14.45",
+              "15.45"
+            ],
+            "groupNote": "Make it a meal: add 1 rice + 1 naan for £6.95. Railway Lamb Flame Sizzler is a premium standalone special.",
+            "sectionSubtitle": "Shared curry pricing across our sister pub specials, with one easy rice-and-naan upgrade."
+          }
+        },
+        {
+          "key": "sister-pub-specials--corner-house-ko-achari-tarkari",
+          "name": "Corner House ko Achari Tarkari",
+          "description": "Your choice of veg, chicken, lamb or prawn in a lively curry lifted by the bold, tangy character of pickle spices.",
+          "aliases": [],
+          "variants": [
+            "Veg",
+            "Chicken",
+            "Lamb",
+            "Prawn"
+          ],
+          "meta": {
+            "labels": [
+              "spice-2"
+            ],
+            "note": "From The Corner House, 231 Newmarket Road, Cambridge, CB5 8JE",
+            "badge": "Tangy Pick",
+            "variantPrices": [
+              "12.45",
+              "13.45",
+              "14.45",
+              "15.45"
+            ],
+            "groupNote": "Make it a meal: add 1 rice + 1 naan for £6.95. Railway Lamb Flame Sizzler is a premium standalone special.",
+            "sectionSubtitle": "Shared curry pricing across our sister pub specials, with one easy rice-and-naan upgrade."
+          }
+        },
+        {
+          "key": "sister-pub-specials--white-horse-ko-namche-tiun",
+          "name": "White Horse ko Namche Tiun",
+          "description": "Your choice of veg, chicken, lamb or prawn delicately infused with the warm, aromatic flavour of javitri.",
+          "aliases": [],
+          "variants": [
+            "Veg",
+            "Chicken",
+            "Lamb",
+            "Prawn"
+          ],
+          "meta": {
+            "labels": [
+              "spice-2"
+            ],
+            "note": "From The White Horse, 12 Green Side, Waterbeach, CB25 9HP",
+            "badge": "House Special",
+            "variantPrices": [
+              "12.45",
+              "13.45",
+              "14.45",
+              "15.45"
+            ],
+            "groupNote": "Make it a meal: add 1 rice + 1 naan for £6.95. Railway Lamb Flame Sizzler is a premium standalone special.",
+            "sectionSubtitle": "Shared curry pricing across our sister pub specials, with one easy rice-and-naan upgrade."
+          }
+        },
+        {
+          "key": "sister-pub-specials--queen-elizabeth-ko-nariwal-rasilo",
+          "name": "Queen Elizabeth ko Nariwal Rasilo",
+          "description": "Your choice of veg, chicken, lamb or prawn with house-ground spices and fresh coconut milk in a rich Himalayan-style curry.",
+          "aliases": [],
+          "variants": [
+            "Veg",
+            "Chicken",
+            "Lamb",
+            "Prawn"
+          ],
+          "meta": {
+            "labels": [
+              "spice-2"
+            ],
+            "note": "From The Queen Elizabeth, 32 Gayton Road, King's Lynn, PE30 4EL",
+            "badge": "Signature",
+            "variantPrices": [
+              "12.45",
+              "13.45",
+              "14.45",
+              "15.45"
+            ],
+            "groupNote": "Make it a meal: add 1 rice + 1 naan for £6.95. Railway Lamb Flame Sizzler is a premium standalone special.",
+            "sectionSubtitle": "Shared curry pricing across our sister pub specials, with one easy rice-and-naan upgrade."
+          }
+        },
+        {
+          "key": "sister-pub-specials--old-crown-ko-lekali-curry",
+          "name": "Old Crown ko Lekali Curry",
+          "description": "Your choice of veg, chicken, lamb or prawn in a hearty hill-style curry made with fresh methi (fenugreek) leaves, simmered in a rich, aromatic gravy.",
+          "aliases": [],
+          "variants": [
+            "Veg",
+            "Chicken",
+            "Lamb",
+            "Prawn"
+          ],
+          "meta": {
+            "labels": [
+              "spice-2"
+            ],
+            "note": "From The Old Crown, 89 High Street, Girton, CB3 0QD",
+            "badge": "Slow-Cooked",
+            "variantPrices": [
+              "12.45",
+              "13.45",
+              "14.45",
+              "15.45"
+            ],
+            "groupNote": "Make it a meal: add 1 rice + 1 naan for £6.95. Railway Lamb Flame Sizzler is a premium standalone special.",
+            "sectionSubtitle": "Shared curry pricing across our sister pub specials, with one easy rice-and-naan upgrade."
+          }
+        },
+        {
+          "key": "sister-pub-specials--prince-of-wales-ko-makhmali-mayalu",
+          "name": "Prince of Wales ko Makhmali Mayalu",
+          "description": "Your choice of veg, chicken, lamb or prawn in a smooth, creamy sauce with aromatic spices, garlic and ginger.",
+          "aliases": [],
+          "variants": [
+            "Veg",
+            "Chicken",
+            "Lamb",
+            "Prawn"
+          ],
+          "meta": {
+            "labels": [
+              "spice-2"
+            ],
+            "note": "From The Prince of Wales, 8 Northampton Road, Bromham, MK43 8PE",
+            "badge": "Mild & Creamy",
+            "variantPrices": [
+              "12.45",
+              "13.45",
+              "14.45",
+              "15.45"
+            ],
+            "groupNote": "Make it a meal: add 1 rice + 1 naan for £6.95. Railway Lamb Flame Sizzler is a premium standalone special.",
+            "sectionSubtitle": "Shared curry pricing across our sister pub specials, with one easy rice-and-naan upgrade."
+          }
+        }
+      ]
+    }
+  ]
+}
