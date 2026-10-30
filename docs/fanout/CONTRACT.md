@@ -45,7 +45,7 @@ Tables: `venues`, `profiles`, `media_assets`, with exactly the spec's columns.
 argument `p_client_upload_key` and returns `(id, original_path, venue_id,
 upload_state, reused)`; a repeated key from the same uploader returns the existing
 asset (spec §5: "retry the same asset ID"). Migration
-`supabase/migrations/20261029140000_media_client_upload_key.sql`. This is the only
+`supabase/migrations/20261029160000_media_client_upload_key.sql`. This is the only
 column beyond the spec.
 Enums: `app_role` (`staff`, `admin`), `media_type` (`image`, `video`),
 `upload_state` (`uploading`, `processing`, `ready`, `failed`).

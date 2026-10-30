@@ -1,26 +1,26 @@
 import "server-only"
 
-// PLACEHOLDER owned by the lifecycle track (docs/fanout/CONTRACT.md).
-// INTEGRATOR: when merging feat/nl-lifecycle, take lifecycle's version of this
-// file. This stub exists only so the slice branch typechecks and builds; it
-// mirrors the agreed signature and deletes nothing.
+import { createAdminClient } from "@/lib/supabase/admin"
+import { createClient } from "@/lib/supabase/server"
+import {
+  removeMediaAssetWith,
+  type RemoveMediaAssetResult,
+} from "@/lib/server/lifecycle/remove-media"
 
-export type RemoveMediaAssetResult =
-  | { ok: true; assetId: string; storage: "removed" | "pending" }
-  | {
-      ok: false
-      status: 401 | 403 | 404 | 500
-      error:
-        | "unauthenticated"
-        | "inactive"
-        | "forbidden"
-        | "not_found"
-        | "failed"
-    }
+export type { RemoveMediaAssetResult } from "@/lib/server/lifecycle/remove-media"
 
+/**
+ * Removes a media asset for the signed-in caller: staff their own, admins any.
+ * Call it from the delete Server Functions after the user confirms (spec §7 copy:
+ * "Remove this file from your portfolio and the admin library? Previously
+ * downloaded copies cannot be recalled."). Returns `{ ok: false, status }` with
+ * 401/403/404 instead of throwing; see removeMediaAssetWith for the details.
+ */
 export async function removeMediaAsset(
   assetId: string
 ): Promise<RemoveMediaAssetResult> {
-  void assetId
-  return { ok: false, status: 500, error: "failed" }
+  return removeMediaAssetWith(
+    { user: await createClient(), service: createAdminClient() },
+    assetId
+  )
 }

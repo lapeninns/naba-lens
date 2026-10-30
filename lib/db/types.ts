@@ -160,13 +160,22 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      acquire_maintenance_lease: {
+        Args: { p_holder: string; p_name: string; p_ttl: string }
+        Returns: boolean
+      }
       delete_media_asset: { Args: { p_asset_id: string }; Returns: undefined }
       prepare_media_cleanup: {
-        Args: { p_abandoned_after: string; p_limit?: number }
+        Args: { p_abandoned_after: string; p_limit?: number; p_now?: string }
         Returns: {
           asset_id: string
           object_names: string[]
+          upload_state: Database["public"]["Enums"]["upload_state"]
         }[]
+      }
+      release_maintenance_lease: {
+        Args: { p_holder: string; p_name: string }
+        Returns: undefined
       }
       reserve_media_asset: {
         Args: {

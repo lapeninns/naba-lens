@@ -22,7 +22,10 @@ export async function deleteMedia(assetId: string): Promise<DeleteMediaResult> {
     case 401:
       return { ok: false, error: "Sign in again to continue." }
     case 403:
-      return { ok: false, error: "You cannot remove this file." }
+      return {
+        ok: false,
+        error: "Your account is not active, so files cannot be removed.",
+      }
     case 404:
       return { ok: false, error: "This file could not be found." }
     default:

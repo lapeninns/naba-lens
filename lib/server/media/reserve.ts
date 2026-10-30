@@ -2,6 +2,8 @@ import { uploadBlockReason } from "@/lib/auth/profile"
 import { maxBytesFor, MEDIA_LIMITS } from "@/lib/config/media"
 import { STORAGE_BUCKETS } from "@/lib/config/storage"
 
+import { touchMediaReservation } from "@/lib/server/lifecycle/cleanup"
+
 import { rpcFailure } from "./errors"
 import { statMediaObject } from "./storage"
 import type { MediaActor, MediaKind, Outcome, UploadState } from "./types"
@@ -155,6 +157,21 @@ export async function reserveAsset(
     objectKey: row.original_path,
     bucket: STORAGE_BUCKETS.media,
   } as const
+
+  // Every attempt that is not already finished counts as upload activity, so
+  // the 24 h abandoned-upload cleanup never removes a live (TUS) transfer.
+  // Same as lifecycle's recordUploadActivity, with this request's service client.
+  if (row.upload_state !== "ready") {
+    try {
+      await touchMediaReservation(actor.service, row.id)
+    } catch {
+      return {
+        ok: false,
+        status: 503,
+        message: "Could not prepare the upload. Try again.",
+      }
+    }
+  }
 
   if (row.upload_state === "ready" || row.upload_state === "processing") {
     return { ok: true, ...base, resumable: false, state: row.upload_state }

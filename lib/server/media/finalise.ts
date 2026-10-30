@@ -1,6 +1,7 @@
 import { MEDIA_LIMITS } from "@/lib/config/media"
 import { mediaObjectKeys, STORAGE_BUCKETS } from "@/lib/config/storage"
 import { sniffMedia, validateMedia } from "@/lib/media"
+import { touchMediaReservation } from "@/lib/server/lifecycle/cleanup"
 
 import { validationMessage } from "./errors"
 import { mediaRangeSource, statMediaObject } from "./storage"
@@ -208,6 +209,21 @@ export async function finaliseAsset(
     return notFound
   }
   if (row.upload_state === "ready") return { ok: true, state: "ready" }
+
+  // Finalise begins: record upload activity for cleanup (lifecycle's
+  // recordUploadActivity). Skipped for `processing`, which cleanup never
+  // touches, so retries cannot keep a crashed claim looking fresh.
+  if (row.upload_state !== "processing") {
+    try {
+      await touchMediaReservation(actor.service, row.id)
+    } catch {
+      return {
+        ok: false,
+        status: 503,
+        message: "Could not check this file right now. Try again.",
+      }
+    }
+  }
 
   const claimed = await claim(actor, row)
   if (claimed === "ready") return { ok: true, state: "ready" }

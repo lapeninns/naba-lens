@@ -32,6 +32,11 @@ builds the actor per request after `lib/auth` has authorised the caller.
      persisted, because there is no column for it.
    - Missing bytes put the asset back to `uploading` (HTTP 409, retryable).
    - The browser's MIME label is never consulted.
+4. **Cleanup safety.** Reserve (including idempotent retries that resume a TUS transfer) and
+   finalise (unless the asset is already `processing`) call lifecycle's
+   `touchMediaReservation`. That is the function behind `recordUploadActivity`, called here
+   with the request's service client so the core stays testable. The 24 h abandoned-upload
+   cleanup therefore never removes a live upload.
 
 ## Read paths (all `Cache-Control: private, no-store`, `nosniff`)
 
@@ -69,7 +74,10 @@ lazy-loaded thumbnails never hold expired signatures. No private media goes thro
   - `MediaGallery` is reusable for `/admin/staff/[id]`, with
     `loadLibraryPage({ staff: id }, cursor)` from `app/admin/library-actions.ts`.
   - `useMediaUploader`.
-  - `deleteMedia`, which calls lifecycle's `removeMediaAsset`.
+  - `deleteMedia`, which calls lifecycle's `removeMediaAsset` after the spec's
+    confirmation copy. 401, 403 and 404 become plain messages. `storage: "pending"` still
+    hides the file, and the cleanup job retries the storage removal. The removed item
+    leaves the gallery at once; the other view drops it on its next refresh.
 
 ## Known limits
 

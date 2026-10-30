@@ -251,6 +251,59 @@ test.describe("vertical slice: upload, portfolio, library, download, isolation",
       ).status()
     ).toBe(401)
     await anonymous.close()
+
+    // --- Deletion (lifecycle's removeMediaAsset): admin removes the photo...
+    await adminPage.goto("/admin")
+    await library
+      .getByRole("button", { name: /^Photo, curry-dish\.jpg/ })
+      .click()
+    await adminPage
+      .getByRole("dialog")
+      .getByRole("button", { name: "Delete" })
+      .click()
+    const confirm = adminPage.getByRole("alertdialog")
+    await expect(
+      confirm.getByText(
+        "Remove this file from your portfolio and the admin library? Previously downloaded copies cannot be recalled."
+      )
+    ).toBeVisible()
+    await confirm.getByRole("button", { name: "Delete" }).click()
+    await expect(confirm).toBeHidden()
+    await expect(
+      library.getByRole("button", { name: /^Photo, curry-dish\.jpg/ })
+    ).toHaveCount(0)
+
+    // ...staff remove their own video; both views lose both files.
+    await staffPage.reload()
+    await expect(
+      portfolio.getByRole("button", { name: /^Photo, curry-dish/ })
+    ).toHaveCount(0)
+    await portfolio
+      .getByRole("button", { name: /^Video, synthetic\.mp4/ })
+      .click()
+    await staffPage
+      .getByRole("dialog")
+      .getByRole("button", { name: "Delete" })
+      .click()
+    await staffPage
+      .getByRole("alertdialog")
+      .getByRole("button", { name: "Delete" })
+      .click()
+    await expect(
+      staffPage.getByText("Your portfolio starts here.", { exact: false })
+    ).toBeVisible()
+    await adminPage.goto(`/admin?staff=${staffA.id}`)
+    await expect(
+      adminPage.getByText("Nothing matches these filters.")
+    ).toBeVisible()
+    expect(
+      (await adminPage.request.get(`/api/media/${photo.id}/download`)).status()
+    ).toBe(404)
+    const { data: gone } = await admin
+      .from("media_assets")
+      .select("deleted_at")
+      .eq("uploader_id", staffA.id)
+    expect(gone!.every((r) => r.deleted_at !== null)).toBe(true)
   })
 
   test("staff edit their own name and profile photo", async ({
