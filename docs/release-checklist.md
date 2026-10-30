@@ -30,6 +30,11 @@ Stay here while any prerequisite below is missing. Current blockers:
   are missing. Restore remains **UNTESTED**.
 - Current-head service-dependent integration/security/lifecycle/e2e evidence must
   be collected by the release owner; do not substitute another track's old run.
+- Individual admin portfolios currently expose previews only; download/delete
+  require **Content** filtered by **Staff member**. The spec requires those
+  actions in individual portfolios too. The owning track must implement them
+  or obtain an explicit scope decision before treating the MVP as complete;
+  this documentation does not silently certify that missing UI.
 
 This docs pass runs the contract's install/typecheck/lint/unit/build checks; see
 [its handoff](fanout/handoffs/docs-expand.md) for exact results and not-run suites.
@@ -54,6 +59,9 @@ or production launch. Advance only when all are evidenced:
 - [ ] Check missing/inactive profile, no/inactive venue, role/venue tampering,
       inactive sessions, removed/failed/unvalidated media, signed-link expiry,
       combined filters and pagination.
+- [ ] Resolve the individual-portfolio download/delete gap above. Verify the
+      agreed implementation; do not mistake the Content workaround for completed
+      portfolio actions.
 - [ ] Test own name/avatar edit, admin staff edit/resend, partial invitation email
       failure without duplicate accounts, deactivate/reactivate and retained
       portfolio. A venue transfer labels old uploads with the old venue and new

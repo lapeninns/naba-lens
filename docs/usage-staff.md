@@ -1,9 +1,60 @@
 # Staff guide
 
-1. Open `/login`, enter your invited email and choose Send sign-in link. Open the email link. If it expired, request another. Ask an admin if access is blocked; an uninvited address does not create an account.
-2. Your `/staff` portfolio shows your own uploads. Choose Upload photos or videos and select up to ten files. Keep the page open while transferring; two files transfer at a time. Photos may be up to 20 MiB and videos up to 200 MiB. Follow [capture guidance](operations.md).
-3. Watch each file's transfer and processing result. Retry a failed file rather than uploading successful files again. Ready media appears in your portfolio and the admin library automatically. Processing is a technical check, not marketing approval. A missing/inactive venue assignment prevents upload; ask an admin to correct it.
-4. Use Edit profile to change your display name or photo (up to 5 MiB). An admin manages your job title and venue.
-5. Open an item to preview it. For removal, choose Remove and confirm. This removes it from both views. Previously issued links may last briefly and downloaded copies cannot be recalled.
+## Sign in and leave safely
 
-Video preview depends on your browser and codec. An unsupported preview does not mean the original is lost. HEIC phone and deployment checks remain release requirements. Sign out when finished, especially on a shared device.
+Open `/login`, enter your invited address in **Email**, then choose
+**Send sign-in link**. At **Check your email**, open the single-use email link.
+This neutral response does not confirm access or delivery, and never
+creates an account. For **That sign-in link has expired**, request another.
+
+Staff land at `/staff`. If **Account unavailable** appears, ask an admin;
+that screen has **Sign out**. In your portfolio header, use **Log out**,
+especially on shared devices.
+
+## Update your profile
+
+Choose **Edit profile**, change **Display name** or **Profile photo**, then
+**Save changes**. Photos can be up to 5 MiB (shown as **5.0 MB**).
+Your admin controls job title, venue and access. Ask them to fix a missing or
+inactive venue if uploads are paused.
+
+## Upload photos or videos
+
+1. Choose **Upload photos or videos**, then **Choose files**. **Use camera**
+   is device-dependent. The picker accepts JPEG, PNG, WebP and HEIC/HEIF photos,
+   plus MP4, MOV and WebM videos; server validation can still reject a file.
+2. Select up to **10 files at a time**. Each photo can be up to **20 MiB**,
+   each video **200 MiB** (shown as **20 MB** and **200 MB**). Before starting,
+   use a file's × control (“Remove” plus its filename) to deselect it. Choose
+   **Upload 1 file** or the button with your selected file count.
+3. Keep the page open; at most two transfers run at once. Each file independently
+   moves from **Ready to upload** through **Waiting**, **Uploading** (percentage)
+   and **Processing** to **Uploaded** or **Failed** with its error. A failure
+   does not undo successful files. Ready media reaches both your portfolio and
+   the admin library automatically; processing is technical, not editorial approval.
+4. Use **Retry** beside a failed or **Cancelled** file, or **Retry failed** for
+   all failures. Retry here reuses the same upload; do not reselect successful
+   files. For rejected or corrupt content, choose a valid replacement rather
+   than repeatedly retrying the same bytes.
+5. **Cancel** beside a waiting/transferring file stops that item; **Cancel all**
+   cancels unfinished queue items. Neither deletes successful uploads, and server
+   processing already underway can still finish. Choose **Done** when settled.
+   Closing clears the queue and retry context. Do not rely on uploads continuing
+   after browser closure; recheck your portfolio before reselecting.
+
+## View or delete your media
+
+Your newest-first gallery contains only your uploads, including incomplete
+states. Open a ready tile to preview; use **Load more** for older items.
+**Preview unavailable in this browser** can appear for unsupported video
+codecs. Format acceptance does not guarantee playback on every device.
+
+To remove an item, open it and choose **Delete**. Read:
+
+> Remove this file from your portfolio and the admin library? Previously downloaded copies cannot be recalled.
+
+Choose **Keep file** to cancel or **Delete** to confirm. The same asset disappears
+from both views. Existing signed links may work until expiry; saved copies remain.
+
+Capture safely and follow your organisation's privacy and permission rules.
+Uploading is not publishing clearance. See [capture guidance](operations.md).

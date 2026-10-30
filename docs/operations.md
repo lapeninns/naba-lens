@@ -128,7 +128,8 @@ has real evidence.
 1. Verify the report through an approved channel and identify the individual
    account. Do not request their magic link or share their login.
 2. A different active admin opens **Staff** (`/admin/staff`), locates the person
-   and uses **Deactivate**, then confirms **Deactivate account**. The staff UI
+   and uses **Deactivate**, then confirms **Deactivate** in the named-person
+   dialog. The staff UI
    cannot manage admin accounts; a lost admin device needs an authorised
    operator to disable the exact admin profile/Auth user through the controlled
    provider procedure, not the bootstrap script (which activates accounts).
@@ -147,8 +148,10 @@ has real evidence.
    organisation's device-lock/wipe, mailbox/session-security and privacy-incident
    process. Record times/actions without publishing private tokens or content.
 6. Only after identity/device/mailbox security is restored and authorised, use
-   **Reactivate** and confirm **Reactivate account**. Verify new sign-in and
-   correct venue; do not use a shared replacement account.
+   **Reactivate**, which takes effect without a confirmation dialog. The
+   **Account active** switch also changes access on **Save changes** without
+   that dialog; use it deliberately. Verify new sign-in and correct venue;
+   do not use a shared replacement account.
 
 For suspected service-key exposure or cross-account access, escalate immediately
 to the owner/security contact. Restrict access under the approved incident plan,
