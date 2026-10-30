@@ -2,35 +2,19 @@ import type { NextRequest } from "next/server"
 
 import { seeOther } from "@/app/auth/redirect"
 import { parseEmailLink } from "@/lib/auth/email-link"
+import { isSameOriginRequest } from "@/lib/server/http/same-origin"
 import { createClient } from "@/lib/supabase/server"
-
-/**
- * Same-origin check: a cross-site form must not sign this browser in with
- * someone else's token. Browsers set Sec-Fetch-Site themselves; without it, the
- * Origin must name this host. `Origin: null` (opaque or privacy-stripped) fails.
- */
-function isSameOrigin(request: NextRequest): boolean {
-  const site = request.headers.get("sec-fetch-site")
-  if (site) return site === "same-origin" || site === "none"
-  const origin = request.headers.get("origin")
-  if (!origin) return true
-  const host =
-    request.headers.get("x-forwarded-host") ?? request.headers.get("host")
-  try {
-    return new URL(origin).host === host
-  } catch {
-    return false
-  }
-}
 
 /**
  * POST target of the /auth/confirm page's Continue button. Verifies the email
  * link's token hash server-side (no PKCE verifier needed, so any browser works)
  * and starts the session. Success goes to "/", which routes by the database role;
  * an expired, used or malformed link goes back to login's recovery state.
+ * Same-origin only: a cross-site form must not sign this browser in with
+ * someone else's token (shared CSRF check, as every cookie-taking POST uses).
  */
 export async function POST(request: NextRequest) {
-  if (!isSameOrigin(request)) {
+  if (!isSameOriginRequest(request.headers)) {
     return new Response("Forbidden.", { status: 403 })
   }
 
