@@ -454,7 +454,7 @@ test("rows 2+4: re-import with rename, removal, key change and category move; un
     await admin
       .getByRole("button", { name: /^Momo Veg · Chicken/, expanded: false })
       .click()
-    await admin.getByRole("button", { name: "Archive Momo" }).click()
+    await admin.getByRole("button", { name: "Archive item: Momo" }).click()
     const confirm = admin.getByRole("alertdialog")
     await expect(confirm).toContainText(
       "Staff can no longer add it to new labels"

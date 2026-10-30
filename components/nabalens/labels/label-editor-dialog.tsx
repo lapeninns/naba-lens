@@ -662,6 +662,9 @@ function LabelEditor({
           noValidate
           onSubmit={(e) => {
             e.preventDefault()
+            // Wait for a (re)loading menu: saving now would only be refused
+            // again as a stale-menu conflict (QA observation).
+            if (catalogue.state === "loading") return
             void save()
           }}
           className="grid min-w-0 grid-cols-[minmax(0,1fr)]"
@@ -867,8 +870,8 @@ function LabelEditor({
               id={`${uid}-save`}
               type="submit"
               size="touch"
-              disabled={pending}
-              aria-busy={pending}
+              disabled={pending || catalogue.state === "loading"}
+              aria-busy={pending || catalogue.state === "loading"}
             >
               {saveText}
             </Button>

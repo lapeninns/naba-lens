@@ -70,62 +70,73 @@ export function MediaTile({
     <figure
       className={cn("group/tile flex min-w-0 flex-col gap-1.5", className)}
     >
-      <button
-        type="button"
-        onClick={() => onOpen(item)}
-        aria-label={describe(item, showAttribution, labelText)}
-        className="relative block aspect-square w-full overflow-hidden rounded-md bg-media-placeholder outline-none focus-visible:ring-3 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-      >
-        {showThumb ? (
-          // Signed private URLs: deliberately not routed through next/image so
-          // private media never passes through a shared optimisation cache.
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={item.thumbnailUrl!}
-            alt=""
-            loading="lazy"
-            decoding="async"
-            onError={() => setFailedUrl(item.thumbnailUrl)}
-            className="size-full object-cover transition-transform duration-200 group-hover/tile:scale-[1.02] motion-reduce:transition-none"
-          />
-        ) : (
-          <span className="flex size-full items-center justify-center text-muted-foreground">
-            {item.uploadState === "uploading" ||
-            item.uploadState === "processing" ? (
-              <SpinnerGapIcon
-                className="size-6 motion-safe:animate-spin"
-                aria-hidden
-              />
-            ) : item.uploadState === "failed" ? (
-              <WarningCircleIcon className="size-6 text-negative" aria-hidden />
-            ) : // No video poster frames (no transcoding); a neutral video tile.
-            item.mediaType === "video" ? (
-              <FilmStripIcon className="size-8" aria-hidden />
-            ) : (
-              <ImageIcon className="size-6" aria-hidden />
-            )}
-          </span>
-        )}
-        {item.mediaType === "video" ? (
-          <span className="absolute right-1.5 bottom-1.5 inline-flex h-5 items-center gap-1 rounded-sm bg-black/70 px-1.5 text-xs font-medium text-white tabular-nums">
-            <PlayIcon weight="fill" className="size-3" aria-hidden />
-            {item.durationSeconds
-              ? formatDuration(item.durationSeconds)
-              : "Video"}
+      {/* The labels badge sits outside the button (aria-hidden; its text is
+          already in the button's name) so the button's visible text stays a
+          contiguous part of its accessible name (WCAG 2.5.3, QA D1). */}
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => onOpen(item)}
+          aria-label={describe(item, showAttribution, labelText)}
+          className="relative block aspect-square w-full overflow-hidden rounded-md bg-media-placeholder outline-none focus-visible:ring-3 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        >
+          {showThumb ? (
+            // Signed private URLs: deliberately not routed through next/image so
+            // private media never passes through a shared optimisation cache.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={item.thumbnailUrl!}
+              alt=""
+              loading="lazy"
+              decoding="async"
+              onError={() => setFailedUrl(item.thumbnailUrl)}
+              className="size-full object-cover transition-transform duration-200 group-hover/tile:scale-[1.02] motion-reduce:transition-none"
+            />
+          ) : (
+            <span className="flex size-full items-center justify-center text-muted-foreground">
+              {item.uploadState === "uploading" ||
+              item.uploadState === "processing" ? (
+                <SpinnerGapIcon
+                  className="size-6 motion-safe:animate-spin"
+                  aria-hidden
+                />
+              ) : item.uploadState === "failed" ? (
+                <WarningCircleIcon
+                  className="size-6 text-negative"
+                  aria-hidden
+                />
+              ) : // No video poster frames (no transcoding); a neutral video tile.
+              item.mediaType === "video" ? (
+                <FilmStripIcon className="size-8" aria-hidden />
+              ) : (
+                <ImageIcon className="size-6" aria-hidden />
+              )}
+            </span>
+          )}
+          {item.mediaType === "video" ? (
+            <span className="absolute right-1.5 bottom-1.5 inline-flex h-5 items-center gap-1 rounded-sm bg-black/70 px-1.5 text-xs font-medium text-white tabular-nums">
+              <PlayIcon weight="fill" className="size-3" aria-hidden />
+              {item.durationSeconds
+                ? formatDuration(item.durationSeconds)
+                : "Video"}
+            </span>
+          ) : null}
+          {item.uploadState !== "ready" ? (
+            <UploadStateBadge
+              state={item.uploadState}
+              className="absolute top-1.5 left-1.5"
+            />
+          ) : null}
+        </button>
+        {item.uploadState === "ready" && labelText ? (
+          <span
+            aria-hidden
+            className="pointer-events-none absolute top-1.5 left-1.5"
+          >
+            <LabelBadge labels={item.labels} />
           </span>
         ) : null}
-        {item.uploadState !== "ready" ? (
-          <UploadStateBadge
-            state={item.uploadState}
-            className="absolute top-1.5 left-1.5"
-          />
-        ) : labelText ? (
-          <LabelBadge
-            labels={item.labels}
-            className="absolute top-1.5 left-1.5"
-          />
-        ) : null}
-      </button>
+      </div>
       {showAttribution ? (
         <figcaption className="min-w-0 px-0.5 text-xs leading-snug">
           <span className="block truncate font-medium text-foreground">

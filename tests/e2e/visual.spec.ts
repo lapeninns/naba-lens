@@ -707,7 +707,11 @@ test("staff: video playback by codec (MOV tried, HEVC falls back)", async ({
   // Sub-second clip: "<0:01", not "0:00"; a film icon marks a video tile.
   const movTile = await tile(page, "iphone-h264.mov")
   await expect(movTile).toContainText("<0:01")
-  await expect(movTile).toHaveAccessibleName(/duration <0:01$/)
+  // v0.3: the staff tile name also ends with its labels status ("Needs
+  // labels" / "N labels"), shown by a badge outside the button.
+  await expect(movTile).toHaveAccessibleName(
+    /duration <0:01(, (Needs labels|\d+ labels?))?$/
+  )
   expect(await videoOutcome(page, "iphone-h264.mov")).toBe("plays")
   await capture(page, testInfo, "viewer-video-mov", {
     widths: some(page, testInfo, [390, 1280]),

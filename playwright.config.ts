@@ -62,7 +62,8 @@ const CORE = /@core/
 // Phone-width Chromium: the core journey plus the suites that already ran at
 // phone width before the release suite (`grep` sees the project name, the file
 // name and the test title, so file names select whole files here).
-const PHONE = /@core|\b(auth|slice|staff-accounts|library|gaps)\.spec\.ts\b/
+const PHONE =
+  /@core|\b(auth|slice|staff-accounts|library|gaps|menus-labels)\.spec\.ts\b/
 
 export default defineConfig({
   testDir: "tests/e2e",

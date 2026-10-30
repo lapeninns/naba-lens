@@ -39,7 +39,7 @@ export function ArchiveItemControl({
         size="touch"
         disabled={disabled}
         onClick={() => setOpen(true)}
-        aria-label={`${archived ? "Unarchive" : "Archive"} ${itemName}`}
+        aria-label={`${archived ? "Unarchive item" : "Archive item"}: ${itemName}`}
       >
         {archived ? (
           <ArrowCounterClockwiseIcon data-icon="inline-start" aria-hidden />

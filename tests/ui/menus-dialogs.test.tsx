@@ -185,7 +185,7 @@ describe("Retire, discard and archive confirmations", () => {
         onSetArchived={onSetArchived}
       />
     )
-    await user.click(screen.getByRole("button", { name: "Archive Tikka" }))
+    await user.click(screen.getByRole("button", { name: "Archive item: Tikka" }))
     const dialog = screen.getByRole("alertdialog", {
       name: "Archive “Tikka”?",
     })
@@ -205,7 +205,7 @@ describe("Retire, discard and archive confirmations", () => {
         onSetArchived={onSetArchived}
       />
     )
-    await user.click(screen.getByRole("button", { name: "Unarchive Tikka" }))
+    await user.click(screen.getByRole("button", { name: "Unarchive item: Tikka" }))
     await user.click(
       within(
         screen.getByRole("alertdialog", { name: "Unarchive “Tikka”?" })
