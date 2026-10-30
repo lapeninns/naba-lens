@@ -6,6 +6,7 @@ import {
   CameraIcon,
   FilmStripIcon,
   ImageIcon,
+  TagIcon,
   UploadSimpleIcon,
   XIcon,
 } from "@phosphor-icons/react"
@@ -42,6 +43,11 @@ type UploadDialogProps = {
   limits: UploadLimits
   /** Called after a run settles with at least one new ready file. */
   onUploaded?: (count: number) => void
+  /**
+   * Optional labelling after upload (v0.3): shown once a run settles with
+   * finished files whose asset IDs are known. Skipping it changes nothing.
+   */
+  onLabel?: (assetIds: string[]) => void
   /** Offer the camera-capture input as an enhancement. Default true. */
   allowCamera?: boolean
 }
@@ -160,6 +166,7 @@ export function UploadDialog({
   uploader,
   limits,
   onUploaded,
+  onLabel,
   allowCamera = true,
 }: UploadDialogProps) {
   const queue = useUploadQueue({ upload: uploader, limits })
@@ -206,6 +213,11 @@ export function UploadDialog({
 
   const started = items.some((i) => i.status !== "selected")
   const settled = started && !isActive && summary.selected === 0
+  const labelIds = settled
+    ? items.flatMap((i) =>
+        i.status === "done" && i.assetId ? [i.assetId] : []
+      )
+    : []
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -314,6 +326,11 @@ export function UploadDialog({
                 .join(" · ")}
             </p>
           ) : null}
+          {onLabel && labelIds.length > 0 ? (
+            <p className="mt-1 text-muted-foreground">
+              Optional: add menu items or details now, or later from each file.
+            </p>
+          ) : null}
         </div>
 
         <DialogFooter>
@@ -330,6 +347,20 @@ export function UploadDialog({
               {settled ? "Done" : "Cancel"}
             </Button>
           )}
+          {onLabel && labelIds.length > 0 ? (
+            <Button
+              variant={summary.failed > 0 ? "outline" : "default"}
+              size="touch"
+              onClick={() => {
+                const ids = labelIds
+                handleOpenChange(false)
+                onLabel(ids)
+              }}
+            >
+              <TagIcon data-icon="inline-start" aria-hidden />
+              {labelIds.length === 1 ? "Label this file" : "Label these files"}
+            </Button>
+          ) : null}
           {settled && summary.failed > 0 ? (
             <Button size="touch" onClick={queue.retryFailed}>
               <ArrowClockwiseIcon data-icon="inline-start" aria-hidden />

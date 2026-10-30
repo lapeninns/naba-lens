@@ -119,4 +119,7 @@ export type UploadContext = {
 }
 
 /** Injected upload function. Resolve when the asset is ready; reject on failure. */
-export type Uploader = (file: File, context: UploadContext) => Promise<void>
+export type Uploader = (
+  file: File,
+  context: UploadContext
+) => Promise<void | { assetId: string }>

@@ -4,7 +4,7 @@ import { SignOutIcon } from "@phosphor-icons/react/dist/ssr"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
-type AdminSection = "content" | "staff"
+type AdminSection = "content" | "staff" | "menus"
 
 type AppShellProps = {
   children: React.ReactNode
@@ -19,7 +19,7 @@ type AppShellProps = {
   | {
       variant: "admin"
       active: AdminSection
-      /** Defaults: /admin and /admin/staff. */
+      /** Defaults: /admin, /admin/staff and /admin/menus. */
       hrefs?: Partial<Record<AdminSection, string>>
     }
 )
@@ -27,11 +27,12 @@ type AppShellProps = {
 const NAV: { id: AdminSection; label: string; href: string }[] = [
   { id: "content", label: "Content", href: "/admin" },
   { id: "staff", label: "Staff", href: "/admin/staff" },
+  { id: "menus", label: "Menus", href: "/admin/menus" },
 ]
 
 /**
- * Page frame. Staff get the wordmark and Log out only; admin also get the two
- * sections, Content and Staff. Nothing else belongs in this navigation.
+ * Page frame. Staff get the wordmark and Log out only; admin also get the
+ * sections Content, Staff and (v0.3) Menus. Nothing else belongs here.
  */
 export function AppShell(props: AppShellProps) {
   const { children, userName, onLogout, logoutAction, className } = props

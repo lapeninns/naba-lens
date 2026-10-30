@@ -242,3 +242,17 @@ everything on your branch before handing off.
 | 13  | Original bytes, upload, preview, download unchanged                                 | existing suites, J    |
 | 14  | Phone widths, accessible names, keyboard focus, recovery                            | E, G, J               |
 | 15  | Failures/retries/concurrent stale updates: no silent loss/duplicates                | B, F, G               |
+
+## 8. Scope guard (`tests/unit/scope-guard.test.ts`, lead-owned)
+
+`pnpm test` fails if (a) a page/route handler exists outside its allow-list,
+or (b) application source in `app/`, `lib/`, `components/`, `proxy.ts` or
+`supabase/migrations/*.sql` (comments and `comment on` stripped) matches a
+banned-feature term: `approv`, `comment(s)`/`comment_`, `like(s)`, **`tag`,
+`tags`, `tagged`, `tag_id`**, `zip`, `analytics`, `notification`,
+`leaderboard`, `campaign`. Use the vocabulary **label / labelled / content
+type / review / activate / suggestion**, never "tag" or "approve". Allowed
+new routes: pages `/admin/menus`, `/admin/menus/[venueId]`,
+`/admin/menus/versions/[versionId]`; handler `/api/admin/menus/import-preview`.
+Labels use Server Functions (no new route handler); ask the lead first if you
+truly need another route.

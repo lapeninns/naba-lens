@@ -46,7 +46,10 @@ export function toQueueUploader(
   // share one reservation.
   const inUse = new Set<string>()
 
-  return async (file: File, context: UploadContext): Promise<void> => {
+  return async (
+    file: File,
+    context: UploadContext
+  ): Promise<void | { assetId: string }> => {
     let token = readToken(context.resumeToken)
     if (!token) {
       const stored = keys ? await keys.get(file).catch(() => null) : null
@@ -109,6 +112,8 @@ export function toQueueUploader(
         }
       )
     }
+    // Ready: report the asset so the dialog can offer optional labelling.
+    return result.assetId ? { assetId: result.assetId } : undefined
   }
 }
 

@@ -34,6 +34,8 @@ export type QueueItem = {
   progress: number
   error: string | null
   attempts: number
+  /** Server asset ID once done, when the uploader reports it (labelling). */
+  assetId?: string
 }
 
 export type UploadContext = {
@@ -48,8 +50,14 @@ export type UploadContext = {
   attempt: number
 }
 
-/** Injected upload function. Resolve when the asset is ready; reject on failure. */
-export type Uploader = (file: File, context: UploadContext) => Promise<void>
+/**
+ * Injected upload function. Resolve when the asset is ready (optionally with
+ * its server asset ID, so the UI can offer labelling); reject on failure.
+ */
+export type Uploader = (
+  file: File,
+  context: UploadContext
+) => Promise<void | { assetId: string }>
 
 export type RejectedFile = { name: string; reason: string }
 
@@ -345,9 +353,13 @@ export class UploadQueue {
     }
 
     try {
-      await this.uploader(item.file, context)
+      const result = await this.uploader(item.file, context)
       if (!current()) return
-      this.update(id, { status: "done", progress: 1 })
+      this.update(id, {
+        status: "done",
+        progress: 1,
+        ...(result?.assetId ? { assetId: result.assetId } : {}),
+      })
     } catch (error) {
       if (!current()) return
       if (controller.signal.aborted) {

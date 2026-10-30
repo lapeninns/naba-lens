@@ -12,7 +12,9 @@ import { describe, expect, it } from "vitest"
  *    UI preview. A new screen or API must be added here on purpose.
  * 2. Application source (comments stripped) has no code for the excluded
  *    features: approval, comments, likes, tagging, ZIP export, analytics,
- *    notifications. Tests and docs may mention them.
+ *    notifications. Tests and docs may mention them. v0.3 adds optional menu
+ *    *labels* (controlled catalogue items/content types), deliberately not a
+ *    free-form tagging workflow, so the "tag" terms stay banned.
  */
 
 const root = fileURLToPath(new URL("../../", import.meta.url))
@@ -33,6 +35,10 @@ const ALLOWED_PAGES = new Set([
   // Email-link landing: shows Continue; the token is used only on POST (review #8).
   "/auth/confirm",
   "/ui-preview",
+  // v0.3 menu catalogue (docs/spec/NabaLens-Menus-Labels-v0.3.md §4).
+  "/admin/menus",
+  "/admin/menus/[venueId]",
+  "/admin/menus/versions/[versionId]",
 ])
 
 const ALLOWED_HANDLERS = new Set([
@@ -51,6 +57,8 @@ const ALLOWED_HANDLERS = new Set([
   "/api/media/[id]/stream",
   "/api/media/[id]/thumb",
   "/api/internal/cleanup",
+  // v0.3: JSON/CSV import preview upload (> Server Action body limit).
+  "/api/admin/menus/import-preview",
 ])
 
 /** The dev-only preview must stay inside the `(dev)` route group. */
