@@ -76,7 +76,8 @@ test.beforeAll(async () => {
   writeFileSync(fixtureCache, JSON.stringify(fx))
 })
 
-function widthsFor(page: Page, browserName: string): number[] {
+function widthsFor(page: Page): number[] {
+  const browserName = page.context().browser()?.browserType().name()
   if (browserName === "chromium") return [...QA_WIDTHS]
   return [page.viewportSize()?.width ?? 1280]
 }
@@ -231,6 +232,19 @@ async function smallTouchTargets(page: Page): Promise<Offender[]> {
   }, MIN_TOUCH)
 }
 
+/**
+ * Known upstream exception, reported in docs/fanout/handoffs/visual-a11y.md:
+ * in Safari/WebKit only, Base UI renders each modal's visually hidden focus-trap
+ * sentinels as `<span role="button" tabindex="0" data-base-ui-focus-guard>`
+ * without a name (on other engines they are aria-hidden). Only those nodes,
+ * and only for `aria-command-name`, are exempt; every exemption is recorded as
+ * a test annotation. Any other node failing the rule still fails the test.
+ */
+const UPSTREAM_EXEMPT = {
+  rule: "aria-command-name",
+  node: /\[data-base-ui-focus-guard/,
+}
+
 async function axeSerious(page: Page) {
   const results = await new AxeBuilder({ page })
     .withTags([
@@ -244,6 +258,20 @@ async function axeSerious(page: Page) {
     .analyze()
   return results.violations
     .filter((v) => v.impact === "serious" || v.impact === "critical")
+    .map((v) => {
+      if (v.id !== UPSTREAM_EXEMPT.rule) return v
+      const nodes = v.nodes.filter(
+        (n) => !UPSTREAM_EXEMPT.node.test(n.target.join(" "))
+      )
+      if (nodes.length < v.nodes.length) {
+        test.info().annotations.push({
+          type: "axe-upstream-exempt",
+          description: `${v.id}: ${v.nodes.length - nodes.length} Base UI focus guard(s)`,
+        })
+      }
+      return { ...v, nodes }
+    })
+    .filter((v) => v.nodes.length > 0)
     .map((v) => ({
       what: `${v.id} (${v.impact})`,
       detail: v.nodes
@@ -283,9 +311,7 @@ async function capture(
   name: string,
   options: CaptureOptions = {}
 ) {
-  const widths =
-    options.widths ??
-    widthsFor(page, testInfo.project.use.browserName ?? "chromium")
+  const widths = options.widths ?? widthsFor(page)
   const scheme = (await page.evaluate(() =>
     document.documentElement.classList.contains("dark") ? "dark" : "light"
   )) as string
@@ -546,9 +572,7 @@ test("staff: upload dialog states and focus return", async ({
 })
 
 const some = (page: Page, testInfo: TestInfo, wanted: number[]) =>
-  widthsFor(page, testInfo.project.use.browserName ?? "chromium").filter((w) =>
-    wanted.includes(w)
-  )
+  widthsFor(page).filter((w) => wanted.includes(w))
 
 /** Re-opens a popup after each resize (popups close when the viewport changes). */
 function reopen(page: Page, trigger: Locator, popup: Locator) {
@@ -587,10 +611,7 @@ test("staff: populated portfolio and photo viewer", async ({
     await opener.focus()
     await page.keyboard.press("Enter")
     await expect(page.getByRole("dialog")).toBeVisible()
-    for (const width of widthsFor(
-      page,
-      testInfo.project.use.browserName ?? "chromium"
-    )) {
+    for (const width of widthsFor(page)) {
       await page.setViewportSize({ width, height: HEIGHT[width] ?? 800 })
       await settle(page)
       await expectWholeImage(page, `${name} @${width}`)
@@ -737,11 +758,7 @@ test("staff: long name and paused venue", async ({
   await capture(long, testInfo, "staff-long-name")
   await long.getByRole("button", { name: "Edit profile" }).click()
   await capture(long, testInfo, "edit-profile-long-name", {
-    widths: [360, 1280].filter((w) =>
-      widthsFor(long, testInfo.project.use.browserName ?? "chromium").includes(
-        w
-      )
-    ),
+    widths: [360, 1280].filter((w) => widthsFor(long).includes(w)),
   })
   await long.context().close()
 
