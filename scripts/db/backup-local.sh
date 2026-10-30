@@ -16,7 +16,8 @@
 #   migrations-schema.sql  supabase_migrations schema and
 #   migrations-data.sql    its rows: the applied migration history
 #   data.sql               all data incl. auth.* and storage.buckets (COPY), except
-#                          storage.objects, which the object import recreates
+#                          storage.objects, which the object import recreates, and
+#                          unused storage feature tables (checked empty first)
 #   migrations.txt         applied migration versions at backup time
 #   storage/manifest.json  bucket, key, content type, size, sha256 per object
 #   storage/objects/...    object bytes
@@ -47,11 +48,29 @@ case "$db_url" in
   *) echo "Not a local stack; refusing." >&2; exit 1 ;;
 esac
 
+# Storage feature tables NabaLens does not use (vector/analytics/iceberg buckets)
+# and S3 multipart uploads in flight. Some are owned by supabase_storage_admin and
+# cannot be loaded by `postgres` on restore. They are excluded from data.sql only
+# after checking they are empty, so nothing is dropped silently.
+unused_tables=(storage.buckets_analytics storage.buckets_vectors storage.vector_indexes
+  storage.iceberg_namespaces storage.iceberg_tables storage.s3_multipart_uploads
+  storage.s3_multipart_uploads_parts supabase_functions.hooks)
+for t in "${unused_tables[@]}"; do
+  rows=$(psql "$db_url" -X -A -t -v ON_ERROR_STOP=1 -c \
+    "select case when to_regclass('$t') is null then 0 else (xpath('/row/c/text()',
+       query_to_xml('select count(*) as c from $t', false, true, '')))[1]::text::int end")
+  if [[ "$rows" != "0" ]]; then
+    echo "$t has $rows rows; this backup script does not cover it. Extend it first." >&2
+    exit 1
+  fi
+done
+exclude=$(IFS=,; echo "storage.objects,${unused_tables[*]}")
+
 echo "== dumping database from $workdir"
 supabase --workdir "$workdir" db dump --local --role-only -f "$out/roles.sql"
 supabase --workdir "$workdir" db dump --local -f "$out/schema.sql"
 supabase --workdir "$workdir" db dump --local --data-only --use-copy \
-  -x storage.objects -f "$out/data.sql"
+  -x "$exclude" -f "$out/data.sql"
 supabase --workdir "$workdir" db dump --local --schema supabase_migrations \
   -f "$out/migrations-schema.sql"
 supabase --workdir "$workdir" db dump --local --data-only --schema supabase_migrations \

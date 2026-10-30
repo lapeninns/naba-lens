@@ -510,52 +510,54 @@ export function expectedRows(
 // ---------------------------------------------------------------------------
 
 /** Stable snapshot of retained data, storage metadata and security config. */
+type Row = Record<string, unknown>
+
 export function snapshot(env: StackEnv) {
   return {
     migrations: psqlJson<{ version: string }[]>(
       env,
       "select version from supabase_migrations.schema_migrations order by version"
     ).map((r) => r.version),
-    venues: psqlJson(
+    venues: psqlJson<Row[]>(
       env,
       "select id, name, slug, active, created_at from public.venues order by id"
     ),
-    profiles: psqlJson(
+    profiles: psqlJson<Row[]>(
       env,
       "select id, display_name, avatar_path, job_title, role, venue_id, active, created_at, updated_at from public.profiles order by id"
     ),
     // Explicit columns so an additive migration does not change the snapshot.
-    mediaAssets: psqlJson(
+    mediaAssets: psqlJson<Row[]>(
       env,
       `select id, uploader_id, venue_id, original_path, preview_path, thumbnail_path,
         original_filename, media_type, validated_mime_type, size_bytes, width, height,
         duration_seconds, upload_state, client_upload_key, created_at, updated_at, deleted_at
        from public.media_assets order by id`
     ),
-    authUsers: psqlJson(
+    authUsers: psqlJson<Row[]>(
       env,
       "select id, email, email_confirmed_at is not null as confirmed, raw_app_meta_data from auth.users order by id"
     ),
-    buckets: psqlJson(
+    buckets: psqlJson<Row[]>(
       env,
       "select id, public, file_size_limit, allowed_mime_types from storage.buckets order by id"
     ),
-    objects: psqlJson(
+    objects: psqlJson<Row[]>(
       env,
       `select bucket_id, name, metadata->>'size' as size, metadata->>'mimetype' as mimetype
        from storage.objects order by bucket_id, name`
     ),
-    policies: psqlJson(
+    policies: psqlJson<Row[]>(
       env,
       `select schemaname, tablename, policyname, permissive, roles::text[] as roles, cmd, qual, with_check
        from pg_policies where schemaname in ('public', 'storage') order by 1, 2, 3`
     ),
-    rls: psqlJson(
+    rls: psqlJson<{ relname: string; relrowsecurity: boolean }[]>(
       env,
       `select c.relname, c.relrowsecurity from pg_class c join pg_namespace n on n.oid = c.relnamespace
        where n.nspname = 'public' and c.relkind = 'r' order by 1`
     ),
-    grants: psqlJson(
+    grants: psqlJson<Row[]>(
       env,
       `select table_name, grantee, privilege_type from information_schema.role_table_grants
        where table_schema = 'public' and grantee in ('anon', 'authenticated') order by 1, 2, 3`

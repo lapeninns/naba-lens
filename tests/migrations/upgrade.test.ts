@@ -139,7 +139,7 @@ describe("upgrade with retained data", () => {
       relrowsecurity: true,
     })
     expect(
-      after.rls.every((r) => (r as { relrowsecurity: boolean }).relrowsecurity)
+      after.rls.every((r) => r.relrowsecurity)
     ).toBe(true)
   })
 

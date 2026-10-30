@@ -52,4 +52,4 @@ if (failures.length) {
   console.error(failures.join("\n"))
   process.exit(1)
 }
-console.log("restore verified: sign-in, row visibility and byte-identical downloads match")
+console.log("verified: sign-in, row visibility and byte-identical downloads match the manifest")
