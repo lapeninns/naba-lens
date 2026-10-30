@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest"
 
-import { AuthLookupError, listAuthUsers } from "@/lib/server/accounts/auth-users"
+import {
+  AuthLookupError,
+  listAuthUsers,
+} from "@/lib/server/accounts/auth-users"
 import type { Db } from "@/lib/server/accounts/context"
 
 // Final review F8: after the deadline, the page loop must stop fetching more
@@ -15,7 +18,10 @@ function slowFullPages() {
       error: null,
     }
   })
-  return { listUsers, service: { auth: { admin: { listUsers } } } as unknown as Db }
+  return {
+    listUsers,
+    service: { auth: { admin: { listUsers } } } as unknown as Db,
+  }
 }
 
 describe("listAuthUsers deadline (final review F8)", () => {

@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button"
 export default function GlobalError({ retry }: { retry: () => void }) {
   return (
     <html lang="en">
-      <body className="antialiased font-sans">
+      <body className="font-sans antialiased">
         <title>NabaLens</title>
         <main className="mx-auto flex min-h-svh max-w-md flex-col items-center justify-center gap-4 p-6 text-center">
           <h1 className="text-lg font-semibold">This page could not load</h1>

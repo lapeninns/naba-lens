@@ -48,11 +48,7 @@ export async function bootstrapAdmin(
   admin: SupabaseClient<Database>,
   input: { email: string; displayName?: string }
 ): Promise<BootstrapResult> {
-  const user = await findAuthUserByEmail(
-    admin,
-    input.email,
-    LOOKUP_DEADLINE_MS
-  )
+  const user = await findAuthUserByEmail(admin, input.email, LOOKUP_DEADLINE_MS)
   if (!user) {
     throw new Error(
       "No auth user with that email. Create/invite the user first; this script never creates accounts."

@@ -407,7 +407,9 @@ describe("foreground refresh", () => {
     let settle: (value: Awaited<ReturnType<LoadPage>>) => void = () => {}
     const loadPage = vi
       .fn<LoadPage>()
-      .mockImplementationOnce(() => new Promise((resolve) => (settle = resolve)))
+      .mockImplementationOnce(
+        () => new Promise((resolve) => (settle = resolve))
+      )
       .mockImplementation(async () => ({
         ok: true,
         page: { items: [item(ID_A), item(ID_B)], nextCursor: null },
