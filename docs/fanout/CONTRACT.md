@@ -38,6 +38,15 @@ brief is `docs/spec/NabaLens-Coding-Agent-Prompt.md`. Read both first.
 ## Shared names (from spec section 6)
 
 Tables: `venues`, `profiles`, `media_assets`, with exactly the spec's columns.
+
+**Amendment (wave 2, slice):** `media_assets.client_upload_key text` (nullable,
+`^[A-Za-z0-9_-]{8,128}$`, immutable) with a unique index on
+`(uploader_id, client_upload_key)`. `reserve_media_asset` takes an optional fifth
+argument `p_client_upload_key` and returns `(id, original_path, venue_id,
+upload_state, reused)`; a repeated key from the same uploader returns the existing
+asset (spec §5: "retry the same asset ID"). Migration
+`supabase/migrations/20261029160000_media_client_upload_key.sql`. This is the only
+column beyond the spec.
 Enums: `app_role` (`staff`, `admin`), `media_type` (`image`, `video`),
 `upload_state` (`uploading`, `processing`, `ready`, `failed`).
 Private buckets: `media` (originals and derivatives), `avatars`.

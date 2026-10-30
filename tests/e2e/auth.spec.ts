@@ -92,7 +92,7 @@ test.describe("authentication and role routing", () => {
     await page.goto("/admin")
     await expect(page).toHaveURL(/\/staff$/)
 
-    await page.getByRole("button", { name: "Sign out" }).click()
+    await page.getByRole("button", { name: "Log out" }).click()
     await expect(page).toHaveURL(/\/login\?signed_out=1$/)
     await page.goto("/staff")
     await expect(page).toHaveURL(/\/login$/)
