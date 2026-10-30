@@ -72,6 +72,49 @@ replace `= 554xx` ports with `586xx`, set `[studio]`/`[realtime]` `enabled = fal
   `slice.spec.ts`, `staff-accounts.spec.ts`); `docs/architecture.md` and
   `docs/accounts.md` describe the Continue step.
 
+## /admin/staff failed to render under a slow Auth server (journey run), fixed
+- **Root cause:** every render of `/admin/staff` called `listStaffDirectory` →
+  `listAuthUsers`, which paged through all auth users via GoTrue's admin API:
+  unbounded, and it threw on any error. Under load one listing exceeded GoTrue's
+  own 10 s deadline, so the render failed. `/admin/staff/[id]` (`getUserById`),
+  invite (`findAuthUserByEmail`) and resend (`getUserById`, where errors even
+  showed as "not found") had the same exposure.
+- **Fix (`lib/server/accounts`):** `withAuthDeadline` (4 s,
+  `AUTH_LOOKUP_DEADLINE_MS`, overridable via `AccountsContext.authDeadlineMs`)
+  and a 20-page cap; `AuthLookupError` (timeout | failed | too_many), logged
+  by reason only.
+  - Directory and account pages: Auth and avatar signing run in parallel; on
+    an Auth outage they return `authDetails: "unavailable"` with profile data
+    (names, venues, deactivation exact; emails and sign-in times null; an
+    active account shows Active). The pages show `AuthDetailsNotice`
+    ("Sign-in details are unavailable right now ... Reload to try again").
+  - Invite and resend refuse with "The sign-in service is not responding.
+    Nothing was saved / No email was sent." instead of throwing.
+  - No schema change.
+- **Test:** `tests/integration/auth-directory.test.ts` (7): control; Auth hangs
+  and Auth fails → list within deadline, marked unavailable; single account;
+  invite/resend refuse with nothing created or sent; the real `/admin/staff`
+  and `/admin/staff/[id]` pages render with the notice while Auth hangs. All 7
+  fail on the pre-fix code (a hang never returns; a failure throws).
+- **Merged `feat/nabalens-mvp` at 3e0a499, then 04e2a0e.** Follow-ups: Continue
+  step via `tests/e2e/helpers/email-link.ts` in journey, negative,
+  security-headers, upload-recovery and `helpers/world.ts`; auth-access
+  updated for the hardening (no direct Storage reads, even own avatar; reserve
+  needs an upload key; `reserveUpload` returns `status`).
+- **Results on 04e2a0e (isolated stack prepared with tests/e2e/prepare-stack.mjs,
+  project renamed nabalens-authedge, block 586, E2E_PORT=3586):** unit 144
+  passed; integration 203 passed, 11 skipped; build, typecheck, lint pass;
+  e2e 55 passed, 16 skipped, 5 failed:
+  - `gaps.spec.ts` "refreshes on focus ... 15 s interval" (chromium and
+    mobile-chromium) and `library.spec.ts` "signed previews ... expire"
+    (both; `media_reservation_closed`) fail identically on a clean
+    `feat/nabalens-mvp` checkout against the same stack. Pre-existing, not
+    in this track.
+  - `responsive.spec.ts` "keyboard only ..." times out waiting for the file
+    chooser only late in the full run; it passes alone and in its file (6/6)
+    on this branch. Order/load dependent; not touched by this track. A full
+    run on clean mvp was not done.
+
 ## Privacy audit R3 (staff got 200 on admin pages), fixed
 - **Cause:** `app/admin/loading.tsx` and `app/staff/loading.tsx` put each page in
   a Suspense boundary, so Next flushed the shell with 200 before the page's
