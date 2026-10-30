@@ -4,6 +4,7 @@ import * as React from "react"
 import { PencilSimpleIcon, UploadSimpleIcon } from "@phosphor-icons/react"
 import { useRouter } from "next/navigation"
 
+import { fetchMediaPage } from "@/app/_media/fetch-page"
 import { MediaGallery } from "@/app/_media/media-gallery"
 import { useMediaUploader } from "@/app/_media/use-media-uploader"
 import {
@@ -30,6 +31,11 @@ type StaffPortfolioProps = {
   /** Why uploads are paused (no or inactive venue), or null. */
   uploadBlocked: string | null
   initialPage: MediaPage
+}
+
+/** Abortable foreground refresh of the own portfolio (see MediaGallery). */
+function refreshMyMedia(signal: AbortSignal) {
+  return fetchMediaPage("/api/portfolio", {}, signal)
 }
 
 async function saveProfile(values: ProfileFormValues): Promise<ActionResult> {
@@ -100,6 +106,7 @@ export function StaffPortfolio({
         label="Your portfolio"
         initialPage={initialPage}
         loadPage={loadMyMedia}
+        refreshPage={refreshMyMedia}
         canDelete
         refreshSignal={refreshSignal}
         empty={<EmptyState action={uploadButton} />}

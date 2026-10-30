@@ -377,6 +377,83 @@ describe("GAP-11: cross-role access and private headers at the HTTP layer", () =
       )
     })
   })
+
+  // Final review F5: the gallery refresh moved from Server Functions to these
+  // GET routes (abortable). Same checks, private and uncached.
+  describe("gallery refresh routes", () => {
+    const portfolio = async (
+      who: TestIdentity | null,
+      headers?: Record<string, string>
+    ) => {
+      const { GET } = await import("../../app/api/portfolio/route")
+      return as(who, () => GET(get("/api/portfolio", headers)))
+    }
+    const library = async (who: TestIdentity | null, query = "") => {
+      const { GET } = await import("../../app/api/library/route")
+      return as(who, () => GET(get(`/api/library${query}`)))
+    }
+
+    it("/api/portfolio lists only the caller's own media, never cached", async () => {
+      const own = await portfolio(staffA)
+      expect(own.status).toBe(200)
+      expect(assertPrivateCaching(own, "portfolio as staff A")).toEqual([])
+      const body = await own.json()
+      expect(body.ok).toBe(true)
+      expect(body.page.items.map((i: { id: string }) => i.id)).toEqual(
+        expect.arrayContaining([photoA, videoA])
+      )
+
+      const other = await portfolio(staffB)
+      expect(other.status).toBe(200)
+      expect(await other.text()).not.toContain(photoA)
+
+      for (const [who, status] of [
+        [adminUser, 403],
+        [null, 401],
+      ] as const) {
+        const res = await portfolio(who)
+        expect(res.status).toBe(status)
+        expect(assertPrivateCaching(res, `portfolio ${status}`)).toEqual([])
+        expect(await res.text()).not.toContain(photoA)
+      }
+
+      const crossSite = await portfolio(staffA, {
+        "sec-fetch-site": "cross-site",
+      })
+      expect(crossSite.status).toBe(403)
+      expect(await crossSite.text()).not.toContain(photoA)
+    })
+
+    it("/api/library is admin only and applies the filters", async () => {
+      const filtered = await library(adminUser, `?staff=${staffA.id}`)
+      expect(filtered.status).toBe(200)
+      expect(assertPrivateCaching(filtered, "library as admin")).toEqual([])
+      const body = await filtered.json()
+      expect(body.page.items.map((i: { id: string }) => i.id)).toEqual(
+        expect.arrayContaining([photoA, videoA])
+      )
+      const photos = await (
+        await library(adminUser, `?staff=${staffA.id}&type=image`)
+      ).json()
+      expect(photos.page.items.map((i: { id: string }) => i.id)).toEqual([
+        photoA,
+      ])
+      const elsewhere = await (
+        await library(adminUser, `?venue=${otherVenue.id}`)
+      ).json()
+      expect(elsewhere.page.items).toEqual([])
+
+      for (const [who, status] of [
+        [staffA, 403],
+        [staffB, 403],
+        [null, 401],
+      ] as const) {
+        const res = await library(who)
+        expect(res.status).toBe(status)
+        expect(await res.text()).not.toContain(photoA)
+      }
+    })
+  })
 })
 
 describe("GAP-12: staff whose venue is deactivated", () => {

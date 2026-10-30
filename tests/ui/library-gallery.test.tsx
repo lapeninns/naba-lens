@@ -15,6 +15,7 @@ import {
   MediaGallery,
   REFRESH_TIMEOUT_MS,
   type LoadPage,
+  type RefreshPage,
 } from "@/app/_media/media-gallery"
 import {
   parseMediaRoute,
@@ -117,13 +118,15 @@ describe("preview route URLs", () => {
 function renderGallery(
   loadPage: LoadPage,
   refreshIntervalMs?: number,
-  getDownloadHref?: (item: { id: string }) => string
+  getDownloadHref?: (item: { id: string }) => string,
+  refreshPage?: RefreshPage
 ) {
   return render(
     <MediaGallery
       label="Library"
       initialPage={{ items: [item(ID_A), item(ID_B)], nextCursor: null }}
       loadPage={loadPage}
+      refreshPage={refreshPage}
       empty={<p>Empty</p>}
       refreshIntervalMs={refreshIntervalMs}
       getDownloadHref={getDownloadHref}
@@ -327,35 +330,51 @@ describe("foreground refresh", () => {
     expect(loadPage).not.toHaveBeenCalled()
   })
 
-  it("abandons a hung refresh so the interval and focus refreshes keep working", async () => {
+  // Final review F5: the refresh is an abortable GET, so a hung one is really
+  // cancelled and never holds up later Server Functions (uploads).
+  it("aborts a hung refresh so the interval and focus refreshes keep working", async () => {
     vi.useFakeTimers()
     const newer = item("0a6f3c2e-6a51-4f43-9a6a-2f1f8d1c0a03", {
       createdAt: "2026-10-29T12:05:00.000000+00:00",
     })
-    // The first refresh never answers; later ones do.
-    const loadPage = vi
-      .fn<LoadPage>()
-      .mockImplementationOnce(() => new Promise(() => {}))
-      .mockImplementation(async () => ({
-        ok: true,
-        page: { items: [newer, item(ID_A), item(ID_B)], nextCursor: null },
-      }))
-    renderGallery(loadPage, 15_000)
+    const signals: AbortSignal[] = []
+    // The first refresh never answers until aborted; later ones do.
+    const refreshPage = vi
+      .fn<RefreshPage>()
+      .mockImplementationOnce(
+        (signal) =>
+          new Promise((_, reject) => {
+            signals.push(signal)
+            signal.addEventListener("abort", () =>
+              reject(new DOMException("Aborted", "AbortError"))
+            )
+          })
+      )
+      .mockImplementation(async (signal) => {
+        signals.push(signal)
+        return {
+          ok: true,
+          page: { items: [newer, item(ID_A), item(ID_B)], nextCursor: null },
+        }
+      })
+    const loadPage = vi.fn<LoadPage>()
+    renderGallery(loadPage, 15_000, undefined, refreshPage)
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(15_000)
     })
-    expect(loadPage).toHaveBeenCalledTimes(1)
-    // Still hung: focus does not stack a second request on top of it.
+    expect(refreshPage).toHaveBeenCalledTimes(1)
+    // Still in flight: focus does not stack a second request on top of it.
     await act(async () => {
       window.dispatchEvent(new Event("focus"))
     })
-    expect(loadPage).toHaveBeenCalledTimes(1)
+    expect(refreshPage).toHaveBeenCalledTimes(1)
 
-    // The hung request times out with a visible message...
+    // The hung request is aborted at the timeout, with a visible message...
     await act(async () => {
       await vi.advanceTimersByTimeAsync(REFRESH_TIMEOUT_MS)
     })
+    expect(signals[0].aborted).toBe(true)
     expect(screen.getByRole("status").textContent).toContain(
       "Could not refresh"
     )
@@ -363,7 +382,8 @@ describe("foreground refresh", () => {
     await act(async () => {
       window.dispatchEvent(new Event("focus"))
     })
-    expect(loadPage).toHaveBeenCalledTimes(2)
+    expect(refreshPage).toHaveBeenCalledTimes(2)
+    expect(signals[1].aborted).toBe(false)
     expect(screen.queryByRole("status")).toBeNull()
     expect(
       screen
@@ -371,11 +391,50 @@ describe("foreground refresh", () => {
         .getAttribute("aria-label")
     ).toMatch(/^Photo, 03\.jpg/)
 
-    // The interval keeps running too.
+    // The interval keeps running too; the Server Function is never used for it.
     await act(async () => {
       await vi.advanceTimersByTimeAsync(15_000)
     })
-    expect(loadPage).toHaveBeenCalledTimes(3)
+    expect(refreshPage).toHaveBeenCalledTimes(3)
+    expect(loadPage).not.toHaveBeenCalled()
+  })
+
+  it("never queues refreshes behind an unabortable one that hangs", async () => {
+    vi.useFakeTimers()
+    // Without refreshPage the gallery falls back to loadPage(null), which
+    // cannot be cancelled: it reports the timeout but starts nothing new
+    // until that call settles, so at most one is ever outstanding.
+    let settle: (value: Awaited<ReturnType<LoadPage>>) => void = () => {}
+    const loadPage = vi
+      .fn<LoadPage>()
+      .mockImplementationOnce(() => new Promise((resolve) => (settle = resolve)))
+      .mockImplementation(async () => ({
+        ok: true,
+        page: { items: [item(ID_A), item(ID_B)], nextCursor: null },
+      }))
+    renderGallery(loadPage, 5_000)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000 + REFRESH_TIMEOUT_MS)
+    })
+    expect(screen.getByRole("status").textContent).toContain(
+      "Could not refresh"
+    )
+    for (let i = 0; i < 3; i++) {
+      await act(async () => {
+        window.dispatchEvent(new Event("focus"))
+        await vi.advanceTimersByTimeAsync(5_000)
+      })
+    }
+    expect(loadPage).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      settle({ ok: false, message: "late" })
+    })
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"))
+    })
+    expect(loadPage).toHaveBeenCalledTimes(2)
   })
 })
 

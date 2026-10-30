@@ -3,6 +3,7 @@
 import * as React from "react"
 import { usePathname, useRouter } from "next/navigation"
 
+import { fetchMediaPage } from "@/app/_media/fetch-page"
 import { MediaGallery } from "@/app/_media/media-gallery"
 import {
   EmptyState,
@@ -51,6 +52,19 @@ export function AdminLibrary({
       ),
     [filters.venueId, filters.staffId, filters.type]
   )
+  const refreshPage = React.useCallback(
+    (signal: AbortSignal) =>
+      fetchMediaPage(
+        "/api/library",
+        {
+          venue: filters.venueId,
+          staff: filters.staffId,
+          type: filters.type === "all" ? null : filters.type,
+        },
+        signal
+      ),
+    [filters.venueId, filters.staffId, filters.type]
+  )
 
   const filtered = search !== ""
 
@@ -80,6 +94,7 @@ export function AdminLibrary({
           label="Library"
           initialPage={initialPage}
           loadPage={loadPage}
+          refreshPage={refreshPage}
           showAttribution
           canDelete
           refreshIntervalMs={REFRESH_MS}

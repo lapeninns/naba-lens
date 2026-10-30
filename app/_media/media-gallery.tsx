@@ -19,11 +19,23 @@ export type LoadPage = (
   cursor: string | null
 ) => Promise<{ ok: true; page: MediaPage } | { ok: false; message: string }>
 
+/** A fresh first page for the foreground refresh; must honour `signal`. */
+export type RefreshPage = (
+  signal: AbortSignal
+) => Promise<{ ok: true; page: MediaPage } | { ok: false; message: string }>
+
 type MediaGalleryProps = {
   /** Accessible name of the grid. */
   label: string
   initialPage: MediaPage
   loadPage: LoadPage
+  /**
+   * Foreground refresh (interval, focus, refreshSignal). Pass an abortable GET
+   * (fetchMediaPage): a Server Function cannot be cancelled and runs in Next's
+   * one-at-a-time action queue, ahead of later uploads. Without it, refresh
+   * uses `loadPage(null)` and waits for each call to settle before the next.
+   */
+  refreshPage?: RefreshPage
   /** Shown when there is nothing to list. */
   empty: React.ReactNode
   showAttribution?: boolean
@@ -40,9 +52,9 @@ type MediaGalleryProps = {
 }
 
 /**
- * A foreground refresh that has not answered by now is abandoned: its result is
- * ignored and the next interval or focus refresh may start. Server Functions
- * take no AbortSignal, so the request itself is left to finish or fail.
+ * A foreground refresh that has not answered by now is aborted and reported as
+ * failed; a late result is ignored. The next refresh starts only once the
+ * request has actually ended, so refreshes never pile up behind a slow server.
  */
 export const REFRESH_TIMEOUT_MS = 10_000
 
@@ -87,6 +99,7 @@ export function MediaGallery({
   label,
   initialPage,
   loadPage,
+  refreshPage,
   empty,
   showAttribution = false,
   getDownloadHref,
@@ -120,15 +133,24 @@ export function MediaGallery({
   const refresh = React.useCallback(async () => {
     if (refreshing.current) return
     refreshing.current = true
-    let timer: number | undefined
-    const timedOut = new Promise<"timeout">((resolve) => {
-      timer = window.setTimeout(() => resolve("timeout"), REFRESH_TIMEOUT_MS)
+    const controller = new AbortController()
+    const timer = window.setTimeout(
+      () => controller.abort(),
+      REFRESH_TIMEOUT_MS
+    )
+    const aborted = new Promise<"timeout">((resolve) => {
+      controller.signal.addEventListener("abort", () => resolve("timeout"))
     })
+    const request = refreshPage
+      ? refreshPage(controller.signal)
+      : loadPage(null)
     try {
-      // A late answer after the timeout is dropped with the race.
-      const result = await Promise.race([loadPage(null), timedOut])
+      const result = await Promise.race([request, aborted])
       if (result === "timeout") {
         setRefreshError(REFRESH_FAILED)
+        // An aborted fetch ends at once; a Server Function (no refreshPage)
+        // cannot be aborted, so keep the guard until it settles.
+        await request.catch(() => undefined)
         return
       }
       if (!result.ok) {
@@ -152,7 +174,7 @@ export function MediaGallery({
       window.clearTimeout(timer)
       refreshing.current = false
     }
-  }, [loadPage, retryBroken])
+  }, [loadPage, refreshPage, retryBroken])
 
   // Refresh after an upload (or any caller signal).
   const firstSignal = React.useRef(refreshSignal)
