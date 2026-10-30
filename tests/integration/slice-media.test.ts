@@ -370,14 +370,20 @@ describe("slice: reserve, upload, finalise, read (local Supabase)", () => {
           validated_mime_type: null,
           preview_path: null,
         })
-        // A retry re-validates the same stored bytes and fails again.
-        const retry = await reserveAsset(actorA, attempt.input)
-        expect(retry).toMatchObject({ ok: true, state: "processing" })
+        // Terminal failure removes the original at once (upload-path review
+        // F4); a repeated finalise stays failed, and a retry through reserve
+        // reopens the reservation for a fresh transfer.
+        const { data: left } = await admin.storage
+          .from("media")
+          .list(`${staffA.id}/${attempt.reserved.assetId}`)
+        expect(left).toEqual([])
         const again = await finaliseAsset(actorA, {
           assetId: attempt.reserved.assetId,
           idempotencyKey: attempt.input.idempotencyKey,
         })
         expect(again).toMatchObject({ ok: true, state: "failed" })
+        const retry = await reserveAsset(actorA, attempt.input)
+        expect(retry).toMatchObject({ ok: true, state: "uploading" })
         // Not readable or downloadable by anyone.
         expect(
           (await getReadableAsset(actorAdmin, attempt.reserved.assetId)).ok

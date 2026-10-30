@@ -11,7 +11,8 @@ import type { MediaPage } from "@/lib/server/media/types"
 
 // Expected failures are returned, not thrown: Next replaces thrown messages in
 // production, and the upload dialog must show the real reason.
-type Result<T> = ({ ok: true } & T) | { ok: false; message: string }
+type Result<T> =
+  ({ ok: true } & T) | { ok: false; message: string; status?: number }
 
 /** lib/upload `reserve`. Owner, venue, asset ID and key come from the server. */
 export async function reserveUpload(
@@ -23,7 +24,8 @@ export async function reserveUpload(
     auth.actor,
     (input ?? {}) as Parameters<typeof reserveAsset>[1]
   )
-  if (!result.ok) return { ok: false, message: result.message }
+  if (!result.ok)
+    return { ok: false, message: result.message, status: result.status }
   const { ok: _ok, ...reservation } = result
   void _ok
   return { ok: true, reservation }

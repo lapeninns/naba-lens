@@ -209,3 +209,91 @@ git diff --check
 ```
 
 No provider mutation, push, PR, merge or deployment was performed.
+
+## Upload recovery, browser playback and storage limits (uploads track, 30 Oct 2026)
+
+Measured on this Mac (Darwin 27.0.0, Apple silicon) against an isolated local stack
+(`storage-api` v1.72.1, file backend), with synthetic fixtures from
+`tests/fixtures/uploads/generate.mjs`. Evidence: `tests/e2e/upload-recovery.spec.ts`,
+`tests/integration/upload-recovery.test.ts`, `tests/integration/upload-limits.test.ts`.
+Physical phones and hosted Supabase were **not** tested.
+
+### Browser playback matrix (staff viewer, `/api/media/{id}/stream`)
+
+"plays": the `<video>` element decoded frames (`videoWidth > 0`, `currentTime > 0`).
+"fallback": the viewer showed "Preview unavailable in this browser". No case left a
+broken player. Admin download of the HEVC original was byte-identical (SHA-256) in
+every run.
+
+| File (validated type, codec)        | Chromium 156 (Playwright) | WebKit 27.2 (Playwright) | Firefox                  |
+| ----------------------------------- | ------------------------- | ------------------------ | ------------------------ |
+| `clip-h264.mp4` (video/mp4, avc1)   | plays                     | plays                    | not run (see below)      |
+| `clip-hevc.mp4` (video/mp4, hvc1)   | fallback (MediaError 4)   | plays                    | not run                  |
+| `clip.mov` (video/quicktime, avc1)  | fallback (see defect)     | plays                    | not run                  |
+| `clip.webm` (video/webm, VP9)       | plays                     | plays                    | not run                  |
+
+- **Chromium and MOV.** `canPlayType("video/quicktime")` is `""` in Chromium, so the
+  viewer shows the fallback without trying. A raw `<video>` given the same H.264 MOV
+  **does** play in Chromium (640×360, `currentTime` advanced). iPhone MOVs are usually
+  H.264 or HEVC, so letting the element try `video/quicktime` (and relying on its
+  `onError` fallback, which already works for HEVC) would show more previews. The
+  viewer belongs to the visual-a11y track (`components/nabalens/media-viewer.tsx`).
+- **Chromium and HEVC.** `canPlayType("video/mp4")` says "maybe", the element then
+  fails with `MEDIA_ERR_SRC_NOT_SUPPORTED`, and `onError` swaps in the fallback. Branded
+  Google Chrome on macOS may decode HEVC through VideoToolbox; that was not tested.
+- **WebKit** is Playwright's WebKit build, not Safari on iOS. It played all four files
+  here, including HEVC and VP9 WebM.
+- **Firefox: not run.** Playwright's Firefox (builds 1555, 1543 and 1538) does not
+  start on this host: `Could not find profile folder` (or a launch timeout), whatever
+  `TMPDIR` is. The e2e test records this as a "not run" annotation, not a pass.
+
+### Storage and bucket limits (local stack)
+
+| Limit                                   | Value                                    | How verified                                            |
+| --------------------------------------- | ---------------------------------------- | ------------------------------------------------------- |
+| `media` bucket                          | private, `file_size_limit` 209,715,200 B, no MIME allow-list | `storage.getBucket` in `upload-limits.test.ts`          |
+| `avatars` bucket                        | private, 5,242,880 B, `image/webp` only  | same                                                    |
+| Storage server global limit             | `FILE_SIZE_LIMIT=209715200` (from `[storage] file_size_limit = "200MiB"`) | container env; TUS create at 200 MiB + 1 B returns **413** "Maximum size exceeded", at exactly 200 MiB returns 201 |
+| 200 MiB video via TUS                   | 34 × 6 MiB PATCH requests, 7–8 s locally, finalised `ready` | real upload of an exactly 209,715,200 B H.264 MP4       |
+| App limits                              | `reserve` refuses declared sizes over 20 MiB (photo) / 200 MiB (video); `finalise` measures the stored object and fails anything over the limit, whatever was declared | `upload-recovery.test.ts` (21 MiB photo with a 1,000 B declared size → `failed`, "larger than the upload limit") |
+
+The product limit (200 MiB) equals both the bucket and the global limit, and the
+boundary is inclusive. **Hosted Supabase is different**: the global upload limit is
+set per project and depends on the plan (the Free plan caps uploads at 50 MB). Before
+release, check the hosted project's global "Upload file size limit" is at least
+200 MiB and that the `media` bucket's own limit is 200 MiB; otherwise videos between
+the two limits fail at storage with HTTP 413, which the client reports as "This file
+is larger than the storage limit."
+
+### Recovery behaviour verified in the real UI
+
+- **Mixed batch** (12 chosen): the 21 MiB photo ("Photos can be up to 20 MB.") and the
+  11th file ("You can upload up to 10 files at a time.") are refused before any
+  request. Of the 10 uploaded, 8 become `ready` (JPEG, PNG, WebP, HEIC, H.264 MP4, MOV,
+  WebM, JPEG), the disguised HTML fails with "This file type is not supported." and
+  the truncated JPEG with "This file is damaged or could not be read." At most two
+  storage requests were in flight at once (observed: exactly 2, with storage slowed
+  by 400 ms per request so the overlap was observable). Every `ready` row has a
+  validated type, size and stored original, plus both derivatives for photos.
+- **Server Functions run one at a time.** Next dispatches a client's Server Function
+  calls sequentially, so one file's `reserve` or `finalise` (for example a long HEIC
+  decode) delays the other file's `reserve`/`finalise`. Storage transfers still run
+  two at a time. Moving reserve/finalise to Route Handlers would remove this queueing.
+- **Retry** after a dropped connection (the transport's own 6 attempts over ~38 s)
+  reuses the same asset id; one row, one finalise.
+- **Cancel** while the reservation is in flight, while the bytes are in flight, and
+  while queued: no finalise call is made (observed on the network), queued files are
+  never reserved, and the abandoned reservations are tombstoned by
+  `prepare_media_cleanup` only after the 24 h window. Until then the portfolio lists
+  them with the "Uploading" label.
+- **TUS interruption.** A chunk whose connection drops is followed by `HEAD` and a
+  `PATCH` from the server's offset; completed chunks are never resent. When the
+  connection stays down past the client's retries, the file shows "The connection was
+  interrupted. Check your connection, then retry: the upload continues where it
+  stopped." and **Retry** resumes the same asset from its offset (no new `POST`).
+- **Reload or closed tab.** Transfers stop (not promised to continue). The portfolio,
+  after a reload and in a fresh context, shows the asset as unfinished from server
+  state. Choosing the **same file** again in the same browser reserves the same asset
+  (its key is remembered in `localStorage` for 20 h, under a SHA-256 of name, size,
+  type and modification time) and TUS resumes from the stored offset. In another
+  browser it becomes a new upload, and the unfinished one is cleaned up after 24 h.
