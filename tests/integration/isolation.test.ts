@@ -8,6 +8,24 @@ import {
   TINY_BYTES,
   type TestIdentity,
 } from "../support/identities"
+import { getReadableAsset, streamOriginal } from "@/lib/server/media/access"
+import { signAvatar } from "@/lib/server/media/profile"
+import { actorFor } from "../slice/media-actor"
+
+/**
+ * Wave 3 finding 1: end users have no storage read policy. Authorised reads go
+ * through the app's read path (getReadableAsset + streamOriginal, as the
+ * /api/media/[id]/download route does), which checks the caller first.
+ */
+async function readThroughApp(identity: TestIdentity, assetId: string) {
+  const actor = await actorFor(identity)
+  const found = await getReadableAsset(actor, assetId)
+  if (!found.ok) return null
+  const response = await streamOriginal(actor, found.asset, null)
+  return response.status === 200
+    ? new Uint8Array(await response.arrayBuffer())
+    : null
+}
 
 /**
  * Staff A and staff B work at the SAME venue: isolation must come from identity,
@@ -69,10 +87,8 @@ describe("staff isolation (RLS + storage, separate identities)", () => {
     const download = await staffA.client.storage
       .from("media")
       .download(assetA.original_path)
-    expect(download.error).toBeNull()
-    expect(new Uint8Array(await download.data!.arrayBuffer())).toEqual(
-      TINY_BYTES
-    )
+    expect(download.error).not.toBeNull()
+    expect(await readThroughApp(staffA, assetA.id)).toEqual(TINY_BYTES)
   })
 
   it("staff B cannot read staff A's profile", async () => {
@@ -154,11 +170,8 @@ describe("staff isolation (RLS + storage, separate identities)", () => {
     const signed = await adminUser.client.storage
       .from("media")
       .createSignedUrl(assetA.original_path, 60)
-    expect(signed.error).toBeNull()
-    const bytes = new Uint8Array(
-      await (await fetch(signed.data!.signedUrl)).arrayBuffer()
-    )
-    expect(bytes).toEqual(TINY_BYTES)
+    expect(signed.error).not.toBeNull()
+    expect(await readThroughApp(adminUser, assetA.id)).toEqual(TINY_BYTES)
   })
 
   it("staff cannot read another user's avatar folder", async () => {
@@ -167,15 +180,22 @@ describe("staff isolation (RLS + storage, separate identities)", () => {
       .from("avatars")
       .upload(key, new Uint8Array([1]), { contentType: "image/webp" })
     expect(put.error).toBeNull()
+    const linked = await admin
+      .from("profiles")
+      .update({ avatar_path: key })
+      .eq("id", staffA.id)
+    expect(linked.error).toBeNull()
 
-    expect(
-      (await staffA.client.storage.from("avatars").download(key)).error
-    ).toBeNull()
-    expect(
-      (await staffB.client.storage.from("avatars").download(key)).error
-    ).not.toBeNull()
-    expect(
-      (await adminUser.client.storage.from("avatars").download(key)).error
-    ).toBeNull()
+    // No direct storage reads for anyone (wave 3 finding 1)...
+    for (const user of [staffA, staffB, adminUser])
+      expect(
+        (await user.client.storage.from("avatars").download(key)).error
+      ).not.toBeNull()
+    // ...the app's /api/avatars/[id] path serves own-or-admin only.
+    expect((await signAvatar(await actorFor(staffA), staffA.id)).ok).toBe(true)
+    expect((await signAvatar(await actorFor(staffB), staffA.id)).ok).toBe(false)
+    expect((await signAvatar(await actorFor(adminUser), staffA.id)).ok).toBe(
+      true
+    )
   })
 })

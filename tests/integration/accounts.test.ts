@@ -1,4 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest"
+import { getReadableAsset, streamOriginal } from "@/lib/server/media/access"
+import { actorFor } from "../slice/media-actor"
 
 import { sendSignInLink } from "@/lib/auth/magic-link"
 import { loadProfile, toAuthState } from "@/lib/auth/profile"
@@ -164,10 +166,19 @@ describe("deactivation blocks an existing session", () => {
       .select("id")
       .eq("id", assetId)
     expect(rows.data).toHaveLength(1)
+    // Through the app's read path; direct storage reads are denied to end
+    // users (wave 3 finding 1).
     const download = await adminUser.client.storage
       .from("media")
       .download(originalPath)
-    expect(download.error).toBeNull()
+    expect(download.error).not.toBeNull()
+    const actor = await actorFor(adminUser)
+    const found = await getReadableAsset(actor, assetId)
+    expect(found.ok).toBe(true)
+    if (!found.ok) return
+    const response = await streamOriginal(actor, found.asset, null)
+    expect(response.status).toBe(200)
+    await response.body?.cancel()
   })
 
   it("an inactive admin loses admin access too", async () => {
