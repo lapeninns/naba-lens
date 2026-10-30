@@ -33,6 +33,12 @@ import type { MediaItemView } from "@/lib/server/media/types"
 vi.mock("@/app/_media/actions", () => ({
   deleteMedia: vi.fn(async () => ({ ok: true })),
 }))
+// So do the v0.3 label editor's Server Functions (hosted by the gallery).
+vi.mock("@/app/_labels/actions", () => ({
+  loadLabelEditorContext: vi.fn(),
+  loadLabelCatalogue: vi.fn(),
+  saveLabelBatch: vi.fn(),
+}))
 
 const ID_A = "0a6f3c2e-6a51-4f43-9a6a-2f1f8d1c0a01"
 const ID_B = "0a6f3c2e-6a51-4f43-9a6a-2f1f8d1c0a02"
