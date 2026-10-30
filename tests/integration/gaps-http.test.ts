@@ -5,7 +5,6 @@ import { beforeAll, describe, expect, it, vi } from "vitest"
 
 import { actorFor, syntheticJpeg } from "../slice/media-actor"
 import {
-  createIdentity,
   createVenue,
   serviceClient,
   type TestIdentity,
@@ -15,6 +14,8 @@ import {
   cookiesModule,
   params,
   sessionCookies,
+  setupIdentity,
+  setupSession,
   uploadAs,
   useLocalEnv,
   type CookieJar,
@@ -25,6 +26,7 @@ import {
  * handlers run with a genuine session cookie for each identity (see
  * gaps-support.ts), so authorisation, RLS and the response headers are the ones
  * a browser gets. tests/e2e/gaps.spec.ts repeats the key checks over real HTTP.
+ * The cross-origin /api/profile case is in gaps-profile-origin.test.ts.
  */
 
 const jar = vi.hoisted<CookieJar>(() => ({ current: new Map() }))
@@ -32,6 +34,8 @@ vi.mock("server-only", () => ({}))
 vi.mock("next/headers", () => cookiesModule(jar))
 
 useLocalEnv()
+// Setup creates five identities and real uploads; generous on a shared machine.
+vi.setConfig({ hookTimeout: 240_000, testTimeout: 90_000 })
 
 const routes = {
   avatar: () => import("../../app/api/avatars/[id]/route"),
@@ -56,8 +60,20 @@ const fixture = (name: string) =>
 
 const admin = serviceClient()
 
+// One cookie set per identity: each setSession is an auth round trip.
+const cookieCache = new Map<string, Promise<Map<string, string>>>()
+const cookiesFor = (identity: TestIdentity) => {
+  if (!cookieCache.has(identity.id)) {
+    cookieCache.set(
+      identity.id,
+      setupSession(identity.email, () => sessionCookies(identity))
+    )
+  }
+  return cookieCache.get(identity.id)!
+}
+
 async function as<T>(identity: TestIdentity | null, fn: () => Promise<T>) {
-  jar.current = identity ? await sessionCookies(identity) : new Map()
+  jar.current = identity ? new Map(await cookiesFor(identity)) : new Map()
   try {
     return await fn()
   } finally {
@@ -100,17 +116,17 @@ describe("GAP-11: cross-role access and private headers at the HTTP layer", () =
     venue = await createVenue(admin, "gaps-http")
     otherVenue = await createVenue(admin, "gaps-http-other")
     // Same venue: isolation must come from identity, not venue.
-    staffA = await createIdentity(admin, {
+    staffA = await setupIdentity(admin, {
       label: "gaps-a",
       role: "staff",
       venueId: venue.id,
     })
-    staffB = await createIdentity(admin, {
+    staffB = await setupIdentity(admin, {
       label: "gaps-b",
       role: "staff",
       venueId: venue.id,
     })
-    adminUser = await createIdentity(admin, {
+    adminUser = await setupIdentity(admin, {
       label: "gaps-admin",
       role: "admin",
     })
@@ -342,29 +358,6 @@ describe("GAP-11: cross-role access and private headers at the HTTP layer", () =
       )
       expect(res.status).toBe(401)
     })
-
-    // BUG: app/api/profile/route.ts has no same-origin check (acceptance GAP-11
-    // item 2, review finding 7, LOW). app/admin/staff/[id]/avatar/route.ts
-    // refuses a foreign Origin with 403; /api/profile accepts it and renames the
-    // caller. SameSite=Lax cookies blunt this in browsers, but the route itself
-    // does not refuse, so this test fails until the route checks Origin.
-    it("refuses a cross-origin POST", async () => {
-      const before = await profileRow(staffA.id)
-      const { POST } = await routes.profile()
-      const form = new FormData()
-      form.set("displayName", "TEST cross-origin")
-      const res = await as(staffA, () =>
-        POST(
-          new Request(`${ORIGIN}/api/profile`, {
-            method: "POST",
-            body: form,
-            headers: { origin: "https://attacker.example" },
-          })
-        )
-      )
-      expect(res.status).toBe(403)
-      expect(await profileRow(staffA.id)).toEqual(before)
-    })
   })
 
   describe("admin Server Functions refuse staff", () => {
@@ -394,12 +387,12 @@ describe("GAP-12: staff whose venue is deactivated", () => {
 
   beforeAll(async () => {
     venue = await createVenue(admin, "gaps-paused")
-    staff = await createIdentity(admin, {
+    staff = await setupIdentity(admin, {
       label: "gaps-paused",
       role: "staff",
       venueId: venue.id,
     })
-    adminUser = await createIdentity(admin, {
+    adminUser = await setupIdentity(admin, {
       label: "gaps-paused-admin",
       role: "admin",
     })

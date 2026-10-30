@@ -4,7 +4,11 @@ import type { MediaActor } from "../../lib/server/media/types"
 import { finaliseAsset } from "../../lib/server/media/finalise"
 import { reserveAsset } from "../../lib/server/media/reserve"
 import { newKey } from "../slice/media-actor"
-import type { TestIdentity } from "../support/identities"
+import {
+  createIdentity,
+  type Db,
+  type TestIdentity,
+} from "../support/identities"
 import { getLocalSupabaseEnv } from "../support/local-supabase"
 
 /**
@@ -126,4 +130,47 @@ export function assertPrivateCaching(
     problems.push(`${label}: shared-cacheable (${cc})`)
   }
   return problems
+}
+
+const isAuthTimeout = (e: unknown) =>
+  typeof e === "object" &&
+  e !== null &&
+  ((e as { status?: number }).status === 504 ||
+    (e as { name?: string }).name === "AuthRetryableFetchError")
+
+/**
+ * Fixture setup only: `createIdentity`, retried when the local auth server
+ * answers 504 (its 10 s request deadline) because several stacks share this
+ * machine. Each attempt uses a fresh email, so a half-finished attempt cannot
+ * collide. Logged, never applied to an assertion.
+ */
+export async function setupIdentity(
+  admin: Db,
+  opts: Parameters<typeof createIdentity>[1],
+  attempts = 4
+): Promise<TestIdentity> {
+  for (let i = 1; ; i++) {
+    try {
+      return await createIdentity(admin, opts)
+    } catch (e) {
+      if (!isAuthTimeout(e) || i >= attempts) throw e
+      console.warn(`[gaps] auth timeout creating ${opts.label}; retry ${i}`)
+    }
+  }
+}
+
+/** Fixture setup only: a session for an existing user, retried on auth 504s. */
+export async function setupSession<T>(
+  label: string,
+  fn: () => Promise<T>,
+  attempts = 4
+): Promise<T> {
+  for (let i = 1; ; i++) {
+    try {
+      return await fn()
+    } catch (e) {
+      if (!isAuthTimeout(e) || i >= attempts) throw e
+      console.warn(`[gaps] auth timeout signing in ${label}; retry ${i}`)
+    }
+  }
 }
