@@ -146,6 +146,8 @@ describe("durable original retention", () => {
 describe("archive deployment boundary", () => {
   const env = {
     MEDIA_ARCHIVE_MODE: "required",
+    NABALENS_ENVIRONMENT: "production",
+    MEDIA_ARCHIVE_PRODUCTION_PROJECT_REF: project,
     MEDIA_ARCHIVE_SOURCE_PROJECT_REF: project,
     NEXT_PUBLIC_SUPABASE_URL: `https://${project}.supabase.co`,
     SUPABASE_SERVICE_ROLE_KEY: "fixture-service-only",
@@ -155,14 +157,29 @@ describe("archive deployment boundary", () => {
     MEDIA_ARCHIVE_R2_SECRET_ACCESS_KEY: "fixture-secret",
   }
   it("requires validated identity and an explicit mode on hosted deployments", () => {
-    expect(() => readArchiveConfig({ VERCEL_ENV: "production" })).toThrow(
-      "environment_not_configured"
-    )
-    expect(readArchiveConfig({})).toBeNull()
-    expect(readArchiveConfig({ MEDIA_ARCHIVE_MODE: "disabled" })).toBeNull()
-    expect(() => readArchiveConfig({ ...env, VERCEL_ENV: "preview" })).toThrow(
-      "environment_not_configured"
-    )
+    expect(() =>
+      readArchiveConfig({
+        VERCEL_ENV: "production",
+        NEXT_PUBLIC_SUPABASE_URL: `https://${project}.supabase.co`,
+      })
+    ).toThrow("environment_not_configured")
+    expect(() => readArchiveConfig({})).toThrow("source_not_configured")
+    expect(
+      readArchiveConfig({ NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:64121" })
+    ).toBeNull()
+    expect(
+      readArchiveConfig({
+        NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:64121",
+        MEDIA_ARCHIVE_MODE: "disabled",
+      })
+    ).toBeNull()
+    expect(() =>
+      readArchiveConfig({
+        ...env,
+        VERCEL_ENV: "preview",
+        NABALENS_ENVIRONMENT: undefined,
+      })
+    ).toThrow("environment_not_configured")
   })
   it("prohibits production disabled and rejects ambiguous source identity", () => {
     const hosted = {
@@ -202,6 +219,28 @@ describe("archive deployment boundary", () => {
         MEDIA_ARCHIVE_MODE: "disabled",
       })
     ).toBeNull()
+  })
+  it("requires bound retention for remote operator scripts without VERCEL_ENV", () => {
+    const remote = { SUPABASE_URL: `https://${project}.supabase.co` }
+    expect(() => readArchiveConfig(remote)).toThrow(
+      "environment_not_configured"
+    )
+    expect(() =>
+      readArchiveConfig({ ...remote, MEDIA_ARCHIVE_MODE: "disabled" })
+    ).toThrow("environment_not_configured")
+    expect(() =>
+      readArchiveConfig({ ...env, MEDIA_ARCHIVE_MODE: "disabled" })
+    ).toThrow("production_requires_retention")
+    expect(
+      readArchiveConfig({
+        ...env,
+        NEXT_PUBLIC_SUPABASE_URL: undefined,
+        ...remote,
+      })?.sourceProjectRef
+    ).toBe(project)
+    expect(() =>
+      readArchiveConfig({ ...env, SUPABASE_URL: "http://127.0.0.1:64121" })
+    ).toThrow("source_not_configured")
   })
   it("pins the source project and R2 endpoint configuration", () => {
     expect(readArchiveConfig(env)?.sourceProjectRef).toBe(project)

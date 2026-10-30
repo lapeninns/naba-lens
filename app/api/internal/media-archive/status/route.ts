@@ -1,10 +1,10 @@
-import { archiveBearerAuthorized } from "@/lib/server/archive/authorization"
+import { archiveStatusBearerAuthorized } from "@/lib/server/archive/authorization"
 import { archiveStatus } from "@/lib/server/archive/audit"
 import { createAdminClient } from "@/lib/supabase/admin"
 
 const headers = { "Cache-Control": "private, no-store" }
 export async function GET(request: Request) {
-  const auth = archiveBearerAuthorized(request)
+  const auth = archiveStatusBearerAuthorized(request)
   if (auth !== "ok")
     return Response.json(
       { error: auth },

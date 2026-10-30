@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   status: vi.fn(),
   admin: vi.fn(() => ({})),
   config: vi.fn(() => ({}) as object | null),
+  cleanup: vi.fn(),
 }))
 vi.mock("@/lib/server/archive/config", () => ({
   readArchiveConfig: mocks.config,
@@ -14,9 +15,11 @@ vi.mock("@/lib/server/archive/audit", () => ({
   archiveStatus: mocks.status,
 }))
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: mocks.admin }))
+vi.mock("@/lib/server/lifecycle", () => ({ runCleanup: mocks.cleanup }))
 
 import { GET as runAudit } from "@/app/api/internal/media-archive/route"
 import { GET as readStatus } from "@/app/api/internal/media-archive/status/route"
+import { GET as runCleanup } from "@/app/api/internal/cleanup/route"
 
 afterEach(() => {
   vi.unstubAllEnvs()
@@ -24,9 +27,10 @@ afterEach(() => {
   mocks.config.mockReturnValue({})
 })
 const secret = "fixture-secret-".repeat(4)
-function request(authorized = true) {
+const monitorSecret = "fixture-monitor-".repeat(4)
+function request(authorized = true, credential = secret) {
   return new Request("https://fixture.example/api/internal/media-archive", {
-    headers: authorized ? { authorization: `Bearer ${secret}` } : {},
+    headers: authorized ? { authorization: `Bearer ${credential}` } : {},
   })
 }
 
@@ -43,9 +47,34 @@ describe("private archive operational endpoints", () => {
   })
   it("fails closed when the operational secret is absent", async () => {
     vi.stubEnv("CLEANUP_SECRET", "")
+    vi.stubEnv("MEDIA_ARCHIVE_MONITOR_SECRET", "")
     expect((await runAudit(request())).status).toBe(503)
     expect((await readStatus(request())).status).toBe(503)
     expect(mocks.admin).not.toHaveBeenCalled()
+  })
+  it("grants the monitor credential only read-only status access", async () => {
+    vi.stubEnv("CLEANUP_SECRET", secret)
+    vi.stubEnv("MEDIA_ARCHIVE_MONITOR_SECRET", monitorSecret)
+    mocks.status.mockResolvedValueOnce({ ok: true, status: "current" })
+    const read = await readStatus(request(true, monitorSecret))
+    expect(read.status).toBe(200)
+    expect(read.headers.get("cache-control")).toBe("private, no-store")
+    expect(mocks.status).toHaveBeenCalledOnce()
+    vi.clearAllMocks()
+    const mutate = await runAudit(request(true, monitorSecret))
+    expect(mutate.status).toBe(401)
+    expect((await runCleanup(request(true, monitorSecret))).status).toBe(401)
+    expect(mocks.admin).not.toHaveBeenCalled()
+    expect(mocks.audit).not.toHaveBeenCalled()
+    expect(mocks.cleanup).not.toHaveBeenCalled()
+  })
+  it("keeps cleanup access working and rejects missing or short monitor tokens", async () => {
+    vi.stubEnv("CLEANUP_SECRET", secret)
+    vi.stubEnv("MEDIA_ARCHIVE_MONITOR_SECRET", "too-short")
+    mocks.status.mockResolvedValueOnce({ ok: true, status: "current" })
+    expect((await readStatus(request())).status).toBe(200)
+    expect((await readStatus(request(true, "too-short"))).status).toBe(401)
+    expect((await readStatus(request(false))).status).toBe(401)
   })
   it("reports partial audit and stale status as unavailable", async () => {
     vi.stubEnv("CLEANUP_SECRET", secret)

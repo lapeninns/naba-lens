@@ -1,3 +1,5 @@
+import "./scripts/lib/server-runtime.mjs"
+
 import { defineConfig, devices } from "@playwright/test"
 
 import { firefoxLaunchOptions } from "./tests/e2e/helpers/firefox"

@@ -35,7 +35,10 @@ and derives the R2 endpoint from the account ID. It does not accept a caller URL
 Never expose an R2 public development URL or attach a public domain to this bucket.
 Do not enable an age-based lifecycle deletion rule for retained archive prefixes.
 
-Local fixtures default to disabled when no mode is set. Every Vercel deployment
+Only a validated loopback Supabase source with no hosted identity defaults to
+disabled when no mode is set. Remote operator CLI sources require the same bound
+identity/ref/mode even when `VERCEL_ENV` is absent; the cleanup CLI validates this
+before any database request. Conflicting public/operator source URLs fail closed. Every Vercel deployment
 must declare `NABALENS_ENVIRONMENT` as `production` or `staging` and set
 `MEDIA_ARCHIVE_PRODUCTION_PROJECT_REF` to the production reference in both projects.
 The public Supabase URL must match that reference for production and differ for
@@ -56,6 +59,13 @@ The app never deletes or overwrites either prefix. There is no mutable R2 contro
 object: audit progress is held in the service-only database table. The operator
 must verify the bucket is private, credentials are scoped and locks are enabled;
 configuration names alone do not prove those provider properties.
+
+The operator cleanup CLI and Playwright fixture runner explicitly select the
+published `server-only` server export through `scripts/lib/server-runtime.mjs`.
+This Node-only bootstrap changes resolution for that marker package alone; it
+sets no global React condition or inherited `NODE_OPTIONS`. This tooling uses
+Node synchronous module hooks (Node 22.15+; local CI uses Node 24.16). Application/browser
+builds never import it and retain the normal `server-only` boundary.
 
 ## Write and deletion boundaries
 
@@ -103,18 +113,56 @@ The maintenance lease prevents concurrent audits. This adds function execution,
 source reads during backfill and R2 read operations; those use the existing plans'
 quotas and can incur usage charges.
 
-`GET /api/internal/media-archive/status` uses the same authorization and is read-only.
-It fails when no complete cycle exists, the last complete cycle is more than 26
+`GET /api/internal/media-archive/status` is read-only. It accepts the existing
+cleanup bearer or an optional independent `MEDIA_ARCHIVE_MONITOR_SECRET`. The
+monitor credential grants access only to this status endpoint; it cannot run the
+archive copy/audit job or cleanup, and cannot remove media. It must be a separate
+32–256-character ASCII token containing only letters, digits, `_` or `-`. Set it
+as a server-only production environment value and keep the matching local value
+in macOS Keychain, never in a committed file or the monitor command arguments.
+
+The endpoint fails when no complete cycle exists, the last complete cycle is more than 26
 hours old, ready originals are missing receipts, or the last run failed. It reports
 an in-progress cursor separately, including when a recent completed cycle remains
 fresh. Failed and partial runs do not become fresh successful backups. At greater
 volume, more frequent invocations or a resumable larger budget may be needed; a
 stale status is an operational failure, not permission to weaken the threshold.
 
-An **independent freshness monitor and an observed owner alert remain required**.
-The endpoint and non-200 cron results do not themselves prove notification delivery
-or detect a scheduler that never invokes the app. Do not mark monitoring complete
-until an external checker, credentials, destination and failure test are verified.
+The local checker reads the narrow credential from macOS Keychain using service
+`nabalens-production-archive-monitor` and account `https://nabalens.vercel.app`.
+It pins that production origin before accessing Keychain and never sends the
+credential to another origin or follows a redirect. Run the combined signed-out
+smoke checks and authenticated archive health check with:
+
+```sh
+node scripts/ci/monitor-archive.mjs --with-smoke https://nabalens.vercel.app
+```
+
+The checker preserves the existing signed-out smoke checks and then makes one
+read-only status request. It requires HTTP 200, JSON, `private, no-store`, a current
+successful report, zero missing originals, no recorded failure, valid non-future
+run times, and a completed verification cycle no older than **26 hours**. A new
+cycle may be in progress while an earlier complete cycle is still fresh. Missing,
+invalid or unavailable Keychain credentials fail with exit code 1 and a redacted
+message; the checker never falls back to the more powerful cleanup credential.
+It also fails on timeouts, redirects, oversized or malformed responses and stale
+or incomplete health. A successful run prints `NabaLens archive freshness: PASS`;
+a failure prints `FAIL` with a safe reason and exits nonzero.
+
+The existing local `com.lapeninns.local-ci.smoke` LaunchAgent is loaded with an
+intended daily schedule of **06:00 in the Mac's local time zone**. That schedule
+and the monitor implementation do not prove that a future check will execute or
+that a notification will arrive. A daily check can discover the 26-hour freshness
+failure only on a later scheduled run; this is not continuous monitoring. If the
+Mac is off, asleep, offline, or unable to access Keychain, prompt detection and
+alerting are not guaranteed. An always-on external checker is needed to remove
+that dependency on this Mac.
+
+**Real owner notification delivery remains unverified.** The endpoint, local
+schedule and nonzero exit code do not themselves establish alert delivery. Do
+not mark monitoring complete until the checker runs against the deployed endpoint
+with its real read-only credential and an observed failure reaches the intended
+notification destination.
 
 ## Recovery and retention limits
 

@@ -36,6 +36,7 @@ function serviceFixture(
     missing?: number
     receipts?: number[]
     candidates?: string[]
+    onRead?: () => Promise<void>
   } = {}
 ) {
   const state: State = {
@@ -82,6 +83,7 @@ function serviceFixture(
           return query
         },
         async single() {
+          await options.onRead?.()
           return { data: state, error: null }
         },
         then(resolve: (value: unknown) => unknown) {
@@ -115,6 +117,7 @@ function serviceFixture(
   }
 }
 afterEach(() => {
+  vi.useRealTimers()
   vi.resetAllMocks()
 })
 
@@ -195,6 +198,48 @@ describe("independent archive freshness status", () => {
     expect(await archiveStatus(f.client, now)).toMatchObject({
       ok: true,
       inProgress: true,
+      status: "current",
+    })
+  })
+  it("samples freshness after awaited reads while preserving an explicitly injected now", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] })
+    vi.setSystemTime(now)
+    const f = serviceFixture({
+      state: { last_complete_at: new Date(now + 1000).toISOString() },
+      onRead: async () => {
+        vi.setSystemTime(now + 2000)
+      },
+    })
+    // The cycle completed after request start but before the query returned.
+    expect(await archiveStatus(f.client)).toMatchObject({
+      ok: true,
+      status: "current",
+    })
+    // Explicit clock injection keeps its existing fixed-instant semantics.
+    expect(await archiveStatus(f.client, now)).toMatchObject({
+      ok: false,
+      status: "stale",
+    })
+  })
+  it("rejects a cycle that becomes stale during a slow status read", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] })
+    vi.setSystemTime(now)
+    const f = serviceFixture({
+      state: {
+        last_complete_at: new Date(
+          now - 26 * 60 * 60 * 1000 + 1000
+        ).toISOString(),
+      },
+      onRead: async () => {
+        vi.setSystemTime(now + 2000)
+      },
+    })
+    expect(await archiveStatus(f.client)).toMatchObject({
+      ok: false,
+      status: "stale",
+    })
+    expect(await archiveStatus(f.client, now)).toMatchObject({
+      ok: true,
       status: "current",
     })
   })

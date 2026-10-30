@@ -15,9 +15,32 @@ export function readArchiveConfig(
   env: Record<string, string | undefined> = process.env
 ): ArchiveConfig | null {
   const mode = env.MEDIA_ARCHIVE_MODE?.trim()
-  const hosted = Boolean(env.VERCEL_ENV)
   const identity = env.NABALENS_ENVIRONMENT
   const productionRef = env.MEDIA_ARCHIVE_PRODUCTION_PROJECT_REF
+  const sourceUrl = env.NEXT_PUBLIC_SUPABASE_URL ?? env.SUPABASE_URL ?? ""
+  let parsed: URL
+  try {
+    parsed = new URL(sourceUrl)
+    if (
+      env.NEXT_PUBLIC_SUPABASE_URL &&
+      env.SUPABASE_URL &&
+      new URL(env.SUPABASE_URL).href !== parsed.href
+    )
+      throw new Error("ambiguous_source")
+  } catch {
+    throw new Error("archive_source_not_configured")
+  }
+  const local =
+    ["127.0.0.1", "localhost", "[::1]"].includes(parsed.hostname) &&
+    ["http:", "https:"].includes(parsed.protocol) &&
+    !parsed.username &&
+    !parsed.password &&
+    parsed.pathname === "/" &&
+    !parsed.search &&
+    !parsed.hash
+  // Operator scripts have no VERCEL_ENV. A remote source still needs the same
+  // explicit identity/project binding as the deployed application.
+  const hosted = Boolean(env.VERCEL_ENV || identity || !local)
   if (hosted) {
     if (
       (identity !== "production" && identity !== "staging") ||
@@ -27,11 +50,9 @@ export function readArchiveConfig(
     if (identity === "production" && mode !== "required")
       throw new Error("archive_production_requires_retention")
   }
-  if (!hosted && (mode === "disabled" || !mode)) return null
+  if (!hosted && local && (mode === "disabled" || !mode)) return null
   if (mode !== "required" && mode !== "disabled")
     throw new Error("archive_mode_not_configured")
-  const sourceUrl = env.NEXT_PUBLIC_SUPABASE_URL ?? ""
-  const parsed = new URL(sourceUrl)
   const match = /^([a-z0-9]{20})\.supabase\.co$/.exec(parsed.hostname)
   if (
     !match ||

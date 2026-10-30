@@ -114,7 +114,7 @@ export async function runArchiveAudit(service: Service) {
 }
 
 /** Read-only health boundary for an independently configured failure monitor. */
-export async function archiveStatus(service: Service, now = Date.now()) {
+export async function archiveStatus(service: Service, now?: number) {
   if (!readArchiveConfig()) return { ok: false, status: "disabled" as const }
   const [state, missing] = await Promise.all([
     service
@@ -127,10 +127,13 @@ export async function archiveStatus(service: Service, now = Date.now()) {
   if (state.error || missing.error || !state.data)
     throw new Error("archive_status_unavailable")
   const completed = Date.parse(state.data.last_complete_at ?? "")
+  // An audit can complete while these reads await. Use validation time while
+  // preserving an explicitly injected clock for deterministic callers/tests.
+  const checkedAt = now ?? Date.now()
   const fresh =
     Number.isFinite(completed) &&
-    completed <= now &&
-    now - completed <= ARCHIVE_MAX_AGE_MS
+    completed <= checkedAt &&
+    checkedAt - completed <= ARCHIVE_MAX_AGE_MS
   return {
     ok: fresh && !state.data.last_error && missing.data === 0,
     status: fresh ? ("current" as const) : ("stale" as const),
