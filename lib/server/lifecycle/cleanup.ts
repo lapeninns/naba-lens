@@ -114,6 +114,8 @@ export async function runMediaCleanup(
       const { data, error } = await service.rpc("prepare_media_cleanup", {
         p_abandoned_after: abandonedUploadInterval(MEDIA_LIMITS),
         p_limit: batchSize,
+        // Exclude failures before the database limit so they cannot hide later work.
+        p_exclude_asset_ids: [...failed.keys()],
         // Omitted: the database uses its own now().
         ...(options.now ? { p_now: options.now.toISOString() } : {}),
       })
@@ -121,7 +123,7 @@ export async function runMediaCleanup(
         throw new Error(`prepare_media_cleanup_failed: ${error.message}`)
 
       // Assets that already failed in this run wait for the next run.
-      const todo = data.filter((row) => !failed.has(row.asset_id))
+      const todo = data
       if (todo.length === 0) break
       if (batch >= maxBatches) {
         more = true
@@ -175,6 +177,8 @@ export async function touchMediaReservation(
     .update({ updated_at: new Date().toISOString() })
     .eq("id", assetId)
     .is("deleted_at", null)
-    .neq("upload_state", "ready")
+    // A processing timestamp belongs to its finalise claim. Even if another
+    // finalise acquired it since the caller read the row, preserve its staleness.
+    .in("upload_state", ["uploading", "failed"])
   if (error) throw new Error(`touch_reservation_failed: ${error.message}`)
 }

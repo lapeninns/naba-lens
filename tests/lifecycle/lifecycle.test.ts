@@ -316,6 +316,73 @@ describe("media lifecycle: removal, cleanup, deactivation", () => {
       expect(await objectsOf(asset)).toEqual([])
     })
 
+    it("continues past a full failed batch and retries those failures next run", async () => {
+      // A whole oldest batch of ready assets cannot be deleted while archival
+      // or storage is unavailable. Newer abandoned reservations still need cleanup.
+      const blocked = [await readyAsset(staffA), await readyAsset(staffA)]
+      for (const asset of blocked) {
+        await remove(staffA.client, asset.id, failingRemover)
+        sql(
+          `set session_replication_role = replica; update public.media_assets set deleted_at = now() - interval '1 hour' where id = '${asset.id}'`
+        )
+      }
+      const abandoned = await reserve(staffA)
+      age(abandoned.id, 25)
+      const failed = await reserve(staffA)
+      await service
+        .from("media_assets")
+        .update({ upload_state: "processing" })
+        .eq("id", failed.id)
+      await service
+        .from("media_assets")
+        .update({ upload_state: "failed" })
+        .eq("id", failed.id)
+      age(failed.id, 25)
+
+      const attempts = new Map<string, number>()
+      const run = await runMediaCleanup(service, {
+        batchSize: 2,
+        maxBatches: 2,
+        removeObjects: async (keys) => {
+          const assetId = keys[0].split("/")[1]
+          attempts.set(assetId, (attempts.get(assetId) ?? 0) + 1)
+          if (blocked.some((asset) => asset.id === assetId)) {
+            throw new Error("simulated archive outage")
+          }
+          const { error } = await media().remove(keys)
+          if (error) throw error
+        },
+      })
+      expect(run.status).toBe("completed")
+      if (run.status !== "completed") return
+      expect(run.failed).toEqual(
+        expect.arrayContaining(
+          blocked.map((asset) => ({
+            assetId: asset.id,
+            error: "simulated archive outage",
+          }))
+        )
+      )
+      expect(run.failed).toHaveLength(2)
+      expect(run.removed.byState.uploading).toBe(1)
+      expect(run.removed.byState.failed).toBe(1)
+      expect(run.more).toBe(false)
+      for (const asset of blocked) {
+        expect(attempts.get(asset.id)).toBe(1)
+        expect(await objectsOf(asset)).toHaveLength(3)
+      }
+      expect(await objectsOf(abandoned)).toEqual([])
+      expect(await objectsOf(failed)).toEqual([])
+
+      // The exclusion list belongs to this run only: recovered storage removes
+      // every previously blocked original on the next scheduled attempt.
+      const retry = await runMediaCleanup(service, { batchSize: 2 })
+      expect(retry.status).toBe("completed")
+      if (retry.status !== "completed") return
+      expect(retry.failed).toEqual([])
+      for (const asset of blocked) expect(await objectsOf(asset)).toEqual([])
+    })
+
     it("cleans abandoned reservations and failed uploads, keeps active ones", async () => {
       // Abandoned 25 h ago, with a stored (partial) original.
       const abandoned = await reserve(staffA)

@@ -65,7 +65,9 @@ Not recalled: signed URLs issued before removal stay valid until they expire (60
      and failed uploads' leftovers.
 4. Removes those objects through the Storage API. A failure is reported in
    `failed`. Storage is the record of what is left, so the asset comes back on the
-   next run. Up to 10 batches of 100 assets run per pass; `more: true` means the
+   next run. Later batches exclude this run's failed asset IDs inside the database
+   query, before its limit, so an unavailable oldest batch cannot starve newer
+   tombstones. Up to 10 batches of 100 assets run per pass; `more: true` means the
    next pass continues.
 
 A second run with nothing new to do removes nothing and changes nothing.

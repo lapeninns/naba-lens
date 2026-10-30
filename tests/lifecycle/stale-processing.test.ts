@@ -6,8 +6,12 @@ import { execFileSync } from "node:child_process"
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 
 import { MEDIA_LIMITS } from "@/lib/config/media"
-import { runMediaCleanup } from "@/lib/server/lifecycle/cleanup"
+import {
+  runMediaCleanup,
+  touchMediaReservation,
+} from "@/lib/server/lifecycle/cleanup"
 import { finaliseAsset } from "@/lib/server/media/finalise"
+import { reserveAsset } from "@/lib/server/media/reserve"
 import { actorFor, syntheticJpeg } from "../slice/media-actor"
 import {
   createIdentity,
@@ -66,7 +70,7 @@ async function claimedAsset(user = staff) {
     p_original_filename: "stale.jpg",
   })
   if (error) throw error
-  const asset = { ...data[0], key }
+  const asset = { ...data[0], key, sizeBytes: jpeg.byteLength }
   const put = await user.client.storage
     .from("media")
     .upload(asset.original_path, jpeg, {
@@ -174,6 +178,51 @@ describe("finding 3: cleanup reaps crashed finalise claims", () => {
 })
 
 describe("finding 6: stale-claim takeover uses database time only", () => {
+  it("a browser reservation retry preserves a stale claim and finalise recovers it", async () => {
+    const asset = await claimedAsset()
+    ageClaim(asset.id, 3)
+    const before = await row(asset.id)
+    const actor = await actorFor(staff)
+
+    const retry = await reserveAsset(actor, {
+      idempotencyKey: asset.key,
+      filename: "stale.jpg",
+      sizeBytes: asset.sizeBytes,
+      contentType: "image/jpeg",
+      mediaType: "image",
+      preferResumable: false,
+    })
+    expect(retry).toMatchObject({
+      ok: true,
+      assetId: asset.id,
+      state: "processing",
+      resumable: false,
+    })
+    expect(await row(asset.id)).toEqual(before)
+    expect(
+      await finaliseAsset(actor, {
+        assetId: asset.id,
+        idempotencyKey: asset.key,
+      })
+    ).toEqual({ ok: true, state: "ready" })
+  })
+
+  it("an activity touch arriving after another finalise claims the row preserves its stamp", async () => {
+    // A reserve/finalise request can read `uploading`, then lose the race to
+    // another finalise before touching activity. The UPDATE must also check
+    // the current state, rather than trusting the earlier application read.
+    const asset = await claimedAsset()
+    ageClaim(asset.id, 3)
+    const before = await row(asset.id)
+    await touchMediaReservation(service, asset.id)
+    expect(await row(asset.id)).toEqual(before)
+    const takeover = await service.rpc("take_over_stale_media_claim", {
+      p_asset_id: asset.id,
+      p_stale_after: "2 minutes",
+    })
+    expect(takeover).toMatchObject({ data: true, error: null })
+  })
+
   it("take_over_stale_media_claim compares the claim stamp with the database clock", async () => {
     const asset = await claimedAsset()
     const fresh = await service.rpc("take_over_stale_media_claim", {

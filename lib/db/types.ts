@@ -962,7 +962,12 @@ export type Database = {
         }[]
       }
       prepare_media_cleanup: {
-        Args: { p_abandoned_after: string; p_limit?: number; p_now?: string }
+        Args: {
+          p_abandoned_after: string
+          p_exclude_asset_ids?: string[]
+          p_limit?: number
+          p_now?: string
+        }
         Returns: {
           asset_id: string
           object_names: string[]

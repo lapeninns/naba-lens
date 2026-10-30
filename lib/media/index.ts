@@ -83,6 +83,13 @@ function errorCode(e: unknown) {
       ? "decode_timeout"
       : "corrupt_media"
 }
+// Reading an original is an operational step. Keep its failures separate from
+// parser/decoder failures, which can safely reject the stored media as invalid.
+class MediaSourceReadError extends Error {
+  constructor(readonly sourceError: unknown) {
+    super("Could not read media source")
+  }
+}
 async function decodedImage(bytes: Uint8Array) {
   // A single full decode into raw oriented pixels; derivatives share those pixels.
   return sharp(view(bytes), {
@@ -179,7 +186,7 @@ export async function validateMedia(
         ? await open(input.source, "r")
         : undefined
     const openedFile = file
-    const source: VideoRangeSource | undefined = openedFile
+    const rawSource: VideoRangeSource | undefined = openedFile
       ? {
           size: (await openedFile.stat()).size,
           read: async (offset, length) => {
@@ -191,6 +198,18 @@ export async function validateMedia(
       : typeof input.source === "object"
         ? input.source
         : undefined
+    const source: VideoRangeSource | undefined = rawSource && {
+      size: rawSource.size,
+      read: async (offset, length) => {
+        try {
+          return await rawSource.read(offset, length)
+        } catch (error) {
+          // Also wrap RangeError: the video parser classifies its own bounds
+          // errors as malformed metadata, but source I/O must remain retryable.
+          throw new MediaSourceReadError(error)
+        }
+      },
+    }
     const size = input.bytes?.byteLength ?? source?.size ?? input.size
     if (!size || !Number.isSafeInteger(size) || size < 0)
       return { ok: false as const, error: "invalid_size" }
@@ -219,6 +238,7 @@ export async function validateMedia(
     if (probe.mime !== type.mime) throw new MediaError("mime_mismatch")
     return { ok: true as const, ...type, ...probe, size }
   } catch (e) {
+    if (e instanceof MediaSourceReadError) throw e.sourceError
     return { ok: false as const, error: errorCode(e) }
   } finally {
     await file?.close()

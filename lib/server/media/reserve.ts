@@ -158,10 +158,11 @@ export async function reserveAsset(
     bucket: STORAGE_BUCKETS.media,
   } as const
 
-  // Every attempt that is not already finished counts as upload activity, so
-  // the 24 h abandoned-upload cleanup never removes a live (TUS) transfer.
+  // Transfer attempts count as upload activity, so the 24 h abandoned-upload
+  // cleanup never removes a live (TUS) transfer. A processing timestamp belongs
+  // to the finalise claim: refreshing it would prevent stale-claim recovery.
   // Same as lifecycle's recordUploadActivity, with this request's service client.
-  if (row.upload_state !== "ready") {
+  if (row.upload_state === "uploading" || row.upload_state === "failed") {
     try {
       await touchMediaReservation(actor.service, row.id)
     } catch {
