@@ -34,7 +34,7 @@ function okFor(inputs: SaveLabelsInput[]): SaveLabelsResult[] {
   }))
 }
 
-function setup(
+async function setup(
   props: Partial<LabelEditorDialogProps> & { assets?: LabelEditorAsset[] } = {}
 ) {
   const onSave = vi.fn(
@@ -54,6 +54,14 @@ function setup(
     onSave,
   }
   const view = render(<LabelEditorDialog {...all} />)
+  if (all.open) {
+    // Base UI moves initial focus on the next animation frame. Let that opening
+    // lifecycle finish before typing, especially when an existing chip is first.
+    const dialog = screen.getByRole("dialog")
+    await waitFor(() =>
+      expect(dialog.contains(document.activeElement)).toBe(true)
+    )
+  }
   return {
     user: userEvent.setup(),
     onSave,
@@ -80,7 +88,7 @@ async function pick(
 
 describe("LabelEditorDialog: search and selection", () => {
   it("finds items by name, alias and section, keeping same names apart", async () => {
-    const { user } = setup()
+    const { user } = await setup()
     const dialog = screen.getByRole("dialog", { name: "Add labels" })
     const box = within(dialog).getByRole("combobox", {
       name: "Search the menu",
@@ -119,7 +127,7 @@ describe("LabelEditorDialog: search and selection", () => {
   })
 
   it("asks which variant, including not specified, and marks added ones", async () => {
-    const { user } = setup()
+    const { user } = await setup()
     await pick(user, "tikka", /Tikka Masala/)
     const group = screen.getByRole("group", { name: /Which Tikka Masala\?/ })
     expect(document.activeElement).toBe(
@@ -148,7 +156,7 @@ describe("LabelEditorDialog: search and selection", () => {
   })
 
   it("works with the keyboard only: choose, remove, Escape clears search not the dialog", async () => {
-    const { user, onOpenChange } = setup()
+    const { user, onOpenChange } = await setup()
     const box = screen.getByRole("combobox", { name: "Search the menu" })
     box.focus()
     await user.keyboard("mango")
@@ -189,7 +197,7 @@ describe("LabelEditorDialog: search and selection", () => {
   })
 
   it("limits content types to four with an explanation", async () => {
-    const { user } = setup()
+    const { user } = await setup()
     const group = screen.getByRole("group", { name: "Content types" })
     for (const name of ["Finished dish", "Plating", "Drinks", "Kitchen"])
       await user.click(within(group).getByRole("button", { name }))
@@ -204,7 +212,7 @@ describe("LabelEditorDialog: search and selection", () => {
   })
 
   it("counts remaining note characters", async () => {
-    const { user } = setup()
+    const { user } = await setup()
     const note = screen.getByRole("textbox", { name: "Note (optional)" })
     expect(note.getAttribute("maxlength")).toBe("280")
     await user.type(note, "Hello")
@@ -225,7 +233,7 @@ describe("LabelEditorDialog: search and selection", () => {
         view("item-gone", "Prawn Puri", "Starters", { state: "archived" }),
       ],
     })
-    const { user, onSave } = setup({ assets: [asset("a1", labels)] })
+    const { user, onSave } = await setup({ assets: [asset("a1", labels)] })
     expect(screen.getByRole("dialog", { name: "Edit labels" })).toBeTruthy()
     const chips = screen.getByRole("list", { name: "Selected menu items" })
     expect(
@@ -255,7 +263,7 @@ describe("LabelEditorDialog: saving one file", () => {
       contentTypes: ["dish"],
       note: "Old note",
     })
-    const { user, onSave, onSaved, onOpenChange } = setup({
+    const { user, onSave, onSaved, onOpenChange } = await setup({
       assets: [asset("a1", labels)],
     })
     await pick(user, "lassi", /Mango Lassi/)
@@ -299,7 +307,7 @@ describe("LabelEditorDialog: saving one file", () => {
   })
 
   it("withdraws an existing missing-item suggestion when cleared", async () => {
-    const { user, onSave } = setup({
+    const { user, onSave } = await setup({
       assets: [asset("a1", summary({ revision: 1, missingItem: "Pie" }))],
     })
     const field = screen.getByRole("textbox", { name: "Missing menu item" })
@@ -312,7 +320,7 @@ describe("LabelEditorDialog: saving one file", () => {
 
   it("prevents a double submit while saving", async () => {
     let resolve!: (r: SaveLabelsResult[]) => void
-    const { user, onSave } = setup({
+    const { user, onSave } = await setup({
       onSave: () => new Promise((r) => (resolve = r)),
     })
     await user.click(screen.getByRole("button", { name: "Drinks" }))
@@ -326,7 +334,7 @@ describe("LabelEditorDialog: saving one file", () => {
 
   it("keeps edits after a network failure and retries", async () => {
     let fail = true
-    const { user, onSave, onOpenChange } = setup({
+    const { user, onSave, onOpenChange } = await setup({
       onSave: async (inputs) => {
         if (fail) throw new Error("offline")
         return okFor(inputs)
@@ -358,7 +366,7 @@ describe("LabelEditorDialog: saving one file", () => {
       items: [view("item-lassi", "Mango Lassi", "Drinks")],
       note: "Their note",
     })
-    const { user, onSave, onOpenChange } = setup({
+    const { user, onSave, onOpenChange } = await setup({
       assets: [asset("a1", summary({ revision: 2 }))],
       onSave: vi
         .fn()
@@ -407,7 +415,7 @@ describe("LabelEditorDialog: saving one file", () => {
 
   it("recovers from a conflict by adopting the saved labels", async () => {
     const current = summary({ revision: 7, contentTypes: ["team"] })
-    const { user, onSave, onOpenChange } = setup({
+    const { user, onSave, onOpenChange } = await setup({
       assets: [asset("a1", summary({ revision: 2 }))],
       onSave: vi.fn().mockResolvedValueOnce([
         {
@@ -440,7 +448,7 @@ describe("LabelEditorDialog: saving one file", () => {
   })
 
   it("highlights unavailable items, removes them and retries", async () => {
-    const { user, onSave, onOpenChange } = setup({
+    const { user, onSave, onOpenChange } = await setup({
       onSave: vi
         .fn()
         .mockResolvedValueOnce([
@@ -480,7 +488,7 @@ describe("LabelEditorDialog: saving one file", () => {
   })
 
   it("handles a menu change during editing: keeps edits and reloads the catalogue", async () => {
-    const { user, onRetryCatalogue, onOpenChange } = setup({
+    const { user, onRetryCatalogue, onOpenChange } = await setup({
       onSave: async () => [
         {
           ok: false,
@@ -564,7 +572,7 @@ describe("LabelEditorDialog: batch", () => {
   }
 
   it("applies the common selection to every file with per-file overrides", async () => {
-    const { user, onSave } = setup({ assets: [a1, a2] })
+    const { user, onSave } = await setup({ assets: [a1, a2] })
     expect(
       screen.getByRole("dialog", { name: "Label these files" })
     ).toBeTruthy()
@@ -611,7 +619,10 @@ describe("LabelEditorDialog: batch", () => {
         },
       ])
       .mockImplementation(async (inputs: SaveLabelsInput[]) => okFor(inputs))
-    const { user, onSaved, onOpenChange } = setup({ assets: [a1, a2], onSave })
+    const { user, onSaved, onOpenChange } = await setup({
+      assets: [a1, a2],
+      onSave,
+    })
     const panel = await fillCommonAndAdjustSecond(user)
     await user.click(
       screen.getByRole("button", { name: "Save labels for 2 files" })
@@ -660,7 +671,7 @@ describe("LabelEditorDialog: batch", () => {
 
 describe("LabelEditorDialog: catalogue states", () => {
   it("loading shows a skeleton; other fields work; edits survive the catalogue arriving", async () => {
-    const { user, rerender } = setup({ catalogue: { state: "loading" } })
+    const { user, rerender } = await setup({ catalogue: { state: "loading" } })
     expect(screen.getByText("Loading the menu…")).toBeTruthy()
     expect(screen.queryByRole("combobox")).toBeNull()
     await user.click(screen.getByRole("button", { name: "Kitchen" }))
@@ -676,7 +687,7 @@ describe("LabelEditorDialog: catalogue states", () => {
   })
 
   it("error shows the message and Retry; the rest stays usable", async () => {
-    const { user, onRetryCatalogue, onSave } = setup({
+    const { user, onRetryCatalogue, onSave } = await setup({
       catalogue: { state: "error", message: "The menu service is busy." },
     })
     expect(screen.getByText("The menu service is busy.")).toBeTruthy()
@@ -693,7 +704,7 @@ describe("LabelEditorDialog: catalogue states", () => {
   })
 
   it("no active menu: explains, and content types, note and missing item still work", async () => {
-    const { user, onSave } = setup({
+    const { user, onSave } = await setup({
       catalogue: { state: "ready", catalogue: NO_MENU },
     })
     expect(screen.getByText(/The Railway has no active menu yet/)).toBeTruthy()
@@ -718,14 +729,14 @@ describe("LabelEditorDialog: catalogue states", () => {
 
 describe("LabelEditorDialog: skip and cancel", () => {
   it("skips straight away when nothing changed", async () => {
-    const { user, onOpenChange, onSave } = setup()
+    const { user, onOpenChange, onSave } = await setup()
     await user.click(screen.getByRole("button", { name: "Skip for now" }))
     expect(onOpenChange).toHaveBeenCalledWith(false)
     expect(onSave).not.toHaveBeenCalled()
   })
 
   it("asks before discarding unsaved edits (button and Escape)", async () => {
-    const { user, onOpenChange } = setup()
+    const { user, onOpenChange } = await setup()
     await user.click(screen.getByRole("button", { name: "Drinks" }))
     await user.click(screen.getByRole("button", { name: "Skip for now" }))
     const confirm = await screen.findByRole("alertdialog", {
@@ -752,8 +763,8 @@ describe("LabelEditorDialog: skip and cancel", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
-  it("renders nothing when closed", () => {
-    setup({ open: false })
+  it("renders nothing when closed", async () => {
+    await setup({ open: false })
     expect(screen.queryByRole("dialog")).toBeNull()
   })
 })
