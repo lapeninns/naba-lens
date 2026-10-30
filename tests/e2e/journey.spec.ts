@@ -132,7 +132,6 @@ test.describe("release journey @core", () => {
       expect(log.at(-1), file.name).toBe("Uploaded")
     }
     const uploadsReadyAt = Date.now()
-    await staff.getByRole("button", { name: "Done" }).click()
 
     const { data: rows } = await provisioner()
       .from("media_assets")

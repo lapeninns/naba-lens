@@ -227,7 +227,10 @@ test.describe("release negatives", () => {
     expect(thumb.status()).toBe(403)
 
     // Upload from the already-open dialog: refused, nothing reserved.
-    await uploadThroughDialog(staff, [late], "0 uploaded · 1 failed")
+    await uploadThroughDialog(staff, [late], {
+      expectSettled: "0 uploaded · 1 failed",
+      close: false,
+    })
     await expect(
       staff.getByRole("dialog").getByText("Your account is not active.", {
         exact: false,

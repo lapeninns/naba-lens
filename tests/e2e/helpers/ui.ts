@@ -29,7 +29,7 @@ export const libraryList = (page: Page) =>
 export async function uploadThroughDialog(
   page: Page,
   files: SourceFile[],
-  expectSettled = `${files.length} uploaded`
+  { expectSettled = `${files.length} uploaded`, close = true } = {}
 ): Promise<Record<string, string[]>> {
   await page
     .getByRole("button", { name: "Upload photos or videos" })
@@ -50,6 +50,10 @@ export async function uploadThroughDialog(
     timeout: 90_000,
   })
   const seen = await readQueueStatuses(page)
+  if (close) {
+    await dialog.getByRole("button", { name: "Done" }).click()
+    await expect(dialog).toBeHidden()
+  }
   return seen
 }
 
