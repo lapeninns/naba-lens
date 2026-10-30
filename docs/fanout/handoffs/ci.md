@@ -58,3 +58,32 @@ Fresh pinned gate running: `/tmp/nabalens-ci-after-merge.log`, workdir
 `/var/folders/t4/b7qzq59j6y95v59m5_32snvw0000gn/T/nabalens-ci.qKkxtJ`.
 Install/typecheck/lint/unit (102)/build passed. Isolated startup passed; reset
 is waiting at container restart under slow Docker response. Suites pending.
+
+### Completed post-merge result (supersedes pending status above)
+
+Full gate exit 1. Actual summary:
+```text
+install PASS
+typecheck PASS
+lint PASS
+unit PASS
+build PASS
+prepare PASS
+start PASS
+reset PASS
+database-and-browser FAIL
+stop PASS
+```
+Unit 102 passed. Integration: 3 files failed, 4 passed; 56 tests passed,
+4 failed, 24 skipped (84 total). Lifecycle 17 passed; security 114 passed.
+Chromium desktop/phone: 13 passed, 5 failed (3.1m), no retries.
+Browser failures: desktop staff login, admin login, staff-management journey;
+phone uninvited-email case and vertical slice. Captured auth request timeouts,
+30-second integration timeouts and browser visibility assertion failures.
+No assertion, timeout, auth or RLS changes made. Fixing application/harness
+failures belongs to owning tracks; CI correctly returns failure.
+
+All configured stages actually invoked on merged code; Firefox/WebKit hosted
+matrix remains not executed locally. No staging or hosted CI available.
+Evidence: `/tmp/nabalens-ci-after-merge.log`, workdir logs above and ignored
+checkout `test-results/` traces. Owned temporary stack stopped successfully.
