@@ -167,6 +167,7 @@ export type DiffChange = DiffItemRef & {
   before: Partial<Pick<MenuDocItem, "name" | "description" | "aliases">> & {
     sectionName?: string
     variants?: string[]
+    meta?: SourceMeta
   }
 }
 
