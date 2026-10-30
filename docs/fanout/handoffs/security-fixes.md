@@ -14,6 +14,11 @@
   - The reviewer's repros R2b, R4, R4b, R4c, R7 and R10 are now regressions in
     `tests/security/upload-path.regression.test.ts`.
   - I made no further `finalise.ts` edits; it is owned by uploads now (see below).
+- **Round 3:** I copied `tests/integration/gaps-profile-origin.test.ts` and its helper
+  `gaps-support.ts` unchanged from `feat/nl-gaps` (5b1d298, 343d297). This is the
+  gap-tests track's deliberately failing test for finding 7. It passes on this branch
+  (2/2), and the integration suite is 8 files, 86 passed. The other gap tests on that
+  branch were not copied.
 - **Status:** DONE. All suites are green (see below). Nothing is in progress.
 
 ## Done
