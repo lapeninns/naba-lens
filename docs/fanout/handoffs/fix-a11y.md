@@ -45,14 +45,26 @@ cause, fix it without suppressing the rule, prove it with 3 consecutive passes o
     polls until focus is inside the dialog or viewer before tabbing. The assertions are
     unchanged and there are no retries.
 
+## Also fixed: review finding F3
+
+`tests/e2e/visual.spec.ts` `signIn` opened `/auth/confirm?...` and never pressed Continue on
+the new interstitial, so every signed-in visual test stayed on `/auth/confirm`. It now calls
+`openEmailLink` from `tests/e2e/helpers/email-link.ts`.
+
+`feat/nabalens-mvp` @ 2471677 (privacy fix) is merged into this branch, with no conflicts.
+
 ## Evidence (isolated stack `nl-fix-a11y`, ports 592xx, app :3561)
 
 - New test without the CSS fix: FAILED with `aria-hidden-focus: <span aria-hidden="true" tabindex="0" data-base-ui-focus-guard …>` (the CI nodes).
   With the fix: passed.
 - `responsive.spec.ts --project chromium`, 3 consecutive full runs after both commits: 7 passed, 7 passed, 7 passed.
-- `pnpm typecheck` exit 0. `pnpm lint`: 0 errors, 3 pre-existing warnings in `scripts/db/lib/drill.ts`.
-  `pnpm test`: 21 files, 153 passed.
-- `pnpm test:visual`: see the final handoff message.
+- On the merged head (after the 2471677 merge):
+  - `responsive.spec.ts --project chromium`: 3 consecutive full runs, 7 passed each.
+  - `pnpm test:visual $W --no-build --project chromium --project webkit` (fresh `next build`
+    just before, by the runner): **30 passed (5.4m)**. Chromium covers 360/390/768/1280/1440;
+    WebKit covers 1280.
+  - `pnpm typecheck` exit 0, `pnpm lint` clean, `pnpm test` 21 files / 153 passed, `pnpm build` compiled.
+- Firefox for the visual suite was not run (the visual-a11y handoff records it as blocked locally).
 
 ## How to run the stack
 
