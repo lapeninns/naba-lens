@@ -1,12 +1,12 @@
-// Preloaded into `next start` (NODE_OPTIONS=--require) by the load runner. It
+// Preloaded into `next start` (NODE_OPTIONS=--import) by the load runner. It
 // observes, without changing lib/media or the app:
 //  - worker_threads.Worker start/exit (HEIC decodes), to NABALENS_WORKER_LOG;
 //  - each outgoing fetch to the Supabase stack: service (storage, rest, auth),
 //    method, whether it is a Range read, status and duration, to
 //    NABALENS_FETCH_LOG. No URLs beyond the service name, no headers, no bodies.
-const { appendFileSync } = require("node:fs")
-const { syncBuiltinESMExports } = require("node:module")
-const wt = require("node:worker_threads")
+import { appendFileSync } from "node:fs"
+import { syncBuiltinESMExports } from "node:module"
+import wt from "node:worker_threads"
 
 const workerLog = process.env.NABALENS_WORKER_LOG
 if (workerLog && wt.isMainThread) {

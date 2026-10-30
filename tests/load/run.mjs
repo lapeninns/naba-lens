@@ -26,6 +26,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { createRequire } from "node:module"
 import { loadavg, tmpdir } from "node:os"
 import { join, resolve } from "node:path"
+import { pathToFileURL } from "node:url"
 import { promisify } from "node:util"
 
 import { createServerClient } from "@supabase/ssr"
@@ -156,7 +157,7 @@ async function startServer(label) {
         NODE_ENV: "production",
         NABALENS_WORKER_LOG: workerLog,
         NABALENS_FETCH_LOG: fetchLog,
-        NODE_OPTIONS: `--require ${resolve("tests/load/server-probe.cjs")}`,
+        NODE_OPTIONS: `--import ${pathToFileURL(resolve("tests/load/server-probe.mjs"))}`,
         NEXT_PUBLIC_SITE_URL: BASE,
       }),
       stdio: ["ignore", "pipe", "pipe"],
