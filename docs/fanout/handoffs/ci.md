@@ -49,3 +49,12 @@ lanes on dedicated Linux runners. No auth/RLS/assertion changes were made.
 
 Final corrected wrapper: `CI=true /tmp/nabalens-pnpm10/pnpm build` exit 0;
 log `/tmp/nabalens-ci-final-build.log`. Final typecheck exit 0 as above.
+
+## Post-orchestrator merge run
+
+Merged `feat/nabalens-mvp` at merge commit `2f389c4` including esbuild policy fix.
+`CI=true pnpm install --frozen-lockfile`: exit 0, pnpm 11.17.0.
+Fresh pinned gate running: `/tmp/nabalens-ci-after-merge.log`, workdir
+`/var/folders/t4/b7qzq59j6y95v59m5_32snvw0000gn/T/nabalens-ci.qKkxtJ`.
+Install/typecheck/lint/unit (102)/build passed. Isolated startup passed; reset
+is waiting at container restart under slow Docker response. Suites pending.
