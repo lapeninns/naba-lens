@@ -3,7 +3,7 @@ import type { User } from "@supabase/supabase-js"
 import { MEDIA_LIMITS } from "@/lib/config/media"
 import { STORAGE_BUCKETS } from "@/lib/config/storage"
 
-import { listAuthUsers } from "./auth-users"
+import { AuthLookupError, listAuthUsers, withAuthDeadline } from "./auth-users"
 import {
   requireAdminCaller,
   type AccountResult,
@@ -71,10 +71,26 @@ async function signAvatars(
   return urls
 }
 
+/**
+ * "unavailable": Supabase Auth was too slow or failed, so emails and sign-in
+ * times are missing and an active account that never signed in shows as
+ * Active, not Invited. Everything from `profiles` (name, venue, deactivation)
+ * is still exact. The page says so instead of failing to render.
+ */
+export type AuthDetails = "ok" | "unavailable"
+
+function logAuthUnavailable(where: string, error: unknown) {
+  if (!(error instanceof AuthLookupError)) throw error
+  console.error(`[accounts] ${where}: auth details unavailable`, {
+    reason: error.reason,
+  })
+}
+
 function toEntry(
   row: ProfileRow,
   user: User | null,
-  avatarUrls: Map<string, string>
+  avatarUrls: Map<string, string>,
+  details: AuthDetails = "ok"
 ): StaffDirectoryEntry {
   return {
     id: row.id,
@@ -87,7 +103,12 @@ function toEntry(
     venueName: row.venue?.name ?? null,
     venueActive: row.venue?.active ?? null,
     email: user?.email ?? null,
-    status: staffStatus(row.active, user),
+    status:
+      details === "ok"
+        ? staffStatus(row.active, user)
+        : row.active
+          ? "active"
+          : "inactive",
     lastSignInAt: user?.last_sign_in_at ?? null,
   }
 }
@@ -95,7 +116,9 @@ function toEntry(
 /** Every staff account (not admins), by name. One organisation: no pagination. */
 export async function listStaffDirectory(
   ctx: AccountsContext
-): Promise<AccountResult<{ staff: StaffDirectoryEntry[] }>> {
+): Promise<
+  AccountResult<{ staff: StaffDirectoryEntry[]; authDetails: AuthDetails }>
+> {
   const auth = await requireAdminCaller(ctx.caller)
   if (!auth.ok) return auth
 
@@ -108,17 +131,26 @@ export async function listStaffDirectory(
   if (error) return dbFailed()
   const rows = data as ProfileRow[]
 
-  const users = new Map(
-    (await listAuthUsers(ctx.service)).map((u) => [u.id, u])
-  )
-  const avatarUrls = await signAvatars(
-    ctx.service,
-    rows.flatMap((r) => (r.avatar_path ? [r.avatar_path] : []))
-  )
+  // Auth and Storage in parallel; Auth is bounded and may degrade.
+  const [users, avatarUrls] = await Promise.all([
+    listAuthUsers(ctx.service, ctx.authDeadlineMs).then(
+      (list) => new Map(list.map((u) => [u.id, u])),
+      (error: unknown) => {
+        logAuthUnavailable("directory", error)
+        return null
+      }
+    ),
+    signAvatars(
+      ctx.service,
+      rows.flatMap((r) => (r.avatar_path ? [r.avatar_path] : []))
+    ),
+  ])
+  const details: AuthDetails = users ? "ok" : "unavailable"
   return {
     ok: true,
+    authDetails: details,
     staff: rows.map((row) =>
-      toEntry(row, users.get(row.id) ?? null, avatarUrls)
+      toEntry(row, users?.get(row.id) ?? null, avatarUrls, details)
     ),
   }
 }
@@ -126,7 +158,9 @@ export async function listStaffDirectory(
 export async function getStaffAccount(
   ctx: AccountsContext,
   staffId: unknown
-): Promise<AccountResult<{ staff: StaffDirectoryEntry }>> {
+): Promise<
+  AccountResult<{ staff: StaffDirectoryEntry; authDetails: AuthDetails }>
+> {
   const auth = await requireAdminCaller(ctx.caller)
   if (!auth.ok) return auth
   if (!isUuid(staffId)) return notFound()
@@ -141,14 +175,24 @@ export async function getStaffAccount(
   if (!data) return notFound()
   const row = data as ProfileRow
 
-  const { data: authUser } = await ctx.service.auth.admin.getUserById(row.id)
-  const avatarUrls = await signAvatars(
-    ctx.service,
-    row.avatar_path ? [row.avatar_path] : []
-  )
+  const [user, avatarUrls] = await Promise.all([
+    withAuthDeadline(
+      ctx.service.auth.admin.getUserById(row.id).then(({ data, error }) => {
+        if (error) throw new AuthLookupError("failed")
+        return data.user
+      }),
+      ctx.authDeadlineMs
+    ).catch((error: unknown) => {
+      logAuthUnavailable("account", error)
+      return undefined
+    }),
+    signAvatars(ctx.service, row.avatar_path ? [row.avatar_path] : []),
+  ])
+  const details: AuthDetails = user === undefined ? "unavailable" : "ok"
   return {
     ok: true,
-    staff: toEntry(row, authUser?.user ?? null, avatarUrls),
+    authDetails: details,
+    staff: toEntry(row, user ?? null, avatarUrls, details),
   }
 }
 

@@ -8,6 +8,7 @@ import { listAssignableVenues, listStaffDirectory } from "@/lib/server/accounts"
 import { accountsContext } from "@/lib/server/accounts/request"
 
 import { signOutAction } from "./actions"
+import { AuthDetailsNotice } from "./auth-details-notice"
 import { StaffDirectory } from "./staff-directory"
 
 export const metadata: Metadata = { title: "Staff · NabaLens" }
@@ -28,11 +29,16 @@ export default async function StaffDirectoryPage() {
       logoutAction={signOutAction}
     >
       {directory.ok && venues.ok ? (
-        <StaffDirectory
-          staff={directory.staff}
-          venues={venues.venues}
-          maxAvatarBytes={MEDIA_LIMITS.maxAvatarBytes}
-        />
+        <div className="grid gap-4">
+          {directory.authDetails === "unavailable" ? (
+            <AuthDetailsNotice />
+          ) : null}
+          <StaffDirectory
+            staff={directory.staff}
+            venues={venues.venues}
+            maxAvatarBytes={MEDIA_LIMITS.maxAvatarBytes}
+          />
+        </div>
       ) : (
         <Alert variant="destructive">
           <AlertDescription>

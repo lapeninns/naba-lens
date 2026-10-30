@@ -1,6 +1,7 @@
 import type { PostgrestError } from "@supabase/supabase-js"
 
 import { DEACTIVATED_BAN_DURATION } from "./auth-users"
+import { staffStatus, type StaffAccountStatus } from "./directory"
 import {
   fail,
   FORBIDDEN_MESSAGE,
@@ -63,7 +64,7 @@ export async function updateStaffAccount(
   ctx: AccountsContext,
   staffId: unknown,
   raw: unknown
-): Promise<AccountResult<{ warning?: string }>> {
+): Promise<AccountResult<{ warning?: string; status?: StaffAccountStatus }>> {
   const auth = await requireAdminCaller(ctx.caller)
   if (!auth.ok) return auth
 
@@ -124,12 +125,14 @@ export async function updateStaffAccount(
  * never leaves an "active" profile that cannot sign in.
  *
  * Retained media is untouched: admins keep seeing an inactive person's assets.
+ * On success, `status` is the account's new directory status, so the admin UI
+ * can show it at once instead of waiting for a server re-render.
  */
 export async function setStaffActive(
   ctx: AccountsContext,
   staffId: unknown,
   active: unknown
-): Promise<AccountResult<{ warning?: string }>> {
+): Promise<AccountResult<{ warning?: string; status: StaffAccountStatus }>> {
   const auth = await requireAdminCaller(ctx.caller)
   if (!auth.ok) return auth
   if (typeof active !== "boolean") {
@@ -159,17 +162,16 @@ export async function setStaffActive(
       })
       return {
         ok: true,
+        status: "inactive",
         warning:
           "The account is deactivated and blocked from NabaLens. Signing out its other devices failed; they are still refused on their next request.",
       }
     }
-    return { ok: true }
+    return { ok: true, status: "inactive" }
   }
 
-  const { error: unbanError } = await ctx.service.auth.admin.updateUserById(
-    id,
-    { ban_duration: "none" }
-  )
+  const { data: unbanned, error: unbanError } =
+    await ctx.service.auth.admin.updateUserById(id, { ban_duration: "none" })
   if (unbanError) {
     console.error("[accounts] reactivate: unban failed", {
       code: unbanError.code ?? null,
@@ -188,5 +190,5 @@ export async function setStaffActive(
     if (error) return mapUpdateError(error)
     if (!data?.length) return notFound()
   }
-  return { ok: true }
+  return { ok: true, status: staffStatus(true, unbanned.user) }
 }

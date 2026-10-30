@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises"
 import { expect, test, type Page } from "@playwright/test"
 
 import { mailboxIds, SUBJECTS, waitForLink } from "./helpers/mailpit"
+import { openEmailLink } from "./helpers/email-link"
 import {
   sha256,
   type SourceFile,
@@ -93,7 +94,7 @@ test.describe("release journey @core", () => {
     const inviteLink = await waitForLink(inviteeEmail, SUBJECTS.invite, before)
     const staffContext = await browser.newContext()
     const staff = await staffContext.newPage()
-    await staff.goto(inviteLink)
+    await openEmailLink(staff, inviteLink)
     await expect(staff).toHaveURL(/\/staff$/)
     await expect(
       staff.getByRole("heading", { name: inviteeName })
@@ -172,7 +173,8 @@ test.describe("release journey @core", () => {
     await expect(
       freshPage.getByRole("heading", { name: "Check your email" })
     ).toBeVisible()
-    await freshPage.goto(
+    await openEmailLink(
+      freshPage,
       await waitForLink(inviteeEmail, SUBJECTS.signIn, seenSignIn)
     )
     await expect(freshPage).toHaveURL(/\/staff$/)

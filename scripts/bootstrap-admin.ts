@@ -10,7 +10,7 @@
  * must already exist (created by an operator in the Supabase dashboard, e.g.
  * Authentication > Users > Invite user). See README "First admin".
  */
-import type { SupabaseClient } from "@supabase/supabase-js"
+import type { SupabaseClient, User } from "@supabase/supabase-js"
 import { pathToFileURL } from "node:url"
 
 import type { Database } from "../lib/db/types"
@@ -21,10 +21,10 @@ export type BootstrapResult = {
   action: "created_profile" | "promoted" | "already_admin"
 }
 
-export async function findAuthUserIdByEmail(
+export async function findAuthUserByEmail(
   admin: SupabaseClient<Database>,
   email: string
-): Promise<string | null> {
+): Promise<User | null> {
   const target = email.trim().toLowerCase()
   for (let page = 1; ; page++) {
     const { data, error } = await admin.auth.admin.listUsers({
@@ -33,21 +33,46 @@ export async function findAuthUserIdByEmail(
     })
     if (error) throw new Error(`Could not list users: ${error.message}`)
     const match = data.users.find((u) => u.email?.toLowerCase() === target)
-    if (match) return match.id
+    if (match) return match
     if (data.users.length < 1000) return null
   }
+}
+
+export async function findAuthUserIdByEmail(
+  admin: SupabaseClient<Database>,
+  email: string
+): Promise<string | null> {
+  return (await findAuthUserByEmail(admin, email))?.id ?? null
+}
+
+/**
+ * An account deactivated in the app is also banned in Auth (refresh tokens and
+ * sign-in links refused). Promoting it must lift that ban, or the "active admin"
+ * could never sign in. Done before the profile write, like reactivation.
+ */
+async function liftDeactivationBan(
+  admin: SupabaseClient<Database>,
+  user: User
+): Promise<void> {
+  if (!user.banned_until || Date.parse(user.banned_until) <= Date.now()) return
+  const { error } = await admin.auth.admin.updateUserById(user.id, {
+    ban_duration: "none",
+  })
+  if (error) throw new Error(`Could not lift the sign-in ban: ${error.message}`)
 }
 
 export async function bootstrapAdmin(
   admin: SupabaseClient<Database>,
   input: { email: string; displayName?: string }
 ): Promise<BootstrapResult> {
-  const userId = await findAuthUserIdByEmail(admin, input.email)
-  if (!userId) {
+  const user = await findAuthUserByEmail(admin, input.email)
+  if (!user) {
     throw new Error(
       "No auth user with that email. Create/invite the user first; this script never creates accounts."
     )
   }
+
+  const userId = user.id
 
   const { data: existing, error: readError } = await admin
     .from("profiles")
@@ -63,6 +88,7 @@ export async function bootstrapAdmin(
         'This user has no profile yet: pass --name "Display Name".'
       )
     }
+    await liftDeactivationBan(admin, user)
     const { error } = await admin.from("profiles").insert({
       id: userId,
       display_name: displayName,
@@ -78,6 +104,7 @@ export async function bootstrapAdmin(
     return { userId, action: "already_admin" }
   }
 
+  await liftDeactivationBan(admin, user)
   const { error } = await admin
     .from("profiles")
     .update({ role: "admin", active: true })

@@ -25,6 +25,9 @@ export async function signInAs(
   await page.goto(
     `/auth/confirm?token_hash=${data.properties.hashed_token}&type=email`
   )
+  // Opening the link never uses it (mail scanners prefetch); Continue does.
+  await page.getByRole("button", { name: "Continue" }).click()
+  await page.waitForURL((url) => !url.pathname.startsWith("/auth/confirm"))
   return page
 }
 

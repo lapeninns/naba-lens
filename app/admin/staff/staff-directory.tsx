@@ -65,7 +65,7 @@ export function StaffDirectory({
         />
       ) : (
         <StaffDirectoryTable
-          staff={staff}
+          staff={staff.map(controls.withConfirmedStatus)}
           getPortfolioHref={(member) =>
             `/admin/staff/${encodeURIComponent(member.id)}`
           }

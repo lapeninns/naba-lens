@@ -671,7 +671,7 @@ describe("deactivation and reactivation", () => {
 
     expect(
       await setStaffActive(ctxFor(adminUser.client), staff.id, false)
-    ).toEqual({ ok: true })
+    ).toEqual({ ok: true, status: "inactive" })
 
     // The same session is now refused by the app's guard and by RLS.
     const profile = await loadProfile(staff.client, staff.id, staff.email)
@@ -713,7 +713,7 @@ describe("deactivation and reactivation", () => {
   it("reactivation restores access with a new sign-in", async () => {
     expect(
       await setStaffActive(ctxFor(adminUser.client), staff.id, true)
-    ).toEqual({ ok: true })
+    ).toEqual({ ok: true, status: "active" })
     const client = await signIn(service, staff.email)
     expect(await resolveCaller(client)).toMatchObject({ ok: true })
     const again = await reserve(client)
@@ -733,7 +733,7 @@ describe("deactivation and reactivation", () => {
         displayName: "TEST Lifecycle renamed",
         active: false,
       })
-    ).toEqual({ ok: true })
+    ).toEqual({ ok: true, status: "inactive" })
     expect(await profileOf(staff.id)).toMatchObject({
       display_name: "TEST Lifecycle renamed",
       active: false,

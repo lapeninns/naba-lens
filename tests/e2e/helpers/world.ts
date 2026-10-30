@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto"
 
 import type { Browser, BrowserContextOptions, Page } from "@playwright/test"
 
+import { openEmailLink } from "./email-link"
 import { provisioner, psql } from "./stack"
 
 /**
@@ -162,7 +163,8 @@ export async function signedInPage(
   }
   const context = await browser.newContext(options)
   const page = await context.newPage()
-  await page.goto(
+  await openEmailLink(
+    page,
     `/auth/confirm?token_hash=${data.properties.hashed_token}&type=email`
   )
   return page

@@ -537,9 +537,10 @@ describe("media lifecycle: removal, cleanup, deactivation", () => {
       })
     }
 
-    it("POST only, and only with the shared secret", async () => {
+    it("only with the shared secret", async () => {
       const route = await import("@/app/api/internal/cleanup/route")
-      expect("GET" in route).toBe(false)
+      // GET (for Vercel Cron) shares this secret check; see
+      // tests/integration/auth-internal.test.ts.
 
       delete process.env.CLEANUP_SECRET
       expect((await route.POST(post(`Bearer ${secret}`))).status).toBe(503)

@@ -12,7 +12,7 @@ import { AccountNotice, useAccountControls } from "../account-controls"
 
 /** Profile header for one staff account, with the admin's account actions. */
 export function AccountHeader({
-  member,
+  member: fromProps,
   venueActive,
   venues,
   maxAvatarBytes,
@@ -23,6 +23,7 @@ export function AccountHeader({
   maxAvatarBytes: number
 }) {
   const controls = useAccountControls({ venues, maxAvatarBytes })
+  const member = controls.withConfirmedStatus(fromProps)
   return (
     <div className="grid gap-4">
       <ProfileHeader

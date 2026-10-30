@@ -38,7 +38,7 @@ At `06d6040` (base of `feat/nabalens-mvp`):
 | Spec / contract name                      | Real path                                                                                                               |
 | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | `/login`                                  | `app/login/page.tsx` (renders `LoginCard`), `actions.ts` (Server Function `requestSignInLink`)                            |
-| Auth callback / confirm                   | `app/auth/confirm/route.ts` (token_hash; used by our templates), `app/auth/callback/route.ts` (PKCE `code` fallback)    |
+| Auth callback / confirm                   | `app/auth/confirm/page.tsx` + `verify/route.ts` (token_hash; used by our templates), `app/auth/callback/route.ts` (PKCE `code` fallback)    |
 | Logout                                    | `app/auth/logout/route.ts` (POST) + `app/auth/sign-out-button.tsx`                                                      |
 | Blocked account page                      | `app/auth/blocked/page.tsx` (`/auth/blocked`)                                                                           |
 | Role redirect                             | `app/page.tsx` (`/` → `/staff`, `/admin`, `/login` or `/auth/blocked`)                                                  |
@@ -156,9 +156,11 @@ avatar are not cleaned up by this function.
   "Email logins are disabled"). The login action also sends `shouldCreateUser: false`.
 - `/login` → `requestSignInLink` → `sendSignInLink` always answers "Check your email", whether the
   address is invited, unknown or rate-limited (errors are logged by code only, never the email).
-- Email templates link to `/auth/confirm?token_hash=…&type=email|invite`, which calls `verifyOtp`
-  server-side (works when the link is opened in another browser/app) and redirects to `/`.
-  Failures go to `/login?error=link_invalid` (expired/used-link recovery).
+- Email templates link to `/auth/confirm?token_hash=…&type=email|invite`. Opening it only shows a
+  **Continue** page and does not use the one-time token, because corporate mail scanners prefetch
+  links with GET. Continue POSTs the token to `/auth/confirm/verify` (same-origin only), which calls
+  `verifyOtp` server-side (works when the link is opened in another browser/app) and redirects to
+  `/`. Failures go to `/login?error=link_invalid` (expired/used-link recovery).
 - `/` re-reads the profile: active staff → `/staff`, active admin → `/admin`, no profile or
   inactive → `/auth/blocked`, no session → `/login`.
 - `lib/auth` never caches: each call reads `profiles` again, so deactivation blocks existing

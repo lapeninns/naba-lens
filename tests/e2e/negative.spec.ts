@@ -8,6 +8,7 @@ import {
   SUBJECTS,
   waitForLink,
 } from "./helpers/mailpit"
+import { openEmailLink } from "./helpers/email-link"
 import { hevcMp4, sha256, syntheticJpeg } from "./helpers/media"
 import { provisioner, psql } from "./helpers/stack"
 import {
@@ -172,10 +173,10 @@ test.describe("release negatives", () => {
     const seen = await mailboxIds(email)
     await requestLinkViaForm(first, email)
     const link = await waitForLink(email, SUBJECTS.signIn, seen)
-    await first.goto(link)
+    await openEmailLink(first, link)
     await expect(first).toHaveURL(/\/staff$/)
     const second = await anonymous(browser)
-    await second.goto(link)
+    await openEmailLink(second, link)
     await expect(second).toHaveURL(/\/login\?error=link_invalid$/)
     await expect(
       second.getByText("That sign-in link has expired")
@@ -190,7 +191,7 @@ test.describe("release negatives", () => {
     psql(
       `update auth.users set recovery_sent_at = now() - interval '2 hours' where email = '${email}'`
     )
-    await third.goto(expiring)
+    await openEmailLink(third, expiring)
     await expect(third).toHaveURL(/\/login\?error=link_invalid$/)
     await expect(third.getByText("That sign-in link has expired")).toBeVisible()
     // Recovery: request a new link from that page and sign in.
@@ -201,12 +202,15 @@ test.describe("release negatives", () => {
     await expect(
       third.getByRole("heading", { name: "Check your email" })
     ).toBeVisible()
-    await third.goto(await waitForLink(email, SUBJECTS.signIn, seen3))
+    await openEmailLink(third, await waitForLink(email, SUBJECTS.signIn, seen3))
     await expect(third).toHaveURL(/\/staff$/)
 
     // Garbage token.
     await third.context().clearCookies()
-    await third.goto("/auth/confirm?token_hash=not-a-real-token&type=email")
+    await openEmailLink(
+      third,
+      "/auth/confirm?token_hash=not-a-real-token&type=email"
+    )
     await expect(third).toHaveURL(/\/login\?error=link_invalid$/)
   })
 

@@ -14,6 +14,7 @@ import { getMediaActor } from "@/lib/server/media/context"
 import { listLibrary } from "@/lib/server/media/library"
 
 import { signOutAction } from "../actions"
+import { AuthDetailsNotice } from "../auth-details-notice"
 import { AccountHeader } from "./account-header"
 import { AdminPortfolio } from "./admin-portfolio"
 
@@ -61,6 +62,7 @@ export default async function StaffPortfolioPage({
           <ArrowLeftIcon data-icon="inline-start" aria-hidden />
           All staff
         </Link>
+        {account.authDetails === "unavailable" ? <AuthDetailsNotice /> : null}
         <AccountHeader
           member={member}
           venueActive={member.venueActive}

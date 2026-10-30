@@ -30,12 +30,14 @@ const ALLOWED_PAGES = new Set([
   "/admin/staff",
   "/admin/staff/[id]",
   "/auth/blocked",
+  // Email-link landing: shows Continue; the token is used only on POST (review #8).
+  "/auth/confirm",
   "/ui-preview",
 ])
 
 const ALLOWED_HANDLERS = new Set([
   "/auth/callback",
-  "/auth/confirm",
+  "/auth/confirm/verify",
   "/auth/logout",
   "/admin/staff/[id]/avatar",
   "/api/avatars/[id]",

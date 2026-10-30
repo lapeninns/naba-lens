@@ -10,6 +10,7 @@ import {
   setStaffActive,
   updateStaffAccount,
   type AccountResult,
+  type StaffAccountStatus,
 } from "@/lib/server/accounts"
 import { accountsContext } from "@/lib/server/accounts/request"
 import { createClient } from "@/lib/supabase/server"
@@ -29,7 +30,8 @@ export type InviteActionResult =
     }
 
 export type AccountActionResult =
-  | { ok: true; warning?: string }
+  /** `status`: the account's new status after an activation change. */
+  | { ok: true; warning?: string; status?: StaffAccountStatus }
   | {
       ok: false
       error: string
@@ -41,10 +43,14 @@ function refreshStaffPages() {
 }
 
 function toActionResult(
-  result: AccountResult<{ warning?: string }>
+  result: AccountResult<{ warning?: string; status?: StaffAccountStatus }>
 ): AccountActionResult {
-  if (result.ok)
-    return result.warning ? { ok: true, warning: result.warning } : { ok: true }
+  if (result.ok) {
+    const ok: AccountActionResult = { ok: true }
+    if (result.warning) ok.warning = result.warning
+    if (result.status) ok.status = result.status
+    return ok
+  }
   return result.fieldErrors
     ? { ok: false, error: result.error, fieldErrors: result.fieldErrors }
     : { ok: false, error: result.error }
