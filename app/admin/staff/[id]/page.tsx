@@ -8,16 +8,14 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { buttonVariants } from "@/components/ui/button"
 import { requireActiveAdmin } from "@/lib/auth"
 import { MEDIA_LIMITS } from "@/lib/config/media"
-import {
-  getStaffAccount,
-  listAssignableVenues,
-  listMediaForUploader,
-} from "@/lib/server/accounts"
+import { getStaffAccount, listAssignableVenues } from "@/lib/server/accounts"
 import { accountsContext } from "@/lib/server/accounts/request"
+import { getMediaActor } from "@/lib/server/media/context"
+import { listLibrary } from "@/lib/server/media/library"
 
 import { signOutAction } from "../actions"
 import { AccountHeader } from "./account-header"
-import { PortfolioGallery } from "./portfolio-gallery"
+import { AdminPortfolio } from "./admin-portfolio"
 
 export const metadata: Metadata = { title: "Staff portfolio · NabaLens" }
 
@@ -29,6 +27,8 @@ export default async function StaffPortfolioPage({
   const admin = await requireActiveAdmin()
   const { id } = await params
   const ctx = await accountsContext()
+  const auth = await getMediaActor("admin")
+  if (!auth.ok) throw new Error("Not authorised.")
 
   const account = await getStaffAccount(ctx, id)
   if (!account.ok) {
@@ -37,7 +37,9 @@ export default async function StaffPortfolioPage({
   }
   const member = account.staff
   const [media, venues] = await Promise.all([
-    listMediaForUploader(ctx, member.id),
+    // The admin library filtered to this contributor (ready media, newest first,
+    // each keeping its upload-time venue).
+    listLibrary(auth.actor, { venueId: null, staffId: member.id, type: null }),
     listAssignableVenues(ctx),
   ])
 
@@ -70,11 +72,10 @@ export default async function StaffPortfolioPage({
             Portfolio
           </h2>
           {media.ok ? (
-            <PortfolioGallery
+            <AdminPortfolio
               staffId={member.id}
               staffName={member.displayName}
-              initialItems={media.items}
-              initialCursor={media.nextCursor}
+              initialPage={{ items: media.items, nextCursor: media.nextCursor }}
             />
           ) : (
             <Alert variant="destructive">

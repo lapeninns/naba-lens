@@ -4,6 +4,7 @@ import { MEDIA_LIMITS } from "@/lib/config/media"
 import { avatarObjectKey, STORAGE_BUCKETS } from "@/lib/config/storage"
 import { createAvatarDerivative, MediaError } from "@/lib/media"
 
+import { signedUrlTtlSeconds } from "./access"
 import { validationMessage } from "./errors"
 import type { Db, MediaActor, Outcome } from "./types"
 
@@ -149,7 +150,7 @@ export async function signAvatar(
   if (!data?.avatar_path) return notFound
   const signed = await actor.db.storage
     .from(STORAGE_BUCKETS.avatars)
-    .createSignedUrl(data.avatar_path, MEDIA_LIMITS.signedUrlExpirySeconds)
+    .createSignedUrl(data.avatar_path, signedUrlTtlSeconds())
   if (signed.error || !signed.data) return notFound
   return { ok: true, url: signed.data.signedUrl }
 }
