@@ -155,7 +155,31 @@ async function callAction<T>(
   return { value: JSON.parse(row.slice(2)) as T, res }
 }
 
-/** The real landing route verifies the magic-link token hash and sets the session. */
+/** The interstitial and verify responses, checked in their own test below. */
+const emailLinkSteps: { page: Observed; verify: Observed }[] = []
+/** Cross-origin verify POSTs with a valid, unspent token hash. */
+const crossOriginVerifies: Observed[] = []
+
+/** The Continue form's hidden fields, read from the interstitial's HTML. */
+function continueFields(html: string) {
+  const form = html.match(
+    /<form[^>]*action="\/auth\/confirm\/verify"[^>]*method="post"[^>]*>([\s\S]*?)<\/form>/
+  )
+  if (!form) throw new Error("No Continue form posting to /auth/confirm/verify")
+  const fields = new URLSearchParams()
+  for (const input of form[1].matchAll(/<input[^>]*type="hidden"[^>]*>/g)) {
+    const name = input[0].match(/name="([^"]*)"/)?.[1]
+    const value = input[0].match(/value="([^"]*)"/)?.[1]
+    if (name && value !== undefined) fields.set(name, value)
+  }
+  return fields
+}
+
+/**
+ * Opens the magic link the way a person does (tests/e2e/helpers/email-link.ts):
+ * GET the /auth/confirm interstitial, which must not use the token, then POST
+ * its Continue form to /auth/confirm/verify, which sets the session.
+ */
 async function signInOverHttp(admin: Db, role: Role, email: string) {
   const { data, error } = await admin.auth.admin.generateLink({
     type: "magiclink",
@@ -164,13 +188,47 @@ async function signInOverHttp(admin: Db, role: Role, email: string) {
   if (error) throw error
   secrets.add(data.properties.hashed_token)
   secrets.add(data.properties.action_link)
-  const res = await request(
+  const page = await request(
     role,
     `/auth/confirm?token_hash=${data.properties.hashed_token}&type=magiclink`
   )
-  expect(res.status).toBe(303)
-  expect(res.headers.get("location")).toBe("/")
+  expect(page.status).toBe(200)
+  expect(cookieHeader(jars[role])).not.toMatch(/sb-[^=]+-auth-token/)
+  const fields = continueFields(page.body)
+  expect(fields.get("token_hash")).toBe(data.properties.hashed_token)
+
+  // A cross-site form carrying this unspent token must be refused (no session).
+  const crossOrigin: Record<string, string>[] = [
+    { "sec-fetch-site": "cross-site", origin: "https://evil.example" },
+    { origin: "https://evil.example" },
+    { origin: "null" },
+  ]
+  for (const headers of crossOrigin) {
+    const refused = await request("anon", "/auth/confirm/verify", {
+      method: "POST",
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        ...headers,
+      },
+      body: fields.toString(),
+    })
+    crossOriginVerifies.push(refused)
+  }
+  expect(cookieHeader(jars.anon)).not.toMatch(/sb-[^=]+-auth-token/)
+
+  const verify = await request(role, "/auth/confirm/verify", {
+    method: "POST",
+    headers: {
+      "content-type": "application/x-www-form-urlencoded",
+      origin: BASE!,
+      "sec-fetch-site": "same-origin",
+    },
+    body: fields.toString(),
+  })
+  expect(verify.status).toBe(303)
+  expect(verify.headers.get("location")).toBe("/")
   expect(cookieHeader(jars[role])).toMatch(/sb-[^=]+-auth-token/)
+  emailLinkSteps.push({ page, verify })
 }
 
 const sha256 = (b: Uint8Array) => createHash("sha256").update(b).digest("hex")
@@ -327,6 +385,59 @@ describe.skipIf(!BASE)("privacy: runtime headers, bodies and logs", () => {
     `/api/avatars/${ids.admin}`,
   ]
   const roles: Role[] = ["anon", "staffA", "staffB", "admin"]
+
+  it("signs in through the email-link interstitial without caching or echoing the token", () => {
+    const sessionCookie = (r: Observed) =>
+      r.headers
+        .getSetCookie()
+        .filter((c) => /^sb-[^=]+-auth-token[^=]*=[^;]+/.test(c))
+    expect(emailLinkSteps).toHaveLength(3)
+    for (const { page, verify } of emailLinkSteps) {
+      const where = (r: Observed) =>
+        `${r.role} ${r.method} ${r.path} -> ${r.status}`
+      // GET /auth/confirm: the interstitial, never stored, no session yet.
+      const pageCc = page.headers.get("cache-control") ?? ""
+      expect(pageCc, where(page)).toMatch(/no-store/)
+      expect(pageCc, where(page)).not.toMatch(/\bpublic\b|s-maxage/)
+      expect(sessionCookie(page), where(page)).toEqual([])
+      expect(page.body, where(page)).toMatch(
+        /<meta name="referrer" content="same-origin"/
+      )
+      expect(page.body, where(page)).toMatch(
+        /<meta name="robots" content="noindex, nofollow"/
+      )
+      // POST /auth/confirm/verify: sets the session, private and no-store,
+      // and never sends the token back (Location, headers or body).
+      const verifyCc = verify.headers.get("cache-control") ?? ""
+      expect(verifyCc, where(verify)).toMatch(/\bprivate\b/)
+      expect(verifyCc, where(verify)).toMatch(/\bno-store\b/)
+      expect(sessionCookie(verify).length, where(verify)).toBeGreaterThan(0)
+      expect(verify.headers.get("location")).toBe("/")
+      const tokenHash = continueFields(page.body).get("token_hash")!
+      expect(tokenHash.length).toBeGreaterThan(12)
+      expect(verify.body.includes(tokenHash), where(verify)).toBe(false)
+      for (const [name, value] of verify.headers) {
+        expect(value.includes(tokenHash), `${where(verify)} ${name}`).toBe(
+          false
+        )
+      }
+      expect(verify.body).not.toMatch(/token_hash/)
+    }
+    // Cross-origin POSTs with a valid, unspent token: refused, no session, no
+    // echo. The same token then signed in, so refusing it did not spend it.
+    expect(crossOriginVerifies).toHaveLength(9)
+    for (const r of crossOriginVerifies) {
+      const where = `${r.method} ${r.path} (cross-origin) -> ${r.status}`
+      expect(r.status, where).toBe(403)
+      expect(r.headers.get("location"), where).toBeNull()
+      expect(sessionCookie(r), where).toEqual([])
+      expect(r.body, where).not.toMatch(/token_hash/)
+      for (const { page } of emailLinkSteps) {
+        const tokenHash = continueFields(page.body).get("token_hash")!
+        expect(r.body.includes(tokenHash), where).toBe(false)
+      }
+    }
+  })
 
   it("requests every page (HTML and RSC) and media route in every role", async () => {
     for (const role of roles) {
