@@ -68,7 +68,8 @@ test.beforeEach(({}, testInfo) => {
 async function signIn(
   browser: Browser,
   identity: TestIdentity,
-  baseURL: string
+  baseURL: string,
+  home: RegExp = /\/staff$/
 ) {
   let link = await admin.auth.admin.generateLink({
     type: "magiclink",
@@ -86,7 +87,7 @@ async function signIn(
   await page.goto(
     `/auth/confirm?token_hash=${link.data.properties.hashed_token}&type=email`
   )
-  await expect(page).toHaveURL(/\/staff$/)
+  await expect(page).toHaveURL(home)
   return page
 }
 
@@ -137,6 +138,18 @@ const row = (dialog: Locator, name: string) =>
     .getByRole("list", { name: "Files" })
     .getByRole("listitem")
     .filter({ has: dialog.page().getByText(name, { exact: true }) })
+
+/** Waits for the run to settle; on a mismatch the message lists every file's row. */
+async function expectSummary(
+  dialog: Locator,
+  expected: string,
+  timeout = 60_000
+) {
+  const status = dialog.getByRole("status")
+  await expect(status).toBeVisible({ timeout })
+  const files = await dialog.getByRole("list", { name: "Files" }).innerText()
+  expect(await status.textContent(), files).toBe(expected)
+}
 
 /** Records storage upload requests and the most that were in flight at once. */
 function watchStorage(page: Page) {
@@ -242,10 +255,7 @@ test.describe("upload recovery in the real UI", () => {
     ).toHaveCount(10)
 
     await dialog.getByRole("button", { name: "Upload 10 files" }).click()
-    await expect(dialog.getByRole("status")).toHaveText(
-      "8 uploaded · 2 failed",
-      { timeout: 120_000 }
-    )
+    await expectSummary(dialog, "8 uploaded · 2 failed", 120_000)
     for (const name of valid) {
       await expect(row(dialog, name)).toContainText("Uploaded")
     }
@@ -390,9 +400,7 @@ test.describe("upload recovery in the real UI", () => {
 
     offline = false
     await dialog.getByRole("button", { name: "Retry retry.jpg" }).click()
-    await expect(dialog.getByRole("status")).toHaveText("1 uploaded", {
-      timeout: 30_000,
-    })
+    await expectSummary(dialog, "1 uploaded", 30_000)
     const afterRetry = await rowsOf(staff.id)
     expect(afterRetry).toHaveLength(1)
     expect(afterRetry[0]).toMatchObject({
@@ -538,9 +546,7 @@ test.describe("upload recovery in the real UI", () => {
     let dialog = await openUploadDialog(page)
     await dialog.getByLabel("Choose photos or videos").setInputFiles(video)
     await dialog.getByRole("button", { name: "Upload 1 file" }).click()
-    await expect(dialog.getByRole("status")).toHaveText("1 uploaded", {
-      timeout: 60_000,
-    })
+    await expectSummary(dialog, "1 uploaded", 60_000)
     expect(patches()).toEqual([
       0,
       CHUNK,
@@ -581,9 +587,7 @@ test.describe("upload recovery in the real UI", () => {
     down = false
     storage.reset()
     await dialog.getByRole("button", { name: "Retry tus-video.mp4" }).click()
-    await expect(dialog.getByRole("status")).toHaveText("1 uploaded", {
-      timeout: 60_000,
-    })
+    await expectSummary(dialog, "1 uploaded", 60_000)
     expect(methods()[0]).toBe("HEAD")
     expect(methods()).not.toContain("POST")
     expect(patches()[0]).toBe(CHUNK)
@@ -641,9 +645,7 @@ test.describe("upload recovery in the real UI", () => {
     dialog = await openUploadDialog(page)
     await dialog.getByLabel("Choose photos or videos").setInputFiles(video)
     await dialog.getByRole("button", { name: "Upload 1 file" }).click()
-    await expect(dialog.getByRole("status")).toHaveText("1 uploaded", {
-      timeout: 60_000,
-    })
+    await expectSummary(dialog, "1 uploaded", 60_000)
     expect(methods()[0]).toBe("HEAD")
     expect(methods()).not.toContain("POST")
     expect(patches()[0]).toBe(2 * CHUNK)
@@ -675,25 +677,14 @@ test.describe("upload recovery in the real UI", () => {
       .getByLabel("Choose photos or videos")
       .setInputFiles(videos.map(file))
     await dialog.getByRole("button", { name: "Upload 4 files" }).click()
-    await expect(dialog.getByRole("status")).toHaveText("4 uploaded", {
-      timeout: 60_000,
-    })
+    await expectSummary(dialog, "4 uploaded", 60_000)
     await dialog.getByRole("button", { name: "Done" }).click()
     const rows = await rowsOf(staff.id)
     expect(rows.every((r) => r.upload_state === "ready")).toBe(true)
 
     // Admin downloads the HEVC original: identical bytes.
     const hevc = rows.find((r) => r.original_filename === "clip-hevc.mp4")!
-    const adminLink = await admin.auth.admin.generateLink({
-      type: "magiclink",
-      email: adminUser.email,
-    })
-    const adminContext = await browser.newContext({ baseURL })
-    const adminPage = await adminContext.newPage()
-    await adminPage.goto(
-      `/auth/confirm?token_hash=${adminLink.data.properties!.hashed_token}&type=email`
-    )
-    await expect(adminPage).toHaveURL(/\/admin$/)
+    const adminPage = await signIn(browser, adminUser, baseURL!, /\/admin$/)
     const response = await adminPage.request.get(
       `/api/media/${hevc.id}/download`
     )
@@ -702,7 +693,7 @@ test.describe("upload recovery in the real UI", () => {
     expect(sha256(await response.body())).toBe(
       sha256(await readFile(file("clip-hevc.mp4")))
     )
-    await adminContext.close()
+    await adminPage.context().close()
     await page.context().close()
 
     // Per engine: what the staff viewer shows for each video.
@@ -718,8 +709,20 @@ test.describe("upload recovery in the real UI", () => {
       ["firefox", firefox],
       ["webkit", webkit],
     ]
+    // Engines this machine cannot start are recorded, not counted as passing.
+    const unavailable: Record<string, string> = {}
     for (const [engine, type] of engines) {
-      const b = engine === "chromium" ? browser : await type.launch()
+      let b: Browser
+      try {
+        b = engine === "chromium" ? browser : await type.launch()
+      } catch (error) {
+        unavailable[engine] = String(error)
+          .split("\n")
+          .filter((l) => /err\]|Error:/.test(l))
+          .slice(0, 3)
+          .join(" ")
+        continue
+      }
       try {
         const p = await signIn(b, staff, baseURL!)
         matrix[engine] = {}
@@ -798,8 +801,15 @@ test.describe("upload recovery in the real UI", () => {
       }
     }
     const out = testInfo.outputPath("video-matrix.json")
-    await writeFile(out, JSON.stringify(matrix, null, 2))
-    console.log(`video matrix (${out}):\n${JSON.stringify(matrix, null, 2)}`)
+    const report = JSON.stringify({ matrix, unavailable }, null, 2)
+    await writeFile(out, report)
+    console.log(`video matrix (${out}):\n${report}`)
+    for (const [engine, reason] of Object.entries(unavailable)) {
+      testInfo.annotations.push({
+        type: "not run",
+        description: `${engine} could not launch: ${reason}`,
+      })
+    }
 
     // H.264 MP4 plays in Chromium; HEVC never leaves a broken player.
     expect(matrix.chromium["clip-h264.mp4"].outcome).toBe("plays")
