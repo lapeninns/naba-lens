@@ -4,7 +4,179 @@ Track: `merge-precheck`, branch `feat/nl-mergeplan`. Documentation only.
 Only the integrator may merge into `feat/nabalens-mvp`. No remote, push, PR,
 application edits, database changes, or running stacks are needed for this track.
 
-## Snapshot 1: 2026-10-30 00:15 UTC
+## Latest: snapshot 2, 2026-10-30 00:35:46 UTC
+
+Base remains `3a23c9bf065a5e7d369a7bdac0006e5c38a0dfbd`. Pinned refs did not
+move during the scan. Relative ages below are actual `git log -1 --format=%cr`
+values at the scan, alongside absolute commit times on **30 October 2026, UTC**.
+Only committed trees are inspected, not other agents' uncommitted work.
+
+| Branch | Pinned tip | Last commit UTC | `%cr` | Unchanged since snapshot 1? |
+| --- | --- | --- | --- | --- |
+| `feat/nabalens-mvp` | `3a23c9b` | 00:06:35 | 29 minutes ago | yes (base) |
+| `feat/nl-journey` | `8651323` | 00:33:48 | 2 minutes ago | no |
+| `feat/nl-visual` | `b849d83` | 00:25:59 | 10 minutes ago | no |
+| `feat/nl-library` | `ad5f763` | 00:34:07 | 2 minutes ago | no |
+| `feat/nl-authedge` | `dad3590` | 00:34:31 | 76 seconds ago | no |
+| `feat/nl-uploads` | `7800d88` | 00:32:43 | 3 minutes ago | no |
+| `feat/nl-ci` | `3b14187` | 00:25:32 | 10 minutes ago | no |
+| `feat/nl-docs2` | `be8a897` | 00:18:42 | 17 minutes ago | no |
+| `feat/nl-docs` | `575c336` | 00:05:25 | 30 minutes ago | yes, superseded |
+| `feat/nl-acceptance` | `3a23c9b` | 00:06:35 | 29 minutes ago | yes, no unique commits |
+| `feat/nl-privacy` | `c9cb11c` | 00:30:07 | 6 minutes ago | no |
+| `feat/nl-migrations` | `621aeef` | 00:29:46 | 6 minutes ago | no |
+| `feat/nl-load` | `364b3ee` | 00:15:32 | 20 minutes ago | no |
+| `review/nl-wave3` | `ce09ae1` | 00:17:37 | 18 minutes ago | no |
+| `review/nl-scope` | `3894911` | 00:13:37 | 22 minutes ago | yes |
+| `review/nl-upload-path2` | `0b169e5` | 00:34:50 | 58 seconds ago | no |
+
+Actual output:
+
+```text
+COUNTS {"checks": 120, "clean": 120, "conflicting": 0}
+CUMULATIVE {"checks": 14, "clean": 14, "conflicting": 0,
+  "virtual_commit": "2e3acf761af9dddb0ba87fb8928b24cf47e12d4f",
+  "tree": "927cfce3ca6c0e15cf8457426a220642745dc68e"}
+MIGRATIONS: diverged={}, duplicate_timestamps={}
+QUIET: interval_seconds=1236.072791, quiet=2/14, majority=false
+MOVED {}
+```
+
+There are still **no textual conflicts**, including all 105 branch pairs.
+The same 14-step cumulative order from snapshot 1 also merges cleanly as
+unreferenced Git objects only. It has not been installed, built or executed.
+`feat/nl-docs` remains contained in docs2 and must not be merged separately.
+
+Only acceptance and scope are unchanged across the 20m36s interval and old enough
+to count as quiet; acceptance has no unique committed work, not a completion claim.
+The other twelve non-superseded refs changed or are recent. Continue scheduled
+checks; next run **00:55:04 UTC**. These exact SHAs, rather than later branch tips,
+bound every finding in this snapshot.
+
+### Shared edits and current resolutions
+
+1. **Viewer overlap is clean, retain both sides.** Visual `be2c4da` changes the
+   footer to `sticky bottom-0 ... bg-popover`; library retains its `failedUrl`
+   state keyed to the preview URL. The cumulative blob contains both. Never
+   resolve a later conflict by taking either whole file. Keep visual's 44 px
+   phone dialog/select/sign-out targets, wrapping profile names, and accessible
+   video duration names as well as library's authorised preview recovery.
+2. **New selector contract between visual and uploads.** Visual's video tile name
+   now includes duration before filename. Uploads' new recovery spec selects
+   names like `^Video, tus-video...` and `^(Photo|Video), <filename>, `, which no
+   longer match a ready video with a duration. Keep visual's accessible-name fix;
+   update upload selectors to include/allow the real duration while still naming
+   the exact file. Do not remove the duration or weaken state/count assertions.
+3. **Upload suite would silently skip under journey's config.**
+   `tests/e2e/upload-recovery.spec.ts` requires project name `desktop`; journey
+   now names its desktop Chromium project `chromium` (others are `firefox`,
+   `webkit`, `mobile-chromium`, with `@core` filters). CI substitutes `desktop`
+   and `phone`. Keep journey's intentional core/non-core engine split and update
+   the upload run-once selection explicitly for Chromium desktop, or define a
+   dedicated named project. Verify nonzero executed upload tests after discovery.
+   Do not solve this with another skip or by deleting tests.
+4. **Visual added a gate, but CI still needs an explicit visual job.**
+   `b849d83` now skips `visual.spec.ts` unless `NABALENS_VISUAL` is set by its own
+   config. This prevents accidental execution under journey but does not run the
+   visual gate in CI. Prefer explicit root/CI exclusion plus the independent
+   visual command; do not interpret skipped visual tests as covered.
+5. **Fixture retries are a visible policy issue, not a fix for machine load.**
+   New visual and upload sign-in helpers retry auth HTTP 504 up to three times;
+   library's seed helper also retries fixture 504s. Journey explicitly requires
+   no retries. Resolve these new wrappers to fail once with useful diagnostics
+   and reduce concurrent owned stacks, rather than carrying retry loops into the
+   consolidated release gate. Preserve app transport's specified resumable/retry
+   behavior; it is distinct from test-fixture retries.
+6. **Auth tests need the same isolated DB as API credentials.**
+   `tests/integration/auth-support.ts` consumes `SUPABASE_DB_URL` and
+   `SUPABASE_JWT_SECRET` together; otherwise it calls bare `supabase status`.
+   CI must forward both from its chosen isolated workdir and validate they
+   correspond to the API stack. Keep the localhost restriction and fail closed,
+   not a fallback that touches another local stack. Its per-file `server-only`
+   and `next/headers` mocks must remain local to tests, not global Vitest changes.
+7. **Privacy runtime checks can be skipped by a nominal integration pass.**
+   `privacy-runtime.test.ts` uses `describe.skipIf(!PRIVACY_BASE_URL)` and needs
+   `PRIVACY_SERVER_LOG` plus `CLEANUP_SECRET`. The real-build bundle case also
+   skips without `.next/static`. CI needs a production build/server, captured
+   logs and explicit variables, followed by a checked bundle scan and runtime
+   suite invocation. Require actual case execution, not merely a zero exit with
+   skips. Keep all leak/cache/header assertions.
+8. **Authedge's GET cleanup is not deployment evidence.**
+   Both GET and POST share the existing constant-time bearer-secret gate, and
+   tests cover 503 unset/short, 401 wrong/session-only and authorised execution.
+   Keep both method checks and update docs2's POST-only operational language.
+   No `vercel.json` cron or deployed scheduler is introduced by this change.
+   Keep bootstrap's intentional deactivation-ban lifting for operator-authorised
+   promotion; do not introduce self-promotion or account creation.
+9. **Privacy headers are additive, not a full security remediation.**
+   `next.config.ts` adds global `X-Content-Type-Options: nosniff`; no other target
+   changes that config at this snapshot. Keep this header if later CSP/worker
+   config lands. It does not fix direct Storage reads, CSP/frame restrictions,
+   or profile Origin checks.
+10. **Library's newer additions are in scope.** Keep
+    `app/admin/library-search.ts`'s URL serializer and the UI/integration tests for
+    filters, cursor ties, expiry and polling. Root Vitest globs already discover
+    them. Account avatars still have a separate directly-signed-URL path; use
+    authorised avatar routes when consolidating signed-read fixes below.
+
+### Security reviews now available: merge blockers, not implemented fixes
+
+Read `docs/reviews/wave3-review.md` at `ce09ae1` (audits `078b60a`) and
+`docs/reviews/upload-path-review.md` at `0b169e5` (audits `3a23c9b`).
+Both report real isolated-stack probes; this planning track read their evidence,
+it did **not** reproduce those probes. Both report no critical/high issue but
+require the following corrections before release:
+
+| Finding | Right resolution / merge precedence |
+| --- | --- |
+| Wave3 #1 / upload F1: users can mint arbitrary-lifetime Storage signed reads, bypassing app TTL | New forward SQL policy correction plus authorised server signing/proxying wins over caller-signed Storage access. Cover media **and avatars** and authenticated admins too; admin-only SELECT still permits admins to choose long expiries. Keep private buckets, re-read current actor/resource before service-role use, and retain canonical 60 s maximum. Adapt library `signDerivative`, avatar callers and tests together. Do not merely document a long-link exception. |
+| Upload F2: concurrent delete/finalise recreates derivatives and returns ready after removal | Guard ready transition with `deleted_at IS NULL`; re-read a no-match result, remove late derivatives for tombstoned assets with retryable cleanup, return not-found instead of false ready. The correction in `lib/server/media/finalise.ts` takes precedence over any cosmetic/transport refactor; retain all validation and idempotency assertions. No current target contains this fix. |
+| Wave3 #3 / upload F3: crashed `processing` rows never expire | Add a forward cleanup/recovery migration for stale processing claims, with lifecycle coverage and active-claim protection. Uploads' stored retry key helps file reselection but cannot replace server recovery when no client returns. No new production SQL in the current migration track fixes this. |
+| Wave3 cleanup release gate | Configure and prove an owned, authenticated cleanup schedule before pilot; GET support alone is not a schedule. Retain failure/lease/backlog reporting and provider incomplete-TUS expiry evidence. |
+
+Additional hardening findings overlap: replayable two-hour signed PUTs after
+deletion/deactivation, reserve RPC extension/size checks, terminal-invalid-byte
+retention, stale-claim clock/no-match handling, and profile Origin/CSP hardening.
+Upload-path probes report TUS rechecks RLS on completion while signed PUT replay
+does not. Prefer authenticated upload paths if fixing that behavior; retain
+immutable originals and explicit retry behavior. Do not add hidden test retries.
+
+**Contract constraint:** upload F5 proposes making `client_upload_key` mandatory
+and treating existing null keys as not-found. That conflicts with the contract's
+nullable column/optional fifth RPC argument. Do not adopt that proposal silently.
+Preserve compatibility unless the integrator explicitly amends the contract and
+provides a safe legacy-row transition; extension/size validation can be hardened
+without rejecting the documented nullable interface. Keep product limits
+canonical in `lib/config/media.ts` with DB/bucket consistency tests.
+
+Library addresses the old duplicate/preview-only portfolio finding, but not
+these signed-read and cleanup findings. Privacy's `nosniff` is not a substitute.
+None of the current tips implements the three main security corrections, so a
+conflict-free textual merge is **not** a release pass.
+
+### Migrations, backups and docs delta
+
+- All five `supabase/migrations` path+blob listings are identical across every
+  pinned tip, and prefixes are unique. `feat/nl-migrations` now adds scripts and
+  a standalone `tests/migrations` runner, not production SQL changes.
+- `tests/migrations/later/20261101090000_test_only_additive.sql` is a deliberately
+  future-dated **test-only** migration. Keep it under tests; never copy it into
+  committed `supabase/migrations` or count it as a production migration clash.
+- Backup/restore scripts are WIP drafts per their handoff. Do not certify restore
+  until the isolated round-trip, objects, policies, identities and original-byte
+  checks are evidenced. The new migration suite is not included by root Vitest;
+  CI needs an explicit `node tests/migrations/run.mjs <owned-workdir>` stage.
+  Keep its 611xx/612xx stacks distinct from load's 615xx and every other worktree.
+- Docs2 has merged the pnpm install-policy correction and expanded usage/release
+  gates. On final integration reconcile preview-only portfolio text, POST-only
+  cleanup text and the worker-packaging claim with actual final-head evidence.
+  Do not add `heic-decode`/`libheif-js` to `serverExternalPackages` simply because
+  docs mention missing explicit tracing config; preserve the established worker
+  packaging approach and verify the real production-route Linux trace/runtime.
+  Keep owner-confirmed venues, hosted email/configuration and physical-phone
+  evidence as unverified until actually supplied.
+
+## Historical snapshot 1: 2026-10-30 00:15 UTC
 
 Integration base: `3a23c9bf065a5e7d369a7bdac0006e5c38a0dfbd`.
 All refs were resolved before checking, then immutable SHAs were used. These
@@ -69,7 +241,9 @@ to merge unfinished branches just because they currently have no conflicts.
 
 1. Read `review/nl-wave3`, `review/nl-upload-path2`, and the privacy/migration
    findings first. Merge any required security/schema corrections before accepting
-   browser evidence. An empty diff or WIP handoff is not a completed review.
+   browser evidence. The latest snapshot above identifies unresolved signed-read,
+   delete/finalise and stale-processing corrections; review documents themselves
+   do not implement them.
 2. `feat/nl-migrations`, then `feat/nl-authedge` and `feat/nl-privacy` if they gain
    actual changes. Keep append-only migration history and current-account checks.
 3. `feat/nl-library`. This supplies download/delete/refresh in the admin's
@@ -151,10 +325,12 @@ resolution recipes for shared-file changes that appear in later commits.
   into a config that silently omits a suite or runs visual tests in every journey
   project. Keep `workers: 1`, `retries: 0`, no hidden retries and no server reuse.
 - **Fix unrestricted test discovery before treating CI as integrated.** Journey's
-  root config discovers all of `tests/e2e`, so visual's
-  `tests/e2e/visual.spec.ts` would also run in ordinary E2E and CI, with the wrong
-  fixture contract/timeout. Explicitly exclude `visual.spec.ts` from ordinary
-  discovery and run the preserved visual config as its own gate.
+  root config discovers all of `tests/e2e`. Visual now self-skips without its
+  config's environment marker, but this does not establish visual coverage.
+  Explicitly exclude `visual.spec.ts` from ordinary discovery and run the
+  preserved visual config as its own gate. Resolve uploads' project-name mismatch
+  as described in snapshot 2 so that the opposite failure, silent skipping of
+  an intended ordinary suite, cannot pass unnoticed.
 - **Connect CI to journey's isolation contract.** CI's
   `scripts/ci/run-suites.mjs` exports credentials, but not
   `E2E_SUPABASE_WORKDIR`. Pass its isolated workdir through journey's resolver,
@@ -215,8 +391,8 @@ timestamps, divergent migration blobs, or timestamp collisions**. Migrations are
 | 5 | `20261029160000_media_client_upload_key.sql` | Contract amendment; immutable key/index, five-argument reserve replacing four-argument RPC |
 
 Keep these files once and unchanged. No renumbering is justified now.
-`feat/nl-migrations` still equalled base in the audited snapshot, not a completed
-migration review. If it later adds corrections, prefer a new uniquely timestamped
+`feat/nl-migrations` equalled base in snapshot 1 and adds test/backup scripts in
+snapshot 2, with no production SQL corrections yet. Prefer a new uniquely timestamped
 forward migration after its dependencies. For two future new files sharing a
 timestamp, rename only the not-yet-applied new file and update references/evidence;
 never rewrite already-applied integration migrations. Verify a fresh isolated
@@ -266,15 +442,16 @@ started, reset, reused, or stopped.
 
 ## Cadence and remaining work
 
-First complete scan: 00:15 UTC; next scheduled **00:34:43 UTC, 30 October 2026**. Several
-branches have since gained commits, so this initial matrix is deliberately not
-labelled final. Each follow-up must pin fresh refs, record
+Complete scans: **00:15:10 UTC** and **00:35:46 UTC**; next scheduled
+**00:55:04 UTC, 30 October 2026**, then every 20 minutes. Only **2/14** tracked
+non-superseded refs met the quiet criterion in snapshot 2, so this is not final.
+Each follow-up must pin fresh refs, record
 `git log -1 --format=%cr <branch>`, rerun all base and pairwise merge-tree checks,
 inspect new shared-file changes and cumulative merge trees, then commit both
 this plan and `docs/fanout/handoffs/merge-precheck.md`.
 
-The continuation is bound to this thread, with its exact task ID and interval
-transition recorded in the continuity handoff. This lets the requested periodic
+The continuation is bound to this thread; the first scheduled run changed its
+interval to 1,200,000 ms. Its exact task ID is in the continuity handoff. This lets the requested periodic
 work continue without a sleeping shell, polling loop, server, or occupied stack.
 
 Stop recurring sweeps when a majority of tracked (non-superseded) branches have
