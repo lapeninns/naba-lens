@@ -505,11 +505,7 @@ export async function accessMatrix(
  * integrity of retained objects is checked separately with the service role
  * (storage object checksums in the snapshot and restore verification).
  */
-export function expectedSha(
-  _manifest: FixtureManifest,
-  _who: FixtureUser | "anon",
-  _o: ManifestObject
-): string | null {
+export function expectedSha(): string | null {
   return null
 }
 

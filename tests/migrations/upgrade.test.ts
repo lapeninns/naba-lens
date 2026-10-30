@@ -96,8 +96,7 @@ describe("upgrade with retained data", () => {
       manifest.avatar.object,
     ]
     for (const d of beforeAccess.downloads) {
-      const o = objects.find((x) => x.bucket === d.bucket && x.name === d.name)!
-      expect(d).toEqual({ ...d, sha256: expectedSha(manifest, d.who, o) })
+      expect(d).toEqual({ ...d, sha256: expectedSha() })
     }
     for (const who of ["admin", "staffA", "staffB", "anon"] as const) {
       expect(beforeAccess.rows[who]).toEqual(expectedRows(manifest, who))
