@@ -40,7 +40,23 @@ async function assetIdsOf(uploaderId: string) {
   return data
 }
 
+/**
+ * GoTrue allows one link per address per `max_frequency` (1 s in
+ * supabase/config.toml); a faster request gets 429, which the app correctly
+ * hides behind the neutral "Check your email". Wait out exactly the remainder
+ * of that window, computed from the last send time, before asking again.
+ */
+async function respectSendInterval(email: string) {
+  const remainingMs = Number(
+    psql(
+      `select coalesce(greatest(0, 1100 - extract(epoch from (now() - recovery_sent_at)) * 1000), 0)::int from auth.users where email = '${email}'`
+    ) || 0
+  )
+  if (remainingMs > 0) await new Promise((r) => setTimeout(r, remainingMs))
+}
+
 async function requestLinkViaForm(page: Page, email: string) {
+  await respectSendInterval(email)
   await page.goto("/login")
   await page.getByLabel("Email").fill(email)
   await page.getByRole("button", { name: "Send sign-in link" }).click()
@@ -179,6 +195,7 @@ test.describe("release negatives", () => {
     await expect(third.getByText("That sign-in link has expired")).toBeVisible()
     // Recovery: request a new link from that page and sign in.
     const seen3 = await mailboxIds(email)
+    await respectSendInterval(email)
     await third.getByLabel("Email").fill(email)
     await third.getByRole("button", { name: "Send sign-in link" }).click()
     await expect(
