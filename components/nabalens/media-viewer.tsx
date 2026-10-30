@@ -3,6 +3,7 @@
 import * as React from "react"
 import {
   DownloadSimpleIcon,
+  PencilSimpleIcon,
   TrashIcon,
   UserCircleIcon,
   WarningCircleIcon,
@@ -21,6 +22,7 @@ import {
 import { cn } from "@/lib/utils"
 
 import { formatBytes, formatDate, formatDuration } from "./format"
+import { isEmptyLabelSummary, LabelSummary } from "./labels"
 import type { MediaItem } from "./types"
 import { UploadStateBadge } from "./upload-state-badge"
 
@@ -43,6 +45,11 @@ type MediaViewerProps = {
   onDelete?: (item: MediaItem) => void
   /** Show contributor and venue. Off on a staff member's own portfolio. */
   showAttribution?: boolean
+  /**
+   * v0.3 optional labels: opens the label editor for a ready asset. The
+   * Labels section shows when this is set or the item carries labels.
+   */
+  onEditLabels?: (item: MediaItem) => void
 }
 
 function Unavailable({
@@ -119,6 +126,7 @@ export function MediaViewer({
   getPortfolioHref,
   onDelete,
   showAttribution = true,
+  onEditLabels,
 }: MediaViewerProps) {
   const details: [string, React.ReactNode][] = item
     ? [
@@ -145,6 +153,10 @@ export function MediaViewer({
     : []
 
   const downloadable = item?.uploadState === "ready" && getDownloadHref
+  const labelsShown =
+    item?.uploadState === "ready" &&
+    (onEditLabels !== undefined || !isEmptyLabelSummary(item.labels))
+  const labelsHeadingId = React.useId()
 
   return (
     <Dialog open={open && !!item} onOpenChange={onOpenChange}>
@@ -176,6 +188,31 @@ export function MediaViewer({
                 </div>
               ))}
             </dl>
+            {labelsShown ? (
+              <section
+                aria-labelledby={labelsHeadingId}
+                className="mx-4 mb-4 flex flex-col gap-2 border-t pt-3"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 id={labelsHeadingId} className="text-sm font-medium">
+                    Labels
+                  </h3>
+                  {onEditLabels ? (
+                    <Button
+                      variant="outline"
+                      size="touch"
+                      onClick={() => onEditLabels(item)}
+                    >
+                      <PencilSimpleIcon data-icon="inline-start" aria-hidden />
+                      {isEmptyLabelSummary(item.labels)
+                        ? "Add labels"
+                        : "Edit labels"}
+                    </Button>
+                  ) : null}
+                </div>
+                <LabelSummary labels={item.labels} />
+              </section>
+            ) : null}
             {downloadable && downloadError ? (
               <p
                 role="alert"

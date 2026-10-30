@@ -11,6 +11,8 @@ type MediaGridProps = {
   items: MediaItem[]
   onOpen: (item: MediaItem) => void
   showAttribution?: boolean
+  /** Show the small labels badge on ready tiles (staff portfolio). */
+  showLabelBadge?: boolean
   /** Accessible name for the list, e.g. "Your portfolio" or "Library". */
   label: string
   className?: string
@@ -21,6 +23,7 @@ export function MediaGrid({
   items,
   onOpen,
   showAttribution = false,
+  showLabelBadge = false,
   label,
   className,
 }: MediaGridProps) {
@@ -32,6 +35,7 @@ export function MediaGrid({
             item={item}
             onOpen={onOpen}
             showAttribution={showAttribution}
+            showLabelBadge={showLabelBadge}
           />
         </li>
       ))}

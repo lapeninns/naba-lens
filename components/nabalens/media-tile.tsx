@@ -12,6 +12,7 @@ import {
 import { cn } from "@/lib/utils"
 
 import { formatDate, formatDuration, UPLOAD_STATE_LABEL } from "./format"
+import { LabelBadge, labelBadgeText } from "./labels"
 import type { MediaItem } from "./types"
 import { UploadStateBadge } from "./upload-state-badge"
 
@@ -20,10 +21,16 @@ type MediaTileProps = {
   onOpen: (item: MediaItem) => void
   /** Admin views show who uploaded it and where. */
   showAttribution?: boolean
+  /** v0.3: small "Needs labels" / "N labels" badge on ready tiles. */
+  showLabelBadge?: boolean
   className?: string
 }
 
-function describe(item: MediaItem, showAttribution: boolean) {
+function describe(
+  item: MediaItem,
+  showAttribution: boolean,
+  labelText: string | null
+) {
   const parts = [
     item.mediaType === "video" ? "Video" : "Photo",
     item.originalFilename,
@@ -35,6 +42,8 @@ function describe(item: MediaItem, showAttribution: boolean) {
   // The visible duration badge must be part of the name (WCAG 2.5.3).
   if (item.mediaType === "video" && item.durationSeconds)
     parts.push(`duration ${formatDuration(item.durationSeconds)}`)
+  // Likewise the visible labels badge.
+  if (labelText) parts.push(labelText)
   return parts.join(", ")
 }
 
@@ -46,8 +55,13 @@ export function MediaTile({
   item,
   onOpen,
   showAttribution = false,
+  showLabelBadge = false,
   className,
 }: MediaTileProps) {
+  const labelText =
+    showLabelBadge && item.uploadState === "ready"
+      ? labelBadgeText(item.labels)
+      : null
   // Track the URL that failed so a refreshed signed URL gets a fresh attempt.
   const [failedUrl, setFailedUrl] = React.useState<string | null>(null)
   const showThumb = item.thumbnailUrl && item.thumbnailUrl !== failedUrl
@@ -59,7 +73,7 @@ export function MediaTile({
       <button
         type="button"
         onClick={() => onOpen(item)}
-        aria-label={describe(item, showAttribution)}
+        aria-label={describe(item, showAttribution, labelText)}
         className="relative block aspect-square w-full overflow-hidden rounded-md bg-media-placeholder outline-none focus-visible:ring-3 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
       >
         {showThumb ? (
@@ -84,13 +98,11 @@ export function MediaTile({
               />
             ) : item.uploadState === "failed" ? (
               <WarningCircleIcon className="size-6 text-negative" aria-hidden />
+            ) : // No video poster frames (no transcoding); a neutral video tile.
+            item.mediaType === "video" ? (
+              <FilmStripIcon className="size-8" aria-hidden />
             ) : (
-              // No video poster frames (no transcoding); a neutral video tile.
-              item.mediaType === "video" ? (
-                <FilmStripIcon className="size-8" aria-hidden />
-              ) : (
-                <ImageIcon className="size-6" aria-hidden />
-              )
+              <ImageIcon className="size-6" aria-hidden />
             )}
           </span>
         )}
@@ -105,6 +117,11 @@ export function MediaTile({
         {item.uploadState !== "ready" ? (
           <UploadStateBadge
             state={item.uploadState}
+            className="absolute top-1.5 left-1.5"
+          />
+        ) : labelText ? (
+          <LabelBadge
+            labels={item.labels}
             className="absolute top-1.5 left-1.5"
           />
         ) : null}
