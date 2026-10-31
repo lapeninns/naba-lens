@@ -1,0 +1,9 @@
+{
+  "id": "media.removed-reservation",
+  "title": "GAP-4: an unfinished upload whose reservation was removed shows the action to take, and Retry uploads it as a new asset",
+  "spec": "tests/journeys/media-recovery.spec.ts",
+  "grep": "media\\.removed-reservation:",
+  "projects": ["chromium"],
+  "scenarios": ["MEDIA-REOPEN-STATES"],
+  "timeoutSeconds": 600
+}

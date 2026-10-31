@@ -1,0 +1,9 @@
+{
+  "id": "media.tus-offline-retry",
+  "title": "GAP-4: going offline, or an outage that outlasts the TUS client retry schedule (0, 3, 5, 10, 20 s; the second case waits about 40 s), shows a per-file Retry, and Retry resumes the same asset",
+  "spec": "tests/journeys/media-recovery.spec.ts",
+  "grep": "media\\.tus-offline-retry:",
+  "projects": ["chromium"],
+  "scenarios": ["MEDIA-OFFLINE-RETRY"],
+  "timeoutSeconds": 900
+}

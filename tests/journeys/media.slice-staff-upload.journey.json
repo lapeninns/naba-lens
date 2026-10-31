@@ -1,0 +1,13 @@
+{
+  "id": "media.slice-staff-upload",
+  "title": "slice.spec.ts: staff uploads a photo and a video, a different admin downloads identical bytes (historical 504s and \"2 uploaded\" timeout under load) (chromium)",
+  "spec": "tests/e2e/slice.spec.ts",
+  "grep": "staff uploads; a different admin",
+  "projects": ["chromium"],
+  "scenarios": ["MEDIA-SLICE-UPLOAD-FLAKY"],
+  "historical": {
+    "source": "docs/acceptance.md#11-e2e-results-per-test-across-the-three-runs",
+    "id": "MEDIA-SLICE-UPLOAD-FLAKY"
+  },
+  "timeoutSeconds": 600
+}

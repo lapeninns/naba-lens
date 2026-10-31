@@ -1,0 +1,9 @@
+{
+  "id": "media.reload-metadata",
+  "title": "Reloaded uploads still show thumbnail, upload date, contributor and venue (staff portfolio and admin library)",
+  "spec": "tests/journeys/media-recovery.spec.ts",
+  "grep": "media\\.reload-metadata:",
+  "projects": ["chromium"],
+  "scenarios": ["MEDIA-RELOAD-METADATA"],
+  "timeoutSeconds": 600
+}
