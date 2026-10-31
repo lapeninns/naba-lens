@@ -1,0 +1,48 @@
+{
+  "schema": "nabalens.journey-result/v1",
+  "journey": "media.tus-offline-retry",
+  "title": "GAP-4: going offline, or an outage that outlasts the TUS client retry schedule (0, 3, 5, 10, 20 s; the second case waits about 40 s), shows a per-file Retry, and Retry resumes the same asset",
+  "revision": {
+    "commit": "6982236f78c29327d2008366ba1ec91500e028ef",
+    "branch": "ws1/evidence",
+    "dirty": false
+  },
+  "stack": {
+    "name": "ws1",
+    "apiPort": 64121,
+    "migrations": "20261030160000:cee297c7"
+  },
+  "runner": {
+    "kind": "playwright",
+    "version": "1.64.1"
+  },
+  "startedAt": "2026-10-31T15:37:32.188Z",
+  "scenarios": [
+    "MEDIA-OFFLINE-RETRY"
+  ],
+  "result": "pass",
+  "reason": null,
+  "checks": {
+    "passed": 2,
+    "failed": 0,
+    "skipped": 0
+  },
+  "evidence": [
+    {
+      "kind": "log",
+      "path": "logs/media.tus-offline-retry.log",
+      "description": "Playwright runner output (list reporter)"
+    },
+    {
+      "kind": "screenshot",
+      "path": "shots/media.tus-offline-retry/01-offline-failed.png",
+      "description": "Playwright attachment \"offline-failed\""
+    },
+    {
+      "kind": "screenshot",
+      "path": "shots/media.tus-offline-retry/02-offline-failed.png",
+      "description": "Playwright attachment \"offline-failed\""
+    }
+  ],
+  "finishedAt": "2026-10-31T15:38:17.332Z"
+}

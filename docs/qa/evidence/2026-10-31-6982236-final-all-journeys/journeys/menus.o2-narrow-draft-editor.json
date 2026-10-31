@@ -1,0 +1,53 @@
+{
+  "schema": "nabalens.journey-result/v1",
+  "journey": "menus.o2-narrow-draft-editor",
+  "title": "At 360 px the draft editor shows whole section names and a one-row save bar (design observation)",
+  "revision": {
+    "commit": "6982236f78c29327d2008366ba1ec91500e028ef",
+    "branch": "ws1/evidence",
+    "dirty": false
+  },
+  "stack": {
+    "name": "ws1",
+    "apiPort": 64121,
+    "migrations": "20261030160000:cee297c7"
+  },
+  "runner": {
+    "kind": "playwright",
+    "version": "1.64.1"
+  },
+  "startedAt": "2026-10-31T15:40:09.751Z",
+  "scenarios": [
+    "MENUS-O2"
+  ],
+  "result": "fail",
+  "reason": "1 of 1 test(s) failed. First: menus.o2-narrow-draft-editor: at 360px section names are readable and the save bar is one row [chromium]: Error: Observation reproduced (design observation, not a defect): section names clipped at 360px: House Special, Appetisers, Chef's Specials, From the Clay Oven, Dum Biryani, Chowmein, Our Mixed Grills, Authentic Curries, Kitchen Companions, Pub Favourites, Chips & Fries, Kids Plates, Sweet Finish, Sister Pub Specials",
+  "checks": {
+    "passed": 0,
+    "failed": 1,
+    "skipped": 0
+  },
+  "evidence": [
+    {
+      "kind": "log",
+      "path": "logs/menus.o2-narrow-draft-editor.log",
+      "description": "Playwright runner output (list reporter)"
+    },
+    {
+      "kind": "screenshot",
+      "path": "shots/menus.o2-narrow-draft-editor/01-draft-editor-360.png",
+      "description": "Playwright attachment \"draft-editor-360\""
+    },
+    {
+      "kind": "screenshot",
+      "path": "shots/menus.o2-narrow-draft-editor/02-screenshot.png",
+      "description": "Playwright attachment \"screenshot\""
+    }
+  ],
+  "finishedAt": "2026-10-31T15:40:13.569Z",
+  "historical": {
+    "source": "docs/qa/menus-qa-report.md#4-defects-for-the-lead",
+    "id": "MENUS-O2",
+    "reproducedOnHead": true
+  }
+}

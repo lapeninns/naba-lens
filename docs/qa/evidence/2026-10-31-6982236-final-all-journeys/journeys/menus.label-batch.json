@@ -1,0 +1,49 @@
+{
+  "schema": "nabalens.journey-result/v1",
+  "journey": "menus.label-batch",
+  "title": "Staff upload a photo and video, batch-label them with per-file overrides, and the labels persist",
+  "revision": {
+    "commit": "6982236f78c29327d2008366ba1ec91500e028ef",
+    "branch": "ws1/evidence",
+    "dirty": false
+  },
+  "stack": {
+    "name": "ws1",
+    "apiPort": 64121,
+    "migrations": "20261030160000:cee297c7"
+  },
+  "runner": {
+    "kind": "playwright",
+    "version": "1.64.1"
+  },
+  "startedAt": "2026-10-31T15:39:08.350Z",
+  "scenarios": [
+    "MENUS-QA-05",
+    "MENUS-QA-07"
+  ],
+  "result": "pass",
+  "reason": null,
+  "checks": {
+    "passed": 1,
+    "failed": 0,
+    "skipped": 0
+  },
+  "evidence": [
+    {
+      "kind": "log",
+      "path": "logs/menus.label-batch.log",
+      "description": "Playwright runner output (list reporter)"
+    },
+    {
+      "kind": "screenshot",
+      "path": "shots/menus.label-batch/01-final-page-1.png",
+      "description": "Playwright attachment \"final-page-1\""
+    },
+    {
+      "kind": "screenshot",
+      "path": "shots/menus.label-batch/02-final-page-2.png",
+      "description": "Playwright attachment \"final-page-2\""
+    }
+  ],
+  "finishedAt": "2026-10-31T15:39:15.491Z"
+}

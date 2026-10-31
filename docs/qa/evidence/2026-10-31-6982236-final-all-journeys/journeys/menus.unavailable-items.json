@@ -1,0 +1,59 @@
+{
+  "schema": "nabalens.journey-result/v1",
+  "journey": "menus.unavailable-items",
+  "title": "Archived items are not offered, an item archived mid-edit can be removed, and Item not on the menu? reaches the venue Menus page and resolves",
+  "revision": {
+    "commit": "6982236f78c29327d2008366ba1ec91500e028ef",
+    "branch": "ws1/evidence",
+    "dirty": false
+  },
+  "stack": {
+    "name": "ws1",
+    "apiPort": 64121,
+    "migrations": "20261030160000:cee297c7"
+  },
+  "runner": {
+    "kind": "playwright",
+    "version": "1.64.1"
+  },
+  "startedAt": "2026-10-31T15:41:27.689Z",
+  "scenarios": [
+    "MENUS-QA-04",
+    "MENUS-QA-08"
+  ],
+  "result": "pass",
+  "reason": null,
+  "checks": {
+    "passed": 3,
+    "failed": 0,
+    "skipped": 0
+  },
+  "evidence": [
+    {
+      "kind": "log",
+      "path": "logs/menus.unavailable-items.log",
+      "description": "Playwright runner output (list reporter)"
+    },
+    {
+      "kind": "screenshot",
+      "path": "shots/menus.unavailable-items/01-archived-item-not-offered.png",
+      "description": "Playwright attachment \"archived-item-not-offered\""
+    },
+    {
+      "kind": "screenshot",
+      "path": "shots/menus.unavailable-items/02-unavailable-items-error.png",
+      "description": "Playwright attachment \"unavailable-items-error\""
+    },
+    {
+      "kind": "screenshot",
+      "path": "shots/menus.unavailable-items/03-suggestion-on-menus-page.png",
+      "description": "Playwright attachment \"suggestion-on-menus-page\""
+    },
+    {
+      "kind": "screenshot",
+      "path": "shots/menus.unavailable-items/04-suggestion-resolved.png",
+      "description": "Playwright attachment \"suggestion-resolved\""
+    }
+  ],
+  "finishedAt": "2026-10-31T15:41:47.445Z"
+}
