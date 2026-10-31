@@ -294,6 +294,71 @@ describe("resumable archive verification cycle", () => {
     expect(cursors).toEqual([0, 0, 4, 8, 9])
   })
 
+  it("never moves the cursor over receipts it has not read back when the soft budget stops a run", async () => {
+    const fake = createFakeArchiveService({ receipts: ids(12) })
+    const store = createFakeArchiveStore({
+      onVerify: advanceOnOriginal(fake, 600),
+    })
+    const report = await audit(fake, store, {
+      checkpointEvery: 2,
+      concurrency: 1,
+      fetchSize: 100,
+      softBudgetMs: 1000,
+    })
+    expect(report).toMatchObject({
+      outcome: "partial",
+      complete: false,
+      checked: 2,
+      cursorTo: 2,
+    })
+    expect(store.verified.filter((key) => key.startsWith("blob-"))).toEqual([
+      "blob-1",
+      "blob-2",
+    ])
+    expect(fake.state).toMatchObject({ cursor_id: 2, cycle_checked: 2 })
+    expect(fake.state.cycle_id).not.toBeNull()
+    expect(fake.state.last_complete_at).toBeNull()
+  })
+
+  it("never moves the cursor past unissued receipts when the run is aborted with nothing in flight", async () => {
+    const fake = createFakeArchiveService({ receipts: ids(6) })
+    const store = createFakeArchiveStore()
+    const controller = new AbortController()
+    fake.before = (key) => {
+      // The abort lands as the first checkpoint is written: no worker has a read
+      // in flight, nothing has failed, and receipts 2 to 6 are still queued.
+      if (
+        key === "media_archive_audit_state.update" &&
+        fake.state.cycle_id !== null &&
+        store.verified.length > 0
+      )
+        controller.abort()
+    }
+    const report = await audit(fake, store, {
+      checkpointEvery: 1,
+      concurrency: 1,
+      fetchSize: 100,
+      signal: controller.signal,
+    })
+    expect(report.outcome).toBe("timeout")
+    expect(report.cursorTo).toBeLessThan(6)
+    expect(fake.state.cursor_id).toBeLessThan(6)
+    expect(fake.state.cycle_id).not.toBeNull()
+    expect(fake.state.last_complete_at).toBeNull()
+  })
+
+  it("completes only when every receipt up to the target was issued and read back", async () => {
+    const fake = createFakeArchiveService({ receipts: [3, 8, 20] })
+    const store = createFakeArchiveStore()
+    const report = await audit(fake, store, { checkpointEvery: 100 })
+    expect(report).toMatchObject({ outcome: "completed_cycle", checked: 3 })
+    expect(store.verified.filter((key) => key.startsWith("blob-"))).toEqual([
+      "blob-3",
+      "blob-8",
+      "blob-20",
+    ])
+  })
+
   it("keeps verifying later receipts while a slow one holds the cursor back", async () => {
     const fake = createFakeArchiveService({ receipts: ids(6) })
     let release!: () => void

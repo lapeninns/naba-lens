@@ -651,7 +651,11 @@ export async function runArchiveAudit(
     await Promise.all(Array.from({ length: concurrency }, worker))
     if (failure?.outcome !== "lease_lost") {
       await save(true)
-      if (!failure && exhausted && saved === issued.length && cursor < target) {
+      // Every page fetched is not enough: a budget stop or abort leaves
+      // receipts queued that were never issued, and the cursor must not pass them.
+      const verifiedAll =
+        exhausted && queue.length === 0 && saved === issued.length
+      if (!failure && verifiedAll && cursor < target) {
         try {
           await renew()
           await persist(target, cycleChecked)
