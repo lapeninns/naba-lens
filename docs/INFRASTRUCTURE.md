@@ -10,7 +10,7 @@ Every hosted step below still needs owner authorisation
 
 | Layer                | Choice                                                                                      | Why                                                                                                                                                                        |
 | -------------------- | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| App (Next 16.4 Node) | **Vercel Pro**, region `lhr1` (`vercel.json`)                                               | Runs the app unchanged. Pro because the app is commercial (Hobby is non-commercial only), hourly cleanup cron (Hobby: daily only) and 2–4 GB functions.                    |
+| App (Next 16.4 Node) | **Vercel Pro**, region `lhr1` (`vercel.json`)                                               | Runs the app unchanged. Pro because the app is commercial (Hobby is non-commercial only), hourly cleanup cron and a 10-minute archive audit cron whose function runs up to 600 s (Hobby: daily crons only, shorter limits) and 2–4 GB functions.                    |
 | DB, Auth, media      | **Supabase Pro**, `eu-west-2`, separate staging and production projects                     | The existing RLS, storage policies, magic-link auth and TUS uploads depend on it. Free caps uploads at 50 MB (videos are 200 MiB), pauses after a week and has no backups. |
 | DNS                  | **Cloudflare Free**, records **DNS-only** (grey cloud)                                      | Proxying in front of Vercel would mean two CDNs and certificate conflicts. Vercel Firewall covers app traffic.                                                             |
 | Bot protection       | **Turnstile** via Supabase Auth CAPTCHA (free)                                              | Closes the magic-link abuse gap (`app/login/actions.ts` has no rate limiting of its own). Needs a small code change: pass `captchaToken`.                                  |
@@ -75,6 +75,13 @@ counts.
 - `vercel.json`: region `lhr1`, plus an hourly cron on `/api/internal/cleanup`. Set
   `CLEANUP_SECRET` equal to Vercel's `CRON_SECRET`, in Production only.
 - The cleanup route now returns 500 when any removal failed, and logs counts only.
+- `vercel.json` also schedules `/api/internal/media-archive` every 10 minutes (`*/10 * * * *`).
+  The route sets `maxDuration = 600`: a 480 s soft budget, a 540 s hard deadline and a 600 s
+  lease, see [media archive](media-archive.md). It uses the same `CRON_SECRET`/`CLEANUP_SECRET`
+  bearer. **A human must confirm the project is on Vercel Pro**: Hobby allows only daily crons and
+  shorter functions, so this schedule would not run as configured. Keep the archive bucket in R2
+  **Standard** storage; Infrequent Access retrieval fees for the verification reads could reach about
+  $2,000 a month at the high capacity case.
 
 Turbopack already traces the HEIC worker, libheif WASM and sharp binaries into the
 function output (checked in `.nft.json` and by an isolated decode test). No

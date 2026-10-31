@@ -147,3 +147,12 @@ deactivation and removal, with bounded cleanup of only its own fixture records.
 No schema resets, invitations to real staff, real provider sends, seed loading,
 or automatic deployment are part of the smoke job. Record authenticated browser
 evidence separately from a simple unauthenticated HTTP availability check.
+
+## Archive audit and monitoring suites
+
+`pnpm test:monitoring` (the checker and its CI wrapper, `node --test`) and
+`pnpm test:archive` (Verification's in-process layer) need no stack and run in
+`scripts/ci/local-ci.sh` after the unit tests. `pnpm test:archive:db` and
+`pnpm test:archive:e2e` need a sourced stack env (`stack.mjs env <name> --write`);
+set `ARCHIVE_DB_API_PORT` to that stack's API port unless it is `spare4` (64421).
+Details: `tests/archive/README.md`.

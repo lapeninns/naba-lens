@@ -60,6 +60,10 @@ const ALLOWED_HANDLERS = new Set([
   // Owner-approved indefinite original retention and authenticated health checks.
   "/api/internal/media-archive",
   "/api/internal/media-archive/status",
+  // Owner-approved independent monitor: a narrow authenticated heartbeat and
+  // cron-only watchdog; these add no staff-facing notification feature.
+  "/api/internal/archive-monitor/heartbeat",
+  "/api/internal/archive-monitor/watchdog",
   // v0.3: JSON/CSV import preview upload (> Server Action body limit).
   "/api/admin/menus/import-preview",
 ])
