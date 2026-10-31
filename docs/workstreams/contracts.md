@@ -72,9 +72,17 @@ in `docs/qa/harness.md`) with at least these subcommands:
 `reset` takes an exclusive lock per stack, so two agents cannot reset the same
 stack at once. A user that resets a shared stack must tell the orchestrator,
 because it wipes other agents' fixture data. When migrations change on a
-branch, Harness applies them by resetting that stack from the requesting
-worktree's `supabase/` directory, and `status` reports which revision's
-migrations are applied.
+branch, that stack is reset from the requesting worktree's `supabase/`
+directory, and `status` reports which revision's migrations are applied.
+
+Harness delivered the command as `scripts/ci/stack.mjs` (see
+`docs/qa/harness.md`). Until it merges, run it by absolute path from
+`../nabalens-techdebt-agents/harness`.
+
+`ws2` reset rule: `ws2` must always carry Audit's latest migration. Until
+Audit's branch is merged into the others, only Audit resets `ws2`, always
+`--from` its own worktree. Verification and Capacity use `ws2` without
+resetting it; if they need a clean database they ask the orchestrator.
 
 ## 2. Journey result format
 
@@ -189,6 +197,7 @@ change before writing the migration.
 | `cycle_id`                   | `uuid null`   | Current cycle. Set when a cycle starts, cleared when it completes                          |
 | `cycle_started_at`           | `timestamptz null` | When the current cycle started                                                        |
 | `cycle_target_id`            | `bigint null` | Highest receipt id that existed when the cycle started. The cycle is complete when `cursor_id >= cycle_target_id` and missing count is 0 |
+| `cycle_target_count`         | `bigint null` | Number of receipts in the cycle's target set (ids have gaps, so this is counted, not derived from `cycle_target_id`) |
 | `cycle_checked`              | `bigint not null default 0` | Receipts verified in the current cycle                                       |
 | `last_run_at` (existing)     | `timestamptz` | End of the most recent invocation, whatever its outcome                                     |
 | `last_run_outcome`           | `text null`   | One of the outcomes in 4.4                                                                  |
@@ -212,8 +221,10 @@ does not read it.
   Each invocation uses a fresh holder uuid.
 - The lease TTL must exceed the invocation deadline, and the audit renews the
   lease (by re-acquiring with the same holder) at least once per batch. If a
-  renewal returns false, the run stops writing immediately, records
-  `lease_lost`, and does not advance the cursor.
+  renewal returns false, the run stops writing immediately and does not
+  advance the cursor. It writes only its `media_archive_audit_runs` row
+  (outcome `lease_lost`), never `media_archive_audit_state`, because the new
+  holder owns that state. So `last_error` never holds `archive_lease_lost`.
 - Checkpoints are idempotent: re-verifying a receipt after a crash is safe.
   An interrupted run resumes from `cursor_id` on the next invocation within
   the same `cycle_id`.
@@ -251,12 +262,12 @@ meaning and adds fields additively:
 | `lastCompleteAt`            | ISO string \| null           | existing                                                              |
 | `lastRunAt`                 | ISO string \| null           | existing                                                              |
 | `failed`                    | boolean                      | existing: `last_error` is set                                         |
-| `inProgress`                | boolean                      | existing: a cycle is in progress                                      |
+| `inProgress`                | boolean                      | existing meaning (a cycle is in progress), now derived from an open `cycle_id` rather than `cursor_id !== 0` |
 | `lastError`                 | string \| null               | code from 4.2, never a message or provider detail                     |
 | `lastRunOutcome`            | string \| null               | from 4.4                                                              |
 | `consecutiveFailures`       | number                       |                                                                       |
 | `cycleStartedAt`            | ISO string \| null           |                                                                       |
-| `cycleProgress`             | `{ checked: number, target: number } \| null` | counts, not ids                                      |
+| `cycleProgress`             | `{ checked: number, target: number } \| null` | counts, not ids (`target` from `cycle_target_count`)  |
 | `lastCycleDurationSeconds`  | number \| null               |                                                                       |
 | `maxAgeSeconds`             | number                       | `93600` (26 h)                                                        |
 | `scheduleIntervalSeconds`   | number                       | cron interval Audit configured                                        |
