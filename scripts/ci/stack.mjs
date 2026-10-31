@@ -135,10 +135,12 @@ function pidAlive(pid) {
   }
 }
 
-async function withLock(spec, what, timeoutSeconds, fn) {
+/** `onWait(owner)` is called once when another command already holds the lock. */
+export async function withLock(spec, what, timeoutSeconds, fn, onWait) {
   mkdirSync(ROOT, { recursive: true })
   const dir = join(ROOT, `${spec.name}.lock`)
   const deadline = Date.now() + timeoutSeconds * 1000
+  let waiting = false
   for (;;) {
     try {
       mkdirSync(dir)
@@ -160,6 +162,10 @@ async function withLock(spec, what, timeoutSeconds, fn) {
           `Stack ${spec.name} is locked by ${owner ? `${owner.what} (pid ${owner.pid}, since ${owner.since})` : "another command"}. ` +
             `Wait for it or raise --lock-timeout.`
         )
+      }
+      if (!waiting) {
+        waiting = true
+        onWait?.(owner)
       }
       await sleep(1000)
     }

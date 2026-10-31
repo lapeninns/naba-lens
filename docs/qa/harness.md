@@ -145,11 +145,47 @@ pnpm journeys run menus.activation --skip-build     # reuse .next if built for t
 pnpm journeys validate .artifacts/journeys/<run-id> # check a results directory
 ```
 
-Flags: `--stack <name>` (default `ws1`, or `NABALENS_STACK`), `--allow-unavailable`,
-`--skip-build`, `--ignore-migration-drift`, `--agentic`, `--run-id`,
+Flags: `--stack <name>` (default `ws1`, or `NABALENS_STACK`), `--app-port <port>`,
+`--allow-unavailable`, `--skip-build`, `--ignore-migration-drift`,
+`--no-stack-lock`, `--lock-timeout <seconds>`, `--agentic`, `--run-id`,
 `--results-dir`. Until the harness branch merges into yours, merge the
 orchestrator's integration branch to get `scripts/ci/journeys/` and
 `tests/journeys/`; the stack command can be run from the Harness worktree.
+
+### Concurrent runs on one stack
+
+Several worktrees may run journeys on the same stack at the same time. Each run
+builds and serves its own worktree, so give each its own app port:
+
+```sh
+pnpm journeys run "menus.*" --stack ws1 --app-port 3645   # Menus
+pnpm journeys run "media.*" --stack ws1 --app-port 3646   # Media
+pnpm journeys run "evidence.*" --stack ws1 --app-port 3647 # Evidence
+```
+
+Without `--app-port` the app uses the stack's port (`ws1`: 3641), so only one
+such run fits at a time; a busy port makes the journeys `unavailable` with that
+reason. The port is part of the build stamp, so changing it rebuilds (`next build`
+bakes in `NEXT_PUBLIC_SITE_URL`). Two runs from the _same_ worktree share its
+`.next` and results, so run them one after the other.
+
+The fixture people are shared state: a sign-in link and token exist per address,
+so two runs signing in as `journey-staff-a@nabalens.test` would take each
+other's emails and invalidate each other's links, and any journey that mutates
+fixture data would affect the others. The runner therefore takes the stack's
+lock (`/tmp/nabalens-ws/<name>.lock`, the same one `reset`, `up` and `down`
+use) around the Playwright phase:
+
+- Builds overlap; test execution on one stack takes turns, and a `reset` waits
+  for a running journey (and the reverse). It prints `Waiting for stack ws1: ...`
+  while queued.
+- The wait is up to 30 minutes (`--lock-timeout <seconds>`). If it expires the
+  journeys are `unavailable` with the lock owner as the reason, never a pass.
+- The stack's state is re-checked once the lock is held, so a reset that happened
+  while waiting is noticed (migration drift gives `unavailable`).
+- `--no-stack-lock` skips the lock. Use it only when every selected journey
+  signs in as identities it provisions itself (`provisionWorld()`) and restores
+  anything it changes.
 
 ## 5. Results
 

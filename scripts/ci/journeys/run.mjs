@@ -14,7 +14,15 @@ import {
 import { createRequire } from "node:module"
 import { basename, join, resolve } from "node:path"
 
-import { migrationsDigest, stackEnv, stackSpec, statusOf } from "../stack.mjs"
+import { createServer } from "node:net"
+
+import {
+  migrationsDigest,
+  stackEnv,
+  stackSpec,
+  statusOf,
+  withLock,
+} from "../stack.mjs"
 import { runAgentic } from "./agentic.mjs"
 import { outcomeFromReport } from "./outcome.mjs"
 import {
@@ -93,6 +101,16 @@ function browserProblem(projects) {
     }
   }
   return null
+}
+
+function portFree(port) {
+  return new Promise((resolvePort) => {
+    const server = createServer()
+    server.once("error", () => resolvePort(false))
+    server.listen(port, "127.0.0.1", () =>
+      server.close(() => resolvePort(true))
+    )
+  })
 }
 
 function toolMissing(tool) {
@@ -185,6 +203,7 @@ async function ensureBuild(root, spec, env, rawDir, flags) {
   const fingerprint = {
     stack: spec.name,
     apiPort: spec.apiPort,
+    site: env.NEXT_PUBLIC_SITE_URL,
     tree: treeFingerprint(root),
   }
   if (flags.skipBuild && existsSync(stamp)) {
@@ -367,6 +386,13 @@ export async function runJourneys({
         ...stackEnv(spec),
         E2E_STACK_RESOLVED: "1",
         E2E_ISOLATED_STACK: "1",
+        ...(flags.appPort
+          ? {
+              E2E_PORT: String(flags.appPort),
+              VISUAL_PORT: String(flags.appPort),
+              NEXT_PUBLIC_SITE_URL: `http://127.0.0.1:${flags.appPort}`,
+            }
+          : {}),
       }
     } catch (error) {
       shared = { ...shared, reason: error.message }
@@ -403,127 +429,165 @@ export async function runJourneys({
     }
   }
 
-  for (const journey of journeys) {
-    if (shared.reason) {
-      unavailable(journey, shared.reason, shared.migrations, buildEvidence)
-      continue
-    }
-    if (journey.needs.includes("psql") && toolMissing("psql")) {
-      unavailable(
-        journey,
-        "psql is not on PATH (this journey provisions fixtures with host psql)",
-        shared.migrations
-      )
-      continue
-    }
-    const startedAt = new Date().toISOString()
-    const outputDir = join(rawDir, journey.id)
-    rmSync(outputDir, { recursive: true, force: true })
-    mkdirSync(outputDir, { recursive: true })
-    const rawJson = join(rawDir, `${journey.id}.json`)
-    rmSync(rawJson, { force: true })
-    const args = [
-      "exec",
-      "playwright",
-      "test",
-      "--config",
-      "scripts/ci/journeys.playwright.config.ts",
-      journey.spec,
-      ...(journey.grep ? ["--grep", journey.grep] : []),
-      ...journey.projects.flatMap((p) => ["--project", p]),
-    ]
-    const logRel = join("logs", `${journey.id}.log`)
-    const timeoutMs = (journey.timeoutSeconds ?? 600) * 1000
-    const run = await runLogged("pnpm", args, {
-      cwd: root,
-      env: {
-        ...env,
-        JOURNEY_RAW_JSON: rawJson,
-        JOURNEY_OUTPUT_DIR: outputDir,
-        NEXT_TELEMETRY_DISABLED: "1",
-      },
-      logFile: join(rawDir, `${journey.id}.raw.log`),
-      timeoutMs,
-    })
-    writeFileSync(join(dir, logRel), scrub(run.output, secrets))
-    const evidence = [
-      {
-        kind: "log",
-        path: logRel,
-        description: "Playwright runner output (list reporter)",
-      },
-    ]
-
-    let outcome
-    if (existsSync(rawJson)) {
-      outcome = outcomeFromReport(JSON.parse(readFileSync(rawJson, "utf8")))
-    } else if (run.timedOut) {
-      const started = /^\s*(✓|✘|-|\d+\))/m.test(run.output)
-      outcome = {
-        result: started ? "fail" : "unavailable",
-        reason: started
-          ? `timed out after ${timeoutMs / 1000}s with some assertions already run (see log)`
-          : `timed out after ${timeoutMs / 1000}s before the first assertion`,
-        checks: undefined,
-        attachments: [],
-      }
-    } else {
-      const line =
-        run.output
-          .split("\n")
-          .map((l) => l.trim())
-          .filter(Boolean)
-          .slice(-1)[0] ?? ""
-      outcome = {
-        result: "unavailable",
-        reason: `Playwright produced no report (exit ${run.code}): ${scrub(line, secrets).slice(0, 200)}`,
-        checks: undefined,
-        attachments: [],
-      }
-    }
-    evidence.push(
-      ...copyEvidence({
-        attachments: outcome.attachments,
-        id: journey.id,
-        resultsDir: dir,
-        secrets,
-      })
-    )
-    if (journey.agentic && flags.agentic && outcome.result !== "fail") {
-      const agentic = await runAgentic({
-        journey,
-        root,
-        env,
-        dir,
-        secrets,
-        runLogged,
-        scrub,
-      })
-      evidence.push(...agentic.evidence)
-      if (agentic.status === "unavailable" && outcome.result === "pass") {
-        outcome = {
-          ...outcome,
-          result: "unavailable",
-          reason: `deterministic checks passed (${outcome.checks.passed}) but the requested agentic run is unavailable: ${agentic.reason}`,
+  // Journeys sign in as the shared fixture people, whose magic-link inbox and
+  // token are per address, so runs on one stack take turns (as do resets).
+  // Builds happen before this point and still overlap.
+  const runAll = async () => {
+    if (!shared.reason) {
+      const again = stackProblem(root, spec, flags)
+      if (again.reason) shared = again
+      else if (!(await portFree(Number(env.E2E_PORT))))
+        shared = {
+          ...shared,
+          reason: `app port ${env.E2E_PORT} is already in use (pass --app-port <free port>)`,
         }
-      } else if (agentic.status === "fail" && outcome.result === "pass") {
-        outcome = { ...outcome, result: "fail", reason: agentic.reason }
+    }
+    for (const journey of journeys) {
+      if (shared.reason) {
+        unavailable(journey, shared.reason, shared.migrations, buildEvidence)
+        continue
       }
-    } else if (journey.agentic && flags.agentic) {
-      evidence.push({
-        kind: "note",
-        path: "summary.md",
-        description:
-          "agentic run skipped because the deterministic checks already failed",
+      if (journey.needs.includes("psql") && toolMissing("psql")) {
+        unavailable(
+          journey,
+          "psql is not on PATH (this journey provisions fixtures with host psql)",
+          shared.migrations
+        )
+        continue
+      }
+      const startedAt = new Date().toISOString()
+      const outputDir = join(rawDir, journey.id)
+      rmSync(outputDir, { recursive: true, force: true })
+      mkdirSync(outputDir, { recursive: true })
+      const rawJson = join(rawDir, `${journey.id}.json`)
+      rmSync(rawJson, { force: true })
+      const args = [
+        "exec",
+        "playwright",
+        "test",
+        "--config",
+        "scripts/ci/journeys.playwright.config.ts",
+        journey.spec,
+        ...(journey.grep ? ["--grep", journey.grep] : []),
+        ...journey.projects.flatMap((p) => ["--project", p]),
+      ]
+      const logRel = join("logs", `${journey.id}.log`)
+      const timeoutMs = (journey.timeoutSeconds ?? 600) * 1000
+      const run = await runLogged("pnpm", args, {
+        cwd: root,
+        env: {
+          ...env,
+          JOURNEY_RAW_JSON: rawJson,
+          JOURNEY_OUTPUT_DIR: outputDir,
+          NEXT_TELEMETRY_DISABLED: "1",
+        },
+        logFile: join(rawDir, `${journey.id}.raw.log`),
+        timeoutMs,
+      })
+      writeFileSync(join(dir, logRel), scrub(run.output, secrets))
+      const evidence = [
+        {
+          kind: "log",
+          path: logRel,
+          description: "Playwright runner output (list reporter)",
+        },
+      ]
+
+      let outcome
+      if (existsSync(rawJson)) {
+        outcome = outcomeFromReport(JSON.parse(readFileSync(rawJson, "utf8")))
+      } else if (run.timedOut) {
+        const started = /^\s*(✓|✘|-|\d+\))/m.test(run.output)
+        outcome = {
+          result: started ? "fail" : "unavailable",
+          reason: started
+            ? `timed out after ${timeoutMs / 1000}s with some assertions already run (see log)`
+            : `timed out after ${timeoutMs / 1000}s before the first assertion`,
+          checks: undefined,
+          attachments: [],
+        }
+      } else {
+        const line =
+          run.output
+            .split("\n")
+            .map((l) => l.trim())
+            .filter(Boolean)
+            .slice(-1)[0] ?? ""
+        outcome = {
+          result: "unavailable",
+          reason: `Playwright produced no report (exit ${run.code}): ${scrub(line, secrets).slice(0, 200)}`,
+          checks: undefined,
+          attachments: [],
+        }
+      }
+      evidence.push(
+        ...copyEvidence({
+          attachments: outcome.attachments,
+          id: journey.id,
+          resultsDir: dir,
+          secrets,
+        })
+      )
+      if (journey.agentic && flags.agentic && outcome.result !== "fail") {
+        const agentic = await runAgentic({
+          journey,
+          root,
+          env,
+          dir,
+          secrets,
+          runLogged,
+          scrub,
+        })
+        evidence.push(...agentic.evidence)
+        if (agentic.status === "unavailable" && outcome.result === "pass") {
+          outcome = {
+            ...outcome,
+            result: "unavailable",
+            reason: `deterministic checks passed (${outcome.checks.passed}) but the requested agentic run is unavailable: ${agentic.reason}`,
+          }
+        } else if (agentic.status === "fail" && outcome.result === "pass") {
+          outcome = { ...outcome, result: "fail", reason: agentic.reason }
+        }
+      } else if (journey.agentic && flags.agentic) {
+        evidence.push({
+          kind: "note",
+          path: "summary.md",
+          description:
+            "agentic run skipped because the deterministic checks already failed",
+        })
+      }
+      finish(journey, {
+        ...base(journey, startedAt, shared.migrations),
+        result: outcome.result,
+        reason: outcome.reason,
+        ...(outcome.checks ? { checks: outcome.checks } : {}),
+        evidence,
       })
     }
-    finish(journey, {
-      ...base(journey, startedAt, shared.migrations),
-      result: outcome.result,
-      reason: outcome.reason,
-      ...(outcome.checks ? { checks: outcome.checks } : {}),
-      evidence,
-    })
+  }
+
+  if (shared.reason || flags.noStackLock) await runAll()
+  else {
+    let started = false
+    try {
+      await withLock(
+        spec,
+        `journeys ${journeys.map((j) => j.id).join(",")} from ${root}`,
+        flags.lockTimeout ?? 1800,
+        () => {
+          started = true
+          return runAll()
+        },
+        (owner) =>
+          console.error(
+            `Waiting for stack ${spec.name}: ${owner ? `${owner.what} (pid ${owner.pid})` : "another command"} holds it.`
+          )
+      )
+    } catch (error) {
+      if (started) throw error
+      shared = { ...shared, reason: error.message }
+      await runAll()
+    }
   }
 
   const totals = { pass: 0, fail: 0, unavailable: 0 }

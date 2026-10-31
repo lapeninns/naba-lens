@@ -24,6 +24,9 @@ const USAGE = `usage: pnpm journeys <list|run|validate> ...
       --stack <name>                         ws1 (default), ws2, gate, spare4..9; or NABALENS_STACK
       --allow-unavailable                    exit 0 when the only non-passes are unavailable
       --agentic                              also run declared agentic (e2e) steps; evidence only, unavailable without model credentials
+      --app-port <port>                      port the app is served on (default: the stack's, e.g. 3641 for ws1); give each concurrent run its own
+      --no-stack-lock                        do not serialize with other runs/resets on the stack (only for journeys that provision their own identities)
+      --lock-timeout <seconds>               how long to wait for the stack lock (default 1800)
       --skip-build                           reuse .next when it was built for this stack and tree
       --ignore-migration-drift               run even if the stack's migrations differ from this worktree
       --run-id <id> / --results-dir <dir>
@@ -32,7 +35,13 @@ const USAGE = `usage: pnpm journeys <list|run|validate> ...
 function parseArgs(argv) {
   const positional = []
   const flags = {}
-  const valued = new Set(["stack", "run-id", "results-dir"])
+  const valued = new Set([
+    "stack",
+    "app-port",
+    "lock-timeout",
+    "run-id",
+    "results-dir",
+  ])
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]
     if (!arg.startsWith("--")) positional.push(arg)
@@ -89,6 +98,15 @@ if (command === "validate") {
         `No declared journey matches: ${unknown.join(", ")}. Try: pnpm journeys list`
       )
     const stack = flags.stack ?? process.env.NABALENS_STACK ?? "ws1"
+    const appPort =
+      flags["app-port"] === undefined ? null : Number(flags["app-port"])
+    if (
+      appPort !== null &&
+      !(Number.isInteger(appPort) && appPort >= 1024 && appPort <= 65535)
+    )
+      fail(
+        `--app-port must be an integer from 1024 to 65535, got "${flags["app-port"]}".`
+      )
     const { summary, resultsDir, exitCode } = await runJourneys({
       root,
       journeys: selected,
@@ -96,6 +114,9 @@ if (command === "validate") {
       flags: {
         allowUnavailable: Boolean(flags["allow-unavailable"]),
         skipBuild: Boolean(flags["skip-build"]),
+        appPort: appPort ?? undefined,
+        noStackLock: Boolean(flags["no-stack-lock"]),
+        lockTimeout: Number(flags["lock-timeout"] ?? 1800),
         agentic: Boolean(flags.agentic),
         ignoreMigrationDrift: Boolean(flags["ignore-migration-drift"]),
       },
