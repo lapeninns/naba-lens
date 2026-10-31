@@ -24,7 +24,8 @@
     "seed:venues": "tsx scripts/seed-venues.ts",
     "cleanup": "tsx scripts/cleanup.ts",
     "test:visual": "node tests/visual/run.mjs",
-    "stack": "node scripts/ci/stack.mjs"
+    "stack": "node scripts/ci/stack.mjs",
+    "journeys": "node scripts/ci/journeys/cli.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1159.0",

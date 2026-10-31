@@ -18,7 +18,6 @@ import { createHash } from "node:crypto"
 import {
   chmodSync,
   closeSync,
-  cpSync,
   existsSync,
   mkdirSync,
   openSync,
@@ -193,6 +192,17 @@ const section = (text, name, key, value) =>
     `$1${key} = ${value}`
   )
 
+function syncInPlace(src, dst) {
+  mkdirSync(dst, { recursive: true })
+  for (const entry of readdirSync(src, { withFileTypes: true })) {
+    if (entry.name === ".temp" || entry.name === ".branches") continue
+    const from = join(src, entry.name)
+    const to = join(dst, entry.name)
+    if (entry.isDirectory()) syncInPlace(from, to)
+    else writeFileSync(to, readFileSync(from))
+  }
+}
+
 /** Copies `<from>/supabase` into the workdir and remaps it onto the stack's block. */
 export function prepareWorkdir(spec, from) {
   const source = join(from, "supabase")
@@ -201,11 +211,13 @@ export function prepareWorkdir(spec, from) {
   }
   const target = join(spec.workdir, "supabase")
   mkdirSync(spec.workdir, { recursive: true })
-  rmSync(target, { recursive: true, force: true })
-  cpSync(source, target, {
-    recursive: true,
-    filter: (src) => !/[/\\]\.(temp|branches)([/\\]|$)/.test(src),
-  })
+  // Only the migrations and seed trees are rebuilt: the stack's containers
+  // bind-mount single files (the email templates) by inode, and replacing those
+  // files leaves Kong serving deleted ones (the templates then 404).
+  for (const dir of ["migrations", "seed"]) {
+    rmSync(join(target, dir), { recursive: true, force: true })
+  }
+  syncInPlace(source, target)
   const site = `http://127.0.0.1:${spec.appPort}`
   let config = readFileSync(join(target, "config.toml"), "utf8")
     .replace(/^project_id = ".*"$/m, `project_id = "${spec.project}"`)
@@ -246,7 +258,7 @@ function migrationFiles(dir) {
     : []
 }
 
-function migrationsDigest(dir) {
+export function migrationsDigest(dir) {
   const hash = createHash("sha256")
   for (const file of migrationFiles(dir)) {
     hash.update(file + "\0")
@@ -483,7 +495,7 @@ async function cmdReset(spec, flags) {
   )
 }
 
-function statusOf(spec) {
+export function statusOf(spec) {
   const running = isRunning(spec)
   const applied = running ? appliedMigrations(spec) : null
   const revision = running ? revisionRecord(spec) : null

@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "nabalens.journey-result/v1",
+  "title": "Naba-Lens journey result",
+  "description": "One file per journey run: <results-dir>/journeys/<journey-id>.json (docs/workstreams/contracts.md section 2). scripts/ci/journeys/validate.mjs enforces this schema plus the rules JSON Schema cannot express (reason, evidence files, secrets).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "journey",
+    "title",
+    "result",
+    "reason",
+    "revision",
+    "stack",
+    "runner",
+    "startedAt",
+    "finishedAt",
+    "scenarios",
+    "evidence"
+  ],
+  "properties": {
+    "schema": { "const": "nabalens.journey-result/v1" },
+    "journey": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*\\.[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "title": { "type": "string", "minLength": 1 },
+    "result": { "enum": ["pass", "fail", "unavailable"] },
+    "reason": {
+      "type": ["string", "null"],
+      "description": "Required non-empty string for fail and unavailable; null for pass."
+    },
+    "revision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["commit", "branch", "dirty"],
+      "properties": {
+        "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "branch": { "type": "string", "minLength": 1 },
+        "dirty": { "type": "boolean" }
+      }
+    },
+    "stack": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "apiPort", "migrations"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "apiPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "migrations": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Latest applied migration version and digest prefix, or 'unknown' when the stack was down."
+        }
+      }
+    },
+    "runner": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "version"],
+      "properties": {
+        "kind": { "enum": ["playwright", "agentic"] },
+        "version": { "type": "string", "minLength": 1 }
+      }
+    },
+    "startedAt": { "type": "string", "format": "date-time" },
+    "finishedAt": { "type": "string", "format": "date-time" },
+    "scenarios": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Z][A-Z0-9]*(-[A-Za-z0-9]+)+$"
+      }
+    },
+    "checks": {
+      "type": "object",
+      "description": "Additive: deterministic test counts. A pass needs passed >= 1 and failed = skipped = 0.",
+      "additionalProperties": false,
+      "required": ["passed", "failed", "skipped"],
+      "properties": {
+        "passed": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 },
+        "skipped": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "historical": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "id", "reproducedOnHead"],
+      "properties": {
+        "source": { "type": "string", "minLength": 1 },
+        "id": { "type": "string", "minLength": 1 },
+        "reproducedOnHead": {
+          "type": ["boolean", "null"],
+          "description": "true when the original failure still reproduces (result fail); false when this run passed; null when unavailable."
+        }
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "path", "description"],
+        "properties": {
+          "kind": { "enum": ["log", "screenshot", "report", "note"] },
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Relative to the results directory; the file must exist."
+          },
+          "description": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

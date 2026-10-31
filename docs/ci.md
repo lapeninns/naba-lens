@@ -147,3 +147,9 @@ deactivation and removal, with bounded cleanup of only its own fixture records.
 No schema resets, invitations to real staff, real provider sends, seed loading,
 or automatic deployment are part of the smoke job. Record authenticated browser
 evidence separately from a simple unauthenticated HTTP availability check.
+
+## Workstream stacks and journeys
+
+Named local stacks (`scripts/ci/stack.mjs`), the deterministic journey fixture
+world and the journey runner (`pnpm journeys`) are separate from the fixture gate
+above and never replace it. They are documented in `docs/qa/harness.md`.
