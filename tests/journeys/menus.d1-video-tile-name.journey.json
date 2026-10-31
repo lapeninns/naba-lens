@@ -1,0 +1,12 @@
+{
+  "id": "menus.d1-video-tile-name",
+  "title": "Staff portfolio tiles keep their visible duration and label text inside their accessible name (WCAG 2.5.3)",
+  "spec": "tests/journeys/menus-d1-video-tile-name.spec.ts",
+  "projects": ["chromium"],
+  "scenarios": ["MENUS-D1"],
+  "historical": {
+    "source": "docs/qa/menus-qa-report.md#4-defects-for-the-lead",
+    "id": "MENUS-D1"
+  },
+  "timeoutSeconds": 600
+}

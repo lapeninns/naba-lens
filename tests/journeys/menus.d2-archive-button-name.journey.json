@@ -1,0 +1,12 @@
+{
+  "id": "menus.d2-archive-button-name",
+  "title": "Archive item and Unarchive item buttons start their accessible name with their visible text (WCAG 2.5.3)",
+  "spec": "tests/journeys/menus-d2-archive-button-name.spec.ts",
+  "projects": ["chromium"],
+  "scenarios": ["MENUS-D2"],
+  "historical": {
+    "source": "docs/qa/menus-qa-report.md#4-defects-for-the-lead",
+    "id": "MENUS-D2"
+  },
+  "timeoutSeconds": 600
+}

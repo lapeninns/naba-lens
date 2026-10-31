@@ -1,0 +1,9 @@
+{
+  "id": "menus.catalogue-activation",
+  "title": "Admin imports a venue menu, reviews the draft and activates it; staff never see a draft as active",
+  "spec": "tests/e2e/menus-admin.spec.ts",
+  "grep": "rows 1\\+3",
+  "projects": ["chromium"],
+  "scenarios": ["MENUS-QA-01", "MENUS-QA-03"],
+  "timeoutSeconds": 600
+}

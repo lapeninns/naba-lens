@@ -1,0 +1,8 @@
+{
+  "id": "menus.unavailable-items",
+  "title": "Archived items are not offered, an item archived mid-edit can be removed, and Item not on the menu? reaches the venue Menus page and resolves",
+  "spec": "tests/journeys/menus-unavailable-items.spec.ts",
+  "projects": ["chromium"],
+  "scenarios": ["MENUS-QA-04", "MENUS-QA-08"],
+  "timeoutSeconds": 600
+}

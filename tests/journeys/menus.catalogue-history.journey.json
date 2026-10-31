@@ -1,0 +1,9 @@
+{
+  "id": "menus.catalogue-history",
+  "title": "Re-import with rename, removal, key change and category move; archive and retire keep historical labels",
+  "spec": "tests/e2e/menus-admin.spec.ts",
+  "grep": "rows 2\\+4",
+  "projects": ["chromium"],
+  "scenarios": ["MENUS-QA-02", "MENUS-QA-04"],
+  "timeoutSeconds": 600
+}

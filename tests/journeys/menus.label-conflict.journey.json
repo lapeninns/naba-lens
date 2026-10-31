@@ -1,0 +1,9 @@
+{
+  "id": "menus.label-conflict",
+  "title": "A menu activated while staff edit labels gives the menu-updated error, saves nothing, keeps the choices, and Reload then saves",
+  "spec": "tests/journeys/menus-label-conflict.spec.ts",
+  "grep": "menus\\.label-conflict",
+  "projects": ["chromium"],
+  "scenarios": ["MENUS-QA-08", "MENUS-QA-15"],
+  "timeoutSeconds": 600
+}

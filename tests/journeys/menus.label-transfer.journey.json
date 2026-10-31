@@ -1,0 +1,9 @@
+{
+  "id": "menus.label-transfer",
+  "title": "A transferred staff member labels an older asset with the old venue's menu",
+  "spec": "tests/e2e/menus-labels.spec.ts",
+  "grep": "row 11",
+  "projects": ["chromium"],
+  "scenarios": ["MENUS-QA-11"],
+  "timeoutSeconds": 600
+}
