@@ -9,36 +9,148 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      media_archive_receipts: {
+      media_archive_audit_runs: {
         Row: {
+          bytes_verified: number
+          checked: number
+          copied: number
+          cursor_from: number | null
+          cursor_to: number | null
+          cycle_id: string | null
+          error: string | null
+          finished_at: string
           id: number
-          asset_id: string
-          sha256: string
-          size_bytes: number
-          mime_type: string
-          source_project_ref: string
-          source_key: string
-          blob_key: string
-          manifest_key: string
-          manifest_sha256: string
-          manifest: Json
-          archived_at: string
+          missing: number | null
+          outcome: string
+          run_id: string
+          started_at: string
         }
         Insert: {
+          bytes_verified?: number
+          checked?: number
+          copied?: number
+          cursor_from?: number | null
+          cursor_to?: number | null
+          cycle_id?: string | null
+          error?: string | null
+          finished_at: string
           id?: never
+          missing?: number | null
+          outcome: string
+          run_id: string
+          started_at: string
+        }
+        Update: {
+          bytes_verified?: number
+          checked?: number
+          copied?: number
+          cursor_from?: number | null
+          cursor_to?: number | null
+          cycle_id?: string | null
+          error?: string | null
+          finished_at?: string
+          id?: never
+          missing?: number | null
+          outcome?: string
+          run_id?: string
+          started_at?: string
+        }
+        Relationships: []
+      }
+      media_archive_audit_state: {
+        Row: {
+          consecutive_failures: number
+          cursor_id: number
+          cycle_checked: number
+          cycle_id: string | null
+          cycle_started_at: string | null
+          cycle_target_count: number | null
+          cycle_target_id: number | null
+          last_complete_at: string | null
+          last_complete_cycle_started_at: string | null
+          last_cycle_duration_seconds: number | null
+          last_error: string | null
+          last_run_at: string | null
+          last_run_outcome: string | null
+          name: string
+        }
+        Insert: {
+          consecutive_failures?: number
+          cursor_id?: number
+          cycle_checked?: number
+          cycle_id?: string | null
+          cycle_started_at?: string | null
+          cycle_target_count?: number | null
+          cycle_target_id?: number | null
+          last_complete_at?: string | null
+          last_complete_cycle_started_at?: string | null
+          last_cycle_duration_seconds?: number | null
+          last_error?: string | null
+          last_run_at?: string | null
+          last_run_outcome?: string | null
+          name: string
+        }
+        Update: {
+          consecutive_failures?: number
+          cursor_id?: number
+          cycle_checked?: number
+          cycle_id?: string | null
+          cycle_started_at?: string | null
+          cycle_target_count?: number | null
+          cycle_target_id?: number | null
+          last_complete_at?: string | null
+          last_complete_cycle_started_at?: string | null
+          last_cycle_duration_seconds?: number | null
+          last_error?: string | null
+          last_run_at?: string | null
+          last_run_outcome?: string | null
+          name?: string
+        }
+        Relationships: []
+      }
+      media_archive_receipts: {
+        Row: {
+          archived_at: string
           asset_id: string
-          sha256: string
-          size_bytes: number
-          mime_type: string
-          source_project_ref: string
-          source_key: string
           blob_key: string
+          id: number
+          manifest: Json
           manifest_key: string
           manifest_sha256: string
-          manifest: Json
-          archived_at?: string
+          mime_type: string
+          sha256: string
+          size_bytes: number
+          source_key: string
+          source_project_ref: string
         }
-        Update: { [_ in never]: never }
+        Insert: {
+          archived_at?: string
+          asset_id: string
+          blob_key: string
+          id?: never
+          manifest: Json
+          manifest_key: string
+          manifest_sha256: string
+          mime_type: string
+          sha256: string
+          size_bytes: number
+          source_key: string
+          source_project_ref: string
+        }
+        Update: {
+          archived_at?: string
+          asset_id?: string
+          blob_key?: string
+          id?: never
+          manifest?: Json
+          manifest_key?: string
+          manifest_sha256?: string
+          mime_type?: string
+          sha256?: string
+          size_bytes?: number
+          source_key?: string
+          source_project_ref?: string
+        }
         Relationships: [
           {
             foreignKeyName: "media_archive_receipts_asset_id_fkey"
@@ -48,29 +160,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      media_archive_audit_state: {
-        Row: {
-          name: string
-          cursor_id: number
-          last_run_at: string | null
-          last_complete_at: string | null
-          last_error: string | null
-        }
-        Insert: {
-          name: string
-          cursor_id?: number
-          last_run_at?: string | null
-          last_complete_at?: string | null
-          last_error?: string | null
-        }
-        Update: {
-          cursor_id?: number
-          last_run_at?: string | null
-          last_complete_at?: string | null
-          last_error?: string | null
-        }
-        Relationships: []
       }
       media_assets: {
         Row: {
@@ -874,13 +963,17 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      media_archive_backfill_candidates: {
-        Args: { p_limit?: number }
-        Returns: { asset_id: string }[]
+      record_archive_monitor_heartbeat: {
+        Args: Record<string, never>
+        Returns: undefined
       }
-      media_archive_missing_count: {
-        Args: Record<PropertyKey, never>
-        Returns: number
+      claim_archive_monitor_alert: {
+        Args: Record<string, never>
+        Returns: Json
+      }
+      complete_archive_monitor_alert: {
+        Args: { p_event_id: string; p_claim_id: string }
+        Returns: boolean
       }
       acquire_maintenance_lease: {
         Args: { p_holder: string; p_name: string; p_ttl: string }
@@ -944,6 +1037,13 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      media_archive_backfill_candidates: {
+        Args: { p_limit?: number }
+        Returns: {
+          asset_id: string
+        }[]
+      }
+      media_archive_missing_count: { Args: never; Returns: number }
       media_label_details: {
         Args: { p_asset_ids: string[] }
         Returns: {

@@ -76,15 +76,49 @@ describe("private archive operational endpoints", () => {
     expect((await readStatus(request(true, "too-short"))).status).toBe(401)
     expect((await readStatus(request(false))).status).toBe(401)
   })
-  it("reports partial audit and stale status as unavailable", async () => {
+  it("treats completed, partial and locked audit runs as successful cron invocations", async () => {
     vi.stubEnv("CLEANUP_SECRET", secret)
+    for (const outcome of ["completed_cycle", "partial", "locked"]) {
+      mocks.audit.mockResolvedValueOnce({
+        outcome,
+        complete: false,
+        checked: 50,
+      })
+      const response = await runAudit(request())
+      expect(response.status).toBe(200)
+      expect(await response.json()).toMatchObject({ outcome })
+    }
+  })
+  it("reports timeout and lease loss as unavailable and failure as a redacted 500", async () => {
+    vi.stubEnv("CLEANUP_SECRET", secret)
+    for (const outcome of ["timeout", "lease_lost"]) {
+      mocks.audit.mockResolvedValueOnce({
+        outcome,
+        complete: false,
+        checked: 1,
+      })
+      expect((await runAudit(request())).status).toBe(503)
+    }
     mocks.audit.mockResolvedValueOnce({
-      status: "completed",
-      complete: false,
-      checked: 50,
+      outcome: "failed",
+      error: "archive_store_unavailable",
+      checked: 1,
     })
+    const silence = vi.spyOn(console, "error").mockImplementation(() => {})
+    try {
+      const response = await runAudit(request())
+      expect(response.status).toBe(500)
+      expect(await response.json()).toEqual({
+        error: "archive_audit_failed",
+        outcome: "failed",
+      })
+    } finally {
+      silence.mockRestore()
+    }
+  })
+  it("reports stale status as unavailable", async () => {
+    vi.stubEnv("CLEANUP_SECRET", secret)
     mocks.status.mockResolvedValueOnce({ ok: false, status: "stale" })
-    expect((await runAudit(request())).status).toBe(503)
     expect((await readStatus(request())).status).toBe(503)
   })
   it("skips only explicitly verified disabled staging without a privileged client", async () => {

@@ -158,4 +158,158 @@ describe("private append-only original archive receipts", () => {
       .eq("asset_id", receipt.asset_id)
     expect(read.data).toHaveLength(1)
   })
+
+  describe("audit cycles and run history", () => {
+    const run = (overrides: Record<string, unknown> = {}) => ({
+      run_id: randomUUID(),
+      started_at: "2026-10-30T12:00:00Z",
+      finished_at: "2026-10-30T12:01:00Z",
+      outcome: "partial",
+      ...overrides,
+    })
+
+    it("keeps the run history service-only", async () => {
+      const seeded = await service
+        .from("media_archive_audit_runs")
+        .insert(run({ outcome: "idle", bytes_verified: 1234 }))
+        .select("id")
+      expect(seeded.error).toBeNull()
+      for (const client of [anonClient(), staff.client, admin.client]) {
+        const read = await client.from("media_archive_audit_runs").select("*")
+        expect(read.data ?? []).toHaveLength(0)
+        expect(read.error?.code).toBe("42501")
+        const write = await client
+          .from("media_archive_audit_runs")
+          .insert(run())
+        expect(write.error?.code).toBe("42501")
+        const remove = await client
+          .from("media_archive_audit_runs")
+          .delete()
+          .gte("id", 0)
+        expect(remove.error?.code).toBe("42501")
+      }
+    })
+
+    it("is append-only apart from pruning rows past 90 days", async () => {
+      const recent = run({
+        finished_at: new Date().toISOString(),
+        started_at: new Date().toISOString(),
+      })
+      expect(
+        (await service.from("media_archive_audit_runs").insert(recent)).error
+      ).toBeNull()
+      const update = await service
+        .from("media_archive_audit_runs")
+        .update({ outcome: "failed" } as never)
+        .eq("run_id", recent.run_id)
+      expect(update.error?.code).toBe("42501")
+      const remove = await service
+        .from("media_archive_audit_runs")
+        .delete()
+        .eq("run_id", recent.run_id)
+      expect(remove.error?.code).toBe("42501")
+      const kept = await service
+        .from("media_archive_audit_runs")
+        .select("outcome")
+        .eq("run_id", recent.run_id)
+      expect(kept.data).toEqual([{ outcome: "partial" }])
+
+      const old = run({
+        started_at: "2020-01-01T00:00:00Z",
+        finished_at: "2020-01-01T00:01:00Z",
+      })
+      expect(
+        (await service.from("media_archive_audit_runs").insert(old)).error
+      ).toBeNull()
+      const prune = await service
+        .from("media_archive_audit_runs")
+        .delete()
+        .lt("finished_at", new Date(Date.now() - 90 * 86_400_000).toISOString())
+      expect(prune.error).toBeNull()
+      const gone = await service
+        .from("media_archive_audit_runs")
+        .select("id")
+        .eq("run_id", old.run_id)
+      expect(gone.data).toEqual([])
+    })
+
+    it("rejects run rows whose outcome, error or run id are inconsistent", async () => {
+      const failedWithoutCode = await service
+        .from("media_archive_audit_runs")
+        .insert(run({ outcome: "failed" }))
+      expect(failedWithoutCode.error?.code).toBe("23514")
+      const codeOnPartial = await service
+        .from("media_archive_audit_runs")
+        .insert(run({ error: "archive_audit_failed" }))
+      expect(codeOnPartial.error?.code).toBe("23514")
+      const unknownOutcome = await service
+        .from("media_archive_audit_runs")
+        .insert(run({ outcome: "ok" }))
+      expect(unknownOutcome.error?.code).toBe("23514")
+      const unknownError = await service
+        .from("media_archive_audit_runs")
+        .insert(
+          run({ outcome: "failed", error: "disk exploded at /secret/path" })
+        )
+      expect(unknownError.error?.code).toBe("23514")
+      const same = run()
+      expect(
+        (await service.from("media_archive_audit_runs").insert(same)).error
+      ).toBeNull()
+      const duplicate = await service
+        .from("media_archive_audit_runs")
+        .insert(same)
+      expect(duplicate.error?.code).toBe("23505")
+    })
+
+    it("constrains the cycle columns and error codes on the audit state row", async () => {
+      const update = (patch: Record<string, unknown>) =>
+        service
+          .from("media_archive_audit_state")
+          .update(patch as never)
+          .eq("name", "originals")
+      try {
+        const half = await update({ cycle_id: randomUUID() })
+        expect(half.error?.code).toBe("23514")
+        const orphanCursor = await update({ cursor_id: 5 })
+        expect(orphanCursor.error?.code).toBe("23514")
+        const badCode = await update({ last_error: "provider said no" })
+        expect(badCode.error?.code).toBe("23514")
+        const badOutcome = await update({ last_run_outcome: "great" })
+        expect(badOutcome.error?.code).toBe("23514")
+        const overshoot = await update({
+          cycle_id: randomUUID(),
+          cycle_started_at: "2026-10-30T12:00:00Z",
+          cycle_target_id: 3,
+          cycle_target_count: 3,
+          cursor_id: 4,
+        })
+        expect(overshoot.error?.code).toBe("23514")
+        const open = await update({
+          cycle_id: randomUUID(),
+          cycle_started_at: "2026-10-30T12:00:00Z",
+          cycle_target_id: 3,
+          cycle_target_count: 3,
+          cursor_id: 2,
+          cycle_checked: 2,
+          last_run_outcome: "timeout",
+          last_error: "archive_audit_timeout",
+          consecutive_failures: 1,
+        })
+        expect(open.error).toBeNull()
+      } finally {
+        await update({
+          cycle_id: null,
+          cycle_started_at: null,
+          cycle_target_id: null,
+          cycle_target_count: null,
+          cursor_id: 0,
+          cycle_checked: 0,
+          last_run_outcome: null,
+          last_error: null,
+          consecutive_failures: 0,
+        })
+      }
+    })
+  })
 })

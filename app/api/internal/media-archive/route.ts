@@ -3,7 +3,7 @@ import { runArchiveAudit } from "@/lib/server/archive/audit"
 import { readArchiveConfig } from "@/lib/server/archive/config"
 import { createAdminClient } from "@/lib/supabase/admin"
 
-export const maxDuration = 120
+export const maxDuration = 600
 const headers = { "Cache-Control": "private, no-store" }
 
 export async function GET(request: Request) {
@@ -27,10 +27,20 @@ export async function GET(request: Request) {
       throw new Error("archive_disabled")
     }
     const report = await runArchiveAudit(createAdminClient())
-    return Response.json(report, {
-      status: report.status === "locked" || report.complete ? 200 : 503,
-      headers,
-    })
+    // partial, locked and idle are normal for a cycle that spans invocations.
+    if (report.outcome === "failed") {
+      console.error("media archive audit failed")
+      return Response.json(
+        { error: "archive_audit_failed", outcome: report.outcome },
+        { status: 500, headers }
+      )
+    }
+    const ok =
+      report.outcome === "completed_cycle" ||
+      report.outcome === "partial" ||
+      report.outcome === "locked" ||
+      report.outcome === "idle"
+    return Response.json(report, { status: ok ? 200 : 503, headers })
   } catch {
     // Provider details, source names, object keys and credentials stay out of logs.
     console.error("media archive audit failed")
