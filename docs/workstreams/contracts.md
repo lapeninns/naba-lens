@@ -296,9 +296,24 @@ Alert payload, delivered as JSON to the sink:
 }
 ```
 
-The stub sink is local only: an HTTP listener on `127.0.0.1` (port in
-3650–3659) or a JSONL file under `/tmp/nabalens-ws/alerts/`, chosen by
-Monitoring and documented. A sink delivery failure is itself reported
+Payload rules (agreed with Monitoring):
+
+- `recovered` alerts carry an additional `recoveredCondition` field naming
+  the cleared condition, which also appears in `summary`.
+- `status` is `null` when there is no valid status body (`unreachable`,
+  `auth_rejected`, `monitor_error`).
+- A valid body with `status: "disabled"` maps to `stale` (critical): the
+  archive must never be disabled in production. A 503 without a valid status
+  body (for example `{ "error": "unconfigured" }`) maps to `unreachable`.
+- `run_failed` re-alerts once when it escalates from warning to critical at
+  3 consecutive failures. Otherwise alerts are deduplicated per condition
+  until it clears.
+
+The stub sink is local only: an HTTP listener on `127.0.0.1:3650` (range
+3650–3659) that appends each alert to `/tmp/nabalens-ws/alerts/alerts.jsonl`.
+If delivery fails (refused, timeout, non-2xx) the checker appends the alert to
+`/tmp/nabalens-ws/alerts/undelivered.jsonl` and exits nonzero. Stub mode
+accepts only loopback `http` sink URLs. A sink delivery failure is itself reported
 (nonzero exit and a fallback local record), never swallowed. Real credentials
 and the real alert destination are documented for a human to provision; no
 agent creates or uses them.
