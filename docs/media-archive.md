@@ -153,8 +153,10 @@ is a resumable **cycle**:
 Outcomes are `completed_cycle`, `partial`, `idle`, `locked`, `timeout`, `lease_lost`
 and `failed`. `partial`, `idle` and `locked` are not failures and the cron route
 answers 200. `timeout` and `lease_lost` answer 503 and `failed` answers 500 with a
-redacted body. `timeout` and `failed` increment `consecutive_failures`, which the
-next non-failing run resets. Stored error codes are fixed
+redacted body. `timeout` and `failed` increment `consecutive_failures`; a `partial`, `idle` or
+`completed_cycle` run clears `last_error` and resets it (`locked` and `lease_lost`
+write no state). A backfill failure ends the run `failed`, even inside the
+throttle window, so it alerts. Stored error codes are fixed
 (`archive_audit_failed`, `archive_audit_timeout`, `archive_checkpoint_failed`,
 `archive_store_unavailable`, `archive_source_unavailable`); the real R2 store
 reports every read-back problem (unreachable, missing, wrong size or hash) as

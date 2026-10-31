@@ -220,6 +220,27 @@ describe("resumable archive verification cycle", () => {
     expect(fake.state.cycle_id).not.toBe(cycleId)
   })
 
+  it("clears the previous failure when a run ends partial", async () => {
+    const fake = createFakeArchiveService({
+      receipts: ids(6),
+      state: {
+        ...openCycle(6),
+        last_error: "archive_audit_timeout",
+        last_run_outcome: "timeout",
+        consecutive_failures: 3,
+      },
+    })
+    const store = createFakeArchiveStore({ onVerify: advanceOnOriginal(fake) })
+    expect(await audit(fake, store, { softBudgetMs: 2500 })).toMatchObject({
+      outcome: "partial",
+    })
+    expect(fake.state).toMatchObject({
+      last_run_outcome: "partial",
+      last_error: null,
+      consecutive_failures: 0,
+    })
+  })
+
   it("does not complete a cycle while ready originals still lack receipts", async () => {
     const fake = createFakeArchiveService({
       receipts: ids(2),
