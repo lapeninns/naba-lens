@@ -211,7 +211,8 @@ A new append-only table `public.media_archive_audit_runs` keeps one row per
 invocation, service-role only, with: `id bigint identity`, `run_id uuid`,
 `cycle_id uuid null`, `started_at`, `finished_at`, `outcome` (4.4),
 `checked`, `copied`, `missing`, `error` (same codes as `last_error`),
-`cursor_from`, `cursor_to`. Retention: Audit may prune rows older than 90
+`cursor_from`, `cursor_to`, `bytes_verified bigint` (blob plus manifest bytes
+read back, for tracking real throughput). Retention: Audit may prune rows older than 90
 days. This table is for operators, Verification and Capacity. The monitor
 does not read it.
 
@@ -234,6 +235,21 @@ does not read it.
   (receipts per batch, deadline) are Audit's to set, based on Capacity's
   numbers. Audit exports them as constants. The status endpoint reports the
   interval (4.5) so the monitor can detect a job that stopped running.
+- Agreed budget (from Capacity's model, `docs/archive-capacity.md`): cron
+  every 10 minutes (`scheduleIntervalSeconds` 600), soft budget 480 s (stop
+  taking new receipts, end as `partial`), hard deadline 540 s (`timeout`),
+  route `maxDuration` 600, lease TTL 600 s, verification concurrency 8,
+  checkpoint every 20 receipts, backfill 5 per run. Workers are pipelined
+  (no per-batch barrier); the checkpoint follows the contiguous verified
+  watermark, so the cursor never passes an unverified receipt. Hard deadline
+  stays at least 60 s under `maxDuration`, soft budget at least 30 s under
+  the hard deadline. `media_archive_missing_count` runs once per invocation,
+  not per batch.
+- Cycle throttle: a new cycle starts only when no cycle is open and the
+  previous complete cycle started at least 12 hours ago
+  (`last_complete_cycle_started_at`). This keeps read cost proportional to
+  need while the age of the last complete cycle stays under 26 hours. A
+  failed or timed-out run does not delay the retry of an open cycle.
 - Production schedule changes in `vercel.json` ship only through the PR. No
   agent deploys.
 
@@ -242,7 +258,9 @@ does not read it.
 `completed_cycle` (this run finished a cycle), `partial` (progress saved,
 cycle continues), `locked` (another run holds the lease), `timeout` (deadline
 hit; progress up to the last checkpoint kept), `lease_lost`, `failed`
-(verification or dependency error). `partial` and `locked` are not failures.
+(verification or dependency error), `idle` (no cycle open and the 12-hour
+throttle not yet elapsed; the run still backfills, updates `last_run_at` and
+writes a run row). `partial`, `locked` and `idle` are not failures.
 `timeout` and `failed` increment `consecutive_failures`. A `timeout` that
 still advanced the cursor is recorded as `timeout`, not `partial`.
 
@@ -289,6 +307,7 @@ condition, deduplicated by `condition` until it clears:
 | `unreachable`        | timeout, network error, non-JSON, redirect, oversized body, 5xx without a valid body | critical |
 | `auth_rejected`      | 401 or 403 (credential revoked or wrong)                                      | critical |
 | `monitor_error`      | the checker itself could not run (bad config, missing credential)            | critical |
+| `cycle_slow`         | `lastCycleDurationSeconds` above 72,000 (20 h, 83% of the 24 h target): early sign the schedule is being outgrown | warning, non-paging |
 | `recovered`          | a previously alerted condition cleared                                        | info     |
 
 Alert payload, delivered as JSON to the sink:
