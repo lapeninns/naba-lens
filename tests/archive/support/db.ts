@@ -10,7 +10,11 @@ import {
   type Db,
   type TestIdentity,
 } from "../../support/identities"
-import { archiveOriginal, sha256, type ArchiveSource } from "../../../lib/server/archive/core"
+import {
+  archiveOriginal,
+  sha256,
+  type ArchiveSource,
+} from "../../../lib/server/archive/core"
 import { preparedOriginal, type FakeBucket } from "./fake-bucket"
 import { PROJECT_REF } from "./world"
 
@@ -35,9 +39,13 @@ export function psql(sql: string) {
   assertVerificationStack()
   const dbUrl = process.env.SUPABASE_DB_URL
   if (!dbUrl) throw new Error("SUPABASE_DB_URL is not set")
-  const result = spawnSync("psql", [dbUrl, "-X", "-A", "-t", "-v", "ON_ERROR_STOP=1", "-c", sql], {
-    encoding: "utf8",
-  })
+  const result = spawnSync(
+    "psql",
+    [dbUrl, "-X", "-A", "-t", "-v", "ON_ERROR_STOP=1", "-c", sql],
+    {
+      encoding: "utf8",
+    }
+  )
   return {
     ok: result.status === 0,
     out: result.stdout.trim(),
@@ -92,7 +100,9 @@ export async function resetState(
       last_run_at: new Date(Date.now() - 60_000).toISOString(),
       last_run_outcome: "completed_cycle",
       last_complete_at: new Date(Date.now() - hour).toISOString(),
-      last_complete_cycle_started_at: new Date(Date.now() - 14 * hour).toISOString(),
+      last_complete_cycle_started_at: new Date(
+        Date.now() - 14 * hour
+      ).toISOString(),
       last_cycle_duration_seconds: 3600,
       last_error: null,
       consecutive_failures: 0,
@@ -178,9 +188,14 @@ export function createArchiver(
       .single()
     if (error || !asset || asset.upload_state !== "ready")
       throw new Error("archive_asset_unavailable")
-    if (missingSources.has(assetId)) throw new Error("archive_source_read_failed")
+    if (missingSources.has(assetId))
+      throw new Error("archive_source_read_failed")
     const [uploader, venue] = await Promise.all([
-      service.from("profiles").select("display_name").eq("id", asset.uploader_id).single(),
+      service
+        .from("profiles")
+        .select("display_name")
+        .eq("id", asset.uploader_id)
+        .single(),
       service.from("venues").select("name").eq("id", asset.venue_id).single(),
     ])
     const source: ArchiveSource = {
@@ -206,7 +221,10 @@ export function createArchiver(
           .from("media_archive_receipts")
           .upsert(
             { ...receipt, manifest: receipt.manifest as never },
-            { onConflict: "asset_id,sha256,manifest_sha256", ignoreDuplicates: true }
+            {
+              onConflict: "asset_id,sha256,manifest_sha256",
+              ignoreDuplicates: true,
+            }
           )
         if (recordError) throw new Error("archive_receipt_write_failed")
       },
@@ -228,7 +246,10 @@ export function killableService(service: Db) {
       if (prop !== "from" && prop !== "rpc") return value
       return (...args: unknown[]) => {
         if (dead) return deadBuilder
-        const result = (value as (...a: unknown[]) => unknown).apply(target, args)
+        const result = (value as (...a: unknown[]) => unknown).apply(
+          target,
+          args
+        )
         return wrapBuilder(result, () => dead)
       }
     },
@@ -243,10 +264,16 @@ export function killableService(service: Db) {
             onFulfilled?: (v: unknown) => unknown,
             onRejected?: (e: unknown) => unknown
           ) =>
-            (value as (...a: unknown[]) => Promise<unknown>)
-              .call(target, onFulfilled && ((v) => (isDead() ? never() : onFulfilled(v))), onRejected)
+            (value as (...a: unknown[]) => Promise<unknown>).call(
+              target,
+              onFulfilled && ((v) => (isDead() ? never() : onFulfilled(v))),
+              onRejected
+            )
         return (...args: unknown[]) => {
-          const out = (value as (...a: unknown[]) => unknown).apply(target, args)
+          const out = (value as (...a: unknown[]) => unknown).apply(
+            target,
+            args
+          )
           return out && typeof out === "object" ? wrapBuilder(out, isDead) : out
         }
       },

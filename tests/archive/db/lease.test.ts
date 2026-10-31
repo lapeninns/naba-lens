@@ -27,9 +27,13 @@ const acquire = (name: string, holder: string, ttl = "30 seconds") =>
     p_ttl: ttl,
   })
 const release = (name: string, holder: string) =>
-  fx.service.rpc("release_maintenance_lease", { p_name: name, p_holder: holder })
+  fx.service.rpc("release_maintenance_lease", {
+    p_name: name,
+    p_holder: holder,
+  })
 const holderOf = (name: string) =>
-  psql(`select holder from private.maintenance_leases where name = '${name}'`).out
+  psql(`select holder from private.maintenance_leases where name = '${name}'`)
+    .out
 
 describe("maintenance lease on the real database", () => {
   it("25 concurrent acquirers: exactly one wins", async () => {
