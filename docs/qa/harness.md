@@ -8,7 +8,8 @@ who may start stacks and which paths each agent owns are in
 
 ## 1. Prerequisites
 
-Node 24.16.0, pnpm, Supabase CLI 2.117.0, Docker with a running daemon, and the
+Node 24.16.0, pnpm, Supabase CLI 2.117.0, Docker with a running daemon, `ffmpeg`
+and `psql` on PATH, and the
 Playwright browser for the engine a journey uses:
 
 ```sh

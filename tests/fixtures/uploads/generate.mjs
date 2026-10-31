@@ -1,14 +1,22 @@
 // Generates the synthetic upload-recovery fixtures into a directory (default: a
 // temp dir) and prints a JSON manifest. Synthetic pixels only; no real media.
-// Requires sharp (dependency), ffmpeg (libx264, libx265, libvpx-vp9) and, for
-// HEIC, macOS `sips`. Files are cached by name, so re-runs are cheap.
+// Requires sharp (dependency) and ffmpeg (libx264, libx265, libvpx-vp9). HEIC
+// comes from macOS `sips`, or from the committed tests/fixtures/media sample
+// where `sips` does not exist. Files are cached by name, so re-runs are cheap.
 //
 //   node tests/fixtures/uploads/generate.mjs [outdir] [--tus-mib N] [--big]
 //
 // --big also writes `big-200mib.mp4`, a valid H.264 MP4 of exactly 200 MiB
 // (209,715,200 bytes: the product video limit) for the storage-limit check.
 import { execFileSync } from "node:child_process"
-import { existsSync, mkdirSync, rmSync, statSync, writeFileSync } from "node:fs"
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs"
 import { open, readFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
@@ -93,7 +101,11 @@ else {
     )
     heic = path("photo.heic")
   } catch {
-    heic = null // no sips (not macOS): callers fall back to tests/fixtures/media
+    copyFileSync(
+      new URL("../media/synthetic-12mp.heic", import.meta.url),
+      path("photo.heic")
+    )
+    heic = path("photo.heic")
   }
 }
 

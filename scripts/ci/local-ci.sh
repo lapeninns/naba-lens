@@ -10,6 +10,9 @@ done
 if [[ $(pnpm --version) != 10.30.1 ]]; then
   echo 'Requires pnpm 10.30.1'; exit 1
 fi
+for tool in ffmpeg psql; do
+  command -v "$tool" >/dev/null || { echo "Requires $tool on PATH (see docs/ci.md)"; exit 1; }
+done
 work=$(mktemp -d "${TMPDIR:-/tmp}/nabalens-ci.XXXXXX")
 logdir="${CI_LOG_DIR:-$work/logs}"
 mkdir -p "$logdir"

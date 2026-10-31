@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process"
 import { createHash } from "node:crypto"
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs"
+import { copyFileSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -48,13 +48,26 @@ export async function syntheticJpeg(name: string): Promise<SourceFile> {
   return source(path)
 }
 
-/** HEIC made with macOS `sips` from a synthetic JPEG (a real HEIF container). */
+/**
+ * HEIC made with macOS `sips` from a synthetic JPEG (a real HEIF container);
+ * elsewhere the committed synthetic HEIC sample, since Linux has no HEVC
+ * encoder in its stock packages.
+ */
 export async function syntheticHeic(name: string): Promise<SourceFile> {
-  const jpeg = await syntheticJpeg(name.replace(/\.heic$/i, "-src.jpg"))
   const path = join(dir, name)
-  execFileSync("sips", ["-s", "format", "heic", jpeg.path, "--out", path], {
-    stdio: "ignore",
-  })
+  if (process.platform === "darwin") {
+    const jpeg = await syntheticJpeg(name.replace(/\.heic$/i, "-src.jpg"))
+    execFileSync("sips", ["-s", "format", "heic", jpeg.path, "--out", path], {
+      stdio: "ignore",
+    })
+  } else {
+    copyFileSync(
+      fileURLToPath(
+        new URL("../../fixtures/media/synthetic-12mp.heic", import.meta.url)
+      ),
+      path
+    )
+  }
   return source(path)
 }
 

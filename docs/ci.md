@@ -12,6 +12,13 @@ The lifecycle suite also needs `psql` on PATH (on macOS, install PostgreSQL clie
 tools separately). Hosted Ubuntu runners provide PostgreSQL client tools; ensure
 they remain available if changing the runner image.
 
+The browser suites generate their video fixtures with `ffmpeg` (libx264, libx265
+and libvpx-vp9), which hosted Ubuntu runners do not include: the workflow installs
+it with apt, and locally use `brew install ffmpeg` or `apt-get install ffmpeg`.
+`local-ci.sh` stops at once with a clear message if `ffmpeg` or `psql` is missing.
+HEIC fixtures come from macOS `sips`; on Linux the committed sample in
+`tests/fixtures/media` is used instead.
+
 ```sh
 pnpm install --frozen-lockfile
 pnpm exec playwright install chromium
