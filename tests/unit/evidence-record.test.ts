@@ -55,6 +55,13 @@ describe("evidence record", () => {
       "fail: defect reproduces on this commit"
     )
     expect(describeOutcome("defect", "unavailable")).toBe("unavailable")
+    expect(describeOutcome("known-gap", "pass")).toBe(
+      "pass: does not reproduce on this commit"
+    )
+    expect(describeOutcome("flaky", "pass")).toBe(
+      "pass: not reproduced on this commit; not shown resolved under load"
+    )
+    expect(describeOutcome("flaky", "pass")).not.toMatch(/resolved on/)
     expect(describeOutcome("matrix", "pass")).toBe("pass")
     expect(describeOutcome("matrix", null)).toBe("not run")
   })

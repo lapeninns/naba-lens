@@ -49,6 +49,16 @@ export function describeOutcome(kind, outcome) {
       ? "fail: defect reproduces on this commit"
       : "pass: defect does not reproduce on this commit"
   }
+  if (kind === "known-gap") {
+    return outcome === "fail"
+      ? "fail: still reproduces on this commit"
+      : "pass: does not reproduce on this commit"
+  }
+  if (kind === "flaky") {
+    return outcome === "fail"
+      ? "fail: reproduced on this commit"
+      : "pass: not reproduced on this commit; not shown resolved under load"
+  }
   return outcome
 }
 
@@ -136,8 +146,8 @@ export function renderRecord({ summary, results, catalogue, env }) {
     "",
     "`unavailable` is not a pass. An id with several journeys takes the worst result. `not run` means no selected journey declares the id on this run.",
     "",
-    "| id | kind | Result on this commit | Journeys | Catalogue status |",
-    "| --- | --- | --- | --- | --- |"
+    "| id | kind | Result on this commit | Journeys | Catalogue status | Note |",
+    "| --- | --- | --- | --- | --- | --- |"
   )
   for (const entry of catalogue.entries) {
     const ran = entry.journeys
@@ -147,7 +157,7 @@ export function renderRecord({ summary, results, catalogue, env }) {
     const journeys =
       ran.map((r) => `\`${r.journey}\` ${r.result}`).join(", ") || "-"
     push(
-      `| \`${entry.id}\` | ${entry.kind} | ${describeEntry(entry, outcome)} | ${journeys} | ${entry.status} |`
+      `| \`${entry.id}\` | ${entry.kind} | ${describeEntry(entry, outcome)} | ${journeys} | ${entry.status} | ${cell(entry.note)} |`
     )
   }
   const known = new Set(catalogue.entries.flatMap((e) => e.journeys))
@@ -176,7 +186,9 @@ export function renderRecord({ summary, results, catalogue, env }) {
         "defect"
       const verdict =
         r.result === "pass"
-          ? "not reproduced: resolved on this commit"
+          ? kind === "flaky"
+            ? "not reproduced in this run; not shown resolved under load"
+            : "not reproduced: resolved on this commit"
           : r.result === "fail"
             ? kind === "observation"
               ? "observation reproduced (not a defect)"

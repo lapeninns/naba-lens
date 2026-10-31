@@ -104,14 +104,14 @@ describe("acceptance id catalogue", () => {
     )
   })
 
-  it("rejects a historical.id that is not a defect or observation row", () => {
+  it("rejects a historical.id that is not a historical row", () => {
     const rows = catalogue([
       "| `MENUS-QA-01` | matrix | docs/a.md:1 | `menus.a` | covered | n |",
     ])
     expect(
       checkCoverage(rows, [journey("menus.a", ["MENUS-QA-01"], "MENUS-QA-01")])
     ).toEqual([
-      "menus.a: historical.id MENUS-QA-01 must be a defect or observation row in docs/qa/acceptance-ids.md",
+      "menus.a: historical.id MENUS-QA-01 must be a historical row (defect, observation, known-gap or flaky) in docs/qa/acceptance-ids.md",
     ])
   })
 

@@ -15,19 +15,21 @@ journey runs on a named commit and are kept under `docs/qa/evidence/`
 | Column     | Meaning                                                                                                                  |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------ |
 | `id`       | The acceptance id, as declared in a journey's `scenarios`                                                                |
-| kind       | `matrix` (menus QA acceptance row), `smoke`, `defect`, `observation`, `media` or `flaky` (see section 2)                    |
+| kind       | `matrix` (menus QA acceptance row), `smoke`, `defect`, `observation`, `known-gap`, `media` or `flaky` (see section 2)                    |
 | source     | File and line where the original statement lives, at the time of writing                                                 |
 | journeys   | Journey ids that declare the id. `-` when none                                                                           |
 | status     | `covered`: at least one journey declares it. `gap`: the behaviour is known and no journey covers it yet. `not covered`: out of reach of a journey, with the reason in the note |
 
 Kinds:
 
-- `defect` and `observation` are **historical** ids. A historical id must be
+- `defect`, `observation`, `known-gap` and `flaky` are **historical** ids. A historical id must be
   `covered`. A defect journey asserts the correct behaviour, so `fail` with
   `reproducedOnHead: true` means the defect reproduces on that commit.
 - An **observation** is not a defect (the QA report calls O1 to O5 "not defects; the
   lead's call"). A `fail` on an observation journey means **the observation
   reproduced**. Records say that, and never call it a bug.
+- `known-gap` is a reported gap whose journey asserts the correct behaviour (GAP-5b, GAP-19).
+- `flaky` is a test that failed under load. A pass is read as "not reproduced on this commit", never as "fixed under load".
 - `matrix` ids are the rows of section 3 of `docs/qa/menus-qa-report.md`. The
   report's own verdicts (14 of 15 passed) are historical and are not repeated here.
 
@@ -73,26 +75,27 @@ Kinds:
 
 ### 2.3 Media upload and recovery (`docs/acceptance.md`)
 
-Slugs are proposed by Media and confirmed here. The `source` column names the `GAP-n` item and the ledger R-number each id
-relates to; neither is an id itself.
-Until a Media journey declares an id, its row is `gap`.
+The `source` column names the `GAP-n` item and the ledger R-number each id
+relates to; neither is an id itself. `known-gap` ids and the `flaky` ids are
+historical: their journeys assert the correct behaviour (section 1).
 
 | id | kind | source | journeys | status | note |
 | --- | --- | --- | --- | --- | --- |
-| `MEDIA-INTERRUPTED-RESUME` | media | docs/acceptance.md:250 (GAP-4; R8) | - | gap | GAP-4 part 1: a transfer to the local stack's resumable endpoint is interrupted and resumes from the server offset. Media has not declared a journey yet |
-| `MEDIA-OFFLINE-RETRY` | media | docs/acceptance.md:250 (GAP-4; R8) | - | gap | GAP-4 part 2: going offline and back online resumes the same asset. Media has not declared a journey yet |
-| `MEDIA-RELOAD-RESUME` | media | docs/acceptance.md:250 (GAP-4; R8) | - | gap | GAP-4 part 2: reload during an upload, then choosing the file again resumes the same asset. Media has not declared a journey yet |
-| `MEDIA-REOPEN-STATES` | media | docs/acceptance.md:250 (GAP-4; R8) | - | gap | GAP-4 parts 3 and 4: after a reload the portfolio tells completed, incomplete and failed files apart, and an unrecoverable case shows the required action. Media has not declared a journey yet |
-| `MEDIA-PARTIAL-BATCH` | media | docs/acceptance.md:267 (GAP-5; R8) | - | gap | GAP-5: a batch with a corrupt file, per-file failure, and a retry that leaves exactly one row per file. Media has not declared a journey yet |
-| `MEDIA-STUCK-PROCESSING` | media | docs/acceptance.md:280 (GAP-5b; R15) | - | gap | GAP-5b: an asset left in `processing` past the window is failed or cleaned. Media has not declared a journey yet |
-| `MEDIA-LEAVE-WARNING` | media | docs/acceptance.md:384 (GAP-19; spec section 5, no R-number) | - | gap | GAP-19: a leave warning appears during an active upload and not when idle. Media has not declared a journey yet |
-| `MEDIA-RELOAD-METADATA` | media | docs/acceptance.md:118 (section 3 Image upload; R10) | - | gap | The image-upload row of section 3: the small gap in what is asserted after a reload. Media has not declared a journey yet |
-| `MEDIA-SLICE-UPLOAD-FLAKY` | flaky | docs/acceptance.md:58 (section 1.1; R6, R12, R13) | - | gap | The slice upload e2e that failed only on environment errors in section 1.1. Reported as a repeat tally, not a single result. Media has not declared a journey yet |
-| `MEDIA-SLICE-PROFILE-FLAKY` | flaky | docs/acceptance.md:59 (section 1.1; R4) | - | gap | The slice profile e2e, same treatment as above. Media has not declared a journey yet |
+| `MEDIA-INTERRUPTED-RESUME` | media | docs/acceptance.md:250 (GAP-4; R8) | `media.tus-interrupted-resume` | covered | A video upload interrupted mid-transfer resumes from the server offset on the real Supabase resumable endpoint |
+| `MEDIA-OFFLINE-RETRY` | media | docs/acceptance.md:250 (GAP-4; R8) | `media.tus-offline-retry` | covered | Offline, or an outage that outlasts the retry schedule, shows a per-file Retry that resumes the same asset. Finding, not a defect: when the browser itself is offline the upload client fails at once and recovers through Retry. Its 0, 3, 5, 10, 20 s schedule applies only while the browser stays online |
+| `MEDIA-RELOAD-RESUME` | media | docs/acceptance.md:250 (GAP-4; R8) | `media.reload-resume` | covered | After a reload mid-transfer, choosing the file again resumes the same asset from the stored offset |
+| `MEDIA-REOPEN-STATES` | media | docs/acceptance.md:250 (GAP-4; R8) | `media.reopen-states`, `media.removed-reservation` | covered | After a reload the portfolio tells completed, incomplete and failed files apart (reopen-states). A removed reservation shows the action to take and Retry uploads a new asset (removed-reservation) |
+| `MEDIA-PARTIAL-BATCH` | media | docs/acceptance.md:267 (GAP-5; R8) | `media.partial-batch` | covered | A partial batch keeps the good files, fails the bad one with a reason, and a retry leaves one row per file |
+| `MEDIA-STUCK-PROCESSING` | known-gap | docs/acceptance.md:280 (GAP-5b; R15) | `media.stuck-processing` | covered | Covers the `fail_stale_media_processing` RPC (30 minute window, called with the service client) and the recovery in the UI. It does **not** cover the scheduler path (`runMediaCleanup`, `/api/internal/cleanup`), so R22 stays a gap |
+| `MEDIA-LEAVE-WARNING` | known-gap | docs/acceptance.md:384 (GAP-19; spec section 5, no R-number) | `media.leave-warning` | covered | Leaving during an active upload prompts (navigation and tab close); an idle page does not |
+| `MEDIA-RELOAD-METADATA` | media | docs/acceptance.md:118 (section 3 Image upload; R10) | `media.reload-metadata` | covered | After a reload the staff portfolio and the admin library show thumbnail, upload date, contributor and venue |
+| `MEDIA-SLICE-UPLOAD-FLAKY` | flaky | docs/acceptance.md:58 (section 1.1; R6, R12, R13) | `media.slice-staff-upload`, `media.slice-staff-upload-mobile` | covered | Caveat: the original 504s and the "2 uploaded" timeout happened under load. Media repeated the spec 11 times per project on a quiet stack, all passing, but the stack lock kept the load away. Read a pass as "not reproduced on this commit on a quiet stack; not shown resolved under load" |
+| `MEDIA-SLICE-PROFILE-FLAKY` | flaky | docs/acceptance.md:59 (section 1.1; R4) | `media.slice-profile-photo`, `media.slice-profile-photo-mobile` | covered | Same caveat as `MEDIA-SLICE-UPLOAD-FLAKY`: 11 passing runs per project on a quiet stack; not shown resolved under load |
 
 Items of `docs/acceptance.md` that WS1 does not touch (not ids, not covered by any
 journey): GAP-1, GAP-2, GAP-3, GAP-6, GAP-7, GAP-8, GAP-11, GAP-12, GAP-13,
-GAP-16, GAP-17, GAP-18, and the blocked items R21 and R22. They stay gaps.
+GAP-16, GAP-17, GAP-18, and the blocked items R21 and R22. R22 includes the
+cleanup scheduler path, which `MEDIA-STUCK-PROCESSING` does not reach. They stay gaps.
 
 ## 3. The coverage check
 
@@ -105,7 +108,7 @@ when:
 - a journey declares an id whose row does not list that journey;
 - a `covered` row has no journey, or a `gap` or `not covered` row has one;
 - a `gap` or `not covered` row has an empty note (the reason is required);
-- a `defect` or `observation` id has no journey, or none of its journeys
+- a historical id (`defect`, `observation`, `known-gap`, `flaky`) has no journey, or none of its journeys
   carries `historical.id` equal to that id.
 
 Adding a journey means adding or editing its rows here in the same change.

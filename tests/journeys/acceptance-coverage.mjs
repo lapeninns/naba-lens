@@ -16,11 +16,12 @@ export const KINDS = [
   "matrix",
   "defect",
   "observation",
+  "known-gap",
   "media",
   "flaky",
 ]
 export const STATUSES = ["covered", "gap", "not covered"]
-const HISTORICAL = ["defect", "observation"]
+const HISTORICAL = ["defect", "observation", "known-gap", "flaky"]
 
 const CATALOGUE_PATH = "docs/qa/acceptance-ids.md"
 const JOURNEY_IN_CELL = /`([a-z][a-z0-9-]*\.[a-z0-9-]+)`/g
@@ -99,7 +100,7 @@ export function checkCoverage(catalogue, journeys) {
       const { id } = journey.historical
       if (!HISTORICAL.includes(byId.get(id)?.kind)) {
         problems.push(
-          `${journey.id}: historical.id ${id} must be a defect or observation row in ${CATALOGUE_PATH}`
+          `${journey.id}: historical.id ${id} must be a historical row (defect, observation, known-gap or flaky) in ${CATALOGUE_PATH}`
         )
       }
       if (!journey.scenarios.includes(id)) {
