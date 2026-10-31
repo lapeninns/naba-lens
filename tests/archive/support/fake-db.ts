@@ -337,10 +337,15 @@ type QueryState = {
   patch?: Row
   ignoreDuplicates?: boolean
   wantRows: boolean
+  count?: boolean
+  head?: boolean
   single: "one" | "maybe" | null
 }
 
 function finish(rows: Row[], state: QueryState) {
+  if (state.head)
+    return { data: null, count: state.count ? rows.length : null, error: null }
+  const total = rows.length
   let out = rows.map((row) => ({ ...row }))
   for (const { column, ascending } of [...state.orderBy].reverse())
     out.sort((a, b) => {
@@ -373,7 +378,7 @@ function finish(rows: Row[], state: QueryState) {
       },
     }
   }
-  return { data: out, error: null }
+  return { data: out, count: state.count ? total : null, error: null }
 }
 
 class Query implements PromiseLike<unknown> {
@@ -391,9 +396,11 @@ class Query implements PromiseLike<unknown> {
     private context: ClientContext
   ) {}
 
-  select(columns = "*") {
+  select(columns = "*", options: { count?: string; head?: boolean } = {}) {
     if (this.state.mode !== "select") this.state.wantRows = true
     this.state.columns = columns
+    this.state.count = options.count === "exact"
+    this.state.head = options.head
     return this
   }
   insert(rows: Row | Row[]) {

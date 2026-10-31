@@ -152,10 +152,10 @@ export function runChecker(
     extraArgs?: string[]
   } = {}
 ): CheckerRun {
-  const env: NodeJS.ProcessEnv = {
+  const env = {
     PATH: process.env.PATH,
     HOME: process.env.HOME,
-  }
+  } as NodeJS.ProcessEnv
   if (options.secret !== null)
     env.MEDIA_ARCHIVE_MONITOR_SECRET = options.secret ?? E2E_MONITOR_SECRET
   const result = spawnSync(

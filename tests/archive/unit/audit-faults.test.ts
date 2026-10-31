@@ -69,7 +69,7 @@ suite("store failures: error, corruption, missing object (§4.2, §4.4)", () => 
             ? { error: "SECRET_PROVIDER_DETAIL_xyz" }
             : {}),
         })
-        const options = { batchSize: 2, concurrency: 2 }
+        const options = { checkpointEvery: 2, concurrency: 2 }
 
         for (const expected of [1, 2, 3]) {
           const report = await runAudit(A(), world, options)
@@ -136,7 +136,10 @@ suite("store failures: error, corruption, missing object (§4.2, §4.4)", () => 
         kind: "latency",
         ms: (id * 379) % 900,
       })
-    const report = await runAudit(A(), world, { batchSize: 7, concurrency: 4 })
+    const report = await runAudit(A(), world, {
+      checkpointEvery: 7,
+      concurrency: 4,
+    })
     expect(report).toMatchObject({ outcome: "completed_cycle", checked: 20 })
     expect(verifiedReceiptIds(world)).toHaveLength(20)
     const cursors = world.db.writeLog
@@ -180,7 +183,10 @@ suite("hangs and timeouts (§4.3, §4.4)", () => {
       kind: "hang",
     })
     const started = world.clock.now()
-    const report = await runAudit(A(), world, { batchSize: 2, concurrency: 1 })
+    const report = await runAudit(A(), world, {
+      checkpointEvery: 2,
+      concurrency: 1,
+    })
     // The cursor advanced, yet the outcome stays `timeout`, not `partial`.
     expect(report).toMatchObject({
       outcome: "timeout",
@@ -218,7 +224,10 @@ suite("hangs and timeouts (§4.3, §4.4)", () => {
       ms: 400_000,
     })
     const started = world.clock.now()
-    const report = await runAudit(A(), world, { batchSize: 3, concurrency: 3 })
+    const report = await runAudit(A(), world, {
+      checkpointEvery: 3,
+      concurrency: 3,
+    })
     expect(report).toMatchObject({
       outcome: "timeout",
       error: "archive_audit_timeout",
@@ -245,13 +254,16 @@ suite("hangs and timeouts (§4.3, §4.4)", () => {
       kind: "hang",
     })
     for (const expected of [1, 2]) {
-      await runAudit(A(), world, { batchSize: 2, concurrency: 1 })
+      await runAudit(A(), world, { checkpointEvery: 2, concurrency: 1 })
       expect(world.state().consecutive_failures).toBe(expected)
       // Let the previous run's lease lapse in simulated time.
       await world.clock.advance(60_000)
     }
     hang()
-    const report = await runAudit(A(), world, { batchSize: 2, concurrency: 1 })
+    const report = await runAudit(A(), world, {
+      checkpointEvery: 2,
+      concurrency: 1,
+    })
     expect(report.outcome).toBe("completed_cycle")
     expect(world.state()).toMatchObject({
       consecutive_failures: 0,
@@ -282,7 +294,7 @@ suite("hangs and timeouts (§4.3, §4.4)", () => {
     // in-flight receipt still finishing inside the 540 s hard deadline.
     world.bucket.inject({ op: "verifyOriginal", kind: "latency", ms: 20_000 })
     const report = await runAudit(A(), world, {
-      batchSize: 5,
+      checkpointEvery: 5,
       concurrency: 1,
       softBudgetMs: A().ARCHIVE_AUDIT_SOFT_BUDGET_MS,
     })
@@ -301,14 +313,20 @@ suite("database failures: checkpoint, completion, reads (§4.2, §4.4)", () => {
       times: 1,
       error: { code: "57014", message: "boom" },
     })
-    const report = await runAudit(A(), world, { batchSize: 2, concurrency: 1 })
+    const report = await runAudit(A(), world, {
+      checkpointEvery: 2,
+      concurrency: 1,
+    })
     expect(report).toMatchObject({
       outcome: "failed",
       error: "archive_checkpoint_failed",
     })
     expect(world.state().cursor_id).toBe(2)
     expect(world.state().last_complete_at).toBeNull()
-    const next = await runAudit(A(), world, { batchSize: 2, concurrency: 1 })
+    const next = await runAudit(A(), world, {
+      checkpointEvery: 2,
+      concurrency: 1,
+    })
     expect(next).toMatchObject({ outcome: "completed_cycle", cursorFrom: 2 })
   })
 
@@ -383,7 +401,7 @@ suite("database failures: checkpoint, completion, reads (§4.2, §4.4)", () => {
       ignoreSignal: true,
       ms: 300_000,
     })
-    await runAudit(A(), world, { batchSize: 2, concurrency: 2 })
+    await runAudit(A(), world, { checkpointEvery: 2, concurrency: 2 })
     await world.clock.advance(400_000)
     expect(
       world.db.writeLog.filter((entry) => completionWrite(entry.op))

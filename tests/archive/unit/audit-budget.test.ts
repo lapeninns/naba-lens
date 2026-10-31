@@ -38,7 +38,7 @@ suite("agreed budget constants (§4.3)", () => {
     expect(A().ARCHIVE_AUDIT_DEADLINE_MS).toBe(540_000)
     expect(A().ARCHIVE_AUDIT_LEASE_TTL_SECONDS).toBe(600)
     expect(A().ARCHIVE_AUDIT_CONCURRENCY).toBe(8)
-    expect(A().ARCHIVE_AUDIT_BATCH_SIZE).toBe(20)
+    expect(A().ARCHIVE_AUDIT_CHECKPOINT_EVERY).toBe(20)
     expect(A().ARCHIVE_AUDIT_BACKFILL_LIMIT).toBe(5)
     expect(A().ARCHIVE_MAX_AGE_MS).toBe(26 * HOUR)
   })

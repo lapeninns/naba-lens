@@ -86,7 +86,7 @@ suite("lease: acquire, renew, release (§4.3)", () => {
   it("renews (same holder) at least once per batch and before each checkpoint", async () => {
     const { world } = ctx
     world.seedReceipts(12)
-    await runAudit(A(), world, { batchSize: 3, concurrency: 1 })
+    await runAudit(A(), world, { checkpointEvery: 3, concurrency: 1 })
     const calls = acquires()
     expect(new Set(calls.map((call) => call.args.p_holder)).size).toBe(1)
     // 1 acquire + >= 1 renewal for each of the 4 batches.
@@ -112,7 +112,7 @@ suite("lease: acquire, renew, release (§4.3)", () => {
     world.seedReceipts(6)
     world.bucket.inject({ op: "verifyOriginal", kind: "latency", ms: 12_000 })
     const report = await runAudit(A(), world, {
-      batchSize: 2,
+      checkpointEvery: 2,
       concurrency: 1,
       leaseTtlSeconds: 30,
       deadlineMs: 600_000,
@@ -128,7 +128,7 @@ suite("overlapping runs (§4.3)", () => {
     const { world } = ctx
     world.seedReceipts(6)
     world.bucket.inject({ op: "verifyOriginal", kind: "latency", ms: 5_000 })
-    const first = startAudit(A(), world, { batchSize: 2, concurrency: 1 })
+    const first = startAudit(A(), world, { checkpointEvery: 2, concurrency: 1 })
     await world.clock.advance(1_000)
     const before = world.state()
     const writes = world.db.writeLog.length
@@ -217,7 +217,10 @@ suite("lease loss (§4.3, §4.4)", () => {
         world.db.stealLease("00000000-0000-4000-8000-00000000dead")
       },
     })
-    const report = await runAudit(A(), world, { batchSize: 3, concurrency: 1 })
+    const report = await runAudit(A(), world, {
+      checkpointEvery: 3,
+      concurrency: 1,
+    })
     expect(report).toMatchObject({
       outcome: "lease_lost",
       complete: false,
@@ -260,7 +263,7 @@ suite("lease loss (§4.3, §4.4)", () => {
     world.seedReceipts(6)
     let calls = 0
     const report = await runAudit(A(), world, {
-      batchSize: 2,
+      checkpointEvery: 2,
       lease: {
         acquire: async () => ++calls <= 2,
         release: async () => undefined,
@@ -275,7 +278,7 @@ suite("lease loss (§4.3, §4.4)", () => {
     const { world } = ctx
     world.seedReceipts(6)
     const options = {
-      batchSize: 3,
+      checkpointEvery: 3,
       concurrency: 3,
       leaseTtlSeconds: 30,
       deadlineMs: 600_000,
@@ -357,7 +360,7 @@ suite("crash mid-batch: resume from checkpoint (§4.3)", () => {
       })
       const doomed = startAudit(A(), world, {
         service: victim.client,
-        batchSize: 3,
+        checkpointEvery: 3,
         concurrency: 1,
         leaseTtlSeconds: 60,
       })
@@ -375,7 +378,7 @@ suite("crash mid-batch: resume from checkpoint (§4.3)", () => {
 
       // Until the lease expires, a new invocation is locked out.
       const blocked = await runAudit(A(), world, {
-        batchSize: 3,
+        checkpointEvery: 3,
         leaseTtlSeconds: 60,
       })
       expect(blocked.outcome).toBe("locked")
@@ -384,7 +387,7 @@ suite("crash mid-batch: resume from checkpoint (§4.3)", () => {
       await world.clock.advance(61_000)
       world.bucket.calls.length = 0
       const resumed = await runAudit(A(), world, {
-        batchSize: 3,
+        checkpointEvery: 3,
         concurrency: 1,
       })
       expect(resumed).toMatchObject({

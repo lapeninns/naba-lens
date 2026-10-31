@@ -36,7 +36,10 @@ suite("audit cycle: completion, partial runs, resume (§4.2, §4.4)", () => {
     world.seedReceipts(12)
     const started = world.clock.now()
     world.bucket.inject({ op: "verifyOriginal", kind: "latency", ms: 500 })
-    const report = await runAudit(A(), world, { batchSize: 5, concurrency: 1 })
+    const report = await runAudit(A(), world, {
+      checkpointEvery: 5,
+      concurrency: 1,
+    })
     const finished = world.clock.now()
 
     expect(report).toMatchObject({
@@ -90,7 +93,7 @@ suite("audit cycle: completion, partial runs, resume (§4.2, §4.4)", () => {
     world.seedReceipts(12)
     world.bucket.inject({ op: "verifyOriginal", kind: "latency", ms: 600 })
     const report = await runAudit(A(), world, {
-      batchSize: 2,
+      checkpointEvery: 2,
       concurrency: 1,
       softBudgetMs: 1_000,
     })
@@ -117,11 +120,29 @@ suite("audit cycle: completion, partial runs, resume (§4.2, §4.4)", () => {
     expect(state.cycle_started_at).not.toBeNull()
   })
 
+  it("[4.2/4.3 no false completion] a soft budget never moves the cursor over receipts that were fetched but not verified", async () => {
+    const { world } = ctx
+    world.seedReceipts(12)
+    world.bucket.inject({ op: "verifyOriginal", kind: "latency", ms: 600 })
+    const report = await runAudit(A(), world, {
+      checkpointEvery: 2,
+      concurrency: 1,
+      softBudgetMs: 1_000,
+    })
+    const verified = verifiedReceiptIds(world)
+    expect(verified.length).toBeLessThan(12)
+    // Whatever the run claims, the cursor and any completion must be backed by reads.
+    expect(report.outcome).toBe("partial")
+    expect(report.cursorTo).toBe(verified.length)
+    expect(world.state().last_complete_at).toBeNull()
+    expect(world.state().cycle_id).not.toBeNull()
+  })
+
   it("[4.3 resume] a multi-invocation cycle keeps one cycle_id, moves the cursor forward and verifies each receipt exactly once", async () => {
     const { world } = ctx
     world.seedReceipts(12)
     world.bucket.inject({ op: "verifyOriginal", kind: "latency", ms: 600 })
-    const options = { batchSize: 2, concurrency: 1, softBudgetMs: 1_000 }
+    const options = { checkpointEvery: 2, concurrency: 1, softBudgetMs: 1_000 }
     const cycleIds = new Set<unknown>()
     const cursors: number[] = []
     let reports = 0
@@ -153,7 +174,7 @@ suite("audit cycle: completion, partial runs, resume (§4.2, §4.4)", () => {
     const { world } = ctx
     world.seedReceipts(6)
     world.bucket.inject({ op: "verifyOriginal", kind: "latency", ms: 600 })
-    const options = { batchSize: 2, concurrency: 1, softBudgetMs: 1_000 }
+    const options = { checkpointEvery: 2, concurrency: 1, softBudgetMs: 1_000 }
     const first = await runAudit(A(), world, options)
     expect(first.outcome).toBe("partial")
     const target = world.state().cycle_target_id
@@ -202,8 +223,15 @@ suite("audit cycle: completion, partial runs, resume (§4.2, §4.4)", () => {
     const { world } = ctx
     world.seedReceipts(5)
     // Conflicting upserts consume identity values: ids 3 and 4 never exist.
-    world.db.rows("media_archive_receipts").splice(2, 2)
-    const report = await runAudit(A(), world, { batchSize: 2 })
+    const gone = world.db.rows("media_archive_receipts").splice(2, 2)
+    for (const row of gone) {
+      const assets = world.db.rows("media_assets")
+      assets.splice(
+        assets.findIndex((asset) => asset.id === row.asset_id),
+        1
+      )
+    }
+    const report = await runAudit(A(), world, { checkpointEvery: 2 })
     expect(report).toMatchObject({ outcome: "completed_cycle", checked: 3 })
     expect(verifiedReceiptIds(world)).toEqual([1, 2, 5])
   })
@@ -264,7 +292,7 @@ suite("audit cycle: completion, partial runs, resume (§4.2, §4.4)", () => {
     world.bucket.inject({ op: "verifyOriginal", kind: "latency", ms: 600 })
     for (let i = 0; i < 2; i++) {
       const report = await runAudit(A(), world, {
-        batchSize: 2,
+        checkpointEvery: 2,
         concurrency: 1,
         softBudgetMs: 1_000,
       })
@@ -283,14 +311,17 @@ suite("audit cycle: completion, partial runs, resume (§4.2, §4.4)", () => {
     })
     for (const expected of [1, 2, 3]) {
       const report = await runAudit(A(), world, {
-        batchSize: 2,
+        checkpointEvery: 2,
         concurrency: 1,
       })
       expect(report.outcome).toBe("failed")
       expect(world.state().consecutive_failures).toBe(expected)
     }
     heal()
-    const ok = await runAudit(A(), world, { batchSize: 2, concurrency: 1 })
+    const ok = await runAudit(A(), world, {
+      checkpointEvery: 2,
+      concurrency: 1,
+    })
     expect(ok.outcome).toBe("completed_cycle")
     expect(world.state()).toMatchObject({
       consecutive_failures: 0,
@@ -320,12 +351,12 @@ suite("audit runs table: one row per invocation (§4.2)", () => {
       key: bad,
       kind: "error",
     })
-    await runAudit(A(), world, { batchSize: 2, concurrency: 1 })
+    await runAudit(A(), world, { checkpointEvery: 2, concurrency: 1 })
     fault()
     world.db.holdLease("other-holder")
     await runAudit(A(), world)
     world.db.leases.clear()
-    await runAudit(A(), world, { batchSize: 2, concurrency: 1 })
+    await runAudit(A(), world, { checkpointEvery: 2, concurrency: 1 })
 
     const runs = world.runs()
     expect(runs.map((r) => r.outcome)).toEqual([

@@ -13,6 +13,7 @@ export type AuditReport = {
   checked: number
   copied: number
   missing: number | null
+  bytesVerified: number
   error: string | null
   cursorFrom: number | null
   cursorTo: number | null
@@ -33,7 +34,9 @@ export type AuditOptions = {
   signal?: AbortSignal
   deadlineMs?: number
   softBudgetMs?: number
-  batchSize?: number
+  checkpointEvery?: number
+  fetchSize?: number
+  cycleMinSpacingMs?: number
   concurrency?: number
   backfillLimit?: number
   leaseTtlSeconds?: number
@@ -51,12 +54,14 @@ export type AuditModule = {
   ): Promise<Record<string, unknown>>
   ARCHIVE_MAX_AGE_MS: number
   ARCHIVE_AUDIT_INTERVAL_SECONDS: number
-  ARCHIVE_AUDIT_BATCH_SIZE: number
+  ARCHIVE_AUDIT_CHECKPOINT_EVERY: number
   ARCHIVE_AUDIT_CONCURRENCY: number
   ARCHIVE_AUDIT_BACKFILL_LIMIT: number
   ARCHIVE_AUDIT_SOFT_BUDGET_MS: number
   ARCHIVE_AUDIT_DEADLINE_MS: number
   ARCHIVE_AUDIT_LEASE_TTL_SECONDS: number
+  ARCHIVE_AUDIT_FETCH_SIZE: number
+  ARCHIVE_AUDIT_CYCLE_MIN_SPACING_MS: number
   ARCHIVE_AUDIT_RUN_RETENTION_DAYS: number
 }
 
@@ -80,7 +85,7 @@ export const HARD_DEADLINE_MS = 540_000
 export async function loadAudit(): Promise<AuditModule | null> {
   const loaded =
     (await import("@/lib/server/archive/audit")) as unknown as Partial<AuditModule>
-  return typeof loaded.ARCHIVE_AUDIT_BATCH_SIZE === "number"
+  return typeof loaded.ARCHIVE_AUDIT_CHECKPOINT_EVERY === "number"
     ? (loaded as AuditModule)
     : null
 }
