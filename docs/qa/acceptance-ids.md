@@ -73,22 +73,22 @@ Kinds:
 
 ### 2.3 Media upload and recovery (`docs/acceptance.md`)
 
-Slugs are proposed by Media and confirmed here. The `GAP-n` numbers are the items
-of `docs/acceptance.md` section 6 that each id closes; they are not ids themselves.
+Slugs are proposed by Media and confirmed here. The `source` column names the `GAP-n` item and the ledger R-number each id
+relates to; neither is an id itself.
 Until a Media journey declares an id, its row is `gap`.
 
 | id | kind | source | journeys | status | note |
 | --- | --- | --- | --- | --- | --- |
-| `MEDIA-INTERRUPTED-RESUME` | media | docs/acceptance.md:250 | - | gap | GAP-4 part 1: a transfer to the local stack's resumable endpoint is interrupted and resumes from the server offset. Media has not declared a journey yet |
-| `MEDIA-OFFLINE-RETRY` | media | docs/acceptance.md:250 | - | gap | GAP-4 part 2: going offline and back online resumes the same asset. Media has not declared a journey yet |
-| `MEDIA-RELOAD-RESUME` | media | docs/acceptance.md:250 | - | gap | GAP-4 part 2: reload during an upload, then choosing the file again resumes the same asset. Media has not declared a journey yet |
-| `MEDIA-REOPEN-STATES` | media | docs/acceptance.md:250 | - | gap | GAP-4 parts 3 and 4: after a reload the portfolio tells completed, incomplete and failed files apart, and an unrecoverable case shows the required action. Media has not declared a journey yet |
-| `MEDIA-PARTIAL-BATCH` | media | docs/acceptance.md:267 | - | gap | GAP-5: a batch with a corrupt file, per-file failure, and a retry that leaves exactly one row per file. Media has not declared a journey yet |
-| `MEDIA-STUCK-PROCESSING` | media | docs/acceptance.md:280 | - | gap | GAP-5b: an asset left in `processing` past the window is failed or cleaned. Media has not declared a journey yet |
-| `MEDIA-LEAVE-WARNING` | media | docs/acceptance.md:384 | - | gap | GAP-19: a leave warning appears during an active upload and not when idle. Media has not declared a journey yet |
-| `MEDIA-RELOAD-METADATA` | media | docs/acceptance.md:118 | - | gap | The image-upload row of section 3: the small gap in what is asserted after a reload. Media has not declared a journey yet |
-| `MEDIA-SLICE-UPLOAD-FLAKY` | flaky | docs/acceptance.md:58 | - | gap | The slice upload e2e that failed only on environment errors in section 1.1. Reported as a repeat tally, not a single result. Media has not declared a journey yet |
-| `MEDIA-SLICE-PROFILE-FLAKY` | flaky | docs/acceptance.md:59 | - | gap | The slice profile e2e, same treatment as above. Media has not declared a journey yet |
+| `MEDIA-INTERRUPTED-RESUME` | media | docs/acceptance.md:250 (GAP-4; R8) | - | gap | GAP-4 part 1: a transfer to the local stack's resumable endpoint is interrupted and resumes from the server offset. Media has not declared a journey yet |
+| `MEDIA-OFFLINE-RETRY` | media | docs/acceptance.md:250 (GAP-4; R8) | - | gap | GAP-4 part 2: going offline and back online resumes the same asset. Media has not declared a journey yet |
+| `MEDIA-RELOAD-RESUME` | media | docs/acceptance.md:250 (GAP-4; R8) | - | gap | GAP-4 part 2: reload during an upload, then choosing the file again resumes the same asset. Media has not declared a journey yet |
+| `MEDIA-REOPEN-STATES` | media | docs/acceptance.md:250 (GAP-4; R8) | - | gap | GAP-4 parts 3 and 4: after a reload the portfolio tells completed, incomplete and failed files apart, and an unrecoverable case shows the required action. Media has not declared a journey yet |
+| `MEDIA-PARTIAL-BATCH` | media | docs/acceptance.md:267 (GAP-5; R8) | - | gap | GAP-5: a batch with a corrupt file, per-file failure, and a retry that leaves exactly one row per file. Media has not declared a journey yet |
+| `MEDIA-STUCK-PROCESSING` | media | docs/acceptance.md:280 (GAP-5b; R15) | - | gap | GAP-5b: an asset left in `processing` past the window is failed or cleaned. Media has not declared a journey yet |
+| `MEDIA-LEAVE-WARNING` | media | docs/acceptance.md:384 (GAP-19; spec section 5, no R-number) | - | gap | GAP-19: a leave warning appears during an active upload and not when idle. Media has not declared a journey yet |
+| `MEDIA-RELOAD-METADATA` | media | docs/acceptance.md:118 (section 3 Image upload; R10) | - | gap | The image-upload row of section 3: the small gap in what is asserted after a reload. Media has not declared a journey yet |
+| `MEDIA-SLICE-UPLOAD-FLAKY` | flaky | docs/acceptance.md:58 (section 1.1; R6, R12, R13) | - | gap | The slice upload e2e that failed only on environment errors in section 1.1. Reported as a repeat tally, not a single result. Media has not declared a journey yet |
+| `MEDIA-SLICE-PROFILE-FLAKY` | flaky | docs/acceptance.md:59 (section 1.1; R4) | - | gap | The slice profile e2e, same treatment as above. Media has not declared a journey yet |
 
 Items of `docs/acceptance.md` that WS1 does not touch (not ids, not covered by any
 journey): GAP-1, GAP-2, GAP-3, GAP-6, GAP-7, GAP-8, GAP-11, GAP-12, GAP-13,
