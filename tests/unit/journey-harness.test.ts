@@ -1,15 +1,23 @@
-import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs"
+import {
+  existsSync,
+  mkdtempSync,
+  mkdirSync,
+  readdirSync,
+  writeFileSync,
+} from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { describe, expect, it } from "vitest"
 
+import { inferNeeds } from "../../scripts/ci/journeys/needs.mjs"
 import { outcomeFromReport } from "../../scripts/ci/journeys/outcome.mjs"
 import {
+  loadJourneys,
   selectJourneys,
   validateDefinition,
 } from "../../scripts/ci/journeys/registry.mjs"
-import { scrub } from "../../scripts/ci/journeys/run.mjs"
+import { allocateRunDir, scrub } from "../../scripts/ci/journeys/run.mjs"
 import {
   validateResult,
   validateRunDir,
@@ -293,5 +301,102 @@ describe("stack allocation and scrubbing", () => {
       "hunter2hunter2",
     ])
     expect(out).toBe("a [redacted] b [redacted] c [redacted]")
+  })
+})
+
+describe("journey prerequisites", () => {
+  const project = () => {
+    const root = mkdtempSync(join(tmpdir(), "nabalens-needs-"))
+    const write = (path: string, body: string) => {
+      mkdirSync(join(root, path, ".."), { recursive: true })
+      writeFileSync(join(root, path), body)
+    }
+    write(
+      "tests/e2e/helpers/stack.ts",
+      'export function psql(sql: string) { return execFileSync("psql", [sql]) }\n' +
+        "export const provisioner = () => 1\n"
+    )
+    write(
+      "tests/e2e/helpers/world.ts",
+      'import { provisioner, psql } from "./stack"\nexport const make = () => psql("x")\n'
+    )
+    write(
+      "tests/journeys/provisions.spec.ts",
+      'import { make } from "../e2e/helpers/world"\n'
+    )
+    write(
+      "tests/journeys/reads-only.spec.ts",
+      'import { provisioner } from "../e2e/helpers/stack"\n'
+    )
+    write(
+      "tests/journeys/direct.spec.ts",
+      'import { spawnSync } from "node:child_process"\nspawnSync("psql", [])\n'
+    )
+    return root
+  }
+
+  it("needs psql when the spec reaches a module that imports the psql helper", () => {
+    const root = project()
+    expect(inferNeeds(root, "tests/journeys/provisions.spec.ts")).toEqual([
+      "psql",
+    ])
+    expect(inferNeeds(root, "tests/journeys/direct.spec.ts")).toEqual(["psql"])
+    expect(inferNeeds(root, "tests/journeys/reads-only.spec.ts")).toEqual([])
+    expect(inferNeeds(root, "tests/journeys/missing.spec.ts")).toEqual([])
+  })
+
+  it("derives it for the declared journeys that provision fixtures", () => {
+    const { journeys, problems } = loadJourneys(process.cwd())
+    expect(problems).toEqual([])
+    const needs = (id: string) => journeys.find((j) => j.id === id)?.needs
+    // Provisions a world through createPeople(), which runs host psql.
+    expect(needs("media.partial-batch")).toContain("psql")
+    expect(needs("menus.label-conflict")).toContain("psql")
+    // Signs in as the loaded fixture people and runs no SQL of its own.
+    expect(needs("auth.login-smoke")).toEqual([])
+    // Declared explicitly or inferred, never lost.
+    for (const j of journeys) {
+      if (j.spec.startsWith("tests/e2e/menus-")) {
+        expect(j.needs).toContain("psql")
+      }
+    }
+  })
+})
+
+describe("journey run directories", () => {
+  const rootDir = () => mkdtempSync(join(tmpdir(), "nabalens-rundir-"))
+
+  it("refuses an existing non-empty run id or results dir and writes nothing", () => {
+    const root = rootDir()
+    const first = allocateRunDir({ root, runId: "r1", defaultId: "d" })
+    writeFileSync(join(first.dir, "keep.json"), "{}")
+    expect(() => allocateRunDir({ root, runId: "r1", defaultId: "d" })).toThrow(
+      /already exists and is not empty/
+    )
+    expect(() =>
+      allocateRunDir({ root, resultsDir: first.dir, defaultId: "d" })
+    ).toThrow(/never overwritten/)
+    expect(readdirSync(first.dir)).toEqual(["keep.json"])
+  })
+
+  it("accepts an existing empty directory", () => {
+    const root = rootDir()
+    mkdirSync(join(root, "out"))
+    const { dir } = allocateRunDir({ root, resultsDir: "out", defaultId: "d" })
+    expect(existsSync(dir)).toBe(true)
+  })
+
+  it("gives colliding default ids a numeric suffix", () => {
+    const root = rootDir()
+    const ids = [1, 2, 3].map(() => {
+      const { id, dir } = allocateRunDir({ root, defaultId: "20261031T1Z-abc" })
+      writeFileSync(join(dir, "summary.json"), "{}")
+      return id
+    })
+    expect(ids).toEqual([
+      "20261031T1Z-abc",
+      "20261031T1Z-abc-2",
+      "20261031T1Z-abc-3",
+    ])
   })
 })

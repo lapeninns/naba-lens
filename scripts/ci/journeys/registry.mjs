@@ -13,7 +13,7 @@
 //       "source": "docs/qa/menus-qa-report.md#4-defects-for-the-lead",
 //       "id": "MENUS-D2"
 //     },
-//     "needs": ["psql"],                   // optional extra prerequisite: psql
+//     "needs": ["psql"],                   // optional extra prerequisite: psql (implied when the spec imports a psql helper)
 //     "agentic": { "file": "tests/journeys/x.e2e.ts", "config": "e2e.config.ts" }, // optional, run with --agentic; evidence only
 //     "timeoutSeconds": 600                // optional
 //   }
@@ -23,6 +23,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs"
 import { join, relative } from "node:path"
 
+import { inferNeeds } from "./needs.mjs"
 import { JOURNEY_ID, SCENARIO_ID } from "./validate.mjs"
 
 export const PROJECTS = ["chromium", "firefox", "webkit", "mobile-chromium"]
@@ -139,7 +140,9 @@ export function loadJourneys(root) {
       journeys.push({
         ...def,
         projects: def.projects ?? ["chromium"],
-        needs: def.needs ?? [],
+        needs: [
+          ...new Set([...(def.needs ?? []), ...inferNeeds(root, def.spec)]),
+        ],
         file: name,
       })
     }

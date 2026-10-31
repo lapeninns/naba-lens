@@ -107,7 +107,7 @@ if (command === "validate") {
       fail(
         `--app-port must be an integer from 1024 to 65535, got "${flags["app-port"]}".`
       )
-    const { summary, resultsDir, exitCode } = await runJourneys({
+    const run = await runJourneys({
       root,
       journeys: selected,
       stack,
@@ -122,7 +122,12 @@ if (command === "validate") {
       },
       runId: flags["run-id"],
       resultsDir: flags["results-dir"],
-    })
+    }).catch((error) =>
+      error.code === "RUN_DIR_EXISTS"
+        ? fail(error.message, 2)
+        : Promise.reject(error)
+    )
+    const { summary, resultsDir, exitCode } = run
     console.log(
       `\nJourney run ${summary.runId} on stack ${stack} at ${summary.revision.commit.slice(0, 7)}${summary.revision.dirty ? " (dirty)" : ""}`
     )

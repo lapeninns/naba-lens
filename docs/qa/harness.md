@@ -83,6 +83,10 @@ real person, venue or menu. There are no passwords: sign in with a magic link
 | Media    | ready, with stored objects: staff A photo and video, staff B photo, staff C photo (files `JOURNEY <key>.jpg                                                    | mp4`, e.g. `JOURNEY staffA-photo.jpg`) |
 | Manifest | `/tmp/nabalens-ws/<name>/fixtures.json`: menu version ids, media asset ids and original SHA-256 (no keys)                                                      |
 
+`reset` deletes the manifest first and `fixtures.ts` writes it only after the whole
+world has loaded, so a manifest exists only for a world that loaded (it is absent
+after `--no-fixtures` or a failed load, and journeys then report `unavailable`).
+
 The menu and media fixture files are read from the `--from` worktree, falling
 back to the Harness checkout. The seed world of `supabase/seed.sql` (`dev-*`
 accounts) is still loaded for the app's own suites.
@@ -117,7 +121,7 @@ deterministic assertions.
     "source": "docs/qa/menus-qa-report.md#4-defects-for-the-lead",
     "id": "MENUS-D2",
   },
-  "needs": ["psql"], // optional: host psql is on PATH
+  "needs": ["psql"], // optional: host psql is on PATH (implied when the spec imports a psql helper)
   "agentic": { "file": "tests/journeys/x.e2e.ts" }, // optional, see below
   "timeoutSeconds": 600, // optional
 }
@@ -191,7 +195,9 @@ use) around the Playwright phase:
 ## 5. Results
 
 Output goes to `.artifacts/journeys/<run-id>/` (gitignored, run id is the UTC
-time plus the short commit):
+time plus the short commit, with `-2`, `-3` added if that id is taken). An explicit
+`--run-id` or `--results-dir` that already holds files is refused before anything
+is written, so collected evidence is never overwritten or mixed with a new run:
 
 ```
 journeys/<id>.json   one result per journey (schema: scripts/ci/journeys/result.schema.json)

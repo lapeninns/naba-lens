@@ -8,19 +8,22 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  readdirSync,
   rmSync,
   writeFileSync,
 } from "node:fs"
 import { createRequire } from "node:module"
-import { basename, join, resolve } from "node:path"
+import { basename, dirname, join, resolve } from "node:path"
 
 import { createServer } from "node:net"
 
 import {
   migrationsDigest,
+  onTerminate,
   stackEnv,
   stackSpec,
   statusOf,
+  terminateGroup,
   withLock,
 } from "../stack.mjs"
 import { runAgentic } from "./agentic.mjs"
@@ -157,7 +160,7 @@ function stackProblem(root, spec, flags) {
   return { reason: null, migrations }
 }
 
-function runLogged(cmd, args, { cwd, env, logFile, timeoutMs }) {
+export function runLogged(cmd, args, { cwd, env, logFile, timeoutMs }) {
   return new Promise((resolveRun) => {
     const chunks = []
     const child = spawn(cmd, args, {
@@ -166,6 +169,11 @@ function runLogged(cmd, args, { cwd, env, logFile, timeoutMs }) {
       detached: true,
       stdio: ["ignore", "pipe", "pipe"],
     })
+    // The child leads its own process group, so a signal to this process does
+    // not reach it: stop the whole group before the stack lock is released.
+    const untrack = child.pid
+      ? onTerminate(() => terminateGroup(child.pid))
+      : () => {}
     let timedOut = false
     const timer = timeoutMs
       ? setTimeout(() => {
@@ -180,6 +188,7 @@ function runLogged(cmd, args, { cwd, env, logFile, timeoutMs }) {
     child.stdout.on("data", (d) => chunks.push(d))
     child.stderr.on("data", (d) => chunks.push(d))
     child.on("close", (code) => {
+      untrack()
       if (timer) clearTimeout(timer)
       // Anything the child left behind (the Next server) goes with it.
       try {
@@ -192,6 +201,7 @@ function runLogged(cmd, args, { cwd, env, logFile, timeoutMs }) {
       resolveRun({ code, timedOut, output })
     })
     child.on("error", (error) => {
+      untrack()
       if (timer) clearTimeout(timer)
       resolveRun({ code: null, timedOut: false, output: String(error.message) })
     })
@@ -303,6 +313,44 @@ function formatSummaryMarkdown(summary) {
 }
 
 /**
+ * Claims a run directory nobody has written to. An explicit --run-id or
+ * --results-dir that already holds files is refused (collected evidence is
+ * never overwritten or mixed with a new run); the generated default id gets a
+ * numeric suffix instead, since its timestamp has only second resolution.
+ * @param {{root: string, runId?: string, resultsDir?: string, defaultId: string}} options
+ * @returns {{id: string, dir: string}}
+ */
+export function allocateRunDir({ root, runId, resultsDir, defaultId }) {
+  const claim = (dir) => {
+    mkdirSync(dirname(dir), { recursive: true })
+    try {
+      mkdirSync(dir)
+    } catch (error) {
+      if (error.code !== "EEXIST") throw error
+      if (readdirSync(dir).length > 0) return false
+    }
+    return true
+  }
+  if (resultsDir !== undefined || runId !== undefined) {
+    const dir = resolve(root, resultsDir ?? join(".artifacts/journeys", runId))
+    if (!claim(dir)) {
+      throw Object.assign(
+        new Error(
+          `Run directory ${dir} already exists and is not empty. Journey evidence is never overwritten: pick another --run-id or --results-dir, or move that directory away.`
+        ),
+        { code: "RUN_DIR_EXISTS" }
+      )
+    }
+    return { id: runId ?? basename(dir), dir }
+  }
+  for (let attempt = 1; ; attempt++) {
+    const id = attempt === 1 ? defaultId : `${defaultId}-${attempt}`
+    const dir = resolve(root, join(".artifacts/journeys", id))
+    if (claim(dir)) return { id, dir }
+  }
+}
+
+/**
  * @param {{root: string, journeys: object[], stack: string, flags: object, runId?: string, resultsDir?: string}} options
  * @returns {Promise<{summary: object, resultsDir: string, exitCode: number}>}
  */
@@ -316,13 +364,15 @@ export async function runJourneys({
 }) {
   const spec = stackSpec(stack)
   const revision = revisionOf(root)
-  const id =
-    runId ??
-    `${new Date()
+  const { id, dir } = allocateRunDir({
+    root,
+    runId,
+    resultsDir,
+    defaultId: `${new Date()
       .toISOString()
       .replace(/[-:]/g, "")
-      .replace(/\.\d+Z$/, "Z")}-${revision.commit.slice(0, 7)}`
-  const dir = resolve(root, resultsDir ?? join(".artifacts/journeys", id))
+      .replace(/\.\d+Z$/, "Z")}-${revision.commit.slice(0, 7)}`,
+  })
   const rawDir = join(dir, ".raw")
   for (const sub of ["journeys", "logs", "shots", ".raw"])
     mkdirSync(join(dir, sub), { recursive: true })

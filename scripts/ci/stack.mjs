@@ -29,7 +29,9 @@ import {
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
-const ROOT = "/tmp/nabalens-ws"
+// NABALENS_WS_ROOT moves stack workdirs and locks (unit tests only; Docker
+// project names and ports do not change).
+const ROOT = process.env.NABALENS_WS_ROOT ?? "/tmp/nabalens-ws"
 const SELF_DIR = dirname(fileURLToPath(import.meta.url))
 const MAX_RUNNING = 3
 
@@ -135,6 +137,70 @@ function pidAlive(pid) {
   }
 }
 
+// -- termination ------------------------------------------------------------
+
+const exitHooks = new Set()
+let terminating = false
+
+async function terminate() {
+  // A second signal means the operator will not wait for the cleanup.
+  if (terminating) process.exit(130)
+  terminating = true
+  for (const hook of [...exitHooks].reverse()) {
+    try {
+      await hook()
+    } catch {
+      // Cleanup is best effort; keep going so the lock is still released.
+    }
+  }
+  process.exit(130)
+}
+
+/**
+ * Runs `hook` (it may be async) on SIGINT or SIGTERM, newest first, then exits
+ * 130. Returns a function that removes the hook.
+ */
+export function onTerminate(hook) {
+  if (exitHooks.size === 0) {
+    process.on("SIGINT", terminate)
+    process.on("SIGTERM", terminate)
+  }
+  exitHooks.add(hook)
+  return () => {
+    exitHooks.delete(hook)
+    if (exitHooks.size === 0) {
+      process.off("SIGINT", terminate)
+      process.off("SIGTERM", terminate)
+    }
+  }
+}
+
+const groupAlive = (pid) => {
+  try {
+    process.kill(-pid, 0)
+    return true
+  } catch (error) {
+    return error.code === "EPERM"
+  }
+}
+
+/** Stops the process group a detached child leads and resolves once no member is left. */
+export async function terminateGroup(pid, graceMs = 5000) {
+  for (const [signal, waitMs] of [
+    ["SIGTERM", graceMs],
+    ["SIGKILL", 5000],
+  ]) {
+    try {
+      process.kill(-pid, signal)
+    } catch {
+      return
+    }
+    const deadline = Date.now() + waitMs
+    while (groupAlive(pid) && Date.now() < deadline) await sleep(50)
+    if (!groupAlive(pid)) return
+  }
+}
+
 /** `onWait(owner)` is called once when another command already holds the lock. */
 export async function withLock(spec, what, timeoutSeconds, fn, onWait) {
   mkdirSync(ROOT, { recursive: true })
@@ -175,17 +241,13 @@ export async function withLock(spec, what, timeoutSeconds, fn, onWait) {
     JSON.stringify({ pid: process.pid, what, since: new Date().toISOString() })
   )
   const release = () => rmSync(dir, { recursive: true, force: true })
-  const onSignal = () => {
-    release()
-    process.exit(130)
-  }
-  process.once("SIGINT", onSignal)
-  process.once("SIGTERM", onSignal)
+  // Registered before anything `fn` starts, so it runs last: children are
+  // stopped first, then the lock is released.
+  const unhook = onTerminate(release)
   try {
     return await fn()
   } finally {
-    process.off("SIGINT", onSignal)
-    process.off("SIGTERM", onSignal)
+    unhook()
     release()
   }
 }
@@ -418,7 +480,13 @@ function fromDir(flags) {
   return worktreeOf(typeof flags.from === "string" ? flags.from : process.cwd())
 }
 
+/** The manifest of the world a reset loaded; stale as soon as the next reset begins. */
+export function clearFixtureManifest(spec) {
+  rmSync(join(spec.workdir, "fixtures.json"), { force: true })
+}
+
 async function applyReset(spec, from, flags) {
+  clearFixtureManifest(spec)
   const migrations = prepareWorkdir(spec, from)
   runSupabase(spec, ["db", "reset", "--local"], "reset")
   writeStatusFile(spec)
