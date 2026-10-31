@@ -1,4 +1,4 @@
-import { spawn, spawnSync, type ChildProcess } from "node:child_process"
+import { spawn, type ChildProcess } from "node:child_process"
 import {
   mkdirSync,
   readFileSync,
@@ -16,7 +16,7 @@ export const E2E_MONITOR_SECRET = "e2e".repeat(14)
 
 export const E2E = {
   sinkPort: Number(process.env.ARCHIVE_E2E_SINK_PORT ?? 3651),
-  appPort: Number(process.env.ARCHIVE_E2E_APP_PORT ?? 3642),
+  appPort: Number(process.env.ARCHIVE_E2E_APP_PORT ?? 3644),
   alertsDir:
     process.env.ARCHIVE_E2E_ALERTS_DIR ??
     "/tmp/nabalens-ws/alerts-verification",
@@ -151,29 +151,41 @@ export function runChecker(
     secret?: string | null
     extraArgs?: string[]
   } = {}
-): CheckerRun {
+): Promise<CheckerRun> {
   const env = {
     PATH: process.env.PATH,
     HOME: process.env.HOME,
-  } as NodeJS.ProcessEnv
+  } as unknown as NodeJS.ProcessEnv
   if (options.secret !== null)
     env.MEDIA_ARCHIVE_MONITOR_SECRET = options.secret ?? E2E_MONITOR_SECRET
-  const result = spawnSync(
-    process.execPath,
-    [
-      "scripts/monitoring/check-archive.mjs",
-      "--local",
-      "--origin",
-      options.origin ?? `http://127.0.0.1:${E2E.appPort}`,
-      "--sink",
-      options.sink ?? `http://127.0.0.1:${E2E.sinkPort}/alerts`,
-      "--alerts-dir",
-      E2E.alertsDir,
-      ...(options.extraArgs ?? []),
-    ],
-    { cwd: ROOT, env, encoding: "utf8", timeout: 60_000 }
-  )
-  return { code: result.status, stdout: result.stdout, stderr: result.stderr }
+  // Async on purpose: the status route is served by this same process.
+  return new Promise((done, reject) => {
+    const child = spawn(
+      process.execPath,
+      [
+        "scripts/monitoring/check-archive.mjs",
+        "--local",
+        "--origin",
+        options.origin ?? `http://127.0.0.1:${E2E.appPort}`,
+        "--sink",
+        options.sink ?? `http://127.0.0.1:${E2E.sinkPort}/alerts`,
+        "--alerts-dir",
+        E2E.alertsDir,
+        ...(options.extraArgs ?? []),
+      ],
+      { cwd: ROOT, env, stdio: ["ignore", "pipe", "pipe"] }
+    )
+    let stdout = ""
+    let stderr = ""
+    child.stdout.on("data", (chunk) => (stdout += chunk))
+    child.stderr.on("data", (chunk) => (stderr += chunk))
+    const timer = setTimeout(() => child.kill("SIGKILL"), 60_000)
+    child.once("error", reject)
+    child.once("exit", (code) => {
+      clearTimeout(timer)
+      done({ code, stdout, stderr })
+    })
+  })
 }
 
 /** Evidence under .artifacts/archive-verification/ (gitignored). */

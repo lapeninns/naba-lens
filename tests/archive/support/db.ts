@@ -266,7 +266,8 @@ export function killableService(service: Db) {
           ) =>
             (value as (...a: unknown[]) => Promise<unknown>).call(
               target,
-              onFulfilled && ((v) => (isDead() ? never() : onFulfilled(v))),
+              onFulfilled &&
+                ((v: unknown) => (isDead() ? never() : onFulfilled(v))),
               onRejected
             )
         return (...args: unknown[]) => {

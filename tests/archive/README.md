@@ -134,18 +134,54 @@ IDs are the contract section. "Unit" is `tests/archive/unit/`.
 | Sink failure: exit 2, fallback record, retry next run; heartbeat                                                               | sink and heartbeat suites                |
 | Audit's real status body drives the real checker                                                                               | integration suite                        |
 
-### Database level (`db/`, needs ws2) and end-to-end (`e2e/`)
+### Database level (`db/`, needs the Verification stack)
 
-Written after Audit's migration lands; see the report for status.
+Run on spare4 only (`assertVerificationStack()` refuses anything else, including
+ws2). Real time, real leases, real constraints; only the archive store is fake.
 
-## Assumptions to confirm
+| Rule                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Test                                 |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| 25 concurrent acquirers: one winner; renewal; expiry takeover; holder-only release; TTL bounds 1 s to 1 h; invalid names; grants                                                                                                                                                                                                                                                                                                                                                  | `db/lease.test.ts`                   |
+| Columns, types and defaults; outcome and error allow-lists; cycle all-or-nothing and cursor-within-cycle checks; counters; grants and RLS                                                                                                                                                                                                                                                                                                                                         | `db/state-runs.test.ts` (state)      |
+| Checkpoint is conditional on `cycle_id` and a larger cursor; racing cycle starters give one winner; durability across a new connection                                                                                                                                                                                                                                                                                                                                            | `db/state-runs.test.ts` (checkpoint) |
+| Runs table: constraints (outcome/error agreement, time order, non-negative counters), unique `run_id`, append-only (update, delete, truncate refused), 90-day retention, service-role-only grants, index                                                                                                                                                                                                                                                                          | `db/state-runs.test.ts` (runs)       |
+| Real audit: full cycle and status; idle in the throttle window; partial then resume on a new connection with every receipt verified once; crash mid-cycle resumes from the durable cursor; two simultaneous invocations; lease takeover gives `lease_lost` with no state write; hang gives `timeout` at the deadline; vanished object fails below that receipt and heals; missing source original; failed backfill while idle; run-row retention; store failure while backfilling | `db/audit-real.test.ts`              |
 
-These are places where the contract is silent and a test encodes a reading. If
-Audit or Monitoring reads it differently, change the test with the owner's
-agreement, not silently.
+### End to end (`e2e/controlled-failures.test.ts`, needs the Verification stack and the stub sink port)
 
-1. A failed backfill (source original gone) ends the run `failed` with
-   `archive_source_unavailable`, also while idle.
-2. `locked` and `lease_lost` write no state; `idle` and `partial` count as
-   non-failing runs and clear `last_error`.
+**What this is.** The real status route handler is served **outside Next.js** on
+127.0.0.1:3644 with only `readArchiveConfig` mocked, against the real spare4
+database. The audit runs in-process with an injected fake store. The real
+checker CLI (`--local`) reads the route and delivers to the real stub sink
+(127.0.0.1:3651, `/tmp/nabalens-ws/alerts-verification`). Authorization is real,
+so the checker's secret is exercised; one scenario uses a wrong secret.
+
+**Why not a real Next.js app.** `readArchiveConfig` rejects any source that is not
+`<20 chars>.supabase.co`, so a loopback Supabase can only yield `disabled`. No
+product code was changed to get around it. The fake store's call log is asserted
+empty around every status request and no R2 code path is reachable.
+
+Scenarios: healthy, idle (never trips `not_running`), stale, run failed (warning,
+one escalation at 3, recovery), timeout, missing original, not running,
+cycle slow, disabled, auth rejected, unreachable, sink down (undelivered record,
+exit 2, retry), and a hygiene scan of every alert for keys, ids and credentials.
+Evidence is written to `.artifacts/archive-verification/` (gitignored), with a
+README table generated from it.
+
+## Assumptions confirmed with the owners
+
+1. A failing backfill ends the run `failed` (`archive_source_unavailable` for a
+   source read, `archive_store_unavailable` for a destination write), also during
+   `idle`; verification progress is still saved first.
+2. `idle`, `partial` and `completed_cycle` clear `last_error` and reset
+   `consecutive_failures`; only `failed` and `timeout` set them. `locked` and
+   `lease_lost` write no state, only a run row.
 3. Store verify errors are recorded as `archive_audit_failed`.
+4. Completion after the soft budget expired is legitimate when every page is
+   fetched, the queue is empty and the watermark equals everything issued.
+
+## Observations (not defects)
+
+- `media_archive_audit_state` gives `service_role` Supabase's default table
+  privileges (including DELETE and TRUNCATE). That predates the audit changes.
+- The checker exits 1 for `cycle_slow`, which is non-paging by contract.
