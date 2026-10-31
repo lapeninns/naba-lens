@@ -57,7 +57,10 @@ const describeEntry = (entry, outcome) =>
     ? `no journey (${entry.status})`
     : describeOutcome(entry.kind, outcome)
 
+// The pnpm that launched this script (set for `pnpm exec`), else the one on PATH.
 const pnpmVersion = () => {
+  const launcher = /pnpm\/(\S+)/.exec(process.env.npm_config_user_agent ?? "")
+  if (launcher) return `pnpm ${launcher[1]}`
   try {
     const out = execFileSync("pnpm", ["--version"], { encoding: "utf8" })
     return `pnpm ${out.trim()}`

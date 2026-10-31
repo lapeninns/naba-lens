@@ -37,9 +37,12 @@ expected. The writer also refuses any file that looks like a key or token.
 ## Writing a record
 
 ```sh
-pnpm journeys run --all --stack ws1 --app-port 3647 --allow-unavailable
-node tests/journeys/evidence-record.mjs .artifacts/journeys/<run-id> --label <slug>
+corepack pnpm@10.30.1 journeys run --all --stack ws1 --app-port 3647 --allow-unavailable
+corepack pnpm@10.30.1 exec node tests/journeys/evidence-record.mjs .artifacts/journeys/<run-id> --label <slug>
 ```
+
+Use the pnpm version the repository pins (10.30.1). The record states the pnpm
+that launched the writer, so launch it through `pnpm exec` as above.
 
 `--label` is lowercase kebab-case (for example `final-all-journeys`).
 `--note "<text>"` adds a paragraph under the header table, for context the result
