@@ -1,0 +1,9 @@
+{
+  "id": "media.tus-interrupted-resume",
+  "title": "GAP-4: a video upload interrupted mid-transfer (connection reset, short network outage) resumes from the server offset on the real Supabase TUS endpoint",
+  "spec": "tests/journeys/media-recovery.spec.ts",
+  "grep": "media\\.tus-interrupted-resume:",
+  "projects": ["chromium"],
+  "scenarios": ["MEDIA-INTERRUPTED-RESUME"],
+  "timeoutSeconds": 600
+}

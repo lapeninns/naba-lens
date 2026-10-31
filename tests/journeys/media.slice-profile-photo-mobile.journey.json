@@ -1,0 +1,13 @@
+{
+  "id": "media.slice-profile-photo-mobile",
+  "title": "slice.spec.ts: staff edit their own name and profile photo (historical 504s and 30 s timeout) (mobile-chromium)",
+  "spec": "tests/e2e/slice.spec.ts",
+  "grep": "staff edit their own name and profile photo",
+  "projects": ["mobile-chromium"],
+  "scenarios": ["MEDIA-SLICE-PROFILE-FLAKY"],
+  "historical": {
+    "source": "docs/acceptance.md#11-e2e-results-per-test-across-the-three-runs",
+    "id": "MEDIA-SLICE-PROFILE-FLAKY"
+  },
+  "timeoutSeconds": 600
+}
