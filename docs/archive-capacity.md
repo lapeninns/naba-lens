@@ -101,7 +101,16 @@ months: 75,050 receipts, 0.89 TB.** High is the design headroom case.
   divided by 90% and multiplied by the cron interval. It includes the final
   partial run.
 - Verification order is the receipt id order. A run starts no new receipt after
-  its soft budget and lets in-flight reads finish.
+  its soft budget and lets in-flight reads finish only until the hard deadline.
+  The pipelined simulation stops at that deadline and counts only contiguous
+  progress whose checkpoint finished in time. Later completed receipts cannot
+  move the cursor past an unfinished earlier receipt.
+- A full-cycle estimate is rejected when the largest size class in the selected
+  mix cannot fit into a fresh invocation, including startup and checkpoint time,
+  under the conservative shared-bandwidth assumption. The report then shows a
+  zero maximum library and `never` for cycle duration, even if a small prefix
+  can make progress. This matters when feeding much slower measured speeds into
+  the model; the published slow, nominal and fast profiles all pass this check.
 - Every run is modelled with five back-fills, which is pessimistic: steady state
   has almost none.
 
@@ -153,7 +162,7 @@ checkpoint follows the contiguous verified watermark.
 | 10 min, 480 s soft, c=4, barrier                    | 3,138            | 482 s / 484 s         | 30%                     | 404,746                      |
 | 10 min, 480 s soft, c=8, barrier                    | 3,295            | 482 s / 483 s         | 50%                     | 425,018                      |
 | 10 min, 480 s soft, c=4, pipelined                  | 4,303            | 481 s / 483 s         | 0%                      | 555,105                      |
-| **recommended: 10 min, 480 s soft, c=8, pipelined** | **4,742**        | 483 s / 485 s         | 0%                      | **611,754**                  |
+| **recommended: 10 min, 480 s soft, c=8, pipelined** | **4,742**        | 483 s / 485 s         | 0%                      | **611,736**                  |
 | 10 min, 240 s soft, c=8, pipelined                  | 2,319            | 244 s / 246 s         | 0%                      | 299,095                      |
 | 5 min, 240 s soft, c=8, pipelined                   | 2,319            | 244 s / 246 s         | 0%                      | 600,510                      |
 
@@ -190,14 +199,14 @@ Max library for a 24 h cycle. `n/a`: the soft budget plus 30 s does not fit the 
 
 | Cron interval   | 60 s soft | 120 s soft | 240 s soft | 480 s soft | 750 s soft |
 | --------------- | --------- | ---------- | ---------- | ---------- | ---------- |
-| nominal, 5 min  | 135,124   | 284,456    | 600,510    | n/a        | n/a        |
-| nominal, 10 min | 67,301    | 141,678    | 299,095    | 611,754    | n/a        |
-| nominal, 15 min | 44,867    | 94,452     | 199,397    | 407,836    | 640,061    |
-| nominal, 60 min | 10,955    | 23,064     | 48,690     | 99,588     | 156,294    |
-| slow, 5 min     | 58,682    | 132,571    | 282,014    | n/a        | n/a        |
-| slow, 10 min    | 29,227    | 66,029     | 140,462    | 298,340    | n/a        |
-| slow, 15 min    | 19,485    | 44,019     | 93,641     | 198,893    | 316,553    |
-| slow, 60 min    | 4,758     | 10,749     | 22,866     | 48,567     | 77,298     |
+| nominal, 5 min  | 135,087   | 284,456    | 600,510    | n/a        | n/a        |
+| nominal, 10 min | 67,282    | 141,678    | 299,095    | 611,736    | n/a        |
+| nominal, 15 min | 44,855    | 94,452     | 199,397    | 407,824    | 640,061    |
+| nominal, 60 min | 10,953    | 23,064     | 48,690     | 99,585     | 156,294    |
+| slow, 5 min     | 58,645    | 132,534    | 282,014    | n/a        | n/a        |
+| slow, 10 min    | 29,209    | 66,011     | 140,462    | 298,340    | n/a        |
+| slow, 15 min    | 19,472    | 44,007     | 93,641     | 198,893    | 316,553    |
+| slow, 60 min    | 4,755     | 10,746     | 22,866     | 48,567     | 77,298     |
 
 An hourly cron reaches the Expected 24-month library on slow R2 only with a 750 s
 run (77,298 against 75,050, 3% headroom) and fails at 480 s (48,567). Pro allows up
@@ -246,13 +255,13 @@ about **14 h**. In the worst case the age is about
 
 | Speed   | Scenario | D = 14 h                      | D = 20 h (`cycle_slow`) | D = 24 h (target)    |
 | ------- | -------- | ----------------------------- | ----------------------- | -------------------- |
-| nominal | Low      | 483,675 receipts, beyond 10 y | 696,492, beyond 10 y    | 831,921, beyond 10 y |
-| nominal | Expected | 355,671, **month 116**        | 512,166, beyond 10 y    | 611,754, beyond 10 y |
-| nominal | High     | 281,453, **month 31**         | 405,293, month 44       | 484,100, month 53    |
-| nominal | Stress   | 232,007, **month 4.6**        | 334,090, month 6.9      | 399,052, month 8.3   |
+| nominal | Low      | 483,653 receipts, beyond 10 y | 696,461, beyond 10 y    | 831,884, beyond 10 y |
+| nominal | Expected | 355,660, **month 116**        | 512,151, beyond 10 y    | 611,736, beyond 10 y |
+| nominal | High     | 281,442, **month 31**         | 405,277, month 44       | 484,081, month 53    |
+| nominal | Stress   | 231,985, **month 4.6**        | 334,059, month 6.9      | 399,015, month 8.3   |
 | slow    | Low      | 235,157, beyond 10 y          | 338,626, beyond 10 y    | 404,470, beyond 10 y |
 | slow    | Expected | 173,453, **month 56**         | 249,773, month 81       | 298,340, month 97    |
-| slow    | High     | 137,303, **month 14.8**       | 197,717, month 21.4     | 236,162, month 25.6  |
+| slow    | High     | 137,292, **month 14.8**       | 197,701, month 21.4     | 236,143, month 25.6  |
 | slow    | Stress   | 112,167, **month 2.0**        | 161,521, month 3.1      | 192,928, month 3.8   |
 
 | Speed   | Scenario | D at 12 months | D at 24 months | D at 36 months |
@@ -537,7 +546,9 @@ configuration is 2 GB and 1 vCPU, as assumed.
 - The library, upload rates and mixes are assumptions. The live library size is
   unknown to this work.
 - Simulation uses mean behaviour per receipt class and fair sharing of one instance's
-  bandwidth. It does not model R2 rate limiting, connection resets, retries, cold
+  bandwidth. The full-cycle feasibility check reserves that fair share for the
+  largest object, so it can reject a profile that would finish only after other
+  workers release their bandwidth. It does not model R2 rate limiting, connection resets, retries, cold
   starts that exceed 4 s, or other work on the same function instance.
 - Receipts that failed verification are not modelled. Verification failures cost
   the same read again and raise `consecutive_failures` (contracts §4.4).

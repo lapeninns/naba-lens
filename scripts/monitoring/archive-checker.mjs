@@ -3,7 +3,8 @@
 // deduplicates alerts by condition and delivers them to an injected sink.
 // Uses only web-standard APIs (fetch, AbortSignal, TextDecoder, crypto) so the
 // same module runs in Node, a Cloudflare Worker or GitHub Actions.
-// Only MEDIA_ARCHIVE_MONITOR_SECRET is ever sent, and only to the pinned status URL.
+// The monitor credential is sent only to the pinned status URL. A separate
+// optional heartbeat credential authenticates the independent watchdog.
 
 export const ARCHIVE_ALERT_SCHEMA = "nabalens.archive-alert/v1"
 export const PRODUCTION_ORIGIN = "https://naba-lens.vercel.app"
@@ -469,29 +470,99 @@ export function buildAlert({
 }
 
 function emptyState() {
-  return { version: 1, active: {} }
+  return { version: 1, active: {}, pending: [] }
+}
+
+function applyDelivery(active, { kind, condition, alert }) {
+  if (kind === "recover") delete active[condition]
+  else {
+    active[condition] = {
+      severity: alert.severity,
+      alertId: alert.alertId,
+      since: active[condition]?.since ?? alert.observedAt,
+    }
+  }
 }
 
 function sanitizeState(raw) {
-  if (!isObject(raw) || raw.version !== 1 || !isObject(raw.active)) {
-    return emptyState()
+  if (raw == null) return emptyState()
+  if (
+    !isObject(raw) ||
+    raw.version !== 1 ||
+    !isObject(raw.active) ||
+    (Object.hasOwn(raw, "pending") && !Array.isArray(raw.pending))
+  ) {
+    throw new CheckerFailure("state_invalid")
   }
   const active = {}
   for (const [condition, entry] of Object.entries(raw.active)) {
     if (
-      condition in CONDITION_ACTIONS &&
-      condition !== "recovered" &&
-      isObject(entry) &&
-      entry.severity in SEVERITY_RANK
+      !Object.hasOwn(CONDITION_ACTIONS, condition) ||
+      condition === "recovered" ||
+      !isObject(entry) ||
+      !Object.hasOwn(SEVERITY_RANK, entry.severity) ||
+      !(entry.alertId === null || typeof entry.alertId === "string") ||
+      !(
+        entry.since === null ||
+        (typeof entry.since === "string" && isTime(entry.since))
+      )
     ) {
-      active[condition] = {
-        severity: entry.severity,
-        alertId: typeof entry.alertId === "string" ? entry.alertId : null,
-        since: typeof entry.since === "string" ? entry.since : null,
-      }
+      throw new CheckerFailure("state_invalid")
+    }
+    active[condition] = {
+      severity: entry.severity,
+      alertId: entry.alertId,
+      since: entry.since,
     }
   }
-  return { version: 1, active }
+  // Older version-1 state has no outbox. Keep payloads and ids across retries,
+  // while allowing only the same fields the checker can produce itself.
+  const pending = []
+  for (const item of raw.pending ?? []) {
+    const alert = item?.alert
+    if (
+      !isObject(item) ||
+      !["raise", "escalate", "recover"].includes(item.kind) ||
+      (Object.hasOwn(item, "fallbackRecorded") &&
+        typeof item.fallbackRecorded !== "boolean") ||
+      !Object.hasOwn(CONDITION_ACTIONS, item.condition) ||
+      item.condition === "recovered" ||
+      !isObject(alert) ||
+      alert.schema !== ARCHIVE_ALERT_SCHEMA ||
+      alert.condition !==
+        (item.kind === "recover" ? "recovered" : item.condition) ||
+      (item.kind === "recover" &&
+        alert.recoveredCondition !== item.condition) ||
+      !Object.hasOwn(SEVERITY_RANK, alert.severity) ||
+      typeof alert.alertId !== "string" ||
+      typeof alert.summary !== "string" ||
+      typeof alert.observedAt !== "string" ||
+      !isTime(alert.observedAt) ||
+      !["production", "local"].includes(alert.target)
+    ) {
+      throw new CheckerFailure("state_invalid")
+    }
+    const status = alert.status === null ? null : normalizeStatus(alert.status)
+    if (alert.status !== null && !status)
+      throw new CheckerFailure("state_invalid")
+    pending.push({
+      kind: item.kind,
+      condition: item.condition,
+      ...(item.fallbackRecorded === true ? { fallbackRecorded: true } : {}),
+      alert: buildAlert({
+        condition: alert.condition,
+        severity: alert.severity,
+        summary: alert.summary,
+        observedAt: alert.observedAt,
+        target: alert.target,
+        status,
+        recoveredCondition:
+          item.kind === "recover" ? item.condition : undefined,
+        newId: () => alert.alertId,
+      }),
+    })
+  }
+  return { version: 1, active, pending }
 }
 
 export function memoryStateStore(initial) {
@@ -548,14 +619,20 @@ export function createHttpSink(
 
 export function createHeartbeat(
   url,
-  { fetchImpl = fetch, timeoutMs = SINK_TIMEOUT_MS } = {}
+  { fetchImpl = fetch, timeoutMs = SINK_TIMEOUT_MS, bearer } = {}
 ) {
+  if (bearer !== undefined && !SECRET_PATTERN.test(bearer)) {
+    throw new CheckerFailure("heartbeat_secret_invalid")
+  }
   return async () => {
     try {
       const response = await fetchImpl(url, {
-        method: "GET",
+        method: bearer === undefined ? "GET" : "POST",
         redirect: "manual",
         credentials: "omit",
+        ...(bearer === undefined
+          ? {}
+          : { headers: { authorization: `Bearer ${bearer}` } }),
         signal: AbortSignal.timeout(timeoutMs),
       })
       await response.body?.cancel().catch(() => {})
@@ -571,8 +648,9 @@ export function createHeartbeat(
 /**
  * One check cycle. Alerts fire once per condition until it clears, escalate
  * once when severity rises, and a `recovered` alert follows when it clears.
- * State only advances for alerts that were actually delivered, so a failed
- * delivery is retried on the next run. Probe failures leave data conditions
+ * Delivered state advances only after delivery. A durable outbox retains failed
+ * deliveries even after their condition clears and preserves transition order.
+ * Probe failures leave data conditions
  * (stale, missing_originals, ...) untouched because they say nothing about them.
  */
 export async function runCheck({
@@ -629,21 +707,38 @@ export async function runCheck({
     })
   }
 
-  const current = sanitizeState(
-    await stateStore.load().catch(() => emptyState())
-  )
+  let current
+  try {
+    current = sanitizeState(await stateStore.load())
+  } catch {
+    // An unavailable store may still hold undelivered critical alerts. Treating
+    // it as empty would erase that outbox and falsely report monitor liveness.
+    // Do not deliver, save or heartbeat until its original state can be read.
+    return {
+      ok: false,
+      exitCode: 2,
+      observedAt,
+      conditions: [...found.keys()],
+      alerts: [],
+      heartbeat: { sent: false, reason: "state_load_failed" },
+      errors: ["state_load_failed"],
+    }
+  }
   const next = structuredClone(current)
+  const projected = structuredClone(current.active)
+  for (const pending of current.pending) applyDelivery(projected, pending)
   const outgoing = []
 
   const probeActive = [...found.keys()].some((c) => PROBE_CONDITIONS.has(c))
-  for (const [condition, entry] of Object.entries(current.active)) {
+  for (const [condition, entry] of Object.entries(projected)) {
     const isProbe = PROBE_CONDITIONS.has(condition)
     if (found.has(condition)) {
       const hit = found.get(condition)
       if (SEVERITY_RANK[hit.severity] > SEVERITY_RANK[entry.severity]) {
         outgoing.push({ kind: "escalate", condition, ...hit })
       } else {
-        next.active[condition].severity = hit.severity
+        if (next.active[condition])
+          next.active[condition].severity = hit.severity
       }
     } else if (isProbe && probeActive) {
       // One probe condition replaced another; the checker is still failing.
@@ -653,13 +748,11 @@ export async function runCheck({
     }
   }
   for (const [condition, hit] of found) {
-    if (!(condition in current.active)) {
+    if (!(condition in projected)) {
       outgoing.push({ kind: "raise", condition, ...hit })
     }
   }
 
-  const alerts = []
-  let deliveryFailures = 0
   for (const item of outgoing) {
     const alert =
       item.kind === "recover"
@@ -682,6 +775,20 @@ export async function runCheck({
             status,
             newId,
           })
+    next.pending.push({ kind: item.kind, condition: item.condition, alert })
+  }
+
+  const alerts = []
+  let deliveryFailures = 0
+  const blocked = new Set()
+  const pending = []
+  for (const item of next.pending) {
+    const { alert } = item
+    // Never send a recovery (or a later recurrence) ahead of its failed raise.
+    if (blocked.has(item.condition)) {
+      pending.push(item)
+      continue
+    }
     const nonPaging = NON_PAGING_CONDITIONS.has(
       alert.recoveredCondition ?? alert.condition
     )
@@ -693,16 +800,11 @@ export async function runCheck({
         severity: alert.severity,
         delivered: true,
       })
-      if (item.kind === "recover") delete next.active[item.condition]
-      else {
-        next.active[item.condition] = {
-          severity: item.severity,
-          alertId: alert.alertId,
-          since: next.active[item.condition]?.since ?? observedAt,
-        }
-      }
+      applyDelivery(next.active, item)
     } catch (error) {
       deliveryFailures++
+      blocked.add(item.condition)
+      pending.push(item)
       const reason = error instanceof CheckerFailure ? error.code : "sink_error"
       alerts.push({
         alertId: alert.alertId,
@@ -711,29 +813,59 @@ export async function runCheck({
         delivered: false,
         reason,
       })
-      await fallback.record(alert, reason).catch(() => {})
+      // One fallback record per pending event, rather than a KV write on every
+      // retry. Persist the marker with the outbox only after recording succeeds.
+      // The outbox itself remains authoritative after fallback TTL expiry.
+      if (!item.fallbackRecorded) {
+        try {
+          await fallback.record(alert, reason)
+          item.fallbackRecorded = true
+        } catch {
+          // Keep the event pending and retry fallback recording next time.
+        }
+      }
+    }
+  }
+  next.pending = pending
+  // Replacing a probe failure never reports a misleading recovery. A replayed
+  // old probe alert must not restore that obsolete condition in delivered state.
+  if (probeActive) {
+    for (const condition of PROBE_CONDITIONS) {
+      if (!found.has(condition)) delete next.active[condition]
     }
   }
 
   let stateSaved = true
-  try {
-    await stateStore.save(next)
-  } catch {
-    stateSaved = false
+  // Healthy and already-deduplicated runs do not change durable state. Avoid a
+  // KV write for each cron tick: a known unchanged state needs no new commit.
+  // Both values use the same validated canonical shape, including the outbox.
+  if (JSON.stringify(next) !== JSON.stringify(current)) {
+    try {
+      await stateStore.save(next)
+    } catch {
+      stateSaved = false
+    }
   }
 
   let heartbeatResult = { sent: false, reason: "not_configured" }
   if (heartbeat) {
     heartbeatResult =
-      deliveryFailures === 0
-        ? await heartbeat()
-        : { sent: false, reason: "delivery_failed" }
+      deliveryFailures > 0
+        ? { sent: false, reason: "delivery_failed" }
+        : !stateSaved
+          ? { sent: false, reason: "state_save_failed" }
+          : await heartbeat()
   }
 
   const errors = []
   if (deliveryFailures > 0) errors.push("sink_delivery_failed")
   if (!stateSaved) errors.push("state_save_failed")
-  if (heartbeat && !heartbeatResult.sent && deliveryFailures === 0) {
+  if (
+    heartbeat &&
+    !heartbeatResult.sent &&
+    deliveryFailures === 0 &&
+    stateSaved
+  ) {
     errors.push("heartbeat_failed")
   }
   return {

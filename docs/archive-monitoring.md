@@ -5,48 +5,62 @@ depending on the app's own cron or the owner's Mac, that the media archive has
 stopped being verified. For what the archive and its audit do, see
 [media-archive.md](media-archive.md).
 
-> **Real alert delivery is not verified.** Everything below is built and tested
-> against local stubs only. No real credential, hosting account or alert
-> destination exists yet. Do not treat monitoring as complete until the human
-> steps in [Human provisioning checklist](#human-provisioning-checklist) are done
-> and the end-to-end test in [Verify end to end](#verify-end-to-end) has reached the
-> owner.
+> **Provisioning and real delivery remain unverified.** The checker, Cloudflare
+> email sink and Vercel heartbeat watchdog have local test coverage. The owner
+> selected the existing Cloudflare account and `amanshresthaaaaa@gmail.com`; no
+> new monitoring service is required. The production status credential already
+> works, but this does not prove that the Worker, its restricted deployment token,
+> email binding, watchdog migration or hosted delivery path is configured. Complete
+> [Provisioning and rollout](#provisioning-and-rollout) and retain the evidence in
+> [Verify end to end](#verify-end-to-end).
 
 ## Why this exists
 
 The first monitor (`scripts/ci/monitor-archive.mjs`, run by the
 `com.lapeninns.local-ci.smoke` LaunchAgent) checks once a day, reads a Keychain
 secret, and only sets an exit code. It cannot find a failure while the Mac is off,
-asleep or offline, and nothing tells the owner. It stays as a local extra check;
-it is no longer the alerting path.
+asleep or offline, and nothing tells the owner. It remains the only configured check until the external paths are provisioned;
+once those are verified, it can remain as an additional local check.
 
 ## Architecture
 
 ```text
-  Cloudflare Worker (cron, every 5 min)          Owner's alert destination
-  scripts/monitoring/cloudflare-worker.mjs  ───▶  (chosen by owner, HTTPS)
-        │  GET status, Bearer MEDIA_ARCHIVE_MONITOR_SECRET
-        ▼
-  https://naba-lens.vercel.app/api/internal/media-archive/status   (read-only)
+Cloudflare Worker (every 5 min) ── send_email ──▶ verified owner inbox
+  │  GET /api/internal/media-archive/status      (Cloudflare transport)
+  │  Bearer MEDIA_ARCHIVE_MONITOR_SECRET
+  ▼
+Vercel production archive status (read-only)
 
-  Worker KV: dedup state (+ undelivered alerts)    Heartbeat URL (dead man's switch)
+Worker: successful delivery + durable KV state
+  │  POST /api/internal/archive-monitor/heartbeat
+  │  Bearer ARCHIVE_MONITOR_HEARTBEAT_SECRET
+  ▼
+Supabase heartbeat singleton (database server timestamp)
+  ▲
+Vercel watchdog cron (every 5 min) ── Resend ──▶ same owner inbox
+  GET /api/internal/archive-monitor/watchdog     (independent transport)
 ```
 
-| Piece | File | Notes |
-| --- | --- | --- |
-| Portable core | `scripts/monitoring/archive-checker.mjs` | Fetch only, no `node:` imports. Evaluates the conditions, dedups, delivers. Runs in Workers, Node and GitHub Actions. |
-| Node CLI | `scripts/monitoring/check-archive.mjs` | File state, JSONL fallback, secret from env or file. Used for local runs and the GitHub Actions secondary. |
-| Worker entry | `scripts/monitoring/cloudflare-worker.mjs` | Cron handler with KV state. Not deployed by this repo. |
-| Stub sink | `scripts/monitoring/stub-alert-sink.mjs` | Local stand-in for the owner's destination. |
-| Legacy monitor | `scripts/ci/monitor-archive.mjs` | Unchanged. Origin pinned, Keychain credential, daily LaunchAgent. |
+| Piece              | File                                                                                  | Notes                                                                                                     |
+| ------------------ | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Portable core      | `scripts/monitoring/archive-checker.mjs`                                              | Evaluates conditions, persists pending deliveries and deduplicates alerts.                                |
+| Worker             | `scripts/monitoring/cloudflare-worker.mjs`                                            | KV state, restricted email binding and authenticated heartbeat. Requires separate provider deployment.    |
+| Heartbeat receiver | `app/api/internal/archive-monitor/heartbeat/route.ts`                                 | POST authenticated with its own narrow secret; records database server time and ignores the request body. |
+| Watchdog           | `app/api/internal/archive-monitor/watchdog/route.ts`, `lib/server/archive-monitor.ts` | Vercel cron checks for missing heartbeats and uses existing Resend for stopped/recovered email.           |
+| Watchdog state     | `supabase/migrations/20261031180000_archive_monitor_watchdog.sql`                     | Service-role-only heartbeat and durable alert state.                                                      |
+| Node CLI/stub      | `scripts/monitoring/check-archive.mjs`, `stub-alert-sink.mjs`                         | Local checks and controlled delivery tests; generic HTTPS sink remains supported.                         |
+| Legacy monitor     | `scripts/ci/monitor-archive.mjs`                                                      | Mac-dependent extra check, with its existing Keychain credential.                                         |
 
 ### Guarantees
 
-- **One credential, one URL.** The only secret is `MEDIA_ARCHIVE_MONITOR_SECRET`.
-  It is sent only to `GET /api/internal/media-archive/status` on the pinned origin
+- **Separate credentials for separate authority.** `MEDIA_ARCHIVE_MONITOR_SECRET`
+  is sent only to `GET /api/internal/media-archive/status` on the pinned origin
   `https://naba-lens.vercel.app`, with redirects refused, a 15 s timeout and a
   16 KiB body limit. The route accepts it for status only; it cannot run the
-  archive job, cleanup or remove media.
+  archive job, cleanup or remove media. The distinct
+  `ARCHIVE_MONITOR_HEARTBEAT_SECRET` is sent only by POST to the pinned Vercel
+  heartbeat receiver. It records liveness and grants no archive-read, copy or
+  delete authority. Neither credential is sent in a URL or persisted in KV.
 - **No broader credentials.** The checker refuses to run, with `monitor_error`,
   if its environment holds `CLEANUP_SECRET`, `CRON_SECRET` or
   `SUPABASE_SERVICE_ROLE_KEY`. It never falls back to them.
@@ -58,8 +72,22 @@ it is no longer the alerting path.
   error code.
 - **Failures are never swallowed.** A failed delivery, failed state save or
   failed heartbeat gives exit code 2 (Workers: a failed invocation) and, for
-  undelivered alerts, a local fallback record. The alert is retried on the next
-  run.
+  undelivered alerts, a local fallback record. Pending deliveries also persist
+  in the checker state (the CLI state file or Worker KV), retaining the original
+  alert ID and payload. They retry even if the condition clears before the next
+  run, with recovery delivered after the original alert.
+  An unreadable or malformed existing state fails closed with `state_load_failed`:
+  the checker does not overwrite it, deliver new alerts or send a heartbeat until
+  it can read valid state. A missing CLI state file is the only file-read case
+  treated as a new checker; legitimate older version-1 state without an outbox
+  remains compatible.
+  Unchanged validated state is not rewritten: healthy cron ticks and already
+  deduplicated conditions consume no state writes. Changed outbox/delivery state
+  must persist before heartbeat. A fallback record is written once per pending
+  event, with its success marker persisted in the outbox; failed fallback writes
+  are retried. The Worker fallback expires after 30 days, while the pending
+  outbox retains the original alert until delivered. Monitor shared account KV
+  quotas as well as namespace usage; this optimisation is not a quota guarantee.
 
 ### Alert behaviour
 
@@ -117,37 +145,52 @@ The checker does not loosen the 26 hour limit to allow for this. `stale` fires w
 `lastCompleteAt` is older than 26 hours, and `cycle_slow` (a cycle over 20 hours)
 is the early warning that the margin is gone.
 
-## Hosting options
+## Existing-services hosting and dead man's switch
 
-| | Cloudflare Worker cron (**recommended**) | GitHub Actions schedule (secondary) | External uptime service |
-| --- | --- | --- | --- |
-| Independent of Vercel and Supabase | Yes | Yes | Yes |
-| Independent of the Mac | Yes | Yes | Yes |
-| Schedule | 1 min minimum; use 5 min | 5 min minimum, best effort: runs are delayed or dropped under load; scheduled workflows are disabled after 60 days without repository activity | 1–5 min |
-| Secret handling | Worker secret, never in the repo | Actions secret, exposed to the runner process | Header value in a vendor UI |
-| Dedup and `recovered` | Yes (KV) | Only with a cached state file; a lost cache repeats the alert | Vendor's own logic, no condition logic of ours |
-| JSON assertions | Full (our code) | Full (our code) | Limited or paid; custom auth headers vary by plan |
-| Alert delivery | Our code posts to the owner's HTTPS destination; a failure fails the invocation | Same, plus GitHub's failed-run email | Vendor's channels, outside our control |
-| Dead man's switch | Heartbeat ping after each delivered run | Same | Built in, but covers the vendor only |
-| Cost | Free tier covers 288 runs/day and one KV namespace | Free within quota | Free tiers are limited; JSON checks may be paid |
+The selected design uses the owner's existing Cloudflare account, Vercel Pro,
+Supabase and Resend. Cloudflare sends primary alerts directly through the
+`ARCHIVE_ALERT_EMAIL` binding, restricted at the provider to the fixed verified
+recipient. `ALERT_EMAIL_FROM` must be a confirmed sender under an existing routed
+or onboarded domain. No Resend key or archive credentials belong in the Worker.
+Cloudflare documents free sends to verified destinations even when only Email
+Routing is configured; provider acceptance and inbox delivery still need testing.
+See [verified destinations](https://developers.cloudflare.com/email-service/configuration/email-routing-addresses/)
+and [send bindings](https://developers.cloudflare.com/email-service/configuration/send-bindings/).
 
-**Recommendation:** the Cloudflare Worker. It has the finest schedule, keeps the
-secret out of the repository, runs our own condition logic with dedup, and is
-independent of both Vercel and Supabase. Keep a GitHub Actions run as a documented
-secondary only if the owner wants two paths. The archive's R2 bucket also lives on
-Cloudflare, so use a separate Cloudflare account (preferred) or at least an API
-token scoped to this one Worker and KV namespace, so a Cloudflare-wide problem or
-credential leak does not take out both the archive and its monitor.
+The account also holds the archive bucket. Bootstrap the Worker using the owner's
+existing account access, then use an account-owned **Editor token restricted to
+that Worker** for ongoing deployment, secrets and schedule changes. The broad
+Wrangler OAuth credential is not the ongoing monitor deployment credential.
+Cloudflare supports deploying an existing Worker's KV binding without direct KV
+access; grant no R2 or other application permissions. See
+[Workers permissions](https://developers.cloudflare.com/workers/authorization/workers/).
+Record the actual token policy and verify its scope rather than inferring it from
+its name. A scoped token does not isolate the monitor from a Cloudflare-wide
+outage or an account-owner compromise.
 
 ### Dead man's switch
 
-A checker that dies silently is the failure this design must not have. Use an
-external heartbeat monitor (for example healthchecks.io or Better Stack Heartbeats,
-the owner's choice) with a 15 minute period and a 10 minute grace. The checker
-calls the heartbeat URL after every run whose alerts were delivered, including
-runs that raised an alert, and not after a delivery failure. If pings stop, the
-heartbeat service alerts the owner by its own channel. That channel must differ
-from the alert destination, otherwise one outage hides both.
+After successful alert delivery and persistence of any changed checker state,
+the Worker posts an authenticated heartbeat to the fixed Vercel receiver. An unhealthy archive
+can still produce a heartbeat when its alert has been delivered: liveness and
+archive health are separate. Failed delivery, failed state persistence or failed
+heartbeat produces a failed Worker invocation.
+
+The Vercel watchdog runs every five minutes and alerts when no successful heartbeat
+has been recorded for **25 minutes**, or on recovery. It uses database server time,
+service-role-only state and the separate existing Resend transport. Watchdog email
+is fixed to `amanshresthaaaaa@gmail.com`; its sending-only key should be dedicated
+to this purpose and limited to its sender domain. No new heartbeat vendor account
+is needed. Durable claims and stable delivery IDs support retry and deduplication.
+
+Cloudflare failure is detected from Vercel; Vercel failure is detected by the Worker
+and its Cloudflare email transport. Both paths depend on the same destination
+mailbox. If the mailbox blocks mail, both transports fail, or Vercel and Cloudflare
+are unavailable together, timely delivery is not assured. Supabase failure must
+be treated as a watchdog storage fault, not a fresh heartbeat; retain hosted tests
+for that path. Cron delivery is best effort and detection can be later than 25
+minutes if watchdog invocations are delayed. The watchdog's own cron has no third
+independent supervisor in this existing-services design.
 
 ### GitHub Actions secondary (documented, not committed)
 
@@ -319,12 +362,12 @@ The checker itself could not run: missing or malformed credential, a forbidden
 broad credential in its environment, a bad origin or mode. The summary gives a
 code, never the value.
 
-| Code | Meaning |
-| --- | --- |
-| `bad_secret` | Secret missing, not 32–256 characters of `A–Z a–z 0–9 _ -`, or two credential sources set |
-| `broad_credential` | `CLEANUP_SECRET`, `CRON_SECRET` or `SUPABASE_SERVICE_ROLE_KEY` is present where the checker runs: remove it |
+| Code                                                                 | Meaning                                                                                                              |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `bad_secret`                                                         | Secret missing, not 32–256 characters of `A–Z a–z 0–9 _ -`, or two credential sources set                            |
+| `broad_credential`                                                   | `CLEANUP_SECRET`, `CRON_SECRET` or `SUPABASE_SERVICE_ROLE_KEY` is present where the checker runs: remove it          |
 | `origin_not_pinned`, `bad_origin`, `bad_mode`, `origin_not_loopback` | Configuration points somewhere other than the pinned production origin (or a loopback origin in explicit local mode) |
-| `checker_error` | Unexpected internal error; read the Worker logs |
+| `checker_error`                                                      | Unexpected internal error; read the Worker logs                                                                      |
 
 If no alert destination is usable, the CLI exits 2 and writes the record to
 `undelivered.jsonl`, and the Worker invocation fails.
@@ -365,91 +408,91 @@ Tests (no network beyond loopback):
 node --test scripts/monitoring/archive-checker.test.mjs scripts/ci/monitor-archive.test.mjs
 ```
 
-## Human provisioning checklist
+## Provisioning and rollout
 
-Nothing here has been done. An agent must not do any of it.
+The owner authorised configuration using existing services. The following are
+rollout tasks, not a record of completed setup. Never place actual secret values
+in this document, repository, shell arguments, chat or logs.
 
-### 1. The credential
+1. Confirm Vercel production targets project `naba-lens` on its Pro team. Verify
+   the project link explicitly: an old local `.vercel/project.json` may still point
+   to the retired staging project. Do not deploy using that stale link.
+2. Resolve PR review findings, finish local checks, rebase on the current default
+   branch and run the required final-head `lci` gate once. Do not bypass a gate.
+3. Coordinate the audit migration `20261030170000_media_archive_audit_cycles.sql`
+   and application switch away from the existing minute-43 hourly audit. The old
+   audit can write a positive cursor without a cycle ID, which the new constraint
+   rejects. Prevent an old audit invocation during this window; verify the new
+   code and schema together before enabling the ten-minute archive schedule.
+4. Apply the watchdog migration `20261031180000_archive_monitor_watchdog.sql` in
+   the authorised production rollout and deploy its receiver/watchdog routes.
+   Initialise the Worker promptly: the watchdog should correctly report missing
+   heartbeats if setup remains incomplete. Do not fabricate liveness timestamps.
+5. Keep the existing independent `MEDIA_ARCHIVE_MONITOR_SECRET` in Vercel and
+   matching Worker secret storage. It must be a 32–256-character URL-safe token,
+   distinct from cleanup and cron secrets. Keep the Mac copy in its existing
+   Keychain service/account if the local extra check is retained.
+6. Generate a separate `ARCHIVE_MONITOR_HEARTBEAT_SECRET` with the same shape,
+   distinct from monitor, cleanup and cron secrets. Store it only in Vercel and
+   Worker secrets. It authenticates POST to
+   `https://naba-lens.vercel.app/api/internal/archive-monitor/heartbeat`; no query
+   token or custom heartbeat host is accepted in this mode.
+7. Configure Vercel `ARCHIVE_WATCHDOG_RESEND_API_KEY` as a dedicated sending-only
+   Resend key limited to its sender domain, and `ARCHIVE_WATCHDOG_EMAIL_FROM` as
+   the confirmed sender address. Verify that its production cron bearer is set.
+   These keys must not appear in the Worker environment.
+8. Bootstrap Worker `naba-lens-archive-checker` and its dedicated KV namespace,
+   bind KV as `CHECKER_STATE`, enable Workers logs and schedule `*/5 * * * *`.
+   Use compatibility date `2026-10-31` or a reviewed later date. Bind
+   `ARCHIVE_ALERT_EMAIL` as `send_email` with
+   `destination_address = "amanshresthaaaaa@gmail.com"`. Set `ALERT_EMAIL_FROM`
+   to a sender confirmed under an existing routed/onboarded domain. The source
+   also fixes the recipient; do not add recipient overrides or broad email keys.
+9. Create the account-owned deployment token restricted to **Editor on this
+   Worker only** and verify it can update the Worker while lacking archive/R2
+   access. Store it through the owner's existing secure credential mechanism.
+   The monitor runtime holds no deployment token, cleanup/cron secret, Supabase
+   credential, R2 binding or archive-write authority.
+10. Deploy the reviewed Worker with the narrow deployment credential, then inspect
+    cron invocations, state persistence and authenticated heartbeat receipt.
+    Optional `DIGEST_SINK_URL` and legacy HTTPS sinks remain supported but are not
+    needed for the selected email setup. Do not enable repository Actions merely
+    to add another monitor.
 
-- [ ] **Name:** `MEDIA_ARCHIVE_MONITOR_SECRET`.
-- [ ] **Scope:** read-only access to `GET /api/internal/media-archive/status` and
-      nothing else. It must be a new random token, 32–256 characters from
-      `A–Z a–z 0–9 _ -`, different from `CLEANUP_SECRET` and `CRON_SECRET`.
-- [ ] **Where stored:** (a) as a server-only environment value on the Vercel
-      production project, as the app already expects; (b) as a Worker secret on the
-      checker (`wrangler secret put MEDIA_ARCHIVE_MONITOR_SECRET`); optionally
-      (c) as the same Keychain item the legacy monitor uses. Never in the repository,
-      shell history, chat, CI logs or the shared folder.
-- [ ] **Rotation:** every 90 days and on any suspicion. Generate a new value, set it
-      on Vercel and redeploy, update the Worker secret, run the checker once and
-      confirm no `auth_rejected`. A short `auth_rejected` between the two steps is
-      expected. Revoke by removing the Vercel value: the route then
-      answers 401 (`auth_rejected`) while `CLEANUP_SECRET` is set.
-- [ ] Confirm the checker holds no other secret: the Worker has no cleanup, cron,
-      Supabase or R2 bindings.
-
-### 2. The alert destination (owner's choice)
-
-- [ ] Choose where critical alerts must reach the owner, ideally a channel that
-      notifies a phone: email, SMS, a Slack or Discord channel, or a push service.
-- [ ] Obtain an **HTTPS** endpoint that accepts a POST. The checker sends the alert
-      JSON by default, or `{ "text": "..." }` with `ARCHIVE_ALERT_SINK_FORMAT=slack`
-      (Worker binding `ALERT_SINK_FORMAT`), which Slack-style incoming webhooks
-      accept. Email and SMS need a relay or automation service in between.
-- [ ] Store the URL as the Worker secret `ALERT_SINK_URL` (it usually contains a
-      secret path). Do not commit it.
-- [ ] Optional: a second, **non-paging** HTTPS destination (a digest or email) for
-      `cycle_slow`, stored as the Worker secret `DIGEST_SINK_URL`.
-- [ ] Choose a **separate** destination for the heartbeat service's own alerts.
-
-### 3. The hosting account and settings
-
-- [ ] A Cloudflare account separate from the one holding the archive R2 bucket
-      (or, at minimum, an API token scoped to this Worker and KV namespace only).
-- [ ] Create the Worker from `scripts/monitoring/cloudflare-worker.mjs`, a KV
-      namespace bound as `CHECKER_STATE`, and a cron trigger `*/5 * * * *`. A
-      minimal `wrangler.toml`:
-
-      name = "naba-lens-archive-checker"
-      main = "scripts/monitoring/cloudflare-worker.mjs"
-      compatibility_date = "2026-10-01"
-      [triggers]
-      crons = ["*/5 * * * *"]
-      [[kv_namespaces]]
-      binding = "CHECKER_STATE"
-      id = "<namespace id>"
-
-- [ ] Secrets only: `MEDIA_ARCHIVE_MONITOR_SECRET`, `ALERT_SINK_URL`, optionally
-      `DIGEST_SINK_URL`, and `HEARTBEAT_URL` (below). Turn on Workers logs so failed invocations are visible.
-- [ ] Heartbeat: create a check with a 15 minute period and 10 minute grace, and
-      set its URL as `HEARTBEAT_URL`. Point its alerts at the separate channel.
-- [ ] Optional: the GitHub Actions secondary, with matching repository secrets.
+Rotate either narrow application credential on suspicion or on the owner's
+rotation schedule. Coordinate Vercel and Worker updates, then verify recovery;
+a brief authentication failure during an intentional rotation must not be marked
+as successful monitoring.
 
 ### Verify end to end
 
-Do this after provisioning, and again after any change to the destination or the
-credential. Record the result with the date; delivery counts as verified only when
-a person confirms receipt.
+Record dates, deployed revisions, provider message IDs and inbox observations.
+Provider API acceptance alone does not prove the owner received an alert.
 
-1. **Alert path.** Temporarily set the Worker secret `MEDIA_ARCHIVE_MONITOR_SECRET`
-   to a wrong value of valid shape. Within two cron cycles the owner must receive an
-   `auth_rejected` alert on the chosen channel, on their phone. Restore the correct
-   value and confirm a `recovered` alert arrives and no further alert follows.
-2. **Dedup.** While broken, confirm only one alert was received, not one per run.
-3. **Delivery failure.** Temporarily set `ALERT_SINK_URL` to an invalid HTTPS URL
-   and confirm the Worker shows failed invocations and `undelivered:` keys appear
-   in KV. Restore it.
-4. **Dead man's switch.** Disable the cron trigger for longer than the heartbeat
-   period plus grace and confirm the owner is alerted by the heartbeat service's
-   channel. Re-enable it.
-5. **Routing.** If a digest destination is set, confirm a `cycle_slow` test alert
-   (for example from the local stub with `--digest-sink`) lands there and not on the
-   paging channel.
-6. **Real condition.** When practical, confirm one genuine `stale` or `not_running`
-   alert against the deployed endpoint using the real read-only credential.
+1. **Primary alert and recovery:** temporarily give the Worker an incorrect,
+   well-shaped monitor credential. Observe one `auth_rejected` email in the
+   owner's inbox, restore the credential and observe `recovered`. Confirm dedup
+   across at least two broken cron invocations.
+2. **Delivery failure and replay:** in a controlled maintenance window, use an
+   invalid sender or controlled rejected binding configuration. Confirm the
+   invocation fails, pending deliveries remain in KV and heartbeat is withheld.
+   Restore it and verify the original alert is retried even if health has recovered.
+3. **Heartbeat authentication:** confirm POST with the separate credential stores
+   database server time. Incorrect credentials, the status token and cron/cleanup
+   tokens must fail. Receiver calls must not run or mutate archive audits.
+4. **Stopped Worker:** disable its cron for more than 25 minutes plus the next
+   watchdog interval. Verify the Vercel watchdog sends a stopped email through
+   Resend. Re-enable the cron, verify a fresh recorded heartbeat and recovery email.
+5. **Watchdog faults:** exercise email rejection and heartbeat-store failure in an
+   isolated environment. Confirm durable retry on email failure, safe errors and
+   no fabricated healthy state. Confirm logs redact tokens and provider responses.
+6. **Real archive status:** verify the real pinned status route with the narrow
+   credential and confirm the current schedule, audit progress and freshness.
+   Where practical, record a real archive-condition alert without deleting media
+   or weakening the 26-hour threshold.
 
-Until all six are confirmed by a person, the status of this system is: code and
-local stub tests exist; real delivery unverified.
+Until these hosted checks are complete, record the operational status as
+**implementation locally tested; provisioning and real delivery unverified**.
 
 ## Limits
 
@@ -458,5 +501,7 @@ local stub tests exist; real delivery unverified.
 - One missed alert is not repeated. Prefer a destination with history.
 - The checker trusts the status route's data. It detects a stopped or failing
   audit, not corruption the audit itself cannot see.
-- The Worker is not deployed by this repository; changes to
-  `scripts/monitoring/` take effect only after a human redeploys it.
+- Worker source changes take effect only after its separate provider deployment.
+  Application deployment alone does not update the Worker.
+- Existing-service reuse removes the need for another vendor but does not remove
+  the correlated outage and mailbox dependencies described above.

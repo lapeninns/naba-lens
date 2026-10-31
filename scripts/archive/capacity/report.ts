@@ -224,7 +224,7 @@ if (want("schedules")) {
         "Receipts/run (conservative closed form)",
         "Bytes/run",
         "Run time mean / worst",
-        "Runs past hard deadline",
+        "Runs hitting hard deadline",
         "Worker idle at batch barriers",
         "Max library for a 24 h cycle",
       ],

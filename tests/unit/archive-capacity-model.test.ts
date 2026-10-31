@@ -21,6 +21,7 @@ import {
   maxReceipts,
   monthlyCost,
   projectLibrary,
+  simulateInvocation,
   throughput,
 } from "../../scripts/archive/capacity/model"
 
@@ -76,6 +77,102 @@ describe("archive capacity model", () => {
     expect(
       RECOMMENDED.hardSeconds - RECOMMENDED.softSeconds
     ).toBeGreaterThanOrEqual(30)
+  })
+
+  it("stops slow in-flight reads at the hard deadline instead of draining them", () => {
+    const measured = {
+      ...speed("nominal"),
+      ttfbMs: 0,
+      streamMBps: 0.1,
+      instanceCapMBps: 0.8,
+      dbCallMs: 0,
+      fixedSeconds: 0,
+    }
+    const policy = { ...RECOMMENDED, backfillLimit: 0 }
+    const run = simulateInvocation(measured, policy, 1)
+    expect(run.seconds).toBe(policy.hardSeconds)
+    expect(run.hardDeadlineHit).toBe(true)
+    expect(run.verified).toBe(0)
+    expect(run.bytes).toBe(0)
+    expect(throughput(measured, policy, 1).hardDeadlineShare).toBe(1)
+    expect(maxReceipts(measured, policy, 1)).toBe(0)
+    expect(cycleSeconds(100, measured, policy, 1)).toBe(Infinity)
+  })
+
+  it("keeps completed checkpoints but excludes receipts still reading at timeout", () => {
+    const measured = {
+      ...speed("nominal"),
+      ttfbMs: 0,
+      streamMBps: 0.1,
+      instanceCapMBps: 0.8,
+      dbCallMs: 0,
+      fixedSeconds: 0,
+    }
+    const policy = {
+      ...RECOMMENDED,
+      backfillLimit: 0,
+      concurrency: 1,
+      batchSize: 1,
+    }
+    // Seed 1 begins with 19.5 MB videos, each taking 195 s to read.
+    const run = simulateInvocation(measured, policy, 1)
+    expect(run.verified).toBe(2)
+    expect(run.bytes).toBe(39_000_000)
+    expect(run.batches).toBe(2)
+    expect(run.hardDeadlineHit).toBe(true)
+    // This prefix cannot establish capacity for a whole mix that also has
+    // 200 MiB videos, which cannot finish even when first in an invocation.
+    expect(throughput(measured, policy, 1).canCompleteCycle).toBe(false)
+    expect(maxReceipts(measured, policy, 1)).toBe(0)
+    expect(cycleSeconds(100, measured, policy, 1)).toBe(Infinity)
+  })
+
+  it("never checkpoints later completed receipts past a blocked first receipt", () => {
+    const measured = {
+      ...speed("nominal"),
+      ttfbMs: 0,
+      streamMBps: 0.1,
+      instanceCapMBps: 0.8,
+      dbCallMs: 0,
+      fixedSeconds: 0,
+    }
+    // Seed 60 starts with a 200 MiB video, followed by 19.5 MB videos that
+    // finish before the deadline. The unfinished first receipt holds the cursor.
+    const run = simulateInvocation(
+      measured,
+      { ...RECOMMENDED, backfillLimit: 0, batchSize: 1 },
+      1,
+      60
+    )
+    expect(run.verified).toBe(0)
+    expect(run.bytes).toBe(0)
+    expect(run.batches).toBe(0)
+    expect(run.hardDeadlineHit).toBe(true)
+  })
+
+  it("does not count a final checkpoint that cannot finish before the deadline", () => {
+    const measured = {
+      ...speed("nominal"),
+      ttfbMs: 0,
+      streamMBps: 100,
+      instanceCapMBps: 100,
+      dbCallMs: 500,
+      fixedSeconds: 0,
+    }
+    const policy = {
+      ...RECOMMENDED,
+      backfillLimit: 0,
+      concurrency: 1,
+      batchSize: 1,
+      receiptCap: 1,
+      softSeconds: 0.5,
+      hardSeconds: 1,
+    }
+    const run = simulateInvocation(measured, policy, 0)
+    expect(run.seconds).toBe(1)
+    expect(run.verified).toBe(0)
+    expect(run.bytes).toBe(0)
+    expect(run.hardDeadlineHit).toBe(true)
   })
 
   it("pipelining beats batch barriers, and the closed form is a conservative bound", () => {

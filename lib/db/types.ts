@@ -963,6 +963,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      record_archive_monitor_heartbeat: {
+        Args: Record<string, never>
+        Returns: undefined
+      }
+      claim_archive_monitor_alert: {
+        Args: Record<string, never>
+        Returns: Json
+      }
+      complete_archive_monitor_alert: {
+        Args: { p_event_id: string; p_claim_id: string }
+        Returns: boolean
+      }
       acquire_maintenance_lease: {
         Args: { p_holder: string; p_name: string; p_ttl: string }
         Returns: boolean

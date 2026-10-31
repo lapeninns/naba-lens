@@ -20,6 +20,7 @@ import {
   ARCHIVE_AUDIT_CRON,
   ARCHIVE_AUDIT_CYCLE_MIN_SPACING_MS,
   ARCHIVE_AUDIT_DEADLINE_MS,
+  ARCHIVE_AUDIT_FINALIZATION_MS,
   ARCHIVE_AUDIT_INTERVAL_SECONDS,
   ARCHIVE_AUDIT_LEASE_TTL_SECONDS,
   ARCHIVE_AUDIT_SOFT_BUDGET_MS,
@@ -652,6 +653,74 @@ describe("cycle throttle", () => {
 })
 
 describe("deadline, lease and overlap", () => {
+  it("bounds a stalled checkpoint, records its timeout, and cancels its late write", async () => {
+    const fake = createFakeArchiveService({ receipts: ids(2) })
+    let release!: () => void
+    const stalled = new Promise<void>((resolve) => (release = resolve))
+    let updates = 0
+    fake.before = (key) => {
+      if (key === "media_archive_audit_state.update" && ++updates === 2)
+        return stalled
+    }
+    const report = await audit(fake, undefined, {
+      checkpointEvery: 1,
+      deadlineMs: 40,
+      finalizationMs: 120,
+    })
+    expect(report).toMatchObject({
+      outcome: "timeout",
+      checked: 1,
+      cursorTo: 1,
+    })
+    expect(fake.runs[0]).toMatchObject({
+      outcome: "timeout",
+      error: "archive_audit_timeout",
+    })
+    expect(fake.lease.holder).toBeNull()
+    // A request that settles after cancellation cannot overwrite newer state.
+    fake.state.cursor_id = 2
+    release()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(fake.state.cursor_id).toBe(2)
+  })
+
+  it("leaves time to record and release when checkpoint and end-state writes both hang", async () => {
+    const fake = createFakeArchiveService({ receipts: ids(2) })
+    let updates = 0
+    fake.before = (key) => {
+      if (key === "media_archive_audit_state.update" && ++updates > 1)
+        return new Promise<void>(() => undefined)
+    }
+    const report = await audit(fake, undefined, {
+      checkpointEvery: 1,
+      deadlineMs: 40,
+      finalizationMs: 120,
+    })
+    expect(report).toMatchObject({ outcome: "timeout", checked: 0 })
+    expect(fake.runs[0]).toMatchObject({ outcome: "timeout" })
+    expect(fake.lease.holder).toBeNull()
+  })
+
+  it("bounds stalled run recording, pruning and lease release inside a shared finalization budget", async () => {
+    const fake = createFakeArchiveService({ receipts: ids(1) })
+    const logged = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined)
+    fake.before = (key) => {
+      if (
+        key.startsWith("media_archive_audit_runs.") ||
+        key === "rpc.release_maintenance_lease"
+      )
+        return new Promise<void>(() => undefined)
+    }
+    const report = await audit(fake, undefined, { finalizationMs: 120 })
+    expect(report).toMatchObject({ outcome: "completed_cycle", checked: 1 })
+    expect(logged).toHaveBeenCalledWith("media archive audit run record failed")
+    expect(logged).toHaveBeenCalledWith("media archive audit run prune failed")
+    expect(fake.calls).toContain("rpc.release_maintenance_lease")
+    expect(ARCHIVE_AUDIT_FINALIZATION_MS).toBeLessThan(60_000)
+  })
+
   it("records a timeout when a store call hangs, keeping progress up to the last checkpoint", async () => {
     const fake = createFakeArchiveService({ receipts: ids(3) })
     const store = createFakeArchiveStore()

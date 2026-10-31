@@ -631,8 +631,8 @@ suite("sink failures are reported, never swallowed (§4.6)", () => {
     const retried = await h.run({ now: NOW + 600_000 })
     expect(retried.exitCode).toBe(1)
     expect(conditionsOf(h.delivered)).toEqual(["missing_originals"])
-    // A new attempt is a new alert id; nothing is delivered twice afterwards.
-    expect(h.delivered[0].alertId).not.toBe(h.undelivered[0].alert.alertId)
+    // Retry the same event so the destination can also deduplicate attempts.
+    expect(h.delivered[0].alertId).toBe(h.undelivered[0].alert.alertId)
     await h.run({ now: NOW + 1_200_000 })
     expect(h.delivered).toHaveLength(1)
   })

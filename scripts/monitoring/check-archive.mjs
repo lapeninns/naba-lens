@@ -45,8 +45,11 @@ export function fileStateStore(path) {
     async load() {
       try {
         return JSON.parse(await readFile(path, "utf8"))
-      } catch {
-        return null
+      } catch (error) {
+        if (error?.code === "ENOENT") return null
+        // A corrupt or unreadable existing file may hold pending deliveries.
+        // Propagate the failure so runCheck preserves it and withholds heartbeat.
+        throw error
       }
     },
     async save(state) {

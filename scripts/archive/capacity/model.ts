@@ -383,67 +383,99 @@ function simulatePipelined(
   dt: number
 ): SimResult {
   const lat = speed.ttfbMs / 1000
+  const hardAt = Math.max(0, policy.hardSeconds - startup)
+  const checkpointSeconds = 2 * (speed.dbCallMs / 1000)
+  type Entry = { size: number; done: boolean }
   type Worker = {
     phase: "wait" | "stream" | "post"
     left: number
-    size: number
+    entry: Entry
   }
   const workers: Worker[] = []
+  const issued: Entry[] = []
   let t = 0
-  let started = 0
+  let watermark = 0
   let verified = 0
   let bytes = 0
+  let batches = 0
+  let checkpoint: { through: number; finishedAt: number } | null = null
   const start = (w: Worker): boolean => {
-    if (t >= stopAt || started >= policy.receiptCap) return false
-    started++
-    w.size = sampleBytes(video, next)
+    if (t >= stopAt || t >= hardAt || issued.length >= policy.receiptCap)
+      return false
+    w.entry = { size: sampleBytes(video, next), done: false }
+    issued.push(w.entry)
     w.phase = "wait"
     w.left = lat
     return true
   }
   for (let i = 0; i < policy.concurrency; i++) {
-    const w: Worker = { phase: "wait", left: 0, size: 0 }
+    const w: Worker = {
+      phase: "wait",
+      left: 0,
+      entry: { size: 0, done: false },
+    }
     if (start(w)) workers.push(w)
   }
-  while (workers.length > 0) {
+  const finishCheckpoint = () => {
+    if (!checkpoint || checkpoint.finishedAt > t) return
+    for (let i = verified; i < checkpoint.through; i++) bytes += issued[i].size
+    verified = checkpoint.through
+    batches++
+    checkpoint = null
+  }
+  while ((workers.length > 0 || checkpoint) && t < hardAt) {
+    // The final tick stops at the deadline; nothing can complete beyond it.
+    const step = Math.min(dt, hardAt - t)
     const streaming = workers.filter((w) => w.phase === "stream").length
     const share = Math.min(
       speed.streamMBps,
       speed.instanceCapMBps / Math.max(1, streaming)
     )
+    t += step
+    if (t >= hardAt) break
     for (let i = workers.length - 1; i >= 0; i--) {
       const w = workers[i]
-      if (w.phase === "stream") w.left -= share * MB * dt
-      else w.left -= dt
+      if (w.phase === "stream") w.left -= share * MB * step
+      else w.left -= step
       if (w.left > 0) continue
       if (w.phase === "wait") {
         w.phase = "stream"
-        w.left = w.size
+        w.left = w.entry.size
       } else if (w.phase === "stream") {
         w.phase = "post"
         w.left = lat
       } else {
-        verified++
-        bytes += w.size
+        w.entry.done = true
         if (!start(w)) workers.splice(i, 1)
       }
     }
-    t += dt
+    // Later receipts cannot move the durable cursor past an unfinished one.
+    while (watermark < issued.length && issued[watermark].done) watermark++
+    finishCheckpoint()
+    if (
+      !checkpoint &&
+      watermark > verified &&
+      (watermark - verified >= policy.batchSize || workers.length === 0)
+    ) {
+      checkpoint = { through: watermark, finishedAt: t + checkpointSeconds }
+      finishCheckpoint()
+    }
   }
-  // The last checkpoint and lease release are two more calls after the final receipt.
-  t += 2 * (speed.dbCallMs / 1000)
   return {
     verified,
     bytes,
-    seconds: startup + t,
+    seconds: Math.min(policy.hardSeconds, startup + t),
     verifySeconds: t,
-    batches: Math.ceil(verified / policy.batchSize),
+    batches,
     barrierIdle: 0,
-    hardDeadlineHit: startup + t > policy.hardSeconds,
+    hardDeadlineHit:
+      startup >= policy.hardSeconds || workers.length > 0 || !!checkpoint,
   }
 }
 
 export type Throughput = {
+  /** Every size class in the requested mix can fit in a fresh invocation. */
+  canCompleteCycle: boolean
   receiptsPerInvocation: number
   bytesPerInvocation: number
   /** Mean / worst whole-invocation wall time across seeds, seconds. */
@@ -474,7 +506,23 @@ export function throughput(
   )
   const avg = (f: (r: SimResult) => number) =>
     runs.reduce((sum, r) => sum + f(r), 0) / runs.length
+  // A random prefix can make progress even when a later large receipt would
+  // block every subsequent invocation. Do not turn that prefix into a finite
+  // full-cycle estimate. Use the same shared-bandwidth assumption as the
+  // conservative analytic cross-check below.
+  const largest = Math.max(
+    ...(video < 1 ? PHOTO_CLASSES.map((c) => c.bytes) : []),
+    ...(video > 0 ? VIDEO_CLASSES.map((c) => c.bytes) : [])
+  )
+  const startup =
+    speed.fixedSeconds +
+    policy.backfillLimit * backfillSeconds(speed, meanBytes(video))
+  const rate =
+    Math.min(speed.streamMBps, speed.instanceCapMBps / policy.concurrency) * MB
+  const largestSeconds =
+    2 * (speed.ttfbMs / 1000) + largest / rate + 2 * (speed.dbCallMs / 1000)
   const result: Throughput = {
+    canCompleteCycle: startup + largestSeconds < policy.hardSeconds,
     receiptsPerInvocation: avg((r) => r.verified),
     bytesPerInvocation: avg((r) => r.bytes),
     meanSeconds: avg((r) => r.seconds),
@@ -551,8 +599,12 @@ export function cycleSeconds(
   video: number,
   missedShare = MISSED_RUN_SHARE
 ): number {
-  const { receiptsPerInvocation } = throughput(speed, policy, video)
-  if (receiptsPerInvocation <= 0) return Infinity
+  const { receiptsPerInvocation, canCompleteCycle } = throughput(
+    speed,
+    policy,
+    video
+  )
+  if (!canCompleteCycle || receiptsPerInvocation <= 0) return Infinity
   const invocations = Math.ceil(receipts / receiptsPerInvocation)
   return (invocations / (1 - missedShare)) * policy.intervalSeconds
 }
@@ -565,7 +617,12 @@ export function maxReceipts(
   targetSeconds = TARGET_CYCLE_SECONDS,
   missedShare = MISSED_RUN_SHARE
 ): number {
-  const { receiptsPerInvocation } = throughput(speed, policy, video)
+  const { receiptsPerInvocation, canCompleteCycle } = throughput(
+    speed,
+    policy,
+    video
+  )
+  if (!canCompleteCycle) return 0
   const invocations = Math.floor(
     (targetSeconds / policy.intervalSeconds) * (1 - missedShare)
   )

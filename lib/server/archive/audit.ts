@@ -34,6 +34,8 @@ export const ARCHIVE_AUDIT_BACKFILL_LIMIT = 5
 export const ARCHIVE_AUDIT_SOFT_BUDGET_MS = 480_000
 /** Hard deadline: in-flight work is abandoned and the run ends `timeout`. */
 export const ARCHIVE_AUDIT_DEADLINE_MS = 540_000
+/** Shared cleanup budget stays inside the 60-second platform margin. */
+export const ARCHIVE_AUDIT_FINALIZATION_MS = 30_000
 export const ARCHIVE_AUDIT_LEASE_TTL_SECONDS = 600
 /** A new cycle starts only this long after the previous complete cycle started. */
 export const ARCHIVE_AUDIT_CYCLE_MIN_SPACING_MS = 12 * 60 * 60 * 1000
@@ -70,8 +72,12 @@ const ERROR_CODES: ReadonlySet<string> = new Set<ArchiveAuditError>([
 
 export type ArchiveLeaseClient = {
   /** True when `holder` now holds the lease; the same holder again renews it. */
-  acquire(holder: string, ttlSeconds: number): Promise<boolean>
-  release(holder: string): Promise<void>
+  acquire(
+    holder: string,
+    ttlSeconds: number,
+    signal?: AbortSignal
+  ): Promise<boolean>
+  release(holder: string, signal?: AbortSignal): Promise<void>
 }
 
 export type ArchiveAuditOptions = {
@@ -87,6 +93,7 @@ export type ArchiveAuditOptions = {
   now?: () => number
   signal?: AbortSignal
   deadlineMs?: number
+  finalizationMs?: number
   softBudgetMs?: number
   concurrency?: number
   checkpointEvery?: number
@@ -179,20 +186,24 @@ function abortable<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
 
 function rpcLeaseClient(service: Service): ArchiveLeaseClient {
   return {
-    async acquire(holder, ttlSeconds) {
-      const lease = await service.rpc("acquire_maintenance_lease", {
+    async acquire(holder, ttlSeconds, signal) {
+      const request = service.rpc("acquire_maintenance_lease", {
         p_name: LEASE_NAME,
         p_holder: holder,
         p_ttl: `${ttlSeconds} seconds`,
       })
+      const lease = await (signal
+        ? (request.abortSignal?.(signal) ?? request)
+        : request)
       if (lease.error) throw new Error("archive_lease_failed")
       return lease.data === true
     },
-    async release(holder) {
-      await service.rpc("release_maintenance_lease", {
+    async release(holder, signal) {
+      const request = service.rpc("release_maintenance_lease", {
         p_name: LEASE_NAME,
         p_holder: holder,
       })
+      await (signal ? (request.abortSignal?.(signal) ?? request) : request)
     },
   }
 }
@@ -250,6 +261,27 @@ export async function runArchiveAudit(
   const signal =
     options.signal ??
     AbortSignal.timeout(options.deadlineMs ?? ARCHIVE_AUDIT_DEADLINE_MS)
+  const finalizationMs = options.finalizationMs ?? ARCHIVE_AUDIT_FINALIZATION_MS
+  let finalization: AbortSignal | undefined
+  // A stalled cleanup request must leave time to attempt recording the run and
+  // releasing its lease. All cleanup still shares one bounded overall budget.
+  const finalSignal = () =>
+    AbortSignal.any([
+      (finalization ??= AbortSignal.timeout(finalizationMs)),
+      AbortSignal.timeout(
+        Math.max(1, Math.min(5_000, Math.floor(finalizationMs / 6)))
+      ),
+    ])
+  const request = <T>(
+    query: PromiseLike<T> & {
+      abortSignal?(signal: AbortSignal): PromiseLike<T>
+    },
+    requestSignal = signal
+  ) =>
+    abortable(
+      Promise.resolve(query.abortSignal?.(requestSignal) ?? query),
+      requestSignal
+    )
   const holder = randomId()
   const runId = randomId()
   const startedMs = now()
@@ -257,7 +289,7 @@ export async function runArchiveAudit(
 
   let acquired: boolean
   try {
-    acquired = await lease.acquire(holder, leaseTtl)
+    acquired = await abortable(lease.acquire(holder, leaseTtl, signal), signal)
   } catch {
     throw new Error("archive_lease_failed")
   }
@@ -285,21 +317,28 @@ export async function runArchiveAudit(
     cursorTo: run.cursorTo,
   })
   const recordRun = async () => {
-    const inserted = await service.from("media_archive_audit_runs").insert({
-      run_id: runId,
-      cycle_id: run.cycleId,
-      started_at: iso(startedMs),
-      finished_at: iso(),
-      outcome: run.outcome,
-      checked: run.checked,
-      copied: run.copied,
-      missing: run.missing,
-      bytes_verified: run.bytesVerified,
-      error: run.error,
-      cursor_from: run.cursorFrom,
-      cursor_to: run.cursorTo,
-    })
-    if (inserted.error) console.error("media archive audit run record failed")
+    try {
+      const inserted = await request(
+        service.from("media_archive_audit_runs").insert({
+          run_id: runId,
+          cycle_id: run.cycleId,
+          started_at: iso(startedMs),
+          finished_at: iso(),
+          outcome: run.outcome,
+          checked: run.checked,
+          copied: run.copied,
+          missing: run.missing,
+          bytes_verified: run.bytesVerified,
+          error: run.error,
+          cursor_from: run.cursorFrom,
+          cursor_to: run.cursorTo,
+        }),
+        finalSignal()
+      )
+      if (inserted.error) console.error("media archive audit run record failed")
+    } catch {
+      console.error("media archive audit run record failed")
+    }
   }
 
   if (!acquired) {
@@ -340,15 +379,20 @@ export async function runArchiveAudit(
     return report()
   } finally {
     if (!options.store) store.close?.()
-    await lease.release(holder).catch(() => undefined)
+    const releaseSignal = finalSignal()
+    await abortable(lease.release(holder, releaseSignal), releaseSignal).catch(
+      () => undefined
+    )
   }
 
   async function readState(): Promise<StateRow> {
-    const read = await service
-      .from("media_archive_audit_state")
-      .select(STATE_COLUMNS)
-      .eq("name", STATE_NAME)
-      .single()
+    const read = await request(
+      service
+        .from("media_archive_audit_state")
+        .select(STATE_COLUMNS)
+        .eq("name", STATE_NAME)
+        .single()
+    )
     if (read.error || !read.data)
       throw new AuditStop("failed", "archive_audit_failed")
     run.cycleId = read.data.cycle_id
@@ -357,13 +401,13 @@ export async function runArchiveAudit(
     return read.data
   }
 
-  async function renew() {
+  async function renew(requestSignal = signal) {
     let held: boolean
     try {
-      // After the deadline the final checkpoint still has to confirm ownership.
-      held = await (signal.aborted
-        ? lease.acquire(holder, leaseTtl)
-        : abortable(lease.acquire(holder, leaseTtl), signal))
+      held = await abortable(
+        lease.acquire(holder, leaseTtl, requestSignal),
+        requestSignal
+      )
     } catch (error) {
       if (error instanceof AuditStop) throw error
       throw new AuditStop("failed", "archive_audit_failed")
@@ -390,43 +434,39 @@ export async function runArchiveAudit(
 
     if (!cycleId && !throttled) {
       await renew()
-      const newest = await abortable(
-        Promise.resolve(
-          service
-            .from("media_archive_receipts")
-            .select("id")
-            .order("id", { ascending: false })
-            .limit(1)
-        ),
-        signal
+      const newest = await request(
+        service
+          .from("media_archive_receipts")
+          .select("id")
+          .order("id", { ascending: false })
+          .limit(1)
       )
       if (newest.error) throw new AuditStop("failed", "archive_audit_failed")
       target = newest.data[0]?.id ?? 0
-      const counted = await abortable(
-        Promise.resolve(
-          service
-            .from("media_archive_receipts")
-            .select("id", { count: "exact", head: true })
-            .lte("id", target)
-        ),
-        signal
+      const counted = await request(
+        service
+          .from("media_archive_receipts")
+          .select("id", { count: "exact", head: true })
+          .lte("id", target)
       )
       if (counted.error) throw new AuditStop("failed", "archive_audit_failed")
       cycleId = randomId()
       startedAtMs = now()
-      const started = await service
-        .from("media_archive_audit_state")
-        .update({
-          cycle_id: cycleId,
-          cycle_started_at: iso(startedAtMs),
-          cycle_target_id: target,
-          cycle_target_count: counted.count ?? 0,
-          cursor_id: 0,
-          cycle_checked: 0,
-        })
-        .eq("name", STATE_NAME)
-        .is("cycle_id", null)
-        .select("cycle_id")
+      const started = await request(
+        service
+          .from("media_archive_audit_state")
+          .update({
+            cycle_id: cycleId,
+            cycle_started_at: iso(startedAtMs),
+            cycle_target_id: target,
+            cycle_target_count: counted.count ?? 0,
+            cursor_id: 0,
+            cycle_checked: 0,
+          })
+          .eq("name", STATE_NAME)
+          .is("cycle_id", null)
+          .select("cycle_id")
+      )
       if (started.error || started.data?.length !== 1)
         throw new AuditStop("failed", "archive_checkpoint_failed")
       run.cycleId = cycleId
@@ -438,13 +478,10 @@ export async function runArchiveAudit(
     // failed run after progress is saved, and stops further backfill this run.
     let backfillFailure: AuditStop | null = null
     if (backfillLimit > 0) {
-      const candidates = await abortable(
-        Promise.resolve(
-          service.rpc("media_archive_backfill_candidates", {
-            p_limit: backfillLimit,
-          })
-        ),
-        signal
+      const candidates = await request(
+        service.rpc("media_archive_backfill_candidates", {
+          p_limit: backfillLimit,
+        })
       )
       if (candidates.error)
         throw new AuditStop("failed", "archive_audit_failed")
@@ -471,10 +508,7 @@ export async function runArchiveAudit(
       )
     }
 
-    const missing = await abortable(
-      Promise.resolve(service.rpc("media_archive_missing_count")),
-      signal
-    )
+    const missing = await request(service.rpc("media_archive_missing_count"))
     if (missing.error || typeof missing.data !== "number")
       throw new AuditStop("failed", "archive_audit_failed")
     run.missing = missing.data
@@ -487,29 +521,31 @@ export async function runArchiveAudit(
     if (cursor >= target && missing.data === 0) {
       await renew()
       const finishedMs = now()
-      const completed = await service
-        .from("media_archive_audit_state")
-        .update({
-          cycle_id: null,
-          cycle_started_at: null,
-          cycle_target_id: null,
-          cycle_target_count: null,
-          cursor_id: 0,
-          cycle_checked: 0,
-          last_complete_at: iso(finishedMs),
-          last_complete_cycle_started_at: iso(startedAtMs),
-          last_cycle_duration_seconds: Math.max(
-            0,
-            Math.round((finishedMs - startedAtMs) / 1000)
-          ),
-          last_run_at: iso(finishedMs),
-          last_run_outcome: "completed_cycle",
-          last_error: null,
-          consecutive_failures: 0,
-        })
-        .eq("name", STATE_NAME)
-        .eq("cycle_id", cycleId)
-        .select("cycle_id")
+      const completed = await request(
+        service
+          .from("media_archive_audit_state")
+          .update({
+            cycle_id: null,
+            cycle_started_at: null,
+            cycle_target_id: null,
+            cycle_target_count: null,
+            cursor_id: 0,
+            cycle_checked: 0,
+            last_complete_at: iso(finishedMs),
+            last_complete_cycle_started_at: iso(startedAtMs),
+            last_cycle_duration_seconds: Math.max(
+              0,
+              Math.round((finishedMs - startedAtMs) / 1000)
+            ),
+            last_run_at: iso(finishedMs),
+            last_run_outcome: "completed_cycle",
+            last_error: null,
+            consecutive_failures: 0,
+          })
+          .eq("name", STATE_NAME)
+          .eq("cycle_id", cycleId)
+          .select("cycle_id")
+      )
       if (completed.error || completed.data?.length !== 1)
         throw new AuditStop("failed", "archive_checkpoint_failed")
       run.outcome = "completed_cycle"
@@ -554,17 +590,14 @@ export async function runArchiveAudit(
     async function fill() {
       fetching ??= (async () => {
         try {
-          const page = await abortable(
-            Promise.resolve(
-              service
-                .from("media_archive_receipts")
-                .select("*")
-                .gt("id", fetchedTo)
-                .lte("id", target)
-                .order("id", { ascending: true })
-                .limit(fetchSize)
-            ),
-            signal
+          const page = await request(
+            service
+              .from("media_archive_receipts")
+              .select("*")
+              .gt("id", fetchedTo)
+              .lte("id", target)
+              .order("id", { ascending: true })
+              .limit(fetchSize)
           )
           if (page.error) throw new AuditStop("failed", "archive_audit_failed")
           for (const receipt of page.data) {
@@ -592,14 +625,21 @@ export async function runArchiveAudit(
       return null
     }
 
-    async function persist(cursorTo: number, checkedTotal: number) {
-      const written = await service
-        .from("media_archive_audit_state")
-        .update({ cursor_id: cursorTo, cycle_checked: checkedTotal })
-        .eq("name", STATE_NAME)
-        .eq("cycle_id", cycleId)
-        .lt("cursor_id", cursorTo)
-        .select("cursor_id")
+    async function persist(
+      cursorTo: number,
+      checkedTotal: number,
+      requestSignal = signal
+    ) {
+      const written = await request(
+        service
+          .from("media_archive_audit_state")
+          .update({ cursor_id: cursorTo, cycle_checked: checkedTotal })
+          .eq("name", STATE_NAME)
+          .eq("cycle_id", cycleId)
+          .lt("cursor_id", cursorTo)
+          .select("cursor_id"),
+        requestSignal
+      )
       if (written.error || written.data?.length !== 1)
         throw new AuditStop("failed", "archive_checkpoint_failed")
     }
@@ -612,10 +652,12 @@ export async function runArchiveAudit(
       saving = true
       const covered = watermark
       try {
-        await renew()
+        const checkpointSignal =
+          force && signal.aborted ? finalSignal() : signal
+        await renew(checkpointSignal)
         const last = issued[covered - 1].id
         const total = cycleChecked + covered - saved
-        await persist(last, total)
+        await persist(last, total, checkpointSignal)
         run.checked += covered - saved
         cycleChecked = total
         saved = covered
@@ -690,26 +732,32 @@ export async function runArchiveAudit(
 
   async function writeEnd(failing: boolean) {
     if (!state) return
-    const saved = await service
-      .from("media_archive_audit_state")
-      .update({
-        last_run_at: iso(),
-        last_run_outcome: run.outcome,
-        last_error: failing ? run.error : null,
-        consecutive_failures: failing ? state.consecutive_failures + 1 : 0,
-      })
-      .eq("name", STATE_NAME)
-      .select("name")
+    const saved = await request(
+      service
+        .from("media_archive_audit_state")
+        .update({
+          last_run_at: iso(),
+          last_run_outcome: run.outcome,
+          last_error: failing ? run.error : null,
+          consecutive_failures: failing ? state.consecutive_failures + 1 : 0,
+        })
+        .eq("name", STATE_NAME)
+        .select("name"),
+      finalSignal()
+    )
     if (saved.error || saved.data?.length !== 1)
       throw new Error("archive_checkpoint_failed")
   }
 
   async function prune() {
     const cutoff = iso(now() - ARCHIVE_AUDIT_RUN_RETENTION_DAYS * 86_400_000)
-    const pruned = await service
-      .from("media_archive_audit_runs")
-      .delete()
-      .lt("finished_at", cutoff)
+    const pruned = await request(
+      service
+        .from("media_archive_audit_runs")
+        .delete()
+        .lt("finished_at", cutoff),
+      finalSignal()
+    ).catch(() => ({ error: true }))
     if (pruned.error) console.error("media archive audit run prune failed")
   }
 }

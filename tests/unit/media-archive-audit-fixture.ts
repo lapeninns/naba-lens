@@ -166,6 +166,7 @@ export function createFakeArchiveService(
     let head = false
     let descending = false
     let limit = Infinity
+    let querySignal: AbortSignal | undefined
     const filters: Array<(row: Row) => boolean> = []
     const compare = (
       column: string,
@@ -173,6 +174,10 @@ export function createFakeArchiveService(
       value: unknown
     ) => filters.push((row) => test(row[column] as never, value as never))
     const q = {
+      abortSignal(signal: AbortSignal) {
+        querySignal = signal
+        return q
+      },
       select(_columns?: string, opts?: { count?: string; head?: boolean }) {
         if (mode) returning = true
         else {
@@ -240,6 +245,8 @@ export function createFakeArchiveService(
     }
     async function execute() {
       const error = await guard(`${table}.${mode ?? "select"}`)
+      if (querySignal?.aborted)
+        return { data: null, error: { message: "aborted" }, count: null }
       if (error) return { data: null, error, count: null }
       const rows = tables[table]
       if (mode === "insert") {

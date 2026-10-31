@@ -17,8 +17,13 @@ import {
   createHeartbeat,
   createHttpSink,
 } from "./archive-checker.mjs"
-import { runCli } from "./check-archive.mjs"
-import runWorker, { runScheduled } from "./cloudflare-worker.mjs"
+import { runCli, fileStateStore } from "./check-archive.mjs"
+import runWorker, {
+  runScheduled,
+  createEmailSink,
+  ALERT_EMAIL_RECIPIENT,
+  WATCHDOG_HEARTBEAT_URL,
+} from "./cloudflare-worker.mjs"
 import { startStubSink } from "./stub-alert-sink.mjs"
 
 const SECRET = "fixture_monitor_credential_".repeat(3)
@@ -618,6 +623,79 @@ test("sink down: nonzero exit, fallback record, no dedup advance, retried next r
   assert.equal(alerts[0].condition, "stale")
 })
 
+test("an undelivered critical alert survives recovery and a checker restart", async (t) => {
+  const h = await setup(t)
+  const down = createHttpSink("http://127.0.0.1:9/alerts", { timeoutMs: 500 })
+  h.status.status = 503
+  h.status.body = {
+    ...CURRENT,
+    ok: false,
+    failed: true,
+    consecutiveFailures: 3,
+    lastError: "archive_audit_failed",
+  }
+  const first = await h.run({ sink: down })
+  assert.equal(first.exitCode, 2)
+  const original = (await h.state.load()).pending[0].alert
+  assert.equal(original.severity, "critical")
+
+  h.status.status = 200
+  h.status.body = CURRENT
+  const recoveredButUndelivered = await h.run({ sink: down, now: NOW + 60_000 })
+  assert.equal(recoveredButUndelivered.exitCode, 2)
+  assert.deepEqual(recoveredButUndelivered.conditions, [])
+  const saved = await h.state.load()
+  assert.deepEqual(
+    saved.pending.map((item) => item.kind),
+    ["raise", "recover"]
+  )
+  assert.equal(saved.pending[0].alert.alertId, original.alertId)
+  assert.equal(recoveredButUndelivered.alerts.length, 1)
+  assert.deepEqual(await h.delivered(), [])
+
+  // Loading the serialized state models a fresh CLI/Worker invocation. Nothing
+  // depends on reading fallback records or on the original condition persisting.
+  const restartedState = memoryStateStore(JSON.parse(JSON.stringify(saved)))
+  assert.equal((await h.run({ state: restartedState })).exitCode, 0)
+  const delivered = await h.delivered()
+  assert.deepEqual(
+    delivered.map((a) => a.condition),
+    ["run_failed", "recovered"]
+  )
+  assert.deepEqual(delivered[0], original)
+  assert.equal(delivered[1].recoveredCondition, "run_failed")
+  assert.deepEqual((await restartedState.load()).pending, [])
+  assert.deepEqual((await restartedState.load()).active, {})
+  await h.run({ state: restartedState })
+  assert.equal((await h.delivered()).length, 2)
+})
+
+test("a queued recovery is delivered before a recurrence of the same condition", async (t) => {
+  const h = await setup(t)
+  h.status.status = 503
+  h.status.body = { ...CURRENT, ok: false, missing: 1 }
+  await h.run()
+  h.status.status = 200
+  h.status.body = CURRENT
+  await h.run({
+    sink: createHttpSink("http://127.0.0.1:9/alerts", { timeoutMs: 500 }),
+  })
+  const recoveryId = (await h.state.load()).pending[0].alert.alertId
+
+  h.status.status = 503
+  h.status.body = { ...CURRENT, ok: false, missing: 2 }
+  assert.equal((await h.run()).exitCode, 1)
+  const delivered = await h.delivered()
+  assert.deepEqual(
+    delivered.map((a) => a.condition),
+    ["missing_originals", "recovered", "missing_originals"]
+  )
+  assert.equal(delivered[1].alertId, recoveryId)
+  assert.equal(delivered[2].status.missing, 2)
+  await h.run()
+  assert.equal((await h.delivered()).length, 3)
+})
+
 for (const [name, handler, reason, timeoutMs] of [
   [
     "HTTP 500",
@@ -670,6 +748,8 @@ test("a failed recovered alert keeps the condition active until it is delivered"
 
 test("state save failure is surfaced", async (t) => {
   const h = await setup(t)
+  h.status.status = 503
+  h.status.body = { ...CURRENT, ok: false, missing: 1 }
   const result = await h.run({
     state: {
       load: async () => null,
@@ -809,6 +889,47 @@ test("the Worker entry reads only its bindings, stores state in KV and fails vis
     /sink_delivery_failed/
   )
   assert.ok([...kv.keys()].some((k) => k.startsWith("undelivered:")))
+})
+
+test("Worker KV replays a failed alert after the status becomes healthy", async (t) => {
+  const h = await setup(t)
+  h.status.status = 503
+  h.status.body = { ...CURRENT, ok: false, missing: 1 }
+  const kv = new Map()
+  const env = {
+    MEDIA_ARCHIVE_MONITOR_SECRET: SECRET,
+    ALERT_SINK_URL: "https://alerts.example.test/hook",
+    CHECKER_STATE: {
+      get: async (key) => (kv.has(key) ? JSON.parse(kv.get(key)) : null),
+      put: async (key, value) => void kv.set(key, value),
+    },
+  }
+  let sinkDown = true
+  const fetchImpl = (url, init) => {
+    const target = String(url)
+    if (target.startsWith(PRODUCTION_ORIGIN)) {
+      return fetch(`${h.status.origin}${new URL(target).pathname}`, init)
+    }
+    if (sinkDown) return Promise.reject(new Error("down"))
+    return fetch(h.sink.url, init)
+  }
+  await assert.rejects(
+    runScheduled(env, { fetchImpl, now: NOW }),
+    /sink_delivery_failed/
+  )
+  const original = JSON.parse(kv.get("state:production")).pending[0].alert
+  h.status.status = 200
+  h.status.body = CURRENT
+  sinkDown = false
+  assert.equal((await runScheduled(env, { fetchImpl, now: NOW })).exitCode, 0)
+  const alerts = await h.delivered()
+  assert.deepEqual(
+    alerts.map((a) => a.condition),
+    ["missing_originals", "recovered"]
+  )
+  assert.deepEqual(alerts[0], original)
+  assert.deepEqual(JSON.parse(kv.get("state:production")).pending, [])
+  assert.ok(![...kv.values()].some((value) => value.includes(SECRET)))
 })
 
 test("CLI end to end: local mode, state file dedup, and exit codes", async (t) => {
@@ -1101,4 +1222,431 @@ test("CLI --help prints the exit code contract and makes no request", async () =
   const text = lines.join("\n")
   assert.match(text, /1 {2}at least one condition is active/)
   assert.match(text, /must\s+not page on exit 1 alone/)
+})
+
+test("heartbeat POST authenticates separately and never follows a redirect", async () => {
+  const secret = "heartbeat_fixture_".repeat(3)
+  let request
+  const heartbeat = createHeartbeat("https://watchdog.example.test/ping", {
+    bearer: secret,
+    fetchImpl: async (url, init) => {
+      request = { url, ...init }
+      return new Response(null, { status: 302 })
+    },
+  })
+  assert.deepEqual(await heartbeat(), {
+    sent: false,
+    reason: "heartbeat_status_302",
+  })
+  assert.equal(request.method, "POST")
+  assert.equal(request.headers.authorization, `Bearer ${secret}`)
+  assert.equal(request.redirect, "manual")
+  assert.ok(!request.url.includes(secret))
+  assert.throws(
+    () => createHeartbeat("https://example.test", { bearer: "bad" }),
+    /heartbeat_secret_invalid/
+  )
+})
+
+test("state persistence failure withholds the heartbeat", async (t) => {
+  const h = await setup(t)
+  h.status.status = 503
+  h.status.body = { ...CURRENT, ok: false, missing: 1 }
+  let pings = 0
+  const result = await h.run({
+    state: {
+      load: async () => null,
+      save: async () => {
+        throw new Error("KV unavailable")
+      },
+    },
+    heartbeat: async () => {
+      pings++
+      return { sent: true }
+    },
+  })
+  assert.equal(pings, 0)
+  assert.equal(result.heartbeat.reason, "state_save_failed")
+  assert.deepEqual(result.errors, ["state_save_failed"])
+})
+
+test("email binding sends only to the fixed verified owner and sanitizes failures", async () => {
+  let sent
+  const sink = createEmailSink(
+    {
+      send: async (message) => {
+        sent = message
+      },
+    },
+    "archive@nabaperks.com"
+  )
+  const alert = {
+    severity: "critical",
+    condition: "stale",
+    summary: "Stale archive",
+    ownerAction: "Inspect audit",
+    observedAt: new Date(NOW).toISOString(),
+    alertId: "event-123",
+  }
+  await sink.deliver(alert)
+  assert.equal(sent.to, ALERT_EMAIL_RECIPIENT)
+  assert.equal(sent.from, "archive@nabaperks.com")
+  assert.match(sent.text, /event-123/)
+  assert.throws(
+    () =>
+      createEmailSink(
+        { send() {} },
+        "sender@example.test\r\nBcc: other@example.test"
+      ),
+    /email_binding_invalid/
+  )
+  await assert.rejects(
+    createEmailSink(
+      {
+        send: async () => {
+          throw new Error("sensitive provider data")
+        },
+      },
+      "archive@nabaperks.com"
+    ).deliver(alert),
+    /email_delivery_failed/
+  )
+  await assert.rejects(
+    createEmailSink(
+      { send: async () => new Promise(() => {}) },
+      "archive@nabaperks.com",
+      { timeoutMs: 5 }
+    ).deliver(alert),
+    /email_timeout/
+  )
+})
+
+test("Worker email delivery and persisted state precede authenticated pinned watchdog heartbeat", async (t) => {
+  const h = await setup(t)
+  h.status.status = 503
+  h.status.body = { ...CURRENT, ok: false, missing: 1 }
+  const kv = new Map()
+  const sequence = []
+  let failEmail = true
+  const env = {
+    MEDIA_ARCHIVE_MONITOR_SECRET: SECRET,
+    ARCHIVE_MONITOR_HEARTBEAT_SECRET: "dedicated_heartbeat_".repeat(3),
+    ALERT_EMAIL_FROM: "archive@nabaperks.com",
+    ARCHIVE_ALERT_EMAIL: {
+      send: async () => {
+        sequence.push("email")
+        if (failEmail) throw new Error("provider failure")
+      },
+    },
+    CHECKER_STATE: {
+      get: async (key) => (kv.has(key) ? JSON.parse(kv.get(key)) : null),
+      put: async (key, value) => {
+        sequence.push("persist")
+        kv.set(key, value)
+      },
+    },
+  }
+  const fetchImpl = (url, init) => {
+    if (String(url) === WATCHDOG_HEARTBEAT_URL) {
+      sequence.push("heartbeat")
+      assert.equal(init.method, "POST")
+      assert.equal(
+        init.headers.authorization,
+        `Bearer ${env.ARCHIVE_MONITOR_HEARTBEAT_SECRET}`
+      )
+      return Promise.resolve(new Response(null, { status: 204 }))
+    }
+    assert.equal(init.headers.authorization, `Bearer ${SECRET}`)
+    return fetch(`${h.status.origin}${new URL(url).pathname}`, init)
+  }
+  await assert.rejects(
+    runScheduled(env, { fetchImpl, now: NOW }),
+    /sink_delivery_failed/
+  )
+  assert.ok(!sequence.includes("heartbeat"))
+  failEmail = false
+  sequence.length = 0
+  await runScheduled(env, { fetchImpl, now: NOW })
+  assert.deepEqual(sequence, ["email", "persist", "heartbeat"])
+  assert.ok(
+    !JSON.stringify([...kv.values()]).includes(
+      env.ARCHIVE_MONITOR_HEARTBEAT_SECRET
+    )
+  )
+  await assert.rejects(
+    runScheduled(
+      { ...env, HEARTBEAT_URL: "https://other.example.test" },
+      { fetchImpl, now: NOW }
+    ),
+    /heartbeat_configuration_invalid/
+  )
+  await assert.rejects(
+    runScheduled(
+      { ...env, ARCHIVE_MONITOR_HEARTBEAT_SECRET: SECRET },
+      { fetchImpl, now: NOW }
+    ),
+    /heartbeat_configuration_invalid/
+  )
+})
+
+test("state read failure preserves pending critical delivery and withholds heartbeat until reads recover", async (t) => {
+  const h = await setup(t)
+  h.status.status = 503
+  h.status.body = { ...CURRENT, ok: false, missing: 1 }
+  await h.run({
+    sink: createHttpSink("http://127.0.0.1:9/alerts", { timeoutMs: 500 }),
+  })
+  const before = await h.state.load()
+  const original = before.pending[0].alert
+  assert.equal(original.severity, "critical")
+  h.status.status = 200
+  h.status.body = CURRENT
+  let writes = 0
+  let deliveries = 0
+  let pings = 0
+  const failed = await h.run({
+    state: {
+      load: async () => {
+        throw new Error("sensitive KV provider error")
+      },
+      save: async (state) => {
+        writes++
+        await h.state.save(state)
+      },
+    },
+    sink: {
+      deliver: async () => {
+        deliveries++
+      },
+    },
+    heartbeat: async () => {
+      pings++
+      return { sent: true }
+    },
+  })
+  assert.equal(failed.exitCode, 2)
+  assert.equal(failed.ok, false)
+  assert.deepEqual(failed.errors, ["state_load_failed"])
+  assert.equal(failed.heartbeat.reason, "state_load_failed")
+  assert.deepEqual(failed.alerts, [])
+  assert.equal(writes, 0)
+  assert.equal(deliveries, 0)
+  assert.equal(pings, 0)
+  assert.deepEqual(await h.state.load(), before)
+  assert.ok(!JSON.stringify(failed).includes("sensitive"))
+  const recovered = await h.run({
+    heartbeat: async () => {
+      pings++
+      return { sent: true }
+    },
+  })
+  assert.equal(recovered.exitCode, 0)
+  const delivered = await h.delivered()
+  assert.deepEqual(
+    delivered.map((alert) => alert.condition),
+    ["missing_originals", "recovered"]
+  )
+  assert.deepEqual(delivered[0], original)
+  assert.deepEqual((await h.state.load()).pending, [])
+  assert.equal(pings, 1)
+})
+
+test("CLI treats only a missing state file as empty and preserves corrupt or unreadable state", async (t) => {
+  const h = await setup(t)
+  const statePath = join(h.dir, "corrupt-state.json")
+  assert.equal(await fileStateStore(statePath).load(), null)
+  const corrupt = '{"pending":["sensitive incomplete content"'
+  await writeFile(statePath, corrupt)
+  await assert.rejects(fileStateStore(statePath).load(), SyntaxError)
+  await assert.rejects(fileStateStore(h.dir).load())
+  const lines = []
+  let pings = 0
+  const heartbeatPort = await listen(t, (_req, res) => {
+    pings++
+    res.end("ok")
+  })
+  const exit = await runCli(
+    [
+      "--local",
+      "--origin",
+      h.status.origin,
+      "--sink",
+      h.sink.url,
+      "--alerts-dir",
+      h.dir,
+      "--state",
+      statePath,
+      "--heartbeat",
+      `http://127.0.0.1:${heartbeatPort}/ping`,
+    ],
+    {
+      env: { MEDIA_ARCHIVE_MONITOR_SECRET: SECRET },
+      now: NOW,
+      log: (line) => lines.push(line),
+      logError: (line) => lines.push(line),
+    }
+  )
+  assert.equal(exit, 2)
+  assert.ok(lines.some((line) => line.includes("state_load_failed")))
+  assert.ok(!lines.join("\n").includes("sensitive incomplete content"))
+  assert.equal(await readFile(statePath, "utf8"), corrupt)
+  assert.deepEqual(await h.delivered(), [])
+  assert.equal(pings, 0)
+})
+
+test("malformed stored state fails closed without discarding entries; old v1 without outbox remains valid", async (t) => {
+  const h = await setup(t)
+  const cases = [
+    {},
+    [],
+    { version: 2, active: {} },
+    { version: 1, active: {}, pending: {} },
+    { version: 1, active: { stale: { severity: "critical" } } },
+    {
+      version: 1,
+      active: {
+        unknown: {
+          severity: "critical",
+          alertId: "a",
+          since: new Date(NOW).toISOString(),
+        },
+      },
+    },
+    { version: 1, active: {}, pending: [null] },
+    {
+      version: 1,
+      active: {},
+      pending: [{ kind: "raise", condition: "stale", alert: {} }],
+    },
+  ]
+  for (const raw of cases) {
+    let writes = 0
+    let deliveries = 0
+    let pings = 0
+    const before = structuredClone(raw)
+    const result = await h.run({
+      state: {
+        load: async () => raw,
+        save: async () => {
+          writes++
+        },
+      },
+      sink: {
+        deliver: async () => {
+          deliveries++
+        },
+      },
+      heartbeat: async () => {
+        pings++
+        return { sent: true }
+      },
+    })
+    assert.equal(result.exitCode, 2)
+    assert.deepEqual(result.errors, ["state_load_failed"])
+    assert.equal(writes, 0)
+    assert.equal(deliveries, 0)
+    assert.equal(pings, 0)
+    assert.deepEqual(raw, before)
+  }
+  const legacy = memoryStateStore({ version: 1, active: {} })
+  assert.equal((await h.run({ state: legacy })).exitCode, 0)
+  assert.deepEqual(await legacy.load(), { version: 1, active: {} })
+})
+
+test("unchanged healthy and deduplicated runs skip writes while transitions and outbox changes persist before heartbeat", async (t) => {
+  const h = await setup(t)
+  let stored = null
+  let writes = 0
+  let pings = 0
+  const sequence = []
+  const state = {
+    load: async () => structuredClone(stored),
+    save: async (next) => {
+      sequence.push("save")
+      writes++
+      stored = structuredClone(next)
+    },
+  }
+  const heartbeat = async () => {
+    sequence.push("heartbeat")
+    pings++
+    return { sent: true }
+  }
+  assert.equal((await h.run({ state, heartbeat })).exitCode, 0)
+  assert.equal((await h.run({ state, heartbeat })).exitCode, 0)
+  assert.equal(writes, 0)
+  assert.equal(pings, 2)
+  assert.equal(stored, null)
+
+  h.status.status = 503
+  h.status.body = { ...CURRENT, ok: false, missing: 1 }
+  sequence.length = 0
+  assert.equal((await h.run({ state, heartbeat })).exitCode, 1)
+  assert.deepEqual(sequence, ["save", "heartbeat"])
+  assert.equal(writes, 1)
+  assert.equal((await h.run({ state, heartbeat })).exitCode, 1)
+  assert.equal(writes, 1)
+  h.status.status = 200
+  h.status.body = CURRENT
+  sequence.length = 0
+  assert.equal((await h.run({ state, heartbeat })).exitCode, 0)
+  assert.deepEqual(sequence, ["save", "heartbeat"])
+  assert.equal(writes, 2)
+
+  h.status.status = 503
+  h.status.body = { ...CURRENT, ok: false, missing: 1 }
+  const down = {
+    deliver: async () => {
+      throw new Error("down")
+    },
+  }
+  sequence.length = 0
+  assert.equal((await h.run({ state, heartbeat, sink: down })).exitCode, 2)
+  assert.deepEqual(sequence, ["save"])
+  assert.equal(writes, 3)
+  const original = stored.pending[0].alert
+  assert.equal(stored.pending[0].fallbackRecorded, true)
+  assert.equal(h.fallbackRecords.length, 1)
+  sequence.length = 0
+  assert.equal((await h.run({ state, heartbeat, sink: down })).exitCode, 2)
+  assert.deepEqual(sequence, [])
+  assert.equal(writes, 3)
+  assert.equal(h.fallbackRecords.length, 1)
+  assert.deepEqual(stored.pending[0].alert, original)
+  sequence.length = 0
+  assert.equal((await h.run({ state, heartbeat })).exitCode, 1)
+  assert.deepEqual(sequence, ["save", "heartbeat"])
+  assert.equal(writes, 4)
+  assert.deepEqual(stored.pending, [])
+  assert.deepEqual((await h.delivered()).at(-1), original)
+})
+
+test("a failed fallback write is retried until recorded, then stays bounded across sink retries", async (t) => {
+  const h = await setup(t)
+  h.status.status = 503
+  h.status.body = { ...CURRENT, ok: false, missing: 1 }
+  let fallbackAttempts = 0
+  const fallback = {
+    record: async () => {
+      fallbackAttempts++
+      if (fallbackAttempts === 1) throw new Error("KV failure")
+    },
+  }
+  const sink = {
+    deliver: async () => {
+      throw new Error("sink failure")
+    },
+  }
+  assert.equal((await h.run({ sink, fallback })).exitCode, 2)
+  const original = (await h.state.load()).pending[0].alert
+  assert.notEqual((await h.state.load()).pending[0].fallbackRecorded, true)
+  assert.equal((await h.run({ sink, fallback })).exitCode, 2)
+  const recorded = await h.state.load()
+  assert.equal(recorded.pending[0].fallbackRecorded, true)
+  assert.deepEqual(recorded.pending[0].alert, original)
+  assert.equal((await h.run({ sink, fallback })).exitCode, 2)
+  assert.equal(fallbackAttempts, 2)
+  assert.deepEqual(await h.state.load(), recorded)
+  assert.equal((await h.run()).exitCode, 1)
+  assert.deepEqual((await h.delivered()).at(-1), original)
 })
