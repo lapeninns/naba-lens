@@ -1,0 +1,9 @@
+{
+  "id": "menus.label-ownership",
+  "title": "Staff cannot label another staff member's asset, even through a rewritten Server Function call",
+  "spec": "tests/e2e/menus-labels.spec.ts",
+  "grep": "row 9",
+  "projects": ["chromium"],
+  "scenarios": ["MENUS-QA-09"],
+  "timeoutSeconds": 600
+}

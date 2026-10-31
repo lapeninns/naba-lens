@@ -1,0 +1,13 @@
+{
+  "id": "menus.o1-save-while-reloading",
+  "title": "While the reloaded menu is loading, Save labels is disabled and sends nothing",
+  "spec": "tests/journeys/menus-label-conflict.spec.ts",
+  "grep": "menus\\.o1-",
+  "projects": ["chromium"],
+  "scenarios": ["MENUS-O1"],
+  "historical": {
+    "source": "docs/qa/menus-qa-report.md#4-defects-for-the-lead",
+    "id": "MENUS-O1"
+  },
+  "timeoutSeconds": 600
+}

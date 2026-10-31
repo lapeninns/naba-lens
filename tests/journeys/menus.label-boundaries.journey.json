@@ -1,0 +1,8 @@
+{
+  "id": "menus.label-boundaries",
+  "title": "Inactive accounts, unfinished uploads, failed uploads and deleted media keep label boundaries (API level)",
+  "spec": "tests/journeys/menus-label-boundaries.spec.ts",
+  "projects": ["chromium"],
+  "scenarios": ["MENUS-QA-10"],
+  "timeoutSeconds": 600
+}
