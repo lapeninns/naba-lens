@@ -1,0 +1,43 @@
+{
+  "schema": "nabalens.journey-result/v1",
+  "journey": "menus.import-validation",
+  "title": "Admin import refuses PDFs, malformed and duplicate-key JSON, and accepts quoted CSV",
+  "revision": {
+    "commit": "6982236f78c29327d2008366ba1ec91500e028ef",
+    "branch": "ws1/evidence",
+    "dirty": false
+  },
+  "stack": {
+    "name": "ws1",
+    "apiPort": 64121,
+    "migrations": "20261030160000:cee297c7"
+  },
+  "runner": {
+    "kind": "playwright",
+    "version": "1.64.1"
+  },
+  "startedAt": "2026-10-31T15:39:05.320Z",
+  "scenarios": [
+    "MENUS-QA-02"
+  ],
+  "result": "pass",
+  "reason": null,
+  "checks": {
+    "passed": 1,
+    "failed": 0,
+    "skipped": 0
+  },
+  "evidence": [
+    {
+      "kind": "log",
+      "path": "logs/menus.import-validation.log",
+      "description": "Playwright runner output (list reporter)"
+    },
+    {
+      "kind": "screenshot",
+      "path": "shots/menus.import-validation/01-final-page-1.png",
+      "description": "Playwright attachment \"final-page-1\""
+    }
+  ],
+  "finishedAt": "2026-10-31T15:39:08.350Z"
+}

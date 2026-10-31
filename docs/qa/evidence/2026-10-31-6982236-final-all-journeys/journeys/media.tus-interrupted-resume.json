@@ -1,0 +1,38 @@
+{
+  "schema": "nabalens.journey-result/v1",
+  "journey": "media.tus-interrupted-resume",
+  "title": "GAP-4: a video upload interrupted mid-transfer (connection reset, short network outage) resumes from the server offset on the real Supabase TUS endpoint",
+  "revision": {
+    "commit": "6982236f78c29327d2008366ba1ec91500e028ef",
+    "branch": "ws1/evidence",
+    "dirty": false
+  },
+  "stack": {
+    "name": "ws1",
+    "apiPort": 64121,
+    "migrations": "20261030160000:cee297c7"
+  },
+  "runner": {
+    "kind": "playwright",
+    "version": "1.64.1"
+  },
+  "startedAt": "2026-10-31T15:37:22.093Z",
+  "scenarios": [
+    "MEDIA-INTERRUPTED-RESUME"
+  ],
+  "result": "pass",
+  "reason": null,
+  "checks": {
+    "passed": 2,
+    "failed": 0,
+    "skipped": 0
+  },
+  "evidence": [
+    {
+      "kind": "log",
+      "path": "logs/media.tus-interrupted-resume.log",
+      "description": "Playwright runner output (list reporter)"
+    }
+  ],
+  "finishedAt": "2026-10-31T15:37:32.188Z"
+}

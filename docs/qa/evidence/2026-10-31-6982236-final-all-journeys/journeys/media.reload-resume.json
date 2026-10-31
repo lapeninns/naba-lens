@@ -1,0 +1,38 @@
+{
+  "schema": "nabalens.journey-result/v1",
+  "journey": "media.reload-resume",
+  "title": "GAP-4: after a page reload mid-transfer, choosing the file again resumes the same asset from the stored offset",
+  "revision": {
+    "commit": "6982236f78c29327d2008366ba1ec91500e028ef",
+    "branch": "ws1/evidence",
+    "dirty": false
+  },
+  "stack": {
+    "name": "ws1",
+    "apiPort": 64121,
+    "migrations": "20261030160000:cee297c7"
+  },
+  "runner": {
+    "kind": "playwright",
+    "version": "1.64.1"
+  },
+  "startedAt": "2026-10-31T15:36:36.086Z",
+  "scenarios": [
+    "MEDIA-RELOAD-RESUME"
+  ],
+  "result": "pass",
+  "reason": null,
+  "checks": {
+    "passed": 1,
+    "failed": 0,
+    "skipped": 0
+  },
+  "evidence": [
+    {
+      "kind": "log",
+      "path": "logs/media.reload-resume.log",
+      "description": "Playwright runner output (list reporter)"
+    }
+  ],
+  "finishedAt": "2026-10-31T15:36:40.511Z"
+}

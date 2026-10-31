@@ -1,0 +1,43 @@
+{
+  "schema": "nabalens.journey-result/v1",
+  "journey": "auth.login-smoke",
+  "title": "Staff signs in by magic link and sees only their own fixture photo",
+  "revision": {
+    "commit": "6982236f78c29327d2008366ba1ec91500e028ef",
+    "branch": "ws1/evidence",
+    "dirty": false
+  },
+  "stack": {
+    "name": "ws1",
+    "apiPort": 64121,
+    "migrations": "20261030160000:cee297c7"
+  },
+  "runner": {
+    "kind": "playwright",
+    "version": "1.64.1"
+  },
+  "startedAt": "2026-10-31T15:35:40.284Z",
+  "scenarios": [
+    "AUTH-LOGIN-SMOKE"
+  ],
+  "result": "pass",
+  "reason": null,
+  "checks": {
+    "passed": 1,
+    "failed": 0,
+    "skipped": 0
+  },
+  "evidence": [
+    {
+      "kind": "log",
+      "path": "logs/auth.login-smoke.log",
+      "description": "Playwright runner output (list reporter)"
+    },
+    {
+      "kind": "screenshot",
+      "path": "shots/auth.login-smoke/01-staff-a-portfolio.png",
+      "description": "Playwright attachment \"staff-a-portfolio\""
+    }
+  ],
+  "finishedAt": "2026-10-31T15:35:43.622Z"
+}

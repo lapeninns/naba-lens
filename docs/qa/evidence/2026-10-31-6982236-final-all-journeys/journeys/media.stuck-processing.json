@@ -1,0 +1,48 @@
+{
+  "schema": "nabalens.journey-result/v1",
+  "journey": "media.stuck-processing",
+  "title": "GAP-5b: an upload stuck in processing is visible, is failed by cleanup past the window, and can be finished by choosing the file again",
+  "revision": {
+    "commit": "6982236f78c29327d2008366ba1ec91500e028ef",
+    "branch": "ws1/evidence",
+    "dirty": false
+  },
+  "stack": {
+    "name": "ws1",
+    "apiPort": 64121,
+    "migrations": "20261030160000:cee297c7"
+  },
+  "runner": {
+    "kind": "playwright",
+    "version": "1.64.1"
+  },
+  "startedAt": "2026-10-31T15:37:17.814Z",
+  "scenarios": [
+    "MEDIA-STUCK-PROCESSING"
+  ],
+  "result": "pass",
+  "reason": null,
+  "checks": {
+    "passed": 1,
+    "failed": 0,
+    "skipped": 0
+  },
+  "evidence": [
+    {
+      "kind": "log",
+      "path": "logs/media.stuck-processing.log",
+      "description": "Playwright runner output (list reporter)"
+    },
+    {
+      "kind": "screenshot",
+      "path": "shots/media.stuck-processing/01-stuck-processing.png",
+      "description": "Playwright attachment \"stuck-processing\""
+    }
+  ],
+  "finishedAt": "2026-10-31T15:37:22.093Z",
+  "historical": {
+    "source": "docs/acceptance.md#6-gaps-to-dispatch",
+    "id": "MEDIA-STUCK-PROCESSING",
+    "reproducedOnHead": false
+  }
+}

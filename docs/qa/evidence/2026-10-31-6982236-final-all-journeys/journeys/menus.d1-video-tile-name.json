@@ -1,0 +1,48 @@
+{
+  "schema": "nabalens.journey-result/v1",
+  "journey": "menus.d1-video-tile-name",
+  "title": "Staff portfolio tiles keep their visible duration and label text inside their accessible name (WCAG 2.5.3)",
+  "revision": {
+    "commit": "6982236f78c29327d2008366ba1ec91500e028ef",
+    "branch": "ws1/evidence",
+    "dirty": false
+  },
+  "stack": {
+    "name": "ws1",
+    "apiPort": 64121,
+    "migrations": "20261030160000:cee297c7"
+  },
+  "runner": {
+    "kind": "playwright",
+    "version": "1.64.1"
+  },
+  "startedAt": "2026-10-31T15:38:46.730Z",
+  "scenarios": [
+    "MENUS-D1"
+  ],
+  "result": "pass",
+  "reason": null,
+  "checks": {
+    "passed": 1,
+    "failed": 0,
+    "skipped": 0
+  },
+  "evidence": [
+    {
+      "kind": "log",
+      "path": "logs/menus.d1-video-tile-name.log",
+      "description": "Playwright runner output (list reporter)"
+    },
+    {
+      "kind": "screenshot",
+      "path": "shots/menus.d1-video-tile-name/01-staff-portfolio.png",
+      "description": "Playwright attachment \"staff-portfolio\""
+    }
+  ],
+  "finishedAt": "2026-10-31T15:38:50.354Z",
+  "historical": {
+    "source": "docs/qa/menus-qa-report.md#4-defects-for-the-lead",
+    "id": "MENUS-D1",
+    "reproducedOnHead": false
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "schema": "nabalens.journey-result/v1",
+  "journey": "media.removed-reservation",
+  "title": "GAP-4: an unfinished upload whose reservation was removed shows the action to take, and Retry uploads it as a new asset",
+  "revision": {
+    "commit": "6982236f78c29327d2008366ba1ec91500e028ef",
+    "branch": "ws1/evidence",
+    "dirty": false
+  },
+  "stack": {
+    "name": "ws1",
+    "apiPort": 64121,
+    "migrations": "20261030160000:cee297c7"
+  },
+  "runner": {
+    "kind": "playwright",
+    "version": "1.64.1"
+  },
+  "startedAt": "2026-10-31T15:36:40.512Z",
+  "scenarios": [
+    "MEDIA-REOPEN-STATES"
+  ],
+  "result": "pass",
+  "reason": null,
+  "checks": {
+    "passed": 1,
+    "failed": 0,
+    "skipped": 0
+  },
+  "evidence": [
+    {
+      "kind": "log",
+      "path": "logs/media.removed-reservation.log",
+      "description": "Playwright runner output (list reporter)"
+    }
+  ],
+  "finishedAt": "2026-10-31T15:36:45.712Z"
+}

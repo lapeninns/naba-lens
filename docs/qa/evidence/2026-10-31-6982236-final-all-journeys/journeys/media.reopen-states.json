@@ -1,0 +1,43 @@
+{
+  "schema": "nabalens.journey-result/v1",
+  "journey": "media.reopen-states",
+  "title": "GAP-4: after a reload the portfolio tells completed, incomplete and failed uploads apart, and the reopened uploader starts clean",
+  "revision": {
+    "commit": "6982236f78c29327d2008366ba1ec91500e028ef",
+    "branch": "ws1/evidence",
+    "dirty": false
+  },
+  "stack": {
+    "name": "ws1",
+    "apiPort": 64121,
+    "migrations": "20261030160000:cee297c7"
+  },
+  "runner": {
+    "kind": "playwright",
+    "version": "1.64.1"
+  },
+  "startedAt": "2026-10-31T15:36:45.712Z",
+  "scenarios": [
+    "MEDIA-REOPEN-STATES"
+  ],
+  "result": "pass",
+  "reason": null,
+  "checks": {
+    "passed": 1,
+    "failed": 0,
+    "skipped": 0
+  },
+  "evidence": [
+    {
+      "kind": "log",
+      "path": "logs/media.reopen-states.log",
+      "description": "Playwright runner output (list reporter)"
+    },
+    {
+      "kind": "screenshot",
+      "path": "shots/media.reopen-states/01-portfolio-after-reload.png",
+      "description": "Playwright attachment \"portfolio-after-reload\""
+    }
+  ],
+  "finishedAt": "2026-10-31T15:36:51.477Z"
+}

@@ -1,0 +1,43 @@
+{
+  "schema": "nabalens.journey-result/v1",
+  "journey": "media.slice-staff-upload-mobile",
+  "title": "slice.spec.ts: staff uploads a photo and a video, a different admin downloads identical bytes (historical 504s and \"2 uploaded\" timeout under load) (mobile-chromium)",
+  "revision": {
+    "commit": "6982236f78c29327d2008366ba1ec91500e028ef",
+    "branch": "ws1/evidence",
+    "dirty": false
+  },
+  "stack": {
+    "name": "ws1",
+    "apiPort": 64121,
+    "migrations": "20261030160000:cee297c7"
+  },
+  "runner": {
+    "kind": "playwright",
+    "version": "1.64.1"
+  },
+  "startedAt": "2026-10-31T15:36:56.959Z",
+  "scenarios": [
+    "MEDIA-SLICE-UPLOAD-FLAKY"
+  ],
+  "result": "pass",
+  "reason": null,
+  "checks": {
+    "passed": 1,
+    "failed": 0,
+    "skipped": 0
+  },
+  "evidence": [
+    {
+      "kind": "log",
+      "path": "logs/media.slice-staff-upload-mobile.log",
+      "description": "Playwright runner output (list reporter)"
+    }
+  ],
+  "finishedAt": "2026-10-31T15:37:07.777Z",
+  "historical": {
+    "source": "docs/acceptance.md#11-e2e-results-per-test-across-the-three-runs",
+    "id": "MEDIA-SLICE-UPLOAD-FLAKY",
+    "reproducedOnHead": false
+  }
+}
