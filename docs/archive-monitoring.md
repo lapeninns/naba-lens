@@ -97,11 +97,17 @@ it is no longer the alerting path.
 
 `lastCompleteAt` is the time a verification cycle **finished**. A cycle verifies
 the receipts that existed when it started, and with the 12 hour cycle throttle a
-new cycle does not start until 12 hours after the last one. So the oldest
-verification covered by the last complete cycle can be up to about 12 hours plus
-the cycle duration old. The 26 hour limit on `lastCompleteAt` still holds
-unchanged; it is not loosened to allow for this, and `stale` fires when
-`lastCompleteAt` is older than 26 hours.
+new cycle does not start until 12 hours after the previous one started.
+
+The age of the last complete cycle therefore stays under 26 hours only while the
+cycle duration stays under about 14 hours. In the worst case it is about
+`max(12 h, previous duration) + (new duration - previous duration)`, so a cycle
+that jumps from 2 hours to 20 hours reaches about 30 hours. Nothing guarantees the
+age is always under 26 hours.
+
+The checker does not loosen the 26 hour limit to allow for this. `stale` fires when
+`lastCompleteAt` is older than 26 hours, and `cycle_slow` (a cycle over 20 hours)
+is the early warning that the margin is gone.
 
 ## Hosting options
 
@@ -204,6 +210,47 @@ Warning until 3 consecutive failures, then critical.
    at the database or a bug.
 2. Check the Vercel function logs for the matching run.
 3. A later successful run clears `lastError`; wait for `recovered`.
+
+**Repeating `archive_audit_failed`.** A corrupt or missing receipt holds the audit
+cursor at that receipt. The archive store reports every read-back problem
+(unreachable, missing, wrong size or wrong hash) as `archive_audit_failed`, so the
+code does not say which it is. Later receipts are still checked, but the cycle
+cannot complete while one receipt stays unverified, so every run fails the same way
+until a person fixes the object or the receipt. Nobody and nothing fixes it by
+waiting. The alert is a warning at first and pages when `consecutiveFailures`
+reaches 3. If `cycleProgress.checked` has stopped moving between alerts, suspect
+this case. `stale` will follow when the last complete cycle passes 26 hours.
+
+What the owner should check, in this order:
+
+1. Rule out an outage first. If `archive_store_unavailable` or
+   `archive_source_unavailable` is also appearing, or other runs recently
+   succeeded, the store or the source may simply be unreachable. Check the
+   Cloudflare R2 and Supabase status pages and the credentials, and wait one more
+   run.
+2. If the failure repeats from the same position, read the run history in the
+   archive audit tables for the receipt where the cursor stopped, and the Vercel
+   function logs for that run. Note the asset the receipt belongs to.
+3. Check the archive object for that receipt in the R2 console (does it exist, and
+   does its size match the receipt?) and check the original in Supabase Storage.
+
+What the owner should do, with the media still in place:
+
+- **Archive object missing or damaged, original intact:** have the archive copy
+  rewritten from the original through the reviewed archive tooling, then let the
+  next run verify it.
+- **Original gone or damaged, archive copy intact:** the archive copy is now the
+  only good copy. Restore the original from it and do not delete the archive
+  object.
+- **Both gone or damaged:** the media cannot be recovered from this system. Look
+  for another copy (the uploader's device, a backup) and record the loss.
+- **Receipt wrong, objects fine:** the receipt record is at fault. Correct or
+  rebuild it through a reviewed change or migration, not by hand in production.
+
+Do not run cleanup or delete media while this is active. Changes to the archive
+data or code go through a reviewed change; this runbook does not give commands for
+production. Once the next run verifies the receipt, the cursor moves on and
+`recovered` follows.
 
 ### cycle_slow
 
