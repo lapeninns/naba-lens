@@ -44,19 +44,19 @@ Kinds:
 | id | kind | source | journeys | status | note |
 | --- | --- | --- | --- | --- | --- |
 | `MENUS-QA-01` | matrix | docs/qa/menus-qa-report.md:63 | `menus.catalogue-activation` | covered | Import two venue menus; venue separation |
-| `MENUS-QA-02` | matrix | docs/qa/menus-qa-report.md:64 | `menus.import-validation` | covered | Malformed input rejected; duplicates, variants, ambiguous re-import |
+| `MENUS-QA-02` | matrix | docs/qa/menus-qa-report.md:64 | `menus.import-validation`, `menus.catalogue-history` | covered | Malformed input rejected; duplicates, variants, ambiguous re-import (history covers the re-import part) |
 | `MENUS-QA-03` | matrix | docs/qa/menus-qa-report.md:65 | `menus.catalogue-activation` | covered | Review and activate; a draft is never shown to staff as active |
-| `MENUS-QA-04` | matrix | docs/qa/menus-qa-report.md:66 | `menus.catalogue-history` | covered | Rename, archive, re-import and category move keep historical labels |
+| `MENUS-QA-04` | matrix | docs/qa/menus-qa-report.md:66 | `menus.catalogue-history`, `menus.unavailable-items` | covered | Rename, archive, re-import and category move keep historical labels |
 | `MENUS-QA-05` | matrix | docs/qa/menus-qa-report.md:67 | `menus.label-batch` | covered | Upload a photo and a video, label both with several items |
 | `MENUS-QA-06` | matrix | docs/qa/menus-qa-report.md:68 | `menus.label-skip-later` | covered | Upload without labels, label later |
 | `MENUS-QA-07` | matrix | docs/qa/menus-qa-report.md:69 | `menus.label-batch` | covered | Batch apply, per-file override, persists after reload |
 | `MENUS-QA-08` | matrix | docs/qa/menus-qa-report.md:70 | `menus.label-conflict`, `menus.unavailable-items` | covered | Missing item; unavailable or stale catalogue handled |
 | `MENUS-QA-09` | matrix | docs/qa/menus-qa-report.md:71 | `menus.label-ownership` | covered | Staff own-only; no cross-staff or cross-venue item |
-| `MENUS-QA-10` | matrix | docs/qa/menus-qa-report.md:72 | `menus.label-boundaries` | covered | Inactive users, deleted media, unfinished uploads. The QA report had no browser journey for this row (DB and server only) |
+| `MENUS-QA-10` | matrix | docs/qa/menus-qa-report.md:72 | `menus.label-boundaries` | covered | Inactive users, deleted media, unfinished uploads. The journey checks the API level only. Browser-level coverage of this row stays in `pnpm test:security` |
 | `MENUS-QA-11` | matrix | docs/qa/menus-qa-report.md:73 | `menus.label-transfer` | covered | Staff transfer: the old asset keeps the original venue catalogue |
 | `MENUS-QA-12` | matrix | docs/qa/menus-qa-report.md:74 | `menus.library-filters` | covered | Admin correction, combined filters, search, stable pagination |
 | `MENUS-QA-13` | matrix | docs/qa/menus-qa-report.md:75 | `menus.library-filters` | covered | Original bytes, upload, preview and download unchanged |
-| `MENUS-QA-14` | matrix | docs/qa/menus-qa-report.md:76 | `menus.responsive-a11y` | covered | Phone widths, accessible names, keyboard focus. Failed in the report because of D1 and D2 |
+| `MENUS-QA-14` | matrix | docs/qa/menus-qa-report.md:76 | `menus.responsive-a11y` | covered | Phone widths, accessible names, keyboard focus. Chromium emulation, axe and name checks only: no screen reader, no physical phone. Failed in the report because of D1 and D2 |
 | `MENUS-QA-15` | matrix | docs/qa/menus-qa-report.md:77 | `menus.draft-conflict`, `menus.label-conflict` | covered | Stale updates: no silent loss or duplicates |
 
 ### 2.2 Menus QA findings (historical)

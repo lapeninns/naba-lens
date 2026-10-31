@@ -1,7 +1,10 @@
+import { fileURLToPath } from "node:url"
+
 import { describe, expect, it } from "vitest"
 
 import {
   checkCoverage,
+  checkRepository,
   parseCatalogue,
 } from "../../tests/journeys/acceptance-coverage.mjs"
 
@@ -125,5 +128,13 @@ describe("acceptance id catalogue", () => {
         expect.stringContaining('status "maybe"'),
       ])
     )
+  })
+})
+
+describe("this repository", () => {
+  it("has journey declarations and docs/qa/acceptance-ids.md in agreement", () => {
+    expect(
+      checkRepository(fileURLToPath(new URL("../..", import.meta.url)))
+    ).toEqual([])
   })
 })
