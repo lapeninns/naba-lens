@@ -138,3 +138,24 @@ export async function flush(rounds = 20) {
   for (let i = 0; i < rounds; i++)
     await new Promise<void>((r) => setImmediate(r))
 }
+
+/** What the fake bucket needs from a clock. */
+export type BucketClock = Pick<TestClock, "now" | "sleep">
+
+/** Wall-clock stand-in for suites that run against a real database. */
+export const realClock: BucketClock = {
+  now: () => Date.now(),
+  sleep: (ms, signal) =>
+    new Promise((resolve, reject) => {
+      if (signal?.aborted) return reject(abortError())
+      const onAbort = () => {
+        clearTimeout(timer)
+        reject(abortError())
+      }
+      const timer = setTimeout(() => {
+        signal?.removeEventListener("abort", onAbort)
+        resolve()
+      }, ms)
+      signal?.addEventListener("abort", onAbort, { once: true })
+    }),
+}

@@ -4,7 +4,7 @@ import {
   type PreparedOriginal,
 } from "../../../lib/server/archive/core"
 
-import { abortError, type TestClock } from "./clock"
+import { abortError, type BucketClock } from "./clock"
 
 export type StoreOp =
   | "putOriginalIfAbsent"
@@ -56,12 +56,20 @@ export class FakeBucket {
   objects = new Map<string, StoredObject>()
   calls: StoreCall[] = []
   closed = 0
+  /**
+   * When set, keys the bucket was never told about verify as present. The
+   * shared e2e database holds receipts this suite did not create; only keys
+   * touched by `corrupt`/`vanish` faults fail.
+   */
+  lenient = false
+  private damaged = new Set<string>()
   private faults: { fault: Fault; seen: number; applied: number }[] = []
   private seq = 0
 
-  constructor(private clock: TestClock) {}
+  constructor(private clock: BucketClock) {}
 
   seed(key: string, object: StoredObject) {
+    this.damaged.delete(key)
     this.objects.set(key, object)
   }
 
@@ -117,6 +125,7 @@ export class FakeBucket {
 
   private check(key: string, sha256: string, size: number) {
     const object = this.objects.get(key)
+    if (!object && this.lenient && !this.damaged.has(key)) return
     if (!object || object.sha256 !== sha256 || object.size !== size)
       throw new Error(VERIFY_FAILED)
   }
@@ -168,10 +177,12 @@ export class FakeBucket {
             const object = this.objects.get(key)
             if (object)
               this.objects.set(key, { ...object, sha256: "f".repeat(64) })
+            else this.damaged.add(key)
             break
           }
           case "vanish":
             this.objects.delete(key)
+            this.damaged.add(key)
             break
         }
       }
