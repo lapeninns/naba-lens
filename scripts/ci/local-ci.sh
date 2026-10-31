@@ -42,6 +42,8 @@ run install pnpm install --frozen-lockfile || exit 1
 run typecheck pnpm typecheck || true
 run lint pnpm lint || true
 run unit pnpm test || true
+run monitoring pnpm test:monitoring || true
+run archive pnpm test:archive || true
 run build pnpm build && run scan-bundle node scripts/ci/scan-bundle.mjs || true
 run prepare node scripts/ci/prepare-stack.mjs "$work" || exit 1
 started=1
