@@ -248,8 +248,12 @@ does not read it.
 - Cycle throttle: a new cycle starts only when no cycle is open and the
   previous complete cycle started at least 12 hours ago
   (`last_complete_cycle_started_at`). This keeps read cost proportional to
-  need while the age of the last complete cycle stays under 26 hours. A
-  failed or timed-out run does not delay the retry of an open cycle.
+  need. A failed or timed-out run does not delay the retry of an open cycle.
+  The age stays under 26 hours only while cycle duration stays under about
+  14 hours. In the worst case the age is about
+  max(12 h, previous duration) + (new duration − previous duration), so a
+  cycle that jumps from 2 h to 20 h reaches about 30 h. `cycle_slow` (20 h)
+  is the early warning, and the `stale` alert still fires at 26 h.
 - Production schedule changes in `vercel.json` ship only through the PR. No
   agent deploys.
 
