@@ -381,11 +381,12 @@ suite("cycle throttle and the idle outcome (§4.3, §4.4)", () => {
   it("keeps the age of the last complete cycle under 26 h across repeated cycles at the 12 h cadence", async () => {
     const { world } = ctx
     const cycle = 3 * HOUR
-    world.seedReceipts(6)
+    // 18 receipts at 10 minutes each: a 3 h cycle that spans several 16 min runs.
+    world.seedReceipts(18)
     world.bucket.inject({
       op: "verifyOriginal",
       kind: "latency",
-      ms: cycle / 6,
+      ms: cycle / 18,
     })
     let worstAge = 0
     let last = Number.NaN
@@ -395,7 +396,7 @@ suite("cycle throttle and the idle outcome (§4.3, §4.4)", () => {
       const report = await runAudit(A(), world, {
         concurrency: 1,
         softBudgetMs: 1_000_000,
-        deadlineMs: 1_100_000,
+        deadlineMs: 1_700_000,
       })
       expect(["idle", "completed_cycle", "partial"]).toContain(report.outcome)
       const completed = Date.parse(String(world.state().last_complete_at ?? ""))

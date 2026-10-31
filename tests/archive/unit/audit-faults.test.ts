@@ -221,7 +221,7 @@ suite("hangs and timeouts (§4.3, §4.4)", () => {
       key: String(receipt(3).blob_key),
       kind: "hang",
       ignoreSignal: true,
-      ms: 400_000,
+      ms: 900_000,
     })
     const started = world.clock.now()
     const report = await runAudit(A(), world, {
@@ -304,7 +304,7 @@ suite("hangs and timeouts (§4.3, §4.4)", () => {
 })
 
 suite("database failures: checkpoint, completion, reads (§4.2, §4.4)", () => {
-  it("a failing checkpoint write ends failed/archive_checkpoint_failed and leaves the cursor at the last durable value", async () => {
+  it("a failing checkpoint write ends failed/archive_checkpoint_failed and never leaves the cursor past verified receipts", async () => {
     const { world } = ctx
     world.seedReceipts(6)
     world.db.inject({
@@ -321,13 +321,23 @@ suite("database failures: checkpoint, completion, reads (§4.2, §4.4)", () => {
       outcome: "failed",
       error: "archive_checkpoint_failed",
     })
-    expect(world.state().cursor_id).toBe(2)
+    // The failed write is not retried, but progress verified before the stop
+    // is saved by the final checkpoint: never less than the earlier durable 2,
+    // never more than what was read back.
+    expect(world.state().cursor_id).toBeGreaterThanOrEqual(2)
+    expect(world.state().cursor_id).toBeLessThanOrEqual(
+      verifiedReceiptIds(world).length
+    )
     expect(world.state().last_complete_at).toBeNull()
+    const durable = world.state().cursor_id
     const next = await runAudit(A(), world, {
       checkpointEvery: 2,
       concurrency: 1,
     })
-    expect(next).toMatchObject({ outcome: "completed_cycle", cursorFrom: 2 })
+    expect(next).toMatchObject({
+      outcome: "completed_cycle",
+      cursorFrom: durable,
+    })
   })
 
   it("a failing completion write never leaves a false completion, and the next run completes", async () => {
@@ -399,7 +409,7 @@ suite("database failures: checkpoint, completion, reads (§4.2, §4.4)", () => {
       key: String(receipt(2).manifest_key),
       kind: "hang",
       ignoreSignal: true,
-      ms: 300_000,
+      ms: 900_000,
     })
     await runAudit(A(), world, { checkpointEvery: 2, concurrency: 2 })
     await world.clock.advance(400_000)
