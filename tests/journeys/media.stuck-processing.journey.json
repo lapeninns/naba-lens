@@ -1,0 +1,13 @@
+{
+  "id": "media.stuck-processing",
+  "title": "GAP-5b: an upload stuck in processing is visible, is failed by cleanup past the window, and can be finished by choosing the file again",
+  "spec": "tests/journeys/media-recovery.spec.ts",
+  "grep": "media\\.stuck-processing:",
+  "projects": ["chromium"],
+  "scenarios": ["MEDIA-STUCK-PROCESSING"],
+  "historical": {
+    "source": "docs/acceptance.md#6-gaps-to-dispatch",
+    "id": "MEDIA-STUCK-PROCESSING"
+  },
+  "timeoutSeconds": 600
+}
