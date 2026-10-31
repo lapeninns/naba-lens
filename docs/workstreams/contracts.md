@@ -84,6 +84,19 @@ Audit's branch is merged into the others, only Audit resets `ws2`, always
 `--from` its own worktree. Verification and Capacity use `ws2` without
 resetting it; if they need a clean database they ask the orchestrator.
 
+Assigned spares and app ports:
+
+- `spare4` (API 64421, DB 64422, app 3644): Verification only, for suites
+  that change the single audit state row, the audit lease or the global
+  missing count. Harness resets it from Audit's worktree on the
+  orchestrator's request; Verification never resets it. Verification stays
+  off `ws2`.
+- WS1 journey runs that start their own app against `ws1` use app port 3645
+  (Menus), 3646 (Media) or 3647 (Evidence), so they can run at the same time.
+  Spares 5–7 are not brought up while these ports are in use.
+- When the `gate` stack is needed, the orchestrator tells Harness which stack
+  to bring down first, so no more than three run at once.
+
 ## 2. Journey result format
 
 Every journey run (deterministic Playwright or agentic runner) writes one JSON
@@ -139,6 +152,22 @@ the schema file and validator.
 - A historical failure is treated as resolved only when a journey ran on the
   current HEAD and passed; `historical.reproducedOnHead` records whether the
   original failure still reproduces.
+
+Agreed with Harness after delivery (see `docs/qa/harness.md`):
+
+- Result files carry an additional `checks: { passed, failed, skipped }`. The
+  validator accepts `pass` only with `passed >= 1`, `failed = 0` and
+  `skipped = 0`. A journey whose tests were skipped is `unavailable`.
+- `historical.reproducedOnHead` is `null` when the result is `unavailable`.
+- Evidence `kind` is one of `log`, `screenshot`, `report`, `note`.
+- `--agentic` runs the `e2e` runner only when it is installed and its
+  credentials work, and records its output as evidence only. A requested
+  agentic run that cannot happen makes the journey `unavailable`. The runner
+  is not a repository dependency.
+- Journey declarations live at `tests/journeys/<area>.<slug>.journey.json`.
+  A historical journey asserts the correct behaviour, so it is `fail`
+  (`reproducedOnHead: true`) while the defect exists and `pass`
+  (`reproducedOnHead: false`) once fixed.
 
 ### 2.2 Acceptance ids
 
