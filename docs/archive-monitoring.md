@@ -75,8 +75,16 @@ it is no longer the alerting path.
 - Payload: `nabalens.archive-alert/v1` as in the workstream contract, with one
   addition: `recoveredCondition` on `recovered` alerts. `status` is `null` when no
   valid status body was read.
-- Exit codes of the CLI: `0` healthy, `1` archive unhealthy (alerts delivered or
-  already sent), `2` the checker, delivery, state or heartbeat failed.
+- Exit codes of the CLI: `0` healthy, `1` at least one condition is active (alerts
+  delivered or already sent), `2` the checker, delivery, state or heartbeat
+  failed. `node scripts/monitoring/check-archive.mjs --help` prints the same.
+- **Exit 1 is not a page.** It means only "at least one condition is active",
+  including a lone `cycle_slow`, which is a non-paging warning. Whether something
+  pages is decided by the alert's `severity` and its routing (main sink or digest
+  sink), never by the exit code. Anyone wrapping the CLI, for example a cron
+  runner, a CI job or a supervisor, must not page on exit 1 alone. Treat exit 2
+  as a fault in the checker itself, and read `alerts.jsonl` or the sink for what
+  is active.
 - **Paging and non-paging.** `cycle_slow` (and its `recovered`) is routed to an
   optional second destination, the digest sink (CLI `--digest-sink` /
   `ARCHIVE_ALERT_DIGEST_SINK_URL`, Worker secret `DIGEST_SINK_URL`), for a digest
@@ -163,7 +171,9 @@ jobs:
           ARCHIVE_HEARTBEAT_URL: ${{ secrets.ARCHIVE_SECONDARY_HEARTBEAT_URL }}
 ```
 
-It exits 1 while the archive is unhealthy, so the failed run is an extra signal.
+It exits 1 while any condition is active, so the failed run is an extra signal.
+That includes the non-paging `cycle_slow`, so do not route a failed run to a page;
+the sink alert's severity and routing decide paging.
 With no state restored between runs, every run re-alerts; restore
 `ARCHIVE_CHECKER_STATE_FILE` with a cache step if that is too noisy.
 

@@ -1088,3 +1088,17 @@ test("CLI --digest-sink sends cycle_slow there", async (t) => {
   assert.deepEqual(await h.delivered(), [])
   assert.match(await readFile(digest.file, "utf8"), /"condition":"cycle_slow"/)
 })
+
+test("CLI --help prints the exit code contract and makes no request", async () => {
+  const lines = []
+  const code = await runCli(["--help"], {
+    env: {},
+    fetchImpl: () => assert.fail("--help must not fetch"),
+    log: (line) => lines.push(line),
+    logError() {},
+  })
+  assert.equal(code, 0)
+  const text = lines.join("\n")
+  assert.match(text, /1 {2}at least one condition is active/)
+  assert.match(text, /must\s+not page on exit 1 alone/)
+})

@@ -2,8 +2,11 @@
 // CLI for the independent archive checker. One run = one status read, alert
 // reconciliation against the dedup state file, delivery, optional heartbeat.
 //
-// Exit codes: 0 healthy, 1 archive unhealthy (alerts delivered or already sent),
-// 2 the checker, its alert delivery, state or heartbeat failed.
+// Exit codes: 0 healthy, 1 at least one condition is active (alerts delivered or
+// already sent), 2 the checker, its alert delivery, state or heartbeat failed.
+// Exit 1 says nothing about urgency: paging is decided by each alert's severity
+// and routing (cycle_slow is non-paging), never by the exit code. A wrapper must
+// not page on exit 1 alone.
 //
 // Production: MEDIA_ARCHIVE_MONITOR_SECRET (or _FILE) + ARCHIVE_ALERT_SINK_URL (https).
 // Local e2e:  --local --origin http://127.0.0.1:<port> --sink http://127.0.0.1:3650/alerts
@@ -73,6 +76,32 @@ export function jsonlFallback(dir) {
   }
 }
 
+export const USAGE = `Usage: node scripts/monitoring/check-archive.mjs [options]
+
+Options (each also has an ARCHIVE_* environment variable, see the monitoring doc):
+  --origin URL        status origin (local mode only; production is pinned)
+  --local             explicit local mode, loopback origins only
+  --sink URL          alert destination (https; loopback in local mode)
+  --digest-sink URL   destination for non-paging alerts such as cycle_slow
+  --sink-format F     json (default) or slack
+  --state FILE        dedup state file
+  --alerts-dir DIR    fallback and state directory
+  --heartbeat URL     dead man's switch ping after a fully delivered run
+  --help              print this text
+
+The credential is read from MEDIA_ARCHIVE_MONITOR_SECRET or
+MEDIA_ARCHIVE_MONITOR_SECRET_FILE, never from an argument.
+
+Exit codes:
+  0  healthy
+  1  at least one condition is active (alerts delivered or already sent)
+  2  the checker, alert delivery, state or heartbeat failed
+
+Exit 1 does not mean "page". Whether an alert pages is decided by its severity
+and routing (cycle_slow is non-paging), never by the exit code. A wrapper must
+not page on exit 1 alone.
+`
+
 function parseArgs(argv, env) {
   const options = {
     mode: env.ARCHIVE_CHECKER_MODE === "local" ? "local" : "production",
@@ -131,6 +160,10 @@ export async function runCli(
     logError = console.error,
   } = {}
 ) {
+  if (argv.includes("--help") || argv.includes("-h")) {
+    log(USAGE)
+    return 0
+  }
   let options
   let sink
   let digestSink
