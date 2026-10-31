@@ -1,0 +1,9 @@
+{
+  "id": "menus.draft-conflict",
+  "title": "A stale draft save in a second page is a recoverable conflict",
+  "spec": "tests/e2e/menus-admin.spec.ts",
+  "grep": "row 15",
+  "projects": ["chromium"],
+  "scenarios": ["MENUS-QA-15"],
+  "timeoutSeconds": 600
+}

@@ -1,0 +1,13 @@
+{
+  "id": "menus.o4-phone-project",
+  "title": "The mobile-chromium project runs the staff labelling flow (config decision, narrow check)",
+  "spec": "tests/journeys/menus-observations.spec.ts",
+  "grep": "menus\\.o4-",
+  "projects": ["chromium"],
+  "scenarios": ["MENUS-O4"],
+  "historical": {
+    "source": "docs/qa/menus-qa-report.md#4-defects-for-the-lead",
+    "id": "MENUS-O4"
+  },
+  "timeoutSeconds": 600
+}

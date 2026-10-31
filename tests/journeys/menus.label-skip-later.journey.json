@@ -1,0 +1,9 @@
+{
+  "id": "menus.label-skip-later",
+  "title": "Staff skip labelling at upload and label later from the viewer",
+  "spec": "tests/e2e/menus-labels.spec.ts",
+  "grep": "row 6",
+  "projects": ["chromium"],
+  "scenarios": ["MENUS-QA-06"],
+  "timeoutSeconds": 600
+}
