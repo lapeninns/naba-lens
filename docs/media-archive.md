@@ -15,7 +15,8 @@ storage, not an additional public portfolio or proof of publishing permission.
 
 ## Configuration and rollout
 
-Apply `20261030150000_media_original_archives.sql` before deploying this code.
+Apply `20261030150000_media_original_archives.sql` and
+`20261030170000_media_archive_audit_cycles.sql` before deploying this code.
 Set these variables only in the intended deployment environment:
 
 | Variable                             | Production value/purpose                      |
@@ -104,14 +105,73 @@ Verified explicitly disabled staging returns a successful `disabled`/`skipped`
 cron response without opening a privileged client. Its status endpoint remains
 unavailable, so this skip cannot be mistaken for a healthy archive.
 
-Vercel invokes `/api/internal/media-archive` at minute 43 each hour using the existing
-`CRON_SECRET`/`CLEANUP_SECRET` bearer convention. It backfills up to ten earlier ready
-assets, then verifies up to fifty archive receipts, subject to an 80-second shared
-deadline. A durable receipt cursor resumes the next invocation; only a fully
-verified cycle with zero missing ready originals updates `last_complete_at`.
-The maintenance lease prevents concurrent audits. This adds function execution,
-source reads during backfill and R2 read operations; those use the existing plans'
-quotas and can incur usage charges.
+Vercel invokes `/api/internal/media-archive` every 10 minutes (`*/10 * * * *`)
+using the existing `CRON_SECRET`/`CLEANUP_SECRET` bearer convention. Verification
+is a resumable **cycle**:
+
+- A cycle targets every receipt that existed when it started
+  (`cycle_target_id`, with the receipt count in `cycle_target_count`). Eight
+  workers read each stored blob and manifest back and compare size and SHA-256.
+  Workers pull receipts continuously with no per-batch barrier. The durable cursor
+  (`cursor_id`) is checkpointed every 20 receipts, and once more when a run ends,
+  at the end of the unbroken run of verified receipts. It never passes a receipt
+  that is not verified, so a slow or failing receipt holds the cursor back while
+  later receipts are still read and counted in `bytes_verified`.
+- Each invocation backfills up to five ready originals that have no receipt yet,
+  then verifies receipts until a **480 s soft budget** is spent. It then stops
+  taking new receipts and ends `partial` (progress saved, cycle continues). A
+  **540 s hard deadline** abandons in-flight work and ends `timeout`, keeping
+  progress up to the last checkpoint. The route's `maxDuration` is 600 s, the
+  lease TTL is 600 s and is renewed at every checkpoint. A test keeps the deadline
+  at least 60 s under `maxDuration` and the soft budget at least 30 s under the
+  deadline. An overlapping invocation returns `locked` without touching cycle
+  state. If a lease renewal is refused the run stops writing at once and records
+  only a `lease_lost` row in `media_archive_audit_runs`; it never edits the audit
+  state, which the new holder owns.
+- Only a cycle that verifies every targeted receipt, with zero ready originals
+  missing receipts, sets `last_complete_at`. A failed or timed-out run never makes
+  the archive look fresh, and it does not delay the retry of an open cycle.
+  `media_archive_missing_count` runs once per invocation.
+- **Cycle throttle.** A new cycle starts only when no cycle is open and the last
+  complete cycle started at least 12 hours ago. Invocations inside that window end
+  `idle`: they still backfill, update `last_run_at` and write a run row, and are
+  not failures. This keeps R2 read operations proportional to need.
+- **Freshness.** The 26-hour limit is unchanged. The age of the last complete
+  cycle is about the larger of the 12-hour throttle and the cycle time, plus any
+  growth in cycle time between cycles. For example a 12-hour throttle with a cycle
+  that grew from 2 to 14 hours reaches 24 hours; if cycle time grows faster than
+  that the threshold would be crossed. The monitor's `cycle_slow` warning (cycle
+  time above 20 hours) is the early signal that the schedule is being outgrown.
+  A cycle of the representative library must complete within 24 hours; the sizing
+  is in `docs/archive-capacity.md`. Stale status is an operational failure, not
+  permission to weaken the threshold.
+- Every invocation writes one row to the append-only, service-role-only
+  `media_archive_audit_runs` table (outcome, counts, bytes read back, error code,
+  cursor range). Rows older than 90 days are pruned by the audit; nothing else may
+  update or delete them. This table is for operators, not the monitor.
+
+Outcomes are `completed_cycle`, `partial`, `idle`, `locked`, `timeout`, `lease_lost`
+and `failed`. `partial`, `idle` and `locked` are not failures and the cron route
+answers 200. `timeout` and `lease_lost` answer 503 and `failed` answers 500 with a
+redacted body. `timeout` and `failed` increment `consecutive_failures`, which the
+next non-failing run resets. Stored error codes are fixed
+(`archive_audit_failed`, `archive_audit_timeout`, `archive_checkpoint_failed`,
+`archive_store_unavailable`, `archive_source_unavailable`); the real R2 store
+reports every read-back problem (unreachable, missing, wrong size or hash) as
+`archive_audit_failed`, so the code does not distinguish corruption from an outage.
+A corrupt or missing receipt holds the cursor at that receipt and repeats as a
+failure each run until a person resolves it.
+
+This adds function execution, source reads during backfill and R2 read operations
+(roughly two GET requests per receipt per cycle). Keep the archive bucket in
+Cloudflare R2 **Standard** storage. Infrequent Access charges per-GB retrieval for
+every verification read, which would cost on the order of $2,000 a month at the
+high capacity case. These costs use the existing plans and can incur usage charges.
+
+A 10-minute cron and a 600-second function need a Vercel plan that allows them.
+`docs/INFRASTRUCTURE.md` records production as Vercel Pro; a human must confirm the
+project is on Pro before this schedule ships, because Hobby limits crons to once a
+day and shorter function durations.
 
 `GET /api/internal/media-archive/status` is read-only. It accepts the existing
 cleanup bearer or an optional independent `MEDIA_ARCHIVE_MONITOR_SECRET`. The
@@ -123,10 +183,15 @@ in macOS Keychain, never in a committed file or the monitor command arguments.
 
 The endpoint fails when no complete cycle exists, the last complete cycle is more than 26
 hours old, ready originals are missing receipts, or the last run failed. It reports
-an in-progress cursor separately, including when a recent completed cycle remains
-fresh. Failed and partial runs do not become fresh successful backups. At greater
-volume, more frequent invocations or a resumable larger budget may be needed; a
-stale status is an operational failure, not permission to weaken the threshold.
+an open cycle separately (`inProgress`, from `cycle_id`), including when a recent
+completed cycle remains fresh. Failed and partial runs do not become fresh
+successful backups. Besides the existing fields, the body carries `lastError` (a
+code, never a message), `lastRunOutcome`, `consecutiveFailures`, `cycleStartedAt`,
+`cycleProgress` (`{ checked, target }` counts), `lastCycleDurationSeconds`,
+`maxAgeSeconds` (93600) and `scheduleIntervalSeconds` (600), so an independent
+checker can tell a job that stopped running from a slow one. It still contains no
+object keys, asset IDs or bucket names. If the schedule is outgrown, raise the
+budget or frequency; never weaken the 26-hour threshold.
 
 The local checker reads the narrow credential from macOS Keychain using service
 `naba-lens-production-archive-monitor` and account `https://naba-lens.vercel.app`.
