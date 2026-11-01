@@ -1,15 +1,37 @@
-// Shared helpers for the WS3 baseline harness. Local throwaway stack only:
-// every entry point calls requireSpare6(), which refuses any other target.
+// Shared helpers for the WS3 perf harness. Local throwaway workstream stacks
+// only: every entry point calls requireWorkstreamStack(), which refuses any
+// other target. The stack is chosen with PERF_STACK (default spare6); its ports
+// come from scripts/ci/stack.mjs, the one port table.
 import { execFileSync, spawnSync } from "node:child_process"
 
-export const STACK = {
-  apiPort: 64621,
-  dbPort: 64622,
-  appPort: 3646,
+import { stackSpec } from "../../scripts/ci/stack.mjs"
+
+/** Resolved ports of the selected workstream stack. Throws for any other name. */
+export function perfStack(name = process.env.PERF_STACK || "spare6") {
+  let spec
+  try {
+    spec = stackSpec(name)
+  } catch {
+    throw new Error(
+      `Refusing to run: PERF_STACK "${name}" is not a workstream stack (ws1, ws2, gate, spare4..spare9).`
+    )
+  }
+  return {
+    name: spec.name,
+    apiPort: spec.apiPort,
+    dbPort: spec.dbPort,
+    appPort: spec.appPort,
+    appBase: `http://127.0.0.1:${spec.appPort}`,
+  }
 }
 
-/** Reads the stack env from process.env (source /tmp/nabalens-ws/spare6/env.sh). */
-export function requireSpare6() {
+/**
+ * Reads the stack env from process.env (source /tmp/nabalens-ws/<stack>/env.sh
+ * or `node scripts/ci/stack.mjs env <stack>`) and checks it points at the
+ * PERF_STACK ports on this machine.
+ */
+export function requireWorkstreamStack() {
+  const stack = perfStack()
   const env = process.env
   for (const k of [
     "NEXT_PUBLIC_SUPABASE_URL",
@@ -18,7 +40,7 @@ export function requireSpare6() {
     "SUPABASE_DB_URL",
   ]) {
     if (!env[k]) {
-      throw new Error(`${k} is not set. source /tmp/nabalens-ws/spare6/env.sh`)
+      throw new Error(`${k} is not set. source /tmp/nabalens-ws/${stack.name}/env.sh`)
     }
   }
   const api = new URL(env.NEXT_PUBLIC_SUPABASE_URL)
@@ -27,14 +49,15 @@ export function requireSpare6() {
   if (
     !local(api.hostname) ||
     !local(db.hostname) ||
-    Number(api.port) !== STACK.apiPort ||
-    Number(db.port) !== STACK.dbPort
+    Number(api.port) !== stack.apiPort ||
+    Number(db.port) !== stack.dbPort
   ) {
     throw new Error(
-      `Refusing to run: target is not the local spare6 stack (api ${STACK.apiPort}, db ${STACK.dbPort}).`
+      `Refusing to run: the environment is not the local ${stack.name} stack (api ${stack.apiPort}, db ${stack.dbPort}).`
     )
   }
   return {
+    stack,
     apiUrl: env.NEXT_PUBLIC_SUPABASE_URL,
     publishableKey: env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
     serviceKey: env.SUPABASE_SERVICE_ROLE_KEY,

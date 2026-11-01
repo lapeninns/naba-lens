@@ -1,9 +1,9 @@
 // Catalogue and media data paths, measured through the app's own server code
 // (lib/server/media/library.ts, lib/server/labels, lib/server/menus,
-// lib/server/media/library-labels.ts) against the local spare6 stack, as signed-in
-// PERF people so RLS and the API statement timeout apply as in production.
+// lib/server/media/library-labels.ts) against the local workstream stack
+// (PERF_STACK, default spare6), as signed-in PERF people so RLS and the API statement timeout apply as in production.
 //
-//   source /tmp/nabalens-ws/spare6/env.sh
+//   source /tmp/nabalens-ws/<stack>/env.sh
 //   node --conditions=react-server --import tsx tests/perf/db-bench.mjs \
 //     --volume expected [--n 20] [--warm 3] [--out docs/perf/raw]
 import { mkdirSync, writeFileSync } from "node:fs"
@@ -12,7 +12,7 @@ import { loadavg } from "node:os"
 import { pathToFileURL } from "node:url"
 
 import { makeActor, signIn, timeIt } from "./actors.mjs"
-import { gitHead, requireSpare6, summarise } from "./lib.mjs"
+import { gitHead, requireWorkstreamStack, summarise } from "./lib.mjs"
 import { pickTargets } from "./targets.mjs"
 
 const argv = process.argv.slice(2)
@@ -26,7 +26,7 @@ const WARM = Number(arg("warm", 3))
 const only = arg("only", null)
 const OUT = resolve(arg("out", "docs/perf/raw"), VOLUME)
 
-const env = requireSpare6()
+const env = requireWorkstreamStack()
 const root = resolve(".")
 const lib = (p) => import(pathToFileURL(join(root, p)).href)
 const library = await lib("lib/server/media/library.ts")

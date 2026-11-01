@@ -2,7 +2,7 @@
 // re-reads every loaded page, one cursor page at a time, every 15 s while the tab is
 // visible) and of several admins hitting the same slow path at once.
 //
-//   source /tmp/nabalens-ws/spare6/env.sh
+//   source /tmp/nabalens-ws/<stack>/env.sh
 //   node --conditions=react-server --import tsx tests/perf/refresh-bench.mjs --volume expected
 import { mkdirSync, writeFileSync } from "node:fs"
 import { loadavg } from "node:os"
@@ -10,7 +10,7 @@ import { join, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
 
 import { makeActor, signIn } from "./actors.mjs"
-import { gitHead, requireSpare6, summarise } from "./lib.mjs"
+import { gitHead, requireWorkstreamStack, summarise } from "./lib.mjs"
 import { pickTargets } from "./targets.mjs"
 
 const argv = process.argv.slice(2)
@@ -20,7 +20,7 @@ const arg = (k, d) => {
 }
 const VOLUME = arg("volume", "unlabelled")
 const OUT = resolve(arg("out", "docs/perf/raw"), VOLUME)
-const env = requireSpare6()
+const env = requireWorkstreamStack()
 const library = await import(pathToFileURL(resolve("lib/server/media/library.ts")).href)
 const t = pickTargets(env.dbUrl)
 const session = await signIn(env, t.admin.email)

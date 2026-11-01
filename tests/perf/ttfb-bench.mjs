@@ -1,11 +1,11 @@
 // Server response time for the admin library, staff portfolio and menu pages from
-// `next build` + `next start` against spare6, and the first-load client JS of
+// `next build` + `next start` against the PERF_STACK stack, and the first-load client JS of
 // those routes. TTFB is time to response headers; "complete" is the full body.
 // Pages here stream (loading.tsx suspense), so TTFB can precede the data: the
 // complete time is the one that includes the queries.
 //
-//   source /tmp/nabalens-ws/spare6/env.sh
-//   # app: pnpm build && pnpm exec next start -p 3646 (see docs/perf/baseline.md)
+//   source /tmp/nabalens-ws/<stack>/env.sh
+//   # app: pnpm build && pnpm exec next start -p <stack app port> (see docs/perf/baseline.md)
 //   node tests/perf/ttfb-bench.mjs --volume expected [--n 20] [--warm 3] [--out docs/perf/raw]
 import { execFileSync } from "node:child_process"
 import { mkdirSync, writeFileSync } from "node:fs"
@@ -14,7 +14,7 @@ import { join, resolve } from "node:path"
 import { brotliCompressSync, gzipSync } from "node:zlib"
 
 import { signIn } from "./actors.mjs"
-import { gitHead, requireSpare6, summarise } from "./lib.mjs"
+import { gitHead, requireWorkstreamStack, summarise } from "./lib.mjs"
 import { pickTargets } from "./targets.mjs"
 
 const argv = process.argv.slice(2)
@@ -25,10 +25,10 @@ const arg = (k, d) => {
 const VOLUME = arg("volume", "unlabelled")
 const N = Number(arg("n", 20))
 const WARM = Number(arg("warm", 3))
-const BASE = arg("base", "http://127.0.0.1:3646")
 const OUT = resolve(arg("out", "docs/perf/raw"), VOLUME)
-const env = requireSpare6()
-if (!/^http:\/\/127\.0\.0\.1:3646$/.test(BASE)) throw new Error("Refusing a base URL other than the spare6 app port")
+const env = requireWorkstreamStack()
+const BASE = arg("base", env.stack.appBase)
+if (BASE !== env.stack.appBase) throw new Error(`Refusing a base URL other than the ${env.stack.name} app (${env.stack.appBase})`)
 const t = pickTargets(env.dbUrl)
 
 const adminSession = await signIn(env, t.admin.email)
@@ -37,7 +37,7 @@ const medianSession = await signIn(env, t.staffMedian.email)
 
 const rssOfServer = () => {
   try {
-    const pid = execFileSync("lsof", ["-ti", "tcp:3646", "-sTCP:LISTEN"], { encoding: "utf8" }).trim().split("\n")[0]
+    const pid = execFileSync("lsof", ["-ti", `tcp:${env.stack.appPort}`, "-sTCP:LISTEN"], { encoding: "utf8" }).trim().split("\n")[0]
     const tree = execFileSync("ps", ["-A", "-o", "pid=,ppid=,rss="], { encoding: "utf8" })
       .trim().split("\n").map((l) => l.trim().split(/\s+/).map(Number))
     const kids = new Set([Number(pid)])

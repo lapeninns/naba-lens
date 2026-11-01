@@ -1,9 +1,9 @@
 // Delivery of thumbnails and previews: the /api/media/<id>/thumb and /preview
 // routes (authorise, sign, 302), the signed Storage URL they point at, and the video
 // stream route, with their cache headers. A small bounded set of real objects is
-// uploaded to the spare6 media bucket for PERF assets and removed afterwards.
+// uploaded to the stack media bucket for PERF assets and removed afterwards.
 //
-//   source /tmp/nabalens-ws/spare6/env.sh   # app must be running on :3646
+//   source /tmp/nabalens-ws/<stack>/env.sh   # app must be running on the stack app port
 //   node --conditions=react-server --import tsx tests/perf/delivery-bench.mjs --volume expected
 import { execFileSync } from "node:child_process"
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
@@ -14,7 +14,7 @@ import { pathToFileURL } from "node:url"
 import { createClient } from "@supabase/supabase-js"
 
 import { makeActor, signIn } from "./actors.mjs"
-import { gitHead, psql, query, requireSpare6, summarise } from "./lib.mjs"
+import { gitHead, psql, query, requireWorkstreamStack, summarise } from "./lib.mjs"
 import { pickTargets } from "./targets.mjs"
 
 const argv = process.argv.slice(2)
@@ -24,9 +24,9 @@ const arg = (k, d) => {
 }
 const VOLUME = arg("volume", "unlabelled")
 const ASSETS = Number(arg("assets", 40))
-const BASE = "http://127.0.0.1:3646"
 const OUT = resolve(arg("out", "docs/perf/raw"), VOLUME)
-const env = requireSpare6()
+const env = requireWorkstreamStack()
+const BASE = env.stack.appBase
 const t = pickTargets(env.dbUrl)
 const media = await import(pathToFileURL(resolve("lib/media/index.ts")).href)
 const access = await import(pathToFileURL(resolve("lib/server/media/access.ts")).href)

@@ -1,13 +1,13 @@
 // Records what a measured volume looked like: PERF row counts, table and index
 // sizes, per-person and per-venue spread, and the database settings in force.
 //
-//   source /tmp/nabalens-ws/spare6/env.sh
+//   source /tmp/nabalens-ws/<stack>/env.sh
 //   node tests/perf/volume-info.mjs --volume expected [--out docs/perf/raw]
 import { mkdirSync, writeFileSync } from "node:fs"
 import { join, resolve } from "node:path"
 
 import { counts, sizes } from "./generate.mjs"
-import { gitHead, query, requireSpare6 } from "./lib.mjs"
+import { gitHead, query, requireWorkstreamStack } from "./lib.mjs"
 
 const argv = process.argv.slice(2)
 const arg = (k, d) => {
@@ -16,7 +16,7 @@ const arg = (k, d) => {
 }
 const VOLUME = arg("volume", "unlabelled")
 const OUT = resolve(arg("out", "docs/perf/raw"), VOLUME)
-const { dbUrl } = requireSpare6()
+const { dbUrl } = requireWorkstreamStack()
 const PERF = "(select id from public.venues where slug like 'perf-venue-%')"
 
 const settings = Object.fromEntries(

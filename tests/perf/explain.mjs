@@ -3,12 +3,12 @@
 // RLS applies exactly as through the API. Shapes follow the SQL captured from
 // pg_stat_statements on the same stack. Plans are rolled back (read only).
 //
-//   source /tmp/nabalens-ws/spare6/env.sh
+//   source /tmp/nabalens-ws/<stack>/env.sh
 //   node tests/perf/explain.mjs --volume expected [--out docs/perf/raw]
 import { mkdirSync, writeFileSync } from "node:fs"
 import { join, resolve } from "node:path"
 
-import { psql, requireSpare6 } from "./lib.mjs"
+import { psql, requireWorkstreamStack } from "./lib.mjs"
 import { pickTargets } from "./targets.mjs"
 
 const argv = process.argv.slice(2)
@@ -19,7 +19,7 @@ const arg = (k, d) => {
 const VOLUME = arg("volume", "unlabelled")
 const OUT = join(resolve(arg("out", "docs/perf/raw"), VOLUME), "explain")
 const TIMEOUT = arg("timeout", "120s")
-const { dbUrl } = requireSpare6()
+const { dbUrl } = requireWorkstreamStack()
 const t = pickTargets(dbUrl)
 const sq = (s) => s.replace(/'/g, "''")
 

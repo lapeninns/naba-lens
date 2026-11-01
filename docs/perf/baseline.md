@@ -595,13 +595,14 @@ Checks run on this branch: `pnpm lint` and `pnpm typecheck` with pnpm 10.30.1 (r
 ```sh
 git worktree add ../nabalens-techdebt-agents/ws3-baseline -b ws3/baseline ws/tech-debt-ws3
 pnpm install --frozen-lockfile
-source /tmp/nabalens-ws/spare6/env.sh        # local stack only; the scripts refuse any other target
+export PERF_STACK=spare6                      # default; spare7, spare8 and the other workstream stacks work too
+source /tmp/nabalens-ws/$PERF_STACK/env.sh   # local stack only; the scripts refuse any other target
 
 sh tests/perf/run-db.sh current|expected|high 20 docs/perf/raw          # generate, EXPLAIN, app-function bench
 node --import tsx tests/perf/media-bench.mjs                             # media processing, no database
-pnpm exec next build && pnpm exec next start -p 3646 -H 127.0.0.1 &      # for the rest
+pnpm exec next build && pnpm exec next start -p "$(node tests/perf/stack-config.mjs app-port)" -H 127.0.0.1 &   # for the rest
 sh tests/perf/run-rest.sh current|expected|high docs/perf/raw           # refresh, delivery, TTFB, menu bench
 node tests/perf/report.mjs --out tables.md                              # tables from docs/perf/raw
 ```
 
-`tests/perf/generate.mjs --purge` removes all PERF rows. The generator writes with `session_replication_role = replica` as `postgres`; it never touches the fixture world, and refuses any target other than the `spare6` API and database ports.
+`tests/perf/generate.mjs --purge` removes all PERF rows. The generator writes with `session_replication_role = replica` as `postgres`; it never touches the fixture world, and refuses any target other than the API and database ports of the `PERF_STACK` workstream stack (`node tests/perf/stack-config.mjs` prints them; they come from `scripts/ci/stack.mjs`).

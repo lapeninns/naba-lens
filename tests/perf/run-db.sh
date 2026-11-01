@@ -1,9 +1,10 @@
 #!/bin/sh
-# Generates one volume on spare6 and runs the database-side measurements:
+# Generates one volume on the PERF_STACK stack (default spare6) and runs the database-side measurements:
 # volume facts, EXPLAIN set and the app-code path bench. Waits for a quiet host
 # first (1-minute load average under 8; this Mac is shared).
 #
-#   source /tmp/nabalens-ws/spare6/env.sh
+#   source /tmp/nabalens-ws/<stack>/env.sh
+#   export PERF_STACK=<stack>   # unset means spare6
 #   sh tests/perf/run-db.sh current|expected|high [n] [out]
 set -e
 V=$1 N=${2:-20} OUT=${3:-docs/perf/raw}
