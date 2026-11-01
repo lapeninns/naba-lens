@@ -1037,6 +1037,59 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      library_labelled_items: {
+        Args: { p_venue_id: string }
+        Returns: Json
+      }
+      library_labelled_variants: {
+        Args: { p_venue_id: string }
+        Returns: Json
+      }
+      library_page: {
+        Args: {
+          p_after_created_at?: string
+          p_after_id?: string
+          p_candidate_cap?: number
+          p_category?: string
+          p_content_type?: string
+          p_from?: string
+          p_item?: string
+          p_label_state?: string
+          p_limit?: number
+          p_query?: string
+          p_staff?: string
+          p_to?: string
+          p_type?: Database["public"]["Enums"]["media_type"]
+          p_variant?: string
+          p_venue?: string
+        }
+        Returns: {
+          client_upload_key: string | null
+          created_at: string
+          deleted_at: string | null
+          duration_seconds: number | null
+          height: number | null
+          id: string
+          media_type: Database["public"]["Enums"]["media_type"]
+          original_filename: string
+          original_path: string
+          preview_path: string | null
+          size_bytes: number | null
+          thumbnail_path: string | null
+          updated_at: string
+          upload_state: Database["public"]["Enums"]["upload_state"]
+          uploader_id: string
+          validated_mime_type: string | null
+          venue_id: string
+          width: number | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "media_assets"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       media_archive_backfill_candidates: {
         Args: { p_limit?: number }
         Returns: {
