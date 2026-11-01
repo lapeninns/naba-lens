@@ -1,0 +1,315 @@
+{
+  "volume": "current",
+  "loadAverage": [
+    5.87,
+    6.65,
+    6.69
+  ],
+  "cursors": {
+    "catCursor": {
+      "p_after_created_at": "2026-09-01T15:00:00.123000+00:00",
+      "p_after_id": "f3c2e758-3cb1-49b9-9cd4-b45c11eeca5d",
+      "matches": 35
+    },
+    "labCursor": {
+      "p_after_created_at": "2026-09-02T01:00:00.123000+00:00",
+      "p_after_id": "7a289b37-c5d8-4842-ad0a-ac826453cbe1",
+      "matches": 300
+    },
+    "tikkaCursor": {
+      "p_after_created_at": "2026-09-01T15:00:00.123000+00:00",
+      "p_after_id": "f3c2e758-3cb1-49b9-9cd4-b45c11eeca5d",
+      "matches": 23
+    }
+  },
+  "results": [
+    {
+      "name": "admin category (natural)",
+      "rows": 25,
+      "n": 20,
+      "p50": 0.8,
+      "p95": 1,
+      "max": 1
+    },
+    {
+      "name": "admin category, cursor 90% of matches",
+      "rows": 4,
+      "n": 20,
+      "p50": 0.7,
+      "p95": 0.9,
+      "max": 1
+    },
+    {
+      "name": "admin labelled (natural, 56% labelled)",
+      "rows": 25,
+      "n": 20,
+      "p50": 0.3,
+      "p95": 0.3,
+      "max": 0.3
+    },
+    {
+      "name": "admin labelled, cursor 90% of matches",
+      "rows": 25,
+      "n": 20,
+      "p50": 0.3,
+      "p95": 0.3,
+      "max": 0.3
+    },
+    {
+      "name": "admin labelled, only 200 assets labelled",
+      "rows": 25,
+      "n": 20,
+      "p50": 0.3,
+      "p95": 0.3,
+      "max": 0.3
+    },
+    {
+      "name": "admin labelled, only the oldest 5000 labelled",
+      "rows": 25,
+      "n": 20,
+      "p50": 0.3,
+      "p95": 0.3,
+      "max": 0.3
+    },
+    {
+      "name": "admin labelled, nothing labelled",
+      "rows": 0,
+      "n": 20,
+      "p50": 0.2,
+      "p95": 0.2,
+      "max": 0.3
+    },
+    {
+      "name": "admin unlabelled (natural)",
+      "rows": 25,
+      "n": 20,
+      "p50": 0.3,
+      "p95": 0.3,
+      "max": 0.3
+    },
+    {
+      "name": "admin unlabelled, only the oldest 5000 unlabelled",
+      "rows": 25,
+      "n": 20,
+      "p50": 0.3,
+      "p95": 0.3,
+      "max": 0.3
+    },
+    {
+      "name": "admin unlabelled, nothing unlabelled",
+      "rows": 0,
+      "n": 20,
+      "p50": 0.2,
+      "p95": 0.3,
+      "max": 0.3
+    },
+    {
+      "name": "admin unlabelled, nothing unlabelled, in the largest venue",
+      "rows": 0,
+      "n": 20,
+      "p50": 0.2,
+      "p95": 0.3,
+      "max": 0.3
+    },
+    {
+      "name": "REF library_assets: labelled (natural)",
+      "rows": 25,
+      "n": 20,
+      "p50": 3.9,
+      "p95": 4,
+      "max": 4.1
+    },
+    {
+      "name": "REF library_assets: labelled, only the oldest 5000 labelled",
+      "rows": 25,
+      "n": 20,
+      "p50": 3.8,
+      "p95": 3.9,
+      "max": 3.9
+    },
+    {
+      "name": "REF library_assets: labelled, nothing labelled",
+      "rows": 0,
+      "n": 20,
+      "p50": 0.1,
+      "p95": 0.1,
+      "max": 0.1
+    },
+    {
+      "name": "REF library_assets: unlabelled (natural)",
+      "rows": 25,
+      "n": 20,
+      "p50": 3.8,
+      "p95": 4,
+      "max": 4.4
+    },
+    {
+      "name": "REF library_assets: unlabelled, only the oldest 5000 unlabelled",
+      "rows": 25,
+      "n": 20,
+      "p50": 4,
+      "p95": 4.1,
+      "max": 4.1
+    },
+    {
+      "name": "REF library_assets: unlabelled, nothing unlabelled",
+      "rows": 0,
+      "n": 20,
+      "p50": 9.3,
+      "p95": 9.5,
+      "max": 9.6
+    },
+    {
+      "name": "admin search 'a' (1 char, matches nearly all)",
+      "rows": 25,
+      "n": 20,
+      "p50": 9.7,
+      "p95": 10.2,
+      "max": 10.3
+    },
+    {
+      "name": "admin search 'q' (1 char)",
+      "rows": 10,
+      "n": 20,
+      "p50": 12.3,
+      "p95": 13.4,
+      "max": 13.5
+    },
+    {
+      "name": "admin search 'ch' (2 chars, common)",
+      "rows": 25,
+      "n": 20,
+      "p50": 11.5,
+      "p95": 11.9,
+      "max": 12
+    },
+    {
+      "name": "admin search 'qz' (2 chars, no match)",
+      "rows": 0,
+      "n": 20,
+      "p50": 11.8,
+      "p95": 12.1,
+      "max": 12.1
+    },
+    {
+      "name": "admin search 'zzzqq' (no match)",
+      "rows": 0,
+      "n": 20,
+      "p50": 0.5,
+      "p95": 0.5,
+      "max": 0.5
+    },
+    {
+      "name": "admin search 'tikka', cursor 90% of matches",
+      "rows": 3,
+      "n": 20,
+      "p50": 1,
+      "p95": 1,
+      "max": 1.2
+    },
+    {
+      "name": "admin search 'tikka' in the largest venue",
+      "rows": 2,
+      "n": 20,
+      "p50": 1,
+      "p95": 1.8,
+      "max": 1.9
+    },
+    {
+      "name": "admin 'qz' (2 chars) in the largest venue",
+      "rows": 0,
+      "n": 20,
+      "p50": 11.8,
+      "p95": 12,
+      "max": 12.4
+    },
+    {
+      "name": "staff category (library_page)",
+      "rows": 2,
+      "n": 20,
+      "p50": 1.6,
+      "p95": 1.7,
+      "max": 1.9
+    },
+    {
+      "name": "staff category (library_assets, reference)",
+      "rows": 2,
+      "n": 20,
+      "p50": 2.2,
+      "p95": 2.4,
+      "max": 2.4
+    },
+    {
+      "name": "staff search 'tikka' (library_page)",
+      "rows": 0,
+      "n": 20,
+      "p50": 1.9,
+      "p95": 2.1,
+      "max": 2.1
+    },
+    {
+      "name": "staff search 'tikka' (library_assets, reference)",
+      "rows": 0,
+      "n": 20,
+      "p50": 36.3,
+      "p95": 36.8,
+      "max": 36.9
+    },
+    {
+      "name": "staff search 'zzzqq' no match (library_page)",
+      "rows": 0,
+      "n": 20,
+      "p50": 1.8,
+      "p95": 2,
+      "max": 2
+    },
+    {
+      "name": "staff search 'zzzqq' no match (library_assets, reference)",
+      "rows": 0,
+      "n": 20,
+      "p50": 36.6,
+      "p95": 39,
+      "max": 41.2
+    },
+    {
+      "name": "staff 'qz' 2 chars (library_page)",
+      "rows": 0,
+      "n": 20,
+      "p50": 1.9,
+      "p95": 1.9,
+      "max": 2.1
+    },
+    {
+      "name": "staff content dish (library_page)",
+      "rows": 9,
+      "n": 20,
+      "p50": 0.5,
+      "p95": 0.7,
+      "max": 0.7
+    },
+    {
+      "name": "staff labelled (library_page)",
+      "rows": 11,
+      "n": 20,
+      "p50": 0.5,
+      "p95": 0.6,
+      "max": 0.7
+    },
+    {
+      "name": "staff unlabelled (library_page)",
+      "rows": 11,
+      "n": 20,
+      "p50": 0.5,
+      "p95": 0.5,
+      "max": 0.5
+    },
+    {
+      "name": "staff, lightest, search 'zzzqq' (library_page)",
+      "rows": 0,
+      "n": 20,
+      "p50": 0.4,
+      "p95": 0.4,
+      "max": 0.4
+    }
+  ]
+}

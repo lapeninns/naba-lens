@@ -1,0 +1,25 @@
+-- admin-item-popular (library_page p_item := 'f6064398-faac-47c9-aa32-4573cdbd50c5', p_limit := 25)
+
+Limit  (cost=0.97..1924.84 rows=25 width=420) (actual time=2.561..11.896 rows=25 loops=1)
+  Buffers: shared hit=9017 read=2137
+  InitPlan 2
+    ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.003..0.003 rows=1 loops=1)
+  InitPlan 3
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+  InitPlan 4
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.060..0.060 rows=1 loops=1)
+          Buffers: shared hit=3
+  ->  Index Scan using media_assets_ready_feed_idx on media_assets a  (cost=0.42..1077439.92 rows=14001 width=420) (actual time=2.560..11.892 rows=25 loops=1)
+        Filter: ((((uploader_id = (InitPlan 2).col1) AND (InitPlan 3).col1) OR ((InitPlan 4).col1 AND (upload_state = 'ready'::public.upload_state))) AND EXISTS(SubPlan 1))
+        Rows Removed by Filter: 2800
+        Buffers: shared hit=9017 read=2137
+        SubPlan 1
+          ->  Index Only Scan using media_label_items_tuple_key on media_label_items li  (cost=0.42..4.69 rows=1 width=4) (actual time=0.002..0.002 rows=0 loops=2825)
+                Index Cond: ((asset_id = a.id) AND (item_id = 'f6064398-faac-47c9-aa32-4573cdbd50c5'::uuid))
+                Filter: private.can_read_asset_labels(asset_id)
+                Heap Fetches: 0
+                Buffers: shared hit=7849 read=823
+Planning:
+  Buffers: shared hit=280
+Planning Time: 0.349 ms
+Execution Time: 11.911 ms

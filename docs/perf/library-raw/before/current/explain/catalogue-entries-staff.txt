@@ -1,0 +1,59 @@
+-- catalogue-entries-staff
+-- role authenticated, sub (staff)
+-- statement:
+select e.section_id, e.item_id, e.name, e.description, e.aliases, e.position,
+            (select row_to_json(i) from (select archived_at from public.menu_items i where i.id = e.item_id) i) item,
+            (select json_agg(ev) from (select variant_id, name, position from public.menu_entry_variants ev where ev.entry_id = e.id) ev) variants
+     from public.menu_entries e where e.version_id = 'cc65382f-9109-401d-a846-9861d9dc54e9' order by e.section_id, e.position, e.item_id limit 1000
+
+Limit  (cost=371.52..11777.75 rows=233 width=199) (actual time=19.253..76.804 rows=350 loops=1)
+  Buffers: shared hit=8892
+  InitPlan 9
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+  ->  Result  (cost=371.26..11777.49 rows=233 width=199) (actual time=19.252..76.776 rows=350 loops=1)
+        Buffers: shared hit=8892
+        ->  Sort  (cost=371.26..371.85 rows=233 width=151) (actual time=18.536..18.565 rows=350 loops=1)
+              Sort Key: e.section_id, e."position", e.item_id
+              Sort Method: quicksort  Memory: 96kB
+              Buffers: shared hit=1817
+              ->  Bitmap Heap Scan on menu_entries e  (cost=14.97..362.10 rows=233 width=151) (actual time=0.899..18.422 rows=350 loops=1)
+                    Recheck Cond: (version_id = 'cc65382f-9109-401d-a846-9861d9dc54e9'::uuid)
+                    Filter: (private.staff_can_read_menu_version(version_id) OR (InitPlan 9).col1)
+                    Heap Blocks: exact=14
+                    Buffers: shared hit=1811
+                    ->  Bitmap Index Scan on menu_entries_version_section_idx  (cost=0.00..14.91 rows=350 width=0) (actual time=0.045..0.045 rows=350 loops=1)
+                          Index Cond: (version_id = 'cc65382f-9109-401d-a846-9861d9dc54e9'::uuid)
+                          Buffers: shared hit=6
+        SubPlan 2
+          ->  Index Scan using menu_items_id_venue_key on menu_items i  (cost=0.54..8.81 rows=1 width=32) (actual time=0.085..0.085 rows=1 loops=350)
+                Index Cond: (id = e.item_id)
+                Filter: (private.staff_can_read_menu_item(id, venue_id) OR (InitPlan 1).col1)
+                Buffers: shared hit=3937
+                InitPlan 1
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+        SubPlan 8
+          ->  Aggregate  (cost=40.12..40.13 rows=1 width=32) (actual time=0.081..0.081 rows=1 loops=350)
+                Buffers: shared hit=3138
+                InitPlan 7
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+                ->  Bitmap Heap Scan on menu_entry_variants ev  (cost=4.30..39.85 rows=2 width=26) (actual time=0.029..0.080 rows=1 loops=350)
+                      Recheck Cond: (entry_id = e.id)
+                      Filter: (EXISTS(SubPlan 4) OR (InitPlan 7).col1)
+                      Heap Blocks: exact=89
+                      Buffers: shared hit=3138
+                      ->  Bitmap Index Scan on menu_entry_variants_entry_name_key  (cost=0.00..4.30 rows=3 width=0) (actual time=0.001..0.001 rows=1 loops=350)
+                            Index Cond: (entry_id = e.id)
+                            Buffers: shared hit=700
+                      SubPlan 4
+                        ->  Index Scan using menu_entries_id_item_key on menu_entries e_1  (cost=0.55..9.06 rows=1 width=0) (actual time=0.106..0.106 rows=1 loops=261)
+                              Index Cond: (id = ev.entry_id)
+                              Filter: ((private.staff_can_read_menu_version(version_id) OR (InitPlan 3).col1) AND private.staff_can_read_menu_version(version_id))
+                              Buffers: shared hit=2349
+                              InitPlan 3
+                                ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+Settings: effective_cache_size = '128MB', search_path = '"\$user", public, extensions'
+Planning:
+  Buffers: shared hit=388
+Planning Time: 0.561 ms
+Execution Time: 76.906 ms
+

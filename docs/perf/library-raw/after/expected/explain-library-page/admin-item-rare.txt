@@ -1,0 +1,27 @@
+-- admin-item-rare (library_page p_item := '0ddff021-09e9-4a45-ab1f-48e079c4da52', p_limit := 25)
+
+Limit  (cost=50.54..50.55 rows=1 width=420) (actual time=0.096..0.097 rows=6 loops=1)
+  Buffers: shared hit=32
+  InitPlan 1
+    ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.005..0.005 rows=1 loops=1)
+  InitPlan 2
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+  InitPlan 3
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.069..0.069 rows=1 loops=1)
+          Buffers: shared hit=2
+  ->  Sort  (cost=49.99..50.00 rows=1 width=420) (actual time=0.096..0.096 rows=6 loops=1)
+        Sort Key: a.created_at DESC, a.id DESC
+        Sort Method: quicksort  Memory: 27kB
+        Buffers: shared hit=32
+        ->  Bitmap Heap Scan on media_assets a  (cost=26.55..49.98 rows=1 width=420) (actual time=0.085..0.086 rows=6 loops=1)
+              Recheck Cond: (id = ANY ('{4aaf4e00-f94a-46d4-a3fc-eb645afd46e1,a8011bfb-bf2d-4549-adca-fd6790c1abac,e2032372-c434-4af2-978b-50b19924d668,b4a7a2db-893d-4027-9b40-9db7bc951d32,efa96236-29cf-462b-8f48-e644c6696fb3,b2f38c2a-347b-49bb-9b25-329d15326ccb}'::uuid[]))
+              Filter: ((deleted_at IS NULL) AND (deleted_at IS NULL) AND (((uploader_id = (InitPlan 1).col1) AND (InitPlan 2).col1) OR ((InitPlan 3).col1 AND (upload_state = 'ready'::public.upload_state))) AND (upload_state = 'ready'::public.upload_state))
+              Heap Blocks: exact=6
+              Buffers: shared hit=26
+              ->  Bitmap Index Scan on media_assets_id_venue_key  (cost=0.00..26.55 rows=6 width=0) (actual time=0.008..0.008 rows=6 loops=1)
+                    Index Cond: (id = ANY ('{4aaf4e00-f94a-46d4-a3fc-eb645afd46e1,a8011bfb-bf2d-4549-adca-fd6790c1abac,e2032372-c434-4af2-978b-50b19924d668,b4a7a2db-893d-4027-9b40-9db7bc951d32,efa96236-29cf-462b-8f48-e644c6696fb3,b2f38c2a-347b-49bb-9b25-329d15326ccb}'::uuid[]))
+                    Buffers: shared hit=18
+Planning:
+  Buffers: shared hit=67
+Planning Time: 0.173 ms
+Execution Time: 0.112 ms

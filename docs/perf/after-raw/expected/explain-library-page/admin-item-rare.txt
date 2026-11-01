@@ -1,0 +1,27 @@
+-- admin-item-rare (library_page p_item := 'c54a6364-6baa-4ce2-a718-2478511a9ca9', p_limit := 25)
+
+Limit  (cost=58.81..58.82 rows=1 width=416) (actual time=0.093..0.094 rows=7 loops=1)
+  Buffers: shared hit=36
+  InitPlan 1
+    ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.003..0.003 rows=1 loops=1)
+  InitPlan 2
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+  InitPlan 3
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.060..0.060 rows=1 loops=1)
+          Buffers: shared hit=2
+  ->  Sort  (cost=58.26..58.26 rows=1 width=416) (actual time=0.093..0.093 rows=7 loops=1)
+        Sort Key: a.created_at DESC, a.id DESC
+        Sort Method: quicksort  Memory: 28kB
+        Buffers: shared hit=36
+        ->  Bitmap Heap Scan on media_assets a  (cost=30.98..58.25 rows=1 width=416) (actual time=0.075..0.077 rows=7 loops=1)
+              Recheck Cond: (id = ANY ('{3676b46f-7f81-4f81-b9dd-59f8d2750e6f,7c7b306e-562a-4785-b8ab-8adeb8258a17,46b71b94-d8b6-4a53-985f-04567c0c7e65,cfff1f2e-00a3-41f5-a3e7-606cbb1a8615,0d6e15dd-d755-4eca-8d5c-3d2af9941346,5f741884-0237-4aa1-bbc5-be0db67fc9ef,6e7200e8-0ac5-4f21-86bc-f0cf0b6caa97}'::uuid[]))
+              Filter: ((deleted_at IS NULL) AND (deleted_at IS NULL) AND (((uploader_id = (InitPlan 1).col1) AND (InitPlan 2).col1) OR ((InitPlan 3).col1 AND (upload_state = 'ready'::public.upload_state))) AND (upload_state = 'ready'::public.upload_state))
+              Heap Blocks: exact=7
+              Buffers: shared hit=30
+              ->  Bitmap Index Scan on media_assets_id_venue_key  (cost=0.00..30.97 rows=7 width=0) (actual time=0.009..0.009 rows=7 loops=1)
+                    Index Cond: (id = ANY ('{3676b46f-7f81-4f81-b9dd-59f8d2750e6f,7c7b306e-562a-4785-b8ab-8adeb8258a17,46b71b94-d8b6-4a53-985f-04567c0c7e65,cfff1f2e-00a3-41f5-a3e7-606cbb1a8615,0d6e15dd-d755-4eca-8d5c-3d2af9941346,5f741884-0237-4aa1-bbc5-be0db67fc9ef,6e7200e8-0ac5-4f21-86bc-f0cf0b6caa97}'::uuid[]))
+                    Buffers: shared hit=21
+Planning:
+  Buffers: shared hit=65
+Planning Time: 0.138 ms
+Execution Time: 0.110 ms

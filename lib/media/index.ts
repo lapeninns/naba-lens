@@ -1,6 +1,7 @@
 import sharp from "sharp"
 import { open } from "node:fs/promises"
 import { MEDIA_LIMITS } from "../config/media"
+import { createGate } from "./gate"
 import { MediaError, view } from "./types"
 import { processHeic } from "./heic"
 import {
@@ -90,17 +91,30 @@ class MediaSourceReadError extends Error {
     super("Could not read media source")
   }
 }
-async function decodedImage(bytes: Uint8Array) {
-  // A single full decode into raw oriented pixels; derivatives share those pixels.
-  return sharp(view(bytes), {
-    failOn: "warning",
-    limitInputPixels: MEDIA_LIMITS.maxImagePixels,
-  })
+// Image decodes share a bounded number of slots per process; HEIC has its own
+// queue because its decode runs in a disposable worker.
+const imageGate = createGate(
+  () => MEDIA_LIMITS.maxImageConcurrency,
+  () => MEDIA_LIMITS.heicTimeoutMs
+)
+const decodeOptions = {
+  failOn: "warning",
+  limitInputPixels: MEDIA_LIMITS.maxImagePixels,
+} as const
+// Oriented size of the original, from the header alone.
+async function orientedSize(bytes: Uint8Array) {
+  const m = await sharp(view(bytes), decodeOptions).metadata()
+  const { width, height } = m.autoOrient ?? m
+  if (!width || !height) throw new MediaError("corrupt_media")
+  return { width, height }
+}
+// Resizing straight from the encoded input lets JPEG and WebP shrink while
+// decoding, and sequentialRead streams rows, so the full-size image is never
+// held as raw pixels. rotate() applies the EXIF orientation.
+function fromEncoded(bytes: Uint8Array) {
+  return sharp(view(bytes), { ...decodeOptions, sequentialRead: true })
     .timeout({ seconds: MEDIA_LIMITS.imageTimeoutSeconds })
     .rotate()
-    .ensureAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true })
 }
 export async function processImage(bytes: Uint8Array, declaredMime = "") {
   if (bytes.byteLength > MEDIA_LIMITS.maxPhotoBytes)
@@ -119,27 +133,40 @@ export async function processImage(bytes: Uint8Array, declaredMime = "") {
         ...type,
       }
     }
-    const { data, info } = await decodedImage(bytes)
-    const resize = (size: number) =>
-      sharp(data, {
-        raw: { width: info.width, height: info.height, channels: 4 },
-      })
-        .timeout({ seconds: MEDIA_LIMITS.imageTimeoutSeconds })
+    return await imageGate.run(async () => {
+      const { width, height } = await orientedSize(bytes)
+      // One decode, already shrunk to preview size; both derivatives come from it.
+      const { data, info } = await fromEncoded(bytes)
         .resize({
-          width: size,
-          height: size,
+          width: MEDIA_LIMITS.previewPixels,
+          height: MEDIA_LIMITS.previewPixels,
           fit: "inside",
           withoutEnlargement: true,
         })
-        .webp()
-        .toBuffer()
-    return {
-      preview: await resize(MEDIA_LIMITS.previewPixels),
-      thumb: await resize(MEDIA_LIMITS.thumbnailPixels),
-      width: info.width,
-      height: info.height,
-      ...type,
-    }
+        .ensureAlpha()
+        .raw()
+        .toBuffer({ resolveWithObject: true })
+      const derive = (size: number) =>
+        sharp(data, {
+          raw: { width: info.width, height: info.height, channels: 4 },
+        })
+          .timeout({ seconds: MEDIA_LIMITS.imageTimeoutSeconds })
+          .resize({
+            width: size,
+            height: size,
+            fit: "inside",
+            withoutEnlargement: true,
+          })
+          .webp()
+          .toBuffer()
+      return {
+        preview: await derive(MEDIA_LIMITS.previewPixels),
+        thumb: await derive(MEDIA_LIMITS.thumbnailPixels),
+        width,
+        height,
+        ...type,
+      }
+    })
   } catch (e) {
     throw new MediaError(errorCode(e))
   }
@@ -155,16 +182,14 @@ export async function createAvatarDerivative(bytes: Uint8Array) {
   try {
     if (type.mime === "image/heic")
       return (await processHeic(bytes, true)).avatar!
-    const { data, info } = await decodedImage(bytes)
-    return sharp(data, {
-      raw: { width: info.width, height: info.height, channels: 4 },
-    })
-      .timeout({ seconds: MEDIA_LIMITS.imageTimeoutSeconds })
-      .resize(MEDIA_LIMITS.avatarPixels, MEDIA_LIMITS.avatarPixels, {
-        fit: "cover",
-      })
-      .webp()
-      .toBuffer()
+    return await imageGate.run(() =>
+      fromEncoded(bytes)
+        .resize(MEDIA_LIMITS.avatarPixels, MEDIA_LIMITS.avatarPixels, {
+          fit: "cover",
+        })
+        .webp()
+        .toBuffer()
+    )
   } catch (e) {
     throw new MediaError(errorCode(e))
   }

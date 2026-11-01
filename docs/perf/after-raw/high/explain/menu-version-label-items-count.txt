@@ -1,0 +1,21 @@
+-- menu-version-label-items-count
+-- role authenticated, sub (admin)
+-- statement:
+select count(*) from public.media_label_items where venue_id = '7cec79bd-6948-476a-bd6d-159daabb5976'
+
+Aggregate  (cost=18844.05..18844.06 rows=1 width=8) (actual time=339.770..339.770 rows=1 loops=1)
+  Buffers: shared hit=328871
+  ->  Bitmap Heap Scan on media_label_items  (cost=752.24..18799.23 rows=17926 width=0) (actual time=1.629..338.070 rows=54413 loops=1)
+        Recheck Cond: (venue_id = '7cec79bd-6948-476a-bd6d-159daabb5976'::uuid)
+        Filter: private.can_read_asset_labels(asset_id)
+        Heap Blocks: exact=1547
+        Buffers: shared hit=328871
+        ->  Bitmap Index Scan on media_label_items_venue_item_idx  (cost=0.00..747.76 rows=53779 width=0) (actual time=0.572..0.573 rows=54413 loops=1)
+              Index Cond: (venue_id = '7cec79bd-6948-476a-bd6d-159daabb5976'::uuid)
+              Buffers: shared hit=88
+Settings: effective_cache_size = '128MB', search_path = '"\$user", public, extensions'
+Planning:
+  Buffers: shared hit=236 read=1
+Planning Time: 0.247 ms
+Execution Time: 340.202 ms
+

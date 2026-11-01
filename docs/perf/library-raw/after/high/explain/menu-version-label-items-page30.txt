@@ -1,0 +1,25 @@
+-- menu-version-label-items-page30
+-- role authenticated, sub (admin)
+-- statement:
+select item_id from public.media_label_items where venue_id = 'b4656e55-e937-482a-a997-a4b1059843a9' order by id limit 1000 offset 30000
+
+Limit  (cost=20429.34..20429.35 rows=1 width=32) (actual time=392.865..392.945 rows=1000 loops=1)
+  Buffers: shared hit=383686 read=751, temp read=281 written=282
+  ->  Sort  (cost=20383.83..20429.34 rows=18206 width=32) (actual time=391.303..392.364 rows=31000 loops=1)
+        Sort Key: id
+        Sort Method: external merge  Disk: 2248kB
+        Buffers: shared hit=383686 read=751, temp read=281 written=282
+        ->  Bitmap Heap Scan on media_label_items  (cost=770.60..19095.56 rows=18206 width=32) (actual time=2.089..377.487 rows=54585 loops=1)
+              Recheck Cond: (venue_id = 'b4656e55-e937-482a-a997-a4b1059843a9'::uuid)
+              Filter: private.can_read_asset_labels(asset_id)
+              Heap Blocks: exact=1541
+              Buffers: shared hit=383683 read=751
+              ->  Bitmap Index Scan on media_label_items_venue_item_idx  (cost=0.00..766.05 rows=54617 width=0) (actual time=0.966..0.967 rows=54585 loops=1)
+                    Index Cond: (venue_id = 'b4656e55-e937-482a-a997-a4b1059843a9'::uuid)
+                    Buffers: shared read=88
+Settings: effective_cache_size = '128MB', search_path = '"\$user", public, extensions'
+Planning:
+  Buffers: shared hit=285
+Planning Time: 0.622 ms
+Execution Time: 393.732 ms
+

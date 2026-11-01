@@ -34,6 +34,27 @@ function chunks<T>(values: T[], size: number): T[][] {
   return out
 }
 
+type LabelledItem = {
+  item_id: string
+  item_name: string
+  section_name: string | null
+}
+type LabelledVariant = {
+  variant_id: string
+  item_id: string
+  variant_name: string
+}
+
+async function labelled<T>(
+  db: MediaActor["db"],
+  fn: "library_labelled_items" | "library_labelled_variants",
+  venueId: string
+): Promise<T[]> {
+  const { data, error } = await db.rpc(fn, { p_venue_id: venueId })
+  if (error) throw error
+  return (data ?? []) as T[]
+}
+
 const byName = (a: { name: string }, b: { name: string }) =>
   a.name.localeCompare(b.name, "en-GB", { sensitivity: "base" })
 
@@ -93,31 +114,11 @@ async function readOptions(
           .order("id")
           .range(from, to)
       ),
-      // Items with at least one visible label, with the newest snapshot.
-      readAll((from, to) =>
-        db
-          .from("menu_items")
-          .select(
-            "id, labels:media_label_items!inner(item_name, section_name, added_at)"
-          )
-          .eq("venue_id", venueId)
-          .order("added_at", { referencedTable: "labels", ascending: false })
-          .limit(1, { referencedTable: "labels" })
-          .order("id")
-          .range(from, to)
-      ),
-      readAll((from, to) =>
-        db
-          .from("menu_variants")
-          .select(
-            "id, item_id, labels:media_label_items!inner(variant_name, added_at)"
-          )
-          .eq("venue_id", venueId)
-          .order("added_at", { referencedTable: "labels", ascending: false })
-          .limit(1, { referencedTable: "labels" })
-          .order("id")
-          .range(from, to)
-      ),
+      // Items and variants with at least one visible label, each with its
+      // newest snapshot: one jsonb value each (not rows, which PostgREST cuts
+      // at max_rows), read by an index probe per item.
+      labelled<LabelledItem>(db, "library_labelled_items", venueId),
+      labelled<LabelledVariant>(db, "library_labelled_variants", venueId),
     ]
   )
   if (active.error) throw active.error
@@ -131,10 +132,10 @@ async function readOptions(
   // Variants that labels use, by item, named from the label snapshot.
   const variantsOf = new Map<string, { id: string; name: string }[]>()
   for (const v of labelledVariants) {
-    const name = v.labels[0]?.variant_name
+    const name = v.variant_name
     if (!name) continue
     const list = variantsOf.get(v.item_id) ?? []
-    list.push({ id: v.id, name })
+    list.push({ id: v.variant_id, name })
     variantsOf.set(v.item_id, list)
   }
 
@@ -201,23 +202,20 @@ async function readOptions(
   categories.push(...older.sort(byName))
 
   // Items that only labels still use: not in the active version.
-  const past = labelledItems.filter((i) => !seenItems.has(i.id))
+  const past = labelledItems.filter((i) => !seenItems.has(i.item_id))
   if (past.length > 0) {
     const latest = await latestRetiredNames(
       actor,
       venueId,
-      past.map((i) => i.id)
+      past.map((i) => i.item_id)
     )
     const pastItems = past.map((i) => {
-      const snapshot = i.labels[0]
-      const known = latest.get(i.id)
+      const known = latest.get(i.item_id)
       return {
-        id: i.id,
-        name: known?.name ?? snapshot?.item_name ?? "Unknown item",
-        sectionName: historical(
-          known?.sectionName ?? snapshot?.section_name ?? null
-        ),
-        variants: (variantsOf.get(i.id) ?? []).sort(byName),
+        id: i.item_id,
+        name: known?.name ?? i.item_name ?? "Unknown item",
+        sectionName: historical(known?.sectionName ?? i.section_name ?? null),
+        variants: (variantsOf.get(i.item_id) ?? []).sort(byName),
       }
     })
     items.push(...pastItems.sort(byName))

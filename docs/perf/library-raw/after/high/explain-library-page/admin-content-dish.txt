@@ -1,0 +1,25 @@
+-- admin-content-dish (library_page p_content_type := 'dish', p_limit := 25)
+
+Limit  (cost=0.97..2766.82 rows=25 width=419) (actual time=0.479..0.876 rows=25 loops=1)
+  Buffers: shared hit=310 read=57
+  InitPlan 2
+    ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.004..0.004 rows=1 loops=1)
+  InitPlan 3
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+  InitPlan 4
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.064..0.064 rows=1 loops=1)
+          Buffers: shared hit=3
+  ->  Index Scan using media_assets_ready_feed_idx on media_assets a  (cost=0.42..684271.42 rows=6185 width=419) (actual time=0.478..0.873 rows=25 loops=1)
+        Filter: ((((uploader_id = (InitPlan 2).col1) AND (InitPlan 3).col1) OR ((InitPlan 4).col1 AND (upload_state = 'ready'::public.upload_state))) AND EXISTS(SubPlan 1))
+        Rows Removed by Filter: 11
+        Buffers: shared hit=310 read=57
+        SubPlan 1
+          ->  Index Scan using media_labels_asset_venue_key on media_labels l  (cost=0.42..8.69 rows=1 width=4) (actual time=0.021..0.021 rows=1 loops=36)
+                Index Cond: (asset_id = a.id)
+                Filter: (('dish'::text = ANY (content_types)) AND private.can_read_asset_labels(asset_id))
+                Rows Removed by Filter: 0
+                Buffers: shared hit=279 read=57
+Planning:
+  Buffers: shared hit=314 read=1
+Planning Time: 0.392 ms
+Execution Time: 0.891 ms

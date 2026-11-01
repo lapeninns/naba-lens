@@ -1,0 +1,53 @@
+-- filter-options-items-with-labels
+-- role authenticated, sub (admin)
+-- statement:
+select mi.id, (select json_agg(l) from (select item_name, section_name, added_at from public.media_label_items li where li.item_id = mi.id order by added_at desc limit 1) l) labels
+     from public.menu_items mi where mi.venue_id = 'afe1eade-f048-4e8f-99ed-048f71d118f7'
+       and exists (select 1 from public.media_label_items li where li.item_id = mi.id) order by mi.id limit 1000
+
+Limit  (cost=42.85..68.23 rows=3 width=48) (actual time=3.524..3.711 rows=21 loops=1)
+  Buffers: shared hit=1329
+  InitPlan 2
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.064..0.064 rows=1 loops=1)
+          Buffers: shared hit=1
+  ->  Result  (cost=42.59..67.97 rows=3 width=48) (actual time=3.523..3.709 rows=21 loops=1)
+        Buffers: shared hit=1329
+        ->  Sort  (cost=42.59..42.60 rows=3 width=16) (actual time=3.213..3.215 rows=21 loops=1)
+              Sort Key: mi.id
+              Sort Method: quicksort  Memory: 25kB
+              Buffers: shared hit=1208
+              ->  Nested Loop  (cost=9.10..42.57 rows=3 width=16) (actual time=2.340..3.199 rows=21 loops=1)
+                    Buffers: shared hit=1205
+                    ->  HashAggregate  (cost=8.83..8.93 rows=10 width=16) (actual time=1.290..1.296 rows=29 loops=1)
+                          Group Key: li.item_id
+                          Batches: 1  Memory Usage: 24kB
+                          Buffers: shared hit=809
+                          ->  Seq Scan on media_label_items li  (cost=0.00..8.80 rows=10 width=16) (actual time=1.092..1.280 rows=30 loops=1)
+                                Filter: private.can_read_asset_labels(asset_id)
+                                Buffers: shared hit=809
+                    ->  Index Only Scan using menu_items_id_venue_key on menu_items mi  (cost=0.28..3.34 rows=1 width=16) (actual time=0.065..0.065 rows=1 loops=29)
+                          Index Cond: ((id = li.item_id) AND (venue_id = 'afe1eade-f048-4e8f-99ed-048f71d118f7'::uuid))
+                          Filter: (private.staff_can_read_menu_item(id, venue_id) OR (InitPlan 2).col1)
+                          Heap Fetches: 0
+                          Buffers: shared hit=396
+        SubPlan 1
+          ->  Aggregate  (cost=8.43..8.44 rows=1 width=32) (actual time=0.023..0.023 rows=1 loops=21)
+                Buffers: shared hit=121
+                ->  Subquery Scan on l  (cost=8.41..8.43 rows=1 width=58) (actual time=0.022..0.022 rows=1 loops=21)
+                      Buffers: shared hit=121
+                      ->  Limit  (cost=8.41..8.42 rows=1 width=34) (actual time=0.022..0.022 rows=1 loops=21)
+                            Buffers: shared hit=121
+                            ->  Sort  (cost=8.41..8.42 rows=1 width=34) (actual time=0.021..0.021 rows=1 loops=21)
+                                  Sort Key: li_1.added_at DESC
+                                  Sort Method: quicksort  Memory: 25kB
+                                  Buffers: shared hit=121
+                                  ->  Index Scan using media_label_items_item_idx on media_label_items li_1  (cost=0.14..8.40 rows=1 width=34) (actual time=0.020..0.021 rows=1 loops=21)
+                                        Index Cond: (item_id = mi.id)
+                                        Filter: private.can_read_asset_labels(asset_id)
+                                        Buffers: shared hit=118
+Settings: effective_cache_size = '128MB', search_path = '"\$user", public, extensions'
+Planning:
+  Buffers: shared hit=263
+Planning Time: 0.491 ms
+Execution Time: 3.869 ms
+

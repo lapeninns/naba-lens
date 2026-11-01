@@ -1,0 +1,238 @@
+{
+  "volume": "current",
+  "at": "2026-11-01T11:02:37.910Z",
+  "revision": {
+    "sha": "7be0acf0649f317df6ee598eb4c0055879f6555f",
+    "dirty": false
+  },
+  "loadAverage": [
+    4.95458984375,
+    7.484375,
+    7.16357421875
+  ],
+  "refresh": [
+    {
+      "label": "unfiltered feed",
+      "pages": 1,
+      "refreshMs": {
+        "n": 5,
+        "min": 13.8,
+        "p50": 14.7,
+        "p95": 15.2,
+        "max": 15.2
+      },
+      "lastPageMsP50": 14.7,
+      "requests": 4
+    },
+    {
+      "label": "unfiltered feed",
+      "pages": 5,
+      "refreshMs": {
+        "n": 5,
+        "min": 79.9,
+        "p50": 81.8,
+        "p95": 91.3,
+        "max": 91.3
+      },
+      "lastPageMsP50": 16.9,
+      "requests": 20
+    },
+    {
+      "label": "unfiltered feed",
+      "pages": 20,
+      "refreshMs": {
+        "n": 5,
+        "min": 196.8,
+        "p50": 217.7,
+        "p95": 267.1,
+        "max": 267.1
+      },
+      "lastPageMsP50": 8.8,
+      "requests": 80
+    },
+    {
+      "label": "unfiltered feed",
+      "pages": 50,
+      "refreshMs": {
+        "n": 5,
+        "min": 191.9,
+        "p50": 200.3,
+        "p95": 218.7,
+        "max": 218.7
+      },
+      "lastPageMsP50": 5.5,
+      "requests": 84
+    },
+    {
+      "label": "largest venue",
+      "pages": 1,
+      "refreshMs": {
+        "n": 5,
+        "min": 3.7,
+        "p50": 4,
+        "p95": 4.2,
+        "max": 4.2
+      },
+      "lastPageMsP50": 4,
+      "requests": 4
+    },
+    {
+      "label": "largest venue",
+      "pages": 5,
+      "refreshMs": {
+        "n": 5,
+        "min": 7.3,
+        "p50": 8.2,
+        "p95": 10.2,
+        "max": 10.2
+      },
+      "lastPageMsP50": 4.1,
+      "requests": 8
+    },
+    {
+      "label": "largest venue",
+      "pages": 20,
+      "refreshMs": {
+        "n": 5,
+        "min": 7.6,
+        "p50": 8.7,
+        "p95": 9.8,
+        "max": 9.8
+      },
+      "lastPageMsP50": 4.2,
+      "requests": 8
+    },
+    {
+      "label": "largest venue",
+      "pages": 50,
+      "refreshMs": {
+        "n": 5,
+        "min": 10.4,
+        "p50": 13.4,
+        "p95": 13.6,
+        "max": 13.6
+      },
+      "lastPageMsP50": 6.1,
+      "requests": 8
+    }
+  ],
+  "concurrent": [
+    {
+      "label": "first page",
+      "concurrent": 1,
+      "wallMs": {
+        "n": 9,
+        "min": 13.8,
+        "p50": 14.6,
+        "p95": 16.9,
+        "max": 16.9
+      },
+      "failures": 0,
+      "of": 9
+    },
+    {
+      "label": "first page",
+      "concurrent": 4,
+      "wallMs": {
+        "n": 36,
+        "min": 15.5,
+        "p50": 17.6,
+        "p95": 24.4,
+        "max": 38.3
+      },
+      "failures": 0,
+      "of": 36
+    },
+    {
+      "label": "first page",
+      "concurrent": 8,
+      "wallMs": {
+        "n": 72,
+        "min": 18.3,
+        "p50": 23.3,
+        "p95": 27.6,
+        "max": 28.6
+      },
+      "failures": 0,
+      "of": 72
+    },
+    {
+      "label": "category = curries",
+      "concurrent": 1,
+      "wallMs": {
+        "n": 3,
+        "min": 297.7,
+        "p50": 331.5,
+        "p95": 344.6,
+        "max": 344.6
+      },
+      "failures": 0,
+      "of": 3
+    },
+    {
+      "label": "category = curries",
+      "concurrent": 4,
+      "wallMs": {
+        "n": 12,
+        "min": 340.8,
+        "p50": 348.2,
+        "p95": 353.8,
+        "max": 353.8
+      },
+      "failures": 0,
+      "of": 12
+    },
+    {
+      "label": "category = curries",
+      "concurrent": 8,
+      "wallMs": {
+        "n": 24,
+        "min": 359.1,
+        "p50": 369.2,
+        "p95": 407.5,
+        "max": 417.1
+      },
+      "failures": 0,
+      "of": 24
+    },
+    {
+      "label": "labels = labelled",
+      "concurrent": 1,
+      "wallMs": {
+        "n": 3,
+        "min": 19.4,
+        "p50": 20.7,
+        "p95": 21.2,
+        "max": 21.2
+      },
+      "failures": 0,
+      "of": 3
+    },
+    {
+      "label": "labels = labelled",
+      "concurrent": 4,
+      "wallMs": {
+        "n": 12,
+        "min": 23.1,
+        "p50": 25.3,
+        "p95": 27.8,
+        "max": 27.8
+      },
+      "failures": 0,
+      "of": 12
+    },
+    {
+      "label": "labels = labelled",
+      "concurrent": 8,
+      "wallMs": {
+        "n": 24,
+        "min": 26.8,
+        "p50": 30.8,
+        "p95": 33.4,
+        "max": 35.7
+      },
+      "failures": 0,
+      "of": 24
+    }
+  ]
+}

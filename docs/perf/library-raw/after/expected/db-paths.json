@@ -1,0 +1,1244 @@
+{
+  "volume": "expected",
+  "at": "2026-11-01T13:40:38.193Z",
+  "revision": {
+    "sha": "9f547b94b7161e9a889ceab510a7e366b487c94b",
+    "dirty": true
+  },
+  "repetitions": {
+    "warm": 3,
+    "n": 20
+  },
+  "loadAverage": {
+    "start": [
+      7.3994140625,
+      6.947265625,
+      6.7998046875
+    ],
+    "end": [
+      7.22998046875,
+      6.9404296875,
+      6.8017578125
+    ]
+  },
+  "targets": {
+    "venues": [
+      {
+        "id": "a9771e11-ca07-4a9f-93c8-a3765af1e195",
+        "name": "PERF Venue 01",
+        "slug": "perf-venue-01",
+        "media": 24881
+      },
+      {
+        "id": "78ebad47-6a9b-4bef-81c7-fcd4f902aef8",
+        "name": "PERF Venue 02",
+        "slug": "perf-venue-02",
+        "media": 15433
+      },
+      {
+        "id": "68f747f9-b9fb-4d4b-8e9c-bd7280140e2b",
+        "name": "PERF Venue 03",
+        "slug": "perf-venue-03",
+        "media": 9220
+      },
+      {
+        "id": "687f7eee-6dae-46a5-9ac0-2db486fce20a",
+        "name": "PERF Venue 04",
+        "slug": "perf-venue-04",
+        "media": 6749
+      },
+      {
+        "id": "7ebba103-6e0a-457a-aad5-f5355e2c165e",
+        "name": "PERF Venue 05",
+        "slug": "perf-venue-05",
+        "media": 6704
+      },
+      {
+        "id": "d3284425-4b1d-4068-bd05-1538c4425067",
+        "name": "PERF Venue 07",
+        "slug": "perf-venue-07",
+        "media": 5724
+      },
+      {
+        "id": "ea2009eb-1b81-4cfa-a4d4-807920aab1ba",
+        "name": "PERF Venue 06",
+        "slug": "perf-venue-06",
+        "media": 3260
+      },
+      {
+        "id": "7db2705e-873b-409d-8273-aeff087872b9",
+        "name": "PERF Venue 08",
+        "slug": "perf-venue-08",
+        "media": 2575
+      }
+    ],
+    "bigVenue": {
+      "id": "a9771e11-ca07-4a9f-93c8-a3765af1e195",
+      "name": "PERF Venue 01",
+      "slug": "perf-venue-01",
+      "media": 24881
+    },
+    "smallVenue": {
+      "id": "7db2705e-873b-409d-8273-aeff087872b9",
+      "name": "PERF Venue 08",
+      "slug": "perf-venue-08",
+      "media": 2575
+    },
+    "midVenue": {
+      "id": "7ebba103-6e0a-457a-aad5-f5355e2c165e",
+      "name": "PERF Venue 05",
+      "slug": "perf-venue-05",
+      "media": 6704
+    },
+    "admin": {
+      "email": "perf-admin-1@perf.nabalens.test"
+    },
+    "staffHeavy": {
+      "media": 7040
+    },
+    "staffMedian": {
+      "media": 887
+    },
+    "staffLight": {
+      "media": 31
+    },
+    "staffCount": 56,
+    "readyFeed": 74540,
+    "cursors": {
+      "feed": [
+        {
+          "frac": 0.1,
+          "createdAt": "2026-09-23T20:02:29.401654+00:00",
+          "id": "3f3a7c3d-02d9-4b8a-82a2-960ac855b4fa",
+          "offset": 7453,
+          "of": 74540
+        },
+        {
+          "frac": 0.5,
+          "createdAt": "2026-03-30T22:57:24.098101+00:00",
+          "id": "ec641c27-1735-4777-bd09-bd8349ab005f",
+          "offset": 37269,
+          "of": 74540
+        },
+        {
+          "frac": 0.9,
+          "createdAt": "2025-06-19T21:33:21.628404+00:00",
+          "id": "6df0b318-a2fb-474b-8cdb-7fe927485943",
+          "offset": 67085,
+          "of": 74540
+        }
+      ],
+      "bigVenue": [
+        {
+          "frac": 0.5,
+          "createdAt": "2026-03-29T21:15:03.777533+00:00",
+          "id": "1ab634d3-72da-4ba2-a96f-f42b0d1d44d8",
+          "offset": 12439,
+          "of": 24881
+        },
+        {
+          "frac": 0.9,
+          "createdAt": "2025-06-21T19:04:10.224659+00:00",
+          "id": "2be747d8-25d9-47bc-b7d6-db93a27df5fc",
+          "offset": 22391,
+          "of": 24881
+        }
+      ],
+      "staffHeavyOwn": [
+        {
+          "frac": 0.5,
+          "createdAt": "2026-03-30T22:06:52.617929+00:00",
+          "id": "064c23de-6f72-4807-af39-002665b935e3",
+          "offset": 3519,
+          "of": 7040
+        },
+        {
+          "frac": 0.9,
+          "createdAt": "2025-07-01T10:14:59.648175+00:00",
+          "id": "3a064a8c-59a6-4b8b-8f9f-8fd0bf74c6bc",
+          "offset": 6335,
+          "of": 7040
+        }
+      ],
+      "staffMedianOwn": [
+        {
+          "frac": 0.5,
+          "createdAt": "2026-04-02T11:55:45.718511+00:00",
+          "id": "f56a727f-62da-455a-a5c3-c8b829b78f4b",
+          "offset": 442,
+          "of": 887
+        }
+      ],
+      "heavyStaffAdmin": [
+        {
+          "frac": 0.5,
+          "createdAt": "2026-03-30T22:06:52.617929+00:00",
+          "id": "064c23de-6f72-4807-af39-002665b935e3",
+          "offset": 3519,
+          "of": 7040
+        },
+        {
+          "frac": 0.9,
+          "createdAt": "2025-07-01T10:14:59.648175+00:00",
+          "id": "3a064a8c-59a6-4b8b-8f9f-8fd0bf74c6bc",
+          "offset": 6335,
+          "of": 7040
+        }
+      ],
+      "category": [
+        {
+          "frac": 0.5,
+          "createdAt": "2026-04-03T12:12:03.301399+00:00",
+          "id": "2172c4d0-18e3-48a1-bf64-ce43bc887e2d",
+          "offset": 2907,
+          "of": 5816
+        }
+      ]
+    },
+    "popularItem": {
+      "id": "51be0ea7-b447-47ca-83f3-292707259486",
+      "labels": 911
+    },
+    "rareItem": {
+      "id": "0ddff021-09e9-4a45-ab1f-48e079c4da52",
+      "labels": 6
+    },
+    "popularVariant": {
+      "id": "a78b48cb-e429-46f6-912c-f5beaa8ea110",
+      "labels": 77
+    },
+    "category": "curries",
+    "categoryRows": 5850,
+    "bigVenueVersions": [
+      {
+        "id": "00c0cf06-b5ac-4de5-8144-51f269270a9f",
+        "status": "retired",
+        "revision": 2,
+        "entries": 350
+      },
+      {
+        "id": "0d2d8073-24e7-4749-ba66-574b91e9b32d",
+        "status": "retired",
+        "revision": 3,
+        "entries": 350
+      },
+      {
+        "id": "407907f9-f308-4fc8-9fe9-1e95ab99e8bd",
+        "status": "retired",
+        "revision": 4,
+        "entries": 350
+      },
+      {
+        "id": "5f280a0a-ed97-4cc2-a93b-d2094f217234",
+        "status": "retired",
+        "revision": 1,
+        "entries": 350
+      },
+      {
+        "id": "1afe0e90-e1cd-48d5-87cc-16f7e6c8eab3",
+        "status": "retired",
+        "revision": 2,
+        "entries": 350
+      },
+      {
+        "id": "4eee40ab-43a5-457d-96f6-db59053c243c",
+        "status": "retired",
+        "revision": 3,
+        "entries": 350
+      },
+      {
+        "id": "14d34f15-63f7-447c-8293-44239171c102",
+        "status": "retired",
+        "revision": 4,
+        "entries": 350
+      },
+      {
+        "id": "447713c2-2bd1-4cf4-b655-31e6e21434d6",
+        "status": "retired",
+        "revision": 1,
+        "entries": 350
+      },
+      {
+        "id": "0d07c8d6-ffda-47dd-bd50-d29c70ccd008",
+        "status": "retired",
+        "revision": 2,
+        "entries": 350
+      },
+      {
+        "id": "c100f305-e8ad-42fc-8ca8-0a00b4c33d7c",
+        "status": "retired",
+        "revision": 3,
+        "entries": 350
+      },
+      {
+        "id": "8af05cb4-5deb-4853-91f6-057a43f0702c",
+        "status": "retired",
+        "revision": 4,
+        "entries": 350
+      },
+      {
+        "id": "abc08ffd-6e47-46cb-9370-29577c6e030b",
+        "status": "active",
+        "revision": 1,
+        "entries": 350
+      }
+    ],
+    "activeVersion": {
+      "id": "abc08ffd-6e47-46cb-9370-29577c6e030b",
+      "status": "active",
+      "revision": 1,
+      "entries": 350
+    },
+    "retiredVersion": {
+      "id": "00c0cf06-b5ac-4de5-8144-51f269270a9f",
+      "status": "retired",
+      "revision": 2,
+      "entries": 350
+    },
+    "smallActiveVersion": "c1ace278-d7c4-41f8-8f87-9a882ed07de7",
+    "heavyAssets": [
+      "fdfbbf3f-5c9b-4e53-9f16-465b1e778fa1",
+      "acde3575-9754-4ee3-855b-b2dff0671bc4",
+      "2add8748-1aa0-440b-8b60-5d904254d889",
+      "66bb7295-3185-4b34-b125-b831dd2c3a57",
+      "4dc7db10-8d50-4e05-938a-407c89e611b8",
+      "378cd075-9b0e-4788-9983-bff47f7ab36d",
+      "70a4ab99-011d-4915-97ac-15a420dfe2ef",
+      "30b76b37-8878-4c70-a270-dce278bbb727",
+      "c6e67509-effb-44a3-bef2-4d9bf2e6d6a4",
+      "077d4024-cf9a-4087-a386-23feceffbb6d"
+    ],
+    "label": {
+      "labelledAssets": 42076,
+      "labelItems": 59518
+    },
+    "dayRanges": [
+      "2026-10-25",
+      "2026-08-03",
+      "2026-11-01"
+    ]
+  },
+  "results": [
+    {
+      "name": "first page, no filter",
+      "group": "admin-feed",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 4.4,
+        "p50": 5.4,
+        "p95": 8,
+        "max": 8.4
+      },
+      "requestsP50": 4,
+      "requestMsP50": 8.2,
+      "rows": 24,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    },
+    {
+      "name": "cursor page at 10% depth (offset 7453)",
+      "group": "admin-feed",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 5.1,
+        "p50": 6,
+        "p95": 6.4,
+        "max": 6.4
+      },
+      "requestsP50": 4,
+      "requestMsP50": 8.3,
+      "rows": 24,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    },
+    {
+      "name": "cursor page at 50% depth (offset 37269)",
+      "group": "admin-feed",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 4.3,
+        "p50": 4.8,
+        "p95": 6,
+        "max": 6.3
+      },
+      "requestsP50": 4,
+      "requestMsP50": 7.2,
+      "rows": 24,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    },
+    {
+      "name": "cursor page at 90% depth (offset 67085)",
+      "group": "admin-feed",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 4.1,
+        "p50": 4.3,
+        "p95": 5.4,
+        "max": 5.4
+      },
+      "requestsP50": 4,
+      "requestMsP50": 6.8,
+      "rows": 24,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    },
+    {
+      "name": "venue filter (largest)",
+      "group": "admin-feed",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 3.6,
+        "p50": 4.2,
+        "p95": 4.7,
+        "max": 4.8
+      },
+      "requestsP50": 4,
+      "requestMsP50": 6.3,
+      "rows": 24,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    },
+    {
+      "name": "venue (largest), cursor at 50% (offset 12439)",
+      "group": "admin-feed",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 4.4,
+        "p50": 4.7,
+        "p95": 5.7,
+        "max": 5.8
+      },
+      "requestsP50": 4,
+      "requestMsP50": 7.2,
+      "rows": 24,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    },
+    {
+      "name": "venue (largest), cursor at 90% (offset 22391)",
+      "group": "admin-feed",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 3.6,
+        "p50": 4.2,
+        "p95": 4.6,
+        "max": 4.8
+      },
+      "requestsP50": 4,
+      "requestMsP50": 6.6,
+      "rows": 24,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    },
+    {
+      "name": "venue filter (smallest)",
+      "group": "admin-feed",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 4.3,
+        "p50": 4.7,
+        "p95": 5.3,
+        "max": 5.3
+      },
+      "requestsP50": 4,
+      "requestMsP50": 7.1,
+      "rows": 24,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    },
+    {
+      "name": "staff filter (heaviest uploader)",
+      "group": "admin-feed",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 3.7,
+        "p50": 4.2,
+        "p95": 4.6,
+        "max": 4.8
+      },
+      "requestsP50": 4,
+      "requestMsP50": 6.5,
+      "rows": 24,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    },
+    {
+      "name": "staff (heaviest), cursor at 50%",
+      "group": "admin-feed",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 4.5,
+        "p50": 5.2,
+        "p95": 6.1,
+        "max": 6.2
+      },
+      "requestsP50": 4,
+      "requestMsP50": 7.6,
+      "rows": 24,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    },
+    {
+      "name": "staff (heaviest), cursor at 90%",
+      "group": "admin-feed",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 4.7,
+        "p50": 5.7,
+        "p95": 6.3,
+        "max": 6.5
+      },
+      "requestsP50": 4,
+      "requestMsP50": 7.8,
+      "rows": 24,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    },
+    {
+      "name": "staff filter (lightest)",
+      "group": "admin-feed",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 3.9,
+        "p50": 4.4,
+        "p95": 5.1,
+        "max": 5.1
+      },
+      "requestsP50": 4,
+      "requestMsP50": 6.9,
+      "rows": 24,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    },
+    {
+      "name": "type = video",
+      "group": "admin-feed",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 3.4,
+        "p50": 3.6,
+        "p95": 4,
+        "max": 4
+      },
+      "requestsP50": 4,
+      "requestMsP50": 5.9,
+      "rows": 24,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    },
+    {
+      "name": "type = image",
+      "group": "admin-feed",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 3.4,
+        "p50": 3.7,
+        "p95": 4.2,
+        "max": 4.4
+      },
+      "requestsP50": 4,
+      "requestMsP50": 6,
+      "rows": 24,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    },
+    {
+      "name": "venue + staff + type",
+      "group": "admin-feed",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 7,
+        "p50": 8.1,
+        "p95": 9.6,
+        "max": 9.9
+      },
+      "requestsP50": 4,
+      "requestMsP50": 10.6,
+      "rows": 24,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    },
+    {
+      "name": "date range, last 7 days",
+      "group": "admin-feed",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 3.6,
+        "p50": 4.1,
+        "p95": 4.8,
+        "max": 6.8
+      },
+      "requestsP50": 4,
+      "requestMsP50": 6.5,
+      "rows": 24,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    },
+    {
+      "name": "date range, last 90 days",
+      "group": "admin-feed",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 3.5,
+        "p50": 3.8,
+        "p95": 6.1,
+        "max": 6.3
+      },
+      "requestsP50": 4,
+      "requestMsP50": 6.5,
+      "rows": 24,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    },
+    {
+      "name": "category = curries (library_assets)",
+      "group": "admin-feed",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 11.3,
+        "p50": 13.2,
+        "p95": 14.5,
+        "max": 14.6
+      },
+      "requestsP50": 4,
+      "requestMsP50": 15.9,
+      "rows": 24,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    },
+    {
+      "name": "category = curries, cursor at 50%",
+      "group": "admin-feed",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 9.9,
+        "p50": 11,
+        "p95": 11.8,
+        "max": 11.8
+      },
+      "requestsP50": 4,
+      "requestMsP50": 13.5,
+      "rows": 24,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    },
+    {
+      "name": "venue (largest) + category",
+      "group": "admin-feed",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 9.4,
+        "p50": 10.1,
+        "p95": 11,
+        "max": 11.4
+      },
+      "requestsP50": 4,
+      "requestMsP50": 12.7,
+      "rows": 24,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    },
+    {
+      "name": "item filter, popular item",
+      "group": "admin-feed",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 12.7,
+        "p50": 13.5,
+        "p95": 14.5,
+        "max": 14.5
+      },
+      "requestsP50": 4,
+      "requestMsP50": 16.2,
+      "rows": 24,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20,
+      "labelsMatching": 911
+    },
+    {
+      "name": "item filter, rare item",
+      "group": "admin-feed",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 3.6,
+        "p50": 3.9,
+        "p95": 4.4,
+        "max": 4.6
+      },
+      "requestsP50": 4,
+      "requestMsP50": 6.2,
+      "rows": 6,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20,
+      "labelsMatching": 6
+    },
+    {
+      "name": "item + variant filter",
+      "group": "admin-feed",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 6,
+        "p50": 6.4,
+        "p95": 7.3,
+        "max": 8.4
+      },
+      "requestsP50": 4,
+      "requestMsP50": 8.8,
+      "rows": 24,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    },
+    {
+      "name": "content type = dish",
+      "group": "admin-feed",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 4.5,
+        "p50": 5,
+        "p95": 5.4,
+        "max": 5.5
+      },
+      "requestsP50": 4,
+      "requestMsP50": 7.3,
+      "rows": 24,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    },
+    {
+      "name": "labels = labelled",
+      "group": "admin-feed",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 3.9,
+        "p50": 4.4,
+        "p95": 4.9,
+        "max": 4.9
+      },
+      "requestsP50": 4,
+      "requestMsP50": 6.8,
+      "rows": 24,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    },
+    {
+      "name": "labels = unlabelled",
+      "group": "admin-feed",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 3.3,
+        "p50": 3.8,
+        "p95": 4.5,
+        "max": 4.7
+      },
+      "requestsP50": 4,
+      "requestMsP50": 5.8,
+      "rows": 24,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    },
+    {
+      "name": "search q=tikka",
+      "group": "admin-feed",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 71.1,
+        "p50": 72.4,
+        "p95": 74.4,
+        "max": 75.9
+      },
+      "requestsP50": 4,
+      "requestMsP50": 75.8,
+      "rows": 24,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    },
+    {
+      "name": "search q=chicken (very common)",
+      "group": "admin-feed",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 52,
+        "p50": 53.3,
+        "p95": 57.4,
+        "max": 80.6
+      },
+      "requestsP50": 4,
+      "requestMsP50": 56.5,
+      "rows": 24,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    },
+    {
+      "name": "search q=sunday (notes)",
+      "group": "admin-feed",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 14.4,
+        "p50": 15.1,
+        "p95": 16,
+        "max": 16.4
+      },
+      "requestsP50": 4,
+      "requestMsP50": 17.8,
+      "rows": 24,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    },
+    {
+      "name": "search q=zzzqq (no match)",
+      "group": "admin-feed",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 2.2,
+        "p50": 2.3,
+        "p95": 2.7,
+        "max": 2.9
+      },
+      "requestsP50": 1,
+      "requestMsP50": 2.2,
+      "rows": 0,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    },
+    {
+      "name": "search q=tikka + venue (largest)",
+      "group": "admin-feed",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 43,
+        "p50": 44.3,
+        "p95": 46.1,
+        "max": 46.1
+      },
+      "requestsP50": 4,
+      "requestMsP50": 47.5,
+      "rows": 24,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    },
+    {
+      "name": "filter options, venue (largest)",
+      "group": "admin-feed",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 37,
+        "p50": 41,
+        "p95": 49,
+        "max": 54.4
+      },
+      "requestsP50": 7,
+      "requestMsP50": 57.5,
+      "rows": 455,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    },
+    {
+      "name": "filter options, venue (smallest)",
+      "group": "admin-feed",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 16.7,
+        "p50": 20.1,
+        "p95": 25.3,
+        "max": 28.7
+      },
+      "requestsP50": 6,
+      "requestMsP50": 32.4,
+      "rows": 177,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    },
+    {
+      "name": "filter options (venues + staff)",
+      "group": "admin-feed",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 1.1,
+        "p50": 1.3,
+        "p95": 1.5,
+        "max": 1.5
+      },
+      "requestsP50": 2,
+      "requestMsP50": 2.1,
+      "rows": 322,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    },
+    {
+      "name": "portfolio first page (heaviest, 7040 assets)",
+      "group": "staff",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 3.5,
+        "p50": 4.2,
+        "p95": 6.3,
+        "max": 6.6
+      },
+      "requestsP50": 4,
+      "requestMsP50": 6.8,
+      "rows": 24,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    },
+    {
+      "name": "portfolio cursor 50% (heaviest)",
+      "group": "staff",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 5.7,
+        "p50": 6.2,
+        "p95": 7.2,
+        "max": 7.9
+      },
+      "requestsP50": 4,
+      "requestMsP50": 8.7,
+      "rows": 24,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    },
+    {
+      "name": "portfolio cursor 90% (heaviest)",
+      "group": "staff",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 5,
+        "p50": 5.7,
+        "p95": 7.5,
+        "max": 8.3
+      },
+      "requestsP50": 4,
+      "requestMsP50": 8.4,
+      "rows": 24,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    },
+    {
+      "name": "portfolio first page (median, 887 assets)",
+      "group": "staff",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 3.9,
+        "p50": 4.2,
+        "p95": 5.3,
+        "max": 5.4
+      },
+      "requestsP50": 4,
+      "requestMsP50": 7,
+      "rows": 24,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    },
+    {
+      "name": "portfolio cursor 50% (median)",
+      "group": "staff",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 3.6,
+        "p50": 3.8,
+        "p95": 4.5,
+        "max": 4.8
+      },
+      "requestsP50": 4,
+      "requestMsP50": 6.3,
+      "rows": 24,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    },
+    {
+      "name": "portfolio first page (lightest, 31 assets)",
+      "group": "staff",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 3.9,
+        "p50": 4.4,
+        "p95": 5.2,
+        "max": 5.4
+      },
+      "requestsP50": 4,
+      "requestMsP50": 6.6,
+      "rows": 24,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    },
+    {
+      "name": "getLabellingCatalogue (staff, own venue)",
+      "group": "staff",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 8.4,
+        "p50": 9,
+        "p95": 11.9,
+        "max": 12.6
+      },
+      "requestsP50": 5,
+      "requestMsP50": 10.5,
+      "rows": 350,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    },
+    {
+      "name": "getAssetLabelContext (10 assets, staff)",
+      "group": "staff",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 3.4,
+        "p50": 4.2,
+        "p95": 5.1,
+        "max": 5.2
+      },
+      "requestsP50": 4,
+      "requestMsP50": 7.1,
+      "rows": 10,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    },
+    {
+      "name": "library_assets as staff, category (RLS plan)",
+      "group": "staff",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 658.5,
+        "p50": 744.1,
+        "p95": 1064.7,
+        "max": 1307.2
+      },
+      "requestsP50": 1,
+      "requestMsP50": 747.2,
+      "rows": 25,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    },
+    {
+      "name": "library_assets as staff, venue + category",
+      "group": "staff",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 162.2,
+        "p50": 178.3,
+        "p95": 216.4,
+        "max": 233.4
+      },
+      "requestsP50": 1,
+      "requestMsP50": 179.9,
+      "rows": 25,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    },
+    {
+      "name": "getLabellingCatalogue (admin, largest menu)",
+      "group": "menus",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 7.7,
+        "p50": 8.9,
+        "p95": 10.9,
+        "max": 12.1
+      },
+      "requestsP50": 5,
+      "requestMsP50": 10.2,
+      "rows": 350,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    },
+    {
+      "name": "getLabellingCatalogue (admin, smallest venue)",
+      "group": "menus",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 6,
+        "p50": 6.9,
+        "p95": 8,
+        "max": 9
+      },
+      "requestsP50": 5,
+      "requestMsP50": 8.1,
+      "rows": 136,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    },
+    {
+      "name": "listMenuVenues",
+      "group": "menus",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 6.1,
+        "p50": 6.6,
+        "p95": 7.3,
+        "max": 7.9
+      },
+      "requestsP50": 3,
+      "requestMsP50": 9.5,
+      "rows": 116,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    },
+    {
+      "name": "getVenueMenuOverview (largest venue)",
+      "group": "menus",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 5.6,
+        "p50": 6,
+        "p95": 7.3,
+        "max": 8.2
+      },
+      "requestsP50": 5,
+      "requestMsP50": 11.7,
+      "rows": 12,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    },
+    {
+      "name": "getMenuVersion, active (largest venue)",
+      "group": "menus",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 13.7,
+        "p50": 15.8,
+        "p95": 21.5,
+        "max": 23
+      },
+      "requestsP50": 6,
+      "requestMsP50": 26.5,
+      "rows": 350,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20,
+      "labelItemsInVenue": null
+    },
+    {
+      "name": "getMenuVersion, retired (largest venue)",
+      "group": "menus",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 21.2,
+        "p50": 26.1,
+        "p95": 40.5,
+        "max": 43.6
+      },
+      "requestsP50": 9,
+      "requestMsP50": 66.7,
+      "rows": 350,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    },
+    {
+      "name": "getMenuVersion, active (smallest venue)",
+      "group": "menus",
+      "volume": "expected",
+      "wallMs": {
+        "n": 20,
+        "min": 13.1,
+        "p50": 17.3,
+        "p95": 29.9,
+        "max": 36
+      },
+      "requestsP50": 6,
+      "requestMsP50": 33.9,
+      "rows": 136,
+      "failures": 0,
+      "errors": [],
+      "sampled": 20
+    }
+  ]
+}

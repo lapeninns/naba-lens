@@ -1,0 +1,20 @@
+-- admin-search-nomatch (library_page p_query := 'zzzqq', p_limit := 25)
+
+Limit  (cost=9.01..9.01 rows=1 width=419) (actual time=0.011..0.011 rows=0 loops=1)
+  Buffers: shared hit=3
+  InitPlan 1
+    ->  Result  (cost=0.00..0.03 rows=1 width=16) (never executed)
+  InitPlan 2
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+  InitPlan 3
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+  ->  Sort  (cost=8.45..8.46 rows=1 width=419) (actual time=0.011..0.011 rows=0 loops=1)
+        Sort Key: a.created_at DESC, a.id DESC
+        Sort Method: quicksort  Memory: 25kB
+        Buffers: shared hit=3
+        ->  Index Scan using media_assets_pkey on media_assets a  (cost=0.42..8.44 rows=1 width=419) (actual time=0.000..0.000 rows=0 loops=1)
+              Index Cond: (id = ANY ('{}'::uuid[]))
+Planning:
+  Buffers: shared hit=49
+Planning Time: 0.138 ms
+Execution Time: 0.021 ms

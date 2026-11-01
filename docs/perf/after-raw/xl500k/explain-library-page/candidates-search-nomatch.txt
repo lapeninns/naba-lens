@@ -1,0 +1,35 @@
+-- candidates-search-nomatch
+
+Limit  (cost=186.90..202.83 rows=4 width=16) (actual time=0.014..0.014 rows=0 loops=1)
+  Buffers: shared hit=7
+  ->  Bitmap Heap Scan on media_labels l  (cost=186.90..202.83 rows=4 width=16) (actual time=0.013..0.013 rows=0 loops=1)
+        Recheck Cond: (note ~~* '%zzzqq%'::text)
+        Buffers: shared hit=7
+        ->  Bitmap Index Scan on media_labels_note_trgm_idx  (cost=0.00..186.90 rows=4 width=0) (actual time=0.011..0.011 rows=0 loops=1)
+              Index Cond: (note ~~* '%zzzqq%'::text)
+              Buffers: shared hit=7
+Planning:
+  Buffers: shared hit=158
+Planning Time: 0.834 ms
+Execution Time: 0.058 ms
+
+Limit  (cost=312.41..370.82 rows=15 width=16) (actual time=0.049..0.049 rows=0 loops=1)
+  Buffers: shared hit=21
+  ->  Bitmap Heap Scan on media_label_items li  (cost=312.41..370.82 rows=15 width=16) (actual time=0.048..0.048 rows=0 loops=1)
+        Recheck Cond: ((item_name ~~* '%zzzqq%'::text) OR (variant_name ~~* '%zzzqq%'::text) OR (section_name ~~* '%zzzqq%'::text))
+        Buffers: shared hit=21
+        ->  BitmapOr  (cost=312.41..312.41 rows=15 width=0) (actual time=0.045..0.045 rows=0 loops=1)
+              Buffers: shared hit=21
+              ->  Bitmap Index Scan on media_label_items_item_name_trgm_idx  (cost=0.00..133.33 rows=15 width=0) (actual time=0.026..0.026 rows=0 loops=1)
+                    Index Cond: (item_name ~~* '%zzzqq%'::text)
+                    Buffers: shared hit=7
+              ->  Bitmap Index Scan on media_label_items_variant_name_trgm_idx  (cost=0.00..75.08 rows=1 width=0) (actual time=0.012..0.012 rows=0 loops=1)
+                    Index Cond: (variant_name ~~* '%zzzqq%'::text)
+                    Buffers: shared hit=7
+              ->  Bitmap Index Scan on media_label_items_section_name_trgm_idx  (cost=0.00..103.99 rows=1 width=0) (actual time=0.006..0.006 rows=0 loops=1)
+                    Index Cond: (section_name ~~* '%zzzqq%'::text)
+                    Buffers: shared hit=7
+Planning:
+  Buffers: shared hit=276
+Planning Time: 1.121 ms
+Execution Time: 0.113 ms

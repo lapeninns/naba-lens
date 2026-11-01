@@ -47,6 +47,14 @@ export const MEDIA_LIMITS = {
   heicWorkerStackMb: 4,
   /** HEIC workers allowed at once per process. */
   maxHeicConcurrency: 1,
+  /**
+   * JPEG, PNG and WebP decodes allowed at once per process. Callers beyond it
+   * wait (at most heicTimeoutMs) rather than adding to peak memory. Six is the
+   * point past which more parallel decodes stopped adding throughput on an
+   * 18-core laptop (sharp runs its own thread pool), so it is not a cap on a
+   * 2 vCPU function; peak memory is about the same from 4 to 16 callers.
+   */
+  maxImageConcurrency: 6,
   /** Video probe: largest single range read, and total bytes read. */
   maxProbeReadBytes: 4 * MiB,
   maxProbeBytes: 16 * MiB,

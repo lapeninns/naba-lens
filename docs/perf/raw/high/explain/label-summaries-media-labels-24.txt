@@ -1,0 +1,35 @@
+-- label-summaries-media-labels-24
+-- role authenticated, sub (admin)
+-- statement:
+select asset_id, content_types, note, revision, has_labels, updated_at from public.media_labels where asset_id = any((select array_agg(id) from (select id from public.media_assets where venue_id = '385d4a1a-deda-4f46-87b3-2264d5d28522' and upload_state = 'ready' and deleted_at is null order by created_at desc, id desc limit 24) x)::uuid[])
+
+Bitmap Heap Scan on media_labels  (cost=78.29..119.00 rows=3 width=82) (actual time=1.401..1.641 rows=15 loops=1)
+  Recheck Cond: (asset_id = ANY ((InitPlan 4).col1))
+  Filter: private.can_read_asset_labels(asset_id)
+  Heap Blocks: exact=15
+  Buffers: shared hit=349 read=41
+  InitPlan 4
+    ->  Aggregate  (cost=34.03..34.04 rows=1 width=32) (actual time=0.744..0.745 rows=1 loops=1)
+          Buffers: shared hit=189 read=3
+          ->  Limit  (cost=0.97..33.73 rows=24 width=24) (actual time=0.604..0.740 rows=24 loops=1)
+                Buffers: shared hit=189 read=3
+                InitPlan 1
+                  ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.003..0.003 rows=1 loops=1)
+                InitPlan 2
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+                InitPlan 3
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.579..0.579 rows=1 loops=1)
+                        Buffers: shared hit=165
+                ->  Index Scan using media_assets_venue_feed_idx on media_assets  (cost=0.42..46053.01 rows=33742 width=24) (actual time=0.603..0.736 rows=24 loops=1)
+                      Index Cond: (venue_id = '385d4a1a-deda-4f46-87b3-2264d5d28522'::uuid)
+                      Filter: (((uploader_id = (InitPlan 1).col1) AND (InitPlan 2).col1) OR ((InitPlan 3).col1 AND (upload_state = 'ready'::upload_state)))
+                      Buffers: shared hit=189 read=3
+  ->  Bitmap Index Scan on media_labels_asset_venue_key  (cost=0.00..44.25 rows=10 width=0) (actual time=0.893..0.893 rows=15 loops=1)
+        Index Cond: (asset_id = ANY ((InitPlan 4).col1))
+        Buffers: shared hit=235 read=26
+Settings: effective_cache_size = '128MB', search_path = '"\$user", public, extensions'
+Planning:
+  Buffers: shared hit=460 read=5
+Planning Time: 0.632 ms
+Execution Time: 1.699 ms
+

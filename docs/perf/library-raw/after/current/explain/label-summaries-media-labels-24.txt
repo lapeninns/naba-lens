@@ -1,0 +1,43 @@
+-- label-summaries-media-labels-24
+-- role authenticated, sub (admin)
+-- statement:
+select asset_id, content_types, note, revision, has_labels, updated_at from public.media_labels where asset_id = any((select array_agg(id) from (select id from public.media_assets where venue_id = '85a7a86b-9c92-47d3-8d23-0e41eea15c2a' and upload_state = 'ready' and deleted_at is null order by created_at desc, id desc limit 24) x)::uuid[])
+
+Bitmap Heap Scan on media_labels  (cost=33.89..42.62 rows=3 width=70) (actual time=0.630..0.763 rows=12 loops=1)
+  Recheck Cond: (asset_id = ANY ((InitPlan 4).col1))
+  Filter: private.can_read_asset_labels(asset_id)
+  Heap Blocks: exact=1
+  Buffers: shared hit=293
+  InitPlan 4
+    ->  Aggregate  (cost=25.26..25.27 rows=1 width=32) (actual time=0.313..0.314 rows=1 loops=1)
+          Buffers: shared hit=180
+          ->  Limit  (cost=25.24..25.25 rows=1 width=24) (actual time=0.308..0.310 rows=24 loops=1)
+                Buffers: shared hit=180
+                InitPlan 1
+                  ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.002..0.002 rows=1 loops=1)
+                InitPlan 2
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+                InitPlan 3
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.268..0.268 rows=1 loops=1)
+                        Buffers: shared hit=170
+                ->  Sort  (cost=24.69..24.69 rows=1 width=24) (actual time=0.307..0.308 rows=24 loops=1)
+                      Sort Key: media_assets.created_at DESC, media_assets.id DESC
+                      Sort Method: quicksort  Memory: 27kB
+                      Buffers: shared hit=180
+                      ->  Bitmap Heap Scan on media_assets  (cost=4.34..24.68 rows=1 width=24) (actual time=0.285..0.292 rows=35 loops=1)
+                            Recheck Cond: ((venue_id = '85a7a86b-9c92-47d3-8d23-0e41eea15c2a'::uuid) AND (deleted_at IS NULL) AND (upload_state = 'ready'::upload_state))
+                            Filter: (((uploader_id = (InitPlan 1).col1) AND (InitPlan 2).col1) OR ((InitPlan 3).col1 AND (upload_state = 'ready'::upload_state)))
+                            Heap Blocks: exact=2
+                            Buffers: shared hit=174
+                            ->  Bitmap Index Scan on media_assets_venue_feed_idx  (cost=0.00..4.33 rows=8 width=0) (actual time=0.008..0.008 rows=35 loops=1)
+                                  Index Cond: (venue_id = '85a7a86b-9c92-47d3-8d23-0e41eea15c2a'::uuid)
+                                  Buffers: shared hit=2
+  ->  Bitmap Index Scan on media_labels_asset_venue_key  (cost=0.00..8.62 rows=10 width=0) (actual time=0.323..0.323 rows=12 loops=1)
+        Index Cond: (asset_id = ANY ((InitPlan 4).col1))
+        Buffers: shared hit=184
+Settings: effective_cache_size = '128MB', search_path = '"\$user", public, extensions'
+Planning:
+  Buffers: shared hit=497
+Planning Time: 0.600 ms
+Execution Time: 0.823 ms
+

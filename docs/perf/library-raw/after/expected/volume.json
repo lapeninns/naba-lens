@@ -1,0 +1,327 @@
+{
+  "volume": "expected",
+  "at": "2026-11-01T13:39:51.834Z",
+  "revision": {
+    "sha": "9f547b94b7161e9a889ceab510a7e366b487c94b",
+    "dirty": true
+  },
+  "counts": {
+    "media_assets": 75050,
+    "media_archive_receipts": 75044,
+    "media_labels": 42076,
+    "media_label_items": 59518,
+    "media_label_events": 40710,
+    "menu_item_suggestions": 392,
+    "menu_versions": 100,
+    "menu_sections": 1002,
+    "menu_items": 1778,
+    "menu_variants": 1334,
+    "menu_entries": 16960,
+    "menu_entry_variants": 12709,
+    "menu_events": 284,
+    "profiles": 62,
+    "venues": 8
+  },
+  "sizes": [
+    {
+      "table": "media_archive_receipts",
+      "pretty": "163 MB",
+      "bytes": 171024384
+    },
+    {
+      "table": "media_assets",
+      "pretty": "83 MB",
+      "bytes": 86958080
+    },
+    {
+      "table": "media_label_items",
+      "pretty": "41 MB",
+      "bytes": 42745856
+    },
+    {
+      "table": "menu_entries",
+      "pretty": "21 MB",
+      "bytes": 22233088
+    },
+    {
+      "table": "media_labels",
+      "pretty": "17 MB",
+      "bytes": 18096128
+    },
+    {
+      "table": "media_label_events",
+      "pretty": "10216 kB",
+      "bytes": 10461184
+    },
+    {
+      "table": "menu_items",
+      "pretty": "4008 kB",
+      "bytes": 4104192
+    },
+    {
+      "table": "menu_entry_variants",
+      "pretty": "3848 kB",
+      "bytes": 3940352
+    },
+    {
+      "table": "menu_sections",
+      "pretty": "472 kB",
+      "bytes": 483328
+    },
+    {
+      "table": "menu_variants",
+      "pretty": "472 kB",
+      "bytes": 483328
+    },
+    {
+      "table": "menu_item_suggestions",
+      "pretty": "288 kB",
+      "bytes": 294912
+    },
+    {
+      "table": "menu_events",
+      "pretty": "192 kB",
+      "bytes": 196608
+    },
+    {
+      "table": "menu_versions",
+      "pretty": "160 kB",
+      "bytes": 163840
+    },
+    {
+      "table": "profiles",
+      "pretty": "112 kB",
+      "bytes": 114688
+    },
+    {
+      "table": "venues",
+      "pretty": "104 kB",
+      "bytes": 106496
+    }
+  ],
+  "perVenue": [
+    {
+      "slug": "perf-venue-01",
+      "staff": 19,
+      "media": 25043
+    },
+    {
+      "slug": "perf-venue-02",
+      "staff": 9,
+      "media": 15453
+    },
+    {
+      "slug": "perf-venue-03",
+      "staff": 8,
+      "media": 9274
+    },
+    {
+      "slug": "perf-venue-04",
+      "staff": 5,
+      "media": 6794
+    },
+    {
+      "slug": "perf-venue-05",
+      "staff": 3,
+      "media": 6166
+    },
+    {
+      "slug": "perf-venue-06",
+      "staff": 6,
+      "media": 3280
+    },
+    {
+      "slug": "perf-venue-07",
+      "staff": 4,
+      "media": 5764
+    },
+    {
+      "slug": "perf-venue-08",
+      "staff": 6,
+      "media": 2601
+    }
+  ],
+  "perStaff": {
+    "min": 18,
+    "median": 866,
+    "max": 7080,
+    "people": 60
+  },
+  "states": [
+    {
+      "state": "uploading",
+      "type": "image",
+      "n": 6,
+      "deleted": 0,
+      "thumbs": 0
+    },
+    {
+      "state": "ready",
+      "type": "image",
+      "n": 64917,
+      "deleted": 0,
+      "thumbs": 64917
+    },
+    {
+      "state": "ready",
+      "type": "video",
+      "n": 10127,
+      "deleted": 504,
+      "thumbs": 0
+    }
+  ],
+  "originalBytes": {
+    "total": 445703162839,
+    "mean": 5938750
+  },
+  "indexes": [
+    {
+      "table": "media_archive_receipts",
+      "index": "media_archive_receipts_manifest_key_key",
+      "bytes": 25329664
+    },
+    {
+      "table": "media_archive_receipts",
+      "index": "media_archive_receipts_asset_id_sha256_manifest_sha256_key",
+      "bytes": 18120704
+    },
+    {
+      "table": "media_assets",
+      "index": "media_assets_original_path_key",
+      "bytes": 11386880
+    },
+    {
+      "table": "media_assets",
+      "index": "media_assets_thumbnail_path_key",
+      "bytes": 10002432
+    },
+    {
+      "table": "media_assets",
+      "index": "media_assets_preview_path_key",
+      "bytes": 9822208
+    },
+    {
+      "table": "media_label_items",
+      "index": "media_label_items_item_name_trgm_idx",
+      "bytes": 6815744
+    },
+    {
+      "table": "media_label_items",
+      "index": "media_label_items_item_added_idx",
+      "bytes": 6086656
+    },
+    {
+      "table": "media_assets",
+      "index": "media_assets_venue_feed_idx",
+      "bytes": 5750784
+    },
+    {
+      "table": "media_assets",
+      "index": "media_assets_uploader_feed_idx",
+      "bytes": 5709824
+    },
+    {
+      "table": "media_assets",
+      "index": "media_assets_id_venue_key",
+      "bytes": 5169152
+    },
+    {
+      "table": "menu_entries",
+      "index": "menu_entries_name_trgm_idx",
+      "bytes": 4956160
+    },
+    {
+      "table": "media_label_items",
+      "index": "media_label_items_tuple_key",
+      "bytes": 4890624
+    },
+    {
+      "table": "media_label_items",
+      "index": "media_label_items_section_name_trgm_idx",
+      "bytes": 4874240
+    },
+    {
+      "table": "media_labels",
+      "index": "media_labels_note_trgm_idx",
+      "bytes": 4055040
+    },
+    {
+      "table": "media_assets",
+      "index": "media_assets_ready_feed_idx",
+      "bytes": 3915776
+    },
+    {
+      "table": "media_assets",
+      "index": "media_assets_pkey",
+      "bytes": 3407872
+    },
+    {
+      "table": "media_archive_receipts",
+      "index": "media_archive_receipts_asset_idx",
+      "bytes": 2859008
+    },
+    {
+      "table": "media_labels",
+      "index": "media_labels_asset_venue_key",
+      "bytes": 2793472
+    },
+    {
+      "table": "media_label_items",
+      "index": "media_label_items_pkey",
+      "bytes": 2785280
+    },
+    {
+      "table": "media_label_items",
+      "index": "media_label_items_variant_name_trgm_idx",
+      "bytes": 2736128
+    },
+    {
+      "table": "menu_entries",
+      "index": "menu_entries_version_section_idx",
+      "bytes": 2203648
+    },
+    {
+      "table": "menu_entries",
+      "index": "menu_entries_version_source_key_key",
+      "bytes": 2170880
+    },
+    {
+      "table": "menu_entries",
+      "index": "menu_entries_aliases_trgm_idx",
+      "bytes": 2015232
+    },
+    {
+      "table": "media_labels",
+      "index": "media_labels_labelled_idx",
+      "bytes": 1753088
+    }
+  ],
+  "settings": {
+    "shared_buffers": "128MB",
+    "effective_cache_size": "128MB",
+    "work_mem": "4MB",
+    "maintenance_work_mem": "64MB",
+    "max_parallel_workers_per_gather": "2",
+    "random_page_cost": "4",
+    "max_connections": "100",
+    "server_version": "17.6"
+  },
+  "roleTimeouts": [
+    {
+      "role": "anon",
+      "config": "{statement_timeout=3s}"
+    },
+    {
+      "role": "authenticated",
+      "config": "{statement_timeout=8s}"
+    },
+    {
+      "role": "authenticator",
+      "config": "{\"session_preload_libraries=supautils, safeupdate\",statement_timeout=8s,lock_timeout=8s}"
+    },
+    {
+      "role": "service_role",
+      "config": ""
+    }
+  ]
+}

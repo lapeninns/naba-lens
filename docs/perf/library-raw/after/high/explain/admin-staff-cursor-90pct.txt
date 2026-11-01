@@ -1,0 +1,78 @@
+-- admin-staff-cursor-90pct
+-- role authenticated, sub (admin)
+-- statement:
+select a.id, a.uploader_id, a.media_type, a.upload_state, a.thumbnail_path, a.preview_path, a.validated_mime_type, a.original_filename, a.created_at, a.width, a.height, a.duration_seconds, a.size_bytes, row_to_json(v.*)::jsonb as venue, row_to_json(u.*)::jsonb as uploader from public.media_assets a left join lateral (select venues_1.name from public.venues venues_1 where venues_1.id = a.venue_id limit 1) v on true
+left join lateral (select profiles_1.display_name from public.profiles profiles_1 where profiles_1.id = a.uploader_id limit 1) u on true
+ where (a.created_at < '2025-06-24T08:11:30.920392+00:00' or (a.created_at = '2025-06-24T08:11:30.920392+00:00' and a.id < 'd1f6e913-c98f-4c83-9974-ea111bdff700')) and a.deleted_at is null and a.upload_state = 'ready' and a.uploader_id = '032d190c-f274-4b45-8abb-487c290cd1bd'
+ order by a.created_at desc, a.id desc limit 25
+
+Limit  (cost=5056.52..5056.59 rows=25 width=329) (actual time=5.193..5.201 rows=25 loops=1)
+  Buffers: shared hit=1558 read=19
+  InitPlan 1
+    ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.003..0.003 rows=1 loops=1)
+  InitPlan 2
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+  InitPlan 3
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.178..0.178 rows=1 loops=1)
+          Buffers: shared hit=73
+  ->  Sort  (cost=5055.97..5056.19 rows=88 width=329) (actual time=5.192..5.198 rows=25 loops=1)
+        Sort Key: a.created_at DESC, a.id DESC
+        Sort Method: top-N heapsort  Memory: 41kB
+        Buffers: shared hit=1558 read=19
+        ->  Nested Loop Left Join  (cost=81.37..5053.49 rows=88 width=329) (actual time=0.651..4.958 rows=1561 loops=1)
+              Buffers: shared hit=1552 read=19
+              ->  Nested Loop Left Join  (cost=80.79..4489.05 rows=88 width=317) (actual time=0.594..3.791 rows=1561 loops=1)
+                    Buffers: shared hit=1546 read=19
+                    ->  Bitmap Heap Scan on media_assets a  (cost=80.52..4338.72 rows=88 width=281) (actual time=0.532..3.405 rows=1561 loops=1)
+                          Recheck Cond: (((uploader_id = '032d190c-f274-4b45-8abb-487c290cd1bd'::uuid) AND (created_at < '2025-06-24 08:11:30.920392+00'::timestamp with time zone) AND (deleted_at IS NULL)) OR ((created_at = '2025-06-24 08:11:30.920392+00'::timestamp with time zone) AND (id < 'd1f6e913-c98f-4c83-9974-ea111bdff700'::uuid) AND (deleted_at IS NULL) AND (upload_state = 'ready'::upload_state)))
+                          Filter: ((uploader_id = '032d190c-f274-4b45-8abb-487c290cd1bd'::uuid) AND (((uploader_id = (InitPlan 1).col1) AND (InitPlan 2).col1) OR ((InitPlan 3).col1 AND (upload_state = 'ready'::upload_state))) AND (upload_state = 'ready'::upload_state))
+                          Heap Blocks: exact=1465
+                          Buffers: shared hit=1541 read=19
+                          ->  BitmapOr  (cost=80.52..80.52 rows=1563 width=0) (actual time=0.257..0.257 rows=0 loops=1)
+                                Buffers: shared hit=3 read=19
+                                ->  Bitmap Index Scan on media_assets_uploader_feed_idx  (cost=0.00..76.05 rows=1563 width=0) (actual time=0.237..0.237 rows=1561 loops=1)
+                                      Index Cond: ((uploader_id = '032d190c-f274-4b45-8abb-487c290cd1bd'::uuid) AND (created_at < '2025-06-24 08:11:30.920392+00'::timestamp with time zone))
+                                      Buffers: shared hit=2 read=17
+                                ->  Bitmap Index Scan on media_assets_ready_feed_idx  (cost=0.00..4.43 rows=1 width=0) (actual time=0.019..0.019 rows=0 loops=1)
+                                      Index Cond: ((created_at = '2025-06-24 08:11:30.920392+00'::timestamp with time zone) AND (id < 'd1f6e913-c98f-4c83-9974-ea111bdff700'::uuid))
+                                      Buffers: shared hit=1 read=2
+                    ->  Memoize  (cost=0.27..3.75 rows=1 width=52) (actual time=0.000..0.000 rows=1 loops=1561)
+                          Cache Key: a.venue_id
+                          Cache Mode: binary
+                          Hits: 1560  Misses: 1  Evictions: 0  Overflows: 0  Memory Usage: 1kB
+                          Buffers: shared hit=5
+                          ->  Subquery Scan on v  (cost=0.26..3.75 rows=1 width=52) (actual time=0.059..0.060 rows=1 loops=1)
+                                Buffers: shared hit=5
+                                ->  Limit  (cost=0.26..3.74 rows=1 width=28) (actual time=0.056..0.057 rows=1 loops=1)
+                                      Buffers: shared hit=5
+                                      InitPlan 4
+                                        ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.046..0.046 rows=1 loops=1)
+                                              Buffers: shared hit=3
+                                      ->  Seq Scan on venues venues_1  (cost=0.00..3.48 rows=1 width=28) (actual time=0.056..0.056 rows=1 loops=1)
+                                            Filter: ((InitPlan 4).col1 AND (id = a.venue_id))
+                                            Rows Removed by Filter: 108
+                                            Buffers: shared hit=5
+              ->  Memoize  (cost=0.57..8.61 rows=1 width=42) (actual time=0.000..0.000 rows=1 loops=1561)
+                    Cache Key: a.uploader_id
+                    Cache Mode: binary
+                    Hits: 1560  Misses: 1  Evictions: 0  Overflows: 0  Memory Usage: 1kB
+                    Buffers: shared hit=6
+                    ->  Subquery Scan on u  (cost=0.56..8.60 rows=1 width=42) (actual time=0.047..0.048 rows=1 loops=1)
+                          Buffers: shared hit=6
+                          ->  Limit  (cost=0.56..8.59 rows=1 width=18) (actual time=0.046..0.047 rows=1 loops=1)
+                                Buffers: shared hit=6
+                                InitPlan 5
+                                  ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.000..0.001 rows=1 loops=1)
+                                InitPlan 6
+                                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.044..0.044 rows=1 loops=1)
+                                        Buffers: shared hit=3
+                                ->  Index Scan using profiles_pkey on profiles profiles_1  (cost=0.27..8.29 rows=1 width=18) (actual time=0.046..0.046 rows=1 loops=1)
+                                      Index Cond: (id = a.uploader_id)
+                                      Filter: ((id = (InitPlan 5).col1) OR (InitPlan 6).col1)
+                                      Buffers: shared hit=6
+Settings: effective_cache_size = '128MB', search_path = '"\$user", public, extensions'
+Planning:
+  Buffers: shared hit=510
+Planning Time: 1.450 ms
+Execution Time: 5.309 ms
+

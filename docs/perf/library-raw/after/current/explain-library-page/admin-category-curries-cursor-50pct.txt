@@ -1,0 +1,19 @@
+-- admin-category-curries-cursor-50pct (library_page p_category := 'curries', p_after_created_at := '2026-10-25T16:15:19.641268+00:00', p_after_id := 'c7286b6c-0fcf-408a-8b32-b6edc3859839', p_limit := 25)
+
+Limit  (cost=0.83..9.04 rows=1 width=423) (actual time=0.078..0.089 rows=20 loops=1)
+  Buffers: shared hit=21
+  InitPlan 1
+    ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.004..0.004 rows=1 loops=1)
+  InitPlan 2
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+  InitPlan 3
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.062..0.062 rows=1 loops=1)
+          Buffers: shared hit=4
+  ->  Index Scan using media_assets_ready_feed_idx on media_assets a  (cost=0.28..8.49 rows=1 width=423) (actual time=0.078..0.088 rows=20 loops=1)
+        Index Cond: ((ROW(created_at, id) < ROW('2026-10-25 16:15:19.641268+00'::timestamp with time zone, 'c7286b6c-0fcf-408a-8b32-b6edc3859839'::uuid)) AND (id = ANY ('{263da7ca-43f8-4a03-86c7-a1887cbc4f3a,f20350f8-963c-4247-bf7f-ce9ee12e2264,05a947bb-4c18-4ddc-b209-c64a1e0066d2,64bff120-995a-4943-9e29-b18274d84b38,04719694-a170-4d0f-9931-ff4f61ec04ae,d37940db-a055-4113-96cd-f910354c04ef,67d6ba56-1cac-4a45-aa53-9e439d0e62d0,545547eb-00e9-4732-ab02-f2e0f13a41cd,88a6a322-6bf0-4b27-a3d6-00b7778f81d7,cb0413b7-ca72-4abb-aa53-18cbfdf84911,7184e2b5-b889-4411-9d11-663e07465c91,58e1cca2-1a29-46cd-ae09-3e833bccdeed,72959786-8bbe-4ae2-8458-a2423d5ed1e6,989a9b57-0169-4cd7-a183-29e5690ceebf,c7286b6c-0fcf-408a-8b32-b6edc3859839,965e755a-dbac-4dee-8ec2-a049f7aae9bb,89dba309-10fe-4c16-b245-f41ffeac6e70,7a33abd4-db34-4ead-800d-cdd2b24b1352,5ab889e3-de74-4e30-840b-d54b85ee7e71,01dfcc86-6528-4a52-8076-784c30b6ad05,3a69b6a4-8f0a-47cf-b66c-2b784e8c31cc,c08c49da-6548-4916-bab3-62edf6097777,7dc1c3f4-e0b2-47a3-bd4c-94fd56405ff0,f18f46f3-83ac-4c1a-8fac-414df8522eea,999e669d-2577-4941-9b2e-a3253726e381,5ad695de-e719-411c-9018-79846191f246,d42c3c21-54a9-496c-8b5a-16bc701cb622,9ddacb94-c0fa-45f1-a003-4063f24adf7f,340cf943-9228-4fff-b597-4e3e3f1333ad,ccf0331e-7588-4cec-8883-8c15e02701f0,f3c2e758-3cb1-49b9-9cd4-b45c11eeca5d,19320f12-cd46-440c-80e4-4bd6dad62571,5a7ad838-c720-47cf-9581-3268eba328b3,218a450b-ec2e-428b-a93d-531fed97e1cb,d113d418-8fc9-4597-b093-254135831176}'::uuid[])))
+        Filter: (((uploader_id = (InitPlan 1).col1) AND (InitPlan 2).col1) OR ((InitPlan 3).col1 AND (upload_state = 'ready'::public.upload_state)))
+        Buffers: shared hit=21
+Planning:
+  Buffers: shared hit=59
+Planning Time: 0.146 ms
+Execution Time: 0.103 ms

@@ -1,0 +1,71 @@
+-- staff-heaviest-search-tikka (library_page p_query := 'tikka', p_limit := 25)
+
+Limit  (cost=0.97..3160.91 rows=25 width=416) (actual time=2.446..19.817 rows=25 loops=1)
+  Buffers: shared hit=16346 read=1569
+  InitPlan 11
+    ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.008..0.008 rows=1 loops=1)
+  InitPlan 12
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.051..0.051 rows=1 loops=1)
+          Buffers: shared hit=4
+  InitPlan 13
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.075..0.076 rows=1 loops=1)
+          Buffers: shared hit=2
+  ->  Index Scan using media_assets_ready_feed_idx on media_assets a  (cost=0.42..29373094.79 rows=232387 width=416) (actual time=2.445..19.812 rows=25 loops=1)
+        Filter: ((((uploader_id = (InitPlan 11).col1) AND (InitPlan 12).col1) OR ((InitPlan 13).col1 AND (upload_state = 'ready'::public.upload_state))) AND (EXISTS(SubPlan 1) OR EXISTS(SubPlan 2) OR EXISTS(SubPlan 6) OR EXISTS(SubPlan 10)))
+        Rows Removed by Filter: 5035
+        Buffers: shared hit=16346 read=1569
+        SubPlan 1
+          ->  Index Scan using media_labels_asset_venue_key on media_labels l  (cost=0.42..8.69 rows=1 width=4) (actual time=0.012..0.012 rows=0 loops=370)
+                Index Cond: (asset_id = a.id)
+                Filter: (private.can_read_asset_labels(asset_id) AND (note ~~* '%tikka%'::text))
+                Rows Removed by Filter: 1
+                Buffers: shared hit=2032 read=532
+        SubPlan 2
+          ->  Index Scan using media_label_items_tuple_key on media_label_items li  (cost=0.42..12.97 rows=1 width=4) (actual time=0.009..0.009 rows=0 loops=370)
+                Index Cond: (asset_id = a.id)
+                Filter: (private.can_read_asset_labels(asset_id) AND ((item_name ~~* '%tikka%'::text) OR (variant_name ~~* '%tikka%'::text) OR (section_name ~~* '%tikka%'::text)))
+                Rows Removed by Filter: 1
+                Buffers: shared hit=2976 read=73
+        SubPlan 6
+          ->  Nested Loop  (cost=12.78..41.07 rows=2 width=4) (actual time=0.015..0.015 rows=0 loops=345)
+                Buffers: shared hit=6432 read=81
+                InitPlan 5
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.061..0.061 rows=1 loops=1)
+                        Buffers: shared hit=2
+                ->  Index Only Scan using media_label_items_tuple_key on media_label_items li_1  (cost=0.42..4.96 rows=1 width=16) (actual time=0.004..0.006 rows=1 loops=345)
+                      Index Cond: (asset_id = a.id)
+                      Filter: private.can_read_asset_labels(asset_id)
+                      Heap Fetches: 0
+                      Buffers: shared hit=2470
+                ->  Bitmap Heap Scan on menu_entries e  (cost=12.10..35.83 rows=2 width=16) (actual time=0.012..0.012 rows=0 loops=239)
+                      Recheck Cond: (item_id = li_1.item_id)
+                      Filter: (((ANY (version_id = (hashed SubPlan 4).col1)) OR (InitPlan 5).col1) AND ((name ~~* '%tikka%'::text) OR EXISTS(SubPlan 3)))
+                      Rows Removed by Filter: 14
+                      Heap Blocks: exact=3362
+                      Buffers: shared hit=3962 read=81
+                      ->  Bitmap Index Scan on menu_entries_item_idx  (cost=0.00..4.33 rows=6 width=0) (actual time=0.002..0.002 rows=14 loops=239)
+                            Index Cond: (item_id = li_1.item_id)
+                            Buffers: shared hit=415 read=63
+                      SubPlan 4
+                        ->  ProjectSet  (cost=0.00..5.27 rows=1000 width=16) (actual time=0.483..0.488 rows=1 loops=1)
+                              Buffers: shared hit=201
+                              ->  Result  (cost=0.00..0.01 rows=1 width=0) (actual time=0.000..0.000 rows=1 loops=1)
+                      SubPlan 3
+                        ->  Function Scan on unnest al  (cost=0.00..0.13 rows=1 width=0) (actual time=0.000..0.000 rows=0 loops=237)
+                              Filter: (alias ~~* '%tikka%'::text)
+                              Rows Removed by Filter: 0
+        SubPlan 10
+          ->  Index Scan using menu_item_suggestions_open_key on menu_item_suggestions su  (cost=0.83..8.85 rows=1 width=4) (actual time=0.001..0.001 rows=0 loops=345)
+                Index Cond: (asset_id = a.id)
+                Filter: ((((created_by = (InitPlan 7).col1) AND (InitPlan 8).col1) OR (InitPlan 9).col1) AND (suggested_name ~~* '%tikka%'::text))
+                Buffers: shared hit=690
+                InitPlan 7
+                  ->  Result  (cost=0.00..0.03 rows=1 width=16) (never executed)
+                InitPlan 8
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+                InitPlan 9
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+Planning:
+  Buffers: shared hit=894
+Planning Time: 0.979 ms
+Execution Time: 19.886 ms

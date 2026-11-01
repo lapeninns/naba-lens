@@ -1,0 +1,32 @@
+-- label-summaries-suggestions-24
+-- role authenticated, sub (admin)
+-- statement:
+select asset_id, suggested_name, created_by, created_at from public.menu_item_suggestions where asset_id = any((select array_agg(id) from (select id from public.media_assets where venue_id = '1833dd1c-a250-473f-b191-eebfe1d06e79' and upload_state = 'ready' and deleted_at is null order by created_at desc, id desc limit 24) x)::uuid[]) and status = 'open'
+
+Seq Scan on menu_item_suggestions  (cost=5.33..5.33 rows=1 width=72) (actual time=0.001..0.001 rows=0 loops=1)
+  Filter: ((((created_by = (InitPlan 5).col1) AND (InitPlan 6).col1) OR (InitPlan 7).col1) AND (status = 'open'::text) AND (asset_id = ANY ((InitPlan 4).col1)))
+  InitPlan 4
+    ->  Aggregate  (cost=4.77..4.78 rows=1 width=32) (never executed)
+          ->  Limit  (cost=4.69..4.70 rows=5 width=24) (never executed)
+                InitPlan 1
+                  ->  Result  (cost=0.00..0.03 rows=1 width=16) (never executed)
+                InitPlan 2
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+                InitPlan 3
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+                ->  Sort  (cost=4.14..4.15 rows=5 width=24) (never executed)
+                      Sort Key: media_assets.created_at DESC, media_assets.id DESC
+                      ->  Seq Scan on media_assets  (cost=0.00..4.08 rows=5 width=24) (never executed)
+                            Filter: ((deleted_at IS NULL) AND (deleted_at IS NULL) AND (venue_id = '1833dd1c-a250-473f-b191-eebfe1d06e79'::uuid) AND (((uploader_id = (InitPlan 1).col1) AND (InitPlan 2).col1) OR ((InitPlan 3).col1 AND (upload_state = 'ready'::upload_state))) AND (upload_state = 'ready'::upload_state))
+  InitPlan 5
+    ->  Result  (cost=0.00..0.03 rows=1 width=16) (never executed)
+  InitPlan 6
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+  InitPlan 7
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+Settings: effective_cache_size = '128MB', search_path = '"\$user", public, extensions'
+Planning:
+  Buffers: shared hit=437
+Planning Time: 0.487 ms
+Execution Time: 0.036 ms
+

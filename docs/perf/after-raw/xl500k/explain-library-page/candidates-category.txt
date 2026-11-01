@@ -1,0 +1,12 @@
+-- candidates-category
+
+Limit  (cost=0.00..1033.40 rows=3001 width=16) (actual time=0.022..1.116 rows=3001 loops=1)
+  Buffers: shared hit=121 read=209
+  ->  Seq Scan on media_label_items li  (cost=0.00..13842.23 rows=40198 width=16) (actual time=0.021..1.000 rows=3001 loops=1)
+        Filter: (section_slug = 'curries'::text)
+        Rows Removed by Filter: 12020
+        Buffers: shared hit=121 read=209
+Planning:
+  Buffers: shared hit=240
+Planning Time: 0.239 ms
+Execution Time: 1.196 ms

@@ -1,0 +1,25 @@
+-- state-unlabelled-oldest-5000 (statement of private.library_label_state_page)
+
+Limit  (cost=8.32..8.39 rows=25 width=24) (actual time=0.030..0.033 rows=25 loops=1)
+  Buffers: shared hit=6
+  ->  Sort  (cost=8.32..8.39 rows=28 width=24) (actual time=0.030..0.031 rows=25 loops=1)
+        Sort Key: a.created_at DESC, a.id DESC
+        Sort Method: quicksort  Memory: 26kB
+        Buffers: shared hit=6
+        ->  Hash Anti Join  (cost=3.54..7.65 rows=28 width=24) (actual time=0.015..0.025 rows=26 loops=1)
+              Hash Cond: (a.id = l.asset_id)
+              Buffers: shared hit=6
+              ->  Seq Scan on media_assets a  (cost=0.00..3.67 rows=50 width=24) (actual time=0.002..0.007 rows=50 loops=1)
+                    Filter: ((deleted_at IS NULL) AND (upload_state = 'ready'::upload_state))
+                    Rows Removed by Filter: 4
+                    Buffers: shared hit=3
+              ->  Hash  (cost=3.24..3.24 rows=24 width=16) (actual time=0.007..0.008 rows=24 loops=1)
+                    Buckets: 1024  Batches: 1  Memory Usage: 10kB
+                    Buffers: shared hit=3
+                    ->  Seq Scan on media_labels l  (cost=0.00..3.24 rows=24 width=16) (actual time=0.001..0.004 rows=24 loops=1)
+                          Filter: has_labels
+                          Buffers: shared hit=3
+Planning:
+  Buffers: shared hit=117
+Planning Time: 0.146 ms
+Execution Time: 0.042 ms

@@ -1,0 +1,294 @@
+{
+  "volume": "expected",
+  "at": "2026-11-01T09:07:53.837Z",
+  "revision": {
+    "sha": "40c4005e8570320df3809a29174b3cbb3ae17782",
+    "dirty": true
+  },
+  "loadAverage": [
+    7.2294921875,
+    6.24658203125,
+    6.35791015625
+  ],
+  "derivative": {
+    "thumbBytes": 28448,
+    "previewBytes": 107226
+  },
+  "routes": [
+    {
+      "name": "thumbnail route, admin",
+      "objects": 40,
+      "routeMs": {
+        "n": 120,
+        "min": 5.7,
+        "p50": 7.1,
+        "p95": 9.8,
+        "max": 25.3
+      },
+      "signedStorageMs": {
+        "n": 120,
+        "min": 1.7,
+        "p50": 2.1,
+        "p95": 3,
+        "max": 6.2
+      },
+      "headers": {
+        "route": {
+          "cache-control": "private, no-store",
+          "x-content-type-options": "nosniff",
+          "referrer-policy": "strict-origin-when-cross-origin"
+        },
+        "storage": {
+          "status": 200,
+          "bytes": 28448,
+          "cache-control": null,
+          "content-type": "image/webp",
+          "etag": "\"05338f31b801e6596b6c5c91a0f98605\"",
+          "last-modified": "Sun, 01 Nov 2026 09:07:43 GMT",
+          "accept-ranges": "bytes",
+          "content-length": "28448"
+        },
+        "location": "/storage/v1/object/sign/media/9f6ff4b6-e726-46b5-8aa8-d01838f61a99/ecb11bac-57e1-4b9e-a060-db9376a49473/thumb.webp?token=<redacted>"
+      }
+    },
+    {
+      "name": "thumbnail route, staff (owner)",
+      "objects": 40,
+      "routeMs": {
+        "n": 120,
+        "min": 5.3,
+        "p50": 6.7,
+        "p95": 8.8,
+        "max": 12.5
+      },
+      "signedStorageMs": {
+        "n": 120,
+        "min": 1.6,
+        "p50": 2,
+        "p95": 2.8,
+        "max": 3.9
+      },
+      "headers": {
+        "route": {
+          "cache-control": "private, no-store",
+          "x-content-type-options": "nosniff",
+          "referrer-policy": "strict-origin-when-cross-origin"
+        },
+        "storage": {
+          "status": 200,
+          "bytes": 28448,
+          "cache-control": null,
+          "content-type": "image/webp",
+          "etag": "\"05338f31b801e6596b6c5c91a0f98605\"",
+          "last-modified": "Sun, 01 Nov 2026 09:07:43 GMT",
+          "accept-ranges": "bytes",
+          "content-length": "28448"
+        },
+        "location": "/storage/v1/object/sign/media/9f6ff4b6-e726-46b5-8aa8-d01838f61a99/ecb11bac-57e1-4b9e-a060-db9376a49473/thumb.webp?token=<redacted>"
+      }
+    },
+    {
+      "name": "preview route, admin",
+      "objects": 40,
+      "routeMs": {
+        "n": 120,
+        "min": 5.7,
+        "p50": 6.5,
+        "p95": 8.7,
+        "max": 11.5
+      },
+      "signedStorageMs": {
+        "n": 120,
+        "min": 2.1,
+        "p50": 2.5,
+        "p95": 3.5,
+        "max": 5.6
+      },
+      "headers": {
+        "route": {
+          "cache-control": "private, no-store",
+          "x-content-type-options": "nosniff",
+          "referrer-policy": "strict-origin-when-cross-origin"
+        },
+        "storage": {
+          "status": 200,
+          "bytes": 107226,
+          "cache-control": null,
+          "content-type": "image/webp",
+          "etag": "\"b4f6ff32d5582689efa3e8bca1d15bb6\"",
+          "last-modified": "Sun, 01 Nov 2026 09:07:43 GMT",
+          "accept-ranges": "bytes",
+          "content-length": "107226"
+        },
+        "location": "/storage/v1/object/sign/media/9f6ff4b6-e726-46b5-8aa8-d01838f61a99/ecb11bac-57e1-4b9e-a060-db9376a49473/preview.webp?token=<redacted>"
+      }
+    },
+    {
+      "name": "preview route, staff (owner)",
+      "objects": 40,
+      "routeMs": {
+        "n": 120,
+        "min": 5.3,
+        "p50": 6.3,
+        "p95": 9.3,
+        "max": 11.5
+      },
+      "signedStorageMs": {
+        "n": 120,
+        "min": 1.9,
+        "p50": 2.4,
+        "p95": 4.3,
+        "max": 6.7
+      },
+      "headers": {
+        "route": {
+          "cache-control": "private, no-store",
+          "x-content-type-options": "nosniff",
+          "referrer-policy": "strict-origin-when-cross-origin"
+        },
+        "storage": {
+          "status": 200,
+          "bytes": 107226,
+          "cache-control": null,
+          "content-type": "image/webp",
+          "etag": "\"b4f6ff32d5582689efa3e8bca1d15bb6\"",
+          "last-modified": "Sun, 01 Nov 2026 09:07:43 GMT",
+          "accept-ranges": "bytes",
+          "content-length": "107226"
+        },
+        "location": "/storage/v1/object/sign/media/9f6ff4b6-e726-46b5-8aa8-d01838f61a99/ecb11bac-57e1-4b9e-a060-db9376a49473/preview.webp?token=<redacted>"
+      }
+    }
+  ],
+  "concurrency": [
+    {
+      "name": "24 thumbnails of one gallery page, 6 parallel, admin",
+      "wallMs": {
+        "n": 9,
+        "min": 60.2,
+        "p50": 70.6,
+        "p95": 91.2,
+        "max": 91.2
+      }
+    },
+    {
+      "name": "24 thumbnails of one gallery page, 6 parallel, staff (owner)",
+      "wallMs": {
+        "n": 9,
+        "min": 55.1,
+        "p50": 64.7,
+        "p95": 88.1,
+        "max": 88.1
+      }
+    }
+  ],
+  "inProcess": {
+    "signDerivativeMs": {
+      "n": 22,
+      "min": 2.1,
+      "p50": 2.3,
+      "p95": 2.9,
+      "max": 3.2
+    },
+    "assetReadMs": {
+      "n": 22,
+      "min": 1,
+      "p50": 1,
+      "p95": 1.2,
+      "max": 1.3
+    },
+    "signCallMs": {
+      "n": 22,
+      "min": 1,
+      "p50": 1.1,
+      "p95": 1.7,
+      "max": 1.7
+    }
+  },
+  "stream": {
+    "bytes": 19584175,
+    "ranges": [
+      {
+        "label": "first 1 MiB",
+        "range": "bytes=0-1048575",
+        "ttfbMs": {
+          "n": 10,
+          "min": 34,
+          "p50": 37.3,
+          "p95": 40.3,
+          "max": 40.3
+        },
+        "completeMs": {
+          "n": 10,
+          "min": 37.2,
+          "p50": 42.4,
+          "p95": 44.4,
+          "max": 44.4
+        },
+        "response": {
+          "status": 206,
+          "cache-control": "private, no-store",
+          "content-type": "video/mp4",
+          "content-range": "bytes 0-1048575/19584175",
+          "accept-ranges": "bytes",
+          "content-length": "1048576",
+          "etag": "\"36e0cc4cb3b8d32cd78016dbb1062b29\""
+        }
+      },
+      {
+        "label": "seek to 10 MiB",
+        "range": "bytes=10485760-11534335",
+        "ttfbMs": {
+          "n": 10,
+          "min": 32.3,
+          "p50": 36.2,
+          "p95": 43.6,
+          "max": 43.6
+        },
+        "completeMs": {
+          "n": 10,
+          "min": 36.4,
+          "p50": 39.8,
+          "p95": 48.5,
+          "max": 48.5
+        },
+        "response": {
+          "status": 206,
+          "cache-control": "private, no-store",
+          "content-type": "video/mp4",
+          "content-range": "bytes 10485760-11534335/19584175",
+          "accept-ranges": "bytes",
+          "content-length": "1048576",
+          "etag": "\"36e0cc4cb3b8d32cd78016dbb1062b29\""
+        }
+      },
+      {
+        "label": "open-ended from 0 (first byte only counted)",
+        "range": "bytes=0-",
+        "ttfbMs": {
+          "n": 10,
+          "min": 42.6,
+          "p50": 48.5,
+          "p95": 57.4,
+          "max": 57.4
+        },
+        "completeMs": {
+          "n": 10,
+          "min": 46.7,
+          "p50": 54.5,
+          "p95": 61.7,
+          "max": 61.7
+        },
+        "response": {
+          "status": 206,
+          "cache-control": "private, no-store",
+          "content-type": "video/mp4",
+          "content-range": "bytes 0-19584174/19584175",
+          "accept-ranges": "bytes",
+          "content-length": "19584175",
+          "etag": "\"36e0cc4cb3b8d32cd78016dbb1062b29\""
+        }
+      }
+    ]
+  }
+}

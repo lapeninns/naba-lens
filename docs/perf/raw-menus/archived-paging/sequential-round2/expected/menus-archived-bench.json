@@ -1,0 +1,64 @@
+{
+  "volume": "expected",
+  "at": "2026-11-01T11:15:25.369Z",
+  "revision": {
+    "sha": "0cc8f16e5c3575fda63007f25ecc0357fd077c02",
+    "dirty": true
+  },
+  "loadAverage": [
+    10.68505859375,
+    13.03271484375,
+    12.224609375
+  ],
+  "repetitions": 12,
+  "venueId": "bab79021-7a1e-44b9-83fa-11ee07d7dc77",
+  "archivedItems": 3000,
+  "totalItems": 4000,
+  "activeEntries": 2000,
+  "catalogueAdmin": {
+    "stats": {
+      "n": 12,
+      "min": 111.1,
+      "p50": 122.3,
+      "p95": 150.2,
+      "max": 150.2
+    },
+    "requests": 8,
+    "ok": true,
+    "items": 1000
+  },
+  "catalogueStaff": {
+    "stats": {
+      "n": 12,
+      "min": 248.1,
+      "p50": 351.3,
+      "p95": 451.4,
+      "max": 451.4
+    },
+    "requests": 8,
+    "ok": true,
+    "items": 1000
+  },
+  "getMenuVersion": {
+    "stats": {
+      "n": 12,
+      "min": 419.9,
+      "p50": 457.8,
+      "p95": 539.4,
+      "max": 539.4
+    },
+    "requests": 11,
+    "ok": true
+  },
+  "previewSameFile": {
+    "stats": {
+      "n": 12,
+      "min": 117.8,
+      "p50": 134.3,
+      "p95": 163.8,
+      "max": 163.8
+    },
+    "requests": 6,
+    "ok": true
+  }
+}

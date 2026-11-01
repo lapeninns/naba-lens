@@ -280,39 +280,23 @@ function toView(row: Row): MediaItemView {
   }
 }
 
-/**
- * The PostgREST calls the feed makes, shared by the table query and the
- * `library_assets` RPC query (both are filter builders over media_assets rows
- * and return themselves from every filter).
- */
-type FeedQuery<Q> = {
-  eq(column: string, value: string): Q
-  gte(column: string, value: string): Q
-  lt(column: string, value: string): Q
-  or(filters: string): Q
-  order(column: string, options: { ascending: boolean }): Q
-  limit(count: number): PromiseLike<{ data: unknown; error: unknown }>
-}
+/** One read of the feed: the rows strictly after `after`, newest first. */
+type PageRead = (
+  after: { createdAt: string; id: string } | null,
+  limit: number
+) => PromiseLike<{ data: unknown; error: unknown }>
 
-async function page<Q extends FeedQuery<Q>>(
+async function page(
   actor: MediaActor,
-  query: Q,
+  read: PageRead,
   cursor: string | null | undefined
 ): Promise<Outcome<MediaPage>> {
   const after = decodeCursor(cursor)
   if (cursor && !after) {
     return { ok: false, status: 400, message: "Invalid page cursor." }
   }
-  if (after) {
-    query = query.or(
-      `created_at.lt."${after.createdAt}",and(created_at.eq."${after.createdAt}",id.lt.${after.id})`
-    )
-  }
   const limit = MEDIA_LIMITS.pageSize
-  const { data, error } = await query
-    .order("created_at", { ascending: false })
-    .order("id", { ascending: false })
-    .limit(limit + 1)
+  const { data, error } = await read(after, limit + 1)
   if (error) {
     return { ok: false, status: 503, message: "Could not load media." }
   }
@@ -364,7 +348,22 @@ export function listOwnMedia(
   if (actor.profile.role !== "staff") {
     return Promise.resolve({ ok: false, status: 403, message: "Staff only." })
   }
-  return page(actor, base(actor.db).eq("uploader_id", actor.profile.id), cursor)
+  return page(
+    actor,
+    (after, limit) => {
+      let query = base(actor.db).eq("uploader_id", actor.profile.id)
+      if (after) {
+        query = query.or(
+          `created_at.lt."${after.createdAt}",and(created_at.eq."${after.createdAt}",id.lt.${after.id})`
+        )
+      }
+      return query
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .limit(limit)
+    },
+    cursor
+  )
 }
 
 /** True when a filter needs the `library_assets` label predicates. */
@@ -381,15 +380,14 @@ export function hasLabelPredicates(filters: Partial<LibraryLabelFilters>) {
 
 /**
  * The admin library: ready assets across all venues, filtered server-side.
- * RLS repeats the admin/ready/non-deleted rules; the explicit predicates also
- * match the partial feed indexes.
  *
- * Label filters go through `library_assets` (an inlined SQL function that adds
- * EXISTS predicates to media_assets, so an asset matching several label items
- * still appears once); without them the plain table query is used, keeping
- * the unfiltered feed on its proven index plan. Either way the venue, staff,
- * type, date range, strict (created_at, id) cursor, order and page size are
- * the same PostgREST filters on the same rows.
+ * Every page, with or without label filters, is one `library_page` call: the
+ * venue, staff, type, date range and label filters, the strict
+ * (created_at, id) cursor as a row-value bound the feed indexes can use, the
+ * order and the page size are all arguments, so the database plans for the
+ * filters in use and reads only as much as one page needs. It returns the
+ * same rows, in the same order, as the table and `library_assets` filters it
+ * replaces (an asset matching several label items still appears once).
  */
 export function listLibrary(
   actor: MediaActor,
@@ -400,36 +398,36 @@ export function listLibrary(
     return Promise.resolve({ ok: false, status: 403, message: "Admin only." })
   }
   const label = { ...NO_LABEL_FILTERS, ...filters }
-  const query = hasLabelPredicates(label)
-    ? actor.db
-        .rpc("library_assets", {
+  const range = londonDayRange(label.from, label.to)
+  return page(
+    actor,
+    (after, limit) =>
+      actor.db
+        .rpc("library_page", {
+          ...(label.venueId ? { p_venue: label.venueId } : {}),
+          ...(label.staffId ? { p_staff: label.staffId } : {}),
+          ...(label.type ? { p_type: label.type } : {}),
+          ...(range.start ? { p_from: range.start } : {}),
+          ...(range.end ? { p_to: range.end } : {}),
           ...(label.itemId ? { p_item: label.itemId } : {}),
           ...(label.variantId ? { p_variant: label.variantId } : {}),
           ...(label.category ? { p_category: label.category } : {}),
           ...(label.contentType ? { p_content_type: label.contentType } : {}),
           ...(label.labelState ? { p_label_state: label.labelState } : {}),
           ...(label.query ? { p_query: label.query } : {}),
+          ...(after
+            ? { p_after_created_at: after.createdAt, p_after_id: after.id }
+            : {}),
+          p_limit: limit,
         })
-        // created_at and id are in SELECT, as PostgREST needs for the cursor
-        // and order over an RPC result (contract A2.3).
+        // created_at and id are in SELECT, as PostgREST needs for the order
+        // over an RPC result (contract A2.3).
         .select(SELECT)
-        .is("deleted_at", null)
-    : base(actor.db)
-  return page(actor, feedFilters(query, label), cursor)
-}
-
-function feedFilters<Q extends FeedQuery<Q>>(
-  query: Q,
-  filters: AdminLibraryFilters
-): Q {
-  let next = query.eq("upload_state", "ready")
-  if (filters.venueId) next = next.eq("venue_id", filters.venueId)
-  if (filters.staffId) next = next.eq("uploader_id", filters.staffId)
-  if (filters.type) next = next.eq("media_type", filters.type)
-  const range = londonDayRange(filters.from, filters.to)
-  if (range.start) next = next.gte("created_at", range.start)
-  if (range.end) next = next.lt("created_at", range.end)
-  return next
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .limit(limit),
+    cursor
+  )
 }
 
 /** Filter options for the admin library: every venue and every staff member. */

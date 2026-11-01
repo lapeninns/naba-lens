@@ -1,0 +1,23 @@
+-- admin-search-tikka (library_page p_query := 'tikka', p_limit := 25)
+
+Limit  (cost=4.84..4.85 rows=1 width=405) (actual time=0.073..0.073 rows=5 loops=1)
+  Buffers: shared hit=10
+  InitPlan 1
+    ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.004..0.004 rows=1 loops=1)
+  InitPlan 2
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+  InitPlan 3
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.052..0.052 rows=1 loops=1)
+          Buffers: shared hit=1
+  ->  Sort  (cost=4.29..4.30 rows=1 width=405) (actual time=0.073..0.073 rows=5 loops=1)
+        Sort Key: a.created_at DESC, a.id DESC
+        Sort Method: quicksort  Memory: 26kB
+        Buffers: shared hit=10
+        ->  Seq Scan on media_assets a  (cost=0.00..4.28 rows=1 width=405) (actual time=0.059..0.063 rows=5 loops=1)
+              Filter: ((deleted_at IS NULL) AND (deleted_at IS NULL) AND (((uploader_id = (InitPlan 1).col1) AND (InitPlan 2).col1) OR ((InitPlan 3).col1 AND (upload_state = 'ready'::public.upload_state))) AND (id = ANY ('{bf47d7d3-59a0-46bd-92de-2fca62590216,dcaec88f-d839-40d4-89b0-5935039e0ba3,2bdb7fb2-caa3-4657-9c49-26ac3bab4cac,bf2321a0-3425-4b63-95bd-b3e40cefc87b,e636970f-21ea-4be3-9429-d58199bf2b0b}'::uuid[])) AND (upload_state = 'ready'::public.upload_state))
+              Rows Removed by Filter: 49
+              Buffers: shared hit=4
+Planning:
+  Buffers: shared hit=51
+Planning Time: 0.119 ms
+Execution Time: 0.084 ms

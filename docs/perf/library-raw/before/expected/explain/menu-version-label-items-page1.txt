@@ -1,0 +1,17 @@
+-- menu-version-label-items-page1
+-- role authenticated, sub (admin)
+-- statement:
+select item_id from public.media_label_items where venue_id = '765151e9-a062-411a-999a-a80212adc0e6' order by id limit 1000 offset 0
+
+Limit  (cost=0.29..3651.22 rows=1000 width=32) (actual time=0.894..13.464 rows=1000 loops=1)
+  Buffers: shared hit=9961
+  ->  Index Scan using media_label_items_pkey on media_label_items  (cost=0.29..23968.62 rows=6565 width=32) (actual time=0.893..13.414 rows=1000 loops=1)
+        Filter: ((venue_id = '765151e9-a062-411a-999a-a80212adc0e6'::uuid) AND private.can_read_asset_labels(asset_id))
+        Rows Removed by Filter: 2233
+        Buffers: shared hit=9961
+Settings: effective_cache_size = '128MB', search_path = '"\$user", public, extensions'
+Planning:
+  Buffers: shared hit=182
+Planning Time: 0.214 ms
+Execution Time: 13.544 ms
+

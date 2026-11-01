@@ -1,0 +1,27 @@
+-- admin-feed-cursor-90pct (library_page p_after_created_at := '2026-09-02T20:48:47.965643+00:00', p_after_id := '3161a04f-84d5-4482-8175-a9329ddb8be4', p_limit := 25)
+
+Limit  (cost=30.15..30.15 rows=1 width=423) (actual time=0.325..0.327 rows=25 loops=1)
+  Buffers: shared hit=184
+  InitPlan 1
+    ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.008..0.009 rows=1 loops=1)
+  InitPlan 2
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+  InitPlan 3
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.263..0.263 rows=1 loops=1)
+          Buffers: shared hit=167
+  ->  Sort  (cost=29.59..29.60 rows=1 width=423) (actual time=0.324..0.325 rows=25 loops=1)
+        Sort Key: a.created_at DESC, a.id DESC
+        Sort Method: top-N heapsort  Memory: 49kB
+        Buffers: shared hit=184
+        ->  Bitmap Heap Scan on media_assets a  (cost=4.37..29.58 rows=1 width=423) (actual time=0.283..0.300 rows=53 loops=1)
+              Recheck Cond: ((ROW(created_at, id) < ROW('2026-09-02 20:48:47.965643+00'::timestamp with time zone, '3161a04f-84d5-4482-8175-a9329ddb8be4'::uuid)) AND (deleted_at IS NULL) AND (upload_state = 'ready'::public.upload_state))
+              Filter: (((uploader_id = (InitPlan 1).col1) AND (InitPlan 2).col1) OR ((InitPlan 3).col1 AND (upload_state = 'ready'::public.upload_state)))
+              Heap Blocks: exact=9
+              Buffers: shared hit=178
+              ->  Bitmap Index Scan on media_assets_ready_feed_idx  (cost=0.00..4.37 rows=12 width=0) (actual time=0.006..0.006 rows=53 loops=1)
+                    Index Cond: (ROW(created_at, id) < ROW('2026-09-02 20:48:47.965643+00'::timestamp with time zone, '3161a04f-84d5-4482-8175-a9329ddb8be4'::uuid))
+                    Buffers: shared hit=2
+Planning:
+  Buffers: shared hit=389
+Planning Time: 0.458 ms
+Execution Time: 0.356 ms

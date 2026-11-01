@@ -1,0 +1,17 @@
+-- menu-version-label-items-page1
+-- role authenticated, sub (admin)
+-- statement:
+select item_id from public.media_label_items where venue_id = '2bd01292-03ca-4054-ab68-e9134fe90813' order by id limit 1000 offset 0
+
+Limit  (cost=0.42..3690.44 rows=1000 width=32) (actual time=1.316..16.141 rows=1000 loops=1)
+  Buffers: shared hit=8352 read=1626
+  ->  Index Scan using media_label_items_pkey on media_label_items  (cost=0.42..66601.60 rows=18049 width=32) (actual time=1.315..16.084 rows=1000 loops=1)
+        Filter: ((venue_id = '2bd01292-03ca-4054-ab68-e9134fe90813'::uuid) AND private.can_read_asset_labels(asset_id))
+        Rows Removed by Filter: 2246
+        Buffers: shared hit=8352 read=1626
+Settings: effective_cache_size = '128MB', search_path = '"\$user", public, extensions'
+Planning:
+  Buffers: shared hit=181
+Planning Time: 0.336 ms
+Execution Time: 16.339 ms
+
