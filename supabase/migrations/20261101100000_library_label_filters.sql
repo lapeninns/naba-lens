@@ -223,14 +223,6 @@ begin
       where l.content_types @> array[p_text]
       limit p_cap + 1
     ) s;
-  elsif p_kind = 'labelled' then
-    select coalesce(pg_catalog.array_agg(s.asset_id), '{}') into v_raw
-    from (
-      select l.asset_id
-      from public.media_labels l
-      where l.has_labels
-      limit p_cap + 1
-    ) s;
   end if;
 
   -- More matches than the cap: the caller walks the feed instead.
@@ -252,6 +244,79 @@ comment on function private.library_candidate_ids(text, uuid, uuid, text, intege
 
 comment on function private.can_read_asset_labels(uuid) is
   'Who may read an asset''s labels: an active staff member for their own non-deleted assets, an active admin for ready non-deleted assets. Two SECURITY DEFINER functions repeat the admin rule without calling this function, so a change here must change them too: private.library_candidate_ids (library_page label filters) and public.menu_label_counts (menu label counts). Tests compare them with the RLS policies that use this function.';
+
+-- One page of ids for the label-state filters (labelled, unlabelled), which are
+-- dense: most assets are labelled in a finished library, so "unlabelled" may
+-- match few or none and testing assets one by one would read the whole feed.
+-- The database plans the semi- or anti-join over media_labels as a set (no row
+-- level security on the label rows here, as in library_candidate_ids), applies
+-- the feed filters and the cursor, and returns only the page's ids, newest
+-- first. Same admin rule as library_candidate_ids: an active admin (null for
+-- anyone else), ready and not deleted assets; library_page then reads these ids
+-- as the caller. A label counts when media_labels.has_labels is set, as in
+-- library_assets. If the admin label rule changes, change this with it.
+create or replace function private.library_label_state_page(
+  p_state text,
+  p_venue uuid,
+  p_staff uuid,
+  p_type public.media_type,
+  p_from timestamptz,
+  p_to timestamptz,
+  p_after_created_at timestamptz,
+  p_after_id uuid,
+  p_limit integer
+)
+returns uuid[]
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_limit integer := least(greatest(coalesce(p_limit, 25), 1), 100);
+  v_sql text;
+  v_ids uuid[];
+begin
+  if not coalesce((select private.is_active_admin()), false)
+     or p_state is null or p_state not in ('labelled', 'unlabelled') then
+    return null;
+  end if;
+
+  -- $1 venue, $2 staff, $3 type, $4 from, $5 to, $6 cursor created_at,
+  -- $7 cursor id, $8 limit. Each fragment is a fixed string.
+  v_sql := 'select coalesce(pg_catalog.array_agg(s.id order by s.created_at desc, s.id desc), ''{}'')'
+    || ' from (select a.id, a.created_at from public.media_assets a'
+    || ' where a.deleted_at is null and a.upload_state = ''ready''';
+  if p_venue is not null then v_sql := v_sql || ' and a.venue_id = $1'; end if;
+  if p_staff is not null then v_sql := v_sql || ' and a.uploader_id = $2'; end if;
+  if p_type is not null then v_sql := v_sql || ' and a.media_type = $3'; end if;
+  if p_from is not null then v_sql := v_sql || ' and a.created_at >= $4'; end if;
+  if p_to is not null then v_sql := v_sql || ' and a.created_at < $5'; end if;
+  if p_after_created_at is not null and p_after_id is not null then
+    v_sql := v_sql || ' and (a.created_at, a.id) < ($6, $7)';
+  end if;
+  v_sql := v_sql
+    || case when p_state = 'labelled' then ' and exists (' else ' and not exists (' end
+    || 'select 1 from public.media_labels l where l.asset_id = a.id and l.has_labels)'
+    || ' order by a.created_at desc, a.id desc limit $8) s';
+
+  execute v_sql into v_ids
+    using p_venue, p_staff, p_type, p_from, p_to, p_after_created_at, p_after_id, v_limit;
+  return v_ids;
+end;
+$$;
+
+comment on function private.library_label_state_page(
+  text, uuid, uuid, public.media_type, timestamptz, timestamptz, timestamptz, uuid, integer
+) is
+  'Admin-only page of asset ids for library_page''s labelled/unlabelled filters. Duplicates the admin rule of private.can_read_asset_labels; keep them in step.';
+
+revoke all on function private.library_label_state_page(
+  text, uuid, uuid, public.media_type, timestamptz, timestamptz, timestamptz, uuid, integer
+) from public, anon;
+grant execute on function private.library_label_state_page(
+  text, uuid, uuid, public.media_type, timestamptz, timestamptz, timestamptz, uuid, integer
+) to authenticated, service_role;
 
 revoke all on function private.library_candidate_ids(text, uuid, uuid, text, integer)
   from public, anon;
@@ -277,13 +342,14 @@ grant execute on function private.library_candidate_ids(text, uuid, uuid, text, 
 -- indexes can use.
 --
 -- Strategy, chosen by measuring rather than by planner statistics. A filter
--- that names rows by index (item, variant, text, category, content type,
--- labelled) first asks private.library_candidate_ids for the matching asset
--- ids. It answers null for a non-admin or when more than p_candidate_cap label
--- rows match. With an answer, the page is read from those assets by primary
--- key and sorted. Without one, or for the unlabelled filter, the page is read
--- by walking the feed index in order and testing each asset, which stops after
--- one page. For an admin the walk's menu-entry probes use item ids from the
+-- that names rows by index (item, variant, text, category, content type)
+-- first asks private.library_candidate_ids for the matching asset ids. It
+-- answers null for a non-admin or when more than p_candidate_cap label rows
+-- match. With an answer, the page is read from those assets by primary key and
+-- sorted. Without one, the page is read by walking the feed index in order and
+-- testing each asset, which stops after one page. The dense label-state filters
+-- (labelled, unlabelled, alone) ask private.library_label_state_page for the
+-- page's ids, planned as one set-based join whatever the shape of the data. For an admin the walk's menu-entry probes use item ids from the
 -- same helper (kinds query_items and category_items) instead of joining the
 -- entry tables under row level security for every asset. The asset-id
 -- set always replaces the filter that produced it and nothing else, so both
@@ -351,10 +417,18 @@ begin
       v_ids := private.library_candidate_ids('content', null, null, p_content_type, v_cap);
       if v_ids is not null then v_supplier := 'content'; end if;
     end if;
-    if v_supplier is null and p_label_state = 'labelled' then
-      v_ids := private.library_candidate_ids('labelled', null, null, null, v_cap);
-      if v_ids is not null then v_supplier := 'labelled'; end if;
-    end if;
+  end if;
+
+  -- Labelled / unlabelled alone: dense filters, read as a set (see the helper).
+  if v_cap > 0 and v_supplier is null
+     and p_label_state in ('labelled', 'unlabelled')
+     and p_item is null and p_variant is null and p_category is null
+     and p_content_type is null and v_pattern is null then
+    v_ids := private.library_label_state_page(
+      p_label_state, p_venue, p_staff, p_type, p_from, p_to,
+      p_after_created_at, p_after_id, v_limit
+    );
+    if v_ids is not null then v_supplier := 'state'; end if;
   end if;
 
   if v_supplier is null then v_ids := null; end if;
@@ -416,13 +490,11 @@ begin
       || ' and exists (select 1 from public.media_labels l'
       || ' where l.asset_id = a.id and $9 = any (l.content_types) offset 0)';
   end if;
-  if p_label_state is not null then
+  if p_label_state is not null and v_supplier is distinct from 'state' then
     if p_label_state = 'labelled' then
-      if v_supplier is distinct from 'labelled' then
-        v_sql := v_sql
-          || ' and exists (select 1 from public.media_labels l'
-          || ' where l.asset_id = a.id and l.has_labels offset 0)';
-      end if;
+      v_sql := v_sql
+        || ' and exists (select 1 from public.media_labels l'
+        || ' where l.asset_id = a.id and l.has_labels offset 0)';
     elsif p_label_state = 'unlabelled' then
       v_sql := v_sql
         || ' and not exists (select 1 from public.media_labels l'

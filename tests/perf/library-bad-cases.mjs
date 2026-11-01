@@ -24,6 +24,7 @@ const arg = (k, d) => {
 }
 const VOLUME = arg("volume", "high")
 const N = Number(arg("n", 20))
+const ONLY = arg("only", null)
 const OUT = resolve(arg("out", "docs/perf/raw"), VOLUME)
 const { dbUrl } = requireWorkstreamStack()
 const t = pickTargets(dbUrl)
@@ -84,6 +85,19 @@ where not exists (select 1 from public.media_labels l where l.asset_id = a.id)
 set local session_replication_role = origin;
 analyze public.media_labels;`
 
+// Every asset labelled: "unlabelled" matches nothing and must still answer fast.
+const zeroUnlabelled = `
+set local session_replication_role = replica;
+update public.media_labels l set has_labels = true where not has_labels;
+insert into public.media_labels (asset_id, venue_id, has_labels)
+select a.id, a.venue_id, true from public.media_assets a
+where not exists (select 1 from public.media_labels l where l.asset_id = a.id);
+set local session_replication_role = origin;
+analyze public.media_labels;`
+const zeroLabelled = `
+update public.media_labels set has_labels = false where has_labels;
+analyze public.media_labels;`
+
 const admin = t.admin.id
 const staff = t.staffHeavy
 const S = [
@@ -94,8 +108,17 @@ const S = [
   ["admin labelled, cursor 90% of matches", admin, "", page({ p_label_state: "labelled", p_after_created_at: labCursor.p_after_created_at, p_after_id: labCursor.p_after_id })],
   ["admin labelled, only 200 assets labelled", admin, fewLabelled, page({ p_label_state: "labelled" })],
   [`admin labelled, only the oldest ${OLDEST} labelled`, admin, sparseLabelled, page({ p_label_state: "labelled" })],
+  ["admin labelled, nothing labelled", admin, zeroLabelled, page({ p_label_state: "labelled" })],
   ["admin unlabelled (natural)", admin, "", page({ p_label_state: "unlabelled" })],
   [`admin unlabelled, only the oldest ${OLDEST} unlabelled`, admin, sparseUnlabelled, page({ p_label_state: "unlabelled" })],
+  ["admin unlabelled, nothing unlabelled", admin, zeroUnlabelled, page({ p_label_state: "unlabelled" })],
+  ["admin unlabelled, nothing unlabelled, in the largest venue", admin, zeroUnlabelled, page({ p_label_state: "unlabelled", p_venue: t.bigVenue.id })],
+  ["REF library_assets: labelled (natural)", admin, "", reference({ p_label_state: "labelled" })],
+  [`REF library_assets: labelled, only the oldest ${OLDEST} labelled`, admin, sparseLabelled, reference({ p_label_state: "labelled" })],
+  ["REF library_assets: labelled, nothing labelled", admin, zeroLabelled, reference({ p_label_state: "labelled" })],
+  ["REF library_assets: unlabelled (natural)", admin, "", reference({ p_label_state: "unlabelled" })],
+  [`REF library_assets: unlabelled, only the oldest ${OLDEST} unlabelled`, admin, sparseUnlabelled, reference({ p_label_state: "unlabelled" })],
+  ["REF library_assets: unlabelled, nothing unlabelled", admin, zeroUnlabelled, reference({ p_label_state: "unlabelled" })],
   ["admin search 'a' (1 char, matches nearly all)", admin, "", page({ p_query: "a" })],
   ["admin search 'q' (1 char)", admin, "", page({ p_query: "q" })],
   ["admin search 'ch' (2 chars, common)", admin, "", page({ p_query: "ch" })],
@@ -119,6 +142,7 @@ const S = [
 
 const results = []
 for (const [name, person, setup, sql] of S) {
+  if (ONLY && !name.includes(ONLY)) continue
   const script = `begin;
 ${setup}
 set local role authenticated;

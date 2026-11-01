@@ -76,6 +76,35 @@ rollback;
   return line === "" ? [] : [...new Set(line.split(","))].sort()
 }
 
+/** The ordered ids of one label-state page; null when the helper answers null. */
+function statePage(
+  person: string | null,
+  state: string,
+  args: {
+    venue?: string
+    staff?: string
+    limit?: number
+    after?: { createdAt: string; id: string }
+  } = {}
+): string[] | null {
+  const claims = person
+    ? JSON.stringify({
+        sub: person,
+        role: "authenticated",
+        aud: "authenticated",
+      })
+    : JSON.stringify({ role: "authenticated", aud: "authenticated" })
+  const out = psql(`begin;
+set local role authenticated;
+select set_config('request.jwt.claims', ${lit(claims)}, true) \\gset
+select coalesce(array_to_string(private.library_label_state_page(${lit(state)}, ${lit(args.venue ?? null)}::uuid, ${lit(args.staff ?? null)}::uuid, null, null, null, ${lit(args.after?.createdAt ?? null)}::timestamptz, ${lit(args.after?.id ?? null)}::uuid, ${args.limit ?? 25}), ','), '<null>');
+rollback;
+`)
+  const line = out.trim().split("\n").pop()!.trim()
+  if (line === "<null>") return null
+  return line === "" ? [] : line.split(",")
+}
+
 const uniq = (ids: (string | null)[]) =>
   [...new Set(ids.filter((id): id is string => !!id))].sort()
 
@@ -91,7 +120,14 @@ describe("library_candidate_ids against what admin RLS lets through", () => {
   let archivedItem: string
   let draftItem: string
   const asset = {} as Record<
-    "ready" | "otherVenue" | "deleted" | "notReady" | "suggested" | "noteOnly",
+    | "ready"
+    | "otherVenue"
+    | "deleted"
+    | "notReady"
+    | "suggested"
+    | "noteOnly"
+    | "plainA"
+    | "plainB",
     string
   >
 
@@ -180,6 +216,9 @@ describe("library_candidate_ids against what admin RLS lets through", () => {
       missing: `Staff ${T} curry`,
     })
     asset.noteOnly = await label(staffA, versionA, { note: `only ${T}` })
+    // Ready assets nobody labelled, one per venue.
+    asset.plainA = (await reserveReady(service, staffA, "image")).id
+    asset.plainB = (await reserveReady(service, staffB, "image")).id
 
     // Later versions: v2 (active) renames the item and adds one that is then
     // archived, v1 is retired, v3 is a draft with an item only it has.
@@ -377,32 +416,77 @@ describe("library_candidate_ids against what admin RLS lets through", () => {
     )
   })
 
-  it("admits the readable labelled and content-type rows (when the stack is small enough to list them)", async () => {
-    const labelled = await admin.client
-      .from("media_labels")
-      .select("asset_id")
-      .eq("has_labels", true)
-      .limit(CAP)
+  it("admits the readable content-type rows (when the stack is small enough to list them)", async () => {
     const dish = await admin.client
       .from("media_labels")
       .select("asset_id")
       .contains("content_types", ["dish"])
       .limit(CAP)
-    if (labelled.error) throw labelled.error
     if (dish.error) throw dish.error
-    for (const [kind, rows, text] of [
-      ["labelled", labelled.data, undefined],
-      ["content", dish.data, "dish"],
-    ] as const) {
-      const got = candidates(admin.id, kind, { text })
-      // PostgREST caps a response at max_rows, so the comparison is exact
-      // only on a stack with fewer labelled assets than that (CI's).
-      if (rows.length >= 1000) continue
-      expect(got, kind).toEqual(uniq(rows.map((r) => r.asset_id)))
-      expect(got).toContain(asset.ready)
-      expect(got).not.toContain(asset.deleted)
-      expect(got).not.toContain(asset.notReady)
+    const got = candidates(admin.id, "content", { text: "dish" })
+    // PostgREST caps a response at max_rows, so the comparison is exact only
+    // on a stack with fewer labelled assets than that (CI's).
+    if (dish.data.length >= 1000) return
+    expect(got).toEqual(uniq(dish.data.map((r) => r.asset_id)))
+    expect(got).toContain(asset.ready)
+    expect(got).not.toContain(asset.deleted)
+    expect(got).not.toContain(asset.notReady)
+  })
+
+  it("pages the labelled and unlabelled assets exactly as admin RLS shows them", async () => {
+    for (const venue of [venueA, venueB]) {
+      const { data: labels, error: labelsError } = await admin.client
+        .from("media_labels")
+        .select("asset_id")
+        .eq("venue_id", venue)
+        .eq("has_labels", true)
+      if (labelsError) throw labelsError
+      const labelled = new Set(labels.map((r) => r.asset_id))
+      // The assets the admin sees, newest first: ready and not deleted.
+      const { data: visible, error } = await admin.client
+        .from("media_assets")
+        .select("id, created_at, uploader_id")
+        .eq("venue_id", venue)
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+      if (error) throw error
+      expect(visible.map((r) => r.id)).not.toContain(asset.deleted)
+      expect(visible.map((r) => r.id)).not.toContain(asset.notReady)
+      for (const state of ["labelled", "unlabelled"] as const) {
+        const want = visible.filter(
+          (r) => labelled.has(r.id) === (state === "labelled")
+        )
+        expect(want.length, `${state} fixtures in ${venue}`).toBeGreaterThan(0)
+        expect(statePage(admin.id, state, { venue, limit: 100 })).toEqual(
+          want.map((r) => r.id)
+        )
+        // Page by page through the cursor, two at a time.
+        const walked: string[] = []
+        let after: { createdAt: string; id: string } | undefined
+        for (let i = 0; i < 40; i++) {
+          const page = statePage(admin.id, state, { venue, limit: 2, after })!
+          walked.push(...page)
+          if (page.length < 2) break
+          const last = visible.find((r) => r.id === page[page.length - 1])!
+          after = { createdAt: last.created_at, id: last.id }
+        }
+        expect(walked).toEqual(want.map((r) => r.id))
+        // Feed filters narrow the page the same way.
+        expect(
+          statePage(admin.id, state, { venue, staff: staffA.id, limit: 100 })
+        ).toEqual(
+          want.filter((r) => r.uploader_id === staffA.id).map((r) => r.id)
+        )
+      }
     }
+  })
+
+  it("answers null to inactive admins, staff and signed-out callers for the label-state page", () => {
+    for (const who of [inactiveAdmin.id, staffA.id, staffB.id, null]) {
+      expect(statePage(who, "unlabelled", { venue: venueA })).toBeNull()
+      expect(statePage(who, "labelled", { venue: venueA })).toBeNull()
+    }
+    expect(statePage(admin.id, "bogus", { venue: venueA })).toBeNull()
   })
 
   it("admits exactly the item ids an admin can read through menu RLS, for query and category entries", async () => {
