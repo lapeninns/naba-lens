@@ -11,7 +11,7 @@ V=$1 N=${2:-20} OUT=${3:-docs/perf/raw}
 load1() { sysctl -n vm.loadavg | awk '{print $2}'; }
 i=0; until awk -v l="$(load1)" 'BEGIN { exit !(l < 8) }' || [ $i -ge 90 ]; do sleep 10; i=$((i+1)); done
 echo "$(date +%T) $V: load $(load1)"
-node tests/perf/generate.mjs --volume "$V" > "/tmp/ws3-gen-$V.json"
+node tests/perf/generate.mjs --volume "$V" > "/tmp/ws3-gen-${PERF_STACK:-spare6}-$V.json"
 node tests/perf/volume-info.mjs --volume "$V" --out "$OUT"
 node tests/perf/explain.mjs --volume "$V" --out "$OUT"
 echo "$(date +%T) $V: load $(load1) before bench"

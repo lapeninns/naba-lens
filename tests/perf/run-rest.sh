@@ -12,7 +12,7 @@ V=$1 OUT=${2:-docs/perf/raw}
 load1() { sysctl -n vm.loadavg | awk '{print $2}'; }
 i=0; until awk -v l="$(load1)" 'BEGIN { exit !(l < 8) }' || [ $i -ge 90 ]; do sleep 10; i=$((i+1)); done
 echo "$(date +%T) $V: load $(load1)"
-node tests/perf/generate.mjs --volume "$V" > "/tmp/ws3-gen-rest-$V.json"
+node tests/perf/generate.mjs --volume "$V" > "/tmp/ws3-gen-rest-${PERF_STACK:-spare6}-$V.json"
 NODE="node --conditions=react-server --import tsx"
 $NODE tests/perf/refresh-bench.mjs --volume "$V" --out "$OUT"
 $NODE tests/perf/delivery-bench.mjs --volume "$V" --out "$OUT"
