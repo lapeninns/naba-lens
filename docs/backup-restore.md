@@ -68,7 +68,7 @@ loaded machine, one reset can take several minutes.
     Storage directly, so all 48 direct downloads are denied; byte integrity is proven with the
     service role instead (`storedObjectShas`).
   - It copies the **TEST-ONLY** migration
-    `tests/migrations/later/20261101090000_test_only_additive.sql` into the workdir. The
+    `tests/migrations/later/20991231000000_test_only_additive.sql` into the workdir. The
     migration is never committed to `supabase/migrations`. It applies with
     `supabase migration up --local` (no reset). It adds:
     - a nullable column with a check constraint and a partial index;

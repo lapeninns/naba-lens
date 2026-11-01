@@ -14,7 +14,7 @@
 // a loaded machine.
 //   supabase --workdir "$W" stop --no-backup
 import { spawnSync } from "node:child_process"
-import { mkdirSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs"
 import { join, resolve } from "node:path"
 
 const [workdirArg, phase] = process.argv.slice(2)
@@ -30,11 +30,18 @@ const workdir = resolve(workdirArg)
 const state = join(workdir, ".drill")
 mkdirSync(state, { recursive: true })
 
-// The TEST-ONLY migration is only present while the upgrade test applies it.
-rmSync(
-  join(workdir, "supabase", "migrations", "20261101090000_test_only_additive.sql"),
-  { force: true }
+// The TEST-ONLY migration is only present while the upgrade test applies it. It
+// must sort after every real migration, or `supabase migration up` rejects it as
+// "inserted before the last migration" and the upgrade phase fails for the wrong reason.
+const later = "20991231000000_test_only_additive.sql"
+const newer = readdirSync("supabase/migrations").filter(
+  (f) => f.endsWith(".sql") && f > later
 )
+if (newer.length > 0)
+  throw new Error(
+    `supabase/migrations/${newer.join(", ")} sorts after the TEST-ONLY migration ${later}; give tests/migrations/later and LATER in tests/migrations/helpers.ts a later timestamp.`
+  )
+rmSync(join(workdir, "supabase", "migrations", later), { force: true })
 
 if (phase === "db-reset") {
   const target = process.argv[4]

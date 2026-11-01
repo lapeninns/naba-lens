@@ -11,7 +11,9 @@ if (!workdir || !state) {
 }
 export const env: StackEnv = stackEnv(workdir)
 
-export const LATER = "20261101090000_test_only_additive.sql"
+// Must sort after every real migration: `supabase migration up` refuses a local
+// file dated before the newest applied one. run.mjs fails if one sorts after it.
+export const LATER = "20991231000000_test_only_additive.sql"
 export const laterTarget = join(workdir, "supabase", "migrations", LATER)
 
 export const repoMigrations = readdirSync("supabase/migrations")
