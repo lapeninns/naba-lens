@@ -30,7 +30,6 @@ import type { Db, MediaActor, Outcome } from "@/lib/server/media/types"
 import {
   buildDocument,
   copyForDraft,
-  countByItem,
   reviewBaseFor,
   type EntryRow,
   type SectionRow,
@@ -116,6 +115,35 @@ async function selectAll<T>(
     if (error) return { ok: false, error }
     rows.push(...(data ?? []))
     if (!data || data.length < PAGE) return { ok: true, rows }
+  }
+}
+
+/**
+ * `selectAll` for a long, totally ordered read: after the first page, further
+ * pages go out in waves of `PAGE_CONCURRENCY`. Rows come back in page order and
+ * stop at the first short page, so the result is the one sequential paging
+ * gives; the wave that holds the end may ask for pages past it.
+ */
+const PAGE_CONCURRENCY = 4
+
+async function selectAllConcurrent<T>(
+  page: (from: number, to: number) => Page<T>
+): Promise<{ ok: true; rows: T[] } | { ok: false; error: DbError }> {
+  const first = await page(0, PAGE - 1)
+  if (first.error) return { ok: false, error: first.error }
+  const rows: T[] = [...(first.data ?? [])]
+  if (rows.length < PAGE) return { ok: true, rows }
+  for (let next = 1; ; next += PAGE_CONCURRENCY) {
+    const wave = await Promise.all(
+      Array.from({ length: PAGE_CONCURRENCY }, (_, i) =>
+        page((next + i) * PAGE, (next + i + 1) * PAGE - 1)
+      )
+    )
+    for (const { data, error } of wave) {
+      if (error) return { ok: false, error }
+      rows.push(...(data ?? []))
+      if (!data || data.length < PAGE) return { ok: true, rows }
+    }
   }
 }
 
@@ -501,6 +529,44 @@ export type MenuVersionView = {
   reviewBase: MenuDocument | null
 }
 
+const archivedItemIdsOf = (db: Db, venueId: string) =>
+  selectAllConcurrent<{ id: string }>(
+    (from, to) =>
+      db
+        .from("menu_items")
+        .select("id")
+        .eq("venue_id", venueId)
+        .not("archived_at", "is", null)
+        .order("id")
+        .range(from, to) as unknown as Page<{ id: string }>
+  )
+
+/**
+ * The document of a venue's active version and its archived item ids: what the
+ * venue page needs to offer items to link a suggestion to. No label counts and
+ * no diff.
+ */
+export async function getActiveMenuItems(
+  actor: MediaActor,
+  venueId: string
+): Promise<
+  Outcome<{ document: MenuDocument | null; archivedItemIds: string[] }>
+> {
+  if (!isAdmin(actor)) return FORBIDDEN
+  if (!isUuid(venueId)) return notFound("This venue could not be found.")
+  const [active, archived] = await Promise.all([
+    activeDocument(actor.db, venueId),
+    archivedItemIdsOf(actor.db, venueId),
+  ])
+  if (!active.ok) return active
+  if (!archived.ok) return menuReadFailure(archived.error, "archived items")
+  return {
+    ok: true,
+    document: active.document,
+    archivedItemIds: archived.rows.map((r) => r.id),
+  }
+}
+
 /** A version with its document, and its diff against the venue's active one. */
 export async function getMenuVersion(
   actor: MediaActor,
@@ -521,26 +587,9 @@ export async function getMenuVersion(
   const [venue, loaded, archived, labels, base] = await Promise.all([
     db.from("venues").select("name").eq("id", row.venue_id).maybeSingle(),
     loadDocument(db, row.id, row.title),
-    selectAll<{ id: string }>(
-      (from, to) =>
-        db
-          .from("menu_items")
-          .select("id")
-          .eq("venue_id", row.venue_id)
-          .not("archived_at", "is", null)
-          .order("id")
-          .range(from, to) as unknown as Page<{ id: string }>
-    ),
-    // Admin RLS shows label rows of non-deleted, ready assets only.
-    selectAll<{ item_id: string }>(
-      (from, to) =>
-        db
-          .from("media_label_items")
-          .select("item_id")
-          .eq("venue_id", row.venue_id)
-          .order("id")
-          .range(from, to) as unknown as Page<{ item_id: string }>
-    ),
+    archivedItemIdsOf(db, row.venue_id),
+    // Label rows of non-deleted, ready assets, as admin RLS shows them.
+    db.rpc("menu_label_counts", { p_venue_id: row.venue_id }),
     summary.status === "active"
       ? Promise.resolve(null)
       : activeDocument(db, row.venue_id),
@@ -548,7 +597,7 @@ export async function getMenuVersion(
   if (venue.error) return menuReadFailure(venue.error, "venue")
   if (!loaded.ok) return loaded
   if (!archived.ok) return menuReadFailure(archived.error, "archived items")
-  if (!labels.ok) return menuReadFailure(labels.error, "label counts")
+  if (labels.error) return menuReadFailure(labels.error, "label counts")
   if (base && !base.ok) return base
 
   const document = loaded.document
@@ -560,7 +609,7 @@ export async function getMenuVersion(
       venueName: venue.data?.name ?? "Unknown venue",
       document,
       archivedItemIds: archived.rows.map((r) => r.id),
-      labelCounts: countByItem(labels.rows),
+      labelCounts: (labels.data ?? {}) as Record<string, number>,
     },
     diff: baseDoc ? diffMenuDocuments(baseDoc, document) : null,
     active:

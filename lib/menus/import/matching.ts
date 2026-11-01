@@ -22,6 +22,28 @@ const nameKey = (s: string) =>
     .replace(/\s+/g, " ")
     .trim()
 const variantKey = (s: string) => s.trim().toLowerCase()
+type Row = ReturnType<typeof flat>[number]
+/** The first row per key, in base order (what `Array.find` returned). */
+function firstBy<K>(rows: Row[], key: (r: Row) => K | null | undefined) {
+  const map = new Map<K, Row>()
+  for (const r of rows) {
+    const k = key(r)
+    if (k != null && !map.has(k)) map.set(k, r)
+  }
+  return map
+}
+/** Every row per key, in base order. */
+function groupBy<K>(rows: Row[], key: (r: Row) => K | null | undefined) {
+  const map = new Map<K, Row[]>()
+  for (const r of rows) {
+    const k = key(r)
+    if (k == null) continue
+    const list = map.get(k)
+    if (list) list.push(r)
+    else map.set(k, [r])
+  }
+  return map
+}
 const ref = (r: ReturnType<typeof flat>[number]) => ({
   sourceKey: r.item.sourceKey,
   itemId: r.item.itemId,
@@ -55,12 +77,18 @@ export function matchImportToBase(
   const doc = structuredClone(incoming),
     old = flat(base),
     keys = new Set(flat(doc).map((r) => r.item.sourceKey))
-  const candidates = old.filter((r) => !keys.has(r.item.sourceKey))
+  const order = new Map(old.map((r, n) => [r, n]))
+  const bySourceKey = firstBy(old, (r) => r.item.sourceKey)
+  // Rows that may be offered as "same name" candidates, by normalised name.
+  const byName = groupBy(
+    old.filter((r) => !keys.has(r.item.sourceKey) && r.item.itemId),
+    (r) => nameKey(r.item.name)
+  )
   for (const { item } of flat(doc)) {
     item.itemId = null
     item.review = null
     item.variants.forEach((v) => (v.variantId = null))
-    const exact = old.find((r) => r.item.sourceKey === item.sourceKey)
+    const exact = bySourceKey.get(item.sourceKey)
     if (exact) {
       item.itemId = exact.item.itemId
       if (variants(item, exact.item))
@@ -71,10 +99,13 @@ export function matchImportToBase(
         }
       continue
     }
-    const names = [item.name, ...item.aliases].map(nameKey)
-    const found = candidates.filter(
-      (r) => r.item.itemId && names.includes(nameKey(r.item.name))
-    )
+    const names = new Set([item.name, ...item.aliases].map(nameKey))
+    const lists = [...names].flatMap((n) => byName.get(n) ?? [])
+    // One row can match through several names: keep it once, in base order.
+    const found =
+      names.size > 1
+        ? [...new Set(lists)].sort((a, b) => order.get(a)! - order.get(b)!)
+        : lists
     if (found.length) {
       // Bounded to the save contract (≤20 candidates, ≤200-char reason; final
       // review I-4). Candidate names are shown from the diff, not the reason.
@@ -147,15 +178,19 @@ export function diffMenuDocuments(
   const old = flat(base),
     rows = flat(next),
     ids = new Set(rows.map((r) => r.item.itemId))
+  const order = new Map(old.map((r, n) => [r, n]))
+  const byItemId = groupBy(old, (r) => r.item.itemId || null)
   for (const r of rows) {
     const i = r.item
     if (i.review) {
       result.uncertain.push({
         ...ref(r),
-        candidates: old
-          .filter(
-            (b) => b.item.itemId && i.review!.candidates.includes(b.item.itemId)
-          )
+        candidates: [
+          ...new Set(
+            i.review.candidates.flatMap((id) => byItemId.get(id) ?? [])
+          ),
+        ]
+          .sort((a, b) => order.get(a)! - order.get(b)!)
           .map((b) => ({ ...ref(b), itemId: b.item.itemId! })),
         reason: i.review.reason,
       })
@@ -165,7 +200,7 @@ export function diffMenuDocuments(
       result.added.push(ref(r))
       continue
     }
-    const b = old.find((b) => b.item.itemId === i.itemId)
+    const b = byItemId.get(i.itemId)?.[0]
     if (!b) {
       result.added.push(ref(r))
       continue

@@ -1,0 +1,487 @@
+{
+  "volume": "current",
+  "at": "2026-11-01T10:31:39.301Z",
+  "revision": {
+    "sha": "c1a994b4795429cbc7cf79b003974b4bd3022422",
+    "dirty": true
+  },
+  "repetitions": {
+    "warm": 3,
+    "n": 20
+  },
+  "loadAverage": [
+    6.09228515625,
+    5.18212890625,
+    5.88037109375
+  ],
+  "serverRssMiB": {
+    "before": 114,
+    "after": 472
+  },
+  "routes": [
+    {
+      "name": "admin library /admin",
+      "path": "/admin",
+      "status": 200,
+      "htmlBytes": 182964,
+      "ttfbMs": {
+        "n": 20,
+        "min": 6.2,
+        "p50": 8.2,
+        "p95": 13.1,
+        "max": 14.4
+      },
+      "completeMs": {
+        "n": 20,
+        "min": 22.9,
+        "p50": 25.1,
+        "p95": 32.5,
+        "max": 32.6
+      },
+      "cacheControl": "private, no-cache, no-store, max-age=0, must-revalidate"
+    },
+    {
+      "name": "admin library, largest venue",
+      "path": "/admin?venue=<id>",
+      "status": 200,
+      "htmlBytes": 191742,
+      "ttfbMs": {
+        "n": 20,
+        "min": 6.3,
+        "p50": 7.6,
+        "p95": 8.6,
+        "max": 9.8
+      },
+      "completeMs": {
+        "n": 20,
+        "min": 36.4,
+        "p50": 41,
+        "p95": 48.1,
+        "max": 49.3
+      },
+      "cacheControl": "private, no-cache, no-store, max-age=0, must-revalidate"
+    },
+    {
+      "name": "admin library, category filter",
+      "path": "/admin?category=curries",
+      "status": 200,
+      "htmlBytes": 112768,
+      "ttfbMs": {
+        "n": 20,
+        "min": 6.1,
+        "p50": 7.7,
+        "p95": 10,
+        "max": 10.7
+      },
+      "completeMs": {
+        "n": 20,
+        "min": 72.2,
+        "p50": 76.3,
+        "p95": 82.6,
+        "max": 88.5
+      },
+      "cacheControl": "private, no-cache, no-store, max-age=0, must-revalidate"
+    },
+    {
+      "name": "admin library, venue + category filter",
+      "path": "/admin?venue=<id>&category=curries",
+      "status": 200,
+      "htmlBytes": 139971,
+      "ttfbMs": {
+        "n": 20,
+        "min": 6,
+        "p50": 7,
+        "p95": 9.4,
+        "max": 10
+      },
+      "completeMs": {
+        "n": 20,
+        "min": 33,
+        "p50": 38.1,
+        "p95": 45.1,
+        "max": 53
+      },
+      "cacheControl": "private, no-cache, no-store, max-age=0, must-revalidate"
+    },
+    {
+      "name": "admin library, search q=tikka",
+      "path": "/admin?q=tikka",
+      "status": 200,
+      "htmlBytes": 109430,
+      "ttfbMs": {
+        "n": 20,
+        "min": 6.2,
+        "p50": 8.7,
+        "p95": 11.1,
+        "max": 12.7
+      },
+      "completeMs": {
+        "n": 20,
+        "min": 137.1,
+        "p50": 152.4,
+        "p95": 188.4,
+        "max": 192.7
+      },
+      "cacheControl": "private, no-cache, no-store, max-age=0, must-revalidate"
+    },
+    {
+      "name": "admin menus list",
+      "path": "/admin/menus",
+      "status": 200,
+      "htmlBytes": 213095,
+      "ttfbMs": {
+        "n": 20,
+        "min": 5.3,
+        "p50": 6.4,
+        "p95": 8.1,
+        "max": 9.4
+      },
+      "completeMs": {
+        "n": 20,
+        "min": 13.9,
+        "p50": 16.9,
+        "p95": 20.2,
+        "max": 24
+      },
+      "cacheControl": "private, no-cache, no-store, max-age=0, must-revalidate"
+    },
+    {
+      "name": "admin menus, largest venue",
+      "path": "/admin/menus/<id>",
+      "status": 200,
+      "htmlBytes": 51219,
+      "ttfbMs": {
+        "n": 20,
+        "min": 5.1,
+        "p50": 5.8,
+        "p95": 6.9,
+        "max": 9.2
+      },
+      "completeMs": {
+        "n": 20,
+        "min": 9.5,
+        "p50": 10.4,
+        "p95": 12,
+        "max": 13.8
+      },
+      "cacheControl": "private, no-cache, no-store, max-age=0, must-revalidate"
+    },
+    {
+      "name": "admin menu version (largest venue, active)",
+      "path": "/admin/menus/versions/<id>",
+      "status": 200,
+      "htmlBytes": 177581,
+      "ttfbMs": {
+        "n": 20,
+        "min": 5.7,
+        "p50": 6.5,
+        "p95": 8.5,
+        "max": 9.7
+      },
+      "completeMs": {
+        "n": 20,
+        "min": 19,
+        "p50": 21.5,
+        "p95": 24.9,
+        "max": 25.3
+      },
+      "cacheControl": "private, no-cache, no-store, max-age=0, must-revalidate"
+    },
+    {
+      "name": "admin menu version (smallest venue, active)",
+      "path": "/admin/menus/versions/<id>",
+      "status": 200,
+      "htmlBytes": 107825,
+      "ttfbMs": {
+        "n": 20,
+        "min": 5.5,
+        "p50": 6.1,
+        "p95": 8.8,
+        "max": 8.9
+      },
+      "completeMs": {
+        "n": 20,
+        "min": 16.2,
+        "p50": 17.9,
+        "p95": 21.8,
+        "max": 22.6
+      },
+      "cacheControl": "private, no-cache, no-store, max-age=0, must-revalidate"
+    },
+    {
+      "name": "admin staff list",
+      "path": "/admin/staff",
+      "status": 200,
+      "htmlBytes": 664460,
+      "ttfbMs": {
+        "n": 20,
+        "min": 6.1,
+        "p50": 7,
+        "p95": 8.1,
+        "max": 10.7
+      },
+      "completeMs": {
+        "n": 20,
+        "min": 33.4,
+        "p50": 37,
+        "p95": 41,
+        "max": 41.3
+      },
+      "cacheControl": "private, no-cache, no-store, max-age=0, must-revalidate"
+    },
+    {
+      "name": "admin staff member (heaviest)",
+      "path": "/admin/staff/<id>",
+      "status": 200,
+      "htmlBytes": 96027,
+      "ttfbMs": {
+        "n": 20,
+        "min": 5.3,
+        "p50": 6.4,
+        "p95": 8.5,
+        "max": 9
+      },
+      "completeMs": {
+        "n": 20,
+        "min": 24.6,
+        "p50": 31.7,
+        "p95": 37.2,
+        "max": 39.1
+      },
+      "cacheControl": "private, no-cache, no-store, max-age=0, must-revalidate"
+    },
+    {
+      "name": "staff portfolio (heaviest)",
+      "path": "/staff",
+      "status": 200,
+      "htmlBytes": 82784,
+      "ttfbMs": {
+        "n": 20,
+        "min": 4.6,
+        "p50": 5.2,
+        "p95": 6.3,
+        "max": 7.6
+      },
+      "completeMs": {
+        "n": 20,
+        "min": 10,
+        "p50": 11.7,
+        "p95": 13.6,
+        "max": 13.8
+      },
+      "cacheControl": "private, no-cache, no-store, max-age=0, must-revalidate"
+    },
+    {
+      "name": "staff portfolio (median)",
+      "path": "/staff",
+      "status": 200,
+      "htmlBytes": 43146,
+      "ttfbMs": {
+        "n": 20,
+        "min": 4.3,
+        "p50": 4.7,
+        "p95": 5.9,
+        "max": 5.9
+      },
+      "completeMs": {
+        "n": 20,
+        "min": 8.4,
+        "p50": 9.3,
+        "p95": 11.2,
+        "max": 11.3
+      },
+      "cacheControl": "private, no-cache, no-store, max-age=0, must-revalidate"
+    },
+    {
+      "name": "JSON /api/library",
+      "path": "/api/library",
+      "status": 200,
+      "htmlBytes": 72145,
+      "ttfbMs": {
+        "n": 20,
+        "min": 17.5,
+        "p50": 18.6,
+        "p95": 22.7,
+        "max": 28.7
+      },
+      "completeMs": {
+        "n": 20,
+        "min": 17.6,
+        "p50": 18.7,
+        "p95": 22.9,
+        "max": 28.8
+      },
+      "cacheControl": "private, no-store"
+    },
+    {
+      "name": "JSON /api/library?category=curries",
+      "path": "/api/library?category=curries",
+      "status": 200,
+      "htmlBytes": 15515,
+      "ttfbMs": {
+        "n": 20,
+        "min": 63.8,
+        "p50": 68.9,
+        "p95": 78.2,
+        "max": 84.5
+      },
+      "completeMs": {
+        "n": 20,
+        "min": 63.9,
+        "p50": 69,
+        "p95": 78.3,
+        "max": 84.5
+      },
+      "cacheControl": "private, no-store"
+    },
+    {
+      "name": "JSON /api/portfolio (heaviest)",
+      "path": "/api/portfolio",
+      "status": 200,
+      "htmlBytes": 18488,
+      "ttfbMs": {
+        "n": 20,
+        "min": 7.9,
+        "p50": 9.1,
+        "p95": 11,
+        "max": 11.1
+      },
+      "completeMs": {
+        "n": 20,
+        "min": 8,
+        "p50": 9.2,
+        "p95": 11.1,
+        "max": 11.2
+      },
+      "cacheControl": "private, no-store"
+    }
+  ],
+  "bundles": [
+    {
+      "name": "login",
+      "path": "/login",
+      "status": 200,
+      "htmlBytes": 11799,
+      "js": {
+        "raw": 1047767,
+        "gzip": 326992,
+        "brotli": 276118,
+        "files": 11
+      },
+      "css": {
+        "raw": 88321,
+        "gzip": 15637,
+        "brotli": 13279,
+        "files": 1
+      }
+    },
+    {
+      "name": "admin library",
+      "path": "/admin",
+      "status": 200,
+      "htmlBytes": 182964,
+      "js": {
+        "raw": 1071864,
+        "gzip": 336252,
+        "brotli": 284222,
+        "files": 13
+      },
+      "css": {
+        "raw": 88321,
+        "gzip": 15637,
+        "brotli": 13279,
+        "files": 1
+      }
+    },
+    {
+      "name": "admin menus list",
+      "path": "/admin/menus",
+      "status": 200,
+      "htmlBytes": 213095,
+      "js": {
+        "raw": 1048374,
+        "gzip": 327391,
+        "brotli": 276465,
+        "files": 12
+      },
+      "css": {
+        "raw": 88321,
+        "gzip": 15637,
+        "brotli": 13279,
+        "files": 1
+      }
+    },
+    {
+      "name": "admin menus, venue",
+      "path": "/admin/menus/<id>",
+      "status": 200,
+      "htmlBytes": 51219,
+      "js": {
+        "raw": 1068331,
+        "gzip": 334225,
+        "brotli": 282364,
+        "files": 13
+      },
+      "css": {
+        "raw": 88321,
+        "gzip": 15637,
+        "brotli": 13279,
+        "files": 1
+      }
+    },
+    {
+      "name": "admin menu version",
+      "path": "/admin/menus/versions/<id>",
+      "status": 200,
+      "htmlBytes": 177581,
+      "js": {
+        "raw": 1070766,
+        "gzip": 335362,
+        "brotli": 283375,
+        "files": 13
+      },
+      "css": {
+        "raw": 88321,
+        "gzip": 15637,
+        "brotli": 13279,
+        "files": 1
+      }
+    },
+    {
+      "name": "admin staff list",
+      "path": "/admin/staff",
+      "status": 200,
+      "htmlBytes": 664460,
+      "js": {
+        "raw": 1067487,
+        "gzip": 333858,
+        "brotli": 282002,
+        "files": 12
+      },
+      "css": {
+        "raw": 88321,
+        "gzip": 15637,
+        "brotli": 13279,
+        "files": 1
+      }
+    },
+    {
+      "name": "staff portfolio",
+      "path": "/staff",
+      "status": 200,
+      "htmlBytes": 82784,
+      "js": {
+        "raw": 1398787,
+        "gzip": 421902,
+        "brotli": 356064,
+        "files": 13
+      },
+      "css": {
+        "raw": 88321,
+        "gzip": 15637,
+        "brotli": 13279,
+        "files": 1
+      }
+    }
+  ]
+}

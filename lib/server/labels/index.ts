@@ -75,7 +75,6 @@ type EntryRow = {
   description: string | null
   aliases: string[]
   position: number
-  item: { archived_at: string | null } | null
   menu_entry_variants: { variant_id: string; name: string; position: number }[]
 }
 
@@ -92,6 +91,29 @@ const ENTRY_PAGE = 1000
 
 const byPosition = (a: { position: number }, b: { position: number }) =>
   a.position - b.position
+
+/**
+ * Item ids of the version's entries whose item is archived, paged in a total
+ * order. Read on its own rather than embedded in every entry: staff RLS on
+ * menu_items runs a lookup per row that survives the other filters, and with
+ * the archived filter applied first only archived items pay it, not the whole
+ * menu.
+ */
+async function readArchivedEntryItemIds(actor: MediaActor, versionId: string) {
+  const ids = new Set<string>()
+  for (let from = 0; ; from += ENTRY_PAGE) {
+    const page = await actor.db
+      .from("menu_entries")
+      .select("item_id, item:menu_items!inner(archived_at)")
+      .eq("version_id", versionId)
+      .not("item.archived_at", "is", null)
+      .order("item_id")
+      .range(from, from + ENTRY_PAGE - 1)
+    if (page.error) return { error: page.error }
+    for (const row of page.data) ids.add(row.item_id)
+    if (page.data.length < ENTRY_PAGE) return { ids }
+  }
+}
 
 /**
  * The active catalogue of `venueId` for labelling. Staff: only venues they may
@@ -160,6 +182,8 @@ export async function getLabellingCatalogue(
     return unavailable
   }
 
+  const archivedRead = readArchivedEntryItemIds(actor, version.id)
+
   // Entries are paged in a total order: a menu may hold up to 2000 items, and a
   // single embedded read would stop silently at max_rows (final review I-3).
   const entries: EntryRow[] = []
@@ -167,7 +191,7 @@ export async function getLabellingCatalogue(
     const page = await actor.db
       .from("menu_entries")
       .select(
-        "section_id, item_id, name, description, aliases, position, item:menu_items(archived_at), menu_entry_variants(variant_id, name, position)"
+        "section_id, item_id, name, description, aliases, position, menu_entry_variants(variant_id, name, position)"
       )
       .eq("version_id", version.id)
       .order("section_id")
@@ -182,6 +206,12 @@ export async function getLabellingCatalogue(
     entries.push(...rows)
     if (rows.length < ENTRY_PAGE) break
   }
+  const archived = await archivedRead
+  if (archived.error) {
+    logFailure("catalogue read", archived.error)
+    return unavailable
+  }
+  const archivedIds = archived.ids
   const bySection = new Map<string, EntryRow[]>()
   for (const entry of entries) {
     const list = bySection.get(entry.section_id) ?? []
@@ -199,7 +229,7 @@ export async function getLabellingCatalogue(
       name: s.name,
       kind: s.kind as MenuSectionKind,
       items: [...(bySection.get(s.id) ?? [])]
-        .filter((e) => !e.item?.archived_at)
+        .filter((e) => !archivedIds.has(e.item_id))
         .sort(byPosition)
         .map((e) => ({
           itemId: e.item_id,
