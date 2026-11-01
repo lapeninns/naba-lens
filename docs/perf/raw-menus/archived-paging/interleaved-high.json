@@ -1,0 +1,38 @@
+{
+  "volume": "high",
+  "note": "getMenuVersion, 64 alternating calls per variant in one process (first 4 dropped), sequential = lib/server/menus/index.ts at HEAD before the change, concurrent = this change; ms",
+  "largest real venue": {
+    "load": 9.7,
+    "sequential": {
+      "n": 60,
+      "min": 35.6,
+      "p50": 43.2,
+      "p95": 53.2,
+      "max": 65.9
+    },
+    "concurrent": {
+      "n": 60,
+      "min": 37,
+      "p50": 41.7,
+      "p95": 53.7,
+      "max": 62.3
+    }
+  },
+  "archived venue": {
+    "load": 8.3,
+    "sequential": {
+      "n": 60,
+      "min": 379.1,
+      "p50": 424.4,
+      "p95": 560.4,
+      "max": 634
+    },
+    "concurrent": {
+      "n": 60,
+      "min": 209.3,
+      "p50": 234.9,
+      "p95": 290.5,
+      "max": 336.6
+    }
+  }
+}

@@ -118,6 +118,35 @@ async function selectAll<T>(
   }
 }
 
+/**
+ * `selectAll` for a long, totally ordered read: after the first page, further
+ * pages go out in waves of `PAGE_CONCURRENCY`. Rows come back in page order and
+ * stop at the first short page, so the result is the one sequential paging
+ * gives; the wave that holds the end may ask for pages past it.
+ */
+const PAGE_CONCURRENCY = 4
+
+async function selectAllConcurrent<T>(
+  page: (from: number, to: number) => Page<T>
+): Promise<{ ok: true; rows: T[] } | { ok: false; error: DbError }> {
+  const first = await page(0, PAGE - 1)
+  if (first.error) return { ok: false, error: first.error }
+  const rows: T[] = [...(first.data ?? [])]
+  if (rows.length < PAGE) return { ok: true, rows }
+  for (let next = 1; ; next += PAGE_CONCURRENCY) {
+    const wave = await Promise.all(
+      Array.from({ length: PAGE_CONCURRENCY }, (_, i) =>
+        page((next + i) * PAGE, (next + i + 1) * PAGE - 1)
+      )
+    )
+    for (const { data, error } of wave) {
+      if (error) return { ok: false, error }
+      rows.push(...(data ?? []))
+      if (!data || data.length < PAGE) return { ok: true, rows }
+    }
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Version summaries
 // ---------------------------------------------------------------------------
@@ -501,7 +530,7 @@ export type MenuVersionView = {
 }
 
 const archivedItemIdsOf = (db: Db, venueId: string) =>
-  selectAll<{ id: string }>(
+  selectAllConcurrent<{ id: string }>(
     (from, to) =>
       db
         .from("menu_items")
