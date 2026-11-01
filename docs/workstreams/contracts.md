@@ -2,8 +2,8 @@
 
 Status: **agreed** for Workstream 1 (Reproducible Regression and Journey
 Evidence) and Workstream 2 (Archive Audit Capacity and Independent Alerting).
-Workstream 3 (Catalogue and Media Performance) is deferred and has no contract
-here yet.
+Workstream 3 (Catalogue and Media Performance) is in its baseline phase; see
+section 9.
 
 Base revision: `origin/main` at `c234487` or newer. Changing a contract means
 asking the orchestrator first. The orchestrator updates this file and tells
@@ -396,3 +396,28 @@ Before each PR, on the final workstream branch head, run once:
 lifecycle, e2e or journey suite the change touches. Harness runs suites that
 need a stack on the `gate` stack. The PR description lists each command, its
 exit code and test counts, and anything skipped with the reason.
+
+## 9. Workstream 3: Catalogue and Media Performance
+
+Base revision: `origin/main` at `2131e07` (WS1 and WS2 merged) or newer.
+Integration branch: `ws3/catalogue-media-performance`.
+
+Sections 0 to 3 apply unchanged: no production access, one worktree per
+agent, Harness owns stacks, `package.json`, the lockfile and new test
+tooling.
+
+**Phase 1, baseline (Baseline agent).** Measure before changing anything. No
+application code changes in this phase. Baseline uses stack `spare6` (API
+64621, DB 64622, app 3646), which only Harness brings up, resets or stops.
+Synthetic data only: generated people, venues, menus and media, never copies
+of real venue media or real staff. A large-library generator lives under
+`tests/perf/` and is run with `node` directly; if it needs a `package.json`
+script, ask Harness through the orchestrator. Results go to
+`docs/perf/baseline.md` with the revision, data volumes, method and raw
+numbers, and to the shared folder as `ws3/baseline.md`.
+
+**Phase 2, fixes.** Scoped by the orchestrator from the baseline. Each fix
+names its target metric and data volume, and shows before and after numbers
+from the same harness on the same stack. Migrations that touch catalogue or
+media tables have one owner, named when phase 2 starts.
+
