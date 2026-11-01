@@ -1,0 +1,38 @@
+{
+  "schema": "nabalens.journey-result/v1",
+  "journey": "menus.label-boundaries",
+  "title": "Inactive accounts, unfinished uploads, failed uploads and deleted media keep label boundaries (API level)",
+  "revision": {
+    "commit": "6982236f78c29327d2008366ba1ec91500e028ef",
+    "branch": "ws1/evidence",
+    "dirty": false
+  },
+  "stack": {
+    "name": "ws1",
+    "apiPort": 64121,
+    "migrations": "20261030160000:cee297c7"
+  },
+  "runner": {
+    "kind": "playwright",
+    "version": "1.64.1"
+  },
+  "startedAt": "2026-10-31T15:39:15.491Z",
+  "scenarios": [
+    "MENUS-QA-10"
+  ],
+  "result": "pass",
+  "reason": null,
+  "checks": {
+    "passed": 2,
+    "failed": 0,
+    "skipped": 0
+  },
+  "evidence": [
+    {
+      "kind": "log",
+      "path": "logs/menus.label-boundaries.log",
+      "description": "Playwright runner output (list reporter)"
+    }
+  ],
+  "finishedAt": "2026-10-31T15:39:17.282Z"
+}

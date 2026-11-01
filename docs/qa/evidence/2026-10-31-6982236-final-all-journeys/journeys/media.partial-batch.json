@@ -1,0 +1,38 @@
+{
+  "schema": "nabalens.journey-result/v1",
+  "journey": "media.partial-batch",
+  "title": "GAP-5: a partial batch keeps the successful files, fails the bad one with a reason, and retrying a transient failure leaves exactly one row per file",
+  "revision": {
+    "commit": "6982236f78c29327d2008366ba1ec91500e028ef",
+    "branch": "ws1/evidence",
+    "dirty": false
+  },
+  "stack": {
+    "name": "ws1",
+    "apiPort": 64121,
+    "migrations": "20261030160000:cee297c7"
+  },
+  "runner": {
+    "kind": "playwright",
+    "version": "1.64.1"
+  },
+  "startedAt": "2026-10-31T15:35:49.649Z",
+  "scenarios": [
+    "MEDIA-PARTIAL-BATCH"
+  ],
+  "result": "pass",
+  "reason": null,
+  "checks": {
+    "passed": 1,
+    "failed": 0,
+    "skipped": 0
+  },
+  "evidence": [
+    {
+      "kind": "log",
+      "path": "logs/media.partial-batch.log",
+      "description": "Playwright runner output (list reporter)"
+    }
+  ],
+  "finishedAt": "2026-10-31T15:36:31.255Z"
+}

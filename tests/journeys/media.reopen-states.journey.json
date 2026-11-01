@@ -1,0 +1,9 @@
+{
+  "id": "media.reopen-states",
+  "title": "GAP-4: after a reload the portfolio tells completed, incomplete and failed uploads apart, and the reopened uploader starts clean",
+  "spec": "tests/journeys/media-recovery.spec.ts",
+  "grep": "media\\.reopen-states:",
+  "projects": ["chromium"],
+  "scenarios": ["MEDIA-REOPEN-STATES"],
+  "timeoutSeconds": 600
+}

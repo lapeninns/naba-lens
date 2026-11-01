@@ -1,0 +1,13 @@
+{
+  "id": "menus.o3-usage-docs",
+  "title": "The staff and admin usage guides describe Menus, labelling and the library label filters",
+  "spec": "tests/journeys/menus-observations.spec.ts",
+  "grep": "menus\\.o3-",
+  "projects": ["chromium"],
+  "scenarios": ["MENUS-O3"],
+  "historical": {
+    "source": "docs/qa/menus-qa-report.md#4-defects-for-the-lead",
+    "id": "MENUS-O3"
+  },
+  "timeoutSeconds": 600
+}

@@ -209,3 +209,38 @@ about 540k tokens across all runs.
 folders), `/tmp/nlm-qa/shots/menus/` (40 screenshots + `summary.json`),
 `/tmp/nlm-qa/explore/out/` (exploration snapshots),
 `/tmp/nlm-qa/defects/stale-catalogue*/`, `/tmp/nlm-qa/runner/results-*`.
+
+## 9. Re-run on HEAD (31 October 2026)
+
+Sections 1 to 8 above are the original report and are unchanged. This section
+records what the journeys in `tests/journeys/` showed on the current head.
+
+- **Run:** `20261031T153532Z-6982236` on commit
+  `6982236f78c29327d2008366ba1ec91500e028ef` (branch `ws1/evidence`, clean tree).
+  That commit is the integration branch at `4d33429` plus evidence tooling, docs
+  and unit tests. No application code differs from `4d33429`.
+- **Stack:** `ws1`, migrations `20261030160000:cee297c7`. Playwright 1.64.1,
+  Node 24.16.0, pnpm 10.30.1.
+- **Record:** `docs/qa/evidence/2026-10-31-6982236-final-all-journeys/`. All 34
+  journeys: 32 pass, 2 fail, 0 unavailable. The two `fail` results are the O2 and
+  O5 observations reproducing.
+- **How to read it:** a historical journey asserts the correct behaviour, so
+  `pass` means the finding does not reproduce on this commit and `fail` means it
+  does. For an observation, `fail` means the observation reproduced; it is not a
+  defect.
+
+| Finding | Journey | Result | Reproduces on HEAD? | Run id |
+| --- | --- | --- | --- | --- |
+| D1 video tile name (WCAG 2.5.3) | `menus.d1-video-tile-name` | pass | No. The defect does not reproduce on this commit | `20261031T153532Z-6982236` |
+| D2 Archive item button name (WCAG 2.5.3) | `menus.d2-archive-button-name` | pass | No. The defect does not reproduce on this commit | `20261031T153532Z-6982236` |
+| O1 Save labels enabled while reloading | `menus.o1-save-while-reloading` | pass | No | `20261031T153532Z-6982236` |
+| O2 360 px draft editor | `menus.o2-narrow-draft-editor` | fail | **Yes, observation reproduced (not a defect).** Section names are clipped at 360 px: House Special, Appetisers, Chef's Specials, From the Clay Oven, Dum Biryani, Chowmein, Our Mixed Grills, Authentic Curries, Kitchen Companions, Pub Favourites, Chips & Fries, Kids Plates, Sweet Finish, Sister Pub Specials | `20261031T153532Z-6982236` |
+| O3 usage docs do not describe Menus | `menus.o3-usage-docs` | pass | No. The staff and admin guides now describe Menus, labelling and the library label filters | `20261031T153532Z-6982236` |
+| O4 `mobile-chromium` skips `menus-*` specs | `menus.o4-phone-project` | pass | No. The project runs the staff labelling flow (a narrow check of the config decision) | `20261031T153532Z-6982236` |
+| O5 early file choice ignored | `menus.o5-early-file-choice` | fail | **Yes, observation reproduced (not a defect).** A file chosen before hydration is ignored: no preview appeared | `20261031T153532Z-6982236` |
+
+D1 and D2 are treated as resolved on this commit because their journeys passed on
+it. This does not extend to any other commit. The original report's row 14 was
+`Failed (D1, D2)`; `menus.responsive-a11y` (`MENUS-QA-14`) passes on this commit
+under Chromium emulation, axe and name checks only, with no screen reader and no
+physical phone.

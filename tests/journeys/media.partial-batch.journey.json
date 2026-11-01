@@ -1,0 +1,9 @@
+{
+  "id": "media.partial-batch",
+  "title": "GAP-5: a partial batch keeps the successful files, fails the bad one with a reason, and retrying a transient failure leaves exactly one row per file",
+  "spec": "tests/journeys/media-recovery.spec.ts",
+  "grep": "media\\.partial-batch:",
+  "projects": ["chromium"],
+  "scenarios": ["MEDIA-PARTIAL-BATCH"],
+  "timeoutSeconds": 600
+}

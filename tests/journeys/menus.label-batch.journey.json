@@ -1,0 +1,9 @@
+{
+  "id": "menus.label-batch",
+  "title": "Staff upload a photo and video, batch-label them with per-file overrides, and the labels persist",
+  "spec": "tests/e2e/menus-labels.spec.ts",
+  "grep": "rows 5\\+7",
+  "projects": ["chromium"],
+  "scenarios": ["MENUS-QA-05", "MENUS-QA-07"],
+  "timeoutSeconds": 600
+}

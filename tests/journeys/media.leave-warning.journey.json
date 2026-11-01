@@ -1,0 +1,13 @@
+{
+  "id": "media.leave-warning",
+  "title": "GAP-19: leaving the page during an active upload prompts (navigation and tab close), and an idle page does not",
+  "spec": "tests/journeys/media-recovery.spec.ts",
+  "grep": "media\\.leave-warning:",
+  "projects": ["chromium"],
+  "scenarios": ["MEDIA-LEAVE-WARNING"],
+  "timeoutSeconds": 600,
+  "historical": {
+    "source": "docs/acceptance.md#6-gaps-to-dispatch",
+    "id": "MEDIA-LEAVE-WARNING"
+  }
+}

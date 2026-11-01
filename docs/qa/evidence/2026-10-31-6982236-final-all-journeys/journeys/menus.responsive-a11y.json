@@ -1,0 +1,88 @@
+{
+  "schema": "nabalens.journey-result/v1",
+  "journey": "menus.responsive-a11y",
+  "title": "Menus and label screens at 360, 390, 768 and 1280 px, keyboard and touch (Chromium emulation, axe and name checks only; no screen reader, no physical phone)",
+  "revision": {
+    "commit": "6982236f78c29327d2008366ba1ec91500e028ef",
+    "branch": "ws1/evidence",
+    "dirty": false
+  },
+  "stack": {
+    "name": "ws1",
+    "apiPort": 64121,
+    "migrations": "20261030160000:cee297c7"
+  },
+  "runner": {
+    "kind": "playwright",
+    "version": "1.64.1"
+  },
+  "startedAt": "2026-10-31T15:40:35.179Z",
+  "scenarios": [
+    "MENUS-QA-14"
+  ],
+  "result": "pass",
+  "reason": null,
+  "checks": {
+    "passed": 10,
+    "failed": 0,
+    "skipped": 0
+  },
+  "evidence": [
+    {
+      "kind": "log",
+      "path": "logs/menus.responsive-a11y.log",
+      "description": "Playwright runner output (list reporter)"
+    },
+    {
+      "kind": "screenshot",
+      "path": "shots/menus.responsive-a11y/01-menus-venues_360.png",
+      "description": "Playwright attachment \"menus-venues@360\""
+    },
+    {
+      "kind": "screenshot",
+      "path": "shots/menus.responsive-a11y/02-menus-venue_360.png",
+      "description": "Playwright attachment \"menus-venue@360\""
+    },
+    {
+      "kind": "screenshot",
+      "path": "shots/menus.responsive-a11y/03-menus-import-preview_360.png",
+      "description": "Playwright attachment \"menus-import-preview@360\""
+    },
+    {
+      "kind": "screenshot",
+      "path": "shots/menus.responsive-a11y/04-menus-draft-editor_360.png",
+      "description": "Playwright attachment \"menus-draft-editor@360\""
+    },
+    {
+      "kind": "screenshot",
+      "path": "shots/menus.responsive-a11y/05-menus-activate-dialog_360.png",
+      "description": "Playwright attachment \"menus-activate-dialog@360\""
+    },
+    {
+      "kind": "screenshot",
+      "path": "shots/menus.responsive-a11y/06-library-filters-open_360.png",
+      "description": "Playwright attachment \"library-filters-open@360\""
+    },
+    {
+      "kind": "screenshot",
+      "path": "shots/menus.responsive-a11y/07-label-editor-single-search_360.png",
+      "description": "Playwright attachment \"label-editor-single-search@360\""
+    },
+    {
+      "kind": "screenshot",
+      "path": "shots/menus.responsive-a11y/08-label-editor-single-missing_360.png",
+      "description": "Playwright attachment \"label-editor-single-missing@360\""
+    },
+    {
+      "kind": "screenshot",
+      "path": "shots/menus.responsive-a11y/09-label-editor-batch-variant_360.png",
+      "description": "Playwright attachment \"label-editor-batch-variant@360\""
+    },
+    {
+      "kind": "screenshot",
+      "path": "shots/menus.responsive-a11y/10-label-editor-batch-adjust_360.png",
+      "description": "Playwright attachment \"label-editor-batch-adjust@360\""
+    }
+  ],
+  "finishedAt": "2026-10-31T15:41:27.689Z"
+}

@@ -107,10 +107,15 @@ async function check(
     }))
   findings.push({ width, state, overflowPx, axe: serious })
   mkdirSync(SHOTS, { recursive: true })
-  await page.screenshot({
+  const shot = await page.screenshot({
     path: join(SHOTS, `${String(width).padStart(4, "0")}-${state}.png`),
     fullPage: true,
   })
+  if (width === 360)
+    await test.info().attach(`${state}@360`, {
+      body: shot,
+      contentType: "image/png",
+    })
   expect.soft(overflowPx, `${state}@${width}: horizontal overflow`).toBe(0)
   expect
     .soft(

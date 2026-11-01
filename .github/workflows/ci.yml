@@ -45,6 +45,8 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Install browser and Linux dependencies
         run: pnpm exec playwright install --with-deps "$CI_BROWSER"
+      - name: Install fixture media tools
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
       - name: Run shared local and hosted gate
         run: bash scripts/ci/local-ci.sh
       - name: Upload failing browser traces

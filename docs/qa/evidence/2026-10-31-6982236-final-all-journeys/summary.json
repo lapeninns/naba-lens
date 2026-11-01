@@ -1,0 +1,443 @@
+{
+  "schema": "nabalens.journey-summary/v1",
+  "runId": "20261031T153532Z-6982236",
+  "revision": {
+    "commit": "6982236f78c29327d2008366ba1ec91500e028ef",
+    "branch": "ws1/evidence",
+    "dirty": false
+  },
+  "stack": {
+    "name": "ws1",
+    "apiPort": 64121,
+    "migrations": "20261030160000:cee297c7"
+  },
+  "startedAt": "2026-10-31T15:35:32.773Z",
+  "finishedAt": "2026-10-31T15:41:47.445Z",
+  "allowUnavailable": false,
+  "totals": {
+    "pass": 32,
+    "fail": 2,
+    "unavailable": 0
+  },
+  "exitCode": 1,
+  "journeys": [
+    {
+      "journey": "auth.login-smoke",
+      "result": "pass",
+      "reason": null,
+      "file": "journeys/auth.login-smoke.json",
+      "evidence": [
+        "logs/auth.login-smoke.log",
+        "shots/auth.login-smoke/01-staff-a-portfolio.png"
+      ]
+    },
+    {
+      "journey": "media.leave-warning",
+      "result": "pass",
+      "reason": null,
+      "historical": {
+        "source": "docs/acceptance.md#6-gaps-to-dispatch",
+        "id": "MEDIA-LEAVE-WARNING",
+        "reproducedOnHead": false
+      },
+      "file": "journeys/media.leave-warning.json",
+      "evidence": [
+        "logs/media.leave-warning.log"
+      ]
+    },
+    {
+      "journey": "media.partial-batch",
+      "result": "pass",
+      "reason": null,
+      "file": "journeys/media.partial-batch.json",
+      "evidence": [
+        "logs/media.partial-batch.log"
+      ]
+    },
+    {
+      "journey": "media.reload-metadata",
+      "result": "pass",
+      "reason": null,
+      "file": "journeys/media.reload-metadata.json",
+      "evidence": [
+        "logs/media.reload-metadata.log",
+        "shots/media.reload-metadata/01-staff-portfolio.png",
+        "shots/media.reload-metadata/02-admin-library.png"
+      ]
+    },
+    {
+      "journey": "media.reload-resume",
+      "result": "pass",
+      "reason": null,
+      "file": "journeys/media.reload-resume.json",
+      "evidence": [
+        "logs/media.reload-resume.log"
+      ]
+    },
+    {
+      "journey": "media.removed-reservation",
+      "result": "pass",
+      "reason": null,
+      "file": "journeys/media.removed-reservation.json",
+      "evidence": [
+        "logs/media.removed-reservation.log"
+      ]
+    },
+    {
+      "journey": "media.reopen-states",
+      "result": "pass",
+      "reason": null,
+      "file": "journeys/media.reopen-states.json",
+      "evidence": [
+        "logs/media.reopen-states.log",
+        "shots/media.reopen-states/01-portfolio-after-reload.png"
+      ]
+    },
+    {
+      "journey": "media.slice-profile-photo-mobile",
+      "result": "pass",
+      "reason": null,
+      "historical": {
+        "source": "docs/acceptance.md#11-e2e-results-per-test-across-the-three-runs",
+        "id": "MEDIA-SLICE-PROFILE-FLAKY",
+        "reproducedOnHead": false
+      },
+      "file": "journeys/media.slice-profile-photo-mobile.json",
+      "evidence": [
+        "logs/media.slice-profile-photo-mobile.log"
+      ]
+    },
+    {
+      "journey": "media.slice-profile-photo",
+      "result": "pass",
+      "reason": null,
+      "historical": {
+        "source": "docs/acceptance.md#11-e2e-results-per-test-across-the-three-runs",
+        "id": "MEDIA-SLICE-PROFILE-FLAKY",
+        "reproducedOnHead": false
+      },
+      "file": "journeys/media.slice-profile-photo.json",
+      "evidence": [
+        "logs/media.slice-profile-photo.log"
+      ]
+    },
+    {
+      "journey": "media.slice-staff-upload-mobile",
+      "result": "pass",
+      "reason": null,
+      "historical": {
+        "source": "docs/acceptance.md#11-e2e-results-per-test-across-the-three-runs",
+        "id": "MEDIA-SLICE-UPLOAD-FLAKY",
+        "reproducedOnHead": false
+      },
+      "file": "journeys/media.slice-staff-upload-mobile.json",
+      "evidence": [
+        "logs/media.slice-staff-upload-mobile.log"
+      ]
+    },
+    {
+      "journey": "media.slice-staff-upload",
+      "result": "pass",
+      "reason": null,
+      "historical": {
+        "source": "docs/acceptance.md#11-e2e-results-per-test-across-the-three-runs",
+        "id": "MEDIA-SLICE-UPLOAD-FLAKY",
+        "reproducedOnHead": false
+      },
+      "file": "journeys/media.slice-staff-upload.json",
+      "evidence": [
+        "logs/media.slice-staff-upload.log"
+      ]
+    },
+    {
+      "journey": "media.stuck-processing",
+      "result": "pass",
+      "reason": null,
+      "historical": {
+        "source": "docs/acceptance.md#6-gaps-to-dispatch",
+        "id": "MEDIA-STUCK-PROCESSING",
+        "reproducedOnHead": false
+      },
+      "file": "journeys/media.stuck-processing.json",
+      "evidence": [
+        "logs/media.stuck-processing.log",
+        "shots/media.stuck-processing/01-stuck-processing.png"
+      ]
+    },
+    {
+      "journey": "media.tus-interrupted-resume",
+      "result": "pass",
+      "reason": null,
+      "file": "journeys/media.tus-interrupted-resume.json",
+      "evidence": [
+        "logs/media.tus-interrupted-resume.log"
+      ]
+    },
+    {
+      "journey": "media.tus-offline-retry",
+      "result": "pass",
+      "reason": null,
+      "file": "journeys/media.tus-offline-retry.json",
+      "evidence": [
+        "logs/media.tus-offline-retry.log",
+        "shots/media.tus-offline-retry/01-offline-failed.png",
+        "shots/media.tus-offline-retry/02-offline-failed.png"
+      ]
+    },
+    {
+      "journey": "menus.catalogue-activation",
+      "result": "pass",
+      "reason": null,
+      "file": "journeys/menus.catalogue-activation.json",
+      "evidence": [
+        "logs/menus.catalogue-activation.log",
+        "shots/menus.catalogue-activation/01-final-page-1.png",
+        "shots/menus.catalogue-activation/02-final-page-2.png",
+        "shots/menus.catalogue-activation/03-final-page-3.png"
+      ]
+    },
+    {
+      "journey": "menus.catalogue-history",
+      "result": "pass",
+      "reason": null,
+      "file": "journeys/menus.catalogue-history.json",
+      "evidence": [
+        "logs/menus.catalogue-history.log",
+        "shots/menus.catalogue-history/01-final-page-1.png"
+      ]
+    },
+    {
+      "journey": "menus.d1-video-tile-name",
+      "result": "pass",
+      "reason": null,
+      "historical": {
+        "source": "docs/qa/menus-qa-report.md#4-defects-for-the-lead",
+        "id": "MENUS-D1",
+        "reproducedOnHead": false
+      },
+      "file": "journeys/menus.d1-video-tile-name.json",
+      "evidence": [
+        "logs/menus.d1-video-tile-name.log",
+        "shots/menus.d1-video-tile-name/01-staff-portfolio.png"
+      ]
+    },
+    {
+      "journey": "menus.d2-archive-button-name",
+      "result": "pass",
+      "reason": null,
+      "historical": {
+        "source": "docs/qa/menus-qa-report.md#4-defects-for-the-lead",
+        "id": "MENUS-D2",
+        "reproducedOnHead": false
+      },
+      "file": "journeys/menus.d2-archive-button-name.json",
+      "evidence": [
+        "logs/menus.d2-archive-button-name.log",
+        "shots/menus.d2-archive-button-name/01-archive-item-360.png",
+        "shots/menus.d2-archive-button-name/02-unarchive-item.png"
+      ]
+    },
+    {
+      "journey": "menus.draft-conflict",
+      "result": "pass",
+      "reason": null,
+      "file": "journeys/menus.draft-conflict.json",
+      "evidence": [
+        "logs/menus.draft-conflict.log",
+        "shots/menus.draft-conflict/01-final-page-1.png",
+        "shots/menus.draft-conflict/02-final-page-2.png"
+      ]
+    },
+    {
+      "journey": "menus.import-validation",
+      "result": "pass",
+      "reason": null,
+      "file": "journeys/menus.import-validation.json",
+      "evidence": [
+        "logs/menus.import-validation.log",
+        "shots/menus.import-validation/01-final-page-1.png"
+      ]
+    },
+    {
+      "journey": "menus.label-batch",
+      "result": "pass",
+      "reason": null,
+      "file": "journeys/menus.label-batch.json",
+      "evidence": [
+        "logs/menus.label-batch.log",
+        "shots/menus.label-batch/01-final-page-1.png",
+        "shots/menus.label-batch/02-final-page-2.png"
+      ]
+    },
+    {
+      "journey": "menus.label-boundaries",
+      "result": "pass",
+      "reason": null,
+      "file": "journeys/menus.label-boundaries.json",
+      "evidence": [
+        "logs/menus.label-boundaries.log"
+      ]
+    },
+    {
+      "journey": "menus.label-conflict",
+      "result": "pass",
+      "reason": null,
+      "file": "journeys/menus.label-conflict.json",
+      "evidence": [
+        "logs/menus.label-conflict.log",
+        "shots/menus.label-conflict/01-menu-updated-error.png",
+        "shots/menus.label-conflict/02-labels-saved-after-reload.png"
+      ]
+    },
+    {
+      "journey": "menus.label-ownership",
+      "result": "pass",
+      "reason": null,
+      "file": "journeys/menus.label-ownership.json",
+      "evidence": [
+        "logs/menus.label-ownership.log",
+        "shots/menus.label-ownership/01-final-page-1.png",
+        "shots/menus.label-ownership/02-final-page-2.png"
+      ]
+    },
+    {
+      "journey": "menus.label-skip-later",
+      "result": "pass",
+      "reason": null,
+      "file": "journeys/menus.label-skip-later.json",
+      "evidence": [
+        "logs/menus.label-skip-later.log",
+        "shots/menus.label-skip-later/01-final-page-1.png",
+        "shots/menus.label-skip-later/02-final-page-2.png"
+      ]
+    },
+    {
+      "journey": "menus.label-transfer",
+      "result": "pass",
+      "reason": null,
+      "file": "journeys/menus.label-transfer.json",
+      "evidence": [
+        "logs/menus.label-transfer.log",
+        "shots/menus.label-transfer/01-final-page-1.png",
+        "shots/menus.label-transfer/02-final-page-2.png"
+      ]
+    },
+    {
+      "journey": "menus.library-filters",
+      "result": "pass",
+      "reason": null,
+      "file": "journeys/menus.library-filters.json",
+      "evidence": [
+        "logs/menus.library-filters.log",
+        "shots/menus.library-filters/01-final-page-1.png"
+      ]
+    },
+    {
+      "journey": "menus.o1-save-while-reloading",
+      "result": "pass",
+      "reason": null,
+      "historical": {
+        "source": "docs/qa/menus-qa-report.md#4-defects-for-the-lead",
+        "id": "MENUS-O1",
+        "reproducedOnHead": false
+      },
+      "file": "journeys/menus.o1-save-while-reloading.json",
+      "evidence": [
+        "logs/menus.o1-save-while-reloading.log",
+        "shots/menus.o1-save-while-reloading/01-save-disabled-while-reloading.png"
+      ]
+    },
+    {
+      "journey": "menus.o2-narrow-draft-editor",
+      "result": "fail",
+      "reason": "1 of 1 test(s) failed. First: menus.o2-narrow-draft-editor: at 360px section names are readable and the save bar is one row [chromium]: Error: Observation reproduced (design observation, not a defect): section names clipped at 360px: House Special, Appetisers, Chef's Specials, From the Clay Oven, Dum Biryani, Chowmein, Our Mixed Grills, Authentic Curries, Kitchen Companions, Pub Favourites, Chips & Fries, Kids Plates, Sweet Finish, Sister Pub Specials",
+      "historical": {
+        "source": "docs/qa/menus-qa-report.md#4-defects-for-the-lead",
+        "id": "MENUS-O2",
+        "reproducedOnHead": true
+      },
+      "file": "journeys/menus.o2-narrow-draft-editor.json",
+      "evidence": [
+        "logs/menus.o2-narrow-draft-editor.log",
+        "shots/menus.o2-narrow-draft-editor/01-draft-editor-360.png",
+        "shots/menus.o2-narrow-draft-editor/02-screenshot.png"
+      ]
+    },
+    {
+      "journey": "menus.o3-usage-docs",
+      "result": "pass",
+      "reason": null,
+      "historical": {
+        "source": "docs/qa/menus-qa-report.md#4-defects-for-the-lead",
+        "id": "MENUS-O3",
+        "reproducedOnHead": false
+      },
+      "file": "journeys/menus.o3-usage-docs.json",
+      "evidence": [
+        "logs/menus.o3-usage-docs.log"
+      ]
+    },
+    {
+      "journey": "menus.o4-phone-project",
+      "result": "pass",
+      "reason": null,
+      "historical": {
+        "source": "docs/qa/menus-qa-report.md#4-defects-for-the-lead",
+        "id": "MENUS-O4",
+        "reproducedOnHead": false
+      },
+      "file": "journeys/menus.o4-phone-project.json",
+      "evidence": [
+        "logs/menus.o4-phone-project.log"
+      ]
+    },
+    {
+      "journey": "menus.o5-early-file-choice",
+      "result": "fail",
+      "reason": "1 of 1 test(s) failed. First: menus.o5-early-file-choice: a menu file chosen before the page hydrates is still previewed [chromium]: Error: Observation reproduced (design observation, not a defect): a file chosen before hydration is ignored (no preview appeared)",
+      "historical": {
+        "source": "docs/qa/menus-qa-report.md#4-defects-for-the-lead",
+        "id": "MENUS-O5",
+        "reproducedOnHead": true
+      },
+      "file": "journeys/menus.o5-early-file-choice.json",
+      "evidence": [
+        "logs/menus.o5-early-file-choice.log",
+        "shots/menus.o5-early-file-choice/01-after-hydration.png",
+        "shots/menus.o5-early-file-choice/02-screenshot.png"
+      ]
+    },
+    {
+      "journey": "menus.responsive-a11y",
+      "result": "pass",
+      "reason": null,
+      "file": "journeys/menus.responsive-a11y.json",
+      "evidence": [
+        "logs/menus.responsive-a11y.log",
+        "shots/menus.responsive-a11y/01-menus-venues_360.png",
+        "shots/menus.responsive-a11y/02-menus-venue_360.png",
+        "shots/menus.responsive-a11y/03-menus-import-preview_360.png",
+        "shots/menus.responsive-a11y/04-menus-draft-editor_360.png",
+        "shots/menus.responsive-a11y/05-menus-activate-dialog_360.png",
+        "shots/menus.responsive-a11y/06-library-filters-open_360.png",
+        "shots/menus.responsive-a11y/07-label-editor-single-search_360.png",
+        "shots/menus.responsive-a11y/08-label-editor-single-missing_360.png",
+        "shots/menus.responsive-a11y/09-label-editor-batch-variant_360.png",
+        "shots/menus.responsive-a11y/10-label-editor-batch-adjust_360.png"
+      ]
+    },
+    {
+      "journey": "menus.unavailable-items",
+      "result": "pass",
+      "reason": null,
+      "file": "journeys/menus.unavailable-items.json",
+      "evidence": [
+        "logs/menus.unavailable-items.log",
+        "shots/menus.unavailable-items/01-archived-item-not-offered.png",
+        "shots/menus.unavailable-items/02-unavailable-items-error.png",
+        "shots/menus.unavailable-items/03-suggestion-on-menus-page.png",
+        "shots/menus.unavailable-items/04-suggestion-resolved.png"
+      ]
+    }
+  ]
+}

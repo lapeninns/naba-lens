@@ -1,0 +1,9 @@
+{
+  "id": "menus.import-validation",
+  "title": "Admin import refuses PDFs, malformed and duplicate-key JSON, and accepts quoted CSV",
+  "spec": "tests/e2e/menus-admin.spec.ts",
+  "grep": "row 2:",
+  "projects": ["chromium"],
+  "scenarios": ["MENUS-QA-02"],
+  "timeoutSeconds": 600
+}

@@ -707,6 +707,9 @@ test.describe("upload recovery in the real UI", () => {
       error: number | null
     }
     const matrix: Record<string, Record<string, Cell>> = {}
+    // What each engine says about H.264 itself: canPlayType on the bare mp4
+    // container says "maybe" even where no H.264 decoder is installed.
+    const h264Support: Record<string, string> = {}
     const engines: [string, BrowserType][] = [
       ["chromium", chromium],
       ["firefox", firefox],
@@ -734,6 +737,11 @@ test.describe("upload recovery in the real UI", () => {
       try {
         const p = await signIn(b, staff, baseURL!)
         matrix[engine] = {}
+        h264Support[engine] = await p.evaluate(() =>
+          document
+            .createElement("video")
+            .canPlayType('video/mp4; codecs="avc1.42E01E"')
+        )
         for (const name of videos) {
           const r = rows.find((x) => x.original_filename === name)!
           await p
@@ -750,51 +758,48 @@ test.describe("upload recovery in the real UI", () => {
           const element = viewer.locator("video")
           // Either the element plays or the explicit fallback replaces it.
           await expect(fallback.or(element)).toBeVisible()
-          let cell: Cell
           const canPlayType = await p.evaluate(
             (mime) => document.createElement("video").canPlayType(mime),
             r.validated_mime_type!
           )
-          if (await element.isVisible()) {
-            const state = await element.evaluate(
-              async (v: HTMLVideoElement) => {
-                v.muted = true // the test starts playback; the app never autoplays
-                await v.play().catch(() => {})
-                const until = Date.now() + 8000
-                while (
-                  Date.now() < until &&
-                  !v.error &&
-                  !(v.currentTime > 0 && v.videoWidth > 0)
-                ) {
-                  await new Promise((r) => setTimeout(r, 100))
-                }
-                return {
-                  videoWidth: v.videoWidth,
-                  currentTime: v.currentTime,
-                  error: v.error?.code ?? null,
-                }
-              }
+          // The element can be swapped for the fallback at any moment (the
+          // app does that on a media error), so it is looked up and driven
+          // inside one page call: null means it was already gone.
+          const state = await p.evaluate(async () => {
+            const v = document.querySelector<HTMLVideoElement>(
+              '[role="dialog"] video'
             )
-            // An error after mounting swaps in the fallback (onError).
-            const fellBack = await fallback.isVisible()
-            cell = {
-              canPlayType,
-              outcome:
-                state.videoWidth > 0 && state.currentTime > 0
-                  ? "plays"
-                  : fellBack
-                    ? "fallback"
-                    : "broken",
-              videoWidth: state.videoWidth,
-              error: state.error,
+            if (!v) return null
+            v.muted = true // the test starts playback; the app never autoplays
+            await v.play().catch(() => {})
+            const until = Date.now() + 8000
+            while (
+              Date.now() < until &&
+              !v.error &&
+              !(v.currentTime > 0 && v.videoWidth > 0)
+            ) {
+              await new Promise((r) => setTimeout(r, 100))
             }
-          } else {
-            cell = {
-              canPlayType,
-              outcome: "fallback",
-              videoWidth: 0,
-              error: null,
+            return {
+              videoWidth: v.videoWidth,
+              currentTime: v.currentTime,
+              error: v.error?.code ?? null,
             }
+          })
+          const plays =
+            state !== null && state.videoWidth > 0 && state.currentTime > 0
+          // An error after mounting swaps in the fallback (onError).
+          const fellBack =
+            !plays &&
+            (await fallback
+              .waitFor({ timeout: 3000 })
+              .then(() => true)
+              .catch(() => false))
+          const cell: Cell = {
+            canPlayType,
+            outcome: plays ? "plays" : fellBack ? "fallback" : "broken",
+            videoWidth: state?.videoWidth ?? 0,
+            error: state?.error ?? null,
           }
           matrix[engine][name] = cell
           await p.screenshot({
@@ -809,7 +814,7 @@ test.describe("upload recovery in the real UI", () => {
       }
     }
     const out = testInfo.outputPath("video-matrix.json")
-    const report = JSON.stringify({ matrix, unavailable }, null, 2)
+    const report = JSON.stringify({ matrix, h264Support, unavailable }, null, 2)
     await writeFile(out, report)
     console.log(`video matrix (${out}):\n${report}`)
     for (const [engine, reason] of Object.entries(unavailable)) {
@@ -819,8 +824,21 @@ test.describe("upload recovery in the real UI", () => {
       })
     }
 
-    // H.264 MP4 plays in Chromium; HEVC never leaves a broken player.
-    expect(matrix.chromium["clip-h264.mp4"].outcome).toBe("plays")
+    // H.264 MP4 plays in Chromium wherever the engine can decode H.264. The
+    // Chromium builds without proprietary codecs (Playwright's on Linux) cannot,
+    // and there the viewer must show the fallback instead; that engine limit
+    // is recorded like an engine that cannot start. HEVC never leaves a broken
+    // player.
+    if (h264Support.chromium === "") {
+      testInfo.annotations.push({
+        type: "engine limitation",
+        description:
+          "chromium has no H.264 decoder here: expecting the fallback",
+      })
+      expect(matrix.chromium["clip-h264.mp4"].outcome).toBe("fallback")
+    } else {
+      expect(matrix.chromium["clip-h264.mp4"].outcome).toBe("plays")
+    }
     expect(matrix.chromium["clip-hevc.mp4"].outcome).toBe("fallback")
     for (const engine of Object.keys(matrix)) {
       for (const name of videos) {

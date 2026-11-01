@@ -1,0 +1,44 @@
+{
+  "schema": "nabalens.journey-result/v1",
+  "journey": "menus.library-filters",
+  "title": "Admin library label filters combine, paginate stably and correct labels; original bytes unchanged",
+  "revision": {
+    "commit": "6982236f78c29327d2008366ba1ec91500e028ef",
+    "branch": "ws1/evidence",
+    "dirty": false
+  },
+  "stack": {
+    "name": "ws1",
+    "apiPort": 64121,
+    "migrations": "20261030160000:cee297c7"
+  },
+  "runner": {
+    "kind": "playwright",
+    "version": "1.64.1"
+  },
+  "startedAt": "2026-10-31T15:39:47.444Z",
+  "scenarios": [
+    "MENUS-QA-12",
+    "MENUS-QA-13"
+  ],
+  "result": "pass",
+  "reason": null,
+  "checks": {
+    "passed": 1,
+    "failed": 0,
+    "skipped": 0
+  },
+  "evidence": [
+    {
+      "kind": "log",
+      "path": "logs/menus.library-filters.log",
+      "description": "Playwright runner output (list reporter)"
+    },
+    {
+      "kind": "screenshot",
+      "path": "shots/menus.library-filters/01-final-page-1.png",
+      "description": "Playwright attachment \"final-page-1\""
+    }
+  ],
+  "finishedAt": "2026-10-31T15:40:01.584Z"
+}

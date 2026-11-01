@@ -1,0 +1,48 @@
+{
+  "schema": "nabalens.journey-result/v1",
+  "journey": "menus.label-skip-later",
+  "title": "Staff skip labelling at upload and label later from the viewer",
+  "revision": {
+    "commit": "6982236f78c29327d2008366ba1ec91500e028ef",
+    "branch": "ws1/evidence",
+    "dirty": false
+  },
+  "stack": {
+    "name": "ws1",
+    "apiPort": 64121,
+    "migrations": "20261030160000:cee297c7"
+  },
+  "runner": {
+    "kind": "playwright",
+    "version": "1.64.1"
+  },
+  "startedAt": "2026-10-31T15:39:31.238Z",
+  "scenarios": [
+    "MENUS-QA-06"
+  ],
+  "result": "pass",
+  "reason": null,
+  "checks": {
+    "passed": 1,
+    "failed": 0,
+    "skipped": 0
+  },
+  "evidence": [
+    {
+      "kind": "log",
+      "path": "logs/menus.label-skip-later.log",
+      "description": "Playwright runner output (list reporter)"
+    },
+    {
+      "kind": "screenshot",
+      "path": "shots/menus.label-skip-later/01-final-page-1.png",
+      "description": "Playwright attachment \"final-page-1\""
+    },
+    {
+      "kind": "screenshot",
+      "path": "shots/menus.label-skip-later/02-final-page-2.png",
+      "description": "Playwright attachment \"final-page-2\""
+    }
+  ],
+  "finishedAt": "2026-10-31T15:39:38.475Z"
+}

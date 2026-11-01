@@ -1,0 +1,8 @@
+{
+  "id": "menus.responsive-a11y",
+  "title": "Menus and label screens at 360, 390, 768 and 1280 px, keyboard and touch (Chromium emulation, axe and name checks only; no screen reader, no physical phone)",
+  "spec": "tests/e2e/menus-responsive.spec.ts",
+  "projects": ["chromium"],
+  "scenarios": ["MENUS-QA-14"],
+  "timeoutSeconds": 1200
+}

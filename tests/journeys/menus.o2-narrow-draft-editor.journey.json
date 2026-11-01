@@ -1,0 +1,13 @@
+{
+  "id": "menus.o2-narrow-draft-editor",
+  "title": "At 360 px the draft editor shows whole section names and a one-row save bar (design observation)",
+  "spec": "tests/journeys/menus-observations.spec.ts",
+  "grep": "menus\\.o2-",
+  "projects": ["chromium"],
+  "scenarios": ["MENUS-O2"],
+  "historical": {
+    "source": "docs/qa/menus-qa-report.md#4-defects-for-the-lead",
+    "id": "MENUS-O2"
+  },
+  "timeoutSeconds": 600
+}

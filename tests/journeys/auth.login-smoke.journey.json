@@ -1,0 +1,7 @@
+{
+  "id": "auth.login-smoke",
+  "title": "Staff signs in by magic link and sees only their own fixture photo",
+  "spec": "tests/journeys/auth.login-smoke.spec.ts",
+  "projects": ["chromium"],
+  "scenarios": ["AUTH-LOGIN-SMOKE"]
+}

@@ -1,0 +1,49 @@
+{
+  "schema": "nabalens.journey-result/v1",
+  "journey": "menus.label-conflict",
+  "title": "A menu activated while staff edit labels gives the menu-updated error, saves nothing, keeps the choices, and Reload then saves",
+  "revision": {
+    "commit": "6982236f78c29327d2008366ba1ec91500e028ef",
+    "branch": "ws1/evidence",
+    "dirty": false
+  },
+  "stack": {
+    "name": "ws1",
+    "apiPort": 64121,
+    "migrations": "20261030160000:cee297c7"
+  },
+  "runner": {
+    "kind": "playwright",
+    "version": "1.64.1"
+  },
+  "startedAt": "2026-10-31T15:39:17.282Z",
+  "scenarios": [
+    "MENUS-QA-08",
+    "MENUS-QA-15"
+  ],
+  "result": "pass",
+  "reason": null,
+  "checks": {
+    "passed": 1,
+    "failed": 0,
+    "skipped": 0
+  },
+  "evidence": [
+    {
+      "kind": "log",
+      "path": "logs/menus.label-conflict.log",
+      "description": "Playwright runner output (list reporter)"
+    },
+    {
+      "kind": "screenshot",
+      "path": "shots/menus.label-conflict/01-menu-updated-error.png",
+      "description": "Playwright attachment \"menu-updated-error\""
+    },
+    {
+      "kind": "screenshot",
+      "path": "shots/menus.label-conflict/02-labels-saved-after-reload.png",
+      "description": "Playwright attachment \"labels-saved-after-reload\""
+    }
+  ],
+  "finishedAt": "2026-10-31T15:39:25.344Z"
+}

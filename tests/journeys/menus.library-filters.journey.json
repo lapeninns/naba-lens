@@ -1,0 +1,9 @@
+{
+  "id": "menus.library-filters",
+  "title": "Admin library label filters combine, paginate stably and correct labels; original bytes unchanged",
+  "spec": "tests/e2e/menus-labels.spec.ts",
+  "grep": "rows 12\\+13",
+  "projects": ["chromium"],
+  "scenarios": ["MENUS-QA-12", "MENUS-QA-13"],
+  "timeoutSeconds": 600
+}

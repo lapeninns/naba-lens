@@ -1,0 +1,9 @@
+{
+  "id": "media.reload-resume",
+  "title": "GAP-4: after a page reload mid-transfer, choosing the file again resumes the same asset from the stored offset",
+  "spec": "tests/journeys/media-recovery.spec.ts",
+  "grep": "media\\.reload-resume:",
+  "projects": ["chromium"],
+  "scenarios": ["MEDIA-RELOAD-RESUME"],
+  "timeoutSeconds": 600
+}

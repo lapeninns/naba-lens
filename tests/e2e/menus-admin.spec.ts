@@ -30,6 +30,22 @@ import {
 test.describe.configure({ mode: "serial" })
 test.beforeAll(() => requireIsolatedStack())
 
+// Journey evidence: the final state of every page the test left open.
+test.afterEach(async ({ browser }, testInfo) => {
+  let n = 0
+  for (const context of browser.contexts()) {
+    for (const page of context.pages()) {
+      n += 1
+      const body = await page.screenshot().catch(() => null)
+      if (body)
+        await testInfo.attach(`final-page-${n}`, {
+          body,
+          contentType: "image/png",
+        })
+    }
+  }
+})
+
 const fixture = (name: string) =>
   fileURLToPath(new URL(`../fixtures/menus/${name}`, import.meta.url))
 const RAILWAY = fixture("the-railway.food.json")
