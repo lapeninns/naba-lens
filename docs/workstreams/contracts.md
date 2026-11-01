@@ -416,8 +416,37 @@ script, ask Harness through the orchestrator. Results go to
 `docs/perf/baseline.md` with the revision, data volumes, method and raw
 numbers, and to the shared folder as `ws3/baseline.md`.
 
-**Phase 2, fixes.** Scoped by the orchestrator from the baseline. Each fix
-names its target metric and data volume, and shows before and after numbers
-from the same harness on the same stack. Migrations that touch catalogue or
-media tables have one owner, named when phase 2 starts.
+**Phase 2, fixes.** Scoped from `docs/perf/baseline.md` section 7. Each fix
+meets the target stated there at the high volume (221k media) on the same
+harness and stack settings, and shows before and after numbers from
+`tests/perf/`. Fast paths listed in section 7.9 must not regress. Security
+and privacy behaviour must not change: every existing RLS, security,
+library and menus suite passes unchanged, and a fix that changes who can see
+what is a contract change, raised with the orchestrator first.
+
+| Fix (baseline 7.x) | Owner | Stack | Migration file |
+| --- | --- | --- | --- |
+| 1 `library_assets` label filters, 3 filter options, 4 cursor | Library | `spare7` (API 64721, DB 64722, app 3647) | `20261101100000_library_label_filters.sql` |
+| 2 `getMenuVersion` label counts, 6 import matching and staff catalogue policy | Menus | `spare8` (API 64821, DB 64822, app 3648) | `20261101110000_menu_label_counts.sql` |
+| 5 sharp decode concurrency and memory | Media | none (in-process) | none |
+| After-measurements at all three volumes, final report | Baseline | `spare6` | none |
+
+Migration ownership: each owner writes only its own file, and the two files
+touch disjoint objects. Library owns `public.library_assets`, the label RLS
+policies and `private.can_read_asset_labels`, and any index on
+`media_labels`, `media_assets` or text search. Menus owns its new
+label-count RPC, any index whose leading column is
+`media_label_items.venue_id`, and `staff_can_read_menu_version` and its
+policies. Anything outside these lists goes through the orchestrator.
+
+Not in phase 2: 7.7 thumbnail caching (it changes a documented security
+property, so it needs an owner decision), 7.8 page weight, and 7.9 video
+posters.
+
+Integration branch `ws3/catalogue-media-performance`; agent branches
+`ws3/<agent>` from `ws/tech-debt-ws3`. Final-head gate: pnpm lint, typecheck,
+test, test:monitoring, test:archive, the migration suites (upgrade, reset,
+lint, no new lint findings), security, library, menus and media integration
+suites, the Playwright specs the change touches, all journeys on `gate`, and
+Baseline's after-measurements.
 
