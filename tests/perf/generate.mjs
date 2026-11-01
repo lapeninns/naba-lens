@@ -45,6 +45,16 @@ export const VOLUMES = {
     video_share: 0.15,
     retired: 11,
   },
+  // 500,000 media: the volume Library generated for its own measurements.
+  xl500k: {
+    venues: 10,
+    staff: 100,
+    admins: 2,
+    media: 500000,
+    months: 24,
+    video_share: 0.15,
+    retired: 11,
+  },
 }
 
 const TABLES = [
