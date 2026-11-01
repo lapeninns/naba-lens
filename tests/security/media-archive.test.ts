@@ -191,10 +191,10 @@ describe("private append-only original archive receipts", () => {
     })
 
     it("is append-only apart from pruning rows past 90 days", async () => {
-      const recent = run({
-        finished_at: new Date().toISOString(),
-        started_at: new Date().toISOString(),
-      })
+      // One timestamp for both: two clock reads can straddle a millisecond and
+      // break finished_at >= started_at.
+      const now = new Date().toISOString()
+      const recent = run({ finished_at: now, started_at: now })
       expect(
         (await service.from("media_archive_audit_runs").insert(recent)).error
       ).toBeNull()
