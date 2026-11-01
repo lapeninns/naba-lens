@@ -1,0 +1,59 @@
+-- catalogue-entries-staff
+-- role authenticated, sub (staff)
+-- statement:
+select e.section_id, e.item_id, e.name, e.description, e.aliases, e.position,
+            (select row_to_json(i) from (select archived_at from public.menu_items i where i.id = e.item_id) i) item,
+            (select json_agg(ev) from (select variant_id, name, position from public.menu_entry_variants ev where ev.entry_id = e.id) ev) variants
+     from public.menu_entries e where e.version_id = 'cf4e710e-0e31-4e69-b001-1e5d30db00df' order by e.section_id, e.position, e.item_id limit 1000
+
+Limit  (cost=753.52..12745.56 rows=233 width=210) (actual time=22.092..85.460 rows=350 loops=1)
+  Buffers: shared hit=13529 read=198
+  InitPlan 9
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+  ->  Result  (cost=753.26..12745.30 rows=233 width=210) (actual time=22.091..85.430 rows=350 loops=1)
+        Buffers: shared hit=13529 read=198
+        ->  Sort  (cost=753.26..753.84 rows=233 width=162) (actual time=21.013..21.057 rows=350 loops=1)
+              Sort Key: e.section_id, e."position", e.item_id
+              Sort Method: quicksort  Memory: 96kB
+              Buffers: shared hit=2166
+              ->  Bitmap Heap Scan on menu_entries e  (cost=15.10..744.10 rows=233 width=162) (actual time=0.912..20.857 rows=350 loops=1)
+                    Recheck Cond: (version_id = 'cf4e710e-0e31-4e69-b001-1e5d30db00df'::uuid)
+                    Filter: (private.staff_can_read_menu_version(version_id) OR (InitPlan 9).col1)
+                    Heap Blocks: exact=14
+                    Buffers: shared hit=2160
+                    ->  Bitmap Index Scan on menu_entries_version_item_key  (cost=0.00..15.04 rows=350 width=0) (actual time=0.025..0.026 rows=350 loops=1)
+                          Index Cond: (version_id = 'cf4e710e-0e31-4e69-b001-1e5d30db00df'::uuid)
+                          Buffers: shared hit=5
+        SubPlan 2
+          ->  Index Scan using menu_items_id_venue_key on menu_items i  (cost=0.54..8.81 rows=1 width=32) (actual time=0.097..0.097 rows=1 loops=350)
+                Index Cond: (id = e.item_id)
+                Filter: (private.staff_can_read_menu_item(id, venue_id) OR (InitPlan 1).col1)
+                Buffers: shared hit=7822 read=54
+                InitPlan 1
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+        SubPlan 8
+          ->  Aggregate  (cost=42.63..42.64 rows=1 width=32) (actual time=0.086..0.086 rows=1 loops=350)
+                Buffers: shared hit=3541 read=144
+                InitPlan 7
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+                ->  Bitmap Heap Scan on menu_entry_variants ev  (cost=4.31..42.37 rows=2 width=26) (actual time=0.034..0.085 rows=1 loops=350)
+                      Recheck Cond: (entry_id = e.id)
+                      Filter: (EXISTS(SubPlan 4) OR (InitPlan 7).col1)
+                      Heap Blocks: exact=114
+                      Buffers: shared hit=3541 read=144
+                      ->  Bitmap Index Scan on menu_entry_variants_entry_name_key  (cost=0.00..4.31 rows=3 width=0) (actual time=0.003..0.003 rows=1 loops=350)
+                            Index Cond: (entry_id = e.id)
+                            Buffers: shared hit=621 read=79
+                      SubPlan 4
+                        ->  Index Scan using menu_entries_id_item_key on menu_entries e_1  (cost=0.55..9.06 rows=1 width=0) (actual time=0.106..0.106 rows=1 loops=261)
+                              Index Cond: (id = ev.entry_id)
+                              Filter: ((private.staff_can_read_menu_version(version_id) OR (InitPlan 3).col1) AND private.staff_can_read_menu_version(version_id))
+                              Buffers: shared hit=2806 read=65
+                              InitPlan 3
+                                ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+Settings: effective_cache_size = '128MB', search_path = '"\$user", public, extensions'
+Planning:
+  Buffers: shared hit=390
+Planning Time: 0.608 ms
+Execution Time: 85.559 ms
+

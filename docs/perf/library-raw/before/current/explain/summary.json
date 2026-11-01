@@ -1,0 +1,587 @@
+[
+  {
+    "name": "admin-feed-first",
+    "executionMs": 0.89,
+    "planningMs": 0.593,
+    "seqScans": [
+      "media_assets",
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [],
+    "sort": "top-N heapsort  Memory: 38kB",
+    "rootBuffers": "shared hit=146",
+    "error": null
+  },
+  {
+    "name": "admin-feed-cursor-10pct",
+    "executionMs": 0.676,
+    "planningMs": 0.684,
+    "seqScans": [
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_assets",
+      "media_assets_ready_feed_idx"
+    ],
+    "sort": "top-N heapsort  Memory: 39kB",
+    "rootBuffers": "shared hit=114",
+    "error": null
+  },
+  {
+    "name": "admin-feed-cursor-50pct",
+    "executionMs": 0.97,
+    "planningMs": 0.702,
+    "seqScans": [
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_assets",
+      "media_assets_ready_feed_idx"
+    ],
+    "sort": "top-N heapsort  Memory: 38kB",
+    "rootBuffers": "shared hit=114",
+    "error": null
+  },
+  {
+    "name": "admin-feed-cursor-90pct",
+    "executionMs": 0.599,
+    "planningMs": 0.657,
+    "seqScans": [
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_assets",
+      "media_assets_ready_feed_idx"
+    ],
+    "sort": "top-N heapsort  Memory: 37kB",
+    "rootBuffers": "shared hit=110",
+    "error": null
+  },
+  {
+    "name": "admin-venue-first",
+    "executionMs": 0.469,
+    "planningMs": 0.621,
+    "seqScans": [
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_assets",
+      "media_assets_venue_feed_idx"
+    ],
+    "sort": "quicksort  Memory: 36kB",
+    "rootBuffers": "shared hit=153",
+    "error": null
+  },
+  {
+    "name": "admin-venue-cursor-90pct",
+    "executionMs": 0.364,
+    "planningMs": 0.658,
+    "seqScans": [
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_assets",
+      "media_assets_venue_feed_idx",
+      "media_assets_ready_feed_idx"
+    ],
+    "sort": "quicksort  Memory: 26kB",
+    "rootBuffers": "shared hit=92",
+    "error": null
+  },
+  {
+    "name": "admin-staff-first",
+    "executionMs": 0.398,
+    "planningMs": 0.614,
+    "seqScans": [
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_assets",
+      "media_assets_uploader_venue_idx"
+    ],
+    "sort": "quicksort  Memory: 31kB",
+    "rootBuffers": "shared hit=127",
+    "error": null
+  },
+  {
+    "name": "admin-staff-cursor-90pct",
+    "executionMs": 0.37,
+    "planningMs": 0.753,
+    "seqScans": [
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_assets",
+      "media_assets_uploader_venue_idx"
+    ],
+    "sort": "quicksort  Memory: 25kB",
+    "rootBuffers": "shared hit=89",
+    "error": null
+  },
+  {
+    "name": "admin-type-video",
+    "executionMs": 0.483,
+    "planningMs": 0.644,
+    "seqScans": [
+      "media_assets",
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [],
+    "sort": "top-N heapsort  Memory: 37kB",
+    "rootBuffers": "shared hit=119",
+    "error": null
+  },
+  {
+    "name": "admin-category-curries",
+    "executionMs": 293.422,
+    "planningMs": 2.204,
+    "seqScans": [
+      "media_assets",
+      "menu_versions",
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_label_items",
+      "media_label_items_tuple_key",
+      "media_label_items_section_slug_idx",
+      "menu_entries",
+      "menu_sections"
+    ],
+    "sort": "top-N heapsort  Memory: 36kB",
+    "rootBuffers": "shared hit=58418 read=33",
+    "error": null
+  },
+  {
+    "name": "admin-category-curries-cursor-50pct",
+    "executionMs": 8.835,
+    "planningMs": 2.317,
+    "seqScans": [
+      "media_assets",
+      "menu_versions",
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_label_items",
+      "media_label_items_tuple_key",
+      "media_label_items_section_slug_idx",
+      "menu_entries",
+      "menu_sections"
+    ],
+    "sort": "top-N heapsort  Memory: 36kB",
+    "rootBuffers": "shared hit=2889",
+    "error": null
+  },
+  {
+    "name": "admin-labelled",
+    "executionMs": 5.268,
+    "planningMs": 1.634,
+    "seqScans": [
+      "media_assets",
+      "media_labels",
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [],
+    "sort": "top-N heapsort  Memory: 38kB",
+    "rootBuffers": "shared hit=2554",
+    "error": null
+  },
+  {
+    "name": "admin-unlabelled",
+    "executionMs": 4.007,
+    "planningMs": 1.906,
+    "seqScans": [
+      "media_assets",
+      "media_labels",
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [],
+    "sort": "top-N heapsort  Memory: 37kB",
+    "rootBuffers": "shared hit=1910",
+    "error": null
+  },
+  {
+    "name": "admin-content-dish",
+    "executionMs": 1.806,
+    "planningMs": 1.486,
+    "seqScans": [
+      "media_assets",
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_labels"
+    ],
+    "sort": "top-N heapsort  Memory: 37kB",
+    "rootBuffers": "shared hit=1945",
+    "error": null
+  },
+  {
+    "name": "admin-item-popular",
+    "executionMs": 1.251,
+    "planningMs": 1.425,
+    "seqScans": [
+      "media_assets",
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_label_items"
+    ],
+    "sort": "quicksort  Memory: 25kB",
+    "rootBuffers": "shared hit=1111",
+    "error": null
+  },
+  {
+    "name": "admin-item-rare",
+    "executionMs": 1.17,
+    "planningMs": 1.437,
+    "seqScans": [
+      "media_assets",
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_label_items"
+    ],
+    "sort": "quicksort  Memory: 25kB",
+    "rootBuffers": "shared hit=1111",
+    "error": null
+  },
+  {
+    "name": "admin-search-tikka",
+    "executionMs": 340.17,
+    "planningMs": 1.964,
+    "seqScans": [
+      "menu_item_suggestions",
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_assets",
+      "media_labels",
+      "media_label_items",
+      "media_label_items_tuple_key",
+      "menu_entries",
+      "menu_entries_item_idx"
+    ],
+    "sort": null,
+    "rootBuffers": "shared hit=76480",
+    "error": null
+  },
+  {
+    "name": "admin-search-nomatch",
+    "executionMs": 353.019,
+    "planningMs": 1.845,
+    "seqScans": [
+      "menu_item_suggestions",
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_assets",
+      "media_labels",
+      "media_label_items",
+      "media_label_items_tuple_key",
+      "menu_entries",
+      "menu_entries_item_idx"
+    ],
+    "sort": null,
+    "rootBuffers": "shared hit=79734",
+    "error": null
+  },
+  {
+    "name": "staff-heaviest-library-assets-category",
+    "executionMs": 2.452,
+    "planningMs": 2.123,
+    "seqScans": [
+      "media_assets",
+      "menu_versions",
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_label_items",
+      "media_label_items_tuple_key",
+      "media_label_items_section_slug_idx",
+      "menu_entries",
+      "menu_sections"
+    ],
+    "sort": "quicksort  Memory: 25kB",
+    "rootBuffers": "shared hit=526",
+    "error": null
+  },
+  {
+    "name": "staff-heaviest-library-assets-venue-category",
+    "executionMs": 2.406,
+    "planningMs": 2.216,
+    "seqScans": [
+      "menu_versions",
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_assets",
+      "media_assets_venue_feed_idx",
+      "media_label_items",
+      "media_label_items_tuple_key",
+      "media_label_items_section_slug_idx",
+      "menu_entries",
+      "menu_sections"
+    ],
+    "sort": "quicksort  Memory: 25kB",
+    "rootBuffers": "shared hit=511",
+    "error": null
+  },
+  {
+    "name": "staff-lightest-library-assets-content-dish",
+    "executionMs": 0.954,
+    "planningMs": 1.308,
+    "seqScans": [
+      "media_assets",
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_labels"
+    ],
+    "sort": "quicksort  Memory: 25kB",
+    "rootBuffers": "shared hit=124",
+    "error": null
+  },
+  {
+    "name": "staff-median-library-assets-content-dish",
+    "executionMs": 0.781,
+    "planningMs": 1.331,
+    "seqScans": [
+      "media_assets",
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_labels"
+    ],
+    "sort": "quicksort  Memory: 26kB",
+    "rootBuffers": "shared hit=153",
+    "error": null
+  },
+  {
+    "name": "staff-lightest-library-assets-category",
+    "executionMs": 1.405,
+    "planningMs": 2.187,
+    "seqScans": [
+      "media_assets",
+      "menu_versions",
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_label_items",
+      "media_label_items_tuple_key",
+      "media_label_items_section_slug_idx",
+      "menu_entries",
+      "menu_sections"
+    ],
+    "sort": "quicksort  Memory: 25kB",
+    "rootBuffers": "shared hit=171",
+    "error": null
+  },
+  {
+    "name": "staff-lightest-portfolio-first",
+    "executionMs": 0.382,
+    "planningMs": 0.613,
+    "seqScans": [
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_assets",
+      "media_assets_uploader_venue_idx"
+    ],
+    "sort": "quicksort  Memory: 26kB",
+    "rootBuffers": "shared hit=236",
+    "error": null
+  },
+  {
+    "name": "staff-heaviest-portfolio-first",
+    "executionMs": 1.073,
+    "planningMs": 1.095,
+    "seqScans": [
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_assets",
+      "media_assets_uploader_venue_idx"
+    ],
+    "sort": "quicksort  Memory: 32kB",
+    "rootBuffers": "shared hit=280",
+    "error": null
+  },
+  {
+    "name": "staff-heaviest-portfolio-cursor-90pct",
+    "executionMs": 0.457,
+    "planningMs": 0.69,
+    "seqScans": [
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_assets",
+      "media_assets_uploader_venue_idx"
+    ],
+    "sort": "quicksort  Memory: 25kB",
+    "rootBuffers": "shared hit=238",
+    "error": null
+  },
+  {
+    "name": "label-summaries-media-labels-24",
+    "executionMs": 0.783,
+    "planningMs": 0.545,
+    "seqScans": [],
+    "indexScans": [
+      "media_labels",
+      "media_assets",
+      "media_assets_venue_feed_idx",
+      "media_labels_asset_venue_key"
+    ],
+    "sort": "quicksort  Memory: 27kB",
+    "rootBuffers": "shared hit=269",
+    "error": null
+  },
+  {
+    "name": "label-summaries-details-24",
+    "executionMs": 3.168,
+    "planningMs": 0.511,
+    "seqScans": [],
+    "indexScans": [
+      "media_assets",
+      "media_assets_venue_feed_idx"
+    ],
+    "sort": "quicksort  Memory: 27kB",
+    "rootBuffers": "shared hit=1542 read=3",
+    "error": null
+  },
+  {
+    "name": "label-summaries-details-24-staff",
+    "executionMs": 3.101,
+    "planningMs": 0.446,
+    "seqScans": [],
+    "indexScans": [
+      "media_assets",
+      "media_assets_uploader_venue_idx"
+    ],
+    "sort": "quicksort  Memory: 26kB",
+    "rootBuffers": "shared hit=1618",
+    "error": null
+  },
+  {
+    "name": "label-summaries-suggestions-24",
+    "executionMs": 0.427,
+    "planningMs": 0.543,
+    "seqScans": [
+      "menu_item_suggestions"
+    ],
+    "indexScans": [
+      "media_assets",
+      "media_assets_venue_feed_idx"
+    ],
+    "sort": "quicksort  Memory: 27kB",
+    "rootBuffers": "shared hit=179",
+    "error": null
+  },
+  {
+    "name": "menu-version-label-items-page1",
+    "executionMs": 1.438,
+    "planningMs": 0.285,
+    "seqScans": [
+      "media_label_items"
+    ],
+    "indexScans": [],
+    "sort": "quicksort  Memory: 26kB",
+    "rootBuffers": "shared hit=923",
+    "error": null
+  },
+  {
+    "name": "menu-version-label-items-page30",
+    "executionMs": 1.374,
+    "planningMs": 0.236,
+    "seqScans": [
+      "media_label_items"
+    ],
+    "indexScans": [],
+    "sort": "quicksort  Memory: 26kB",
+    "rootBuffers": "shared hit=923",
+    "error": null
+  },
+  {
+    "name": "menu-version-label-items-count",
+    "executionMs": 1.397,
+    "planningMs": 0.17,
+    "seqScans": [
+      "media_label_items"
+    ],
+    "indexScans": [],
+    "sort": null,
+    "rootBuffers": "shared hit=945",
+    "error": null
+  },
+  {
+    "name": "filter-options-items-with-labels",
+    "executionMs": 13.993,
+    "planningMs": 0.476,
+    "seqScans": [],
+    "indexScans": [
+      "menu_items",
+      "menu_items_venue_idx",
+      "media_label_items"
+    ],
+    "sort": "quicksort  Memory: 25kB",
+    "rootBuffers": "shared hit=2700 read=4",
+    "error": null
+  },
+  {
+    "name": "catalogue-entries-staff",
+    "executionMs": 76.906,
+    "planningMs": 0.561,
+    "seqScans": [],
+    "indexScans": [
+      "menu_entries",
+      "menu_entries_version_section_idx",
+      "menu_items",
+      "menu_entry_variants",
+      "menu_entry_variants_entry_name_key"
+    ],
+    "sort": "quicksort  Memory: 96kB",
+    "rootBuffers": "shared hit=8892",
+    "error": null
+  },
+  {
+    "name": "catalogue-entries-admin",
+    "executionMs": 69.853,
+    "planningMs": 0.558,
+    "seqScans": [],
+    "indexScans": [
+      "menu_entries",
+      "menu_entries_version_section_idx",
+      "menu_items",
+      "menu_entry_variants",
+      "menu_entry_variants_entry_name_key"
+    ],
+    "sort": "quicksort  Memory: 96kB",
+    "rootBuffers": "shared hit=6553",
+    "error": null
+  }
+]

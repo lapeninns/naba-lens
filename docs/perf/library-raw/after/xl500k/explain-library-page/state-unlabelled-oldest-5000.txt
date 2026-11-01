@@ -1,0 +1,28 @@
+-- state-unlabelled-oldest-5000 (statement of private.library_label_state_page)
+
+Limit  (cost=73100.69..73100.70 rows=1 width=24) (actual time=108.986..118.466 rows=25 loops=1)
+  Buffers: shared hit=3295 read=44506 written=2929, temp read=4332 written=4364
+  ->  Sort  (cost=73100.69..73100.70 rows=1 width=24) (actual time=108.985..118.464 rows=25 loops=1)
+        Sort Key: a.created_at DESC, a.id DESC
+        Sort Method: top-N heapsort  Memory: 26kB
+        Buffers: shared hit=3295 read=44506 written=2929, temp read=4332 written=4364
+        ->  Gather  (cost=51110.71..73100.68 rows=1 width=24) (actual time=95.338..118.371 rows=2103 loops=1)
+              Workers Planned: 2
+              Workers Launched: 2
+              Buffers: shared hit=3295 read=44506 written=2929, temp read=4332 written=4364
+              ->  Parallel Hash Anti Join  (cost=50110.71..72100.58 rows=1 width=24) (actual time=90.257..105.954 rows=701 loops=3)
+                    Hash Cond: (a.id = l.asset_id)
+                    Buffers: shared hit=3295 read=44506 written=2929, temp read=4332 written=4364
+                    ->  Parallel Index Only Scan using media_assets_ready_feed_idx on media_assets a  (cost=0.42..17759.50 rows=207413 width=24) (actual time=0.069..24.160 rows=165884 loops=3)
+                          Heap Fetches: 121
+                          Buffers: shared hit=94 read=3199 written=2832
+                    ->  Parallel Hash  (cost=46476.35..46476.35 rows=209035 width=16) (actual time=40.514..40.514 rows=166366 loops=3)
+                          Buckets: 262144  Batches: 4  Memory Usage: 7968kB
+                          Buffers: shared hit=3084 read=41302 written=96, temp written=1660
+                          ->  Parallel Seq Scan on media_labels l  (cost=0.00..46476.35 rows=209035 width=16) (actual time=0.024..27.395 rows=166366 loops=3)
+                                Filter: has_labels
+                                Buffers: shared hit=3084 read=41302 written=96
+Planning:
+  Buffers: shared hit=105 read=27 written=1
+Planning Time: 0.292 ms
+Execution Time: 118.486 ms

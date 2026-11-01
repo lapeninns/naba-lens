@@ -1,0 +1,133 @@
+-- staff-heaviest-library-assets-category
+-- role authenticated, sub (staff)
+-- statement:
+with pgrst_source as (select pgrst_call.* from (select '{"p_category":"curries"}'::json as json_data) pgrst_payload,
+  lateral (select "p_category" from json_to_record(pgrst_payload.json_data) as _("p_category" text) limit 1) pgrst_body,
+  lateral public.library_assets("p_category" := pgrst_body."p_category") pgrst_call)
+select a.id, a.uploader_id, a.media_type, a.upload_state, a.thumbnail_path, a.preview_path, a.validated_mime_type, a.original_filename, a.created_at, a.width, a.height, a.duration_seconds, a.size_bytes, row_to_json(v.*)::jsonb as venue, row_to_json(u.*)::jsonb as uploader from pgrst_source a left join lateral (select venues_1.name from public.venues venues_1 where venues_1.id = a.venue_id limit 1) v on true
+left join lateral (select profiles_1.display_name from public.profiles profiles_1 where profiles_1.id = a.uploader_id limit 1) u on true
+ where a.deleted_at is null and a.upload_state = 'ready'
+ order by a.created_at desc, a.id desc limit 25
+
+Limit  (cost=1.69..1943.32 rows=25 width=329) (actual time=496.889..498.510 rows=25 loops=1)
+  Buffers: shared hit=492317
+  InitPlan 15
+    ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.002..0.003 rows=1 loops=1)
+  InitPlan 16
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.049..0.049 rows=1 loops=1)
+          Buffers: shared hit=4
+  InitPlan 17
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.153..0.154 rows=1 loops=1)
+          Buffers: shared hit=72
+  ->  Nested Loop Left Join  (cost=1.14..140186.55 rows=1805 width=329) (actual time=496.888..498.507 rows=25 loops=1)
+        Buffers: shared hit=492317
+        ->  Nested Loop Left Join  (cost=0.69..139140.84 rows=1805 width=317) (actual time=496.875..498.470 rows=25 loops=1)
+              Buffers: shared hit=492315
+              ->  Nested Loop  (cost=0.42..138887.52 rows=1805 width=281) (actual time=496.716..498.303 rows=25 loops=1)
+                    Join Filter: ((_.p_category IS NULL) OR (ANY ((a.id = (hashed SubPlan 2).col1) AND (_.p_category = (hashed SubPlan 2).col2))) OR (ANY ((a.id = (hashed SubPlan 14).col1) AND (a.venue_id = (hashed SubPlan 14).col2) AND (_.p_category = (hashed SubPlan 14).col3))))
+                    Rows Removed by Join Filter: 290
+                    Buffers: shared hit=492311
+                    ->  Index Scan using media_assets_ready_feed_idx on media_assets a  (cost=0.42..15907.90 rows=2403 width=281) (actual time=0.353..2.087 rows=315 loops=1)
+                          Filter: (((uploader_id = (InitPlan 15).col1) AND (InitPlan 16).col1) OR ((InitPlan 17).col1 AND (upload_state = 'ready'::upload_state)))
+                          Rows Removed by Filter: 3549
+                          Buffers: shared hit=3858
+                    ->  Materialize  (cost=0.00..0.02 rows=1 width=32) (actual time=0.000..0.000 rows=1 loops=315)
+                          ->  Limit  (cost=0.00..0.01 rows=1 width=32) (actual time=0.009..0.010 rows=1 loops=1)
+                                ->  Function Scan on json_to_record _  (cost=0.00..0.01 rows=1 width=32) (actual time=0.008..0.009 rows=1 loops=1)
+                    SubPlan 2
+                      ->  Seq Scan on media_label_items li  (cost=0.00..17567.52 rows=20751 width=22) (actual time=15.097..377.841 rows=5624 loops=1)
+                            Filter: private.can_read_asset_labels(asset_id)
+                            Rows Removed by Filter: 56628
+                            Buffers: shared hit=374885
+                    SubPlan 14
+                      ->  Nested Loop  (cost=94.00..15144.53 rows=7161 width=39) (actual time=3.035..114.771 rows=5161 loops=1)
+                            Buffers: shared hit=113568
+                            InitPlan 10
+                              ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.039..0.039 rows=1 loops=1)
+                                    Buffers: shared hit=2
+                            InitPlan 11
+                              ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.030..0.030 rows=1 loops=1)
+                                    Buffers: shared hit=2
+                            InitPlan 13
+                              ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.036..0.036 rows=1 loops=1)
+                                    Buffers: shared hit=2
+                            ->  Hash Join  (cost=92.93..1247.29 rows=2200 width=39) (actual time=2.775..3.722 rows=350 loops=1)
+                                  Hash Cond: (e.section_id = s.id)
+                                  Buffers: shared hit=1521
+                                  ->  Hash Join  (cost=38.14..1184.78 rows=2934 width=48) (actual time=2.315..3.201 rows=350 loops=1)
+                                        Hash Cond: (e.version_id = v_1.id)
+                                        Buffers: shared hit=1275
+                                        ->  Seq Scan on menu_entries e  (cost=7.77..1107.12 rows=17601 width=48) (actual time=1.934..2.762 rows=350 loops=1)
+                                              Filter: ((ANY (version_id = (hashed SubPlan 9).col1)) OR (InitPlan 10).col1)
+                                              Rows Removed by Filter: 23118
+                                              Buffers: shared hit=1047
+                                              SubPlan 9
+                                                ->  ProjectSet  (cost=0.00..5.27 rows=1000 width=16) (actual time=0.620..0.651 rows=1 loops=1)
+                                                      Buffers: shared hit=239
+                                                      ->  Result  (cost=0.00..0.01 rows=1 width=0) (actual time=0.000..0.000 rows=1 loops=1)
+                                        ->  Hash  (cost=30.00..30.00 rows=30 width=32) (actual time=0.377..0.378 rows=1 loops=1)
+                                              Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                                              Buffers: shared hit=228
+                                              ->  Bitmap Heap Scan on menu_versions v_1  (cost=8.42..30.00 rows=30 width=32) (actual time=0.344..0.376 rows=1 loops=1)
+                                                    Recheck Cond: (status = 'active'::text)
+                                                    Filter: (((status = 'active'::text) AND private.staff_can_label_venue(venue_id)) OR (InitPlan 11).col1)
+                                                    Rows Removed by Filter: 54
+                                                    Heap Blocks: exact=7
+                                                    Buffers: shared hit=228
+                                                    ->  Bitmap Index Scan on menu_versions_one_active_per_venue  (cost=0.00..8.42 rows=55 width=0) (actual time=0.002..0.003 rows=55 loops=1)
+                                                          Buffers: shared hit=1
+                                  ->  Hash  (cost=42.35..42.35 rows=995 width=23) (actual time=0.457..0.458 rows=9 loops=1)
+                                        Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                                        Buffers: shared hit=246
+                                        ->  Seq Scan on menu_sections s  (cost=7.77..42.35 rows=995 width=23) (actual time=0.416..0.457 rows=9 loops=1)
+                                              Filter: ((ANY (version_id = (hashed SubPlan 12).col1)) OR (InitPlan 13).col1)
+                                              Rows Removed by Filter: 1318
+                                              Buffers: shared hit=246
+                                              SubPlan 12
+                                                ->  ProjectSet  (cost=0.00..5.27 rows=1000 width=16) (actual time=0.324..0.353 rows=1 loops=1)
+                                                      Buffers: shared hit=226
+                                                      ->  Result  (cost=0.00..0.01 rows=1 width=0) (actual time=0.000..0.000 rows=1 loops=1)
+                            ->  Index Scan using media_label_items_item_idx on media_label_items li_1  (cost=0.29..6.25 rows=7 width=32) (actual time=0.023..0.316 rows=15 loops=350)
+                                  Index Cond: (item_id = e.item_id)
+                                  Filter: private.can_read_asset_labels(asset_id)
+                                  Rows Removed by Filter: 38
+                                  Buffers: shared hit=112047
+              ->  Memoize  (cost=0.27..3.73 rows=1 width=52) (actual time=0.006..0.006 rows=1 loops=25)
+                    Cache Key: a.venue_id
+                    Cache Mode: binary
+                    Hits: 24  Misses: 1  Evictions: 0  Overflows: 0  Memory Usage: 1kB
+                    Buffers: shared hit=4
+                    ->  Subquery Scan on v  (cost=0.26..3.72 rows=1 width=52) (actual time=0.156..0.157 rows=1 loops=1)
+                          Buffers: shared hit=4
+                          ->  Limit  (cost=0.26..3.71 rows=1 width=28) (actual time=0.152..0.153 rows=1 loops=1)
+                                Buffers: shared hit=4
+                                InitPlan 18
+                                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.138..0.139 rows=1 loops=1)
+                                        Buffers: shared hit=2
+                                ->  Seq Scan on venues venues_1  (cost=0.00..3.45 rows=1 width=28) (actual time=0.152..0.152 rows=1 loops=1)
+                                      Filter: ((InitPlan 18).col1 AND (id = a.venue_id))
+                                      Rows Removed by Filter: 108
+                                      Buffers: shared hit=4
+        ->  Memoize  (cost=0.45..8.48 rows=1 width=42) (actual time=0.000..0.000 rows=1 loops=25)
+              Cache Key: a.uploader_id
+              Cache Mode: binary
+              Hits: 24  Misses: 1  Evictions: 0  Overflows: 0  Memory Usage: 1kB
+              Buffers: shared hit=2
+              ->  Subquery Scan on u  (cost=0.44..8.47 rows=1 width=42) (actual time=0.005..0.006 rows=1 loops=1)
+                    Buffers: shared hit=2
+                    ->  Limit  (cost=0.44..8.46 rows=1 width=18) (actual time=0.004..0.004 rows=1 loops=1)
+                          Buffers: shared hit=2
+                          InitPlan 19
+                            ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.001..0.001 rows=1 loops=1)
+                          InitPlan 20
+                            ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+                          ->  Index Scan using profiles_pkey on profiles profiles_1  (cost=0.15..8.17 rows=1 width=18) (actual time=0.003..0.003 rows=1 loops=1)
+                                Index Cond: (id = a.uploader_id)
+                                Filter: ((id = (InitPlan 19).col1) OR (InitPlan 20).col1)
+                                Buffers: shared hit=2
+Settings: effective_cache_size = '128MB', search_path = '"\$user", public, extensions'
+Planning:
+  Buffers: shared hit=1316
+Planning Time: 2.333 ms
+Execution Time: 499.343 ms
+

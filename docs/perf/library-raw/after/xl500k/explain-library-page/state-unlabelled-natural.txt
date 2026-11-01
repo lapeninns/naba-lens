@@ -1,0 +1,17 @@
+-- state-unlabelled-natural (statement of private.library_label_state_page)
+
+Limit  (cost=0.84..198.25 rows=25 width=24) (actual time=0.030..0.928 rows=25 loops=1)
+  Buffers: shared hit=281 read=81
+  ->  Nested Loop Anti Join  (cost=0.84..1780166.81 rows=225442 width=24) (actual time=0.029..0.926 rows=25 loops=1)
+        Buffers: shared hit=281 read=81
+        ->  Index Only Scan using media_assets_ready_feed_idx on media_assets a  (cost=0.42..20663.28 rows=497791 width=24) (actual time=0.018..0.030 rows=119 loops=1)
+              Heap Fetches: 0
+              Buffers: shared hit=4
+        ->  Index Only Scan using media_labels_labelled_idx on media_labels l  (cost=0.42..3.53 rows=1 width=16) (actual time=0.007..0.007 rows=1 loops=119)
+              Index Cond: (asset_id = a.id)
+              Heap Fetches: 0
+              Buffers: shared hit=277 read=81
+Planning:
+  Buffers: shared hit=512
+Planning Time: 0.603 ms
+Execution Time: 0.956 ms

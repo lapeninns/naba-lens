@@ -1,0 +1,64 @@
+-- catalogue-entries-admin
+-- role authenticated, sub (admin)
+-- statement:
+select e.section_id, e.item_id, e.name, e.description, e.aliases, e.position,
+            (select row_to_json(i) from (select archived_at from public.menu_items i where i.id = e.item_id) i) item,
+            (select json_agg(ev) from (select variant_id, name, position from public.menu_entry_variants ev where ev.entry_id = e.id) ev) variants
+     from public.menu_entries e where e.version_id = 'cf4e710e-0e31-4e69-b001-1e5d30db00df' order by e.section_id, e.position, e.item_id limit 1000
+
+Limit  (cost=753.52..12745.56 rows=233 width=210) (actual time=18.716..60.823 rows=350 loops=1)
+  Buffers: shared hit=7814
+  InitPlan 9
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.038..0.038 rows=1 loops=1)
+          Buffers: shared hit=4
+  ->  Result  (cost=753.26..12745.30 rows=233 width=210) (actual time=18.715..60.796 rows=350 loops=1)
+        Buffers: shared hit=7814
+        ->  Sort  (cost=753.26..753.84 rows=233 width=162) (actual time=18.121..18.147 rows=350 loops=1)
+              Sort Key: e.section_id, e."position", e.item_id
+              Sort Method: quicksort  Memory: 96kB
+              Buffers: shared hit=2170
+              ->  Bitmap Heap Scan on menu_entries e  (cost=15.10..744.10 rows=233 width=162) (actual time=0.862..18.005 rows=350 loops=1)
+                    Recheck Cond: (version_id = 'cf4e710e-0e31-4e69-b001-1e5d30db00df'::uuid)
+                    Filter: (private.staff_can_read_menu_version(version_id) OR (InitPlan 9).col1)
+                    Heap Blocks: exact=14
+                    Buffers: shared hit=2164
+                    ->  Bitmap Index Scan on menu_entries_version_item_key  (cost=0.00..15.04 rows=350 width=0) (actual time=0.021..0.021 rows=350 loops=1)
+                          Index Cond: (version_id = 'cf4e710e-0e31-4e69-b001-1e5d30db00df'::uuid)
+                          Buffers: shared hit=5
+        SubPlan 2
+          ->  Index Scan using menu_items_id_venue_key on menu_items i  (cost=0.54..8.81 rows=1 width=32) (actual time=0.032..0.032 rows=1 loops=350)
+                Index Cond: (id = e.item_id)
+                Filter: (private.staff_can_read_menu_item(id, venue_id) OR (InitPlan 1).col1)
+                Buffers: shared hit=1955
+                InitPlan 1
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.023..0.023 rows=1 loops=1)
+                        Buffers: shared hit=2
+        SubPlan 8
+          ->  Aggregate  (cost=42.63..42.64 rows=1 width=32) (actual time=0.089..0.089 rows=1 loops=350)
+                Buffers: shared hit=3689
+                InitPlan 7
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.024..0.025 rows=1 loops=1)
+                        Buffers: shared hit=2
+                ->  Bitmap Heap Scan on menu_entry_variants ev  (cost=4.31..42.37 rows=2 width=26) (actual time=0.032..0.089 rows=1 loops=350)
+                      Recheck Cond: (entry_id = e.id)
+                      Filter: (EXISTS(SubPlan 4) OR (InitPlan 7).col1)
+                      Heap Blocks: exact=114
+                      Buffers: shared hit=3689
+                      ->  Bitmap Index Scan on menu_entry_variants_entry_name_key  (cost=0.00..4.31 rows=3 width=0) (actual time=0.002..0.002 rows=1 loops=350)
+                            Index Cond: (entry_id = e.id)
+                            Buffers: shared hit=700
+                      SubPlan 4
+                        ->  Index Scan using menu_entries_id_item_key on menu_entries e_1  (cost=0.55..9.06 rows=1 width=0) (actual time=0.115..0.115 rows=0 loops=261)
+                              Index Cond: (id = ev.entry_id)
+                              Filter: ((private.staff_can_read_menu_version(version_id) OR (InitPlan 3).col1) AND private.staff_can_read_menu_version(version_id))
+                              Rows Removed by Filter: 1
+                              Buffers: shared hit=2873
+                              InitPlan 3
+                                ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.023..0.023 rows=1 loops=1)
+                                      Buffers: shared hit=2
+Settings: effective_cache_size = '128MB', search_path = '"\$user", public, extensions'
+Planning:
+  Buffers: shared hit=390
+Planning Time: 0.513 ms
+Execution Time: 60.953 ms
+

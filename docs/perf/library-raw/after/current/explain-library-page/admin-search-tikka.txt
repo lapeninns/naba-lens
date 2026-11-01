@@ -1,0 +1,27 @@
+-- admin-search-tikka (library_page p_query := 'tikka', p_limit := 25)
+
+Limit  (cost=24.65..24.65 rows=1 width=423) (actual time=0.179..0.181 rows=23 loops=1)
+  Buffers: shared hit=26
+  InitPlan 1
+    ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.004..0.004 rows=1 loops=1)
+  InitPlan 2
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+  InitPlan 3
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.065..0.065 rows=1 loops=1)
+          Buffers: shared hit=4
+  ->  Sort  (cost=24.09..24.10 rows=1 width=423) (actual time=0.179..0.180 rows=23 loops=1)
+        Sort Key: a.created_at DESC, a.id DESC
+        Sort Method: quicksort  Memory: 35kB
+        Buffers: shared hit=26
+        ->  Bitmap Heap Scan on media_assets a  (cost=9.81..24.08 rows=1 width=423) (actual time=0.112..0.164 rows=23 loops=1)
+              Recheck Cond: ((id = ANY ('{4a1c9583-b760-4c92-86dd-c3ff99ce65e3,88a6a322-6bf0-4b27-a3d6-00b7778f81d7,cb0413b7-ca72-4abb-aa53-18cbfdf84911,7184e2b5-b889-4411-9d11-663e07465c91,58e1cca2-1a29-46cd-ae09-3e833bccdeed,72959786-8bbe-4ae2-8458-a2423d5ed1e6,c7286b6c-0fcf-408a-8b32-b6edc3859839,70542a38-3572-4205-b663-bb788f245ad8,8e297d1a-7294-4112-aa23-e589e7b8ca13,3ec31e4c-7f0b-4008-ac78-9002f3cfe8d9,a5d98fb2-7067-4096-a6a5-5451a0e72705,7a33abd4-db34-4ead-800d-cdd2b24b1352,5ab889e3-de74-4e30-840b-d54b85ee7e71,c08c49da-6548-4916-bab3-62edf6097777,7dc1c3f4-e0b2-47a3-bd4c-94fd56405ff0,999e669d-2577-4941-9b2e-a3253726e381,5ad695de-e719-411c-9018-79846191f246,d42c3c21-54a9-496c-8b5a-16bc701cb622,340cf943-9228-4fff-b597-4e3e3f1333ad,f3c2e758-3cb1-49b9-9cd4-b45c11eeca5d,19320f12-cd46-440c-80e4-4bd6dad62571,5a7ad838-c720-47cf-9581-3268eba328b3,d113d418-8fc9-4597-b093-254135831176}'::uuid[])) AND (deleted_at IS NULL) AND (upload_state = 'ready'::public.upload_state))
+              Filter: (((uploader_id = (InitPlan 1).col1) AND (InitPlan 2).col1) OR ((InitPlan 3).col1 AND (upload_state = 'ready'::public.upload_state)))
+              Heap Blocks: exact=11
+              Buffers: shared hit=20
+              ->  Bitmap Index Scan on media_assets_ready_feed_idx  (cost=0.00..9.75 rows=5 width=0) (actual time=0.038..0.039 rows=23 loops=1)
+                    Index Cond: (id = ANY ('{4a1c9583-b760-4c92-86dd-c3ff99ce65e3,88a6a322-6bf0-4b27-a3d6-00b7778f81d7,cb0413b7-ca72-4abb-aa53-18cbfdf84911,7184e2b5-b889-4411-9d11-663e07465c91,58e1cca2-1a29-46cd-ae09-3e833bccdeed,72959786-8bbe-4ae2-8458-a2423d5ed1e6,c7286b6c-0fcf-408a-8b32-b6edc3859839,70542a38-3572-4205-b663-bb788f245ad8,8e297d1a-7294-4112-aa23-e589e7b8ca13,3ec31e4c-7f0b-4008-ac78-9002f3cfe8d9,a5d98fb2-7067-4096-a6a5-5451a0e72705,7a33abd4-db34-4ead-800d-cdd2b24b1352,5ab889e3-de74-4e30-840b-d54b85ee7e71,c08c49da-6548-4916-bab3-62edf6097777,7dc1c3f4-e0b2-47a3-bd4c-94fd56405ff0,999e669d-2577-4941-9b2e-a3253726e381,5ad695de-e719-411c-9018-79846191f246,d42c3c21-54a9-496c-8b5a-16bc701cb622,340cf943-9228-4fff-b597-4e3e3f1333ad,f3c2e758-3cb1-49b9-9cd4-b45c11eeca5d,19320f12-cd46-440c-80e4-4bd6dad62571,5a7ad838-c720-47cf-9581-3268eba328b3,d113d418-8fc9-4597-b093-254135831176}'::uuid[]))
+                    Buffers: shared hit=5
+Planning:
+  Buffers: shared hit=59
+Planning Time: 0.158 ms
+Execution Time: 0.195 ms

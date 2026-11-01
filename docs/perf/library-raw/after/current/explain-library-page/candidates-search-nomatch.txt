@@ -1,0 +1,33 @@
+-- candidates-search-nomatch
+
+Limit  (cost=0.00..53.35 rows=1 width=16) (actual time=0.093..0.093 rows=0 loops=1)
+  Buffers: shared hit=42
+  ->  Seq Scan on media_labels l  (cost=0.00..53.35 rows=1 width=16) (actual time=0.093..0.093 rows=0 loops=1)
+        Filter: (note ~~* '%zzzqq%'::text)
+        Rows Removed by Filter: 327
+        Buffers: shared hit=42
+Planning:
+  Buffers: shared hit=156
+Planning Time: 0.774 ms
+Execution Time: 0.119 ms
+
+Limit  (cost=52.12..56.14 rows=1 width=16) (actual time=0.014..0.015 rows=0 loops=1)
+  Buffers: shared hit=18
+  ->  Bitmap Heap Scan on media_label_items li  (cost=52.12..56.14 rows=1 width=16) (actual time=0.014..0.014 rows=0 loops=1)
+        Recheck Cond: ((item_name ~~* '%zzzqq%'::text) OR (variant_name ~~* '%zzzqq%'::text) OR (section_name ~~* '%zzzqq%'::text))
+        Buffers: shared hit=18
+        ->  BitmapOr  (cost=52.12..52.12 rows=1 width=0) (actual time=0.012..0.012 rows=0 loops=1)
+              Buffers: shared hit=18
+              ->  Bitmap Index Scan on media_label_items_item_name_trgm_idx  (cost=0.00..17.39 rows=1 width=0) (actual time=0.006..0.006 rows=0 loops=1)
+                    Index Cond: (item_name ~~* '%zzzqq%'::text)
+                    Buffers: shared hit=7
+              ->  Bitmap Index Scan on media_label_items_variant_name_trgm_idx  (cost=0.00..17.35 rows=1 width=0) (actual time=0.002..0.002 rows=0 loops=1)
+                    Index Cond: (variant_name ~~* '%zzzqq%'::text)
+                    Buffers: shared hit=4
+              ->  Bitmap Index Scan on media_label_items_section_name_trgm_idx  (cost=0.00..17.38 rows=1 width=0) (actual time=0.004..0.004 rows=0 loops=1)
+                    Index Cond: (section_name ~~* '%zzzqq%'::text)
+                    Buffers: shared hit=7
+Planning:
+  Buffers: shared hit=274
+Planning Time: 0.958 ms
+Execution Time: 0.072 ms

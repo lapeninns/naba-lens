@@ -1,0 +1,21 @@
+-- menu-version-label-items-page30
+-- role authenticated, sub (admin)
+-- statement:
+select item_id from public.media_label_items where venue_id = '2bd01292-03ca-4054-ab68-e9134fe90813' order by id limit 1000 offset 30000
+
+Limit  (cost=51486.45..51486.46 rows=1 width=32) (actual time=525.506..525.582 rows=1000 loops=1)
+  Buffers: shared hit=326221 read=2096, temp read=278 written=279
+  ->  Sort  (cost=51441.33..51486.45 rows=18049 width=32) (actual time=523.875..524.977 rows=31000 loops=1)
+        Sort Key: id
+        Sort Method: external merge  Disk: 2224kB
+        Buffers: shared hit=326221 read=2096, temp read=278 written=279
+        ->  Seq Scan on media_label_items  (cost=0.00..50165.30 rows=18049 width=32) (actual time=0.981..504.922 rows=53947 loops=1)
+              Filter: ((venue_id = '2bd01292-03ca-4054-ab68-e9134fe90813'::uuid) AND private.can_read_asset_labels(asset_id))
+              Rows Removed by Filter: 122237
+              Buffers: shared hit=326218 read=2096
+Settings: effective_cache_size = '128MB', search_path = '"\$user", public, extensions'
+Planning:
+  Buffers: shared hit=181
+Planning Time: 0.259 ms
+Execution Time: 526.466 ms
+

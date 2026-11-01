@@ -1,0 +1,40 @@
+-- label-summaries-suggestions-24
+-- role authenticated, sub (admin)
+-- statement:
+select asset_id, suggested_name, created_by, created_at from public.menu_item_suggestions where asset_id = any((select array_agg(id) from (select id from public.media_assets where venue_id = '765151e9-a062-411a-999a-a80212adc0e6' and upload_state = 'ready' and deleted_at is null order by created_at desc, id desc limit 24) x)::uuid[]) and status = 'open'
+
+Bitmap Heap Scan on menu_item_suggestions  (cost=266.05..273.70 rows=3 width=54) (actual time=0.459..0.460 rows=0 loops=1)
+  Recheck Cond: ((asset_id = ANY ((InitPlan 4).col1)) AND (status = 'open'::text))
+  Filter: (((created_by = (InitPlan 5).col1) AND (InitPlan 6).col1) OR (InitPlan 7).col1)
+  Buffers: shared hit=199
+  InitPlan 4
+    ->  Aggregate  (cost=256.90..256.91 rows=1 width=32) (actual time=0.440..0.440 rows=1 loops=1)
+          Buffers: shared hit=195
+          ->  Limit  (cost=0.97..256.60 rows=24 width=24) (actual time=0.345..0.436 rows=24 loops=1)
+                Buffers: shared hit=195
+                InitPlan 1
+                  ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.002..0.002 rows=1 loops=1)
+                InitPlan 2
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+                InitPlan 3
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.325..0.325 rows=1 loops=1)
+                        Buffers: shared hit=168
+                ->  Index Scan using media_assets_venue_feed_idx on media_assets  (cost=0.42..15189.13 rows=1426 width=24) (actual time=0.344..0.433 rows=24 loops=1)
+                      Index Cond: (venue_id = '765151e9-a062-411a-999a-a80212adc0e6'::uuid)
+                      Filter: (((uploader_id = (InitPlan 1).col1) AND (InitPlan 2).col1) OR ((InitPlan 3).col1 AND (upload_state = 'ready'::upload_state)))
+                      Buffers: shared hit=195
+  InitPlan 5
+    ->  Result  (cost=0.00..0.03 rows=1 width=16) (never executed)
+  InitPlan 6
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+  InitPlan 7
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+  ->  Bitmap Index Scan on menu_item_suggestions_open_key  (cost=0.00..8.58 rows=5 width=0) (actual time=0.457..0.457 rows=0 loops=1)
+        Index Cond: (asset_id = ANY ((InitPlan 4).col1))
+        Buffers: shared hit=199
+Settings: effective_cache_size = '128MB', search_path = '"\$user", public, extensions'
+Planning:
+  Buffers: shared hit=418
+Planning Time: 0.638 ms
+Execution Time: 0.531 ms
+

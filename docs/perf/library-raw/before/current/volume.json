@@ -1,0 +1,304 @@
+{
+  "volume": "current",
+  "at": "2026-11-01T11:01:13.966Z",
+  "revision": {
+    "sha": "7be0acf0649f317df6ee598eb4c0055879f6555f",
+    "dirty": false
+  },
+  "counts": {
+    "media_assets": 50,
+    "media_archive_receipts": 48,
+    "media_labels": 26,
+    "media_label_items": 36,
+    "media_label_events": 26,
+    "menu_item_suggestions": 0,
+    "menu_versions": 5,
+    "menu_sections": 48,
+    "menu_items": 656,
+    "menu_variants": 491,
+    "menu_entries": 1162,
+    "menu_entry_variants": 871,
+    "menu_events": 11,
+    "profiles": 8,
+    "venues": 2
+  },
+  "sizes": [
+    {
+      "table": "menu_entries",
+      "pretty": "5312 kB",
+      "bytes": 5439488
+    },
+    {
+      "table": "media_label_items",
+      "pretty": "1504 kB",
+      "bytes": 1540096
+    },
+    {
+      "table": "menu_items",
+      "pretty": "1264 kB",
+      "bytes": 1294336
+    },
+    {
+      "table": "media_assets",
+      "pretty": "680 kB",
+      "bytes": 696320
+    },
+    {
+      "table": "media_label_events",
+      "pretty": "640 kB",
+      "bytes": 655360
+    },
+    {
+      "table": "menu_entry_variants",
+      "pretty": "520 kB",
+      "bytes": 532480
+    },
+    {
+      "table": "menu_variants",
+      "pretty": "264 kB",
+      "bytes": 270336
+    },
+    {
+      "table": "media_archive_receipts",
+      "pretty": "208 kB",
+      "bytes": 212992
+    },
+    {
+      "table": "media_labels",
+      "pretty": "192 kB",
+      "bytes": 196608
+    },
+    {
+      "table": "menu_sections",
+      "pretty": "136 kB",
+      "bytes": 139264
+    },
+    {
+      "table": "menu_versions",
+      "pretty": "112 kB",
+      "bytes": 114688
+    },
+    {
+      "table": "venues",
+      "pretty": "96 kB",
+      "bytes": 98304
+    },
+    {
+      "table": "menu_item_suggestions",
+      "pretty": "96 kB",
+      "bytes": 98304
+    },
+    {
+      "table": "menu_events",
+      "pretty": "88 kB",
+      "bytes": 90112
+    },
+    {
+      "table": "profiles",
+      "pretty": "80 kB",
+      "bytes": 81920
+    }
+  ],
+  "perVenue": [
+    {
+      "slug": "perf-venue-01",
+      "staff": 4,
+      "media": 38
+    },
+    {
+      "slug": "perf-venue-02",
+      "staff": 2,
+      "media": 12
+    }
+  ],
+  "perStaff": {
+    "min": 3,
+    "median": 8,
+    "max": 25,
+    "people": 5
+  },
+  "states": [
+    {
+      "state": "uploading",
+      "type": "image",
+      "n": 1,
+      "deleted": 0,
+      "thumbs": 0
+    },
+    {
+      "state": "uploading",
+      "type": "video",
+      "n": 1,
+      "deleted": 0,
+      "thumbs": 0
+    },
+    {
+      "state": "ready",
+      "type": "image",
+      "n": 10,
+      "deleted": 0,
+      "thumbs": 10
+    },
+    {
+      "state": "ready",
+      "type": "video",
+      "n": 38,
+      "deleted": 2,
+      "thumbs": 0
+    }
+  ],
+  "originalBytes": {
+    "total": 666854368,
+    "mean": 13337087
+  },
+  "indexes": [
+    {
+      "table": "menu_entries",
+      "index": "menu_entries_id_item_key",
+      "bytes": 745472
+    },
+    {
+      "table": "menu_entries",
+      "index": "menu_entries_version_section_idx",
+      "bytes": 679936
+    },
+    {
+      "table": "menu_entries",
+      "index": "menu_entries_version_item_key",
+      "bytes": 565248
+    },
+    {
+      "table": "menu_entries",
+      "index": "menu_entries_version_source_key_key",
+      "bytes": 532480
+    },
+    {
+      "table": "menu_entries",
+      "index": "menu_entries_pkey",
+      "bytes": 483328
+    },
+    {
+      "table": "menu_entries",
+      "index": "menu_entries_item_idx",
+      "bytes": 401408
+    },
+    {
+      "table": "media_label_items",
+      "index": "media_label_items_tuple_key",
+      "bytes": 286720
+    },
+    {
+      "table": "media_label_items",
+      "index": "media_label_items_item_idx",
+      "bytes": 163840
+    },
+    {
+      "table": "media_label_items",
+      "index": "media_label_items_pkey",
+      "bytes": 163840
+    },
+    {
+      "table": "media_assets",
+      "index": "media_assets_original_path_key",
+      "bytes": 98304
+    },
+    {
+      "table": "media_assets",
+      "index": "media_assets_uploader_feed_idx",
+      "bytes": 65536
+    },
+    {
+      "table": "media_assets",
+      "index": "media_assets_id_venue_key",
+      "bytes": 57344
+    },
+    {
+      "table": "media_assets",
+      "index": "media_assets_venue_feed_idx",
+      "bytes": 57344
+    },
+    {
+      "table": "media_assets",
+      "index": "media_assets_uploader_client_key_idx",
+      "bytes": 57344
+    },
+    {
+      "table": "media_label_items",
+      "index": "media_label_items_section_slug_idx",
+      "bytes": 57344
+    },
+    {
+      "table": "media_assets",
+      "index": "media_assets_ready_feed_idx",
+      "bytes": 49152
+    },
+    {
+      "table": "media_labels",
+      "index": "media_labels_asset_venue_key",
+      "bytes": 40960
+    },
+    {
+      "table": "media_archive_receipts",
+      "index": "media_archive_receipts_manifest_key_key",
+      "bytes": 40960
+    },
+    {
+      "table": "media_labels",
+      "index": "media_labels_pkey",
+      "bytes": 32768
+    },
+    {
+      "table": "media_assets",
+      "index": "media_assets_pkey",
+      "bytes": 32768
+    },
+    {
+      "table": "media_assets",
+      "index": "media_assets_thumbnail_path_key",
+      "bytes": 16384
+    },
+    {
+      "table": "media_assets",
+      "index": "media_assets_preview_path_key",
+      "bytes": 16384
+    },
+    {
+      "table": "media_archive_receipts",
+      "index": "media_archive_receipts_asset_idx",
+      "bytes": 16384
+    },
+    {
+      "table": "media_archive_receipts",
+      "index": "media_archive_receipts_asset_id_sha256_manifest_sha256_key",
+      "bytes": 16384
+    }
+  ],
+  "settings": {
+    "shared_buffers": "128MB",
+    "effective_cache_size": "128MB",
+    "work_mem": "4MB",
+    "maintenance_work_mem": "64MB",
+    "max_parallel_workers_per_gather": "2",
+    "random_page_cost": "4",
+    "max_connections": "100",
+    "server_version": "17.6"
+  },
+  "roleTimeouts": [
+    {
+      "role": "anon",
+      "config": "{statement_timeout=3s}"
+    },
+    {
+      "role": "authenticated",
+      "config": "{statement_timeout=8s}"
+    },
+    {
+      "role": "authenticator",
+      "config": "{\"session_preload_libraries=supautils, safeupdate\",statement_timeout=8s,lock_timeout=8s}"
+    },
+    {
+      "role": "service_role",
+      "config": ""
+    }
+  ]
+}

@@ -1,0 +1,80 @@
+-- catalogue-entries-staff
+-- role authenticated, sub (staff)
+-- statement:
+select e.section_id, e.item_id, e.name, e.description, e.aliases, e.position,
+            (select row_to_json(i) from (select archived_at from public.menu_items i where i.id = e.item_id) i) item,
+            (select json_agg(ev) from (select variant_id, name, position from public.menu_entry_variants ev where ev.entry_id = e.id) ev) variants
+     from public.menu_entries e where e.version_id = 'a85b8891-460a-476b-9ff0-4d673c13fe67' order by e.section_id, e.position, e.item_id limit 1000
+
+Limit  (cost=722.35..29027.70 rows=263 width=212) (actual time=2.669..51.407 rows=350 loops=1)
+  Buffers: shared hit=12348 read=509
+  InitPlan 12
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+  ->  Result  (cost=722.09..29027.44 rows=263 width=212) (actual time=2.668..51.358 rows=350 loops=1)
+        Buffers: shared hit=12348 read=509
+        ->  Sort  (cost=722.09..722.75 rows=263 width=164) (actual time=1.623..1.670 rows=350 loops=1)
+              Sort Key: e.section_id, e."position", e.item_id
+              Sort Method: quicksort  Memory: 96kB
+              Buffers: shared hit=1103 read=14
+              ->  Bitmap Heap Scan on menu_entries e  (cost=26.87..711.52 rows=263 width=164) (actual time=1.308..1.517 rows=350 loops=1)
+                    Recheck Cond: (version_id = 'a85b8891-460a-476b-9ff0-4d673c13fe67'::uuid)
+                    Filter: ((ANY (version_id = (hashed SubPlan 11).col1)) OR (InitPlan 12).col1)
+                    Heap Blocks: exact=14
+                    Buffers: shared hit=1097 read=14
+                    ->  Bitmap Index Scan on menu_entries_version_source_key_key  (cost=0.00..19.04 rows=350 width=0) (actual time=0.062..0.062 rows=350 loops=1)
+                          Index Cond: (version_id = 'a85b8891-460a-476b-9ff0-4d673c13fe67'::uuid)
+                          Buffers: shared read=6
+                    SubPlan 11
+                      ->  ProjectSet  (cost=0.00..5.27 rows=1000 width=16) (actual time=1.128..1.182 rows=1 loops=1)
+                            Buffers: shared hit=1087 read=4
+                            ->  Result  (cost=0.00..0.01 rows=1 width=0) (actual time=0.000..0.000 rows=1 loops=1)
+        SubPlan 2
+          ->  Index Scan using menu_items_id_venue_key on menu_items i  (cost=0.55..8.82 rows=1 width=32) (actual time=0.126..0.127 rows=1 loops=350)
+                Index Cond: (id = e.item_id)
+                Filter: (private.staff_can_read_menu_item(id, venue_id) OR (InitPlan 1).col1)
+                Buffers: shared hit=9208 read=236
+                InitPlan 1
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+        SubPlan 10
+          ->  Aggregate  (cost=98.78..98.79 rows=1 width=32) (actual time=0.015..0.015 rows=1 loops=350)
+                Buffers: shared hit=2037 read=259
+                InitPlan 9
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+                ->  Bitmap Heap Scan on menu_entry_variants ev  (cost=4.31..98.52 rows=2 width=26) (actual time=0.012..0.013 rows=1 loops=350)
+                      Recheck Cond: (entry_id = e.id)
+                      Filter: (EXISTS(SubPlan 5) OR (InitPlan 9).col1)
+                      Heap Blocks: exact=117
+                      Buffers: shared hit=2037 read=259
+                      ->  Bitmap Index Scan on menu_entry_variants_entry_name_key  (cost=0.00..4.31 rows=3 width=0) (actual time=0.004..0.004 rows=1 loops=350)
+                            Index Cond: (entry_id = e.id)
+                            Buffers: shared hit=600 read=100
+                      SubPlan 5
+                        ->  Hash Join  (cost=24.11..27.75 rows=1 width=0) (actual time=0.008..0.008 rows=1 loops=261)
+                              Hash Cond: ((private.staff_readable_menu_version_ids()) = e_1.version_id)
+                              Buffers: shared hit=1415 read=64
+                              InitPlan 4
+                                ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+                              ->  HashAggregate  (cost=7.77..9.77 rows=200 width=16) (actual time=0.002..0.002 rows=1 loops=261)
+                                    Group Key: private.staff_readable_menu_version_ids()
+                                    Batches: 1  Memory Usage: 40kB
+                                    Buffers: shared hit=348
+                                    ->  ProjectSet  (cost=0.00..5.27 rows=1000 width=16) (actual time=0.296..0.337 rows=1 loops=1)
+                                          Buffers: shared hit=348
+                                          ->  Result  (cost=0.00..0.01 rows=1 width=0) (actual time=0.000..0.000 rows=1 loops=1)
+                              ->  Hash  (cost=16.07..16.07 rows=1 width=16) (actual time=0.005..0.005 rows=1 loops=261)
+                                    Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                                    Buffers: shared hit=1067 read=64
+                                    ->  Index Scan using menu_entries_id_item_key on menu_entries e_1  (cost=8.05..16.07 rows=1 width=16) (actual time=0.005..0.005 rows=1 loops=261)
+                                          Index Cond: (id = ev.entry_id)
+                                          Filter: ((ANY (version_id = (hashed SubPlan 3).col1)) OR (InitPlan 4).col1)
+                                          Buffers: shared hit=1067 read=64
+                                          SubPlan 3
+                                            ->  ProjectSet  (cost=0.00..5.27 rows=1000 width=16) (actual time=0.305..0.350 rows=1 loops=1)
+                                                  Buffers: shared hit=348
+                                                  ->  Result  (cost=0.00..0.01 rows=1 width=0) (actual time=0.000..0.000 rows=1 loops=1)
+Settings: effective_cache_size = '128MB', search_path = '"\$user", public, extensions'
+Planning:
+  Buffers: shared hit=444 read=3 dirtied=2
+Planning Time: 0.807 ms
+Execution Time: 51.573 ms
+

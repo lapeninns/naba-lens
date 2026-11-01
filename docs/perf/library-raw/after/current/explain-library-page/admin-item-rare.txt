@@ -1,0 +1,23 @@
+-- admin-item-rare (library_page p_item := '011a59b6-1b44-41e9-8ca9-4464da3e2e77', p_limit := 25)
+
+Limit  (cost=8.86..8.87 rows=1 width=423) (actual time=0.075..0.076 rows=1 loops=1)
+  Buffers: shared hit=13
+  InitPlan 1
+    ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.003..0.003 rows=1 loops=1)
+  InitPlan 2
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+  InitPlan 3
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.060..0.060 rows=1 loops=1)
+          Buffers: shared hit=4
+  ->  Sort  (cost=8.31..8.32 rows=1 width=423) (actual time=0.075..0.075 rows=1 loops=1)
+        Sort Key: a.created_at DESC, a.id DESC
+        Sort Method: quicksort  Memory: 25kB
+        Buffers: shared hit=13
+        ->  Index Scan using media_assets_id_venue_key on media_assets a  (cost=0.28..8.30 rows=1 width=423) (actual time=0.066..0.066 rows=1 loops=1)
+              Index Cond: (id = ANY ('{6494739c-f771-40be-a927-562e31f70907}'::uuid[]))
+              Filter: ((deleted_at IS NULL) AND (deleted_at IS NULL) AND (((uploader_id = (InitPlan 1).col1) AND (InitPlan 2).col1) OR ((InitPlan 3).col1 AND (upload_state = 'ready'::public.upload_state))) AND (upload_state = 'ready'::public.upload_state))
+              Buffers: shared hit=7
+Planning:
+  Buffers: shared hit=68
+Planning Time: 0.144 ms
+Execution Time: 0.085 ms
