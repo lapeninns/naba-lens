@@ -1,0 +1,1219 @@
+{
+  "at": "2026-11-01T09:55:48.392Z",
+  "revision": {
+    "sha": "225cb4f080e64a9e571b9ae7c8cdd443b220dcab",
+    "dirty": true
+  },
+  "machine": {
+    "cpus": 18,
+    "model": "Apple M5 Pro",
+    "memGiB": 64,
+    "node": "v24.16.0"
+  },
+  "loadAverage": [
+    10.44580078125,
+    8.8251953125,
+    7.17138671875
+  ],
+  "results": [
+    {
+      "name": "JPEG 12 MP (4032x3024)",
+      "inputBytes": 5502227,
+      "mime": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "wallMs": {
+        "n": 15,
+        "min": 166.6,
+        "p50": 170.5,
+        "p95": 181.9,
+        "max": 181.9
+      },
+      "cpuMsPerOp": 192.7,
+      "batches": null,
+      "baselineRssMiB": 80,
+      "peakRssMiB": 236,
+      "maxRssMiB": 236,
+      "sharp": {
+        "concurrency": 6,
+        "cache": {
+          "memory": {
+            "current": 0,
+            "high": 40,
+            "max": 50
+          },
+          "files": {
+            "current": 0,
+            "max": 20
+          },
+          "items": {
+            "current": 100,
+            "max": 100
+          }
+        }
+      }
+    },
+    {
+      "name": "JPEG 8 MP (3264x2448)",
+      "inputBytes": 2817709,
+      "mime": "image/jpeg",
+      "width": 3264,
+      "height": 2448,
+      "wallMs": {
+        "n": 15,
+        "min": 144.6,
+        "p50": 146.4,
+        "p95": 147.3,
+        "max": 147.3
+      },
+      "cpuMsPerOp": 165.9,
+      "batches": null,
+      "baselineRssMiB": 80,
+      "peakRssMiB": 212,
+      "maxRssMiB": 212,
+      "sharp": {
+        "concurrency": 6,
+        "cache": {
+          "memory": {
+            "current": 0,
+            "high": 40,
+            "max": 50
+          },
+          "files": {
+            "current": 0,
+            "max": 20
+          },
+          "items": {
+            "current": 100,
+            "max": 100
+          }
+        }
+      }
+    },
+    {
+      "name": "PNG 12 MP (synthetic-12mp.png, 2.4 MiB)",
+      "inputBytes": 2506865,
+      "mime": "image/png",
+      "width": 4000,
+      "height": 3000,
+      "wallMs": {
+        "n": 10,
+        "min": 110.2,
+        "p50": 112.3,
+        "p95": 114.7,
+        "max": 114.7
+      },
+      "cpuMsPerOp": 134.7,
+      "batches": null,
+      "baselineRssMiB": 80,
+      "peakRssMiB": 236,
+      "maxRssMiB": 236,
+      "sharp": {
+        "concurrency": 6,
+        "cache": {
+          "memory": {
+            "current": 0,
+            "high": 40,
+            "max": 50
+          },
+          "files": {
+            "current": 0,
+            "max": 20
+          },
+          "items": {
+            "current": 100,
+            "max": 100
+          }
+        }
+      }
+    },
+    {
+      "name": "HEIC 12 MP (synthetic-12mp.heic)",
+      "inputBytes": 337286,
+      "mime": "image/heic",
+      "width": 4000,
+      "height": 3000,
+      "wallMs": {
+        "n": 12,
+        "min": 361.8,
+        "p50": 367.5,
+        "p95": 377.1,
+        "max": 377.1
+      },
+      "cpuMsPerOp": 583.3,
+      "batches": null,
+      "baselineRssMiB": 81,
+      "peakRssMiB": 410,
+      "maxRssMiB": 410,
+      "sharp": {
+        "concurrency": 6,
+        "cache": {
+          "memory": {
+            "current": 0,
+            "high": 83,
+            "max": 50
+          },
+          "files": {
+            "current": 0,
+            "max": 20
+          },
+          "items": {
+            "current": 100,
+            "max": 100
+          }
+        }
+      }
+    },
+    {
+      "name": "HEIC 39 MP (synthetic-39mp.heic)",
+      "inputBytes": 1083818,
+      "mime": "image/heic",
+      "width": 7500,
+      "height": 5200,
+      "wallMs": {
+        "n": 6,
+        "min": 735,
+        "p50": 750.7,
+        "p95": 761.4,
+        "max": 761.4
+      },
+      "cpuMsPerOp": 1158.6,
+      "batches": null,
+      "baselineRssMiB": 81,
+      "peakRssMiB": 599,
+      "maxRssMiB": 599,
+      "sharp": {
+        "concurrency": 6,
+        "cache": {
+          "memory": {
+            "current": 0,
+            "high": 29,
+            "max": 50
+          },
+          "files": {
+            "current": 0,
+            "max": 20
+          },
+          "items": {
+            "current": 100,
+            "max": 100
+          }
+        }
+      }
+    },
+    {
+      "name": "video MP4 tiny (synthetic.mp4)",
+      "inputBytes": 1750,
+      "mime": "video/mp4",
+      "width": 320,
+      "height": 240,
+      "wallMs": {
+        "n": 15,
+        "min": 0.2,
+        "p50": 0.3,
+        "p95": 0.4,
+        "max": 0.4
+      },
+      "cpuMsPerOp": 0.4,
+      "batches": null,
+      "baselineRssMiB": 80,
+      "peakRssMiB": 82,
+      "maxRssMiB": 82,
+      "sharp": {
+        "concurrency": 6,
+        "cache": {
+          "memory": {
+            "current": 0,
+            "high": 0,
+            "max": 50
+          },
+          "files": {
+            "current": 0,
+            "max": 20
+          },
+          "items": {
+            "current": 0,
+            "max": 100
+          }
+        }
+      }
+    },
+    {
+      "name": "video MOV tiny (synthetic.mov)",
+      "inputBytes": 1697,
+      "mime": "video/quicktime",
+      "width": 320,
+      "height": 240,
+      "wallMs": {
+        "n": 15,
+        "min": 0.1,
+        "p50": 0.3,
+        "p95": 0.4,
+        "max": 0.4
+      },
+      "cpuMsPerOp": 0.3,
+      "batches": null,
+      "baselineRssMiB": 80,
+      "peakRssMiB": 81,
+      "maxRssMiB": 81,
+      "sharp": {
+        "concurrency": 6,
+        "cache": {
+          "memory": {
+            "current": 0,
+            "high": 0,
+            "max": 50
+          },
+          "files": {
+            "current": 0,
+            "max": 20
+          },
+          "items": {
+            "current": 0,
+            "max": 100
+          }
+        }
+      }
+    },
+    {
+      "name": "video WebM tiny (synthetic.webm)",
+      "inputBytes": 668,
+      "mime": "video/webm",
+      "width": 320,
+      "height": 240,
+      "wallMs": {
+        "n": 15,
+        "min": 0.2,
+        "p50": 0.3,
+        "p95": 0.4,
+        "max": 0.4
+      },
+      "cpuMsPerOp": 0.4,
+      "batches": null,
+      "baselineRssMiB": 80,
+      "peakRssMiB": 81,
+      "maxRssMiB": 81,
+      "sharp": {
+        "concurrency": 6,
+        "cache": {
+          "memory": {
+            "current": 0,
+            "high": 0,
+            "max": 50
+          },
+          "files": {
+            "current": 0,
+            "max": 20
+          },
+          "items": {
+            "current": 0,
+            "max": 100
+          }
+        }
+      }
+    },
+    {
+      "name": "video HEVC MOV (review-hevc.mov)",
+      "inputBytes": 3462,
+      "mime": "video/quicktime",
+      "width": 320,
+      "height": 240,
+      "wallMs": {
+        "n": 15,
+        "min": 0.1,
+        "p50": 0.3,
+        "p95": 0.4,
+        "max": 0.4
+      },
+      "cpuMsPerOp": 0.4,
+      "batches": null,
+      "baselineRssMiB": 80,
+      "peakRssMiB": 81,
+      "maxRssMiB": 81,
+      "sharp": {
+        "concurrency": 6,
+        "cache": {
+          "memory": {
+            "current": 0,
+            "high": 0,
+            "max": 50
+          },
+          "files": {
+            "current": 0,
+            "max": 20
+          },
+          "items": {
+            "current": 0,
+            "max": 100
+          }
+        }
+      }
+    },
+    {
+      "name": "video MP4 20 MiB, moov at end",
+      "inputBytes": 19650228,
+      "mime": "video/mp4",
+      "width": 1920,
+      "height": 1080,
+      "wallMs": {
+        "n": 10,
+        "min": 0.1,
+        "p50": 0.2,
+        "p95": 0.4,
+        "max": 0.4
+      },
+      "cpuMsPerOp": 0.3,
+      "batches": null,
+      "baselineRssMiB": 80,
+      "peakRssMiB": 81,
+      "maxRssMiB": 81,
+      "sharp": {
+        "concurrency": 6,
+        "cache": {
+          "memory": {
+            "current": 0,
+            "high": 0,
+            "max": 50
+          },
+          "files": {
+            "current": 0,
+            "max": 20
+          },
+          "items": {
+            "current": 0,
+            "max": 100
+          }
+        }
+      }
+    },
+    {
+      "name": "video MP4 200 MiB, moov at end",
+      "inputBytes": 209223554,
+      "mime": "video/mp4",
+      "width": 1920,
+      "height": 1080,
+      "wallMs": {
+        "n": 10,
+        "min": 0.2,
+        "p50": 0.2,
+        "p95": 0.5,
+        "max": 0.5
+      },
+      "cpuMsPerOp": 0.4,
+      "batches": null,
+      "baselineRssMiB": 80,
+      "peakRssMiB": 81,
+      "maxRssMiB": 81,
+      "sharp": {
+        "concurrency": 6,
+        "cache": {
+          "memory": {
+            "current": 0,
+            "high": 0,
+            "max": 50
+          },
+          "files": {
+            "current": 0,
+            "max": 20
+          },
+          "items": {
+            "current": 0,
+            "max": 100
+          }
+        }
+      }
+    },
+    {
+      "name": "JPEG 12 MP, concurrent 1",
+      "inputBytes": 5502227,
+      "mime": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "wallMs": null,
+      "cpuMsPerOp": null,
+      "batches": [
+        {
+          "concurrency": 1,
+          "batchMs": {
+            "n": 4,
+            "min": 169.1,
+            "p50": 169.4,
+            "p95": 171.7,
+            "max": 171.7
+          },
+          "failures": 0,
+          "peakRssMiB": 197
+        }
+      ],
+      "baselineRssMiB": 81,
+      "peakRssMiB": 197,
+      "maxRssMiB": 197,
+      "sharp": {
+        "concurrency": 6,
+        "cache": {
+          "memory": {
+            "current": 0,
+            "high": 40,
+            "max": 50
+          },
+          "files": {
+            "current": 0,
+            "max": 20
+          },
+          "items": {
+            "current": 100,
+            "max": 100
+          }
+        }
+      }
+    },
+    {
+      "name": "JPEG 12 MP, concurrent 2",
+      "inputBytes": 5502227,
+      "mime": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "wallMs": null,
+      "cpuMsPerOp": null,
+      "batches": [
+        {
+          "concurrency": 2,
+          "batchMs": {
+            "n": 4,
+            "min": 173.7,
+            "p50": 174.8,
+            "p95": 176.1,
+            "max": 176.1
+          },
+          "failures": 0,
+          "peakRssMiB": 305
+        }
+      ],
+      "baselineRssMiB": 80,
+      "peakRssMiB": 305,
+      "maxRssMiB": 305,
+      "sharp": {
+        "concurrency": 6,
+        "cache": {
+          "memory": {
+            "current": 0,
+            "high": 80,
+            "max": 50
+          },
+          "files": {
+            "current": 0,
+            "max": 20
+          },
+          "items": {
+            "current": 100,
+            "max": 100
+          }
+        }
+      }
+    },
+    {
+      "name": "JPEG 12 MP, concurrent 4",
+      "inputBytes": 5502227,
+      "mime": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "wallMs": null,
+      "cpuMsPerOp": null,
+      "batches": [
+        {
+          "concurrency": 4,
+          "batchMs": {
+            "n": 4,
+            "min": 185.5,
+            "p50": 188.1,
+            "p95": 194.8,
+            "max": 194.8
+          },
+          "failures": 0,
+          "peakRssMiB": 382
+        }
+      ],
+      "baselineRssMiB": 80,
+      "peakRssMiB": 383,
+      "maxRssMiB": 383,
+      "sharp": {
+        "concurrency": 6,
+        "cache": {
+          "memory": {
+            "current": 0,
+            "high": 137,
+            "max": 50
+          },
+          "files": {
+            "current": 0,
+            "max": 20
+          },
+          "items": {
+            "current": 66,
+            "max": 100
+          }
+        }
+      }
+    },
+    {
+      "name": "JPEG 12 MP, concurrent 8",
+      "inputBytes": 5502227,
+      "mime": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "wallMs": null,
+      "cpuMsPerOp": null,
+      "batches": [
+        {
+          "concurrency": 8,
+          "batchMs": {
+            "n": 4,
+            "min": 431.4,
+            "p50": 434.7,
+            "p95": 438.8,
+            "max": 438.8
+          },
+          "failures": 0,
+          "peakRssMiB": 464
+        }
+      ],
+      "baselineRssMiB": 80,
+      "peakRssMiB": 464,
+      "maxRssMiB": 464,
+      "sharp": {
+        "concurrency": 6,
+        "cache": {
+          "memory": {
+            "current": 0,
+            "high": 147,
+            "max": 50
+          },
+          "files": {
+            "current": 0,
+            "max": 20
+          },
+          "items": {
+            "current": 30,
+            "max": 100
+          }
+        }
+      }
+    },
+    {
+      "name": "JPEG 12 MP, concurrent 10",
+      "inputBytes": 5502227,
+      "mime": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "wallMs": null,
+      "cpuMsPerOp": null,
+      "batches": [
+        {
+          "concurrency": 10,
+          "batchMs": {
+            "n": 4,
+            "min": 474.8,
+            "p50": 480.3,
+            "p95": 484.1,
+            "max": 484.1
+          },
+          "failures": 0,
+          "peakRssMiB": 497
+        }
+      ],
+      "baselineRssMiB": 81,
+      "peakRssMiB": 497,
+      "maxRssMiB": 497,
+      "sharp": {
+        "concurrency": 6,
+        "cache": {
+          "memory": {
+            "current": 0,
+            "high": 138,
+            "max": 50
+          },
+          "files": {
+            "current": 0,
+            "max": 20
+          },
+          "items": {
+            "current": 54,
+            "max": 100
+          }
+        }
+      }
+    },
+    {
+      "name": "JPEG 12 MP, concurrent 16",
+      "inputBytes": 5502227,
+      "mime": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "wallMs": null,
+      "cpuMsPerOp": null,
+      "batches": [
+        {
+          "concurrency": 16,
+          "batchMs": {
+            "n": 4,
+            "min": 754.8,
+            "p50": 755.2,
+            "p95": 780.8,
+            "max": 780.8
+          },
+          "failures": 0,
+          "peakRssMiB": 520
+        }
+      ],
+      "baselineRssMiB": 81,
+      "peakRssMiB": 520,
+      "maxRssMiB": 520,
+      "sharp": {
+        "concurrency": 6,
+        "cache": {
+          "memory": {
+            "current": 0,
+            "high": 141,
+            "max": 50
+          },
+          "files": {
+            "current": 0,
+            "max": 20
+          },
+          "items": {
+            "current": 71,
+            "max": 100
+          }
+        }
+      }
+    },
+    {
+      "name": "PNG 12 MP, concurrent 1",
+      "inputBytes": 2506865,
+      "mime": "image/png",
+      "width": 4000,
+      "height": 3000,
+      "wallMs": null,
+      "cpuMsPerOp": null,
+      "batches": [
+        {
+          "concurrency": 1,
+          "batchMs": {
+            "n": 4,
+            "min": 111.3,
+            "p50": 112.3,
+            "p95": 113.1,
+            "max": 113.1
+          },
+          "failures": 0,
+          "peakRssMiB": 203
+        }
+      ],
+      "baselineRssMiB": 80,
+      "peakRssMiB": 203,
+      "maxRssMiB": 203,
+      "sharp": {
+        "concurrency": 6,
+        "cache": {
+          "memory": {
+            "current": 0,
+            "high": 40,
+            "max": 50
+          },
+          "files": {
+            "current": 0,
+            "max": 20
+          },
+          "items": {
+            "current": 100,
+            "max": 100
+          }
+        }
+      }
+    },
+    {
+      "name": "PNG 12 MP, concurrent 4",
+      "inputBytes": 2506865,
+      "mime": "image/png",
+      "width": 4000,
+      "height": 3000,
+      "wallMs": null,
+      "cpuMsPerOp": null,
+      "batches": [
+        {
+          "concurrency": 4,
+          "batchMs": {
+            "n": 4,
+            "min": 128.5,
+            "p50": 129.4,
+            "p95": 132.3,
+            "max": 132.3
+          },
+          "failures": 0,
+          "peakRssMiB": 401
+        }
+      ],
+      "baselineRssMiB": 81,
+      "peakRssMiB": 401,
+      "maxRssMiB": 401,
+      "sharp": {
+        "concurrency": 6,
+        "cache": {
+          "memory": {
+            "current": 0,
+            "high": 126,
+            "max": 50
+          },
+          "files": {
+            "current": 0,
+            "max": 20
+          },
+          "items": {
+            "current": 100,
+            "max": 100
+          }
+        }
+      }
+    },
+    {
+      "name": "PNG 12 MP, concurrent 10",
+      "inputBytes": 2506865,
+      "mime": "image/png",
+      "width": 4000,
+      "height": 3000,
+      "wallMs": null,
+      "cpuMsPerOp": null,
+      "batches": [
+        {
+          "concurrency": 10,
+          "batchMs": {
+            "n": 4,
+            "min": 309.3,
+            "p50": 312.1,
+            "p95": 330.7,
+            "max": 330.7
+          },
+          "failures": 0,
+          "peakRssMiB": 441
+        }
+      ],
+      "baselineRssMiB": 81,
+      "peakRssMiB": 441,
+      "maxRssMiB": 441,
+      "sharp": {
+        "concurrency": 6,
+        "cache": {
+          "memory": {
+            "current": 0,
+            "high": 126,
+            "max": 50
+          },
+          "files": {
+            "current": 0,
+            "max": 20
+          },
+          "items": {
+            "current": 57,
+            "max": 100
+          }
+        }
+      }
+    },
+    {
+      "name": "HEIC 39 MP, concurrent 1",
+      "inputBytes": 1083818,
+      "mime": "image/heic",
+      "width": 7500,
+      "height": 5200,
+      "wallMs": null,
+      "cpuMsPerOp": null,
+      "batches": [
+        {
+          "concurrency": 1,
+          "batchMs": {
+            "n": 2,
+            "min": 748.4,
+            "p50": 748.4,
+            "p95": 773.2,
+            "max": 773.2
+          },
+          "failures": 0,
+          "peakRssMiB": 571
+        }
+      ],
+      "baselineRssMiB": 80,
+      "peakRssMiB": 571,
+      "maxRssMiB": 571,
+      "sharp": {
+        "concurrency": 6,
+        "cache": {
+          "memory": {
+            "current": 0,
+            "high": 29,
+            "max": 50
+          },
+          "files": {
+            "current": 0,
+            "max": 20
+          },
+          "items": {
+            "current": 96,
+            "max": 100
+          }
+        }
+      }
+    },
+    {
+      "name": "HEIC 39 MP, concurrent 4",
+      "inputBytes": 1083818,
+      "mime": "image/heic",
+      "width": 7500,
+      "height": 5200,
+      "wallMs": null,
+      "cpuMsPerOp": null,
+      "batches": [
+        {
+          "concurrency": 4,
+          "batchMs": {
+            "n": 2,
+            "min": 3003.2,
+            "p50": 3003.2,
+            "p95": 3099.9,
+            "max": 3099.9
+          },
+          "failures": 0,
+          "peakRssMiB": 601
+        }
+      ],
+      "baselineRssMiB": 80,
+      "peakRssMiB": 601,
+      "maxRssMiB": 601,
+      "sharp": {
+        "concurrency": 6,
+        "cache": {
+          "memory": {
+            "current": 0,
+            "high": 29,
+            "max": 50
+          },
+          "files": {
+            "current": 0,
+            "max": 20
+          },
+          "items": {
+            "current": 100,
+            "max": 100
+          }
+        }
+      }
+    },
+    {
+      "name": "HEIC 12 MP, concurrent 1",
+      "inputBytes": 337286,
+      "mime": "image/heic",
+      "width": 4000,
+      "height": 3000,
+      "wallMs": null,
+      "cpuMsPerOp": null,
+      "batches": [
+        {
+          "concurrency": 1,
+          "batchMs": {
+            "n": 3,
+            "min": 361.3,
+            "p50": 362,
+            "p95": 375.9,
+            "max": 375.9
+          },
+          "failures": 0,
+          "peakRssMiB": 390
+        }
+      ],
+      "baselineRssMiB": 81,
+      "peakRssMiB": 390,
+      "maxRssMiB": 390,
+      "sharp": {
+        "concurrency": 6,
+        "cache": {
+          "memory": {
+            "current": 0,
+            "high": 83,
+            "max": 50
+          },
+          "files": {
+            "current": 0,
+            "max": 20
+          },
+          "items": {
+            "current": 100,
+            "max": 100
+          }
+        }
+      }
+    },
+    {
+      "name": "HEIC 12 MP, concurrent 2",
+      "inputBytes": 337286,
+      "mime": "image/heic",
+      "width": 4000,
+      "height": 3000,
+      "wallMs": null,
+      "cpuMsPerOp": null,
+      "batches": [
+        {
+          "concurrency": 2,
+          "batchMs": {
+            "n": 3,
+            "min": 745.8,
+            "p50": 746.2,
+            "p95": 750.8,
+            "max": 750.8
+          },
+          "failures": 0,
+          "peakRssMiB": 393
+        }
+      ],
+      "baselineRssMiB": 80,
+      "peakRssMiB": 393,
+      "maxRssMiB": 393,
+      "sharp": {
+        "concurrency": 6,
+        "cache": {
+          "memory": {
+            "current": 0,
+            "high": 83,
+            "max": 50
+          },
+          "files": {
+            "current": 0,
+            "max": 20
+          },
+          "items": {
+            "current": 100,
+            "max": 100
+          }
+        }
+      }
+    },
+    {
+      "name": "HEIC 12 MP, concurrent 4",
+      "inputBytes": 337286,
+      "mime": "image/heic",
+      "width": 4000,
+      "height": 3000,
+      "wallMs": null,
+      "cpuMsPerOp": null,
+      "batches": [
+        {
+          "concurrency": 4,
+          "batchMs": {
+            "n": 3,
+            "min": 1450.8,
+            "p50": 1472.1,
+            "p95": 1479.6,
+            "max": 1479.6
+          },
+          "failures": 0,
+          "peakRssMiB": 407
+        }
+      ],
+      "baselineRssMiB": 80,
+      "peakRssMiB": 407,
+      "maxRssMiB": 407,
+      "sharp": {
+        "concurrency": 6,
+        "cache": {
+          "memory": {
+            "current": 0,
+            "high": 83,
+            "max": 50
+          },
+          "files": {
+            "current": 0,
+            "max": 20
+          },
+          "items": {
+            "current": 100,
+            "max": 100
+          }
+        }
+      }
+    },
+    {
+      "name": "HEIC 12 MP, concurrent 8",
+      "inputBytes": 337286,
+      "mime": "image/heic",
+      "width": 4000,
+      "height": 3000,
+      "wallMs": null,
+      "cpuMsPerOp": null,
+      "batches": [
+        {
+          "concurrency": 8,
+          "batchMs": {
+            "n": 3,
+            "min": 2897,
+            "p50": 2947.6,
+            "p95": 2958.4,
+            "max": 2958.4
+          },
+          "failures": 0,
+          "peakRssMiB": 426
+        }
+      ],
+      "baselineRssMiB": 81,
+      "peakRssMiB": 426,
+      "maxRssMiB": 426,
+      "sharp": {
+        "concurrency": 6,
+        "cache": {
+          "memory": {
+            "current": 0,
+            "high": 83,
+            "max": 50
+          },
+          "files": {
+            "current": 0,
+            "max": 20
+          },
+          "items": {
+            "current": 100,
+            "max": 100
+          }
+        }
+      }
+    },
+    {
+      "name": "video 200 MiB probe, concurrent 1",
+      "inputBytes": 209223554,
+      "mime": "video/mp4",
+      "width": 1920,
+      "height": 1080,
+      "wallMs": null,
+      "cpuMsPerOp": null,
+      "batches": [
+        {
+          "concurrency": 1,
+          "batchMs": {
+            "n": 3,
+            "min": 0.2,
+            "p50": 0.2,
+            "p95": 0.3,
+            "max": 0.3
+          },
+          "failures": 0,
+          "peakRssMiB": 80
+        }
+      ],
+      "baselineRssMiB": 80,
+      "peakRssMiB": 81,
+      "maxRssMiB": 81,
+      "sharp": {
+        "concurrency": 6,
+        "cache": {
+          "memory": {
+            "current": 0,
+            "high": 0,
+            "max": 50
+          },
+          "files": {
+            "current": 0,
+            "max": 20
+          },
+          "items": {
+            "current": 0,
+            "max": 100
+          }
+        }
+      }
+    },
+    {
+      "name": "video 200 MiB probe, concurrent 4",
+      "inputBytes": 209223554,
+      "mime": "video/mp4",
+      "width": 1920,
+      "height": 1080,
+      "wallMs": null,
+      "cpuMsPerOp": null,
+      "batches": [
+        {
+          "concurrency": 4,
+          "batchMs": {
+            "n": 3,
+            "min": 0.4,
+            "p50": 0.6,
+            "p95": 0.6,
+            "max": 0.6
+          },
+          "failures": 0,
+          "peakRssMiB": 81
+        }
+      ],
+      "baselineRssMiB": 81,
+      "peakRssMiB": 82,
+      "maxRssMiB": 82,
+      "sharp": {
+        "concurrency": 6,
+        "cache": {
+          "memory": {
+            "current": 0,
+            "high": 0,
+            "max": 50
+          },
+          "files": {
+            "current": 0,
+            "max": 20
+          },
+          "items": {
+            "current": 0,
+            "max": 100
+          }
+        }
+      }
+    },
+    {
+      "name": "video 200 MiB probe, concurrent 8",
+      "inputBytes": 209223554,
+      "mime": "video/mp4",
+      "width": 1920,
+      "height": 1080,
+      "wallMs": null,
+      "cpuMsPerOp": null,
+      "batches": [
+        {
+          "concurrency": 8,
+          "batchMs": {
+            "n": 3,
+            "min": 0.8,
+            "p50": 0.9,
+            "p95": 1.2,
+            "max": 1.2
+          },
+          "failures": 0,
+          "peakRssMiB": 81
+        }
+      ],
+      "baselineRssMiB": 81,
+      "peakRssMiB": 84,
+      "maxRssMiB": 84,
+      "sharp": {
+        "concurrency": 6,
+        "cache": {
+          "memory": {
+            "current": 0,
+            "high": 0,
+            "max": 50
+          },
+          "files": {
+            "current": 0,
+            "max": 20
+          },
+          "items": {
+            "current": 0,
+            "max": 100
+          }
+        }
+      }
+    }
+  ]
+}

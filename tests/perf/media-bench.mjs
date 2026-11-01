@@ -6,6 +6,7 @@
 // peak RSS belongs to that scenario alone.
 //
 //   node --import tsx tests/perf/media-bench.mjs [--out docs/perf/raw] [--keep]
+//       [--only <text in the scenario name>] [--label <suffix for media-bench*.json>]
 //
 // Synthetic inputs only. Files are written to a temp directory and removed at the
 // end (the 200 MiB video is the only large one).
@@ -139,13 +140,24 @@ const scenarios = [
   { name: "video HEVC MOV (review-hevc.mov)", kind: "video", file: fixture("review-hevc.mov"), reps: 15 },
   { name: "video MP4 20 MiB, moov at end", kind: "video", file: clip20, reps: 10 },
   { name: "video MP4 200 MiB, moov at end", kind: "video", file: video200, reps: 10 },
-  { name: "JPEG 12 MP, concurrent 1/2/4/8/16", kind: "image", file: jpeg12, concurrency: [1, 2, 4, 8, 16], batches: 4 },
+  { name: "JPEG 12 MP, concurrent 1/2/4/8/10/16", kind: "image", file: jpeg12, concurrency: [1, 2, 4, 8, 10, 16], batches: 4 },
+  { name: "PNG 12 MP, concurrent 1/4/10", kind: "image", file: fixture("synthetic-12mp.png"), concurrency: [1, 4, 10], batches: 4 },
+  { name: "HEIC 39 MP, concurrent 1/4", kind: "image", file: fixture("synthetic-39mp.heic"), concurrency: [1, 4], batches: 2 },
   { name: "HEIC 12 MP, concurrent 1/2/4/8 (queue of 1 worker)", kind: "image", file: fixture("synthetic-12mp.heic"), concurrency: [1, 2, 4, 8], batches: 3 },
   { name: "video 200 MiB probe, concurrent 1/4/8", kind: "video", file: video200, concurrency: [1, 4, 8], batches: 3 },
 ]
 
+// One child per concurrency level: ru_maxrss only ever grows, so levels sharing
+// a process would inherit the peak of the levels before them.
+const runs = scenarios
+  .flatMap((s) =>
+    s.concurrency
+      ? s.concurrency.map((c) => ({ ...s, name: `${s.name.split(",")[0]}, concurrent ${c}`, concurrency: [c] }))
+      : [s]
+  )
+  .filter((s) => !arg("only") || s.name.includes(arg("only")))
 const results = []
-for (const s of scenarios) {
+for (const s of runs) {
   const res = spawnSync(
     process.execPath,
     ["--import", "tsx", process.argv[1], "--child", JSON.stringify({ ...s, bytes: size(s.file) })],
@@ -169,7 +181,7 @@ if (!argv.includes("--keep")) rmSync(DIR, { recursive: true, force: true })
 const OUT = resolve(arg("out", "docs/perf/raw"), "media")
 mkdirSync(OUT, { recursive: true })
 writeFileSync(
-  join(OUT, "media-bench.json"),
+  join(OUT, `media-bench${arg("label", "")}.json`),
   JSON.stringify(
     {
       at: new Date().toISOString(),
@@ -182,4 +194,4 @@ writeFileSync(
     2
   )
 )
-console.error(`wrote ${join(OUT, "media-bench.json")}`)
+console.error(`wrote ${join(OUT, `media-bench${arg("label", "")}.json`)}`)

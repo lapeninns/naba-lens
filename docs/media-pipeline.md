@@ -7,16 +7,23 @@ labels do not establish safe content, and validation is not publication clearanc
 ## Upload API: one image decode
 
 For an image upload call `processImage(bytes, declaredMime?)` once. It validates,
-decodes once into oriented raw pixels and builds WebP `preview` (1600px bounding
-box) and `thumb` (480px bounding box), returning width/height and detected MIME.
-Dimensions come from raw decode information, without a full-resolution encode.
+decodes once and builds WebP `preview` (1600px bounding box) and `thumb` (480px
+bounding box), returning width/height and detected MIME. The decode resizes
+straight from the encoded input with `sequentialRead` and EXIF `rotate()`, so JPEG
+and WebP shrink while decoding and the full-size image is never held as raw
+pixels; the thumbnail is made from the same preview-size pixels. Width and height
+are the oriented size of the original, read from its header. At most
+`maxImageConcurrency` (6) JPEG, PNG or WebP decodes run at once per process; later
+callers wait in arrival order, for at most `heicTimeoutMs`, then get `decoder_busy`.
+HEIC keeps its own one-worker queue. Measurements and the equivalence tolerance are
+in `docs/perf/media-fixes.md`.
 Alternatively, call `validateMedia`: its successful image result already includes
 these derivatives. **Persist that result; do not call createImageDerivatives after
 validation.** The compatibility `createImageDerivatives` wrapper calls processImage
 and is an alternative entry point, not a second upload stage.
 
 `createAvatarDerivative` is a separate profile-photo operation: one decode and a
-cropped 256×256 WebP. sharp operations have a 10-second native processing timeout.
+cropped 256×256 WebP (also through the image gate). sharp operations have a 10-second native processing timeout.
 Only resized WebP output is returned. EXIF (including GPS/Artist), XMP, orientation
 and source ICC metadata do not propagate; tests assert each of these.
 
