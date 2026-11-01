@@ -1061,6 +1061,7 @@ export type Database = {
           variant_name: string
         }[]
       }
+      menu_label_counts: { Args: { p_venue_id: string }; Returns: Json }
       prepare_media_cleanup: {
         Args: {
           p_abandoned_after: string

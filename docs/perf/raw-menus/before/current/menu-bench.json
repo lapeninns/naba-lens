@@ -1,0 +1,646 @@
+{
+  "volume": "current",
+  "at": "2026-11-01T09:45:27.431Z",
+  "revision": {
+    "sha": "7be0acf0649f317df6ee598eb4c0055879f6555f",
+    "dirty": false
+  },
+  "loadAverage": [
+    6.3115234375,
+    5.8935546875,
+    5.41552734375
+  ],
+  "repetitions": 12,
+  "parse": [
+    {
+      "size": 50,
+      "format": "json",
+      "bytes": 10167,
+      "ok": true,
+      "issues": 0,
+      "n": 12,
+      "min": 0.1,
+      "p50": 0.2,
+      "p95": 0.2,
+      "max": 0.2
+    },
+    {
+      "size": 50,
+      "format": "csv",
+      "bytes": 5620,
+      "ok": true,
+      "issues": 0,
+      "n": 12,
+      "min": 0.3,
+      "p50": 0.3,
+      "p95": 0.8,
+      "max": 0.8
+    },
+    {
+      "size": 150,
+      "format": "json",
+      "bytes": 29637,
+      "ok": true,
+      "issues": 0,
+      "n": 12,
+      "min": 0.3,
+      "p50": 0.4,
+      "p95": 0.4,
+      "max": 0.4
+    },
+    {
+      "size": 150,
+      "format": "csv",
+      "bytes": 16941,
+      "ok": true,
+      "issues": 0,
+      "n": 12,
+      "min": 0.7,
+      "p50": 0.8,
+      "p95": 1.1,
+      "max": 1.1
+    },
+    {
+      "size": 600,
+      "format": "json",
+      "bytes": 118715,
+      "ok": true,
+      "issues": 0,
+      "n": 12,
+      "min": 1.3,
+      "p50": 1.5,
+      "p95": 1.9,
+      "max": 1.9
+    },
+    {
+      "size": 600,
+      "format": "csv",
+      "bytes": 68568,
+      "ok": true,
+      "issues": 0,
+      "n": 12,
+      "min": 2.8,
+      "p50": 3.2,
+      "p95": 4.8,
+      "max": 4.8
+    },
+    {
+      "size": 2000,
+      "format": "json",
+      "bytes": 394093,
+      "ok": true,
+      "issues": 0,
+      "n": 12,
+      "min": 4,
+      "p50": 4.1,
+      "p95": 5,
+      "max": 5
+    },
+    {
+      "size": 2000,
+      "format": "csv",
+      "bytes": 227864,
+      "ok": true,
+      "issues": 0,
+      "n": 12,
+      "min": 9.2,
+      "p50": 9.8,
+      "p95": 10.6,
+      "max": 10.6
+    }
+  ],
+  "match": [
+    {
+      "size": 50,
+      "label": "same keys, edited 10%",
+      "matchMs": {
+        "n": 6,
+        "min": 0.1,
+        "p50": 0.1,
+        "p95": 0.1,
+        "max": 0.1
+      },
+      "diffMs": {
+        "n": 6,
+        "min": 0,
+        "p50": 0,
+        "p95": 0.1,
+        "max": 0.1
+      },
+      "uncertain": 0,
+      "added": 5,
+      "changed": 5,
+      "removed": 5
+    },
+    {
+      "size": 50,
+      "label": "all keys changed (worst case)",
+      "matchMs": {
+        "n": 6,
+        "min": 0.5,
+        "p50": 0.5,
+        "p95": 0.7,
+        "max": 0.7
+      },
+      "diffMs": {
+        "n": 6,
+        "min": 0,
+        "p50": 0,
+        "p95": 0.1,
+        "max": 0.1
+      },
+      "uncertain": 50,
+      "added": 0,
+      "changed": 0,
+      "removed": 50
+    },
+    {
+      "size": 150,
+      "label": "same keys, edited 10%",
+      "matchMs": {
+        "n": 6,
+        "min": 0.3,
+        "p50": 0.3,
+        "p95": 0.4,
+        "max": 0.4
+      },
+      "diffMs": {
+        "n": 6,
+        "min": 0.1,
+        "p50": 0.1,
+        "p95": 0.1,
+        "max": 0.1
+      },
+      "uncertain": 0,
+      "added": 15,
+      "changed": 15,
+      "removed": 15
+    },
+    {
+      "size": 150,
+      "label": "all keys changed (worst case)",
+      "matchMs": {
+        "n": 6,
+        "min": 3.5,
+        "p50": 3.7,
+        "p95": 3.9,
+        "max": 3.9
+      },
+      "diffMs": {
+        "n": 6,
+        "min": 0.2,
+        "p50": 0.2,
+        "p95": 0.3,
+        "max": 0.3
+      },
+      "uncertain": 150,
+      "added": 0,
+      "changed": 0,
+      "removed": 150
+    },
+    {
+      "size": 600,
+      "label": "same keys, edited 10%",
+      "matchMs": {
+        "n": 6,
+        "min": 2.7,
+        "p50": 2.7,
+        "p95": 2.7,
+        "max": 2.7
+      },
+      "diffMs": {
+        "n": 6,
+        "min": 1.5,
+        "p50": 1.5,
+        "p95": 1.6,
+        "max": 1.6
+      },
+      "uncertain": 0,
+      "added": 60,
+      "changed": 60,
+      "removed": 60
+    },
+    {
+      "size": 600,
+      "label": "all keys changed (worst case)",
+      "matchMs": {
+        "n": 6,
+        "min": 58,
+        "p50": 58,
+        "p95": 60.1,
+        "max": 60.1
+      },
+      "diffMs": {
+        "n": 6,
+        "min": 3.9,
+        "p50": 3.9,
+        "p95": 4.1,
+        "max": 4.1
+      },
+      "uncertain": 600,
+      "added": 0,
+      "changed": 0,
+      "removed": 600
+    },
+    {
+      "size": 2000,
+      "label": "same keys, edited 10%",
+      "matchMs": {
+        "n": 6,
+        "min": 13.1,
+        "p50": 13.8,
+        "p95": 15.2,
+        "max": 15.2
+      },
+      "diffMs": {
+        "n": 6,
+        "min": 11.7,
+        "p50": 11.8,
+        "p95": 16.4,
+        "max": 16.4
+      },
+      "uncertain": 0,
+      "added": 200,
+      "changed": 200,
+      "removed": 200
+    },
+    {
+      "size": 2000,
+      "label": "all keys changed (worst case)",
+      "matchMs": {
+        "n": 6,
+        "min": 605,
+        "p50": 617.6,
+        "p95": 652.3,
+        "max": 652.3
+      },
+      "diffMs": {
+        "n": 6,
+        "min": 56.7,
+        "p50": 57.6,
+        "p95": 62.9,
+        "max": 62.9
+      },
+      "uncertain": 2000,
+      "added": 0,
+      "changed": 0,
+      "removed": 2000
+    }
+  ],
+  "flows": [
+    {
+      "size": 50,
+      "bytes": {
+        "json": 10167,
+        "csv": 5620
+      },
+      "oversize": false,
+      "previewNoBaseMs": 13.4,
+      "previewNoBaseRequests": 2,
+      "documentBytes": 13029,
+      "createDraftMs": 14.4,
+      "createDraftOk": true,
+      "saveDraftMs": 16.7,
+      "saveDraftOk": true,
+      "activateFirstMs": 3.6,
+      "activateOk": true,
+      "previewSameFileMs": {
+        "n": 8,
+        "min": 11.2,
+        "p50": 12.3,
+        "p95": 13.9,
+        "max": 13.9
+      },
+      "previewSameFileMsRequests": 4,
+      "previewEdited10Ms": {
+        "n": 8,
+        "min": 10.7,
+        "p50": 11.3,
+        "p95": 11.8,
+        "max": 11.8
+      },
+      "previewEdited10MsRequests": 4,
+      "previewRekeyedMs": {
+        "n": 8,
+        "min": 11,
+        "p50": 11.7,
+        "p95": 12.6,
+        "max": 12.6
+      },
+      "previewRekeyedMsRequests": 4,
+      "rekeyedUncertain": 50,
+      "replaceCycle": {
+        "n": 5,
+        "createDraftMs": {
+          "n": 5,
+          "min": 11.8,
+          "p50": 14.1,
+          "p95": 15.5,
+          "max": 15.5
+        },
+        "activateMs": {
+          "n": 5,
+          "min": 2.2,
+          "p50": 2.3,
+          "p95": 3.2,
+          "max": 3.2
+        },
+        "activationFailures": []
+      },
+      "getLabellingCatalogueMs": {
+        "n": 8,
+        "min": 12.7,
+        "p50": 13.9,
+        "p95": 15.3,
+        "max": 15.3
+      },
+      "getMenuVersionMs": {
+        "n": 8,
+        "min": 13.1,
+        "p50": 14.2,
+        "p95": 15.8,
+        "max": 15.8
+      },
+      "getLabellingCatalogueStaffMs": {
+        "n": 8,
+        "min": 15.3,
+        "p50": 16.4,
+        "p95": 17.9,
+        "max": 17.9
+      },
+      "staffCatalogueOk": true
+    },
+    {
+      "size": 150,
+      "bytes": {
+        "json": 29637,
+        "csv": 16941
+      },
+      "oversize": false,
+      "previewNoBaseMs": 4.1,
+      "previewNoBaseRequests": 2,
+      "documentBytes": 38449,
+      "createDraftMs": 27.1,
+      "createDraftOk": true,
+      "saveDraftMs": 28.3,
+      "saveDraftOk": true,
+      "activateFirstMs": 2.1,
+      "activateOk": true,
+      "previewSameFileMs": {
+        "n": 8,
+        "min": 25.6,
+        "p50": 26.8,
+        "p95": 35.1,
+        "max": 35.1
+      },
+      "previewSameFileMsRequests": 4,
+      "previewEdited10Ms": {
+        "n": 8,
+        "min": 25.9,
+        "p50": 26.6,
+        "p95": 32,
+        "max": 32
+      },
+      "previewEdited10MsRequests": 4,
+      "previewRekeyedMs": {
+        "n": 8,
+        "min": 28.7,
+        "p50": 31.2,
+        "p95": 32.5,
+        "max": 32.5
+      },
+      "previewRekeyedMsRequests": 4,
+      "rekeyedUncertain": 150,
+      "replaceCycle": {
+        "n": 5,
+        "createDraftMs": {
+          "n": 5,
+          "min": 27.2,
+          "p50": 30.4,
+          "p95": 32.5,
+          "max": 32.5
+        },
+        "activateMs": {
+          "n": 5,
+          "min": 2.2,
+          "p50": 2.4,
+          "p95": 3.8,
+          "max": 3.8
+        },
+        "activationFailures": []
+      },
+      "getLabellingCatalogueMs": {
+        "n": 8,
+        "min": 28.9,
+        "p50": 30.7,
+        "p95": 33.4,
+        "max": 33.4
+      },
+      "getMenuVersionMs": {
+        "n": 8,
+        "min": 33.4,
+        "p50": 34.4,
+        "p95": 37,
+        "max": 37
+      },
+      "getLabellingCatalogueStaffMs": {
+        "n": 8,
+        "min": 37.6,
+        "p50": 39.2,
+        "p95": 42.5,
+        "max": 42.5
+      },
+      "staffCatalogueOk": true
+    },
+    {
+      "size": 600,
+      "bytes": {
+        "json": 118715,
+        "csv": 68568
+      },
+      "oversize": false,
+      "previewNoBaseMs": 7.7,
+      "previewNoBaseRequests": 2,
+      "documentBytes": 154307,
+      "createDraftMs": 102.4,
+      "createDraftOk": true,
+      "saveDraftMs": 113.1,
+      "saveDraftOk": true,
+      "activateFirstMs": 4,
+      "activateOk": true,
+      "previewSameFileMs": {
+        "n": 8,
+        "min": 95.7,
+        "p50": 97.8,
+        "p95": 102.5,
+        "max": 102.5
+      },
+      "previewSameFileMsRequests": 4,
+      "previewEdited10Ms": {
+        "n": 8,
+        "min": 96.4,
+        "p50": 101.4,
+        "p95": 103.9,
+        "max": 103.9
+      },
+      "previewEdited10MsRequests": 4,
+      "previewRekeyedMs": {
+        "n": 8,
+        "min": 151.5,
+        "p50": 162.7,
+        "p95": 177.1,
+        "max": 177.1
+      },
+      "previewRekeyedMsRequests": 4,
+      "rekeyedUncertain": 600,
+      "replaceCycle": {
+        "n": 5,
+        "createDraftMs": {
+          "n": 5,
+          "min": 95.9,
+          "p50": 98.4,
+          "p95": 109.9,
+          "max": 109.9
+        },
+        "activateMs": {
+          "n": 5,
+          "min": 2.2,
+          "p50": 2.3,
+          "p95": 3.4,
+          "max": 3.4
+        },
+        "activationFailures": []
+      },
+      "getLabellingCatalogueMs": {
+        "n": 8,
+        "min": 99.3,
+        "p50": 102.1,
+        "p95": 115.5,
+        "max": 115.5
+      },
+      "getMenuVersionMs": {
+        "n": 8,
+        "min": 113.3,
+        "p50": 116.5,
+        "p95": 134.2,
+        "max": 134.2
+      },
+      "getLabellingCatalogueStaffMs": {
+        "n": 8,
+        "min": 133.2,
+        "p50": 134.4,
+        "p95": 146.7,
+        "max": 146.7
+      },
+      "staffCatalogueOk": true
+    },
+    {
+      "size": 2000,
+      "bytes": {
+        "json": 394093,
+        "csv": 227864
+      },
+      "oversize": false,
+      "previewNoBaseMs": 16.1,
+      "previewNoBaseRequests": 2,
+      "documentBytes": 513015,
+      "createDraftMs": 359,
+      "createDraftOk": true,
+      "saveDraftMs": 415.9,
+      "saveDraftOk": true,
+      "activateFirstMs": 3.9,
+      "activateOk": true,
+      "previewSameFileMs": {
+        "n": 8,
+        "min": 702.9,
+        "p50": 777.5,
+        "p95": 822.5,
+        "max": 822.5
+      },
+      "previewSameFileMsRequests": 6,
+      "previewEdited10Ms": {
+        "n": 8,
+        "min": 741,
+        "p50": 748.3,
+        "p95": 799.7,
+        "max": 799.7
+      },
+      "previewEdited10MsRequests": 6,
+      "previewRekeyedMs": {
+        "n": 8,
+        "min": 1361.7,
+        "p50": 1391.4,
+        "p95": 1727.6,
+        "max": 1727.6
+      },
+      "previewRekeyedMsRequests": 6,
+      "rekeyedUncertain": 2000,
+      "replaceCycle": {
+        "n": 5,
+        "createDraftMs": {
+          "n": 5,
+          "min": 353.5,
+          "p50": 364.8,
+          "p95": 412.6,
+          "max": 412.6
+        },
+        "activateMs": {
+          "n": 5,
+          "min": 2.9,
+          "p50": 3.1,
+          "p95": 3.4,
+          "max": 3.4
+        },
+        "activationFailures": []
+      },
+      "getLabellingCatalogueMs": {
+        "n": 8,
+        "min": 817.9,
+        "p50": 833.6,
+        "p95": 979.2,
+        "max": 979.2
+      },
+      "getMenuVersionMs": {
+        "n": 8,
+        "min": 809,
+        "p50": 837.2,
+        "p95": 1035.5,
+        "max": 1035.5
+      },
+      "getLabellingCatalogueStaffMs": {
+        "n": 8,
+        "min": 1269.1,
+        "p50": 1406.5,
+        "p95": 1805.9,
+        "max": 1805.9
+      },
+      "staffCatalogueOk": true
+    }
+  ],
+  "other": [
+    {
+      "name": "largest venue with labels: draft from active + activate",
+      "venueMedia": 37,
+      "cycles": [
+        {
+          "draftFromActiveMs": 249.55795800000487,
+          "activateMs": 5.123208000004524,
+          "ok": true,
+          "message": null
+        },
+        {
+          "draftFromActiveMs": 192.61712499998976,
+          "activateMs": 4.488875000010012,
+          "ok": true,
+          "message": null
+        },
+        {
+          "draftFromActiveMs": 179.8785829999979,
+          "activateMs": 3.784333000003244,
+          "ok": true,
+          "message": null
+        }
+      ]
+    }
+  ]
+}

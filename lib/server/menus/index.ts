@@ -30,7 +30,6 @@ import type { Db, MediaActor, Outcome } from "@/lib/server/media/types"
 import {
   buildDocument,
   copyForDraft,
-  countByItem,
   reviewBaseFor,
   type EntryRow,
   type SectionRow,
@@ -501,6 +500,44 @@ export type MenuVersionView = {
   reviewBase: MenuDocument | null
 }
 
+const archivedItemIdsOf = (db: Db, venueId: string) =>
+  selectAll<{ id: string }>(
+    (from, to) =>
+      db
+        .from("menu_items")
+        .select("id")
+        .eq("venue_id", venueId)
+        .not("archived_at", "is", null)
+        .order("id")
+        .range(from, to) as unknown as Page<{ id: string }>
+  )
+
+/**
+ * The document of a venue's active version and its archived item ids: what the
+ * venue page needs to offer items to link a suggestion to. No label counts and
+ * no diff.
+ */
+export async function getActiveMenuItems(
+  actor: MediaActor,
+  venueId: string
+): Promise<
+  Outcome<{ document: MenuDocument | null; archivedItemIds: string[] }>
+> {
+  if (!isAdmin(actor)) return FORBIDDEN
+  if (!isUuid(venueId)) return notFound("This venue could not be found.")
+  const [active, archived] = await Promise.all([
+    activeDocument(actor.db, venueId),
+    archivedItemIdsOf(actor.db, venueId),
+  ])
+  if (!active.ok) return active
+  if (!archived.ok) return menuReadFailure(archived.error, "archived items")
+  return {
+    ok: true,
+    document: active.document,
+    archivedItemIds: archived.rows.map((r) => r.id),
+  }
+}
+
 /** A version with its document, and its diff against the venue's active one. */
 export async function getMenuVersion(
   actor: MediaActor,
@@ -521,26 +558,9 @@ export async function getMenuVersion(
   const [venue, loaded, archived, labels, base] = await Promise.all([
     db.from("venues").select("name").eq("id", row.venue_id).maybeSingle(),
     loadDocument(db, row.id, row.title),
-    selectAll<{ id: string }>(
-      (from, to) =>
-        db
-          .from("menu_items")
-          .select("id")
-          .eq("venue_id", row.venue_id)
-          .not("archived_at", "is", null)
-          .order("id")
-          .range(from, to) as unknown as Page<{ id: string }>
-    ),
-    // Admin RLS shows label rows of non-deleted, ready assets only.
-    selectAll<{ item_id: string }>(
-      (from, to) =>
-        db
-          .from("media_label_items")
-          .select("item_id")
-          .eq("venue_id", row.venue_id)
-          .order("id")
-          .range(from, to) as unknown as Page<{ item_id: string }>
-    ),
+    archivedItemIdsOf(db, row.venue_id),
+    // Label rows of non-deleted, ready assets, as admin RLS shows them.
+    db.rpc("menu_label_counts", { p_venue_id: row.venue_id }),
     summary.status === "active"
       ? Promise.resolve(null)
       : activeDocument(db, row.venue_id),
@@ -548,7 +568,7 @@ export async function getMenuVersion(
   if (venue.error) return menuReadFailure(venue.error, "venue")
   if (!loaded.ok) return loaded
   if (!archived.ok) return menuReadFailure(archived.error, "archived items")
-  if (!labels.ok) return menuReadFailure(labels.error, "label counts")
+  if (labels.error) return menuReadFailure(labels.error, "label counts")
   if (base && !base.ok) return base
 
   const document = loaded.document
@@ -560,7 +580,7 @@ export async function getMenuVersion(
       venueName: venue.data?.name ?? "Unknown venue",
       document,
       archivedItemIds: archived.rows.map((r) => r.id),
-      labelCounts: countByItem(labels.rows),
+      labelCounts: (labels.data ?? {}) as Record<string, number>,
     },
     diff: baseDoc ? diffMenuDocuments(baseDoc, document) : null,
     active:

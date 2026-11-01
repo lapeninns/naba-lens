@@ -15,7 +15,7 @@ import { buttonVariants } from "@/components/ui/button"
 import type { MenuVersionSummary } from "@/lib/menus/types"
 import { requireActiveAdmin } from "@/lib/auth"
 import { getMediaActor } from "@/lib/server/media/context"
-import { getMenuVersion, getVenueMenuOverview } from "@/lib/server/menus"
+import { getActiveMenuItems, getVenueMenuOverview } from "@/lib/server/menus"
 
 import { ImportFlow } from "../import-flow"
 import { itemOptions } from "../review"
@@ -102,12 +102,9 @@ export default async function VenueMenusPage({
   // Items of the active menu to link open suggestions to.
   let options: Option[] = []
   if (active && suggestions.some((s) => s.status === "open")) {
-    const activeVersion = await getMenuVersion(auth.actor, active.id)
-    if (activeVersion.ok)
-      options = itemOptions(
-        activeVersion.version.document,
-        activeVersion.version.archivedItemIds
-      )
+    const items = await getActiveMenuItems(auth.actor, venue.id)
+    if (items.ok && items.document)
+      options = itemOptions(items.document, items.archivedItemIds)
   }
   const openCount = suggestions.filter((s) => s.status === "open").length
 
