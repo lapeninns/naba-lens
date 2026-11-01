@@ -1,0 +1,578 @@
+[
+  {
+    "name": "admin-feed-first",
+    "executionMs": 0.433,
+    "planningMs": 0.586,
+    "seqScans": [
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_assets"
+    ],
+    "sort": null,
+    "rootBuffers": "shared hit=122 read=2",
+    "error": null
+  },
+  {
+    "name": "admin-feed-cursor-10pct",
+    "executionMs": 5.544,
+    "planningMs": 0.629,
+    "seqScans": [
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_assets"
+    ],
+    "sort": null,
+    "rootBuffers": "shared hit=7616",
+    "error": null
+  },
+  {
+    "name": "admin-feed-cursor-50pct",
+    "executionMs": 18.652,
+    "planningMs": 0.654,
+    "seqScans": [
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_assets"
+    ],
+    "sort": null,
+    "rootBuffers": "shared hit=37424 read=211",
+    "error": null
+  },
+  {
+    "name": "admin-feed-cursor-90pct",
+    "executionMs": 29.787,
+    "planningMs": 0.63,
+    "seqScans": [
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_assets"
+    ],
+    "sort": null,
+    "rootBuffers": "shared hit=67438 read=211",
+    "error": null
+  },
+  {
+    "name": "admin-venue-first",
+    "executionMs": 0.404,
+    "planningMs": 0.619,
+    "seqScans": [
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_assets"
+    ],
+    "sort": null,
+    "rootBuffers": "shared hit=115",
+    "error": null
+  },
+  {
+    "name": "admin-venue-cursor-90pct",
+    "executionMs": 12.456,
+    "planningMs": 0.62,
+    "seqScans": [
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_assets"
+    ],
+    "sort": null,
+    "rootBuffers": "shared hit=22706",
+    "error": null
+  },
+  {
+    "name": "admin-staff-first",
+    "executionMs": 0.395,
+    "planningMs": 0.604,
+    "seqScans": [
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_assets"
+    ],
+    "sort": null,
+    "rootBuffers": "shared hit=107",
+    "error": null
+  },
+  {
+    "name": "admin-staff-cursor-90pct",
+    "executionMs": 2.272,
+    "planningMs": 0.656,
+    "seqScans": [
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_assets",
+      "media_assets_uploader_feed_idx",
+      "media_assets_ready_feed_idx"
+    ],
+    "sort": "top-N heapsort  Memory: 41kB",
+    "rootBuffers": "shared hit=734 read=1",
+    "error": null
+  },
+  {
+    "name": "admin-type-video",
+    "executionMs": 0.676,
+    "planningMs": 0.574,
+    "seqScans": [
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_assets"
+    ],
+    "sort": null,
+    "rootBuffers": "shared hit=272",
+    "error": null
+  },
+  {
+    "name": "admin-category-curries",
+    "executionMs": 814.916,
+    "planningMs": 2.065,
+    "seqScans": [
+      "media_label_items",
+      "menu_entries",
+      "menu_sections",
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_assets",
+      "menu_versions",
+      "menu_versions_one_active_per_venue",
+      "media_label_items"
+    ],
+    "sort": null,
+    "rootBuffers": "shared hit=693963 read=5",
+    "error": null
+  },
+  {
+    "name": "admin-category-curries-cursor-50pct",
+    "executionMs": 850.649,
+    "planningMs": 2.123,
+    "seqScans": [
+      "media_label_items",
+      "menu_entries",
+      "menu_sections",
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_assets",
+      "menu_versions",
+      "menu_versions_one_active_per_venue",
+      "media_label_items"
+    ],
+    "sort": null,
+    "rootBuffers": "shared hit=731780",
+    "error": null
+  },
+  {
+    "name": "admin-labelled",
+    "executionMs": 248.827,
+    "planningMs": 1.283,
+    "seqScans": [
+      "media_labels",
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_assets"
+    ],
+    "sort": null,
+    "rootBuffers": "shared hit=244886 read=346",
+    "error": null
+  },
+  {
+    "name": "admin-unlabelled",
+    "executionMs": 247.98,
+    "planningMs": 1.328,
+    "seqScans": [
+      "media_labels",
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_assets"
+    ],
+    "sort": null,
+    "rootBuffers": "shared hit=245252",
+    "error": null
+  },
+  {
+    "name": "admin-content-dish",
+    "executionMs": 1.43,
+    "planningMs": 1.28,
+    "seqScans": [
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_assets",
+      "media_labels"
+    ],
+    "sort": null,
+    "rootBuffers": "shared hit=539 read=30",
+    "error": null
+  },
+  {
+    "name": "admin-item-popular",
+    "executionMs": 7.529,
+    "planningMs": 1.471,
+    "seqScans": [
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_assets",
+      "media_label_items"
+    ],
+    "sort": null,
+    "rootBuffers": "shared hit=7447 read=4",
+    "error": null
+  },
+  {
+    "name": "admin-item-rare",
+    "executionMs": 112.636,
+    "planningMs": 1.439,
+    "seqScans": [
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_assets",
+      "media_label_items"
+    ],
+    "sort": null,
+    "rootBuffers": "shared hit=298764 read=47",
+    "error": null
+  },
+  {
+    "name": "admin-search-tikka",
+    "executionMs": 6.549,
+    "planningMs": 2.088,
+    "seqScans": [
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_assets",
+      "media_labels",
+      "media_label_items",
+      "media_label_items_tuple_key",
+      "menu_entries",
+      "menu_entries_item_idx",
+      "menu_item_suggestions"
+    ],
+    "sort": null,
+    "rootBuffers": "shared hit=3661 read=44",
+    "error": null
+  },
+  {
+    "name": "admin-search-nomatch",
+    "executionMs": 2290.985,
+    "planningMs": 1.879,
+    "seqScans": [
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_assets",
+      "media_labels",
+      "media_label_items",
+      "media_label_items_tuple_key",
+      "menu_entries",
+      "menu_entries_item_idx",
+      "menu_item_suggestions"
+    ],
+    "sort": null,
+    "rootBuffers": "shared hit=2660825 read=98",
+    "error": null
+  },
+  {
+    "name": "staff-heaviest-library-assets-category",
+    "executionMs": 585.568,
+    "planningMs": 2.179,
+    "seqScans": [
+      "media_label_items",
+      "menu_entries",
+      "menu_sections",
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_assets",
+      "menu_versions",
+      "menu_versions_one_active_per_venue",
+      "media_label_items"
+    ],
+    "sort": null,
+    "rootBuffers": "shared hit=473655",
+    "error": null
+  },
+  {
+    "name": "staff-heaviest-library-assets-venue-category",
+    "executionMs": 588.948,
+    "planningMs": 2.26,
+    "seqScans": [
+      "media_label_items",
+      "menu_entries",
+      "menu_sections",
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_assets",
+      "menu_versions",
+      "menu_versions_one_active_per_venue",
+      "media_label_items"
+    ],
+    "sort": null,
+    "rootBuffers": "shared hit=472151",
+    "error": null
+  },
+  {
+    "name": "staff-lightest-library-assets-content-dish",
+    "executionMs": 31.457,
+    "planningMs": 1.239,
+    "seqScans": [
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_assets",
+      "media_labels"
+    ],
+    "sort": null,
+    "rootBuffers": "shared hit=75293",
+    "error": null
+  },
+  {
+    "name": "staff-median-library-assets-content-dish",
+    "executionMs": 4.803,
+    "planningMs": 1.263,
+    "seqScans": [
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_assets",
+      "media_labels"
+    ],
+    "sort": null,
+    "rootBuffers": "shared hit=4876",
+    "error": null
+  },
+  {
+    "name": "staff-lightest-library-assets-category",
+    "executionMs": 510.272,
+    "planningMs": 2.106,
+    "seqScans": [
+      "media_label_items",
+      "menu_entries",
+      "menu_sections",
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_assets",
+      "menu_versions",
+      "menu_versions_one_active_per_venue",
+      "media_label_items"
+    ],
+    "sort": null,
+    "rootBuffers": "shared hit=446013 read=1",
+    "error": null
+  },
+  {
+    "name": "staff-lightest-portfolio-first",
+    "executionMs": 0.643,
+    "planningMs": 0.605,
+    "seqScans": [
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_assets",
+      "media_assets_uploader_venue_idx"
+    ],
+    "sort": "quicksort  Memory: 39kB",
+    "rootBuffers": "shared hit=327",
+    "error": null
+  },
+  {
+    "name": "staff-heaviest-portfolio-first",
+    "executionMs": 0.496,
+    "planningMs": 0.732,
+    "seqScans": [
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_assets"
+    ],
+    "sort": null,
+    "rootBuffers": "shared hit=256",
+    "error": null
+  },
+  {
+    "name": "staff-heaviest-portfolio-cursor-90pct",
+    "executionMs": 5.281,
+    "planningMs": 0.663,
+    "seqScans": [
+      "venues",
+      "profiles"
+    ],
+    "indexScans": [
+      "media_assets"
+    ],
+    "sort": null,
+    "rootBuffers": "shared hit=6648",
+    "error": null
+  },
+  {
+    "name": "label-summaries-media-labels-24",
+    "executionMs": 0.861,
+    "planningMs": 0.512,
+    "seqScans": [],
+    "indexScans": [
+      "media_labels",
+      "media_assets",
+      "media_labels_pkey"
+    ],
+    "sort": null,
+    "rootBuffers": "shared hit=370",
+    "error": null
+  },
+  {
+    "name": "label-summaries-details-24",
+    "executionMs": 3.714,
+    "planningMs": 0.452,
+    "seqScans": [],
+    "indexScans": [
+      "media_assets"
+    ],
+    "sort": null,
+    "rootBuffers": "shared hit=2731 read=55",
+    "error": null
+  },
+  {
+    "name": "label-summaries-details-24-staff",
+    "executionMs": 3.654,
+    "planningMs": 0.394,
+    "seqScans": [],
+    "indexScans": [
+      "media_assets"
+    ],
+    "sort": null,
+    "rootBuffers": "shared hit=3383 read=15",
+    "error": null
+  },
+  {
+    "name": "label-summaries-suggestions-24",
+    "executionMs": 0.36,
+    "planningMs": 0.5,
+    "seqScans": [],
+    "indexScans": [
+      "menu_item_suggestions",
+      "media_assets",
+      "menu_item_suggestions_open_key"
+    ],
+    "sort": null,
+    "rootBuffers": "shared hit=199",
+    "error": null
+  },
+  {
+    "name": "menu-version-label-items-page1",
+    "executionMs": 11.465,
+    "planningMs": 0.33,
+    "seqScans": [],
+    "indexScans": [
+      "media_label_items"
+    ],
+    "sort": null,
+    "rootBuffers": "shared hit=9733",
+    "error": null
+  },
+  {
+    "name": "menu-version-label-items-page30",
+    "executionMs": 132.492,
+    "planningMs": 0.286,
+    "seqScans": [],
+    "indexScans": [
+      "media_label_items",
+      "media_label_items_venue_item_idx"
+    ],
+    "sort": "quicksort  Memory: 2174kB",
+    "rootBuffers": "shared hit=121411",
+    "error": null
+  },
+  {
+    "name": "menu-version-label-items-count",
+    "executionMs": 130.565,
+    "planningMs": 0.284,
+    "seqScans": [],
+    "indexScans": [
+      "media_label_items",
+      "media_label_items_venue_item_idx"
+    ],
+    "sort": null,
+    "rootBuffers": "shared hit=121432",
+    "error": null
+  },
+  {
+    "name": "filter-options-items-with-labels",
+    "executionMs": 22.921,
+    "planningMs": 0.513,
+    "seqScans": [],
+    "indexScans": [
+      "menu_items",
+      "menu_items_venue_idx",
+      "media_label_items"
+    ],
+    "sort": "quicksort  Memory: 25kB",
+    "rootBuffers": "shared hit=10609 read=3",
+    "error": null
+  },
+  {
+    "name": "catalogue-entries-staff",
+    "executionMs": 31.094,
+    "planningMs": 0.654,
+    "seqScans": [],
+    "indexScans": [
+      "menu_entries",
+      "menu_items",
+      "menu_entry_variants",
+      "menu_entry_variants_entry_name_key"
+    ],
+    "sort": "quicksort  Average Memory: 31kB  Peak Memory: 31kB",
+    "rootBuffers": "shared hit=8059 read=130",
+    "error": null
+  },
+  {
+    "name": "catalogue-entries-admin",
+    "executionMs": 11.972,
+    "planningMs": 0.598,
+    "seqScans": [],
+    "indexScans": [
+      "menu_entries",
+      "menu_items",
+      "menu_entry_variants",
+      "menu_entry_variants_entry_name_key"
+    ],
+    "sort": "quicksort  Average Memory: 31kB  Peak Memory: 31kB",
+    "rootBuffers": "shared hit=3667",
+    "error": null
+  }
+]

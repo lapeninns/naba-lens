@@ -1,0 +1,30 @@
+-- label-summaries-details-24-staff
+-- role authenticated, sub (staff)
+-- statement:
+select * from public.media_label_details((select array_agg(id) from (select id from public.media_assets where uploader_id = '1729fc98-cbdb-4d8a-b886-21a8b90c7525' and upload_state = 'ready' and deleted_at is null order by created_at desc, id desc limit 24) x))
+
+Function Scan on media_label_details  (cost=457.68..467.68 rows=1000 width=312) (actual time=3.366..3.367 rows=14 loops=1)
+  Buffers: shared hit=2309 read=59
+  InitPlan 4
+    ->  Aggregate  (cost=457.42..457.43 rows=1 width=32) (actual time=0.348..0.349 rows=1 loops=1)
+          Buffers: shared hit=191
+          ->  Limit  (cost=0.97..457.11 rows=24 width=24) (actual time=0.257..0.345 rows=24 loops=1)
+                Buffers: shared hit=191
+                InitPlan 1
+                  ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.002..0.002 rows=1 loops=1)
+                InitPlan 2
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.239..0.239 rows=1 loops=1)
+                        Buffers: shared hit=163
+                InitPlan 3
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+                ->  Index Scan using media_assets_uploader_feed_idx on media_assets  (cost=0.42..36548.65 rows=1923 width=24) (actual time=0.257..0.343 rows=24 loops=1)
+                      Index Cond: (uploader_id = '1729fc98-cbdb-4d8a-b886-21a8b90c7525'::uuid)
+                      Filter: ((((uploader_id = (InitPlan 1).col1) AND (InitPlan 2).col1) OR ((InitPlan 3).col1 AND (upload_state = 'ready'::upload_state))) AND (upload_state = 'ready'::upload_state))
+                      Rows Removed by Filter: 1
+                      Buffers: shared hit=191
+Settings: effective_cache_size = '128MB', search_path = '"\$user", public, extensions'
+Planning:
+  Buffers: shared hit=391
+Planning Time: 0.499 ms
+Execution Time: 3.405 ms
+

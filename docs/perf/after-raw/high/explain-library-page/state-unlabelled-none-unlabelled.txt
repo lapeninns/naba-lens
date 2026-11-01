@@ -1,0 +1,28 @@
+-- state-unlabelled-none-unlabelled (statement of private.library_label_state_page)
+
+Limit  (cost=27928.62..27928.62 rows=1 width=24) (actual time=32.811..34.165 rows=0 loops=1)
+  Buffers: shared hit=2436 read=16067
+  ->  Sort  (cost=27928.62..27928.62 rows=1 width=24) (actual time=32.811..34.164 rows=0 loops=1)
+        Sort Key: a.created_at DESC, a.id DESC
+        Sort Method: quicksort  Memory: 25kB
+        Buffers: shared hit=2436 read=16067
+        ->  Gather  (cost=19934.74..27928.61 rows=1 width=24) (actual time=32.808..34.162 rows=0 loops=1)
+              Workers Planned: 2
+              Workers Launched: 2
+              Buffers: shared hit=2436 read=16067
+              ->  Parallel Hash Anti Join  (cost=18934.74..26928.51 rows=1 width=24) (actual time=30.871..30.872 rows=0 loops=3)
+                    Hash Cond: (a.id = l.asset_id)
+                    Buffers: shared hit=2436 read=16067
+                    ->  Parallel Index Only Scan using media_assets_ready_feed_idx on media_assets a  (cost=0.42..7650.82 rows=91564 width=24) (actual time=0.023..4.846 rows=73220 loops=3)
+                          Heap Fetches: 185
+                          Buffers: shared hit=193 read=1327
+                    ->  Parallel Hash  (cost=17782.47..17782.47 rows=92148 width=16) (actual time=16.325..16.326 rows=73718 loops=3)
+                          Buckets: 262144  Batches: 1  Memory Usage: 12448kB
+                          Buffers: shared hit=2121 read=14740
+                          ->  Parallel Seq Scan on media_labels l  (cost=0.00..17782.47 rows=92148 width=16) (actual time=0.009..9.430 rows=73718 loops=3)
+                                Filter: has_labels
+                                Buffers: shared hit=2121 read=14740
+Planning:
+  Buffers: shared hit=128
+Planning Time: 0.209 ms
+Execution Time: 34.180 ms

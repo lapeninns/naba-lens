@@ -84,6 +84,9 @@ const admin = makeActor(env, await signIn(env, t.admin.email), t.admin)
 const staffSession = await signIn(env, t.staffLight.email)
 const [staffVenueId] = query(env.dbUrl, `select venue_id from public.profiles where id = '${t.staffLight.id}'`)[0]
 const staff = makeActor(env, staffSession, { ...t.staffLight, venueId: staffVenueId })
+// makeActor leaves profile.venue empty; reserveAsset refuses staff without one.
+const [venueName, venueSlug, venueActive] = query(env.dbUrl, `select name, slug, active from public.venues where id = '${staffVenueId}'`)[0]
+staff.actor.profile.venue = { id: staffVenueId, name: venueName, slug: venueSlug, active: venueActive === "t" }
 const service = createClient(env.apiUrl, env.serviceKey, { auth: { persistSession: false, autoRefreshToken: false } })
 const bucket = service.storage.from("media")
 

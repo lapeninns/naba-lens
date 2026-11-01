@@ -1,0 +1,443 @@
+{
+  "volume": "high",
+  "at": "2026-11-01T15:14:39.382Z",
+  "revision": {
+    "sha": "fb110c9499184bfc76289f6f76f1967bd40f28f8",
+    "dirty": true
+  },
+  "repetitions": {
+    "warm": 3,
+    "n": 40
+  },
+  "loadAverage": {
+    "start": [
+      6.58544921875,
+      5.37255859375,
+      5.68994140625
+    ],
+    "end": [
+      6.58544921875,
+      5.37255859375,
+      5.68994140625
+    ]
+  },
+  "targets": {
+    "venues": [
+      {
+        "id": "1074e0c4-7976-4ff2-ba0a-95c319f336ae",
+        "name": "PERF Venue 01",
+        "slug": "perf-venue-01",
+        "media": 67682
+      },
+      {
+        "id": "491e683b-9e5a-4034-87fc-7a8d185eb01c",
+        "name": "PERF Venue 02",
+        "slug": "perf-venue-02",
+        "media": 41921
+      },
+      {
+        "id": "653a74f5-8d88-429b-b20d-820e8461d3e3",
+        "name": "PERF Venue 03",
+        "slug": "perf-venue-03",
+        "media": 26623
+      },
+      {
+        "id": "c9b7d4cf-2254-416d-9787-201d3700e7f5",
+        "name": "PERF Venue 04",
+        "slug": "perf-venue-04",
+        "media": 24956
+      },
+      {
+        "id": "65f803ec-c884-4e89-a8d2-4fac241c7098",
+        "name": "PERF Venue 08",
+        "slug": "perf-venue-08",
+        "media": 13189
+      },
+      {
+        "id": "d5718df2-ecf5-4af4-9499-98c9f97eecf6",
+        "name": "PERF Venue 05",
+        "slug": "perf-venue-05",
+        "media": 11586
+      },
+      {
+        "id": "ce3b7430-d010-45d4-b35c-9f8d2d908da5",
+        "name": "PERF Venue 07",
+        "slug": "perf-venue-07",
+        "media": 9548
+      },
+      {
+        "id": "1ccf63df-909a-48b9-9a84-f5f645b4d3ce",
+        "name": "PERF Venue 09",
+        "slug": "perf-venue-09",
+        "media": 9533
+      },
+      {
+        "id": "fdd1c076-ca1e-4d8c-a268-f67f76cd30c2",
+        "name": "PERF Venue 06",
+        "slug": "perf-venue-06",
+        "media": 7595
+      },
+      {
+        "id": "8784ef50-d48d-49cb-8e59-0b90e8f02819",
+        "name": "PERF Venue 10",
+        "slug": "perf-venue-10",
+        "media": 7029
+      }
+    ],
+    "bigVenue": {
+      "id": "1074e0c4-7976-4ff2-ba0a-95c319f336ae",
+      "name": "PERF Venue 01",
+      "slug": "perf-venue-01",
+      "media": 67682
+    },
+    "smallVenue": {
+      "id": "8784ef50-d48d-49cb-8e59-0b90e8f02819",
+      "name": "PERF Venue 10",
+      "slug": "perf-venue-10",
+      "media": 7029
+    },
+    "midVenue": {
+      "id": "d5718df2-ecf5-4af4-9499-98c9f97eecf6",
+      "name": "PERF Venue 05",
+      "slug": "perf-venue-05",
+      "media": 11586
+    },
+    "admin": {
+      "email": "perf-admin-1@perf.nabalens.test"
+    },
+    "staffHeavy": {
+      "media": 15611
+    },
+    "staffMedian": {
+      "media": 1454
+    },
+    "staffLight": {
+      "media": 62
+    },
+    "staffCount": 94,
+    "readyFeed": 219656,
+    "cursors": {
+      "feed": [
+        {
+          "frac": 0.1,
+          "createdAt": "2026-09-24T19:51:00.995912+00:00",
+          "id": "bf9760a5-3505-43a9-87a5-108915530aeb",
+          "offset": 21964,
+          "of": 219656
+        },
+        {
+          "frac": 0.5,
+          "createdAt": "2026-03-31T15:22:20.425127+00:00",
+          "id": "975183a1-3007-4e2e-9d6b-a8f0dfe98176",
+          "offset": 109827,
+          "of": 219656
+        },
+        {
+          "frac": 0.9,
+          "createdAt": "2025-06-24T21:38:55.251440+00:00",
+          "id": "2668758c-d54a-43a2-a191-703166bc36e9",
+          "offset": 197689,
+          "of": 219656
+        }
+      ],
+      "bigVenue": [
+        {
+          "frac": 0.5,
+          "createdAt": "2026-04-02T17:01:52.767855+00:00",
+          "id": "45a0d1ff-37b4-44bb-8bc7-5a205dc54b32",
+          "offset": 33839,
+          "of": 67680
+        },
+        {
+          "frac": 0.9,
+          "createdAt": "2025-06-19T21:38:18.006742+00:00",
+          "id": "d5b38892-b5c9-413f-9da6-7e9da6f1a982",
+          "offset": 60911,
+          "of": 67680
+        }
+      ],
+      "staffHeavyOwn": [
+        {
+          "frac": 0.5,
+          "createdAt": "2026-03-30T18:57:56.016060+00:00",
+          "id": "33ac2b90-b8bc-43d2-af05-6b415fd16115",
+          "offset": 7804,
+          "of": 15611
+        },
+        {
+          "frac": 0.9,
+          "createdAt": "2025-06-24T08:11:40.850766+00:00",
+          "id": "5ebe689a-25e9-4379-8d4c-d9f629a3e961",
+          "offset": 14048,
+          "of": 15611
+        }
+      ],
+      "staffMedianOwn": [
+        {
+          "frac": 0.5,
+          "createdAt": "2026-03-24T12:15:54.109854+00:00",
+          "id": "3bdeb0b0-ea02-4f37-8cb1-1ef953b721d5",
+          "offset": 726,
+          "of": 1454
+        }
+      ],
+      "heavyStaffAdmin": [
+        {
+          "frac": 0.5,
+          "createdAt": "2026-03-30T18:55:30.425770+00:00",
+          "id": "e64f0c67-c986-454a-b118-1688ab7f34d6",
+          "offset": 7804,
+          "of": 15610
+        },
+        {
+          "frac": 0.9,
+          "createdAt": "2025-06-24T08:11:30.920392+00:00",
+          "id": "7565edc8-82a7-486f-a9c3-f0f309fc07fb",
+          "offset": 14048,
+          "of": 15610
+        }
+      ],
+      "category": [
+        {
+          "frac": 0.5,
+          "createdAt": "2026-04-04T13:13:38.144856+00:00",
+          "id": "ed8e07f2-e467-4f47-8f16-e5aa8bbb3a21",
+          "offset": 8405,
+          "of": 16812
+        }
+      ]
+    },
+    "popularItem": {
+      "id": "3ebeca22-6309-4bcd-bcc8-ad8632fef0c2",
+      "labels": 2577
+    },
+    "rareItem": {
+      "id": "cf0f7076-df11-4768-87d8-43f40d431289",
+      "labels": 29
+    },
+    "popularVariant": {
+      "id": "eb1f0174-c771-41ab-9082-0b6ae1fc424d",
+      "labels": 248
+    },
+    "category": "curries",
+    "categoryRows": 16812,
+    "bigVenueVersions": [
+      {
+        "id": "57f39de7-a599-40b1-a113-d60611cefa86",
+        "status": "retired",
+        "revision": 2,
+        "entries": 350
+      },
+      {
+        "id": "2bd83c4b-dafd-42e0-88e1-2d234a6e762f",
+        "status": "retired",
+        "revision": 3,
+        "entries": 350
+      },
+      {
+        "id": "a9661fe3-ff5e-4cf8-bff7-6514252aa1dc",
+        "status": "retired",
+        "revision": 4,
+        "entries": 350
+      },
+      {
+        "id": "d7b01798-ade2-4c67-a480-567bdac360c7",
+        "status": "retired",
+        "revision": 1,
+        "entries": 350
+      },
+      {
+        "id": "667db23a-93bd-429c-83dc-81999e707d63",
+        "status": "retired",
+        "revision": 2,
+        "entries": 350
+      },
+      {
+        "id": "f5aa11e5-b867-4558-8dff-4962e601fc1e",
+        "status": "retired",
+        "revision": 3,
+        "entries": 350
+      },
+      {
+        "id": "efa41c71-910c-4a58-a0d9-e646099730ff",
+        "status": "retired",
+        "revision": 4,
+        "entries": 350
+      },
+      {
+        "id": "b7dab03f-6375-40c8-ae92-eeb7ef7c652a",
+        "status": "retired",
+        "revision": 1,
+        "entries": 350
+      },
+      {
+        "id": "e77a4033-49ce-4b53-b559-b7ec0a91c08f",
+        "status": "retired",
+        "revision": 2,
+        "entries": 350
+      },
+      {
+        "id": "65710255-098d-4837-a563-44acdda00756",
+        "status": "retired",
+        "revision": 3,
+        "entries": 350
+      },
+      {
+        "id": "0517942a-ec59-45e9-bec5-2f21ad0225bf",
+        "status": "retired",
+        "revision": 4,
+        "entries": 350
+      },
+      {
+        "id": "fd0df815-ab2c-49b0-bdbe-decd0d52f1e7",
+        "status": "active",
+        "revision": 1,
+        "entries": 350
+      }
+    ],
+    "activeVersion": {
+      "id": "fd0df815-ab2c-49b0-bdbe-decd0d52f1e7",
+      "status": "active",
+      "revision": 1,
+      "entries": 350
+    },
+    "retiredVersion": {
+      "id": "57f39de7-a599-40b1-a113-d60611cefa86",
+      "status": "retired",
+      "revision": 2,
+      "entries": 350
+    },
+    "smallActiveVersion": "6342ed38-a50e-4a15-910d-b0027810ba92",
+    "heavyAssets": [
+      "e8af477f-abcb-4e39-a3b6-bf09458e53a4",
+      "e6be5d35-e4b0-4393-bea7-f9e3d529d094",
+      "3c02073e-1cb9-40a3-a09c-f7eccfe9fdbb",
+      "471b0863-8dc2-4f3d-a9cd-1730d58f6bf1",
+      "cbec1e1f-6200-471e-b2e7-1855e9cb9d53",
+      "a0c0fd5d-024a-4005-9c7e-157d3676d6af",
+      "3eb9a228-2f9a-4622-b57d-c655edd6b679",
+      "908cf19a-19b4-4188-bbf2-7daa809ad7f0",
+      "8647769b-eb4b-4dea-b675-7cbe553292bc",
+      "e547e3ad-69a7-48e5-b4e6-45c56aef9dbe"
+    ],
+    "label": {
+      "labelledAssets": 125084,
+      "labelItems": 176788
+    },
+    "dayRanges": [
+      "2026-10-25",
+      "2026-08-03",
+      "2026-11-01"
+    ]
+  },
+  "results": [
+    {
+      "name": "portfolio first page (heaviest, 15611 assets)",
+      "group": "staff",
+      "volume": "high",
+      "wallMs": {
+        "n": 40,
+        "min": 4.7,
+        "p50": 5.7,
+        "p95": 9.5,
+        "max": 10.3
+      },
+      "requestsP50": 4,
+      "requestMsP50": 8.6,
+      "rows": 24,
+      "failures": 0,
+      "errors": [],
+      "sampled": 40
+    },
+    {
+      "name": "portfolio cursor 50% (heaviest)",
+      "group": "staff",
+      "volume": "high",
+      "wallMs": {
+        "n": 40,
+        "min": 6.6,
+        "p50": 7.6,
+        "p95": 11,
+        "max": 11.6
+      },
+      "requestsP50": 4,
+      "requestMsP50": 9.6,
+      "rows": 24,
+      "failures": 0,
+      "errors": [],
+      "sampled": 40
+    },
+    {
+      "name": "portfolio cursor 90% (heaviest)",
+      "group": "staff",
+      "volume": "high",
+      "wallMs": {
+        "n": 40,
+        "min": 9.2,
+        "p50": 10.6,
+        "p95": 14.7,
+        "max": 17.4
+      },
+      "requestsP50": 4,
+      "requestMsP50": 13.5,
+      "rows": 24,
+      "failures": 0,
+      "errors": [],
+      "sampled": 40
+    },
+    {
+      "name": "portfolio first page (median, 1454 assets)",
+      "group": "staff",
+      "volume": "high",
+      "wallMs": {
+        "n": 40,
+        "min": 3.8,
+        "p50": 4.1,
+        "p95": 5.1,
+        "max": 5.4
+      },
+      "requestsP50": 4,
+      "requestMsP50": 6.5,
+      "rows": 24,
+      "failures": 0,
+      "errors": [],
+      "sampled": 40
+    },
+    {
+      "name": "portfolio cursor 50% (median)",
+      "group": "staff",
+      "volume": "high",
+      "wallMs": {
+        "n": 40,
+        "min": 4.2,
+        "p50": 4.7,
+        "p95": 5.5,
+        "max": 5.8
+      },
+      "requestsP50": 4,
+      "requestMsP50": 6.9,
+      "rows": 24,
+      "failures": 0,
+      "errors": [],
+      "sampled": 40
+    },
+    {
+      "name": "portfolio first page (lightest, 62 assets)",
+      "group": "staff",
+      "volume": "high",
+      "wallMs": {
+        "n": 40,
+        "min": 3.8,
+        "p50": 4.3,
+        "p95": 5.1,
+        "max": 7.9
+      },
+      "requestsP50": 4,
+      "requestMsP50": 6.4,
+      "rows": 24,
+      "failures": 0,
+      "errors": [],
+      "sampled": 40
+    }
+  ]
+}

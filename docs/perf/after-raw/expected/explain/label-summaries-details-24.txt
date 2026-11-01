@@ -1,0 +1,29 @@
+-- label-summaries-details-24
+-- role authenticated, sub (admin)
+-- statement:
+select * from public.media_label_details((select array_agg(id) from (select id from public.media_assets where venue_id = '4414bfde-3a9c-4906-9164-fb831de443af' and upload_state = 'ready' and deleted_at is null order by created_at desc, id desc limit 24) x))
+
+Function Scan on media_label_details  (cost=117.16..127.16 rows=1000 width=312) (actual time=3.666..3.668 rows=21 loops=1)
+  Buffers: shared hit=2731 read=55
+  InitPlan 4
+    ->  Aggregate  (cost=116.90..116.91 rows=1 width=32) (actual time=0.429..0.431 rows=1 loops=1)
+          Buffers: shared hit=195
+          ->  Limit  (cost=0.97..116.60 rows=24 width=24) (actual time=0.337..0.426 rows=24 loops=1)
+                Buffers: shared hit=195
+                InitPlan 1
+                  ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.003..0.003 rows=1 loops=1)
+                InitPlan 2
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+                InitPlan 3
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.318..0.318 rows=1 loops=1)
+                        Buffers: shared hit=168
+                ->  Index Scan using media_assets_venue_feed_idx on media_assets  (cost=0.42..15336.03 rows=3183 width=24) (actual time=0.336..0.423 rows=24 loops=1)
+                      Index Cond: (venue_id = '4414bfde-3a9c-4906-9164-fb831de443af'::uuid)
+                      Filter: (((uploader_id = (InitPlan 1).col1) AND (InitPlan 2).col1) OR ((InitPlan 3).col1 AND (upload_state = 'ready'::upload_state)))
+                      Buffers: shared hit=195
+Settings: effective_cache_size = '128MB', search_path = '"\$user", public, extensions'
+Planning:
+  Buffers: shared hit=360
+Planning Time: 0.452 ms
+Execution Time: 3.714 ms
+

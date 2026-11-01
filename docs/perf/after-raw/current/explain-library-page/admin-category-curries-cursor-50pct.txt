@@ -1,0 +1,23 @@
+-- admin-category-curries-cursor-50pct (library_page p_category := 'curries', p_after_created_at := '2026-10-19T16:42:04.511554+00:00', p_after_id := 'ef23c8bb-b289-4529-9772-dc8a86396dba', p_limit := 25)
+
+Limit  (cost=5.05..5.05 rows=1 width=405) (actual time=0.058..0.059 rows=2 loops=1)
+  Buffers: shared hit=7
+  InitPlan 1
+    ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.003..0.003 rows=1 loops=1)
+  InitPlan 2
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+  InitPlan 3
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.042..0.042 rows=1 loops=1)
+          Buffers: shared hit=1
+  ->  Sort  (cost=4.50..4.50 rows=1 width=405) (actual time=0.058..0.058 rows=2 loops=1)
+        Sort Key: a.created_at DESC, a.id DESC
+        Sort Method: quicksort  Memory: 25kB
+        Buffers: shared hit=7
+        ->  Seq Scan on media_assets a  (cost=0.00..4.49 rows=1 width=405) (actual time=0.049..0.051 rows=2 loops=1)
+              Filter: ((deleted_at IS NULL) AND (deleted_at IS NULL) AND (((uploader_id = (InitPlan 1).col1) AND (InitPlan 2).col1) OR ((InitPlan 3).col1 AND (upload_state = 'ready'::public.upload_state))) AND (ROW(created_at, id) < ROW('2026-10-19 16:42:04.511554+00'::timestamp with time zone, 'ef23c8bb-b289-4529-9772-dc8a86396dba'::uuid)) AND (id = ANY ('{2bdb7fb2-caa3-4657-9c49-26ac3bab4cac,bf2321a0-3425-4b63-95bd-b3e40cefc87b,1b950670-5cfb-448b-be5c-0f93340b2131,ef23c8bb-b289-4529-9772-dc8a86396dba}'::uuid[])) AND (upload_state = 'ready'::public.upload_state))
+              Rows Removed by Filter: 52
+              Buffers: shared hit=4
+Planning:
+  Buffers: shared hit=51
+Planning Time: 0.109 ms
+Execution Time: 0.073 ms

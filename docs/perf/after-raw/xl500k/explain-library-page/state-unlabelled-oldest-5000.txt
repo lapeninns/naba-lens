@@ -1,0 +1,21 @@
+-- state-unlabelled-oldest-5000 (statement of private.library_label_state_page)
+
+Limit  (cost=1000.87..12741.42 rows=25 width=24) (actual time=249.359..252.637 rows=25 loops=1)
+  Buffers: shared hit=1932948 read=8523 dirtied=1182 written=7563
+  ->  Gather Merge  (cost=1000.87..846790.10 rows=1801 width=24) (actual time=249.358..252.635 rows=25 loops=1)
+        Workers Planned: 2
+        Workers Launched: 2
+        Buffers: shared hit=1932948 read=8523 dirtied=1182 written=7563
+        ->  Nested Loop Anti Join  (cost=0.84..845582.20 rows=750 width=24) (actual time=247.278..247.323 rows=17 loops=3)
+              Buffers: shared hit=1932948 read=8523 dirtied=1182 written=7563
+              ->  Parallel Index Only Scan using media_assets_ready_feed_idx on media_assets a  (cost=0.42..18008.93 rows=206932 width=24) (actual time=0.022..12.884 rows=163912 loops=3)
+                    Heap Fetches: 190
+                    Buffers: shared hit=165 read=3237 written=3005
+              ->  Index Only Scan using media_labels_labelled_idx on media_labels l  (cost=0.42..3.99 rows=1 width=16) (actual time=0.001..0.001 rows=1 loops=491736)
+                    Index Cond: (asset_id = a.id)
+                    Heap Fetches: 462858
+                    Buffers: shared hit=1932783 read=5286 written=4558
+Planning:
+  Buffers: shared hit=102 read=32 written=29
+Planning Time: 0.305 ms
+Execution Time: 252.655 ms

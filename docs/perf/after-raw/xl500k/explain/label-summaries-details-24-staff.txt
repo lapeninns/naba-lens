@@ -1,0 +1,30 @@
+-- label-summaries-details-24-staff
+-- role authenticated, sub (staff)
+-- statement:
+select * from public.media_label_details((select array_agg(id) from (select id from public.media_assets where uploader_id = '1c3f3105-94d3-417d-a333-9ada383422f9' and upload_state = 'ready' and deleted_at is null order by created_at desc, id desc limit 24) x))
+
+Function Scan on media_label_details  (cost=455.71..465.71 rows=1000 width=312) (actual time=3.573..3.575 rows=13 loops=1)
+  Buffers: shared hit=2129 read=97
+  InitPlan 4
+    ->  Aggregate  (cost=455.45..455.46 rows=1 width=32) (actual time=0.327..0.329 rows=1 loops=1)
+          Buffers: shared hit=191
+          ->  Limit  (cost=0.97..455.15 rows=24 width=24) (actual time=0.278..0.325 rows=24 loops=1)
+                Buffers: shared hit=191
+                InitPlan 1
+                  ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.001..0.001 rows=1 loops=1)
+                InitPlan 2
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.261..0.261 rows=1 loops=1)
+                        Buffers: shared hit=163
+                InitPlan 3
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+                ->  Index Scan using media_assets_uploader_feed_idx on media_assets  (cost=0.42..86444.28 rows=4568 width=24) (actual time=0.278..0.322 rows=24 loops=1)
+                      Index Cond: (uploader_id = '1c3f3105-94d3-417d-a333-9ada383422f9'::uuid)
+                      Filter: ((((uploader_id = (InitPlan 1).col1) AND (InitPlan 2).col1) OR ((InitPlan 3).col1 AND (upload_state = 'ready'::upload_state))) AND (upload_state = 'ready'::upload_state))
+                      Rows Removed by Filter: 1
+                      Buffers: shared hit=191
+Settings: effective_cache_size = '128MB', search_path = '"\$user", public, extensions'
+Planning:
+  Buffers: shared hit=391
+Planning Time: 0.463 ms
+Execution Time: 3.616 ms
+

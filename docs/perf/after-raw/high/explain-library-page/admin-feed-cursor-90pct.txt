@@ -1,0 +1,19 @@
+-- admin-feed-cursor-90pct (library_page p_after_created_at := '2025-06-24T21:36:52.169235+00:00', p_after_id := '90e03bdf-d80e-4167-a649-fa4f78c14f07', p_limit := 25)
+
+Limit  (cost=0.97..99.54 rows=25 width=416) (actual time=0.268..0.339 rows=25 loops=1)
+  Buffers: shared hit=187 read=6
+  InitPlan 1
+    ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.007..0.007 rows=1 loops=1)
+  InitPlan 2
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+  InitPlan 3
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.240..0.240 rows=1 loops=1)
+          Buffers: shared hit=165
+  ->  Index Scan using media_assets_ready_feed_idx on media_assets a  (cost=0.42..43731.14 rows=11092 width=416) (actual time=0.267..0.337 rows=25 loops=1)
+        Index Cond: (ROW(created_at, id) < ROW('2025-06-24 21:36:52.169235+00'::timestamp with time zone, '90e03bdf-d80e-4167-a649-fa4f78c14f07'::uuid))
+        Filter: (((uploader_id = (InitPlan 1).col1) AND (InitPlan 2).col1) OR ((InitPlan 3).col1 AND (upload_state = 'ready'::public.upload_state)))
+        Buffers: shared hit=187 read=6
+Planning:
+  Buffers: shared hit=388
+Planning Time: 0.419 ms
+Execution Time: 0.366 ms

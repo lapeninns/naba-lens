@@ -1,0 +1,33 @@
+-- label-summaries-details-24-staff
+-- role authenticated, sub (staff)
+-- statement:
+select * from public.media_label_details((select array_agg(id) from (select id from public.media_assets where uploader_id = '168cea3b-9958-4f12-b68f-64c80ee7806e' and upload_state = 'ready' and deleted_at is null order by created_at desc, id desc limit 24) x))
+
+Function Scan on media_label_details  (cost=4.96..14.96 rows=1000 width=312) (actual time=2.939..2.941 rows=18 loops=1)
+  Buffers: shared hit=1586
+  InitPlan 4
+    ->  Aggregate  (cost=4.70..4.71 rows=1 width=32) (actual time=0.298..0.299 rows=1 loops=1)
+          Buffers: shared hit=176
+          ->  Limit  (cost=4.66..4.66 rows=3 width=24) (actual time=0.293..0.295 rows=22 loops=1)
+                Buffers: shared hit=176
+                InitPlan 1
+                  ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.002..0.002 rows=1 loops=1)
+                InitPlan 2
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.263..0.263 rows=1 loops=1)
+                        Buffers: shared hit=167
+                InitPlan 3
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+                ->  Sort  (cost=4.10..4.11 rows=3 width=24) (actual time=0.292..0.293 rows=22 loops=1)
+                      Sort Key: media_assets.created_at DESC, media_assets.id DESC
+                      Sort Method: quicksort  Memory: 26kB
+                      Buffers: shared hit=176
+                      ->  Seq Scan on media_assets  (cost=0.00..4.08 rows=3 width=24) (actual time=0.275..0.279 rows=22 loops=1)
+                            Filter: ((deleted_at IS NULL) AND (deleted_at IS NULL) AND (uploader_id = '168cea3b-9958-4f12-b68f-64c80ee7806e'::uuid) AND (((uploader_id = (InitPlan 1).col1) AND (InitPlan 2).col1) OR ((InitPlan 3).col1 AND (upload_state = 'ready'::upload_state))) AND (upload_state = 'ready'::upload_state))
+                            Rows Removed by Filter: 32
+                            Buffers: shared hit=170
+Settings: effective_cache_size = '128MB', search_path = '"\$user", public, extensions'
+Planning:
+  Buffers: shared hit=360
+Planning Time: 0.402 ms
+Execution Time: 2.978 ms
+

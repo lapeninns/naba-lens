@@ -1,0 +1,28 @@
+-- state-unlabelled-none-unlabelled (statement of private.library_label_state_page)
+
+Limit  (cost=73267.94..73267.95 rows=1 width=24) (actual time=98.306..103.864 rows=0 loops=1)
+  Buffers: shared hit=3777 read=44065 written=2996, temp read=4328 written=4352
+  ->  Sort  (cost=73267.94..73267.95 rows=1 width=24) (actual time=98.305..103.863 rows=0 loops=1)
+        Sort Key: a.created_at DESC, a.id DESC
+        Sort Method: quicksort  Memory: 25kB
+        Buffers: shared hit=3777 read=44065 written=2996, temp read=4328 written=4352
+        ->  Gather  (cost=51033.33..73267.93 rows=1 width=24) (actual time=98.302..103.859 rows=0 loops=1)
+              Workers Planned: 2
+              Workers Launched: 2
+              Buffers: shared hit=3777 read=44065 written=2996, temp read=4328 written=4352
+              ->  Parallel Hash Anti Join  (cost=50033.33..72267.83 rows=1 width=24) (actual time=95.946..95.947 rows=0 loops=3)
+                    Hash Cond: (a.id = l.asset_id)
+                    Buffers: shared hit=3777 read=44065 written=2996, temp read=4328 written=4352
+                    ->  Parallel Index Only Scan using media_assets_ready_feed_idx on media_assets a  (cost=0.42..18008.93 rows=206932 width=24) (actual time=0.072..22.579 rows=165524 loops=3)
+                          Heap Fetches: 191
+                          Buffers: shared hit=169 read=3258 written=2906
+                    ->  Parallel Hash  (cost=46388.96..46388.96 rows=209596 width=16) (actual time=34.772..34.773 rows=166668 loops=3)
+                          Buckets: 262144  Batches: 4  Memory Usage: 7968kB
+                          Buffers: shared hit=3489 read=40804 written=87, temp written=1660
+                          ->  Parallel Seq Scan on media_labels l  (cost=0.00..46388.96 rows=209596 width=16) (actual time=0.012..22.529 rows=166668 loops=3)
+                                Filter: has_labels
+                                Buffers: shared hit=3489 read=40804 written=87
+Planning:
+  Buffers: shared hit=117 read=26 written=21
+Planning Time: 0.322 ms
+Execution Time: 103.883 ms

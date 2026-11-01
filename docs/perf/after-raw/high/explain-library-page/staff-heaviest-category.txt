@@ -1,0 +1,69 @@
+-- staff-heaviest-category (library_page p_category := 'curries', p_limit := 25)
+
+Limit  (cost=0.97..3439.19 rows=25 width=416) (actual time=3.050..13.031 rows=25 loops=1)
+  Buffers: shared hit=9599 read=1066 written=1
+  InitPlan 8
+    ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.003..0.003 rows=1 loops=1)
+  InitPlan 9
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.053..0.053 rows=1 loops=1)
+          Buffers: shared hit=4
+  InitPlan 10
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.063..0.063 rows=1 loops=1)
+          Buffers: shared hit=2
+  ->  Index Scan using media_assets_ready_feed_idx on media_assets a  (cost=0.42..11317938.30 rows=82295 width=416) (actual time=3.049..13.027 rows=25 loops=1)
+        Filter: ((((uploader_id = (InitPlan 8).col1) AND (InitPlan 9).col1) OR ((InitPlan 10).col1 AND (upload_state = 'ready'::public.upload_state))) AND (EXISTS(SubPlan 1) OR EXISTS(SubPlan 7)))
+        Rows Removed by Filter: 4712
+        Buffers: shared hit=9599 read=1066 written=1
+        SubPlan 1
+          ->  Bitmap Heap Scan on media_label_items li  (cost=4.44..12.83 rows=1 width=4) (actual time=0.005..0.005 rows=0 loops=315)
+                Recheck Cond: (asset_id = a.id)
+                Filter: ((section_slug = 'curries'::text) AND private.can_read_asset_labels(asset_id))
+                Rows Removed by Filter: 1
+                Heap Blocks: exact=225
+                Buffers: shared hit=1047 read=273 written=1
+                ->  Bitmap Index Scan on media_label_items_tuple_key  (cost=0.00..4.43 rows=2 width=0) (actual time=0.002..0.002 rows=1 loops=315)
+                      Index Cond: (asset_id = a.id)
+                      Buffers: shared hit=820 read=125
+        SubPlan 7
+          ->  Nested Loop  (cost=17.56..38.43 rows=1 width=4) (actual time=0.017..0.017 rows=0 loops=290)
+                Buffers: shared hit=4474 read=101
+                InitPlan 3
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+                InitPlan 4
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+                InitPlan 6
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+                ->  Nested Loop  (cost=8.73..29.58 rows=1 width=16) (actual time=0.014..0.016 rows=1 loops=290)
+                      Buffers: shared hit=3879 read=94
+                      ->  Index Scan using menu_versions_one_active_per_venue on menu_versions v  (cost=0.14..8.40 rows=1 width=16) (actual time=0.006..0.006 rows=1 loops=290)
+                            Index Cond: (venue_id = a.venue_id)
+                            Filter: (((status = 'active'::text) AND private.staff_can_label_venue(venue_id)) OR (InitPlan 4).col1)
+                            Buffers: shared hit=1161 read=2
+                      ->  Nested Loop  (cost=8.60..21.17 rows=1 width=32) (actual time=0.008..0.010 rows=1 loops=290)
+                            Buffers: shared hit=2718 read=92
+                            ->  Index Only Scan using media_label_items_tuple_key on media_label_items li_1  (cost=0.42..4.96 rows=1 width=16) (actual time=0.006..0.008 rows=1 loops=290)
+                                  Index Cond: (asset_id = a.id)
+                                  Filter: private.can_read_asset_labels(asset_id)
+                                  Heap Fetches: 0
+                                  Buffers: shared hit=1914 read=80
+                            ->  Index Scan using menu_entries_version_item_key on menu_entries e  (cost=8.18..16.20 rows=1 width=48) (actual time=0.003..0.003 rows=1 loops=184)
+                                  Index Cond: ((version_id = v.id) AND (item_id = li_1.item_id))
+                                  Filter: ((ANY (version_id = (hashed SubPlan 2).col1)) OR (InitPlan 3).col1)
+                                  Buffers: shared hit=804 read=12
+                                  SubPlan 2
+                                    ->  ProjectSet  (cost=0.00..5.27 rows=1000 width=16) (actual time=0.274..0.276 rows=1 loops=1)
+                                          Buffers: shared hit=89 read=3
+                                          ->  Result  (cost=0.00..0.01 rows=1 width=0) (actual time=0.000..0.000 rows=1 loops=1)
+                ->  Index Scan using menu_sections_pkey on menu_sections s  (cost=8.04..8.07 rows=1 width=16) (actual time=0.002..0.002 rows=0 loops=172)
+                      Index Cond: (id = e.section_id)
+                      Filter: (((ANY (version_id = (hashed SubPlan 5).col1)) OR (InitPlan 6).col1) AND (slug = 'curries'::text))
+                      Rows Removed by Filter: 1
+                      Buffers: shared hit=595 read=7
+                      SubPlan 5
+                        ->  ProjectSet  (cost=0.00..5.27 rows=1000 width=16) (actual time=0.186..0.187 rows=1 loops=1)
+                              Buffers: shared hit=86
+                              ->  Result  (cost=0.00..0.01 rows=1 width=0) (actual time=0.000..0.000 rows=1 loops=1)
+Planning:
+  Buffers: shared hit=880 read=2
+Planning Time: 1.057 ms
+Execution Time: 13.101 ms

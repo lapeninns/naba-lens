@@ -1,0 +1,22 @@
+-- admin-search-nomatch (library_page p_query := 'zzzqq', p_limit := 25)
+
+Limit  (cost=8.71..8.71 rows=1 width=416) (actual time=0.017..0.017 rows=0 loops=1)
+  Buffers: shared hit=7 read=1
+  InitPlan 1
+    ->  Result  (cost=0.00..0.03 rows=1 width=16) (never executed)
+  InitPlan 2
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+  InitPlan 3
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+  ->  Sort  (cost=8.16..8.16 rows=1 width=416) (actual time=0.017..0.017 rows=0 loops=1)
+        Sort Key: a.created_at DESC, a.id DESC
+        Sort Method: quicksort  Memory: 25kB
+        Buffers: shared hit=7 read=1
+        ->  Index Scan using media_assets_uploader_client_key_idx on media_assets a  (cost=0.12..8.15 rows=1 width=416) (actual time=0.008..0.008 rows=0 loops=1)
+              Filter: ((deleted_at IS NULL) AND (deleted_at IS NULL) AND (id = ANY ('{}'::uuid[])) AND (((uploader_id = (InitPlan 1).col1) AND (InitPlan 2).col1) OR ((InitPlan 3).col1 AND (upload_state = 'ready'::public.upload_state))) AND (upload_state = 'ready'::public.upload_state))
+              Rows Removed by Filter: 4
+              Buffers: shared hit=1 read=1
+Planning:
+  Buffers: shared hit=50
+Planning Time: 0.114 ms
+Execution Time: 0.031 ms

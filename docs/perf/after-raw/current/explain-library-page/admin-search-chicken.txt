@@ -1,0 +1,22 @@
+-- admin-search-chicken (library_page p_query := 'chicken', p_limit := 25)
+
+Limit  (cost=4.51..4.51 rows=1 width=405) (actual time=0.015..0.016 rows=0 loops=1)
+  Buffers: shared hit=9
+  InitPlan 1
+    ->  Result  (cost=0.00..0.03 rows=1 width=16) (never executed)
+  InitPlan 2
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+  InitPlan 3
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+  ->  Sort  (cost=3.96..3.96 rows=1 width=405) (actual time=0.015..0.015 rows=0 loops=1)
+        Sort Key: a.created_at DESC, a.id DESC
+        Sort Method: quicksort  Memory: 25kB
+        Buffers: shared hit=9
+        ->  Seq Scan on media_assets a  (cost=0.00..3.95 rows=1 width=405) (actual time=0.005..0.005 rows=0 loops=1)
+              Filter: ((deleted_at IS NULL) AND (deleted_at IS NULL) AND (id = ANY ('{}'::uuid[])) AND (((uploader_id = (InitPlan 1).col1) AND (InitPlan 2).col1) OR ((InitPlan 3).col1 AND (upload_state = 'ready'::public.upload_state))) AND (upload_state = 'ready'::public.upload_state))
+              Rows Removed by Filter: 54
+              Buffers: shared hit=3
+Planning:
+  Buffers: shared hit=45
+Planning Time: 0.132 ms
+Execution Time: 0.029 ms

@@ -1,0 +1,23 @@
+-- admin-content-dish (library_page p_content_type := 'dish', p_limit := 25)
+
+Limit  (cost=4.81..4.81 rows=2 width=405) (actual time=0.110..0.111 rows=13 loops=1)
+  Buffers: shared hit=10
+  InitPlan 1
+    ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.003..0.003 rows=1 loops=1)
+  InitPlan 2
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+  InitPlan 3
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.078..0.079 rows=1 loops=1)
+          Buffers: shared hit=1
+  ->  Sort  (cost=4.26..4.26 rows=2 width=405) (actual time=0.109..0.110 rows=13 loops=1)
+        Sort Key: a.created_at DESC, a.id DESC
+        Sort Method: quicksort  Memory: 28kB
+        Buffers: shared hit=10
+        ->  Seq Scan on media_assets a  (cost=0.03..4.25 rows=2 width=405) (actual time=0.086..0.091 rows=13 loops=1)
+              Filter: ((deleted_at IS NULL) AND (deleted_at IS NULL) AND (((uploader_id = (InitPlan 1).col1) AND (InitPlan 2).col1) OR ((InitPlan 3).col1 AND (upload_state = 'ready'::public.upload_state))) AND (id = ANY ('{b3094421-d531-439a-9c10-ce9db58c3e82,93a9f1b9-1019-433d-9a90-1519957ba757,bf47d7d3-59a0-46bd-92de-2fca62590216,928b2151-f98c-46d1-a9d6-65da7dedf89d,43bdc698-01d3-49e2-851f-c9fb8edbb255,74238570-4876-49eb-aea3-fb3e3b20b912,3cb724b7-48bd-4835-8869-132dd1c5041a,2bdb7fb2-caa3-4657-9c49-26ac3bab4cac,8d613643-f4c2-4ce3-b3e1-789021c631b4,34fdfba4-3050-45f4-883c-d95236f9fd4b,1b950670-5cfb-448b-be5c-0f93340b2131,4bad03cd-da4e-4b33-8e26-f1f717d90a19,e636970f-21ea-4be3-9429-d58199bf2b0b}'::uuid[])) AND (upload_state = 'ready'::public.upload_state))
+              Rows Removed by Filter: 41
+              Buffers: shared hit=4
+Planning:
+  Buffers: shared hit=81
+Planning Time: 0.176 ms
+Execution Time: 0.122 ms

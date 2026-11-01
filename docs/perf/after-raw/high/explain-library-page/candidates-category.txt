@@ -1,0 +1,15 @@
+-- candidates-category
+
+Limit  (cost=199.86..892.43 rows=3001 width=16) (actual time=0.225..0.679 rows=3001 loops=1)
+  Buffers: shared hit=118
+  ->  Bitmap Heap Scan on media_label_items li  (cost=199.86..4355.98 rows=18009 width=16) (actual time=0.224..0.554 rows=3001 loops=1)
+        Recheck Cond: (section_slug = 'curries'::text)
+        Heap Blocks: exact=103
+        Buffers: shared hit=118
+        ->  Bitmap Index Scan on media_label_items_section_slug_idx  (cost=0.00..195.36 rows=18009 width=0) (actual time=0.188..0.188 rows=17656 loops=1)
+              Index Cond: (section_slug = 'curries'::text)
+              Buffers: shared hit=15
+Planning:
+  Buffers: shared hit=238
+Planning Time: 0.237 ms
+Execution Time: 0.764 ms

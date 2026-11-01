@@ -1,0 +1,17 @@
+-- menu-version-label-items-count
+-- role authenticated, sub (admin)
+-- statement:
+select count(*) from public.media_label_items where venue_id = '1833dd1c-a250-473f-b191-eebfe1d06e79'
+
+Aggregate  (cost=8.90..8.91 rows=1 width=8) (actual time=0.971..0.971 rows=1 loops=1)
+  Buffers: shared hit=824
+  ->  Seq Scan on media_label_items  (cost=0.00..8.88 rows=9 width=0) (actual time=0.815..0.969 rows=27 loops=1)
+        Filter: ((venue_id = '1833dd1c-a250-473f-b191-eebfe1d06e79'::uuid) AND private.can_read_asset_labels(asset_id))
+        Rows Removed by Filter: 3
+        Buffers: shared hit=824
+Settings: effective_cache_size = '128MB', search_path = '"\$user", public, extensions'
+Planning:
+  Buffers: shared hit=237
+Planning Time: 0.219 ms
+Execution Time: 1.003 ms
+

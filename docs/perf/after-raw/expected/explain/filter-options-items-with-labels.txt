@@ -1,0 +1,49 @@
+-- filter-options-items-with-labels
+-- role authenticated, sub (admin)
+-- statement:
+select mi.id, (select json_agg(l) from (select item_name, section_name, added_at from public.media_label_items li where li.item_id = mi.id order by added_at desc limit 1) l) labels
+     from public.menu_items mi where mi.venue_id = '4414bfde-3a9c-4906-9164-fb831de443af'
+       and exists (select 1 from public.media_label_items li where li.item_id = mi.id) order by mi.id limit 1000
+
+Limit  (cost=882.12..2783.34 rows=262 width=48) (actual time=18.214..22.808 rows=455 loops=1)
+  Buffers: shared hit=10609 read=3
+  InitPlan 2
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.032..0.032 rows=1 loops=1)
+          Buffers: shared hit=4
+  ->  Result  (cost=881.86..2783.08 rows=262 width=48) (actual time=18.213..22.785 rows=455 loops=1)
+        Buffers: shared hit=10609 read=3
+        ->  Sort  (cost=881.86..882.51 rows=262 width=16) (actual time=17.946..17.967 rows=455 loops=1)
+              Sort Key: mi.id
+              Sort Method: quicksort  Memory: 25kB
+              Buffers: shared hit=6059 read=3
+              ->  Nested Loop Semi Join  (cost=12.06..871.33 rows=262 width=16) (actual time=1.396..17.876 rows=455 loops=1)
+                    Buffers: shared hit=6056 read=3
+                    ->  Bitmap Heap Scan on menu_items mi  (cost=11.77..155.20 rows=303 width=16) (actual time=1.106..12.499 rows=455 loops=1)
+                          Recheck Cond: (venue_id = '4414bfde-3a9c-4906-9164-fb831de443af'::uuid)
+                          Filter: (private.staff_can_read_menu_item(id, venue_id) OR (InitPlan 2).col1)
+                          Heap Blocks: exact=10
+                          Buffers: shared hit=1889 read=3
+                          ->  Bitmap Index Scan on menu_items_venue_idx  (cost=0.00..11.69 rows=455 width=0) (actual time=0.022..0.022 rows=455 loops=1)
+                                Index Cond: (venue_id = '4414bfde-3a9c-4906-9164-fb831de443af'::uuid)
+                                Buffers: shared read=2
+                    ->  Index Scan using media_label_items_item_idx on media_label_items li  (cost=0.29..13.75 rows=11 width=16) (actual time=0.012..0.012 rows=1 loops=455)
+                          Index Cond: (item_id = mi.id)
+                          Filter: private.can_read_asset_labels(asset_id)
+                          Buffers: shared hit=4167
+        SubPlan 1
+          ->  Aggregate  (cost=7.23..7.24 rows=1 width=32) (actual time=0.010..0.010 rows=1 loops=455)
+                Buffers: shared hit=4550
+                ->  Subquery Scan on l  (cost=0.41..7.23 rows=1 width=58) (actual time=0.010..0.010 rows=1 loops=455)
+                      Buffers: shared hit=4550
+                      ->  Limit  (cost=0.41..7.22 rows=1 width=34) (actual time=0.010..0.010 rows=1 loops=455)
+                            Buffers: shared hit=4550
+                            ->  Index Scan using media_label_items_item_added_idx on media_label_items li_1  (cost=0.41..75.26 rows=11 width=34) (actual time=0.010..0.010 rows=1 loops=455)
+                                  Index Cond: (item_id = mi.id)
+                                  Filter: private.can_read_asset_labels(asset_id)
+                                  Buffers: shared hit=4550
+Settings: effective_cache_size = '128MB', search_path = '"\$user", public, extensions'
+Planning:
+  Buffers: shared hit=412 read=1
+Planning Time: 0.513 ms
+Execution Time: 22.921 ms
+

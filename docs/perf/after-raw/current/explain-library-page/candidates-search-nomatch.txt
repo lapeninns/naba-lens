@@ -1,0 +1,23 @@
+-- candidates-search-nomatch
+
+Limit  (cost=0.00..3.67 rows=1 width=16) (actual time=0.027..0.027 rows=0 loops=1)
+  Buffers: shared hit=3
+  ->  Seq Scan on media_labels l  (cost=0.00..3.67 rows=1 width=16) (actual time=0.026..0.026 rows=0 loops=1)
+        Filter: (note ~~* '%zzzqq%'::text)
+        Rows Removed by Filter: 24
+        Buffers: shared hit=3
+Planning:
+  Buffers: shared hit=156
+Planning Time: 0.753 ms
+Execution Time: 0.054 ms
+
+Limit  (cost=0.00..1.52 rows=1 width=16) (actual time=0.026..0.026 rows=0 loops=1)
+  Buffers: shared hit=1
+  ->  Seq Scan on media_label_items li  (cost=0.00..1.52 rows=1 width=16) (actual time=0.025..0.025 rows=0 loops=1)
+        Filter: ((item_name ~~* '%zzzqq%'::text) OR (variant_name ~~* '%zzzqq%'::text) OR (section_name ~~* '%zzzqq%'::text))
+        Rows Removed by Filter: 30
+        Buffers: shared hit=1
+Planning:
+  Buffers: shared hit=243
+Planning Time: 0.811 ms
+Execution Time: 0.049 ms

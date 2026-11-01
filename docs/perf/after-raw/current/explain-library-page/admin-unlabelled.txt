@@ -1,0 +1,23 @@
+-- admin-unlabelled (library_page p_label_state := 'unlabelled', p_limit := 25)
+
+Limit  (cost=4.85..4.86 rows=3 width=405) (actual time=0.069..0.071 rows=25 loops=1)
+  Buffers: shared hit=4
+  InitPlan 1
+    ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.003..0.003 rows=1 loops=1)
+  InitPlan 2
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+  InitPlan 3
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.052..0.052 rows=1 loops=1)
+          Buffers: shared hit=1
+  ->  Sort  (cost=4.30..4.31 rows=3 width=405) (actual time=0.069..0.070 rows=25 loops=1)
+        Sort Key: a.created_at DESC, a.id DESC
+        Sort Method: quicksort  Memory: 33kB
+        Buffers: shared hit=4
+        ->  Seq Scan on media_assets a  (cost=0.06..4.28 rows=3 width=405) (actual time=0.059..0.064 rows=25 loops=1)
+              Filter: ((deleted_at IS NULL) AND (deleted_at IS NULL) AND (((uploader_id = (InitPlan 1).col1) AND (InitPlan 2).col1) OR ((InitPlan 3).col1 AND (upload_state = 'ready'::public.upload_state))) AND (id = ANY ('{92a0c869-11a8-4b21-b3e0-afb7f25746d7,b673240f-588a-4732-981c-e12b9175e2e7,9baaeb0f-9a07-4b97-bf5a-6f35394bc827,4b3be63b-fb62-421f-8d9a-ebf16edf2397,65752ac5-1731-4a38-9bb7-3144fab5d3b7,8cc7f603-8605-40b0-a2bc-ce48ebf6136e,3363f7c8-a6a4-4551-849c-b057896523be,e900663c-acdd-4a0f-b3dc-29935154579f,25020097-538b-4990-ae72-cad2df01cb39,421454a7-ea3e-4928-9e25-19db1db5baa9,bbbb8c0f-6304-4147-ae5e-01b840a0834e,7d297461-49de-45e8-aa72-8fa630338f05,2b5d72e6-f031-4d1c-942a-dd8578bc956f,5a7b57c7-50e9-45d9-aa52-613533aeca4d,08d7e0b9-6d19-4710-b451-68112e43f6d7,4a880236-fead-4d69-b2d8-99a525e6bdfc,20fa8b31-21d6-49c8-9b6f-dfa62c419fb6,d5be97c5-ef39-4581-8fae-fd193c2a8db9,9355f04c-06fd-4777-b391-ff16146d0444,42ef478a-384a-41ce-866d-506b68501597,0d8f6641-b431-4d6e-b32f-a43e84f99821,3ff16f8b-f9a4-4d40-9803-48f97d3525ef,9d275137-5db1-4e1f-94bc-0542bd7cf145,d7dc3c96-1b3f-4159-be35-b817c3e74650,c6a4fa81-fcfd-4cd0-80e5-68ef9289de3d}'::uuid[])) AND (upload_state = 'ready'::public.upload_state))
+              Rows Removed by Filter: 29
+              Buffers: shared hit=4
+Planning:
+  Buffers: shared hit=68
+Planning Time: 0.163 ms
+Execution Time: 0.082 ms
