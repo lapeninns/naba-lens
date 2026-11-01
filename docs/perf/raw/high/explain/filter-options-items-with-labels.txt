@@ -1,0 +1,44 @@
+-- filter-options-items-with-labels
+-- role authenticated, sub (admin)
+-- statement:
+select mi.id, (select json_agg(l) from (select item_name, section_name, added_at from public.media_label_items li where li.item_id = mi.id order by added_at desc limit 1) l) labels
+     from public.menu_items mi where mi.venue_id = '385d4a1a-deda-4f46-87b3-2264d5d28522'
+       and exists (select 1 from public.media_label_items li where li.item_id = mi.id) order by mi.id limit 1000
+
+Limit  (cost=0.83..9555.18 rows=267 width=48) (actual time=3.782..394.354 rows=455 loops=1)
+  Buffers: shared hit=335681 read=348
+  InitPlan 2
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.046..0.046 rows=1 loops=1)
+          Buffers: shared hit=4
+  ->  Nested Loop Semi Join  (cost=0.57..9554.92 rows=267 width=48) (actual time=3.781..394.315 rows=455 loops=1)
+        Buffers: shared hit=335681 read=348
+        ->  Index Only Scan using menu_items_id_venue_key on menu_items mi  (cost=0.28..232.37 rows=303 width=16) (actual time=1.552..18.867 rows=455 loops=1)
+              Index Cond: (venue_id = '385d4a1a-deda-4f46-87b3-2264d5d28522'::uuid)
+              Filter: (private.staff_can_read_menu_item(id, venue_id) OR (InitPlan 2).col1)
+              Heap Fetches: 0
+              Buffers: shared hit=1836 read=49
+        ->  Index Scan using media_label_items_item_idx on media_label_items li  (cost=0.29..32.54 rows=28 width=16) (actual time=0.012..0.012 rows=1 loops=455)
+              Index Cond: (item_id = mi.id)
+              Filter: private.can_read_asset_labels(asset_id)
+              Buffers: shared hit=3989 read=178
+        SubPlan 1
+          ->  Aggregate  (cost=32.19..32.20 rows=1 width=32) (actual time=0.813..0.813 rows=1 loops=455)
+                Buffers: shared hit=329856 read=121
+                ->  Subquery Scan on l  (cost=32.17..32.18 rows=1 width=58) (actual time=0.811..0.811 rows=1 loops=455)
+                      Buffers: shared hit=329856 read=121
+                      ->  Limit  (cost=32.17..32.17 rows=1 width=34) (actual time=0.811..0.811 rows=1 loops=455)
+                            Buffers: shared hit=329856 read=121
+                            ->  Sort  (cost=32.17..32.24 rows=28 width=34) (actual time=0.811..0.811 rows=1 loops=455)
+                                  Sort Key: li_1.added_at DESC
+                                  Sort Method: top-N heapsort  Memory: 25kB
+                                  Buffers: shared hit=329856 read=121
+                                  ->  Index Scan using media_label_items_item_idx on media_label_items li_1  (cost=0.29..32.03 rows=28 width=34) (actual time=0.007..0.802 rows=120 loops=455)
+                                        Index Cond: (item_id = mi.id)
+                                        Filter: private.can_read_asset_labels(asset_id)
+                                        Buffers: shared hit=329853 read=121
+Settings: effective_cache_size = '128MB', search_path = '"\$user", public, extensions'
+Planning:
+  Buffers: shared hit=296 read=9
+Planning Time: 0.510 ms
+Execution Time: 394.853 ms
+

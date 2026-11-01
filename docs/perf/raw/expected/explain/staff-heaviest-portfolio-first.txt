@@ -1,0 +1,65 @@
+-- staff-heaviest-portfolio-first
+-- role authenticated, sub (staff)
+-- statement:
+select a.id, a.uploader_id, a.media_type, a.upload_state, a.thumbnail_path, a.preview_path, a.validated_mime_type, a.original_filename, a.created_at, a.width, a.height, a.duration_seconds, a.size_bytes, row_to_json(v.*)::jsonb as venue, row_to_json(u.*)::jsonb as uploader from public.media_assets a left join lateral (select venues_1.name from public.venues venues_1 where venues_1.id = a.venue_id limit 1) v on true
+left join lateral (select profiles_1.display_name from public.profiles profiles_1 where profiles_1.id = a.uploader_id limit 1) u on true
+ where a.deleted_at is null and a.uploader_id = 'dba9c49d-e4f5-49c3-b32c-9533a69642cc'
+ order by a.created_at desc, a.id desc limit 25
+
+Limit  (cost=1.54..212.68 rows=25 width=329) (actual time=0.325..0.461 rows=25 loops=1)
+  Buffers: shared hit=256
+  InitPlan 1
+    ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.001..0.002 rows=1 loops=1)
+  InitPlan 2
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.201..0.201 rows=1 loops=1)
+          Buffers: shared hit=219
+  InitPlan 3
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+  ->  Nested Loop Left Join  (cost=0.99..15363.31 rows=1819 width=329) (actual time=0.325..0.459 rows=25 loops=1)
+        Buffers: shared hit=256
+        ->  Nested Loop Left Join  (cost=0.69..15081.88 rows=1819 width=305) (actual time=0.272..0.388 rows=25 loops=1)
+              Buffers: shared hit=250
+              ->  Index Scan using media_assets_uploader_feed_idx on media_assets a  (cost=0.42..15022.10 rows=1819 width=281) (actual time=0.229..0.338 rows=25 loops=1)
+                    Index Cond: (uploader_id = 'dba9c49d-e4f5-49c3-b32c-9533a69642cc'::uuid)
+                    Filter: (((uploader_id = (InitPlan 1).col1) AND (InitPlan 2).col1) OR ((InitPlan 3).col1 AND (upload_state = 'ready'::upload_state)))
+                    Buffers: shared hit=247
+              ->  Memoize  (cost=0.27..1.44 rows=1 width=40) (actual time=0.002..0.002 rows=1 loops=25)
+                    Cache Key: a.venue_id
+                    Cache Mode: binary
+                    Hits: 24  Misses: 1  Evictions: 0  Overflows: 0  Memory Usage: 1kB
+                    Buffers: shared hit=3
+                    ->  Subquery Scan on v  (cost=0.26..1.43 rows=1 width=40) (actual time=0.041..0.041 rows=1 loops=1)
+                          Buffers: shared hit=3
+                          ->  Limit  (cost=0.26..1.42 rows=1 width=16) (actual time=0.038..0.039 rows=1 loops=1)
+                                Buffers: shared hit=3
+                                InitPlan 4
+                                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.036..0.036 rows=1 loops=1)
+                                        Buffers: shared hit=2
+                                ->  Seq Scan on venues venues_1  (cost=0.00..1.16 rows=1 width=16) (actual time=0.038..0.038 rows=1 loops=1)
+                                      Filter: ((InitPlan 4).col1 AND (id = a.venue_id))
+                                      Rows Removed by Filter: 5
+                                      Buffers: shared hit=3
+        ->  Memoize  (cost=0.30..3.38 rows=1 width=39) (actual time=0.002..0.002 rows=1 loops=25)
+              Cache Key: a.uploader_id
+              Cache Mode: binary
+              Hits: 24  Misses: 1  Evictions: 0  Overflows: 0  Memory Usage: 1kB
+              Buffers: shared hit=6
+              ->  Subquery Scan on u  (cost=0.29..3.37 rows=1 width=39) (actual time=0.045..0.046 rows=1 loops=1)
+                    Buffers: shared hit=6
+                    ->  Limit  (cost=0.29..3.36 rows=1 width=15) (actual time=0.045..0.045 rows=1 loops=1)
+                          Buffers: shared hit=6
+                          InitPlan 5
+                            ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.000..0.000 rows=1 loops=1)
+                          InitPlan 6
+                            ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.042..0.042 rows=1 loops=1)
+                                  Buffers: shared hit=4
+                          ->  Seq Scan on profiles profiles_1  (cost=0.00..3.06 rows=1 width=15) (actual time=0.045..0.045 rows=1 loops=1)
+                                Filter: (((id = (InitPlan 5).col1) OR (InitPlan 6).col1) AND (id = a.uploader_id))
+                                Rows Removed by Filter: 23
+                                Buffers: shared hit=6
+Settings: effective_cache_size = '128MB', search_path = '"\$user", public, extensions'
+Planning:
+  Buffers: shared hit=503
+Planning Time: 0.643 ms
+Execution Time: 0.523 ms
+

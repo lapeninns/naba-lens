@@ -1,0 +1,21 @@
+-- menu-version-label-items-page30
+-- role authenticated, sub (admin)
+-- statement:
+select item_id from public.media_label_items where venue_id = '683438d8-d85c-4caa-8772-63a6a54e9f21' order by id limit 1000 offset 30000
+
+Limit  (cost=17383.63..17383.64 rows=1 width=32) (actual time=128.690..128.691 rows=0 loops=1)
+  Buffers: shared hit=121916
+  ->  Sort  (cost=17367.08..17383.63 rows=6623 width=32) (actual time=127.779..128.320 rows=19979 loops=1)
+        Sort Key: id
+        Sort Method: quicksort  Memory: 2173kB
+        Buffers: shared hit=121916
+        ->  Seq Scan on media_label_items  (cost=0.00..16946.74 rows=6623 width=32) (actual time=0.953..124.144 rows=19979 loops=1)
+              Filter: ((venue_id = '683438d8-d85c-4caa-8772-63a6a54e9f21'::uuid) AND private.can_read_asset_labels(asset_id))
+              Rows Removed by Filter: 39540
+              Buffers: shared hit=121913
+Settings: effective_cache_size = '128MB', search_path = '"\$user", public, extensions'
+Planning:
+  Buffers: shared hit=183
+Planning Time: 0.219 ms
+Execution Time: 129.107 ms
+

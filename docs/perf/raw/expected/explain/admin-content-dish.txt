@@ -1,0 +1,80 @@
+-- admin-content-dish
+-- role authenticated, sub (admin)
+-- statement:
+with pgrst_source as (select pgrst_call.* from (select '{"p_content_type":"dish"}'::json as json_data) pgrst_payload,
+  lateral (select "p_content_type" from json_to_record(pgrst_payload.json_data) as _("p_content_type" text) limit 1) pgrst_body,
+  lateral public.library_assets("p_content_type" := pgrst_body."p_content_type") pgrst_call)
+select a.id, a.uploader_id, a.media_type, a.upload_state, a.thumbnail_path, a.preview_path, a.validated_mime_type, a.original_filename, a.created_at, a.width, a.height, a.duration_seconds, a.size_bytes, row_to_json(v.*)::jsonb as venue, row_to_json(u.*)::jsonb as uploader from pgrst_source a left join lateral (select venues_1.name from public.venues venues_1 where venues_1.id = a.venue_id limit 1) v on true
+left join lateral (select profiles_1.display_name from public.profiles profiles_1 where profiles_1.id = a.uploader_id limit 1) u on true
+ where a.deleted_at is null and a.upload_state = 'ready'
+ order by a.created_at desc, a.id desc limit 25
+
+Limit  (cost=1.54..518.42 rows=25 width=329) (actual time=0.632..1.373 rows=25 loops=1)
+  Buffers: shared hit=498 read=1
+  InitPlan 2
+    ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.003..0.004 rows=1 loops=1)
+  InitPlan 3
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+  InitPlan 4
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.166..0.166 rows=1 loops=1)
+          Buffers: shared hit=72
+  ->  Nested Loop Left Join  (cost=0.99..98599.54 rows=4769 width=329) (actual time=0.631..1.371 rows=25 loops=1)
+        Buffers: shared hit=498 read=1
+        ->  Nested Loop Left Join  (cost=0.69..98200.04 rows=4769 width=305) (actual time=0.585..1.292 rows=25 loops=1)
+              Buffers: shared hit=480 read=1
+              ->  Nested Loop  (cost=0.42..98066.50 rows=4769 width=281) (actual time=0.545..1.239 rows=25 loops=1)
+                    Join Filter: ((_.p_content_type IS NULL) OR EXISTS(SubPlan 1))
+                    Rows Removed by Join Filter: 44
+                    Buffers: shared hit=473 read=1
+                    ->  Index Scan using media_assets_ready_feed_idx on media_assets a  (cost=0.42..16725.32 rows=9490 width=281) (actual time=0.184..0.400 rows=69 loops=1)
+                          Filter: (((uploader_id = (InitPlan 2).col1) AND (InitPlan 3).col1) OR ((InitPlan 4).col1 AND (upload_state = 'ready'::upload_state)))
+                          Buffers: shared hit=141
+                    ->  Materialize  (cost=0.00..0.02 rows=1 width=32) (actual time=0.000..0.000 rows=1 loops=69)
+                          ->  Limit  (cost=0.00..0.01 rows=1 width=32) (actual time=0.008..0.008 rows=1 loops=1)
+                                ->  Function Scan on json_to_record _  (cost=0.00..0.01 rows=1 width=32) (actual time=0.008..0.008 rows=1 loops=1)
+                    SubPlan 1
+                      ->  Index Scan using media_labels_pkey on media_labels l  (cost=0.29..8.56 rows=1 width=0) (actual time=0.012..0.012 rows=0 loops=69)
+                            Index Cond: (asset_id = a.id)
+                            Filter: ((_.p_content_type = ANY (content_types)) AND private.can_read_asset_labels(asset_id))
+                            Rows Removed by Filter: 0
+                            Buffers: shared hit=332 read=1
+              ->  Memoize  (cost=0.27..1.44 rows=1 width=40) (actual time=0.002..0.002 rows=1 loops=25)
+                    Cache Key: a.venue_id
+                    Cache Mode: binary
+                    Hits: 20  Misses: 5  Evictions: 0  Overflows: 0  Memory Usage: 1kB
+                    Buffers: shared hit=7
+                    ->  Subquery Scan on v  (cost=0.26..1.43 rows=1 width=40) (actual time=0.009..0.009 rows=1 loops=5)
+                          Buffers: shared hit=7
+                          ->  Limit  (cost=0.26..1.42 rows=1 width=16) (actual time=0.008..0.008 rows=1 loops=5)
+                                Buffers: shared hit=7
+                                InitPlan 5
+                                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.034..0.034 rows=1 loops=1)
+                                        Buffers: shared hit=2
+                                ->  Seq Scan on venues venues_1  (cost=0.00..1.16 rows=1 width=16) (actual time=0.008..0.008 rows=1 loops=5)
+                                      Filter: ((InitPlan 5).col1 AND (id = a.venue_id))
+                                      Rows Removed by Filter: 8
+                                      Buffers: shared hit=7
+        ->  Memoize  (cost=0.30..3.38 rows=1 width=39) (actual time=0.002..0.002 rows=1 loops=25)
+              Cache Key: a.uploader_id
+              Cache Mode: binary
+              Hits: 17  Misses: 8  Evictions: 0  Overflows: 0  Memory Usage: 2kB
+              Buffers: shared hit=18
+              ->  Subquery Scan on u  (cost=0.29..3.37 rows=1 width=39) (actual time=0.006..0.006 rows=1 loops=8)
+                    Buffers: shared hit=18
+                    ->  Limit  (cost=0.29..3.36 rows=1 width=15) (actual time=0.006..0.006 rows=1 loops=8)
+                          Buffers: shared hit=18
+                          InitPlan 6
+                            ->  Result  (cost=0.00..0.03 rows=1 width=16) (actual time=0.001..0.001 rows=1 loops=1)
+                          InitPlan 7
+                            ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.035..0.035 rows=1 loops=1)
+                                  Buffers: shared hit=2
+                          ->  Seq Scan on profiles profiles_1  (cost=0.00..3.06 rows=1 width=15) (actual time=0.006..0.006 rows=1 loops=8)
+                                Filter: (((id = (InitPlan 6).col1) OR (InitPlan 7).col1) AND (id = a.uploader_id))
+                                Rows Removed by Filter: 35
+                                Buffers: shared hit=18
+Settings: effective_cache_size = '128MB', search_path = '"\$user", public, extensions'
+Planning:
+  Buffers: shared hit=820
+Planning Time: 1.355 ms
+Execution Time: 1.474 ms
+
