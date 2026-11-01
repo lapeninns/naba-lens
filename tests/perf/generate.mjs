@@ -1,8 +1,9 @@
-// Synthetic large-library generator (WS3 baseline). Writes to the local spare6
-// stack only, as postgres, and replaces any earlier PERF data so the three
-// volumes can be measured one after another on the same database.
+// Synthetic large-library generator (WS3 baseline). Writes to the local workstream
+// stack (PERF_STACK, default spare6) only, as postgres, and replaces any earlier
+// PERF data so the three volumes can be measured one after another on the same
+// database.
 //
-//   source /tmp/nabalens-ws/spare6/env.sh
+//   source /tmp/nabalens-ws/<stack>/env.sh
 //   node tests/perf/generate.mjs --volume current|expected|high [--seed 0.42]
 //   node tests/perf/generate.mjs --purge
 //
@@ -12,7 +13,7 @@
 import { dirname, join } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
 
-import { psql, query, requireSpare6 } from "./lib.mjs"
+import { psql, query, requireWorkstreamStack } from "./lib.mjs"
 
 const here = dirname(fileURLToPath(import.meta.url))
 
@@ -128,7 +129,7 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
     const i = argv.indexOf(`--${k}`)
     return i >= 0 ? argv[i + 1] : undefined
   }
-  const { dbUrl } = requireSpare6()
+  const { dbUrl } = requireWorkstreamStack()
   if (argv.includes("--purge")) {
     purge(dbUrl)
     console.log(JSON.stringify({ purged: true, counts: counts(dbUrl) }, null, 2))

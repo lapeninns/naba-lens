@@ -3,7 +3,7 @@
 // (lib/menus/import, lib/server/menus) as a signed-in PERF admin. Test venues are
 // created with slug perf-venue-menutest-<size> so generate.mjs purges them.
 //
-//   source /tmp/nabalens-ws/spare6/env.sh
+//   source /tmp/nabalens-ws/<stack>/env.sh
 //   node --conditions=react-server --import tsx tests/perf/menu-bench.mjs \
 //     --volume expected [--n 12] [--out docs/perf/raw]
 import { mkdirSync, writeFileSync } from "node:fs"
@@ -12,7 +12,7 @@ import { join, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
 
 import { makeActor, signIn } from "./actors.mjs"
-import { gitHead, query, psql, requireSpare6, summarise } from "./lib.mjs"
+import { gitHead, query, psql, requireWorkstreamStack, summarise } from "./lib.mjs"
 import { pickTargets } from "./targets.mjs"
 
 const argv = process.argv.slice(2)
@@ -23,7 +23,7 @@ const arg = (k, d) => {
 const VOLUME = arg("volume", "unlabelled")
 const N = Number(arg("n", 12))
 const OUT = resolve(arg("out", "docs/perf/raw"), VOLUME)
-const env = requireSpare6()
+const env = requireWorkstreamStack()
 const root = resolve(".")
 const lib = (p) => import(pathToFileURL(join(root, p)).href)
 const importer = await lib("lib/menus/import/index.ts")

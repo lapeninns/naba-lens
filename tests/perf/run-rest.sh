@@ -1,10 +1,11 @@
 #!/bin/sh
 # Second pass of the baseline: regenerates one volume and runs the benches that
-# need the built app on :3646 (refresh, delivery, TTFB and bundle size) and the
+# need the built app on the stack app port (refresh, delivery, TTFB and bundle size) and the
 # menu bench (last: it activates menus, so it changes the data).
 #
-#   source /tmp/nabalens-ws/spare6/env.sh
-#   pnpm exec next build && (pnpm exec next start -p 3646 &)    # once
+#   source /tmp/nabalens-ws/<stack>/env.sh
+#   export PERF_STACK=<stack>   # unset means spare6
+#   pnpm exec next build && (pnpm exec next start -p "$(node tests/perf/stack-config.mjs app-port)" &)   # once
 #   sh tests/perf/run-rest.sh current|expected|high [out]
 set -e
 V=$1 OUT=${2:-docs/perf/raw}
