@@ -11,6 +11,7 @@ Scope: `docs/perf/baseline.md` section 7, fix 5 ("Unbounded sharp concurrency an
 | 16 simultaneous 12 MP JPEGs, peak RSS | 1,589 MiB | 520 MiB |
 | 10 simultaneous 40 MP JPEGs (the pixel limit), peak RSS | 2,809 MiB | 342 MiB |
 | 39 MP HEIC, peak RSS (reported, not changed) | 593 MiB | 595 MiB |
+| 1 39 MP HEIC + 10 simultaneous 12 MP JPEGs, peak RSS | 1,643 MiB | 915 MiB |
 
 - Peak memory no longer grows with the number of callers: it is about 500 MiB from 4 to 16 simultaneous 12 MP decodes.
 - Sequential JPEG and PNG time is equal or a little lower, and CPU per image drops by 24 to 36%.
@@ -108,8 +109,51 @@ Typical values are 0 for previews that need no shrink and 0.4 to 0.7 for thumbna
 
 Behaviour that is deliberately unchanged: size and type checks, MIME checks, `failOn: "warning"` (a corrupt or truncated file is still `corrupt_media`), `limitInputPixels` (`pixel_limit`), the 10 s sharp timeout (`decode_timeout`), EXIF auto-orientation, metadata stripping (every existing test, including the GPS/XMP/ICC and polyglot tests, passes unchanged), and the HEIC worker.
 
-## 5. Not changed, and what remains
+## 5. `decoder_busy` for JPEG, PNG and WebP
 
-- **HEIC memory.** A 39 MP HEIC peaks at about 595 MiB (80 MiB idle) because libheif decodes the whole image to RGBA inside its WASM heap before sharp sees it. HEIC cannot shrink on load, and the decoder only exposes full-size frames. The queue of one keeps it from compounding; a HEIC decode running next to a busy image gate has not been measured together; adding the two peaks above (about 600 MiB and about 500 MiB, each including the 80 MiB idle process) gives an upper bound near 1.1 GiB.
+The gate adds a wait that ordinary images did not have before. It does not add a way to fail at the loads measured here.
+
+**Queue wait.** `heicTimeoutMs` is 15,000 ms. One 12 MP finalise validation in the same process, many callers at once, 5 batches each (worst single call, which is its queue wait plus its own decode of about 0.2 s):
+
+| simultaneous | worst call before / after | median of the 5 worst, after | `decoder_busy` or other failures |
+| ---: | ---: | ---: | ---: |
+| 16 | 941 / 801 ms | 787 ms | 0 |
+| 32 | 1,670 / 1,572 ms | 1,548 ms | 0 |
+| 64 | 3,446 / 3,084 ms | 3,052 ms | 0 |
+
+Callers were already waiting before the change, in sharp's thread pool; the gate moves that wait to a visible FIFO and the totals are the same. A caller only gets `decoder_busy` when it waits 15 s for a slot, which on this machine is a backlog of about 300 12 MP decodes in one process (an estimate for a 2 vCPU function, not measured: roughly 60 to 100).
+
+**One `decoder_busy`, end to end** (nothing here changed, HEIC already behaved this way):
+
+1. `processImage` rejects with `decoder_busy`; `validateMedia` returns `{ok:false, error:"decoder_busy"}`.
+2. `lib/server/media/finalise.ts` (`validateStored`) retries once after a 1 s pause (`BUSY_RETRIES = 1`). Each attempt can wait one full queue deadline, so the worst case is about 31 s plus the decode, inside `HEIC_FINALISE_WORST_CASE_MS` (46 s), which `tests/unit/finalise-budget.test.ts` keeps at or under 60 s, half of the 120 s Server Action `maxDuration`. An image attempt needs at most one queue wait plus a decode of at most the 10 s sharp timeout, so it stays within the same bound.
+3. If it is still busy, finalise puts the row back to `failed` (the bytes stay in Storage) and answers `503`, "The server is busy processing photos. Try again." Nothing terminal happens: the original is not deleted.
+4. The server action returns that to the browser; `app/_media/use-media-uploader.ts` throws it, and `lib/upload/uploader.ts` reports `finalise_failed` with `retryable: true`.
+5. **The client does not retry by itself.** The dialog shows the row as "Failed" with that message and a per-file Retry button. Choosing Retry (or the same file after a reload) reserves the same asset, finds the stored bytes and finalises again without uploading anything. So a staff member sees an error and one tap fixes it, not a silent delay. I have not changed the client; an automatic retry there would be a separate decision.
+
+`tests/media/image-gate.test.ts` covers this: 16 and 32 simultaneous 12 MP validations all succeed; with one slot and a 1 ms deadline the second caller gets `decoder_busy` and the next call succeeds; the gate never exceeds its limit, serves in arrival order and releases its slot when the work throws. The route-level path (503, row back to `failed`, Retry resumes) is covered by the existing finalise and upload-recovery suites, which need a stack.
+
+## 6. HEIC running next to a busy image gate
+
+One 39 MP HEIC (`synthetic-39mp.heic`) validated at the same time as 12 MP JPEGs in one process, 3 batches, `maxRSS`:
+
+| Mix | peak RSS MiB before / after | batch p50 ms before / after | failures |
+| --- | ---: | ---: | ---: |
+| 1 HEIC alone | 575 / 584 | 709 / 728 | 0 |
+| 1 HEIC + 6 JPEG | 1,381 / 826 | 814 / 820 | 0 |
+| 1 HEIC + 10 JPEG | 1,608 to 1,643 / 865 to 915 | 815 to 819 / 777 to 862 | 0 |
+| 2 HEIC + 10 JPEG (second HEIC queues) | 1,538 / 886 | 1,560 / 1,483 | 0 |
+
+The worst case, a HEIC decode plus a saturated image gate, peaks at 915 MiB (including the 80 MiB idle process), under the 1 GiB target; it was 1.6 GiB before. HEIC does not take an image slot, so a HEIC backlog cannot starve JPEG decodes.
+
+## 7. What did not change
+
+- **`failOn`.** It is `"warning"` before and after. It is set once in `decodeOptions` and passed to both the header read and the resizing decode. The HEIC worker never used it.
+- **The 40 MP check.** `limitInputPixels` (40,000,000) is the same option on both sharp calls. sharp checks it against the original width times height when it opens the input, before any pixel is decoded, in `metadata()` and in the pipeline alike. Checked directly: 8000x5000 opens, 8000x5001 fails with "Input image exceeds pixel limit" in about 0.2 to 2.7 ms for PNG and for an EXIF-rotated JPEG, and `errorCode` maps it to `pixel_limit`. In the new code the header read runs first, so an over-limit file is rejected before the resizing decode starts. The check is on the stored orientation's dimensions, as before.
+- Size and type checks, MIME checks, the 10 s sharp timeout, EXIF rotation, metadata stripping and the HEIC worker are as before; the existing suites pass unchanged.
+
+## 8. Not changed, and what remains
+
+- **HEIC memory.** A 39 MP HEIC peaks at about 595 MiB (80 MiB idle) because libheif decodes the whole image to RGBA inside its WASM heap before sharp sees it. HEIC cannot shrink on load, and the decoder only exposes full-size frames. The queue of one keeps it from compounding (section 6).
 - **Real hardware.** This ran on a laptop. The 2 vCPU, 2 GiB Vercel function should be re-measured by whoever owns the deployment; the expectation is the same shape (flat memory, throughput bound by CPU).
 - **Thumbnail source.** Thumbnails are resized from the preview-size pixels, not from the original, which is what the table in section 4 measures.
