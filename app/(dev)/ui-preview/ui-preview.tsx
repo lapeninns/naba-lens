@@ -157,7 +157,7 @@ export function UiPreview() {
   return (
     <div className="mx-auto grid max-w-7xl gap-12 px-4 py-8 sm:px-6">
       <header className="grid gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">
+        <h1 className="font-display text-page-title-compact md:text-page-title">
           Naba-Lens UI preview
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
@@ -284,7 +284,9 @@ export function UiPreview() {
             className="min-h-0"
           >
             <div className="grid gap-6">
-              <h1 className="text-2xl font-semibold tracking-tight">Content</h1>
+              <h1 className="font-display text-page-title-compact md:text-page-title">
+                Content
+              </h1>
               <LibraryFilters
                 venues={FAKE_VENUES}
                 staff={FAKE_STAFF_OPTIONS}
@@ -342,7 +344,9 @@ export function UiPreview() {
           >
             <div className="grid gap-6">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <h1 className="text-2xl font-semibold tracking-tight">Staff</h1>
+                <h1 className="font-display text-page-title-compact md:text-page-title">
+                  Staff
+                </h1>
                 <Button size="touch" onClick={() => setInviteOpen(true)}>
                   <UserPlusIcon data-icon="inline-start" aria-hidden />
                   Invite staff

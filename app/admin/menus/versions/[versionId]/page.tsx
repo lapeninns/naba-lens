@@ -55,7 +55,7 @@ export default async function MenuVersionPage({
             {version.venueName}
           </Link>
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="min-w-0 text-xl font-semibold break-words">
+            <h1 className="min-w-0 font-display text-page-title-compact break-words md:text-page-title">
               {version.title}
             </h1>
             <MenuVersionStatusBadge status={version.status} />

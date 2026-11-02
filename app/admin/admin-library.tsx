@@ -65,7 +65,9 @@ export function AdminLibrary({
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">Content</h1>
+        <h1 className="font-display text-page-title-compact md:text-page-title">
+          Content
+        </h1>
       </div>
       <LibraryFilters
         venues={venues}

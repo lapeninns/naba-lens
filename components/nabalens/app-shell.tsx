@@ -101,7 +101,7 @@ export function AppShell(props: AppShellProps) {
               : "md:h-14 md:flex-nowrap"
           )}
         >
-          <span className="text-base font-semibold tracking-tight">
+          <span className="font-display text-xl font-bold tracking-[-0.01em]">
             Naba-Lens
           </span>
           {props.variant === "admin" ? (

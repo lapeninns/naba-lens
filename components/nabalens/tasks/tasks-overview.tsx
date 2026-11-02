@@ -53,7 +53,9 @@ export function TasksOverview({
         <p className="text-sm font-medium text-muted-foreground">
           {[scope.venue?.name, period.label].filter(Boolean).join(" · ")}
         </p>
-        <h1 className="text-2xl font-semibold tracking-tight">My tasks</h1>
+        <h1 className="font-display text-page-title-compact md:text-page-title">
+          My tasks
+        </h1>
         <ul
           aria-label="At a glance"
           className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground"

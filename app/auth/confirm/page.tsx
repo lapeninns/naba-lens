@@ -39,7 +39,7 @@ export default async function ConfirmPage({
         method="post"
         className="flex w-full max-w-sm flex-col gap-4"
       >
-        <h1 className="font-heading text-2xl font-semibold">
+        <h1 className="font-display text-page-title-compact">
           {invite ? "Accept your invitation" : "Sign in to Naba-Lens"}
         </h1>
         <p className="text-sm text-muted-foreground">

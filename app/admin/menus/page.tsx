@@ -28,7 +28,9 @@ export default async function MenusPage() {
     >
       <div className="grid gap-4">
         <div className="grid gap-1">
-          <h1 className="text-xl font-semibold">Menus</h1>
+          <h1 className="font-display text-page-title-compact md:text-page-title">
+            Menus
+          </h1>
           <p className="max-w-prose text-sm text-muted-foreground">
             Menus are used to label photos and videos. Activating a menu does
             not publish it or change any venue website.

@@ -47,7 +47,7 @@ export default async function CommunityPage({
           <p className="text-sm font-medium text-muted-foreground">
             Lapen Inns community
           </p>
-          <h1 className="text-2xl font-semibold tracking-tight">
+          <h1 className="font-display text-page-title-compact md:text-page-title">
             Explore our work
           </h1>
           <p className="max-w-2xl text-sm text-muted-foreground">

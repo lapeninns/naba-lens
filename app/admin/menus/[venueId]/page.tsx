@@ -128,7 +128,9 @@ export default async function VenueMenusPage({
             All venues
           </Link>
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-xl font-semibold break-words">{venue.name}</h1>
+            <h1 className="font-display text-page-title-compact break-words md:text-page-title">
+              {venue.name}
+            </h1>
             {!venue.active ? (
               <span className="inline-flex h-5 items-center rounded-sm bg-muted px-1.5 text-xs font-medium text-muted-foreground">
                 Venue inactive

@@ -99,7 +99,7 @@ export default async function MonthPage({
             <p className="text-sm font-medium text-muted-foreground">
               Monthly photos
             </p>
-            <h1 className="text-2xl font-semibold tracking-tight">
+            <h1 className="font-display text-page-title-compact md:text-page-title">
               {month.period.label}
             </h1>
           </div>

@@ -1,17 +1,26 @@
-import { Geist, Geist_Mono } from "next/font/google"
+import { Archivo, Besley, JetBrains_Mono } from "next/font/google"
 
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { cn } from "@/lib/utils"
 
-const fontSans = Geist({
+// Interface face. The width axis lets chips and tab labels narrow slightly.
+const fontSans = Archivo({
   subsets: ["latin"],
-  variable: "--font-sans",
+  axes: ["wdth"],
+  variable: "--font-archivo",
 })
 
-const fontMono = Geist_Mono({
+// Display face: the wordmark, page titles and lead counts only.
+const fontDisplay = Besley({
   subsets: ["latin"],
-  variable: "--font-mono",
+  variable: "--font-besley",
+})
+
+// Original file names, menu source hashes and request IDs.
+const fontMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-jetbrains-mono",
 })
 
 export default function RootLayout({
@@ -23,7 +32,13 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={cn("antialiased", fontSans.variable, fontMono.variable, "font-sans")}
+      className={cn(
+        "antialiased",
+        fontSans.variable,
+        fontDisplay.variable,
+        fontMono.variable,
+        "font-sans"
+      )}
     >
       <body>
         <ThemeProvider>{children}</ThemeProvider>

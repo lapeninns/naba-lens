@@ -37,7 +37,7 @@ export function TaskSummary({ assignment }: { assignment: MyAssignment }) {
             <StatusChip tone="positive">Complete</StatusChip>
           ) : null}
         </div>
-        <h1 className="text-2xl font-semibold tracking-tight break-words">
+        <h1 className="font-display text-page-title-compact break-words md:text-page-title">
           {requirement.title}
         </h1>
         {requirement.due ? (

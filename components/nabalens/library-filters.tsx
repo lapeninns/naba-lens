@@ -618,7 +618,7 @@ function MenuItemFilter({
                 onClick={() => choose(item)}
                 className={cn(
                   "flex min-h-11 cursor-pointer flex-col justify-center rounded-md px-3 py-1.5 text-sm sm:min-h-9",
-                  i === active && "bg-accent text-accent-foreground"
+                  i === active && "bg-fill-hover text-ink"
                 )}
               >
                 <span className="font-medium">{item.name}</span>

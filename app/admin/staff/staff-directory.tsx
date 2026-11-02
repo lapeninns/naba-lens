@@ -43,7 +43,7 @@ export function StaffDirectory({
     <div className="grid gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">
+          <h1 className="font-display text-page-title-compact md:text-page-title">
             Staff
           </h1>
           <p className="mt-0.5 text-sm text-muted-foreground">

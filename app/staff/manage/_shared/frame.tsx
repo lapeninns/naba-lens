@@ -60,7 +60,7 @@ export function ManageFrame({
             {ctx.venue.name}
             {ctx.mode === "admin" ? " · admin view" : " · venue manager"}
           </p>
-          <h1 className="text-2xl font-semibold tracking-tight break-words">
+          <h1 className="font-display text-page-title-compact break-words md:text-page-title">
             {title}
           </h1>
           {description ? (
@@ -113,7 +113,7 @@ export function NotManagerPage({ viewerName }: { viewerName: string }) {
       logoutAction={logout}
     >
       <div className="grid max-w-prose gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">
+        <h1 className="font-display text-page-title-compact md:text-page-title">
           Venue manager tools
         </h1>
         <p className="text-sm text-muted-foreground">

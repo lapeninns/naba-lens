@@ -81,7 +81,7 @@ export default async function CoverageOverviewPage({
         <div className="grid gap-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="grid gap-1">
-              <h1 className="text-2xl font-semibold tracking-tight">
+              <h1 className="font-display text-page-title-compact md:text-page-title">
                 Coverage, {overview.period.label}
               </h1>
               <p className="max-w-prose text-sm text-muted-foreground">

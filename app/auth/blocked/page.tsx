@@ -17,7 +17,7 @@ export default async function BlockedPage() {
   return (
     <main className="flex min-h-svh items-center justify-center p-6">
       <div className="flex w-full max-w-sm flex-col gap-4">
-        <h1 className="font-heading text-2xl font-semibold">
+        <h1 className="font-display text-page-title-compact">
           Account unavailable
         </h1>
         <p className="text-sm text-muted-foreground">

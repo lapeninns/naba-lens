@@ -72,7 +72,7 @@ export default async function VenueManagersPage({
             <ArrowLeftIcon data-icon="inline-start" aria-hidden />
             Coverage
           </Link>
-          <h1 className="text-2xl font-semibold tracking-tight">
+          <h1 className="font-display text-page-title-compact md:text-page-title">
             Venue managers
           </h1>
         </div>

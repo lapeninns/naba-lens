@@ -115,7 +115,9 @@ export function LoginCard({
         className
       )}
     >
-      <p className="text-base font-semibold tracking-tight">Naba-Lens</p>
+      <p className="font-display text-xl font-bold tracking-[-0.01em]">
+        Naba-Lens
+      </p>
       {state === "sent" ? (
         <div className="mt-6 grid gap-4" role="status">
           <EnvelopeSimpleIcon
@@ -124,7 +126,7 @@ export function LoginCard({
           />
           <h1
             id={`${inputId}-title`}
-            className="text-xl font-semibold tracking-tight"
+            className="font-display text-page-title-compact"
           >
             Check your email
           </h1>
@@ -150,7 +152,7 @@ export function LoginCard({
           <div className="grid gap-1.5">
             <h1
               id={`${inputId}-title`}
-              className="text-xl font-semibold tracking-tight"
+              className="font-display text-page-title-compact"
             >
               Sign in
             </h1>
