@@ -162,7 +162,7 @@ function ContentTypeChips({
                 toggleVariants({ variant: "outline" }),
                 "h-11 px-3 sm:h-8",
                 pressed &&
-                  "border-primary bg-primary text-primary-foreground hover:bg-primary/85 hover:text-primary-foreground aria-pressed:bg-primary",
+                  "border-primary bg-primary text-primary-foreground hover:bg-accent-hover hover:text-primary-foreground aria-pressed:bg-primary",
                 blocked && "opacity-50"
               )}
             >
