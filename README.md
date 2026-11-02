@@ -13,22 +13,24 @@ manager-set monthly photo targets for every active staff member, reviewed
 menu-section/service/amenity photo coverage per venue, and admin-managed
 venue-manager grants (not a third role). Review of a submitted photo decides
 task completion only; ready photos stay visible in portfolios and Explore
-immediately. These features are not release-evidenced yet.
+immediately. These features are in production for a controlled pilot; their
+release evidence is not complete yet.
 
-**Release status: NOT READY.** Local source/checks are not a hosted launch,
-physical-phone certification or proof of publishing permission. See the
-[release gates and two-venue pilot](docs/release-checklist.md).
+**Release status: production deployed at `ab9452f` on 2 November 2026, with a
+controlled three-venue pilot in progress.** This is not physical-phone
+certification or proof of publishing permission. See the
+[release gates, pilot and open items](docs/release-checklist.md).
 
 ## Start here
 
-| You need to… | Read |
-| --- | --- |
-| Run locally, configure env or prepare staging/production | [Setup runbook](docs/setup.md) |
-| Sign in, edit your profile, upload or remove your own media | [Staff guide](docs/usage-staff.md) |
-| Browse colleagues across venues or prepare the community migrations | [Community feature and deployment notes](docs/community.md) |
-| Filter/download originals, invite/manage/deactivate staff | [Admin guide](docs/usage-admin.md) |
-| Handle capture safety, failed uploads, cleanup, retention or a lost phone | [Operations](docs/operations.md) |
-| Decide whether staging, a two-venue pilot or production is allowed | [Release checklist](docs/release-checklist.md) |
+| You need to…                                                              | Read                                                        |
+| ------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| Run locally, configure env or prepare staging/production                  | [Setup runbook](docs/setup.md)                              |
+| Sign in, edit your profile, upload or remove your own media               | [Staff guide](docs/usage-staff.md)                          |
+| Browse colleagues across venues or prepare the community migrations       | [Community feature and deployment notes](docs/community.md) |
+| Filter/download originals, invite/manage/deactivate staff                 | [Admin guide](docs/usage-admin.md)                          |
+| Handle capture safety, failed uploads, cleanup, retention or a lost phone | [Operations](docs/operations.md)                            |
+| Check the release status, the pilot and what is still open                | [Release checklist](docs/release-checklist.md)              |
 
 ## Local development
 

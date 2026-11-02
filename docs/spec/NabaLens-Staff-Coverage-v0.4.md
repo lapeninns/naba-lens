@@ -178,10 +178,11 @@ from distinct eligible assets and acceptance. Services derive the actor from
 auth and apply RLS plus transactional authorisation, idempotent retries and
 revision-conflict handling.
 
-New migrations follow the pending local-only
+New migrations follow
 `20261102110000_staff_departments.sql` and
 `20261102120000_organization_community.sql`, in the order manager
 authorisation → domain records and policies → task procedures and reporting.
+All of them were applied to production on 2 November 2026.
 Nothing applies migrations automatically. A release must confirm the exact
 target, apply all earlier pending migrations in order, verify the outcome and
 compatibility, and only then deploy dependent code. Never seed hosted

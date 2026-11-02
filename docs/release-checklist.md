@@ -1,18 +1,33 @@
-# Release checklist and two-venue pilot
+# Release checklist and controlled pilot
 
-**Current decision: NOT READY for staging review, pilot or production.**
-A documentation/build milestone is not a release. This branch has no hosted
-deployment, real-phone certification, owner-confirmed venue list or restore
-rehearsal. Historical fanout reports are evidence only for their recorded commit
-and environment, not for today's head.
+**Current decision (owner, 2 November 2026): production is deployed at
+`ab9452f`, and a controlled three-venue pilot is in progress.** The owner took
+this decision before the Gate 2 and Gate 3 evidence below was complete, so the
+deployment certifies no unticked item. There is still no real-phone
+certification, staging review or restore rehearsal. The dated record is
+[production at `ab9452f`](release/2026-11-02-ab9452f-production.md).
+Historical fanout reports are evidence only for their recorded commit and
+environment, not for today's head.
+
+Open after the 2 November release:
+
+- Physical iPhone Safari and Android Chrome checks (F-01, F-02) have not run.
+- The scheduled hourly monthly preparation is not proved on production; only a
+  manual run succeeded (2 November, 12:15 Europe/London).
+- In each pilot venue, 12 suggested checklist items await the manager's
+  confirmation, and menu coverage and amenity facts are unconfirmed.
+- Each pilot venue uses one shared account that is both its FOH staff member and
+  its manager, so every acceptance is a self-review and individual FOH and BOH
+  participation is not measured.
 
 Keep a dated evidence record with commit, target environment, tester, command
 output, device/OS/browser where relevant, failures and owner sign-off. Do not
 include credentials, signed links or identifiable customer media.
 
-## Gate 1: NOT READY
+## Gate 1: open prerequisites
 
-Stay here while any prerequisite below is missing. Current blockers:
+The production release went ahead with these still open; each still needs
+evidence:
 
 - `supabase/seed/venues.json` is `[]`: no owner's ten confirmed venues loaded.
 - Owner-authorised staging Supabase/Auth/SMTP/HTTPS/hosting/secrets and migration
@@ -24,23 +39,28 @@ Stay here while any prerequisite below is missing. Current blockers:
 - Physical iPhone/Android media, actual camera selection, HEIC/HEIF orientation/
   colour/primary-image behavior, video-codec fallback and mobile interruptions
   need recorded real-device evidence. Desktop synthetic fixtures do not replace it.
-- Cleanup scheduler, monitored failure handling and provider TUS expiry <=24 h
-  are not deployed/verified here.
+- The cleanup schedule ships in `vercel.json`, but successful scheduled runs,
+  monitored failure handling and provider TUS expiry <=24 h are not verified
+  here.
 - Owner-approved retention, object/DB backups and an isolated restore rehearsal
   are missing. Restore remains **UNTESTED**.
 - Current-head service-dependent integration/security/lifecycle/e2e evidence must
   be collected by the release owner; do not substitute another track's old run.
+  For `ab9452f`, `lci` ran them on fixture stacks in all three browser lanes
+  (see the [record](release/2026-11-02-ab9452f-production.md)); hosted
+  services are covered only by the live checks listed there.
 - Individual admin portfolios currently expose previews only; download/delete
   require **Content** filtered by **Staff member**. The spec requires those
   actions in individual portfolios too. The owning track must implement them
   or obtain an explicit scope decision before treating the MVP as complete;
   this documentation does not silently certify that missing UI.
 - [v0.4](spec/NabaLens-Staff-Coverage-v0.4.md) monthly targets, venue coverage,
-  review and venue-manager grants have no release evidence. Their migrations
-  (from `20261102130000`) follow the pending local-only community migrations,
-  and none is applied to a hosted database. The hourly monthly-preparation cron
-  in `vercel.json` fails on any target without them. The required `lci` run on
-  the final local commit has not happened.
+  review and venue-manager grants are in production: the six migrations
+  `20261102110000` to `20261102160000` were applied on 2 November 2026, and the
+  required `lci` run passed on `ab9452f`. The hourly monthly-preparation run
+  and each pilot venue's checklist, menu coverage and amenity facts are still
+  open (see above). The cron in `vercel.json` fails on any target without these
+  migrations.
 
 This docs pass runs the contract's install/typecheck/lint/unit/build checks; see
 [its handoff](fanout/handoffs/docs-expand.md) for exact results and not-run suites.
@@ -84,15 +104,20 @@ or production launch. Advance only when all are evidenced:
       1280 and 1440 CSS pixels are reviewed, including **My tasks**, the
       manager screens and the staff navigation with **Manage**. Existing
       Playwright projects alone do not cover all these targets.
-- [ ] v0.4 migrations: with owner authorisation, confirm the exact target, apply
+- [x] v0.4 migrations: with owner authorisation, confirm the exact target, apply
       every earlier pending migration and then the coverage migrations and
       `20261102160000_community_asset_access` in order, verify the outcome,
       and only then deploy the code that needs them. Between that last
       migration and the deploy, colleagues' media shows as unavailable.
       Confirm a colleague's direct `media_assets` read returns no rows, while
       Explore and colleague portfolios still show previews.
-      Set `CRON_SECRET` equal to `CLEANUP_SECRET` and confirm an hourly
+      **Done on production, not a staging target, 2 November 2026:** readback
+      showed nothing pending, 13 new tables with row-level security, the
+      community RPC denied to anonymous users and the broad colleague row
+      policy gone; `ab9452f` was deployed afterwards.
+- [ ] Set `CRON_SECRET` equal to `CLEANUP_SECRET` and confirm an hourly
       monthly-preparation run succeeds in **Coverage** (`/admin/coverage`).
+      **Open:** only a manual run is evidenced (2 November, 12:15 Europe/London).
 - [ ] v0.4 journey with staging staff, manager and admin identities: grant a
       manager; set targets; staff land on **My tasks**, send photos to an
       assigned task and as monthly photos; the manager accepts one and asks for
@@ -117,9 +142,18 @@ or production launch. Advance only when all are evidenced:
 Requires Gate 2 plus explicit owner permission for real participants. No general
 rollout yet.
 
-### Two-venue plan
+**Current pilot (from 2 November 2026):** the owner started it on production
+before Gate 2 was evidenced. Three venues take part: Old Crown (Girton), Corner
+House and White Horse (Waterbeach). Each has one shared venue account that is
+FOH staff and the manager of its own venue only, with a target of 5 accepted
+photos due 30 November 2026. This departs from step 1: there are no named
+individual contributors, no BOH contributor and no separate reviewer. A manual
+monthly preparation ran on 2 November; each venue's suggested checklist items,
+menu coverage and amenity facts still await the manager's confirmation.
 
-1. Owner chooses **two confirmed venues** and named individual contributors,
+### Pilot plan
+
+1. Owner chooses the **confirmed pilot venues** and named individual contributors,
    covering both BOH and FOH, plus a different admin and a support contact.
    Do not invent names or use development fixture accounts.
    For [v0.4](spec/NabaLens-Staff-Coverage-v0.4.md), each venue also needs an
@@ -158,7 +192,7 @@ rollout yet.
 8. Review error logs, cleanup backlog and storage/egress costs during the pilot.
    Owner and participants record actual usability issues and corrective actions.
 
-**Pilot exit:** Both venues demonstrate the complete real-device journey, negative
+**Pilot exit:** Every pilot venue demonstrates the complete real-device journey, negative
 access/lifecycle checks pass, no unaccepted security/data-loss/runtime blocker
 remains, and the owner signs the evidence. Upload counts are not the success
 criterion.
@@ -173,6 +207,8 @@ evidence and fix/retest before resuming. Do not weaken RLS or assertions.
 ## Gate 4: PRODUCTION
 
 Requires Gates 2–3 and a **separate production authorisation**, not a passing CI run.
+The 2 November 2026 production deploy is for the controlled pilot, by the
+owner's decision above; this gate still governs any wider rollout.
 
 - [ ] Complete every production item in [setup](setup.md), including the real
       ten-venue list, approved admin bootstrap, SMTP, domains, secrets, migrations,
@@ -193,7 +229,7 @@ Requires Gates 2–3 and a **separate production authorisation**, not a passing 
       ([community deployment](community.md#deployment-requirements)) that the
       coverage withdrawal does not cover.
 - [ ] Owner explicitly accepts remaining limitations and authorises rollout
-      beyond the two venues, in controlled groups up to all ten.
+      beyond the pilot venues, in controlled groups up to all ten.
 
 Preserve exactly two roles, **staff** and **admin**; a v0.4 venue-manager grant
 is not a role. No editorial approval, public portfolio, consent workflow, social

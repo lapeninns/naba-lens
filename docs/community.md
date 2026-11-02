@@ -77,6 +77,8 @@ reviewed migration that revokes `community_readable_assets`,
 migration 3 itself would bring back the broad row policy, so do not use that as
 a rollback. Roll back code and database together.
 
-This document describes source behavior and release prerequisites. It does not
-claim that the migrations have been applied, that the feature is deployed, or
-that production checks have passed.
+This document describes source behavior and release prerequisites. All three
+migrations were applied to production on 2 November 2026 and the feature was
+deployed at `ab9452f`; the
+[release record](release/2026-11-02-ab9452f-production.md) lists what was
+checked and what is still open.
