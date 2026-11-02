@@ -30,6 +30,7 @@ export function AccountHeader({
         displayName={member.displayName}
         avatarUrl={member.avatarUrl}
         jobTitle={member.jobTitle}
+        department={member.department}
         venueName={
           member.venueName && venueActive === false
             ? `${member.venueName} (inactive venue)`

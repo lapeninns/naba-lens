@@ -570,18 +570,26 @@ describe.skipIf(!BASE)("privacy: runtime headers, bodies and logs", () => {
     expect(find("staffA", "download").status).toBe(404)
     expect(find("staffB", "download").status).toBe(404)
     expect(find("anon", "download").status).toBe(401)
-    for (const role of ["anon", "staffB"] as const) {
-      for (const which of ["thumb", "preview"]) {
-        expect([401, 404]).toContain(find(role, which).status)
-        expect(find(role, which).headers.get("location")).toBeNull()
-      }
+    for (const which of ["thumb", "preview"]) {
+      expect(find("anon", which).status).toBe(401)
+      expect(find("anon", which).headers.get("location")).toBeNull()
+      // An active colleague (organisation community) gets the derivative
+      // through a private, short-lived redirect, never the original.
+      const colleague = find("staffB", which)
+      expect(colleague.status, which).toBe(302)
+      expect(colleague.headers.get("cache-control"), which).toBe(
+        "private, no-store"
+      )
+      expect(colleague.headers.get("location") ?? "", which).toMatch(
+        which === "thumb" ? /\/thumb\.webp\?/ : /\/preview\.webp\?/
+      )
     }
-    // Avatars: own or admin only; other staff get 404 and no URL.
+    // Avatars: own, admin, or an active colleague (community profile photo).
     const avatar = (role: Role, id: string) =>
       observed.find((r) => r.role === role && r.path === `/api/avatars/${id}`)!
     expect(avatar("staffA", ids.staffA).status).toBe(302)
     expect(avatar("admin", ids.staffA).status).toBe(302)
-    expect(avatar("staffB", ids.staffA).status).toBe(404)
+    expect(avatar("staffB", ids.staffA).status).toBe(302)
     expect(avatar("anon", ids.staffA).status).toBe(401)
   })
 

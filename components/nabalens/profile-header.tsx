@@ -1,3 +1,4 @@
+import { departmentLabel, type Department } from "@/lib/config/departments"
 import { cn } from "@/lib/utils"
 
 import { ProfileAvatar } from "./profile-avatar"
@@ -6,6 +7,7 @@ type ProfileHeaderProps = {
   displayName: string
   avatarUrl?: string | null
   jobTitle?: string | null
+  department?: Department | null
   venueName?: string | null
   /** Shown when the profile has no venue yet (staff cannot upload until set). */
   missingVenueLabel?: string
@@ -24,6 +26,7 @@ export function ProfileHeader({
   displayName,
   avatarUrl,
   jobTitle,
+  department,
   venueName,
   missingVenueLabel = "No venue assigned",
   actions,
@@ -51,7 +54,11 @@ export function ProfileHeader({
             {displayName}
           </Heading>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            {[jobTitle, venueName ?? missingVenueLabel]
+            {[
+              jobTitle,
+              departmentLabel(department),
+              venueName ?? missingVenueLabel,
+            ]
               .filter(Boolean)
               .join(" · ")}
           </p>

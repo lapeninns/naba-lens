@@ -145,6 +145,7 @@ export async function inviteStaff(
     id: userId,
     display_name: input.displayName,
     job_title: input.jobTitle,
+    department: input.department,
     role: "staff",
     venue_id: input.venueId,
     active: true,

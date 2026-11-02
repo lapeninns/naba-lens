@@ -109,7 +109,8 @@ describe("deactivation blocks an existing session", () => {
     await markReady(admin, assetId)
 
     expect(
-      (await staff.client.from("media_assets").select("id")).data
+      (await staff.client.from("media_assets").select("id").eq("id", assetId))
+        .data
     ).toHaveLength(1)
     const { error: deactivateError } = await admin
       .from("profiles")

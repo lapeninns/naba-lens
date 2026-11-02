@@ -7,6 +7,7 @@ import {
   testEmail,
 } from "../support/identities"
 import { getLocalSupabaseEnv } from "../support/local-supabase"
+import { openPortfolio, STAFF_LANDING } from "./helpers/ui"
 
 /** Polls the local Mailpit inbox for the newest sign-in link sent to `email`. */
 async function latestSignInLink(email: string): Promise<string> {
@@ -71,7 +72,7 @@ test.describe("authentication and role routing", () => {
     expect(data.users.some((u) => u.email === email)).toBe(false)
   })
 
-  test("invited staff signs in by magic link and lands on /staff", async ({
+  test("invited staff signs in by magic link and lands on My tasks", async ({
     page,
     baseURL,
   }) => {
@@ -85,14 +86,15 @@ test.describe("authentication and role routing", () => {
 
     await requestLink(page, staff.email)
     await openLink(page, await latestSignInLink(staff.email), baseURL!)
-    await expect(page).toHaveURL(/\/staff$/)
+    await expect(page).toHaveURL(STAFF_LANDING)
+    await openPortfolio(page)
     await expect(
       page.getByRole("heading", { name: "TEST e2e-staff" })
     ).toBeVisible()
 
     // Staff cannot open the admin area by URL.
     await page.goto("/admin")
-    await expect(page).toHaveURL(/\/staff$/)
+    await expect(page).toHaveURL(STAFF_LANDING)
 
     await page.getByRole("button", { name: "Log out" }).click()
     await expect(page).toHaveURL(/\/login\?signed_out=1$/)
@@ -125,7 +127,7 @@ test.describe("authentication and role routing", () => {
     await requestLink(page, staff.email)
     const link = await latestSignInLink(staff.email)
     await openLink(page, link, baseURL!)
-    await expect(page).toHaveURL(/\/staff$/)
+    await expect(page).toHaveURL(STAFF_LANDING)
 
     await page.context().clearCookies()
     await openLink(page, link, baseURL!)
@@ -147,7 +149,7 @@ test.describe("authentication and role routing", () => {
     })
     await requestLink(page, staff.email)
     await openLink(page, await latestSignInLink(staff.email), baseURL!)
-    await expect(page).toHaveURL(/\/staff$/)
+    await expect(page).toHaveURL(STAFF_LANDING)
 
     await admin.from("profiles").update({ active: false }).eq("id", staff.id)
     await page.goto("/staff")

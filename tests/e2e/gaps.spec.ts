@@ -18,6 +18,7 @@ import {
   uploadAs,
 } from "../integration/gaps-support"
 import { actorFor, syntheticJpeg } from "../slice/media-actor"
+import { openPortfolio, STAFF_LANDING } from "./helpers/ui"
 import {
   createVenue,
   serviceClient,
@@ -31,7 +32,7 @@ import {
  * - Library refresh on focus/visibility, besides the 15 s interval.
  * - GAP-12: staff at a deactivated venue: no Upload, setup message; admin still
  *   sees the retained media.
- * - GAP-11 over real HTTP: cross-staff avatar/media denial, admin page redirect,
+ * - GAP-11 over real HTTP: cross-staff portfolio reads, admin page redirect,
  *   private no-store headers.
  */
 
@@ -102,7 +103,8 @@ test.describe("GAP-19: leave warning during an active upload", () => {
     await writeFile(photo, await syntheticJpeg(1200, 900))
 
     const page = await signIn(browser, staff, baseURL!)
-    await expect(page).toHaveURL(/\/staff$/)
+    await expect(page).toHaveURL(STAFF_LANDING)
+    await openPortfolio(page)
 
     const dialogs: string[] = []
     const onDialog = (dialog: Dialog) => {
@@ -281,7 +283,8 @@ test.describe("GAP-12: staff at a deactivated venue", () => {
     expect(error).toBeNull()
 
     const staffPage = await signIn(browser, staff, baseURL!)
-    await expect(staffPage).toHaveURL(/\/staff$/)
+    await expect(staffPage).toHaveURL(STAFF_LANDING)
+    await openPortfolio(staffPage)
     await expect(
       staffPage.getByRole("status").filter({ hasText: /not taking uploads/ })
     ).toBeVisible()
@@ -309,8 +312,8 @@ test.describe("GAP-12: staff at a deactivated venue", () => {
   })
 })
 
-test.describe("GAP-11 over HTTP: cross-staff denial and private headers", () => {
-  test("staff B gets nothing of staff A's; responses are private and uncached", async ({
+test.describe("GAP-11 over HTTP: community reads and management isolation", () => {
+  test("staff B can view colleague portfolios; originals and management stay private", async ({
     browser,
     baseURL,
   }, testInfo) => {
@@ -362,11 +365,8 @@ test.describe("GAP-11 over HTTP: cross-staff denial and private headers", () => 
       }
     }
 
-    // Staff B: avatar and every media route for A's asset are refused.
+    // Photo streaming is not a video route; original downloads remain admin-only.
     const deniedPaths = [
-      `/api/avatars/${staffA.id}`,
-      `/api/media/${photoA}/thumb`,
-      `/api/media/${photoA}/preview`,
       `/api/media/${photoA}/stream`,
       `/api/media/${photoA}/download`,
     ]
@@ -377,7 +377,12 @@ test.describe("GAP-11 over HTTP: cross-staff denial and private headers", () => 
       checkPrivate(`B ${path}`, res.headers())
     }
     const anonymous = await request.newContext({ baseURL })
-    for (const path of deniedPaths) {
+    for (const path of [
+      ...deniedPaths,
+      `/api/avatars/${staffA.id}`,
+      `/api/media/${photoA}/thumb`,
+      `/api/media/${photoA}/preview`,
+    ]) {
       const anon = await anonymous.get(path, { maxRedirects: 0 })
       expect([401, 403, 404], `anon ${path}`).toContain(anon.status())
       expect(anon.headers()["location"], `anon ${path}`).toBeUndefined()
@@ -393,18 +398,21 @@ test.describe("GAP-11 over HTTP: cross-staff denial and private headers", () => 
     // carrying a client-side redirect.
     const html = await portfolio.text()
     expect(portfolio.status()).toBe(307)
-    expect(portfolio.headers()["location"]).toMatch(/\/staff$/)
+    expect(portfolio.headers()["location"]).toMatch(/\/staff\/tasks$/)
     expect(html).not.toContain('data-slot="skeleton"')
     expect(html).not.toContain("TEST e2e-gaps-http-a")
     expect(html).not.toContain(photoA)
     expect(await portfolio.text()).not.toContain("private-dish")
     await pageB.goto(`/admin/staff/${staffA.id}`)
-    await expect(pageB).toHaveURL(/\/staff$/)
+    await expect(pageB).toHaveURL(STAFF_LANDING)
     await expect(pageB.getByText("private-dish.jpg")).toHaveCount(0)
     await expect(pageB.getByText("TEST e2e-gaps-http-a")).toHaveCount(0)
 
     // Allowed reads carry private, no-store headers and nosniff.
     const allowed: [Page, string, number][] = [
+      [pageB, `/api/avatars/${staffA.id}`, 302],
+      [pageB, `/api/media/${photoA}/thumb`, 302],
+      [pageB, `/api/media/${photoA}/preview`, 302],
       [pageA, `/api/avatars/${staffA.id}`, 302],
       [pageAdmin, `/api/avatars/${staffA.id}`, 302],
       [pageA, `/api/media/${photoA}/thumb`, 302],

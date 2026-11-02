@@ -73,9 +73,17 @@ describe("account controls refresh the page once per change (final review F9)", 
     render(<Harness onRender={capture} />)
     act(() => controls!.edit(member))
     await act(async () => {
-      await dialog!.onSubmit({ displayName: "TEST Sam", active: false })
+      await dialog!.onSubmit({
+        displayName: "TEST Sam",
+        department: "foh",
+        active: false,
+      })
     })
     expect(updateStaffAccountAction).toHaveBeenCalledTimes(1)
+    expect(updateStaffAccountAction).toHaveBeenCalledWith(
+      member.id,
+      expect.objectContaining({ department: "foh" })
+    )
     expect(refresh).toHaveBeenCalledTimes(1)
   })
 

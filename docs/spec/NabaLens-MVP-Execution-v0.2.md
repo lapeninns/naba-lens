@@ -2,7 +2,7 @@
 
 **Version:** 0.2 · 29 October 2026  
 **Status:** Implementation handoff; no application, deployment or repository inspection is claimed by this document.  
-**Amended by:** [v0.3 menu catalogue and media labels](NabaLens-Menus-Labels-v0.3.md) (30 Oct 2026), which authorises optional labelling and replaces the "captions or tagging workflow" exclusion below for that feature only.  
+**Amended by:** [v0.3 menu catalogue and media labels](NabaLens-Menus-Labels-v0.3.md) (30 Oct 2026), which authorises optional labelling and replaces the "captions or tagging workflow" exclusion below for that feature only; and [v0.4 staff portfolios, monthly targets and venue coverage](NabaLens-Staff-Coverage-v0.4.md) (1 Nov 2026), which replaces the "content tasks", "approval/rejection workflow", "manager role" and "staff-to-staff browsing" exclusions below as described there. Review in v0.4 decides task completion only, never visibility or publishing.  
 **Supersedes:** The earlier v0.1 feature scope. Content requests, review/approval, campaign tools and extra user roles must not carry over.
 
 ## 1. Product contract

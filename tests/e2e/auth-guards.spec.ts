@@ -109,7 +109,7 @@ test.describe("server-side role guards", () => {
     PEOPLE.push("TEST e2e-guard-other", "TEST e2e-guard-admin")
   })
 
-  test("staff get a 307 to /staff from every admin page, with no admin markup", async ({
+  test("staff get a 307 to My tasks from every admin page, with no admin markup", async ({
     browser,
   }) => {
     const context = await signedIn(browser, staff)
@@ -120,7 +120,7 @@ test.describe("server-side role guards", () => {
       `/admin/staff/${other.id}`,
       `/admin/staff/${adminUser.id}`,
     ]) {
-      await expectRedirect(context.request, path, "/staff")
+      await expectRedirect(context.request, path, "/staff/tasks")
     }
     // Control: their own page renders.
     const own = await context.request.get("/staff", { maxRedirects: 0 })

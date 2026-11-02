@@ -9,6 +9,660 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      coverage_amenity_templates: {
+        Row: {
+          active: boolean
+          default_guidance: string | null
+          key: string
+          kind: string
+          needs_fact: boolean
+          position: number
+          suggested_photo_target: number
+          title: string
+        }
+        Insert: {
+          active?: boolean
+          default_guidance?: string | null
+          key: string
+          kind: string
+          needs_fact?: boolean
+          position: number
+          suggested_photo_target?: number
+          title: string
+        }
+        Update: {
+          active?: boolean
+          default_guidance?: string | null
+          key?: string
+          kind?: string
+          needs_fact?: boolean
+          position?: number
+          suggested_photo_target?: number
+          title?: string
+        }
+        Relationships: []
+      }
+      coverage_audit_events: {
+        Row: {
+          action: string
+          actor_id: string | null
+          actor_role: string
+          after: Json | null
+          before: Json | null
+          created_at: string
+          entity: string
+          entity_id: string | null
+          historical: boolean
+          id: number
+          reason: string | null
+          venue_id: string | null
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          actor_role: string
+          after?: Json | null
+          before?: Json | null
+          created_at?: string
+          entity: string
+          entity_id?: string | null
+          historical?: boolean
+          id?: never
+          reason?: string | null
+          venue_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          actor_role?: string
+          after?: Json | null
+          before?: Json | null
+          created_at?: string
+          entity?: string
+          entity_id?: string | null
+          historical?: boolean
+          id?: never
+          reason?: string | null
+          venue_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coverage_audit_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coverage_audit_events_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coverage_preparation_runs: {
+        Row: {
+          already_present: number
+          candidates_added: number
+          error_code: string | null
+          error_message: string | null
+          finished_at: string
+          id: string
+          period_month: string
+          placeholders_created: number
+          requested_by: string | null
+          run_trigger: string
+          scope_venue_id: string | null
+          staff_considered: number
+          started_at: string
+          status: string
+          targets_copied: number
+        }
+        Insert: {
+          already_present?: number
+          candidates_added?: number
+          error_code?: string | null
+          error_message?: string | null
+          finished_at: string
+          id?: string
+          period_month: string
+          placeholders_created?: number
+          requested_by?: string | null
+          run_trigger: string
+          scope_venue_id?: string | null
+          staff_considered?: number
+          started_at: string
+          status: string
+          targets_copied?: number
+        }
+        Update: {
+          already_present?: number
+          candidates_added?: number
+          error_code?: string | null
+          error_message?: string | null
+          finished_at?: string
+          id?: string
+          period_month?: string
+          placeholders_created?: number
+          requested_by?: string | null
+          run_trigger?: string
+          scope_venue_id?: string | null
+          staff_considered?: number
+          started_at?: string
+          status?: string
+          targets_copied?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coverage_preparation_runs_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coverage_preparation_runs_scope_venue_id_fkey"
+            columns: ["scope_venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coverage_requirement_assignees: {
+        Row: {
+          assigned_at: string
+          assigned_by: string | null
+          end_kind: string | null
+          end_reason: string | null
+          ended_at: string | null
+          ended_by: string | null
+          id: string
+          requirement_id: string
+          staff_id: string
+          venue_id: string
+        }
+        Insert: {
+          assigned_at?: string
+          assigned_by?: string | null
+          end_kind?: string | null
+          end_reason?: string | null
+          ended_at?: string | null
+          ended_by?: string | null
+          id?: string
+          requirement_id: string
+          staff_id: string
+          venue_id: string
+        }
+        Update: {
+          assigned_at?: string
+          assigned_by?: string | null
+          end_kind?: string | null
+          end_reason?: string | null
+          ended_at?: string | null
+          ended_by?: string | null
+          id?: string
+          requirement_id?: string
+          staff_id?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coverage_requirement_assignees_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coverage_requirement_assignees_ended_by_fkey"
+            columns: ["ended_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coverage_requirement_assignees_requirement_fkey"
+            columns: ["requirement_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "coverage_requirements"
+            referencedColumns: ["id", "venue_id"]
+          },
+          {
+            foreignKeyName: "coverage_requirement_assignees_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coverage_requirements: {
+        Row: {
+          amenity_key: string | null
+          client_request_hash: string | null
+          client_request_key: string | null
+          created_at: string
+          created_by: string | null
+          due_on: string | null
+          guidance: string | null
+          id: string
+          kind: string
+          menu_plan_id: string | null
+          menu_section_id: string | null
+          menu_version_id: string | null
+          photo_target: number
+          replaced_by_requirement_id: string | null
+          retire_kind: string | null
+          revision: number
+          section_snapshot: Json | null
+          status: string
+          status_changed_at: string | null
+          status_changed_by: string | null
+          status_reason: string | null
+          title: string
+          updated_at: string
+          updated_by: string | null
+          venue_id: string
+        }
+        Insert: {
+          amenity_key?: string | null
+          client_request_hash?: string | null
+          client_request_key?: string | null
+          created_at?: string
+          created_by?: string | null
+          due_on?: string | null
+          guidance?: string | null
+          id?: string
+          kind: string
+          menu_plan_id?: string | null
+          menu_section_id?: string | null
+          menu_version_id?: string | null
+          photo_target?: number
+          replaced_by_requirement_id?: string | null
+          retire_kind?: string | null
+          revision?: number
+          section_snapshot?: Json | null
+          status?: string
+          status_changed_at?: string | null
+          status_changed_by?: string | null
+          status_reason?: string | null
+          title: string
+          updated_at?: string
+          updated_by?: string | null
+          venue_id: string
+        }
+        Update: {
+          amenity_key?: string | null
+          client_request_hash?: string | null
+          client_request_key?: string | null
+          created_at?: string
+          created_by?: string | null
+          due_on?: string | null
+          guidance?: string | null
+          id?: string
+          kind?: string
+          menu_plan_id?: string | null
+          menu_section_id?: string | null
+          menu_version_id?: string | null
+          photo_target?: number
+          replaced_by_requirement_id?: string | null
+          retire_kind?: string | null
+          revision?: number
+          section_snapshot?: Json | null
+          status?: string
+          status_changed_at?: string | null
+          status_changed_by?: string | null
+          status_reason?: string | null
+          title?: string
+          updated_at?: string
+          updated_by?: string | null
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coverage_requirements_amenity_key_fkey"
+            columns: ["amenity_key"]
+            isOneToOne: false
+            referencedRelation: "coverage_amenity_templates"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "coverage_requirements_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coverage_requirements_plan_fkey"
+            columns: ["menu_plan_id", "menu_version_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "menu_coverage_plans"
+            referencedColumns: ["id", "menu_version_id", "venue_id"]
+          },
+          {
+            foreignKeyName: "coverage_requirements_replaced_by_fkey"
+            columns: ["replaced_by_requirement_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "coverage_requirements"
+            referencedColumns: ["id", "venue_id"]
+          },
+          {
+            foreignKeyName: "coverage_requirements_section_fkey"
+            columns: ["menu_section_id", "menu_version_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "menu_sections"
+            referencedColumns: ["id", "version_id", "venue_id"]
+          },
+          {
+            foreignKeyName: "coverage_requirements_status_changed_by_fkey"
+            columns: ["status_changed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coverage_requirements_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coverage_requirements_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coverage_review_events: {
+        Row: {
+          action: string
+          actor_id: string | null
+          actor_role: string
+          author_id: string
+          cleared_replaces_item_id: string | null
+          client_request_key: string | null
+          created_at: string
+          from_state: string | null
+          id: number
+          item_id: string
+          reason: string | null
+          requirement_id: string | null
+          revision: number
+          self_review: boolean
+          to_state: string
+          venue_id: string
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          actor_role: string
+          author_id: string
+          cleared_replaces_item_id?: string | null
+          client_request_key?: string | null
+          created_at?: string
+          from_state?: string | null
+          id?: never
+          item_id: string
+          reason?: string | null
+          requirement_id?: string | null
+          revision: number
+          self_review?: boolean
+          to_state: string
+          venue_id: string
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          actor_role?: string
+          author_id?: string
+          cleared_replaces_item_id?: string | null
+          client_request_key?: string | null
+          created_at?: string
+          from_state?: string | null
+          id?: never
+          item_id?: string
+          reason?: string | null
+          requirement_id?: string | null
+          revision?: number
+          self_review?: boolean
+          to_state?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coverage_review_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coverage_review_events_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coverage_review_events_cleared_replaces_item_id_fkey"
+            columns: ["cleared_replaces_item_id"]
+            isOneToOne: false
+            referencedRelation: "coverage_submission_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coverage_review_events_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "coverage_submission_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coverage_review_events_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coverage_submission_items: {
+        Row: {
+          archive_kind: string | null
+          archived_at: string | null
+          asset_id: string
+          author_id: string
+          decided_at: string | null
+          decided_by: string | null
+          decision_reason: string | null
+          id: string
+          origin: string
+          reconciled_from_item_id: string | null
+          replaces_item_id: string | null
+          requirement_id: string | null
+          revision: number
+          self_review: boolean | null
+          state: string
+          submission_id: string
+          submitted_at: string
+          submitted_by: string
+          submitted_month: string
+          updated_at: string
+          uploaded_at: string
+          uploaded_month: string
+          venue_id: string
+        }
+        Insert: {
+          archive_kind?: string | null
+          archived_at?: string | null
+          asset_id: string
+          author_id: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_reason?: string | null
+          id?: string
+          origin: string
+          reconciled_from_item_id?: string | null
+          replaces_item_id?: string | null
+          requirement_id?: string | null
+          revision?: number
+          self_review?: boolean | null
+          state?: string
+          submission_id: string
+          submitted_at?: string
+          submitted_by: string
+          submitted_month: string
+          updated_at?: string
+          uploaded_at: string
+          uploaded_month: string
+          venue_id: string
+        }
+        Update: {
+          archive_kind?: string | null
+          archived_at?: string | null
+          asset_id?: string
+          author_id?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_reason?: string | null
+          id?: string
+          origin?: string
+          reconciled_from_item_id?: string | null
+          replaces_item_id?: string | null
+          requirement_id?: string | null
+          revision?: number
+          self_review?: boolean | null
+          state?: string
+          submission_id?: string
+          submitted_at?: string
+          submitted_by?: string
+          submitted_month?: string
+          updated_at?: string
+          uploaded_at?: string
+          uploaded_month?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coverage_submission_items_asset_fkey"
+            columns: ["asset_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["id", "venue_id"]
+          },
+          {
+            foreignKeyName: "coverage_submission_items_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coverage_submission_items_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coverage_submission_items_reconciled_from_item_id_fkey"
+            columns: ["reconciled_from_item_id"]
+            isOneToOne: false
+            referencedRelation: "coverage_submission_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coverage_submission_items_replaces_item_id_fkey"
+            columns: ["replaces_item_id"]
+            isOneToOne: false
+            referencedRelation: "coverage_submission_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coverage_submission_items_requirement_fkey"
+            columns: ["requirement_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "coverage_requirements"
+            referencedColumns: ["id", "venue_id"]
+          },
+          {
+            foreignKeyName: "coverage_submission_items_submission_fkey"
+            columns: ["submission_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "coverage_submissions"
+            referencedColumns: ["id", "venue_id"]
+          },
+          {
+            foreignKeyName: "coverage_submission_items_submitted_by_fkey"
+            columns: ["submitted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coverage_submissions: {
+        Row: {
+          asset_ids: string[]
+          client_request_key: string
+          created_at: string
+          id: string
+          kind: string
+          requirement_id: string | null
+          submitted_by: string
+          venue_id: string
+        }
+        Insert: {
+          asset_ids: string[]
+          client_request_key: string
+          created_at?: string
+          id?: string
+          kind: string
+          requirement_id?: string | null
+          submitted_by: string
+          venue_id: string
+        }
+        Update: {
+          asset_ids?: string[]
+          client_request_key?: string
+          created_at?: string
+          id?: string
+          kind?: string
+          requirement_id?: string | null
+          submitted_by?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coverage_submissions_requirement_fkey"
+            columns: ["requirement_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "coverage_requirements"
+            referencedColumns: ["id", "venue_id"]
+          },
+          {
+            foreignKeyName: "coverage_submissions_submitted_by_fkey"
+            columns: ["submitted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coverage_submissions_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       media_archive_audit_runs: {
         Row: {
           bytes_verified: number
@@ -412,6 +1066,116 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      menu_coverage_plans: {
+        Row: {
+          confirmed_at: string | null
+          confirmed_by: string | null
+          created_at: string
+          created_by: string | null
+          discarded_at: string | null
+          discarded_by: string | null
+          id: string
+          menu_version_id: string
+          previous_plan_id: string | null
+          reconciled_at: string | null
+          reconciled_by: string | null
+          reconciliation_required: boolean
+          revision: number
+          status: string
+          superseded_at: string | null
+          updated_at: string
+          venue_id: string
+        }
+        Insert: {
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          discarded_at?: string | null
+          discarded_by?: string | null
+          id?: string
+          menu_version_id: string
+          previous_plan_id?: string | null
+          reconciled_at?: string | null
+          reconciled_by?: string | null
+          reconciliation_required?: boolean
+          revision?: number
+          status?: string
+          superseded_at?: string | null
+          updated_at?: string
+          venue_id: string
+        }
+        Update: {
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          discarded_at?: string | null
+          discarded_by?: string | null
+          id?: string
+          menu_version_id?: string
+          previous_plan_id?: string | null
+          reconciled_at?: string | null
+          reconciled_by?: string | null
+          reconciliation_required?: boolean
+          revision?: number
+          status?: string
+          superseded_at?: string | null
+          updated_at?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "menu_coverage_plans_confirmed_by_fkey"
+            columns: ["confirmed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "menu_coverage_plans_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "menu_coverage_plans_discarded_by_fkey"
+            columns: ["discarded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "menu_coverage_plans_previous_fkey"
+            columns: ["previous_plan_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "menu_coverage_plans"
+            referencedColumns: ["id", "venue_id"]
+          },
+          {
+            foreignKeyName: "menu_coverage_plans_reconciled_by_fkey"
+            columns: ["reconciled_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "menu_coverage_plans_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "menu_coverage_plans_version_fkey"
+            columns: ["menu_version_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "menu_versions"
+            referencedColumns: ["id", "venue_id"]
           },
         ]
       }
@@ -890,11 +1654,96 @@ export type Database = {
           },
         ]
       }
+      monthly_targets: {
+        Row: {
+          copied_from_target_id: string | null
+          created_at: string
+          created_by: string | null
+          due_on: string
+          id: string
+          period_month: string
+          revision: number
+          source: string
+          staff_id: string
+          target_count: number | null
+          updated_at: string
+          updated_by: string | null
+          venue_id: string
+        }
+        Insert: {
+          copied_from_target_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          due_on: string
+          id?: string
+          period_month: string
+          revision?: number
+          source: string
+          staff_id: string
+          target_count?: number | null
+          updated_at?: string
+          updated_by?: string | null
+          venue_id: string
+        }
+        Update: {
+          copied_from_target_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          due_on?: string
+          id?: string
+          period_month?: string
+          revision?: number
+          source?: string
+          staff_id?: string
+          target_count?: number | null
+          updated_at?: string
+          updated_by?: string | null
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monthly_targets_copied_from_target_id_fkey"
+            columns: ["copied_from_target_id"]
+            isOneToOne: false
+            referencedRelation: "monthly_targets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "monthly_targets_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "monthly_targets_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "monthly_targets_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "monthly_targets_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           active: boolean
           avatar_path: string | null
           created_at: string
+          department: string | null
           display_name: string
           id: string
           job_title: string | null
@@ -906,6 +1755,7 @@ export type Database = {
           active?: boolean
           avatar_path?: string | null
           created_at?: string
+          department?: string | null
           display_name: string
           id: string
           job_title?: string | null
@@ -917,6 +1767,7 @@ export type Database = {
           active?: boolean
           avatar_path?: string | null
           created_at?: string
+          department?: string | null
           display_name?: string
           id?: string
           job_title?: string | null
@@ -927,6 +1778,194 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "profiles_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      venue_amenity_fact_media: {
+        Row: {
+          added_at: string
+          added_by: string | null
+          asset_id: string
+          fact_id: string
+          venue_id: string
+        }
+        Insert: {
+          added_at?: string
+          added_by?: string | null
+          asset_id: string
+          fact_id: string
+          venue_id: string
+        }
+        Update: {
+          added_at?: string
+          added_by?: string | null
+          asset_id?: string
+          fact_id?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "venue_amenity_fact_media_added_by_fkey"
+            columns: ["added_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_amenity_fact_media_asset_fkey"
+            columns: ["asset_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["id", "venue_id"]
+          },
+          {
+            foreignKeyName: "venue_amenity_fact_media_fact_fkey"
+            columns: ["fact_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "venue_amenity_facts"
+            referencedColumns: ["id", "venue_id"]
+          },
+        ]
+      }
+      venue_amenity_facts: {
+        Row: {
+          amenity_key: string
+          confirmed_at: string | null
+          confirmed_by: string | null
+          created_at: string
+          facts: string | null
+          id: string
+          policy: string | null
+          presence: string
+          revision: number
+          updated_at: string
+          updated_by: string | null
+          venue_id: string
+        }
+        Insert: {
+          amenity_key: string
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          facts?: string | null
+          id?: string
+          policy?: string | null
+          presence?: string
+          revision?: number
+          updated_at?: string
+          updated_by?: string | null
+          venue_id: string
+        }
+        Update: {
+          amenity_key?: string
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          facts?: string | null
+          id?: string
+          policy?: string | null
+          presence?: string
+          revision?: number
+          updated_at?: string
+          updated_by?: string | null
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "venue_amenity_facts_amenity_key_fkey"
+            columns: ["amenity_key"]
+            isOneToOne: false
+            referencedRelation: "coverage_amenity_templates"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "venue_amenity_facts_confirmed_by_fkey"
+            columns: ["confirmed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_amenity_facts_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_amenity_facts_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      venue_manager_grants: {
+        Row: {
+          grant_reason: string | null
+          granted_at: string
+          granted_by: string
+          id: string
+          revoke_kind: string | null
+          revoke_reason: string | null
+          revoked_at: string | null
+          revoked_by: string | null
+          staff_id: string
+          venue_id: string
+        }
+        Insert: {
+          grant_reason?: string | null
+          granted_at?: string
+          granted_by: string
+          id?: string
+          revoke_kind?: string | null
+          revoke_reason?: string | null
+          revoked_at?: string | null
+          revoked_by?: string | null
+          staff_id: string
+          venue_id: string
+        }
+        Update: {
+          grant_reason?: string | null
+          granted_at?: string
+          granted_by?: string
+          id?: string
+          revoke_kind?: string | null
+          revoke_reason?: string | null
+          revoked_at?: string | null
+          revoked_by?: string | null
+          staff_id?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "venue_manager_grants_granted_by_fkey"
+            columns: ["granted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_manager_grants_revoked_by_fkey"
+            columns: ["revoked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_manager_grants_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_manager_grants_venue_id_fkey"
             columns: ["venue_id"]
             isOneToOne: false
             referencedRelation: "venues"
@@ -971,10 +2010,283 @@ export type Database = {
         Args: { p_expected_revision: number; p_version_id: string }
         Returns: undefined
       }
+      attach_coverage_evidence: {
+        Args: {
+          p_accept?: boolean
+          p_asset_ids: string[]
+          p_client_request_key: string
+          p_requirement_id: string
+        }
+        Returns: {
+          asset_id: string
+          item_id: string
+          replayed: boolean
+          reused: boolean
+          revision: number
+          state: string
+        }[]
+      }
       claim_archive_monitor_alert: { Args: never; Returns: Json }
+      community_media_page: {
+        Args: {
+          p_after_created_at?: string
+          p_after_id?: string
+          p_department?: string
+          p_limit?: number
+          p_type?: Database["public"]["Enums"]["media_type"]
+          p_uploader?: string
+          p_venue?: string
+        }
+        Returns: {
+          contributor_name: string
+          created_at: string
+          duration_seconds: number | null
+          has_preview: boolean
+          has_thumbnail: boolean
+          height: number | null
+          id: string
+          media_type: Database["public"]["Enums"]["media_type"]
+          original_filename: string | null
+          size_bytes: number | null
+          uploader_id: string
+          validated_mime_type: string | null
+          venue_name: string
+          width: number | null
+        }[]
+      }
+      community_members: {
+        Args: {
+          p_department?: string
+          p_limit?: number
+          p_member?: string
+          p_offset?: number
+          p_query?: string
+          p_venue?: string
+        }
+        Returns: {
+          avatar_path: string | null
+          department: string | null
+          display_name: string
+          id: string
+          job_title: string | null
+          media_count: number
+          venue_id: string | null
+          venue_name: string | null
+        }[]
+      }
+      community_readable_assets: {
+        Args: { p_asset_ids: string[] }
+        Returns: {
+          created_at: string
+          duration_seconds: number | null
+          has_preview: boolean
+          has_thumbnail: boolean
+          height: number | null
+          id: string
+          media_type: Database["public"]["Enums"]["media_type"]
+          size_bytes: number | null
+          uploader_id: string
+          validated_mime_type: string | null
+          venue_id: string
+          width: number | null
+        }[]
+      }
       complete_archive_monitor_alert: {
         Args: { p_claim_id: string; p_event_id: string }
         Returns: boolean
+      }
+      confirm_menu_coverage_plan: {
+        Args: { p_expected_revision: number; p_plan_id: string }
+        Returns: {
+          auto_retired: number
+          plan_id: string
+          reconciliation_required: boolean
+        }[]
+      }
+      coverage_access_scope: {
+        Args: never
+        Returns: {
+          active: boolean
+          department: string | null
+          is_admin: boolean
+          manager_grant_id: string | null
+          manager_venue_id: string | null
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+          venue_active: boolean
+          venue_id: string | null
+        }[]
+      }
+      coverage_candidate_assets: {
+        Args: {
+          p_after_created_at?: string
+          p_after_id?: string
+          p_limit?: number
+          p_uploader_id?: string
+          p_venue_id?: string
+        }
+        Returns: {
+          asset_id: string
+          created_at: string
+          has_preview: boolean
+          has_thumbnail: boolean
+          height: number | null
+          live_item_id: string | null
+          live_item_state: string | null
+          live_requirement_id: string | null
+          monthly_eligible_now: boolean
+          uploaded_month: string
+          uploader_active: boolean
+          uploader_id: string
+          uploader_name: string
+          venue_id: string
+          width: number | null
+        }[]
+      }
+      coverage_group_overview: {
+        Args: { p_period_month?: string }
+        Returns: {
+          accepted_photos: number
+          amenity_unknown_count: number
+          applicable_count: number
+          coverage_complete: boolean
+          last_preparation_at: string | null
+          last_preparation_status: string | null
+          menu_state: string
+          needs_reassignment_count: number
+          needs_setup_count: number
+          overdue_count: number
+          participation_complete: number
+          pending_review_count: number
+          satisfied_count: number
+          self_review_count: number
+          staff_count: number
+          staff_without_target: number
+          targets_needing_setup: number
+          targets_set: number
+          venue_id: string
+          venue_name: string
+        }[]
+      }
+      coverage_items_page: {
+        Args: {
+          p_after_id?: string
+          p_after_submitted_at?: string
+          p_author_id?: string
+          p_limit?: number
+          p_newest_first?: boolean
+          p_period_month?: string
+          p_requirement_id?: string
+          p_states?: string[]
+          p_venue_id?: string
+        }
+        Returns: {
+          archived: boolean
+          asset_id: string
+          author_active: boolean
+          author_id: string
+          author_name: string
+          decided_at: string | null
+          decided_by: string | null
+          decision_reason: string | null
+          evidence_available: boolean
+          has_preview: boolean
+          has_thumbnail: boolean
+          height: number | null
+          item_id: string
+          media_type: Database["public"]["Enums"]["media_type"]
+          monthly_eligible: boolean
+          origin: string
+          replaces_item_id: string | null
+          requirement_id: string | null
+          requirement_title: string | null
+          revision: number
+          self_review: boolean | null
+          state: string
+          submitted_at: string
+          submitted_by: string
+          submitted_month: string
+          uploaded_month: string
+          venue_id: string
+          width: number | null
+        }[]
+      }
+      coverage_preparation_status: {
+        Args: { p_venue_id?: string }
+        Returns: {
+          last_error_code: string | null
+          last_failure_at: string | null
+          last_run_at: string | null
+          last_status: string | null
+          last_success_at: string | null
+          period_month: string
+          staff_without_target: number
+          targets_needing_setup: number
+        }[]
+      }
+      coverage_requirement_progress: {
+        Args: { p_include_closed?: boolean; p_venue_id: string }
+        Returns: {
+          accepted_count: number
+          amenity_confirmed: boolean
+          amenity_key: string | null
+          amenity_presence: string | null
+          assignee_ids: string[]
+          due_on: string | null
+          evidence_removed_count: number
+          guidance: string | null
+          is_current: boolean
+          kind: string
+          menu_plan_id: string | null
+          menu_plan_status: string | null
+          menu_version_id: string | null
+          needs_another_photo_count: number
+          needs_reassignment: boolean
+          overdue: boolean
+          pending_count: number
+          photo_target: number
+          requirement_id: string
+          revision: number
+          satisfied: boolean
+          section_snapshot: Json | null
+          status: string
+          status_reason: string | null
+          title: string
+          venue_id: string
+        }[]
+      }
+      coverage_staff_progress: {
+        Args: {
+          p_period_month?: string
+          p_staff_id?: string
+          p_venue_id?: string
+        }
+        Returns: {
+          accepted_count: number
+          avatar_path: string | null
+          complete: boolean
+          department: string | null
+          display_name: string
+          due_on: string | null
+          evidence_removed_count: number
+          is_current_member: boolean
+          is_manager: boolean
+          job_title: string | null
+          late_accepted_count: number
+          needs_another_photo_count: number
+          needs_setup: boolean
+          overdue: boolean
+          pending_count: number
+          period_month: string
+          setup_missing: string[]
+          staff_id: string
+          target_count: number | null
+          target_id: string | null
+          target_revision: number | null
+          target_source: string | null
+          venue_id: string
+          venue_name: string
+        }[]
       }
       create_menu_draft: {
         Args: {
@@ -987,12 +2299,20 @@ export type Database = {
         Returns: string
       }
       delete_media_asset: { Args: { p_asset_id: string }; Returns: undefined }
+      discard_menu_coverage_plan: {
+        Args: { p_expected_revision: number; p_plan_id: string }
+        Returns: undefined
+      }
       discard_menu_draft: { Args: { p_version_id: string }; Returns: undefined }
       fail_stale_media_processing: {
         Args: { p_limit?: number; p_stale_after: string }
         Returns: {
           asset_id: string
         }[]
+      }
+      grant_venue_manager: {
+        Args: { p_reason?: string; p_staff_id: string; p_venue_id: string }
+        Returns: string
       }
       library_assets: {
         Args: {
@@ -1102,6 +2422,58 @@ export type Database = {
         }[]
       }
       menu_label_counts: { Args: { p_venue_id: string }; Returns: Json }
+      prepare_coverage_month: {
+        Args: { p_venue_id?: string }
+        Returns: {
+          already_present: number
+          candidates_added: number
+          error_code: string | null
+          error_message: string | null
+          finished_at: string
+          id: string
+          period_month: string
+          placeholders_created: number
+          requested_by: string | null
+          run_trigger: string
+          scope_venue_id: string | null
+          staff_considered: number
+          started_at: string
+          status: string
+          targets_copied: number
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "coverage_preparation_runs"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      prepare_coverage_month_scheduled: {
+        Args: never
+        Returns: {
+          already_present: number
+          candidates_added: number
+          error_code: string | null
+          error_message: string | null
+          finished_at: string
+          id: string
+          period_month: string
+          placeholders_created: number
+          requested_by: string | null
+          run_trigger: string
+          scope_venue_id: string | null
+          staff_considered: number
+          started_at: string
+          status: string
+          targets_copied: number
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "coverage_preparation_runs"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       prepare_media_cleanup: {
         Args: {
           p_abandoned_after: string
@@ -1113,6 +2485,18 @@ export type Database = {
           asset_id: string
           object_names: string[]
           upload_state: Database["public"]["Enums"]["upload_state"]
+        }[]
+      }
+      reconcile_menu_requirement: {
+        Args: {
+          p_item_ids: string[]
+          p_old_requirement_id: string
+          p_reason: string
+          p_target_requirement_id: string
+        }
+        Returns: {
+          carried: number
+          reconciliation_complete: boolean
         }[]
       }
       record_archive_monitor_heartbeat: { Args: never; Returns: undefined }
@@ -1149,6 +2533,44 @@ export type Database = {
         Args: { p_version_id: string }
         Returns: undefined
       }
+      review_coverage_item: {
+        Args: {
+          p_client_request_key?: string
+          p_decision: string
+          p_expected_revision: number
+          p_item_id: string
+          p_reason?: string
+        }
+        Returns: {
+          item_id: string
+          replayed: boolean
+          revision: number
+          self_review: boolean
+          state: string
+        }[]
+      }
+      revoke_venue_manager: {
+        Args: { p_grant_id: string; p_reason: string }
+        Returns: undefined
+      }
+      save_coverage_requirement: {
+        Args: {
+          p_client_request_key?: string
+          p_due_on: string
+          p_expected_revision: number
+          p_guidance: string
+          p_kind: string
+          p_photo_target: number
+          p_requirement_id: string
+          p_title: string
+          p_venue_id: string
+        }
+        Returns: {
+          replayed: boolean
+          requirement_id: string
+          revision: number
+        }[]
+      }
       save_media_labels: {
         Args: {
           p_asset_id: string
@@ -1172,13 +2594,145 @@ export type Database = {
         }
         Returns: number
       }
+      set_amenity_fact: {
+        Args: {
+          p_amenity_key: string
+          p_asset_ids?: string[]
+          p_confirm: boolean
+          p_expected_revision: number
+          p_facts: string
+          p_policy: string
+          p_presence: string
+          p_venue_id: string
+        }
+        Returns: {
+          fact_id: string
+          revision: number
+        }[]
+      }
+      set_coverage_requirement_assignees: {
+        Args: {
+          p_reason?: string
+          p_requirement_id: string
+          p_staff_ids: string[]
+        }
+        Returns: {
+          assignment_id: string
+          staff_id: string
+        }[]
+      }
+      set_coverage_requirement_status: {
+        Args: {
+          p_expected_revision: number
+          p_reason?: string
+          p_requirement_id: string
+          p_status: string
+        }
+        Returns: number
+      }
       set_menu_item_archived: {
         Args: { p_archived: boolean; p_item_id: string }
         Returns: undefined
       }
+      set_monthly_target: {
+        Args: {
+          p_due_on?: string
+          p_expected_revision?: number
+          p_period_month: string
+          p_reason?: string
+          p_staff_id: string
+          p_target_count: number
+          p_venue_id: string
+        }
+        Returns: {
+          revision: number
+          target_id: string
+        }[]
+      }
+      start_menu_coverage_plan: {
+        Args: { p_menu_version_id: string; p_venue_id: string }
+        Returns: {
+          created: boolean
+          plan_id: string
+          revision: number
+        }[]
+      }
+      submit_coverage_photos: {
+        Args: {
+          p_asset_ids: string[]
+          p_client_request_key?: string
+          p_replaces_item_id?: string
+          p_requirement_id?: string
+        }
+        Returns: {
+          asset_id: string
+          item_id: string
+          replayed: boolean
+          reused: boolean
+          revision: number
+          state: string
+        }[]
+      }
       take_over_stale_media_claim: {
         Args: { p_asset_id: string; p_stale_after: string }
         Returns: boolean
+      }
+      task_evidence_asset: {
+        Args: { p_asset_id: string }
+        Returns: {
+          asset_id: string
+          has_preview: boolean
+          has_thumbnail: boolean
+          height: number | null
+          media_type: Database["public"]["Enums"]["media_type"]
+          uploader_id: string
+          validated_mime_type: string | null
+          venue_id: string
+          width: number | null
+        }[]
+      }
+      venue_coverage_summary: {
+        Args: { p_venue_id?: string }
+        Returns: {
+          active_menu_version_id: string | null
+          amenity_unknown_count: number
+          applicable_count: number
+          complete: boolean
+          current_plan_id: string | null
+          draft_plan_id: string | null
+          menu_state: string
+          needs_reassignment_count: number
+          needs_setup_count: number
+          not_applicable_count: number
+          overdue_count: number
+          pending_reconciliation_count: number
+          pending_review_count: number
+          satisfied_count: number
+          venue_active: boolean
+          venue_id: string
+          venue_name: string
+        }[]
+      }
+      venue_manager_grant_list: {
+        Args: { p_include_revoked?: boolean; p_venue_id?: string }
+        Returns: {
+          effective: boolean
+          grant_id: string
+          grant_reason: string | null
+          granted_at: string
+          granted_by: string
+          granted_by_name: string
+          revoke_kind: string | null
+          revoke_reason: string | null
+          revoked_at: string | null
+          revoked_by_name: string | null
+          staff_active: boolean
+          staff_id: string
+          staff_name: string
+          staff_venue_id: string | null
+          venue_id: string
+          venue_name: string
+        }[]
       }
     }
     Enums: {

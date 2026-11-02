@@ -1,6 +1,8 @@
 "use client"
 
 import * as React from "react"
+
+import type { Department } from "@/lib/config/departments"
 import { PencilSimpleIcon, UploadSimpleIcon } from "@phosphor-icons/react"
 import { useRouter } from "next/navigation"
 
@@ -26,6 +28,7 @@ type StaffPortfolioProps = {
   profile: {
     displayName: string
     jobTitle: string | null
+    department?: Department | null
     venueName: string | null
     avatarUrl: string | null
   }
@@ -82,6 +85,7 @@ export function StaffPortfolio({
         displayName={profile.displayName}
         avatarUrl={profile.avatarUrl}
         jobTitle={profile.jobTitle}
+        department={profile.department}
         venueName={profile.venueName}
         actions={
           <>

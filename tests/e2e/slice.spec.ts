@@ -13,13 +13,14 @@ import {
   serviceClient,
   type TestIdentity,
 } from "../support/identities"
+import { openPortfolio, STAFF_LANDING } from "./helpers/ui"
 
 /**
  * The vertical slice (spec §9 M2 + M3) in a real browser against the local
  * stack: staff uploads a synthetic JPEG (signed PUT) and an MP4 (TUS) through the
  * upload dialog; both appear in their portfolio; a different admin finds the
  * photo in the library and downloads byte-identical original bytes; another staff
- * member at the same venue is denied every path to it.
+ * member at the same venue sees its previews (community) but never its original.
  */
 
 const sha256 = (bytes: Uint8Array) =>
@@ -82,7 +83,7 @@ async function assetsOf(uploaderId: string) {
 }
 
 test.describe("vertical slice: upload, portfolio, library, download, isolation", () => {
-  test("staff uploads; a different admin downloads identical bytes; other staff are denied", async ({
+  test("staff uploads; a different admin downloads identical bytes; other staff get previews only", async ({
     browser,
     baseURL,
   }, testInfo) => {
@@ -113,7 +114,8 @@ test.describe("vertical slice: upload, portfolio, library, download, isolation",
 
     // --- Staff A uploads through the real dialog.
     const staffPage = await signIn(browser, staffA, baseURL!)
-    await expect(staffPage).toHaveURL(/\/staff$/)
+    await expect(staffPage).toHaveURL(STAFF_LANDING)
+    await openPortfolio(staffPage)
     await expect(
       staffPage.getByRole("heading", { name: "TEST e2e-slice-a" })
     ).toBeVisible()
@@ -210,13 +212,25 @@ test.describe("vertical slice: upload, portfolio, library, download, isolation",
     ).toBeVisible()
     await expect(library.getByRole("button", { name: /^Photo/ })).toHaveCount(0)
 
-    // --- Staff B (same venue) is denied every path to A's photo.
+    // --- Staff B (same venue, community colleague) gets A's previews only;
+    // the original never leaves through a staff route.
     const otherPage = await signIn(browser, staffB, baseURL!)
-    await expect(otherPage).toHaveURL(/\/staff$/)
+    await expect(otherPage).toHaveURL(STAFF_LANDING)
+    await openPortfolio(otherPage)
     await expect(
       otherPage.getByText("Your portfolio starts here.", { exact: false })
     ).toBeVisible()
-    for (const route of ["thumb", "preview", "stream", "download"]) {
+    for (const route of ["thumb", "preview"]) {
+      const response = await otherPage.request.get(
+        `/api/media/${photo.id}/${route}`,
+        { maxRedirects: 0 }
+      )
+      expect(response.status(), route).toBe(302)
+      expect(response.headers()["cache-control"], route).toBe(
+        "private, no-store"
+      )
+    }
+    for (const route of ["stream", "download"]) {
       const response = await otherPage.request.get(
         `/api/media/${photo.id}/${route}`,
         { maxRedirects: 0 }
@@ -313,6 +327,8 @@ test.describe("vertical slice: upload, portfolio, library, download, isolation",
     const dir = await mkdtemp(join(tmpdir(), "nabalens-e2e-"))
     const photo = await syntheticJpeg(dir)
     const page = await signIn(browser, staff, baseURL!)
+    await expect(page).toHaveURL(STAFF_LANDING)
+    await openPortfolio(page)
     await page.getByRole("button", { name: "Edit profile" }).click()
     const dialog = page.getByRole("dialog")
     await dialog.getByLabel("Display name").fill("TEST e2e renamed")

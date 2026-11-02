@@ -10,6 +10,8 @@ import {
   portfolioList,
   tile,
   uploadThroughDialog,
+  openPortfolio,
+  STAFF_LANDING,
 } from "./helpers/ui"
 import { provisionWorld, signedInPage, type World } from "./helpers/world"
 
@@ -54,7 +56,8 @@ test.beforeAll(async ({ browser }) => {
   jpeg = await syntheticJpeg(`viewport-${world.tag}.jpg`)
   mp4 = supportedMp4(`viewport-${world.tag}.mp4`)
   staff = await signedInPage(browser, world.staffA)
-  await expect(staff).toHaveURL(/\/staff$/)
+  await expect(staff).toHaveURL(STAFF_LANDING)
+  await openPortfolio(staff)
   await uploadThroughDialog(staff, [jpeg, mp4])
   admin = await signedInPage(browser, world.adminA)
   await expect(admin).toHaveURL(/\/admin$/)

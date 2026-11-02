@@ -39,6 +39,10 @@ const env = {
     status.PUBLISHABLE_KEY ?? status.ANON_KEY,
   SUPABASE_SERVICE_ROLE_KEY: status.SERVICE_ROLE_KEY ?? status.SECRET_KEY,
   MAILPIT_URL: status.MAILPIT_URL ?? status.INBUCKET_URL ?? "",
+  // Checked isolated above: the coverage screens seed DEV FIXTURE worlds
+  // through tests/e2e/helpers/stack.ts, which needs both.
+  E2E_ISOLATED_STACK: "1",
+  E2E_DB_URL: status.DB_URL,
 }
 const run = (args) => {
   const result = spawnSync(args[0], args.slice(1), { stdio: "inherit", env })

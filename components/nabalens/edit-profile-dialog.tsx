@@ -2,6 +2,12 @@
 
 import * as React from "react"
 
+import {
+  DEPARTMENT_OPTIONS,
+  isDepartment,
+  type Department,
+} from "@/lib/config/departments"
+
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import {
@@ -33,6 +39,7 @@ export type ProfileFormValues = {
   avatarFile: File | null
   /** Admin only. */
   jobTitle?: string
+  department?: Department | null
   venueId?: string | null
   active?: boolean
 }
@@ -40,12 +47,13 @@ export type ProfileFormValues = {
 type EditProfileDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
-  /** Staff edit name and photo only. Admin also edit job title, venue and access. */
+  /** Staff edit name and photo only. Admin also edit job title, department, venue and access. */
   variant: "staff" | "admin"
   initial: {
     displayName: string
     avatarUrl: string | null
     jobTitle?: string | null
+    department?: Department | null
     venueId?: string | null
     active?: boolean
   }
@@ -93,6 +101,9 @@ function EditProfileForm({
   const isAdmin = variant === "admin"
   const [displayName, setDisplayName] = React.useState(initial.displayName)
   const [jobTitle, setJobTitle] = React.useState(initial.jobTitle ?? "")
+  const [department, setDepartment] = React.useState<Department | null>(
+    initial.department ?? null
+  )
   const [venueId, setVenueId] = React.useState(initial.venueId ?? null)
   const [active, setActive] = React.useState(initial.active ?? true)
   const [avatarFile, setAvatarFile] = React.useState<File | null>(null)
@@ -104,6 +115,7 @@ function EditProfileForm({
     photo: React.useId(),
     photoHelp: React.useId(),
     job: React.useId(),
+    department: React.useId(),
     venue: React.useId(),
     active: React.useId(),
   }
@@ -132,7 +144,12 @@ function EditProfileForm({
         avatarFile,
       }
       if (isAdmin)
-        Object.assign(values, { jobTitle: jobTitle.trim(), venueId, active })
+        Object.assign(values, {
+          jobTitle: jobTitle.trim(),
+          department,
+          venueId,
+          active,
+        })
       const outcome = await onSubmit(values)
       setResult(outcome)
       if (outcome.ok) onOpenChange(false)
@@ -228,6 +245,25 @@ function EditProfileForm({
             />
             {fieldErrors.jobTitle ? (
               <FieldError>{fieldErrors.jobTitle}</FieldError>
+            ) : null}
+          </Field>
+          <Field
+            className="gap-1.5"
+            data-invalid={!!fieldErrors.department || undefined}
+          >
+            <FieldLabel htmlFor={ids.department}>Department</FieldLabel>
+            <OptionSelect
+              id={ids.department}
+              options={DEPARTMENT_OPTIONS}
+              value={department}
+              onValueChange={(value) =>
+                setDepartment(isDepartment(value) ? value : null)
+              }
+              emptyLabel="Unassigned"
+              invalid={!!fieldErrors.department}
+            />
+            {fieldErrors.department ? (
+              <FieldError>{fieldErrors.department}</FieldError>
             ) : null}
           </Field>
           <Field className="gap-1.5">

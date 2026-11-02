@@ -109,7 +109,11 @@ function Preview({ item }: { item: MediaItem }) {
     <img
       key={item.previewUrl}
       src={item.previewUrl}
-      alt={`Photo ${item.originalFilename}`}
+      alt={
+        item.originalFilename === null
+          ? `Photo by ${item.contributorName}`
+          : `Photo ${item.originalFilename}`
+      }
       className="mx-auto max-h-[65svh] w-auto max-w-full object-contain"
       onError={() => setFailedUrl(item.previewUrl)}
     />
@@ -137,7 +141,9 @@ export function MediaViewer({
             ] as [string, React.ReactNode][])
           : []),
         ["Uploaded", formatDate(item.createdAt)],
-        ["File", item.originalFilename],
+        ...(item.originalFilename === null
+          ? []
+          : ([["File", item.originalFilename]] as [string, React.ReactNode][])),
         [
           "Type",
           [
@@ -166,10 +172,14 @@ export function MediaViewer({
             <DialogHeader className="gap-1 px-4 pt-4 pr-12 pb-3">
               <DialogTitle className="truncate text-base">
                 {item.mediaType === "video" ? "Video" : "Photo"}
-                {showAttribution ? ` by ${item.contributorName}` : ""}
+                {showAttribution || item.originalFilename === null
+                  ? ` by ${item.contributorName}`
+                  : ""}
               </DialogTitle>
               <DialogDescription className="flex flex-wrap items-center gap-2">
-                <span className="truncate">{item.originalFilename}</span>
+                {item.originalFilename !== null ? (
+                  <span className="truncate">{item.originalFilename}</span>
+                ) : null}
                 {item.uploadState !== "ready" ? (
                   <UploadStateBadge state={item.uploadState} />
                 ) : null}

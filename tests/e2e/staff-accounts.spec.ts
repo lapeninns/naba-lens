@@ -7,6 +7,7 @@ import {
   testEmail,
 } from "../support/identities"
 import { getLocalSupabaseEnv } from "../support/local-supabase"
+import { openPortfolio, STAFF_LANDING } from "./helpers/ui"
 
 const admin = serviceClient()
 // Server Functions and routes compile on first use under `next dev`.
@@ -99,7 +100,8 @@ test.describe("admin staff management", () => {
     ).toBeVisible()
     await dialog.getByRole("button", { name: "Cancel" }).click()
 
-    // The invitee accepts from the real email and lands on their portfolio.
+    // The invitee accepts from the real email, lands on My tasks and opens
+    // their portfolio.
     const staffContext = await browser.newContext()
     const staffPage = await staffContext.newPage()
     await staffPage.goto(await invitationLink(email))
@@ -107,12 +109,13 @@ test.describe("admin staff management", () => {
       staffPage.getByRole("heading", { name: "Accept your invitation" })
     ).toBeVisible()
     await staffPage.getByRole("button", { name: "Continue" }).click()
-    await expect(staffPage).toHaveURL(/\/staff$/)
+    await expect(staffPage).toHaveURL(STAFF_LANDING)
+    await openPortfolio(staffPage)
     await expect(staffPage.getByRole("heading", { name })).toBeVisible()
 
     // Staff cannot open the admin staff area or call its avatar route.
     await staffPage.goto("/admin/staff")
-    await expect(staffPage).toHaveURL(/\/staff$/)
+    await expect(staffPage).toHaveURL(STAFF_LANDING)
     const { data: invitee } = await admin
       .from("profiles")
       .select("id")
@@ -172,7 +175,7 @@ test.describe("admin staff management", () => {
     )
     await staffContext.clearCookies()
     await signInAs(staffPage, email)
-    await expect(staffPage).toHaveURL(/\/staff$/)
+    await expect(staffPage).toHaveURL(STAFF_LANDING)
 
     // Edit details: change job title from the directory.
     await adminPage.goto("/admin/staff")

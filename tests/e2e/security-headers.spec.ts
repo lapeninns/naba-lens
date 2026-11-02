@@ -7,6 +7,7 @@ import { expect, test, type Browser, type Page } from "@playwright/test"
 import sharp from "sharp"
 
 import { openEmailLink } from "./helpers/email-link"
+import { openPortfolio, STAFF_LANDING } from "./helpers/ui"
 
 import {
   createIdentity,
@@ -98,7 +99,8 @@ test("security headers are sent and the CSP allows upload, thumbnails, preview a
   )
 
   const { page, consoleViolations } = await signIn(browser, staff, baseURL!)
-  await expect(page).toHaveURL(/\/staff$/)
+  await expect(page).toHaveURL(STAFF_LANDING)
+  await openPortfolio(page)
 
   const response = await page.request.get("/staff")
   const headers = response.headers()

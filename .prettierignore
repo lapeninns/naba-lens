@@ -2,6 +2,6 @@ dist/
 node_modules/
 .next/
 .turbo/
-coverage/
+/coverage/
 pnpm-lock.yaml
 .pnpm-store/

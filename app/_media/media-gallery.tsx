@@ -420,7 +420,7 @@ export function MediaGallery({
         onOpenChange={(open) => {
           if (!open) setDeleting(null)
         }}
-        fileName={deleting?.originalFilename}
+        fileName={deleting?.originalFilename ?? undefined}
         onConfirm={async () => {
           if (!deleting) return
           const result = await deleteMedia(deleting.id)

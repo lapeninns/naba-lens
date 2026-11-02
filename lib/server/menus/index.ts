@@ -371,7 +371,7 @@ export async function listMenuVenues(
 const CLOSED_SUGGESTIONS_SHOWN = 50
 
 const SUGGESTION_COLUMNS =
-  "id, venue_id, asset_id, suggested_name, status, created_at, resolved_item_id, resolution_note, creator:profiles!menu_item_suggestions_created_by_fkey(display_name), asset:media_assets!menu_item_suggestions_asset_fkey(upload_state, deleted_at, thumbnail_path)"
+  "id, venue_id, asset_id, suggested_name, status, created_at, resolved_item_id, resolution_note, creator:profiles!menu_item_suggestions_created_by_fkey(display_name)"
 
 type SuggestionRow = {
   id: string
@@ -383,11 +383,34 @@ type SuggestionRow = {
   resolved_item_id: string | null
   resolution_note: string | null
   creator: { display_name: string } | null
-  asset: {
-    upload_state: string
-    deleted_at: string | null
-    thumbnail_path: string | null
-  } | null
+}
+
+/** `community_readable_assets` accepts at most this many ids per call. */
+const READABLE_ASSET_BATCH = 100
+
+/**
+ * Suggestion photos that are ready, undeleted and have a thumbnail. Checked
+ * through `community_readable_assets` instead of embedding media rows, so this
+ * read never returns storage paths.
+ */
+async function assetsWithThumbnails(
+  db: Db,
+  assetIds: string[]
+): Promise<{ ok: true; ids: Set<string> } | { ok: false; error: DbError }> {
+  const batches: string[][] = []
+  for (let i = 0; i < assetIds.length; i += READABLE_ASSET_BATCH)
+    batches.push(assetIds.slice(i, i + READABLE_ASSET_BATCH))
+  const results = await Promise.all(
+    batches.map((ids) =>
+      db.rpc("community_readable_assets", { p_asset_ids: ids })
+    )
+  )
+  const ids = new Set<string>()
+  for (const result of results) {
+    if (result.error) return { ok: false, error: result.error }
+    for (const row of result.data ?? []) if (row.has_thumbnail) ids.add(row.id)
+  }
+  return { ok: true, ids }
 }
 
 /**
@@ -425,15 +448,11 @@ async function currentItemNames(
 
 function toSuggestionView(
   row: SuggestionRow,
-  names: Map<string, string>
+  names: Map<string, string>,
+  thumbnails: Set<string>
 ): SuggestionView {
-  const asset = row.asset
   const thumb =
-    row.asset_id &&
-    asset &&
-    asset.upload_state === "ready" &&
-    !asset.deleted_at &&
-    asset.thumbnail_path
+    row.asset_id && thumbnails.has(row.asset_id)
       ? `/api/media/${row.asset_id}/thumb`
       : null
   const status = (["open", "resolved", "dismissed", "withdrawn"] as const).find(
@@ -503,11 +522,17 @@ export async function getVenueMenuOverview(
     ...(open.data ?? []),
     ...(closed.data ?? []),
   ] as unknown as SuggestionRow[]
-  const names = await currentItemNames(db, [
-    ...new Set(
-      rows.flatMap((r) => (r.resolved_item_id ? [r.resolved_item_id] : []))
-    ),
+  const [names, thumbnails] = await Promise.all([
+    currentItemNames(db, [
+      ...new Set(
+        rows.flatMap((r) => (r.resolved_item_id ? [r.resolved_item_id] : []))
+      ),
+    ]),
+    assetsWithThumbnails(db, [
+      ...new Set(rows.flatMap((r) => (r.asset_id ? [r.asset_id] : []))),
+    ]),
   ])
+  if (!thumbnails.ok) return menuReadFailure(thumbnails.error, "suggestions")
   return {
     ok: true,
     venue: venue.data,
@@ -516,7 +541,7 @@ export async function getVenueMenuOverview(
     history: summaries
       .filter((s) => s.status === "retired" || s.status === "discarded")
       .sort(newestFirst),
-    suggestions: rows.map((r) => toSuggestionView(r, names)),
+    suggestions: rows.map((r) => toSuggestionView(r, names, thumbnails.ids)),
   }
 }
 

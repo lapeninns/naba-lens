@@ -9,6 +9,7 @@
 //   node tests/migrations/run.mjs "$W" db-reset reset
 //   node tests/migrations/run.mjs "$W" reset     # compare the second reset with the first
 //   node tests/migrations/run.mjs "$W" lint      # db diff (no drift) and db lint
+//   node tests/migrations/run.mjs "$W" withdraw  # coverage access-withdrawal script
 //
 // The resets are separate commands because one reset can take several minutes on
 // a loaded machine.
@@ -18,13 +19,13 @@ import { mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs"
 import { join, resolve } from "node:path"
 
 const [workdirArg, phase] = process.argv.slice(2)
-const phases = ["upgrade", "reset", "lint"]
+const phases = ["upgrade", "reset", "lint", "withdraw"]
 if (
   !workdirArg ||
   !(phases.includes(phase) || (phase === "db-reset" && phases.includes(process.argv[4])))
 )
   throw new Error(
-    "Usage: node tests/migrations/run.mjs <isolated Supabase workdir> upgrade|reset|lint|db-reset <phase>"
+    "Usage: node tests/migrations/run.mjs <isolated Supabase workdir> upgrade|reset|lint|withdraw|db-reset <phase>"
   )
 const workdir = resolve(workdirArg)
 const state = join(workdir, ".drill")

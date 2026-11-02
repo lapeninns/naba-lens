@@ -31,10 +31,8 @@ function describe(
   showAttribution: boolean,
   labelText: string | null
 ) {
-  const parts = [
-    item.mediaType === "video" ? "Video" : "Photo",
-    item.originalFilename,
-  ]
+  const parts = [item.mediaType === "video" ? "Video" : "Photo"]
+  if (item.originalFilename !== null) parts.push(item.originalFilename)
   if (showAttribution) parts.push(`by ${item.contributorName}`, item.venueName)
   parts.push(`uploaded ${formatDate(item.createdAt)}`)
   if (item.uploadState !== "ready")

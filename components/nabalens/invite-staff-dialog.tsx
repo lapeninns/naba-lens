@@ -16,6 +16,12 @@ import {
 import { Field, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 
+import {
+  DEPARTMENT_OPTIONS,
+  isDepartment,
+  type Department,
+} from "@/lib/config/departments"
+
 import { OptionSelect } from "./option-select"
 import type { Option } from "./types"
 
@@ -23,6 +29,7 @@ export type InviteFormValues = {
   displayName: string
   email: string
   jobTitle: string
+  department?: Department | null
   venueId: string
 }
 
@@ -76,6 +83,7 @@ function InviteForm({
     displayName: "",
     email: "",
     jobTitle: "",
+    department: null,
     venueId: "",
   })
   const [result, setResult] = React.useState<InviteResult | null>(null)
@@ -93,6 +101,7 @@ function InviteForm({
       displayName: values.displayName.trim(),
       email: values.email.trim().toLowerCase(),
       jobTitle: values.jobTitle.trim(),
+      department: values.department ?? null,
       venueId: values.venueId,
     }
     const errors: Partial<Record<keyof InviteFormValues, string>> = {}
@@ -202,6 +211,28 @@ function InviteForm({
         spellCheck: false,
       })}
       {text("jobTitle", "Job title (optional)", { maxLength: 80 })}
+      <Field
+        className="gap-1.5"
+        data-invalid={!!errorFor("department") || undefined}
+      >
+        <FieldLabel htmlFor={`${id}-department`}>Department</FieldLabel>
+        <OptionSelect
+          id={`${id}-department`}
+          options={DEPARTMENT_OPTIONS}
+          value={values.department ?? null}
+          onValueChange={(value) =>
+            setValues((current) => ({
+              ...current,
+              department: isDepartment(value) ? value : null,
+            }))
+          }
+          emptyLabel="Unassigned"
+          invalid={!!errorFor("department")}
+        />
+        {errorFor("department") ? (
+          <FieldError>{errorFor("department")}</FieldError>
+        ) : null}
+      </Field>
       <Field className="gap-1.5">
         <FieldLabel htmlFor={`${id}-venueId`}>Venue</FieldLabel>
         <OptionSelect

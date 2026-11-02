@@ -96,7 +96,7 @@ describe("magic links", () => {
     expect(await open(browser, link)).toEqual({ status: 303, location: "/" })
     expect(browser.authCookies().length).toBeGreaterThan(0)
     expect((await browser.run(() => redirectOf(RootPage))).location).toBe(
-      "/staff"
+      "/staff/tasks"
     )
 
     const adminBrowser = new Browser("admin")
@@ -276,7 +276,7 @@ describe("email link scanners (GET must not use the token)", () => {
     const person = new Browser("invitee")
     expect(await open(person, link)).toEqual({ status: 303, location: "/" })
     expect((await person.run(() => redirectOf(RootPage))).location).toBe(
-      "/staff"
+      "/staff/tasks"
     )
   })
 

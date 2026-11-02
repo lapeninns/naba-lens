@@ -1,10 +1,19 @@
 # Naba-Lens
 
-Private staff portfolios and an admin marketing media library for one organisation
-with ten owner-confirmed venues. Staff upload to their own portfolio; admins see
-the **same ready asset** centrally and download the unchanged original. There is
+Private staff portfolios, cross-venue colleague discovery and an admin marketing
+media library for one organisation. Staff upload to their own portfolio and use
+**Explore** / **People** to view active colleagues' ready work across configured
+venues, with FOH/BOH team filters. Admins see the **same ready asset** centrally
+and download the unchanged original. There is
 no editorial approval step or publishing tool. Exactly two roles: `staff` and
 `admin`.
+
+**Accepted scope in progress ([v0.4](docs/spec/NabaLens-Staff-Coverage-v0.4.md)):**
+manager-set monthly photo targets for every active staff member, reviewed
+menu-section/service/amenity photo coverage per venue, and admin-managed
+venue-manager grants (not a third role). Review of a submitted photo decides
+task completion only; ready photos stay visible in portfolios and Explore
+immediately. These features are not release-evidenced yet.
 
 **Release status: NOT READY.** Local source/checks are not a hosted launch,
 physical-phone certification or proof of publishing permission. See the
@@ -16,6 +25,7 @@ physical-phone certification or proof of publishing permission. See the
 | --- | --- |
 | Run locally, configure env or prepare staging/production | [Setup runbook](docs/setup.md) |
 | Sign in, edit your profile, upload or remove your own media | [Staff guide](docs/usage-staff.md) |
+| Browse colleagues across venues or prepare the community migrations | [Community feature and deployment notes](docs/community.md) |
 | Filter/download originals, invite/manage/deactivate staff | [Admin guide](docs/usage-admin.md) |
 | Handle capture safety, failed uploads, cleanup, retention or a lost phone | [Operations](docs/operations.md) |
 | Decide whether staging, a two-venue pilot or production is allowed | [Release checklist](docs/release-checklist.md) |
@@ -81,7 +91,8 @@ Stop only the stack you own.
 - Stack: Next **16.4.2** App Router (`proxy.ts`), React **19.3.1**,
   TypeScript **5.9.3**, Tailwind **4.3.3** + shadcn/Base UI,
   Supabase Auth/Postgres/private Storage via `@supabase/ssr`.
-- Routes: `/login`, `/staff`, `/admin`, `/admin/staff`,
+- Routes: `/login`, `/staff`, `/staff/community` (Explore), `/staff/people`,
+  `/staff/people/[id]` (colleague portfolio), `/admin`, `/admin/staff`,
   `/admin/staff/[id]`, and (v0.3) `/admin/menus`, `/admin/menus/[venueId]`,
   `/admin/menus/versions/[versionId]`. Auth email templates use `/auth/confirm`;
   `/auth/callback` supports PKCE fallback.
@@ -89,6 +100,7 @@ Stop only the stack you own.
   20 MiB photos, 200 MiB videos, 4 MiB avatar inputs, 60-second signed reads,
   24-hour abandoned-upload window. Provider/plan caps still need verification.
 - [Architecture/security boundaries](docs/architecture.md)
+- [Community access boundaries and required migrations](docs/community.md)
 - [Media pipeline and HEIC deployment constraints](docs/media-pipeline.md)
 - [Upload transport](docs/upload-transport.md)
 - [Removal and cleanup](docs/cleanup.md)
@@ -100,6 +112,7 @@ Stop only the stack you own.
 - [Product specification v0.2](docs/spec/NabaLens-MVP-Execution-v0.2.md)
 - [v0.3 menu catalogue and labels amendment](docs/spec/NabaLens-Menus-Labels-v0.3.md),
   [data model](docs/menus-data-model.md), [import formats](docs/menus-import.md)
+- [v0.4 staff targets and venue coverage amendment](docs/spec/NabaLens-Staff-Coverage-v0.4.md)
 - [Coding-agent brief](docs/spec/NabaLens-Coding-Agent-Prompt.md)
 - [Parallel-build ownership/limits](docs/fanout/CONTRACT.md)
 

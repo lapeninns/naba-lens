@@ -1,5 +1,7 @@
 import type { PostgrestError } from "@supabase/supabase-js"
 
+import type { Department } from "@/lib/config/departments"
+
 import { DEACTIVATED_BAN_DURATION } from "./auth-users"
 import { staffStatus, type StaffAccountStatus } from "./directory"
 import {
@@ -55,7 +57,7 @@ function mapUpdateError(error: PostgrestError): AccountError {
 }
 
 /**
- * Admin edit of a staff account: display name, job title, venue and activation.
+ * Admin edit of a staff account: display name, job title, department, venue and activation.
  * The update runs as the admin (RLS + the profiles_guard trigger re-check it);
  * a venue change applies to future uploads only, because every media asset
  * keeps the venue snapshotted at reservation.
@@ -89,10 +91,12 @@ export async function updateStaffAccount(
   const update: {
     display_name?: string
     job_title?: string | null
+    department?: Department | null
     venue_id?: string
   } = {}
   if (patch.displayName !== undefined) update.display_name = patch.displayName
   if (patch.jobTitle !== undefined) update.job_title = patch.jobTitle
+  if (patch.department !== undefined) update.department = patch.department
   if (patch.venueId !== undefined && patch.venueId !== target.row.venue_id)
     update.venue_id = patch.venueId
 

@@ -43,7 +43,8 @@ export type MediaItemView = {
   thumbnailUrl: string | null
   previewUrl: string | null
   mimeType: string | null
-  originalFilename: string
+  /** Null in colleague views: original filenames stay with the owner and admins. */
+  originalFilename: string | null
   createdAt: string
   contributorId: string
   contributorName: string

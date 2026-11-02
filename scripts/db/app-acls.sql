@@ -7,7 +7,9 @@ with objects(kind, name, owner, acl) as (
   from pg_namespace where nspname in ('public', 'private')
   union all
   select 'relation', format('%I.%I', n.nspname, c.relname), c.relowner,
-    coalesce(c.relacl, acldefault(case when c.relkind = 'S' then 'S'::"char" else 'r'::"char" end, c.relowner))
+    -- acldefault codes: 's' sequence ('S' would be a foreign server), 'r' any
+    -- table-like relation, 'f' function, 'n' schema, 'T' type.
+    coalesce(c.relacl, acldefault(case when c.relkind = 'S' then 's'::"char" else 'r'::"char" end, c.relowner))
   from pg_class c join pg_namespace n on n.oid = c.relnamespace
   where n.nspname in ('public', 'private') and c.relkind in ('r', 'p', 'v', 'm', 'f', 'S')
   union all

@@ -1239,6 +1239,11 @@ describe("library_assets (A1.10, A1.12)", () => {
     )
     expect(await lib(staff1, { p_query: "staff curry" })).toEqual([])
     expect(await lib(staffB, {})).toEqual([])
+    expect(await lib(staffB, { p_query: "staff curry" })).toEqual([])
+    expect(await labelRows(staff1, assets.typeOnly!)).toEqual({
+      labels: 0,
+      items: 0,
+    })
   })
 })
 

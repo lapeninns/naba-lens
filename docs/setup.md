@@ -175,7 +175,7 @@ Verified from `.env.example` and `process.env` references in `lib/`, `app/`,
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Required public client key, subject to RLS, not a service credential. Local: `PUBLISHABLE_KEY` or `ANON_KEY`. |
 | `NEXT_PUBLIC_SITE_URL` | Absolute app origin for email redirects; public, not a secret. Defaults to `http://127.0.0.1:3000` in `lib/supabase/env.ts`; explicitly set it for staging/production. Trailing slashes are removed. |
 | `SUPABASE_SERVICE_ROLE_KEY` | **Server/operator only**, bypasses RLS. Needed for processing, account management and operator scripts. Local: `SERVICE_ROLE_KEY` (test helpers also accept status `SECRET_KEY`). Never add a public prefix. |
-| `CLEANUP_SECRET` | **Server/scheduler only**, at least 32 characters; authenticates POST `/api/internal/cleanup`. Missing/short value returns 503. Not needed by `pnpm cleanup`, which uses the service role. |
+| `CLEANUP_SECRET` | **Server/scheduler only**, at least 32 characters; authenticates POST `/api/internal/cleanup` and GET/POST `/api/internal/coverage/monthly-preparation` (Vercel Cron sends `CRON_SECRET`, so set both to the same value). Missing/short value returns 503. Not needed by `pnpm cleanup`, which uses the service role. |
 | `SUPABASE_URL` | Optional **operator-script** URL alias, not read by web clients. `scripts/lib/service-client.ts` prefers it over `NEXT_PUBLIC_SUPABASE_URL`; unset stale aliases before targeting another environment. Not in `.env.example`. |
 | `MAILPIT_URL` | Local test-only inbox URL when using explicit test credentials. Required for email-based e2e paths; otherwise status supplies `MAILPIT_URL` or `INBUCKET_URL`. Never a hosted email credential. |
 | `E2E_PORT` | Local Playwright server port, default **3457**; not a runtime app setting. Match the stack Auth Site URL to it when running email e2e. |
@@ -410,15 +410,16 @@ send real invitations or schedule a job.
     data exists in either hosted environment. Invite staff only after this.
 11. **NOT DONE, requires owner authorisation: cleanup and scheduler.** Generate
     a server-only secret of at least 32 characters (for example
-    `openssl rand -hex 32`, kept out of logs). Schedule authenticated
-    **POST `/api/internal/cleanup`** hourly, or run trusted `pnpm cleanup` with
-    service credentials. Options: an external scheduler capable of POST, an
-    approved service-side script job, or Supabase `pg_cron` + `pg_net` with
-    protected secrets (details in [cleanup](cleanup.md)). **Vercel Cron sends
-    GET and `CRON_SECRET`; this POST-only route accepts `CLEANUP_SECRET`.**
-    It cannot work unchanged; a reviewed route/config change would be needed.
-    No scheduler is currently configured. Verify JSON `failed`, `more` and
-    lease-skipped reports, not merely HTTP 200; configure failure escalation.
+    `openssl rand -hex 32`, kept out of logs) as `CLEANUP_SECRET`. On Vercel,
+    set `CRON_SECRET` to the same value: Vercel Cron sends GET with
+    `Authorization: Bearer $CRON_SECRET`, and the cleanup and monthly coverage
+    preparation routes accept GET or POST with that bearer. `vercel.json`
+    schedules both hourly once deployed. Elsewhere, schedule authenticated
+    **POST `/api/internal/cleanup`** hourly (an external scheduler, an approved
+    service-side script job, or Supabase `pg_cron` + `pg_net` with protected
+    secrets; details in [cleanup](cleanup.md)), or run trusted `pnpm cleanup`
+    with service credentials. Verify JSON `failed`, `more` and lease-skipped
+    reports, not merely HTTP 200; configure failure escalation.
 12. **NOT DONE, requires owner authorisation: retention and backups.** Approve
     ready-media, inactive-account, exported-copy and backup retention plus
     recovery objectives and access controls. Back up DB/Auth and private

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/lib/db/types"
+import { isDepartment, type Department } from "@/lib/config/departments"
 import type { AppRole } from "@/lib/auth/routes"
 
 export type CurrentVenue = {
@@ -16,6 +17,7 @@ export type CurrentProfile = {
   displayName: string
   avatarPath: string | null
   jobTitle: string | null
+  department?: Department | null
   role: AppRole
   venueId: string | null
   /** Null when unassigned, or when the account is inactive (venues are then unreadable). */
@@ -42,7 +44,7 @@ export async function loadProfile(
   const { data, error } = await supabase
     .from("profiles")
     .select(
-      "id, display_name, avatar_path, job_title, role, venue_id, active, venue:venues(id, name, slug, active)"
+      "id, display_name, avatar_path, job_title, department, role, venue_id, active, venue:venues(id, name, slug, active)"
     )
     .eq("id", userId)
     .maybeSingle()
@@ -60,6 +62,7 @@ export async function loadProfile(
     displayName: data.display_name,
     avatarPath: data.avatar_path,
     jobTitle: data.job_title,
+    department: isDepartment(data.department) ? data.department : null,
     role: data.role,
     venueId: data.venue_id,
     venue: data.venue ?? null,

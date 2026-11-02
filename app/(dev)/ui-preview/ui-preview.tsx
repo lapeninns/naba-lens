@@ -468,7 +468,7 @@ export function UiPreview() {
       <ConfirmDeleteDialog
         open={deleteItem !== null}
         onOpenChange={(open) => !open && setDeleteItem(null)}
-        fileName={deleteItem?.originalFilename}
+        fileName={deleteItem?.originalFilename ?? undefined}
         onConfirm={async () => {
           await new Promise((r) => setTimeout(r, 500))
           setLastEvent(`deleted ${deleteItem?.originalFilename}`)

@@ -24,6 +24,7 @@ import {
   type TestIdentity,
 } from "../support/identities"
 import { firefoxLaunchOptions } from "./helpers/firefox"
+import { openPortfolio, STAFF_LANDING } from "./helpers/ui"
 
 /**
  * Upload recovery and video handling in the real app (spec §5, §10: partial
@@ -71,7 +72,7 @@ async function signIn(
   browser: Browser,
   identity: TestIdentity,
   baseURL: string,
-  home: RegExp = /\/staff$/
+  home: RegExp = STAFF_LANDING
 ) {
   let link = await admin.auth.admin.generateLink({
     type: "magiclink",
@@ -91,6 +92,7 @@ async function signIn(
     `/auth/confirm?token_hash=${link.data.properties.hashed_token}&type=email`
   )
   await expect(page).toHaveURL(home)
+  if (home === STAFF_LANDING) await openPortfolio(page)
   return page
 }
 

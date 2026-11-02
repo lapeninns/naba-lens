@@ -20,9 +20,11 @@ mandatory title, caption, tags or category". The owner has now authorised a
 
 Still out of scope (unchanged): approval/rejection/publication/moderation of
 media, extra roles, comments, likes, AI, public menus, venue-website sync,
-bulk export, analytics. A label is **optional**, never blocks an upload, and
-never changes whether an asset is visible: a new ready upload appears in the
-admin library immediately, labelled or not.
+bulk export, analytics. ([v0.4](NabaLens-Staff-Coverage-v0.4.md) later adds
+completion-only review of task submissions and venue-manager grants; it does
+not add publication, moderation or a new role.) A label is **optional**, never
+blocks an upload, and never changes whether an asset is visible: a new ready
+upload appears in the admin library immediately, labelled or not.
 
 Two roles only (`staff`, `admin`). "Chef", "bartender" etc. remain job titles.
 

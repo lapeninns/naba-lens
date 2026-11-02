@@ -10,6 +10,7 @@ import {
 } from "../library/e2e"
 import { secondsBefore, seedAsset, setupIdentity } from "../library/seed"
 import { createVenue, serviceClient } from "../support/identities"
+import { openPortfolio, STAFF_LANDING } from "./helpers/ui"
 
 /**
  * The library track's browser checks (spec §3 admin library and portfolio, §7
@@ -322,7 +323,8 @@ test.describe("signed previews", () => {
     // --- Staff portfolio.
     const staffPage = await signInAs(browser, admin, staff, baseURL!)
     const checkStaffOptimiser = forbidImageOptimiser(staffPage)
-    await expect(staffPage).toHaveURL(/\/staff$/)
+    await expect(staffPage).toHaveURL(STAFF_LANDING)
+    await openPortfolio(staffPage)
     const portfolio = staffPage.getByRole("list", { name: "Your portfolio" })
     const firstTile = portfolio.getByRole("button").first()
     await expectImageLoaded(firstTile.locator("img"))

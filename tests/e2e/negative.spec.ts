@@ -1,7 +1,9 @@
+import { randomUUID } from "node:crypto"
 import { readFile } from "node:fs/promises"
 
 import { expect, test, type Browser, type Page } from "@playwright/test"
 
+import { seedImages } from "./helpers/coverage-world"
 import {
   mailboxIds,
   messagesTo,
@@ -9,7 +11,7 @@ import {
   waitForLink,
 } from "./helpers/mailpit"
 import { openEmailLink } from "./helpers/email-link"
-import { hevcMp4, sha256, syntheticJpeg } from "./helpers/media"
+import { hevcMp4, sha256, supportedMp4, syntheticJpeg } from "./helpers/media"
 import { provisioner, psql } from "./helpers/stack"
 import {
   chooseOption,
@@ -17,6 +19,8 @@ import {
   portfolioList,
   tile,
   uploadThroughDialog,
+  openPortfolio,
+  STAFF_LANDING,
 } from "./helpers/ui"
 import {
   fixtureEmail,
@@ -79,25 +83,36 @@ test.describe("release negatives", () => {
     world = await provisionWorld()
   })
 
-  test("staff A is denied staff B's media, portfolio and admin routes; anonymous is denied", async ({
+  test("staff A gets staff B's previews only; originals and admin routes are denied; anonymous is denied", async ({
     browser,
   }) => {
     const photo = await syntheticJpeg(`b-only-${world.tag}.jpg`)
     const staffB = await signedInPage(browser, world.staffB)
-    await expect(staffB).toHaveURL(/\/staff$/)
+    await expect(staffB).toHaveURL(STAFF_LANDING)
+    await openPortfolio(staffB)
     await uploadThroughDialog(staffB, [photo])
     const [asset] = await assetIdsOf(world.staffB.id)
 
     const staffA = await signedInPage(browser, world.staffA)
-    await expect(staffA).toHaveURL(/\/staff$/)
+    await expect(staffA).toHaveURL(STAFF_LANDING)
+    await openPortfolio(staffA)
     // Same venue, still nothing of B's in A's own portfolio.
     await expect(
       staffA.getByText("Your portfolio starts here.", { exact: false })
     ).toBeVisible()
     await expect(tile(staffA, "Photo", photo.name)).toHaveCount(0)
 
-    // Direct asset routes by URL: indistinguishable from a missing asset.
-    for (const route of ["thumb", "preview", "stream", "download"]) {
+    // Community (docs/community.md): an active colleague's ready photo has
+    // signed previews; its original never leaves through a staff route (stream
+    // plays videos only, download is admin-only).
+    for (const route of ["thumb", "preview"]) {
+      const r = await staffA.request.get(`/api/media/${asset.id}/${route}`, {
+        maxRedirects: 0,
+      })
+      expect(r.status(), route).toBe(302)
+      expect(r.headers()["cache-control"], route).toBe("private, no-store")
+    }
+    for (const route of ["stream", "download"]) {
       const r = await staffA.request.get(`/api/media/${asset.id}/${route}`, {
         maxRedirects: 0,
       })
@@ -111,7 +126,7 @@ test.describe("release negatives", () => {
       `/admin?staff=${world.staffB.id}`,
     ]) {
       await staffA.goto(path)
-      await expect(staffA, path).toHaveURL(/\/staff$/)
+      await expect(staffA, path).toHaveURL(STAFF_LANDING)
     }
     // Admin-only route handler (avatar) refuses staff.
     const forged = await staffA.request.post(
@@ -150,6 +165,73 @@ test.describe("release negatives", () => {
     await expect(tile(portfolioList(staffB), "Photo", photo.name)).toBeVisible()
   })
 
+  test("staff are denied media the community hides: inactive uploader, deleted or unfinished", async ({
+    browser,
+  }) => {
+    const { staffA, staffB, staffC, venue1, venue2, tag } = world
+    // Staff C works at the other venue: community visibility is organisation
+    // wide, so C's media is visible to A until C is deactivated. The video is a
+    // real upload, so its stream answers 200 while it is visible.
+    const clip = supportedMp4(`c-clip-${tag}.mp4`)
+    const staffCPage = await signedInPage(browser, staffC)
+    await openPortfolio(staffCPage)
+    await uploadThroughDialog(staffCPage, [clip])
+    const video = (await assetIdsOf(staffC.id)).find(
+      (a) => a.original_filename === clip.name
+    )!
+    const [cPhoto] = await seedImages(staffC, venue2, 1, {
+      prefix: `c-photo-${tag}`,
+    })
+    const [bShown, bDeleted] = await seedImages(staffB, venue1, 2, {
+      prefix: `b-photo-${tag}`,
+    })
+    const [bUnfinished] = await seedImages(staffB, venue1, 1, {
+      prefix: `b-unfinished-${tag}`,
+      state: "processing",
+    })
+
+    const staff = await signedInPage(browser, staffA)
+    const status = async (id: string, route: string) =>
+      (
+        await staff.request.get(`/api/media/${id}/${route}`, {
+          maxRedirects: 0,
+        })
+      ).status()
+
+    // Controls: while visible, the same assets answer, so each 404 below is
+    // the hiding rule and not a broken fixture.
+    for (const id of [bShown, bDeleted, cPhoto]) {
+      expect(await status(id, "thumb"), id).toBe(302)
+    }
+    expect(await status(video.id, "stream")).toBe(200)
+
+    const tombstone = await provisioner()
+      .from("media_assets")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("id", bDeleted)
+    if (tombstone.error) throw tombstone.error
+    const deactivate = await provisioner()
+      .from("profiles")
+      .update({ active: false })
+      .eq("id", staffC.id)
+    if (deactivate.error) throw deactivate.error
+
+    const hidden = {
+      "deleted photo of an active colleague": bDeleted,
+      "unfinished photo of an active colleague": bUnfinished,
+      "photo of a deactivated colleague": cPhoto,
+      "video of a deactivated colleague": video.id,
+      "unknown id": randomUUID(),
+    }
+    for (const [label, id] of Object.entries(hidden)) {
+      for (const route of ["thumb", "preview", "stream", "download"]) {
+        expect(await status(id, route), `${label}: ${route}`).toBe(404)
+      }
+    }
+    // Hiding is per asset and per person: B's other photo still answers.
+    expect(await status(bShown, "thumb")).toBe(302)
+  })
+
   test("uninvited email: neutral message, no account, no email", async ({
     page,
   }) => {
@@ -174,7 +256,7 @@ test.describe("release negatives", () => {
     await requestLinkViaForm(first, email)
     const link = await waitForLink(email, SUBJECTS.signIn, seen)
     await openEmailLink(first, link)
-    await expect(first).toHaveURL(/\/staff$/)
+    await expect(first).toHaveURL(STAFF_LANDING)
     const second = await anonymous(browser)
     await openEmailLink(second, link)
     await expect(second).toHaveURL(/\/login\?error=link_invalid$/)
@@ -203,7 +285,7 @@ test.describe("release negatives", () => {
       third.getByRole("heading", { name: "Check your email" })
     ).toBeVisible()
     await openEmailLink(third, await waitForLink(email, SUBJECTS.signIn, seen3))
-    await expect(third).toHaveURL(/\/staff$/)
+    await expect(third).toHaveURL(STAFF_LANDING)
 
     // Garbage token.
     await third.context().clearCookies()
@@ -220,6 +302,7 @@ test.describe("release negatives", () => {
     const kept = await syntheticJpeg(`kept-${world.tag}.jpg`)
     const late = await syntheticJpeg(`late-${world.tag}.jpg`)
     const staff = await signedInPage(browser, world.staffB)
+    await openPortfolio(staff)
     await uploadThroughDialog(staff, [kept])
     const [asset] = await assetIdsOf(world.staffB.id)
     const portfolio = portfolioList(staff)
@@ -295,6 +378,7 @@ test.describe("release negatives", () => {
     const before = await syntheticJpeg(`before-move-${world.tag}.jpg`)
     const after = await syntheticJpeg(`after-move-${world.tag}.jpg`)
     const staff = await signedInPage(browser, staffC)
+    await openPortfolio(staff)
     await expect(staff.getByText(venue2.name)).toBeVisible()
     await uploadThroughDialog(staff, [before])
 
@@ -333,6 +417,7 @@ test.describe("release negatives", () => {
   }) => {
     const hevc = hevcMp4(`hevc-${world.tag}.mp4`)
     const staff = await signedInPage(browser, world.staffC)
+    await openPortfolio(staff)
     await uploadThroughDialog(staff, [hevc])
 
     const admin = await signedInPage(browser, world.adminA)
@@ -374,6 +459,7 @@ test.describe("release negatives", () => {
   test("empty states and a failed download", async ({ browser }) => {
     // New staff: empty portfolio with the upload call to action.
     const staff = await signedInPage(browser, world.staffA)
+    await openPortfolio(staff)
     await expect(
       staff.getByText(
         "Your portfolio starts here. Upload your first photo or video."
@@ -436,6 +522,7 @@ test.describe("release negatives", () => {
     // /admin/staff/[id] onto MediaGallery.
     const photo = await syntheticJpeg(`portfolio-${world.tag}.jpg`)
     const staff = await signedInPage(browser, world.staffA)
+    await openPortfolio(staff)
     await uploadThroughDialog(staff, [photo])
     const admin = await signedInPage(browser, world.adminA)
     await admin.goto(`/admin/staff/${world.staffA.id}`)

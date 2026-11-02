@@ -23,9 +23,44 @@ For **Account unavailable**, contact the system owner; that screen offers
 
 **Open portfolio** leads to `/admin/staff/[id]`. You can also open **Staff**
 (`/admin/staff`) → **Portfolio** on desktop, or the person's row on phones.
-Individual portfolios have previews and **Load more**, but **no download or
-delete actions**. Use **Content** filtered by **Staff member** instead.
-Reload a portfolio page if its previews expire.
+Individual admin portfolios have previews, **Load more**, **Download original**
+and **Delete**, using the same gallery behavior as Content. The gallery
+refreshes about every 15 seconds and on tab focus.
+
+## Staff community and team assignments
+
+Active staff have **My tasks**, **Explore**, **People** and **My portfolio**
+navigation; venue managers also have **Manage**. Staff land on **My tasks**.
+Explore shows ready photos and videos across the organisation with venue,
+FOH/BOH team and media-type filters. People lets staff search colleagues by
+name, current venue and team, then open a colleague's portfolio. See the
+[staff guide](usage-staff.md#explore-work-across-lapen-inns) for the viewing flow.
+Admin navigation is **Content**, **Staff**, **Menus** and **Coverage**.
+
+Community profiles show name, photo, job title, department, current venue and
+ready-upload count. Account email and access-management fields stay in admin
+tools. Staff viewing a colleague cannot edit the account or labels, delete
+the colleague's uploads, or use the admin **Download original** route, and
+never see original filenames. Colleague video playback does deliver the
+original file, including embedded metadata such as location.
+Only ready, non-deleted uploads from active staff are shared with colleagues.
+Deactivating an account removes it from People and stops peers reading its
+media on subsequent protected requests; admins retain ready media in Content.
+Previously issued short-lived media links may work until expiry.
+
+Assign **Department** when inviting staff or in **Edit details**. The choices
+are **Front of house (FOH)**, **Back of house (BOH)** or **Unassigned**. Existing
+accounts remain unassigned until an admin chooses a department; the app does
+not infer it from a job title. Unassigned staff remain visible under **All
+teams**. Department is a team label, separate from the `staff` / `admin`
+access role, and staff cannot change their own assignment. Coverage needs it:
+staff without a department show **Needs setup** for their monthly target, and
+it suggests who a manager assigns to a task without granting any access.
+
+The app represents one parent organisation with venues as its units. It uses
+the configured venue records and does not create or assume a list of ten
+sister companies. The [community deployment notes](community.md) describe the
+required database migrations; these guides do not establish production status.
 
 ## Filter by labels and correct them
 
@@ -61,10 +96,67 @@ venue is serving a dish today.
 Prices, dietary and spice values from an import are stored only as source
 details for reference.
 
+Activating a new version for a venue with menu coverage shows **Menu changed —
+review coverage** in that venue's coverage screens. Its manager, or an admin,
+then decides which accepted photos carry over to which new section. Nothing is
+matched by section name, so the venue's menu coverage is not current until
+that is done.
+
+## Coverage: venue managers, targets and oversight
+
+**Coverage** (`/admin/coverage`) shows, for one month at a time, every venue's
+photo coverage and its staff's monthly participation, counted separately.
+Dates are UK time.
+
+- **Venue coverage** lists each venue's checklist progress, items needing setup
+  or reassignment, photos waiting for review, overdue items and menu coverage.
+  A venue is complete only when every applicable checklist item has enough
+  accepted photos and its menu coverage is current. Items marked not
+  applicable stay visible with their reason and are not counted.
+- **Staff participation** shows targets set, people who need setup and
+  accepted photos. A person is complete only with a venue, a team, a target
+  and enough of their own photos accepted for that month. Missing setup never
+  counts as complete.
+- **Monthly preparation** shows the last run, recent failures with their error
+  code, and venues where active staff have no target for the month.
+  **Prepare this month for all venues** runs it now and is safe to repeat. See
+  [operations](operations.md#monthly-coverage-preparation).
+- **Self-reviews** lists each decision a manager made on their own photo.
+- Open a venue for the same **Overview**, **Review**, **Checklist**, **Menu**
+  and **Team** screens a manager has (see the
+  [staff guide](usage-staff.md#manage-venue-managers-only)), for any venue.
+  Admins can also attach retained photos from people who have left, and
+  correct a past month's target with a reason; the correction is recorded.
+
+Accepting a photo records task completion only. It is not publishing
+clearance, and coverage does not gate what staff see: ready photos are in
+portfolios and Explore before review.
+
+### Venue managers
+
+Open **Venue managers** (`/admin/coverage/managers`). Under **Make someone a
+venue manager**, choose a venue, then an active staff member currently at that
+venue, add an optional note and choose **Make venue manager**. A person can
+manage one venue at a time. A manager stays a `staff` user; the grant is not a
+role.
+
+The grant works only while the person is active staff at that venue and the
+venue is active. Moving them to another venue, deactivating them or changing
+their role ends it, and it never moves with them; grant it again if needed.
+**Revoke** needs a reason. **Show ended grants** lists how each one ended.
+A manager who is already signed in is affected on their next page load or
+action.
+
+Being a manager does not let anyone invite or deactivate people, change roles,
+venues or teams, publish menus, download originals or delete colleagues'
+photos. Manager screens show names, photos, teams and progress, never email
+or account details.
+
 ## Invite staff and recover email failures
 
 In **Staff**, choose **Invite staff**. Fill **Name**, **Email**,
-**Job title (optional)** and **Venue** (an active venue), then **Send invitation**.
+**Job title (optional)**, **Department** (or leave **Unassigned**) and **Venue**
+(an active venue), then **Send invitation**.
 Invitations create staff only; additional admins use [setup](setup.md).
 
 - **Invitation sent**: **Close**. Status stays **Invited** until first sign-in.
@@ -78,8 +170,8 @@ Invitations create staff only; additional admins use [setup](setup.md).
 
 Choose **Edit details** in the menu or portfolio header. **Edit staff account**
 allows **Display name**, **Profile photo** (up to
-4 MiB, shown as **4.0 MB**), **Job title**, **Venue** or **Account active**,
-then **Save changes**. Email and role are not editable here.
+4 MiB, shown as **4.0 MB**), **Job title**, **Department**, **Venue** or
+**Account active**, then **Save changes**. Email and role are not editable here.
 Venue changes affect new uploads only; old media keeps its original venue.
 A photo may save before a later field fails; recheck errors.
 
@@ -93,6 +185,14 @@ protected request; admins retain the portfolio's ready media. **Reactivate**
 restores access without confirmation. The **Account active** switch also changes
 access on **Save changes**, without the deactivation dialog.
 
+Both changes affect coverage. A venue move ends any manager grant, and the
+person can no longer send photos to the old venue's tasks; their past months
+and accepted photos stay with the old venue. Deactivation also ends the grant
+and closes the person's open task assignments with a reason, so the checklist
+shows **Needs reassignment**. Their accepted photos remain visible to that
+venue's manager and admins in coverage screens, while Explore and People stop
+showing them as before.
+
 ## Delete media and use it responsibly
 
 In **Content**, open the item and choose **Delete**. The confirmation reads:
@@ -100,8 +200,9 @@ In **Content**, open the item and choose **Delete**. The confirmation reads:
 > Remove this file from your portfolio and the admin library? Previously downloaded copies cannot be recalled.
 
 Choose **Keep file** or confirm with **Delete**. Deletion hides the same asset
-from both library and portfolio; there is no trash/recovery screen. Existing
-signed links may work until expiry, and downloaded copies cannot be recalled.
+from the library, owner portfolio and community views; there is no trash/recovery
+screen. Reload a community page to update its gallery. Existing signed links
+may work until expiry, and downloaded copies cannot be recalled.
 
 Check privacy and permissions before external use: ready media is not
 publishing clearance.

@@ -2,6 +2,8 @@
 
 Read the accompanying `NabaLens-MVP-Execution-v0.2.md` and implement that specification end to end in the target repository. This prompt and v0.2 supersede the earlier expanded NabaLens plan.
 
+> **Amended scope.** This is the original MVP brief. [v0.3](NabaLens-Menus-Labels-v0.3.md) authorises menu labels, and [v0.4](NabaLens-Staff-Coverage-v0.4.md) authorises colleague browsing, monthly staff targets, venue coverage tasks, completion-only review and venue-manager grants. Where this brief says otherwise (for example "Do not add tasks, review statuses, manager roles"), those amendments take precedence. Roles remain `staff` and `admin`.
+
 ## Your assignment
 
 Act as the lead full-stack engineer and product designer. Build NabaLens, a private staff portfolio and admin marketing media library for one organisation operating 10 pubs/restaurants.

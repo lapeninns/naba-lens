@@ -12,6 +12,7 @@ import {
   libraryList,
   portfolioList,
   uploadThroughDialog,
+  openPortfolio,
 } from "./helpers/ui"
 import {
   provisionWorld,
@@ -183,6 +184,7 @@ test("rows 5+7: photo + video uploaded, batch-labelled with per-file overrides; 
   const world = await provisionWorld()
   await withRailway(browser, world)
   const staff = await signedInPage(browser, world.staffA)
+  await openPortfolio(staff)
   const photo = await syntheticJpeg(`qa-batch-photo-${world.tag}.jpg`)
   const video = supportedMp4(`qa-batch-video-${world.tag}.mp4`)
   const note = `QA common note ${world.tag}`
@@ -310,6 +312,7 @@ test("row 6: skip labelling at upload, label later from the viewer; the asset is
   const world = await provisionWorld()
   const admin = await withRailway(browser, world)
   const staff = await signedInPage(browser, world.staffA)
+  await openPortfolio(staff)
   const photo = await syntheticJpeg(`qa-later-${world.tag}.jpg`)
 
   await uploadThroughDialog(staff, [photo], { close: false })
@@ -891,6 +894,7 @@ test("rows 12+13: label filters combine with venue/staff/type, search and dates;
 
   await test.step("a labelled real upload still downloads byte-identical", async () => {
     const staff = await signedInPage(browser, world.staffA)
+    await openPortfolio(staff)
     const photo = await syntheticJpeg(`qa-bytes-${t}.jpg`)
     await uploadThroughDialog(staff, [photo], { close: false })
     await staff

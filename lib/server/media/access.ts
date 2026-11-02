@@ -15,7 +15,8 @@ export type ReadableAsset = {
   thumbnailPath: string | null
   mimeType: string
   sizeBytes: number
-  originalFilename: string
+  /** Null for a colleague: original filenames stay with the owner and admins. */
+  originalFilename: string | null
 }
 
 const notFound: Outcome<never> = {
@@ -31,17 +32,26 @@ export const PRIVATE_HEADERS = {
   "referrer-policy": "no-referrer",
 } as const
 
+const unavailable: Outcome<never> = {
+  ok: false,
+  status: 503,
+  message: "Try again.",
+}
+
 /**
- * A ready, non-deleted asset the caller may read: their own (active staff) or any
- * (active admin). Read through the caller's RLS-scoped client, then re-checked
- * here, so a service-role step afterwards only touches an authorised asset.
- * Unknown and forbidden assets look the same (404).
+ * A ready, non-deleted asset the caller may read: their own, any ready asset as
+ * an active admin, or an active colleague's portfolio asset. Own and admin rows
+ * come through the caller's RLS-scoped client. Colleagues have no row access:
+ * the `community_readable_assets` check runs as the caller, and only after it
+ * passes does the service role read the storage paths. A service-role step
+ * afterwards therefore only touches an authorised asset. Unknown and forbidden
+ * assets look the same (404).
  */
 export async function getReadableAsset(
   actor: MediaActor,
   assetId: string
 ): Promise<Outcome<{ asset: ReadableAsset }>> {
-  if (!UUID.test(assetId)) return notFound
+  if (!actor.profile.active || !UUID.test(assetId)) return notFound
   const { data, error } = await actor.db
     .from("media_assets")
     .select(
@@ -49,32 +59,73 @@ export async function getReadableAsset(
     )
     .eq("id", assetId)
     .maybeSingle()
-  if (error) return { ok: false, status: 503, message: "Try again." }
+  if (error) return unavailable
   if (
-    !data ||
-    data.deleted_at !== null ||
-    data.upload_state !== "ready" ||
-    !data.validated_mime_type ||
-    data.size_bytes === null
+    data &&
+    (actor.profile.role === "admin" || data.uploader_id === actor.profile.id)
   ) {
+    if (
+      data.deleted_at !== null ||
+      data.upload_state !== "ready" ||
+      !data.validated_mime_type ||
+      data.size_bytes === null
+    ) {
+      return notFound
+    }
+    return {
+      ok: true,
+      asset: {
+        id: data.id,
+        uploaderId: data.uploader_id,
+        mediaType: data.media_type,
+        originalPath: data.original_path,
+        previewPath: data.preview_path,
+        thumbnailPath: data.thumbnail_path,
+        mimeType: data.validated_mime_type,
+        sizeBytes: Number(data.size_bytes),
+        originalFilename: data.original_filename,
+      },
+    }
+  }
+  if (actor.profile.role !== "staff") return notFound
+  return getColleagueAsset(actor, assetId)
+}
+
+async function getColleagueAsset(
+  actor: MediaActor,
+  assetId: string
+): Promise<Outcome<{ asset: ReadableAsset }>> {
+  // Rechecked on every request, so a deactivated colleague's media becomes
+  // unavailable to peers at once.
+  const checked = await actor.db.rpc("community_readable_assets", {
+    p_asset_ids: [assetId],
+  })
+  if (checked.error) return unavailable
+  const row = checked.data?.find((r) => r.id === assetId)
+  if (!row || !row.validated_mime_type || row.size_bytes === null) {
     return notFound
   }
-  const allowed =
-    actor.profile.role === "admin" ||
-    (actor.profile.role === "staff" && data.uploader_id === actor.profile.id)
-  if (!allowed) return notFound
+  const paths = await actor.service
+    .from("media_assets")
+    .select("original_path, preview_path, thumbnail_path")
+    .eq("id", assetId)
+    .eq("upload_state", "ready")
+    .is("deleted_at", null)
+    .maybeSingle()
+  if (paths.error) return unavailable
+  if (!paths.data) return notFound
   return {
     ok: true,
     asset: {
-      id: data.id,
-      uploaderId: data.uploader_id,
-      mediaType: data.media_type,
-      originalPath: data.original_path,
-      previewPath: data.preview_path,
-      thumbnailPath: data.thumbnail_path,
-      mimeType: data.validated_mime_type,
-      sizeBytes: Number(data.size_bytes),
-      originalFilename: data.original_filename,
+      id: row.id,
+      uploaderId: row.uploader_id,
+      mediaType: row.media_type,
+      originalPath: paths.data.original_path,
+      previewPath: paths.data.preview_path,
+      thumbnailPath: paths.data.thumbnail_path,
+      mimeType: row.validated_mime_type,
+      sizeBytes: Number(row.size_bytes),
+      originalFilename: null,
     },
   }
 }
@@ -145,8 +196,11 @@ export function attachmentDisposition(filename: string, mime: string): string {
 /**
  * Streams an original byte-for-byte (download, or inline video playback through
  * Range requests). Headers come from the validated record, never from storage
- * metadata or the browser: attachment disposition, validated Content-Type,
- * nosniff and private, no-store.
+ * metadata or the browser: validated Content-Type, nosniff and private,
+ * no-store. The owner and admins get an attachment disposition with the
+ * original filename; a colleague (no filename on the asset) gets a bare
+ * `inline`, so playback never hands out the uploader's filename. The bytes are
+ * still the original, including any embedded metadata such as location.
  */
 export async function streamOriginal(
   actor: MediaActor,
@@ -177,10 +231,10 @@ export async function streamOriginal(
   const headers = new Headers({
     ...PRIVATE_HEADERS,
     "content-type": asset.mimeType,
-    "content-disposition": attachmentDisposition(
-      asset.originalFilename,
-      asset.mimeType
-    ),
+    "content-disposition":
+      asset.originalFilename === null
+        ? "inline"
+        : attachmentDisposition(asset.originalFilename, asset.mimeType),
     "accept-ranges": "bytes",
   })
   for (const name of [

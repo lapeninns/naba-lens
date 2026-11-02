@@ -224,6 +224,9 @@ export function useAccountControls({
       const result = await updateStaffAccountAction(member.id, {
         displayName: values.displayName,
         jobTitle: values.jobTitle ?? null,
+        ...(values.department !== undefined
+          ? { department: values.department }
+          : {}),
         ...(values.venueId ? { venueId: values.venueId } : {}),
         ...(values.active !== undefined ? { active: values.active } : {}),
       })
@@ -254,6 +257,7 @@ export function useAccountControls({
           displayName: editing?.displayName ?? "",
           avatarUrl: editing?.avatarUrl ?? null,
           jobTitle: editing?.jobTitle ?? null,
+          department: editing?.department ?? null,
           venueId: editing?.venueId ?? null,
           active: editing ? editing.status !== "inactive" : true,
         }}

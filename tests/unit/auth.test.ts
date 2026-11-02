@@ -6,7 +6,11 @@ import {
   uploadBlockReason,
   type CurrentProfile,
 } from "@/lib/auth/profile"
-import { homePathFor, isProtectedPath } from "@/lib/auth/routes"
+import {
+  homePathFor,
+  isProtectedPath,
+  PROTECTED_PREFIXES,
+} from "@/lib/auth/routes"
 
 const base: CurrentProfile = {
   id: "u1",
@@ -21,9 +25,25 @@ const base: CurrentProfile = {
 }
 
 describe("role routing", () => {
-  it("sends staff to /staff and admins to /admin", () => {
-    expect(homePathFor("staff")).toBe("/staff")
+  it("sends staff to My tasks and admins to /admin", () => {
+    expect(homePathFor("staff")).toBe("/staff/tasks")
     expect(homePathFor("admin")).toBe("/admin")
+  })
+
+  it("protects the whole staff area, not just the landing page", () => {
+    expect(PROTECTED_PREFIXES).toEqual(["/staff", "/admin"])
+    for (const path of [
+      "/staff",
+      "/staff/tasks",
+      "/staff/community",
+      "/staff/people/123",
+      "/staff/manage/review",
+      "/admin/coverage/v1/checklist",
+    ]) {
+      expect(isProtectedPath(path), path).toBe(true)
+    }
+    expect(isProtectedPath(homePathFor("staff"))).toBe(true)
+    expect(isProtectedPath("/staffroom")).toBe(false)
   })
 
   it("protects only the app areas", () => {

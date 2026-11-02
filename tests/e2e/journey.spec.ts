@@ -20,6 +20,8 @@ import {
   portfolioList,
   tile,
   uploadThroughDialog,
+  openPortfolio,
+  STAFF_LANDING,
 } from "./helpers/ui"
 import {
   fixtureEmail,
@@ -95,7 +97,8 @@ test.describe("release journey @core", () => {
     const staffContext = await browser.newContext()
     const staff = await staffContext.newPage()
     await openEmailLink(staff, inviteLink)
-    await expect(staff).toHaveURL(/\/staff$/)
+    await expect(staff).toHaveURL(STAFF_LANDING)
+    await openPortfolio(staff)
     await expect(
       staff.getByRole("heading", { name: inviteeName })
     ).toBeVisible()
@@ -177,7 +180,8 @@ test.describe("release journey @core", () => {
       freshPage,
       await waitForLink(inviteeEmail, SUBJECTS.signIn, seenSignIn)
     )
-    await expect(freshPage).toHaveURL(/\/staff$/)
+    await expect(freshPage).toHaveURL(STAFF_LANDING)
+    await openPortfolio(freshPage)
     await expect(portfolioList(freshPage).getByRole("button")).toHaveCount(3)
     await fresh.close()
 

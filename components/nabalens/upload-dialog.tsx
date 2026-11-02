@@ -28,6 +28,8 @@ import { formatBytes } from "./format"
 import type { UploadLimits } from "./types"
 import {
   ACCEPT_ATTRIBUTE,
+  ACCEPTED_IMAGE_TYPES,
+  guessMediaKind,
   type QueueItem,
   type RejectedFile,
   type Uploader,
@@ -48,9 +50,26 @@ type UploadDialogProps = {
    * finished files whose asset IDs are known. Skipping it changes nothing.
    */
   onLabel?: (assetIds: string[]) => void
+  /**
+   * Called once per settled run with the asset IDs of files that became ready
+   * in that run (only files whose uploader reported an asset ID).
+   */
+  onReady?: (assetIds: string[]) => void
   /** Offer the camera-capture input as an enhancement. Default true. */
   allowCamera?: boolean
+  /** Accept photos only; videos are rejected with a reason. Default false. */
+  imagesOnly?: boolean
 }
+
+const IMAGE_ACCEPT_ATTRIBUTE = [
+  ...ACCEPTED_IMAGE_TYPES,
+  ".jpg",
+  ".jpeg",
+  ".png",
+  ".webp",
+  ".heic",
+  ".heif",
+].join(",")
 
 const STATUS_TEXT: Record<QueueItem["status"], string> = {
   selected: "Ready to upload",
@@ -167,7 +186,9 @@ export function UploadDialog({
   limits,
   onUploaded,
   onLabel,
+  onReady,
   allowCamera = true,
+  imagesOnly = false,
 }: UploadDialogProps) {
   const queue = useUploadQueue({ upload: uploader, limits })
   const { items, summary, isActive } = queue
@@ -188,10 +209,39 @@ export function UploadDialog({
     }
   }, [isActive, summary.done, onUploaded])
 
+  const reportedReady = React.useRef(new Set<string>())
+  React.useEffect(() => {
+    if (isActive || !onReady) return
+    const fresh = items.flatMap((i) =>
+      i.status === "done" && i.assetId && !reportedReady.current.has(i.assetId)
+        ? [i.assetId]
+        : []
+    )
+    if (fresh.length === 0) return
+    for (const id of fresh) reportedReady.current.add(id)
+    onReady(fresh)
+  }, [isActive, items, onReady])
+
   function addFiles(list: FileList | null, input: HTMLInputElement | null) {
     if (!list || list.length === 0) return
-    const result = queue.add(Array.from(list))
-    setRejected(result.rejected)
+    const files = Array.from(list)
+    const notPhotos: RejectedFile[] = []
+    const accepted = imagesOnly
+      ? files.filter((file) => {
+          const kind = guessMediaKind(file)
+          if (kind === "image") return true
+          notPhotos.push({
+            name: file.name,
+            reason:
+              kind === "video"
+                ? "Only photos can be added here. Upload videos from your portfolio."
+                : "This file type is not supported. Use JPEG, PNG, WebP or HEIC.",
+          })
+          return false
+        })
+      : files
+    const result = queue.add(accepted)
+    setRejected([...notPhotos, ...result.rejected])
     setCloseBlocked(false)
     // Allow picking the same file again after removing it.
     if (input) input.value = ""
@@ -205,6 +255,7 @@ export function UploadDialog({
     if (!next) {
       queue.reset()
       reported.current = 0
+      reportedReady.current.clear()
       setRejected([])
       setCloseBlocked(false)
     }
@@ -223,11 +274,22 @@ export function UploadDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-h-[calc(100svh-1rem)] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Upload photos or videos</DialogTitle>
+          <DialogTitle>
+            {imagesOnly ? "Upload photos" : "Upload photos or videos"}
+          </DialogTitle>
           <DialogDescription id={limitsId}>
-            Up to {limits.maxBatchFiles} files at a time. Photos up to{" "}
-            {mb(limits.maxPhotoBytes)} (JPEG, PNG, WebP, HEIC), videos up to{" "}
-            {mb(limits.maxVideoBytes)} (MP4, MOV, WebM).
+            {imagesOnly ? (
+              <>
+                Up to {limits.maxBatchFiles} photos at a time, each up to{" "}
+                {mb(limits.maxPhotoBytes)} (JPEG, PNG, WebP, HEIC).
+              </>
+            ) : (
+              <>
+                Up to {limits.maxBatchFiles} files at a time. Photos up to{" "}
+                {mb(limits.maxPhotoBytes)} (JPEG, PNG, WebP, HEIC), videos up to{" "}
+                {mb(limits.maxVideoBytes)} (MP4, MOV, WebM).
+              </>
+            )}
           </DialogDescription>
         </DialogHeader>
 
@@ -256,21 +318,23 @@ export function UploadDialog({
             ref={fileInput}
             type="file"
             multiple
-            accept={ACCEPT_ATTRIBUTE}
+            accept={imagesOnly ? IMAGE_ACCEPT_ATTRIBUTE : ACCEPT_ATTRIBUTE}
             className="sr-only"
             tabIndex={-1}
-            aria-label="Choose photos or videos"
+            aria-label={
+              imagesOnly ? "Choose photos" : "Choose photos or videos"
+            }
             onChange={(e) => addFiles(e.currentTarget.files, e.currentTarget)}
           />
           {allowCamera ? (
             <input
               ref={cameraInput}
               type="file"
-              accept="image/*,video/*"
+              accept={imagesOnly ? "image/*" : "image/*,video/*"}
               capture="environment"
               className="sr-only"
               tabIndex={-1}
-              aria-label="Take a photo or video"
+              aria-label={imagesOnly ? "Take a photo" : "Take a photo or video"}
               onChange={(e) => addFiles(e.currentTarget.files, e.currentTarget)}
             />
           ) : null}

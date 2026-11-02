@@ -4,6 +4,7 @@ import { requireActiveStaff, uploadBlockReason } from "@/lib/auth"
 import { getMediaActor } from "@/lib/server/media/context"
 import { avatarUrl, listOwnMedia } from "@/lib/server/media/library"
 
+import { canManageVenue } from "./can-manage"
 import { StaffPortfolio } from "./staff-portfolio"
 
 const BLOCKED_COPY = {
@@ -25,13 +26,18 @@ export default async function StaffPage() {
   const profile = await requireActiveStaff()
   const auth = await getMediaActor("staff")
   if (!auth.ok) throw new Error("Not authorised.")
-  const page = await listOwnMedia(auth.actor)
+  const [page, canManage] = await Promise.all([
+    listOwnMedia(auth.actor),
+    canManageVenue(auth.actor),
+  ])
   if (!page.ok) throw new Error(page.message)
   const blocked = uploadBlockReason(profile)
 
   return (
     <AppShell
       variant="staff"
+      active="portfolio"
+      canManage={canManage}
       userName={profile.displayName}
       logoutAction={logout}
     >
@@ -39,6 +45,7 @@ export default async function StaffPage() {
         profile={{
           displayName: profile.displayName,
           jobTitle: profile.jobTitle,
+          department: profile.department,
           venueName: profile.venue?.name ?? null,
           avatarUrl: avatarUrl(profile.id, profile.avatarPath),
         }}

@@ -118,7 +118,7 @@ describe("scripts/bootstrap-admin.ts", { timeout: 90_000 }, () => {
     })
     // Their open session is re-read on every request: it becomes an admin session.
     const before = await signInAndLand(user.email)
-    expect(before.landed).toBe("/staff")
+    expect(before.landed).toBe("/staff/tasks")
 
     const first = bootstrap("--email", ` ${user.email.toUpperCase()} `)
     expect(first).toMatchObject({ code: 0 })

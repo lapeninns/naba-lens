@@ -131,28 +131,43 @@ export async function updateOwnProfile(
   return { ok: true }
 }
 
-/** Signed 60 s URL for a profile photo the caller may read (own, or any as admin). */
+/** Signed 60 s profile photo URL: own, an active colleague, or any as admin. */
 export async function signAvatar(
   actor: MediaActor,
   userId: string
 ): Promise<Outcome<{ url: string }>> {
   const notFound = { ok: false, status: 404, message: "Not found." } as const
-  if (!/^[0-9a-f-]{36}$/i.test(userId)) return notFound
-  if (actor.profile.role !== "admin" && userId !== actor.profile.id) {
+  if (
+    !actor.profile.active ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      userId
+    )
+  )
     return notFound
+  let avatarPath: string | null = null
+  if (actor.profile.role === "admin" || userId === actor.profile.id) {
+    const { data } = await actor.db
+      .from("profiles")
+      .select("avatar_path")
+      .eq("id", userId)
+      .maybeSingle()
+    avatarPath = data?.avatar_path ?? null
+  } else {
+    // Raw profiles remain own/admin-only. The RPC exposes only an active
+    // colleague's safe organization fields and rechecks the current viewer.
+    const { data, error } = await actor.db.rpc("community_members", {
+      p_member: userId,
+      p_limit: 1,
+    })
+    if (error) return { ok: false, status: 503, message: "Try again." }
+    avatarPath = data?.[0]?.avatar_path ?? null
   }
-  // RLS: own row, or every row for an active admin.
-  const { data } = await actor.db
-    .from("profiles")
-    .select("avatar_path")
-    .eq("id", userId)
-    .maybeSingle()
-  if (!data?.avatar_path) return notFound
-  // Service role, after the own-or-admin check and the RLS read above: end users
-  // have no storage read policy (wave 3 finding 1).
+  if (!avatarPath) return notFound
+  // Only sign after the caller-scoped profile/RPC authorization above. No end
+  // user can mint storage URLs directly or increase their lifetime.
   const signed = await actor.service.storage
     .from(STORAGE_BUCKETS.avatars)
-    .createSignedUrl(data.avatar_path, signedUrlTtlSeconds())
+    .createSignedUrl(avatarPath, signedUrlTtlSeconds())
   if (signed.error || !signed.data) return notFound
   return { ok: true, url: signed.data.signedUrl }
 }

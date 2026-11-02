@@ -2,7 +2,8 @@
 // in afresh through the magic-link token path, sees exactly the media rows the
 // policies allow, and downloads byte-identical objects (sha256 against the
 // manifest written by seed-fixture-media.ts before the backup). Other staff and
-// anonymous clients are still denied.
+// anonymous clients are still denied. Coverage keeps its row counts and the
+// grants the feature needs.
 //
 //   tsx scripts/db/verify-restore.ts --workdir <dir> --manifest <file.json>
 import { readFileSync } from "node:fs"
@@ -10,8 +11,11 @@ import { readFileSync } from "node:fs"
 import { parseArgs } from "../lib/service-client"
 import {
   accessMatrix,
+  COVERAGE_TABLES,
+  coverageCounts,
   expectedRows,
   expectedSha,
+  keyGrantFailures,
   psql,
   storedObjectShas,
   type FixtureManifest,
@@ -103,6 +107,22 @@ for (const who of ["admin", "staffA", "staffB", "anon"] as const) {
     failures.push(`${who} rows: got ${rows[who].length}, want ${want.length}`)
   }
 }
+if (!manifest.coverage) {
+  failures.push(
+    "The manifest has no coverage counts: re-seed with seed-fixture-media.ts"
+  )
+} else {
+  const counts = coverageCounts(env)
+  for (const t of COVERAGE_TABLES) {
+    if (counts[t] !== manifest.coverage[t]) {
+      failures.push(`${t} rows: got ${counts[t]}, want ${manifest.coverage[t]}`)
+    }
+  }
+  console.log(
+    `coverage: ${COVERAGE_TABLES.length} tables, ${Object.values(counts).reduce((a, b) => a + b, 0)} rows`
+  )
+}
+failures.push(...keyGrantFailures(env))
 // End users cannot read Storage directly (security hardening), so byte integrity of
 // the restored objects is proven with the service role.
 let intact = 0
@@ -129,5 +149,5 @@ if (failures.length) {
   process.exit(1)
 }
 console.log(
-  "verified: sign-in, row visibility, direct-Storage denial and byte-identical restored objects match the manifest"
+  "verified: sign-in, row visibility, direct-Storage denial, byte-identical restored objects and coverage rows/grants match the manifest"
 )

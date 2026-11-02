@@ -4,9 +4,14 @@ import { getMediaActor } from "@/lib/server/media/context"
 import { fail } from "../../_respond"
 
 /**
- * Video playback for the owner or an admin. Every Range request is authorised
- * again and proxied, so long videos keep playing past the 60 s signing window
- * and the response carries the validated type, attachment and nosniff headers.
+ * Video playback for the owner, an admin or an active colleague (organisation
+ * community). Every Range request is authorised again and proxied, so long
+ * videos keep playing past the 60 s signing window and the response carries the
+ * validated type and nosniff headers. The owner and admins get an attachment
+ * disposition with the original filename; a colleague gets `inline` with no
+ * filename. Colleague playback still delivers the original file, including any
+ * embedded metadata such as location: the owner chose to keep it rather than
+ * hide colleagues' videos until a sanitised derivative exists.
  */
 export async function GET(
   request: Request,

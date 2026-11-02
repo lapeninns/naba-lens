@@ -1,4 +1,5 @@
 import { normaliseEmail } from "@/lib/auth/magic-link"
+import { isDepartment, type Department } from "@/lib/config/departments"
 
 // Mirrors the profiles table checks (1–80 characters after trimming).
 const NAME_MAX = 80
@@ -18,6 +19,7 @@ export type InviteInput = {
   displayName: string
   email: string
   jobTitle: string | null
+  department: Department | null
   venueId: string
 }
 
@@ -40,6 +42,10 @@ export function parseInviteInput(
   if (jobTitle.length > NAME_MAX)
     fieldErrors.jobTitle = `Use ${NAME_MAX} characters or fewer.`
 
+  if (input.department != null && !isDepartment(input.department))
+    fieldErrors.department =
+      "Choose front of house, back of house or unassigned."
+
   if (!isUuid(input.venueId)) fieldErrors.venueId = "Choose a venue."
 
   if (Object.keys(fieldErrors).length > 0) return { ok: false, fieldErrors }
@@ -49,6 +55,7 @@ export function parseInviteInput(
       displayName,
       email: email!,
       jobTitle: jobTitle || null,
+      department: isDepartment(input.department) ? input.department : null,
       venueId: input.venueId as string,
     },
   }
@@ -57,6 +64,7 @@ export function parseInviteInput(
 export type AccountPatch = {
   displayName?: string
   jobTitle?: string | null
+  department?: Department | null
   venueId?: string
   active?: boolean
 }
@@ -82,6 +90,13 @@ export function parseAccountPatch(
     if (jobTitle.length > NAME_MAX)
       fieldErrors.jobTitle = `Use ${NAME_MAX} characters or fewer.`
     else value.jobTitle = jobTitle || null
+  }
+
+  if (input.department !== undefined) {
+    if (input.department !== null && !isDepartment(input.department))
+      fieldErrors.department =
+        "Choose front of house, back of house or unassigned."
+    else value.department = input.department
   }
 
   if (input.venueId !== undefined) {

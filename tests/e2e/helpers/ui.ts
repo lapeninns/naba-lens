@@ -16,6 +16,15 @@ export function tile(
   })
 }
 
+/** Where staff land after sign-in or a wrong-role redirect: My tasks. */
+export const STAFF_LANDING = /\/staff\/tasks$/
+
+/** My portfolio is a page staff open, no longer where they land. */
+export async function openPortfolio(page: Page) {
+  await page.goto("/staff")
+  await expect(page).toHaveURL(/\/staff$/)
+}
+
 export const portfolioList = (page: Page) =>
   page.getByRole("list", { name: "Your portfolio" })
 export const libraryList = (page: Page) =>

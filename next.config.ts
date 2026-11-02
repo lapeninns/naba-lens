@@ -70,6 +70,20 @@ const securityHeaders = [
   { key: "X-Frame-Options", value: "DENY" },
 ]
 
+/**
+ * Private media routes redirect to signed Storage URLs and send
+ * `Referrer-Policy: no-referrer` themselves. A config header replaces the
+ * route's own value for the same key, and when two entries match a path the
+ * later one wins (node_modules/next/dist/docs/01-app/03-api-reference/05-config/
+ * 01-next-config-js/headers.md "Header Overriding Behavior"), so these must
+ * stay after the global entry.
+ */
+export const NO_REFERRER_SOURCES = [
+  "/api/media/:path*",
+  "/api/coverage/evidence/:path*",
+  "/api/avatars/:path*",
+]
+
 const nextConfig: NextConfig = {
   // Next 16 development logs include Server Function arguments by default.
   // Sign-in arguments contain single-use CAPTCHA tokens and email addresses.
@@ -83,7 +97,13 @@ const nextConfig: NextConfig = {
     },
   },
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }]
+    return [
+      { source: "/:path*", headers: securityHeaders },
+      ...NO_REFERRER_SOURCES.map((source) => ({
+        source,
+        headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
+      })),
+    ]
   },
 }
 

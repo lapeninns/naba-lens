@@ -149,6 +149,8 @@ export type ManifestAsset = {
 export type FixtureManifest = {
   assets: ManifestAsset[]
   avatar: { owner: FixtureUser; object: ManifestObject }
+  /** Row counts of COVERAGE_TABLES when the fixtures were seeded. */
+  coverage: Record<string, number>
 }
 
 async function syntheticJpeg(seed: number): Promise<Buffer> {
@@ -372,8 +374,69 @@ export async function seedFixtureMedia(
   )
   removed.state = "deleted"
 
-  await photo("staffB", staffB, "Staff B photo", "ready")
+  const staffBPhoto = await photo("staffB", staffB, "Staff B photo", "ready")
   await photo("staffB", staffB, "Staff B unfinished photo", "uploading")
+
+  // A small coverage history through the real RPCs (manager grant, task,
+  // assignment, submission, review), so a restore is checked against coverage
+  // rows rather than empty tables.
+  const adminUser = await signIn(env, "admin")
+  const key = () => `dev-fixture-${randomUUID()}`
+  const venueId = check(
+    await admin
+      .from("profiles")
+      .select("venue_id")
+      .eq("id", FIXTURE.staffA.id)
+      .single(),
+    "staff A venue"
+  ).data!.venue_id!
+  check(
+    await adminUser.rpc("grant_venue_manager", {
+      p_staff_id: FIXTURE.staffA.id,
+      p_venue_id: venueId,
+      p_reason: "DEV FIXTURE manager",
+    }),
+    "grant_venue_manager"
+  )
+  const requirementId = check(
+    await staffA.rpc("save_coverage_requirement", {
+      p_venue_id: venueId,
+      p_requirement_id: null as unknown as string,
+      p_expected_revision: null as unknown as number,
+      p_kind: "venue_specific",
+      p_title: "DEV FIXTURE Back bar",
+      p_guidance: null as unknown as string,
+      p_photo_target: 1,
+      p_due_on: null as unknown as string,
+      p_client_request_key: key(),
+    }),
+    "save_coverage_requirement"
+  ).data![0]!.requirement_id
+  check(
+    await staffA.rpc("set_coverage_requirement_assignees", {
+      p_requirement_id: requirementId,
+      p_staff_ids: [FIXTURE.staffB.id],
+    }),
+    "set_coverage_requirement_assignees"
+  )
+  const itemId = check(
+    await staffB.rpc("submit_coverage_photos", {
+      p_asset_ids: [staffBPhoto.id],
+      p_requirement_id: requirementId,
+      p_client_request_key: key(),
+    }),
+    "submit_coverage_photos"
+  ).data![0]!.item_id
+  check(
+    await staffA.rpc("review_coverage_item", {
+      p_item_id: itemId,
+      p_expected_revision: 1,
+      p_decision: "accepted",
+      p_client_request_key: key(),
+    }),
+    "review_coverage_item"
+  )
+  await adminUser.auth.signOut()
 
   const avatarBytes = await sharp(await syntheticJpeg(99))
     .resize(32)
@@ -397,7 +460,86 @@ export async function seedFixtureMedia(
       owner: "staffA",
       object: objectOf("avatars", avatarPath, avatarBytes, "image/webp"),
     },
+    coverage: coverageCounts(env),
   }
+}
+
+// ---------------------------------------------------------------------------
+// Coverage: retained rows and the grants the feature cannot work without
+// ---------------------------------------------------------------------------
+
+export const COVERAGE_TABLES = [
+  "venue_manager_grants",
+  "coverage_audit_events",
+  "venue_amenity_facts",
+  "venue_amenity_fact_media",
+  "menu_coverage_plans",
+  "coverage_requirements",
+  "coverage_requirement_assignees",
+  "monthly_targets",
+  "coverage_submissions",
+  "coverage_submission_items",
+  "coverage_review_events",
+  "coverage_preparation_runs",
+] as const
+
+export function coverageCounts(env: StackEnv): Record<string, number> {
+  // psqlJson aliases the query as `t`, so no column may be called that.
+  const rows = psqlJson<{ name: string; n: number }[]>(
+    env,
+    COVERAGE_TABLES.map(
+      (name) =>
+        `select '${name}' as name, count(*)::integer as n from public.${name}`
+    ).join(" union all ")
+  )
+  return Object.fromEntries(rows.map((r) => [r.name, r.n]))
+}
+
+/** [role, function, may execute]: a restore that loses one breaks the feature. */
+export const KEY_GRANTS = [
+  ["authenticated", "public.coverage_access_scope()", true],
+  [
+    "authenticated",
+    "public.save_coverage_requirement(uuid, uuid, integer, text, text, text, integer, date, text)",
+    true,
+  ],
+  [
+    "authenticated",
+    "public.submit_coverage_photos(uuid[], uuid, text, uuid)",
+    true,
+  ],
+  [
+    "authenticated",
+    "public.attach_coverage_evidence(uuid, uuid[], text, boolean)",
+    true,
+  ],
+  [
+    "authenticated",
+    "public.review_coverage_item(uuid, integer, text, text, text)",
+    true,
+  ],
+  ["authenticated", "public.task_evidence_asset(uuid)", true],
+  ["authenticated", "public.community_readable_assets(uuid[])", true],
+  ["service_role", "public.prepare_coverage_month_scheduled()", true],
+  ["anon", "public.submit_coverage_photos(uuid[], uuid, text, uuid)", false],
+  ["anon", "public.community_readable_assets(uuid[])", false],
+] as const
+
+/** Every KEY_GRANTS entry that does not hold (a missing function counts). */
+export function keyGrantFailures(env: StackEnv): string[] {
+  const rows = psqlJson<{ role: string; fn: string; ok: boolean | null }[]>(
+    env,
+    KEY_GRANTS.map(
+      ([role, fn]) =>
+        `select '${role}' as role, '${fn}' as fn, has_function_privilege('${role}', to_regprocedure('${fn}'), 'execute') as ok`
+    ).join(" union all ")
+  )
+  const ok = new Map(rows.map((r) => [`${r.role} ${r.fn}`, r.ok]))
+  return KEY_GRANTS.flatMap(([role, fn, want]) =>
+    ok.get(`${role} ${fn}`) === want
+      ? []
+      : [`${role} ${want ? "cannot" : "can"} execute ${fn}`]
+  )
 }
 
 // ---------------------------------------------------------------------------

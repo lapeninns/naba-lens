@@ -5,16 +5,21 @@ import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
 
 /**
- * GAP-16 scope guard (spec §1 "Explicitly out of scope", brief: "two interfaces").
+ * GAP-16 scope guard (v0.2 spec §1 "Explicitly out of scope", as amended by
+ * v0.3 and v0.4 in docs/spec/).
  *
- * 1. Every URL the app serves comes from an allow-list: the five product screens,
+ * 1. Every URL the app serves comes from an allow-list: the product screens,
  *    auth infrastructure, the media/profile APIs the screens use, and the dev-only
  *    UI preview. A new screen or API must be added here on purpose.
  * 2. Application source (comments stripped) has no code for the excluded
- *    features: approval, comments, likes, tagging, ZIP export, analytics,
- *    notifications. Tests and docs may mention them. v0.3 adds optional menu
- *    *labels* (controlled catalogue items/content types), deliberately not a
- *    free-form tagging workflow, so the "tag" terms stay banned.
+ *    features: publication approval, comments, likes/reactions, follows,
+ *    announcements, messaging, tagging, ZIP export, analytics, notifications,
+ *    leaderboards, automated scoring and campaigns. Tests and docs may mention
+ *    them. v0.3 adds optional menu *labels* (controlled catalogue items/content
+ *    types), deliberately not a free-form tagging workflow, so the "tag" terms
+ *    stay banned. v0.4 adds task review that decides completion only and never
+ *    gates visibility; it uses accept / needs-another-photo / review / reason
+ *    vocabulary, so the approval terms stay banned.
  */
 
 const root = fileURLToPath(new URL("../../", import.meta.url))
@@ -28,6 +33,15 @@ const ALLOWED_PAGES = new Set([
   "/",
   "/login",
   "/staff",
+  // Owner-requested organization portfolio discovery (November 2026).
+  "/staff/community",
+  "/staff/people",
+  "/staff/people/[id]",
+  // v0.4 My tasks, the staff landing: own target, assignments, submissions and
+  // review results (docs/spec/NabaLens-Staff-Coverage-v0.4.md §3).
+  "/staff/tasks",
+  "/staff/tasks/[requirementId]",
+  "/staff/tasks/month",
   "/admin",
   "/admin/staff",
   "/admin/staff/[id]",
@@ -39,6 +53,24 @@ const ALLOWED_PAGES = new Set([
   "/admin/menus",
   "/admin/menus/[venueId]",
   "/admin/menus/versions/[versionId]",
+  // v0.4 venue-manager tools for the manager's own current venue
+  // (docs/spec/NabaLens-Staff-Coverage-v0.4.md §4). Review decides task
+  // completion only; the roster drill-in is `/staff/manage/team?staff=<id>`.
+  "/staff/manage",
+  "/staff/manage/review",
+  "/staff/manage/checklist",
+  "/staff/manage/checklist/[requirementId]",
+  "/staff/manage/menu",
+  "/staff/manage/team",
+  // v0.4 admin coverage oversight: the same tools for any venue, plus grants.
+  "/admin/coverage",
+  "/admin/coverage/[venueId]",
+  "/admin/coverage/[venueId]/review",
+  "/admin/coverage/[venueId]/checklist",
+  "/admin/coverage/[venueId]/checklist/[requirementId]",
+  "/admin/coverage/[venueId]/menu",
+  "/admin/coverage/[venueId]/team",
+  "/admin/coverage/managers",
 ])
 
 const ALLOWED_HANDLERS = new Set([
@@ -66,6 +98,13 @@ const ALLOWED_HANDLERS = new Set([
   "/api/internal/archive-monitor/watchdog",
   // v0.3: JSON/CSV import preview upload (> Server Action body limit).
   "/api/admin/menus/import-preview",
+  // v0.4 §4: scoped task-evidence thumbnail/preview for authorised same-venue
+  // reviewers; no originals, downloads or video, and community access is unchanged.
+  "/api/coverage/evidence/[assetId]/thumb",
+  "/api/coverage/evidence/[assetId]/preview",
+  // v0.4 §3 rule 9: hourly idempotent monthly preparation, cron-only bearer auth
+  // like the other /api/internal routes; it sends nothing to staff.
+  "/api/internal/coverage/monthly-preparation",
 ])
 
 /** The dev-only preview must stay inside the `(dev)` route group. */
@@ -182,6 +221,35 @@ const FORBIDDEN: { feature: string; pattern: RegExp }[] = [
   },
   { feature: "leaderboard", pattern: /leaderboard/i },
   { feature: "campaigns", pattern: /campaign/i },
+  {
+    feature: "reactions",
+    pattern:
+      /\breactions?\b|\breaction_|\b(add|remove|toggle)Reaction\b|emoji/i,
+  },
+  {
+    // "follow-up" (overdue work) and robots `follow: false` are not follows.
+    feature: "follows",
+    pattern:
+      /\bfollowers?\b|unfollow|\bfollows_|\bfollow_(id|user|staff|profile)\b|\b(toggle|on)Follow\b/i,
+  },
+  {
+    // The menu editor's singular `announcement` is an aria-live status message.
+    feature: "announcements",
+    pattern:
+      /\bannouncements\b|\bannouncements?_|(create|post|publish|send)Announcement/,
+  },
+  {
+    // `captcha` contains "cha", not "chat".
+    feature: "messaging",
+    pattern:
+      /direct[_ -]?messag|\bmessage_threads?\b|\bconversations?\b|\bchat(s|_|room)?\b|\bsendMessage\b/i,
+  },
+  {
+    // Catalogue search ranks entries by `score`; scoring people or images is excluded.
+    feature: "automated scoring",
+    pattern:
+      /(staff|employee|performance|photo|image|quality|contribution)[_ -]?scor(e|es|ing)\b/i,
+  },
 ]
 
 /**
@@ -248,7 +316,7 @@ describe("scope guard: no excluded features in application source", () => {
     expect(scan().scanned).toBeGreaterThan(50)
   })
 
-  it("has no approval, comment, like, tag, ZIP, analytics or notification code", () => {
+  it("has no code for an excluded feature", () => {
     expect(scan().hits).toEqual([])
   })
 
@@ -275,5 +343,31 @@ describe("scope guard: no excluded features in application source", () => {
     expect(stripTsComments('const u = "https://x.test/a"')).toContain(
       "https://x.test/a"
     )
+  })
+
+  it("allows v0.4 review vocabulary and still detects the new exclusions", () => {
+    const tripped = (line: string) =>
+      FORBIDDEN.filter((f) => f.pattern.test(line)).map((f) => f.feature)
+    for (const line of [
+      "export async function acceptSubmission(id: string) {}",
+      "state: 'submitted' | 'accepted' | 'needs_another_photo'",
+      "requestReplacement({ reason, expectedRevision })",
+      "<p>Overdue: follow-up needed</p>",
+      "robots: { index: false, follow: false }",
+      "announce(`Added section ${name}.`)",
+      "const captchaToken = normaliseCaptchaToken(raw)",
+      "scored.push({ entry, score: rank(entry, query, words) })",
+    ]) {
+      expect(tripped(line), line).toEqual([])
+    }
+    expect(tripped("export function toggleReaction() {}")).toEqual([
+      "reactions",
+    ])
+    expect(tripped("select count(*) from followers")).toEqual(["follows"])
+    expect(tripped("create table public.announcements ()")).toEqual([
+      "announcements",
+    ])
+    expect(tripped("insert into direct_messages")).toEqual(["messaging"])
+    expect(tripped("const staffScore = 3")).toEqual(["automated scoring"])
   })
 })

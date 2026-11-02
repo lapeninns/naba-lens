@@ -304,16 +304,21 @@ describe("finding 1: the app read path still serves authorised callers", () => {
     })
   }
 
-  it("another staff member gets nothing for someone else's asset or avatar", async () => {
+  it("an active colleague receives bounded preview and avatar URLs through the app", async () => {
     const actor = await actorFor(other)
-    expect(await signDerivative(actor, assetId, "preview")).toMatchObject({
-      ok: false,
-      status: 404,
-    })
-    expect(await signAvatar(actor, staff.id)).toMatchObject({
-      ok: false,
-      status: 404,
-    })
+    const preview = await signDerivative(actor, assetId, "preview")
+    const photo = await signAvatar(actor, staff.id)
+    expect(preview.ok).toBe(true)
+    expect(photo.ok).toBe(true)
+    if (preview.ok) {
+      expect(lifetime(preview.url)).toBe(MEDIA_LIMITS.signedUrlExpirySeconds)
+      expect(await fetchBytes(preview.url)).toEqual({
+        ok: true,
+        bytes: TINY_BYTES,
+      })
+    }
+    if (photo.ok)
+      expect(lifetime(photo.url)).toBe(MEDIA_LIMITS.signedUrlExpirySeconds)
   })
 
   it("a deactivated staff member is denied their own asset and avatar", async () => {

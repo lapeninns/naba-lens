@@ -31,7 +31,7 @@ async function readThroughApp(identity: TestIdentity, assetId: string) {
  * Staff A and staff B work at the SAME venue: isolation must come from identity,
  * not venue. Admin is a separate identity.
  */
-describe("staff isolation (RLS + storage, separate identities)", () => {
+describe("community read access and write isolation (RLS + storage)", () => {
   const admin = serviceClient()
   let staffA: TestIdentity
   let staffB: TestIdentity
@@ -99,14 +99,32 @@ describe("staff isolation (RLS + storage, separate identities)", () => {
     expect(data!.map((p) => p.id)).toEqual([staffB.id])
   })
 
-  it("staff B cannot list or read staff A's media rows", async () => {
+  it("staff B can view staff A's ready portfolio media without reading raw media or profile rows", async () => {
+    // No direct row access: paths, filename and upload key stay hidden.
     const byId = await staffB.client
       .from("media_assets")
       .select("id")
       .eq("id", assetA.id)
+    expect(byId.error).toBeNull()
     expect(byId.data).toEqual([])
-    const all = await staffB.client.from("media_assets").select("uploader_id")
-    expect(all.data!.every((r) => r.uploader_id === staffB.id)).toBe(true)
+
+    const checked = await staffB.client.rpc("community_readable_assets", {
+      p_asset_ids: [assetA.id],
+    })
+    expect(checked.error).toBeNull()
+    expect(checked.data?.map((r) => r.id)).toEqual([assetA.id])
+    const fields = Object.keys(checked.data![0])
+    for (const hidden of [
+      "original_path",
+      "preview_path",
+      "thumbnail_path",
+      "original_filename",
+      "client_upload_key",
+    ])
+      expect(fields).not.toContain(hidden)
+
+    const found = await getReadableAsset(await actorFor(staffB), assetA.id)
+    expect(found).toMatchObject({ ok: true, asset: { originalFilename: null } })
   })
 
   it("staff B cannot download, sign or list staff A's storage objects", async () => {
@@ -193,9 +211,9 @@ describe("staff isolation (RLS + storage, separate identities)", () => {
       expect(
         (await user.client.storage.from("avatars").download(key)).error
       ).not.toBeNull()
-    // ...the app's /api/avatars/[id] path serves own-or-admin only.
+    // ...the app serves active colleague avatars after a current membership check.
     expect((await signAvatar(await actorFor(staffA), staffA.id)).ok).toBe(true)
-    expect((await signAvatar(await actorFor(staffB), staffA.id)).ok).toBe(false)
+    expect((await signAvatar(await actorFor(staffB), staffA.id)).ok).toBe(true)
     expect((await signAvatar(await actorFor(adminUser), staffA.id)).ok).toBe(
       true
     )

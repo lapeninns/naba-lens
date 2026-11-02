@@ -221,24 +221,82 @@ export function tokenHashOf(confirmPath: string): string {
 // Direct database access for time travel (local stack only)
 // ---------------------------------------------------------------------------
 
-type StackStatus = { DB_URL?: string; JWT_SECRET?: string }
+type StackStatus = { API_URL?: string; DB_URL?: string; JWT_SECRET?: string }
 let status: StackStatus | null = null
 
+// Explicit API credentials can point at an owned stack while bare CLI status
+// points at the shared default project. Never combine those two identities.
+const CONNECTION_ENV = [
+  "NEXT_PUBLIC_SUPABASE_URL",
+  "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+  "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+  "SUPABASE_URL",
+  "SUPABASE_ANON_KEY",
+  "SUPABASE_PUBLISHABLE_KEY",
+  "SUPABASE_SERVICE_ROLE_KEY",
+  "SUPABASE_SECRET_KEY",
+  "SUPABASE_DB_URL",
+  "SUPABASE_JWT_SECRET",
+] as const
+
 function stackStatus(): StackStatus {
-  if (status) return status
-  if (process.env.SUPABASE_DB_URL && process.env.SUPABASE_JWT_SECRET) {
-    status = {
-      DB_URL: process.env.SUPABASE_DB_URL,
-      JWT_SECRET: process.env.SUPABASE_JWT_SECRET,
-    }
-    return status
+  const explicit = CONNECTION_ENV.some((key) => process.env[key] !== undefined)
+  const dbUrl = process.env.SUPABASE_DB_URL?.trim()
+  const jwtSecret = process.env.SUPABASE_JWT_SECRET?.trim()
+  if (dbUrl && jwtSecret) {
+    // Do not cache explicit values: reconfiguration must not reuse another
+    // stack's database or signing secret, even within one test process.
+    return { DB_URL: dbUrl, JWT_SECRET: jwtSecret }
   }
-  const raw = execFileSync("supabase", ["status", "-o", "json"], {
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "ignore"],
-  })
-  status = JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1))
-  return status!
+  if (
+    process.env.SUPABASE_DB_URL !== undefined ||
+    process.env.SUPABASE_JWT_SECRET !== undefined
+  ) {
+    throw new Error(
+      "Set both SUPABASE_DB_URL and SUPABASE_JWT_SECRET from the same owned local stack; refusing a partial direct-database configuration."
+    )
+  }
+  const configuredApi =
+    process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL
+  if (explicit && !configuredApi) {
+    throw new Error(
+      "Explicit Supabase credentials require a Supabase API URL before CLI database discovery; refusing an unverifiable default stack."
+    )
+  }
+  if (
+    process.env.NEXT_PUBLIC_SUPABASE_URL &&
+    process.env.SUPABASE_URL &&
+    process.env.NEXT_PUBLIC_SUPABASE_URL !== process.env.SUPABASE_URL
+  ) {
+    throw new Error(
+      "Conflicting explicit Supabase API URLs; refusing database discovery."
+    )
+  }
+  if (!status) {
+    // Read-only discovery is permitted for the documented default workflow.
+    // No SQL or token signing happens until the API identity is checked below.
+    const raw = execFileSync("supabase", ["status", "-o", "json"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    })
+    status = JSON.parse(
+      raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1)
+    ) as StackStatus
+  }
+  // setup-env.ts fills URL/key env values after default discovery. Matching the
+  // API URL allows that workflow while rejecting an isolated API/default DB mix.
+  // Recheck even when status was cached before a caller changed its environment.
+  if (configuredApi !== undefined && configuredApi !== status.API_URL) {
+    throw new Error(
+      "Configured Supabase API URL does not match CLI status API_URL. Set SUPABASE_DB_URL and SUPABASE_JWT_SECRET for the selected owned stack; refusing default-stack database access."
+    )
+  }
+  if (!status.DB_URL || !status.JWT_SECRET) {
+    throw new Error(
+      "CLI status is missing DB_URL or JWT_SECRET; set both SUPABASE_DB_URL and SUPABASE_JWT_SECRET for the owned local stack."
+    )
+  }
+  return status
 }
 
 function localDbUrl(): string {

@@ -11,8 +11,10 @@ import { afterAll, describe, expect, it } from "vitest"
 
 import {
   accessMatrix,
+  coverageCounts,
   expectedRows,
   expectedSha,
+  keyGrantFailures,
   psql,
   psqlJson,
   seedFixtureMedia,
@@ -49,7 +51,8 @@ describe("upgrade with retained data", () => {
   it("starts from a fresh reset with every repo migration and no media", () => {
     // The `reset` phase also checks the CLI's apply order from its log.
     expect(readFileSync(join(state, "upgrade-reset.log"), "utf8")).toMatch(
-      /Reset local database/
+      // The CLI's wording changed from "Reset local database" to "Resetting local database".
+      /Reset(ting)? local database/
     )
     const fresh = snapshot(env)
     expect(fresh.migrations).toEqual(repoVersions)
@@ -77,6 +80,14 @@ describe("upgrade with retained data", () => {
       manifest.avatar.object,
     ]
     expect(objects).toHaveLength(12)
+    expect(manifest.coverage).toMatchObject({
+      venue_manager_grants: 1,
+      coverage_requirements: 1,
+      coverage_requirement_assignees: 1,
+      coverage_submissions: 1,
+      coverage_submission_items: 1,
+      coverage_review_events: 2,
+    })
     const stored = psqlJson<{ name: string; size: string }[]>(
       env,
       "select name, metadata->>'size' as size from storage.objects order by name"
@@ -147,14 +158,14 @@ describe("upgrade with retained data", () => {
     expect(after.objects).toEqual(before.objects)
     expect(after.policies).toEqual(before.policies)
     expect(after.grants).toEqual(before.grants)
+    expect(coverageCounts(env)).toEqual(manifest.coverage)
+    expect(keyGrantFailures(env)).toEqual([])
     // The new table has RLS on and no anon/authenticated grants.
     expect(after.rls).toContainEqual({
       relname: "test_only_notes",
       relrowsecurity: true,
     })
-    expect(
-      after.rls.every((r) => r.relrowsecurity)
-    ).toBe(true)
+    expect(after.rls.every((r) => r.relrowsecurity)).toBe(true)
   })
 
   it("serves identical bytes under the same rules, for live and new sessions", async () => {

@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto"
+import { createHash, randomUUID } from "node:crypto"
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { mkdtemp, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
@@ -15,10 +15,13 @@ import {
 } from "@playwright/test"
 import sharp from "sharp"
 
-import { serviceClient } from "../support/identities"
+import { serviceClient, signIn as signInDb } from "../support/identities"
 import { seedVisualFixtures, type VisualFixtures } from "../visual/fixtures"
 
+import { provisionCoverageWorld, seedImages } from "./helpers/coverage-world"
 import { openEmailLink } from "./helpers/email-link"
+import { provisioner, psql } from "./helpers/stack"
+import { openPortfolio, STAFF_LANDING } from "./helpers/ui"
 
 /**
  * Visual and accessibility regression pass (spec §4). For every screen and
@@ -216,13 +219,40 @@ async function smallTouchTargets(page: Page): Promise<Offender[]> {
       if (el.closest("[aria-hidden=true], [inert]")) continue
       // Skip link is visible only on keyboard focus.
       if (el.getAttribute("href") === "#main") continue
-      // An absolutely positioned ::after with negative insets extends the hit area.
+      // WCAG 2.5.8 inline exception: a link inside a sentence of running text.
+      const parentText = (el.parentElement?.textContent ?? "").trim()
+      const ownText = (el.textContent ?? "").trim()
+      if (
+        el.tagName === "A" &&
+        style.display === "inline" &&
+        parentText.length > ownText.length + 10
+      )
+        continue
       let { width, height } = rect
+      // A checkbox or radio inside a <label> is hit anywhere on the label.
+      const label =
+        /^(checkbox|radio)$/.test((el as HTMLInputElement).type ?? "") &&
+        el.closest("label")
+      if (label) {
+        const box = label.getBoundingClientRect()
+        width = Math.max(width, box.width)
+        height = Math.max(height, box.height)
+      }
+      // An absolutely positioned ::after extends the hit area: negative insets
+      // grow it; `inset: 0` stretches it over the positioned ancestor (a card).
       const after = getComputedStyle(el, "::after")
       if (after.content !== "none" && after.position === "absolute") {
         const px = (v: string) => (v.endsWith("px") ? parseFloat(v) : 0)
-        width = Math.max(width, width - px(after.left) - px(after.right))
-        height = Math.max(height, height - px(after.top) - px(after.bottom))
+        const insets = [after.top, after.right, after.bottom, after.left]
+        const host = el.offsetParent
+        if (insets.every((v) => v === "0px") && host) {
+          const box = host.getBoundingClientRect()
+          width = Math.max(width, box.width)
+          height = Math.max(height, box.height)
+        } else {
+          width = Math.max(width, width - px(after.left) - px(after.right))
+          height = Math.max(height, height - px(after.top) - px(after.bottom))
+        }
       }
       if (width + 0.5 < min || height + 0.5 < min) {
         const label =
@@ -364,7 +394,21 @@ async function focusWalk(page: Page, maxStops = 40) {
       const s = getComputedStyle(el)
       const outline =
         s.outlineStyle !== "none" && parseFloat(s.outlineWidth) > 0
-      const ring = s.boxShadow !== "none" && s.boxShadow !== ""
+      // A focus ring is a zero-offset, zero-blur box-shadow with a spread. A
+      // card may draw it for its stretched link (`:has(:focus-visible)`).
+      const isRing = (shadow: string) =>
+        /(^|,\s*)(\S+(\([^)]*\))?\s+)?0px 0px 0px [1-9]/.test(shadow)
+      let ancestorRing = false
+      for (
+        let a = el.parentElement, i = 0;
+        a && i < 4 && !ancestorRing;
+        a = a.parentElement, i++
+      )
+        ancestorRing =
+          a.matches(":has(:focus-visible)") &&
+          isRing(getComputedStyle(a).boxShadow)
+      const ring =
+        (s.boxShadow !== "none" && s.boxShadow !== "") || ancestorRing
       const key =
         el.tagName +
         (el.getAttribute("aria-label") ?? el.textContent ?? "").slice(0, 60) +
@@ -492,7 +536,8 @@ test("blocked: deactivated account", async ({ browser, baseURL }, testInfo) => {
 
 test("staff: empty portfolio", async ({ browser, baseURL }, testInfo) => {
   const page = await signIn(browser, fx.empty.email, baseURL!)
-  await expect(page).toHaveURL(/\/staff$/)
+  await expect(page).toHaveURL(STAFF_LANDING)
+  await openPortfolio(page)
   await expect(page.getByText("Your portfolio starts here")).toBeVisible()
   await capture(page, testInfo, "staff-empty")
   await expectFocusVisibleEverywhere(page, "staff-empty")
@@ -505,7 +550,8 @@ test("staff: upload dialog states and focus return", async ({
 }, testInfo) => {
   // A separate account, so the upload never fills the empty portfolio above.
   const page = await signIn(browser, fx.uploader.email, baseURL!)
-  await expect(page).toHaveURL(/\/staff$/)
+  await expect(page).toHaveURL(STAFF_LANDING)
+  await openPortfolio(page)
 
   // Open by keyboard so focus return is meaningful.
   const uploadButton = page
@@ -589,7 +635,8 @@ function reopen(page: Page, trigger: Locator, popup: Locator) {
 
 async function populatedStaff(browser: Browser, baseURL: string) {
   const page = await signIn(browser, fx.populated.email, baseURL)
-  await expect(page).toHaveURL(/\/staff$/)
+  await expect(page).toHaveURL(STAFF_LANDING)
+  await openPortfolio(page)
   await expect(page.getByRole("list", { name: "Your portfolio" })).toBeVisible()
   return page
 }
@@ -847,7 +894,8 @@ test("staff: long name and paused venue", async ({
   baseURL,
 }, testInfo) => {
   const long = await signIn(browser, fx.longName.email, baseURL!)
-  await expect(long).toHaveURL(/\/staff$/)
+  await expect(long).toHaveURL(STAFF_LANDING)
+  await openPortfolio(long)
   await capture(long, testInfo, "staff-long-name")
   await long.getByRole("button", { name: "Edit profile" }).click()
   await capture(long, testInfo, "edit-profile-long-name", {
@@ -856,7 +904,8 @@ test("staff: long name and paused venue", async ({
   await long.context().close()
 
   const paused = await signIn(browser, fx.pausedVenue.email, baseURL!)
-  await expect(paused).toHaveURL(/\/staff$/)
+  await expect(paused).toHaveURL(STAFF_LANDING)
+  await openPortfolio(paused)
   await expect(paused.getByText("uploads are paused")).toBeVisible()
   await expect(
     paused.getByRole("button", { name: "Upload photos or videos" })
@@ -1048,6 +1097,244 @@ test("admin: individual portfolios", async ({ browser, baseURL }, testInfo) => {
   await useDark(page)
   await page.goto(`/admin/staff/${fx.populated.id}`)
   await capture(page, testInfo, "admin-portfolio", {
+    widths: some(page, testInfo, [390, 1280]),
+  })
+  await page.context().close()
+})
+
+// Coverage screens (staff tasks, manager tools, admin oversight). Each test
+// makes its own DEV FIXTURE coverage world through the coverage RPCs.
+
+type Rpc<T> = {
+  data: T | null
+  error: { message: string; code: string } | null
+}
+
+async function must<T>(call: PromiseLike<Rpc<T>>): Promise<T> {
+  const { data, error } = await call
+  if (error) throw new Error(`${error.message} (${error.code})`)
+  return data as T
+}
+
+const requestKey = () => `visual-${randomUUID()}`
+
+/**
+ * A manager with a team target set, a prepared month, an assigned task with
+ * one photo asked again and one waiting, and a colleague's monthly photo.
+ */
+async function seedCoverageScenes() {
+  const w = await provisionCoverageWorld()
+  const service = provisioner()
+  const admin = await signInDb(service, w.admin.email)
+  const manager = await signInDb(service, w.manager.email)
+  const staffA = await signInDb(service, w.staffA.email)
+  const staffB = await signInDb(service, w.staffB.email)
+  await must(
+    admin.rpc("grant_venue_manager", {
+      p_staff_id: w.manager.id,
+      p_venue_id: w.venue1.id,
+    })
+  )
+  const month = psql("select private.current_london_month()::text")
+  for (const [person, count] of [
+    [w.staffA, 3],
+    [w.staffB, 2],
+  ] as const) {
+    await must(
+      manager.rpc("set_monthly_target", {
+        p_staff_id: person.id,
+        p_venue_id: w.venue1.id,
+        p_period_month: month,
+        p_target_count: count,
+      })
+    )
+  }
+  await must(manager.rpc("prepare_coverage_month", { p_venue_id: w.venue1.id }))
+  const [task] = await must(
+    manager.rpc("save_coverage_requirement", {
+      p_venue_id: w.venue1.id,
+      p_requirement_id: null as never,
+      p_expected_revision: null as never,
+      p_kind: "venue_specific",
+      p_title: "Cellar door and delivery entrance",
+      p_guidance: "Show the door closed and the step, from the street.",
+      p_photo_target: 3,
+      p_due_on: null as never,
+      p_client_request_key: requestKey(),
+    })
+  )
+  await must(
+    manager.rpc("set_coverage_requirement_assignees", {
+      p_requirement_id: task!.requirement_id,
+      p_staff_ids: [w.staffA.id, w.staffB.id],
+    })
+  )
+  const sent = await must(
+    staffA.rpc("submit_coverage_photos", {
+      p_asset_ids: await seedImages(w.staffA, w.venue1, 2, {
+        colour: "#7a5c3e",
+      }),
+      p_requirement_id: task!.requirement_id,
+      p_client_request_key: requestKey(),
+    })
+  )
+  await must(
+    staffB.rpc("submit_coverage_photos", {
+      p_asset_ids: await seedImages(w.staffB, w.venue1, 1, {
+        colour: "#3e6a7a",
+      }),
+      p_client_request_key: requestKey(),
+    })
+  )
+  await must(
+    manager.rpc("review_coverage_item", {
+      p_item_id: sent[0]!.item_id,
+      p_expected_revision: sent[0]!.revision,
+      p_decision: "needs_another_photo",
+      p_reason: "The door is half open; take it closed, from the street.",
+      p_client_request_key: requestKey(),
+    })
+  )
+  return {
+    w,
+    requirementId: task!.requirement_id,
+    askedAgain: sent[0]!.item_id,
+  }
+}
+
+const pageHeading = (page: Page) =>
+  expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible()
+
+test("coverage: staff My tasks, a task, its send dialog and the month", async ({
+  browser,
+  baseURL,
+}, testInfo) => {
+  test.setTimeout(300_000)
+  const { w, requirementId, askedAgain } = await seedCoverageScenes()
+  const page = await signIn(browser, w.staffA.email, baseURL!)
+  await expect(page).toHaveURL(STAFF_LANDING)
+  await expect(
+    page.getByRole("region", { name: "Needs another photo" })
+  ).toBeVisible()
+  await capture(page, testInfo, "coverage-staff-my-tasks")
+  await expectFocusVisibleEverywhere(page, "coverage-staff-my-tasks")
+
+  await page.goto(`/staff/tasks/${requirementId}`)
+  await expect(
+    page.getByRole("region", { name: "Your photos for this task" })
+  ).toBeVisible()
+  await capture(page, testInfo, "coverage-staff-task")
+  await page.goto(`/staff/tasks/${requirementId}?replaces=${askedAgain}`)
+  await expect(
+    page.getByText("The photos you send now replace this one.")
+  ).toBeVisible()
+  await capture(page, testInfo, "coverage-staff-task-replacement")
+  const send = page.getByRole("button", { name: "Take or upload photos" })
+  const dialog = page.getByRole("dialog")
+  await send.click()
+  await expect(dialog).toBeVisible()
+  await capture(page, testInfo, "coverage-staff-send-dialog", {
+    restore: reopen(page, send, dialog),
+  })
+  await page.keyboard.press("Escape")
+  await expect(dialog).toBeHidden()
+
+  await page.goto("/staff/tasks/month")
+  await pageHeading(page)
+  await capture(page, testInfo, "coverage-staff-month")
+
+  await useDark(page)
+  await page.goto("/staff/tasks")
+  await pageHeading(page)
+  await capture(page, testInfo, "coverage-staff-my-tasks", {
+    widths: some(page, testInfo, [390, 1280]),
+  })
+  await page.context().close()
+})
+
+test("coverage: manager overview, review, team, checklist, item and menu", async ({
+  browser,
+  baseURL,
+}, testInfo) => {
+  test.setTimeout(400_000)
+  const { w, requirementId } = await seedCoverageScenes()
+  const page = await signIn(browser, w.manager.email, baseURL!)
+  for (const [path, label] of [
+    ["/staff/manage", "coverage-manager-overview"],
+    ["/staff/manage/review", "coverage-manager-review"],
+    ["/staff/manage/team", "coverage-manager-team"],
+    ["/staff/manage/checklist", "coverage-manager-checklist"],
+    [`/staff/manage/checklist/${requirementId}`, "coverage-manager-item"],
+    ["/staff/manage/menu", "coverage-manager-menu"],
+  ] as const) {
+    await page.goto(path)
+    await pageHeading(page)
+    await capture(page, testInfo, label)
+  }
+
+  await page.goto("/staff/manage/review")
+  const ask = page
+    .getByRole("article", { name: `Monthly photo: photo by ${w.staffB.name}` })
+    .getByRole("button", { name: "Needs another photo" })
+  const askDialog = page.getByRole("dialog", { name: "Ask for another photo" })
+  await ask.click()
+  await expect(askDialog).toBeVisible()
+  await capture(page, testInfo, "coverage-manager-ask-dialog", {
+    restore: reopen(page, ask, askDialog),
+  })
+  await page.keyboard.press("Escape")
+  await expect(askDialog).toBeHidden()
+  // Focus returns to the opener; the walk starts from a fresh load because
+  // Chromium's first Tab after a programmatic blur stays on <body>.
+  await expect(ask).toBeFocused()
+  await page.reload()
+  await pageHeading(page)
+  await expectFocusVisibleEverywhere(page, "coverage-manager-review")
+
+  await page.goto("/staff/manage/team")
+  const edit = page.getByRole("button", {
+    name: `Edit target for ${w.staffA.name}`,
+  })
+  const targetDialog = page.getByRole("dialog")
+  await edit.click()
+  await expect(targetDialog).toBeVisible()
+  await capture(page, testInfo, "coverage-manager-target-dialog", {
+    restore: reopen(page, edit, targetDialog),
+  })
+  await page.keyboard.press("Escape")
+
+  await useDark(page)
+  await page.goto("/staff/manage/review")
+  await pageHeading(page)
+  await capture(page, testInfo, "coverage-manager-review", {
+    widths: some(page, testInfo, [390, 1280]),
+  })
+  await page.context().close()
+})
+
+test("coverage: admin overview, managers and one venue", async ({
+  browser,
+  baseURL,
+}, testInfo) => {
+  test.setTimeout(300_000)
+  const { w } = await seedCoverageScenes()
+  const page = await signIn(browser, w.admin.email, baseURL!)
+  for (const [path, label] of [
+    ["/admin/coverage", "coverage-admin-overview"],
+    ["/admin/coverage/managers", "coverage-admin-managers"],
+    [`/admin/coverage/${w.venue1.id}`, "coverage-admin-venue"],
+    [`/admin/coverage/${w.venue1.id}/review`, "coverage-admin-venue-review"],
+  ] as const) {
+    await page.goto(path)
+    await pageHeading(page)
+    await capture(page, testInfo, label)
+  }
+  await expectFocusVisibleEverywhere(page, "coverage-admin-venue-review")
+
+  await useDark(page)
+  await page.goto("/admin/coverage")
+  await pageHeading(page)
+  await capture(page, testInfo, "coverage-admin-overview", {
     widths: some(page, testInfo, [390, 1280]),
   })
   await page.context().close()

@@ -4,7 +4,8 @@ import { SignOutIcon } from "@phosphor-icons/react/dist/ssr"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
-type AdminSection = "content" | "staff" | "menus"
+type AdminSection = "content" | "staff" | "menus" | "coverage"
+type StaffSection = "tasks" | "portfolio" | "community" | "people" | "manage"
 
 type AppShellProps = {
   children: React.ReactNode
@@ -15,11 +16,19 @@ type AppShellProps = {
   logoutAction?: (formData: FormData) => void | Promise<void>
   className?: string
 } & (
-  | { variant: "staff" }
+  | {
+      variant: "staff"
+      active?: StaffSection
+      /**
+       * Shows *Manage* for an effective venue manager. Display only: every
+       * manager page, action and RPC re-checks the grant.
+       */
+      canManage?: boolean
+    }
   | {
       variant: "admin"
       active: AdminSection
-      /** Defaults: /admin, /admin/staff and /admin/menus. */
+      /** Defaults: /admin, /admin/staff, /admin/menus and /admin/coverage. */
       hrefs?: Partial<Record<AdminSection, string>>
     }
 )
@@ -28,11 +37,29 @@ const NAV: { id: AdminSection; label: string; href: string }[] = [
   { id: "content", label: "Content", href: "/admin" },
   { id: "staff", label: "Staff", href: "/admin/staff" },
   { id: "menus", label: "Menus", href: "/admin/menus" },
+  { id: "coverage", label: "Coverage", href: "/admin/coverage" },
 ]
 
+type StaffNavItem = { id: StaffSection; label: string; href: string }
+
+const STAFF_NAV: StaffNavItem[] = [
+  { id: "tasks", label: "My tasks", href: "/staff/tasks" },
+  { id: "community", label: "Explore", href: "/staff/community" },
+  { id: "people", label: "People", href: "/staff/people" },
+  { id: "portfolio", label: "My portfolio", href: "/staff" },
+]
+
+const MANAGE_NAV: StaffNavItem = {
+  id: "manage",
+  label: "Manage",
+  href: "/staff/manage",
+}
+
+const NAV_LINK =
+  "inline-flex h-11 items-center rounded-md text-sm font-medium text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+
 /**
- * Page frame. Staff get the wordmark and Log out only; admin also get the
- * sections Content, Staff and (v0.3) Menus. Nothing else belongs here.
+ * Shared page frame with staff discovery or administration navigation.
  */
 export function AppShell(props: AppShellProps) {
   const { children, userName, onLogout, logoutAction, className } = props
@@ -48,6 +75,10 @@ export function AppShell(props: AppShellProps) {
       Log out
     </Button>
   )
+  const staffNav =
+    props.variant === "staff" && props.canManage
+      ? [...STAFF_NAV, MANAGE_NAV]
+      : STAFF_NAV
 
   return (
     <div className={cn("flex min-h-svh flex-col bg-background", className)}>
@@ -58,9 +89,18 @@ export function AppShell(props: AppShellProps) {
         Skip to content
       </a>
       <header className="border-b bg-background">
-        {/* Phones: the admin sections wrap onto their own full-width row (three
-            sections plus Log out do not fit beside the wordmark at 360px). */}
-        <div className="mx-auto flex min-h-14 w-full max-w-7xl flex-wrap items-center gap-x-2 px-4 sm:h-14 sm:flex-nowrap sm:gap-6 sm:px-6">
+        {/* Phones: the sections take their own full-width row (four admin
+            sections plus Log out do not fit beside the wordmark at 360px). The
+            staff row stays separate up to md, and wraps on phones, because
+            five staff sections do not fit beside the wordmark at 640px. */}
+        <div
+          className={cn(
+            "mx-auto flex min-h-14 w-full max-w-7xl flex-wrap items-center gap-x-2 px-4 sm:gap-x-6 sm:px-6",
+            props.variant === "admin"
+              ? "sm:h-14 sm:flex-nowrap"
+              : "md:h-14 md:flex-nowrap"
+          )}
+        >
           <span className="text-base font-semibold tracking-tight">
             Naba-Lens
           </span>
@@ -77,7 +117,8 @@ export function AppShell(props: AppShellProps) {
                     href={props.hrefs?.[item.id] ?? item.href}
                     aria-current={current ? "page" : undefined}
                     className={cn(
-                      "inline-flex h-11 items-center rounded-md px-3 text-sm font-medium text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 sm:h-9",
+                      NAV_LINK,
+                      "px-3 sm:h-9",
                       current && "bg-muted text-foreground"
                     )}
                   >
@@ -86,10 +127,38 @@ export function AppShell(props: AppShellProps) {
                 )
               })}
             </nav>
-          ) : null}
+          ) : (
+            <nav
+              aria-label="Staff"
+              className="order-last -mx-4 flex w-[calc(100%+2rem)] min-w-0 flex-wrap items-center gap-1 border-t px-3 sm:-mx-6 sm:w-[calc(100%+3rem)] sm:px-5 md:order-none md:mx-0 md:w-auto md:flex-nowrap md:border-t-0 md:px-0"
+            >
+              {staffNav.map((item) => {
+                const current = (props.active ?? "portfolio") === item.id
+                return (
+                  <Link
+                    key={item.id}
+                    href={item.href}
+                    aria-current={current ? "page" : undefined}
+                    className={cn(
+                      NAV_LINK,
+                      "px-2.5 sm:px-3 md:h-9",
+                      current && "bg-muted text-foreground"
+                    )}
+                  >
+                    {item.label}
+                  </Link>
+                )
+              })}
+            </nav>
+          )}
           <div className="ml-auto flex min-w-0 items-center gap-3">
             {userName ? (
-              <span className="hidden max-w-48 truncate text-sm text-muted-foreground sm:inline">
+              <span
+                className={cn(
+                  "hidden max-w-48 truncate text-sm text-muted-foreground",
+                  props.variant === "staff" ? "lg:inline" : "sm:inline"
+                )}
+              >
                 {userName}
               </span>
             ) : null}

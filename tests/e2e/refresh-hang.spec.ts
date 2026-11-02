@@ -3,7 +3,12 @@ import { expect, test } from "@playwright/test"
 import { createIdentity, createVenue } from "../support/identities"
 import { syntheticJpeg } from "./helpers/media"
 import { provisioner } from "./helpers/stack"
-import { portfolioList, tile, uploadThroughDialog } from "./helpers/ui"
+import {
+  openPortfolio,
+  portfolioList,
+  tile,
+  uploadThroughDialog,
+} from "./helpers/ui"
 import { signedInPage } from "./helpers/world"
 
 // Final review F5: a gallery refresh that hangs must not hold up uploads.
@@ -29,6 +34,7 @@ test.describe("a hung gallery refresh", () => {
       session: false,
     })
     const page = await signedInPage(browser, staff)
+    await openPortfolio(page)
     await expect(
       page.getByRole("button", { name: "Upload photos or videos" }).first()
     ).toBeVisible()
