@@ -18,14 +18,16 @@ computer it is in the top bar.
 On a phone, the TabBar at the bottom has **Home**, **Photos**, **Add**,
 **People** and **Me**. **Add** is the raised button in the middle. From a
 tablet or computer the same sections are in the top bar, with **Add photos**
-in place of **Add**; venue managers also see **Manage** there.
+in place of **Add**; venue managers also see **Manage** there. On a phone,
+**Manage** is the first row on **Me**.
 
 - **Home** (`/staff/tasks`): what to do next, your month and your tasks.
 - **Photos** (`/staff/community`): ready photos and videos from colleagues
   across Lapen Inns.
 - **Add**: take or choose photos and upload them.
 - **People** (`/staff/people`): find colleagues and see what they've shared.
-- **Me** (`/staff`): your profile and your own photos and videos.
+- **Me** (`/staff`): your profile and your own photos and videos and, for
+  venue managers, **Manage**.
 
 ## Home: monthly photos and venue tasks
 
@@ -111,9 +113,9 @@ photos and past months stay credited to the old venue.
 
 An admin can make you the manager of your current venue. **Manage**
 (`/staff/manage`) then appears in the top bar on a tablet or computer, with
-**Overview**, **Review**, **Checklist**, **Menu** and **Team**. The phone
-TabBar has no Manage tab: when photos are waiting, Home shows **3 photos to
-review** (for example) with **Review photos**. Without the grant the page
+**Overview**, **Review**, **Checklist**, **Menu** and **Team**. On a phone,
+open **Me** and choose **Manage {venue}** at the top. When photos are waiting,
+Home's **Review photos** card is a shortcut. Without the grant the page
 explains that the tools are for venue managers. A grant ends if you move venue,
 your account is deactivated or an admin revokes it; that takes effect on your
 next page load or action.
@@ -219,7 +221,7 @@ the upload queue opens straight away.
 
 ### The upload queue
 
-Picked files appear in **Upload photos** as **Ready to upload**. Remove one
+Picked files appear in **Upload photos or videos** as **Ready to upload**. Remove one
 with its × control ("Remove" plus its filename), then choose **Upload 3 files**
 (the button counts your selection). Each photo can be up to **20 MiB**, each
 video **200 MiB** (shown as **20 MB** and **200 MB**).
@@ -279,7 +281,8 @@ library straight away, labelled or not.
   Kitchen, Team, Venue, Event) and an optional short note (280 characters).
 - Dish not listed? Use **Item not on the menu?** and type its name; an admin
   reviews it. Don't pick an item that isn't really in the photo.
-- With several files, the **Common to all files** choices apply to every file;
+- With several files, the **Common to all {n} photos** (or **videos**, or
+  **files** for a mix) choices apply to every file;
   open a file's **Adjust** panel to change just that one.
 - If someone else changed the labels, or the venue's menu changed while you
   were editing, the dialog tells you and keeps your edits so you can retry.

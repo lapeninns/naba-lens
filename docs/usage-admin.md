@@ -35,7 +35,8 @@ refreshes about every 15 seconds and on tab focus.
 
 On a phone, staff have a TabBar with **Home**, **Photos**, **Add**, **People**
 and **Me**; from a tablet or computer the same sections sit in the top bar,
-and venue managers also have **Manage** there. Staff land on **Home**.
+and venue managers also have **Manage** there. On a phone, **Manage** is the
+first row on **Me**. Staff land on **Home**.
 Photos shows ready photos and videos across the organisation with venue,
 FOH/BOH team and media filters. People lets staff search colleagues by name,
 current venue and team, then open a colleague's profile. See the
