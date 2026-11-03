@@ -314,6 +314,11 @@
   html {
     @apply font-sans;
   }
+  /* Below md the TabBar is fixed to the bottom; keep a control that Tab
+     scrolls to clear of it (WCAG 2.4.11), outline included. */
+  html:has([data-slot="tabbar"]) {
+    @apply max-md:scroll-pb-[calc(var(--size-tabbar)+env(safe-area-inset-bottom,0px)+0.5rem)];
+  }
   h1,
   h2,
   h3 {
