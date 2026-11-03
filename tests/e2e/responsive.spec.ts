@@ -99,7 +99,7 @@ async function check(
     undefined,
     { timeout: 20_000 }
   )
-  const overflowPx = await page.evaluate(() => {
+  const { overflowPx, culprit } = await page.evaluate(() => {
     const doc = document.documentElement
     let worst = doc.scrollWidth - window.innerWidth
     for (const el of Array.from(
@@ -107,7 +107,22 @@ async function check(
     )) {
       worst = Math.max(worst, el.scrollWidth - el.clientWidth)
     }
-    return Math.max(0, worst)
+    // Name the innermost element sticking out furthest, so a failure says
+    // what to fix without a trace.
+    let culprit = ""
+    let reach = window.innerWidth + 0.5
+    for (const el of Array.from(document.body.querySelectorAll("*"))) {
+      const right = el.getBoundingClientRect().right
+      if (right < reach) continue
+      reach = right
+      const cls = (el.getAttribute("class") ?? "").split(/\s+/).slice(0, 4)
+      culprit = `${el.tagName.toLowerCase()}${el.id ? `#${el.id}` : ""}${
+        el.getAttribute("data-slot")
+          ? `[data-slot=${el.getAttribute("data-slot")}]`
+          : ""
+      }.${cls.join(".")} right=${Math.round(right)}`
+    }
+    return { overflowPx: Math.max(0, worst), culprit }
   })
   const box = await primary.boundingBox()
   const primaryVisible =
@@ -139,12 +154,16 @@ async function check(
     path: join(SHOTS, `${String(width).padStart(4, "0")}-${state}.png`),
     fullPage: !scope,
   })
-  expect.soft(overflowPx, `${state}@${width}: horizontal overflow`).toBe(0)
+  expect
+    .soft(overflowPx, `${state}@${width}: horizontal overflow (${culprit})`)
+    .toBe(0)
   expect.soft(primaryVisible, `${state}@${width}: primary action`).toBe(true)
   expect
     .soft(
       serious.map((v) => v.id),
-      `${state}@${width}: axe serious/critical`
+      `${state}@${width}: axe serious/critical ${JSON.stringify(
+        serious.flatMap((v) => v.targets)
+      )}`
     )
     .toEqual([])
 }
