@@ -69,6 +69,8 @@ async function reflow(page: Page, size: (typeof SIZES)[number], path: string) {
   await page.setViewportSize({ width: size.width, height: size.height })
   const res = await page.goto(path)
   expect(res?.status(), `${path} status`).toBeLessThan(400)
+  // A redirect (to /login, say) would still show an h1, so pin the page.
+  await expect(page).toHaveURL((url) => url.pathname === path)
   await expect(page.locator("h1").first()).toBeVisible()
   await noOverflow(page, `${path}@${size.name}`)
 }
