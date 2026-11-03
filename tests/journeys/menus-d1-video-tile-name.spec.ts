@@ -93,6 +93,10 @@ test("menus.d1-video-tile-name: video and photo tiles name what they show", asyn
     }
     // Staff tile names leave out file names, so tell the two videos apart
     // by their label state.
+    expect(
+      tiles.every((t) => !t.name.includes("jr-d1-")),
+      "no tile name carries a file name"
+    ).toBe(true)
     const videos = tiles.filter((t) => t.name.startsWith("Video"))
     const video = videos.find((t) => t.name.endsWith(", 2 labels"))
     expect(video, "the labelled video tile").toBeDefined()
