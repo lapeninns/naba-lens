@@ -46,7 +46,7 @@ export function MonthlyProgressCard({
         <Heading id={headingId} className="text-base font-semibold">
           Your photos for {label}
         </Heading>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-meta-touch text-ink-muted md:text-meta">
           There&apos;s no photo target for you this month.
         </p>
       </section>
@@ -76,7 +76,7 @@ export function MonthlyProgressCard({
       </div>
 
       {needsSetup ? (
-        <div className="flex flex-col gap-1 text-sm">
+        <div className="flex flex-col gap-1 text-body-touch md:text-body-sm">
           {monthly.setupMissing.includes("target") ? (
             <p>Your target appears here once your manager sets it.</p>
           ) : null}
@@ -104,14 +104,14 @@ export function MonthlyProgressCard({
             aria-label={`${monthly.accepted} of ${target} photos accepted`}
           />
           {remaining ? (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-meta-touch text-ink-muted md:text-meta">
               {plural(remaining, "more photo", "more photos")} to go.
             </p>
           ) : null}
         </div>
       )}
 
-      <ul className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+      <ul className="flex flex-wrap gap-x-4 gap-y-1 text-meta-touch text-ink-muted md:text-meta">
         <li>{monthly.pending} waiting for review</li>
         {monthly.needsAnotherPhoto > 0 ? (
           <li className="text-foreground">
@@ -145,7 +145,7 @@ export function MonthlyProgressCard({
         <div className="flex flex-col gap-1">
           <DueLine due={monthly.due} done={monthly.complete} />
           {monthly.due.overdue && !monthly.complete ? (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-meta-touch text-ink-muted md:text-meta">
               You can still send photos.
             </p>
           ) : null}

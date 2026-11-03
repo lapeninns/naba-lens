@@ -277,7 +277,7 @@ export function SubmitPhotosPanel({
 
   return (
     <div className="flex flex-col gap-4">
-      <h2 className="font-display text-xl text-ink">
+      <h2 className="font-display text-section-title-touch text-ink md:text-section-title">
         {monthly || !taskTitle ? "Send photos" : `Send photos to ${taskTitle}`}
       </h2>
 
@@ -308,12 +308,15 @@ export function SubmitPhotosPanel({
         </p>
       </div>
 
-      <div aria-live="polite" className="text-sm empty:hidden">
+      <div
+        aria-live="polite"
+        className="text-body-touch empty:hidden md:text-body-sm"
+      >
         {uploadNote ? <p>{uploadNote}</p> : null}
       </div>
 
       <div className="flex flex-col gap-2">
-        <h3 className="text-lg font-semibold text-ink">
+        <h3 className="text-item-title-touch text-ink md:text-item-title">
           Or choose from your photos
         </h3>
         <p className="text-meta-touch text-ink-muted md:text-meta">
@@ -441,7 +444,10 @@ function OutcomeMessage({
   if (!outcome) return null
   if (outcome.kind === "sent" && replacing && !outcome.alreadySent) {
     return (
-      <div role="status" className="flex flex-col gap-1 text-sm">
+      <div
+        role="status"
+        className="flex flex-col gap-1 text-body-touch md:text-body-sm"
+      >
         <p className="font-medium text-positive">
           Your new photo is waiting for review
         </p>
@@ -454,7 +460,10 @@ function OutcomeMessage({
   }
   if (outcome.kind === "sent") {
     return (
-      <div role="status" className="flex flex-col gap-1 text-sm">
+      <div
+        role="status"
+        className="flex flex-col gap-1 text-body-touch md:text-body-sm"
+      >
         <p className="font-medium text-positive">
           {outcome.alreadySent
             ? "These photos were already sent. Nothing was sent twice."

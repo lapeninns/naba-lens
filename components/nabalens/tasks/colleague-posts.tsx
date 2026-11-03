@@ -65,7 +65,9 @@ export function ColleaguePosts({
                 className="size-full object-cover"
               />
             </Link>
-            <p className="text-sm text-ink-muted">{item.venueName}</p>
+            <p className="text-meta-touch text-ink-muted md:text-meta">
+              {item.venueName}
+            </p>
           </li>
         ))}
       </ul>

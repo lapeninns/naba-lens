@@ -84,7 +84,7 @@ export function ReplacementNote({
         <div className="flex min-w-0 flex-1 flex-col">
           <p className="font-medium break-words">{name}</p>
           {decision ? (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-meta-touch text-ink-muted md:text-meta">
               Asked for another photo · {formatDate(decision.decidedAt)}
             </p>
           ) : null}
@@ -99,23 +99,23 @@ export function ReplacementNote({
           className="size-20"
         />
         <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <p className="text-sm text-muted-foreground">
+          <p className="text-meta-touch text-ink-muted md:text-meta">
             Your photo · sent {formatDate(submission.submittedAt)}
           </p>
-          <p className="text-sm font-medium">
+          <p className="text-body-touch font-medium md:text-body-sm">
             <span className="sr-only">Reason: </span>
             <span className="break-words whitespace-pre-line">{reason}</span>
           </p>
         </div>
       </div>
       {earlier ? (
-        <p className="text-sm text-muted-foreground">
+        <p className="text-meta-touch text-ink-muted md:text-meta">
           {name.split(" ")[0]} asked in {earlier.asked}. A new photo counts for{" "}
           {earlier.current}, the month you send it.
         </p>
       ) : null}
       {closed ? null : (
-        <p className="text-sm font-medium">
+        <p className="text-body-touch font-medium md:text-body-sm">
           The photos you send now replace this one.
         </p>
       )}
@@ -207,7 +207,10 @@ export function NeedsAnotherPhotoList({
   if (submissions.length === 0) return null
   return (
     <section aria-labelledby="replace-heading" className="flex flex-col gap-3">
-      <h2 id="replace-heading" className="text-lg font-semibold">
+      <h2
+        id="replace-heading"
+        className="text-section-title-touch md:text-section-title"
+      >
         Needs another photo
       </h2>
       <ul className="flex flex-col gap-3">
@@ -231,12 +234,12 @@ export function NeedsAnotherPhotoList({
                 <p className="font-medium break-words">{title}</p>
                 <ReviewReason reason={submission.decision?.reason ?? null} />
                 {submission.decision ? (
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-meta-touch text-ink-muted md:text-meta">
                     {decisionText(submission.decision)}
                   </p>
                 ) : null}
                 {closed ? (
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-meta-touch text-ink-muted md:text-meta">
                     This task is no longer open to you, so no replacement is
                     needed.
                   </p>

@@ -23,11 +23,7 @@ export function SignInPage({ children }: { children: React.ReactNode }) {
 }
 
 export function SignInWordmark() {
-  return (
-    <p className="font-display text-count-sm font-bold tracking-[-0.01em]">
-      Naba-Lens
-    </p>
-  )
+  return <p className="font-display text-count-sm font-bold">Naba-Lens</p>
 }
 
 export function SignInCard({

@@ -19,7 +19,7 @@ export function SharedProgress({
     <div className="flex flex-col gap-1.5">
       {progress.target ? (
         <>
-          <p className="text-sm">
+          <p className="text-body-touch md:text-body-sm">
             <span className="font-medium tabular-nums">
               {progress.accepted} of {progress.target}
             </span>{" "}
@@ -37,7 +37,7 @@ export function SharedProgress({
           />
         </>
       ) : null}
-      <p className="text-sm text-muted-foreground">
+      <p className="text-meta-touch text-ink-muted md:text-meta">
         You: {assignment.myAccepted} accepted · {assignment.myPending} waiting
         for review
       </p>
@@ -108,7 +108,7 @@ export function AssignmentList({
               {requirement.due ? (
                 <DueLine due={requirement.due} done={satisfied} />
               ) : (
-                <span className="text-sm text-muted-foreground">
+                <span className="text-meta-touch text-ink-muted md:text-meta">
                   No due date
                 </span>
               )}

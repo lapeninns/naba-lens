@@ -10,7 +10,10 @@ export function FirstRunEntry({ href }: { href: string }) {
       className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line p-4"
     >
       <div className="grid gap-1">
-        <h2 id="first-run-heading" className="font-display text-xl text-ink">
+        <h2
+          id="first-run-heading"
+          className="font-display text-section-title-touch text-ink md:text-section-title"
+        >
           New to Naba-Lens?
         </h2>
         <p className="text-body-touch text-ink-muted md:text-body">

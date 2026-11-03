@@ -11,7 +11,7 @@ import type { SubmissionView } from "./types"
 export function ReviewReason({ reason }: { reason: string | null }) {
   if (!reason) return null
   return (
-    <div className="rounded-md border-l-4 border-warning bg-warning-surface px-3 py-2 text-sm">
+    <div className="rounded-md border-l-4 border-warning bg-warning-surface px-3 py-2 text-body-touch md:text-body-sm">
       <span className="font-medium">Reason: </span>
       <span className="break-words whitespace-pre-line">{reason}</span>
     </div>
@@ -74,19 +74,19 @@ export function SubmissionRow({
           ) : null}
         </div>
         {showTask ? <p className="font-medium break-words">{title}</p> : null}
-        <p className="text-sm text-muted-foreground">
+        <p className="text-meta-touch text-ink-muted md:text-meta">
           {originNote ? `${originNote} on ${sentOn}` : `Sent ${sentOn}`}
         </p>
         {submission.state === "needs_another_photo" ? (
           <ReviewReason reason={submission.decision?.reason ?? null} />
         ) : null}
         {submission.decision ? (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-meta-touch text-ink-muted md:text-meta">
             {decisionText(submission.decision)}
           </p>
         ) : null}
         {!submission.countsTowardMonthly ? (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-meta-touch text-ink-muted md:text-meta">
             Counts for the task only, not your monthly target.
           </p>
         ) : null}
@@ -108,7 +108,9 @@ export function SubmissionList({
   empty: React.ReactNode
 }) {
   if (submissions.length === 0) {
-    return <p className="text-sm text-muted-foreground">{empty}</p>
+    return (
+      <p className="text-meta-touch text-ink-muted md:text-meta">{empty}</p>
+    )
   }
   return (
     <ul aria-label={label} className="-my-3 divide-y">
