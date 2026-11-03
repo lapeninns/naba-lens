@@ -29,7 +29,9 @@ const TONE: Record<ChipTone, string> = {
   attention: "bg-attention-soft text-attention",
   negative: "bg-negative-soft text-negative",
   pending: "border-dashed border-ink-muted bg-transparent text-ink-muted",
-  closed: "border-line bg-transparent text-ink-subtle",
+  // ink-muted, not ink-subtle: a closed chip often sits in a row with a hover
+  // or press fill, where ink-subtle drops below 4.5:1.
+  closed: "border-line bg-transparent text-ink-muted",
 }
 
 type ChipState = { word: string; tone: ChipTone; icon?: Icon; struck?: boolean }
