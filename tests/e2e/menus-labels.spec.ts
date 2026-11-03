@@ -205,7 +205,7 @@ test("rows 5+7: photo + video uploaded, batch-labelled with per-file overrides; 
       all,
       /^Menu item at .* for all files$/,
       "momo",
-      /^Momo in Appetisers/
+      /^Momo Appetisers/
     )
     await all
       .getByRole("group", { name: /^Which Momo\?/ })
@@ -215,7 +215,7 @@ test("rows 5+7: photo + video uploaded, batch-labelled with per-file overrides; 
       all,
       /^Menu item at .* for all files$/,
       "onion bhaji",
-      /^Onion Bhaji in Appetisers/
+      /^Onion Bhaji Appetisers/
     )
     await expect(
       all
@@ -437,7 +437,7 @@ test("row 8: missing-item suggestion reaches the admin; catalogue changed while 
       editor,
       /^Menu item at /,
       "onion bhaji",
-      /^Onion Bhaji in Appetisers/
+      /^Onion Bhaji Appetisers/
     )
     await editor.getByRole("button", { name: "Kitchen" }).click()
 
@@ -530,7 +530,7 @@ test("row 9: staff B cannot label staff A's asset, even by rewriting the Server 
       editor,
       /^Menu item at /,
       "onion bhaji",
-      /^Onion Bhaji in Appetisers/
+      /^Onion Bhaji Appetisers/
     )
     let rewritten = 0
     await staffB.route("**/*", async (route) => {
@@ -871,7 +871,7 @@ test("rows 12+13: label filters combine with venue/staff/type, search and dates;
       editor,
       /^Menu item at /,
       "onion bhaji",
-      /^Onion Bhaji in Appetisers/
+      /^Onion Bhaji Appetisers/
     )
     await editor.getByRole("button", { name: /^Save labels/ }).click()
     await expect(editor).toBeHidden()
