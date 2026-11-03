@@ -225,7 +225,7 @@ export default async function CoverageOverviewPage({
                       <StatusChip state="self_review" />
                       <a
                         href="#self-reviews"
-                        className="text-ink underline underline-offset-3"
+                        className="inline-flex min-h-11 items-center text-ink underline underline-offset-3 md:min-h-0"
                       >
                         {COVERAGE_COPY.selfReviewsThisMonth(selfReviewCount)}
                       </a>

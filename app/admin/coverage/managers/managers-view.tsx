@@ -178,6 +178,7 @@ export function ManagersView({
                 placeholder={MANAGERS_COPY.fields.venuePlaceholder}
                 invalid={!!errors.venueId}
                 disabled={action.pending}
+                className="max-md:min-h-11"
               />
               {errors.venueId ? (
                 <FieldError>{errors.venueId}</FieldError>
@@ -201,6 +202,7 @@ export function ManagersView({
                   action.pending || !selectedVenueId || options.length === 0
                 }
                 aria-describedby={`${ids}-staff-hint`}
+                className="max-md:min-h-11"
               />
               {errors.staffId ? (
                 <FieldError>{errors.staffId}</FieldError>
@@ -230,6 +232,7 @@ export function ManagersView({
                 onChange={(e) => setNote(e.currentTarget.value)}
                 disabled={action.pending}
                 aria-invalid={errors.reason ? true : undefined}
+                className="h-11 md:h-8"
               />
               {errors.reason ? <FieldError>{errors.reason}</FieldError> : null}
             </div>
