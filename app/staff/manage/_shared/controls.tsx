@@ -214,6 +214,7 @@ export function TeamRosterControl({
   isAdmin,
   basePath,
   venueId,
+  venueName,
 }: {
   period: PeriodView
   currentPeriod: PeriodKey
@@ -222,6 +223,7 @@ export function TeamRosterControl({
   isAdmin: boolean
   basePath: string
   venueId: string
+  venueName?: string
 }) {
   const refresh = useRefresh()
   return (
@@ -232,6 +234,7 @@ export function TeamRosterControl({
       canEdit={canEdit}
       isAdmin={isAdmin}
       basePath={basePath}
+      venueName={venueName}
       onSetTarget={(input) => setMonthlyTargetAction({ ...input, venueId })}
       onStale={refresh}
     />
@@ -241,15 +244,27 @@ export function TeamRosterControl({
 export function PrepareMonthControl({
   venueId,
   label,
+  period,
+  venueName,
+  teamHref,
+  available,
 }: {
   /** Omit (admins only) to prepare every active venue. */
   venueId?: string
   label?: string
+  period?: PeriodKey
+  venueName?: string
+  teamHref?: string
+  available?: boolean
 }) {
   const refresh = useRefresh()
   return (
     <PrepareMonthButton
       label={label}
+      period={period}
+      venueName={venueName}
+      teamHref={teamHref}
+      available={available}
       onPrepare={() => prepareMonthAction(venueId ? { venueId } : {})}
       onStale={refresh}
     />
