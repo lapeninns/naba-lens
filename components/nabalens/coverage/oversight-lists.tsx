@@ -5,6 +5,7 @@ import * as React from "react"
 import { LoadMoreButton } from "@/components/nabalens/load-more-button"
 import { formatDateTime } from "@/components/nabalens/menus/copy"
 
+import { failureCode } from "./failure-code"
 import {
   failureText,
   labelFor,
@@ -143,7 +144,6 @@ export function PreparationRunList({
   initial,
   venueNames,
   onLoadMore,
-  formatErrorCode = (code) => code,
 }: {
   initial: Page<PreparationRunView>
   /** Venue id → name, for runs scoped to one venue. */
@@ -151,8 +151,6 @@ export function PreparationRunList({
   onLoadMore?: (
     cursor: string
   ) => Promise<CoverageResult<Page<PreparationRunView>>>
-  /** Display form of a failed run's stored error code. */
-  formatErrorCode?: (code: string) => string
 }) {
   const list = usePagedList(initial, (i) => i.id, onLoadMore)
   if (list.items.length === 0) {
@@ -189,7 +187,7 @@ export function PreparationRunList({
             <p className="text-meta-touch text-ink-muted md:text-meta">
               {formatDateTime(run.startedAt)} ·{" "}
               {run.status === "failed"
-                ? `Error code ${run.errorCode ? formatErrorCode(run.errorCode) : "unknown"}. Nothing was half-done.`
+                ? `Error code ${run.errorCode ? failureCode(run.errorCode) : "unknown"}. Nothing was half-done.`
                 : `${plural(run.staffConsidered, "person", "people")} checked, ${run.targetsCopied} copied, ${run.placeholdersCreated} need setup, ${run.alreadyPresent} already set`}
             </p>
           </li>
