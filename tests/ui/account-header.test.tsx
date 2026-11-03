@@ -76,7 +76,7 @@ describe("AccountHeader status after an activation change", () => {
       member("active").id,
       false
     )
-    expect(await screen.findByText(/is deactivated/)).toBeTruthy()
+    expect(await screen.findByText(/is inactive\./)).toBeTruthy()
     // The props still say "active": the confirmed status wins until they change.
     expect(statusText()).toEqual(["Inactive"])
     expect(screen.getByRole("button", { name: "Reactivate" })).toBeTruthy()

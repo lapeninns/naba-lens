@@ -1,4 +1,6 @@
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Notice } from "@/components/nabalens/notice"
+
+import { RetryButton } from "./retry-button"
 
 /**
  * Shown when Supabase Auth was too slow or failed while the page rendered
@@ -7,18 +9,16 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
  */
 export function AuthDetailsNotice() {
   return (
-    <Alert
-      variant="warning"
-      role="status"
+    <Notice
+      tone="attention"
       data-testid="auth-details-unavailable"
+      title="Sign-in details are unavailable right now"
+      action={<RetryButton label="Reload" />}
     >
-      <AlertTitle>Sign-in details are unavailable right now</AlertTitle>
-      <AlertDescription>
-        The sign-in service did not respond in time, so email addresses are
-        hidden and people who have not accepted their invitation yet may show as
-        Active. Names, venues and deactivated accounts are up to date. Reload
-        the page to try again.
-      </AlertDescription>
-    </Alert>
+      The sign-in service didn&apos;t respond in time, so email addresses are
+      hidden and people who haven&apos;t accepted their invitation yet may show
+      as Active. Names, venues and deactivated accounts are up to date. Reload
+      the page to try again.
+    </Notice>
   )
 }
