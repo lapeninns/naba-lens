@@ -24,7 +24,7 @@ import { isDepartment, type Department } from "@/lib/config/departments"
 import { cn } from "@/lib/utils"
 
 import { Notice } from "./notice"
-import { OfflineNotice } from "./offline-notice"
+import { OfflineNotice, useOnline } from "./offline-notice"
 import { OptionSelect } from "./option-select"
 import type { Option } from "./types"
 
@@ -167,6 +167,7 @@ function InviteForm({
     venueId: "",
   })
   const [result, setResult] = React.useState<InviteResult | null>(null)
+  const online = useOnline()
   const [localErrors, setLocalErrors] = React.useState<
     Partial<Record<keyof InviteFormValues, string>>
   >({})
@@ -225,13 +226,9 @@ function InviteForm({
             </DialogDescription>
           ) : null}
         </DialogHeader>
-        {sent ? null : (
-          <Notice tone="attention">
-            {name}&apos;s account exists, but the invitation email didn&apos;t
-            go. Close this, then choose Resend invitation in {first}&apos;s More
-            actions menu. Don&apos;t create the account again.
-          </Notice>
-        )}
+        {result.status === "partial" ? (
+          <Notice tone="attention">{result.message}</Notice>
+        ) : null}
         <DialogFooter>
           <Button size="touch" onClick={() => onOpenChange(false)}>
             Close
@@ -314,7 +311,9 @@ function InviteForm({
           admins are added through setup, not here.
         </DialogDescription>
       </DialogHeader>
-      <OfflineNotice />
+      {/* OfflineNotice needs the app router; mount it only when it shows so
+          the dialog still renders outside one. */}
+      {online ? null : <OfflineNotice />}
       {result?.status === "error" && !taken ? (
         <Notice tone="negative">{result.error}</Notice>
       ) : null}
