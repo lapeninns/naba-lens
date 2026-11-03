@@ -181,7 +181,7 @@ test.describe("vertical slice: upload, portfolio, library, download, isolation",
     const viewer = adminPage.getByRole("dialog")
     await expect(viewer.getByText("Venue at upload")).toBeVisible()
     await expect(
-      viewer.getByRole("link", { name: "Open portfolio" })
+      viewer.getByRole("link", { name: "Open profile" })
     ).toHaveAttribute("href", `/admin/staff/${staffA.id}`)
     const [download] = await Promise.all([
       adminPage.waitForEvent("download"),
