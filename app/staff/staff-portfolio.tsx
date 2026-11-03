@@ -4,10 +4,13 @@ import * as React from "react"
 
 import type { Department } from "@/lib/config/departments"
 import {
+  CaretRightIcon,
+  ClipboardTextIcon,
   PencilSimpleIcon,
   SignOutIcon,
   UploadSimpleIcon,
 } from "@phosphor-icons/react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 
 import { logout } from "@/app/_media/actions"
@@ -23,6 +26,7 @@ import {
   type ActionResult,
   type ProfileFormValues,
 } from "@/components/nabalens"
+import { CountBadge } from "@/components/nabalens/status-chip"
 import { Button } from "@/components/ui/button"
 import { MEDIA_LIMITS } from "@/lib/config/media"
 import type { MediaPage } from "@/lib/server/media/types"
@@ -40,6 +44,8 @@ type StaffPortfolioProps = {
   /** Why uploads are paused (no or inactive venue), or null. */
   uploadBlocked: string | null
   initialPage: MediaPage
+  /** Set for an effective venue manager: the way into Manage on phones. */
+  manage?: { venueName: string | null; reviewCount: number } | null
 }
 
 /** Abortable foreground refresh of the own portfolio (see MediaGallery). */
@@ -60,10 +66,53 @@ async function saveProfile(values: ProfileFormValues): Promise<ActionResult> {
   }
 }
 
+/** The Manage row at the top of Me, with the photos waiting for review. */
+function ManageRow({
+  venueName,
+  reviewCount,
+}: {
+  venueName: string | null
+  reviewCount: number
+}) {
+  const hintId = React.useId()
+  const title = venueName ? `Manage ${venueName}` : "Manage"
+  const toReview = `${reviewCount === 1 ? "photo" : "photos"} to review`
+  return (
+    <nav aria-label="Manage" className="grid border-y border-line">
+      <Link
+        href="/staff/manage"
+        aria-label={
+          reviewCount > 0 ? `${title}, ${reviewCount} ${toReview}` : title
+        }
+        aria-describedby={hintId}
+        className="grid min-h-13 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 py-3 text-ink outline-none hover:bg-fill-hover focus-visible:outline-2 focus-visible:outline-focus md:min-h-11"
+      >
+        <ClipboardTextIcon aria-hidden className="size-5 text-ink-muted" />
+        <span className="grid min-w-0">
+          <span className="text-body-touch font-semibold break-words md:text-body">
+            {title}
+          </span>
+          <span
+            id={hintId}
+            className="text-meta-touch text-ink-muted md:text-meta"
+          >
+            Review, checklist, menu and team
+          </span>
+        </span>
+        <span className="flex items-center gap-2 text-ink-muted">
+          <CountBadge count={reviewCount} label={toReview} />
+          <CaretRightIcon aria-hidden className="size-5" />
+        </span>
+      </Link>
+    </nav>
+  )
+}
+
 export function StaffPortfolio({
   profile,
   uploadBlocked,
   initialPage,
+  manage = null,
 }: StaffPortfolioProps) {
   const router = useRouter()
   const uploader = useMediaUploader()
@@ -113,6 +162,12 @@ export function StaffPortfolio({
           </>
         }
       />
+      {manage ? (
+        <ManageRow
+          venueName={manage.venueName}
+          reviewCount={manage.reviewCount}
+        />
+      ) : null}
       {uploadBlocked ? (
         <p
           role="status"
