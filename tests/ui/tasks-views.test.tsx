@@ -45,6 +45,37 @@ afterEach(cleanup)
 const base = tasksView()
 
 describe("TasksOverview", () => {
+  it.each([
+    [1, "1 photo to review"],
+    [3, "3 photos to review"],
+  ])("offers managers a review card for %i", (count, title) => {
+    render(
+      <TasksOverview
+        tasks={base}
+        profile={PROFILE}
+        tasksPath="/staff/tasks"
+        portfolioPath="/staff"
+        reviewCount={count}
+      />
+    )
+    expect(screen.getByRole("heading", { name: title })).toBeTruthy()
+    expect(
+      screen.getByRole("link", { name: "Review photos" }).getAttribute("href")
+    ).toBe("/staff/manage/review")
+  })
+
+  it("shows no review card when nothing waits", () => {
+    render(
+      <TasksOverview
+        tasks={base}
+        profile={PROFILE}
+        tasksPath="/staff/tasks"
+        portfolioPath="/staff"
+      />
+    )
+    expect(screen.queryByRole("link", { name: "Review photos" })).toBeNull()
+  })
+
   it("shows Needs setup for a missing team and never reads as complete", () => {
     const view = tasksView({
       scope: { ...base.scope, setup: { complete: false, missing: ["team"] } },
