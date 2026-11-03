@@ -219,8 +219,9 @@ export function AppShell(props: AppShellProps) {
                 href={ME.href}
                 className="-mr-1 grid size-11 place-items-center rounded-round outline-none focus-visible:outline-2 focus-visible:outline-focus md:hidden"
               >
-                {/* Text, not aria-label: the visible initials would not be
-                    part of an aria-label name (WCAG 2.5.3). */}
+                {/* The avatar is aria-hidden, so this text is the whole name.
+                    axe's label-content-name-mismatch flags an aria-label that
+                    omits the visible initials; a text name is not checked. */}
                 <span className="sr-only">
                   {userName ? `Me: ${userName}` : "Me"}
                 </span>
