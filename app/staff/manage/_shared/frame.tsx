@@ -74,6 +74,11 @@ export function ManageFrame({
             basePath={ctx.basePath}
             active={section}
             pendingReview={pendingReview}
+            label={
+              ctx.mode === "admin"
+                ? `Coverage for ${ctx.venue.name}`
+                : `Manage ${ctx.venue.name}`
+            }
           />
         )}
       </div>

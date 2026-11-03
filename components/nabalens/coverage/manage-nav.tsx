@@ -1,6 +1,4 @@
-import Link from "next/link"
-
-import { cn } from "@/lib/utils"
+import { SectionTabs } from "../section-tabs"
 
 export type ManageSection =
   "overview" | "review" | "checklist" | "menu" | "team"
@@ -29,44 +27,34 @@ export function manageHrefs(basePath: string) {
 
 export type ManageHrefs = ReturnType<typeof manageHrefs>
 
-/** Sub-navigation between a venue's coverage tools. */
+/**
+ * The same five views, order and words for a manager and an admin. `label`
+ * names the scope: "Manage The Railway" or "Coverage for The Railway".
+ */
 export function ManageNav({
   basePath,
   active,
   pendingReview,
+  label = "Venue tools",
 }: {
   basePath: string
   active: ManageSection
   pendingReview?: number
+  label?: string
 }) {
   return (
-    <nav aria-label="Venue coverage" className="border-b">
-      <ul className="flex flex-wrap gap-x-1">
-        {SECTIONS.map((section) => {
-          const current = section.id === active
-          return (
-            <li key={section.id}>
-              <Link
-                href={`${basePath}${section.path}`}
-                aria-current={current ? "page" : undefined}
-                className={cn(
-                  "inline-flex h-11 items-center gap-2 border-b-2 border-transparent px-3 text-sm font-medium text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 sm:h-10",
-                  current && "border-primary text-foreground"
-                )}
-              >
-                {section.label}
-                {section.id === "review" && pendingReview ? (
-                  <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs text-primary-foreground tabular-nums">
-                    <span className="sr-only">, </span>
-                    {pendingReview}
-                    <span className="sr-only"> to review</span>
-                  </span>
-                ) : null}
-              </Link>
-            </li>
-          )
-        })}
-      </ul>
-    </nav>
+    <SectionTabs
+      label={label}
+      active={active}
+      tabs={SECTIONS.map((section) => ({
+        id: section.id,
+        label: section.label,
+        href: `${basePath}${section.path}`,
+        count:
+          section.id === "review" && pendingReview
+            ? { value: pendingReview, label: "to review" }
+            : undefined,
+      }))}
+    />
   )
 }
