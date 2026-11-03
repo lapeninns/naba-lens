@@ -7,6 +7,7 @@ import { CountBadge } from "../status-chip"
 import type { MediaItem } from "../types"
 import { AssignmentList } from "./assignment-list"
 import { ColleaguePosts } from "./colleague-posts"
+import { FirstRunEntry } from "./first-run-entry"
 import { MonthlyProgressCard } from "./monthly-progress-card"
 import { todoItems, TodoSection } from "./todo-list"
 import type { CoverageScope, MyTasksView } from "./types"
@@ -45,6 +46,7 @@ export function TasksOverview({
   colleagues = [],
   photosPath = "/staff/community",
   peoplePath = "/staff/people",
+  welcomeHref = null,
 }: {
   tasks: MyTasksView
   profile: {
@@ -62,6 +64,8 @@ export function TasksOverview({
   colleagues?: MediaItem[]
   photosPath?: string
   peoplePath?: string
+  /** The first-run screen, offered to new starters; null to hide it. */
+  welcomeHref?: string | null
 }) {
   const { scope, period, monthly, assignments, needsAnotherPhoto } = tasks
   const blocked = submitBlockedCopy(scope)
@@ -83,6 +87,8 @@ export function TasksOverview({
           {sentNotice(justSent)}
         </Notice>
       ) : null}
+
+      {welcomeHref ? <FirstRunEntry href={welcomeHref} /> : null}
 
       {blocked && scope.venue ? <Notice role="status">{blocked}</Notice> : null}
 

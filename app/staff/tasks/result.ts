@@ -27,3 +27,4 @@ export function unwrap<T extends object>(result: CoverageResult<T>): T {
 
 export const TASKS_PATH = "/staff/tasks"
 export const PORTFOLIO_PATH = ROUTES.staffHome
+export const WELCOME_PATH = "/staff/tasks/welcome"

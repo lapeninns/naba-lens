@@ -1,9 +1,13 @@
+import { cookies } from "next/headers"
+
 import { logout } from "@/app/_media/actions"
 import { AppShell } from "@/components/nabalens/app-shell"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
 import {
   TasksOverview,
   todoCount,
+  FIRST_RUN_COOKIE,
+  isNewStarter,
   todoItems,
   type JustSent,
 } from "@/components/nabalens/tasks"
@@ -13,7 +17,7 @@ import { listCommunityMedia } from "@/lib/server/community"
 import { avatarUrl } from "@/lib/server/media/library"
 import { getMediaActor } from "@/lib/server/media/context"
 
-import { PORTFOLIO_PATH, TASKS_PATH, unwrap } from "./result"
+import { WELCOME_PATH, PORTFOLIO_PATH, TASKS_PATH, unwrap } from "./result"
 
 export const metadata = { title: "Home · Naba-Lens" }
 
@@ -59,6 +63,8 @@ export default async function TasksPage({
     searchParams,
   ])
 
+  const seenWelcome = (await cookies()).has(FIRST_RUN_COOKIE)
+
   const justSent = parseJustSent(
     params,
     (id) =>
@@ -89,6 +95,7 @@ export default async function TasksPage({
         portfolioPath={PORTFOLIO_PATH}
         justSent={justSent}
         colleagues={colleagues}
+        welcomeHref={!seenWelcome && isNewStarter(tasks) ? WELCOME_PATH : null}
       />
     </AppShell>
   )

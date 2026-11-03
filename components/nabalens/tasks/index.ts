@@ -19,6 +19,8 @@ export {
 export { PhotoPicker } from "./photo-picker"
 export { FIRST_RUN_COOKIE, isNewStarter } from "./first-run-state"
 export { FirstRun, setupGaps } from "./first-run"
+export { FIRST_RUN_COOKIE, isNewStarter } from "./first-run-state"
+export { FirstRun, setupGaps } from "./first-run"
 export { intentKey, useRequestIntent } from "./request-intent"
 export { SetupChecklist } from "./setup-checklist"
 export {

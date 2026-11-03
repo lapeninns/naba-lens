@@ -42,6 +42,7 @@ const ALLOWED_PAGES = new Set([
   "/staff/tasks",
   "/staff/tasks/[requirementId]",
   "/staff/tasks/month",
+  "/staff/tasks/welcome",
   "/admin",
   "/admin/staff",
   "/admin/staff/[id]",
