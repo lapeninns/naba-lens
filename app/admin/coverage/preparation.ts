@@ -1,9 +1,12 @@
 import { formatTime } from "@/components/nabalens/format"
 import type {
+  CoverageResult,
   CoverageVenue,
   GroupOverviewRow,
+  Page,
   PeriodView,
   PreparationRunView,
+  PreparationStatusView,
 } from "@/lib/server/coverage/types"
 
 export type PreparationEntry = {
@@ -17,6 +20,8 @@ export type VenuePreparation = {
   state: "prepared" | "not_prepared" | "didnt_finish"
   /** The entry that prepared the venue, from the same list as Recent runs. */
   preparedBy: PreparationEntry | null
+  /** `preparedBy`'s time, else the venue's latest run when history ran out. */
+  preparedAt: string | null
   staff: number
   withTarget: number
   staffWithoutTarget: number
@@ -39,6 +44,52 @@ export type PreparationModel = {
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000
 
+/**
+ * Hourly runs add about 744 rows a month, 31 pages of 24; the cap leaves room
+ * for manual runs while bounding a page render.
+ */
+export const RUN_PAGE_LIMIT = 40
+
+export type PeriodRuns = {
+  /** Every run that finished since `startsAt`, newest first. */
+  runs: PreparationRunView[]
+  /** The first page as served, for the full paged history. */
+  firstPage: Page<PreparationRunView>
+  /** False when the page cap stopped paging before `startsAt`. */
+  complete: boolean
+}
+
+/**
+ * Pages the newest-first run list until it passes the start of the period, so
+ * a month of hourly runs can't push the run that prepared a venue off the page.
+ */
+export async function loadPeriodRuns(
+  load: (
+    cursor: string | null
+  ) => Promise<CoverageResult<Page<PreparationRunView>>>,
+  startsAt: string,
+  maxPages = RUN_PAGE_LIMIT
+): Promise<CoverageResult<PeriodRuns>> {
+  const start = new Date(startsAt).getTime()
+  const runs: PreparationRunView[] = []
+  let firstPage: Page<PreparationRunView> = { items: [], nextCursor: null }
+  let cursor: string | null = null
+  for (let page = 0; page < maxPages; page++) {
+    const result = await load(cursor)
+    if (!result.ok) return result
+    if (page === 0)
+      firstPage = { items: result.items, nextCursor: result.nextCursor }
+    for (const run of result.items) {
+      if (new Date(run.finishedAt).getTime() < start)
+        return { ok: true, runs, firstPage, complete: true }
+      runs.push(run)
+    }
+    if (!result.nextCursor) return { ok: true, runs, firstPage, complete: true }
+    cursor = result.nextCursor
+  }
+  return { ok: true, runs, firstPage, complete: false }
+}
+
 const did = (run: PreparationRunView) =>
   run.targetsCopied + run.placeholdersCreated + run.candidatesAdded > 0
 
@@ -50,16 +101,30 @@ const covers = (run: PreparationRunView, venueId: string) =>
  * so a venue's "Prepared" time is always a run Recent runs shows. Runs record
  * counts, not venues: a venue is credited to the earliest run covering it
  * that changed something, else the earliest covering success.
+ *
+ * Each venue's state comes from the overview's `lastPreparation`, and the
+ * month's success and last run also read the overview's status, so they hold
+ * even when the run history is incomplete.
  */
 export function buildPreparation(
   rows: GroupOverviewRow[],
   runs: PreparationRunView[],
   period: PeriodView,
-  now: Date
+  now: Date,
+  overview: {
+    status?: PreparationStatusView | null
+    recentFailures?: PreparationRunView[]
+    /** False when `runs` may not reach back to the start of the period. */
+    complete?: boolean
+  } = {}
 ): PreparationModel {
-  const oldestFirst = runs
-    .filter((run) => run.period === period.key)
-    .sort((a, b) => a.finishedAt.localeCompare(b.finishedAt))
+  const byId = new Map<string, PreparationRunView>()
+  for (const run of [...runs, ...(overview.recentFailures ?? [])])
+    if (run.period === period.key) byId.set(run.id, run)
+  const oldestFirst = [...byId.values()].sort(
+    (a, b) =>
+      a.finishedAt.localeCompare(b.finishedAt) || a.id.localeCompare(b.id)
+  )
   const entries: PreparationEntry[] = oldestFirst.map((run) => ({
     run,
     prepared: [],
@@ -76,15 +141,23 @@ export function buildPreparation(
     const covering = entries.filter(
       (e) => e.run.status === "succeeded" && covers(e.run, row.venue.id)
     )
+    // The earliest visible success is only the first of the month when the
+    // history is complete; otherwise the venue's latest run is the honest time.
     const preparedBy =
       state === "prepared"
-        ? (covering.find((e) => did(e.run)) ?? covering[0] ?? null)
+        ? (covering.find((e) => did(e.run)) ??
+          (overview.complete === false ? null : covering[0]) ??
+          null)
         : null
     preparedBy?.prepared.push(row.venue)
     return {
       venue: row.venue,
       state,
       preparedBy,
+      preparedAt:
+        state === "prepared"
+          ? (preparedBy?.run.finishedAt ?? row.lastPreparation?.at ?? null)
+          : null,
       staff,
       withTarget: staff - staffWithoutTarget,
       staffWithoutTarget,
@@ -102,7 +175,17 @@ export function buildPreparation(
       new Date(e.run.finishedAt).getTime() >= since &&
       (e.run.status === "failed" || e.prepared.length > 0)
   )
-  const lastSuccess = newestFirst.find((e) => e.run.status === "succeeded")
+  const status =
+    overview.status?.period.key === period.key ? overview.status : null
+  const succeeded =
+    !!status?.lastSuccessAt ||
+    rows.some((row) => row.lastPreparation?.status === "succeeded") ||
+    newestFirst.some((e) => e.run.status === "succeeded")
+  const lastRunAt = latest([
+    status?.lastRunAt,
+    newestFirst[0]?.run.finishedAt,
+    ...rows.map((row) => row.lastPreparation?.at),
+  ])
 
   return {
     entries: newestFirst,
@@ -111,9 +194,23 @@ export function buildPreparation(
     recentSince: new Date(since).toISOString(),
     unprepared: venues.filter((v) => v.state === "not_prepared"),
     unfinished: venues.filter((v) => v.state === "didnt_finish"),
-    noSuccessThisMonth: !lastSuccess,
-    lastRunAt: newestFirst[0]?.run.finishedAt ?? null,
+    noSuccessThisMonth: !succeeded,
+    lastRunAt,
   }
+}
+
+function latest(times: (string | null | undefined)[]): string | null {
+  let best: string | null = null
+  let bestMs = -Infinity
+  for (const time of times) {
+    if (!time) continue
+    const ms = new Date(time).getTime()
+    if (ms > bestMs) {
+      best = time
+      bestMs = ms
+    }
+  }
+  return best
 }
 
 /** Failed runs that touched a venue that didn't finish, newest first. */

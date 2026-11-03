@@ -120,6 +120,8 @@ export const PREPARATION_COPY = {
   noTarget: "no target",
   targetNotCopied: "target not copied",
   allVenuesScope: "All venues",
+  // Not in the copy deck yet: A17 has no way into the full run history.
+  seeAllRuns: "See all runs",
 } as const
 
 /*
@@ -149,7 +151,6 @@ export const VENUE_COVERAGE_COPY = {
 export const SELF_REVIEWS_COPY = {
   title: "Self-reviews",
   body: "Decisions venue managers made on their own photos. Self-review is allowed; it's recorded here so admins can see it.",
-  emptyTitle: (periodLabel: string) =>
-    `No self-reviews in ${periodLabel}.`,
+  emptyTitle: (periodLabel: string) => `No self-reviews in ${periodLabel}.`,
   emptyText: "When a manager reviews their own photo, it's listed here.",
 } as const

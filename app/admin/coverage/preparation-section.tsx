@@ -1,10 +1,15 @@
-import { CheckIcon } from "@phosphor-icons/react/dist/ssr"
+import { CaretRightIcon, CheckIcon } from "@phosphor-icons/react/dist/ssr"
 
+import { PreparationRunsControl } from "@/app/staff/manage/_shared/controls"
 import { formatDate } from "@/components/nabalens/format"
 import { formatDateTime } from "@/components/nabalens/menus/copy"
 import { Notice } from "@/components/nabalens/notice"
 import { StatusChip } from "@/components/nabalens/status-chip"
-import type { PeriodView } from "@/lib/server/coverage/types"
+import type {
+  Page,
+  PeriodView,
+  PreparationRunView,
+} from "@/lib/server/coverage/types"
 
 import { SectionHead } from "./coverage-sections"
 import {
@@ -57,12 +62,12 @@ function MonthState({ venue }: { venue: VenuePreparation }) {
   }
   if (venue.state === "not_prepared") {
     return (
-      <StatusChip state="needs_setup">{PREPARATION_COPY.notPrepared}</StatusChip>
+      <StatusChip state="needs_setup">
+        {PREPARATION_COPY.notPrepared}
+      </StatusChip>
     )
   }
-  const at = venue.preparedBy
-    ? formatDateTime(venue.preparedBy.run.finishedAt)
-    : null
+  const at = venue.preparedAt ? formatDateTime(venue.preparedAt) : null
   return (
     <span className="inline-flex items-center gap-1.5">
       <CheckIcon aria-hidden className="size-4 shrink-0 text-positive" />
@@ -88,11 +93,14 @@ export function PreparationSection({
   model,
   period,
   venueNames,
+  allRuns,
   primary,
 }: {
   model: PreparationModel
   period: PeriodView
   venueNames: Record<string, string>
+  /** First page of every run, any month, for See all runs. */
+  allRuns: Page<PreparationRunView>
   /** The page header already offers Prepare this month. */
   primary: boolean
 }) {
@@ -173,10 +181,7 @@ export function PreparationSection({
           note={PREPARATION_COPY.venuesNote}
         />
         <div className="overflow-x-auto rounded-panel border border-line">
-          <table
-            aria-label={PREPARATION_COPY.venuesTable}
-            className={TABLE}
-          >
+          <table aria-label={PREPARATION_COPY.venuesTable} className={TABLE}>
             <thead className="border-b border-line">
               <tr>
                 <th scope="col" className={TH}>
@@ -236,10 +241,7 @@ export function PreparationSection({
           </p>
         ) : (
           <div className="overflow-x-auto rounded-panel border border-line">
-            <table
-              aria-label={PREPARATION_COPY.recentRuns}
-              className={TABLE}
-            >
+            <table aria-label={PREPARATION_COPY.recentRuns} className={TABLE}>
               <thead className="border-b border-line">
                 <tr>
                   <th scope="col" className={TH}>
@@ -289,6 +291,18 @@ export function PreparationSection({
             </table>
           </div>
         )}
+        <details id="all-runs" className="group">
+          <summary className="flex min-h-11 w-fit cursor-pointer list-none items-center gap-1.5 text-body-touch text-ink underline underline-offset-3 md:min-h-0 md:text-body-sm [&::-webkit-details-marker]:hidden">
+            <CaretRightIcon
+              aria-hidden
+              className="size-4 shrink-0 transition-transform group-open:rotate-90 motion-reduce:transition-none"
+            />
+            {PREPARATION_COPY.seeAllRuns}
+          </summary>
+          <div className="pt-3">
+            <PreparationRunsControl initial={allRuns} venueNames={venueNames} />
+          </div>
+        </details>
       </div>
     </section>
   )
