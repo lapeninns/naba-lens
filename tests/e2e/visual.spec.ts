@@ -929,7 +929,7 @@ test("admin: library and filters", async ({ browser, baseURL }, testInfo) => {
   })
   await page.getByRole("option", { name: fx.venue.name }).click()
   await expect(page).toHaveURL(/venue=/)
-  await page.getByRole("button", { name: "Videos" }).click()
+  await page.getByRole("button", { name: "Videos", exact: true }).click()
   await expect(page).toHaveURL(/type=video/)
   await expect(
     page.getByRole("button", { name: /kitchen-pass\.mp4/ })

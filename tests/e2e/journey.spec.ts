@@ -206,7 +206,7 @@ test.describe("release journey @core", () => {
     await expect(adminB).toHaveURL(new RegExp(`staff=${inviteeId}`))
     await adminB
       .getByRole("group", { name: "Media type" })
-      .getByRole("button", { name: "Photos" })
+      .getByRole("button", { name: "Photos", exact: true })
       .click()
     await expect(adminB).toHaveURL(/type=image/)
     await expect(adminB).toHaveURL(new RegExp(`venue=${venue1.id}`))
@@ -243,7 +243,7 @@ test.describe("release journey @core", () => {
     await downloadFrom("Photo", heic)
     await adminB
       .getByRole("group", { name: "Media type" })
-      .getByRole("button", { name: "Videos" })
+      .getByRole("button", { name: "Videos", exact: true })
       .click()
     await expect(adminB).toHaveURL(/type=video/)
     await expect(library.getByRole("button")).toHaveCount(1)

@@ -791,7 +791,7 @@ test("rows 12+13: label filters combine with venue/staff/type, search and dates;
       .click()
     await admin
       .getByRole("group", { name: "Media type" })
-      .getByRole("button", { name: "Photos" })
+      .getByRole("button", { name: "Photos", exact: true })
       .click()
     await expect(admin).toHaveURL(new RegExp(`item=${onion}`))
     await expect(tiles).toHaveCount(24)
@@ -809,7 +809,7 @@ test("rows 12+13: label filters combine with venue/staff/type, search and dates;
   await test.step("+ content type Preparation, all types: the 2 videos", async () => {
     await admin
       .getByRole("group", { name: "Media type" })
-      .getByRole("button", { name: "All" })
+      .getByRole("button", { name: "Photos and videos", exact: true })
       .click()
     await chooseOption(admin, admin, "Content type", "Preparation")
     await expect(tiles).toHaveCount(2)
@@ -844,7 +844,7 @@ test("rows 12+13: label filters combine with venue/staff/type, search and dates;
     await admin
       .getByRole("searchbox", { name: "Search labels and notes" })
       .fill("crispy batter")
-    await admin.getByRole("button", { name: "Search", exact: true }).click()
+    await admin.getByRole("button", { name: "Apply filters" }).click()
     await expect(tiles).toHaveCount(1)
     await unique(1, new RegExp(`^Photo, qa-lib-b-img-${t}-01\\.jpg`))
     await admin.goto(`/admin?venue=${v1}&q=${encodeURIComponent("Momo")}`)
