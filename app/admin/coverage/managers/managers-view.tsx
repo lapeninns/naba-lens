@@ -237,7 +237,7 @@ export function ManagersView({
               type="submit"
               variant="primary"
               size="touch"
-              className="md:mt-[26px]"
+              className="md:mt-6.5"
               disabled={action.pending}
               aria-busy={action.pending || undefined}
             >
@@ -341,7 +341,6 @@ export function ManagersView({
                               <Button
                                 variant="ghost"
                                 size="icon-lg"
-                                className="size-11 sm:size-9"
                                 disabled={action.pending}
                                 aria-label={MANAGERS_COPY.moreActions(
                                   g.staff.displayName
