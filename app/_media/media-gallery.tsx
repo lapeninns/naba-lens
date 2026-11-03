@@ -40,6 +40,8 @@ type MediaGalleryProps = {
   refreshPage?: RefreshPage
   /** Shown when there is nothing to list. */
   empty: React.ReactNode
+  /** A line above the grid given how many are shown, e.g. "Showing 24". */
+  summary?: (shownCount: number) => React.ReactNode
   showAttribution?: boolean
   getDownloadHref?: (item: MediaItem) => string
   getPortfolioHref?: (item: MediaItem) => string
@@ -111,6 +113,7 @@ export function MediaGallery({
   loadPage,
   refreshPage,
   empty,
+  summary,
   showAttribution = false,
   getDownloadHref,
   getPortfolioHref,
@@ -347,6 +350,7 @@ export function MediaGallery({
           </Button>
         </div>
       ) : null}
+      {items.length > 0 && summary ? summary(items.length) : null}
       {items.length === 0 ? (
         empty
       ) : (
