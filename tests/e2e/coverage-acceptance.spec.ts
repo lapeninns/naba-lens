@@ -906,7 +906,9 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
       .filter({ hasText: title })
     await expect(listed.getByText("Overdue", { exact: true })).toBeVisible()
     await staffPage.goto(`/staff/tasks/${task}`)
-    await expect(staffPage.getByText("Overdue", { exact: true })).toBeVisible()
+    const taskPage = staffPage.getByRole("main")
+    const overdue = taskPage.getByText("Overdue", { exact: true })
+    await expect(overdue).toBeVisible()
     await expect(
       staffPage.getByRole("button", { name: "Take a photo" })
     ).toBeEnabled()
@@ -926,7 +928,8 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
     await accept(manager, sent!)
     expect(await progress()).toMatchObject({ overdue: false, satisfied: true })
     await staffPage.reload()
-    await expect(staffPage.getByText("Overdue", { exact: true })).toHaveCount(0)
+    await expect(taskPage.getByRole("heading", { name: title, level: 1 })).toBeVisible()
+    await expect(overdue).toHaveCount(0)
     await staffPage.context().close()
   })
 

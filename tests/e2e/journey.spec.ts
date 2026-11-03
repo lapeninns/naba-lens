@@ -103,7 +103,8 @@ test.describe("release journey @core", () => {
     await expect(
       staff.getByRole("heading", { name: inviteeName })
     ).toBeVisible()
-    await expect(staff.getByText(venue1.name)).toBeVisible()
+    const profile = staff.getByRole("region", { name: "Profile" })
+    await expect(profile.getByText(venue1.name)).toBeVisible()
     await expect(
       staff.getByText("Your profile starts here.", { exact: false })
     ).toBeVisible()
