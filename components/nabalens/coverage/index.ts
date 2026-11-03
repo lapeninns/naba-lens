@@ -12,6 +12,12 @@ export { PhotoProgress } from "./photo-progress"
 export { ReasonDialog, ReasonField, textareaClass } from "./reason-dialog"
 export { RequirementList } from "./requirement-list"
 export {
+  CHECKLIST_KIND_ORDER,
+  ChecklistBody,
+  RequirementChip,
+  requirementIssues,
+} from "./checklist-body"
+export {
   RequirementSetup,
   hasEditableTitle,
   type RevisionResult,
@@ -43,6 +49,7 @@ export {
   TeamPerson,
   TeamRoster,
   TeamTag,
+  bySurname,
   monthName,
   rosterOrder,
   targetReasonRequired,

@@ -196,13 +196,16 @@ export function AttachPhotosControl({
 export function NewRequirementControl({
   venueId,
   basePath,
+  label,
 }: {
   venueId: string
   basePath: string
+  label?: string
 }) {
   const router = useRouter()
   return (
     <NewRequirementDialog
+      triggerLabel={label}
       onCreate={(input) => createRequirementAction({ ...input, venueId })}
       onCreated={(id) => router.push(manageHrefs(basePath).requirement(id))}
     />

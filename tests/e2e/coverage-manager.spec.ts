@@ -213,7 +213,9 @@ test.describe("coverage: manager and admin journeys (WS5)", () => {
     // Checklist: the first save's answer is lost on the way back; the
     // retry reuses the request id and opens the one item that exists.
     await manager.goto("/staff/manage/checklist")
-    await manager.getByRole("button", { name: "Add a checklist item" }).click()
+    await manager
+      .getByRole("button", { name: "Add a venue-specific item" })
+      .click()
     const add = manager.getByRole("dialog", { name: "Add a checklist item" })
     const title = `WS5 cellar door ${w.tag}`
     await add.getByLabel("Title").fill(title)

@@ -1,6 +1,10 @@
-import Link from "next/link"
-
-import { RequirementList, manageHrefs } from "@/components/nabalens/coverage"
+import {
+  ChecklistBody,
+  manageHrefs,
+  monthName,
+} from "@/components/nabalens/coverage"
+import { formatDate } from "@/components/nabalens/format"
+import { getMenuCoverage } from "@/lib/server/coverage"
 
 import { venueCoverage, type ManageContext } from "../context"
 import { NewRequirementControl } from "../controls"
@@ -12,38 +16,41 @@ export async function ChecklistScreen({ ctx }: { ctx: ManageContext }) {
   const coverage = await venueCoverage(ctx)
   const hrefs = manageHrefs(ctx.basePath)
   const requirements = coverage.requirements.filter(onChecklist)
-  const { summary } = coverage
+  const { summary, period } = coverage
+
+  const menuChanged =
+    summary.menuState === "menu_changed" ||
+    summary.menuState === "reconciliation_pending"
+  let menuChange: { changedOn: string | null } | null = null
+  if (menuChanged) {
+    const menu = await getMenuCoverage(ctx.actor, { venueId: ctx.venueId })
+    const activated = menu.ok ? menu.menu.activeVersion?.activatedAt : null
+    menuChange = { changedOn: activated ? formatDate(activated) : null }
+  }
 
   return (
     <ManageFrame
       ctx={ctx}
       section="checklist"
       title="Checklist"
-      summary="Venue areas, services, amenities and confirmed menu sections, each with a photo target. Template items are suggestions until you confirm they apply; items that do not apply keep their reason and are not counted."
+      summary={`Every item ${ctx.venue.name} photographs this month. Items needing setup come first. Not applicable and retired items stay listed and aren't counted.`}
       pendingReview={summary.pendingReview}
     >
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm">
-          <span className="font-medium">
-            {summary.satisfied} of {summary.applicable}
-          </span>{" "}
-          applicable items complete · {summary.needsSetup} need setup ·{" "}
-          {summary.notApplicable} not applicable
-        </p>
-        <NewRequirementControl venueId={ctx.venueId} basePath={ctx.basePath} />
-      </div>
-      <RequirementList
+      <ChecklistBody
+        venueName={ctx.venue.name}
+        month={monthName(period.label)}
+        summary={summary}
         requirements={requirements}
-        hrefFor={hrefs.requirement}
-        emptyTitle="No checklist items yet. Prepare this month on the overview to add the standard items."
+        hrefs={hrefs}
+        menuChange={menuChange}
+        addItem={
+          <NewRequirementControl
+            venueId={ctx.venueId}
+            basePath={ctx.basePath}
+            label="Add a venue-specific item"
+          />
+        }
       />
-      <p className="text-sm text-muted-foreground">
-        Menu sections join the checklist when you confirm menu coverage on the{" "}
-        <Link href={hrefs.menu} className="underline underline-offset-3">
-          Menu
-        </Link>{" "}
-        page.
-      </p>
     </ManageFrame>
   )
 }

@@ -96,20 +96,21 @@ function surname(name: string): string {
   return parts[parts.length - 1] ?? name
 }
 
+/** A to Z by surname, ties by the whole name. */
+export function bySurname(a: string, b: string): number {
+  const options = { sensitivity: "base" } as const
+  return (
+    surname(a).localeCompare(surname(b), "en-GB", options) ||
+    a.localeCompare(b, "en-GB", options)
+  )
+}
+
 /** Needs setup first, then A to Z by surname; never by progress. */
 export function rosterOrder(a: MonthlyProgress, b: MonthlyProgress): number {
   const setup =
     Number(b.status === "needs_setup") - Number(a.status === "needs_setup")
   if (setup !== 0) return setup
-  const options = { sensitivity: "base" } as const
-  return (
-    surname(a.person.displayName).localeCompare(
-      surname(b.person.displayName),
-      "en-GB",
-      options
-    ) ||
-    a.person.displayName.localeCompare(b.person.displayName, "en-GB", options)
-  )
+  return bySurname(a.person.displayName, b.person.displayName)
 }
 
 /** Where the target came from, in the row's own words. */
