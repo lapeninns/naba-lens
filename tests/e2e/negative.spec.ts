@@ -280,7 +280,7 @@ test.describe("release negatives", () => {
     const seen3 = await mailboxIds(email)
     await respectSendInterval(email)
     await third.getByLabel("Email").fill(email)
-    await third.getByRole("button", { name: "Send sign-in link" }).click()
+    await third.getByRole("button", { name: "Send a new link" }).click()
     await expect(
       third.getByRole("heading", { name: "Check your email" })
     ).toBeVisible()
