@@ -79,7 +79,8 @@ export const PREPARATION_COPY = {
   venuesNote: "Need setup: active staff with no target, team or venue",
   venuesTable: "Preparation by venue",
   recentRuns: "Recent runs",
-  recentRunsNote: "Last 7 days · runs that prepared a venue or failed",
+  // Not in the copy deck yet: all-venues top-ups are listed too.
+  recentRunsNote: "Last 7 days · runs that prepared something or failed",
   noRecentRuns: (since: string) =>
     `No runs have prepared anything since ${since}.`,
   columns: {
@@ -115,11 +116,24 @@ export const PREPARATION_COPY = {
       .join(" · "),
   venuesPrepared: (venues: string[]) =>
     `${plural(venues.length, "venue")} prepared: ${venues.join(", ")}`,
+  // Not in the copy deck yet: an all-venues run records counts, not venues.
+  runCounts: (copied: number, needSetup: number, items: number) =>
+    [
+      copied ? `${plural(copied, "target")} copied` : null,
+      needSetup
+        ? `${needSetup} ${needSetup === 1 ? "needs" : "need"} setup`
+        : null,
+      items ? `${plural(items, "checklist item")} added` : null,
+    ]
+      .filter(Boolean)
+      .join(", "),
   needSetupDetail: (count: number, why: string | null) =>
     why && count > 0 ? `${count} · ${why}` : String(count),
   noTarget: "no target",
   targetNotCopied: "target not copied",
   allVenuesScope: "All venues",
+  // Not in the copy deck yet: A17 has no way into the full run history.
+  seeAllRuns: "See all runs",
 } as const
 
 /*
@@ -133,6 +147,11 @@ export function failureWords(errorCode: string | null): string {
   return errorCode && CONFLICT_CODES.has(errorCode)
     ? "a target was changed while preparing. Run it again."
     : "preparation stopped before it finished. Run it again."
+}
+
+/** The code shown after the words: the deck's name for a conflict, else the SQLSTATE. */
+export function failureCode(errorCode: string): string {
+  return CONFLICT_CODES.has(errorCode) ? "PREP_TARGET_CONFLICT" : errorCode
 }
 
 /** A18: one venue's coverage inside the admin shell. */
@@ -149,7 +168,6 @@ export const VENUE_COVERAGE_COPY = {
 export const SELF_REVIEWS_COPY = {
   title: "Self-reviews",
   body: "Decisions venue managers made on their own photos. Self-review is allowed; it's recorded here so admins can see it.",
-  emptyTitle: (periodLabel: string) =>
-    `No self-reviews in ${periodLabel}.`,
+  emptyTitle: (periodLabel: string) => `No self-reviews in ${periodLabel}.`,
   emptyText: "When a manager reviews their own photo, it's listed here.",
 } as const

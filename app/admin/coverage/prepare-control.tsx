@@ -69,7 +69,7 @@ export function PrepareProvider({
       if (failed) {
         setNotice({
           tone: "error",
-          text: `Preparation didn't finish: ${failureWords(failed.errorCode)} ${PREPARATION_COPY.safeToRepeat}`,
+          text: `${PREPARATION_COPY.allVenuesScope}: ${failureWords(failed.errorCode)} ${PREPARATION_COPY.safeToRepeat}`,
         })
       }
     })()

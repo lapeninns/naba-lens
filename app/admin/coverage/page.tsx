@@ -21,7 +21,11 @@ import {
   listPreparationRuns,
   listSelfReviews,
 } from "@/lib/server/coverage"
-import { isPeriodKey, periodKeyOf } from "@/lib/server/coverage/time"
+import {
+  isPeriodKey,
+  periodKeyOf,
+  periodView,
+} from "@/lib/server/coverage/time"
 
 import {
   COVERAGE_COPY,
@@ -36,7 +40,7 @@ import {
   Tallies,
   VenueList,
 } from "./coverage-sections"
-import { buildPreparation } from "./preparation"
+import { buildPreparation, loadPeriodRuns, runsSince } from "./preparation"
 import { PreparationSection } from "./preparation-section"
 import {
   PrepareButton,
@@ -65,18 +69,36 @@ export default async function CoverageOverviewPage({
       : current
   const auth = await getCoverageActor()
   if (!auth.ok) unexpected(auth)
+  const isCurrent = period === current
+  const actor = auth.actor
+  const now = new Date()
+  const view = periodView(period)
+  const since = runsSince(view, now)
   const [overview, selfReviews, runs] = await Promise.all([
-    getGroupOverview(auth.actor, { period }),
-    listSelfReviews(auth.actor, { period }),
-    listPreparationRuns(auth.actor, {}),
+    getGroupOverview(actor, { period }),
+    listSelfReviews(actor, { period }),
+    // Past months hide Monthly preparation, so only this month reads runs.
+    isCurrent
+      ? loadPeriodRuns(
+          (cursor) => listPreparationRuns(actor, cursor ? { cursor } : {}),
+          since
+        )
+      : Promise.resolve({
+          ok: true as const,
+          runs: [],
+          firstPage: { items: [], nextCursor: null },
+          complete: true,
+        }),
   ])
   if (!overview.ok) unexpected(overview)
   if (!selfReviews.ok) unexpected(selfReviews)
   if (!runs.ok) unexpected(runs)
   const { venues, preparation } = overview
-  const isCurrent = period === current
   const month = monthName(overview.period.label)
-  const model = buildPreparation(venues, runs.items, overview.period, new Date())
+  const model = buildPreparation(venues, runs.runs, overview.period, now, {
+    ...preparation,
+    complete: runs.complete && since === view.startsAt,
+  })
   const venueNames = Object.fromEntries(
     venues.map((row) => [row.venue.id, row.venue.name])
   )
@@ -87,7 +109,7 @@ export default async function CoverageOverviewPage({
       model.unfinished.length > 0 ||
       model.noSuccessThisMonth)
   const prepared = model.venues.filter((v) => v.state === "prepared").length
-  const lastRunAt = preparation.status?.lastRunAt ?? model.lastRunAt
+  const lastRunAt = model.lastRunAt
   const selfReviewCount = venues.reduce((n, row) => n + row.selfReviews, 0)
   const unpreparedNames = model.unprepared.map((v) => v.venue.name)
 
@@ -110,7 +132,10 @@ export default async function CoverageOverviewPage({
           <>
             <Link
               href="/admin/coverage/managers"
-              className={buttonVariants({ variant: "secondary", size: "touch" })}
+              className={buttonVariants({
+                variant: "secondary",
+                size: "touch",
+              })}
             >
               <ShieldCheckIcon aria-hidden />
               {COVERAGE_COPY.venueManagers}
@@ -216,6 +241,7 @@ export default async function CoverageOverviewPage({
                   model={model}
                   period={overview.period}
                   venueNames={venueNames}
+                  allRuns={runs.firstPage}
                   primary={needsPreparing}
                 />
               ) : null}
