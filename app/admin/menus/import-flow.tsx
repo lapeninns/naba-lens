@@ -30,11 +30,18 @@ const PREVIEW_URL = "/api/admin/menus/import-preview"
  */
 export function ImportFlow({
   venueId,
-  hasActive,
+  venueName,
+  activeTitle,
+  onClose,
 }: {
   venueId: string
-  hasActive: boolean
+  venueName: string
+  /** Title of the venue's active version, or null when it has none. */
+  activeTitle: string | null
+  onClose: () => void
 }) {
+  const hasActive = activeTitle !== null
+  void venueName
   const router = useRouter()
   const [pending, setPending] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -197,11 +204,7 @@ export function ImportFlow({
               variant="outline"
               size="touch"
               disabled={creating}
-              onClick={() => {
-                setPreview(null)
-                setDecisions({})
-                setCreateError(null)
-              }}
+              onClick={onClose}
             >
               Cancel import
             </Button>

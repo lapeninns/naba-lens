@@ -110,7 +110,22 @@ async function openVenueMenus(page: Page, venueId: string, venueName: string) {
 }
 
 async function previewImport(page: Page, path: string) {
-  await page.getByLabel("Menu file (JSON or CSV)").setInputFiles(path)
+  const input = page.getByLabel("Menu file (JSON or CSV)")
+  // The import panel opens from the page header's "Import a menu".
+  if ((await input.count()) === 0)
+    await page.getByRole("button", { name: "Import a menu" }).click()
+  await input.setInputFiles(path)
+}
+
+/** From a venue's menus: open its active version from the Versions table. */
+async function openActiveVersion(page: Page) {
+  await page
+    .getByRole("table", { name: "Menu versions" })
+    .getByRole("row")
+    .filter({ hasText: "Active · for labelling only" })
+    .getByRole("link")
+    .click()
+  await page.waitForURL(/\/admin\/menus\/versions\//)
 }
 
 /** From a version page: Activate… → confirm → the version is active. */
@@ -464,7 +479,7 @@ test("rows 2+4: re-import with rename, removal, key change and category move; un
 
   await test.step("archive Momo: staff can no longer pick it; its label stays (Archived)", async () => {
     await openVenueMenus(admin, venue.id, venue.name)
-    await admin.getByRole("link", { name: "View active menu" }).click()
+    await openActiveVersion(admin)
     await admin.getByRole("searchbox", { name: "Search items" }).fill("Momo")
     // Item rows expand to show their controls (and the label count).
     await admin
@@ -500,18 +515,21 @@ test("rows 2+4: re-import with rename, removal, key change and category move; un
 
   await test.step("retire: no active menu, content types only; labels kept", async () => {
     await openVenueMenus(admin, venue.id, venue.name)
-    await admin.getByRole("link", { name: "View active menu" }).click()
+    await openActiveVersion(admin)
     await admin.getByRole("button", { name: "Retire menu…" }).click()
     const confirm = admin.getByRole("alertdialog")
     await confirm.getByRole("button", { name: "Retire menu" }).click()
     await expect(confirm).toBeHidden()
     await openVenueMenus(admin, venue.id, venue.name)
+    const versions = admin.getByRole("table", { name: "Menu versions" })
     await expect(
-      admin.getByRole("region", { name: "Active menu" })
-    ).toContainText("No active menu.")
+      versions.getByRole("row").filter({ hasText: "Active · for labelling only" })
+    ).toHaveCount(0)
     await expect(
-      admin.getByRole("list", { name: "Retired and discarded versions" })
-    ).toContainText("The Railway food v2 (QA SYNTHETIC)")
+      versions
+        .getByRole("row")
+        .filter({ hasText: "The Railway food v2 (QA SYNTHETIC)" })
+    ).toContainText("Retired")
 
     const staff = await signedInPage(browser, world.staffA)
     const editor = await openOwnLabelEditor(staff, file(1))
@@ -623,7 +641,7 @@ test("row 15: a stale draft save in a second page is a recoverable conflict", as
   const world = await provisionWorld()
   const one = await signedInPage(browser, world.adminA)
   await openVenueMenus(one, world.venue1.id, world.venue1.name)
-  await one.getByRole("button", { name: "New empty draft" }).click()
+  await one.getByRole("button", { name: "Start an empty draft" }).click()
   await one.waitForURL(/\/admin\/menus\/versions\//)
   await expect(one.getByText("Saved · revision 1")).toBeVisible()
   const two = await one.context().newPage()

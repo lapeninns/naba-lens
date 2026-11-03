@@ -1,88 +1,188 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import { notFound } from "next/navigation"
-import { ArrowLeftIcon, CaretRightIcon } from "@phosphor-icons/react/dist/ssr"
+import { FileTextIcon } from "@phosphor-icons/react/dist/ssr"
 
 import { logout } from "@/app/_media/actions"
 import {
   AppShell,
+  EmptyState,
+  MenuSectionHead,
   MenuVersionStatusBadge,
-  ProvenanceCard,
+  SOURCE_KIND_LABEL,
+  formatDate,
   formatDateTime,
+  menuListClassName,
+  menuMetaClassName,
+  possessive,
   type Option,
 } from "@/components/nabalens"
-import { buttonVariants } from "@/components/ui/button"
+import { ErrorState, ERROR_COPY } from "@/components/nabalens/error-state"
+import { PageHeader } from "@/components/nabalens/page-header"
 import type { MenuVersionSummary } from "@/lib/menus/types"
 import { requireActiveAdmin } from "@/lib/auth"
 import { getMediaActor } from "@/lib/server/media/context"
-import { getActiveMenuItems, getVenueMenuOverview } from "@/lib/server/menus"
+import {
+  getActiveMenuItems,
+  getVenueMenuOverview,
+  listMenuVenues,
+} from "@/lib/server/menus"
+import { cn } from "@/lib/utils"
 
-import { ImportFlow } from "../import-flow"
+import { RetryButton } from "../retry-button"
 import { itemOptions } from "../review"
-import { NewDraftButtons, SuggestionsPanel } from "../venue-controls"
+import {
+  SuggestionsPanel,
+  VenueMenusView,
+  VersionRowActions,
+} from "../venue-controls"
 
 export const metadata: Metadata = { title: "Menus · Naba-Lens" }
 
 const versionHref = (id: string) =>
   `/admin/menus/versions/${encodeURIComponent(id)}`
 
-function count(n: number, one: string, many = `${one}s`) {
-  return `${n} ${n === 1 ? one : many}`
+/** When the version last changed state, in the words of that state. */
+function versionWhen(v: MenuVersionSummary): string {
+  switch (v.status) {
+    case "active":
+      return `Activated ${formatDate(v.activatedAt ?? v.updatedAt)}`
+    case "retired":
+      return `Retired ${formatDate(v.retiredAt ?? v.updatedAt)}`
+    case "discarded":
+      return `Discarded ${formatDate(v.updatedAt)}`
+    default:
+      return `Saved ${formatDateTime(v.updatedAt)}`
+  }
 }
 
-function VersionList({
+const versionBy = (v: MenuVersionSummary) =>
+  (v.status === "active" ? v.activatedByName : null) ?? v.createdByName ?? "—"
+
+function VersionsTable({
   versions,
-  label,
-  empty,
+  venueId,
 }: {
   versions: MenuVersionSummary[]
-  label: string
-  empty: string
+  venueId: string
 }) {
-  if (versions.length === 0)
-    return <p className="text-sm text-muted-foreground">{empty}</p>
+  const cell = "px-3 py-3 align-middle first:pl-4 last:pr-2"
   return (
-    <ul aria-label={label} className="divide-y rounded-lg border bg-card">
-      {versions.map((v) => (
-        <li key={v.id}>
-          <Link
-            href={versionHref(v.id)}
-            className="flex min-h-14 items-center gap-3 rounded-lg px-3 py-2 outline-none hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50 sm:px-4"
-          >
-            <span className="grid min-w-0 flex-1 gap-0.5">
-              <span className="flex min-w-0 flex-wrap items-center gap-2">
-                <MenuVersionStatusBadge status={v.status} />
-                <span className="min-w-0 font-medium break-words">
-                  {v.title}
-                </span>
-              </span>
-              <span className="text-sm text-muted-foreground">
-                {[
-                  count(v.itemCount, "item"),
-                  v.needsReviewCount > 0
-                    ? `${v.needsReviewCount} to review`
-                    : null,
-                  v.status === "retired" && v.retiredAt
-                    ? `Retired ${formatDateTime(v.retiredAt)}`
-                    : `Updated ${formatDateTime(v.updatedAt)}`,
-                  v.createdByName ? `by ${v.createdByName}` : null,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </span>
+    <div className="overflow-x-auto rounded-panel border border-line bg-panel">
+      <table
+        aria-label="Menu versions"
+        className="w-full border-collapse text-body-touch md:text-body-sm"
+      >
+        <thead>
+          <tr className="border-b border-line text-left text-meta-touch font-semibold text-ink-muted md:text-meta-strong">
+            <th scope="col" className={cell}>
+              Version
+            </th>
+            <th scope="col" className={cell}>
+              Status
+            </th>
+            <th scope="col" className={cn(cell, "text-right")}>
+              Items
+            </th>
+            <th scope="col" className={cn(cell, "hidden md:table-cell")}>
+              When
+            </th>
+            <th scope="col" className={cn(cell, "hidden md:table-cell")}>
+              By
+            </th>
+            <th scope="col" className={cn(cell, "w-0")}>
+              <span className="sr-only">Actions</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-line">
+          {versions.map((v) => {
+            const closed = v.status === "retired" || v.status === "discarded"
+            return (
+              <tr key={v.id} className={cn(closed && "text-ink-muted")}>
+                <td className={cn(cell, "min-w-0")}>
+                  <Link
+                    href={versionHref(v.id)}
+                    className={cn(
+                      "rounded-chip font-semibold break-words underline-offset-3 outline-none hover:underline focus-visible:outline-2 focus-visible:outline-focus",
+                      closed ? "text-ink-muted" : "text-ink"
+                    )}
+                  >
+                    {v.title}
+                  </Link>
+                  <span className={cn("block md:hidden", menuMetaClassName)}>
+                    {versionWhen(v)} · {versionBy(v)}
+                  </span>
+                </td>
+                <td className={cell}>
+                  <MenuVersionStatusBadge status={v.status} />
+                </td>
+                <td className={cn(cell, "text-right tabular-nums")}>
+                  {v.itemCount}
+                </td>
+                <td
+                  className={cn(cell, "hidden whitespace-nowrap md:table-cell")}
+                >
+                  {versionWhen(v)}
+                </td>
+                <td className={cn(cell, "hidden md:table-cell")}>
+                  {versionBy(v)}
+                </td>
+                <td className={cell}>
+                  <VersionRowActions
+                    versionId={v.id}
+                    title={v.title}
+                    venueId={venueId}
+                    isActive={v.status === "active"}
+                  />
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+/** Versions that came from a file, newest first: the import history. */
+function ImportHistory({ versions }: { versions: MenuVersionSummary[] }) {
+  const imports = versions
+    .filter((v) => v.source.kind !== "manual")
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  if (imports.length === 0) {
+    return (
+      <EmptyState variant="done" title="No files imported yet." className="py-0" />
+    )
+  }
+  return (
+    <ul aria-label="Imported files" className={menuListClassName}>
+      {imports.map((v) => (
+        <li key={v.id} className="flex items-start gap-3 px-4 py-3">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-control bg-well text-ink-muted">
+            <FileTextIcon aria-hidden className="size-5" />
+          </span>
+          <span className="grid min-w-0 gap-0.5">
+            <span className="font-mono text-mono break-all text-ink">
+              {v.source.label ?? SOURCE_KIND_LABEL[v.source.kind]}
             </span>
-            <CaretRightIcon
-              className="size-4 shrink-0 text-muted-foreground"
-              aria-hidden
-            />
-          </Link>
+            <span className={cn("break-words", menuMetaClassName)}>
+              {[
+                formatDateTime(v.createdAt),
+                v.createdByName,
+                `became ${v.title}`,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </span>
+          </span>
         </li>
       ))}
     </ul>
   )
 }
 
-/** One venue: active menu, drafts, import, history and suggestions. */
+/** One venue: versions, import, suggestions and the import history (A13). */
 export default async function VenueMenusPage({
   params,
 }: {
@@ -92,10 +192,43 @@ export default async function VenueMenusPage({
   const { venueId } = await params
   const auth = await getMediaActor("admin")
   if (!auth.ok) throw new Error("Not authorised.")
-  const overview = await getVenueMenuOverview(auth.actor, venueId)
+  const [overview, venueList] = await Promise.all([
+    getVenueMenuOverview(auth.actor, venueId),
+    listMenuVenues(auth.actor),
+  ])
+  const venues = venueList.ok
+    ? venueList.venues.map((v) => ({ id: v.venueId, name: v.venueName }))
+    : null
+
+  const shell = (children: React.ReactNode) => (
+    <AppShell
+      variant="admin"
+      active="menus"
+      userName={profile.displayName}
+      logoutAction={logout}
+    >
+      {children}
+    </AppShell>
+  )
+
   if (!overview.ok) {
     if (overview.status === 404) notFound()
-    throw new Error(overview.message)
+    const name = venues?.find((v) => v.id === venueId)?.name
+    return shell(
+      <>
+        <PageHeader
+          venueScope
+          scope={[name ?? "Venue", "All months"]}
+          title={name ? `${name} menus` : "Menus"}
+        />
+        <ErrorState
+          title={ERROR_COPY.couldNotLoad(
+            name ? `${possessive(name)} menus` : "this venue's menus"
+          )}
+          action={<RetryButton />}
+        />
+      </>
+    )
   }
   const { venue, active, drafts, history, suggestions } = overview
 
@@ -107,119 +240,54 @@ export default async function VenueMenusPage({
       options = itemOptions(items.document, items.archivedItemIds)
   }
   const openCount = suggestions.filter((s) => s.status === "open").length
+  const versions = [...drafts, ...(active ? [active] : []), ...history]
 
-  return (
-    <AppShell
-      variant="admin"
-      active="menus"
-      userName={profile.displayName}
-      logoutAction={logout}
+  return shell(
+    <VenueMenusView
+      venueId={venue.id}
+      venueName={venue.name}
+      venueActive={venue.active}
+      venues={venues}
+      active={active ? { title: active.title } : null}
     >
-      <div className="grid gap-8">
-        <div className="grid gap-2">
-          <Link
-            href="/admin/menus"
-            className={buttonVariants({
-              variant: "ghost",
-              className: "h-11 w-fit sm:h-9",
-            })}
-          >
-            <ArrowLeftIcon data-icon="inline-start" aria-hidden />
-            All venues
-          </Link>
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="font-display text-page-title-compact break-words md:text-page-title">
-              {venue.name}
-            </h1>
-            {!venue.active ? (
-              <span className="inline-flex h-5 items-center rounded-sm bg-muted px-1.5 text-xs font-medium text-muted-foreground">
-                Venue inactive
-              </span>
-            ) : null}
-          </div>
-          <p className="max-w-prose text-sm text-muted-foreground">
-            This venue&apos;s menu is used to label its photos and videos.
-            Activating a menu does not publish it or change any venue website.
-          </p>
-        </div>
-
-        <section aria-labelledby="active-title" className="grid gap-3">
-          <h2 id="active-title" className="text-lg font-medium">
-            Active menu
-          </h2>
-          {active ? (
-            <div className="grid gap-3">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <p className="min-w-0">
-                  <span className="font-medium break-words">
-                    {active.title}
-                  </span>{" "}
-                  <span className="text-sm text-muted-foreground">
-                    {count(active.sectionCount, "section")},{" "}
-                    {count(active.itemCount, "item")}
-                  </span>
-                </p>
-                <Link
-                  href={versionHref(active.id)}
-                  className={buttonVariants({
-                    variant: "outline",
-                    className: "h-11 w-fit sm:h-9",
-                  })}
-                >
-                  View active menu
-                </Link>
-              </div>
-              <ProvenanceCard
-                version={active}
-                className="[&_dd]:[overflow-wrap:anywhere]"
+      {versions.length === 0 ? (
+        <EmptyState
+          title={`${venue.name} has no menu yet.`}
+          description={`Import a JSON or CSV file, or start an empty draft. Until a menu is active, labels can't name a menu item at ${venue.name}.`}
+        />
+      ) : (
+        <>
+          <section aria-labelledby="versions-title">
+            <MenuSectionHead
+              id="versions-title"
+              title="Versions"
+              count="Nothing with labels is ever deleted"
+            />
+            <VersionsTable versions={versions} venueId={venue.id} />
+          </section>
+          <div className="grid items-start gap-6 md:gap-8 lg:grid-cols-2">
+            <section aria-labelledby="suggestions-title" className="min-w-0">
+              <MenuSectionHead
+                id="suggestions-title"
+                title="Missing-item suggestions"
+                count={`${openCount} · typed by staff while labelling`}
               />
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              No active menu. Staff can still add content types and notes to
-              their photos and videos.
-            </p>
-          )}
-        </section>
-
-        <section aria-labelledby="drafts-title" className="grid gap-3">
-          <h2 id="drafts-title" className="text-lg font-medium">
-            Drafts
-          </h2>
-          <VersionList
-            versions={drafts}
-            label="Drafts"
-            empty="No drafts. Start one below or import a file."
-          />
-          <NewDraftButtons venueId={venue.id} hasActive={!!active} />
-        </section>
-
-        <ImportFlow venueId={venue.id} hasActive={!!active} />
-
-        <section aria-labelledby="suggestions-title" className="grid gap-3">
-          <h2 id="suggestions-title" className="text-lg font-medium">
-            Missing-item suggestions{" "}
-            <span className="text-muted-foreground">({openCount} open)</span>
-          </h2>
-          <p className="max-w-prose text-sm text-muted-foreground">
-            Staff suggest items that are not on the menu. Link a suggestion to
-            an item of the active menu, or dismiss it. A suggestion never adds
-            an item by itself.
-          </p>
-          <SuggestionsPanel suggestions={suggestions} itemOptions={options} />
-        </section>
-
-        <section aria-labelledby="history-title" className="grid gap-3">
-          <h2 id="history-title" className="text-lg font-medium">
-            History
-          </h2>
-          <VersionList
-            versions={history}
-            label="Retired and discarded versions"
-            empty="No retired or discarded versions."
-          />
-        </section>
-      </div>
-    </AppShell>
+              <SuggestionsPanel
+                suggestions={suggestions}
+                itemOptions={options}
+              />
+            </section>
+            <section aria-labelledby="imports-title" className="min-w-0">
+              <MenuSectionHead
+                id="imports-title"
+                title="Imports"
+                count="Source details are kept for reference only"
+              />
+              <ImportHistory versions={versions} />
+            </section>
+          </div>
+        </>
+      )}
+    </VenueMenusView>
   )
 }
