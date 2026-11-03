@@ -37,6 +37,7 @@ function deferred<T>() {
 
 const ready = (ids: string[], venue = "venue-1"): LabelEditorContextResult => ({
   ok: true,
+  viewer: "staff",
   assets: ids.map((id) =>
     asset(id, undefined, { venueId: venue, venueName: `Venue ${venue}` })
   ),
@@ -104,11 +105,9 @@ describe("LabelEditorHost", () => {
     expect(screen.getByRole("status").textContent).toMatch(/Loading labels/)
     expect(actions.loadLabelEditorContext).toHaveBeenCalledWith(["a1"])
     pending.resolve(ready(["a1"]))
+    expect(await screen.findByRole("dialog", { name: "Labels" })).toBeTruthy()
     expect(
-      await screen.findByRole("dialog", { name: "Add labels" })
-    ).toBeTruthy()
-    expect(
-      screen.getByRole("combobox", { name: "Search the menu" })
+      screen.getByRole("combobox", { name: /^Menu item at / })
     ).toBeTruthy()
   })
 
@@ -130,9 +129,7 @@ describe("LabelEditorHost", () => {
     ).toBeTruthy()
 
     await user.click(screen.getByRole("button", { name: "Try again" }))
-    expect(
-      await screen.findByRole("dialog", { name: "Add labels" })
-    ).toBeTruthy()
+    expect(await screen.findByRole("dialog", { name: "Labels" })).toBeTruthy()
     expect(actions.loadLabelEditorContext).toHaveBeenCalledTimes(3)
     expect(onOpenChange).not.toHaveBeenCalled()
   })
@@ -183,7 +180,7 @@ describe("LabelEditorHost", () => {
     )
     expect(actions.loadLabelCatalogue).toHaveBeenCalledWith("venue-1")
     expect(
-      await screen.findByRole("combobox", { name: "Search the menu" })
+      await screen.findByRole("combobox", { name: /^Menu item at / })
     ).toBeTruthy()
     expect(
       screen
@@ -196,7 +193,7 @@ describe("LabelEditorHost", () => {
     actions.loadLabelEditorContext.mockResolvedValueOnce(ready(["a1"]))
     actions.saveLabelBatch.mockImplementation(async (inputs) => okFor(inputs))
     const { user, onOpenChange, onSaved } = setup()
-    await screen.findByRole("dialog", { name: "Add labels" })
+    await screen.findByRole("dialog", { name: "Labels" })
     await user.click(screen.getByRole("button", { name: "Drinks" }))
     await user.click(screen.getByRole("button", { name: "Save labels" }))
     expect(actions.saveLabelBatch).toHaveBeenCalledWith([
@@ -222,7 +219,7 @@ describe("LabelEditorHost", () => {
         okFor(inputs)
       )
     const { user, onOpenChange, onSaved } = setup()
-    await screen.findByRole("dialog", { name: "Add labels" })
+    await screen.findByRole("dialog", { name: "Labels" })
     await user.click(screen.getByRole("button", { name: "Drinks" }))
     await user.click(screen.getByRole("button", { name: "Save labels" }))
     expect(
@@ -250,22 +247,30 @@ describe("LabelEditorHost", () => {
     const { user, onOpenChange } = setup(["a1", "b2", "a3"])
 
     const first = await screen.findByRole("dialog", {
-      name: "Label files (venue 1 of 2)",
+      name: "Labels (venue 1 of 2)",
     })
     expect(actions.loadLabelEditorContext).toHaveBeenNthCalledWith(2, [
       "a1",
       "a3",
     ])
-    expect(within(first).getByText(/menu of Venue venue-a/)).toBeTruthy()
-    await user.click(screen.getByRole("button", { name: "Skip for now" }))
+    expect(
+      within(first).getByRole("combobox", {
+        name: /^Menu item at Venue venue-a/,
+      })
+    ).toBeTruthy()
+    await user.click(screen.getByRole("button", { name: "Cancel" }))
 
     const second = await screen.findByRole("dialog", {
-      name: "Label files (venue 2 of 2)",
+      name: "Labels (venue 2 of 2)",
     })
     expect(actions.loadLabelEditorContext).toHaveBeenLastCalledWith(["b2"])
-    expect(within(second).getByText(/menu of Venue venue-b/)).toBeTruthy()
+    expect(
+      within(second).getByRole("combobox", {
+        name: /^Menu item at Venue venue-b/,
+      })
+    ).toBeTruthy()
     expect(onOpenChange).not.toHaveBeenCalled()
-    await user.click(screen.getByRole("button", { name: "Skip for now" }))
+    await user.click(screen.getByRole("button", { name: "Cancel" }))
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 })

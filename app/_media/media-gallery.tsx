@@ -41,6 +41,8 @@ type MediaGalleryProps = {
   refreshPage?: RefreshPage
   /** Shown when there is nothing to list. */
   empty: React.ReactNode
+  /** A line above the grid given how many are shown, e.g. "Showing 24". */
+  summary?: (shownCount: number) => React.ReactNode
   showAttribution?: boolean
   getDownloadHref?: (item: MediaItem) => string
   getPortfolioHref?: (item: MediaItem) => string
@@ -119,6 +121,7 @@ export function MediaGallery({
   loadPage,
   refreshPage,
   empty,
+  summary,
   showAttribution = false,
   getDownloadHref,
   getPortfolioHref,
@@ -173,6 +176,12 @@ export function MediaGallery({
   const { display, brokenCount, onError, attach, retryBroken } =
     usePreviewRecovery(items)
   const openItem = display.find((item) => item.id === openId) ?? null
+  // The last loaded view of the open file. If a refresh drops it (removed
+  // elsewhere), the viewer keeps showing it with a notice instead of closing.
+  const [shownItem, setShownItem] = React.useState<MediaItem | null>(null)
+  if (openItem && openItem !== shownItem) setShownItem(openItem)
+  const viewerItem =
+    openItem ?? (shownItem && shownItem.id === openId ? shownItem : null)
   const hasPending = items.some(
     (i) => i.uploadState === "uploading" || i.uploadState === "processing"
   )
@@ -357,6 +366,7 @@ export function MediaGallery({
           </Button>
         </div>
       ) : null}
+      {items.length > 0 && summary ? summary(items.length) : null}
       {items.length === 0 ? (
         empty
       ) : (
@@ -381,7 +391,8 @@ export function MediaGallery({
         shownCount={items.length}
       />
       <MediaViewer
-        item={openItem}
+        item={viewerItem}
+        removed={viewerItem !== null && openItem === null}
         open={viewerOpen}
         onOpenChange={setViewerOpen}
         showAttribution={showAttribution}

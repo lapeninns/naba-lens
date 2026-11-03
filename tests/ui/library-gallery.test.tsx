@@ -675,7 +675,13 @@ describe("foreground refresh", () => {
       })
     }
     fireEvent.click(tileFor(all[170].id)!)
-    expect(screen.getByRole("dialog").textContent).toContain("photo-170.jpg")
+    // Staff views never show file names in the viewer; the preview route
+    // identifies the open file.
+    const viewerShows = (id: string) =>
+      screen
+        .getByRole("dialog")
+        .querySelector(`img[src^="/api/media/${id}/"]`) !== null
+    expect(viewerShows(all[170].id)).toBe(true)
     await act(async () => {
       window.dispatchEvent(new Event("focus"))
     })
@@ -683,7 +689,8 @@ describe("foreground refresh", () => {
     expect(
       container.querySelectorAll("button[aria-label^='Photo, ']")
     ).toHaveLength(192)
-    expect(screen.getByRole("dialog").textContent).toContain("photo-170.jpg")
+    expect(viewerShows(all[170].id)).toBe(true)
+    expect(screen.getByRole("dialog").textContent).not.toContain("removed")
   })
 
   it("stops after crossing a deleted oldest item's sort boundary", async () => {
@@ -1091,5 +1098,50 @@ describe("viewer and delete", () => {
     expect(
       within(confirm).getByRole("button", { name: "Keep photo" })
     ).toBeTruthy()
+  })
+
+  it("keeps the open file on screen when a refresh finds it removed", async () => {
+    const refreshPage = vi.fn<RefreshPage>(async () => ({
+      ok: true,
+      page: { items: [item(ID_B)], nextCursor: null },
+    }))
+    render(
+      <MediaGallery
+        label="Library"
+        initialPage={{ items: [item(ID_A), item(ID_B)], nextCursor: null }}
+        loadPage={vi.fn<LoadPage>()}
+        refreshPage={refreshPage}
+        showAttribution
+        canDelete
+        empty={<p>Empty</p>}
+      />
+    )
+    fireEvent.click(tileFor(ID_A)!)
+    expect(screen.getByRole("button", { name: "Delete" })).toBeTruthy()
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"))
+    })
+    const dialog = screen.getByRole("dialog")
+    expect(within(dialog).getByRole("status").textContent).toBe(
+      "This photo was removed a moment ago."
+    )
+    expect(within(dialog).queryByRole("button", { name: "Delete" })).toBeNull()
+    expect(tileFor(ID_A)).toBeNull()
+  })
+
+  it("keeps file names out of the owner's viewer and delete confirm", () => {
+    render(
+      <MediaGallery
+        label="Portfolio"
+        initialPage={{ items: [item(ID_A)], nextCursor: null }}
+        loadPage={vi.fn<LoadPage>()}
+        canDelete
+        empty={<p>Empty</p>}
+      />
+    )
+    fireEvent.click(tileFor(ID_A)!)
+    expect(screen.getByRole("dialog").textContent).not.toContain("01.jpg")
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }))
+    expect(screen.getByRole("alertdialog").textContent).not.toContain("01.jpg")
   })
 })

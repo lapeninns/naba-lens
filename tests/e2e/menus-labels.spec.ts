@@ -156,7 +156,7 @@ async function openOwn(page: Page, file: string) {
 
 async function openEditorFromViewer(page: Page, viewer: Locator) {
   await viewer.getByRole("button", { name: /^(Add|Edit) labels$/ }).click()
-  const editor = page.getByRole("dialog", { name: /^(Add|Edit) labels$/ })
+  const editor = page.getByRole("dialog", { name: /^(Labels|Edit labels)$/ })
   await expect(editor).toBeVisible()
   return editor
 }
@@ -193,18 +193,18 @@ test("rows 5+7: photo + video uploaded, batch-labelled with per-file overrides; 
   const upload = staff.getByRole("dialog", { name: "Upload photos or videos" })
   await expect(upload).toContainText("Optional: add menu items or details now")
   await upload.getByRole("button", { name: "Label these files" }).click()
-  const editor = staff.getByRole("dialog", { name: "Label these files" })
-  await expect(editor).toContainText(
-    `Menu items come from the menu of ${world.venue1.name}`
-  )
+  const editor = staff.getByRole("dialog", { name: "Labels", exact: true })
+  await expect(
+    editor.getByRole("combobox", { name: `Menu item at ${world.venue1.name}` })
+  ).toBeVisible()
 
   await test.step("common selection: two items (one with a variant), a content type, a note", async () => {
     const all = editor.getByRole("region", { name: "Common to all 2 files" })
     await pick(
       all,
-      "Search the menu for all files",
+      /^Menu item at .* for all files$/,
       "momo",
-      /^Momo in Appetisers/
+      /^Momo Appetisers/
     )
     await all
       .getByRole("group", { name: /^Which Momo\?/ })
@@ -212,9 +212,9 @@ test("rows 5+7: photo + video uploaded, batch-labelled with per-file overrides; 
       .click()
     await pick(
       all,
-      "Search the menu for all files",
+      /^Menu item at .* for all files$/,
       "onion bhaji",
-      /^Onion Bhaji in Appetisers/
+      /^Onion Bhaji Appetisers/
     )
     await expect(
       all
@@ -232,29 +232,29 @@ test("rows 5+7: photo + video uploaded, batch-labelled with per-file overrides; 
 
   await test.step("per-file override on the video: drop an item, add a type, own note", async () => {
     await editor
-      .getByRole("button", { name: `Adjust labels for ${video.name}` })
+      .getByRole("button", { name: "Adjust labels for video 2" })
       .click()
-    const items = editor.getByRole("group", {
-      name: `Menu items for ${video.name}`,
+    const items = editor.getByRole("list", {
+      name: "Selected menu items for video 2",
     })
     await items.getByRole("button", { name: "Remove Onion Bhaji" }).click()
     await editor
-      .getByRole("group", { name: `Content types for ${video.name}` })
+      .getByRole("group", { name: /^What's in the video .* for video 2$/ })
       .getByRole("button", { name: "Preparation" })
       .click()
     await editor
-      .getByRole("textbox", { name: `Note (optional) for ${video.name}` })
+      .getByRole("textbox", { name: "Note (optional) for video 2" })
       .fill(videoNote)
     const files = editor.getByRole("list", { name: "Files" })
     await expect(
-      files.getByRole("listitem").filter({ hasText: photo.name })
+      files.getByRole("listitem").filter({ hasText: "Photo 1" })
     ).toContainText("2 menu items · 1 content type · note")
     await expect(
-      files.getByRole("listitem").filter({ hasText: video.name })
+      files.getByRole("listitem").filter({ hasText: "Video 2" })
     ).toContainText("1 menu item · 2 content types · note")
   })
 
-  await editor.getByRole("button", { name: "Save labels for 2 files" }).click()
+  await editor.getByRole("button", { name: "Save labels", exact: true }).click()
   await expect(editor).toBeHidden()
 
   await test.step("reload: both files keep exactly what was saved", async () => {
@@ -318,9 +318,10 @@ test("row 6: skip labelling at upload, label later from the viewer; the asset is
   const upload = staff.getByRole("dialog", { name: "Upload photos or videos" })
   await upload.getByRole("button", { name: "Label this file" }).click()
   const editor = staff.getByRole("dialog", {
-    name: /^(Label this file|Add labels)$/,
+    name: "Labels",
+    exact: true,
   })
-  await editor.getByRole("button", { name: "Skip for now" }).click()
+  await editor.getByRole("button", { name: "Cancel" }).click()
   await expect(editor).toBeHidden()
   if (await upload.isVisible())
     await upload.getByRole("button", { name: "Done" }).click()
@@ -337,10 +338,10 @@ test("row 6: skip labelling at upload, label later from the viewer; the asset is
 
   const viewer = await openOwn(staff, photo.name)
   await expect(viewer.getByRole("region", { name: "Labels" })).toContainText(
-    "No labels yet"
+    "None yet. Labels are optional."
   )
   const later = await openEditorFromViewer(staff, viewer)
-  await pick(later, /^Search the menu/, "sherpali", /^Sherpali Chicken/)
+  await pick(later, /^Menu item at /, "sherpali", /^Sherpali Chicken/)
   const which = later.getByRole("group", { name: /^Which Sherpali Chicken\?/ })
   if (await which.isVisible())
     await which.getByRole("button", { name: "Not specified" }).click()
@@ -429,9 +430,9 @@ test("row 8: missing-item suggestion reaches the admin; catalogue changed while 
     const editor = await openEditorFromViewer(staff, viewer)
     await pick(
       editor,
-      /^Search the menu/,
+      /^Menu item at /,
       "onion bhaji",
-      /^Onion Bhaji in Appetisers/
+      /^Onion Bhaji Appetisers/
     )
     await editor.getByRole("button", { name: "Kitchen" }).click()
 
@@ -467,7 +468,7 @@ test("row 8: missing-item suggestion reaches the admin; catalogue changed while 
     // again, recoverably, because it still names the old menu version).
     await expect(editor.getByText("Loading the menu…")).toHaveCount(0)
     await expect(
-      editor.getByRole("combobox", { name: /^Search the menu/ })
+      editor.getByRole("combobox", { name: /^Menu item at / })
     ).toBeVisible()
     await editor.getByRole("button", { name: /^Save labels/ }).click()
     await expect(editor).toBeHidden()
@@ -516,9 +517,9 @@ test("row 9: staff B cannot label staff A's asset, even by rewriting the Server 
     const editor = await openEditorFromViewer(staffB, viewer)
     await pick(
       editor,
-      /^Search the menu/,
+      /^Menu item at /,
       "onion bhaji",
-      /^Onion Bhaji in Appetisers/
+      /^Onion Bhaji Appetisers/
     )
     let rewritten = 0
     await staffB.route("**/*", async (route) => {
@@ -537,7 +538,11 @@ test("row 9: staff B cannot label staff A's asset, even by rewriting the Server 
     await editor.getByRole("button", { name: /^Save labels/ }).click()
     await expect.poll(() => rewritten).toBeGreaterThan(0)
     await expect(
-      editor.getByText(/not saved|could not be saved|not confirmed/i).first()
+      editor
+        .getByText(
+          /not saved|could not be saved|couldn't be saved|not confirmed/i
+        )
+        .first()
     ).toBeVisible()
     await staffB.unroute("**/*")
     expect(
@@ -635,16 +640,22 @@ test("row 11: a transferred staff member labels an older asset with the old venu
 
   const oldViewer = await openOwn(staff, `qa-old-${world.tag}-01.jpg`)
   const oldEditor = await openEditorFromViewer(staff, oldViewer)
-  await expect(oldEditor).toContainText(
-    `Menu items come from the menu of ${world.venue1.name}`
-  )
+  await expect(
+    oldEditor.getByRole("combobox", {
+      name: `Menu item at ${world.venue1.name}`,
+    })
+  ).toBeVisible()
   await oldEditor
-    .getByRole("combobox", { name: /^Search the menu/ })
+    .getByRole("combobox", { name: /^Menu item at / })
     .fill("Stuffed Tandoori")
   await expect(
-    oldEditor.getByText("No menu items match", { exact: false }).first()
+    oldEditor
+      .getByText(`Nothing on ${world.venue1.name}'s menu matches`, {
+        exact: false,
+      })
+      .first()
   ).toBeVisible()
-  await pick(oldEditor, /^Search the menu/, "sherpali", /^Sherpali Chicken/)
+  await pick(oldEditor, /^Menu item at /, "sherpali", /^Sherpali Chicken/)
   const which = oldEditor.getByRole("group", {
     name: /^Which Sherpali Chicken\?/,
   })
@@ -663,11 +674,13 @@ test("row 11: a transferred staff member labels an older asset with the old venu
 
   const newViewer = await openOwn(staff, `qa-new-${world.tag}-01.jpg`)
   const newEditor = await openEditorFromViewer(staff, newViewer)
-  await expect(newEditor).toContainText(
-    `Menu items come from the menu of ${world.venue2.name}`
-  )
+  await expect(
+    newEditor.getByRole("combobox", {
+      name: `Menu item at ${world.venue2.name}`,
+    })
+  ).toBeVisible()
   await newEditor
-    .getByRole("combobox", { name: /^Search the menu/ })
+    .getByRole("combobox", { name: /^Menu item at / })
     .fill("Stuffed Tandoori")
   await expect(
     newEditor.getByRole("option", { name: /^Stuffed Tandoori Mushroom/ })
@@ -855,9 +868,9 @@ test("rows 12+13: label filters combine with venue/staff/type, search and dates;
     await editor.getByRole("button", { name: "Remove Momo, Chicken" }).click()
     await pick(
       editor,
-      /^Search the menu/,
+      /^Menu item at /,
       "onion bhaji",
-      /^Onion Bhaji in Appetisers/
+      /^Onion Bhaji Appetisers/
     )
     await editor.getByRole("button", { name: /^Save labels/ }).click()
     await expect(editor).toBeHidden()
@@ -891,7 +904,8 @@ test("rows 12+13: label filters combine with venue/staff/type, search and dates;
       .getByRole("button", { name: "Label this file" })
       .click()
     const editor = staff.getByRole("dialog", {
-      name: /^(Label this file|Add labels)$/,
+      name: "Labels",
+      exact: true,
     })
     await editor.getByRole("button", { name: "Team" }).click()
     await editor.getByRole("button", { name: /^Save labels/ }).click()

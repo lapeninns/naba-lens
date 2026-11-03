@@ -1,30 +1,35 @@
 import Link from "next/link"
-import { ArrowRightIcon } from "@phosphor-icons/react/dist/ssr"
 
 import { logout } from "@/app/_media/actions"
 import { AppShell } from "@/components/nabalens/app-shell"
 import { EmptyState } from "@/components/nabalens/empty-state"
-import { ProfileAvatar } from "@/components/nabalens/profile-avatar"
+import { OfflineNotice } from "@/components/nabalens/offline-notice"
+import { PageHeader } from "@/components/nabalens/page-header"
 import { buttonVariants } from "@/components/ui/button"
 import { requireActiveStaff } from "@/lib/auth"
-import { departmentLabel } from "@/lib/config/departments"
-import {
-  listCommunityMembers,
-  listCommunityVenues,
-} from "@/lib/server/community"
+import { listCommunityVenues } from "@/lib/server/community"
 import { getMediaActor } from "@/lib/server/media/context"
 
 import { canManageVenue } from "../can-manage"
-import { CommunityFilters } from "../community/community-filters"
 import {
   communityFilters,
   searchValue,
   type CommunitySearch,
 } from "../community/search"
+import { listPeople } from "./directory"
+import {
+  isSearching,
+  noResults,
+  PEOPLE_COPY,
+  PEOPLE_PAGE_SIZE,
+  searchSummary,
+  showingRange,
+  shownCount,
+} from "./people"
+import { PeopleSearch } from "./people-search"
+import { PersonCard } from "./person-card"
 
 export const metadata = { title: "People · Naba-Lens" }
-
-const PAGE_SIZE = 24
 
 export default async function PeoplePage({
   searchParams,
@@ -37,35 +42,35 @@ export default async function PeoplePage({
   const search = await searchParams
   const { venueId, department } = communityFilters(search)
   const query = searchValue(search.q).trim().slice(0, 80)
-  const parsedOffset = Number(searchValue(search.offset))
-  const offset =
-    Number.isInteger(parsedOffset) &&
-    parsedOffset > 0 &&
-    parsedOffset <= 100_000
-      ? parsedOffset
-      : 0
   const [people, options, canManage] = await Promise.all([
-    listCommunityMembers(auth.actor, {
-      venueId,
-      department,
-      search: query,
-      offset,
-      limit: PAGE_SIZE,
-    }),
+    listPeople(auth.actor, { venueId, department, search: query }),
     listCommunityVenues(auth.actor),
     canManageVenue(auth.actor),
   ])
   if (!people.ok) throw new Error(people.message)
   if (!options.ok) throw new Error(options.message)
+  const venueName =
+    options.venues.find((venue) => venue.id === venueId)?.name ?? null
+  const described = { query, venueName, department }
+  const summary = searchSummary(described)
+  const total = people.members.length
+  const shown = shownCount(searchValue(search.shown), total)
+  const members = people.members.slice(0, shown)
   const params = new URLSearchParams()
   if (venueId) params.set("venue", venueId)
   if (department) params.set("department", department)
   if (query) params.set("q", query)
-  function pageHref(next: number) {
-    const nextParams = new URLSearchParams(params)
-    if (next > 0) nextParams.set("offset", String(next))
-    return `/staff/people?${nextParams.toString()}`
-  }
+  const nextParams = new URLSearchParams(params)
+  nextParams.set("shown", String(shown + PEOPLE_PAGE_SIZE))
+  const empty = noResults(described)
+  const clearSearch = (
+    <Link
+      href="/staff/people"
+      className={buttonVariants({ variant: "secondary", size: "sm" })}
+    >
+      {PEOPLE_COPY.clear}
+    </Link>
+  )
 
   return (
     <AppShell
@@ -75,108 +80,81 @@ export default async function PeoplePage({
       userName={profile.displayName}
       logoutAction={logout}
     >
-      <div className="flex flex-col gap-6">
-        <div className="flex flex-col gap-2">
-          <p className="text-sm font-medium text-muted-foreground">
-            Lapen Inns community
-          </p>
-          <h1 className="font-display text-page-title-compact md:text-page-title">
-            Meet our people
-          </h1>
-          <p className="max-w-2xl text-sm text-muted-foreground">
-            Find colleagues across our venues and take a look at their work.
-          </p>
-        </div>
-        <CommunityFilters
+      <div className="flex flex-col gap-4">
+        <OfflineNotice />
+        <PageHeader
+          scope={PEOPLE_COPY.scope}
+          title={PEOPLE_COPY.title}
+          summary={PEOPLE_COPY.summary}
+          className="pb-0 md:pb-0"
+        />
+        <PeopleSearch
           key={params.toString()}
-          action="/staff/people"
           venues={options.venues}
           venueId={venueId}
           department={department}
           query={query}
         />
-        {people.members.length ? (
-          <ul
-            aria-label="Colleagues"
-            className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
-          >
-            {people.members.map((member) => (
-              <li key={member.id}>
-                <Link
-                  href={`/staff/people/${member.id}`}
-                  className="flex h-full flex-col gap-4 rounded-xl border bg-card p-5 transition-colors outline-none hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50"
-                >
-                  <div className="flex min-w-0 items-center gap-3">
-                    <ProfileAvatar
-                      name={member.displayName}
-                      src={member.avatarUrl}
-                      className="size-12"
-                    />
-                    <div className="min-w-0">
-                      <h2 className="font-semibold break-words">
-                        {member.displayName}
-                      </h2>
-                      {member.jobTitle ? (
-                        <p className="text-sm text-muted-foreground">
-                          {member.jobTitle}
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-1 text-sm text-muted-foreground">
-                    <p>{member.venueName ?? "No venue assigned"}</p>
-                    {member.department ? (
-                      <p>{departmentLabel(member.department)}</p>
-                    ) : null}
-                  </div>
-                  <div className="mt-auto flex items-center justify-between gap-3 text-sm">
-                    <span className="text-muted-foreground">
-                      {member.mediaCount}{" "}
-                      {member.mediaCount === 1 ? "upload" : "uploads"}
-                    </span>
-                    <span className="inline-flex items-center gap-1 font-medium">
-                      View portfolio{" "}
-                      <ArrowRightIcon className="size-4" aria-hidden />
-                    </span>
-                  </div>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        ) : (
+        {total === 0 ? (
           <EmptyState
-            title="No colleagues match these filters."
-            description="Try a different name, venue or team."
+            variant={isSearching(described) ? "filtered" : "done"}
+            title={empty.title}
+            description={empty.description}
+            action={isSearching(described) ? clearSearch : undefined}
           />
-        )}
-        {offset > 0 || people.nextOffset !== null ? (
-          <nav aria-label="People pages" className="flex justify-between gap-3">
-            {offset > 0 ? (
+        ) : (
+          <>
+            {summary ? (
+              <p
+                role="status"
+                className="text-body-touch text-ink-muted md:text-body-sm"
+              >
+                {summary}
+              </p>
+            ) : null}
+            <ul
+              aria-label="People"
+              className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+            >
+              {members.map((member) => (
+                <li key={member.id}>
+                  <PersonCard member={member} />
+                </li>
+              ))}
+            </ul>
+            {total > PEOPLE_PAGE_SIZE ? (
+              <div className="grid justify-items-center gap-2">
+                {shown < total ? (
+                  <Link
+                    href={`/staff/people?${nextParams.toString()}`}
+                    scroll={false}
+                    className={buttonVariants({
+                      variant: "secondary",
+                      size: "touch",
+                      className: "w-full md:w-auto",
+                    })}
+                  >
+                    {PEOPLE_COPY.next}
+                  </Link>
+                ) : null}
+                <p className="text-meta-touch text-ink-muted tabular-nums md:text-meta">
+                  {showingRange(shown, total)}
+                </p>
+              </div>
+            ) : null}
+            {summary ? (
               <Link
-                href={pageHref(Math.max(0, offset - PAGE_SIZE))}
+                href="/staff/people"
                 className={buttonVariants({
-                  variant: "outline",
-                  size: "touch",
+                  variant: "link",
+                  className: "w-fit",
                 })}
               >
-                Previous people
-              </Link>
-            ) : (
-              <span />
-            )}
-            {people.nextOffset !== null ? (
-              <Link
-                href={pageHref(people.nextOffset)}
-                className={buttonVariants({
-                  variant: "outline",
-                  size: "touch",
-                })}
-              >
-                Next people
+                {PEOPLE_COPY.clear}
               </Link>
             ) : null}
-          </nav>
-        ) : null}
+          </>
+        )}
       </div>
     </AppShell>
   )
