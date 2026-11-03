@@ -54,6 +54,7 @@ const HEIGHT: Record<number, number> = {
   1440: 900,
 }
 const PHONE_MAX = 480
+const MAX_SHOT_HEIGHT = 16_000
 const MIN_TOUCH = 44
 
 test.skip(
@@ -357,9 +358,20 @@ async function capture(
     if (options.restore) await options.restore()
     await settle(page)
     const label = `${name}-${scheme}-${width}`
+    // Firefox refuses captures taller than 32767px, and fixture rows pile up
+    // on long admin pages across runs.
+    const pageHeight = await page.evaluate(
+      () => document.documentElement.scrollHeight
+    )
     await page.screenshot({
       path: join(shotDir(testInfo), `${label}.png`),
       fullPage: true,
+      clip: {
+        x: 0,
+        y: 0,
+        width,
+        height: Math.min(pageHeight, MAX_SHOT_HEIGHT),
+      },
     })
     const overflow = await horizontalOverflow(page)
     expect.soft(overflow, `${label}: horizontal overflow`).toEqual([])
@@ -802,7 +814,7 @@ test("staff: video and non-ready viewer states", async ({
   // Non-ready states explain themselves.
   for (const [name, text] of [
     ["failed-upload.mov", "could not be processed"],
-    ["still-processing.jpg", "Still processing"],
+    ["still-processing.jpg", "Processing. It appears here in a moment."],
   ] as const) {
     await (await tile(page, name)).click()
     await expect(page.getByRole("dialog").getByText(text)).toBeVisible()
@@ -965,7 +977,10 @@ test("admin: library and filters", async ({ browser, baseURL }, testInfo) => {
     }))
   ).toEqual({ overflow: true, ellipsis: "ellipsis" })
   await capture(page, testInfo, "admin-filter-empty")
-  await page.getByRole("button", { name: "Clear filters" }).click()
+  await page
+    .locator("[data-slot=empty-state]")
+    .getByRole("button", { name: "Clear filters" })
+    .click()
   await expect(page).toHaveURL(/\/admin$/)
   await page.context().close()
 })
@@ -1079,7 +1094,9 @@ test("admin: row actions, edit, deactivate confirm", async ({
     restore: reopen(page, more, page.getByRole("menu")),
   })
   await page.getByRole("menuitem", { name: "Edit details" }).click()
-  const editDialog = page.getByRole("dialog", { name: "Edit staff account" })
+  const editDialog = page.getByRole("dialog", {
+    name: /^Edit .+'s details$/,
+  })
   await expect(editDialog).toBeVisible()
   await capture(page, testInfo, "admin-edit-staff")
   await page.keyboard.press("Escape")
@@ -1228,7 +1245,7 @@ test("coverage: staff Home, a task, its send dialog and the month", async ({
   const page = await signIn(browser, w.staffA.email, baseURL!)
   await expect(page).toHaveURL(STAFF_LANDING)
   await expect(
-    page.getByRole("region", { name: "Needs another photo" })
+    page.getByRole("region", { name: "What your reviewer asked for" })
   ).toBeVisible()
   await capture(page, testInfo, "coverage-staff-home")
   await expectFocusVisibleEverywhere(page, "coverage-staff-home")
@@ -1306,16 +1323,15 @@ test("coverage: manager overview, review, team, checklist, item and menu", async
   await expectFocusVisibleEverywhere(page, "coverage-manager-review")
 
   await page.goto("/staff/manage/team")
-  const edit = page.getByRole("button", {
-    name: `Edit target for ${w.staffA.name}`,
+  // Targets are edited inline on each row; a changed row shows Save changes.
+  const target = page.getByRole("textbox", {
+    name: `${w.staffA.name}'s photo target`,
   })
-  const targetDialog = page.getByRole("dialog")
-  await edit.click()
-  await expect(targetDialog).toBeVisible()
-  await capture(page, testInfo, "coverage-manager-target-dialog", {
-    restore: reopen(page, edit, targetDialog),
-  })
-  await page.keyboard.press("Escape")
+  await expect(target).toBeVisible()
+  const savedTarget = await target.inputValue()
+  await target.fill(String((Number(savedTarget) || 0) + 1))
+  await capture(page, testInfo, "coverage-manager-target-edit")
+  await target.fill(savedTarget)
 
   await useDark(page)
   await page.goto("/staff/manage/review")
