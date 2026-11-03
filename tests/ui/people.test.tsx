@@ -175,7 +175,8 @@ describe("People order", () => {
     )
     serveMembers(names.map((name) => member(name)))
     await renderPeople()
-    expect(community.listCommunityMembers).toHaveBeenCalledTimes(2)
+    // One wave of four parallel pages; the second page is the last.
+    expect(community.listCommunityMembers).toHaveBeenCalledTimes(4)
     const cards = within(screen.getByRole("list", { name: "People" }))
       .getAllByRole("link")
       .map((link) => link.textContent)
@@ -238,6 +239,22 @@ describe("People page", () => {
     expect(
       screen.getByText("Showing 1 to 30 of 30, A to Z by surname")
     ).toBeTruthy()
+  })
+
+  it("reads in parallel waves until a page is the last", async () => {
+    serveMembers(
+      Array.from({ length: 450 }, (_, i) =>
+        member(`P${String(i).padStart(3, "0")} Q`)
+      )
+    )
+    await renderPeople()
+    const offsets = community.listCommunityMembers.mock.calls.map(
+      ([, filters]) => (filters as { offset: number }).offset
+    )
+    expect(offsets).toEqual([0, 100, 200, 300, 400, 500, 600, 700])
+    expect(
+      within(screen.getByRole("list", { name: "People" })).getAllByRole("link")
+    ).toHaveLength(24)
   })
 
   it("says who the name search found, with Clear search", async () => {

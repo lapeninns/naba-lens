@@ -10,6 +10,12 @@ import type { MediaActor, Outcome } from "@/lib/server/media/types"
 import { sortPeople } from "./people"
 
 const BATCH = 100
+/** Pages read at the same time; the service reports no total to plan by. */
+const PARALLEL = 4
+/**
+ * Known limit: past this many matches the list (and its "of N") stops here.
+ * A surname order in the service would remove the full read.
+ */
 const MAX_PEOPLE = 5_000
 
 /**
@@ -23,16 +29,27 @@ export async function listPeople(
 ): Promise<Outcome<{ members: CommunityMember[] }>> {
   const members: CommunityMember[] = []
   let offset = 0
-  for (;;) {
-    const page = await listCommunityMembers(actor, {
-      ...filters,
-      offset,
-      limit: BATCH,
-    })
-    if (!page.ok) return page
-    members.push(...page.members)
-    if (page.nextOffset === null || members.length >= MAX_PEOPLE) break
-    offset = page.nextOffset
+  while (members.length < MAX_PEOPLE) {
+    const pages = await Promise.all(
+      Array.from({ length: PARALLEL }, (_, i) =>
+        listCommunityMembers(actor, {
+          ...filters,
+          offset: offset + i * BATCH,
+          limit: BATCH,
+        })
+      )
+    )
+    let more = true
+    for (const page of pages) {
+      if (!page.ok) return page
+      members.push(...page.members)
+      if (page.nextOffset === null) {
+        more = false
+        break
+      }
+    }
+    if (!more) break
+    offset += PARALLEL * BATCH
   }
-  return { ok: true, members: sortPeople(members) }
+  return { ok: true, members: sortPeople(members.slice(0, MAX_PEOPLE)) }
 }
