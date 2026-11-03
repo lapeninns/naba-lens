@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils"
+import { StatusChip, type ChipTone } from "../status-chip"
 
 import {
   PRESENCE_LABEL,
@@ -13,17 +13,15 @@ import type {
   SubmissionState,
 } from "./types"
 
-const base =
-  "inline-flex h-5 items-center rounded-sm px-1.5 text-xs font-medium"
+type Tone = "positive" | "warning" | "info" | "negative" | "muted" | "closed"
 
-type Tone = "positive" | "warning" | "info" | "negative" | "muted"
-
-const TONE: Record<Tone, string> = {
-  positive: "bg-positive-surface text-positive",
-  warning: "bg-warning-surface text-warning",
-  info: "bg-info-surface text-info",
-  negative: "bg-negative-surface text-negative",
-  muted: "bg-muted text-muted-foreground",
+const CHIP_TONE: Record<Tone, ChipTone> = {
+  positive: "positive",
+  warning: "attention",
+  info: "pending",
+  negative: "negative",
+  muted: "neutral",
+  closed: "closed",
 }
 
 export function CoverageBadge({
@@ -38,23 +36,10 @@ export function CoverageBadge({
   title?: string
 }) {
   return (
-    <span className={cn(base, TONE[tone], className)} title={title}>
+    <StatusChip tone={CHIP_TONE[tone]} className={className} title={title}>
       {children}
-    </span>
+    </StatusChip>
   )
-}
-
-/** String-keyed so a new service status still renders (neutral tone). */
-type ToneMap = Readonly<Record<string, Tone>>
-
-const toneFor = (map: ToneMap, key: string): Tone =>
-  Object.hasOwn(map, key) ? map[key] : "muted"
-
-const STATUS_TONE: ToneMap = {
-  needs_setup: "warning",
-  active: "info",
-  not_applicable: "muted",
-  retired: "muted",
 }
 
 export function RequirementStatusBadge({
@@ -68,23 +53,13 @@ export function RequirementStatusBadge({
   className?: string
 }) {
   if (status === "active" && satisfied) {
-    return (
-      <CoverageBadge tone="positive" className={className}>
-        Complete
-      </CoverageBadge>
-    )
+    return <StatusChip state="complete" className={className} />
   }
   return (
-    <CoverageBadge tone={toneFor(STATUS_TONE, status)} className={className}>
+    <StatusChip state={status} className={className}>
       {labelFor(REQUIREMENT_STATUS_LABEL, status)}
-    </CoverageBadge>
+    </StatusChip>
   )
-}
-
-const STATE_TONE: ToneMap = {
-  submitted: "info",
-  accepted: "positive",
-  needs_another_photo: "warning",
 }
 
 export function SubmissionStateBadge({
@@ -95,44 +70,28 @@ export function SubmissionStateBadge({
   className?: string
 }) {
   return (
-    <CoverageBadge tone={toneFor(STATE_TONE, state)} className={className}>
+    <StatusChip state={state} className={className}>
       {labelFor(SUBMISSION_STATE_LABEL, state)}
-    </CoverageBadge>
+    </StatusChip>
   )
 }
 
 export function SelfReviewBadge({ className }: { className?: string }) {
   return (
-    <CoverageBadge
-      tone="warning"
+    <StatusChip
+      state="self_review"
       className={className}
       title={SELF_REVIEW_COPY}
-    >
-      Self-review
-    </CoverageBadge>
+    />
   )
 }
 
 export function OverdueBadge({ className }: { className?: string }) {
-  return (
-    <CoverageBadge tone="negative" className={className}>
-      Overdue
-    </CoverageBadge>
-  )
+  return <StatusChip state="overdue" className={className} />
 }
 
 export function NeedsSetupBadge({ className }: { className?: string }) {
-  return (
-    <CoverageBadge tone="warning" className={className}>
-      Needs setup
-    </CoverageBadge>
-  )
-}
-
-const PRESENCE_TONE: ToneMap = {
-  present: "positive",
-  absent: "muted",
-  unknown: "warning",
+  return <StatusChip state="needs_setup" className={className} />
 }
 
 export function PresenceBadge({
@@ -143,11 +102,8 @@ export function PresenceBadge({
   className?: string
 }) {
   return (
-    <CoverageBadge
-      tone={toneFor(PRESENCE_TONE, presence)}
-      className={className}
-    >
+    <StatusChip state={presence} className={className}>
       {labelFor(PRESENCE_LABEL, presence)}
-    </CoverageBadge>
+    </StatusChip>
   )
 }
