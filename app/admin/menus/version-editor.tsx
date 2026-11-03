@@ -390,11 +390,16 @@ export function VersionEditor({
     </DropdownMenu>
   )
 
+  // At 360px Save, Activate and More fit on one row (325 of 328px) only with
+  // the phone padding of the small size.
+  const barButton = "max-md:px-4"
+
   const actions = isDraft ? (
     <>
       <Button
         variant="secondary"
         size="touch"
+        className={barButton}
         onClick={save}
         disabled={!dirty || saving || refreshing || conflict || !online}
         aria-busy={saving || undefined}
@@ -402,13 +407,14 @@ export function VersionEditor({
         {saving ? "Saving…" : "Save"}
       </Button>
       {unresolved > 0 ? (
-        <Button size="touch" onClick={review}>
+        <Button size="touch" className={barButton} onClick={review}>
           <WarningIcon aria-hidden />
           {`Review ${plural(unresolved, "item")}`}
         </Button>
       ) : (
         <Button
           size="touch"
+          className={barButton}
           onClick={() => setDialog("activate")}
           disabled={!online}
         >
