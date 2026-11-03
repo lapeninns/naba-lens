@@ -32,7 +32,7 @@ const termClass = "text-meta-touch text-ink-muted md:text-meta"
 /** Where a version came from and who moved it through its states. */
 export function ProvenanceCard({
   version,
-  title = "This version",
+  title = "Menu version",
   note,
   className,
 }: ProvenanceCardProps) {

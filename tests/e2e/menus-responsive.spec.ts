@@ -263,13 +263,13 @@ for (const width of WIDTHS) {
       .click()
     const single = page.getByRole("dialog", { name: /^(Add|Edit) labels$/ })
     await single
-      .getByRole("combobox", { name: /^Search the menu/ })
+      .getByRole("combobox", { name: /^Menu item at / })
       .fill("chicken")
     await expect(
       single.getByRole("listbox", { name: "Matching menu items" })
     ).toBeVisible()
     await check(page, width, "label-editor-single-search", single)
-    await single.getByRole("combobox", { name: /^Search the menu/ }).fill("")
+    await single.getByRole("combobox", { name: /^Menu item at / }).fill("")
     await single.getByRole("button", { name: "Item not on the menu?" }).click()
     await check(page, width, "label-editor-single-missing", single)
     await page.keyboard.press("Escape")
@@ -287,7 +287,9 @@ for (const width of WIDTHS) {
       .click()
     const batch = page.getByRole("dialog", { name: "Label these files" })
     await batch
-      .getByRole("combobox", { name: "Search the menu for all files" })
+      .getByRole("combobox", {
+        name: `Menu item at ${world.venue1.name} (optional) for all files`,
+      })
       .fill("momo")
     await batch.getByRole("option", { name: /^Momo in Appetisers/ }).click()
     await check(page, width, "label-editor-batch-variant", batch)
@@ -324,7 +326,7 @@ test("keyboard only: open the editor, pick an item, a content type, a note, save
     true
   )
 
-  const search = editor.getByRole("combobox", { name: /^Search the menu/ })
+  const search = editor.getByRole("combobox", { name: /^Menu item at / })
   await tabTo(page, search)
   await page.keyboard.type("onion bhaji")
   await expect(
@@ -374,9 +376,7 @@ test("touch (Pixel 7 emulation): upload, label with taps, labels persist", async
   const editor = page.getByRole("dialog", {
     name: /^(Label this file|Add labels)$/,
   })
-  await editor
-    .getByRole("combobox", { name: /^Search the menu/ })
-    .fill("garlic")
+  await editor.getByRole("combobox", { name: /^Menu item at / }).fill("garlic")
   await editor
     .getByRole("option", { name: /^Garlic Mushroom in Appetisers/ })
     .tap()
