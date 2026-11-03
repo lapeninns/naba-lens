@@ -429,6 +429,13 @@ test.describe("GAP-11 over HTTP: community reads and management isolation", () =
             const parent = n.parentElement
             if (parent?.closest('[aria-labelledby="colleagues-heading"]'))
               continue
+            // The RSC payload carries the colleagues section's props; it is
+            // never rendered. Any other script still counts.
+            if (
+              parent?.tagName === "SCRIPT" &&
+              n.textContent.trimStart().startsWith("self.__next_f")
+            )
+              continue
             const path: string[] = []
             for (let a = parent; a && a !== document.body; a = a.parentElement)
               path.unshift(
