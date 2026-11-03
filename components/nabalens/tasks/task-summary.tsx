@@ -12,7 +12,7 @@ import { requirementKindLabel } from "./copy"
 import { DueLine } from "./status-badges"
 import type { MyAssignment } from "./types"
 
-/** Back link to My tasks, sized for touch. */
+/** Back link to Home, sized for touch. */
 export function BackToTasks({ href }: { href: string }) {
   return (
     <Link

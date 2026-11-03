@@ -135,7 +135,7 @@ async function reviewJourney(
   ).toBeVisible()
   expect(itemState(items[w.manager.id]!)).toBe("accepted:true")
 
-  // Staff A sees the reason on My tasks; the admin sees the self-review.
+  // Staff A sees the reason on Home; the admin sees the self-review.
   const staffA = await signedInPage(browser, w.staffA, context)
   await expect(
     staffA

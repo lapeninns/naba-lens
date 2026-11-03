@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// Staff My tasks views: setup state, monthly progress, overdue, replacement
+// Staff Home views: setup state, monthly progress, overdue, replacement
 // reasons, late acceptance and evidence previews that re-sign when expired.
 import {
   act,

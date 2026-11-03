@@ -377,7 +377,7 @@ describe("inactive admin with a still-valid session", () => {
 
 describe("segment layouts reject before anything renders (privacy R3)", () => {
   const children = "CHILD"
-  it("admin layout sends staff to My tasks and lets admins through", async () => {
+  it("admin layout sends staff to Home and lets admins through", async () => {
     expect(
       (
         await staff.browser.run(() =>

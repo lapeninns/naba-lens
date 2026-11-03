@@ -100,7 +100,7 @@ test.describe("admin staff management", () => {
     ).toBeVisible()
     await dialog.getByRole("button", { name: "Cancel" }).click()
 
-    // The invitee accepts from the real email, lands on My tasks and opens
+    // The invitee accepts from the real email, lands on Home and opens
     // their portfolio.
     const staffContext = await browser.newContext()
     const staffPage = await staffContext.newPage()

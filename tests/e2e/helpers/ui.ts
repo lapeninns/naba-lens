@@ -16,7 +16,7 @@ export function tile(
   })
 }
 
-/** Where staff land after sign-in or a wrong-role redirect: My tasks. */
+/** Where staff land after sign-in or a wrong-role redirect: Home. */
 export const STAFF_LANDING = /\/staff\/tasks$/
 
 /** My portfolio is a page staff open, no longer where they land. */

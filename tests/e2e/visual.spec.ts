@@ -1205,7 +1205,7 @@ async function seedCoverageScenes() {
 const pageHeading = (page: Page) =>
   expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible()
 
-test("coverage: staff My tasks, a task, its send dialog and the month", async ({
+test("coverage: staff Home, a task, its send dialog and the month", async ({
   browser,
   baseURL,
 }, testInfo) => {
@@ -1216,8 +1216,8 @@ test("coverage: staff My tasks, a task, its send dialog and the month", async ({
   await expect(
     page.getByRole("region", { name: "Needs another photo" })
   ).toBeVisible()
-  await capture(page, testInfo, "coverage-staff-my-tasks")
-  await expectFocusVisibleEverywhere(page, "coverage-staff-my-tasks")
+  await capture(page, testInfo, "coverage-staff-home")
+  await expectFocusVisibleEverywhere(page, "coverage-staff-home")
 
   await page.goto(`/staff/tasks/${requirementId}`)
   await expect(
@@ -1246,7 +1246,7 @@ test("coverage: staff My tasks, a task, its send dialog and the month", async ({
   await useDark(page)
   await page.goto("/staff/tasks")
   await pageHeading(page)
-  await capture(page, testInfo, "coverage-staff-my-tasks", {
+  await capture(page, testInfo, "coverage-staff-home", {
     widths: some(page, testInfo, [390, 1280]),
   })
   await page.context().close()
