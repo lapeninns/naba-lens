@@ -4,7 +4,7 @@ import * as React from "react"
 import { ArrowClockwiseIcon } from "@phosphor-icons/react"
 
 import { LabelEditorDialog, type CatalogueProp } from "@/components/nabalens"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Notice } from "@/components/nabalens/notice"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -45,6 +45,7 @@ type Phase =
   | { kind: "error"; message: string }
   | {
       kind: "ready"
+      audience: "admin" | "staff"
       assets: LabelEditorAsset[]
       missing: string[]
       catalogue: CatalogueProp
@@ -88,6 +89,7 @@ async function fetchContext(
     groups,
     phase: {
       kind: "ready",
+      audience: result.viewer,
       assets: result.assets,
       missing: result.missing,
       catalogue: result.catalogue
@@ -188,14 +190,20 @@ function HostSession({
   }
 
   const multi = groups.length > 1
+  const base =
+    title ??
+    (phase.kind === "ready" && phase.audience === "admin"
+      ? "Edit labels"
+      : "Labels")
   const heading = multi
-    ? `${title ?? "Label files"} (venue ${index + 1} of ${groups.length})`
+    ? `${base} (venue ${index + 1} of ${groups.length})`
     : title
 
   if (phase.kind === "ready") {
     return (
       <LabelEditorDialog
         open
+        audience={phase.audience}
         onOpenChange={(next) => {
           if (!next) finishGroup()
         }}
@@ -225,18 +233,16 @@ function HostSession({
           </DialogDescription>
         </DialogHeader>
         {phase.kind === "loading" ? (
-          <p role="status" className="text-muted-foreground">
+          <p role="status" className="text-ink-muted">
             Loading labels and menu…
           </p>
         ) : (
-          <Alert variant="destructive">
-            <AlertDescription>{phase.message}</AlertDescription>
-          </Alert>
+          <Notice tone="negative">{phase.message}</Notice>
         )}
         <DialogFooter>
           <Button
             type="button"
-            variant="outline"
+            variant="secondary"
             size="touch"
             onClick={() => onOpenChange(false)}
           >
