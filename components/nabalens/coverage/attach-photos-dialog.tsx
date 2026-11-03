@@ -242,7 +242,7 @@ export function AttachPhotosDialog({
                     <label
                       className={
                         photo.eligible
-                          ? "grid cursor-pointer gap-1 rounded-md p-1 has-checked:bg-primary/10 has-focus-visible:ring-3 has-focus-visible:ring-ring/50"
+                          ? "grid cursor-pointer gap-1 rounded-chip p-1 has-checked:bg-accent-soft has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus"
                           : "grid gap-1 rounded-md p-1 opacity-60"
                       }
                     >

@@ -143,7 +143,7 @@ function FactChoice({
           disabled={disabled}
           onClick={() => onChange(option)}
           onKeyDown={(e) => onKeyDown(e, i)}
-          className="min-h-11 rounded-[6px] border border-transparent px-2 text-center text-label-touch text-ink-muted hover:text-ink disabled:cursor-not-allowed disabled:opacity-60 aria-checked:border-line-control aria-checked:bg-panel aria-checked:text-ink md:min-h-9 md:text-label"
+          className="min-h-11 rounded-chip border border-transparent px-2 text-center text-label-touch text-ink-muted hover:text-ink disabled:cursor-not-allowed disabled:opacity-60 aria-checked:border-line-control aria-checked:bg-panel aria-checked:text-ink md:min-h-9 md:text-label"
         >
           {labelFor(PRESENCE_LABEL, option)}
         </button>
@@ -366,7 +366,7 @@ export function AmenityFactForm({
               const reason = refused[photo.id]
               return (
                 <li key={photo.id}>
-                  <label className="grid cursor-pointer gap-1 rounded-md p-1 has-checked:bg-primary/10 has-focus-visible:ring-3 has-focus-visible:ring-ring/50">
+                  <label className="grid cursor-pointer gap-1 rounded-chip p-1 has-checked:bg-accent-soft has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus">
                     <EvidenceThumb
                       src={photo.available ? photo.thumbnailUrl : null}
                     />

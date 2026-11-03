@@ -43,7 +43,8 @@ export function CoverageSection({
   )
 }
 
-export type TallyTone = "neutral" | "attention" | "negative" | "positive" | "zero"
+export type TallyTone =
+  "neutral" | "attention" | "negative" | "positive" | "zero"
 
 const TALLY_TONE: Record<TallyTone, string> = {
   neutral: "",
@@ -97,7 +98,7 @@ export function TallyItem({
       <span className="text-meta text-ink-muted">{label}</span>
       <span
         className={cn(
-          "flex items-baseline gap-1.5 font-display text-[30px] leading-8 font-semibold tabular-nums",
+          "flex items-baseline gap-1.5 font-display text-count tabular-nums",
           TALLY_TONE[shownTone]
         )}
       >
@@ -117,7 +118,7 @@ export function TallyItem({
   const cell =
     "grid min-w-0 content-start gap-0.5 px-4 pt-3 pb-3.5 text-inherit no-underline"
   return (
-    <li className="-mt-px -ms-px flex min-w-0 flex-[1_1_148px] border-s border-t border-line">
+    <li className="-ms-px -mt-px flex min-w-0 flex-[1_1_148px] border-s border-t border-line">
       {href ? (
         <Link
           href={href}
@@ -161,7 +162,9 @@ export function Frames({
   const text = `${accepted} of ${target} accepted`
   const asBar = target > 12
   return (
-    <div className={cn("grid min-w-0", compact ? "gap-1.5" : "gap-2", className)}>
+    <div
+      className={cn("grid min-w-0", compact ? "gap-1.5" : "gap-2", className)}
+    >
       <p
         className={cn(
           "flex flex-wrap items-baseline gap-x-2 gap-y-1",
@@ -171,9 +174,7 @@ export function Frames({
         <span
           className={cn(
             "font-semibold tabular-nums",
-            compact
-              ? "text-body-sm"
-              : "font-display text-[30px] leading-8"
+            compact ? "text-body-sm" : "font-display text-count"
           )}
         >
           {accepted}
@@ -213,7 +214,7 @@ export function Frames({
                 key={i}
                 className={cn(
                   "flex-[1_1_0] rounded-print border",
-                  compact ? "h-2 max-w-[22px]" : "h-3 max-w-14",
+                  compact ? "h-2 max-w-5.5" : "h-3 max-w-14",
                   i < filled
                     ? "border-positive-fill bg-positive-fill"
                     : i < filled + waiting

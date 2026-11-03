@@ -148,7 +148,7 @@ export function Stepper({
   const n = Number(value)
   const set = value !== "" && Number.isInteger(n)
   const step =
-    "grid min-h-11 w-11 place-items-center text-ink-muted hover:bg-fill-hover hover:text-ink disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent md:min-h-[34px] md:w-[34px]"
+    "grid min-h-11 w-11 place-items-center text-ink-muted hover:bg-fill-hover hover:text-ink disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent md:min-h-9 md:w-9"
   return (
     <div
       className={cn(
@@ -180,7 +180,7 @@ export function Stepper({
         aria-invalid={invalid || undefined}
         aria-describedby={describedBy}
         disabled={disabled}
-        className="w-[3em] border-x border-line bg-transparent text-center text-[15px] font-semibold text-ink tabular-nums outline-none placeholder:text-ink-subtle focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus disabled:opacity-60"
+        className="w-[3em] border-x border-line bg-transparent text-center text-body font-semibold text-ink tabular-nums outline-none placeholder:text-ink-subtle focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus disabled:opacity-60"
       />
       <button
         type="button"
