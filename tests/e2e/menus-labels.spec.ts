@@ -121,6 +121,7 @@ async function importAndActivate(
   await expect(
     page.getByRole("heading", { level: 1, name: venue.name })
   ).toBeVisible()
+  await page.getByRole("button", { name: "Import a menu" }).click()
   await page.getByLabel("Menu file (JSON or CSV)").setInputFiles(path)
   await expect(
     page.getByRole("heading", { name: `Preview: ${title}` })
