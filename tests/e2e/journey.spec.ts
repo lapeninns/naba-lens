@@ -221,7 +221,9 @@ test.describe("release journey @core", () => {
     // equal the uploaded sources (photos, then the video under "Videos").
     const viewer = adminB.getByRole("dialog")
     await tile(library, "Photo", jpeg.name).click()
-    const preview = viewer.getByRole("img", { name: `Photo ${jpeg.name}` })
+    const preview = viewer.getByRole("img", {
+      name: `Photo by ${inviteeName}, ${venue1.name}, uploaded`,
+    })
     await expect
       .poll(() =>
         preview.evaluate(
