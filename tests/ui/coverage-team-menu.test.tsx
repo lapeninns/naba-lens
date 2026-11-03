@@ -247,9 +247,12 @@ describe("TeamRoster", () => {
     expect(
       screen.queryByLabelText("Reason for changing November's target")
     ).toBeNull()
-    await user.click(
-      screen.getByRole("button", { name: "Change TEST Sam's due date" })
-    )
+    const changeDue = screen.getByRole("button", {
+      name: "Change due date for TEST Sam",
+    })
+    // WCAG 2.5.3: the accessible name starts with the visible label.
+    expect(changeDue.textContent).toBe("Change due date")
+    await user.click(changeDue)
     const due = screen.getByLabelText("Due date")
     expect(due.getAttribute("min")).toBe("2026-11-01")
     expect(due.getAttribute("max")).toBe("2026-11-30")
@@ -334,7 +337,10 @@ describe("TeamRoster", () => {
 
     // The re-read brings someone else's change as a new revision.
     rerender(
-      <TeamRoster {...props} rows={[monthly({ targetCount: 8, revision: 3 })]} />
+      <TeamRoster
+        {...props}
+        rows={[monthly({ targetCount: 8, revision: 3 })]}
+      />
     )
     const input = screen.getByLabelText(
       "TEST Sam's photo target"
@@ -433,12 +439,12 @@ describe("TeamRoster", () => {
         onSetTarget={onSetTarget}
       />
     )
-    expect(
-      screen.queryByRole("button", { name: /photo target/ })
-    ).toBeNull()
-    await user.click(
-      screen.getByRole("button", { name: "Correct TEST Sam's October target" })
-    )
+    expect(screen.queryByRole("button", { name: /photo target/ })).toBeNull()
+    const correct = screen.getByRole("button", {
+      name: "Correct target for TEST Sam, October",
+    })
+    expect(correct.textContent).toBe("Correct target")
+    await user.click(correct)
     const dialog = await screen.findByRole("dialog")
     expect(
       within(dialog).getByText("Correct TEST Sam's October target")
@@ -551,7 +557,9 @@ describe("PrepareMonthButton", () => {
         "Targets were copied for 9 of 11 people. 2 need you to set them on Team. Nothing was copied twice."
       )
     ).toBeTruthy()
-    expect(within(dialog).getByRole("button", { name: "Try again" })).toBeTruthy()
+    expect(
+      within(dialog).getByRole("button", { name: "Try again" })
+    ).toBeTruthy()
   })
 })
 

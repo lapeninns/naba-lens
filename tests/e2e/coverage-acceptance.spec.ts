@@ -702,7 +702,7 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
     )
     await adminPage
       .getByRole("button", {
-        name: new RegExp(`^Correct ${w.staffA.name}'s \\w+ target$`),
+        name: new RegExp(`^Correct target for ${w.staffA.name}, \\w+$`),
       })
       .click()
     const dialog = adminPage.getByRole("dialog")
