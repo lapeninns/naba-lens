@@ -108,7 +108,9 @@ test.describe("admin staff management", () => {
     await expect(
       staffPage.getByRole("heading", { name: "Accept your invitation" })
     ).toBeVisible()
-    await staffPage.getByRole("button", { name: "Continue" }).click()
+    await staffPage
+      .getByRole("button", { name: "Accept your invitation" })
+      .click()
     await expect(staffPage).toHaveURL(STAFF_LANDING)
     await openPortfolio(staffPage)
     await expect(staffPage.getByRole("heading", { name })).toBeVisible()

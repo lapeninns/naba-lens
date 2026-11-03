@@ -184,7 +184,7 @@ for (const width of WIDTHS) {
       anon,
       width,
       "login-expired",
-      anon.getByRole("button", { name: "Send sign-in link" })
+      anon.getByRole("button", { name: "Send a new link" })
     )
 
     // --- /staff and its dialogs
