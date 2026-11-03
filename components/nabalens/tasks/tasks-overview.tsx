@@ -1,7 +1,9 @@
 import type { Department } from "@/lib/config/departments"
 
+import { EmptyState } from "../empty-state"
 import { Notice } from "../notice"
 import { PageHeader } from "../page-header"
+import { CountBadge } from "../status-chip"
 import { AssignmentList } from "./assignment-list"
 import { MonthlyProgressCard } from "./monthly-progress-card"
 import { todoItems, TodoSection } from "./todo-list"
@@ -95,12 +97,25 @@ export function TasksOverview({
       </p>
 
       <section
-        aria-labelledby="assigned-heading"
-        className="flex flex-col gap-3"
+        aria-labelledby="all-tasks-heading"
+        className="flex flex-col gap-4"
       >
-        <h2 id="assigned-heading" className="text-lg font-semibold">
+        <div className="grid gap-2">
+          <h2
+            id="all-tasks-heading"
+            className="font-display text-2xl break-words text-ink"
+          >
+            All tasks
+          </h2>
+          <p className="max-w-(--size-reading) text-body-touch text-ink-muted md:text-body">
+            Tasks assigned to you at {scope.venue?.name ?? "your venue"}.
+            Overdue tasks still take photos.
+          </p>
+        </div>
+        <h3 className="flex items-center gap-2 text-lg font-semibold">
           Assigned to you
-        </h2>
+          <CountBadge count={assignments.length} label="tasks" />
+        </h3>
         {assignments.length > 0 ? (
           <AssignmentList
             assignments={assignments}
@@ -108,10 +123,12 @@ export function TasksOverview({
             needsAnotherPhoto={replacing}
           />
         ) : (
-          <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-            Nothing is assigned to you right now. You can still add photos for
-            this month.
-          </p>
+          <EmptyState
+            inline
+            variant="done"
+            title="Nothing is assigned to you this month."
+            description={`Your manager assigns tasks at ${scope.venue?.name ?? "your venue"}. You can still add photos to your profile.`}
+          />
         )}
       </section>
     </div>

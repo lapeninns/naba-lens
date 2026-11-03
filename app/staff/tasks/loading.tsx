@@ -13,6 +13,14 @@ export default function TasksLoading() {
         <Skeleton className="h-32 rounded-panel" />
         <Skeleton className="h-24 rounded-panel" />
       </SkeletonRegion>
+      <h2 className="font-display text-2xl text-ink">All tasks</h2>
+      <SkeletonRegion
+        label="Loading tasks…"
+        className="grid gap-3 sm:grid-cols-2"
+      >
+        <Skeleton className="h-28 rounded-panel" />
+        <Skeleton className="h-28 rounded-panel" />
+      </SkeletonRegion>
     </div>
   )
 }

@@ -167,6 +167,7 @@ describe("TasksOverview", () => {
     // The replacement request covers the overdue task, so it isn't listed twice.
     expect(within(todo).queryByText("Starters is overdue")).toBeNull()
 
+    expect(screen.getByRole("heading", { name: "All tasks" })).toBeTruthy()
     const tasks = screen.getByRole("list", { name: "Assigned tasks" })
     const link = within(tasks).getByRole("link", { name: "Starters" })
     expect(link.getAttribute("href")).toBe(
@@ -184,6 +185,47 @@ describe("TasksOverview", () => {
         .getByRole("link", { name: "Send another photo for Starters" })
         .getAttribute("href")
     ).toBe(`/staff/tasks/${starters.requirement.id}?replaces=${replace.id}`)
+  })
+
+  it("lists tasks overdue first, then by due date, and says when none are assigned", () => {
+    const later = assignment({
+      title: "Later",
+      due: due({ dueAt: "2026-11-30T00:00:00Z" }),
+    })
+    const sooner = assignment({
+      title: "Sooner",
+      due: due({ dueAt: "2026-11-10T00:00:00Z" }),
+    })
+    const late = assignment({
+      title: "Late",
+      due: due({ overdue: true, dueAt: "2026-11-30T00:00:00Z" }),
+      progress: { ...requirement().progress, overdue: true },
+    })
+    const { unmount } = render(
+      <TasksOverview
+        tasks={tasksView({ assignments: [later, sooner, late] })}
+        profile={PROFILE}
+        tasksPath="/staff/tasks"
+        portfolioPath="/staff"
+      />
+    )
+    const list = screen.getByRole("list", { name: "Assigned tasks" })
+    const names = within(list)
+      .getAllByRole("link")
+      .map((l) => l.textContent)
+    expect(names).toEqual(["Late", "Sooner", "Later"])
+    unmount()
+    render(
+      <TasksOverview
+        tasks={tasksView({ assignments: [] })}
+        profile={PROFILE}
+        tasksPath="/staff/tasks"
+        portfolioPath="/staff"
+      />
+    )
+    expect(
+      screen.getByText("Nothing is assigned to you this month.")
+    ).toBeTruthy()
   })
 
   it("explains a paused venue", () => {
@@ -485,7 +527,7 @@ describe("AssignmentList", () => {
     )
     expect(screen.getByText("Complete")).toBeTruthy()
     expect(screen.queryByText("Overdue")).toBeNull()
-    expect(screen.getByText("Closed to new photos")).toBeTruthy()
+    expect(screen.getByText("Closed")).toBeTruthy()
   })
 })
 
