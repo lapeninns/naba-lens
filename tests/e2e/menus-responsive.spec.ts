@@ -261,7 +261,7 @@ for (const width of WIDTHS) {
       .first()
       .getByRole("button", { name: /^(Add|Edit) labels$/ })
       .click()
-    const single = page.getByRole("dialog", { name: /^(Add|Edit) labels$/ })
+    const single = page.getByRole("dialog", { name: /^(Labels|Edit labels)$/ })
     await single
       .getByRole("combobox", { name: /^Menu item at / })
       .fill("chicken")
@@ -291,7 +291,7 @@ for (const width of WIDTHS) {
         name: `Menu item at ${world.venue1.name} (optional) for all files`,
       })
       .fill("momo")
-    await batch.getByRole("option", { name: /^Momo in Appetisers/ }).click()
+    await batch.getByRole("option", { name: /^Momo Appetisers/ }).click()
     await check(page, width, "label-editor-batch-variant", batch)
     await batch.getByRole("button", { name: "Chicken" }).click()
     await batch
@@ -320,7 +320,7 @@ test("keyboard only: open the editor, pick an item, a content type, a note, save
   const add = viewer.getByRole("button", { name: /^(Add|Edit) labels$/ })
   await tabTo(page, add)
   await page.keyboard.press("Enter")
-  const editor = page.getByRole("dialog", { name: /^(Add|Edit) labels$/ })
+  const editor = page.getByRole("dialog", { name: /^(Labels|Edit labels)$/ })
   await expect(editor).toBeVisible()
   expect(await editor.evaluate((d) => d.contains(document.activeElement))).toBe(
     true
@@ -330,7 +330,7 @@ test("keyboard only: open the editor, pick an item, a content type, a note, save
   await tabTo(page, search)
   await page.keyboard.type("onion bhaji")
   await expect(
-    editor.getByRole("option", { name: /^Onion Bhaji in Appetisers/ })
+    editor.getByRole("option", { name: /^Onion Bhaji Appetisers/ })
   ).toBeVisible()
   await page.keyboard.press("ArrowDown")
   await page.keyboard.press("Enter")
@@ -378,7 +378,7 @@ test("touch (Pixel 7 emulation): upload, label with taps, labels persist", async
   })
   await editor.getByRole("combobox", { name: /^Menu item at / }).fill("garlic")
   await editor
-    .getByRole("option", { name: /^Garlic Mushroom in Appetisers/ })
+    .getByRole("option", { name: /^Garlic Mushroom Appetisers/ })
     .tap()
   await editor.getByRole("button", { name: "Plating" }).tap()
   await editor.getByRole("button", { name: /^Save labels/ }).tap()

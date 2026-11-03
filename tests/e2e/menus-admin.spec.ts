@@ -185,7 +185,7 @@ async function openOwnLabelEditor(page: Page, fileName: string) {
   ).click()
   const viewer = page.getByRole("dialog").first()
   await viewer.getByRole("button", { name: /^(Add|Edit) labels$/ }).click()
-  const editor = page.getByRole("dialog", { name: /^(Add|Edit) labels$/ })
+  const editor = page.getByRole("dialog", { name: /^(Labels|Edit labels)$/ })
   await expect(editor).toBeVisible()
   return editor
 }
@@ -304,10 +304,10 @@ test("rows 1+3: two venue menus imported separately; a draft is never active for
     ).toBeVisible()
     await searchMenu(a, "Onion Bhaji")
     // Both files list "Onion Bhaji"; only venue 1's own item is offered.
-    await expect(
-      a.getByRole("option", { name: /^Onion Bhaji in / })
-    ).toHaveCount(1)
-    await a.getByRole("option", { name: /^Onion Bhaji in Appetisers/ }).click()
+    await expect(a.getByRole("option", { name: /^Onion Bhaji / })).toHaveCount(
+      1
+    )
+    await a.getByRole("option", { name: /^Onion Bhaji Appetisers/ }).click()
     await a.getByRole("button", { name: /^Save labels/ }).click()
     await expect(a).toBeHidden()
     await expect(
