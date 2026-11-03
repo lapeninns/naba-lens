@@ -616,7 +616,7 @@ export function TeamRoster({
               className="text-meta-touch md:text-meta"
               onClick={() => update(row, { dueOpen: true })}
               disabled={saving}
-              aria-label={`Change ${name}'s due date`}
+              aria-label={`Change due date for ${name}`}
             >
               Change due date
             </Button>
@@ -629,7 +629,7 @@ export function TeamRoster({
                 setCorrectingRow(row)
                 setCorrectOpen(true)
               }}
-              aria-label={`Correct ${name}'s ${month} target`}
+              aria-label={`Correct target for ${name}, ${month}`}
             >
               <PencilSimpleIcon aria-hidden />
               Correct target

@@ -763,6 +763,7 @@ export function RequirementSetup({
           </p>
           <Button
             variant={confirming ? "primary" : "secondary"}
+            size="touch"
             className="ms-auto"
             onClick={() => void save(confirming)}
             disabled={action.pending || (confirming ? blocked != null : !dirty)}
