@@ -3,6 +3,7 @@ import { expect, test, type Page } from "@playwright/test"
 import {
   activeItemId,
   attachShot,
+  openActiveVersion,
   openOwnLabelEditor,
   openVenueMenus,
   pickMenuItem,
@@ -24,7 +25,7 @@ const MOMO_KEY = "appetisers--momo-veg-chicken"
 /** Admin archives "Momo" in the venue's active menu through the Menus UI. */
 async function archiveMomo(admin: Page, venue: { id: string; name: string }) {
   await openVenueMenus(admin, venue)
-  await admin.getByRole("link", { name: "View active menu" }).click()
+  await openActiveVersion(admin)
   await admin.getByRole("searchbox", { name: "Search items" }).fill("Momo")
   await admin
     .getByRole("button", { name: /^Momo Veg · Chicken/, expanded: false })

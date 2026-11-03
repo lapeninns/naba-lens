@@ -87,6 +87,17 @@ export async function importRailwayDraft(
   ).toBeVisible()
 }
 
+/** From a venue's menus: open its active version from the Versions table. */
+export async function openActiveVersion(page: Page) {
+  await page
+    .getByRole("table", { name: "Menu versions" })
+    .getByRole("row")
+    .filter({ hasText: "Active · for labelling only" })
+    .getByRole("link")
+    .click()
+  await page.waitForURL(/\/admin\/menus\/versions\//)
+}
+
 /** From a draft version page: Activate for labelling → confirm → the version is active. */
 export async function activateOpenDraft(page: Page) {
   await page.getByRole("button", { name: "Activate for labelling" }).click()
