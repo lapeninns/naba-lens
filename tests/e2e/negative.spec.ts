@@ -479,7 +479,10 @@ test.describe("release negatives", () => {
     // Admin portfolio of someone without uploads.
     await admin.goto(`/admin/staff/${world.staffA.id}`)
     await expect(
-      admin.getByText(`${world.staffA.name} has no uploads yet`)
+      admin.getByRole("heading", { name: world.staffA.name })
+    ).toBeVisible()
+    await expect(
+      admin.locator('[data-slot="empty-state"]').getByText("No photos yet.")
     ).toBeVisible()
     // Filters that match nothing, and clearing them.
     await admin.goto(`/admin?staff=${world.staffA.id}&type=video`)
