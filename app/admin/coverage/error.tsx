@@ -1,19 +1,46 @@
 "use client"
 
+import { ArrowClockwiseIcon } from "@phosphor-icons/react"
+
+import { logout } from "@/app/_media/actions"
+import { AppShell } from "@/components/nabalens/app-shell"
+import { ERROR_COPY, ErrorState } from "@/components/nabalens/error-state"
+import { PageHeader } from "@/components/nabalens/page-header"
 import { Button } from "@/components/ui/button"
 
-export default function CoverageError({ retry }: { retry: () => void }) {
+import { COVERAGE_COPY } from "./coverage-copy"
+
+export default function CoverageError({
+  error,
+  retry,
+}: {
+  error: Error & { digest?: string }
+  retry: () => void
+}) {
   return (
-    <main className="mx-auto flex min-h-svh max-w-md flex-col items-center justify-center gap-4 p-6 text-center">
-      <h1 className="font-display text-lg font-semibold">
-        Coverage could not load
-      </h1>
-      <p className="text-sm text-muted-foreground">
-        Check your connection and try again.
-      </p>
-      <Button size="touch" onClick={() => retry()}>
-        Try again
-      </Button>
-    </main>
+    <AppShell variant="admin" active="coverage" logoutAction={logout}>
+      <div className="flex flex-col gap-6">
+        {/* Also the boundary for /admin/coverage/[venueId] and /managers. */}
+        <PageHeader
+          title={COVERAGE_COPY.title}
+          className="pb-0 md:pb-0"
+        />
+        <ErrorState
+          title={COVERAGE_COPY.couldNotLoad}
+          action={
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => retry()}
+            >
+              <ArrowClockwiseIcon aria-hidden />
+              {ERROR_COPY.tryAgain}
+            </Button>
+          }
+          detail={error.digest ? `Request ID ${error.digest}` : undefined}
+        />
+      </div>
+    </AppShell>
   )
 }

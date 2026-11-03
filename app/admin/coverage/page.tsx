@@ -3,22 +3,17 @@ import Link from "next/link"
 import { ShieldCheckIcon } from "@phosphor-icons/react/dist/ssr"
 
 import { logout } from "@/app/_media/actions"
-import {
-  PrepareMonthControl,
-  PreparationRunsControl,
-  SelfReviewsControl,
-} from "@/app/staff/manage/_shared/controls"
+import { SelfReviewsControl } from "@/app/staff/manage/_shared/controls"
 import { unexpected } from "@/app/staff/manage/_shared/context"
 import type { ManageSearch } from "@/app/staff/manage/_shared/screens"
 import { AppShell } from "@/components/nabalens/app-shell"
-import {
-  GroupCoverageTable,
-  GroupParticipationTable,
-  MissingPeriodList,
-  SELF_REVIEW_COPY,
-  periodKeyLabel,
-} from "@/components/nabalens/coverage"
+import { SELF_REVIEW_COPY } from "@/components/nabalens/coverage"
+import { EmptyState } from "@/components/nabalens/empty-state"
 import { formatDateTime } from "@/components/nabalens/menus/copy"
+import { Notice } from "@/components/nabalens/notice"
+import { OfflineNotice } from "@/components/nabalens/offline-notice"
+import { PageHeader } from "@/components/nabalens/page-header"
+import { StatusChip } from "@/components/nabalens/status-chip"
 import { buttonVariants } from "@/components/ui/button"
 import { requireActiveAdmin } from "@/lib/auth"
 import {
@@ -27,17 +22,33 @@ import {
   listPreparationRuns,
   listSelfReviews,
 } from "@/lib/server/coverage"
+import { isPeriodKey, periodKeyOf } from "@/lib/server/coverage/time"
+
 import {
-  isPeriodKey,
-  periodKeyOf,
-  shiftPeriod,
-} from "@/lib/server/coverage/time"
+  COVERAGE_COPY,
+  PREPARATION_COPY,
+  monthName,
+} from "./coverage-copy"
+import {
+  MonthNav,
+  SectionHead,
+  SummaryLine,
+  Tallies,
+  VenueList,
+} from "./coverage-sections"
+import { buildPreparation } from "./preparation"
+import { PreparationSection } from "./preparation-section"
+import {
+  PrepareButton,
+  PrepareProvider,
+  PrepareStatus,
+} from "./prepare-control"
 
 export const metadata: Metadata = { title: "Coverage · Naba-Lens" }
 
 /**
- * Organisation oversight: every venue's coverage and its staff participation
- * (reported separately), self-reviews, and monthly preparation health.
+ * A16 and A17: every venue's coverage and its staff participation (reported
+ * separately), monthly preparation health and self-reviews.
  */
 export default async function CoverageOverviewPage({
   searchParams,
@@ -63,12 +74,54 @@ export default async function CoverageOverviewPage({
   if (!selfReviews.ok) unexpected(selfReviews)
   if (!runs.ok) unexpected(runs)
   const { venues, preparation } = overview
+  const isCurrent = period === current
+  const month = monthName(overview.period.label)
+  const model = buildPreparation(venues, runs.items, overview.period, new Date())
   const venueNames = Object.fromEntries(
     venues.map((row) => [row.venue.id, row.venue.name])
   )
-  const previous = shiftPeriod(period, -1)
-  const next = shiftPeriod(period, 1)
-  const status = preparation.status
+  const needsPreparing =
+    isCurrent &&
+    venues.length > 0 &&
+    (model.unprepared.length > 0 ||
+      model.unfinished.length > 0 ||
+      model.noSuccessThisMonth)
+  const prepared = model.venues.filter((v) => v.state === "prepared").length
+  const lastRunAt = preparation.status?.lastRunAt ?? model.lastRunAt
+  const selfReviewCount = venues.reduce((n, row) => n + row.selfReviews, 0)
+  const unpreparedNames = model.unprepared.map((v) => v.venue.name)
+
+  const header = (
+    <PageHeader
+      venueScope
+      scope={[COVERAGE_COPY.allVenues, overview.period.label]}
+      title={COVERAGE_COPY.title}
+      summary={
+        venues.length === 0 ? undefined : (
+          <p>
+            {isCurrent
+              ? COVERAGE_COPY.summary
+              : COVERAGE_COPY.pastSummary(month)}
+          </p>
+        )
+      }
+      actions={
+        venues.length === 0 ? undefined : (
+          <>
+            <Link
+              href="/admin/coverage/managers"
+              className={buttonVariants({ variant: "secondary", size: "touch" })}
+            >
+              <ShieldCheckIcon aria-hidden />
+              {COVERAGE_COPY.venueManagers}
+            </Link>
+            {needsPreparing ? <PrepareButton primary /> : null}
+          </>
+        )
+      }
+      className="pb-0 md:pb-0"
+    />
+  )
 
   return (
     <AppShell
@@ -77,137 +130,116 @@ export default async function CoverageOverviewPage({
       userName={profile.displayName}
       logoutAction={logout}
     >
-      <div className="grid gap-8">
-        <div className="grid gap-3">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div className="grid gap-1">
-              <h1 className="font-display text-page-title-compact md:text-page-title">
-                Coverage, {overview.period.label}
-              </h1>
-              <p className="max-w-prose text-sm text-muted-foreground">
-                Every venue’s photo coverage and its staff’s monthly
-                participation, side by side but counted separately. Dates are UK
-                time.
-              </p>
-            </div>
-            <Link
-              href="/admin/coverage/managers"
-              className={buttonVariants({ variant: "outline", size: "touch" })}
-            >
-              <ShieldCheckIcon data-icon="inline-start" aria-hidden />
-              Venue managers
-            </Link>
-          </div>
-          <nav aria-label="Month" className="flex flex-wrap gap-2">
-            <Link
-              href={`/admin/coverage?period=${previous}`}
-              className={buttonVariants({ variant: "outline", size: "touch" })}
-            >
-              {periodKeyLabel(previous)}
-            </Link>
-            {period !== current ? (
-              <Link
-                href={
-                  next === current
-                    ? "/admin/coverage"
-                    : `/admin/coverage?period=${next}`
-                }
-                className={buttonVariants({
-                  variant: "outline",
-                  size: "touch",
-                })}
-              >
-                {periodKeyLabel(next)}
-              </Link>
-            ) : null}
-            {period !== current ? (
-              <Link
-                href="/admin/coverage"
-                className={buttonVariants({ variant: "ghost", size: "touch" })}
-              >
-                This month
-              </Link>
-            ) : null}
-          </nav>
-        </div>
-
-        {venues.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No active venues.</p>
-        ) : (
-          <>
-            <GroupCoverageTable rows={venues} />
-            <GroupParticipationTable
-              rows={venues}
-              periodLabel={overview.period.label}
-            />
-          </>
+      <PrepareProvider
+        month={month}
+        venues={[...model.unprepared, ...model.unfinished].map(
+          (v) => v.venue.name
         )}
-
-        <section aria-labelledby="preparation-title" className="grid gap-3">
-          <div className="grid gap-1">
-            <h2 id="preparation-title" className="text-lg font-medium">
-              Monthly preparation
-            </h2>
-            <p className="max-w-prose text-sm text-muted-foreground">
-              Runs every hour: copies each person’s last target at their venue,
-              adds the standard checklist items and flags missing setup. A venue
-              listed below has people without a target row, which means
-              preparation has not reached it.
-            </p>
+      >
+        <div className="flex flex-col gap-8">
+          <div className="flex flex-col gap-4">
+            {header}
+            <OfflineNotice />
+            <PrepareStatus />
+            {venues.length > 0 ? (
+              <MonthNav
+                period={period}
+                current={current}
+                label={overview.period.label}
+              />
+            ) : null}
+            {isCurrent && model.unprepared.length > 0 ? (
+              <Notice
+                tone="attention"
+                title={COVERAGE_COPY.unpreparedTitle(model.unprepared.length)}
+              >
+                <p>{COVERAGE_COPY.unpreparedBody(unpreparedNames, month)}</p>
+              </Notice>
+            ) : null}
           </div>
-          {status ? (
-            <p className="text-sm">
-              {status.lastSuccessAt
-                ? `Last successful run ${formatDateTime(status.lastSuccessAt)}.`
-                : "No successful run this month."}{" "}
-              {status.lastStatus === "failed" && status.lastFailureAt
-                ? `Last run failed ${formatDateTime(status.lastFailureAt)} (code ${status.lastErrorCode ?? "unknown"}).`
-                : null}
-            </p>
-          ) : null}
-          <MissingPeriodList missing={preparation.missingPeriods} />
-          {preparation.recentFailures.length > 0 ? (
-            <div className="grid gap-1">
-              <h3 className="text-sm font-medium text-negative">
-                Recent failures
-              </h3>
-              <ul className="grid gap-1 text-sm">
-                {preparation.recentFailures.map((run) => (
-                  <li key={run.id}>
-                    {formatDateTime(run.startedAt)},{" "}
-                    {run.venueId
-                      ? (venueNames[run.venueId] ?? "one venue")
-                      : "all venues"}
-                    : code {run.errorCode ?? "unknown"}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-          <PrepareMonthControl label="Prepare this month for all venues" />
-          <details className="grid gap-2">
-            <summary className="cursor-pointer py-3 text-sm font-medium sm:py-1">
-              All preparation runs
-            </summary>
-            <div className="pt-2">
-              <PreparationRunsControl initial={runs} venueNames={venueNames} />
-            </div>
-          </details>
-        </section>
 
-        <section aria-labelledby="self-review-title" className="grid gap-3">
-          <div className="grid gap-1">
-            <h2 id="self-review-title" className="text-lg font-medium">
-              Self-reviews, {overview.period.label}
-            </h2>
-            <p className="max-w-prose text-sm text-muted-foreground">
-              {SELF_REVIEW_COPY} Managers may review their own photos; each
-              decision is listed here.
-            </p>
-          </div>
-          <SelfReviewsControl initial={selfReviews} period={period} />
-        </section>
-      </div>
+          {venues.length === 0 ? (
+            <EmptyState
+              title={COVERAGE_COPY.emptyTitle}
+              description={<p>{COVERAGE_COPY.emptyText}</p>}
+            />
+          ) : (
+            <>
+              {isCurrent ? (
+                <Tallies rows={venues} periodLabel={overview.period.label} />
+              ) : null}
+              <VenueList rows={venues} />
+              {isCurrent ? (
+                <div className="grid gap-6 lg:grid-cols-2">
+                  <div className="grid content-start gap-2">
+                    <SectionHead
+                      id="preparation-summary-title"
+                      title={PREPARATION_COPY.title}
+                    />
+                    <SummaryLine
+                      icon={prepared === venues.length ? "check" : "prepare"}
+                    >
+                      <a
+                        href="#preparation"
+                        className="underline-offset-3 hover:underline"
+                      >
+                        {PREPARATION_COPY.summaryLine(
+                          prepared,
+                          venues.length,
+                          lastRunAt ? formatDateTime(lastRunAt) : null
+                        )}
+                      </a>
+                    </SummaryLine>
+                  </div>
+                  <div className="grid content-start gap-2">
+                    <SectionHead
+                      id="self-review-summary-title"
+                      title={COVERAGE_COPY.selfReviews}
+                    />
+                    <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-body-touch md:text-body-sm">
+                      <StatusChip state="self_review" />
+                      <a
+                        href="#self-reviews"
+                        className="text-ink underline underline-offset-3"
+                      >
+                        {COVERAGE_COPY.selfReviewsThisMonth(selfReviewCount)}
+                      </a>
+                      <span className="text-ink-muted">
+                        {COVERAGE_COPY.selfReviewsNote}
+                      </span>
+                    </p>
+                  </div>
+                </div>
+              ) : null}
+              {isCurrent ? (
+                <PreparationSection
+                  model={model}
+                  period={overview.period}
+                  venueNames={venueNames}
+                  primary={needsPreparing}
+                />
+              ) : null}
+              <section
+                id="self-reviews"
+                aria-labelledby="self-review-title"
+                className="grid scroll-mt-20 gap-3"
+              >
+                <div className="grid gap-1">
+                  <SectionHead
+                    id="self-review-title"
+                    title={`${COVERAGE_COPY.selfReviews}, ${overview.period.label}`}
+                  />
+                  <p className="max-w-(--size-reading) text-body-touch text-ink-muted md:text-body-sm">
+                    {SELF_REVIEW_COPY} Managers may review their own photos;
+                    each decision is listed here.
+                  </p>
+                </div>
+                <SelfReviewsControl initial={selfReviews} period={period} />
+              </section>
+            </>
+          )}
+        </div>
+      </PrepareProvider>
     </AppShell>
   )
 }
