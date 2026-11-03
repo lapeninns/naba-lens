@@ -7,7 +7,9 @@ import {
   testEmail,
 } from "../support/identities"
 import { getLocalSupabaseEnv } from "../support/local-supabase"
+import { psql } from "./helpers/stack"
 import { openPortfolio, STAFF_LANDING } from "./helpers/ui"
+import { provisionWorld, signedInPage } from "./helpers/world"
 
 const admin = serviceClient()
 // Server Functions and routes compile on first use under `next dev`.
@@ -202,5 +204,37 @@ test.describe("admin staff management", () => {
       .eq("id", invitee!.id)
       .single()
     expect(saved?.job_title).toBe("TEST Head chef")
+  })
+
+  test("at 360px a long name keeps a 44px link and a menu inside the screen", async ({
+    browser,
+  }) => {
+    const world = await provisionWorld()
+    const name = `${world.staffA.name} Bartholomew-Featherstonehaugh Montgomery`
+    psql(
+      `update public.profiles set display_name = '${name}' where id = '${world.staffA.id}'::uuid`
+    )
+    const page = await signedInPage(browser, world.adminA, {
+      viewport: { width: 360, height: 780 },
+    })
+    await page.goto("/admin/staff")
+    const row = page
+      .getByRole("list", { name: "Staff" })
+      .getByRole("listitem")
+      .filter({ hasText: name })
+    const link = row.getByRole("link", { name })
+    const box = await link.boundingBox()
+    expect(box!.height).toBeGreaterThanOrEqual(44)
+    await row.getByRole("button", { name: `More actions for ${name}` }).click()
+    const menu = page.getByRole("menu")
+    await expect(menu).toBeVisible()
+    await expect(menu.getByText(name, { exact: true })).toBeVisible()
+    const menuBox = await menu.boundingBox()
+    expect(menuBox!.x).toBeGreaterThanOrEqual(0)
+    expect(menuBox!.x + menuBox!.width).toBeLessThanOrEqual(360)
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth)
+    ).toBeLessThanOrEqual(360)
+    await page.context().close()
   })
 })
