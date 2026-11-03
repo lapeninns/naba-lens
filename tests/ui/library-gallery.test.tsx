@@ -1085,7 +1085,7 @@ describe("viewer and delete", () => {
     })
     const dialog = screen.getByRole("dialog")
     expect(within(dialog).getByRole("status").textContent).toBe(
-      "TEST removed this photo a moment ago."
+      "This photo was removed a moment ago."
     )
     expect(within(dialog).queryByRole("button", { name: "Delete" })).toBeNull()
     expect(screen.queryByRole("button", { name: /^Photo, 01\.jpg/ })).toBeNull()

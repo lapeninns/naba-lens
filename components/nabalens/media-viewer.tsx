@@ -60,10 +60,6 @@ type MediaViewerProps = {
   removed?: boolean
 }
 
-function firstName(name: string) {
-  return name.trim().split(/\s+/)[0] || name
-}
-
 function noun(item: MediaItem) {
   return item.mediaType === "video" ? "Video" : "Photo"
 }
@@ -265,8 +261,7 @@ export function MediaViewer({
               </DialogTitle>
               {removed ? (
                 <Notice tone="attention">
-                  {firstName(item.contributorName)} removed this{" "}
-                  {noun(item).toLowerCase()} a moment ago.
+                  This {noun(item).toLowerCase()} was removed a moment ago.
                 </Notice>
               ) : null}
               <div className="flex min-w-0 items-center gap-3">

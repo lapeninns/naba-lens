@@ -138,7 +138,7 @@ describe("S12 photo viewer", () => {
       />
     )
     expect(screen.getByRole("status").textContent).toBe(
-      "Ellie removed this photo a moment ago."
+      "This photo was removed a moment ago."
     )
     expect(actionNames()).toEqual(["Close"])
   })
