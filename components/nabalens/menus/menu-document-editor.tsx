@@ -487,26 +487,34 @@ function SectionPanel({
             aria-expanded={expanded}
             aria-controls={panelId}
             onClick={onToggle}
-            className="flex min-h-11 w-full min-w-0 items-center gap-2 rounded-control px-2 text-left outline-none hover:bg-fill-hover focus-visible:outline-2 focus-visible:outline-focus md:min-h-9"
+            // Below md the row also holds three 44px buttons, so the count
+            // and flags take a second line and the name wraps instead of
+            // being cut off.
+            className="flex min-h-11 w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 rounded-control px-2 py-1.5 text-left outline-none hover:bg-fill-hover focus-visible:outline-2 focus-visible:outline-focus md:min-h-9 md:flex-nowrap md:py-0"
           >
             {expanded ? (
               <CaretDownIcon className="size-4 shrink-0" aria-hidden />
             ) : (
               <CaretRightIcon className="size-4 shrink-0" aria-hidden />
             )}
-            <span className="min-w-0 truncate font-semibold text-ink">
+            <span
+              data-slot="section-name"
+              className="min-w-0 flex-1 font-semibold break-words text-ink md:flex-initial md:truncate"
+            >
               {sectionLabel}
             </span>
-            <span className="shrink-0 text-meta-touch text-ink-muted md:text-meta">
-              {SECTION_KIND_LABEL[section.kind]} ·{" "}
-              {searching
-                ? `${items.length} of ${section.items.length}`
-                : plural(section.items.length, "item")}
+            <span className="flex basis-full flex-wrap items-center gap-x-2 gap-y-1 pl-6 md:shrink-0 md:basis-auto md:flex-nowrap md:pl-0">
+              <span className="text-meta-touch text-ink-muted md:text-meta">
+                {SECTION_KIND_LABEL[section.kind]} ·{" "}
+                {searching
+                  ? `${items.length} of ${section.items.length}`
+                  : plural(section.items.length, "item")}
+              </span>
+              {reviewCount > 0 ? (
+                <Flag tone="warning">{reviewCount} uncertain</Flag>
+              ) : null}
+              {hasErrors ? <Flag tone="error">Has errors</Flag> : null}
             </span>
-            {reviewCount > 0 ? (
-              <Flag tone="warning">{reviewCount} uncertain</Flag>
-            ) : null}
-            {hasErrors ? <Flag tone="error">Has errors</Flag> : null}
           </button>
         </h3>
         {readOnly ? null : (
