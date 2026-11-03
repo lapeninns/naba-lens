@@ -59,7 +59,10 @@ export function VenueSwitch({
             `/admin/menus/${encodeURIComponent(e.currentTarget.value)}`
           )
         }
-        className="min-h-11 cursor-pointer appearance-none rounded-control bg-transparent pr-6 pl-1 font-semibold text-ink-muted outline-none hover:text-ink focus-visible:outline-2 focus-visible:outline-focus md:min-h-8"
+        // A select is as wide as its longest option, and every venue is an
+        // option; size it to the chosen venue and never past a phone screen
+        // (page padding, storefront icon and gap leave 100vw - 4.5rem).
+        className="field-sizing-content min-h-11 max-w-[calc(100vw-4.5rem)] cursor-pointer appearance-none truncate rounded-control bg-transparent pr-6 pl-1 font-semibold text-ink-muted outline-none hover:text-ink focus-visible:outline-2 focus-visible:outline-focus md:min-h-8"
       >
         {venues.map((venue) => (
           <option key={venue.id} value={venue.id}>
