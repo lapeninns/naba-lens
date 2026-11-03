@@ -461,6 +461,9 @@ test.describe("GAP-11 over HTTP: community reads and management isolation", () =
     // carries no original file name, download route or admin portfolio link.
     // (Thumb URLs legitimately contain A's media id.)
     const home = await (await pageB.request.get("/staff/tasks")).text()
+    // Not vacuous: this is Home with the colleagues payload, not an error page,
+    // redirect body or empty response.
+    expect(home).toContain("TEST e2e-gaps-http-a")
     expect(home).not.toContain("private-dish")
     expect(home).not.toContain(`/api/media/${photoA}/download`)
     expect(home).not.toContain("/admin/staff/")
