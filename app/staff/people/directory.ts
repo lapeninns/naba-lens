@@ -27,19 +27,18 @@ export async function listPeople(
   actor: MediaActor,
   filters: Omit<CommunityMemberFilters, "offset" | "limit">
 ): Promise<Outcome<{ members: CommunityMember[] }>> {
-  const members: CommunityMember[] = []
-  let offset = 0
-  while (members.length < MAX_PEOPLE) {
+  const read = (offset: number) =>
+    listCommunityMembers(actor, { ...filters, offset, limit: BATCH })
+  // Most searches fit on one page, so the parallel waves wait for a second.
+  const first = await read(0)
+  if (!first.ok) return first
+  const members: CommunityMember[] = [...first.members]
+  let offset = BATCH
+  let more = first.nextOffset !== null
+  while (more && members.length < MAX_PEOPLE) {
     const pages = await Promise.all(
-      Array.from({ length: PARALLEL }, (_, i) =>
-        listCommunityMembers(actor, {
-          ...filters,
-          offset: offset + i * BATCH,
-          limit: BATCH,
-        })
-      )
+      Array.from({ length: PARALLEL }, (_, i) => read(offset + i * BATCH))
     )
-    let more = true
     for (const page of pages) {
       if (!page.ok) return page
       members.push(...page.members)
@@ -48,7 +47,6 @@ export async function listPeople(
         break
       }
     }
-    if (!more) break
     offset += PARALLEL * BATCH
   }
   return { ok: true, members: sortPeople(members.slice(0, MAX_PEOPLE)) }

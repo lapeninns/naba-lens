@@ -175,8 +175,8 @@ describe("People order", () => {
     )
     serveMembers(names.map((name) => member(name)))
     await renderPeople()
-    // One wave of four parallel pages; the second page is the last.
-    expect(community.listCommunityMembers).toHaveBeenCalledTimes(4)
+    // The first page, then one wave of four; the second page is the last.
+    expect(community.listCommunityMembers).toHaveBeenCalledTimes(5)
     const cards = within(screen.getByRole("list", { name: "People" }))
       .getAllByRole("link")
       .map((link) => link.textContent)
@@ -241,7 +241,17 @@ describe("People page", () => {
     ).toBeTruthy()
   })
 
-  it("reads in parallel waves until a page is the last", async () => {
+  it("reads one page alone when it is the last", async () => {
+    serveMembers(Array.from({ length: 30 }, (_, i) => member(`P Q${i}`)))
+    await renderPeople()
+    expect(community.listCommunityMembers).toHaveBeenCalledTimes(1)
+    expect(community.listCommunityMembers).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({ offset: 0, limit: 100 })
+    )
+  })
+
+  it("reads in parallel waves after the first page until a page is the last", async () => {
     serveMembers(
       Array.from({ length: 450 }, (_, i) =>
         member(`P${String(i).padStart(3, "0")} Q`)
@@ -251,7 +261,7 @@ describe("People page", () => {
     const offsets = community.listCommunityMembers.mock.calls.map(
       ([, filters]) => (filters as { offset: number }).offset
     )
-    expect(offsets).toEqual([0, 100, 200, 300, 400, 500, 600, 700])
+    expect(offsets).toEqual([0, 100, 200, 300, 400])
     expect(
       within(screen.getByRole("list", { name: "People" })).getAllByRole("link")
     ).toHaveLength(24)
@@ -300,6 +310,26 @@ describe("People page", () => {
       status: 503,
       message: "Could not load the community. Try again.",
     })
+    await expect(renderPeople()).rejects.toThrow(/Could not load/)
+  })
+
+  it("throws on the first failed page in a wave", async () => {
+    serveMembers(
+      Array.from({ length: 450 }, (_, i) =>
+        member(`P${String(i).padStart(3, "0")} Q`)
+      )
+    )
+    const serve = community.listCommunityMembers.getMockImplementation()!
+    community.listCommunityMembers.mockImplementation(
+      async (actor, filters: { offset: number; limit: number }) =>
+        filters.offset === 200
+          ? {
+              ok: false,
+              status: 503,
+              message: "Could not load the community. Try again.",
+            }
+          : serve(actor, filters)
+    )
     await expect(renderPeople()).rejects.toThrow(/Could not load/)
   })
 
