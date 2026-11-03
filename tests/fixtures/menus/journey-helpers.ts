@@ -61,16 +61,25 @@ export async function openVenueMenus(
   ).toBeVisible()
 }
 
+/**
+ * Choose a menu file on a venue's menus page. The import panel opens from the
+ * page header's "Import a menu" unless it is already showing.
+ */
+export async function chooseMenuFile(page: Page, path: string) {
+  const input = page.getByLabel("Menu file (JSON or CSV)")
+  if ((await input.count()) === 0)
+    await page.getByRole("button", { name: "Import a menu" }).click()
+  await input.setInputFiles(path)
+  await expect(page.getByRole("button", { name: "Create draft" })).toBeVisible()
+}
+
 /** Preview the Railway file at the venue; leaves the admin on the draft page. */
 export async function importRailwayDraft(
   page: Page,
   venue: { id: string; name: string }
 ) {
   await openVenueMenus(page, venue)
-  await page.getByLabel("Menu file (JSON or CSV)").setInputFiles(RAILWAY)
-  await expect(
-    page.getByRole("heading", { name: `Preview: ${RAILWAY_TITLE}` })
-  ).toBeVisible()
+  await chooseMenuFile(page, RAILWAY)
   await page.getByRole("button", { name: "Create draft" }).click()
   await page.waitForURL(/\/admin\/menus\/versions\//)
   await expect(

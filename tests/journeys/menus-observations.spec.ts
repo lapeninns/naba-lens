@@ -5,6 +5,7 @@ import { expect, test } from "@playwright/test"
 import {
   RAILWAY,
   attachShot,
+  chooseMenuFile,
   importRailwayDraft,
 } from "../fixtures/menus/journey-helpers"
 import { requireIsolatedStack } from "../e2e/helpers/stack"
@@ -118,19 +119,27 @@ test("menus.o5-early-file-choice: a menu file chosen before the page hydrates is
   })
 
   await page.goto(`/admin/menus/${world.venue1.id}`, { waitUntil: "commit" })
+  await expect(page.locator("body")).toBeAttached()
   const input = page.getByLabel("Menu file (JSON or CSV)")
-  await expect(
-    input,
-    "the file input is in the server-rendered page"
-  ).toBeAttached()
-  await input.setInputFiles(RAILWAY)
+  // The import panel now opens from "Import a menu", a client control, so
+  // before hydration there may be no file input to choose a file with.
+  const early = (await input.count()) > 0
+  if (early) await input.setInputFiles(RAILWAY)
   release()
 
   await expect(
     page.getByRole("heading", { level: 1, name: world.venue1.name })
   ).toBeVisible()
-  const preview = page.getByRole("heading", { name: /^Preview:/ })
-  const shown = await preview
+  if (!early) {
+    testInfo.annotations.push({
+      type: "observation",
+      description:
+        "No file input is server-rendered, so a file cannot be chosen before hydration.",
+    })
+    await chooseMenuFile(page, RAILWAY)
+  }
+  const shown = await page
+    .getByRole("button", { name: "Create draft" })
     .waitFor({ state: "visible", timeout: 15_000 })
     .then(
       () => true,
