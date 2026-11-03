@@ -133,3 +133,22 @@ export function failureWords(errorCode: string | null): string {
     ? "a target was changed while preparing. Run it again."
     : "preparation stopped before it finished. Run it again."
 }
+
+/** A18: one venue's coverage inside the admin shell. */
+export const VENUE_COVERAGE_COPY = {
+  title: "Venue coverage",
+  loading: "Loading venue coverage…",
+  couldNotLoad: "We couldn't load this venue's coverage",
+  notFoundTitle: "We couldn't find that venue",
+  notFoundText: "It may have been removed, or the link may be wrong.",
+  backToVenues: "All venues",
+} as const
+
+/** A19: managers' decisions on their own photos. */
+export const SELF_REVIEWS_COPY = {
+  title: "Self-reviews",
+  body: "Decisions venue managers made on their own photos. Self-review is allowed; it's recorded here so admins can see it.",
+  emptyTitle: (periodLabel: string) =>
+    `No self-reviews in ${periodLabel}.`,
+  emptyText: "When a manager reviews their own photo, it's listed here.",
+} as const
