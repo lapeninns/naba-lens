@@ -31,7 +31,7 @@ test("menus.o2-narrow-draft-editor: at 360px section names are readable and the 
     viewport: { width: 360, height: 780 },
   })
   await importRailwayDraft(page, world.venue1)
-  const saveBar = page.getByRole("button", { name: "Save draft" })
+  const saveBar = page.getByRole("button", { name: "Save", exact: true })
   await expect(saveBar).toBeVisible()
   // Not vacuous: the editor lists sections to measure.
   const names = page.locator("h3 > button > span.truncate")
