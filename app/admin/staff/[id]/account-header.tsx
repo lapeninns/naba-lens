@@ -112,8 +112,10 @@ export function AccountHeader({
   venues,
   maxAvatarBytes,
   grant = null,
+  venueGrants = [],
   notices,
   photos,
+  month,
 }: {
   member: StaffMember
   venueActive: boolean | null
@@ -121,10 +123,14 @@ export function AccountHeader({
   maxAvatarBytes: number
   /** The grant to describe under Account (see GrantRecord). */
   grant?: GrantRecord | null
+  /** Everyone's effective grants, to say whether a move's new venue has a manager. */
+  venueGrants?: ManagerGrant[]
   /** Server notices shown under the header (sign-in details unavailable). */
   notices?: React.ReactNode
   /** The Photos section, rendered on the server. */
   photos?: React.ReactNode
+  /** The person's month section, rendered on the server, under Account. */
+  month?: React.ReactNode
 }) {
   const effective: ManagerGrant[] =
     grant?.effective && !grant.revokedAt
@@ -139,7 +145,10 @@ export function AccountHeader({
   const controls = useAccountControls({
     venues,
     maxAvatarBytes,
-    grants: effective,
+    grants: [
+      ...effective,
+      ...venueGrants.filter((g) => g.staffId !== fromProps.id),
+    ],
   })
   const member = controls.withConfirmedStatus(fromProps)
   const first = firstName(member.displayName)
@@ -237,50 +246,53 @@ export function AccountHeader({
 
       <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,20rem)]">
         {photos}
-        <section aria-labelledby="account-heading" className="grid gap-3">
-          <h2
-            id="account-heading"
-            className="text-section-title-touch text-ink md:text-section-title"
-          >
-            Account
-          </h2>
-          <dl className="grid gap-3 text-body-touch md:text-body-sm">
-            {member.email ? (
+        <div className="grid gap-8">
+          <section aria-labelledby="account-heading" className="grid gap-3">
+            <h2
+              id="account-heading"
+              className="text-section-title-touch text-ink md:text-section-title"
+            >
+              Account
+            </h2>
+            <dl className="grid gap-3 text-body-touch md:text-body-sm">
+              {member.email ? (
+                <div className="grid gap-0.5">
+                  <dt className="text-meta-strong text-ink-muted">Email</dt>
+                  <dd className="break-all">{member.email}</dd>
+                </div>
+              ) : null}
               <div className="grid gap-0.5">
-                <dt className="text-meta-strong text-ink-muted">Email</dt>
-                <dd className="break-all">{member.email}</dd>
+                <dt className="text-meta-strong text-ink-muted">Status</dt>
+                <dd>
+                  <StaffStatusBadge status={member.status} />
+                </dd>
               </div>
-            ) : null}
-            <div className="grid gap-0.5">
-              <dt className="text-meta-strong text-ink-muted">Status</dt>
-              <dd>
-                <StaffStatusBadge status={member.status} />
-              </dd>
-            </div>
-            <div className="grid gap-0.5">
-              <dt className="text-meta-strong text-ink-muted">Venue</dt>
-              <dd>{venueName ?? "No venue"}</dd>
-            </div>
-            <div className="grid gap-0.5">
-              <dt className="text-meta-strong text-ink-muted">Team</dt>
-              <dd>
-                <TeamLabel department={member.department} />
-              </dd>
-            </div>
-            <div className="grid gap-0.5">
-              <dt className="text-meta-strong text-ink-muted">Job title</dt>
-              <dd>{member.jobTitle ?? "None"}</dd>
-            </div>
-            <div className="grid gap-0.5">
-              <dt className="text-meta-strong text-ink-muted">
-                Venue manager grant
-              </dt>
-              <dd>
-                <GrantDetail grant={grant} inactive={inactive} />
-              </dd>
-            </div>
-          </dl>
-        </section>
+              <div className="grid gap-0.5">
+                <dt className="text-meta-strong text-ink-muted">Venue</dt>
+                <dd>{venueName ?? "No venue"}</dd>
+              </div>
+              <div className="grid gap-0.5">
+                <dt className="text-meta-strong text-ink-muted">Team</dt>
+                <dd>
+                  <TeamLabel department={member.department} />
+                </dd>
+              </div>
+              <div className="grid gap-0.5">
+                <dt className="text-meta-strong text-ink-muted">Job title</dt>
+                <dd>{member.jobTitle ?? "None"}</dd>
+              </div>
+              <div className="grid gap-0.5">
+                <dt className="text-meta-strong text-ink-muted">
+                  Venue manager grant
+                </dt>
+                <dd>
+                  <GrantDetail grant={grant} inactive={inactive} />
+                </dd>
+              </div>
+            </dl>
+          </section>
+          {month}
+        </div>
       </div>
       {controls.dialogs}
     </div>

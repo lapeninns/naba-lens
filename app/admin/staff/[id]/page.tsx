@@ -7,16 +7,18 @@ import { requireActiveAdmin } from "@/lib/auth"
 import { MEDIA_LIMITS } from "@/lib/config/media"
 import { getStaffAccount, listAssignableVenues } from "@/lib/server/accounts"
 import { accountsContext } from "@/lib/server/accounts/request"
+import { getVenueRoster } from "@/lib/server/coverage"
 import { getMediaActor } from "@/lib/server/media/context"
 import { listLibrary } from "@/lib/server/media/library"
 
 import { signOutAction } from "../actions"
 import { AuthDetailsNotice } from "../auth-details-notice"
-import { loadManagerGrants } from "../manager-grants"
+import { effectiveGrants, loadManagerGrants } from "../manager-grants"
 import { RetryButton } from "../retry-button"
 import { firstName } from "../staff-order"
 import { AccountHeader, type GrantRecord } from "./account-header"
 import { AdminPortfolio } from "./admin-portfolio"
+import { StaffMonth } from "./staff-month"
 
 export const metadata: Metadata = { title: "Staff member · Naba-Lens" }
 
@@ -38,13 +40,23 @@ export default async function StaffPortfolioPage({
   }
   const member = account.staff
   const first = firstName(member.displayName)
-  const [media, venues, grants] = await Promise.all([
+  const [media, venues, grants, roster] = await Promise.all([
     // The admin library filtered to this contributor (ready media, newest first,
     // each keeping its upload-time venue).
     listLibrary(auth.actor, { venueId: null, staffId: member.id, type: null }),
     listAssignableVenues(ctx),
     loadManagerGrants({ includeEnded: true }),
+    member.venueId
+      ? getVenueRoster(auth.actor, { venueId: member.venueId })
+      : null,
   ])
+  // Like the grants, the month only adds context: a failed read leaves it out.
+  if (roster && !roster.ok) {
+    console.error("[staff] month unavailable", { code: roster.code })
+  }
+  const monthly = roster?.ok
+    ? (roster.roster.find((row) => row.person.id === member.id) ?? null)
+    : null
 
   // The effective grant, else the one that ended most recently.
   const own = (grants ?? [])
@@ -79,6 +91,16 @@ export default async function StaffPortfolioPage({
         venues={venues.ok ? venues.venues : []}
         maxAvatarBytes={MEDIA_LIMITS.maxAvatarBytes}
         grant={grant}
+        venueGrants={effectiveGrants(grants)}
+        month={
+          monthly ? (
+            <StaffMonth
+              monthly={monthly}
+              firstName={first}
+              inactive={member.status === "inactive"}
+            />
+          ) : null
+        }
         notices={
           account.authDetails === "unavailable" ? <AuthDetailsNotice /> : null
         }
