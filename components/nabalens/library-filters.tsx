@@ -300,7 +300,11 @@ export function LibraryFilters({
       className={cn("flex flex-col gap-3", className)}
     >
       <div className="grid grid-cols-2 gap-x-3 gap-y-4 md:flex md:flex-wrap md:items-end">
-        <Field label="Venue" htmlFor={`${id}-venue`} className="md:w-48">
+        <Field
+          label="Venue"
+          htmlFor={`${id}-venue`}
+          className="md:w-44 xl:w-48"
+        >
           <OptionSelect
             id={`${id}-venue`}
             options={venues}
@@ -312,7 +316,11 @@ export function LibraryFilters({
             }
           />
         </Field>
-        <Field label="Staff member" htmlFor={`${id}-staff`} className="md:w-48">
+        <Field
+          label="Staff member"
+          htmlFor={`${id}-staff`}
+          className="md:w-44 xl:w-48"
+        >
           <OptionSelect
             id={`${id}-staff`}
             options={staff}
@@ -350,7 +358,7 @@ export function LibraryFilters({
         <Field
           label="Search"
           htmlFor={`${id}-q`}
-          className="col-span-2 md:w-64 md:flex-auto lg:flex-none"
+          className="col-span-2 md:w-44 md:grow"
         >
           <SearchBox
             formId={searchFormId}
