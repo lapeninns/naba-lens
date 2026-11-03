@@ -32,13 +32,11 @@ import { getSiteUrl } from "@/lib/supabase/env"
  */
 export function AddHost({
   blocked,
-  email,
   captchaRequired,
   captchaSiteKey,
   children,
 }: {
   blocked: AddBlocked | null
-  email: string | null
   captchaRequired: boolean
   captchaSiteKey: string | null
   children: React.ReactNode
@@ -48,9 +46,19 @@ export function AddHost({
   const [sheetOpen, setSheetOpen] = React.useState(false)
   const [uploadOpen, setUploadOpen] = React.useState(false)
   const [picked, setPicked] = React.useState<File[] | undefined>(undefined)
+  const [email, setEmail] = React.useState<string | null>(null)
+  const supabase = React.useMemo(() => createClient(), [])
+
+  React.useEffect(() => {
+    // Read the email in the browser and keep it through session expiry so an
+    // interrupted upload can offer a sign-in link.
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) setEmail(session.user.email ?? null)
+    })
+    return () => data.subscription.unsubscribe()
+  }, [supabase])
 
   const guard = React.useMemo<SessionGuard>(() => {
-    const supabase = createClient()
     return {
       email,
       captchaRequired,
@@ -78,7 +86,7 @@ export function AddHost({
         return error?.name === "AuthRetryableFetchError"
       },
     }
-  }, [email, captchaRequired, captchaSiteKey])
+  }, [email, captchaRequired, captchaSiteKey, supabase])
 
   const [busy, setBusy] = React.useState<UploadBusy>({
     active: 0,

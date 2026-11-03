@@ -273,13 +273,13 @@ test.describe("coverage: manager and admin journeys (WS5)", () => {
       expect(await manager.content(), id).not.toContain(otherTitle)
     }
     const staffC = await signedInPage(browser, w.staffC)
-    await expect(staffC.getByRole("link", { name: "Manage" })).toHaveCount(0)
+    await expect(staffC.locator('a[href="/staff/manage"]')).toHaveCount(0)
     await staffC.goto("/staff/manage")
     await expect(
       staffC.getByRole("heading", { name: "Manage isn't available" })
     ).toBeVisible()
     await expect(
-      staffC.getByText("Manage is for venue managers.", { exact: false })
+      staffC.getByRole("main").getByText("Manage is for venue managers.")
     ).toBeVisible()
 
     // Revoked in the admin UI: the manager's next page load is refused.
@@ -296,7 +296,7 @@ test.describe("coverage: manager and admin journeys (WS5)", () => {
     await expect(
       manager.getByRole("heading", { name: "Manage isn't available" })
     ).toBeVisible()
-    await expect(manager.getByRole("link", { name: "Manage" })).toHaveCount(0)
+    await expect(manager.locator('a[href="/staff/manage"]')).toHaveCount(0)
 
     for (const page of [admin, manager, staffC]) await page.context().close()
   })

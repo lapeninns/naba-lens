@@ -31,7 +31,6 @@ export default async function StaffLayout({
   return (
     <AddHost
       blocked={blocked}
-      email={profile.email}
       captchaRequired={captcha.enabled}
       captchaSiteKey={captcha.siteKey}
     >

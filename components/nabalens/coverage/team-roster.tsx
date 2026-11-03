@@ -554,12 +554,12 @@ export function TeamRoster({
           target={shownTarget}
           pending={row.pending}
           chip={chip}
-          className="@max-[600px]:col-span-full"
+          className="@max-[640px]:col-span-full"
         />
       )
     } else {
       progress = (
-        <p className="@max-[600px]:col-span-full">
+        <p className="@max-[640px]:col-span-full">
           <StatusChip state="needs_setup" />
         </p>
       )
@@ -569,7 +569,7 @@ export function TeamRoster({
       <li
         key={`${id}:${row.venue.id}`}
         data-target-row={id}
-        className="grid grid-cols-[minmax(0,1.3fr)_auto_minmax(0,1fr)_minmax(0,0.8fr)] items-center gap-x-5 gap-y-3 p-3 @max-[600px]:grid-cols-[minmax(0,1fr)_auto]"
+        className="grid grid-cols-[minmax(0,1.3fr)_auto_minmax(0,1fr)_minmax(0,0.8fr)] items-center gap-x-5 gap-y-3 p-3 @max-[640px]:grid-cols-[minmax(0,1fr)_auto]"
       >
         <TeamPerson
           person={row.person}
@@ -605,7 +605,7 @@ export function TeamRoster({
           </p>
         )}
         {progress}
-        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 @max-[600px]:col-span-full">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 @max-[640px]:col-span-full">
           {due ? (
             <p className="text-meta-touch text-ink-muted md:text-meta">{due}</p>
           ) : null}
