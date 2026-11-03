@@ -56,11 +56,9 @@ test("menus.unavailable-items: an archived item is no longer offered to staff", 
 
   await test.step("before: Momo is offered", async () => {
     const { editor } = await openOwnLabelEditor(staff, `${prefix}-01.jpg`)
-    await editor
-      .getByRole("combobox", { name: /^Search the menu/ })
-      .fill("Momo")
+    await editor.getByRole("combobox", { name: /^Menu item at / }).fill("Momo")
     await expect(
-      editor.getByRole("option", { name: /^Momo in Appetisers/ })
+      editor.getByRole("option", { name: /^Momo\s*Appetisers/ })
     ).toBeVisible()
     await staff.keyboard.press("Escape")
   })
@@ -73,15 +71,15 @@ test("menus.unavailable-items: an archived item is no longer offered to staff", 
 
   await test.step("after: Momo is not offered", async () => {
     const { editor } = await openOwnLabelEditor(staff, `${prefix}-01.jpg`)
-    await editor
-      .getByRole("combobox", { name: /^Search the menu/ })
-      .fill("Momo")
-    await expect(
-      editor.getByText("No menu items match", { exact: false }).first()
-    ).toBeVisible()
-    await expect(
-      editor.getByRole("option", { name: /^Momo in Appetisers/ })
-    ).toHaveCount(0)
+    await editor.getByRole("combobox", { name: /^Menu item at / }).fill("Momo")
+    const matches = editor.getByRole("listbox", {
+      name: "Matching menu items",
+    })
+    await expect(matches).toBeVisible()
+    await expect(matches).toContainText(
+      `Nothing on ${world.venue1.name}'s menu matches "Momo".`
+    )
+    await expect(matches.getByRole("option")).toHaveCount(0)
     await attachShot(testInfo, "archived-item-not-offered", staff)
   })
 })
@@ -96,7 +94,7 @@ test("menus.unavailable-items: an item archived while staff edit is flagged and 
   const fileName = `${prefix}-01.jpg`
   const staff = await signedInPage(browser, world.staffA)
   const { viewer, editor } = await openOwnLabelEditor(staff, fileName)
-  await pickMenuItem(editor, "Momo", /^Momo in Appetisers/)
+  await pickMenuItem(editor, "Momo", /^Momo\s*Appetisers/)
   await editor
     .getByRole("group", { name: /^Which Momo\?/ })
     .getByRole("button", { name: "Not specified" })

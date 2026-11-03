@@ -128,7 +128,7 @@ export async function pickMenuItem(
   query: string,
   option: RegExp
 ) {
-  await editor.getByRole("combobox", { name: /^Search the menu/ }).fill(query)
+  await editor.getByRole("combobox", { name: /^Menu item at / }).fill(query)
   await editor.getByRole("option", { name: option }).click()
 }
 
