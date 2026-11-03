@@ -457,6 +457,13 @@ test.describe("GAP-11 over HTTP: community reads and management isolation", () =
         'a[href*="/download"], a[href^="/admin"], [role="menuitem"]'
       )
     ).toHaveCount(0)
+    // The raw Home HTML, including the RSC payload the check above skips,
+    // carries no original file name, download route or admin portfolio link.
+    // (Thumb URLs legitimately contain A's media id.)
+    const home = await (await pageB.request.get("/staff/tasks")).text()
+    expect(home).not.toContain("private-dish")
+    expect(home).not.toContain(`/api/media/${photoA}/download`)
+    expect(home).not.toContain("/admin/staff/")
 
     // Allowed reads carry private, no-store headers and nosniff.
     const allowed: [Page, string, number][] = [
