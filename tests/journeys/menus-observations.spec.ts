@@ -50,10 +50,14 @@ test("menus.o2-narrow-draft-editor: at 360px section names are readable and the 
     .toEqual([])
 
   const tops = await Promise.all(
-    ["Save draft", "Activate…", "Discard draft…"].map(async (name) => {
-      const box = await page.getByRole("button", { name }).boundingBox()
-      return Math.round(box!.y)
-    })
+    ["Save", "Activate for labelling", /^More actions for /].map(
+      async (name) => {
+        const box = await page
+          .getByRole("button", { name, exact: typeof name === "string" })
+          .boundingBox()
+        return Math.round(box!.y)
+      }
+    )
   )
   expect
     .soft(

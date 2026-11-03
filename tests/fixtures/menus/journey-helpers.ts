@@ -78,13 +78,15 @@ export async function importRailwayDraft(
   ).toBeVisible()
 }
 
-/** From a draft version page: Activate… → confirm → the version is active. */
+/** From a draft version page: Activate for labelling → confirm → the version is active. */
 export async function activateOpenDraft(page: Page) {
-  await page.getByRole("button", { name: "Activate…" }).click()
+  await page.getByRole("button", { name: "Activate for labelling" }).click()
   const dialog = page.getByRole("alertdialog")
   await dialog.getByRole("button", { name: "Activate for labelling" }).click()
   await expect(dialog).toBeHidden()
-  await expect(page.getByRole("button", { name: "Retire menu…" })).toBeVisible()
+  await expect(
+    page.getByRole("button", { name: "Start a draft from this version" })
+  ).toBeVisible()
 }
 
 /** A new draft of the venue's active menu, activated: a new active version id. */
