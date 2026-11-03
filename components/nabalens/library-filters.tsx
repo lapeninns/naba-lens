@@ -259,8 +259,10 @@ const SEGMENTS = "w-full rounded-control bg-well p-1 md:w-auto"
 const SEGMENT =
   "h-11 flex-1 rounded-control border border-transparent px-3 text-label-touch text-ink-muted hover:bg-fill-hover hover:text-ink aria-pressed:border-line-control aria-pressed:bg-panel aria-pressed:text-ink aria-pressed:hover:bg-panel md:h-8 md:flex-none md:text-label"
 /**
- * "All · Labelled · Needs labels" on one line is about 306px, wider than a
- * 360px screen leaves inside the panel, so on phones the words may wrap.
+ * The shared toggle items are equal-width (flex-1 from a zero basis) and
+ * nowrap, so a row is three times its longest label: "Photos and videos"
+ * makes the Media row 344px and "Needs labels" the Labels row about 306px,
+ * wider than a 320–360px screen leaves. On phones the words may wrap.
  */
 const SEGMENT_WRAP =
   "h-auto min-h-11 min-w-0 shrink py-1.5 leading-tight whitespace-normal md:h-8 md:min-h-0 md:py-0 md:whitespace-nowrap"
@@ -354,7 +356,7 @@ export function LibraryFilters({
               <ToggleGroupItem
                 key={t.value}
                 value={t.value}
-                className={SEGMENT}
+                className={cn(SEGMENT, SEGMENT_WRAP)}
               >
                 {t.label}
               </ToggleGroupItem>
