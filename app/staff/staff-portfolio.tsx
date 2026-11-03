@@ -3,9 +3,14 @@
 import * as React from "react"
 
 import type { Department } from "@/lib/config/departments"
-import { PencilSimpleIcon, UploadSimpleIcon } from "@phosphor-icons/react"
+import {
+  PencilSimpleIcon,
+  SignOutIcon,
+  UploadSimpleIcon,
+} from "@phosphor-icons/react"
 import { useRouter } from "next/navigation"
 
+import { logout } from "@/app/_media/actions"
 import { fetchMediaPage } from "@/app/_media/fetch-page"
 import { MediaGallery } from "@/app/_media/media-gallery"
 import { useMediaUploader } from "@/app/_media/use-media-uploader"
@@ -98,6 +103,13 @@ export function StaffPortfolio({
               <PencilSimpleIcon data-icon="inline-start" aria-hidden />
               Edit profile
             </Button>
+            {/* From md, Log out is in the AppBar; on phones it lives on Me. */}
+            <form action={logout} className="md:hidden">
+              <Button type="submit" variant="quiet" size="touch">
+                <SignOutIcon data-icon="inline-start" aria-hidden />
+                Log out
+              </Button>
+            </form>
           </>
         }
       />

@@ -59,6 +59,11 @@ type UploadDialogProps = {
   allowCamera?: boolean
   /** Accept photos only; videos are rejected with a reason. Default false. */
   imagesOnly?: boolean
+  /**
+   * Files already picked elsewhere (the Add sheet). Each new array is queued
+   * once while the dialog is open.
+   */
+  initialFiles?: File[]
 }
 
 const IMAGE_ACCEPT_ATTRIBUTE = [
@@ -189,6 +194,7 @@ export function UploadDialog({
   onReady,
   allowCamera = true,
   imagesOnly = false,
+  initialFiles,
 }: UploadDialogProps) {
   const queue = useUploadQueue({ upload: uploader, limits })
   const { items, summary, isActive } = queue
@@ -222,7 +228,18 @@ export function UploadDialog({
     onReady(fresh)
   }, [isActive, items, onReady])
 
-  function addFiles(list: FileList | null, input: HTMLInputElement | null) {
+  const queuedInitial = React.useRef<File[] | null>(null)
+  React.useEffect(() => {
+    if (!open || !initialFiles?.length) return
+    if (queuedInitial.current === initialFiles) return
+    queuedInitial.current = initialFiles
+    addFiles(initialFiles, null)
+  })
+
+  function addFiles(
+    list: FileList | File[] | null,
+    input: HTMLInputElement | null
+  ) {
     if (!list || list.length === 0) return
     const files = Array.from(list)
     const notPhotos: RejectedFile[] = []

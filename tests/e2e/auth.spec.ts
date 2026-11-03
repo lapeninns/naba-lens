@@ -96,6 +96,8 @@ test.describe("authentication and role routing", () => {
     await page.goto("/admin")
     await expect(page).toHaveURL(STAFF_LANDING)
 
+    // Log out is in the AppBar from md and on Me on phones.
+    await openPortfolio(page)
     await page.getByRole("button", { name: "Log out" }).click()
     await expect(page).toHaveURL(/\/login\?signed_out=1$/)
     await page.goto("/staff")

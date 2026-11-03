@@ -1,0 +1,59 @@
+"use client"
+
+import * as React from "react"
+import Link from "next/link"
+import { PlusIcon } from "@phosphor-icons/react"
+
+import { buttonVariants } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
+
+type AddContextValue = { openAdd: () => void }
+
+const AddContext = React.createContext<AddContextValue | null>(null)
+
+/** Provided by the staff layout, which hosts the Add sheet and upload flow. */
+export const AddProvider = AddContext.Provider
+
+/**
+ * Opens Add: the raised tab on phones, "Add photos" in the AppBar from md.
+ * Outside the staff layout (previews, tests) it links to Me, where the
+ * profile's own upload lives.
+ */
+export function AddTrigger({ kind }: { kind: "tab" | "bar" }) {
+  const add = React.useContext(AddContext)
+  const content =
+    kind === "tab" ? (
+      <>
+        <span
+          data-slot="tabbar-disc"
+          aria-hidden
+          className="-mt-6 grid size-13 place-items-center rounded-round bg-accent text-on-accent shadow-[0_0_0_4px_var(--panel)] transition-colors duration-(--duration-quick) group-hover:bg-accent-hover"
+        >
+          <PlusIcon className="size-7" />
+        </span>
+        Add
+      </>
+    ) : (
+      <>
+        <PlusIcon data-icon="inline-start" aria-hidden />
+        Add photos
+      </>
+    )
+  const className =
+    kind === "tab"
+      ? cn(TAB_ITEM, "group text-ink")
+      : buttonVariants({ variant: "secondary" })
+  return add ? (
+    <button type="button" className={className} onClick={add.openAdd}>
+      {content}
+    </button>
+  ) : (
+    <Link href="/staff" className={className}>
+      {content}
+    </Link>
+  )
+}
+
+/** One TabBar item: icon over an always-visible label, full bar height. */
+export const TAB_ITEM =
+  "relative grid min-h-(--size-tabbar) content-center justify-items-center gap-1 px-0.5 py-1.5 text-center text-tab-label wdth-88 outline-none focus-visible:outline-2 focus-visible:outline-focus focus-visible:-outline-offset-3"
