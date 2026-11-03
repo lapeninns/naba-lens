@@ -407,11 +407,16 @@ test("row 8: missing-item suggestion reaches the admin; catalogue changed while 
   await test.step("admin sees it on the venue's Menus page and links it to an item", async () => {
     await admin.goto(`/admin/menus/${world.venue1.id}`)
     await expect(
-      admin.getByRole("heading", { name: "Missing-item suggestions (1 open)" })
-    ).toBeVisible()
+      admin.getByRole("region", { name: "Missing-item suggestions" })
+    ).toContainText("1 · typed by staff while labelling")
     const list = admin.getByRole("list", { name: "Missing-item suggestions" })
     await expect(list).toContainText(missing)
     await expect(list).toContainText(`Suggested by ${world.staffA.name}`)
+    const link = list.getByRole("button", {
+      name: `Link to an item: “${missing}”`,
+    })
+    // The first press opens the item picker; the second links.
+    await link.click()
     await chooseOption(
       admin,
       list,
@@ -426,12 +431,10 @@ test("row 8: missing-item suggestion reaches the admin; catalogue changed while 
         .first()
         .click()
     })
-    await list
-      .getByRole("button", { name: `Link to item: “${missing}”` })
-      .click()
+    await link.click()
     await expect(
-      admin.getByRole("heading", { name: "Missing-item suggestions (0 open)" })
-    ).toBeVisible()
+      admin.getByRole("region", { name: "Missing-item suggestions" })
+    ).toContainText("0 · typed by staff while labelling")
     expect(
       psql(
         `select status from public.menu_item_suggestions where suggested_name = ${sql(missing)}`
