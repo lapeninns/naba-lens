@@ -1,19 +1,29 @@
 "use client"
 
-import { Button } from "@/components/ui/button"
+import { logout } from "@/app/_media/actions"
+import { AppShell } from "@/components/nabalens"
+import { PageHeader } from "@/components/nabalens/page-header"
 
-export default function AdminError({ retry }: { retry: () => void }) {
+import { LIBRARY_COPY } from "./library-copy"
+import { LibraryError } from "./library-states"
+
+export default function AdminError({
+  error,
+  retry,
+}: {
+  error: Error & { digest?: string }
+  retry: () => void
+}) {
   return (
-    <main className="mx-auto flex min-h-svh max-w-md flex-col items-center justify-center gap-4 p-6 text-center">
-      <h1 className="font-display text-lg font-semibold">
-        The library could not load
-      </h1>
-      <p className="text-sm text-muted-foreground">
-        Check your connection and try again.
-      </p>
-      <Button size="touch" onClick={() => retry()}>
-        Try again
-      </Button>
-    </main>
+    <AppShell variant="admin" active="content" logoutAction={logout}>
+      <div className="flex flex-col gap-6">
+        <PageHeader
+          title={LIBRARY_COPY.title}
+          summary={<p>{LIBRARY_COPY.summary}</p>}
+          className="pb-0 md:pb-0"
+        />
+        <LibraryError retry={() => retry()} digest={error.digest} />
+      </div>
+    </AppShell>
   )
 }
