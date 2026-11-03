@@ -157,7 +157,7 @@ export function AppShell(props: AppShellProps) {
         <div className="mx-auto flex h-14 w-full max-w-(--size-page) items-center gap-3 px-4 md:gap-4 md:px-6 lg:gap-6">
           <Link
             href={admin ? "/admin" : "/staff/tasks"}
-            className="inline-flex flex-none items-baseline gap-2 font-display text-xl leading-6 font-bold tracking-[-0.01em] whitespace-nowrap text-ink outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+            className="inline-flex flex-none items-baseline gap-2 font-display text-xl leading-6 font-bold tracking-[-0.01em] whitespace-nowrap text-ink outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid max-md:py-2.5"
           >
             Naba-Lens
             {admin ? " " : null}
