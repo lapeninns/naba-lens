@@ -319,7 +319,10 @@ for (const width of WIDTHS) {
       details
     )
     await closeDialog(admin)
-    await admin.getByRole("button", { name: "Deactivate" }).click()
+    await admin
+      .getByRole("button", { name: `More actions for ${world.staffA.name}` })
+      .click()
+    await admin.getByRole("menuitem", { name: "Deactivate" }).click()
     const deactivate = admin.getByRole("alertdialog")
     await check(
       admin,

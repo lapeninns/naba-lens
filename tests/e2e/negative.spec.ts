@@ -317,12 +317,15 @@ test.describe("release negatives", () => {
     // Admin A deactivates through the UI.
     const admin = await signedInPage(browser, world.adminA)
     await admin.goto(`/admin/staff/${world.staffB.id}`)
-    await admin.getByRole("button", { name: "Deactivate" }).click()
+    await admin
+      .getByRole("button", { name: `More actions for ${world.staffB.name}` })
+      .click()
+    await admin.getByRole("menuitem", { name: "Deactivate" }).click()
     await admin
       .getByRole("alertdialog")
       .getByRole("button", { name: "Deactivate" })
       .click()
-    await expect(admin.getByText(/is deactivated/)).toBeVisible()
+    await expect(admin.getByText(/is inactive\./)).toBeVisible()
 
     // Read: the open page's next refresh (focus) is refused.
     await staff.evaluate(() => window.dispatchEvent(new Event("focus")))
