@@ -128,16 +128,31 @@ async function openActiveVersion(page: Page) {
   await page.waitForURL(/\/admin\/menus\/versions\//)
 }
 
-/** From a version page: Activate… → confirm → the version is active. */
+/** From a version page: Activate for labelling → confirm → the version is active. */
 async function activateOpenDraft(page: Page) {
-  await page.getByRole("button", { name: "Activate…" }).click()
-  const dialog = page.getByRole("alertdialog")
+  await page.getByRole("button", { name: "Activate for labelling" }).click()
+  const dialog = page.getByRole("alertdialog", {
+    name: "Activate this draft for labelling?",
+  })
   await expect(dialog).toContainText(
-    "Active means available for labelling photos and videos."
+    "Active means available for labelling, nothing more."
   )
   await dialog.getByRole("button", { name: "Activate for labelling" }).click()
   await expect(dialog).toBeHidden()
-  await expect(page.getByRole("button", { name: "Retire menu…" })).toBeVisible()
+  await expect(
+    page.getByRole("button", { name: "Start a draft from this version" })
+  ).toBeVisible()
+}
+
+/** From an active version page: More actions → Retire → confirm. */
+async function retireOpenVersion(page: Page) {
+  await page.getByRole("button", { name: /^More actions for / }).click()
+  await page.getByRole("menuitem", { name: "Retire" }).click()
+  const confirm = page.getByRole("alertdialog", {
+    name: /^Retire .* active menu\?$/,
+  })
+  await confirm.getByRole("button", { name: "Retire", exact: true }).click()
+  return confirm
 }
 
 async function importAndActivate(
@@ -510,9 +525,7 @@ test("rows 2+4: re-import with rename, removal, key change and category move; un
   await test.step("retire: no active menu, content types only; labels kept", async () => {
     await openVenueMenus(admin, venue.id, venue.name)
     await openActiveVersion(admin)
-    await admin.getByRole("button", { name: "Retire menu…" }).click()
-    const confirm = admin.getByRole("alertdialog")
-    await confirm.getByRole("button", { name: "Retire menu" }).click()
+    const confirm = await retireOpenVersion(admin)
     await expect(confirm).toBeHidden()
     await openVenueMenus(admin, venue.id, venue.name)
     const versions = admin.getByRole("table", { name: "Menu versions" })
@@ -623,7 +636,7 @@ test("row 2: CSV imports; PDF and other formats are refused; malformed and dupli
     await expect(preview.getByRole("region", { name: "Added" })).toBeVisible()
     await admin.getByRole("button", { name: "Create draft" }).click()
     await admin.waitForURL(/\/admin\/menus\/versions\//)
-    const provenance = admin.getByRole("region", { name: "Provenance" })
+    const provenance = admin.getByRole("region", { name: "This version" })
     await expect(provenance).toContainText("synthetic-quoting.csv")
     await expect(provenance).toContainText("CSV")
   })
@@ -651,22 +664,24 @@ test("row 15: a stale draft save in a second page is a recoverable conflict", as
   await one
     .getByRole("textbox", { name: "Menu title" })
     .fill(`QA first ${world.tag}`)
-  await one.getByRole("button", { name: "Save draft" }).click()
-  await expect(one.getByText("Draft saved (revision 2).")).toBeVisible()
+  await one.getByRole("button", { name: "Save", exact: true }).click()
+  await expect(
+    one.getByText(/^Saved\. \d+ items? in \d+ sections?\.$/)
+  ).toBeVisible()
 
   await two
     .getByRole("textbox", { name: "Menu title" })
     .fill(`QA second ${world.tag}`)
-  await two.getByRole("button", { name: "Save draft" }).click()
+  await two.getByRole("button", { name: "Save", exact: true }).click()
   const alert = two
     .getByRole("alert")
-    .filter({ hasText: "This draft changed elsewhere" })
+    .filter({ hasText: "Someone else saved first" })
   await expect(alert).toBeVisible()
   // The local edit is still there until the admin chooses.
   await expect(two.getByRole("textbox", { name: "Menu title" })).toHaveValue(
     `QA second ${world.tag}`
   )
-  await alert.getByRole("button", { name: "Reload latest" }).click()
+  await alert.getByRole("button", { name: "Reload" }).click()
   await expect(two.getByRole("textbox", { name: "Menu title" })).toHaveValue(
     `QA first ${world.tag}`
   )
