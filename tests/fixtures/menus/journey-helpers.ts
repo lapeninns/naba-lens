@@ -118,7 +118,7 @@ export async function openOwnLabelEditor(page: Page, fileName: string) {
   await (await staffTile(portfolioList(page), fileName)).click()
   const viewer = page.getByRole("dialog").first()
   await viewer.getByRole("button", { name: /^(Add|Edit) labels$/ }).click()
-  const editor = page.getByRole("dialog", { name: /^(Add|Edit) labels$/ })
+  const editor = page.getByRole("dialog", { name: /^(Labels|Edit labels)$/ })
   await expect(editor).toBeVisible()
   return { viewer, editor }
 }
