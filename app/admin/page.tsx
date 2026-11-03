@@ -10,6 +10,7 @@ import {
 import { libraryLabelFilterOptions } from "@/lib/server/media/library-labels"
 
 import { AdminLibrary } from "./admin-library"
+import type { LibraryPageResult } from "./library-actions"
 import { toFilterValue } from "./library-search"
 
 export const metadata = { title: "Content · Naba-Lens" }
@@ -29,12 +30,23 @@ export default async function AdminPage({
   const auth = await getMediaActor("admin")
   if (!auth.ok) throw new Error("Not authorised.")
   const filters = parseLibraryFilters(await searchParams)
-  const [options, menu, page] = await Promise.all([
+  // Not awaited: the header and filters render while the grid streams in, and
+  // a failed page shows in the grid's place (LibraryErrorBoundary).
+  const page: Promise<LibraryPageResult> = listLibrary(
+    auth.actor,
+    filters
+  ).then((result) =>
+    result.ok
+      ? {
+          ok: true,
+          page: { items: result.items, nextCursor: result.nextCursor },
+        }
+      : { ok: false, message: result.message }
+  )
+  const [options, menu] = await Promise.all([
     libraryFilterOptions(auth.actor),
     libraryLabelFilterOptions(auth.actor, filters.venueId),
-    listLibrary(auth.actor, filters),
   ])
-  if (!page.ok) throw new Error(page.message)
 
   return (
     <AppShell
@@ -50,7 +62,7 @@ export default async function AdminPage({
           filters.venueId ? { ...menu, venueId: filters.venueId } : null
         }
         filters={toFilterValue(filters)}
-        initialPage={{ items: page.items, nextCursor: page.nextCursor }}
+        initialPage={page}
       />
     </AppShell>
   )
