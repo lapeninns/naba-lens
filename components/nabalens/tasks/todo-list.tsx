@@ -131,11 +131,13 @@ function ReplaceCard({
             <StatusChip tone="warning">Needs another photo</StatusChip>
           </div>
           <ReviewReason reason={submission.decision?.reason ?? null} />
-          <p className="text-sm text-muted-foreground">For: {title}</p>
+          <p className="text-meta-touch text-ink-muted md:text-meta">
+            For: {title}
+          </p>
         </div>
       </div>
       {closed ? (
-        <p className="text-sm text-muted-foreground">
+        <p className="text-meta-touch text-ink-muted md:text-meta">
           This task is no longer open to you, so no replacement is needed.
         </p>
       ) : canSubmit ? (
@@ -173,7 +175,9 @@ function ReviewCard({
             {count} {count === 1 ? "photo" : "photos"} to review
           </h3>
           {venueName ? (
-            <p className="text-sm text-muted-foreground">{venueName}</p>
+            <p className="text-meta-touch text-ink-muted md:text-meta">
+              {venueName}
+            </p>
           ) : null}
         </div>
       </div>
@@ -203,7 +207,7 @@ function TaskCard({
         <h3 className="font-semibold break-words">
           {requirement.title} is {kind === "overdue" ? "overdue" : "due soon"}
         </h3>
-        <div className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-1.5 text-meta-touch text-ink-muted md:text-meta">
           {kind === "overdue" ? (
             <StatusChip tone="negative">Overdue</StatusChip>
           ) : null}
@@ -255,7 +259,7 @@ export function TodoSection({
     <section aria-labelledby="todo-heading" className="flex flex-col gap-3">
       <h2
         id="todo-heading"
-        className="flex items-center gap-2 text-lg font-semibold"
+        className="flex items-center gap-2 text-section-title-touch md:text-section-title"
       >
         To do
         <CountBadge count={count} label="things to do" />

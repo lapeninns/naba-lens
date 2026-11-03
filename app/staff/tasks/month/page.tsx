@@ -21,7 +21,7 @@ import {
   SubmissionList,
   submitBlockedCopy,
 } from "@/components/nabalens/tasks"
-import { buttonVariants } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { requireActiveStaff } from "@/lib/auth"
 import {
   getCoverageActor,
@@ -101,13 +101,14 @@ function MonthNav({ period, current }: { period: string; current: string }) {
         {periodLabel(period)}
       </span>
       {isCurrent ? (
-        <span
+        <Button
+          variant="outline"
+          size="touch"
+          disabled
           aria-label="Next month (not started)"
-          aria-disabled
-          className={`${icon} pointer-events-none opacity-50`}
         >
           <CaretRightIcon aria-hidden />
-        </span>
+        </Button>
       ) : (
         <Link
           href={monthHref(next, current)}

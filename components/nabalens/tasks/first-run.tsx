@@ -71,7 +71,7 @@ export function FirstRun({
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-xl flex-col gap-6 px-4 py-6 md:py-10">
       <header className="grid gap-1">
-        <p className="font-display text-xl text-ink">Naba-Lens</p>
+        <p className="font-display text-count-sm text-ink">Naba-Lens</p>
         <p className="text-meta-touch font-semibold text-ink-muted md:text-meta-strong">
           {[venueName, periodLabel].filter(Boolean).join(" · ")}
         </p>
@@ -114,7 +114,10 @@ export function FirstRun({
             </div>
             <ul className="grid gap-2">
               {gaps.map((gap) => (
-                <li key={gap} className="flex items-start gap-2 text-sm">
+                <li
+                  key={gap}
+                  className="flex items-start gap-2 text-body-touch md:text-body-sm"
+                >
                   <CircleIcon
                     className="mt-0.5 size-4 shrink-0 text-warning"
                     aria-hidden
@@ -144,7 +147,7 @@ export function FirstRun({
         )}
 
         <div className="flex items-center justify-between gap-3 rounded-xl border border-line p-3">
-          <p className="flex items-center gap-2 text-sm">
+          <p className="flex items-center gap-2 text-body-touch md:text-body-sm">
             {hasAvatar ? (
               <CheckCircleIcon
                 weight="fill"

@@ -39,6 +39,12 @@ type Outcome =
       skipped: number
       /** Nothing new: a replay, or every photo was already sent here. */
       alreadySent: boolean
+      /**
+       * Taken when the send starts: the refresh after a replacement closes
+       * the request, so the props no longer say a photo was replaced.
+       */
+      replaced: boolean
+      reviewerName: string | null
     }
   | { kind: "failed"; copy: FailureCopy }
 
@@ -216,6 +222,8 @@ export function SubmitPhotosPanel({
     if (inFlight.current || selected.length === 0 || !online) return
     inFlight.current = true
     const assetIds = selected
+    const replaced = replacesSubmissionId !== null
+    const reviewer = reviewerName
     const key = intentKey(requirementId, assetIds, replacesSubmissionId)
     const requestId = intent.idFor(key)
     setSending(true)
@@ -248,6 +256,8 @@ export function SubmitPhotosPanel({
         sent: fresh,
         skipped: result.skipped.length,
         alreadySent: result.replayed || fresh === 0,
+        replaced,
+        reviewerName: reviewer,
       })
       // Sent photos now read "Already sent for this task".
       void reloadFirstPage()
@@ -277,7 +287,7 @@ export function SubmitPhotosPanel({
 
   return (
     <div className="flex flex-col gap-4">
-      <h2 className="font-display text-xl text-ink">
+      <h2 className="font-display text-section-title-touch text-ink md:text-section-title">
         {monthly || !taskTitle ? "Send photos" : `Send photos to ${taskTitle}`}
       </h2>
 
@@ -308,12 +318,15 @@ export function SubmitPhotosPanel({
         </p>
       </div>
 
-      <div aria-live="polite" className="text-sm empty:hidden">
+      <div
+        aria-live="polite"
+        className="text-body-touch empty:hidden md:text-body-sm"
+      >
         {uploadNote ? <p>{uploadNote}</p> : null}
       </div>
 
       <div className="flex flex-col gap-2">
-        <h3 className="text-lg font-semibold text-ink">
+        <h3 className="text-item-title-touch text-ink md:text-item-title">
           Or choose from your photos
         </h3>
         <p className="text-meta-touch text-ink-muted md:text-meta">
@@ -372,7 +385,6 @@ export function SubmitPhotosPanel({
           signInHref={signInHref}
           retrying={sending || !online}
           replacing={replacesSubmissionId !== null}
-          reviewerName={reviewerName}
         />
         {!sending ? (
           <p className="text-meta-touch text-ink-muted md:text-meta">
@@ -428,7 +440,6 @@ function OutcomeMessage({
   signInHref,
   retrying,
   replacing,
-  reviewerName,
 }: {
   outcome: Outcome | null
   onRetry: () => void
@@ -436,25 +447,30 @@ function OutcomeMessage({
   signInHref: string
   retrying: boolean
   replacing: boolean
-  reviewerName: string | null
 }) {
   if (!outcome) return null
-  if (outcome.kind === "sent" && replacing && !outcome.alreadySent) {
+  if (outcome.kind === "sent" && outcome.replaced && !outcome.alreadySent) {
     return (
-      <div role="status" className="flex flex-col gap-1 text-sm">
+      <div
+        role="status"
+        className="flex flex-col gap-1 text-body-touch md:text-body-sm"
+      >
         <p className="font-medium text-positive">
           Your new photo is waiting for review
         </p>
         <p>
-          Sent. {reviewerName ?? "Your reviewer"} reviews it next. Your earlier
-          photo stays in Photos and on your profile.
+          Sent. {outcome.reviewerName ?? "Your reviewer"} reviews it next. Your
+          earlier photo stays in Photos and on your profile.
         </p>
       </div>
     )
   }
   if (outcome.kind === "sent") {
     return (
-      <div role="status" className="flex flex-col gap-1 text-sm">
+      <div
+        role="status"
+        className="flex flex-col gap-1 text-body-touch md:text-body-sm"
+      >
         <p className="font-medium text-positive">
           {outcome.alreadySent
             ? "These photos were already sent. Nothing was sent twice."

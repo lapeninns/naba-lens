@@ -17,7 +17,7 @@ export function BackToTasks({ href }: { href: string }) {
   return (
     <Link
       href={href}
-      className="inline-flex h-11 items-center gap-1.5 self-start rounded-md text-sm font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 sm:h-9"
+      className="inline-flex h-11 items-center gap-1.5 self-start rounded-control text-meta-touch font-medium text-ink-muted outline-none hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus md:h-9 md:text-meta"
     >
       <ArrowLeftIcon className="size-4" aria-hidden />
       Home
@@ -99,7 +99,10 @@ export function TaskSummary({
 
       {requirement.guidance ? (
         <section aria-labelledby="guidance-heading" className="grid gap-1.5">
-          <h2 id="guidance-heading" className="text-lg font-semibold">
+          <h2
+            id="guidance-heading"
+            className="text-section-title-touch md:text-section-title"
+          >
             What to photograph
           </h2>
           <p className="max-w-(--size-reading) break-words whitespace-pre-line">
@@ -109,14 +112,20 @@ export function TaskSummary({
       ) : null}
 
       <section aria-labelledby="progress-heading" className="grid gap-3">
-        <h2 id="progress-heading" className="text-lg font-semibold">
+        <h2
+          id="progress-heading"
+          className="text-section-title-touch md:text-section-title"
+        >
           On this section
         </h2>
         <SharedProgress assignment={assignment} />
         {requirement.assignees.length > 1 ? (
           <ul className="flex flex-wrap gap-x-4 gap-y-2">
             {requirement.assignees.map((person) => (
-              <li key={person.id} className="flex items-center gap-2 text-sm">
+              <li
+                key={person.id}
+                className="flex items-center gap-2 text-body-touch md:text-body-sm"
+              >
                 <ProfileAvatar
                   name={person.displayName}
                   src={person.avatarUrl}

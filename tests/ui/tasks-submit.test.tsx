@@ -311,6 +311,39 @@ describe("SubmitPhotosPanel", () => {
     )
   })
 
+  it("keeps the replacement message when a refresh closes the request mid-send", async () => {
+    const submit =
+      vi.fn<(input: SubmitPhotosInput) => Promise<SubmitPhotosResult>>()
+    let resolve!: (result: SubmitPhotosResult) => void
+    submit.mockReturnValueOnce(new Promise((r) => (resolve = r)))
+    const panel = (replacing: boolean) => (
+      <SubmitPhotosPanel
+        requirementId={REQUIREMENT}
+        replacesSubmissionId={
+          replacing ? "4a000000-0000-4000-8000-0000000000ee" : null
+        }
+        reviewerName={replacing ? "Anil Thapa" : null}
+        initialPhotos={page([A, B, C])}
+        loadPhotos={vi.fn(async () => page([A, B, C]))}
+        submit={submit}
+        uploader={noUpload}
+        limits={LIMITS}
+        onReload={vi.fn()}
+        signInHref="/login"
+      />
+    )
+    const user = userEvent.setup()
+    const { rerender } = render(panel(true))
+    await user.click(tile("2 Nov 2026"))
+    await user.click(screen.getByRole("button", { name: "Send another photo" }))
+    // The router refresh lands first: the answered request is closed.
+    rerender(panel(false))
+    resolve(sent(1))
+    const status = await screen.findByRole("status")
+    expect(status.textContent).toContain("Your new photo is waiting for review")
+    expect(status.textContent).toContain("Anil Thapa reviews it next.")
+  })
+
   it("reports photos already live on the task as already sent", async () => {
     const { user, submit } = setup()
     submit.mockResolvedValueOnce(sent(1, {}, true))

@@ -84,7 +84,7 @@ export function SetupChecklist({
   if (setup.complete && hasName) {
     if (profile.hasAvatar) return null
     return (
-      <p className="text-sm text-muted-foreground">
+      <p className="text-meta-touch text-ink-muted md:text-meta">
         Optional: add a profile photo in {editLink}.
       </p>
     )
@@ -101,12 +101,15 @@ export function SetupChecklist({
         </h2>
         <StatusChip tone="warning">Needs setup</StatusChip>
       </div>
-      <p className="text-sm">
+      <p className="text-body-touch md:text-body-sm">
         You can still add photos to your profile in the meantime.
       </p>
       <ul className="flex flex-col gap-2" aria-label="Profile setup">
         {steps.map((step) => (
-          <li key={step.id} className="flex items-start gap-2 text-sm">
+          <li
+            key={step.id}
+            className="flex items-start gap-2 text-body-touch md:text-body-sm"
+          >
             {step.done ? (
               <CheckCircleIcon
                 weight="fill"

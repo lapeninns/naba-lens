@@ -136,7 +136,10 @@ export default async function TaskPage({
         )}
 
         <section aria-labelledby="mine-heading" className="flex flex-col gap-3">
-          <h2 id="mine-heading" className="text-lg font-semibold">
+          <h2
+            id="mine-heading"
+            className="text-section-title-touch md:text-section-title"
+          >
             Your photos for this task
           </h2>
           <SubmissionList

@@ -136,7 +136,7 @@ export function TasksOverview({
             Overdue tasks still take photos.
           </p>
         </div>
-        <h3 className="flex items-center gap-2 text-lg font-semibold">
+        <h3 className="flex items-center gap-2 text-item-title-touch text-ink md:text-item-title">
           Assigned to you
           <CountBadge count={assignments.length} label="tasks" />
         </h3>
