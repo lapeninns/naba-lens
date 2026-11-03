@@ -191,7 +191,7 @@ async function openOwnLabelEditor(page: Page, fileName: string) {
 }
 
 async function searchMenu(editor: Locator, query: string) {
-  await editor.getByRole("combobox", { name: /^Search the menu/ }).fill(query)
+  await editor.getByRole("combobox", { name: /^Menu item at / }).fill(query)
 }
 
 test("rows 1+3: two venue menus imported separately; a draft is never active for staff", async ({
@@ -235,6 +235,7 @@ test("rows 1+3: two venue menus imported separately; a draft is never active for
     await expect(
       admin.getByRole("heading", { level: 1, name: world.venue1.name })
     ).toBeVisible()
+    await admin.getByRole("button", { name: "Import a menu" }).click()
     await expect(
       admin.getByText("PDF, image, Word and spreadsheet menus aren't read.", {
         exact: false,
@@ -264,7 +265,7 @@ test("rows 1+3: two venue menus imported separately; a draft is never active for
       `${world.venue1.name} has no active menu yet`
     )
     await expect(
-      editor.getByRole("combobox", { name: /^Search the menu/ })
+      editor.getByRole("combobox", { name: /^Menu item at / })
     ).toHaveCount(0)
     await expect(
       editor.getByRole("button", { name: "Finished dish" })
