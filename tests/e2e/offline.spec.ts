@@ -53,8 +53,11 @@ async function offlineRoundTrip(
   await expect(alert.getByRole("button", { name: "Try again" })).toBeVisible()
   // The shell's copy sits above the page heading; a page's own, in its flow.
   const beforeHeading = await alert.evaluate((el) => {
-    const h1 = document.querySelector("main h1")
-    return !!h1 && !!(el.compareDocumentPosition(h1) & 4)
+    const h1 = el.closest("main")?.querySelector("h1")
+    return (
+      !!h1 &&
+      !!(el.compareDocumentPosition(h1) & Node.DOCUMENT_POSITION_FOLLOWING)
+    )
   })
   expect(beforeHeading, `${path}: notice placed by the ${placed}`).toBe(
     placed === "shell"

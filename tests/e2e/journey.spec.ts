@@ -106,7 +106,7 @@ test.describe("release journey @core", () => {
     const profile = staff.getByRole("region", { name: "Profile" })
     await expect(profile.getByText(venue1.name)).toBeVisible()
     await expect(
-      staff.getByText("Your profile starts here.", { exact: false })
+      staff.getByRole("main").getByText("Your profile starts here.")
     ).toBeVisible()
     const { data: invitee } = await provisioner()
       .from("profiles")

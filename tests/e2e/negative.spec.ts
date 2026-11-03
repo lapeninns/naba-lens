@@ -101,7 +101,7 @@ test.describe("release negatives", () => {
     await openPortfolio(staffA)
     // Same venue, still nothing of B's in A's own portfolio.
     await expect(
-      staffA.getByText("Your profile starts here.", { exact: false })
+      staffA.getByRole("main").getByText("Your profile starts here.")
     ).toBeVisible()
     await expect(await staffTile(staffA, photo.name)).toHaveCount(0)
 
@@ -388,7 +388,8 @@ test.describe("release negatives", () => {
     const after = await syntheticJpeg(`after-move-${world.tag}.jpg`)
     const staff = await signedInPage(browser, staffC)
     await openPortfolio(staff)
-    await expect(staff.getByText(venue2.name)).toBeVisible()
+    const profile = staff.getByRole("region", { name: "Profile" })
+    await expect(profile.getByText(venue2.name)).toBeVisible()
     await uploadThroughDialog(staff, [before])
 
     const admin = await signedInPage(browser, world.adminA)
@@ -400,7 +401,7 @@ test.describe("release negatives", () => {
     await expect(edit).toBeHidden()
 
     await staff.reload()
-    await expect(staff.getByText(venue1.name)).toBeVisible()
+    await expect(profile.getByText(venue1.name)).toBeVisible()
     await uploadThroughDialog(staff, [after])
 
     const rows = await assetIdsOf(staffC.id)
@@ -470,7 +471,7 @@ test.describe("release negatives", () => {
     const staff = await signedInPage(browser, world.staffA)
     await openPortfolio(staff)
     await expect(
-      staff.getByText(
+      staff.getByRole("main").getByText(
         "Your profile starts here. Add your first photo or video."
       )
     ).toBeVisible()

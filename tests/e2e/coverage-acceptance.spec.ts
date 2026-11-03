@@ -563,7 +563,9 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
       })
     ).toBeVisible()
     await expect(
-      managerPage.getByText("Nothing is matched by name.", { exact: false })
+      managerPage
+        .getByRole("region", { name: "Carry photos from the previous menu" })
+        .getByText("Nothing is matched by name.", { exact: false })
     ).toBeVisible()
 
     // D11: the superseded section takes no new photos, but the waiting one

@@ -107,9 +107,12 @@ test.describe("Manage · Checklist M9–M12", () => {
       page.getByRole("heading", { name: "Checklist", exact: true })
     ).toBeVisible()
     await expect(
-      page.getByText(
-        `Every item ${w.venue1.name} photographs this month. Items needing setup come first. Not applicable and retired items stay listed and aren't counted.`
-      )
+      page
+        .getByRole("main")
+        .getByText(
+          `Every item ${w.venue1.name} photographs this month. Items needing setup come first. Not applicable and retired items stay listed and aren't counted.`,
+          { exact: true }
+        )
     ).toBeVisible()
     const amenities = page.getByRole("list", { name: "Amenities" })
     const services = page.getByRole("list", { name: "Venue and service areas" })
