@@ -17,7 +17,7 @@ import { COVERAGE_LIMITS } from "./copy"
 import type { Reported } from "./use-coverage-action"
 
 export const textareaClass =
-  "block min-h-24 w-full min-w-0 resize-y rounded-control border border-line-control bg-panel px-[11px] py-[7px] text-body-touch text-ink outline-none placeholder:text-ink-subtle focus-visible:border-focus focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus disabled:cursor-not-allowed disabled:bg-well disabled:text-ink-muted aria-invalid:border-negative md:text-body"
+  "block min-h-24 w-full min-w-0 resize-y rounded-control border border-line-control bg-panel px-3 py-2 text-body-touch text-ink outline-none placeholder:text-ink-subtle focus-visible:border-focus focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus disabled:cursor-not-allowed disabled:bg-well disabled:text-ink-muted aria-invalid:border-negative md:text-body"
 
 /**
  * Dialog `finalFocus` that sends focus to `reportFocus` after a `REPORTED`

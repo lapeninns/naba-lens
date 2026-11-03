@@ -32,7 +32,8 @@ import {
 } from "./copy"
 import { CoverageSection, Quote } from "./layout"
 import { ReasonDialog, textareaClass } from "./reason-dialog"
-import { Stepper, TeamTag, bySurname } from "./team-roster"
+import { bySurname } from "./roster"
+import { Stepper, TeamTag } from "./team-roster"
 import type {
   CoveragePerson,
   CoverageResult,
@@ -246,7 +247,7 @@ function AppliesChoice({
             if (!option.checked) option.pick()
           }}
           onKeyDown={(e) => onKeyDown(e, i)}
-          className="min-h-11 rounded-[6px] border border-transparent px-3 text-label-touch text-ink-muted hover:text-ink disabled:cursor-not-allowed disabled:opacity-60 aria-checked:border-line-control aria-checked:bg-panel aria-checked:text-ink md:min-h-9 md:text-label"
+          className="min-h-11 rounded-chip border border-transparent px-3 text-label-touch text-ink-muted hover:text-ink disabled:cursor-not-allowed disabled:opacity-60 aria-checked:border-line-control aria-checked:bg-panel aria-checked:text-ink md:min-h-9 md:text-label"
         >
           {option.text}
         </button>

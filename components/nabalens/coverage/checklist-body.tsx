@@ -21,7 +21,7 @@ import {
   TallyItem,
 } from "./layout"
 import type { ManageHrefs } from "./manage-nav"
-import { bySurname } from "./team-roster"
+import { bySurname } from "./roster"
 import type {
   RequirementKind,
   RequirementView,

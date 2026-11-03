@@ -124,7 +124,7 @@ function ReconcileCard({
           <ul className="grid grid-cols-3 gap-2 sm:grid-cols-6">
             {carryable.map((submission) => (
               <li key={submission.id}>
-                <label className="grid cursor-pointer gap-1 rounded-md p-1 has-checked:bg-primary/10 has-focus-visible:ring-3 has-focus-visible:ring-ring/50">
+                <label className="grid cursor-pointer gap-1 rounded-chip p-1 has-checked:bg-accent-soft has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus">
                   <EvidenceThumb src={submission.asset.thumbnailUrl} />
                   <span className="flex items-center gap-1.5 text-xs">
                     <input
