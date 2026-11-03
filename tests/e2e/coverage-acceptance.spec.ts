@@ -478,19 +478,17 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
     expect(Number(group!.staff_count)).toBeGreaterThan(0)
     const adminPage = await signedInPage(browser, w.admin)
     await adminPage.goto("/admin/coverage")
-    const coverageRow = adminPage
-      .getByRole("region", { name: "Venue coverage" })
-      .getByRole("row")
+    // One row per venue, with coverage and participation as separate figures.
+    const venueRow = adminPage
+      .getByRole("list", { name: "Venues" })
+      .getByRole("listitem")
       .filter({ hasText: w.venue1.name })
-    const participationRow = adminPage
-      .getByRole("region", { name: /^Staff participation, / })
-      .getByRole("row")
-      .filter({ hasText: w.venue1.name })
-    await expect(coverageRow).toBeVisible()
-    await expect(participationRow).toBeVisible()
+    await expect(venueRow).toBeVisible()
+    await expect(venueRow).toContainText("Venue coverage")
+    await expect(venueRow).toContainText("Staff participation")
     test.info().annotations.push({
       type: "AC-19 admin rows",
-      description: `coverage: ${await coverageRow.innerText()} | participation: ${await participationRow.innerText()}`,
+      description: await venueRow.innerText(),
     })
 
     // D11 setup: one more photo waits for review on the v1 section.
@@ -846,12 +844,15 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
 
     const adminPage = await signedInPage(browser, w.admin)
     await adminPage.goto(`/admin/staff/${w.staffB.id}`)
-    await adminPage.getByRole("button", { name: "Deactivate" }).click()
+    await adminPage
+      .getByRole("button", { name: `More actions for ${w.staffB.name}` })
+      .click()
+    await adminPage.getByRole("menuitem", { name: "Deactivate" }).click()
     await adminPage
       .getByRole("alertdialog")
       .getByRole("button", { name: "Deactivate" })
       .click()
-    await expect(adminPage.getByText(/is deactivated/)).toBeVisible()
+    await expect(adminPage.getByText(/is inactive\./)).toBeVisible()
 
     await leaver.goto("/staff/tasks")
     await expect(leaver).toHaveURL(/\/auth\/blocked$/)
@@ -1286,23 +1287,24 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
     await page.context().close()
   })
 
-  test("a month nobody prepared shows under missing periods until it is prepared (AC-26)", async ({
+  test("a month nobody prepared shows as not prepared until it is prepared (AC-26)", async ({
     browser,
   }) => {
     const w = await provisionCoverageWorld()
     const { admin } = await people(w)
     const page = await signedInPage(browser, w.admin)
-    const missing = () =>
+    const venueRow = () =>
       page
-        .getByRole("list", { name: "Missing periods" })
-        .getByRole("listitem")
+        .getByRole("table", { name: "Preparation by venue" })
+        .getByRole("row")
         .filter({ hasText: w.venue1.name })
     await page.goto("/admin/coverage")
-    await expect(missing()).toContainText("without a target row")
+    await expect(venueRow()).toContainText("Not prepared yet")
     await ok(admin.rpc("prepare_coverage_month", { p_venue_id: w.venue1.id }))
     await page.reload()
     await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible()
-    await expect(missing()).toHaveCount(0)
+    await expect(venueRow()).toBeVisible()
+    await expect(venueRow()).not.toContainText("Not prepared yet")
     await page.context().close()
   })
 
