@@ -88,7 +88,7 @@ export function DueLine({
     <span
       className={cn(
         "inline-flex flex-wrap items-center gap-1.5 text-body-touch md:text-body-sm",
-        overdue ? "text-foreground" : "text-muted-foreground",
+        overdue ? "text-ink" : "text-ink-muted",
         className
       )}
     >

@@ -43,7 +43,7 @@ export function MonthlyProgressCard({
         aria-labelledby={headingId}
         className="flex flex-col gap-2 rounded-xl border bg-card p-4"
       >
-        <Heading id={headingId} className="text-base font-semibold">
+        <Heading id={headingId} className="text-item-title-touch text-ink md:text-item-title">
           Your photos for {label}
         </Heading>
         <p className="text-meta-touch text-ink-muted md:text-meta">
@@ -65,7 +65,7 @@ export function MonthlyProgressCard({
       className="flex flex-col gap-3 rounded-xl border bg-card p-4"
     >
       <div className="flex flex-wrap items-center gap-2">
-        <Heading id={headingId} className="text-base font-semibold">
+        <Heading id={headingId} className="text-item-title-touch text-ink md:text-item-title">
           Your photos for {label}
         </Heading>
         {needsSetup ? (

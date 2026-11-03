@@ -11,7 +11,7 @@ import type { SubmissionView } from "./types"
 export function ReviewReason({ reason }: { reason: string | null }) {
   if (!reason) return null
   return (
-    <div className="rounded-md border-l-4 border-warning bg-warning-surface px-3 py-2 text-body-touch md:text-body-sm">
+    <div className="rounded-control border-l-4 border-warning bg-warning-surface px-3 py-2 text-body-touch md:text-body-sm">
       <span className="font-medium">Reason: </span>
       <span className="break-words whitespace-pre-line">{reason}</span>
     </div>
