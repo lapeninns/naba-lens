@@ -5,6 +5,7 @@ export { AssignmentList, SharedProgress } from "./assignment-list"
 export { COLLEAGUE_POST_LIMIT, ColleaguePosts } from "./colleague-posts"
 export { EvidenceImage, versionedSrc } from "./evidence-image"
 export { EvidenceThumb } from "./evidence-thumb"
+export { MonthCard } from "./month-card"
 export { MonthlyProgressCard } from "./monthly-progress-card"
 export {
   NeedsAnotherPhotoList,

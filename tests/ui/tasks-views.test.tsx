@@ -15,6 +15,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import {
   AssignmentList,
   EvidenceImage,
+  MonthCard,
   MonthlyProgressCard,
   NeedsAnotherPhotoList,
   openReplacementRequests,
@@ -719,5 +720,50 @@ describe("Home: From your colleagues", () => {
     overview([])
     expect(screen.queryByText("From your colleagues")).toBeNull()
     expect(screen.queryByText("See more photos")).toBeNull()
+  })
+})
+
+describe("MonthCard", () => {
+  it("leads with the replace link and keeps adding secondary", () => {
+    render(
+      <MonthCard
+        monthly={monthly({ accepted: 1, pending: 1, targetCount: 5 })}
+        periodLabel="November 2026"
+        replaceHref="/staff/tasks/month?replaces=abc#add-heading"
+        replaceCount={1}
+        addHref="#add-heading"
+      />
+    )
+    expect(screen.getByLabelText("1 of 5 photos accepted")).toBeTruthy()
+    expect(screen.getByText("1 waiting for review")).toBeTruthy()
+    expect(screen.getByText("3 to take")).toBeTruthy()
+    expect(
+      screen
+        .getByRole("link", { name: "1 photo to replace" })
+        .getAttribute("href")
+    ).toBe("/staff/tasks/month?replaces=abc#add-heading")
+    expect(
+      screen.getByRole("link", { name: "Add photos for this month" })
+    ).toBeTruthy()
+  })
+
+  it("shows Needs setup without a count, and Read-only without actions", () => {
+    const { rerender } = render(
+      <MonthCard
+        monthly={monthly({ status: "needs_setup", targetCount: null })}
+        periodLabel="November 2026"
+      />
+    )
+    expect(screen.getByText("Needs setup")).toBeTruthy()
+    expect(screen.queryByText(/accepted/)).toBeNull()
+    rerender(
+      <MonthCard
+        monthly={monthly({ accepted: 4, targetCount: 5 })}
+        periodLabel="October 2026"
+        readOnly
+      />
+    )
+    expect(screen.getByText("Read-only")).toBeTruthy()
+    expect(screen.queryByRole("link")).toBeNull()
   })
 })
