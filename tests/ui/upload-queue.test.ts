@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  SessionExpiredError,
+  SIGNED_OUT_MESSAGE,
   summarize,
   UploadQueue,
   type UploadContext,
@@ -76,12 +78,18 @@ describe("UploadQueue", () => {
     queue.add([file("a.jpg")])
     queue.start()
     calls[0].ctx.onProgress(0.4)
-    expect(queue.getSnapshot()[0]).toMatchObject({ status: "uploading", progress: 0.4 })
+    expect(queue.getSnapshot()[0]).toMatchObject({
+      status: "uploading",
+      progress: 0.4,
+    })
     calls[0].ctx.onProcessing()
     expect(queue.getSnapshot()[0].status).toBe("processing")
     calls[0].resolve()
     await flush()
-    expect(queue.getSnapshot()[0]).toMatchObject({ status: "done", progress: 1 })
+    expect(queue.getSnapshot()[0]).toMatchObject({
+      status: "done",
+      progress: 1,
+    })
   })
 
   it("isolates a failure and retries with the stored resume token", async () => {
@@ -157,5 +165,92 @@ describe("UploadQueue", () => {
     calls[0].resolve()
     await flush()
     expect(queue.add([file("b.jpg")]).added).toBe(1)
+  })
+
+  it("waits while offline, keeps a dropped transfer queued and resumes online", async () => {
+    const { upload, calls } = controllableUploader()
+    const queue = new UploadQueue(upload, LIMITS)
+    queue.add([file("a.jpg"), file("b.jpg"), file("c.jpg")])
+    queue.start()
+    expect(calls).toHaveLength(2)
+
+    queue.setOnline(false)
+    expect(queue.getPause()).toBe("offline")
+    calls[0].ctx.setResumeToken("asset-a")
+    calls[0].reject(new Error("Failed to fetch"))
+    await flush()
+    // The dropped file waits again; nothing new starts while offline.
+    expect(statuses(queue)).toEqual([
+      "a.jpg:queued",
+      "b.jpg:uploading",
+      "c.jpg:queued",
+    ])
+    expect(calls).toHaveLength(2)
+    expect(summarize(queue.getSnapshot())).toMatchObject({
+      failed: 0,
+      active: 3,
+      waiting: 2,
+    })
+
+    queue.setOnline(true)
+    expect(queue.getPause()).toBeNull()
+    expect(calls).toHaveLength(3)
+    expect(calls[2].file.name).toBe("a.jpg")
+    expect(calls[2].ctx.resumeToken).toBe("asset-a")
+  })
+
+  it("stops a file when the session ends, pauses the rest and resumes on sign-in", async () => {
+    const { upload, calls } = controllableUploader()
+    const queue = new UploadQueue(upload, { ...LIMITS, maxParallelUploads: 1 })
+    queue.add([file("a.jpg"), file("b.jpg"), file("c.jpg")])
+    queue.start()
+    calls[0].resolve()
+    await flush()
+    calls[1].reject(new SessionExpiredError())
+    await flush()
+
+    expect(queue.getPause()).toBe("signed-out")
+    expect(statuses(queue)).toEqual([
+      "a.jpg:done",
+      "b.jpg:failed",
+      "c.jpg:queued",
+    ])
+    const stopped = queue.getSnapshot()[1]
+    expect(stopped).toMatchObject({ stopped: true, error: SIGNED_OUT_MESSAGE })
+    expect(summarize(queue.getSnapshot())).toMatchObject({
+      done: 1,
+      failed: 0,
+      stopped: 1,
+      waiting: 1,
+    })
+    expect(calls).toHaveLength(2)
+
+    // "Retry N failed" never picks up a stopped file.
+    queue.retryFailed()
+    expect(statuses(queue)[1]).toBe("b.jpg:failed")
+
+    queue.resume()
+    expect(queue.getPause()).toBeNull()
+    // The waiting file starts; the stopped one waits for its own Retry.
+    expect(calls).toHaveLength(3)
+    expect(calls[2].file.name).toBe("c.jpg")
+    expect(statuses(queue)[1]).toBe("b.jpg:failed")
+
+    queue.retry(stopped.id)
+    expect(queue.getSnapshot()[1]).toMatchObject({
+      status: "queued",
+      stopped: false,
+    })
+  })
+
+  it("fails a dropped transfer when the device is online", async () => {
+    const { upload, calls } = controllableUploader()
+    const queue = new UploadQueue(upload, LIMITS)
+    queue.add([file("a.jpg")])
+    queue.start()
+    calls[0].reject(new Error("The connection was interrupted."))
+    await flush()
+    expect(statuses(queue)).toEqual(["a.jpg:failed"])
+    expect(summarize(queue.getSnapshot()).failed).toBe(1)
   })
 })

@@ -150,10 +150,15 @@ async function expectSummary(
   expected: string,
   timeout = 60_000
 ) {
+  // The status line also reports the run while it is going, so wait for the
+  // settled text rather than for the line to appear.
   const status = dialog.getByRole("status")
-  await expect(status).toBeVisible({ timeout })
-  const files = await dialog.getByRole("list", { name: "Files" }).innerText()
-  expect(await status.textContent(), files).toBe(expected)
+  try {
+    await expect(status).toHaveText(expected, { timeout })
+  } catch (error) {
+    const files = await dialog.getByRole("list", { name: "Files" }).innerText()
+    throw new Error(`${(error as Error).message}\n\nFiles:\n${files}`)
+  }
 }
 
 /** Records storage upload requests and the most that were in flight at once. */
@@ -850,5 +855,100 @@ test.describe("upload recovery in the real UI", () => {
         ).not.toBe("broken")
       }
     }
+  })
+})
+
+test.describe("upload queue on a phone", () => {
+  test("the queue is a bottom sheet; offline it waits for a signal and resumes; a dropped upload offers Retry and Retry 1 failed", async ({
+    browser,
+    baseURL,
+  }) => {
+    test.setTimeout(240_000)
+    const { staff } = await newStaff("e2e-upl-phone")
+    const page = await signIn(browser, staff, baseURL!)
+    const context = page.context()
+    await page.setViewportSize({ width: 390, height: 844 })
+    const actions = watchActions(page)
+
+    const dialog = await openUploadDialog(page)
+    // Below md the dialog is a sheet pinned to the bottom edge, full width.
+    await expect
+      .poll(async () => {
+        const box = (await dialog.boundingBox())!
+        return [box.x, box.width, box.y + box.height].map(Math.round)
+      })
+      .toEqual([0, 390, 844])
+
+    // --- Offline: the first PUT loses the signal. The file waits, not fails.
+    let cut = false
+    await page.route(SIGNED_PUT, async (route) => {
+      if (!cut) {
+        cut = true
+        await context.setOffline(true)
+      }
+      await route.continue()
+    })
+    await dialog
+      .getByLabel("Choose photos or videos")
+      .setInputFiles(file("photo.jpg"))
+    await expect(dialog.getByRole("status").last()).toHaveText(
+      "1 ready · up to 10 at a time"
+    )
+    await dialog.getByRole("button", { name: "Upload 1 file" }).click()
+    await expect(
+      dialog.getByText(
+        "Waiting for a signal. Keep this page open; nothing is sent twice."
+      )
+    ).toBeVisible({ timeout: 30_000 })
+    // Still waiting once the transport has given up on its own retries.
+    await expect(row(dialog, "photo.jpg")).toContainText("Waiting", {
+      timeout: 90_000,
+    })
+    await expect(dialog.getByRole("status").last()).toHaveText(
+      "0 uploaded · 1 waiting"
+    )
+    await expect(row(dialog, "photo.jpg")).not.toContainText("Failed")
+    expect(actions.finalises()).toHaveLength(0)
+
+    await context.setOffline(false)
+    await page.unroute(SIGNED_PUT)
+    await expectSummary(dialog, "1 uploaded", 60_000)
+    await expect(dialog.getByText(/Waiting for a signal/)).toHaveCount(0)
+    // Nothing was sent twice: one asset, finalised once.
+    const afterSignal = await rowsOf(staff.id)
+    expect(afterSignal).toHaveLength(1)
+    expect(afterSignal[0]).toMatchObject({
+      original_filename: "photo.jpg",
+      upload_state: "ready",
+    })
+    expect(actions.finalises()).toHaveLength(1)
+
+    // --- Online, the connection drops: that file fails with its own Retry.
+    let drop = true
+    await page.route(SIGNED_PUT, (route) =>
+      drop ? route.abort("connectionreset") : route.continue()
+    )
+    await dialog
+      .getByLabel("Choose photos or videos")
+      .setInputFiles(file("extra.jpg"))
+    await dialog.getByRole("button", { name: "Upload 1 file" }).click()
+    await expectSummary(dialog, "1 uploaded · 1 failed", 90_000)
+    await expect(row(dialog, "extra.jpg")).toContainText("Failed")
+    await expect(
+      dialog.getByRole("button", { name: "Retry extra.jpg" })
+    ).toBeVisible()
+    const retryAll = dialog.getByRole("button", { name: "Retry 1 failed" })
+    await expect(retryAll).toBeVisible()
+    // The one primary action in the footer.
+    await expect(retryAll).toHaveAttribute("data-variant", "primary")
+
+    drop = false
+    await retryAll.click()
+    await expectSummary(dialog, "2 uploaded", 60_000)
+    const rows = await rowsOf(staff.id)
+    expect(rows).toHaveLength(2)
+    expect(rows.every((r) => r.upload_state === "ready")).toBe(true)
+    expect(actions.finalises()).toHaveLength(2)
+    await context.close()
   })
 })

@@ -138,10 +138,15 @@ export async function expectSummary(
   expected: string,
   timeout = 60_000
 ) {
+  // The status line also reports the run while it is going, so wait for the
+  // settled text rather than for the line to appear.
   const status = dialog.getByRole("status")
-  await expect(status).toBeVisible({ timeout })
-  const files = await dialog.getByRole("list", { name: "Files" }).innerText()
-  expect(await status.textContent(), files).toBe(expected)
+  try {
+    await expect(status).toHaveText(expected, { timeout })
+  } catch (error) {
+    const files = await dialog.getByRole("list", { name: "Files" }).innerText()
+    throw new Error(`${(error as Error).message}\n\nFiles:\n${files}`)
+  }
 }
 
 export const portfolio = (page: Page) =>

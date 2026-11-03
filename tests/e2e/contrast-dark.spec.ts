@@ -149,6 +149,11 @@ async function contrast(page: Page, width: number, path: string) {
     .include("[data-e2e-hovered]")
     .analyze()
   hovered++
+  // The hovered chip was actually measured, not skipped.
+  expect(
+    [...onHover.passes, ...onHover.violations].flatMap((v) => v.nodes).length,
+    `${path}@${width} closed chip on hover was measured`
+  ).toBeGreaterThan(0)
   expect
     .soft(
       describeNodes(onHover.violations),
@@ -209,4 +214,5 @@ test("closed chips measured on hover", () => {
     type: "closed-chip-hover",
     description: `${hovered} page states had a visible closed chip`,
   })
+  expect(hovered).toBeGreaterThan(0)
 })

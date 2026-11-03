@@ -25,12 +25,15 @@ import { Progress } from "@/components/ui/progress"
 import { cn } from "@/lib/utils"
 
 import { formatBytes } from "./format"
+import { Notice } from "./notice"
 import type { UploadLimits } from "./types"
 import {
   ACCEPT_ATTRIBUTE,
   ACCEPTED_IMAGE_TYPES,
   guessMediaKind,
   type QueueItem,
+  type QueuePause,
+  type QueueSummary,
   type RejectedFile,
   type Uploader,
 } from "./upload-queue"
@@ -84,6 +87,38 @@ const STATUS_TEXT: Record<QueueItem["status"], string> = {
   done: "Uploaded",
   failed: "Failed",
   cancelled: "Cancelled",
+}
+
+/**
+ * The footer status line: what is done, then what is still going on. Offline,
+ * running files are "waiting"; after a sign-out, unfinished ones are "stopped".
+ */
+function statusLine(
+  summary: QueueSummary,
+  pause: QueuePause,
+  started: boolean,
+  maxBatchFiles: number
+) {
+  if (!started) {
+    return summary.selected > 0
+      ? `${summary.selected} ready · up to ${maxBatchFiles} at a time`
+      : null
+  }
+  const running =
+    summary.active === 0
+      ? null
+      : pause === "offline" || (pause && summary.active === summary.waiting)
+        ? `${summary.active} waiting`
+        : `${summary.active} in progress`
+  return [
+    `${summary.done} uploaded`,
+    running,
+    summary.failed ? `${summary.failed} failed` : null,
+    summary.stopped ? `${summary.stopped} stopped` : null,
+    summary.cancelled ? `${summary.cancelled} cancelled` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ")
 }
 
 function mb(bytes: number) {
@@ -197,7 +232,7 @@ export function UploadDialog({
   initialFiles,
 }: UploadDialogProps) {
   const queue = useUploadQueue({ upload: uploader, limits })
-  const { items, summary, isActive } = queue
+  const { items, summary, isActive, pause } = queue
   const [rejected, setRejected] = React.useState<RejectedFile[]>([])
   const [closeBlocked, setCloseBlocked] = React.useState(false)
   const fileInput = React.useRef<HTMLInputElement>(null)
@@ -281,6 +316,7 @@ export function UploadDialog({
 
   const started = items.some((i) => i.status !== "selected")
   const settled = started && !isActive && summary.selected === 0
+  const status = statusLine(summary, pause, started, limits.maxBatchFiles)
   const labelIds = settled
     ? items.flatMap((i) =>
         i.status === "done" && i.assetId ? [i.assetId] : []
@@ -289,7 +325,7 @@ export function UploadDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-h-[calc(100svh-1rem)] overflow-y-auto sm:max-w-lg">
+      <DialogContent className="md:max-w-lg">
         <DialogHeader>
           <DialogTitle>
             {imagesOnly ? "Upload photos" : "Upload photos or videos"}
@@ -376,6 +412,14 @@ export function UploadDialog({
           </Alert>
         ) : null}
 
+        {pause === "offline" && isActive ? (
+          <Notice tone="attention" role="status">
+            Waiting for a signal. Keep this page open; nothing is sent twice.
+          </Notice>
+        ) : !pause && isActive ? (
+          <Notice>Keep this page open while files upload.</Notice>
+        ) : null}
+
         {items.length > 0 ? (
           <ul aria-label="Files" className="-my-1 divide-y">
             {items.map((item) => (
@@ -396,17 +440,6 @@ export function UploadDialog({
               Uploads are still running. Keep this open, or cancel them first.
             </p>
           ) : null}
-          {settled ? (
-            <p className="font-medium" role="status">
-              {[
-                `${summary.done} uploaded`,
-                summary.failed ? `${summary.failed} failed` : null,
-                summary.cancelled ? `${summary.cancelled} cancelled` : null,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </p>
-          ) : null}
           {onLabel && labelIds.length > 0 ? (
             <p className="mt-1 text-muted-foreground">
               Optional: add menu items or details now, or later from each file.
@@ -415,6 +448,14 @@ export function UploadDialog({
         </div>
 
         <DialogFooter>
+          {items.length > 0 && status ? (
+            <p
+              role="status"
+              className="text-meta-touch text-ink-muted tabular-nums md:mr-auto md:self-center md:text-meta"
+            >
+              {status}
+            </p>
+          ) : null}
           {isActive ? (
             <Button variant="outline" size="touch" onClick={queue.cancelAll}>
               Cancel all
@@ -443,9 +484,9 @@ export function UploadDialog({
             </Button>
           ) : null}
           {settled && summary.failed > 0 ? (
-            <Button size="touch" onClick={queue.retryFailed}>
+            <Button variant="primary" size="touch" onClick={queue.retryFailed}>
               <ArrowClockwiseIcon data-icon="inline-start" aria-hidden />
-              Retry failed
+              Retry {summary.failed} failed
             </Button>
           ) : summary.selected > 0 ? (
             <Button

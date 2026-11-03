@@ -181,11 +181,12 @@ test.describe("media.tus-interrupted-resume", () => {
 })
 
 // The retry schedule of the TUS client is 0, 3, 5, 10 and 20 s: the second
-// test waits about 40 s for it to run out. The first goes through the
-// browser's offline switch, where tus-js-client does not retry at all.
+// test waits about 40 s for it to run out, then shows Retry. The first goes
+// through the browser's offline switch: the file waits for a signal and resumes
+// by itself when the browser is back online.
 test.describe("media.tus-offline-retry", () => {
   for (const mode of ["browser offline", "outage past the retry schedule"]) {
-    test(`media.tus-offline-retry: ${mode} shows Retry, and Retry resumes the same asset`, async ({
+    test(`media.tus-offline-retry: ${mode} waits or shows Retry, and resumes the same asset`, async ({
       browser,
       baseURL,
     }, testInfo) => {
@@ -212,14 +213,29 @@ test.describe("media.tus-offline-retry", () => {
       })
       const dialog = await openUploadDialog(page)
       await chooseAndUpload(dialog, ["tus-video.mp4"])
-      await expect(row(dialog, "tus-video.mp4")).toContainText(
-        "Failed — The connection was interrupted. Check your connection, then retry: the upload continues where it stopped.",
-        { timeout: 120_000 }
-      )
-      await expect(dialog.getByRole("status")).toHaveText(
-        "0 uploaded · 1 failed"
-      )
-      await testInfo.attach("offline-failed", {
+      if (offline) {
+        // Offline the file waits for a signal instead of failing.
+        await expect(
+          dialog.getByText(
+            "Waiting for a signal. Keep this page open; nothing is sent twice."
+          )
+        ).toBeVisible({ timeout: 120_000 })
+        await expect(row(dialog, "tus-video.mp4")).toContainText("Waiting", {
+          timeout: 120_000,
+        })
+        await expect(dialog.getByRole("status").last()).toHaveText(
+          "0 uploaded · 1 waiting"
+        )
+      } else {
+        await expect(row(dialog, "tus-video.mp4")).toContainText(
+          "Failed — The connection was interrupted. Check your connection, then retry: the upload continues where it stopped.",
+          { timeout: 120_000 }
+        )
+        await expect(dialog.getByRole("status")).toHaveText(
+          "0 uploaded · 1 failed"
+        )
+      }
+      await testInfo.attach(offline ? "offline-waiting" : "offline-failed", {
         body: await dialog.screenshot(),
         contentType: "image/png",
       })
@@ -228,10 +244,15 @@ test.describe("media.tus-offline-retry", () => {
       expect(interrupted[0].upload_state).toBe("uploading")
 
       down = false
-      if (offline) await context.setOffline(false)
-      await page.unroute(TUS)
       storage.reset()
-      await dialog.getByRole("button", { name: "Retry tus-video.mp4" }).click()
+      await page.unroute(TUS)
+      // Back online the waiting file carries on by itself; a failed one
+      // needs its Retry.
+      if (offline) await context.setOffline(false)
+      else
+        await dialog
+          .getByRole("button", { name: "Retry tus-video.mp4" })
+          .click()
       await expectSummary(dialog, "1 uploaded", 90_000)
       expect(storage.methods()[0]).toBe("HEAD")
       expect(storage.methods()).not.toContain("POST")

@@ -7,6 +7,11 @@
 //                                           +--> failed <-+   (retry() -> queued)
 //   selected|queued|uploading|processing --cancel()--> cancelled (retry() -> queued)
 //
+// The queue pauses while the device is offline or the session has ended: queued
+// files wait instead of starting. A transfer that fails while offline goes back
+// to the queue (its resume token keeps it from being sent twice); one that fails
+// because the session ended is "stopped" and needs the person's Retry.
+//
 // "selected" items are previewed and can be removed before the upload starts.
 // At most `concurrency` items run at once. The uploader reports progress and the
 // switch to server-side processing; whatever token it stores with
@@ -34,6 +39,8 @@ export type QueueItem = {
   progress: number
   error: string | null
   attempts: number
+  /** Failed because the session ended; Retry once signed in again. */
+  stopped?: boolean
   /** Server asset ID once done, when the uploader reports it (labelling). */
   assetId?: string
 }
@@ -66,10 +73,32 @@ export type AddResult = { added: number; rejected: RejectedFile[] }
 export type QueueSummary = {
   total: number
   done: number
+  /** Failed for a reason of their own; excludes `stopped`. */
   failed: number
+  /** Failed because the session ended. */
+  stopped: number
   cancelled: number
+  /** queued + uploading + processing. */
   active: number
+  /** Queued, not yet transferring. */
+  waiting: number
   selected: number
+}
+
+export type QueuePause = "offline" | "signed-out" | null
+
+export const SIGNED_OUT_MESSAGE =
+  "You were signed out. Sign in again, then choose the same file to finish."
+
+/**
+ * Thrown by an uploader when the request failed because the person is no
+ * longer signed in. The queue stops that file and pauses until `resume()`.
+ */
+export class SessionExpiredError extends Error {
+  constructor(message = SIGNED_OUT_MESSAGE) {
+    super(message)
+    this.name = "SessionExpiredError"
+  }
 }
 
 export const ACCEPTED_IMAGE_TYPES = [
@@ -139,6 +168,9 @@ export class UploadQueue {
   private resumeTokens = new Map<string, unknown>()
   // Incremented per attempt so late callbacks from a cancelled run are ignored.
   private runIds = new Map<string, number>()
+  private offline = false
+  private signedOut = false
+  private pause: QueuePause = null
 
   constructor(
     private uploader: Uploader,
@@ -161,6 +193,33 @@ export class UploadQueue {
   }
 
   getSnapshot = () => this.items
+
+  getPause = () => this.pause
+
+  private setPause() {
+    const next: QueuePause = this.signedOut
+      ? "signed-out"
+      : this.offline
+        ? "offline"
+        : null
+    if (next === this.pause) return false
+    this.pause = next
+    return true
+  }
+
+  /** Track the device's connection. Going online resumes waiting files. */
+  setOnline(online: boolean) {
+    this.offline = !online
+    if (this.setPause()) this.emit()
+    this.pump()
+  }
+
+  /** The session is back: waiting files start; stopped files wait for Retry. */
+  resume() {
+    this.signedOut = false
+    if (this.setPause()) this.emit()
+    this.pump()
+  }
 
   private emit() {
     for (const listener of this.listeners) listener()
@@ -262,7 +321,7 @@ export class UploadQueue {
     const item = this.items.find((i) => i.id === id)
     if (!item) return
     if (item.status === "selected" || item.status === "queued") {
-      this.update(id, { status: "cancelled", error: null })
+      this.update(id, { status: "cancelled", error: null, stopped: false })
       return
     }
     if (item.status === "uploading" || item.status === "processing") {
@@ -285,13 +344,19 @@ export class UploadQueue {
     const item = this.items.find((i) => i.id === id)
     if (!item || (item.status !== "failed" && item.status !== "cancelled"))
       return
-    this.update(id, { status: "queued", error: null, progress: 0 })
+    this.update(id, {
+      status: "queued",
+      error: null,
+      progress: 0,
+      stopped: false,
+    })
     this.pump()
   }
 
+  /** Retry every file that failed for its own reason (not stopped ones). */
   retryFailed() {
     for (const item of this.items)
-      if (item.status === "failed") this.retry(item.id)
+      if (item.status === "failed" && !item.stopped) this.retry(item.id)
   }
 
   /** Drop everything. Active transfers are aborted. */
@@ -301,10 +366,13 @@ export class UploadQueue {
     this.resumeTokens.clear()
     this.runIds.clear()
     this.items = []
+    this.signedOut = false
+    this.setPause()
     this.emit()
   }
 
   private pump() {
+    if (this.pause) return
     let running = this.items.filter(
       (i) => i.status === "uploading" || i.status === "processing"
     ).length
@@ -364,6 +432,19 @@ export class UploadQueue {
       if (!current()) return
       if (controller.signal.aborted) {
         this.update(id, { status: "cancelled", error: null })
+      } else if (error instanceof SessionExpiredError) {
+        this.signedOut = true
+        this.setPause()
+        this.update(id, {
+          status: "failed",
+          error: error.message,
+          stopped: true,
+        })
+      } else if (this.offline || isNavigatorOffline()) {
+        // Lost the signal mid-transfer: wait for it rather than fail.
+        this.offline = true
+        this.setPause()
+        this.update(id, { status: "queued", progress: 0, error: null })
       } else {
         this.update(id, { status: "failed", error: errorMessage(error) })
       }
@@ -376,21 +457,32 @@ export class UploadQueue {
   }
 }
 
+function isNavigatorOffline() {
+  return typeof navigator !== "undefined" && navigator.onLine === false
+}
+
 export function summarize(items: readonly QueueItem[]): QueueSummary {
   const summary: QueueSummary = {
     total: items.length,
     done: 0,
     failed: 0,
+    stopped: 0,
     cancelled: 0,
     active: 0,
+    waiting: 0,
     selected: 0,
   }
   for (const item of items) {
     if (item.status === "done") summary.done += 1
-    else if (item.status === "failed") summary.failed += 1
-    else if (item.status === "cancelled") summary.cancelled += 1
+    else if (item.status === "failed") {
+      if (item.stopped) summary.stopped += 1
+      else summary.failed += 1
+    } else if (item.status === "cancelled") summary.cancelled += 1
     else if (item.status === "selected") summary.selected += 1
-    else summary.active += 1
+    else {
+      summary.active += 1
+      if (item.status === "queued") summary.waiting += 1
+    }
   }
   return summary
 }
