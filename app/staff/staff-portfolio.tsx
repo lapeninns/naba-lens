@@ -104,7 +104,7 @@ export function StaffPortfolio({
               Edit profile
             </Button>
             {/* From md, Log out is in the AppBar; on phones it lives on Me. */}
-            <form action={logout} className="md:hidden">
+            <form action={logout} className="md:hidden" data-logout>
               <Button type="submit" variant="quiet" size="touch">
                 <SignOutIcon data-icon="inline-start" aria-hidden />
                 Log out

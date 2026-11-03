@@ -190,3 +190,18 @@ describe("AppShell offline notice", () => {
     expect(offlineAlerts()).toHaveLength(1)
   })
 })
+
+describe("AppShell Log out", () => {
+  it("marks the logout form for the leave guard", () => {
+    const { container } = render(
+      <AppShell variant="admin" active="content" logoutAction={async () => {}}>
+        x
+      </AppShell>
+    )
+    const form = container.querySelector("form[data-logout]")
+    expect(form).not.toBeNull()
+    expect(
+      within(form as HTMLElement).getByRole("button", { name: "Log out" })
+    ).toBeTruthy()
+  })
+})

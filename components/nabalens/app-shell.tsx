@@ -210,7 +210,9 @@ export function AppShell(props: AppShellProps) {
             ) : null}
             <div className={cn(staff && "hidden md:block")}>
               {logoutAction ? (
-                <form action={logoutAction}>{logoutButton}</form>
+                <form action={logoutAction} data-logout>
+                  {logoutButton}
+                </form>
               ) : (
                 logoutButton
               )}

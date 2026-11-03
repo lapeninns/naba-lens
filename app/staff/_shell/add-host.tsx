@@ -10,6 +10,7 @@ import {
   type SessionGuard,
 } from "@/components/nabalens/session-guard"
 import { AddProvider } from "@/components/nabalens/shell/add-context"
+import { LeaveGuard } from "@/components/nabalens/shell/leave-guard"
 import {
   AddSheet,
   type AddBlocked,
@@ -21,8 +22,8 @@ import { createClient } from "@/lib/supabase/browser"
 import { getSiteUrl } from "@/lib/supabase/env"
 
 /**
- * Hosts Add, and the session guard every upload on the page uses, for every
- * staff page. Phones get the Add sheet first; from md the
+ * Hosts Add, the session guard every upload on the page uses, and the leave
+ * guard, for every staff page. The Add queue keeps uploading when closed. Phones get the Add sheet first; from md the
  * upload dialog opens straight away. A blocked account sees why instead. The
  * database repeats the block check, so this is display only.
  */
@@ -92,27 +93,30 @@ export function AddHost({
 
   return (
     <SessionGuardProvider value={guard}>
-      <AddProvider value={value}>
-        {children}
-        <AddSheet
-          open={sheetOpen}
-          onOpenChange={setSheetOpen}
-          blocked={blocked}
-          onFiles={(files) => {
-            setSheetOpen(false)
-            setPicked(files)
-            setUploadOpen(true)
-          }}
-        />
-        <UploadDialog
-          open={uploadOpen}
-          onOpenChange={setUploadOpen}
-          uploader={uploader}
-          limits={MEDIA_LIMITS}
-          initialFiles={picked}
-          onUploaded={() => router.refresh()}
-        />
-      </AddProvider>
+      <LeaveGuard>
+        <AddProvider value={value}>
+          {children}
+          <AddSheet
+            open={sheetOpen}
+            onOpenChange={setSheetOpen}
+            blocked={blocked}
+            onFiles={(files) => {
+              setSheetOpen(false)
+              setPicked(files)
+              setUploadOpen(true)
+            }}
+          />
+          <UploadDialog
+            open={uploadOpen}
+            onOpenChange={setUploadOpen}
+            uploader={uploader}
+            limits={MEDIA_LIMITS}
+            initialFiles={picked}
+            onUploaded={() => router.refresh()}
+            keepRunningWhenClosed
+          />
+        </AddProvider>
+      </LeaveGuard>
     </SessionGuardProvider>
   )
 }

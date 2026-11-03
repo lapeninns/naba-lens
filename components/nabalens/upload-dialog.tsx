@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils"
 
 import { formatBytes } from "./format"
 import { Notice } from "./notice"
+import { useLeaveGuard } from "./shell/leave-guard"
 import {
   SignInAgainSheet,
   useSessionGuard,
@@ -64,6 +65,12 @@ type UploadDialogProps = {
    * in that run (only files whose uploader reported an asset ID).
    */
   onReady?: (assetIds: string[]) => void
+  /**
+   * Closing while files upload hides the queue and lets them carry on (the
+   * owner stays mounted; Add shows the queue again). Default false: closing
+   * is refused until the run ends or is cancelled.
+   */
+  keepRunningWhenClosed?: boolean
   /** Offer the camera-capture input as an enhancement. Default true. */
   allowCamera?: boolean
   /** Accept photos only; videos are rejected with a reason. Default false. */
@@ -233,6 +240,7 @@ export function UploadDialog({
   onUploaded,
   onLabel,
   onReady,
+  keepRunningWhenClosed = false,
   allowCamera = true,
   imagesOnly = false,
   initialFiles,
@@ -261,6 +269,7 @@ export function UploadDialog({
   }, [uploader, isSignedIn])
   const queue = useUploadQueue({ upload, limits })
   const { items, summary, isActive, pause } = queue
+  useLeaveGuard(summary.active, queue.cancelAll)
   const signedOut = pause === "signed-out"
   const [signInOpen, setSignInOpen] = React.useState(false)
 
@@ -271,9 +280,10 @@ export function UploadDialog({
     if (signedOut && !wasSignedOut.current && guard) {
       // Opening the sheet follows the queue's external state.
       setSignInOpen(true)
+      if (!open) onOpenChange(true)
     }
     wasSignedOut.current = signedOut
-  }, [signedOut, guard])
+  }, [signedOut, guard, open, onOpenChange])
 
   const { resume } = queue
   useSignedInAgain(signedOut, isSignedIn, () => {
@@ -349,6 +359,10 @@ export function UploadDialog({
 
   function handleOpenChange(next: boolean) {
     if (!next && isActive) {
+      if (keepRunningWhenClosed) {
+        onOpenChange(false)
+        return
+      }
       setCloseBlocked(true)
       return
     }

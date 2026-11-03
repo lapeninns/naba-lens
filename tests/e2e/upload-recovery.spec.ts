@@ -1097,3 +1097,118 @@ test.describe("session ends mid-queue", () => {
     await context.close()
   })
 })
+
+test.describe("leaving while uploads run", () => {
+  test("S20: Log out without uploads logs out straight away", async ({
+    browser,
+    baseURL,
+  }) => {
+    const { staff } = await newStaff("e2e-leave-idle")
+    const page = await signIn(browser, staff, baseURL!)
+    await page
+      .getByRole("banner")
+      .getByRole("button", { name: "Log out" })
+      .click()
+    await expect(page).toHaveURL(/\/login\?signed_out=1$/)
+    await expect(page.getByRole("alertdialog")).toHaveCount(0)
+    await page.context().close()
+  })
+
+  test("S20: Log out while uploading asks Log out now?; Keep uploading stays; Log out anyway (phone, on Me) logs out", async ({
+    browser,
+    baseURL,
+  }) => {
+    test.setTimeout(180_000)
+    const { staff } = await newStaff("e2e-leave-upl")
+    const page = await signIn(browser, staff, baseURL!)
+    const context = page.context()
+    let unload = 0
+    page.on("dialog", (d) => {
+      unload++
+      void d.dismiss()
+    })
+
+    // Throttled: every signed PUT is held until the test lets it go.
+    const held: Route[] = []
+    await page.route(SIGNED_PUT, (route) => {
+      held.push(route)
+    })
+
+    await page
+      .getByRole("banner")
+      .getByRole("button", { name: "Add photos" })
+      .click()
+    const queue = page.getByRole("dialog", { name: "Upload photos or videos" })
+    await expect(queue).toBeVisible()
+    await queue
+      .getByLabel("Choose photos or videos")
+      .setInputFiles(["photo.jpg", "photo.png"].map(file))
+    await queue.getByRole("button", { name: "Upload 2 files" }).click()
+    await expect.poll(() => held.length, { timeout: 60_000 }).toBe(2)
+
+    // Closing the Add queue lets the uploads carry on behind the page.
+    await page.keyboard.press("Escape")
+    await expect(queue).toBeHidden()
+
+    const logOut = page.getByRole("banner").getByRole("button", {
+      name: "Log out",
+    })
+    await logOut.click()
+    const confirm = page.getByRole("alertdialog", { name: "Log out now?" })
+    await expect(confirm).toBeVisible()
+    await expect(confirm).toContainText(
+      "Leave now and 2 uploads stop. Finished photos stay uploaded."
+    )
+    const keep = confirm.getByRole("button", { name: "Keep uploading" })
+    await expect(keep).toBeFocused()
+    await expect(
+      confirm.getByRole("button", { name: "Log out anyway" })
+    ).toBeVisible()
+
+    await keep.click()
+    await expect(confirm).toBeHidden()
+    await expect(logOut).toBeFocused()
+    await expect(page).toHaveURL(/\/staff$/)
+    expect(held).toHaveLength(2)
+
+    // Add shows the same queue, still running.
+    await page
+      .getByRole("banner")
+      .getByRole("button", { name: "Add photos" })
+      .click()
+    await expect(queue.getByRole("status").last()).toHaveText(
+      "0 uploaded · 2 in progress"
+    )
+    await page.keyboard.press("Escape")
+    await expect(queue).toBeHidden()
+
+    // Phones: Log out lives on Me (staff-portfolio), behind the same guard.
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page
+      .getByRole("main")
+      .getByRole("button", { name: "Log out" })
+      .click()
+    await expect(confirm).toBeVisible()
+    // A bottom sheet, once its slide-in settles.
+    await expect
+      .poll(async () => {
+        const box = (await confirm.boundingBox())!
+        return Math.round(box.y + box.height)
+      })
+      .toBe(844)
+    for (const name of ["Log out anyway", "Keep uploading"]) {
+      const b = (await confirm.getByRole("button", { name }).boundingBox())!
+      expect(b.height).toBeGreaterThanOrEqual(52)
+    }
+    await confirm.getByRole("button", { name: "Log out anyway" }).click()
+    await expect(page).toHaveURL(/\/login\?signed_out=1$/)
+    // A client navigation: no beforeunload prompt on the way out.
+    expect(unload).toBe(0)
+
+    for (const route of held.splice(0)) await route.abort().catch(() => {})
+    await page.unrouteAll({ behavior: "ignoreErrors" })
+    await page.goto("/staff")
+    await expect(page).toHaveURL(/\/login/)
+    await context.close()
+  })
+})
