@@ -1169,11 +1169,7 @@ function Flag({
   children: React.ReactNode
 }) {
   return (
-    <StatusChip
-      tone={FLAG_TONE[tone]}
-      // The closed tone's ink-subtle drops below 4.5:1 on the row's hover fill.
-      className={cn("shrink-0", tone === "muted" && "text-ink-muted")}
-    >
+    <StatusChip tone={FLAG_TONE[tone]} className="shrink-0">
       {tone === "warning" ? <WarningIcon aria-hidden /> : null}
       {tone === "error" ? <WarningCircleIcon aria-hidden /> : null}
       {children}
