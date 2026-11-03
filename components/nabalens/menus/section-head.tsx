@@ -45,7 +45,7 @@ export const menuListClassName =
 
 /** A whole row that opens something. */
 export const menuRowLinkClassName =
-  "flex min-h-16 items-center gap-3 px-4 py-3 text-ink outline-none hover:bg-fill-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
+  "flex min-h-16 items-center gap-3 px-4 py-3 text-ink outline-none hover:bg-fill-hover focus-visible:outline-2 focus-visible:outline-solid focus-visible:-outline-offset-2 focus-visible:outline-focus"
 
 export const menuItemTitleClassName =
   "text-item-title-touch text-ink md:text-item-title"

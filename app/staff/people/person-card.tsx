@@ -21,7 +21,7 @@ export function PersonCard({ member }: { member: CommunityMember }) {
   return (
     <Link
       href={`/staff/people/${member.id}`}
-      className="flex h-full flex-col gap-3 rounded-panel border border-line bg-paper p-4 text-ink transition-colors duration-(--duration-quick) outline-none hover:bg-well focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+      className="flex h-full flex-col gap-3 rounded-panel border border-line bg-paper p-4 text-ink transition-colors duration-(--duration-quick) outline-none hover:bg-well focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
     >
       <span className="flex min-w-0 items-center gap-3">
         <ProfileAvatar name={member.displayName} src={member.avatarUrl} />

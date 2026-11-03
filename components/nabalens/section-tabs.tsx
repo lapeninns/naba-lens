@@ -49,7 +49,7 @@ export function SectionTabs({
                 data-nav-item
                 aria-current={current ? "page" : undefined}
                 className={cn(
-                  "inline-flex min-h-11 items-center gap-2 px-3 text-label whitespace-nowrap text-ink-muted shadow-[inset_0_-2px_0_transparent] transition-colors outline-none hover:text-ink focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus md:min-h-10",
+                  "inline-flex min-h-11 items-center gap-2 px-3 text-label whitespace-nowrap text-ink-muted shadow-[inset_0_-2px_0_transparent] transition-colors outline-none hover:text-ink focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid md:min-h-10",
                   current && "text-ink shadow-[inset_0_-2px_0_var(--accent)]"
                 )}
               >

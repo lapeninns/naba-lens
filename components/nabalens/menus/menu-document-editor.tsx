@@ -53,7 +53,7 @@ const EXPAND_ALL_UP_TO = 40
 const L = MENU_IMPORT_LIMITS
 
 const textareaClass =
-  "min-h-20 w-full min-w-0 rounded-control border border-line-control bg-panel px-2.5 py-1.5 text-body-touch text-ink outline-none placeholder:text-ink-subtle focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus aria-invalid:border-negative md:text-body-sm"
+  "min-h-20 w-full min-w-0 rounded-control border border-line-control bg-panel px-2.5 py-1.5 text-body-touch text-ink outline-none placeholder:text-ink-subtle focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-1 focus-visible:outline-focus aria-invalid:border-negative md:text-body-sm"
 
 export type MenuDocumentEditorProps = {
   value: MenuDocument
@@ -490,7 +490,7 @@ function SectionPanel({
             // Below md the row also holds three 44px buttons, so the count
             // and flags take a second line and the name wraps instead of
             // being cut off.
-            className="flex min-h-11 w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 rounded-control px-2 py-1.5 text-left outline-none hover:bg-fill-hover focus-visible:outline-2 focus-visible:outline-focus md:min-h-9 md:flex-nowrap md:py-0"
+            className="flex min-h-11 w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 rounded-control px-2 py-1.5 text-left outline-none hover:bg-fill-hover focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-solid md:min-h-9 md:flex-nowrap md:py-0"
           >
             {expanded ? (
               <CaretDownIcon className="size-4 shrink-0" aria-hidden />
@@ -727,7 +727,7 @@ function ItemRow({
         aria-expanded={expanded}
         aria-controls={panelId}
         onClick={onToggle}
-        className="flex min-h-11 w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2 text-left text-body-touch outline-none hover:bg-fill-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus md:text-body-sm"
+        className="flex min-h-11 w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2 text-left text-body-touch outline-none hover:bg-fill-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid md:text-body-sm"
       >
         <span className="min-w-0 font-semibold break-words text-ink">
           {name}

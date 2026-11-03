@@ -63,7 +63,7 @@ export function Notice({
       data-tone={tone}
       role={resolvedRole === "none" ? undefined : resolvedRole}
       className={cn(
-        "@container rounded-control text-ink outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus",
+        "@container rounded-control text-ink outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid",
         TONE[tone].ground,
         // In dark the secondary button's line-control edge falls under 3:1 on
         // a tinted ground, so it takes ink-muted there.

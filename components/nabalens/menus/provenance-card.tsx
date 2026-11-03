@@ -83,7 +83,7 @@ export function ProvenanceCard({
       term: "File SHA-256",
       value: (
         <details className="group min-w-0">
-          <summary className="cursor-pointer rounded-chip font-mono text-mono outline-none focus-visible:outline-2 focus-visible:outline-focus">
+          <summary className="cursor-pointer rounded-chip font-mono text-mono outline-none focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-solid">
             {source.sha256.slice(0, SHORT_HASH)}…
             <span className="ml-2 font-sans text-ink-muted group-open:hidden">
               Show full value

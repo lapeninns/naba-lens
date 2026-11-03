@@ -184,7 +184,7 @@ function ContentTypeChips({
                 if (!blocked) onToggle(type)
               }}
               className={cn(
-                "inline-flex min-h-11 items-center gap-1.5 rounded-control border border-line-control bg-panel px-3.5 text-body-touch text-ink transition-colors duration-(--duration-quick) outline-none hover:bg-fill-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:cursor-not-allowed md:min-h-8 md:px-3 md:text-body-sm",
+                "inline-flex min-h-11 items-center gap-1.5 rounded-control border border-line-control bg-panel px-3.5 text-body-touch text-ink transition-colors duration-(--duration-quick) outline-none hover:bg-fill-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid disabled:cursor-not-allowed md:min-h-8 md:px-3 md:text-body-sm",
                 pressed &&
                   "border-accent bg-accent-soft font-semibold text-accent-text hover:bg-accent-soft",
                 blocked &&

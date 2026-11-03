@@ -17,7 +17,7 @@ export function BackToTasks({ href }: { href: string }) {
   return (
     <Link
       href={href}
-      className="inline-flex h-11 items-center gap-1.5 self-start rounded-control text-meta-touch font-medium text-ink-muted outline-none hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus md:h-9 md:text-meta"
+      className="inline-flex h-11 items-center gap-1.5 self-start rounded-control text-meta-touch font-medium text-ink-muted outline-none hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid md:h-9 md:text-meta"
     >
       <ArrowLeftIcon className="size-4" aria-hidden />
       Home

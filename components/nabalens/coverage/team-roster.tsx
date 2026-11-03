@@ -103,7 +103,7 @@ export function TeamPerson({
           {href ? (
             <Link
               href={href}
-              className="rounded-chip break-words underline-offset-3 outline-none hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+              className="rounded-chip break-words underline-offset-3 outline-none hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
             >
               {person.displayName}
             </Link>
@@ -180,7 +180,7 @@ export function Stepper({
         aria-invalid={invalid || undefined}
         aria-describedby={describedBy}
         disabled={disabled}
-        className="w-[3em] border-x border-line bg-transparent text-center text-body font-semibold text-ink tabular-nums outline-none placeholder:text-ink-subtle focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus disabled:opacity-60"
+        className="w-[3em] border-x border-line bg-transparent text-center text-body font-semibold text-ink tabular-nums outline-none placeholder:text-ink-subtle focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid disabled:opacity-60"
       />
       <button
         type="button"
@@ -1001,7 +1001,7 @@ function CorrectTargetDialog({
               aria-invalid={!!errors.reason || undefined}
               aria-describedby={`${ids}-reason-hint`}
               disabled={pending}
-              className="min-h-24 w-full resize-y rounded-control border border-line-control bg-panel px-3 py-2 text-body-touch text-ink outline-none placeholder:text-ink-subtle focus-visible:border-focus focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus aria-invalid:border-negative md:text-body"
+              className="min-h-24 w-full resize-y rounded-control border border-line-control bg-panel px-3 py-2 text-body-touch text-ink outline-none placeholder:text-ink-subtle focus-visible:border-focus focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus focus-visible:outline-solid aria-invalid:border-negative md:text-body"
             />
             <div className="flex items-start gap-3">
               {errors.reason ? (

@@ -53,7 +53,7 @@ export function ColleaguePosts({
             </Link>
             <Link
               href={photosHref}
-              className="block aspect-square overflow-hidden rounded-print bg-media-placeholder outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+              className="block aspect-square overflow-hidden rounded-print bg-media-placeholder outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
             >
               {/* Signed private URLs: not routed through next/image. */}
               {/* eslint-disable-next-line @next/next/no-img-element */}

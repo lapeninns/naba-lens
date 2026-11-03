@@ -304,7 +304,7 @@ export function PreparationSection({
           </div>
         )}
         <details id="all-runs" className="group">
-          <summary className="flex min-h-11 w-fit cursor-pointer list-none items-center gap-1.5 text-body-touch text-ink underline underline-offset-3 outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus md:min-h-0 md:text-body-sm [&::-webkit-details-marker]:hidden">
+          <summary className="flex min-h-11 w-fit cursor-pointer list-none items-center gap-1.5 text-body-touch text-ink underline underline-offset-3 outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid md:min-h-0 md:text-body-sm [&::-webkit-details-marker]:hidden">
             <CaretRightIcon
               aria-hidden
               className="size-4 shrink-0 transition-transform group-open:rotate-90 motion-reduce:transition-none"

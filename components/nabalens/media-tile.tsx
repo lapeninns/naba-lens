@@ -112,7 +112,7 @@ export function MediaTile({
           data-media-id={item.id}
           aria-label={describe(item, showAttribution, showFileName, labelText)}
           className={cn(
-            "relative block aspect-square w-full overflow-hidden rounded-print bg-media-placeholder outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus",
+            "relative block aspect-square w-full overflow-hidden rounded-print bg-media-placeholder outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid",
             item.uploadState === "failed" &&
               "shadow-[inset_0_0_0_2px_var(--negative)]"
           )}

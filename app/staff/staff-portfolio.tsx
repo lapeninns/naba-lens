@@ -85,7 +85,7 @@ function ManageRow({
           reviewCount > 0 ? `${title}, ${reviewCount} ${toReview}` : title
         }
         aria-describedby={hintId}
-        className="grid min-h-13 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 py-3 text-ink outline-none hover:bg-fill-hover focus-visible:outline-2 focus-visible:outline-focus md:min-h-11"
+        className="grid min-h-13 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 py-3 text-ink outline-none hover:bg-fill-hover focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-solid md:min-h-11"
       >
         <ClipboardTextIcon aria-hidden className="size-5 text-ink-muted" />
         <span className="grid min-w-0">

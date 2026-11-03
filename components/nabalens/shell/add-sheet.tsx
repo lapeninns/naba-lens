@@ -128,7 +128,7 @@ function AddOption({
     <button
       type="button"
       onClick={onClick}
-      className="flex min-h-19 items-center gap-4 rounded-touch border border-line-control px-4 py-3 text-left transition-colors outline-none hover:bg-fill-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+      className="flex min-h-19 items-center gap-4 rounded-touch border border-line-control px-4 py-3 text-left transition-colors outline-none hover:bg-fill-hover focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-focus"
     >
       <span className="grid size-13 flex-none place-items-center rounded-round bg-accent-soft text-accent-text">
         {icon}

@@ -292,7 +292,7 @@ export function VenueList({ rows }: { rows: GroupOverviewRow[] }) {
           <li key={row.venue.id}>
             <Link
               href={venueHref(row.venue.id)}
-              className="grid gap-3 px-4 py-3.5 outline-none hover:bg-fill-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_auto] md:items-center md:gap-6"
+              className="grid gap-3 px-4 py-3.5 outline-none hover:bg-fill-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_auto] md:items-center md:gap-6"
             >
               <div className="grid min-w-0 gap-1.5">
                 <p className="flex items-center gap-1.5 text-item-title-touch text-ink md:text-item-title">

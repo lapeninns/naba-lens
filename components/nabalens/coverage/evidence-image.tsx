@@ -73,7 +73,7 @@ export function EvidencePreviewButton({
           type="button"
           onClick={() => setOpen(true)}
           aria-label={`Open ${label}`}
-          className="absolute inset-0 z-10 rounded-print outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+          className="absolute inset-0 z-10 rounded-print outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
         />
       ) : null}
       <Dialog open={open} onOpenChange={setOpen}>

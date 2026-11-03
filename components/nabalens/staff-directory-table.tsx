@@ -192,7 +192,7 @@ export function StaffDirectoryTable({
   const nameLink = (member: StaffMember) => (
     <Link
       href={getPortfolioHref(member)}
-      className="rounded-chip font-semibold text-ink underline-offset-3 outline-none hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+      className="rounded-chip font-semibold text-ink underline-offset-3 outline-none hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
     >
       {member.displayName}
     </Link>

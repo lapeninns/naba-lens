@@ -104,7 +104,7 @@ function VersionsTable({
                   <Link
                     href={versionHref(v.id)}
                     className={cn(
-                      "rounded-chip font-semibold break-words underline-offset-3 outline-none hover:underline focus-visible:outline-2 focus-visible:outline-focus",
+                      "rounded-chip font-semibold break-words underline-offset-3 outline-none hover:underline focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-solid",
                       closed ? "text-ink-muted" : "text-ink"
                     )}
                   >

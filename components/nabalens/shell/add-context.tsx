@@ -94,4 +94,4 @@ export function AddTrigger({ kind }: { kind: "tab" | "bar" }) {
 
 /** One TabBar item: icon over an always-visible label, full bar height. */
 export const TAB_ITEM =
-  "relative grid min-h-(--size-tabbar) content-center justify-items-center gap-1 px-0.5 py-1.5 text-center text-tab-label wdth-88 outline-none focus-visible:outline-2 focus-visible:outline-focus focus-visible:-outline-offset-3"
+  "relative grid min-h-(--size-tabbar) content-center justify-items-center gap-1 px-0.5 py-1.5 text-center text-tab-label wdth-88 outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-focus focus-visible:-outline-offset-3"

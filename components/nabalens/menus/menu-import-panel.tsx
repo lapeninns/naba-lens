@@ -275,7 +275,7 @@ export function MenuImportPanel({
       ) : null}
 
       <details className="group rounded-control border border-line">
-        <summary className="flex min-h-11 cursor-pointer items-center rounded-control px-3 text-label-touch text-ink outline-none focus-visible:outline-2 focus-visible:outline-focus md:min-h-9 md:text-label">
+        <summary className="flex min-h-11 cursor-pointer items-center rounded-control px-3 text-label-touch text-ink outline-none focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-solid md:min-h-9 md:text-label">
           Supported formats
         </summary>
         <div className="grid gap-4 border-t border-line px-3 py-3 text-body-touch md:text-body-sm">

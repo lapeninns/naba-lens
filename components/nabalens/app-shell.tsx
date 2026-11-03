@@ -105,7 +105,7 @@ const MANAGE: NavItem<StaffSection> = {
 }
 
 const BAR_LINK =
-  "inline-flex items-center gap-2 px-2.5 text-label text-ink-muted whitespace-nowrap shadow-[inset_0_-2px_0_transparent] transition-colors outline-none hover:text-ink focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus"
+  "inline-flex items-center gap-2 px-2.5 text-label text-ink-muted whitespace-nowrap shadow-[inset_0_-2px_0_transparent] transition-colors outline-none hover:text-ink focus-visible:outline-2 focus-visible:outline-solid focus-visible:-outline-offset-2 focus-visible:outline-focus"
 
 /**
  * Page frame for signed-in pages. From md: the AppBar with the role's
@@ -157,7 +157,7 @@ export function AppShell(props: AppShellProps) {
         <div className="mx-auto flex h-14 w-full max-w-(--size-page) items-center gap-3 px-4 md:gap-4 md:px-6 lg:gap-6">
           <Link
             href={admin ? "/admin" : "/staff/tasks"}
-            className="inline-flex flex-none items-baseline gap-2 font-display text-xl leading-6 font-bold tracking-[-0.01em] whitespace-nowrap text-ink outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+            className="inline-flex flex-none items-baseline gap-2 font-display text-xl leading-6 font-bold tracking-[-0.01em] whitespace-nowrap text-ink outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
           >
             Naba-Lens
             {admin ? " " : null}
@@ -220,7 +220,7 @@ export function AppShell(props: AppShellProps) {
             {staff ? (
               <Link
                 href={ME.href}
-                className="-mr-1 grid size-11 place-items-center rounded-round outline-none focus-visible:outline-2 focus-visible:outline-focus md:hidden"
+                className="-mr-1 grid size-11 place-items-center rounded-round outline-none focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-solid md:hidden"
               >
                 {/* The avatar is aria-hidden, so this text is the whole name.
                     axe's label-content-name-mismatch flags an aria-label that
