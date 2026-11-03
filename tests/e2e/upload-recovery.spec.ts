@@ -24,6 +24,7 @@ import {
   type TestIdentity,
 } from "../support/identities"
 import { firefoxLaunchOptions } from "./helpers/firefox"
+import { mailboxIds, SUBJECTS, waitForLink } from "./helpers/mailpit"
 import { openPortfolio, STAFF_LANDING, staffTile } from "./helpers/ui"
 
 /**
@@ -949,6 +950,140 @@ test.describe("upload queue on a phone", () => {
     expect(rows).toHaveLength(2)
     expect(rows.every((r) => r.upload_state === "ready")).toBe(true)
     expect(actions.finalises()).toHaveLength(2)
+    await context.close()
+  })
+})
+
+test.describe("session ends mid-queue", () => {
+  test("E7: clearing the auth cookie stops running files, keeps the page and queue; after Sign in again in another tab the waiting file resumes and Retry finishes the stopped ones", async ({
+    browser,
+    baseURL,
+  }, testInfo) => {
+    test.setTimeout(240_000)
+    const { staff } = await newStaff("e2e-upl-signout")
+    const page = await signIn(browser, staff, baseURL!)
+    const context = page.context()
+    await page.setViewportSize({ width: 390, height: 844 })
+    const url = page.url()
+
+    // The first PUT goes through; the next two are held until the cookie is gone.
+    const heldPuts: Route[] = []
+    let puts = 0
+    await page.route(SIGNED_PUT, async (route) => {
+      puts++
+      if (puts === 1) return route.continue()
+      if (puts <= 3) {
+        heldPuts.push(route)
+        return
+      }
+      return route.continue()
+    })
+
+    const dialog = await openUploadDialog(page)
+    await dialog
+      .getByLabel("Choose photos or videos")
+      .setInputFiles(
+        ["photo.jpg", "photo.png", "photo.webp", "extra.jpg"].map(file)
+      )
+    await dialog.getByRole("button", { name: "Upload 4 files" }).click()
+    await expect.poll(() => heldPuts.length, { timeout: 60_000 }).toBe(2)
+    await expect(
+      dialog.getByRole("listitem").filter({ hasText: "Uploaded" })
+    ).toHaveCount(1)
+    const waiting = dialog.getByRole("listitem").filter({ hasText: "Waiting" })
+    await expect(waiting).toHaveCount(1)
+
+    await context.clearCookies()
+    for (const route of heldPuts.splice(0)) await route.continue()
+
+    const e7 = page.getByRole("dialog", { name: "Sign in again" })
+    await expect(e7).toBeVisible({ timeout: 60_000 })
+    await expect(e7).toContainText(
+      "You were signed out after a while away. 1 photo finished uploading and is safe. 2 stopped."
+    )
+    await expect(e7).toContainText(
+      `We'll send a sign-in link to ${staff.email}.`
+    )
+    // Same page, same queue: nothing navigated to /login.
+    expect(page.url()).toBe(url)
+    await testInfo.attach("e7-sign-in-again", {
+      body: await page.screenshot(),
+      contentType: "image/png",
+    })
+
+    const seen = await mailboxIds(staff.email)
+    await e7.getByRole("button", { name: "Send sign-in link" }).click()
+    await expect(
+      page.getByRole("dialog", { name: "Check your email" })
+    ).toBeVisible()
+    await page
+      .getByRole("dialog", { name: "Check your email" })
+      .getByRole("button", { name: "Done" })
+      .click()
+
+    const stoppedText =
+      "Failed — You were signed out. Sign in again, then choose the same file to finish."
+    await expect(
+      dialog.getByText("You were signed out", { exact: true })
+    ).toBeVisible()
+    await expect(
+      dialog.getByRole("listitem").filter({ hasText: stoppedText })
+    ).toHaveCount(2)
+    await expect(waiting).toHaveCount(1)
+    await expect(dialog.getByRole("status").last()).toHaveText(
+      "1 uploaded · 1 waiting · 2 stopped"
+    )
+    await expect(
+      dialog.getByRole("button", { name: "Sign in again" })
+    ).toHaveAttribute("data-variant", "primary")
+    const beforeSignIn = await rowsOf(staff.id)
+    expect(beforeSignIn.filter((r) => r.upload_state === "ready")).toHaveLength(
+      1
+    )
+
+    // Open the emailed link in another tab, as a phone's mail app would.
+    let link: string
+    try {
+      link = await waitForLink(staff.email, SUBJECTS.signIn, seen, 20_000)
+    } catch {
+      // The local auth server rate-limits sign-in emails per hour; the link
+      // itself is the same one-time magic link either way.
+      testInfo.annotations.push({
+        type: "sign-in-link",
+        description: "email rate-limited; used an admin-generated magic link",
+      })
+      const generated = await admin.auth.admin.generateLink({
+        type: "magiclink",
+        email: staff.email,
+      })
+      if (generated.error) throw generated.error
+      link = `/auth/confirm?token_hash=${generated.data.properties.hashed_token}&type=email`
+    }
+    const other = await context.newPage()
+    await openEmailLink(other, link)
+    await expect(other).toHaveURL(STAFF_LANDING)
+    await page.bringToFront()
+
+    // The waiting file carries on by itself; stopped ones wait for Retry.
+    await expectSummary(dialog, "2 uploaded · 2 stopped", 60_000)
+    await expect(
+      dialog.getByText("You were signed out", { exact: true })
+    ).toHaveCount(0)
+    expect(page.url()).toBe(url)
+
+    const stopped = dialog
+      .getByRole("listitem")
+      .filter({ hasText: stoppedText })
+    for (const name of await stopped.evaluateAll((els) =>
+      els.map((el) => el.querySelector("p")?.textContent ?? "")
+    )) {
+      await dialog.getByRole("button", { name: `Retry ${name}` }).click()
+    }
+    await expectSummary(dialog, "4 uploaded", 60_000)
+    // Nothing was sent twice: one asset per file, all ready.
+    const rows = await rowsOf(staff.id)
+    expect(rows).toHaveLength(4)
+    expect(rows.every((r) => r.upload_state === "ready")).toBe(true)
     await context.close()
   })
 })

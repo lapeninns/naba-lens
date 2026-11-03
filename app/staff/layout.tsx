@@ -1,4 +1,5 @@
 import { requireActiveStaff, uploadBlockReason } from "@/lib/auth"
+import { getLoginCaptchaConfig } from "@/lib/auth/captcha"
 
 import { AddHost } from "./_shell/add-host"
 
@@ -26,5 +27,15 @@ export default async function StaffLayout({
       : reason
         ? { reason: "no_venue" as const }
         : null
-  return <AddHost blocked={blocked}>{children}</AddHost>
+  const captcha = getLoginCaptchaConfig()
+  return (
+    <AddHost
+      blocked={blocked}
+      email={profile.email}
+      captchaRequired={captcha.enabled}
+      captchaSiteKey={captcha.siteKey}
+    >
+      {children}
+    </AddHost>
+  )
 }

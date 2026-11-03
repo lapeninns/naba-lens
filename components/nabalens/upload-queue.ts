@@ -440,7 +440,10 @@ export class UploadQueue {
           error: error.message,
           stopped: true,
         })
-      } else if (this.offline || isNavigatorOffline()) {
+      } else if (
+        (this.offline || isNavigatorOffline()) &&
+        isRetryableTransfer(error)
+      ) {
         // Lost the signal mid-transfer: wait for it rather than fail.
         this.offline = true
         this.setPause()
@@ -459,6 +462,25 @@ export class UploadQueue {
 
 function isNavigatorOffline() {
   return typeof navigator !== "undefined" && navigator.onLine === false
+}
+
+// Only a request that never got through may wait for the signal. A file the
+// server rejected (processing failed, reservation removed) fails as usual even
+// if the signal dropped at the same moment. Errors without a code come from a
+// plain fetch and count as transfer errors.
+const TRANSFER_CODES = new Set([
+  "reserve_failed",
+  "transfer_failed",
+  "finalise_failed",
+])
+
+function isRetryableTransfer(error: unknown): boolean {
+  const detail =
+    error && typeof error === "object" && "error" in error
+      ? (error as { error?: { code?: unknown; retryable?: unknown } }).error
+      : undefined
+  if (!detail || typeof detail.code !== "string") return true
+  return TRANSFER_CODES.has(detail.code) && detail.retryable !== false
 }
 
 export function summarize(items: readonly QueueItem[]): QueueSummary {

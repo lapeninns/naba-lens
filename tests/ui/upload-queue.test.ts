@@ -199,6 +199,33 @@ describe("UploadQueue", () => {
     expect(calls[2].ctx.resumeToken).toBe("asset-a")
   })
 
+  it("fails a file the server rejected even while offline; only transfer errors wait", async () => {
+    const { upload, calls } = controllableUploader()
+    const queue = new UploadQueue(upload, { ...LIMITS, maxParallelUploads: 3 })
+    queue.add([file("a.jpg"), file("b.jpg"), file("c.jpg")])
+    queue.start()
+    queue.setOnline(false)
+    const coded = (code: string, retryable: boolean) =>
+      Object.assign(new Error(`${code} message`), {
+        error: { code, message: `${code} message`, retryable },
+      })
+    calls[0].reject(coded("processing_failed", false))
+    calls[1].reject(coded("reservation_gone", true))
+    calls[2].reject(coded("transfer_failed", true))
+    await flush()
+
+    expect(statuses(queue)).toEqual([
+      "a.jpg:failed",
+      "b.jpg:failed",
+      "c.jpg:queued",
+    ])
+    expect(queue.getSnapshot()[0].error).toBe("processing_failed message")
+
+    queue.setOnline(true)
+    expect(calls).toHaveLength(4)
+    expect(calls[3].file.name).toBe("c.jpg")
+  })
+
   it("stops a file when the session ends, pauses the rest and resumes on sign-in", async () => {
     const { upload, calls } = controllableUploader()
     const queue = new UploadQueue(upload, { ...LIMITS, maxParallelUploads: 1 })
