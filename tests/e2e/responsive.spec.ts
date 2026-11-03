@@ -102,21 +102,27 @@ async function check(
   const { overflowPx, culprit } = await page.evaluate(() => {
     const doc = document.documentElement
     let worst = doc.scrollWidth - window.innerWidth
+    const notes = [
+      `scrollWidth=${doc.scrollWidth} clientWidth=${doc.clientWidth} innerWidth=${window.innerWidth}`,
+    ]
     for (const el of Array.from(
       document.querySelectorAll('[role="dialog"], [role="alertdialog"]')
     )) {
-      worst = Math.max(worst, el.scrollWidth - el.clientWidth)
+      const over = el.scrollWidth - el.clientWidth
+      if (over > 0)
+        notes.push(`dialog ${el.getAttribute("aria-labelledby")} +${over}`)
+      worst = Math.max(worst, over)
     }
     // Name the innermost element sticking out furthest, so a failure says
     // what to fix without a trace.
-    let culprit = ""
-    let reach = window.innerWidth + 0.5
+    let culprit = notes.join("; ")
+    let reach = doc.clientWidth + 0.5
     for (const el of Array.from(document.body.querySelectorAll("*"))) {
       const right = el.getBoundingClientRect().right
       if (right < reach) continue
       reach = right
       const cls = (el.getAttribute("class") ?? "").split(/\s+/).slice(0, 4)
-      culprit = `${el.tagName.toLowerCase()}${el.id ? `#${el.id}` : ""}${
+      culprit = `${notes.join("; ")}; ${el.tagName.toLowerCase()}${el.id ? `#${el.id}` : ""}${
         el.getAttribute("data-slot")
           ? `[data-slot=${el.getAttribute("data-slot")}]`
           : ""
