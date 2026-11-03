@@ -40,8 +40,13 @@ export {
 } from "./review-queue"
 export { SubmissionCard, isOwnPhoto } from "./submission-card"
 export {
+  TeamPerson,
   TeamRoster,
+  TeamTag,
+  monthName,
+  rosterOrder,
   targetReasonRequired,
+  targetSourceText,
   type SetTargetHandler,
 } from "./team-roster"
 export {
