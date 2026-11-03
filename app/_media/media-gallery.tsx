@@ -166,6 +166,12 @@ export function MediaGallery({
   const { display, brokenCount, onError, attach, retryBroken } =
     usePreviewRecovery(items)
   const openItem = display.find((item) => item.id === openId) ?? null
+  // The last loaded view of the open file. If a refresh drops it (removed
+  // elsewhere), the viewer keeps showing it with a notice instead of closing.
+  const [shownItem, setShownItem] = React.useState<MediaItem | null>(null)
+  if (openItem && openItem !== shownItem) setShownItem(openItem)
+  const viewerItem =
+    openItem ?? (shownItem && shownItem.id === openId ? shownItem : null)
   const hasPending = items.some(
     (i) => i.uploadState === "uploading" || i.uploadState === "processing"
   )
@@ -374,7 +380,8 @@ export function MediaGallery({
         shownCount={items.length}
       />
       <MediaViewer
-        item={openItem}
+        item={viewerItem}
+        removed={viewerItem !== null && openItem === null}
         open={viewerOpen}
         onOpenChange={setViewerOpen}
         showAttribution={showAttribution}
@@ -424,7 +431,6 @@ export function MediaGallery({
         onOpenChange={(open) => {
           if (!open) setDeleting(null)
         }}
-        fileName={deleting?.originalFilename ?? undefined}
         onConfirm={async () => {
           if (!deleting) return
           const result = await deleteMedia(deleting.id)
