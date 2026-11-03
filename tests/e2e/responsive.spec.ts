@@ -240,7 +240,9 @@ for (const width of WIDTHS) {
       confirm.getByRole("button", { name: "Delete" }),
       confirm
     )
-    await confirm.getByRole("button", { name: "Keep file" }).click()
+    await confirm
+      .getByRole("button", { name: /^Keep (photo|video|file)$/ })
+      .click()
     await closeDialog(staff)
 
     // --- /admin library, filters and viewer

@@ -827,7 +827,9 @@ test("staff: delete confirmation and edit profile", async ({
     "Previously downloaded copies cannot be recalled"
   )
   await capture(page, testInfo, "delete-confirm")
-  await confirm.getByRole("button", { name: "Keep file" }).click()
+  await confirm
+    .getByRole("button", { name: /^Keep (photo|video|file)$/ })
+    .click()
   await expect(confirm).toBeHidden()
   await page.waitForTimeout(300)
   expect
