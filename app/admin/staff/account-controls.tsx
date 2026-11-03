@@ -287,6 +287,13 @@ export function useAccountControls({
         onClose={() => setEditing(null)}
         venues={venues}
         grant={editing ? grantOf(editing) : null}
+        managedVenueIds={
+          new Set(
+            grants
+              .filter((grant) => grant.staffId !== editing?.id)
+              .map((grant) => grant.venueId)
+          )
+        }
         maxAvatarBytes={maxAvatarBytes}
         onSubmit={(values) =>
           editing

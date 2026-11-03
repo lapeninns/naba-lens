@@ -65,6 +65,11 @@ function listWords(words: string[]) {
     : `${words.slice(0, -1).join(", ")} and ${words.at(-1)}`
 }
 
+const UK_MONTH = new Intl.DateTimeFormat("en-GB", {
+  month: "long",
+  timeZone: "Europe/London",
+})
+
 /**
  * A8 Edit staff details: name, job title, team, venue, photo and access for
  * one account. Email and role stay fixed. A venue move spells out what it
@@ -80,6 +85,8 @@ export function EditStaffDialog({
   venues: Option[]
   /** The person's effective manager grant, which a venue move ends. */
   grant: ManagerGrant | null
+  /** Venues where someone else holds an effective manager grant. */
+  managedVenueIds?: ReadonlySet<string>
   /** Pass MEDIA_LIMITS.maxAvatarBytes. */
   maxAvatarBytes: number
   onSubmit: (
@@ -117,6 +124,7 @@ function EditStaffForm({
   onClose,
   venues,
   grant,
+  managedVenueIds,
   maxAvatarBytes,
   onSubmit,
 }: {
@@ -125,6 +133,7 @@ function EditStaffForm({
   onClose: () => void
   venues: Option[]
   grant: ManagerGrant | null
+  managedVenueIds?: ReadonlySet<string>
   maxAvatarBytes: number
   onSubmit: (
     values: EditStaffValues
@@ -359,8 +368,15 @@ function EditStaffForm({
                     items show Needs reassignment.
                   </li>
                   <li>
-                    Past months and accepted photos stay with {member.venueName}
-                    . Photos keep their venue at upload.
+                    {`Past months and accepted photos stay with ${member.venueName}. Photos keep their venue at upload.`}
+                  </li>
+                  {/* Targets are per person, venue and month, so none exists
+                      at the new venue yet. */}
+                  <li>
+                    {`${first}'s ${UK_MONTH.format(new Date())} target at ${newVenue} starts as Needs setup.`}
+                    {venueId && !managedVenueIds?.has(venueId)
+                      ? ` ${newVenue} has no venue manager, so an admin sets it.`
+                      : null}
                   </li>
                 </ul>
               </Notice>

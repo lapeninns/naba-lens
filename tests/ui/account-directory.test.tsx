@@ -278,6 +278,13 @@ describe("Edit staff details", () => {
         `Dan's venue manager grant at ${RAILWAY.name} ends: "Ended: moved to another venue". It doesn't move with Dan.`
       )
     ).toBeTruthy()
+    expect(
+      dialog.getByText(
+        new RegExp(
+          `^Dan's [A-Z][a-z]+ target at ${BELL.name} starts as Needs setup\\. ${BELL.name} has no venue manager, so an admin sets it\\.$`
+        )
+      )
+    ).toBeTruthy()
 
     await act(async () => {
       await user.click(dialog.getByRole("button", { name: "Save changes" }))
@@ -291,6 +298,33 @@ describe("Edit staff details", () => {
         `Dan Cooper now works at ${BELL.name}. The manager grant at ${RAILWAY.name} ended: Ended: moved to another venue.`
       )
     ).toBeTruthy()
+  })
+
+  it("doesn't say a managed venue lacks a manager", async () => {
+    const dan = staff.find((m) => m.displayName === "Dan Cooper")!
+    const ben = staff.find((m) => m.displayName === "Ben Clarke")!
+    render(
+      directory({
+        grants: [
+          { staffId: dan.id, venueId: RAILWAY.id, venueName: RAILWAY.name },
+          { staffId: ben.id, venueId: BELL.id, venueName: BELL.name },
+        ],
+      })
+    )
+    const user = userEvent.setup()
+    const menu = await openRowMenu("Dan Cooper")
+    await user.click(menu.getByRole("menuitem", { name: "Edit details" }))
+    const dialog = within(await screen.findByRole("dialog"))
+    await user.click(dialog.getByRole("combobox", { name: "Venue" }))
+    await user.click(await screen.findByRole("option", { name: BELL.name }))
+    expect(
+      dialog.getByText(
+        new RegExp(
+          `^Dan's [A-Z][a-z]+ target at ${BELL.name} starts as Needs setup\\.$`
+        )
+      )
+    ).toBeTruthy()
+    expect(dialog.queryByText(/has no venue manager/)).toBeNull()
   })
 
   it("asks before dropping unsaved edits", async () => {
