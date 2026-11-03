@@ -106,13 +106,13 @@ async function reviewJourney(
   // Accept a colleague's photo.
   await card(w.staffB).getByRole("button", { name: "Accept" }).click()
   await expect(
-    manager.getByText(`Accepted ${w.staffB.name}’s photo.`)
+    manager.getByText(/^Accepted\. It counts for /)
   ).toBeVisible()
   expect(itemState(items[w.staffB.id]!)).toBe("accepted:false")
 
   // "Needs another photo" needs a reason; without one nothing is saved.
   await card(w.staffA)
-    .getByRole("button", { name: "Needs another photo" })
+    .getByRole("button", { name: "Ask for another photo" })
     .click()
   const ask = manager.getByRole("dialog", { name: "Ask for another photo" })
   await ask.getByRole("button", { name: "Ask for another photo" }).click()
@@ -124,7 +124,7 @@ async function reviewJourney(
   await ask.getByRole("button", { name: "Ask for another photo" }).click()
   await expect(ask).toBeHidden()
   await expect(
-    manager.getByText(`Asked ${w.staffA.name} for another photo.`)
+    manager.getByText(`Asked ${w.staffA.name.split(" ")[0]} for another photo.`)
   ).toBeVisible()
   expect(itemState(items[w.staffA.id]!)).toBe("needs_another_photo:false")
 

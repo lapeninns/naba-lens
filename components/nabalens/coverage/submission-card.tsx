@@ -1,46 +1,82 @@
 "use client"
 
+import { CheckIcon } from "@phosphor-icons/react"
+
 import { formatDateTime } from "@/components/nabalens/menus/copy"
+import { Notice } from "@/components/nabalens/notice"
+import { ProfileAvatar } from "@/components/nabalens/profile-avatar"
+import { StatusChip } from "@/components/nabalens/status-chip"
 import { cn } from "@/lib/utils"
 
-import {
-  SELF_REVIEW_PENDING_COPY,
-  SUBMISSION_ORIGIN_LABEL,
-  labelFor,
-} from "./copy"
+import { SELF_REVIEW_PENDING_COPY, periodKeyLabel } from "./copy"
 import {
   CoverageBadge,
   SelfReviewBadge,
   SubmissionStateBadge,
 } from "./coverage-badges"
 import { EvidencePreviewButton } from "./evidence-image"
-import type { SubmissionView } from "./types"
+import { Quote } from "./layout"
+import type { PeriodKey, SubmissionView } from "./types"
 
 /** True when the viewer took the photo (reviewing it is a self-review). */
 export function isOwnPhoto(submission: SubmissionView, viewerId: string) {
   return submission.author.id === viewerId
 }
 
-function monthlyText(submission: SubmissionView): string {
-  if (submission.countsTowardMonthly) {
-    return "Counts toward the photographer’s monthly target once accepted"
-  }
-  if (submission.origin === "submitted") {
-    return "Venue coverage only (uploaded in an earlier month)"
-  }
-  return `${labelFor(SUBMISSION_ORIGIN_LABEL, submission.origin)}: venue coverage only`
+/** First name for running text: "Priya" for "Priya Gurung". */
+export function firstName(displayName: string): string {
+  return displayName.trim().split(/\s+/)[0] || displayName
 }
 
-/** One submitted photo with who took it, what it is for and its decision. */
+/** "Priya's" or "your", for "…'s November target". */
+function ownerOf(submission: SubmissionView, viewerId: string): string {
+  return isOwnPhoto(submission, viewerId)
+    ? "your"
+    : `${firstName(submission.author.displayName)}'s`
+}
+
+function countsText(
+  submission: SubmissionView,
+  viewerId: string,
+  currentPeriod: PeriodKey | undefined
+): string {
+  const periodLabel = periodKeyLabel(submission.period)
+  if (currentPeriod && submission.period < currentPeriod) {
+    const month = periodLabel.split(" ")[0]
+    return `Sent in ${month}, so it counts for ${periodLabel} if accepted.`
+  }
+  if (submission.countsTowardMonthly) {
+    const target = `${ownerOf(submission, viewerId)} ${periodLabel.split(" ")[0]} target`
+    return submission.requirement
+      ? `Counts toward the task and ${target} once accepted.`
+      : `Counts toward ${target} once accepted.`
+  }
+  if (submission.origin === "attached") {
+    return "Attached by a manager: counts toward the task only."
+  }
+  if (submission.origin === "reconciled") {
+    return "Carried over from the previous menu: counts toward the task only."
+  }
+  return "Uploaded in an earlier month: counts toward the task only."
+}
+
+/**
+ * One submitted photo: what it is for, who took it, what it counts toward and
+ * its decision. Decisions are final, so a decided photo shows who decided and
+ * when instead of actions.
+ */
 export function SubmissionCard({
   submission,
   viewerId,
+  currentPeriod,
   actions,
   footer,
   className,
 }: {
   submission: SubmissionView
   viewerId: string
+  /** This month; an older period gets the "Sent in October…" line. */
+  currentPeriod?: PeriodKey
   actions?: React.ReactNode
   footer?: React.ReactNode
   className?: string
@@ -50,16 +86,22 @@ export function SubmissionCard({
   const purpose = submission.requirement
     ? (submission.requirement.title ?? "Checklist item")
     : "Monthly photo"
+  const decidedByYou = decision?.decidedBy.id === viewerId
   const decidedBy = decision
-    ? decision.decidedBy.id === viewerId
+    ? decidedByYou
       ? "you"
-      : (decision.decidedBy.displayName ?? "a reviewer")
+      : decision.decidedBy.displayName
+        ? firstName(decision.decidedBy.displayName)
+        : "a reviewer"
     : null
+  const decidedAt = decision ? formatDateTime(decision.decidedAt) : null
+  const lateAccepted =
+    submission.state === "accepted" && decision?.lateAcceptance === true
   return (
     <article
       aria-label={`${purpose}: photo by ${author.displayName}`}
       className={cn(
-        "flex flex-col gap-3 rounded-xl border bg-card p-3",
+        "grid gap-5 rounded-panel border border-line bg-panel p-4 @min-[40rem]:grid-cols-[minmax(0,340px)_minmax(0,1fr)]",
         className
       )}
     >
@@ -73,62 +115,87 @@ export function SubmissionCard({
         label={`Photo by ${author.displayName}`}
         description={purpose}
       />
-      <div className="flex flex-wrap items-center gap-1.5">
-        <SubmissionStateBadge state={submission.state} />
-        {decision?.selfReview ? <SelfReviewBadge /> : null}
-        {submission.origin !== "submitted" ? (
-          <CoverageBadge tone="muted">
-            {submission.origin === "attached" ? "Attached" : "Carried over"}
-          </CoverageBadge>
-        ) : null}
-        {!submission.asset.available ? (
-          <CoverageBadge tone="negative">Photo removed</CoverageBadge>
-        ) : null}
-        {decision?.lateAcceptance ? (
-          <CoverageBadge tone="muted">Accepted late</CoverageBadge>
-        ) : null}
-        {submission.archived ? (
-          <CoverageBadge tone="muted">History</CoverageBadge>
-        ) : null}
-      </div>
-      <div className="grid gap-1">
-        <p className="font-medium break-words">{purpose}</p>
-        <p className="text-sm break-words">
-          {author.displayName}
-          {own ? " (you)" : null}
-          {!author.active ? (
-            <span className="text-muted-foreground"> · no longer active</span>
+      <div className="grid min-w-0 content-start gap-3">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {lateAccepted ? (
+            <StatusChip tone="closed">
+              Accepted late · counts for {periodKeyLabel(submission.period)}
+            </StatusChip>
+          ) : (
+            <SubmissionStateBadge state={submission.state} />
+          )}
+          {decision?.selfReview ? <SelfReviewBadge /> : null}
+          {submission.origin !== "submitted" ? (
+            <CoverageBadge tone="muted">
+              {submission.origin === "attached" ? "Attached" : "Carried over"}
+            </CoverageBadge>
           ) : null}
+          {!submission.asset.available ? (
+            <CoverageBadge tone="negative">Photo removed</CoverageBadge>
+          ) : null}
+          {submission.archived ? (
+            <CoverageBadge tone="muted">History</CoverageBadge>
+          ) : null}
+        </div>
+        <div className="grid gap-0.5">
+          <p className="text-meta-touch font-semibold text-ink-muted md:text-meta-strong">
+            {submission.requirement ? "Checklist item" : "Monthly target"}
+          </p>
+          <h3 className="text-item-title-touch break-words text-ink md:text-item-title">
+            {purpose}
+          </h3>
+        </div>
+        <div className="flex min-w-0 items-center gap-3">
+          <ProfileAvatar name={author.displayName} />
+          <span className="grid min-w-0">
+            <span className="text-item-title-touch break-words text-ink md:text-label">
+              {own ? "You" : author.displayName}
+              {!author.active ? (
+                <span className="font-normal text-ink-muted">
+                  {" "}
+                  · no longer active
+                </span>
+              ) : null}
+            </span>
+            <span className="truncate text-meta-touch text-ink-muted md:text-meta">
+              Submitted {formatDateTime(submission.submittedAt)}
+              {submission.origin === "attached" &&
+              submission.submittedById === viewerId
+                ? " by you"
+                : null}
+            </span>
+          </span>
+        </div>
+        <p className="text-meta-touch text-ink-muted md:text-body-sm">
+          {countsText(submission, viewerId, currentPeriod)}
         </p>
-        <p className="text-sm text-muted-foreground">
-          Submitted {formatDateTime(submission.submittedAt)}
-          {submission.origin === "attached" &&
-          submission.submittedById === viewerId
-            ? " by you"
-            : null}
-        </p>
-        <p className="text-sm text-muted-foreground">
-          {monthlyText(submission)}
-        </p>
-        {decision ? (
-          <p className="text-sm">
+        {decision?.decision === "needs_another_photo" && decision.reason ? (
+          <>
+            <Quote by={`${decidedByYou ? "You" : decidedBy} · ${decidedAt}`}>
+              {decision.reason}
+            </Quote>
+            <p className="text-meta-touch text-ink-muted md:text-meta">
+              Decisions are final. {own ? "You" : firstName(author.displayName)}{" "}
+              can send a replacement from the task.
+            </p>
+          </>
+        ) : decision ? (
+          <p className="flex flex-wrap items-center gap-2 text-meta-touch text-ink-muted md:text-meta">
+            {decision.decision === "accept" ? (
+              <CheckIcon aria-hidden className="size-4 shrink-0" />
+            ) : null}
             {decision.decision === "accept"
               ? "Accepted"
               : "Needs another photo"}{" "}
-            by {decidedBy}, {formatDateTime(decision.decidedAt)}
-            {decision.reason ? (
-              <span className="block text-muted-foreground">
-                Reason: {decision.reason}
-              </span>
-            ) : null}
+            by {decidedBy} · {decidedAt}. Decisions are final.
           </p>
         ) : null}
-        {own && submission.state === "submitted" ? (
-          <p className="text-sm text-warning">{SELF_REVIEW_PENDING_COPY}</p>
+        {own && submission.state === "submitted" && actions ? (
+          <Notice tone="attention">{SELF_REVIEW_PENDING_COPY}</Notice>
         ) : null}
+        {actions}
+        {footer}
       </div>
-      {actions ? <div className="mt-auto grid gap-2">{actions}</div> : null}
-      {footer}
     </article>
   )
 }

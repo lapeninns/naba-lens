@@ -53,8 +53,12 @@ describe("ReviewQueue", () => {
     })
     expect(within(card).getByText("Submitted")).toBeTruthy()
     expect(
-      within(card).getByText(/Counts toward the photographer’s monthly target/)
+      within(card).getByText(
+        "Counts toward the task and TEST's November target once accepted."
+      )
     ).toBeTruthy()
+    // Review decides whether a photo counts, never whether it is shared.
+    expect(screen.queryByText(/portfolios and Explore/)).toBeNull()
 
     await user.click(within(card).getByRole("button", { name: "Accept" }))
 
@@ -67,7 +71,11 @@ describe("ReviewQueue", () => {
     })
     expect(input.requestId).toMatch(/^[0-9a-f-]{36}$/)
     expect(input).not.toHaveProperty("reason")
-    expect(await screen.findByText("Accepted TEST Sam’s photo.")).toBeTruthy()
+    expect(
+      await screen.findByText(
+        "Accepted. It counts for November 2026, the month it was sent."
+      )
+    ).toBeTruthy()
     // The Accept button is gone, so focus moves to the success notice.
     await waitFor(() =>
       expect(document.activeElement).toBe(screen.getByRole("status"))
@@ -99,7 +107,9 @@ describe("ReviewQueue", () => {
     ).toBeTruthy()
     await user.click(screen.getByRole("button", { name: "Accept" }))
     expect(
-      await screen.findByText("Accepted your photo (recorded as self-review).")
+      await screen.findByText(
+        "Accepted. It counts for November 2026, the month it was sent. Recorded as a self-review."
+      )
     ).toBeTruthy()
     expect(screen.getByText("Self-review")).toBeTruthy()
   })
@@ -113,7 +123,7 @@ describe("ReviewQueue", () => {
       <ReviewQueue initial={page()} viewerId={MANAGER_ID} onReview={onReview} />
     )
     await user.click(
-      screen.getByRole("button", { name: "Needs another photo" })
+      screen.getByRole("button", { name: "Ask for another photo" })
     )
     const dialog = await screen.findByRole("dialog", {
       name: "Ask for another photo",
@@ -121,7 +131,14 @@ describe("ReviewQueue", () => {
     await user.click(
       within(dialog).getByRole("button", { name: "Ask for another photo" })
     )
-    expect(within(dialog).getByText("Give a reason.")).toBeTruthy()
+    expect(
+      within(dialog).getByText("Add a reason. TEST sees it with the photo.")
+    ).toBeTruthy()
+    expect(
+      within(dialog).getByText(
+        "Decisions are final. The photo stays in Photos and on TEST's profile."
+      )
+    ).toBeTruthy()
     expect(onReview).not.toHaveBeenCalled()
 
     await user.type(within(dialog).getByLabelText("Reason"), "  Too dark  ")
@@ -136,7 +153,7 @@ describe("ReviewQueue", () => {
       })
     )
     expect(
-      await screen.findByText("Asked TEST Sam for another photo.")
+      await screen.findByText("Asked TEST for another photo.")
     ).toBeTruthy()
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
     await waitFor(() =>
@@ -164,7 +181,9 @@ describe("ReviewQueue", () => {
     )
     await user.click(screen.getByRole("button", { name: "Accept" }))
     expect(
-      await screen.findByText(/Someone else changed this a moment ago/)
+      await screen.findByText(
+        "Someone else reviewed TEST's photo a moment ago. The latest decision is shown."
+      )
     ).toBeTruthy()
     expect(onStale).toHaveBeenCalledTimes(1)
     await waitFor(() =>
@@ -193,7 +212,7 @@ describe("ReviewQueue", () => {
       />
     )
     await user.click(
-      screen.getByRole("button", { name: "Needs another photo" })
+      screen.getByRole("button", { name: "Ask for another photo" })
     )
     const dialog = await screen.findByRole("dialog", {
       name: "Ask for another photo",
@@ -205,16 +224,14 @@ describe("ReviewQueue", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
     expect(onStale).toHaveBeenCalledTimes(1)
     const notice = screen.getByRole("status")
-    expect(notice.textContent).toMatch(/Someone else changed this a moment ago/)
-    expect(
-      screen.getAllByText(/Someone else changed this a moment ago/)
-    ).toHaveLength(1)
+    expect(notice.textContent).toMatch(/Someone else reviewed TEST's photo/)
+    expect(screen.getAllByText(/Someone else reviewed/)).toHaveLength(1)
     expect(screen.queryByRole("alert")).toBeNull()
     await waitFor(() => expect(document.activeElement).toBe(notice))
 
     // Reopening starts clean: no reason or error left from the closed attempt.
     await user.click(
-      screen.getByRole("button", { name: "Needs another photo" })
+      screen.getByRole("button", { name: "Ask for another photo" })
     )
     const reopened = await screen.findByRole("dialog")
     expect(
@@ -251,7 +268,7 @@ describe("ReviewQueue", () => {
       />
     )
     await user.click(
-      screen.getByRole("button", { name: "Needs another photo" })
+      screen.getByRole("button", { name: "Ask for another photo" })
     )
     const dialog = await screen.findByRole("dialog", {
       name: "Ask for another photo",
@@ -323,8 +340,11 @@ describe("ReviewQueue", () => {
     })
     render(<ReviewQueue initial={page([decided])} viewerId={STAFF_ID} />)
     expect(screen.queryByRole("button", { name: "Accept" })).toBeNull()
-    expect(screen.getByText("Reason: Too dark")).toBeTruthy()
-    expect(screen.getByText(/Needs another photo by TEST Manager/)).toBeTruthy()
+    const quote = screen.getByText("Too dark").closest("blockquote")
+    expect(quote?.textContent).toContain("TEST · 3 Nov 2026, 09:00")
+    expect(
+      screen.getByText(/Decisions are final. You can send a replacement/)
+    ).toBeTruthy()
   })
 
   it("never offers a decision on a photo that was deleted", () => {
@@ -342,7 +362,7 @@ describe("ReviewQueue", () => {
     expect(screen.getByText("Preview unavailable")).toBeTruthy()
     expect(screen.queryByRole("button", { name: "Accept" })).toBeNull()
     expect(
-      screen.getByRole("button", { name: "Needs another photo" })
+      screen.getByRole("button", { name: "Ask for another photo" })
     ).toBeTruthy()
   })
 
@@ -362,10 +382,12 @@ describe("ReviewQueue", () => {
       />
     )
     expect(
-      screen.getByText("Venue coverage only (uploaded in an earlier month)")
+      screen.getByText(
+        "Uploaded in an earlier month: counts toward the task only."
+      )
     ).toBeTruthy()
     expect(
-      screen.getByText("Attached by a manager: venue coverage only")
+      screen.getByText("Attached by a manager: counts toward the task only.")
     ).toBeTruthy()
   })
 })

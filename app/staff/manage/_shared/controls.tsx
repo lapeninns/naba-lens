@@ -69,12 +69,14 @@ export function ReviewQueueControl({
   venueId,
   filter,
   canReview = true,
+  currentPeriod,
   emptyTitle,
   emptyDescription,
 }: {
   initial: Page<SubmissionView>
   viewerId: string
   venueId: string
+  currentPeriod?: PeriodKey
   filter?: {
     state?: SubmissionState | "all"
     requirementId?: string
@@ -91,6 +93,7 @@ export function ReviewQueueControl({
     <ReviewQueue
       initial={initial}
       viewerId={viewerId}
+      currentPeriod={currentPeriod}
       onReview={
         canReview ? (input) => reviewSubmissionAction(input) : undefined
       }

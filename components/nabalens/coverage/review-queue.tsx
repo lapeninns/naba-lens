@@ -1,20 +1,22 @@
 "use client"
 
 import * as React from "react"
-import { CheckIcon, CameraIcon } from "@phosphor-icons/react"
+import { CameraRotateIcon, CheckIcon } from "@phosphor-icons/react"
 
 import { EmptyState } from "@/components/nabalens/empty-state"
 import { LoadMoreButton } from "@/components/nabalens/load-more-button"
+import { formatDateTime } from "@/components/nabalens/menus/copy"
 import { Button } from "@/components/ui/button"
 
 import { CoverageNotice, type Notice } from "./coverage-notice"
-import { failureText, needsRefresh, SHARING_COPY } from "./copy"
+import { failureText, needsRefresh, periodKeyLabel } from "./copy"
 import { EvidenceThumb } from "./evidence-image"
 import { ReasonDialog, type ReasonOutcome } from "./reason-dialog"
-import { SubmissionCard, isOwnPhoto } from "./submission-card"
+import { SubmissionCard, firstName, isOwnPhoto } from "./submission-card"
 import type {
   CoverageResult,
   Page,
+  PeriodKey,
   ReviewDecision,
   ReviewedSubmission,
   SubmissionView,
@@ -40,25 +42,43 @@ export type LoadSubmissionsHandler = (
   cursor: string
 ) => Promise<CoverageResult<Page<SubmissionView>>>
 
+export const REVIEW_EMPTY_COPY =
+  "Nothing to review. New photos appear here as they're sent."
+
 const NETWORK_ERROR =
   "Could not reach the server. Check your connection and try again; the photo will not be reviewed twice."
 
+/** The photo's author as running text: "Priya" or, for your own photo, "you". */
+function whoTook(submission: SubmissionView, viewerId: string) {
+  return isOwnPhoto(submission, viewerId)
+    ? { name: "You", sees: "You see", possessive: "your" }
+    : {
+        name: firstName(submission.author.displayName),
+        sees: `${firstName(submission.author.displayName)} sees`,
+        possessive: `${firstName(submission.author.displayName)}'s`,
+      }
+}
+
 /**
  * Review queue for one venue: accept, or ask for another photo with a reason.
- * Each decision carries the revision the reviewer saw, so a decision someone
- * else made first is reported (and the list refreshed) instead of overwritten.
+ * Review decides whether a photo counts, never whether it is shared. Each
+ * decision carries the revision the reviewer saw, so a decision someone else
+ * made first is reported (and the list refreshed) instead of overwritten.
  */
 export function ReviewQueue({
   initial,
   viewerId,
+  currentPeriod,
   onReview,
   onLoadMore,
   onStale,
-  emptyTitle = "Nothing to review.",
-  emptyDescription = "Submitted photos appear here, oldest first.",
+  emptyTitle = REVIEW_EMPTY_COPY,
+  emptyDescription,
 }: {
   initial: Page<SubmissionView>
   viewerId: string
+  /** This month, so older photos say which month they count for. */
+  currentPeriod?: PeriodKey
   /** Omit for a read-only list. */
   onReview?: ReviewHandler
   onLoadMore?: LoadSubmissionsHandler
@@ -152,7 +172,15 @@ export function ReviewQueue({
           // The refresh may remove the card. Accept has no dialog, so focus
           // moves here; the reason dialog moves it itself when it closes.
           focusNoticeRef.current = decision === "accept"
-          setNotice({ tone: "warning", text })
+          const reviewedFirst =
+            result.code === "revision_conflict" ||
+            result.code === "state_conflict"
+          setNotice({
+            tone: "warning",
+            text: reviewedFirst
+              ? `Someone else reviewed ${whoTook(submission, viewerId).possessive} photo a moment ago. The latest decision is shown.`
+              : text,
+          })
           onStale?.()
           return REPORTED
         }
@@ -167,13 +195,13 @@ export function ReviewQueue({
       applyDecision(submission, result.submission, decision, reason)
       // The card's buttons are gone now (see the refresh branch above).
       focusNoticeRef.current = decision === "accept"
-      const name = submission.author.displayName
+      const own = isOwnPhoto(submission, viewerId)
       setNotice({
         tone: "success",
         text:
           decision === "accept"
-            ? `Accepted ${isOwnPhoto(submission, viewerId) ? "your" : `${name}’s`} photo${result.submission.selfReview ? " (recorded as self-review)" : ""}.`
-            : `Asked ${isOwnPhoto(submission, viewerId) ? "yourself" : name} for another photo.`,
+            ? `Accepted. It counts for ${periodKeyLabel(submission.period)}, the month it was sent.${result.submission.selfReview ? " Recorded as a self-review." : ""}`
+            : `Asked ${own ? "yourself" : firstName(submission.author.displayName)} for another photo.${result.submission.selfReview ? " Recorded as a self-review." : ""}`,
       })
       return { ok: true }
     } catch {
@@ -212,6 +240,18 @@ export function ReviewQueue({
     }
   }
 
+  const decidable = (submission: SubmissionView) =>
+    !!onReview && submission.state === "submitted" && !submission.archived
+  // Only the oldest photo waiting for a decision gets the primary Accept.
+  const oldestId = items
+    .filter(decidable)
+    .reduce<SubmissionView | null>(
+      (oldest, item) =>
+        !oldest || item.submittedAt < oldest.submittedAt ? item : oldest,
+      null
+    )?.id
+  const asker = asking ? whoTook(asking, viewerId) : null
+
   return (
     <div className="grid gap-4">
       <CoverageNotice
@@ -220,40 +260,40 @@ export function ReviewQueue({
         onDismiss={() => setNotice(null)}
       />
       {items.length === 0 ? (
-        <EmptyState title={emptyTitle} description={emptyDescription} />
+        <EmptyState
+          variant={emptyTitle === REVIEW_EMPTY_COPY ? "done" : "filtered"}
+          title={emptyTitle}
+          description={emptyDescription}
+          inline
+        />
       ) : (
         <>
-          {onReview ? (
-            <p className="max-w-prose text-sm text-muted-foreground">
-              {SHARING_COPY}
-            </p>
-          ) : null}
           <ul
             ref={listRef}
             tabIndex={-1}
             aria-label="Photos"
-            className="grid gap-4 outline-none sm:grid-cols-2 lg:grid-cols-3"
+            className="@container grid gap-4 outline-none"
           >
             {items.map((submission) => {
               const busy = pendingId === submission.id
-              const canDecide =
-                !!onReview &&
-                submission.state === "submitted" &&
-                !submission.archived
               return (
                 <li key={submission.id}>
                   <SubmissionCard
                     submission={submission}
                     viewerId={viewerId}
-                    className="h-full"
+                    currentPeriod={currentPeriod}
                     actions={
-                      canDecide ? (
-                        <div className="flex flex-col gap-2 sm:flex-row">
+                      decidable(submission) ? (
+                        <div className="flex flex-wrap gap-2 @max-[40rem]:*:flex-auto">
                           {/* A deleted photo cannot count; it can only be replaced. */}
                           {submission.asset.available ? (
                             <Button
                               size="touch"
-                              className="sm:flex-1"
+                              variant={
+                                submission.id === oldestId
+                                  ? "primary"
+                                  : "secondary"
+                              }
                               disabled={pendingId !== null}
                               aria-busy={busy || undefined}
                               onClick={() => void decide(submission, "accept")}
@@ -264,20 +304,25 @@ export function ReviewQueue({
                           ) : null}
                           <Button
                             size="touch"
-                            variant="outline"
-                            className="sm:flex-1"
+                            variant="secondary"
                             disabled={pendingId !== null}
                             onClick={() => setAsking(submission)}
                           >
-                            <CameraIcon data-icon="inline-start" aria-hidden />
-                            Needs another photo
+                            <CameraRotateIcon
+                              data-icon="inline-start"
+                              aria-hidden
+                            />
+                            Ask for another photo
                           </Button>
                         </div>
                       ) : null
                     }
                     footer={
                       itemErrors[submission.id] ? (
-                        <p role="alert" className="text-sm text-negative">
+                        <p
+                          role="alert"
+                          className="text-body-touch text-negative md:text-body-sm"
+                        >
                           {itemErrors[submission.id]}
                         </p>
                       ) : null
@@ -304,14 +349,24 @@ export function ReviewQueue({
           if (!open) setAsking(null)
         }}
         title="Ask for another photo"
-        description={
-          asking
-            ? `${asking.author.displayName} sees your reason and can submit a replacement. This photo stays in their portfolio.`
+        label="Reason"
+        help={
+          asker
+            ? `${asker.sees} this with the photo. Say what to change.`
             : undefined
         }
-        label="Reason"
-        help="Say what the next photo needs, for example the angle, lighting or what is missing."
+        emptyError={
+          asker
+            ? `Add a reason. ${asker.name} ${asker.name === "You" ? "see" : "sees"} it with the photo.`
+            : undefined
+        }
+        note={
+          asker
+            ? `Decisions are final. The photo stays in Photos and on ${asker.possessive} profile.`
+            : undefined
+        }
         confirmLabel="Ask for another photo"
+        confirmIcon={<CameraRotateIcon data-icon="inline-start" aria-hidden />}
         pendingLabel="Saving…"
         onConfirm={async (reason) => {
           if (!asking) return { ok: false, error: "Choose a photo first." }
@@ -321,10 +376,26 @@ export function ReviewQueue({
         reportFocusOnSuccess
       >
         {asking ? (
-          <EvidenceThumb
-            src={asking.asset.thumbnailUrl}
-            className="mx-auto max-w-48"
-          />
+          <div className="flex items-center gap-3">
+            <EvidenceThumb
+              src={asking.asset.available ? asking.asset.thumbnailUrl : null}
+              className="aspect-square w-16 shrink-0"
+            />
+            <p className="min-w-0 text-body-touch md:text-body-sm">
+              <strong className="font-semibold break-words text-ink">
+                {asking.requirement
+                  ? (asking.requirement.title ?? "Checklist item")
+                  : "Monthly photo"}
+              </strong>
+              <br />
+              <span className="text-ink-muted">
+                {isOwnPhoto(asking, viewerId)
+                  ? "You"
+                  : asking.author.displayName}{" "}
+                · submitted {formatDateTime(asking.submittedAt)}
+              </span>
+            </p>
+          </div>
         ) : null}
       </ReasonDialog>
     </div>
