@@ -31,10 +31,13 @@ function Frames({
           className="bg-positive-fill"
           style={{ width: `${(filled / target) * 100}%` }}
         />
-        <span
-          className="border-2 border-dashed border-ink-muted"
-          style={{ width: `${(pending / target) * 100}%` }}
-        />
+        {/* A 2px border-box edge still draws at width 0. */}
+        {pending > 0 ? (
+          <span
+            className="border-2 border-dashed border-ink-muted"
+            style={{ width: `${(pending / target) * 100}%` }}
+          />
+        ) : null}
       </div>
     )
   }

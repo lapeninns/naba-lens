@@ -79,6 +79,28 @@ describe("staff member's month", () => {
     expect(screen.queryByText(/of \d+ accepted/)).toBeNull()
   })
 
+  it("draws no waiting span in the bar over 24 when nothing is waiting", () => {
+    const { container, rerender } = render(
+      <StaffMonth
+        monthly={month({ targetCount: 30, accepted: 4, pending: 0 })}
+        firstName="Priya"
+        inactive={false}
+      />
+    )
+    expect(container.querySelectorAll("span.border-dashed")).toHaveLength(0)
+    rerender(
+      <StaffMonth
+        monthly={month({ targetCount: 30, accepted: 4, pending: 3 })}
+        firstName="Priya"
+        inactive={false}
+      />
+    )
+    const waiting =
+      container.querySelectorAll<HTMLElement>("span.border-dashed")
+    expect(waiting).toHaveLength(1)
+    expect(waiting[0].style.width).toBe("10%")
+  })
+
   it("names the month and venue for an inactive account", () => {
     render(<StaffMonth monthly={month()} firstName="Tom" inactive />)
     expect(
