@@ -133,7 +133,7 @@ export function LabelBadge({
     <span
       data-labelled={labels?.hasLabels || undefined}
       className={cn(
-        "inline-flex min-h-[22px] items-center gap-1 rounded-chip bg-tile-badge px-[7px] text-chip-touch whitespace-nowrap text-on-tile-badge tabular-nums md:text-chip",
+        "inline-flex min-h-5.5 items-center gap-1 rounded-chip bg-tile-badge px-1.75 text-chip-touch whitespace-nowrap text-on-tile-badge tabular-nums md:text-chip",
         className
       )}
     >

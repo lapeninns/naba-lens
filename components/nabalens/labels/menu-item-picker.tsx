@@ -179,7 +179,7 @@ export function MenuItemPicker({
             setChoosing(null)
           }}
           onKeyDown={onKeyDown}
-          className={cn(FIELD_CONTROL, "ps-[38px]")}
+          className={cn(FIELD_CONTROL, "ps-9.5")}
         />
       </div>
       {description ? (

@@ -30,7 +30,7 @@ test("venue + staff + type filters combine across pages, then clear", async ({
   await chooseOption(admin, admin, "Staff member", w.staffA.name)
   await admin
     .getByRole("group", { name: "Media type" })
-    .getByRole("button", { name: "Photos" })
+    .getByRole("button", { name: "Photos", exact: true })
     .click()
   await expect(admin).toHaveURL(
     new RegExp(`venue=${w.venue1.id}&staff=${w.staffA.id}&type=image`)
@@ -129,7 +129,7 @@ test("Photos filters: sheet applies venue + media, then nothing matches, then cl
   )) {
     expect(name).toMatch(
       new RegExp(
-        `^Video, by ${escape(w.staffA.name)}, ${escape(w.venue1.name)}, `
+        `^Video by ${escape(w.staffA.name)}, ${escape(w.venue1.name)}, `
       )
     )
   }
