@@ -1,6 +1,7 @@
 import "server-only"
 
 import { notFound } from "next/navigation"
+import { cache } from "react"
 
 import type { CoverageVenue } from "@/components/nabalens/coverage"
 import { requireActiveAdmin, requireActiveStaff } from "@/lib/auth"
@@ -99,12 +100,24 @@ export async function adminVenueContext(
   }
 }
 
-/** The venue's coverage, reusing the admin context's read when there is one. */
+/** One read of the venue's coverage per request, reusing the admin context's. */
+export const readVenueCoverage = cache(
+  async (
+    ctx: ManageContext
+  ): Promise<
+    { ok: true; coverage: VenueCoverageView } | CoverageFailure
+  > => {
+    if (ctx.coverage) return { ok: true, coverage: ctx.coverage }
+    const result = await getVenueCoverage(ctx.actor, { venueId: ctx.venueId })
+    return result.ok ? { ok: true, coverage: result.coverage } : result
+  }
+)
+
+/** The venue's coverage; throws for the segment error boundary on failure. */
 export async function venueCoverage(
   ctx: ManageContext
 ): Promise<VenueCoverageView> {
-  if (ctx.coverage) return ctx.coverage
-  const result = await getVenueCoverage(ctx.actor, { venueId: ctx.venueId })
+  const result = await readVenueCoverage(ctx)
   if (!result.ok) unexpected(result)
   return result.coverage
 }
