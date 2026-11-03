@@ -311,7 +311,7 @@ async function expectConflictNotice(page: Page) {
   await expect
     .poll(() =>
       page.evaluate((text) => {
-        const notice = document.activeElement?.closest('[data-slot="alert"]')
+        const notice = document.activeElement?.closest('[data-slot="notice"]')
         return !!notice && (notice.textContent ?? "").includes(text)
       }, CONFLICT)
     )
