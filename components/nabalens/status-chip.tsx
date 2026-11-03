@@ -128,8 +128,10 @@ export function chipState(key: string): ChipState {
     : { word: humanise(key), tone: "neutral" }
 }
 
+// Below md a long word ("Ended: moved to another venue") wraps inside the chip
+// rather than pushing a 320px or zoomed page sideways.
 export const chipClassName =
-  "inline-flex min-h-[22px] items-center gap-1 rounded-chip border border-transparent px-[7px] text-chip-touch whitespace-nowrap wdth-92 align-middle md:text-chip [&_svg]:size-3.5 [&_svg]:shrink-0"
+  "inline-flex max-w-full min-h-[22px] items-center gap-1 rounded-chip border border-transparent px-[7px] text-chip-touch wdth-92 align-middle max-md:whitespace-normal md:text-chip md:whitespace-nowrap [&_svg]:size-3.5 [&_svg]:shrink-0"
 
 type StatusChipProps = {
   className?: string

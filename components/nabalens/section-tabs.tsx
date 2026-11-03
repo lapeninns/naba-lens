@@ -15,7 +15,9 @@ export type SectionTab = {
 /**
  * Links between the views of one scope (a venue's Overview, Review, …). Name
  * the scope in `label` ("Manage The Railway"). On phones the row scrolls
- * sideways rather than wrapping or collapsing into a select.
+ * sideways rather than wrapping or collapsing into a select. Inline-size
+ * containment keeps the unwrapped row from widening an auto grid track above
+ * it, which would push a 320px page sideways instead of scrolling the row.
  */
 export function SectionTabs({
   label,
@@ -33,7 +35,7 @@ export function SectionTabs({
       aria-label={label}
       data-slot="section-tabs"
       className={cn(
-        "overflow-x-auto border-b border-line [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+        "[scrollbar-width:none] overflow-x-auto border-b border-line contain-inline-size [&::-webkit-scrollbar]:hidden",
         className
       )}
     >
@@ -47,7 +49,7 @@ export function SectionTabs({
                 data-nav-item
                 aria-current={current ? "page" : undefined}
                 className={cn(
-                  "inline-flex min-h-11 items-center gap-2 px-3 text-label text-ink-muted whitespace-nowrap shadow-[inset_0_-2px_0_transparent] transition-colors outline-none hover:text-ink focus-visible:outline-2 focus-visible:outline-focus focus-visible:-outline-offset-2 md:min-h-10",
+                  "inline-flex min-h-11 items-center gap-2 px-3 text-label whitespace-nowrap text-ink-muted shadow-[inset_0_-2px_0_transparent] transition-colors outline-none hover:text-ink focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus md:min-h-10",
                   current && "text-ink shadow-[inset_0_-2px_0_var(--accent)]"
                 )}
               >

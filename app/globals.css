@@ -356,6 +356,22 @@
     outline: 2px solid CanvasText;
     outline-offset: -2px;
   }
+  /* Rings drawn with box-shadow vanish; every keyboard focus gets an outline.
+     Unlayered, so it wins over `outline-none` utilities. A date field whose
+     calendar button holds focus matches only `:focus-within`. */
+  :focus-visible,
+  input:focus-within {
+    outline-style: solid;
+    outline-width: 2px;
+    outline-color: Highlight;
+  }
+  /* A selected segment or toggle is otherwise told apart only by its fill. */
+  [aria-pressed="true"],
+  [role="radio"][aria-checked="true"],
+  [role="radiogroup"] label:has(input:checked) {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
 }
 
 /*

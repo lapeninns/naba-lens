@@ -36,10 +36,12 @@ export function ProfileHeader({
 }: ProfileHeaderProps) {
   const Heading = headingLevel
   return (
+    // Side by side only from md: at 640px (a phone landscape, or 1280px at
+    // 200% zoom) the name plus up to three actions does not fit on one row.
     <section
       aria-label="Profile"
       className={cn(
-        "flex w-full min-w-0 flex-col gap-5 sm:flex-row sm:items-center sm:justify-between",
+        "flex w-full min-w-0 flex-col gap-5 md:flex-row md:items-center md:justify-between",
         className
       )}
     >
@@ -66,7 +68,7 @@ export function ProfileHeader({
         </div>
       </div>
       {actions ? (
-        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center [&>*]:w-full sm:[&>*]:w-auto">
+        <div className="flex flex-col-reverse gap-2 md:flex-row md:flex-wrap md:items-center md:justify-end [&>*]:w-full md:[&>*]:w-auto">
           {actions}
         </div>
       ) : null}
