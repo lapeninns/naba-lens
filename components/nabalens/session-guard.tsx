@@ -12,6 +12,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 
+import { CAPTCHA_UNAVAILABLE_MESSAGE } from "@/lib/auth/captcha"
+
 import { Notice } from "./notice"
 import { TurnstileChallenge } from "./turnstile-challenge"
 
@@ -119,7 +121,9 @@ export function SignInAgainSheet({
   const [sent, setSent] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [captchaToken, setCaptchaToken] = React.useState<string | null>(null)
-  const needsCaptcha = guard.captchaRequired
+  const [challengeAttempt, setChallengeAttempt] = React.useState(0)
+  const needsCaptcha = guard.captchaRequired || !!guard.captchaSiteKey
+  const captchaUnavailable = needsCaptcha && !guard.captchaSiteKey
 
   React.useEffect(() => {
     if (open) return
@@ -141,11 +145,14 @@ export function SignInAgainSheet({
       if (result.error) setError(result.error)
       else setSent(true)
     } catch {
-      setError(
-        "We couldn't send the sign-in link. Check your connection and try again."
-      )
+      setError("Check your connection and try again. Nothing is sent twice.")
     } finally {
       setSending(false)
+      // Turnstile tokens are single-use, including after a failed request.
+      if (needsCaptcha) {
+        setCaptchaToken(null)
+        setChallengeAttempt((attempt) => attempt + 1)
+      }
     }
   }
 
@@ -180,6 +187,7 @@ export function SignInAgainSheet({
               {stopped === 1 ? "it" : "them"}. Nothing is sent twice.
             </DialogDescription>
           ) : (
+            // Off-deck: no email on the profile, so sign in on /login instead.
             <DialogDescription>
               Sign in again in a new tab, then choose the stopped{" "}
               {stopped === 1 ? "photo" : "photos"} again to finish{" "}
@@ -193,11 +201,16 @@ export function SignInAgainSheet({
           </Notice>
         )}
         {error ? <Notice tone="negative">{error}</Notice> : null}
-        {!sent && guard.email && needsCaptcha && guard.captchaSiteKey ? (
-          <TurnstileChallenge
-            siteKey={guard.captchaSiteKey}
-            onToken={setCaptchaToken}
-          />
+        {!sent && guard.email && needsCaptcha ? (
+          guard.captchaSiteKey ? (
+            <TurnstileChallenge
+              key={challengeAttempt}
+              siteKey={guard.captchaSiteKey}
+              onToken={setCaptchaToken}
+            />
+          ) : (
+            <Notice tone="negative">{CAPTCHA_UNAVAILABLE_MESSAGE}</Notice>
+          )
         ) : null}
         <DialogFooter>
           <Button
@@ -205,6 +218,7 @@ export function SignInAgainSheet({
             size="touch"
             onClick={() => onOpenChange(false)}
           >
+            {/* Off-deck: E7 lists only "Not now"; "Done" closes the sent state. */}
             {sent ? "Done" : "Not now"}
           </Button>
           {sent ? null : guard.email ? (
@@ -212,7 +226,9 @@ export function SignInAgainSheet({
               variant="primary"
               size="touch"
               onClick={send}
-              disabled={sending || (needsCaptcha && !captchaToken)}
+              disabled={
+                sending || captchaUnavailable || (needsCaptcha && !captchaToken)
+              }
               aria-busy={sending}
             >
               {sending ? "Sending…" : "Send sign-in link"}

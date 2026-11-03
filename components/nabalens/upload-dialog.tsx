@@ -524,7 +524,9 @@ export function UploadDialog({
           )}
           {onLabel && labelIds.length > 0 ? (
             <Button
-              variant={summary.failed > 0 ? "outline" : "default"}
+              variant={
+                summary.failed + summary.stopped > 0 ? "outline" : "default"
+              }
               size="touch"
               onClick={() => {
                 const ids = labelIds

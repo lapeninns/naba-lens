@@ -1012,7 +1012,13 @@ test.describe("session ends mid-queue", () => {
     })
 
     const seen = await mailboxIds(staff.email)
+    const otpResponse = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === "/auth/v1/otp" &&
+        response.request().method() === "POST"
+    )
     await e7.getByRole("button", { name: "Send sign-in link" }).click()
+    const otp = await otpResponse
     await expect(
       page.getByRole("dialog", { name: "Check your email" })
     ).toBeVisible()
@@ -1043,14 +1049,18 @@ test.describe("session ends mid-queue", () => {
 
     // Open the emailed link in another tab, as a phone's mail app would.
     let link: string
-    try {
+    if (otp.status() !== 429) {
+      expect(otp.status()).toBe(200)
+      const redirectTo = new URL(otp.url()).searchParams.get("redirect_to")
+      expect(redirectTo).toBe(`${baseURL}/auth/callback`)
       link = await waitForLink(staff.email, SUBJECTS.signIn, seen, 20_000)
-    } catch {
-      // The local auth server rate-limits sign-in emails per hour; the link
-      // itself is the same one-time magic link either way.
-      testInfo.annotations.push({
+    } else {
+      // Only the local auth server's hourly email limit may skip the email;
+      // such a run is not evidence for the email path.
+      test.info().annotations.push({
         type: "sign-in-link",
-        description: "email rate-limited; used an admin-generated magic link",
+        description:
+          "429 from /auth/v1/otp: used an admin-generated magic link, email path not exercised",
       })
       const generated = await admin.auth.admin.generateLink({
         type: "magiclink",

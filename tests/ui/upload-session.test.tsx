@@ -3,6 +3,7 @@ import {
   act,
   cleanup,
   render,
+  renderHook,
   screen,
   waitFor,
   within,
@@ -12,6 +13,8 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
   SessionGuardProvider,
+  SignInAgainSheet,
+  useSignedInAgain,
   type SessionGuard,
 } from "@/components/nabalens/session-guard"
 import { UploadDialog } from "@/components/nabalens/upload-dialog"
@@ -19,6 +22,29 @@ import {
   SIGNED_OUT_MESSAGE,
   type Uploader,
 } from "@/components/nabalens/upload-queue"
+import {
+  CAPTCHA_RETRY_MESSAGE,
+  CAPTCHA_UNAVAILABLE_MESSAGE,
+} from "@/lib/auth/captcha"
+
+// Each mounted challenge hands over a fresh single-use token.
+let challengeMounts = 0
+vi.mock("@/components/nabalens/turnstile-challenge", async () => {
+  const React = await import("react")
+  return {
+    TurnstileChallenge: ({
+      onToken,
+    }: {
+      onToken: (token: string | null) => void
+    }) => {
+      React.useEffect(() => {
+        challengeMounts += 1
+        onToken(`token-${challengeMounts}`)
+      }, [onToken])
+      return null
+    },
+  }
+})
 
 const LIMITS = {
   maxBatchFiles: 10,
@@ -170,5 +196,113 @@ describe("UploadDialog when the session ends", () => {
       await screen.findByRole("dialog", { name: "Sign in again" })
     ).toBeTruthy()
     expect(held).toHaveLength(0)
+  })
+})
+
+describe("useSignedInAgain", () => {
+  it("stops polling once signed in again (after resume) and on unmount", async () => {
+    vi.useFakeTimers()
+    try {
+      let signedIn = false
+      const isSignedIn = vi.fn(async () => signedIn)
+      const onSignedIn = vi.fn()
+      const { rerender, unmount } = renderHook(
+        ({ active }) => useSignedInAgain(active, isSignedIn, onSignedIn),
+        { initialProps: { active: true } }
+      )
+      await act(async () => vi.advanceTimersByTime(3000))
+      expect(isSignedIn).toHaveBeenCalledTimes(1)
+
+      signedIn = true
+      await act(async () => vi.advanceTimersByTime(3000))
+      expect(onSignedIn).toHaveBeenCalledTimes(1)
+      // resume() clears the signed-out pause, so the hook goes inactive.
+      rerender({ active: false })
+      const afterResume = isSignedIn.mock.calls.length
+      await act(async () => vi.advanceTimersByTime(30_000))
+      expect(isSignedIn).toHaveBeenCalledTimes(afterResume)
+      expect(onSignedIn).toHaveBeenCalledTimes(1)
+
+      rerender({ active: true })
+      await act(async () => vi.advanceTimersByTime(3000))
+      const beforeUnmount = isSignedIn.mock.calls.length
+      unmount()
+      await act(async () => vi.advanceTimersByTime(30_000))
+      expect(isSignedIn).toHaveBeenCalledTimes(beforeUnmount)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
+describe("SignInAgainSheet with verification", () => {
+  function guardWith(overrides: Partial<SessionGuard>): SessionGuard {
+    return {
+      email: "priya.gurung@example.test",
+      captchaRequired: true,
+      captchaSiteKey: "site-key",
+      sendLink: vi.fn(async () => ({})),
+      isSignedIn: async () => false,
+      ...overrides,
+    }
+  }
+
+  it("says verification is unavailable when the site key is missing", () => {
+    render(
+      <SignInAgainSheet
+        open
+        onOpenChange={() => {}}
+        guard={guardWith({ captchaSiteKey: null })}
+        done={0}
+        stopped={1}
+      />
+    )
+    expect(screen.getByText(CAPTCHA_UNAVAILABLE_MESSAGE)).toBeTruthy()
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Send sign-in link",
+        }) as HTMLButtonElement
+      ).disabled
+    ).toBe(true)
+  })
+
+  it("gets a new token after a failed verification so the retry can succeed", async () => {
+    const sendLink = vi
+      .fn<SessionGuard["sendLink"]>()
+      .mockResolvedValueOnce({ error: CAPTCHA_RETRY_MESSAGE })
+      .mockResolvedValueOnce({})
+    challengeMounts = 0
+    const user = userEvent.setup()
+    render(
+      <SignInAgainSheet
+        open
+        onOpenChange={() => {}}
+        guard={guardWith({ sendLink })}
+        done={0}
+        stopped={1}
+      />
+    )
+    const send = () => screen.getByRole("button", { name: "Send sign-in link" })
+    await waitFor(() =>
+      expect((send() as HTMLButtonElement).disabled).toBe(false)
+    )
+    await user.click(send())
+    expect(await screen.findByText(CAPTCHA_RETRY_MESSAGE)).toBeTruthy()
+    expect(sendLink).toHaveBeenLastCalledWith(
+      "priya.gurung@example.test",
+      "token-1"
+    )
+
+    await waitFor(() => expect(challengeMounts).toBe(2))
+    await waitFor(() =>
+      expect((send() as HTMLButtonElement).disabled).toBe(false)
+    )
+    await user.click(send())
+    expect(sendLink).toHaveBeenLastCalledWith(
+      "priya.gurung@example.test",
+      "token-2"
+    )
+    expect(await screen.findByText("Check your email")).toBeTruthy()
   })
 })
