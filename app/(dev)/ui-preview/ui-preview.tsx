@@ -301,6 +301,7 @@ export function UiPreview() {
                   label="Library"
                   items={library}
                   showAttribution
+                  showFileName
                   onOpen={(m) => openViewer(m, "admin")}
                 />
               ) : (

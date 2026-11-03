@@ -56,10 +56,10 @@ test("menus.d1-video-tile-name: video and photo tiles name what they show", asyn
   const list = portfolioList(page)
   // Not vacuous: both video tiles and the photo tile must be on the page.
   await expect(
-    list.getByRole("button", { name: /^Video, jr-d1-/ })
+    list.getByRole("button", { name: /^Video, uploaded / })
   ).toHaveCount(2)
   await expect(
-    list.getByRole("button", { name: /^Photo, jr-d1-/ })
+    list.getByRole("button", { name: /^Photo, uploaded / })
   ).toHaveCount(1)
   await attachShot(testInfo, "staff-portfolio", page)
 

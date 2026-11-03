@@ -16,8 +16,8 @@ import { supportedMp4, syntheticJpeg } from "./helpers/media"
 import { requireIsolatedStack } from "./helpers/stack"
 import {
   chooseOption,
-  escape,
   portfolioList,
+  staffTile,
   uploadThroughDialog,
 } from "./helpers/ui"
 import {
@@ -247,11 +247,9 @@ for (const width of WIDTHS) {
     test.setTimeout(180_000)
     const page = await at(browser, world.staffA, width)
     await page.goto("/staff")
-    await portfolioList(page)
-      .getByRole("button", {
-        name: new RegExp(`^Photo, qa-rsp-${world.tag}-01\\.jpg`),
-      })
-      .click()
+    await (
+      await staffTile(portfolioList(page), `qa-rsp-${world.tag}-01.jpg`)
+    ).click()
     await page
       .getByRole("dialog")
       .first()
@@ -304,9 +302,10 @@ test("keyboard only: open the editor, pick an item, a content type, a note, save
   test.setTimeout(120_000)
   const page = await at(browser, world.staffA, 390)
   await page.goto("/staff")
-  const tile = portfolioList(page).getByRole("button", {
-    name: new RegExp(`^Photo, qa-rsp-${world.tag}-02\\.jpg`),
-  })
+  const tile = await staffTile(
+    portfolioList(page),
+    `qa-rsp-${world.tag}-02.jpg`
+  )
   await tile.focus()
   await page.keyboard.press("Enter")
   const viewer = page.getByRole("dialog").first()
@@ -380,9 +379,7 @@ test("touch (Pixel 7 emulation): upload, label with taps, labels persist", async
   await expect(editor).toBeHidden()
   await page.reload()
   await expect(
-    portfolioList(page).getByRole("button", {
-      name: new RegExp(`^Photo, ${escape(photo.name)}`),
-    })
+    await staffTile(portfolioList(page), photo.name)
   ).toHaveAccessibleName(/, 2 labels$/)
   await page.context().close()
 })

@@ -8,6 +8,7 @@ import { supportedMp4, syntheticJpeg, type SourceFile } from "./helpers/media"
 import {
   libraryList,
   portfolioList,
+  staffTile,
   tile,
   uploadThroughDialog,
   openPortfolio,
@@ -190,7 +191,8 @@ for (const width of WIDTHS) {
     // --- /staff and its dialogs
     await staff.goto("/staff")
     const portfolio = portfolioList(staff)
-    await expect(tile(portfolio, "Photo", jpeg.name)).toBeVisible()
+    const ownPhoto = await staffTile(portfolio, jpeg.name)
+    await expect(ownPhoto).toBeVisible()
     const upload = staff
       .getByRole("button", { name: "Upload photos or videos" })
       .first()
@@ -222,7 +224,7 @@ for (const width of WIDTHS) {
     )
     await closeDialog(staff)
 
-    await tile(portfolio, "Photo", jpeg.name).click()
+    await ownPhoto.click()
     const viewer = staff.getByRole("dialog")
     await check(
       staff,
@@ -391,9 +393,11 @@ test("keyboard only: upload, open the viewer, download", async () => {
   await expect(dialog).toBeHidden()
 
   // Viewer: open from the grid, focus is trapped in it, Escape returns focus.
-  const keyboardTile = tile(portfolioList(staff), "Photo", extra.name)
+  const keyboardTile = await staffTile(portfolioList(staff), extra.name)
   await expect(keyboardTile).toBeVisible()
-  await tabTo(staff, new RegExp(`^Photo, ${extra.name.replace(".", "\\.")}`))
+  // Staff tile names carry no file name; the newest upload is the first tile,
+  // and focus returning to `keyboardTile` below proves it was the one opened.
+  await tabTo(staff, /^Photo, uploaded /)
   await staff.keyboard.press("Enter")
   const viewer = staff.getByRole("dialog")
   await expect(viewer).toBeVisible()

@@ -55,11 +55,7 @@ test("menus.unavailable-items: an archived item is no longer offered to staff", 
   const staff = await signedInPage(browser, world.staffA)
 
   await test.step("before: Momo is offered", async () => {
-    const { editor } = await openOwnLabelEditor(
-      staff,
-      "Photo",
-      `${prefix}-01.jpg`
-    )
+    const { editor } = await openOwnLabelEditor(staff, `${prefix}-01.jpg`)
     await editor
       .getByRole("combobox", { name: /^Search the menu/ })
       .fill("Momo")
@@ -76,11 +72,7 @@ test("menus.unavailable-items: an archived item is no longer offered to staff", 
   ).toBe("t")
 
   await test.step("after: Momo is not offered", async () => {
-    const { editor } = await openOwnLabelEditor(
-      staff,
-      "Photo",
-      `${prefix}-01.jpg`
-    )
+    const { editor } = await openOwnLabelEditor(staff, `${prefix}-01.jpg`)
     await editor
       .getByRole("combobox", { name: /^Search the menu/ })
       .fill("Momo")
@@ -103,7 +95,7 @@ test("menus.unavailable-items: an item archived while staff edit is flagged and 
   await seedReadyAssets(world.staffA.id, world.venue1.id, 1, "image", prefix)
   const fileName = `${prefix}-01.jpg`
   const staff = await signedInPage(browser, world.staffA)
-  const { viewer, editor } = await openOwnLabelEditor(staff, "Photo", fileName)
+  const { viewer, editor } = await openOwnLabelEditor(staff, fileName)
   await pickMenuItem(editor, "Momo", /^Momo in Appetisers/)
   await editor
     .getByRole("group", { name: /^Which Momo\?/ })
@@ -144,7 +136,6 @@ test("menus.unavailable-items: Item not on the menu? reaches the venue's Menus p
   await test.step("staff suggests an item that is not on the menu", async () => {
     const { viewer, editor } = await openOwnLabelEditor(
       staff,
-      "Photo",
       `${prefix}-01.jpg`
     )
     await editor.getByRole("button", { name: "Item not on the menu?" }).click()

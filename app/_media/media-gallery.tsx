@@ -64,6 +64,8 @@ type MediaGalleryProps = {
    * it. Without it the confirm says nothing about tasks or targets.
    */
   getDeleteImpact?: (item: MediaItem) => DeleteImpact | undefined
+  /** Admin views only: tile names include the original file name. */
+  showFileName?: boolean
 }
 
 /**
@@ -126,6 +128,7 @@ export function MediaGallery({
   canLabel = false,
   showLabelBadge = false,
   getDeleteImpact,
+  showFileName = false,
 }: MediaGalleryProps) {
   const [labelIds, setLabelIds] = React.useState<string[] | null>(null)
   const [page, setPage] = React.useState(initialPage)
@@ -362,6 +365,7 @@ export function MediaGallery({
           label={label}
           showAttribution={showAttribution}
           showLabelBadge={showLabelBadge}
+          showFileName={showFileName}
           onOpen={(item) => {
             setDownloadError(null)
             setOpenId(item.id)

@@ -159,6 +159,7 @@ describe("MediaGrid and EmptyState", () => {
         items={[item]}
         onOpen={onOpen}
         showAttribution
+        showFileName
       />
     )
     const tile = screen.getByRole("button", {
@@ -168,6 +169,53 @@ describe("MediaGrid and EmptyState", () => {
     tile.focus()
     await userEvent.keyboard("{Enter}")
     expect(onOpen).toHaveBeenCalledWith(item)
+  })
+
+  it("keeps original file names out of staff tile names", () => {
+    const photo: MediaItem = {
+      ...item,
+      mediaType: "image",
+      durationSeconds: null,
+      originalFilename: "IMG_0042.jpg",
+    }
+    render(
+      <>
+        <MediaGrid
+          label="Community"
+          items={[photo]}
+          onOpen={vi.fn()}
+          showAttribution
+        />
+        <MediaGrid label="Portfolio" items={[photo]} onOpen={vi.fn()} />
+      </>
+    )
+    const [community, own] = screen.getAllByRole("button")
+    expect(community.getAttribute("aria-label")).toMatch(
+      /^Photo by Test contributor, [^,]+, uploaded [^,]+$/
+    )
+    expect(own.getAttribute("aria-label")).toMatch(/^Photo, uploaded [^,]+$/)
+    expect(document.body.textContent).not.toContain("IMG_0042")
+  })
+
+  it("keeps the file name in admin tile names", () => {
+    const photo: MediaItem = {
+      ...item,
+      mediaType: "image",
+      durationSeconds: null,
+      originalFilename: "IMG_0042.jpg",
+    }
+    render(
+      <MediaGrid
+        label="Library"
+        items={[photo]}
+        onOpen={vi.fn()}
+        showAttribution
+        showFileName
+      />
+    )
+    expect(screen.getByRole("button").getAttribute("aria-label")).toMatch(
+      /^Photo, IMG_0042\.jpg, by Test contributor, [^,]+, uploaded /
+    )
   })
 
   it("shows the staff empty-state copy by default", () => {

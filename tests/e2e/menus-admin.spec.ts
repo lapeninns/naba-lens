@@ -5,7 +5,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test"
 
 import { signIn } from "../support/identities"
 import { provisioner, psql, requireIsolatedStack } from "./helpers/stack"
-import { escape } from "./helpers/ui"
+import { escape, staffTile } from "./helpers/ui"
 import {
   provisionWorld,
   seedReadyAssets,
@@ -147,10 +147,12 @@ async function importAndActivate(
 /** Staff: open one of their own photos and its label editor. */
 async function openOwnLabelEditor(page: Page, fileName: string) {
   await page.goto("/staff")
-  await page
-    .getByRole("list", { name: "Your portfolio" })
-    .getByRole("button", { name: new RegExp(`^Photo, ${escape(fileName)}`) })
-    .click()
+  await (
+    await staffTile(
+      page.getByRole("list", { name: "Your portfolio" }),
+      fileName
+    )
+  ).click()
   const viewer = page.getByRole("dialog").first()
   await viewer.getByRole("button", { name: /^(Add|Edit) labels$/ }).click()
   const editor = page.getByRole("dialog", { name: /^(Add|Edit) labels$/ })
@@ -440,7 +442,9 @@ test("rows 2+4: re-import with rename, removal, key change and category move; un
     await admin.goto("/admin")
     await admin
       .getByRole("list", { name: "Library" })
-      .getByRole("button", { name: new RegExp(`^Photo, ${escape(file(n))}`) })
+      .getByRole("button", {
+        name: new RegExp(`^Photo, ${escape(file(n))}`),
+      })
       .click()
     return admin.getByRole("dialog").getByRole("region", { name: "Labels" })
   }

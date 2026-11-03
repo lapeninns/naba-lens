@@ -21,7 +21,7 @@ import { seedVisualFixtures, type VisualFixtures } from "../visual/fixtures"
 import { provisionCoverageWorld, seedImages } from "./helpers/coverage-world"
 import { openEmailLink } from "./helpers/email-link"
 import { provisioner, psql } from "./helpers/stack"
-import { openPortfolio, STAFF_LANDING } from "./helpers/ui"
+import { openPortfolio, STAFF_LANDING, staffTile } from "./helpers/ui"
 
 /**
  * Visual and accessibility regression pass (spec §4). For every screen and
@@ -478,7 +478,14 @@ async function expectWholeImage(page: Page, label: string) {
   expect.soft(box.inside, `${label}: viewer image fits the viewport`).toBe(true)
 }
 
+// Staff tile names carry no file name: find the populated staff member's
+// tile by the media id of that file.
 async function tile(page: Page, filename: string) {
+  return staffTile(page, filename, fx.populated.id)
+}
+
+// Admin tile names keep the file name.
+function adminTile(page: Page, filename: string) {
   return page.getByRole("button", {
     name: new RegExp(filename.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
   })
@@ -814,7 +821,12 @@ test("staff: delete confirmation and edit profile", async ({
 }, testInfo) => {
   const page = await populatedStaff(browser, baseURL!)
   // Long filename in the viewer, then delete confirmation and keep.
-  await (await tile(page, "IMG_20261030_dessert")).click()
+  await (
+    await tile(
+      page,
+      "IMG_20261030_dessert-with-a-very-long-original-filename-from-the-phone-camera.jpg"
+    )
+  ).click()
   const viewer = page.getByRole("dialog")
   await expect(viewer).toBeVisible()
   await capture(page, testInfo, "viewer-photo-long-filename")
@@ -965,7 +977,7 @@ test("admin: viewer, download, dark mode", async ({
   const page = await signIn(browser, fx.admin.email, baseURL!)
   // Viewer with admin actions; download is an attachment of the original.
   await page.goto(`/admin?staff=${fx.populated.id}`)
-  const opener = await tile(page, "landscape-dish.jpg")
+  const opener = adminTile(page, "landscape-dish.jpg")
   await opener.focus()
   await page.keyboard.press("Enter")
   const viewer = page.getByRole("dialog")
