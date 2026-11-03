@@ -131,12 +131,23 @@ async function importAndActivate(
   await expect(
     page.getByRole("heading", { level: 1, name: title })
   ).toBeVisible()
-  await page.getByRole("button", { name: "Activate…" }).click()
+  await page.getByRole("button", { name: "Activate for labelling" }).click()
   await page
     .getByRole("alertdialog")
     .getByRole("button", { name: "Activate for labelling" })
     .click()
-  await expect(page.getByRole("button", { name: "Retire menu…" })).toBeVisible()
+  await expectActive(page, `More actions for ${title}`)
+}
+
+/** An active version offers a new draft from it, and Retire under More actions. */
+async function expectActive(page: Page, moreActions: string | RegExp) {
+  await expect(
+    page.getByRole("button", { name: "Start a draft from this version" })
+  ).toBeVisible()
+  await page.getByRole("button", { name: moreActions }).click()
+  await expect(page.getByRole("menuitem", { name: "Retire" })).toBeVisible()
+  await page.keyboard.press("Escape")
+  await expect(page.getByRole("menuitem", { name: "Retire" })).toBeHidden()
 }
 
 async function withRailway(
@@ -446,14 +457,12 @@ test("row 8: missing-item suggestion reaches the admin; catalogue changed while 
       .getByRole("button", { name: "Start a draft from the active menu" })
       .click()
     await admin.waitForURL(/\/admin\/menus\/versions\//)
-    await admin.getByRole("button", { name: "Activate…" }).click()
+    await admin.getByRole("button", { name: "Activate for labelling" }).click()
     await admin
       .getByRole("alertdialog")
       .getByRole("button", { name: "Activate for labelling" })
       .click()
-    await expect(
-      admin.getByRole("button", { name: "Retire menu…" })
-    ).toBeVisible()
+    await expectActive(admin, /^More actions for /)
 
     await editor.getByRole("button", { name: /^Save labels/ }).click()
     await expect(editor).toContainText(
