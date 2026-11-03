@@ -93,10 +93,10 @@ test.describe("admin staff management", () => {
     await dialog.getByRole("combobox", { name: "Venue" }).click()
     await adminPage.getByRole("option", { name: venue.name }).click()
     await dialog.getByRole("button", { name: "Send invitation" }).click()
+    // With the taken address in the list, the field names the account and
+    // links to it; otherwise the server's message shows.
     await expect(
-      dialog.getByText("This email already has a Naba-Lens account", {
-        exact: false,
-      })
+      dialog.getByText("This email already has", { exact: false }).first()
     ).toBeVisible()
     await dialog.getByRole("button", { name: "Cancel" }).click()
 
@@ -138,20 +138,26 @@ test.describe("admin staff management", () => {
     // Admin sees them as Active, opens the portfolio and deactivates them.
     await adminPage.goto(`/admin/staff/${invitee!.id}`)
     await expect(adminPage.getByRole("heading", { name })).toBeVisible()
-    await expect(adminPage.getByText("Active", { exact: true })).toBeVisible()
-    await expect(adminPage.getByText(`has no uploads yet`)).toBeVisible()
-    await adminPage.getByRole("button", { name: "Deactivate" }).click()
+    // The status shows in the header summary and again under Account.
+    await expect(
+      adminPage.getByText("Active", { exact: true }).first()
+    ).toBeVisible()
+    await expect(adminPage.getByText("No photos yet.")).toBeVisible()
+    await adminPage
+      .getByRole("button", { name: `More actions for ${name}` })
+      .click()
+    await adminPage.getByRole("menuitem", { name: "Deactivate" }).click()
     await adminPage
       .getByRole("alertdialog")
       .getByRole("button", { name: "Deactivate" })
       .click()
-    await expect(adminPage.getByText(/is deactivated/)).toBeVisible()
+    await expect(adminPage.getByText(/is inactive\./)).toBeVisible()
     // The header follows the confirmed result at once; it must not wait for the
     // page re-render, which took over 30 s on a loaded machine (mobile run).
     const fast = { timeout: 5_000 }
-    await expect(adminPage.getByText("Inactive", { exact: true })).toBeVisible(
-      fast
-    )
+    await expect(
+      adminPage.getByText("Inactive", { exact: true }).first()
+    ).toBeVisible(fast)
     await expect(adminPage.getByText("Active", { exact: true })).toHaveCount(
       0,
       fast
@@ -170,9 +176,9 @@ test.describe("admin staff management", () => {
     // Reactivation restores access with a fresh sign-in.
     await adminPage.getByRole("button", { name: "Reactivate" }).click()
     await expect(adminPage.getByText(/can sign in again/)).toBeVisible()
-    await expect(adminPage.getByText("Active", { exact: true })).toBeVisible(
-      fast
-    )
+    await expect(
+      adminPage.getByText("Active", { exact: true }).first()
+    ).toBeVisible(fast)
     await staffContext.clearCookies()
     await signInAs(staffPage, email)
     await expect(staffPage).toHaveURL(STAFF_LANDING)
