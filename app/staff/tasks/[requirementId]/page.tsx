@@ -1,5 +1,7 @@
 import { logout } from "@/app/_media/actions"
 import { AppShell } from "@/components/nabalens/app-shell"
+import { Notice } from "@/components/nabalens/notice"
+import { OfflineNotice } from "@/components/nabalens/offline-notice"
 import {
   BackToTasks,
   openReplacementRequests,
@@ -18,9 +20,15 @@ import {
   getMyAssignment,
   listMySubmittablePhotos,
 } from "@/lib/server/coverage"
+import { avatarUrl } from "@/lib/server/media/library"
 
 import { TASKS_PATH, unwrap } from "../result"
 import { TaskSubmit } from "../task-submit"
+
+const monthFormatter = new Intl.DateTimeFormat("en-GB", {
+  month: "long",
+  timeZone: "Europe/London",
+})
 
 export const metadata = { title: "Task · Naba-Lens" }
 
@@ -67,16 +75,24 @@ export default async function TaskPage({
       active="tasks"
       canManage={scope.canManageVenue}
       userName={profile.displayName}
+      avatarUrl={avatarUrl(profile.id, profile.avatarPath)}
       logoutAction={logout}
     >
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-6 pb-4">
         <BackToTasks href={TASKS_PATH} />
-        <TaskSummary assignment={assignment} />
+        <OfflineNotice />
+        <TaskSummary
+          assignment={assignment}
+          monthLabel={monthFormatter.format(new Date())}
+          venueName={scope.venue?.name ?? null}
+          sendHref={assignment.canSubmit ? "#send" : undefined}
+        />
 
-        <section aria-labelledby="send-heading" className="flex flex-col gap-4">
-          <h2 id="send-heading" className="text-lg font-semibold">
-            Send photos
-          </h2>
+        <section
+          id="send"
+          aria-label="Send photos"
+          className="flex scroll-mt-4 flex-col gap-4"
+        >
           {assignment.canSubmit ? (
             <>
               {replacing ? <ReplacementNote submission={replacing} /> : null}
@@ -87,9 +103,7 @@ export default async function TaskPage({
               />
             </>
           ) : (
-            <p className="rounded-md border bg-muted/40 px-4 py-3 text-sm">
-              {notOpenCopy(assignment, scope)}
-            </p>
+            <Notice tone="plain">{notOpenCopy(assignment, scope)}</Notice>
           )}
         </section>
 

@@ -65,7 +65,7 @@ describe("TasksOverview", () => {
       />
     )
     expect(
-      screen.getByRole("heading", { name: "Finish setting up your profile" })
+      screen.getByRole("heading", { name: "Your setup isn't finished" })
     ).toBeTruthy()
     const steps = screen.getByRole("list", { name: "Profile setup" })
     expect(
@@ -75,6 +75,9 @@ describe("TasksOverview", () => {
     expect(screen.getAllByText("Needs setup").length).toBeGreaterThanOrEqual(2)
     expect(
       screen.getByText(/Your team \(FOH or BOH\) isn't set yet/)
+    ).toBeTruthy()
+    expect(
+      screen.getByText("You can still add photos to your profile in the meantime.")
     ).toBeTruthy()
     expect(screen.queryByText("Target met")).toBeNull()
     expect(screen.queryByRole("progressbar")).toBeNull()
@@ -124,7 +127,7 @@ describe("TasksOverview", () => {
     )
     expect(screen.getByText("Needs setup")).toBeTruthy()
     expect(
-      screen.getByText(/hasn't set your photo target for November 2026/)
+      screen.getByText("Your target appears here once your manager sets it.")
     ).toBeTruthy()
     expect(screen.queryByRole("progressbar")).toBeNull()
     expect(screen.queryByText("Target met")).toBeNull()
@@ -155,12 +158,11 @@ describe("TasksOverview", () => {
       />
     )
     expect(
-      screen.getByRole("heading", { level: 1, name: "My tasks" })
+      screen.getByRole("heading", { level: 1, name: "Home" })
     ).toBeTruthy()
-    const glance = screen.getByRole("list", { name: "At a glance" })
-    expect(glance.textContent).toContain("3 waiting for review")
-    expect(glance.textContent).toContain("1 photo needs replacing")
-    expect(glance.textContent).toContain("2 tasks assigned (1 overdue)")
+    const todo = screen.getByRole("region", { name: /To do/ })
+    expect(within(todo).getByText("TEST Morgan asked for another photo")).toBeTruthy()
+    expect(within(todo).getByText("Starters is overdue")).toBeTruthy()
 
     const tasks = screen.getByRole("list", { name: "Assigned tasks" })
     const link = within(tasks).getByRole("link", { name: "Starters" })
@@ -441,7 +443,9 @@ describe("TaskSummary", () => {
       screen.getByText("Show three different starters on the pass.")
     ).toBeTruthy()
     expect(screen.getByText("Overdue")).toBeTruthy()
-    expect(screen.getByText("You can still send photos.")).toBeTruthy()
+    expect(
+      screen.getByText(/It's past its due date\. You can still send photos/)
+    ).toBeTruthy()
     expect(screen.getByText(COLLEAGUE.displayName)).toBeTruthy()
   })
 
@@ -452,7 +456,7 @@ describe("TaskSummary", () => {
       />
     )
     expect(screen.getByText("Closed")).toBeTruthy()
-    expect(screen.queryByText("You can still send photos.")).toBeNull()
+    expect(screen.queryByText(/past its due date/)).toBeNull()
   })
 })
 

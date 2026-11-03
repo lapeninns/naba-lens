@@ -9,10 +9,10 @@ import {
   SpinnerGapIcon,
 } from "@phosphor-icons/react"
 
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button, buttonVariants } from "@/components/ui/button"
 
 import { LoadMoreButton } from "../load-more-button"
+import { Notice } from "../notice"
 import type { UploadLimits } from "../types"
 import { UploadDialog } from "../upload-dialog"
 import type { Uploader } from "../upload-queue"
@@ -264,7 +264,7 @@ export function SubmitPhotosPanel({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <Button
           size="touch"
-          variant="outline"
+          variant="secondary"
           onClick={() => setUploadOpen(true)}
         >
           <CameraIcon data-icon="inline-start" aria-hidden />
@@ -400,44 +400,41 @@ function OutcomeMessage({
     )
   }
   const { copy } = outcome
+  const retry = copy.action === "retry"
+  const action =
+    copy.action === "retry" ? (
+      <Button
+        variant="secondary"
+        size="touch"
+        onClick={onRetry}
+        disabled={retrying}
+      >
+        <ArrowClockwiseIcon data-icon="inline-start" aria-hidden />
+        Try again
+      </Button>
+    ) : copy.action === "reload" ? (
+      <Button variant="secondary" size="touch" onClick={onReload}>
+        <ArrowClockwiseIcon data-icon="inline-start" aria-hidden />
+        Reload
+      </Button>
+    ) : copy.action === "sign_in" ? (
+      <Link
+        href={signInHref}
+        className={buttonVariants({ variant: "secondary", size: "touch" })}
+      >
+        Sign in
+      </Link>
+    ) : undefined
   return (
-    <Alert variant="destructive">
-      <AlertDescription className="flex flex-col gap-2 text-destructive">
-        <p>{copy.message}</p>
-        {copy.action === "retry" ? (
-          <Button
-            variant="outline"
-            size="touch"
-            onClick={onRetry}
-            disabled={retrying}
-            className="self-start"
-          >
-            <ArrowClockwiseIcon data-icon="inline-start" aria-hidden />
-            Try again
-          </Button>
-        ) : copy.action === "reload" ? (
-          <Button
-            variant="outline"
-            size="touch"
-            onClick={onReload}
-            className="self-start"
-          >
-            <ArrowClockwiseIcon data-icon="inline-start" aria-hidden />
-            Reload
-          </Button>
-        ) : copy.action === "sign_in" ? (
-          <Link
-            href={signInHref}
-            className={buttonVariants({
-              variant: "outline",
-              size: "touch",
-              className: "self-start",
-            })}
-          >
-            Sign in
-          </Link>
-        ) : null}
-      </AlertDescription>
-    </Alert>
+    <Notice
+      tone="negative"
+      role="alert"
+      title={retry ? "We couldn't send your photos" : undefined}
+      action={action}
+    >
+      {retry
+        ? "Check your connection and try again. Nothing is sent twice."
+        : copy.message}
+    </Notice>
   )
 }
