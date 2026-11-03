@@ -477,7 +477,10 @@ test.describe("release negatives", () => {
     await expect(
       admin.getByText("Nothing matches these filters.")
     ).toBeVisible()
-    await admin.getByRole("button", { name: "Clear filters" }).click()
+    await admin
+      .locator('[data-slot="empty-state"]')
+      .getByRole("button", { name: "Clear filters" })
+      .click()
     await expect(admin).toHaveURL(/\/admin$/)
 
     // A ready record whose original is missing from storage (fixture): the
