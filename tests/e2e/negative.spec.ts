@@ -98,7 +98,7 @@ test.describe("release negatives", () => {
     await openPortfolio(staffA)
     // Same venue, still nothing of B's in A's own portfolio.
     await expect(
-      staffA.getByText("Your portfolio starts here.", { exact: false })
+      staffA.getByText("Your profile starts here.", { exact: false })
     ).toBeVisible()
     await expect(tile(staffA, "Photo", photo.name)).toHaveCount(0)
 
@@ -462,7 +462,7 @@ test.describe("release negatives", () => {
     await openPortfolio(staff)
     await expect(
       staff.getByText(
-        "Your portfolio starts here. Upload your first photo or video."
+        "Your profile starts here. Add your first photo or video."
       )
     ).toBeVisible()
 

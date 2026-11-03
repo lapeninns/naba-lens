@@ -100,7 +100,7 @@ describe("MediaGrid and EmptyState", () => {
     render(<EmptyState />)
     expect(
       screen.getByText(
-        "Your portfolio starts here. Upload your first photo or video."
+        "Your profile starts here. Add your first photo or video."
       )
     ).toBeTruthy()
   })

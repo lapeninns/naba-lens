@@ -120,7 +120,7 @@ test.describe("vertical slice: upload, portfolio, library, download, isolation",
       staffPage.getByRole("heading", { name: "TEST e2e-slice-a" })
     ).toBeVisible()
     await expect(
-      staffPage.getByText("Your portfolio starts here.", { exact: false })
+      staffPage.getByText("Your profile starts here.", { exact: false })
     ).toBeVisible()
 
     await staffPage
@@ -218,7 +218,7 @@ test.describe("vertical slice: upload, portfolio, library, download, isolation",
     await expect(otherPage).toHaveURL(STAFF_LANDING)
     await openPortfolio(otherPage)
     await expect(
-      otherPage.getByText("Your portfolio starts here.", { exact: false })
+      otherPage.getByText("Your profile starts here.", { exact: false })
     ).toBeVisible()
     for (const route of ["thumb", "preview"]) {
       const response = await otherPage.request.get(
@@ -297,7 +297,7 @@ test.describe("vertical slice: upload, portfolio, library, download, isolation",
       .getByRole("button", { name: "Delete" })
       .click()
     await expect(
-      staffPage.getByText("Your portfolio starts here.", { exact: false })
+      staffPage.getByText("Your profile starts here.", { exact: false })
     ).toBeVisible()
     await adminPage.goto(`/admin?staff=${staffA.id}`)
     await expect(

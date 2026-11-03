@@ -538,7 +538,7 @@ test("staff: empty portfolio", async ({ browser, baseURL }, testInfo) => {
   const page = await signIn(browser, fx.empty.email, baseURL!)
   await expect(page).toHaveURL(STAFF_LANDING)
   await openPortfolio(page)
-  await expect(page.getByText("Your portfolio starts here")).toBeVisible()
+  await expect(page.getByText("Your profile starts here")).toBeVisible()
   await capture(page, testInfo, "staff-empty")
   await expectFocusVisibleEverywhere(page, "staff-empty")
   await page.context().close()

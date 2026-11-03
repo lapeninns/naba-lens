@@ -104,7 +104,7 @@ test.describe("release journey @core", () => {
     ).toBeVisible()
     await expect(staff.getByText(venue1.name)).toBeVisible()
     await expect(
-      staff.getByText("Your portfolio starts here.", { exact: false })
+      staff.getByText("Your profile starts here.", { exact: false })
     ).toBeVisible()
     const { data: invitee } = await provisioner()
       .from("profiles")
