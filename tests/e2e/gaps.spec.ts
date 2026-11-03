@@ -407,7 +407,29 @@ test.describe("GAP-11 over HTTP: community reads and management isolation", () =
     await pageB.goto(`/admin/staff/${staffA.id}`)
     await expect(pageB).toHaveURL(STAFF_LANDING)
     await expect(pageB.getByText("private-dish.jpg")).toHaveCount(0)
-    await expect(pageB.getByText("TEST e2e-gaps-http-a")).toHaveCount(0)
+    // Staff Home lists same-venue colleagues' photos ("From your colleagues"),
+    // a permitted community read; A's name must appear nowhere else.
+    await expect
+      .poll(() =>
+        pageB.evaluate((name) => {
+          const walker = document.createTreeWalker(
+            document.body,
+            NodeFilter.SHOW_TEXT
+          )
+          let outside = 0
+          for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+            if (!n.textContent?.includes(name)) continue
+            if (
+              !n.parentElement?.closest(
+                '[aria-labelledby="colleagues-heading"]'
+              )
+            )
+              outside++
+          }
+          return outside
+        }, "TEST e2e-gaps-http-a")
+      )
+      .toBe(0)
 
     // Allowed reads carry private, no-store headers and nosniff.
     const allowed: [Page, string, number][] = [
