@@ -150,8 +150,8 @@ test("menus.unavailable-items: Item not on the menu? reaches the venue's Menus p
   await test.step("the suggestion is on the venue's Menus page", async () => {
     await openVenueMenus(admin, world.venue1)
     await expect(
-      admin.getByRole("heading", { name: "Missing-item suggestions (1 open)" })
-    ).toBeVisible()
+      admin.getByRole("region", { name: "Missing-item suggestions" })
+    ).toContainText("1 · typed by staff while labelling")
     const list = admin.getByRole("list", { name: "Missing-item suggestions" })
     await expect(list).toContainText(missing)
     await expect(list).toContainText(`Suggested by ${world.staffA.name}`)
@@ -171,8 +171,8 @@ test("menus.unavailable-items: Item not on the menu? reaches the venue's Menus p
       .getByRole("button", { name: `Link to item: “${missing}”` })
       .click()
     await expect(
-      admin.getByRole("heading", { name: "Missing-item suggestions (0 open)" })
-    ).toBeVisible()
+      admin.getByRole("region", { name: "Missing-item suggestions" })
+    ).toContainText("0 · typed by staff while labelling")
     expect(
       psql(
         `select status from public.menu_item_suggestions where suggested_name = ${sql(missing)}`
