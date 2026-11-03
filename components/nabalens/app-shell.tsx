@@ -136,6 +136,7 @@ export function AppShell(props: AppShellProps) {
   const logoutButton = (
     <Button
       variant="quiet"
+      className="max-md:min-h-11"
       type={logoutAction ? "submit" : "button"}
       onClick={logoutAction ? undefined : onLogout}
     >
