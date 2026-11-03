@@ -157,7 +157,7 @@ async function openOwn(page: Page, kind: "Photo" | "Video", file: string) {
 
 async function openEditorFromViewer(page: Page, viewer: Locator) {
   await viewer.getByRole("button", { name: /^(Add|Edit) labels$/ }).click()
-  const editor = page.getByRole("dialog", { name: /^(Add|Edit) labels$/ })
+  const editor = page.getByRole("dialog", { name: /^(Labels|Edit labels)$/ })
   await expect(editor).toBeVisible()
   return editor
 }
@@ -341,7 +341,7 @@ test("row 6: skip labelling at upload, label later from the viewer; the asset is
 
   const viewer = await openOwn(staff, "Photo", photo.name)
   await expect(viewer.getByRole("region", { name: "Labels" })).toContainText(
-    "No labels yet"
+    "None yet. Labels are optional."
   )
   const later = await openEditorFromViewer(staff, viewer)
   await pick(later, /^Menu item at /, "sherpali", /^Sherpali Chicken/)
@@ -549,7 +549,11 @@ test("row 9: staff B cannot label staff A's asset, even by rewriting the Server 
     await editor.getByRole("button", { name: /^Save labels/ }).click()
     await expect.poll(() => rewritten).toBeGreaterThan(0)
     await expect(
-      editor.getByText(/not saved|could not be saved|couldn't be saved|not confirmed/i).first()
+      editor
+        .getByText(
+          /not saved|could not be saved|couldn't be saved|not confirmed/i
+        )
+        .first()
     ).toBeVisible()
     await staffB.unroute("**/*")
     expect(
@@ -648,15 +652,19 @@ test("row 11: a transferred staff member labels an older asset with the old venu
   const oldViewer = await openOwn(staff, "Photo", `qa-old-${world.tag}-01.jpg`)
   const oldEditor = await openEditorFromViewer(staff, oldViewer)
   await expect(
-    oldEditor.getByRole("combobox", { name: `Menu item at ${world.venue1.name}` })
+    oldEditor.getByRole("combobox", {
+      name: `Menu item at ${world.venue1.name}`,
+    })
   ).toBeVisible()
   await oldEditor
     .getByRole("combobox", { name: /^Menu item at / })
     .fill("Stuffed Tandoori")
   await expect(
-    oldEditor.getByText(`Nothing on ${world.venue1.name}'s menu matches`, {
-      exact: false,
-    }).first()
+    oldEditor
+      .getByText(`Nothing on ${world.venue1.name}'s menu matches`, {
+        exact: false,
+      })
+      .first()
   ).toBeVisible()
   await pick(oldEditor, /^Menu item at /, "sherpali", /^Sherpali Chicken/)
   const which = oldEditor.getByRole("group", {
@@ -678,7 +686,9 @@ test("row 11: a transferred staff member labels an older asset with the old venu
   const newViewer = await openOwn(staff, "Photo", `qa-new-${world.tag}-01.jpg`)
   const newEditor = await openEditorFromViewer(staff, newViewer)
   await expect(
-    newEditor.getByRole("combobox", { name: `Menu item at ${world.venue2.name}` })
+    newEditor.getByRole("combobox", {
+      name: `Menu item at ${world.venue2.name}`,
+    })
   ).toBeVisible()
   await newEditor
     .getByRole("combobox", { name: /^Menu item at / })
@@ -906,7 +916,7 @@ test("rows 12+13: label filters combine with venue/staff/type, search and dates;
       .click()
     const editor = staff.getByRole("dialog", {
       name: "Labels",
-    exact: true,
+      exact: true,
     })
     await editor.getByRole("button", { name: "Team" }).click()
     await editor.getByRole("button", { name: /^Save labels/ }).click()
