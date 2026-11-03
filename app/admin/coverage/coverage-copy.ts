@@ -1,4 +1,8 @@
 import { plural } from "@/components/nabalens/coverage/copy"
+import {
+  failureCode,
+  isConflictCode,
+} from "@/components/nabalens/coverage/failure-code"
 
 const names = new Intl.ListFormat("en-GB", {
   style: "long",
@@ -136,22 +140,13 @@ export const PREPARATION_COPY = {
   seeAllRuns: "See all runs",
 } as const
 
-/*
- * Run failures store a SQLSTATE only. Serialisation and uniqueness failures
- * mean another write touched a target mid-run; anything else stopped the run.
- */
-const CONFLICT_CODES = new Set(["23505", "40001", "40P01", "55P03"])
+export { failureCode }
 
 /** What went wrong, in plain words, without the code. */
 export function failureWords(errorCode: string | null): string {
-  return errorCode && CONFLICT_CODES.has(errorCode)
+  return isConflictCode(errorCode)
     ? "a target was changed while preparing. Run it again."
     : "preparation stopped before it finished. Run it again."
-}
-
-/** The code shown after the words: the deck's name for a conflict, else the SQLSTATE. */
-export function failureCode(errorCode: string): string {
-  return CONFLICT_CODES.has(errorCode) ? "PREP_TARGET_CONFLICT" : errorCode
 }
 
 /** A18: one venue's coverage inside the admin shell. */

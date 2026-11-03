@@ -388,18 +388,14 @@ export function SelfReviewsControl({
 export function PreparationRunsControl({
   initial,
   venueNames,
-  formatErrorCode,
 }: {
   initial: Page<PreparationRunView>
   venueNames: Record<string, string>
-  /** Only from a client component: functions don't cross from the server. */
-  formatErrorCode?: (code: string) => string
 }) {
   return (
     <PreparationRunList
       initial={initial}
       venueNames={venueNames}
-      formatErrorCode={formatErrorCode}
       onLoadMore={(cursor) => loadPreparationRunsAction({ cursor })}
     />
   )

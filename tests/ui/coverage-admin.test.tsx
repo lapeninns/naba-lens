@@ -451,20 +451,29 @@ describe("PreparationRunList", () => {
     errorCode: "23505",
   }
 
-  it("shows a failed run's stored code unless the caller formats it", () => {
-    const page = { items: [failed], nextCursor: null }
-    render(<PreparationRunList initial={page} venueNames={{}} />)
-    expect(screen.getByText(/Error code 23505\./)).toBeTruthy()
-    cleanup()
+  it("names a conflict failure and shows any other stored SQLSTATE", () => {
+    for (const code of ["23505", "40001", "40P01", "55P03"]) {
+      render(
+        <PreparationRunList
+          initial={{
+            items: [{ ...failed, errorCode: code }],
+            nextCursor: null,
+          }}
+          venueNames={{}}
+        />
+      )
+      expect(screen.getByText(/Error code PREP_TARGET_CONFLICT\./)).toBeTruthy()
+      cleanup()
+    }
     render(
       <PreparationRunList
-        initial={page}
+        initial={{
+          items: [{ ...failed, errorCode: "XX000" }],
+          nextCursor: null,
+        }}
         venueNames={{}}
-        formatErrorCode={(code) =>
-          code === "23505" ? "PREP_TARGET_CONFLICT" : code
-        }
       />
     )
-    expect(screen.getByText(/Error code PREP_TARGET_CONFLICT\./)).toBeTruthy()
+    expect(screen.getByText(/Error code XX000\./)).toBeTruthy()
   })
 })
