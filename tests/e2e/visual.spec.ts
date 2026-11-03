@@ -495,7 +495,7 @@ test("login: idle, validation error, sent, expired link, signed out", async ({
   await expectFocusVisibleEverywhere(page, "login")
 
   await page.getByRole("button", { name: "Send sign-in link" }).click()
-  await expect(page.getByText("Enter the email address")).toBeVisible()
+  await expect(page.getByText("Enter a full email address")).toBeVisible()
   await expect(page.getByLabel("Email")).toHaveAttribute("aria-invalid", "true")
   await capture(page, testInfo, "login-error")
 

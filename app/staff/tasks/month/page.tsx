@@ -8,6 +8,7 @@ import {
   isPeriodKey,
   MonthlyProgressCard,
   periodLabel,
+  askerName,
   pickReplacement,
   ReplacementNote,
   shiftPeriod,
@@ -152,14 +153,20 @@ export default async function MonthPage({
             className="flex flex-col gap-4"
           >
             <h2 id="add-heading" className="text-lg font-semibold">
-              Add photos for this month
+              {replacing ? "Send another photo" : "Add photos for this month"}
             </h2>
             {scope.canSubmit && photos ? (
               <>
-                {replacing ? <ReplacementNote submission={replacing} /> : null}
+                {replacing ? (
+                  <ReplacementNote
+                    submission={replacing}
+                    currentPeriod={current}
+                  />
+                ) : null}
                 <TaskSubmit
                   requirementId={null}
                   replacesSubmissionId={replacing?.id ?? null}
+                  reviewerName={replacing ? askerName(replacing) : null}
                   initialPhotos={photos}
                 />
               </>

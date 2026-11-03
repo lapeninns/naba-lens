@@ -78,10 +78,7 @@ export function MonthlyProgressCard({
       {needsSetup ? (
         <div className="flex flex-col gap-1 text-sm">
           {monthly.setupMissing.includes("target") ? (
-            <p>
-              Your manager hasn&apos;t set your photo target for {label} yet.
-              You can still send photos.
-            </p>
+            <p>Your target appears here once your manager sets it.</p>
           ) : null}
           {monthly.setupMissing.includes("team") ? (
             <p>

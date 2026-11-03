@@ -65,7 +65,7 @@ describe("TasksOverview", () => {
       />
     )
     expect(
-      screen.getByRole("heading", { name: "Finish setting up your profile" })
+      screen.getByRole("heading", { name: "Your setup isn't finished" })
     ).toBeTruthy()
     const steps = screen.getByRole("list", { name: "Profile setup" })
     expect(
@@ -75,6 +75,11 @@ describe("TasksOverview", () => {
     expect(screen.getAllByText("Needs setup").length).toBeGreaterThanOrEqual(2)
     expect(
       screen.getByText(/Your team \(FOH or BOH\) isn't set yet/)
+    ).toBeTruthy()
+    expect(
+      screen.getByText(
+        "You can still add photos to your profile in the meantime."
+      )
     ).toBeTruthy()
     expect(screen.queryByText("Target met")).toBeNull()
     expect(screen.queryByRole("progressbar")).toBeNull()
@@ -124,7 +129,7 @@ describe("TasksOverview", () => {
     )
     expect(screen.getByText("Needs setup")).toBeTruthy()
     expect(
-      screen.getByText(/hasn't set your photo target for November 2026/)
+      screen.getByText("Your target appears here once your manager sets it.")
     ).toBeTruthy()
     expect(screen.queryByRole("progressbar")).toBeNull()
     expect(screen.queryByText("Target met")).toBeNull()
@@ -154,14 +159,15 @@ describe("TasksOverview", () => {
         portfolioPath="/staff"
       />
     )
+    expect(screen.getByRole("heading", { level: 1, name: "Home" })).toBeTruthy()
+    const todo = screen.getByRole("region", { name: /To do/ })
     expect(
-      screen.getByRole("heading", { level: 1, name: "My tasks" })
+      within(todo).getByText("TEST Morgan asked for another photo")
     ).toBeTruthy()
-    const glance = screen.getByRole("list", { name: "At a glance" })
-    expect(glance.textContent).toContain("3 waiting for review")
-    expect(glance.textContent).toContain("1 photo needs replacing")
-    expect(glance.textContent).toContain("2 tasks assigned (1 overdue)")
+    // The replacement request covers the overdue task, so it isn't listed twice.
+    expect(within(todo).queryByText("Starters is overdue")).toBeNull()
 
+    expect(screen.getByRole("heading", { name: "All tasks" })).toBeTruthy()
     const tasks = screen.getByRole("list", { name: "Assigned tasks" })
     const link = within(tasks).getByRole("link", { name: "Starters" })
     expect(link.getAttribute("href")).toBe(
@@ -179,6 +185,47 @@ describe("TasksOverview", () => {
         .getByRole("link", { name: "Send another photo for Starters" })
         .getAttribute("href")
     ).toBe(`/staff/tasks/${starters.requirement.id}?replaces=${replace.id}`)
+  })
+
+  it("lists tasks overdue first, then by due date, and says when none are assigned", () => {
+    const later = assignment({
+      title: "Later",
+      due: due({ dueAt: "2026-11-30T00:00:00Z" }),
+    })
+    const sooner = assignment({
+      title: "Sooner",
+      due: due({ dueAt: "2026-11-10T00:00:00Z" }),
+    })
+    const late = assignment({
+      title: "Late",
+      due: due({ overdue: true, dueAt: "2026-11-30T00:00:00Z" }),
+      progress: { ...requirement().progress, overdue: true },
+    })
+    const { unmount } = render(
+      <TasksOverview
+        tasks={tasksView({ assignments: [later, sooner, late] })}
+        profile={PROFILE}
+        tasksPath="/staff/tasks"
+        portfolioPath="/staff"
+      />
+    )
+    const list = screen.getByRole("list", { name: "Assigned tasks" })
+    const names = within(list)
+      .getAllByRole("link")
+      .map((l) => l.textContent)
+    expect(names).toEqual(["Late", "Sooner", "Later"])
+    unmount()
+    render(
+      <TasksOverview
+        tasks={tasksView({ assignments: [] })}
+        profile={PROFILE}
+        tasksPath="/staff/tasks"
+        portfolioPath="/staff"
+      />
+    )
+    expect(
+      screen.getByText("Nothing is assigned to you this month.")
+    ).toBeTruthy()
   })
 
   it("explains a paused venue", () => {
@@ -286,6 +333,42 @@ describe("NeedsAnotherPhotoList", () => {
     expect(
       screen.getAllByText(`Reviewed by ${MANAGER.displayName} on 3 Nov 2026`)
     ).toHaveLength(2)
+  })
+})
+
+describe("replacement note", () => {
+  it("always shows the reviewer's reason, or a fallback", () => {
+    const { unmount } = render(
+      <ReplacementNote
+        submission={needsAnother("Too dark, use the pass lights.")}
+      />
+    )
+    expect(screen.getByText("Too dark, use the pass lights.")).toBeTruthy()
+    expect(
+      screen.getByText("The photos you send now replace this one.")
+    ).toBeTruthy()
+    unmount()
+    render(<ReplacementNote submission={needsAnother("")} />)
+    expect(
+      screen.getByText("Your reviewer didn't leave a reason.")
+    ).toBeTruthy()
+  })
+
+  it("explains a request from last month", () => {
+    const base = needsAnother("Blurry.")
+    render(
+      <ReplacementNote
+        submission={{
+          ...base,
+          decision: {
+            ...base.decision!,
+            decidedAt: "2026-10-30T09:00:00.000Z",
+          },
+        }}
+        currentPeriod="2026-11"
+      />
+    )
+    expect(screen.getByText(/asked in October 2026/)).toBeTruthy()
   })
 })
 
@@ -441,7 +524,9 @@ describe("TaskSummary", () => {
       screen.getByText("Show three different starters on the pass.")
     ).toBeTruthy()
     expect(screen.getByText("Overdue")).toBeTruthy()
-    expect(screen.getByText("You can still send photos.")).toBeTruthy()
+    expect(
+      screen.getByText(/It's past its due date\. You can still send photos/)
+    ).toBeTruthy()
     expect(screen.getByText(COLLEAGUE.displayName)).toBeTruthy()
   })
 
@@ -452,7 +537,7 @@ describe("TaskSummary", () => {
       />
     )
     expect(screen.getByText("Closed")).toBeTruthy()
-    expect(screen.queryByText("You can still send photos.")).toBeNull()
+    expect(screen.queryByText(/past its due date/)).toBeNull()
   })
 })
 
@@ -478,7 +563,7 @@ describe("AssignmentList", () => {
     )
     expect(screen.getByText("Complete")).toBeTruthy()
     expect(screen.queryByText("Overdue")).toBeNull()
-    expect(screen.getByText("Closed to new photos")).toBeTruthy()
+    expect(screen.getByText("Closed")).toBeTruthy()
   })
 })
 
@@ -543,5 +628,65 @@ describe("period helpers", () => {
     expect(periodLabel("2026-10")).toBe("October 2026")
     expect(shiftPeriod("2026-01", -1)).toBe("2025-12")
     expect(shiftPeriod("2026-12", 1)).toBe("2027-01")
+  })
+})
+
+describe("Home: From your colleagues", () => {
+  const post = (n: number) => ({
+    id: `m${n}`,
+    mediaType: "image" as const,
+    uploadState: "ready" as const,
+    thumbnailUrl: `/thumb/${n}`,
+    previewUrl: `/preview/${n}`,
+    mimeType: "image/jpeg",
+    originalFilename: null,
+    createdAt: "2026-11-02T12:00:00Z",
+    contributorId: `c${n}`,
+    contributorName: `Colleague ${n}`,
+    venueName: "The Railway",
+    width: null,
+    height: null,
+    durationSeconds: null,
+    sizeBytes: null,
+    labels: null,
+  })
+  const overview = (colleagues: ReturnType<typeof post>[]) =>
+    render(
+      <TasksOverview
+        tasks={base}
+        profile={PROFILE}
+        tasksPath="/staff/tasks"
+        portfolioPath="/staff"
+        colleagues={colleagues}
+      />
+    )
+
+  it("shows at most three posts below To do with a See more photos link", () => {
+    overview([1, 2, 3, 4, 5].map(post))
+    const heading = screen.getByRole("heading", {
+      name: "From your colleagues",
+    })
+    const todo = screen.getByRole("heading", { name: /^To do/ })
+    expect(
+      todo.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(
+      screen.getByRole("link", { name: "Colleague 1's profile" })
+    ).toBeTruthy()
+    expect(
+      screen.getByAltText(
+        "Photo by Colleague 1, The Railway, uploaded 2 Nov 2026"
+      )
+    ).toBeTruthy()
+    expect(screen.queryByAltText(/Colleague 4/)).toBeNull()
+    expect(
+      screen.getByRole("link", { name: "See more photos" }).getAttribute("href")
+    ).toBe("/staff/community")
+  })
+
+  it("is hidden when there are no posts", () => {
+    overview([])
+    expect(screen.queryByText("From your colleagues")).toBeNull()
+    expect(screen.queryByText("See more photos")).toBeNull()
   })
 })

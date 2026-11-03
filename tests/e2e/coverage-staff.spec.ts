@@ -144,6 +144,17 @@ async function sendSelected(page: Page, count: number) {
   ).toBeVisible()
 }
 
+async function sendReplacement(page: Page) {
+  const send = page.getByRole("button", { name: "Send another photo" })
+  await expect(send).toBeEnabled({ timeout: 30_000 })
+  await send.click()
+  await expect(
+    page.getByRole("status").filter({
+      hasText: "Your new photo is waiting for review",
+    })
+  ).toBeVisible()
+}
+
 function items(requirementId: string) {
   return psql(`
     select coalesce(string_agg(i.id || '|' || i.state || '|' || i.revision || '|' || coalesce(i.replaces_item_id::text, '-') || '|' || a.original_filename, ',' order by i.submitted_at, a.original_filename), '')
@@ -255,9 +266,9 @@ async function staffJourney(
   })
   const assigned = page.getByRole("list", { name: "Assigned tasks" })
 
-  // Landing: My tasks with the month's target and the assigned task.
+  // Landing: Home with the month's target and the assigned task.
   await expect(page).toHaveURL(STAFF_LANDING)
-  await expect(page.getByRole("heading", { name: "My tasks" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Home" })).toBeVisible()
   await expect(monthly.getByLabel("0 of 2 photos accepted")).toBeVisible()
   await expect(assigned.getByRole("link", { name: setup.title })).toBeVisible()
   await expect(assigned.getByLabel("0 of 2 photos accepted")).toBeVisible()
@@ -311,13 +322,7 @@ async function staffJourney(
 
   await page.goto("/staff/tasks")
   await expect(monthly.getByLabel("1 of 2 photos accepted")).toBeVisible()
-  await expect(
-    page
-      .getByRole("list", { name: "At a glance" })
-      .getByRole("listitem")
-      .filter({ hasText: "1 photo needs replacing" })
-  ).toBeVisible()
-  const replacements = page.getByRole("region", { name: "Needs another photo" })
+  const replacements = page.getByRole("region", { name: /To do/ })
   await expect(replacements.getByText(reason)).toBeVisible()
   await replacements
     .getByRole("link", { name: `Send another photo for ${setup.title}` })
@@ -330,7 +335,7 @@ async function staffJourney(
   ).toBeVisible()
   await expect(page.getByText(reason).first()).toBeVisible()
   await uploadForTask(page, [third!])
-  await sendSelected(page, 1)
+  await sendReplacement(page)
 
   sent = items(setup.requirementId)
   const replacement = sent.find((i) => i.name === third!.name)!
@@ -349,16 +354,15 @@ async function staffJourney(
   ).toContainText("Complete")
   await expect(
     page
-      .getByRole("list", { name: "At a glance" })
-      .getByRole("listitem")
-      .filter({ hasText: "0 photos need replacing" })
-  ).toBeVisible()
+      .getByRole("region", { name: /To do/ })
+      .getByRole("link", { name: /Send another photo/ })
+  ).toHaveCount(0)
 }
 
 test.describe("coverage: staff tasks journey (WS5)", () => {
   test.setTimeout(240_000)
 
-  test("desktop: land on My tasks, send, replace on request, reach the target", async ({
+  test("desktop: land on Home, send, replace on request, reach the target", async ({
     browser,
   }) => {
     const w = await provisionCoverageWorld()

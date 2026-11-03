@@ -3,8 +3,9 @@
 import * as React from "react"
 import Script from "next/script"
 
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+
+import { Notice } from "./notice"
 
 type TurnstileOptions = {
   sitekey: string
@@ -117,7 +118,7 @@ export function TurnstileChallenge({
   const failed =
     status === "expired" || status === "failed" || status === "unavailable"
   return (
-    <div className="grid gap-2" aria-label="Sign-in verification">
+    <div className="grid min-w-0 gap-2" aria-label="Sign-in verification">
       <Script
         src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
         strategy="afterInteractive"
@@ -133,7 +134,7 @@ export function TurnstileChallenge({
         }}
       />
       <div ref={container} />
-      <p className="text-sm text-muted-foreground" role="status">
+      <p className="text-meta-touch text-ink-muted md:text-meta" role="status">
         {status === "loading" ? "Loading sign-in verification…" : null}
         {status === "checking"
           ? "Complete the verification to continue."
@@ -141,18 +142,20 @@ export function TurnstileChallenge({
         {status === "verified" ? "Verification complete." : null}
       </p>
       {failed ? (
-        <Alert variant="warning">
-          <AlertDescription>
-            {status === "unavailable"
-              ? "Verification could not load. Reload this page to try again."
-              : "Verification expired or could not finish. Please try again."}
-            <Button type="button" variant="outline" size="sm" onClick={retry}>
+        <Notice
+          tone="attention"
+          action={
+            <Button type="button" variant="secondary" size="sm" onClick={retry}>
               {status === "unavailable"
                 ? "Reload verification"
                 : "Retry verification"}
             </Button>
-          </AlertDescription>
-        </Alert>
+          }
+        >
+          {status === "unavailable"
+            ? "Verification could not load. Reload this page to try again."
+            : "Verification expired or could not finish. Please try again."}
+        </Notice>
       ) : null}
     </div>
   )

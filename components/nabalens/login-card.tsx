@@ -1,23 +1,38 @@
 "use client"
 
 import * as React from "react"
-import { EnvelopeSimpleIcon, WarningCircleIcon } from "@phosphor-icons/react"
-
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Button } from "@/components/ui/button"
 import {
-  Field,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-} from "@/components/ui/field"
+  EnvelopeSimpleIcon,
+  SpinnerGapIcon,
+  WarningCircleIcon,
+} from "@phosphor-icons/react"
+
+import {
+  SIGN_IN_CARD,
+  SignInCard,
+  SignInHeading,
+  SignInWordmark,
+} from "@/app/login/sign-in-frame"
+import { Button } from "@/components/ui/button"
+import { Field, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import {
   CAPTCHA_RETRY_MESSAGE,
   CAPTCHA_UNAVAILABLE_MESSAGE,
 } from "@/lib/auth/captcha"
 import { cn } from "@/lib/utils"
+import { Notice } from "./notice"
 import { TurnstileChallenge } from "./turnstile-challenge"
+
+function BusyIcon() {
+  return (
+    <SpinnerGapIcon
+      data-icon="inline-start"
+      className="motion-safe:animate-spin"
+      aria-hidden
+    />
+  )
+}
 
 type LoginCardProps = {
   /**
@@ -32,25 +47,28 @@ type LoginCardProps = {
   captchaSiteKey?: string | null
   /** The previous link was expired or already used. */
   linkExpired?: boolean
-  /** Message for other callback failures, e.g. an inactive account. */
-  notice?: string | null
+  /** Arrived here by logging out. */
+  signedOut?: boolean
   className?: string
 }
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-const EMAIL_ERROR = "Enter the email address your invitation was sent to."
+const EMAIL_ERROR = "Enter a full email address, like name@example.com."
 
 export function LoginCard({
   onSubmit,
   linkExpired = false,
-  notice,
+  signedOut = false,
   captchaRequired = false,
   captchaSiteKey,
   className,
 }: LoginCardProps) {
   const [email, setEmail] = React.useState("")
   const [state, setState] = React.useState<"idle" | "sending" | "sent">("idle")
+  // Once a new link is on its way, "Use a different email" returns to Sign in.
+  const [expired, setExpired] = React.useState(linkExpired)
   const [error, setError] = React.useState<string | null>(null)
+  const [unreachable, setUnreachable] = React.useState(false)
   const [captchaToken, setCaptchaToken] = React.useState<string | null>(null)
   const [challengeAttempt, setChallengeAttempt] = React.useState(0)
   const requiresCaptcha = captchaRequired || !!captchaSiteKey
@@ -65,6 +83,18 @@ export function LoginCard({
   }, [])
   const inputId = React.useId()
   const errorId = React.useId()
+  const titleId = `${inputId}-title`
+  const sentHeading = React.useRef<HTMLHeadingElement>(null)
+  const emailInput = React.useRef<HTMLInputElement>(null)
+  const returning = React.useRef(false)
+
+  React.useEffect(() => {
+    if (state === "sent") sentHeading.current?.focus()
+    else if (state === "idle" && returning.current) {
+      returning.current = false
+      emailInput.current?.focus()
+    }
+  }, [state])
 
   async function submit(event: React.FormEvent) {
     event.preventDefault()
@@ -82,6 +112,7 @@ export function LoginCard({
       return
     }
     setError(null)
+    setUnreachable(false)
     setState("sending")
     try {
       const result = requiresCaptcha
@@ -92,11 +123,10 @@ export function LoginCard({
         setState("idle")
         return
       }
+      setExpired(false)
       setState("sent")
     } catch {
-      setError(
-        "The sign-in link could not be sent. Check your connection and try again."
-      )
+      setUnreachable(true)
       setState("idle")
     } finally {
       // Turnstile tokens are single-use, including after a failed request.
@@ -107,129 +137,173 @@ export function LoginCard({
     }
   }
 
-  return (
-    <section
-      aria-labelledby={`${inputId}-title`}
-      className={cn(
-        "w-full max-w-sm rounded-xl border bg-card p-6 sm:p-8",
-        className
-      )}
-    >
-      <p className="font-display text-xl font-bold tracking-[-0.01em]">
-        Naba-Lens
-      </p>
-      {state === "sent" ? (
-        <div className="mt-6 grid gap-4" role="status">
-          <EnvelopeSimpleIcon
-            className="size-8 text-muted-foreground"
-            aria-hidden
-          />
-          <h1
-            id={`${inputId}-title`}
-            className="font-display text-page-title-compact"
+  if (state === "sent") {
+    return (
+      <SignInCard aria-labelledby={titleId} className={className}>
+        <div role="status" className="grid gap-5">
+          <EnvelopeSimpleIcon className="size-8 text-ink-muted" aria-hidden />
+          <SignInHeading
+            id={titleId}
+            title="Check your email"
+            headingRef={sentHeading}
           >
-            Check your email
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            If{" "}
-            <span className="font-medium text-foreground">{email.trim()}</span>{" "}
-            has a Naba-Lens account, a sign-in link is on its way. Open it on
-            this device. It can only be used once.
-          </p>
-          <Button
-            variant="outline"
-            size="touch"
-            onClick={() => {
-              setState("idle")
-              setError(null)
-            }}
-          >
-            Use a different email
-          </Button>
+            If <strong>{email.trim()}</strong> has an account, a sign-in link is
+            on its way. It works once. Open it on this phone to stay signed in
+            here.
+          </SignInHeading>
         </div>
+        <Button
+          variant="secondary"
+          size="touch"
+          className="w-full"
+          onClick={() => {
+            returning.current = true
+            setState("idle")
+            setError(null)
+          }}
+        >
+          Use a different email
+        </Button>
+      </SignInCard>
+    )
+  }
+
+  const sending = state === "sending"
+  return (
+    <form
+      onSubmit={submit}
+      noValidate
+      aria-labelledby={titleId}
+      className={cn(SIGN_IN_CARD, className)}
+    >
+      <SignInWordmark />
+      {unreachable ? (
+        <Notice tone="negative" title="We couldn't reach Naba-Lens">
+          Check your connection, then send the link again. Nothing is sent
+          twice.
+        </Notice>
+      ) : signedOut && !expired ? (
+        <Notice tone="positive">You have signed out.</Notice>
+      ) : null}
+      {expired ? (
+        <SignInHeading id={titleId} title="That sign-in link has expired">
+          Links work once and expire after a short time. We&apos;ll send a new
+          one to this email.
+        </SignInHeading>
       ) : (
-        <form onSubmit={submit} noValidate className="mt-6 grid gap-5">
-          <div className="grid gap-1.5">
-            <h1
-              id={`${inputId}-title`}
-              className="font-display text-page-title-compact"
-            >
-              Sign in
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              We email you a sign-in link. No password needed.
-            </p>
-          </div>
-          {linkExpired ? (
-            <Alert variant="warning">
-              <WarningCircleIcon aria-hidden />
-              <AlertTitle>That sign-in link has expired</AlertTitle>
-              <AlertDescription className="text-pretty">
-                Links work once and for a short time. Enter your email to get a
-                new one.
-              </AlertDescription>
-            </Alert>
-          ) : null}
-          {notice ? (
-            <Alert variant="warning">
-              <AlertDescription className="text-pretty">
-                {notice}
-              </AlertDescription>
-            </Alert>
-          ) : null}
-          <FieldGroup>
-            <Field className="gap-1.5" data-invalid={emailError || undefined}>
-              <FieldLabel htmlFor={inputId}>Email</FieldLabel>
-              <Input
-                id={inputId}
-                type="email"
-                inputMode="email"
-                autoComplete="email"
-                spellCheck={false}
-                value={email}
-                onChange={(e) => setEmail(e.currentTarget.value)}
-                aria-invalid={emailError || undefined}
-                aria-describedby={emailError ? errorId : undefined}
-                className="h-11 sm:h-10"
-              />
-              {emailError ? (
-                <FieldError id={errorId}>{error}</FieldError>
-              ) : null}
-            </Field>
-            {error && !emailError ? (
-              <Alert variant="warning">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            ) : null}
-            {requiresCaptcha ? (
-              captchaSiteKey ? (
-                <TurnstileChallenge
-                  key={challengeAttempt}
-                  siteKey={captchaSiteKey}
-                  onToken={handleCaptchaToken}
-                />
-              ) : (
-                <Alert variant="warning">
-                  <AlertDescription>
-                    {CAPTCHA_UNAVAILABLE_MESSAGE}
-                  </AlertDescription>
-                </Alert>
-              )
-            ) : null}
-            <Button
-              type="submit"
-              size="touch"
-              className="sm:h-10"
-              disabled={
-                state === "sending" || (requiresCaptcha && !captchaToken)
-              }
-              aria-busy={state === "sending"}
-            >
-              {state === "sending" ? "Sending…" : "Send sign-in link"}
-            </Button>
-          </FieldGroup>
-        </form>
+        <SignInHeading id={titleId} title="Sign in">
+          We&apos;ll email you a link. There&apos;s no password.
+        </SignInHeading>
       )}
-    </section>
+      <Field className="gap-1.5">
+        <FieldLabel
+          htmlFor={inputId}
+          className="text-label-touch font-semibold text-ink md:text-label"
+        >
+          Email
+        </FieldLabel>
+        <Input
+          ref={emailInput}
+          id={inputId}
+          type="email"
+          inputMode="email"
+          autoComplete="email"
+          spellCheck={false}
+          placeholder="name@example.com"
+          value={email}
+          onChange={(e) => setEmail(e.currentTarget.value)}
+          aria-invalid={emailError || undefined}
+          aria-describedby={emailError ? errorId : undefined}
+          className="min-h-13 rounded-touch border-line-control bg-panel px-3 text-body-touch text-ink placeholder:text-ink-subtle aria-invalid:border-negative md:min-h-9 md:rounded-control md:text-body dark:bg-panel"
+        />
+        {emailError ? (
+          <FieldError
+            id={errorId}
+            className="flex items-start gap-1.5 text-meta-touch font-semibold text-negative md:text-meta-strong"
+          >
+            <WarningCircleIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
+            <span>{error}</span>
+          </FieldError>
+        ) : null}
+      </Field>
+      {error && !emailError ? <Notice tone="negative">{error}</Notice> : null}
+      {requiresCaptcha ? (
+        captchaSiteKey ? (
+          <TurnstileChallenge
+            key={challengeAttempt}
+            siteKey={captchaSiteKey}
+            onToken={handleCaptchaToken}
+          />
+        ) : (
+          <Notice tone="negative">{CAPTCHA_UNAVAILABLE_MESSAGE}</Notice>
+        )
+      ) : null}
+      <Button
+        type="submit"
+        size="touch"
+        className="w-full"
+        disabled={sending || (requiresCaptcha && !captchaToken)}
+        aria-busy={sending}
+      >
+        {sending ? <BusyIcon /> : null}
+        {sending
+          ? "Sending…"
+          : expired
+            ? "Send a new link"
+            : "Send sign-in link"}
+      </Button>
+      {expired ? null : (
+        <p className="text-center text-meta-touch text-ink-muted md:text-meta">
+          Accounts are by invitation only.
+        </p>
+      )}
+    </form>
+  )
+}
+
+/**
+ * Continue on the email link's landing page. The page's form is a plain HTML
+ * POST, so it works without JavaScript; with it, this shows progress and stops
+ * a second press from sending the one-time token again.
+ */
+export function ConfirmSignInButton({ invite }: { invite: boolean }) {
+  const button = React.useRef<HTMLButtonElement>(null)
+  const [pending, setPending] = React.useState(false)
+
+  React.useEffect(() => {
+    const form = button.current?.form
+    if (!form) return
+    let submitted = false
+    const onSubmit = (event: SubmitEvent) => {
+      if (submitted) event.preventDefault()
+      submitted = true
+      setPending(true)
+    }
+    // Back restores the page from the bfcache mid-submit.
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (!event.persisted) return
+      submitted = false
+      setPending(false)
+    }
+    form.addEventListener("submit", onSubmit)
+    window.addEventListener("pageshow", onPageShow)
+    return () => {
+      form.removeEventListener("submit", onSubmit)
+      window.removeEventListener("pageshow", onPageShow)
+    }
+  }, [])
+
+  return (
+    <Button
+      ref={button}
+      type="submit"
+      size="touch"
+      className="w-full"
+      aria-busy={pending}
+      aria-disabled={pending || undefined}
+    >
+      {pending ? <BusyIcon /> : null}
+      {pending ? "Signing in…" : invite ? "Accept your invitation" : "Continue"}
+    </Button>
   )
 }

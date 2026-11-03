@@ -22,10 +22,12 @@ import { MEDIA_LIMITS } from "@/lib/config/media"
 export function TaskSubmit({
   requirementId,
   replacesSubmissionId,
+  reviewerName,
   initialPhotos,
 }: {
   requirementId: string | null
   replacesSubmissionId: string | null
+  reviewerName?: string | null
   initialPhotos: SubmittablePhotosResult
 }) {
   const router = useRouter()
@@ -34,6 +36,7 @@ export function TaskSubmit({
     <SubmitPhotosPanel
       requirementId={requirementId}
       replacesSubmissionId={replacesSubmissionId}
+      reviewerName={reviewerName}
       initialPhotos={initialPhotos}
       loadPhotos={loadSubmittablePhotosAction}
       submit={submitPhotosAction}

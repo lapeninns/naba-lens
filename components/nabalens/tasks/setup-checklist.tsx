@@ -97,12 +97,12 @@ export function SetupChecklist({
     >
       <div className="flex flex-wrap items-center gap-2">
         <h2 id="setup-heading" className="text-base font-semibold">
-          Finish setting up your profile
+          Your setup isn&apos;t finished
         </h2>
         <StatusChip tone="warning">Needs setup</StatusChip>
       </div>
       <p className="text-sm">
-        Your monthly photos can&apos;t be complete until these are done.
+        You can still add photos to your profile in the meantime.
       </p>
       <ul className="flex flex-col gap-2" aria-label="Profile setup">
         {steps.map((step) => (

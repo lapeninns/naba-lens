@@ -9,10 +9,10 @@ import {
   SpinnerGapIcon,
 } from "@phosphor-icons/react"
 
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button, buttonVariants } from "@/components/ui/button"
 
 import { LoadMoreButton } from "../load-more-button"
+import { Notice } from "../notice"
 import type { UploadLimits } from "../types"
 import { UploadDialog } from "../upload-dialog"
 import type { Uploader } from "../upload-queue"
@@ -44,6 +44,8 @@ type SubmitPhotosPanelProps = {
   requirementId: string | null
   /** The "needs another photo" item this send answers, if any. */
   replacesSubmissionId?: string | null
+  /** Who asked for the replacement; named in the sent message. */
+  reviewerName?: string | null
   /** The first page of photos, as loaded by the page. */
   initialPhotos: SubmittablePhotosResult
   loadPhotos: (
@@ -80,6 +82,7 @@ function initialState(result: SubmittablePhotosResult): PhotoList {
 export function SubmitPhotosPanel({
   requirementId,
   replacesSubmissionId = null,
+  reviewerName = null,
   initialPhotos,
   loadPhotos,
   submit,
@@ -264,7 +267,7 @@ export function SubmitPhotosPanel({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <Button
           size="touch"
-          variant="outline"
+          variant="secondary"
           onClick={() => setUploadOpen(true)}
         >
           <CameraIcon data-icon="inline-start" aria-hidden />
@@ -325,7 +328,14 @@ export function SubmitPhotosPanel({
           onReload={onReload}
           signInHref={signInHref}
           retrying={sending}
+          replacing={replacesSubmissionId !== null}
+          reviewerName={reviewerName}
         />
+        {replacesSubmissionId && count > 0 && !sending ? (
+          <p className="text-sm text-muted-foreground">
+            {count} selected · it replaces the earlier photo
+          </p>
+        ) : null}
         <Button
           size="touch"
           onClick={() => void send()}
@@ -344,9 +354,11 @@ export function SubmitPhotosPanel({
           )}
           {sending
             ? "Sending…"
-            : count === 0
-              ? "Select photos to send"
-              : `Send ${plural(count, "photo", "photos")} for review`}
+            : replacesSubmissionId
+              ? "Send another photo"
+              : count === 0
+                ? "Select photos to send"
+                : `Send ${plural(count, "photo", "photos")} for review`}
         </Button>
       </div>
 
@@ -368,14 +380,31 @@ function OutcomeMessage({
   onReload,
   signInHref,
   retrying,
+  replacing,
+  reviewerName,
 }: {
   outcome: Outcome | null
   onRetry: () => void
   onReload: () => void
   signInHref: string
   retrying: boolean
+  replacing: boolean
+  reviewerName: string | null
 }) {
   if (!outcome) return null
+  if (outcome.kind === "sent" && replacing && !outcome.alreadySent) {
+    return (
+      <div role="status" className="flex flex-col gap-1 text-sm">
+        <p className="font-medium text-positive">
+          Your new photo is waiting for review
+        </p>
+        <p>
+          Sent. {reviewerName ?? "Your reviewer"} reviews it next. Your earlier
+          photo stays in Photos and on your profile.
+        </p>
+      </div>
+    )
+  }
   if (outcome.kind === "sent") {
     return (
       <div role="status" className="flex flex-col gap-1 text-sm">
@@ -400,44 +429,47 @@ function OutcomeMessage({
     )
   }
   const { copy } = outcome
+  const retry = copy.action === "retry"
+  const action =
+    copy.action === "retry" ? (
+      <Button
+        variant="secondary"
+        size="touch"
+        onClick={onRetry}
+        disabled={retrying}
+      >
+        <ArrowClockwiseIcon data-icon="inline-start" aria-hidden />
+        Try again
+      </Button>
+    ) : copy.action === "reload" ? (
+      <Button variant="secondary" size="touch" onClick={onReload}>
+        <ArrowClockwiseIcon data-icon="inline-start" aria-hidden />
+        Reload
+      </Button>
+    ) : copy.action === "sign_in" ? (
+      <Link
+        href={signInHref}
+        className={buttonVariants({ variant: "secondary", size: "touch" })}
+      >
+        Sign in
+      </Link>
+    ) : undefined
   return (
-    <Alert variant="destructive">
-      <AlertDescription className="flex flex-col gap-2 text-destructive">
-        <p>{copy.message}</p>
-        {copy.action === "retry" ? (
-          <Button
-            variant="outline"
-            size="touch"
-            onClick={onRetry}
-            disabled={retrying}
-            className="self-start"
-          >
-            <ArrowClockwiseIcon data-icon="inline-start" aria-hidden />
-            Try again
-          </Button>
-        ) : copy.action === "reload" ? (
-          <Button
-            variant="outline"
-            size="touch"
-            onClick={onReload}
-            className="self-start"
-          >
-            <ArrowClockwiseIcon data-icon="inline-start" aria-hidden />
-            Reload
-          </Button>
-        ) : copy.action === "sign_in" ? (
-          <Link
-            href={signInHref}
-            className={buttonVariants({
-              variant: "outline",
-              size: "touch",
-              className: "self-start",
-            })}
-          >
-            Sign in
-          </Link>
-        ) : null}
-      </AlertDescription>
-    </Alert>
+    <Notice
+      tone="negative"
+      role="alert"
+      title={
+        retry
+          ? replacing
+            ? "We couldn't send your photo"
+            : "We couldn't send your photos"
+          : undefined
+      }
+      action={action}
+    >
+      {retry
+        ? "Check your connection and try again. Nothing is sent twice."
+        : copy.message}
+    </Notice>
   )
 }

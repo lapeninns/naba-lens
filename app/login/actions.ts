@@ -20,7 +20,7 @@ export async function requestSignInLink(
 ): Promise<{ error?: string }> {
   const email = normaliseEmail(rawEmail)
   if (!email) {
-    return { error: "Enter the email address your invitation was sent to." }
+    return { error: "Enter a full email address, like name@example.com." }
   }
 
   const captcha = getLoginCaptchaConfig()

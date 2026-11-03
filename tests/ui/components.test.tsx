@@ -211,7 +211,7 @@ describe("LoginCard", () => {
     await userEvent.click(
       screen.getByRole("button", { name: "Send sign-in link" })
     )
-    expect(screen.getByText(/Enter the email address/)).toBeTruthy()
+    expect(screen.getByText(/Enter a full email address/)).toBeTruthy()
     expect(onSubmit).not.toHaveBeenCalled()
 
     await userEvent.type(
@@ -224,7 +224,7 @@ describe("LoginCard", () => {
     expect(onSubmit).toHaveBeenCalledWith("someone@example.invalid")
     expect(await screen.findByText("Check your email")).toBeTruthy()
     expect(screen.getByText(/If/).textContent).toContain(
-      "has a Naba-Lens account"
+      "has an account, a sign-in link is on its way"
     )
   })
 
