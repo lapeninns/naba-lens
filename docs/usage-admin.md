@@ -8,33 +8,38 @@ delivery or access. For **That sign-in link has expired**, request another.
 For **Account unavailable**, contact the system owner; that screen offers
 **Sign out**. Inside the app, use **Log out**.
 
-1. Open **Content** (`/admin`): ready media, newest first, without approval.
+1. Open **Content** (`/admin`): every ready photo and video across Lapen Inns,
+   newest first, without approval. On a phone, admin navigation is the TabBar
+   at the bottom.
    The visible library refreshes about every 15 seconds and on tab focus.
 2. Combine **Venue** (initially **All venues**), **Staff member** (**All staff**),
-   and **Photos**, **Videos** or **All**; all filters apply together.
+   and **Photos**, **Videos** or **Photos and videos**; all filters apply
+   together.
    **Clear filters** resets them. Venue means upload-time venue; inactive
    staff/venues remain selectable for retained media.
 3. **Load more** fetches up to 24 older assets with the same filters.
    For **Nothing matches these filters.**, broaden or clear filters.
-4. Open a tile. The viewer shows **Contributor**, **Venue at upload** and
+4. Open a tile. The viewer shows who uploaded it, **Venue at upload** and
    **Uploaded**. Choose **Download original** for one unchanged uploaded file,
    not its preview. For **Preview unavailable in this browser**, download the
    ready original instead; video playback depends on browser/codec support.
 
-**Open portfolio** leads to `/admin/staff/[id]`. You can also open **Staff**
-(`/admin/staff`) → **Portfolio** on desktop, or the person's row on phones.
-Individual admin portfolios have previews, **Load more**, **Download original**
-and **Delete**, using the same gallery behavior as Content. The gallery
+**Open profile** leads to `/admin/staff/[id]`. You can also open **Staff**
+(`/admin/staff`) and choose **Open profile** in a person's three-dot menu, or
+the person's row on phones. A person's admin profile has previews, **Load
+more**, **Download original** and **Delete**, using the same gallery behavior
+as Content. The gallery
 refreshes about every 15 seconds and on tab focus.
 
 ## Staff community and team assignments
 
-Active staff have **My tasks**, **Explore**, **People** and **My portfolio**
-navigation; venue managers also have **Manage**. Staff land on **My tasks**.
-Explore shows ready photos and videos across the organisation with venue,
-FOH/BOH team and media-type filters. People lets staff search colleagues by
-name, current venue and team, then open a colleague's portfolio. See the
-[staff guide](usage-staff.md#explore-work-across-lapen-inns) for the viewing flow.
+On a phone, staff have a TabBar with **Home**, **Photos**, **Add**, **People**
+and **Me**; from a tablet or computer the same sections sit in the top bar,
+and venue managers also have **Manage** there. Staff land on **Home**.
+Photos shows ready photos and videos across the organisation with venue,
+FOH/BOH team and media filters. People lets staff search colleagues by name,
+current venue and team, then open a colleague's profile. See the
+[staff guide](usage-staff.md#photos-and-people) for the viewing flow.
 Admin navigation is **Content**, **Staff**, **Menus** and **Coverage**.
 
 Community profiles show name, photo, job title, department, current venue and
@@ -117,10 +122,14 @@ Dates are UK time.
   accepted photos. A person is complete only with a venue, a team, a target
   and enough of their own photos accepted for that month. Missing setup never
   counts as complete.
-- **Monthly preparation** shows the last run, recent failures with their error
-  code, and venues where active staff have no target for the month.
-  **Prepare this month for all venues** runs it now and is safe to repeat. See
-  [operations](operations.md#monthly-coverage-preparation).
+- **Monthly preparation** copies last month's targets and checklist items
+  into the new month for every venue. It shows how many venues are prepared
+  and when it last ran, **Preparation by venue** (targets copied and people who
+  need setup), and **Recent runs** from the last 7 days with each result and
+  error code. **See all runs** lists every run, any month. **Prepare this
+  month** (or **Prepare again**) runs it now; it runs every hour anyway and is
+  safe to repeat. Venues not prepared yet are named at the top of Coverage.
+  See [operations](operations.md#monthly-coverage-preparation).
 - **Self-reviews** lists each decision a manager made on their own photo.
 - Open a venue for the same **Overview**, **Review**, **Checklist**, **Menu**
   and **Team** screens a manager has (see the
@@ -130,20 +139,23 @@ Dates are UK time.
 
 Accepting a photo records task completion only. It is not publishing
 clearance, and coverage does not gate what staff see: ready photos are in
-portfolios and Explore before review.
+Photos and on profiles before review.
 
 ### Venue managers
 
-Open **Venue managers** (`/admin/coverage/managers`). Under **Make someone a
-venue manager**, choose a venue, then an active staff member currently at that
-venue, add an optional note and choose **Make venue manager**. A person can
+Open **Venue managers** from Coverage (`/admin/coverage/managers`), or choose
+**Make venue manager** in a person's three-dot menu in **Staff**. Under **Make
+someone a venue manager**, choose a venue, then an active staff member
+currently at that venue, add an optional note and choose **Make venue
+manager**. **Current grants** lists every manager, A to Z by surname. A person can
 manage one venue at a time. A manager stays a `staff` user; the grant is not a
 role.
 
 The grant works only while the person is active staff at that venue and the
 venue is active. Moving them to another venue, deactivating them or changing
 their role ends it, and it never moves with them; grant it again if needed.
-**Revoke** needs a reason. **Show ended grants** lists how each one ended.
+**Revoke grant**, in the grant's **More actions for** menu, needs a
+**Reason**. **Show ended grants** lists how each one ended.
 A manager who is already signed in is affected on their next page load or
 action.
 
@@ -161,14 +173,14 @@ Invitations create staff only; additional admins use [setup](setup.md).
 
 - **Invitation sent**: **Close**. Status stays **Invited** until first sign-in.
 - **Account created, email not sent**: **Close**, then **Resend invitation** in
-  the person's three-dot menu (“More actions for” their name) or portfolio
+  the person's three-dot menu (“More actions for” their name) or profile
   header. Do not create a duplicate.
 - Follow existing-email errors. Resend is available only while **Invited**;
   existing users request links at `/login`. Reactivate inactive accounts first.
 
 ## Edit details, move venues or stop access
 
-Choose **Edit details** in the menu or portfolio header. **Edit staff account**
+Choose **Edit details** in the menu or profile header. **Edit staff account**
 allows **Display name**, **Profile photo** (up to
 4 MiB, shown as **4.0 MB**), **Job title**, **Department**, **Venue** or
 **Account active**, then **Save changes**. Email and role are not editable here.
@@ -178,10 +190,12 @@ A photo may save before a later field fails; recheck errors.
 For a confirmed access change, choose **Deactivate**. The
 “Deactivate [name]?” dialog says:
 
-> They lose access straight away, including on phones where they are still signed in. Their uploads stay in the library, and you can reactivate the account later.
+> They lose access straight away. On a phone that's still signed in, the next thing they do shows Account unavailable.
+>
+> Their uploads stay in the library, and you can reactivate the account later.
 
 Choose **Cancel** or **Deactivate**. Existing sessions lose access on their next
-protected request; admins retain the portfolio's ready media. **Reactivate**
+protected request; admins retain the person's ready media. **Reactivate**
 restores access without confirmation. The **Account active** switch also changes
 access on **Save changes**, without the deactivation dialog.
 
@@ -190,18 +204,21 @@ person can no longer send photos to the old venue's tasks; their past months
 and accepted photos stay with the old venue. Deactivation also ends the grant
 and closes the person's open task assignments with a reason, so the checklist
 shows **Needs reassignment**. Their accepted photos remain visible to that
-venue's manager and admins in coverage screens, while Explore and People stop
+venue's manager and admins in coverage screens, while Photos and People stop
 showing them as before.
 
 ## Delete media and use it responsibly
 
 In **Content**, open the item and choose **Delete**. The confirmation reads:
 
-> Remove this file from your portfolio and the admin library? Previously downloaded copies cannot be recalled.
+> Remove this file from Priya's profile, Photos and the library? When backups are enabled, copies are retained indefinitely for recovery. Previously downloaded copies cannot be recalled.
+
+(with the owner's first name; when the photo counts toward a task or a target,
+it also says what stops counting).
 
 Choose **Keep file** or confirm with **Delete**. Deletion hides the same asset
-from the library, owner portfolio and community views; there is no trash/recovery
-screen. Reload a community page to update its gallery. Existing signed links
+from the library, the owner's profile and Photos; there is no trash/recovery
+screen. Reload Photos or a profile to update its gallery. Existing signed links
 may work until expiry, and downloaded copies cannot be recalled.
 
 Check privacy and permissions before external use: ready media is not
