@@ -55,7 +55,9 @@ export function VenueSwitch({
         id={id}
         value={venueId}
         onChange={(e) =>
-          router.push(`/admin/menus/${encodeURIComponent(e.currentTarget.value)}`)
+          router.push(
+            `/admin/menus/${encodeURIComponent(e.currentTarget.value)}`
+          )
         }
         className="min-h-11 cursor-pointer appearance-none rounded-control bg-transparent pr-6 pl-1 font-semibold text-ink-muted outline-none hover:text-ink focus-visible:outline-2 focus-visible:outline-focus md:min-h-8"
       >
@@ -214,11 +216,11 @@ export function VenueMenusView({
           </>
         }
       />
-      <div className="grid gap-6 md:gap-8">
+      {/* minmax(0, 1fr): an auto track would grow to the versions table's
+          min-content and push the page wider than the screen. */}
+      <div className="grid grid-cols-1 gap-6 md:gap-8">
         <OfflineNotice />
-        {draft.error ? (
-          <Notice tone="negative">{draft.error}</Notice>
-        ) : null}
+        {draft.error ? <Notice tone="negative">{draft.error}</Notice> : null}
         {importing ? (
           <div
             ref={importRef}

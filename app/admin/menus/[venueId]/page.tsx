@@ -78,7 +78,7 @@ function VersionsTable({
             <th scope="col" className={cell}>
               Version
             </th>
-            <th scope="col" className={cell}>
+            <th scope="col" className={cn(cell, "hidden md:table-cell")}>
               Status
             </th>
             <th scope="col" className={cn(cell, "text-right")}>
@@ -113,8 +113,15 @@ function VersionsTable({
                   <span className={cn("block md:hidden", menuMetaClassName)}>
                     {versionWhen(v)} · {versionBy(v)}
                   </span>
+                  {/* On phones the status sits under the title and may wrap:
+                      "Active · for labelling only" on one line is wider than
+                      a 320px table's spare room. */}
+                  <MenuVersionStatusBadge
+                    status={v.status}
+                    className="mt-1 whitespace-normal md:hidden"
+                  />
                 </td>
-                <td className={cell}>
+                <td className={cn(cell, "hidden md:table-cell")}>
                   <MenuVersionStatusBadge status={v.status} />
                 </td>
                 <td className={cn(cell, "text-right tabular-nums")}>
@@ -152,7 +159,11 @@ function ImportHistory({ versions }: { versions: MenuVersionSummary[] }) {
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
   if (imports.length === 0) {
     return (
-      <EmptyState variant="done" title="No files imported yet." className="py-0" />
+      <EmptyState
+        variant="done"
+        title="No files imported yet."
+        className="py-0"
+      />
     )
   }
   return (
