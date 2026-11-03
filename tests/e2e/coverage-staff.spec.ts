@@ -21,7 +21,7 @@ import {
   openPortfolio,
   portfolioList,
   STAFF_LANDING,
-  tile,
+  staffTile,
 } from "./helpers/ui"
 import { signedInPage } from "./helpers/world"
 
@@ -113,7 +113,7 @@ async function managerSetup(w: CoverageWorld): Promise<Setup> {
 
 /** The task flow's images-only upload dialog; new photos come back selected. */
 async function uploadForTask(page: Page, files: SourceFile[]) {
-  await page.getByRole("button", { name: "Take or upload photos" }).click()
+  await page.getByRole("button", { name: "Take a photo" }).click()
   const dialog = page.getByRole("dialog", { name: "Upload photos" })
   await dialog
     .getByLabel("Choose photos")
@@ -133,7 +133,7 @@ async function uploadForTask(page: Page, files: SourceFile[]) {
 
 async function sendSelected(page: Page, count: number) {
   const send = page.getByRole("button", {
-    name: `Send ${count} ${count === 1 ? "photo" : "photos"} for review`,
+    name: `Send ${count} ${count === 1 ? "photo" : "photos"}`,
   })
   await expect(send).toBeEnabled({ timeout: 30_000 })
   await send.click()
@@ -299,14 +299,14 @@ async function staffJourney(
   ])
   await openPortfolio(page)
   for (const file of [first!, second!]) {
-    await expect(tile(portfolioList(page), "Photo", file.name)).toBeVisible()
+    await expect(await staffTile(portfolioList(page), file.name)).toBeVisible()
   }
   const colleague = await signedInPage(browser, w.staffB)
   await colleague.goto("/staff/community")
   // Colleagues see the photos by author, never their file names (R-02).
   await expect(
     colleague.getByRole("button", {
-      name: new RegExp(`^Photo, by ${escape(w.staffA.name)}, `),
+      name: new RegExp(`^Photo by ${escape(w.staffA.name)}, `),
     })
   ).toHaveCount(2)
   const explore = await colleague.content()

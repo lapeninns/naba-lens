@@ -14,14 +14,15 @@ const photo: MediaItem = {
   previewUrl: "https://example.invalid/preview.webp",
   mimeType: "image/jpeg",
   originalFilename: "Private family party.jpg",
-  createdAt: "2026-10-28T18:30:00.000Z",
+  createdAt: "2026-11-02T14:02:00.000Z",
   contributorId: "s1",
   contributorName: "Sam Lee",
   venueName: "Test venue",
+  sizeBytes: 4_089_446,
 }
 
 describe("MediaViewer filenames", () => {
-  it("shows a colleague's item with a neutral title and no File row", () => {
+  it("shows a colleague's item with a neutral title and no file row", () => {
     render(
       <MediaViewer
         item={{ ...photo, originalFilename: null }}
@@ -32,7 +33,10 @@ describe("MediaViewer filenames", () => {
     expect(
       screen.getByRole("heading", { name: "Photo by Sam Lee" })
     ).toBeTruthy()
-    expect(screen.getByRole("img").getAttribute("alt")).toBe("Photo by Sam Lee")
+    expect(screen.getByRole("img").getAttribute("alt")).toBe(
+      "Photo by Sam Lee, Test venue, uploaded 2 Nov 2026, 14:02"
+    )
+    expect(screen.queryByText("Original file")).toBeNull()
     expect(screen.queryByText("File")).toBeNull()
     expect(document.body.textContent).not.toContain("Private family party")
   })
@@ -54,23 +58,43 @@ describe("MediaViewer filenames", () => {
     expect(
       screen.getByRole("heading", { name: "Video by Sam Lee" })
     ).toBeTruthy()
-    expect(screen.queryByText("File")).toBeNull()
+    expect(screen.queryByText("Original file")).toBeNull()
   })
 
-  it("keeps the filename in the owner's own view", () => {
+  it("keeps the original file name out of the owner's own view", () => {
     render(
       <MediaViewer
         item={photo}
         open
         onOpenChange={() => {}}
         showAttribution={false}
+        onDelete={() => {}}
+        onEditLabels={() => {}}
       />
     )
-    expect(screen.getByRole("heading", { name: "Photo" })).toBeTruthy()
-    expect(screen.getByText("File")).toBeTruthy()
-    expect(screen.getAllByText("Private family party.jpg").length).toBe(2)
-    expect(screen.getByRole("img").getAttribute("alt")).toBe(
-      "Photo Private family party.jpg"
+    expect(
+      screen.getByRole("heading", { name: "Photo by Sam Lee" })
+    ).toBeTruthy()
+    expect(screen.getByText("You")).toBeTruthy()
+    expect(screen.queryByText("Original file")).toBeNull()
+    expect(document.body.textContent).not.toContain("Private family party")
+    expect(screen.getByRole("img").getAttribute("alt")).not.toContain(
+      "Private family party"
     )
+    expect(screen.queryByRole("link", { name: /Download/ })).toBeNull()
+  })
+
+  it("shows the original file only beside the admin download", () => {
+    render(
+      <MediaViewer
+        item={photo}
+        open
+        onOpenChange={() => {}}
+        getDownloadHref={() => "/download/m1"}
+      />
+    )
+    expect(screen.getByText("Original file")).toBeTruthy()
+    expect(screen.getByText("Private family party.jpg · 3.9 MB")).toBeTruthy()
+    expect(screen.getByRole("link", { name: "Download original" })).toBeTruthy()
   })
 })

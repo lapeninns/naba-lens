@@ -19,14 +19,18 @@ const fileInput = () =>
   screen.getByLabelText("Menu file (JSON or CSV)") as HTMLInputElement
 
 describe("MenuImportPanel", () => {
-  it("states that PDF, image, Word and JavaScript menus are not parsed", () => {
+  it("says which files are read and that others are not", () => {
     render(<MenuImportPanel onPreview={vi.fn()} />)
-    expect(screen.getByText(UNSUPPORTED_IMPORT_COPY)).toBeTruthy()
-    expect(UNSUPPORTED_IMPORT_COPY).toMatch(/PDF, image, Word and JavaScript/)
-    expect(fileInput().accept).toBe(".json,.csv")
+    expect(UNSUPPORTED_IMPORT_COPY).toBe(
+      "PDF, image, Word and spreadsheet menus aren't read."
+    )
     expect(
-      screen.getByRole("button", { name: "Choose JSON or CSV file" })
+      screen.getByText(
+        "JSON (nabalens-menu@1) or CSV, up to 1 MB. PDF, image, Word and spreadsheet menus aren't read."
+      )
     ).toBeTruthy()
+    expect(fileInput().accept).toBe(".json,.csv")
+    expect(screen.getByRole("button", { name: "Choose a file" })).toBeTruthy()
   })
 
   it("documents both structured formats with examples", async () => {
@@ -41,19 +45,21 @@ describe("MenuImportPanel", () => {
     ).toBeTruthy()
   })
 
-  it("rejects an unsupported extension before onPreview", async () => {
+  it("rejects a PDF before onPreview", async () => {
     const user = setup()
     const onPreview = vi.fn()
     render(<MenuImportPanel onPreview={onPreview} />)
     await user.upload(
       fileInput(),
-      new File(["%PDF-1.7"], "menu.pdf", { type: "application/pdf" })
+      new File(["%PDF-1.7"], "railway-menu.pdf", { type: "application/pdf" })
     )
     expect(onPreview).not.toHaveBeenCalled()
-    const alert = screen.getByRole("alert")
-    expect(alert.textContent).toContain("menu.pdf was not imported")
-    expect(alert.textContent).toContain("Only .json and .csv files")
-    expect(alert.textContent).toContain(UNSUPPORTED_IMPORT_COPY)
+    expect(screen.getByRole("alert").textContent).toBe(
+      "railway-menu.pdf is a PDF, so it can't be read. Export the menu as JSON or CSV and choose that file."
+    )
+    expect(
+      screen.getByRole("button", { name: "Choose another file" })
+    ).toBeTruthy()
   })
 
   it("rejects an oversize file before onPreview", async () => {
@@ -67,8 +73,8 @@ describe("MenuImportPanel", () => {
     )
     await user.upload(fileInput(), big)
     expect(onPreview).not.toHaveBeenCalled()
-    expect(screen.getByRole("alert").textContent).toContain(
-      "The limit is 1.0 MB"
+    expect(screen.getByRole("alert").textContent).toBe(
+      "menu.json is 1.0 MB. The limit is 1 MB; split drinks into their own file or remove source notes."
     )
   })
 
@@ -82,17 +88,39 @@ describe("MenuImportPanel", () => {
     await user.upload(fileInput(), csv)
     expect(onPreview).toHaveBeenCalledWith(csv)
     expect(screen.queryByRole("alert")).toBeNull()
+    expect(screen.getByText("Menu.CSV")).toBeTruthy()
   })
 
-  it("shows pending, request errors and issues split into errors and warnings", () => {
-    const { rerender } = render(<MenuImportPanel onPreview={vi.fn()} pending />)
-    const busy = screen.getByRole("button", { name: "Reading file…" })
-    expect(busy.hasAttribute("disabled")).toBe(true)
+  it("shows comparing, request errors and a file's problems", async () => {
+    const user = setup()
+    const onPreview = vi.fn()
+    const { rerender } = render(<MenuImportPanel onPreview={onPreview} />)
+    await user.upload(
+      fileInput(),
+      new File(["{}"], "railway.json", { type: "application/json" })
+    )
+    rerender(<MenuImportPanel onPreview={onPreview} pending />)
+    expect(screen.getByText("Comparing…")).toBeTruthy()
+    expect(
+      screen
+        .getByRole("button", { name: "Choose another file" })
+        .hasAttribute("disabled")
+    ).toBe(true)
 
     rerender(
       <MenuImportPanel
-        onPreview={vi.fn()}
+        onPreview={onPreview}
         error="The preview service is unavailable."
+      />
+    )
+    expect(screen.getByRole("alert").textContent).toContain(
+      "The preview service is unavailable."
+    )
+
+    rerender(
+      <MenuImportPanel
+        onPreview={onPreview}
+        error="The file has problems."
         issues={[
           { severity: "error", path: "row 3", message: "Item name is empty." },
           {
@@ -104,26 +132,30 @@ describe("MenuImportPanel", () => {
         ]}
       />
     )
-    expect(screen.getByRole("alert").textContent).toContain(
-      "The preview service is unavailable."
-    )
-    const errors = screen.getByRole("region", { name: "2 errors" })
-    expect(within(errors).getByText("Item name is empty.")).toBeTruthy()
-    expect(within(errors).getByText("Unknown kind.")).toBeTruthy()
-    const warnings = screen.getByRole("region", { name: "1 warning" })
+    const problems = screen.getByRole("alert")
     expect(
-      within(warnings).getByText("Price is kept as source information only.")
+      within(problems).getByText("2 problems stop this file being imported")
     ).toBeTruthy()
+    const rows = within(problems)
+      .getAllByRole("listitem")
+      .map((li) => li.textContent)
+    expect(rows).toEqual([
+      "Row 3: Item name is empty.",
+      "Row 9: Unknown kind.",
+      "Row 7: Price is kept as source information only.",
+    ])
   })
 
   it("checkImportFile covers extension, empty and size", () => {
     expect(checkImportFile({ name: "a.json", size: 10 })).toBeNull()
-    expect(checkImportFile({ name: "a.docx", size: 10 })).toMatch(/Only/)
-    expect(checkImportFile({ name: "menu", size: 10 })).toMatch(/Only/)
-    expect(checkImportFile({ name: "a.js", size: 10 })).toMatch(/Only/)
-    expect(checkImportFile({ name: "a.csv", size: 0 })).toBe(
-      "The file is empty."
+    expect(checkImportFile({ name: "a.pdf", size: 10 })).toMatch(
+      /is a PDF, so it can't be read/
     )
+    for (const name of ["a.docx", "menu", "a.js", "a.xlsx"])
+      expect(checkImportFile({ name, size: 10 })).toMatch(
+        /can't be read\. Export the menu as JSON or CSV/
+      )
+    expect(checkImportFile({ name: "a.csv", size: 0 })).toMatch(/is empty/)
     expect(checkImportFile({ name: "a.csv", size: 11 }, 10)).toMatch(/limit/)
   })
 })

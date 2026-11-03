@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { CameraIcon } from "@phosphor-icons/react/dist/ssr"
+import { CameraIcon, ClipboardTextIcon } from "@phosphor-icons/react/dist/ssr"
 
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -22,6 +22,7 @@ const DUE_SOON_MS = 7 * 24 * 60 * 60 * 1000
 export type TodoItem =
   | { kind: "setup" }
   | { kind: "replace"; submission: SubmissionView; closed: boolean }
+  | { kind: "review"; count: number }
   | { kind: "overdue" | "due-soon"; assignment: MyAssignment }
 
 function isOpenAndUnfinished(a: MyAssignment) {
@@ -30,11 +31,13 @@ function isOpenAndUnfinished(a: MyAssignment) {
 
 /**
  * What the person should do next, in order: finish setup, answer a replacement
- * request, then tasks that are overdue, then tasks due within a week.
+ * request, photos waiting for a manager, then tasks that are overdue, then
+ * tasks due within a week.
  */
 export function todoItems(
   tasks: Pick<MyTasksView, "scope" | "assignments" | "needsAnotherPhoto">,
-  now: Date = new Date()
+  now: Date = new Date(),
+  reviewCount = 0
 ): TodoItem[] {
   const { scope, assignments, needsAnotherPhoto } = tasks
   const openTaskIds = new Set(
@@ -54,6 +57,7 @@ export function todoItems(
         !openTaskIds.has(submission.requirement.id),
     })
   }
+  if (reviewCount > 0) items.push({ kind: "review", count: reviewCount })
   const pending = assignments.filter(
     (a) => isOpenAndUnfinished(a) && !replacing.has(a.requirement.id)
   )
@@ -144,6 +148,38 @@ function ReplaceCard({
           Send another photo
         </Link>
       ) : null}
+    </li>
+  )
+}
+
+function ReviewCard({
+  count,
+  venueName,
+  primary,
+}: {
+  count: number
+  venueName: string | null
+  primary: boolean
+}) {
+  return (
+    <li className={cardClass()}>
+      <div className="flex gap-3">
+        <ClipboardTextIcon
+          aria-hidden
+          className="mt-0.5 size-6 shrink-0 text-ink-muted"
+        />
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <h3 className="font-semibold break-words">
+            {count} {count === 1 ? "photo" : "photos"} to review
+          </h3>
+          {venueName ? (
+            <p className="text-sm text-muted-foreground">{venueName}</p>
+          ) : null}
+        </div>
+      </div>
+      <Link href="/staff/manage/review" className={action(primary)}>
+        Review photos
+      </Link>
     </li>
   )
 }
@@ -251,6 +287,15 @@ export function TodoSection({
                     closed={item.closed}
                     tasksPath={tasksPath}
                     canSubmit={scope.canSubmit}
+                    primary={primary}
+                  />
+                )
+              case "review":
+                return (
+                  <ReviewCard
+                    key="review"
+                    count={item.count}
+                    venueName={scope.venue?.name ?? null}
                     primary={primary}
                   />
                 )

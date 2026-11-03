@@ -2,15 +2,21 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
+import { ArrowClockwiseIcon } from "@phosphor-icons/react"
 
 import {
   ImportIssueList,
   MenuDiffView,
   MenuImportPanel,
   countUnresolved,
+  plural,
+  possessive,
 } from "@/components/nabalens"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { ERROR_COPY } from "@/components/nabalens/error-state"
+import { Notice } from "@/components/nabalens/notice"
+import { useOnline } from "@/components/nabalens/offline-notice"
 import { Button } from "@/components/ui/button"
+import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton"
 import type { ImportIssue, ReviewDecision } from "@/lib/menus/types"
 import type { ImportPreview } from "@/lib/server/menus"
 
@@ -23,6 +29,16 @@ type PreviewResponse =
 
 const PREVIEW_URL = "/api/admin/menus/import-preview"
 
+const CREATE_FAILED =
+  "The draft could not be created. Your decisions are still here; try again."
+
+const SKELETON_ROWS = [
+  ["60%", "35%"],
+  ["52%", "30%"],
+  ["66%", "40%"],
+  ["48%", "28%"],
+]
+
 /**
  * Import a JSON/CSV file: preview through the Route Handler (nothing is
  * written), review the diff against the active menu and any uncertain
@@ -30,12 +46,19 @@ const PREVIEW_URL = "/api/admin/menus/import-preview"
  */
 export function ImportFlow({
   venueId,
-  hasActive,
+  venueName,
+  activeTitle,
+  onClose,
 }: {
   venueId: string
-  hasActive: boolean
+  venueName: string
+  /** Title of the venue's active version, or null when it has none. */
+  activeTitle: string | null
+  onClose: () => void
 }) {
   const router = useRouter()
+  const online = useOnline()
+  const hasActive = activeTitle !== null
   const [pending, setPending] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [rejectedIssues, setRejectedIssues] = React.useState<ImportIssue[]>([])
@@ -46,6 +69,7 @@ export function ImportFlow({
   const [creating, setCreating] = React.useState(false)
   const [createError, setCreateError] = React.useState<string | null>(null)
   const request = React.useRef<AbortController | null>(null)
+  const titleId = React.useId()
 
   React.useEffect(() => () => request.current?.abort(), [])
 
@@ -80,9 +104,9 @@ export function ImportFlow({
         .json()
         .catch(() => null)) as PreviewResponse | null
       if (!result) {
-        setError("The preview could not be read. Try again.")
+        setError("The file could not be compared. Try again.")
       } else if (!result.ok) {
-        setError(result.message ?? "The file could not be previewed.")
+        setError(result.message ?? "The file could not be compared.")
         setRejectedIssues(result.issues ?? [])
       } else {
         setPreview(result.preview)
@@ -119,7 +143,7 @@ export function ImportFlow({
       }
       router.push(`/admin/menus/versions/${result.versionId}`)
     } catch {
-      setCreateError("The draft could not be created. Try again.")
+      setCreateError(CREATE_FAILED)
     } finally {
       setCreating(false)
     }
@@ -129,85 +153,132 @@ export function ImportFlow({
     ? preview.document.sections.reduce((n, s) => n + s.items.length, 0)
     : 0
   const unresolved = preview ? countUnresolved(preview.diff, decisions) : 0
+  const fileName = preview?.source.label ?? null
 
   return (
-    <div className="grid gap-4">
+    <section
+      aria-labelledby={titleId}
+      className="grid gap-5 rounded-panel border border-line bg-panel p-4 md:p-6"
+    >
+      <div className="grid gap-1">
+        <h2
+          id={titleId}
+          className="text-section-title-touch text-ink md:text-section-title"
+        >
+          Import a menu
+        </h2>
+        <p className="max-w-(--size-reading) text-body-touch text-ink-muted md:text-body">
+          Compares a file with {possessive(venueName)} active menu. Items match
+          only by their source key. Nothing is saved until you create the draft.
+        </p>
+      </div>
+
+      {createError ? (
+        <Notice
+          tone="negative"
+          action={
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={createDraft}
+              disabled={creating || !online}
+            >
+              <ArrowClockwiseIcon aria-hidden />
+              {ERROR_COPY.tryAgain}
+            </Button>
+          }
+        >
+          <p>{CREATE_FAILED}</p>
+          {createError !== CREATE_FAILED ? (
+            <p className="mt-1 text-ink-muted">{createError}</p>
+          ) : null}
+        </Notice>
+      ) : null}
+
       <MenuImportPanel
         onPreview={onPreview}
         pending={pending}
         error={error}
         issues={preview ? [] : rejectedIssues}
+        disabled={creating}
       />
 
-      {preview && resolved ? (
-        <section
-          aria-labelledby="import-preview-title"
-          className="grid gap-4 rounded-lg border bg-card p-4"
+      {!preview && !pending && !error ? (
+        <Notice>
+          Prices, dietary and spice values in a file are kept as source details
+          for reference only. Staff never see them, and they are never treated
+          as facts.
+        </Notice>
+      ) : null}
+
+      {pending ? (
+        <SkeletonRegion
+          label="Comparing with the active menu…"
+          className="grid gap-5"
         >
-          <div className="grid gap-1">
-            <h2 id="import-preview-title" className="text-base font-medium">
-              Preview:{" "}
-              <span className="break-words">{preview.document.title}</span>
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              {preview.source.label} · {preview.document.sections.length}{" "}
-              {preview.document.sections.length === 1 ? "section" : "sections"},{" "}
-              {itemTotal} {itemTotal === 1 ? "item" : "items"}.{" "}
-              {hasActive
-                ? "Compared with the active menu. Nothing has been saved yet."
-                : "This venue has no active menu, so every item is new. Nothing has been saved yet."}
-            </p>
-          </div>
+          {SKELETON_ROWS.map(([title, meta], index) => (
+            <div key={index} className="grid gap-2">
+              <Skeleton shape="line" style={{ width: title }} />
+              <Skeleton shape="line" style={{ width: meta }} />
+            </div>
+          ))}
+        </SkeletonRegion>
+      ) : null}
+
+      {preview && resolved ? (
+        <>
+          {unresolved > 0 ? (
+            <Notice>
+              Uncertain items can wait for the draft, but it can&apos;t be
+              activated until each is decided.
+            </Notice>
+          ) : null}
           <ImportIssueList issues={preview.issues} />
           <MenuDiffView
             diff={preview.diff}
             document={preview.document}
             decisions={decisions}
+            hasBase={hasActive}
+            source={
+              <>
+                {activeTitle ? `${activeTitle} · ` : null}
+                <span className="font-mono">{fileName}</span>
+                {` · ${plural(preview.document.sections.length, "section")}, ${plural(itemTotal, "item")}`}
+              </>
+            }
             onDecide={(sourceKey, decision) =>
               setDecisions((prev) => ({ ...prev, [sourceKey]: decision }))
             }
           />
           {resolved.error ? (
-            <Alert variant="destructive">
-              <AlertDescription>{resolved.error}</AlertDescription>
-            </Alert>
+            <Notice tone="negative">{resolved.error}</Notice>
           ) : null}
-          {unresolved > 0 ? (
-            <p className="text-sm text-muted-foreground">
-              You can create the draft now and resolve the remaining matches in
-              the draft; it cannot be activated until they are resolved.
-            </p>
-          ) : null}
-          {createError ? (
-            <Alert variant="destructive">
-              <AlertTitle>The draft was not created</AlertTitle>
-              <AlertDescription>{createError}</AlertDescription>
-            </Alert>
-          ) : null}
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <Button
-              size="touch"
-              onClick={createDraft}
-              disabled={creating || !!resolved.error}
-              aria-busy={creating || undefined}
-            >
-              {creating ? "Creating draft…" : "Create draft"}
-            </Button>
-            <Button
-              variant="outline"
-              size="touch"
-              disabled={creating}
-              onClick={() => {
-                setPreview(null)
-                setDecisions({})
-                setCreateError(null)
-              }}
-            >
-              Cancel import
-            </Button>
-          </div>
-        </section>
+        </>
       ) : null}
-    </div>
+
+      <div className="flex flex-col-reverse gap-2 md:flex-row md:justify-end">
+        <Button
+          variant="quiet"
+          size="touch"
+          disabled={creating}
+          onClick={() => {
+            request.current?.abort()
+            onClose()
+          }}
+        >
+          Cancel
+        </Button>
+        {preview && resolved ? (
+          <Button
+            size="touch"
+            onClick={createDraft}
+            disabled={creating || !online || !!resolved.error}
+            aria-busy={creating || undefined}
+          >
+            {creating ? "Creating draft…" : "Create draft"}
+          </Button>
+        ) : null}
+      </div>
+    </section>
   )
 }

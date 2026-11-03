@@ -1,17 +1,27 @@
 export {
   ACTIVE_MEANING_COPY,
   LABELS_KEPT_COPY,
+  MENUS_SUMMARY_COPY,
   MENU_STATUS_DESCRIPTION,
   MENU_STATUS_LABEL,
   SECTION_KIND_LABEL,
   SOURCE_KIND_LABEL,
   UNSUPPORTED_IMPORT_COPY,
   formatDateTime,
+  plural,
+  possessive,
   type MenuActionResult,
 } from "./copy"
 export { ImportIssueList } from "./import-issue-list"
 export { MenuVersionStatusBadge } from "./menu-version-status-badge"
-export { MenuVenueList } from "./menu-venue-list"
+export { MenuVenueList, MenuVenueTally } from "./menu-venue-list"
+export {
+  MenuSectionHead,
+  menuItemTitleClassName,
+  menuListClassName,
+  menuMetaClassName,
+  menuRowLinkClassName,
+} from "./section-head"
 export { ProvenanceCard } from "./provenance-card"
 export {
   MenuImportPanel,

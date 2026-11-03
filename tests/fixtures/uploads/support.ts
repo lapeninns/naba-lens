@@ -9,6 +9,7 @@ import {
 } from "@playwright/test"
 
 import { provisioner } from "../../e2e/helpers/stack"
+import { staffTile } from "../../e2e/helpers/ui"
 import {
   provisionWorld,
   signedInPage,
@@ -145,20 +146,24 @@ export async function expectSummary(
 export const portfolio = (page: Page) =>
   page.getByRole("list", { name: "Your portfolio" })
 
-/** A portfolio tile by file name; `state` is the suffix of its accessible name. */
-export function tileOf(
+/**
+ * A portfolio tile by file name; `state` is the suffix of its accessible name.
+ * Staff tile names carry no file name, so the tile is found by the media id of
+ * the uploader's newest asset with that name.
+ */
+export async function tileOf(
   page: Page,
+  uploaderId: string,
   fileName: string,
   state?: "Uploading" | "Processing" | "Failed" | "ready"
 ) {
-  const base = `^(Photo|Video), ${fileName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}, `
+  const tile = await staffTile(portfolio(page), fileName, uploaderId)
+  if (state === undefined) return tile
   const name =
-    state === undefined
-      ? new RegExp(base)
-      : state === "ready"
-        ? new RegExp(`${base}uploaded (?!.*, (Uploading|Processing|Failed)$)`)
-        : new RegExp(`${base}uploaded [^,]+, ${state}$`)
-  return portfolio(page).getByRole("button", { name })
+    state === "ready"
+      ? /^(Photo|Video), uploaded (?!.*, (Uploading|Processing|Failed)$)/
+      : new RegExp(`^(Photo|Video), uploaded [^,]+, ${state}$`)
+  return tile.and(page.getByRole("button", { name }))
 }
 
 /** Storage upload requests of a page and the bytes the server received. */

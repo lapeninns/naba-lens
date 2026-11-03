@@ -890,7 +890,7 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
     await staffPage.goto(`/staff/tasks/${task}`)
     await expect(staffPage.getByText("Overdue", { exact: true })).toBeVisible()
     await expect(
-      staffPage.getByRole("button", { name: "Take or upload photos" })
+      staffPage.getByRole("button", { name: "Take a photo" })
     ).toBeEnabled()
 
     const [sent] = (await ok(

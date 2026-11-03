@@ -26,9 +26,8 @@ type DialogProps = {
   onSubmit: (values: Record<string, unknown>) => Promise<unknown>
 }
 let dialog: DialogProps | null = null
-vi.mock("@/components/nabalens", async (importOriginal) => ({
-  ...(await importOriginal<object>()),
-  EditProfileDialog: (props: DialogProps) => {
+vi.mock("@/app/admin/staff/edit-staff-dialog", () => ({
+  EditStaffDialog: (props: DialogProps) => {
     dialog = props
     return null
   },

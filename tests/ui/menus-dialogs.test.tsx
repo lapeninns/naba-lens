@@ -10,6 +10,7 @@ import {
   DiscardDraftDialog,
   MenuDocumentEditor,
   MenuVenueList,
+  MenuVenueTally,
   MenuVersionStatusBadge,
   ProvenanceCard,
   RetireMenuDialog,
@@ -38,6 +39,7 @@ describe("ActivateMenuDialog", () => {
         onOpenChange={vi.fn()}
         versionTitle="Winter"
         currentActiveTitle="Autumn"
+        venueName="The Railway"
         unresolvedCount={2}
         errorCount={1}
         itemCount={0}
@@ -46,15 +48,24 @@ describe("ActivateMenuDialog", () => {
       />
     )
     expect(
-      screen.getByRole("alertdialog", { name: "Activate “Winter”?" })
+      screen.getByRole("alertdialog", {
+        name: "Activate this draft for labelling?",
+      })
     ).toBeTruthy()
     expect(screen.getByText(ACTIVE_MEANING_COPY)).toBeTruthy()
-    expect(ACTIVE_MEANING_COPY).toContain("not a public menu")
+    expect(ACTIVE_MEANING_COPY).toContain("isn't a public menu")
     expect(
-      screen.getByText(/The current active menu, “Autumn”, becomes retired/)
+      screen.getByText(
+        (_, el) =>
+          el?.tagName === "P" &&
+          el.textContent ===
+            "Winter becomes The Railway's active menu for labelling. Autumn is retired; labels on it are kept."
+      )
     ).toBeTruthy()
     expect(
-      screen.getByText("Existing labels on photos and videos are kept.")
+      screen.getByText(
+        'Nothing carries over automatically. The Railway\'s coverage shows "Menu changed — review coverage" until its manager decides what still applies.'
+      )
     ).toBeTruthy()
 
     const button = screen.getByRole("button", {
@@ -96,13 +107,13 @@ describe("ActivateMenuDialog", () => {
       />
     )
     expect(
-      screen.getByText(/no active menu now; this becomes its first/)
+      screen.getByText(/It is the venue's first active menu\./)
     ).toBeTruthy()
     const button = screen.getByRole("button", {
       name: "Activate for labelling",
     })
     await user.click(button)
-    expect((await screen.findByRole("alert")).textContent).toBe(
+    expect((await screen.findByRole("alert")).textContent).toContain(
       "Another admin changed this draft."
     )
     expect(onOpenChange).not.toHaveBeenCalled()
@@ -148,15 +159,25 @@ describe("Retire, discard and archive confirmations", () => {
         open
         onOpenChange={vi.fn()}
         versionTitle="Autumn"
+        venueName="The Railway"
         onConfirm={onConfirm}
       />
     )
     expect(
-      screen.getByRole("alertdialog", { name: "Retire “Autumn”?" })
+      screen.getByRole("alertdialog", {
+        name: "Retire The Railway's active menu?",
+      })
     ).toBeTruthy()
     expect(screen.getByText(/Existing labels .* are kept/)).toBeTruthy()
-    await user.click(screen.getByRole("button", { name: "Retire menu" }))
-    expect((await screen.findByRole("alert")).textContent).toBe("Not allowed.")
+    expect(
+      screen.getByText(
+        "Nothing carries over automatically, and The Railway's menu coverage shows No active menu."
+      )
+    ).toBeTruthy()
+    await user.click(screen.getByRole("button", { name: "Retire" }))
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "Not allowed."
+    )
   })
 
   it("discard confirms and closes", async () => {
@@ -167,10 +188,21 @@ describe("Retire, discard and archive confirmations", () => {
         open
         onOpenChange={onOpenChange}
         versionTitle="Draft 2"
+        activeTitle="Autumn"
+        decisionCount={3}
+        imported
         onConfirm={async () => ({ ok: true })}
       />
     )
-    await user.click(screen.getByRole("button", { name: "Discard draft" }))
+    expect(
+      screen.getByRole("alertdialog", { name: "Discard this draft?" })
+    ).toBeTruthy()
+    expect(
+      screen.getByText(
+        "Draft 2 and your 3 decisions are set aside as Discarded. Autumn stays active. The imported file stays in the import history."
+      )
+    ).toBeTruthy()
+    await user.click(screen.getByRole("button", { name: "Discard" }))
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
@@ -185,7 +217,9 @@ describe("Retire, discard and archive confirmations", () => {
         onSetArchived={onSetArchived}
       />
     )
-    await user.click(screen.getByRole("button", { name: "Archive item: Tikka" }))
+    await user.click(
+      screen.getByRole("button", { name: "Archive item: Tikka" })
+    )
     const dialog = screen.getByRole("alertdialog", {
       name: "Archive “Tikka”?",
     })
@@ -205,7 +239,9 @@ describe("Retire, discard and archive confirmations", () => {
         onSetArchived={onSetArchived}
       />
     )
-    await user.click(screen.getByRole("button", { name: "Unarchive item: Tikka" }))
+    await user.click(
+      screen.getByRole("button", { name: "Unarchive item: Tikka" })
+    )
     await user.click(
       within(
         screen.getByRole("alertdialog", { name: "Unarchive “Tikka”?" })
@@ -259,8 +295,14 @@ describe("SuggestionList", () => {
     expect(screen.getByText("Linked to “Lamb curry”")).toBeTruthy()
 
     const link = screen.getByRole("button", {
-      name: "Link to item: “Mango lassi”",
+      name: "Link to an item: “Mango lassi”",
     })
+    // The first press opens the item picker; nothing is linked yet.
+    expect(
+      screen.queryByRole("combobox", { name: "Menu item for “Mango lassi”" })
+    ).toBeNull()
+    await user.click(link)
+    expect(onResolve).not.toHaveBeenCalled()
     await user.click(link)
     expect(onResolve).not.toHaveBeenCalled()
     expect(screen.getByRole("alert").textContent).toContain(
@@ -276,6 +318,7 @@ describe("SuggestionList", () => {
     await user.click(link)
     expect(onResolve).toHaveBeenCalledWith("sg-1", "i-lassi")
 
+    await user.click(screen.getByRole("button", { name: "Cancel" }))
     await user.click(
       screen.getByRole("button", { name: "Dismiss “Mango lassi”" })
     )
@@ -352,35 +395,81 @@ describe("Venue list, provenance and status", () => {
     )
     const first = screen.getByRole("link", { name: /^The Test Arms/ })
     expect(first.getAttribute("href")).toBe("/admin/menus/v1")
-    expect(first.textContent).toContain("Autumn")
-    expect(first.textContent).toContain("Activated 3 Oct 2026 · 42 items")
-    expect(first.textContent).toContain("1 draft")
-    expect(first.textContent).toContain("2 open suggestions")
+    expect(first.textContent).toContain("Active · for labelling only")
+    expect(first.textContent).toContain(
+      "Autumn · 42 items · activated 3 Oct 2026"
+    )
+    expect(first.textContent).toContain("Draft")
+    expect(first.textContent).toContain("2 suggestions")
     const second = screen.getByRole("link", { name: /^Second Venue/ })
     expect(second.textContent).toContain("No active menu")
+    expect(second.textContent).toContain(
+      "Labels can't name a menu item at Second Venue until a menu is active"
+    )
     expect(second.textContent).toContain("Venue inactive")
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Venues" })
+    ).toBeTruthy()
+  })
+
+  it("tallies active menus, drafts, waiting suggestions and venues without one", () => {
+    render(
+      <MenuVenueTally
+        venues={[
+          {
+            venueId: "v1",
+            venueName: "The Test Arms",
+            venueActive: true,
+            active: version,
+            draftCount: 1,
+            openSuggestionCount: 2,
+          },
+          {
+            venueId: "v2",
+            venueName: "Second Venue",
+            venueActive: true,
+            active: null,
+            draftCount: 1,
+            openSuggestionCount: 0,
+          },
+        ]}
+      />
+    )
+    const value = (label: string) =>
+      screen.getByText(label).nextElementSibling?.textContent
+    expect(value("Active menus")).toBe("1of 2")
+    expect(value("Drafts")).toBe("2")
+    expect(value("Suggestions waiting")).toBe("2")
+    expect(value("No active menu")).toBe("1")
+  })
+
+  it("says when there are no venues yet", () => {
+    render(<MenuVenueList venues={[]} getVenueHref={(id) => id} />)
+    expect(screen.getByText("No active venues yet.")).toBeTruthy()
+    expect(
+      screen.getByText(
+        "Menus appear here once a venue is set up. Venues are added through setup."
+      )
+    ).toBeTruthy()
   })
 
   it("shows provenance with a short hash and the full value on request", async () => {
     const user = userEvent.setup()
     render(<ProvenanceCard version={version} />)
-    const card = screen.getByRole("region", { name: "Provenance" })
+    const card = screen.getByRole("region", { name: "This version" })
     expect(card.textContent).toContain("JSON file")
     expect(card.textContent).toContain("autumn.json")
     expect(card.textContent).toContain("abc1234")
     expect(card.textContent).toContain("Exported from the venue site")
-    expect(card.textContent).toContain("by Test admin")
-    expect(card.textContent).toContain(ACTIVE_MEANING_COPY)
+    expect(card.textContent).toContain(" · Test admin")
     const summary = screen.getByText("aaaaaaaaaaaa…", { exact: false })
     await user.click(summary)
     expect(screen.getByText(version.source.sha256!)).toBeTruthy()
   })
 
-  it("status badge says what active means for assistive tech", () => {
+  it("status badge uses the fixed words for an active menu", () => {
     render(<MenuVersionStatusBadge status="active" />)
-    expect(screen.getByText("Active").textContent).toBe(
-      "Active, available for labelling only"
-    )
+    expect(screen.getByText("Active · for labelling only")).toBeTruthy()
   })
 
   it("editor buttons do not submit a surrounding form", async () => {

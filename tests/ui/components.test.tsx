@@ -49,13 +49,87 @@ describe("ConfirmDeleteDialog", () => {
     )
     expect(
       screen.getByText(
-        "Remove this file from your portfolio and the admin library? When backups are enabled, copies are retained indefinitely for recovery. Previously downloaded copies cannot be recalled."
+        "It's removed from your profile and from Photos. When backups are enabled, copies are retained indefinitely for recovery. Previously downloaded copies cannot be recalled."
       )
     ).toBeTruthy()
     expect(DELETE_CONFIRM_COPY).toContain("cannot be recalled")
+    expect(screen.queryByText(/a\.jpg/)).toBeNull()
     await userEvent.click(screen.getByRole("button", { name: "Delete" }))
     expect(onConfirm).toHaveBeenCalledOnce()
     expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it.each([
+    [
+      undefined,
+      { kind: "counts", taskName: "Chef's Specials", monthName: "November" },
+    ],
+    [undefined, { kind: "counts", monthName: "November" }],
+    [undefined, { kind: "past", monthName: "October 2026" }],
+    [undefined, { kind: "none" }],
+    [
+      "Priya Gurung",
+      { kind: "counts", taskName: "Chef's Specials", monthName: "November" },
+    ],
+    ["Priya Gurung", { kind: "past", monthName: "October 2026" }],
+    ["Priya Gurung", undefined],
+  ] as const)(
+    "keeps the backup disclosure for owner %s and impact %o",
+    (ownerName, impact) => {
+      render(
+        <ConfirmDeleteDialog
+          open
+          onOpenChange={vi.fn()}
+          ownerName={ownerName}
+          impact={impact}
+          onConfirm={vi.fn()}
+        />
+      )
+      expect(
+        screen.getByText(
+          /When backups are enabled, copies are retained indefinitely for recovery\. Previously downloaded copies cannot be recalled\.$/
+        )
+      ).toBeTruthy()
+      screen.getByRole("button", {
+        name: ownerName ? "Keep file" : "Keep photo",
+      })
+    }
+  )
+
+  it("names the owner and the task for an admin delete", () => {
+    render(
+      <ConfirmDeleteDialog
+        open
+        onOpenChange={vi.fn()}
+        ownerName="Priya Gurung"
+        impact={{
+          kind: "counts",
+          taskName: "Chef's Specials",
+          monthName: "November",
+        }}
+        onConfirm={vi.fn()}
+      />
+    )
+    expect(
+      screen.getByText(
+        "Remove this file from Priya's profile, Photos and the library? It stops counting for Chef's Specials and Priya's November target. When backups are enabled, copies are retained indefinitely for recovery. Previously downloaded copies cannot be recalled."
+      )
+    ).toBeTruthy()
+  })
+
+  it("ignores a second Delete while the first is pending", async () => {
+    let resolve!: (value: { ok: true }) => void
+    const onConfirm = vi.fn(
+      () => new Promise<{ ok: true }>((r) => (resolve = r))
+    )
+    render(
+      <ConfirmDeleteDialog open onOpenChange={vi.fn()} onConfirm={onConfirm} />
+    )
+    const button = screen.getByRole("button", { name: "Delete" })
+    await userEvent.click(button)
+    await userEvent.click(button)
+    expect(onConfirm).toHaveBeenCalledOnce()
+    resolve({ ok: true })
   })
 
   it("stays open and shows the server error", async () => {
@@ -85,6 +159,7 @@ describe("MediaGrid and EmptyState", () => {
         items={[item]}
         onOpen={onOpen}
         showAttribution
+        showFileName
       />
     )
     const tile = screen.getByRole("button", {
@@ -94,6 +169,53 @@ describe("MediaGrid and EmptyState", () => {
     tile.focus()
     await userEvent.keyboard("{Enter}")
     expect(onOpen).toHaveBeenCalledWith(item)
+  })
+
+  it("keeps original file names out of staff tile names", () => {
+    const photo: MediaItem = {
+      ...item,
+      mediaType: "image",
+      durationSeconds: null,
+      originalFilename: "IMG_0042.jpg",
+    }
+    render(
+      <>
+        <MediaGrid
+          label="Community"
+          items={[photo]}
+          onOpen={vi.fn()}
+          showAttribution
+        />
+        <MediaGrid label="Portfolio" items={[photo]} onOpen={vi.fn()} />
+      </>
+    )
+    const [community, own] = screen.getAllByRole("button")
+    expect(community.getAttribute("aria-label")).toMatch(
+      /^Photo by Test contributor, [^,]+, uploaded [^,]+$/
+    )
+    expect(own.getAttribute("aria-label")).toMatch(/^Photo, uploaded [^,]+$/)
+    expect(document.body.textContent).not.toContain("IMG_0042")
+  })
+
+  it("keeps the file name in admin tile names", () => {
+    const photo: MediaItem = {
+      ...item,
+      mediaType: "image",
+      durationSeconds: null,
+      originalFilename: "IMG_0042.jpg",
+    }
+    render(
+      <MediaGrid
+        label="Library"
+        items={[photo]}
+        onOpen={vi.fn()}
+        showAttribution
+        showFileName
+      />
+    )
+    expect(screen.getByRole("button").getAttribute("aria-label")).toMatch(
+      /^Photo, IMG_0042\.jpg, by Test contributor, [^,]+, uploaded /
+    )
   })
 
   it("shows the staff empty-state copy by default", () => {

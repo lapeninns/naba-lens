@@ -1,9 +1,14 @@
 "use client"
 
 import * as React from "react"
-import { FileArrowUpIcon, SpinnerGapIcon } from "@phosphor-icons/react"
+import {
+  FileTextIcon,
+  PaperclipIcon,
+  SpinnerGapIcon,
+  WarningCircleIcon,
+  WarningIcon,
+} from "@phosphor-icons/react"
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import {
   MENU_IMPORT_LIMITS,
@@ -13,8 +18,8 @@ import {
 import { cn } from "@/lib/utils"
 
 import { formatBytes } from "../format"
+import { Notice } from "../notice"
 import { UNSUPPORTED_IMPORT_COPY } from "./copy"
-import { ImportIssueList } from "./import-issue-list"
 
 export const IMPORT_ACCEPT = SUPPORTED_IMPORT_FORMATS.map((f) => `.${f}`).join(
   ","
@@ -44,6 +49,12 @@ const CSV_EXAMPLE = `section,section_kind,item,description,variants,aliases,key,
 Curries,food,Tikka masala,Creamy tomato sauce,Veg|Chicken,CTM,,12.50,
 Drinks,drinks,House lager,,,Lager,,5.20,`
 
+/** "1 MB" for a whole number of megabytes, otherwise formatBytes. */
+function limitText(bytes: number): string {
+  const mb = bytes / (1024 * 1024)
+  return Number.isInteger(mb) ? `${mb} MB` : formatBytes(bytes)
+}
+
 /** Why a chosen file cannot be previewed, or null when it may be sent. */
 export function checkImportFile(
   file: Pick<File, "name" | "size">,
@@ -53,13 +64,65 @@ export function checkImportFile(
     ? file.name.slice(file.name.lastIndexOf(".") + 1).toLowerCase()
     : ""
   if (!(SUPPORTED_IMPORT_FORMATS as readonly string[]).includes(ext)) {
-    return `Only .json and .csv files can be imported. ${UNSUPPORTED_IMPORT_COPY}`
+    return ext === "pdf"
+      ? `${file.name} is a PDF, so it can't be read. Export the menu as JSON or CSV and choose that file.`
+      : `${file.name} can't be read. Export the menu as JSON or CSV and choose that file.`
   }
-  if (file.size === 0) return "The file is empty."
+  if (file.size === 0)
+    return `${file.name} is empty. Export the menu again and choose that file.`
   if (file.size > maxBytes) {
-    return `The file is ${formatBytes(file.size)}. The limit is ${formatBytes(maxBytes)}.`
+    return `${file.name} is ${formatBytes(file.size)}. The limit is ${limitText(maxBytes)}; split drinks into their own file or remove source notes.`
   }
   return null
+}
+
+const capitalise = (text: string) =>
+  text.charAt(0).toUpperCase() + text.slice(1)
+
+/** Problems that stopped a file, errors first, inside one failure notice. */
+function ImportProblems({
+  issues,
+  action,
+}: {
+  issues: ImportIssue[]
+  action: React.ReactNode
+}) {
+  const errors = issues.filter((i) => i.severity === "error")
+  const warnings = issues.filter((i) => i.severity === "warning")
+  const count = errors.length || issues.length
+  return (
+    <Notice
+      tone="negative"
+      title={`${count} ${count === 1 ? "problem stops" : "problems stop"} this file being imported`}
+      action={action}
+    >
+      <ul className="mt-1 grid max-h-64 gap-1 overflow-y-auto">
+        {[...errors, ...warnings].map((issue, i) => {
+          const Icon =
+            issue.severity === "error" ? WarningCircleIcon : WarningIcon
+          return (
+            <li
+              key={`${issue.path}-${i}`}
+              className="flex items-start gap-2 break-words"
+            >
+              <Icon
+                aria-label={issue.severity === "error" ? "Error" : "Warning"}
+                className={
+                  issue.severity === "error"
+                    ? "mt-0.5 size-4 shrink-0 text-negative"
+                    : "mt-0.5 size-4 shrink-0 text-attention"
+                }
+              />
+              <span className="min-w-0">
+                {issue.path ? `${capitalise(issue.path)}: ` : null}
+                {issue.message}
+              </span>
+            </li>
+          )
+        })}
+      </ul>
+    </Notice>
+  )
 }
 
 type MenuImportPanelProps = {
@@ -87,64 +150,92 @@ export function MenuImportPanel({
   className,
 }: MenuImportPanelProps) {
   const input = React.useRef<HTMLInputElement>(null)
-  const [rejection, setRejection] = React.useState<{
+  const [file, setFile] = React.useState<{
     name: string
-    reason: string
+    size: number
+    rejection: string | null
   } | null>(null)
-  const [fileName, setFileName] = React.useState<string | null>(null)
   const id = React.useId()
 
   function choose(files: FileList | null, el: HTMLInputElement) {
-    const file = files?.[0]
+    const next = files?.[0]
     // Clear so choosing the same file again still fires change.
     el.value = ""
-    if (!file) return
-    const reason = checkImportFile(file, maxBytes)
-    if (reason) {
-      setRejection({ name: file.name, reason })
-      setFileName(null)
-      return
-    }
-    setRejection(null)
-    setFileName(file.name)
-    void onPreview(file)
+    if (!next) return
+    const rejection = checkImportFile(next, maxBytes)
+    setFile({ name: next.name, size: next.size, rejection })
+    if (!rejection) void onPreview(next)
   }
 
-  return (
-    <section
-      aria-labelledby={`${id}-title`}
-      className={cn("grid gap-4 rounded-lg border bg-card p-4", className)}
+  const open = () => input.current?.click()
+  const chooseAnother = (
+    <Button
+      variant="secondary"
+      size="sm"
+      onClick={open}
+      disabled={disabled || pending}
     >
-      <div className="grid gap-1">
-        <h2 id={`${id}-title`} className="text-base font-medium">
-          Import a menu file
-        </h2>
-        <p id={`${id}-help`} className="text-sm text-muted-foreground">
-          JSON or CSV only, up to {formatBytes(maxBytes)}. The file becomes a
-          new draft that you review before activating.
-        </p>
-        <p className="text-sm font-medium">{UNSUPPORTED_IMPORT_COPY}</p>
-      </div>
+      Choose another file
+    </Button>
+  )
 
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-        <Button
-          size="touch"
-          onClick={() => input.current?.click()}
-          disabled={disabled || pending}
-          aria-busy={pending || undefined}
-          aria-describedby={`${id}-help`}
-        >
-          {pending ? (
-            <SpinnerGapIcon
-              data-icon="inline-start"
-              className="motion-safe:animate-spin"
-              aria-hidden
-            />
-          ) : (
-            <FileArrowUpIcon data-icon="inline-start" aria-hidden />
-          )}
-          {pending ? "Reading file…" : "Choose JSON or CSV file"}
-        </Button>
+  return (
+    <div className={cn("grid gap-4", className)}>
+      <div className="grid gap-2">
+        {/* The hidden input carries the name; this is its visible label. */}
+        <span aria-hidden className="text-label-touch text-ink md:text-label">
+          Menu file
+        </span>
+        {file ? (
+          <div
+            className={cn(
+              "flex items-center gap-3 rounded-control border bg-panel px-3 py-2",
+              file.rejection ? "border-negative" : "border-line"
+            )}
+          >
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-control bg-well text-ink-muted">
+              <FileTextIcon aria-hidden className="size-5" />
+            </span>
+            <span className="grid min-w-0 flex-1 gap-0.5">
+              <span className="font-mono text-mono break-all text-ink">
+                {file.name}
+              </span>
+              <span className="flex items-center gap-1.5 text-meta-touch text-ink-muted md:text-meta">
+                {pending ? (
+                  <>
+                    <SpinnerGapIcon
+                      aria-hidden
+                      className="size-4 motion-safe:animate-spin"
+                    />
+                    Comparing…
+                  </>
+                ) : (
+                  formatBytes(file.size)
+                )}
+              </span>
+            </span>
+            <Button
+              variant="quiet"
+              size="sm"
+              onClick={open}
+              disabled={disabled || pending}
+            >
+              Choose another file
+            </Button>
+          </div>
+        ) : (
+          <Button
+            variant="secondary"
+            size="touch"
+            className="w-full md:w-fit"
+            onClick={open}
+            disabled={disabled || pending}
+            aria-describedby={`${id}-help`}
+          >
+            <PaperclipIcon aria-hidden />
+            Choose a file
+          </Button>
+        )}
         <input
           ref={input}
           type="file"
@@ -152,45 +243,45 @@ export function MenuImportPanel({
           className="sr-only"
           tabIndex={-1}
           aria-label="Menu file (JSON or CSV)"
+          aria-describedby={`${id}-help`}
           disabled={disabled || pending}
           onChange={(e) => choose(e.currentTarget.files, e.currentTarget)}
         />
-        <p aria-live="polite" className="min-w-0 text-sm break-all">
-          {fileName && !rejection ? (
-            <>
-              <span className="text-muted-foreground">
-                {pending ? "Checking " : "Last file: "}
-              </span>
-              {fileName}
-            </>
-          ) : null}
-        </p>
+        {file?.rejection ? (
+          <p
+            role="alert"
+            className="flex items-start gap-1.5 text-body-touch break-words text-negative md:text-body-sm"
+          >
+            <WarningCircleIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
+            {file.rejection}
+          </p>
+        ) : (
+          <p
+            id={`${id}-help`}
+            className="text-meta-touch text-ink-muted md:text-meta"
+          >
+            JSON (nabalens-menu@1) or CSV, up to {limitText(maxBytes)}.{" "}
+            {UNSUPPORTED_IMPORT_COPY}
+          </p>
+        )}
       </div>
 
-      {rejection ? (
-        <Alert variant="destructive">
-          <AlertTitle className="break-all">
-            {rejection.name} was not imported
-          </AlertTitle>
-          <AlertDescription>{rejection.reason}</AlertDescription>
-        </Alert>
+      {!file?.rejection && issues.length > 0 ? (
+        <ImportProblems issues={issues} action={chooseAnother} />
+      ) : !file?.rejection && error ? (
+        <Notice tone="negative" action={chooseAnother}>
+          {error}
+        </Notice>
       ) : null}
-      {error ? (
-        <Alert variant="destructive">
-          <AlertTitle>Preview failed</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-      {!rejection ? <ImportIssueList issues={issues} /> : null}
 
-      <details className="group rounded-md border">
-        <summary className="cursor-pointer rounded-md px-3 py-2 text-sm font-medium outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+      <details className="group rounded-control border border-line">
+        <summary className="flex min-h-11 cursor-pointer items-center rounded-control px-3 text-label-touch text-ink outline-none focus-visible:outline-2 focus-visible:outline-focus md:min-h-9 md:text-label">
           Supported formats
         </summary>
-        <div className="grid gap-4 border-t px-3 py-3 text-sm">
+        <div className="grid gap-4 border-t border-line px-3 py-3 text-body-touch md:text-body-sm">
           <div className="grid gap-1.5">
-            <h3 className="font-medium">JSON (nabalens-menu@1)</h3>
-            <p className="text-muted-foreground">
+            <h3 className="font-semibold text-ink">JSON (nabalens-menu@1)</h3>
+            <p className="text-ink-muted">
               One object with <code>format</code>, <code>title</code> and{" "}
               <code>sections</code>. Each section has a <code>name</code>, a{" "}
               <code>kind</code> (<code>food</code>, <code>drinks</code> or{" "}
@@ -198,22 +289,24 @@ export function MenuImportPanel({
               <code>name</code>; <code>description</code>, <code>variants</code>
               , <code>aliases</code> and a stable <code>key</code> are optional.
             </p>
-            <pre className="overflow-x-auto rounded-md bg-muted p-2 font-mono text-xs">
+            <pre className="overflow-x-auto rounded-control bg-well p-2 font-mono text-mono">
               <code>{JSON_EXAMPLE}</code>
             </pre>
           </div>
           <div className="grid gap-1.5">
-            <h3 className="font-medium">CSV (header row required)</h3>
-            <p className="text-muted-foreground">
+            <h3 className="font-semibold text-ink">
+              CSV (header row required)
+            </h3>
+            <p className="text-ink-muted">
               One row per item. Separate several variants or aliases with{" "}
               <code>|</code>. Price and dietary columns are kept as source
               information only; they are never shown as current.
             </p>
-            <pre className="overflow-x-auto rounded-md bg-muted p-2 font-mono text-xs">
+            <pre className="overflow-x-auto rounded-control bg-well p-2 font-mono text-mono">
               <code>{CSV_EXAMPLE}</code>
             </pre>
           </div>
-          <p className="text-muted-foreground">
+          <p className="text-ink-muted">
             Re-importing matches items by source key only: the <code>key</code>{" "}
             value, or one made from the section and item names. Anything that
             only matches by name is listed for you to decide; nothing is merged
@@ -221,6 +314,6 @@ export function MenuImportPanel({
           </p>
         </div>
       </details>
-    </section>
+    </div>
   )
 }

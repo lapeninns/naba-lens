@@ -4,10 +4,11 @@ import { ArrowLeftIcon } from "@phosphor-icons/react/dist/ssr"
 
 import { logout } from "@/app/_media/actions"
 import { unexpected } from "@/app/staff/manage/_shared/context"
-import { ManagerGrantsControl } from "@/app/staff/manage/_shared/controls"
 import type { ManageSearch } from "@/app/staff/manage/_shared/screens"
 import { AppShell } from "@/components/nabalens/app-shell"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { ErrorState } from "@/components/nabalens/error-state"
+import { OfflineNotice } from "@/components/nabalens/offline-notice"
+import { PageHeader } from "@/components/nabalens/page-header"
 import { buttonVariants } from "@/components/ui/button"
 import { requireActiveAdmin } from "@/lib/auth"
 import { listAssignableVenues } from "@/lib/server/accounts"
@@ -18,6 +19,9 @@ import {
   listManagerGrants,
 } from "@/lib/server/coverage"
 import { isUuid } from "@/lib/server/coverage/validate"
+
+import { MANAGERS_COPY } from "./managers-copy"
+import { ManagersView } from "./managers-view"
 
 export const metadata: Metadata = { title: "Venue managers · Naba-Lens" }
 
@@ -60,24 +64,27 @@ export default async function VenueManagersPage({
       userName={profile.displayName}
       logoutAction={logout}
     >
-      <div className="grid gap-6">
-        <div className="grid gap-3">
-          <Link
-            href="/admin/coverage"
-            className={buttonVariants({
-              variant: "ghost",
-              className: "h-11 w-fit sm:h-9",
-            })}
-          >
-            <ArrowLeftIcon data-icon="inline-start" aria-hidden />
-            Coverage
-          </Link>
-          <h1 className="font-display text-page-title-compact md:text-page-title">
-            Venue managers
-          </h1>
+      <div className="flex flex-col gap-8">
+        <div className="flex flex-col gap-4">
+          <PageHeader
+            scope={MANAGERS_COPY.scope}
+            title={MANAGERS_COPY.title}
+            summary={MANAGERS_COPY.summary}
+            actions={
+              <Link
+                href="/admin/coverage"
+                className={buttonVariants({ variant: "secondary" })}
+              >
+                <ArrowLeftIcon aria-hidden />
+                Coverage
+              </Link>
+            }
+            className="pb-0 md:pb-0"
+          />
+          <OfflineNotice />
         </div>
         {venues.ok ? (
-          <ManagerGrantsControl
+          <ManagersView
             grants={grants.grants}
             venues={venues.venues}
             selectedVenueId={selectedVenueId}
@@ -86,11 +93,9 @@ export default async function VenueManagersPage({
             basePath={BASE}
           />
         ) : (
-          <Alert variant="destructive">
-            <AlertDescription>
-              Venues could not be loaded. Reload the page to try again.
-            </AlertDescription>
-          </Alert>
+          <ErrorState title={MANAGERS_COPY.couldNotLoad}>
+            {MANAGERS_COPY.venuesCouldNotLoad}
+          </ErrorState>
         )}
       </div>
     </AppShell>

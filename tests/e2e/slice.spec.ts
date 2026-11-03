@@ -13,7 +13,7 @@ import {
   serviceClient,
   type TestIdentity,
 } from "../support/identities"
-import { openPortfolio, STAFF_LANDING } from "./helpers/ui"
+import { openPortfolio, STAFF_LANDING, staffTile } from "./helpers/ui"
 
 /**
  * The vertical slice (spec §9 M2 + M3) in a real browser against the local
@@ -138,12 +138,10 @@ test.describe("vertical slice: upload, portfolio, library, download, isolation",
     await dialog.getByRole("button", { name: "Done" }).click()
 
     const portfolio = staffPage.getByRole("list", { name: "Your portfolio" })
-    await expect(
-      portfolio.getByRole("button", { name: /^Photo, curry-dish\.jpg/ })
-    ).toBeVisible()
-    await expect(
-      portfolio.getByRole("button", { name: /^Video, synthetic\.mp4/ })
-    ).toBeVisible()
+    const ownPhoto = await staffTile(portfolio, "curry-dish.jpg")
+    const ownVideo = await staffTile(portfolio, "synthetic.mp4")
+    await expect(ownPhoto).toBeVisible()
+    await expect(ownVideo).toBeVisible()
 
     const assets = await assetsOf(staffA.id)
     expect(assets.map((a) => [a.media_type, a.upload_state])).toEqual(
@@ -157,7 +155,7 @@ test.describe("vertical slice: upload, portfolio, library, download, isolation",
 
     // Persists after reload, with a real thumbnail from the signed route.
     await staffPage.reload()
-    const tile = portfolio.getByRole("button", { name: /^Photo, curry-dish/ })
+    const tile = ownPhoto
     await expect(tile.locator("img")).toHaveJSProperty("complete", true)
     expect(
       await tile
@@ -271,7 +269,7 @@ test.describe("vertical slice: upload, portfolio, library, download, isolation",
     const confirm = adminPage.getByRole("alertdialog")
     await expect(
       confirm.getByText(
-        "Remove this file from your portfolio and the admin library? When backups are enabled, copies are retained indefinitely for recovery. Previously downloaded copies cannot be recalled."
+        /When backups are enabled, copies are retained indefinitely for recovery\. Previously downloaded copies cannot be recalled\.$/
       )
     ).toBeVisible()
     await confirm.getByRole("button", { name: "Delete" }).click()
@@ -282,12 +280,8 @@ test.describe("vertical slice: upload, portfolio, library, download, isolation",
 
     // ...staff remove their own video; both views lose both files.
     await staffPage.reload()
-    await expect(
-      portfolio.getByRole("button", { name: /^Photo, curry-dish/ })
-    ).toHaveCount(0)
-    await portfolio
-      .getByRole("button", { name: /^Video, synthetic\.mp4/ })
-      .click()
+    await expect(ownPhoto).toHaveCount(0)
+    await ownVideo.click()
     await staffPage
       .getByRole("dialog")
       .getByRole("button", { name: "Delete" })

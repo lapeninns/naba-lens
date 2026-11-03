@@ -24,7 +24,7 @@ import {
   type TestIdentity,
 } from "../support/identities"
 import { firefoxLaunchOptions } from "./helpers/firefox"
-import { openPortfolio, STAFF_LANDING } from "./helpers/ui"
+import { openPortfolio, STAFF_LANDING, staffTile } from "./helpers/ui"
 
 /**
  * Upload recovery and video handling in the real app (spec §5, §10: partial
@@ -340,15 +340,11 @@ test.describe("upload recovery in the real UI", () => {
       await expect(
         portfolio.getByRole("button", { name: /, Failed$/ })
       ).toHaveCount(2)
-      await expect(
-        portfolio.getByRole("button", {
-          name: /^Photo, disguised\.jpg.*Failed$/,
-        })
-      ).toBeVisible()
+      const disguised = await staffTile(portfolio, "disguised.jpg", staff.id)
+      await expect(disguised).toBeVisible()
+      await expect(disguised).toHaveAccessibleName(/^Photo, .*Failed$/)
       for (const name of valid) {
-        const tile = portfolio.getByRole("button", {
-          name: new RegExp(`^(Photo|Video), ${name.replace(".", "\\.")}, `),
-        })
+        const tile = await staffTile(portfolio, name, staff.id)
         await expect(tile).toBeVisible()
         await expect(tile).not.toHaveAccessibleName(
           /(Uploading|Processing|Failed)$/
@@ -488,8 +484,13 @@ test.describe("upload recovery in the real UI", () => {
     const portfolio = page.getByRole("list", { name: "Your portfolio" })
     await page.reload()
     await expect(
-      portfolio.getByRole("button", { name: /^Photo, cancel-.*Uploading$/ })
+      portfolio.getByRole("button", { name: /^Photo, uploaded .*Uploading$/ })
     ).toHaveCount(2)
+    for (const r of cancelled) {
+      await expect(
+        portfolio.locator(`button[data-media-id="${r.id}"]`)
+      ).toHaveAccessibleName(/Uploading$/)
+    }
 
     // Cleanup (24 h window) removes the abandoned reservations.
     const { error } = await admin.rpc("prepare_media_cleanup", {
@@ -509,7 +510,7 @@ test.describe("upload recovery in the real UI", () => {
     await page.reload()
     await expect(portfolio.getByRole("button")).toHaveCount(1)
     await expect(
-      portfolio.getByRole("button", { name: /^Photo, retry\.jpg/ })
+      await staffTile(portfolio, "retry.jpg", staff.id)
     ).toBeVisible()
     await page.context().close()
   })
@@ -631,9 +632,10 @@ test.describe("upload recovery in the real UI", () => {
     expect(unfinished.upload_state).toBe("uploading")
     const portfolio = page.getByRole("list", { name: "Your portfolio" })
     await expect(
-      portfolio.getByRole("button", {
-        name: /^Video, tus-video\.mp4.*Uploading$/,
-      })
+      portfolio.locator(`button[data-media-id="${unfinished.id}"]`)
+    ).toHaveAccessibleName(/^Video, uploaded .*Uploading$/)
+    await expect(
+      portfolio.getByRole("button", { name: /^Video, uploaded .*Uploading$/ })
     ).toHaveCount(1)
     // A fresh context (another device or browser) shows the same states.
     const other = await signIn(browser, staff, baseURL!)
@@ -642,7 +644,7 @@ test.describe("upload recovery in the real UI", () => {
       otherPortfolio.getByRole("button", { name: /Uploading$/ })
     ).toHaveCount(1)
     await expect(
-      otherPortfolio.getByRole("button", { name: /^Video, tus-video\.mp4/ })
+      otherPortfolio.getByRole("button", { name: /^Video, uploaded / })
     ).toHaveCount(3)
     await other.context().close()
 
@@ -748,9 +750,7 @@ test.describe("upload recovery in the real UI", () => {
           const r = rows.find((x) => x.original_filename === name)!
           await p
             .getByRole("list", { name: "Your portfolio" })
-            .getByRole("button", {
-              name: new RegExp(`^Video, ${name.replace(".", "\\.")}, `),
-            })
+            .locator(`button[data-media-id="${r.id}"]`)
             .click()
           const viewer = p.getByRole("dialog")
           await expect(viewer).toBeVisible()

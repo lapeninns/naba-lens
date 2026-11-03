@@ -169,6 +169,7 @@ function LibraryResults({
       refreshPage={refreshPage}
       showAttribution
       showLabelBadge
+      showFileName
       canDelete
       refreshIntervalMs={REFRESH_MS}
       getDownloadHref={(item) => `/api/media/${item.id}/download`}

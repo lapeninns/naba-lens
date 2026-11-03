@@ -84,3 +84,78 @@ test("venue + staff + type filters combine across pages, then clear", async ({
   await expect(tiles).toHaveCount(24)
   await admin.context().close()
 })
+
+/**
+ * Photos (staff): the Filters sheet narrows by the venue a photo was taken at
+ * and by media type, says what is shown, and clears back to everything.
+ * Photos spans every venue, so counts are checked inside this world's venues.
+ */
+test("Photos filters: sheet applies venue + media, then nothing matches, then clear", async ({
+  browser,
+}) => {
+  test.setTimeout(120_000)
+  const w = await provisionWorld()
+  const t = w.tag
+  await seedReadyAssets(w.staffA.id, w.venue1.id, 3, "image", `p1-photo-${t}`)
+  await seedReadyAssets(w.staffA.id, w.venue1.id, 2, "video", `p1-video-${t}`)
+  await seedReadyAssets(w.staffC.id, w.venue2.id, 2, "image", `p2-photo-${t}`)
+
+  const page = await signedInPage(browser, w.staffB)
+  await page.goto("/staff/community")
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Photos")
+  const tiles = page
+    .getByRole("list", { name: "Organization portfolio" })
+    .getByRole("button")
+
+  async function applyFilters(venue: string, media: string) {
+    await page.getByRole("button", { name: /^Filters/ }).click()
+    const sheet = page.getByRole("dialog", { name: "Filters" })
+    await chooseOption(page, sheet, "Venue", venue)
+    await sheet
+      .getByRole("radiogroup", { name: "Media" })
+      .getByText(media, { exact: true })
+      .click()
+    await sheet.getByRole("button", { name: "Apply filters" }).click()
+    await expect(sheet).toBeHidden()
+  }
+
+  await applyFilters(w.venue1.name, "Videos")
+  await expect(page).toHaveURL(
+    new RegExp(`/staff/community\\?venue=${w.venue1.id}&type=video$`)
+  )
+  await expect(tiles).toHaveCount(2)
+  for (const name of await tiles.evaluateAll((els) =>
+    els.map((el) => el.getAttribute("aria-label") ?? "")
+  )) {
+    expect(name).toMatch(
+      new RegExp(
+        `^Video, by ${escape(w.staffA.name)}, ${escape(w.venue1.name)}, `
+      )
+    )
+  }
+  await expect(
+    page.getByText(
+      `Showing videos from all teams at ${w.venue1.name}, newest first.`
+    )
+  ).toBeVisible()
+  await expect(page.getByText("Showing 2, newest first")).toBeVisible()
+  await expect(page.getByRole("button", { name: /^Filters/ })).toContainText(
+    "2"
+  )
+
+  // Venue 2 has photos only.
+  await applyFilters(w.venue2.name, "Videos")
+  await expect(page.getByText("Nothing matches these filters.")).toBeVisible()
+  await expect(
+    page.getByText(
+      `Showing videos from all teams at ${w.venue2.name}. Try all venues.`
+    )
+  ).toBeVisible()
+  await expect(tiles).toHaveCount(0)
+
+  await page.getByRole("link", { name: "Clear filters" }).click()
+  await expect(page).toHaveURL(/\/staff\/community$/)
+  await expect(page.getByRole("button", { name: "Filters" })).toBeVisible()
+  await expect(tiles.first()).toBeVisible()
+  await page.context().close()
+})

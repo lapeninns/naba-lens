@@ -22,6 +22,7 @@ export {
 export {
   ConfirmDeleteDialog,
   DELETE_CONFIRM_COPY,
+  type DeleteImpact,
 } from "./confirm-delete-dialog"
 export {
   LibraryFilters,

@@ -17,6 +17,7 @@ import {
   chooseOption,
   libraryList,
   portfolioList,
+  staffTile,
   tile,
   uploadThroughDialog,
   openPortfolio,
@@ -69,7 +70,9 @@ async function requestLinkViaForm(page: Page, email: string) {
     page.getByRole("heading", { name: "Check your email" })
   ).toBeVisible()
   await expect(
-    page.getByText(`If ${email} has an account, a sign-in link is on its way`, { exact: false })
+    page.getByText(`If ${email} has an account, a sign-in link is on its way`, {
+      exact: false,
+    })
   ).toBeVisible()
 }
 
@@ -100,7 +103,7 @@ test.describe("release negatives", () => {
     await expect(
       staffA.getByText("Your profile starts here.", { exact: false })
     ).toBeVisible()
-    await expect(tile(staffA, "Photo", photo.name)).toHaveCount(0)
+    await expect(await staffTile(staffA, photo.name)).toHaveCount(0)
 
     // Community (docs/community.md): an active colleague's ready photo has
     // signed previews; its original never leaves through a staff route (stream
@@ -162,7 +165,9 @@ test.describe("release negatives", () => {
 
     // B still has their file: nothing above changed it.
     await staffB.reload()
-    await expect(tile(portfolioList(staffB), "Photo", photo.name)).toBeVisible()
+    await expect(
+      await staffTile(portfolioList(staffB), photo.name)
+    ).toBeVisible()
   })
 
   test("staff are denied media the community hides: inactive uploader, deleted or unfinished", async ({
@@ -306,7 +311,8 @@ test.describe("release negatives", () => {
     await uploadThroughDialog(staff, [kept])
     const [asset] = await assetIdsOf(world.staffB.id)
     const portfolio = portfolioList(staff)
-    await expect(tile(portfolio, "Photo", kept.name)).toBeVisible()
+    const keptTile = await staffTile(portfolio, kept.name)
+    await expect(keptTile).toBeVisible()
 
     // Admin A deactivates through the UI.
     const admin = await signedInPage(browser, world.adminA)
@@ -343,7 +349,7 @@ test.describe("release negatives", () => {
     await staff.getByRole("button", { name: "Done" }).click()
 
     // Delete own media: refused with a clear message, the file stays.
-    await tile(portfolio, "Photo", kept.name).click()
+    await keptTile.click()
     await staff
       .getByRole("dialog")
       .getByRole("button", { name: "Delete" })
@@ -477,7 +483,10 @@ test.describe("release negatives", () => {
     await expect(
       admin.getByText("Nothing matches these filters.")
     ).toBeVisible()
-    await admin.getByRole("button", { name: "Clear filters" }).click()
+    await admin
+      .locator('[data-slot="empty-state"]')
+      .getByRole("button", { name: "Clear filters" })
+      .click()
     await expect(admin).toHaveURL(/\/admin$/)
 
     // A ready record whose original is missing from storage (fixture): the

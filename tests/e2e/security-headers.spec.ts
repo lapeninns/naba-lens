@@ -7,7 +7,7 @@ import { expect, test, type Browser, type Page } from "@playwright/test"
 import sharp from "sharp"
 
 import { openEmailLink } from "./helpers/email-link"
-import { openPortfolio, STAFF_LANDING } from "./helpers/ui"
+import { openPortfolio, STAFF_LANDING, staffTile } from "./helpers/ui"
 
 import {
   createIdentity,
@@ -129,7 +129,7 @@ test("security headers are sent and the CSP allows upload, thumbnails, preview a
 
   // Thumbnail (302 to a 60 s signed Storage URL on the Supabase origin).
   const portfolio = page.getByRole("list", { name: "Your portfolio" })
-  const tile = portfolio.getByRole("button", { name: /^Photo, csp-photo/ })
+  const tile = await staffTile(portfolio, "csp-photo.jpg")
   await expect(tile.locator("img")).toHaveJSProperty("complete", true)
   expect(
     await tile
@@ -148,7 +148,7 @@ test("security headers are sent and the CSP allows upload, thumbnails, preview a
   await viewer.press("Escape")
 
   // Video playback through the stream route.
-  await portfolio.getByRole("button", { name: /^Video, synthetic/ }).click()
+  await (await staffTile(portfolio, "synthetic.mp4")).click()
   const player = page.getByRole("dialog").locator("video")
   await expect(player).toBeVisible()
   await expect

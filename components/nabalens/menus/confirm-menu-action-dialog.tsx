@@ -13,13 +13,21 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 
-import { LABELS_KEPT_COPY, type MenuActionResult } from "./copy"
+import { Notice } from "../notice"
+import {
+  LABELS_KEPT_COPY,
+  plural,
+  possessive,
+  type MenuActionResult,
+} from "./copy"
 
 type ConfirmMenuActionDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   title: React.ReactNode
   description: React.ReactNode
+  /** A second paragraph under the description, e.g. what it changes for coverage. */
+  detail?: React.ReactNode
   confirmLabel: string
   pendingLabel: string
   cancelLabel?: string
@@ -35,6 +43,7 @@ export function ConfirmMenuActionDialog({
   onOpenChange,
   title,
   description,
+  detail,
   confirmLabel,
   pendingLabel,
   cancelLabel = "Cancel",
@@ -76,17 +85,18 @@ export function ConfirmMenuActionDialog({
           <AlertDialogTitle className="break-words">{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
-        {error ? (
-          <p role="alert" className="text-sm text-negative">
-            {error}
+        {detail ? (
+          <p className="text-body-touch text-ink-muted md:text-body">
+            {detail}
           </p>
         ) : null}
+        {error ? <Notice tone="negative">{error}</Notice> : null}
         <AlertDialogFooter>
           <AlertDialogCancel size="touch" disabled={pending}>
             {cancelLabel}
           </AlertDialogCancel>
           <Button
-            variant={destructive ? "destructive" : "default"}
+            variant={destructive ? "danger" : "primary"}
             size="touch"
             onClick={confirm}
             disabled={pending}
@@ -104,22 +114,35 @@ type VersionDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   versionTitle: string
+  /** Names the venue in the title and consequences. */
+  venueName?: string
   onConfirm: () => Promise<MenuActionResult>
 }
 
 /** active → retired ("archive menu"). */
 export function RetireMenuDialog({
   versionTitle,
+  venueName,
   ...props
 }: VersionDialogProps) {
   return (
     <ConfirmMenuActionDialog
       {...props}
-      title={<>Retire “{versionTitle}”?</>}
-      description={`Staff will have no menu items to label with at this venue until another version is activated; they can still add content types and notes. ${LABELS_KEPT_COPY}`}
-      confirmLabel="Retire menu"
+      title={
+        venueName ? (
+          `Retire ${possessive(venueName)} active menu?`
+        ) : (
+          <>Retire “{versionTitle}”?</>
+        )
+      }
+      description={`Staff can't choose items from this menu for new labels until another version is active. ${LABELS_KEPT_COPY}`}
+      detail={
+        venueName
+          ? `Nothing carries over automatically, and ${possessive(venueName)} menu coverage shows No active menu.`
+          : "Nothing carries over automatically."
+      }
+      confirmLabel="Retire"
       pendingLabel="Retiring…"
-      cancelLabel="Keep active"
       destructive
       fallbackError="The menu could not be retired. Try again."
     />
@@ -129,14 +152,36 @@ export function RetireMenuDialog({
 /** draft → discarded. */
 export function DiscardDraftDialog({
   versionTitle,
+  venueName,
+  activeTitle,
+  decisionCount = 0,
+  imported = false,
   ...props
-}: VersionDialogProps) {
+}: VersionDialogProps & {
+  /** The venue's active version, which stays active. */
+  activeTitle?: string | null
+  /** Decisions made in this draft that are set aside with it. */
+  decisionCount?: number
+  /** The draft came from a file (the file stays in the import history). */
+  imported?: boolean
+}) {
+  void venueName
+  const what =
+    decisionCount > 0
+      ? `${versionTitle} and your ${plural(decisionCount, "decision")} are`
+      : `${versionTitle} is`
   return (
     <ConfirmMenuActionDialog
       {...props}
-      title={<>Discard draft “{versionTitle}”?</>}
-      description="The draft stays in the history as discarded and can no longer be edited or activated. The active menu and existing labels do not change."
-      confirmLabel="Discard draft"
+      title="Discard this draft?"
+      description={[
+        `${what} set aside as Discarded.`,
+        activeTitle ? `${activeTitle} stays active.` : null,
+        imported ? "The imported file stays in the import history." : null,
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      confirmLabel="Discard"
       pendingLabel="Discarding…"
       cancelLabel="Keep draft"
       destructive

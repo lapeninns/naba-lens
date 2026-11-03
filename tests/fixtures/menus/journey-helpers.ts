@@ -11,7 +11,7 @@ import {
 
 import { signIn } from "../../support/identities"
 import { provisioner, psql } from "../../e2e/helpers/stack"
-import { escape, portfolioList } from "../../e2e/helpers/ui"
+import { portfolioList, staffTile } from "../../e2e/helpers/ui"
 import {
   provisionWorld,
   signedInPage,
@@ -113,15 +113,9 @@ export async function worldWithActiveRailway(
   return { world, admin }
 }
 
-export async function openOwnLabelEditor(
-  page: Page,
-  kind: "Photo" | "Video",
-  fileName: string
-) {
+export async function openOwnLabelEditor(page: Page, fileName: string) {
   await page.goto("/staff")
-  await portfolioList(page)
-    .getByRole("button", { name: new RegExp(`^${kind}, ${escape(fileName)}`) })
-    .click()
+  await (await staffTile(portfolioList(page), fileName)).click()
   const viewer = page.getByRole("dialog").first()
   await viewer.getByRole("button", { name: /^(Add|Edit) labels$/ }).click()
   const editor = page.getByRole("dialog", { name: /^(Add|Edit) labels$/ })
