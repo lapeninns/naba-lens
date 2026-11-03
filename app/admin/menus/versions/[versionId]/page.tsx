@@ -1,15 +1,8 @@
 import type { Metadata } from "next"
-import Link from "next/link"
 import { notFound } from "next/navigation"
-import { ArrowLeftIcon } from "@phosphor-icons/react/dist/ssr"
 
 import { logout } from "@/app/_media/actions"
-import {
-  AppShell,
-  MenuVersionStatusBadge,
-  ProvenanceCard,
-} from "@/components/nabalens"
-import { buttonVariants } from "@/components/ui/button"
+import { AppShell } from "@/components/nabalens"
 import { requireActiveAdmin } from "@/lib/auth"
 import { getMediaActor } from "@/lib/server/media/context"
 import { getMenuVersion } from "@/lib/server/menus"
@@ -18,7 +11,7 @@ import { VersionEditor } from "../../version-editor"
 
 export const metadata: Metadata = { title: "Menus · Naba-Lens" }
 
-/** One menu version: provenance, diff vs active, editor and lifecycle. */
+/** One menu version (A15): draft editor and lifecycle, or read-only. */
 export default async function MenuVersionPage({
   params,
 }: {
@@ -42,36 +35,12 @@ export default async function MenuVersionPage({
       userName={profile.displayName}
       logoutAction={logout}
     >
-      <div className="grid gap-6">
-        <div className="grid gap-2">
-          <Link
-            href={`/admin/menus/${encodeURIComponent(version.venueId)}`}
-            className={buttonVariants({
-              variant: "ghost",
-              className: "h-11 w-fit sm:h-9",
-            })}
-          >
-            <ArrowLeftIcon data-icon="inline-start" aria-hidden />
-            {version.venueName}
-          </Link>
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="min-w-0 font-display text-page-title-compact break-words md:text-page-title">
-              {version.title}
-            </h1>
-            <MenuVersionStatusBadge status={version.status} />
-          </div>
-        </div>
-        <ProvenanceCard
-          version={version}
-          className="[&_dd]:[overflow-wrap:anywhere]"
-        />
-        <VersionEditor
-          version={version}
-          diff={diff}
-          active={active}
-          reviewBase={reviewBase}
-        />
-      </div>
+      <VersionEditor
+        version={version}
+        diff={diff}
+        active={active}
+        reviewBase={reviewBase}
+      />
     </AppShell>
   )
 }

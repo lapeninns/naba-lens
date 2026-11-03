@@ -1,12 +1,21 @@
 import Link from "next/link"
-import { CaretRightIcon } from "@phosphor-icons/react/dist/ssr"
+import { CaretRightIcon, WarningIcon } from "@phosphor-icons/react/dist/ssr"
 
 import type { MenuVenueSummary } from "@/lib/menus/types"
 import { cn } from "@/lib/utils"
 
+import { EmptyState } from "../empty-state"
 import { formatDate } from "../format"
+import { StatusChip } from "../status-chip"
 import { plural } from "./copy"
 import { MenuVersionStatusBadge } from "./menu-version-status-badge"
+import {
+  MenuSectionHead,
+  menuItemTitleClassName,
+  menuListClassName,
+  menuMetaClassName,
+  menuRowLinkClassName,
+} from "./section-head"
 
 type MenuVenueListProps = {
   venues: MenuVenueSummary[]
@@ -14,8 +23,80 @@ type MenuVenueListProps = {
   className?: string
 }
 
+/** Active menus, drafts, waiting suggestions and venues without a menu. */
+export function MenuVenueTally({
+  venues,
+  className,
+}: {
+  venues: MenuVenueSummary[]
+  className?: string
+}) {
+  const active = venues.filter((v) => v.active).length
+  const missing = venues.length - active
+  const cells: {
+    label: string
+    value: React.ReactNode
+    attention?: boolean
+  }[] = [
+    {
+      label: "Active menus",
+      value: (
+        <>
+          {active}
+          <small className="ml-1 text-meta-touch font-normal text-ink-muted md:text-meta">
+            of {venues.length}
+          </small>
+        </>
+      ),
+    },
+    {
+      label: "Drafts",
+      value: venues.reduce((n, v) => n + v.draftCount, 0),
+    },
+    {
+      label: "Suggestions waiting",
+      value: venues.reduce((n, v) => n + v.openSuggestionCount, 0),
+    },
+    {
+      label: "No active menu",
+      value: missing,
+      attention: missing > 0,
+    },
+  ]
+  return (
+    <dl
+      className={cn(
+        "grid grid-cols-2 gap-px overflow-hidden rounded-panel border border-line bg-line md:grid-cols-4",
+        className
+      )}
+    >
+      {cells.map((cell) => (
+        <div
+          key={cell.label}
+          className="grid content-start gap-1 bg-panel px-4 py-3"
+        >
+          <dt className="text-meta-touch font-semibold text-ink-muted md:text-meta-strong">
+            {cell.label}
+          </dt>
+          <dd
+            className={cn(
+              "flex items-center gap-1.5 text-count-sm text-ink tabular-nums",
+              cell.attention && "text-attention"
+            )}
+          >
+            {cell.attention ? (
+              <WarningIcon aria-hidden className="size-5 shrink-0" />
+            ) : null}
+            {cell.value}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  )
+}
+
 /**
- * Venues with their active catalogue, drafts and open suggestions. No client
+ * Venues with their active menu, drafts and waiting suggestions. No client
  * state, so a Server Component page can pass `getVenueHref` directly.
  */
 export function MenuVenueList({
@@ -25,84 +106,75 @@ export function MenuVenueList({
 }: MenuVenueListProps) {
   if (venues.length === 0) {
     return (
-      <p
-        className={cn(
-          "rounded-lg border border-dashed px-4 py-10 text-center text-sm text-muted-foreground",
-          className
-        )}
-      >
-        No venues yet.
-      </p>
+      <EmptyState
+        className={className}
+        title="No active venues yet."
+        description="Menus appear here once a venue is set up. Venues are added through setup."
+      />
     )
   }
 
   return (
-    <ul
-      aria-label="Venue menus"
-      className={cn("divide-y rounded-lg border bg-card", className)}
-    >
-      {venues.map((venue) => {
-        const active = venue.active
-        return (
-          <li key={venue.venueId}>
-            <Link
-              href={getVenueHref(venue.venueId)}
-              className="flex min-h-16 items-center gap-3 rounded-lg px-3 py-3 outline-none hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50 sm:px-4"
-            >
-              <span className="grid min-w-0 flex-1 gap-1">
-                <span className="flex min-w-0 flex-wrap items-center gap-2">
-                  <span className="truncate font-medium">
-                    {venue.venueName}
-                  </span>
-                  {!venue.venueActive ? (
-                    <span className="inline-flex h-5 items-center rounded-sm bg-muted px-1.5 text-xs font-medium text-muted-foreground">
-                      Venue inactive
+    <section aria-labelledby="menu-venues-title" className={className}>
+      <MenuSectionHead
+        id="menu-venues-title"
+        title="Venues"
+        count={plural(venues.length, "venue")}
+      />
+      <ul aria-label="Venue menus" className={menuListClassName}>
+        {venues.map((venue) => {
+          const active = venue.active
+          return (
+            <li key={venue.venueId}>
+              <Link
+                href={getVenueHref(venue.venueId)}
+                className={menuRowLinkClassName}
+              >
+                <span className="grid min-w-0 flex-1 gap-1">
+                  <span className="flex min-w-0 flex-wrap items-center gap-2">
+                    <span className={cn("break-words", menuItemTitleClassName)}>
+                      {venue.venueName}
                     </span>
-                  ) : null}
-                </span>
-                {active ? (
-                  <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
-                    <MenuVersionStatusBadge status="active" />
-                    <span className="min-w-0 truncate text-foreground">
-                      {active.title}
-                    </span>
-                    <span>
-                      {[
-                        active.activatedAt
-                          ? `Activated ${formatDate(active.activatedAt)}`
-                          : null,
-                        plural(active.itemCount, "item"),
-                      ]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </span>
-                  </span>
-                ) : (
-                  <span className="text-sm text-muted-foreground">
-                    No active menu. Staff can still add content types and notes.
-                  </span>
-                )}
-                {venue.draftCount > 0 || venue.openSuggestionCount > 0 ? (
-                  <span className="flex flex-wrap gap-x-3 text-xs text-muted-foreground">
+                    {active ? (
+                      <MenuVersionStatusBadge status="active" />
+                    ) : (
+                      <StatusChip state="no_active_menu" />
+                    )}
                     {venue.draftCount > 0 ? (
-                      <span>{plural(venue.draftCount, "draft")}</span>
+                      <MenuVersionStatusBadge status="draft" />
                     ) : null}
                     {venue.openSuggestionCount > 0 ? (
-                      <span className="font-medium text-warning">
-                        {plural(venue.openSuggestionCount, "open suggestion")}
-                      </span>
+                      <StatusChip tone="neutral">
+                        {plural(venue.openSuggestionCount, "suggestion")}
+                      </StatusChip>
+                    ) : null}
+                    {!venue.venueActive ? (
+                      <StatusChip tone="closed">Venue inactive</StatusChip>
                     ) : null}
                   </span>
-                ) : null}
-              </span>
-              <CaretRightIcon
-                className="size-4 shrink-0 text-muted-foreground"
-                aria-hidden
-              />
-            </Link>
-          </li>
-        )
-      })}
-    </ul>
+                  <span className={cn("break-words", menuMetaClassName)}>
+                    {active
+                      ? [
+                          active.title,
+                          plural(active.itemCount, "item"),
+                          active.activatedAt
+                            ? `activated ${formatDate(active.activatedAt)}`
+                            : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")
+                      : `Labels can't name a menu item at ${venue.venueName} until a menu is active`}
+                  </span>
+                </span>
+                <CaretRightIcon
+                  className="size-4 shrink-0 text-ink-muted"
+                  aria-hidden
+                />
+              </Link>
+            </li>
+          )
+        })}
+      </ul>
+    </section>
   )
 }

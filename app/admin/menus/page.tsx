@@ -1,11 +1,19 @@
 import type { Metadata } from "next"
 
 import { logout } from "@/app/_media/actions"
-import { AppShell, MenuVenueList } from "@/components/nabalens"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import {
+  AppShell,
+  MenuVenueList,
+  MenuVenueTally,
+} from "@/components/nabalens"
+import { ErrorState, ERROR_COPY } from "@/components/nabalens/error-state"
+import { OfflineNotice } from "@/components/nabalens/offline-notice"
 import { requireActiveAdmin } from "@/lib/auth"
 import { getMediaActor } from "@/lib/server/media/context"
 import { listMenuVenues } from "@/lib/server/menus"
+
+import { MenusHeader } from "./menus-header"
+import { RetryButton } from "./retry-button"
 
 export const metadata: Metadata = { title: "Menus · Naba-Lens" }
 
@@ -26,22 +34,23 @@ export default async function MenusPage() {
       userName={profile.displayName}
       logoutAction={logout}
     >
-      <div className="grid gap-4">
-        <div className="grid gap-1">
-          <h1 className="font-display text-page-title-compact md:text-page-title">
-            Menus
-          </h1>
-          <p className="max-w-prose text-sm text-muted-foreground">
-            Menus are used to label photos and videos. Activating a menu does
-            not publish it or change any venue website.
-          </p>
-        </div>
+      <MenusHeader />
+      <div className="grid gap-6 md:gap-8">
+        <OfflineNotice />
         {result.ok ? (
-          <MenuVenueList venues={result.venues} getVenueHref={venueHref} />
+          <>
+            {result.venues.length > 0 ? (
+              <MenuVenueTally venues={result.venues} />
+            ) : null}
+            <MenuVenueList venues={result.venues} getVenueHref={venueHref} />
+          </>
         ) : (
-          <Alert variant="destructive">
-            <AlertDescription>{result.message}</AlertDescription>
-          </Alert>
+          <ErrorState
+            title={ERROR_COPY.couldNotLoad("menus")}
+            action={<RetryButton />}
+          >
+            {ERROR_COPY.checkConnection} No menu has changed.
+          </ErrorState>
         )}
       </div>
     </AppShell>

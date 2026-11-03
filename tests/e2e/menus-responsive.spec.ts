@@ -149,16 +149,17 @@ test.beforeAll(async ({ browser }) => {
   const admin = await signedInPage(browser, world.adminA)
   await admin.goto(`/admin/menus/${world.venue1.id}`)
   await expect(admin.getByRole("heading", { level: 1 })).toBeVisible()
+  await admin.getByRole("button", { name: "Import a menu" }).click()
   await admin.getByLabel("Menu file (JSON or CSV)").setInputFiles(RAILWAY)
   await admin.getByRole("button", { name: "Create draft" }).click()
   await admin.waitForURL(/\/admin\/menus\/versions\//)
-  await admin.getByRole("button", { name: "Activate…" }).click()
+  await admin.getByRole("button", { name: "Activate for labelling" }).click()
   await admin
     .getByRole("alertdialog")
     .getByRole("button", { name: "Activate for labelling" })
     .click()
   await expect(
-    admin.getByRole("button", { name: "Retire menu…" })
+    admin.getByRole("button", { name: "Start a draft from this version" })
   ).toBeVisible()
   // A second draft (from the active menu) for the editor screens.
   await admin.goto(`/admin/menus/${world.venue1.id}`)
@@ -215,18 +216,23 @@ for (const width of WIDTHS) {
       page.getByRole("heading", { level: 1, name: world.venue1.name })
     ).toBeVisible()
     await check(page, width, "menus-venue")
+    await page.getByRole("button", { name: "Import a menu" }).click()
     await page.getByLabel("Menu file (JSON or CSV)").setInputFiles(RAILWAY)
-    await expect(page.getByRole("heading", { name: /^Preview:/ })).toBeVisible()
+    await expect(
+      page.getByRole("region", { name: "Changes from the active menu" })
+    ).toBeVisible()
     await check(page, width, "menus-import-preview")
 
     await page.goto(draftUrl)
-    await expect(page.getByRole("button", { name: "Save draft" })).toBeVisible()
+    await expect(
+      page.getByRole("button", { name: "Save", exact: true })
+    ).toBeVisible()
     await page.getByRole("searchbox", { name: "Search items" }).fill("Momo")
     await page
       .getByRole("button", { name: /^Momo Veg · Chicken/, expanded: false })
       .click()
     await check(page, width, "menus-draft-editor")
-    await page.getByRole("button", { name: "Activate…" }).click()
+    await page.getByRole("button", { name: "Activate for labelling" }).click()
     const dialog = page.getByRole("alertdialog")
     await expect(dialog).toBeVisible()
     await check(page, width, "menus-activate-dialog", dialog)

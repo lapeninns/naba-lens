@@ -31,9 +31,6 @@ export function MenuVersionStatusBadge({
       className={cn("shrink-0", !withDescription && className)}
     >
       {MENU_STATUS_LABEL[status]}
-      {status === "active" && !withDescription ? (
-        <span className="sr-only">, available for labelling only</span>
-      ) : null}
     </StatusChip>
   )
   if (!withDescription) return badge

@@ -19,10 +19,12 @@ export function AdminPortfolio({
   staffId,
   staffName,
   initialPage,
+  emptyDescription,
 }: {
   staffId: string
   staffName: string
   initialPage: MediaPage
+  emptyDescription?: string
 }) {
   const loadPage = React.useCallback(
     (cursor: string | null) => loadLibraryPage({ staff: staffId }, cursor),
@@ -45,10 +47,7 @@ export function AdminPortfolio({
       refreshIntervalMs={REFRESH_MS}
       getDownloadHref={(item) => `/api/media/${item.id}/download`}
       empty={
-        <EmptyState
-          title={`${staffName} has no uploads yet`}
-          description="Their photos and videos appear here once they finish processing."
-        />
+        <EmptyState title="No photos yet." description={emptyDescription} />
       }
     />
   )
