@@ -1,9 +1,9 @@
 "use client"
 
 import * as React from "react"
-import { CheckCircleIcon, WarningIcon } from "@phosphor-icons/react"
+import Link from "next/link"
+import { EnvelopeSimpleIcon } from "@phosphor-icons/react"
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -13,15 +13,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Field, FieldError, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
-
 import {
-  DEPARTMENT_OPTIONS,
-  isDepartment,
-  type Department,
-} from "@/lib/config/departments"
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
+} from "@/components/ui/field"
+import { Input } from "@/components/ui/input"
+import { isDepartment, type Department } from "@/lib/config/departments"
+import { cn } from "@/lib/utils"
 
+import { Notice } from "./notice"
+import { OfflineNotice } from "./offline-notice"
 import { OptionSelect } from "./option-select"
 import type { Option } from "./types"
 
@@ -43,13 +46,24 @@ export type InviteResult =
       fieldErrors?: Partial<Record<keyof InviteFormValues, string>>
     }
 
+/** An account that already uses an email address, to point the admin at it. */
+export type ExistingAccount = {
+  displayName: string
+  venueName: string | null
+  href: string
+}
+
 type InviteStaffDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   /** Active venues only. */
   venues: Option[]
   onSubmit: (values: InviteFormValues) => Promise<InviteResult> | InviteResult
+  /** Looks up who already has an email the server refused as taken. */
+  findAccount?: (email: string) => ExistingAccount | null
 }
+
+const firstWord = (name: string) => name.trim().split(/\s+/)[0] ?? name
 
 export function InviteStaffDialog(props: InviteStaffDialogProps) {
   const [pending, setPending] = React.useState(false)
@@ -60,7 +74,7 @@ export function InviteStaffDialog(props: InviteStaffDialogProps) {
         if (!pending) props.onOpenChange(next)
       }}
     >
-      <DialogContent className="max-h-[calc(100svh-1rem)] overflow-y-auto sm:max-w-md">
+      <DialogContent>
         <InviteForm {...props} pending={pending} setPending={setPending} />
       </DialogContent>
     </Dialog>
@@ -69,10 +83,76 @@ export function InviteStaffDialog(props: InviteStaffDialogProps) {
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
+const TEAMS = [
+  { id: "foh", name: "Front of house" },
+  { id: "boh", name: "Back of house" },
+  { id: "", name: "Unassigned" },
+] as const
+
+/** Front of house, Back of house or Unassigned, as one radio group. */
+export function TeamField({
+  value,
+  onChange,
+  hint,
+  error,
+}: {
+  value: Department | null
+  onChange: (value: Department | null) => void
+  hint: string
+  error?: string
+}) {
+  const id = React.useId()
+  return (
+    <fieldset
+      className="grid min-w-0 gap-1.5"
+      aria-describedby={`${id}-hint`}
+      aria-invalid={!!error || undefined}
+    >
+      <legend className="mb-1.5 text-label-touch md:text-label">Team</legend>
+      <div className="grid grid-cols-3 gap-0.5 rounded-control border border-line-control bg-panel p-0.5">
+        {TEAMS.map((team) => {
+          const checked = (value ?? "") === team.id
+          return (
+            <label
+              key={team.name}
+              className={cn(
+                "flex min-h-11 cursor-pointer items-center justify-center rounded-[calc(var(--radius-control)-2px)] px-2 text-center text-meta-touch font-semibold has-focus-visible:outline-2 has-focus-visible:outline-offset-1 has-focus-visible:outline-focus md:min-h-8 md:text-meta-strong",
+                checked
+                  ? "bg-well text-ink"
+                  : "text-ink-muted hover:bg-fill-hover"
+              )}
+            >
+              <input
+                type="radio"
+                name={id}
+                value={team.id}
+                checked={checked}
+                onChange={() =>
+                  onChange(isDepartment(team.id) ? team.id : null)
+                }
+                className="sr-only"
+              />
+              {team.name}
+            </label>
+          )
+        })}
+      </div>
+      <p
+        id={`${id}-hint`}
+        className="text-meta-touch text-ink-muted md:text-meta"
+      >
+        {hint}
+      </p>
+      {error ? <FieldError>{error}</FieldError> : null}
+    </fieldset>
+  )
+}
+
 function InviteForm({
   onOpenChange,
   venues,
   onSubmit,
+  findAccount,
   pending,
   setPending,
 }: InviteStaffDialogProps & {
@@ -126,6 +206,9 @@ function InviteForm({
     }
   }
 
+  const name = values.displayName.trim()
+  const first = firstWord(name)
+
   if (result?.status === "sent" || result?.status === "partial") {
     const sent = result.status === "sent"
     return (
@@ -134,21 +217,21 @@ function InviteForm({
           <DialogTitle>
             {sent ? "Invitation sent" : "Account created, email not sent"}
           </DialogTitle>
-          <DialogDescription>
-            {sent
-              ? `${values.displayName.trim()} will get a sign-in link at ${values.email.trim().toLowerCase()}.`
-              : `${values.displayName.trim()} now has a staff account.`}
-          </DialogDescription>
+          {sent ? (
+            <DialogDescription className="text-ink">
+              {name} can sign in from the link in the email sent to{" "}
+              {values.email.trim().toLowerCase()}. {first} shows as Invited
+              until then.
+            </DialogDescription>
+          ) : null}
         </DialogHeader>
-        <Alert variant={sent ? "default" : "warning"}>
-          {sent ? <CheckCircleIcon aria-hidden /> : <WarningIcon aria-hidden />}
-          <AlertTitle>{sent ? "Done" : "Invitation email failed"}</AlertTitle>
-          <AlertDescription>
-            {sent
-              ? "They appear in the staff list as Invited until they sign in."
-              : result.message}
-          </AlertDescription>
-        </Alert>
+        {sent ? null : (
+          <Notice tone="attention">
+            {name}&apos;s account exists, but the invitation email didn&apos;t
+            go. Close this, then choose Resend invitation in {first}&apos;s More
+            actions menu. Don&apos;t create the account again.
+          </Notice>
+        )}
         <DialogFooter>
           <Button size="touch" onClick={() => onOpenChange(false)}>
             Close
@@ -160,30 +243,63 @@ function InviteForm({
 
   const serverFieldErrors =
     result?.status === "error" ? (result.fieldErrors ?? {}) : {}
+  const taken =
+    serverFieldErrors.email && findAccount
+      ? findAccount(values.email.trim().toLowerCase())
+      : null
   const errorFor = (key: keyof InviteFormValues) =>
     localErrors[key] ?? serverFieldErrors[key]
+  const emailError: React.ReactNode = taken ? (
+    <>
+      This email already has an account: {taken.displayName}
+      {taken.venueName ? `, ${taken.venueName}` : ""}.{" "}
+      <Link
+        href={taken.href}
+        className="font-semibold text-ink underline underline-offset-3"
+      >
+        Open {firstWord(taken.displayName)}&apos;s profile
+      </Link>{" "}
+      instead.
+    </>
+  ) : (
+    errorFor("email")
+  )
 
   const text = (
     key: "displayName" | "email" | "jobTitle",
-    label: string,
-    extra: React.ComponentProps<typeof Input>
-  ) => (
-    <Field className="gap-1.5">
-      <FieldLabel htmlFor={`${id}-${key}`}>{label}</FieldLabel>
-      <Input
-        id={`${id}-${key}`}
-        value={values[key]}
-        onChange={(e) => set(key)(e.currentTarget.value)}
-        aria-invalid={!!errorFor(key) || undefined}
-        aria-describedby={errorFor(key) ? `${id}-${key}-error` : undefined}
-        className="h-11 sm:h-9"
-        {...extra}
-      />
-      {errorFor(key) ? (
-        <FieldError id={`${id}-${key}-error`}>{errorFor(key)}</FieldError>
-      ) : null}
-    </Field>
-  )
+    label: React.ReactNode,
+    extra: React.ComponentProps<typeof Input>,
+    options: { hint?: string; error?: React.ReactNode } = {}
+  ) => {
+    const error = options.error ?? errorFor(key)
+    const describedBy = [
+      error ? `${id}-${key}-error` : null,
+      options.hint ? `${id}-${key}-hint` : null,
+    ]
+      .filter(Boolean)
+      .join(" ")
+    return (
+      <Field className="gap-1.5">
+        <FieldLabel htmlFor={`${id}-${key}`}>{label}</FieldLabel>
+        <Input
+          id={`${id}-${key}`}
+          value={values[key]}
+          onChange={(e) => set(key)(e.currentTarget.value)}
+          aria-invalid={!!error || undefined}
+          aria-describedby={describedBy || undefined}
+          className="h-11 md:h-9"
+          {...extra}
+        />
+        {error ? (
+          <FieldError id={`${id}-${key}-error`}>{error}</FieldError>
+        ) : options.hint ? (
+          <FieldDescription id={`${id}-${key}-hint`}>
+            {options.hint}
+          </FieldDescription>
+        ) : null}
+      </Field>
+    )
+  }
 
   return (
     <form
@@ -194,45 +310,37 @@ function InviteForm({
       <DialogHeader>
         <DialogTitle>Invite staff</DialogTitle>
         <DialogDescription>
-          They get an email with a sign-in link. Invitations create staff
-          accounts only.
+          Creates a staff account and emails a single-use sign-in link. New
+          admins are added through setup, not here.
         </DialogDescription>
       </DialogHeader>
-      {result?.status === "error" ? (
-        <Alert variant="destructive">
-          <AlertDescription>{result.error}</AlertDescription>
-        </Alert>
+      <OfflineNotice />
+      {result?.status === "error" && !taken ? (
+        <Notice tone="negative">{result.error}</Notice>
       ) : null}
       {text("displayName", "Name", { autoComplete: "off", maxLength: 80 })}
-      {text("email", "Email", {
-        type: "email",
-        inputMode: "email",
-        autoComplete: "off",
-        spellCheck: false,
-      })}
-      {text("jobTitle", "Job title (optional)", { maxLength: 80 })}
-      <Field
-        className="gap-1.5"
-        data-invalid={!!errorFor("department") || undefined}
-      >
-        <FieldLabel htmlFor={`${id}-department`}>Department</FieldLabel>
-        <OptionSelect
-          id={`${id}-department`}
-          options={DEPARTMENT_OPTIONS}
-          value={values.department ?? null}
-          onValueChange={(value) =>
-            setValues((current) => ({
-              ...current,
-              department: isDepartment(value) ? value : null,
-            }))
-          }
-          emptyLabel="Unassigned"
-          invalid={!!errorFor("department")}
-        />
-        {errorFor("department") ? (
-          <FieldError>{errorFor("department")}</FieldError>
-        ) : null}
-      </Field>
+      {text(
+        "email",
+        "Email",
+        {
+          type: "email",
+          inputMode: "email",
+          autoComplete: "off",
+          spellCheck: false,
+        },
+        {
+          hint: "The sign-in link goes here. Only admins see email addresses.",
+          error: emailError,
+        }
+      )}
+      {text(
+        "jobTitle",
+        <>
+          Job title{" "}
+          <span className="font-normal text-ink-muted">(optional)</span>
+        </>,
+        { maxLength: 80 }
+      )}
       <Field className="gap-1.5">
         <FieldLabel htmlFor={`${id}-venueId`}>Venue</FieldLabel>
         <OptionSelect
@@ -242,15 +350,26 @@ function InviteForm({
           onValueChange={(v) => set("venueId")(v ?? "")}
           placeholder="Choose a venue"
           invalid={!!errorFor("venueId")}
+          aria-describedby={`${id}-venueId-hint`}
         />
         {errorFor("venueId") ? (
           <FieldError>{errorFor("venueId")}</FieldError>
-        ) : null}
+        ) : (
+          <FieldDescription id={`${id}-venueId-hint`}>
+            Only active venues. Photos are counted at this venue.
+          </FieldDescription>
+        )}
       </Field>
+      <TeamField
+        value={values.department ?? null}
+        onChange={(department) => setValues((v) => ({ ...v, department }))}
+        hint="Teams (FOH/BOH) only suggest who to assign. They do not give anyone extra access. Without a team, the monthly target shows Needs setup."
+        error={errorFor("department")}
+      />
       <DialogFooter>
         <Button
           type="button"
-          variant="outline"
+          variant="secondary"
           size="touch"
           onClick={() => onOpenChange(false)}
           disabled={pending}
@@ -263,6 +382,7 @@ function InviteForm({
           disabled={pending}
           aria-busy={pending}
         >
+          <EnvelopeSimpleIcon aria-hidden />
           {pending ? "Sending…" : "Send invitation"}
         </Button>
       </DialogFooter>
