@@ -47,7 +47,9 @@ async function openLink(page: Page, link: string, baseURL: string) {
   const url = new URL(link)
   await page.goto(new URL(url.pathname + url.search, baseURL).toString())
   // Opening the link never uses it (mail scanners prefetch); Continue does.
-  await page.getByRole("button", { name: "Continue" }).click()
+  await page
+    .getByRole("button", { name: /^(Continue|Accept your invitation)$/ })
+    .click()
 }
 
 test.describe("authentication and role routing", () => {
@@ -100,6 +102,7 @@ test.describe("authentication and role routing", () => {
     await openPortfolio(page)
     await page.getByRole("button", { name: "Log out" }).click()
     await expect(page).toHaveURL(/\/login\?signed_out=1$/)
+    await expect(page.getByText("You have signed out.")).toBeVisible()
     await page.goto("/staff")
     await expect(page).toHaveURL(/\/login$/)
   })
@@ -134,8 +137,13 @@ test.describe("authentication and role routing", () => {
     await page.context().clearCookies()
     await openLink(page, link, baseURL!)
     await expect(page).toHaveURL(/\/login\?error=link_invalid$/)
-    await expect(page.getByText(/sign-in link has expired/)).toBeVisible()
+    await expect(
+      page.getByRole("heading", { name: "That sign-in link has expired" })
+    ).toBeVisible()
     await expect(page.getByLabel("Email")).toBeVisible()
+    await expect(
+      page.getByRole("button", { name: "Send a new link" })
+    ).toBeVisible()
   })
 
   test("a deactivated account is blocked, even with an existing session", async ({
@@ -159,5 +167,9 @@ test.describe("authentication and role routing", () => {
     await expect(
       page.getByRole("heading", { name: "Account unavailable" })
     ).toBeVisible()
+    await expect(
+      page.getByText("This account has been deactivated", { exact: false })
+    ).toBeVisible()
+    await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible()
   })
 })
