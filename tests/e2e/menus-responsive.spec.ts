@@ -16,6 +16,7 @@ import { supportedMp4, syntheticJpeg } from "./helpers/media"
 import { requireIsolatedStack } from "./helpers/stack"
 import {
   chooseOption,
+  escape,
   portfolioList,
   staffTile,
   uploadThroughDialog,
@@ -288,7 +289,11 @@ for (const width of WIDTHS) {
       .click()
     const batch = page.getByRole("dialog", { name: "Labels", exact: true })
     await batch
-      .getByRole("combobox", { name: /^Menu item at .* for all files$/ })
+      .getByRole("combobox", {
+        name: new RegExp(
+          `^Menu item at ${escape(world.venue1.name)}\\b.* for all files$`
+        ),
+      })
       .fill("momo")
     await batch.getByRole("option", { name: /^Momo Appetisers/ }).click()
     await check(page, width, "label-editor-batch-variant", batch)
