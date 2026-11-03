@@ -46,7 +46,7 @@ export function ColleaguePosts({
               className="flex min-w-0 items-center gap-2 text-body-touch font-medium text-ink max-md:min-h-11 md:text-body"
             >
               <ProfileAvatar name={item.contributorName} size="sm" />
-              <span className="min-w-0 truncate">
+              <span className="relative min-w-0 truncate">
                 {item.contributorName}
                 <span className="sr-only">&apos;s profile</span>
               </span>
