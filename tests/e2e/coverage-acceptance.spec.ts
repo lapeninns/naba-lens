@@ -294,7 +294,7 @@ async function newTask(
   return row!.requirement_id
 }
 
-const CONFLICT = "Someone else changed this a moment ago."
+const CONFLICT = "a moment ago. The latest decision is shown."
 
 /**
  * D21: after a conflict the dialog is gone, the page notice (a focusable
@@ -1176,10 +1176,10 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
       })
     await card(first).getByRole("button", { name: "Accept" }).click()
     await expect(
-      first.getByText(`Accepted ${w.staffB.name}’s photo.`)
+      first.getByText(/^Accepted\. It counts for /)
     ).toBeVisible()
     await card(second)
-      .getByRole("button", { name: "Needs another photo" })
+      .getByRole("button", { name: "Ask for another photo" })
       .click()
     const ask = second.getByRole("dialog", { name: "Ask for another photo" })
     await ask.getByLabel("Reason").fill("WS5: decided in another tab")
@@ -1214,13 +1214,13 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
         name: `Monthly photo: photo by ${w.staffB.name}`,
       })
     await card(first)
-      .getByRole("button", { name: "Needs another photo" })
+      .getByRole("button", { name: "Ask for another photo" })
       .click()
     const ask = first.getByRole("dialog", { name: "Ask for another photo" })
     await ask.getByLabel("Reason").fill("WS5: decided first in this tab")
     await ask.getByRole("button", { name: "Ask for another photo" }).click()
     await expect(
-      first.getByText(`Asked ${w.staffB.name} for another photo.`)
+      first.getByText(`Asked ${w.staffB.name.split(" ")[0]} for another photo.`)
     ).toBeVisible()
     await card(second).getByRole("button", { name: "Accept" }).click()
     await expectConflictNotice(second)
