@@ -11,7 +11,11 @@ import type {
 
 export type PreparationEntry = {
   run: PreparationRunView
-  /** Venues this run prepared (each venue is credited to one run at most). */
+  /**
+   * Venues this run prepared (each venue is credited to one run at most). An
+   * all-venues run in part of the period's history names none: it records
+   * counts, not which venues it changed.
+   */
   prepared: CoverageVenue[]
 }
 
@@ -20,7 +24,7 @@ export type VenuePreparation = {
   state: "prepared" | "not_prepared" | "didnt_finish"
   /** The entry that prepared the venue, from the same list as Recent runs. */
   preparedBy: PreparationEntry | null
-  /** `preparedBy`'s time, else the venue's latest run when history ran out. */
+  /** `preparedBy`'s time; null when no run can honestly be credited. */
   preparedAt: string | null
   staff: number
   withTarget: number
@@ -32,7 +36,7 @@ export type PreparationModel = {
   /** One entry per run this month, newest first: the single source for both tables. */
   entries: PreparationEntry[]
   venues: VenuePreparation[]
-  /** Entries in the last seven days that prepared a venue or failed. */
+  /** Entries in the last seven days that prepared something or failed. */
   recent: PreparationEntry[]
   recentSince: string
   unprepared: VenuePreparation[]
@@ -101,7 +105,7 @@ export async function loadPeriodRuns(
   return { ok: true, runs, firstPage, complete: false }
 }
 
-const did = (run: PreparationRunView) =>
+export const did = (run: PreparationRunView) =>
   run.targetsCopied + run.placeholdersCreated + run.candidatesAdded > 0
 
 const covers = (run: PreparationRunView, venueId: string) =>
@@ -110,8 +114,12 @@ const covers = (run: PreparationRunView, venueId: string) =>
 /**
  * Builds the venue table and Recent runs from one list of this month's runs,
  * so a venue's "Prepared" time is always a run Recent runs shows. Runs record
- * counts, not venues: a venue is credited to the earliest run covering it
- * that changed something, else the earliest covering success.
+ * counts, not venues: the earliest covering run that changed something (else
+ * the earliest covering success) prepared the venue. With the whole period's
+ * history that run is the venue's first preparation. With part of it, an
+ * all-venues run may only be a top-up for another venue, so it is credited
+ * only when scoped to this venue; otherwise the venue shows "Prepared" with
+ * no time.
  *
  * Each venue's state comes from the overview's `lastPreparation`, and the
  * month's success and last run also read the overview's status, so they hold
@@ -153,22 +161,23 @@ export function buildPreparation(
       (e) => e.run.status === "succeeded" && covers(e.run, row.venue.id)
     )
     // The earliest visible success is only the first of the month when the
-    // history is complete; otherwise the venue's latest run is the honest time.
-    const preparedBy =
+    // history is complete.
+    const earliest =
       state === "prepared"
         ? (covering.find((e) => did(e.run)) ??
           (overview.complete === false ? null : covering[0]) ??
           null)
+        : null
+    const preparedBy =
+      overview.complete !== false || earliest?.run.venueId === row.venue.id
+        ? earliest
         : null
     preparedBy?.prepared.push(row.venue)
     return {
       venue: row.venue,
       state,
       preparedBy,
-      preparedAt:
-        state === "prepared"
-          ? (preparedBy?.run.finishedAt ?? row.lastPreparation?.at ?? null)
-          : null,
+      preparedAt: preparedBy?.run.finishedAt ?? null,
       staff,
       withTarget: staff - staffWithoutTarget,
       staffWithoutTarget,
@@ -181,7 +190,7 @@ export function buildPreparation(
   const recent = newestFirst.filter(
     (e) =>
       new Date(e.run.finishedAt).getTime() >= since &&
-      (e.run.status === "failed" || e.prepared.length > 0)
+      (e.run.status === "failed" || e.prepared.length > 0 || did(e.run))
   )
   const status =
     overview.status?.period.key === period.key ? overview.status : null

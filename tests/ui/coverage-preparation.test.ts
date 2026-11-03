@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest"
 
-import { failureCode } from "@/app/admin/coverage/coverage-copy"
+import {
+  failureCode,
+  PREPARATION_COPY,
+} from "@/app/admin/coverage/coverage-copy"
 import {
   buildPreparation,
   failuresFor,
@@ -233,7 +236,7 @@ describe("buildPreparation with more than 24 runs this month", () => {
     })
     const bell = model.venues.find((v) => v.venue.id === BELL.id)!
     expect(bell.state).toBe("prepared")
-    expect(bell.preparedAt).toBe(at(58))
+    expect(bell.preparedAt).toBeNull()
     expect(model.noSuccessThisMonth).toBe(false)
     expect(model.lastRunAt).toBe(at(58))
   })
@@ -335,20 +338,75 @@ describe("late in the month", () => {
     expect(load).toHaveBeenCalledTimes(8)
   })
 
-  it("shows the venue's latest run when the preparing run is older", async () => {
+  async function lateModel(monthRuns: PreparationRunView[], venueRows = rows) {
     const since = runsSince(PERIOD, now)
-    const result = await loadPeriodRuns(pagedLoader(runs), since)
+    const result = await loadPeriodRuns(pagedLoader(monthRuns), since)
     if (!result.ok) throw new Error("load failed")
-    const model = buildPreparation(rows, result.runs, PERIOD, now, {
+    return buildPreparation(venueRows, result.runs, PERIOD, now, {
       status: { ...STATUS, lastRunAt: at(nowHour), lastSuccessAt: at(nowHour) },
       complete: result.complete && since === PERIOD.startsAt,
     })
+  }
+
+  it("shows Prepared with no time when the preparing run is older", async () => {
+    const model = await lateModel(runs)
     const bell = model.venues[0]!
     expect(bell.state).toBe("prepared")
     expect(bell.preparedBy).toBeNull()
-    expect(bell.preparedAt).toBe(at(nowHour))
+    expect(bell.preparedAt).toBeNull()
+    expect(PREPARATION_COPY.prepared(bell.preparedAt)).toBe("Prepared")
     expect(model.recent).toEqual([])
     expect(model.noSuccessThisMonth).toBe(false)
     expect(model.lastRunAt).toBe(at(nowHour))
+  })
+
+  it("doesn't credit an all-venues top-up to every venue", async () => {
+    // 26 Nov 14:00: an all-venues run adds one new starter's placeholder.
+    const topUpHour = 25 * 24 + 14
+    const withTopUp = runs.map((r) =>
+      r.finishedAt === at(topUpHour)
+        ? run(topUpHour, { placeholdersCreated: 1, alreadyPresent: 11 })
+        : r
+    )
+    const model = await lateModel(withTopUp, [
+      ...rows,
+      row(HORSE, {
+        lastPreparation: { at: at(nowHour), status: "succeeded" },
+      }),
+    ])
+    expect(model.venues).toHaveLength(2)
+    for (const venue of model.venues) {
+      expect(venue.state).toBe("prepared")
+      expect(venue.preparedBy).toBeNull()
+      expect(PREPARATION_COPY.prepared(venue.preparedAt)).toBe("Prepared")
+    }
+    const topUp = model.recent.find((e) => e.run.finishedAt === at(topUpHour))
+    expect(topUp?.prepared).toEqual([])
+    expect(
+      PREPARATION_COPY.runCounts(
+        topUp!.run.targetsCopied,
+        topUp!.run.placeholdersCreated,
+        topUp!.run.candidatesAdded
+      )
+    ).toBe("1 needs setup")
+  })
+
+  it("keeps the time of a run scoped to the venue", async () => {
+    const scopedHour = nowHour - 30
+    const withScoped = runs.map((r) =>
+      r.finishedAt === at(scopedHour)
+        ? run(scopedHour, {
+            venueId: BELL.id,
+            trigger: "manual",
+            targetsCopied: 2,
+            alreadyPresent: 10,
+          })
+        : r
+    )
+    const model = await lateModel(withScoped)
+    const bell = model.venues[0]!
+    expect(bell.preparedAt).toBe(at(scopedHour))
+    expect(model.recent.map((e) => e.run.finishedAt)).toEqual([at(scopedHour)])
+    expect(model.recent[0]?.prepared.map((v) => v.name)).toEqual(["The Bell"])
   })
 })

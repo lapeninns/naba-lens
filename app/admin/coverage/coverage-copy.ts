@@ -115,6 +115,17 @@ export const PREPARATION_COPY = {
       .join(" · "),
   venuesPrepared: (venues: string[]) =>
     `${plural(venues.length, "venue")} prepared: ${venues.join(", ")}`,
+  // Not in the copy deck yet: an all-venues run records counts, not venues.
+  runCounts: (copied: number, needSetup: number, items: number) =>
+    [
+      copied ? `${plural(copied, "target")} copied` : null,
+      needSetup
+        ? `${needSetup} ${needSetup === 1 ? "needs" : "need"} setup`
+        : null,
+      items ? `${plural(items, "checklist item")} added` : null,
+    ]
+      .filter(Boolean)
+      .join(", "),
   needSetupDetail: (count: number, why: string | null) =>
     why && count > 0 ? `${count} · ${why}` : String(count),
   noTarget: "no target",

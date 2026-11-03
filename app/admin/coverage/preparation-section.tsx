@@ -20,6 +20,7 @@ import {
   monthName,
 } from "./coverage-copy"
 import {
+  did,
   failuresFor,
   nextHourlyRun,
   type PreparationEntry,
@@ -41,11 +42,21 @@ function runScope(entry: PreparationEntry, names: Record<string, string>) {
     : PREPARATION_COPY.allVenuesScope
 }
 
-/** Plain words first; the code is never part of the sentence. */
+/**
+ * Plain words first; the code is never part of the sentence. Only what the
+ * run supports: the venues credited to it, else its scope and counts.
+ */
 function runResult(entry: PreparationEntry, names: Record<string, string>) {
+  const { run } = entry
   const prepared = entry.prepared.length
     ? PREPARATION_COPY.venuesPrepared(entry.prepared.map((v) => v.name))
-    : null
+    : run.status === "succeeded" && did(run)
+      ? `${runScope(entry, names)}: ${PREPARATION_COPY.runCounts(
+          run.targetsCopied,
+          run.placeholdersCreated,
+          run.candidatesAdded
+        )}`
+      : null
   const failed =
     entry.run.status === "failed"
       ? `${runScope(entry, names)}: ${failureWords(entry.run.errorCode)}`
