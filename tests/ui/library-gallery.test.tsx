@@ -1053,3 +1053,54 @@ describe("failed downloads", () => {
     expect(screen.queryByRole("alert")).toBeNull()
   })
 })
+
+describe("viewer and delete", () => {
+  it("names the owner and passes the coverage impact to the admin confirm", () => {
+    render(
+      <MediaGallery
+        label="Library"
+        initialPage={{ items: [item(ID_A)], nextCursor: null }}
+        loadPage={vi.fn<LoadPage>()}
+        showAttribution
+        canDelete
+        getDownloadHref={(i) => `/api/media/${i.id}/download`}
+        getDeleteImpact={() => ({
+          kind: "counts",
+          taskName: "Chef's Specials",
+          monthName: "November",
+        })}
+        empty={<p>Empty</p>}
+      />
+    )
+    fireEvent.click(screen.getByRole("button", { name: /^Photo, 01\.jpg/ }))
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }))
+    const confirm = screen.getByRole("alertdialog")
+    expect(confirm.textContent).toContain(
+      "Remove this file from TEST's profile, Photos and the library? It stops counting for Chef's Specials and TEST's November target. When backups are enabled, copies are retained indefinitely for recovery. Previously downloaded copies cannot be recalled."
+    )
+    expect(
+      within(confirm).getByRole("button", { name: "Keep file" })
+    ).toBeTruthy()
+  })
+
+  it("keeps the owner's confirm neutral without a known impact", () => {
+    render(
+      <MediaGallery
+        label="Portfolio"
+        initialPage={{ items: [item(ID_A)], nextCursor: null }}
+        loadPage={vi.fn<LoadPage>()}
+        canDelete
+        empty={<p>Empty</p>}
+      />
+    )
+    fireEvent.click(screen.getByRole("button", { name: /^Photo, 01\.jpg/ }))
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }))
+    const confirm = screen.getByRole("alertdialog")
+    expect(confirm.textContent).toContain(
+      "It's removed from your profile and from Photos. When backups are enabled, copies are retained indefinitely for recovery. Previously downloaded copies cannot be recalled."
+    )
+    expect(
+      within(confirm).getByRole("button", { name: "Keep photo" })
+    ).toBeTruthy()
+  })
+})
