@@ -28,7 +28,7 @@ import {
 } from "./helpers/world"
 
 /**
- * v0.3 QA (packet J), contract §7 row 14: the new screens at 360, 390, 768 and
+ * v0.3 QA (packet J), contract §7 row 14: the new screens at 320, 360, 390, 768 and
  * 1280 CSS px (Chromium emulation, not a phone test). For each state: no
  * horizontal overflow, axe (WCAG 2.x A/AA) without serious/critical findings,
  * the admin nav reachable at phone widths, and a full-page screenshot in
@@ -41,8 +41,9 @@ test.beforeAll(() => requireIsolatedStack())
 const SHOTS =
   process.env.QA_SHOTS_DIR ??
   join(process.cwd(), ".artifacts/screenshots/menus")
-const WIDTHS = [360, 390, 768, 1280] as const
+const WIDTHS = [320, 360, 390, 768, 1280] as const
 const HEIGHT: Record<number, number> = {
+  320: 640,
   360: 780,
   390: 844,
   768: 1024,
@@ -285,20 +286,20 @@ for (const width of WIDTHS) {
       .getByRole("dialog", { name: "Upload photos or videos" })
       .getByRole("button", { name: "Label these files" })
       .click()
-    const batch = page.getByRole("dialog", { name: "Label these files" })
+    const batch = page.getByRole("dialog", { name: "Labels", exact: true })
     await batch
-      .getByRole("combobox", {
-        name: `Menu item at ${world.venue1.name} (optional) for all files`,
-      })
+      .getByRole("combobox", { name: /^Menu item at .* for all files$/ })
       .fill("momo")
     await batch.getByRole("option", { name: /^Momo Appetisers/ }).click()
     await check(page, width, "label-editor-batch-variant", batch)
     await batch.getByRole("button", { name: "Chicken" }).click()
     await batch
-      .getByRole("button", { name: `Adjust labels for ${video.name}` })
+      .getByRole("button", { name: "Adjust labels for video 2" })
       .click()
     await check(page, width, "label-editor-batch-adjust", batch)
-    await batch.getByRole("button", { name: "Save labels for 2 files" }).click()
+    await batch
+      .getByRole("button", { name: "Save labels", exact: true })
+      .click()
     await expect(batch).toBeHidden()
     await page.context().close()
   })
@@ -322,9 +323,10 @@ test("keyboard only: open the editor, pick an item, a content type, a note, save
   await page.keyboard.press("Enter")
   const editor = page.getByRole("dialog", { name: /^(Labels|Edit labels)$/ })
   await expect(editor).toBeVisible()
-  expect(await editor.evaluate((d) => d.contains(document.activeElement))).toBe(
-    true
-  )
+  // The editor takes focus a frame after it is shown.
+  await expect
+    .poll(() => editor.evaluate((d) => d.contains(document.activeElement)))
+    .toBe(true)
 
   const search = editor.getByRole("combobox", { name: /^Menu item at / })
   await tabTo(page, search)
@@ -373,9 +375,7 @@ test("touch (Pixel 7 emulation): upload, label with taps, labels persist", async
     .getByRole("dialog", { name: "Upload photos or videos" })
     .getByRole("button", { name: "Label this file" })
     .tap()
-  const editor = page.getByRole("dialog", {
-    name: /^(Label this file|Add labels)$/,
-  })
+  const editor = page.getByRole("dialog", { name: "Labels" })
   await editor.getByRole("combobox", { name: /^Menu item at / }).fill("garlic")
   await editor
     .getByRole("option", { name: /^Garlic Mushroom Appetisers/ })

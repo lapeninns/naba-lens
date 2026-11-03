@@ -300,7 +300,9 @@ test("rows 1+3: two venue menus imported separately; a draft is never active for
     ).toBeVisible()
     await searchMenu(a, "Stuffed Tandoori")
     await expect(
-      a.getByText("No menu items match", { exact: false }).first()
+      a.getByText(
+        `Nothing on ${world.venue1.name}'s menu matches "Stuffed Tandoori".`
+      )
     ).toBeVisible()
     await searchMenu(a, "Onion Bhaji")
     // Both files list "Onion Bhaji"; only venue 1's own item is offered.
@@ -321,7 +323,7 @@ test("rows 1+3: two venue menus imported separately; a draft is never active for
     ).toBeVisible()
     await searchMenu(c, "Sherpali")
     await expect(
-      c.getByText("No menu items match", { exact: false }).first()
+      c.getByText(`Nothing on ${world.venue2.name}'s menu matches "Sherpali".`)
     ).toBeVisible()
   })
 
@@ -522,7 +524,7 @@ test("rows 2+4: re-import with rename, removal, key change and category move; un
     const editor = await openOwnLabelEditor(staff, file(1))
     await searchMenu(editor, "Momo")
     await expect(
-      editor.getByText("No menu items match", { exact: false }).first()
+      editor.getByText(`Nothing on ${world.venue1.name}'s menu matches "Momo".`)
     ).toBeVisible()
     await staff.context().close()
   })
