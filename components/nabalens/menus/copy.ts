@@ -9,7 +9,12 @@ import type {
 
 /** Spec §2 "Activate": labelling only, never publication or availability. */
 export const ACTIVE_MEANING_COPY =
-  "Active means available for labelling photos and videos. It is not a public menu and not proof that the venue serves these items."
+  "Active means available for labelling, nothing more. It isn't a public menu, doesn't change any venue website and doesn't mean a dish is served today."
+
+export const MENUS_SUMMARY_COPY = `Each venue's menu, used only for labelling photos. ${ACTIVE_MEANING_COPY}`
+
+/** "The Railway's", for sentences that name a venue. */
+export const possessive = (name: string) => `${name}'s`
 
 export const UNSUPPORTED_IMPORT_COPY =
   "PDF, image, Word and JavaScript menus are not supported. They are not read or parsed; convert the menu to JSON or CSV first."
@@ -21,7 +26,7 @@ export type MenuActionResult = { ok: true } | { ok: false; error: string }
 
 export const MENU_STATUS_LABEL: Record<MenuVersionStatus, string> = {
   draft: "Draft",
-  active: "Active",
+  active: "Active · for labelling only",
   retired: "Retired",
   discarded: "Discarded",
 }
