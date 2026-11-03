@@ -82,7 +82,9 @@ const withVenue = { ...EMPTY_LIBRARY_FILTERS, venueId: "v1" }
 describe("LibraryFilters label search", () => {
   it("applies on Enter, tidied, and once on blur", async () => {
     const { onChange, user } = setup()
-    const box = screen.getByRole("searchbox", { name: "Search" })
+    const box = screen.getByRole("searchbox", {
+      name: "Search labels and notes",
+    })
     await user.type(box, "  lamb   bhuna {Enter}")
     expect(onChange).toHaveBeenCalledTimes(1)
     expect(onChange).toHaveBeenLastCalledWith({
@@ -96,7 +98,9 @@ describe("LibraryFilters label search", () => {
 
   it("applies with Apply filters and on blur with changed text", async () => {
     const { onChange, user } = setup()
-    const box = screen.getByRole("searchbox", { name: "Search" })
+    const box = screen.getByRole("searchbox", {
+      name: "Search labels and notes",
+    })
     await user.type(box, "platter")
     await user.click(screen.getByRole("button", { name: "Apply filters" }))
     expect(onChange).toHaveBeenCalledTimes(1)
@@ -112,7 +116,7 @@ describe("LibraryFilters label search", () => {
       query: "lamb",
     })
     const box = screen.getByRole<HTMLInputElement>("searchbox", {
-      name: "Search",
+      name: "Search labels and notes",
     })
     expect(box.value).toBe("lamb")
     await user.click(box)

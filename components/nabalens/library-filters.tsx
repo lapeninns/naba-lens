@@ -322,11 +322,12 @@ export function LibraryFilters({
           />
         </Field>
         <div className="col-span-2 grid content-start gap-1.5 md:col-auto">
-          <span id={`${id}-media`} className={FIELD_LABEL}>
+          <span aria-hidden className={FIELD_LABEL}>
             Media
           </span>
           <ToggleGroup
-            aria-labelledby={`${id}-media`}
+            // The visible label is "Media"; the name keeps it as its start.
+            aria-label="Media type"
             spacing={1}
             value={[v.type]}
             onValueChange={(next) => {
@@ -599,6 +600,8 @@ function SearchBox({
         autoComplete="off"
         enterKeyHint="search"
         maxLength={80}
+        // The visible label is "Search"; the name says what is searched.
+        aria-label="Search labels and notes"
         placeholder="Search labels and notes"
         value={draft}
         onChange={(e) => setDraft(e.currentTarget.value)}
