@@ -1,10 +1,10 @@
 import type { Department } from "@/lib/config/departments"
 
+import { Notice } from "../notice"
+import { PageHeader } from "../page-header"
 import { AssignmentList } from "./assignment-list"
-import { plural } from "./copy"
 import { MonthlyProgressCard } from "./monthly-progress-card"
-import { NeedsAnotherPhotoList } from "./needs-another-photo-list"
-import { SetupChecklist } from "./setup-checklist"
+import { todoItems, TodoSection } from "./todo-list"
 import type { CoverageScope, MyTasksView } from "./types"
 
 /** Why sending is paused (no venue, or an inactive venue), or null. */
@@ -16,12 +16,28 @@ export function submitBlockedCopy(scope: CoverageScope): string | null {
   return "Sending photos is paused because your venue isn't taking photos right now. Ask an admin to check your venue."
 }
 
-/** Staff landing: setup, this month, replacements and assigned tasks. */
+/** A send the person just made, announced above To do. */
+export type JustSent =
+  | { kind: "sent"; count: number; taskTitle: string | null }
+  | { kind: "replaced"; taskTitle: string | null }
+
+export const RULE_SENTENCE =
+  "Ready photos are already in Photos and on your profile. Review decides whether they count, not whether they are shared."
+
+function sentNotice(justSent: JustSent) {
+  const task = justSent.taskTitle ?? "this month's photos"
+  return justSent.kind === "replaced"
+    ? `Your new photo for ${task} is waiting for review.`
+    : `${justSent.count === 1 ? "1 photo" : `${justSent.count} photos`} sent to ${task}. A reviewer reviews ${justSent.count === 1 ? "it" : "them"} next.`
+}
+
+/** Staff Home: the one thing to do next, this month's photos, then all tasks. */
 export function TasksOverview({
   tasks,
   profile,
   tasksPath,
   portfolioPath,
+  justSent = null,
 }: {
   tasks: MyTasksView
   profile: {
@@ -34,58 +50,38 @@ export function TasksOverview({
   tasksPath: string
   /** Where Edit profile lives ("/staff"). */
   portfolioPath: string
+  justSent?: JustSent | null
 }) {
   const { scope, period, monthly, assignments, needsAnotherPhoto } = tasks
   const blocked = submitBlockedCopy(scope)
   const replacing = new Set(
     needsAnotherPhoto.flatMap((s) => (s.requirement ? [s.requirement.id] : []))
   )
-  const openTaskIds = new Set(
-    assignments.filter((a) => a.canSubmit).map((a) => a.requirement.id)
-  )
-  const overdue = assignments.filter(
-    (a) => a.requirement.progress.overdue && !a.requirement.progress.satisfied
-  ).length
+  const items = todoItems(tasks)
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-2">
-        <p className="text-sm font-medium text-muted-foreground">
-          {[scope.venue?.name, period.label].filter(Boolean).join(" · ")}
-        </p>
-        <h1 className="font-display text-page-title-compact md:text-page-title">
-          My tasks
-        </h1>
-        <ul
-          aria-label="At a glance"
-          className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground"
-        >
-          <li>{tasks.pendingReview} waiting for review</li>
-          <li>
-            {plural(needsAnotherPhoto.length, "photo needs", "photos need")}{" "}
-            replacing
-          </li>
-          <li>
-            {plural(assignments.length, "task", "tasks")} assigned
-            {overdue > 0 ? ` (${overdue} overdue)` : ""}
-          </li>
-        </ul>
-      </div>
-
-      <SetupChecklist
-        setup={scope.setup}
-        profile={profile}
-        editProfileHref={portfolioPath}
+      <PageHeader
+        scope={[scope.venue?.name, period.label]}
+        venueScope={Boolean(scope.venue)}
+        title="Home"
       />
 
-      {blocked && scope.venue ? (
-        <p
-          role="status"
-          className="rounded-md border bg-muted/40 px-4 py-3 text-sm"
-        >
-          {blocked}
-        </p>
+      {justSent ? (
+        <Notice tone="positive" role="status">
+          {sentNotice(justSent)}
+        </Notice>
       ) : null}
+
+      {blocked && scope.venue ? <Notice role="status">{blocked}</Notice> : null}
+
+      <TodoSection
+        items={items}
+        scope={scope}
+        profile={profile}
+        tasksPath={tasksPath}
+        portfolioPath={portfolioPath}
+      />
 
       <MonthlyProgressCard
         monthly={monthly}
@@ -94,12 +90,9 @@ export function TasksOverview({
         canSubmit={scope.canSubmit}
       />
 
-      <NeedsAnotherPhotoList
-        submissions={needsAnotherPhoto}
-        tasksPath={tasksPath}
-        canSubmit={scope.canSubmit}
-        openTaskIds={openTaskIds}
-      />
+      <p className="max-w-(--size-reading) text-body-touch text-ink-muted md:text-body">
+        {RULE_SENTENCE}
+      </p>
 
       <section
         aria-labelledby="assigned-heading"

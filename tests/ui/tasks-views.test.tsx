@@ -77,7 +77,9 @@ describe("TasksOverview", () => {
       screen.getByText(/Your team \(FOH or BOH\) isn't set yet/)
     ).toBeTruthy()
     expect(
-      screen.getByText("You can still add photos to your profile in the meantime.")
+      screen.getByText(
+        "You can still add photos to your profile in the meantime."
+      )
     ).toBeTruthy()
     expect(screen.queryByText("Target met")).toBeNull()
     expect(screen.queryByRole("progressbar")).toBeNull()
@@ -157,12 +159,13 @@ describe("TasksOverview", () => {
         portfolioPath="/staff"
       />
     )
-    expect(
-      screen.getByRole("heading", { level: 1, name: "Home" })
-    ).toBeTruthy()
+    expect(screen.getByRole("heading", { level: 1, name: "Home" })).toBeTruthy()
     const todo = screen.getByRole("region", { name: /To do/ })
-    expect(within(todo).getByText("TEST Morgan asked for another photo")).toBeTruthy()
-    expect(within(todo).getByText("Starters is overdue")).toBeTruthy()
+    expect(
+      within(todo).getByText("TEST Morgan asked for another photo")
+    ).toBeTruthy()
+    // The replacement request covers the overdue task, so it isn't listed twice.
+    expect(within(todo).queryByText("Starters is overdue")).toBeNull()
 
     const tasks = screen.getByRole("list", { name: "Assigned tasks" })
     const link = within(tasks).getByRole("link", { name: "Starters" })

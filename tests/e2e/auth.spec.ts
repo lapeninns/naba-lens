@@ -72,7 +72,7 @@ test.describe("authentication and role routing", () => {
     expect(data.users.some((u) => u.email === email)).toBe(false)
   })
 
-  test("invited staff signs in by magic link and lands on My tasks", async ({
+  test("invited staff signs in by magic link and lands on Home", async ({
     page,
     baseURL,
   }) => {
