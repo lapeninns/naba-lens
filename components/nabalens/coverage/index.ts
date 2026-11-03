@@ -29,10 +29,7 @@ export {
   AmenityFactForm,
   type SetAmenityFactHandler,
 } from "./amenity-fact-form"
-export {
-  AmenityFactsSection,
-  factConfirmedText,
-} from "./amenity-facts-section"
+export { AmenityFactsSection, factConfirmedText } from "./amenity-facts-section"
 export {
   AttachPhotosDialog,
   type AttachPhotosHandler,
@@ -49,13 +46,14 @@ export {
   TeamPerson,
   TeamRoster,
   TeamTag,
+  type SetTargetHandler,
+} from "./team-roster"
+export {
   bySurname,
-  monthName,
   rosterOrder,
   targetReasonRequired,
   targetSourceText,
-  type SetTargetHandler,
-} from "./team-roster"
+} from "./roster"
 export {
   PrepareMonthButton,
   preparationSummary,

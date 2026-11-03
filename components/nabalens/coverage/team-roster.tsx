@@ -29,19 +29,23 @@ import { cn } from "@/lib/utils"
 import { CoverageNotice, type Notice as PageNotice } from "./coverage-notice"
 import {
   COVERAGE_LIMITS,
-  TARGET_SOURCE_LABEL,
   failureText,
   firstDayOfPeriod,
-  labelFor,
   lastDayOfPeriod,
   localDateLabel,
+  monthName,
   needsRefresh,
-  periodKeyLabel,
   plural,
 } from "./copy"
 import { Frames, ItemList } from "./layout"
 import { manageHrefs } from "./manage-nav"
 import { useReportedFocus } from "./reason-dialog"
+import {
+  rosterOrder,
+  targetReasonRequired,
+  targetSourceText,
+  timingOf,
+} from "./roster"
 import type {
   CoverageFailure,
   CoveragePerson,
@@ -57,72 +61,8 @@ export type SetTargetHandler = (
   input: Omit<SetMonthlyTargetInput, "venueId">
 ) => Promise<CoverageResult<{ revision: number }>>
 
-type PeriodTiming = "past" | "current" | "future"
-
-function timingOf(period: PeriodKey, current: PeriodKey): PeriodTiming {
-  return period < current ? "past" : period === current ? "current" : "future"
-}
-
-/** When a target change must carry a reason (current-month edits, any past month). */
-export function targetReasonRequired(
-  row: Pick<MonthlyProgress, "targetCount" | "source">,
-  timing: PeriodTiming
-): boolean {
-  if (timing === "past") return true
-  return (
-    timing === "current" &&
-    row.targetCount != null &&
-    row.source !== "placeholder"
-  )
-}
-
-/** "November" for "2026-11". */
-export function monthName(period: PeriodKey): string {
-  return periodKeyLabel(period).split(" ")[0] ?? period
-}
-
-function previousPeriod(period: PeriodKey): PeriodKey {
-  const [year, month] = period.split("-").map(Number)
-  const date = new Date(Date.UTC(year, month - 2, 1))
-  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`
-}
-
 function firstName(name: string): string {
   return name.trim().split(/\s+/)[0] ?? name
-}
-
-function surname(name: string): string {
-  const parts = name.trim().split(/\s+/)
-  return parts[parts.length - 1] ?? name
-}
-
-/** A to Z by surname, ties by the whole name. */
-export function bySurname(a: string, b: string): number {
-  const options = { sensitivity: "base" } as const
-  return (
-    surname(a).localeCompare(surname(b), "en-GB", options) ||
-    a.localeCompare(b, "en-GB", options)
-  )
-}
-
-/** Needs setup first, then A to Z by surname; never by progress. */
-export function rosterOrder(a: MonthlyProgress, b: MonthlyProgress): number {
-  const setup =
-    Number(b.status === "needs_setup") - Number(a.status === "needs_setup")
-  if (setup !== 0) return setup
-  return bySurname(a.person.displayName, b.person.displayName)
-}
-
-/** Where the target came from, in the row's own words. */
-export function targetSourceText(
-  row: Pick<MonthlyProgress, "source">,
-  period: PeriodKey,
-  timing: PeriodTiming
-): string | null {
-  if (!row.source || row.source === "placeholder") return null
-  if (row.source === "copied" && timing === "past")
-    return `Copied from ${monthName(previousPeriod(period))}`
-  return labelFor(TARGET_SOURCE_LABEL, row.source)
 }
 
 function lowerFirst(text: string): string {
@@ -247,13 +187,7 @@ export function Stepper({
         aria-label={`Increase ${name}`}
         className={step}
         disabled={disabled || (set && n >= max)}
-        onClick={() =>
-          onChange(
-            String(
-              set ? Math.min(max, n + 1) : 1
-            )
-          )
-        }
+        onClick={() => onChange(String(set ? Math.min(max, n + 1) : 1))}
       >
         <PlusIcon aria-hidden className="size-4" />
       </button>
@@ -273,8 +207,7 @@ function FieldError({ id, children }: { id?: string; children: string }) {
   )
 }
 
-const fieldLabel =
-  "text-label-touch text-ink md:text-label"
+const fieldLabel = "text-label-touch text-ink md:text-label"
 const fieldHint = "text-meta-touch text-ink-muted md:text-meta"
 const fieldInput =
   "h-11 rounded-control border-line-control bg-panel px-3 text-body-touch text-ink md:h-9 md:text-body dark:bg-panel"
@@ -326,7 +259,11 @@ function originalDue(row: MonthlyProgress, period: PeriodKey) {
   return row.due?.dueOn ?? lastDayOfPeriod(period)
 }
 
-function isChanged(row: MonthlyProgress, draft: Draft | null, period: PeriodKey) {
+function isChanged(
+  row: MonthlyProgress,
+  draft: Draft | null,
+  period: PeriodKey
+) {
   return (
     !!draft &&
     (draft.count !== originalCount(row) ||
@@ -474,8 +411,7 @@ export function TeamRoster({
     }
     setSaving(true)
     setNotice(null)
-    const saved: { row: MonthlyProgress; count: number; reason: string }[] =
-      []
+    const saved: { row: MonthlyProgress; count: number; reason: string }[] = []
     let failure: { tone: "error" | "warning"; text: string } | null = null
     for (const row of changes) {
       const draft = draftFor(row)!
@@ -498,7 +434,10 @@ export function TeamRoster({
       if (!result.ok) {
         const refresh = needsRefresh(result)
         if (refresh) onStale?.()
-        failure = { tone: refresh ? "warning" : "error", text: failureText(result) }
+        failure = {
+          tone: refresh ? "warning" : "error",
+          text: failureText(result),
+        }
         if ("fieldErrors" in result && result.fieldErrors) {
           const fields = result.fieldErrors as Partial<Record<string, string>>
           setErrors({
@@ -571,16 +510,11 @@ export function TeamRoster({
           ? needsReason
             ? "First target"
             : "First target · no reason needed"
-          : [
-              `Was ${row.targetCount}`,
-              source ? lowerFirst(source) : null,
-            ]
+          : [`Was ${row.targetCount}`, source ? lowerFirst(source) : null]
               .filter(Boolean)
               .join(" · ")
     } else if (timing === "past") {
-      due =
-        source ??
-        (row.targetCount == null ? `No target for ${month}.` : "")
+      due = source ?? (row.targetCount == null ? `No target for ${month}.` : "")
     } else if (row.targetId == null && timing === "current") {
       due = "Copied when you prepare this month"
     } else if (row.status === "needs_setup") {
@@ -724,8 +658,8 @@ export function TeamRoster({
             ) : (
               <p id={`${dueId}-hint`} className={fieldHint}>
                 Defaults to {localDateLabel(lastDayOfPeriod(period.key))}. An
-                earlier date is for follow-up only; photos can still be sent
-                all month.
+                earlier date is for follow-up only; photos can still be sent all
+                month.
               </p>
             )}
           </div>
@@ -748,7 +682,9 @@ export function TeamRoster({
             />
             <div className="flex items-start gap-3">
               {rowErrors.reason ? (
-                <FieldError id={`${reasonId}-hint`}>{rowErrors.reason}</FieldError>
+                <FieldError id={`${reasonId}-hint`}>
+                  {rowErrors.reason}
+                </FieldError>
               ) : (
                 <span id={`${reasonId}-hint`} className={fieldHint}>
                   Saved with the change. Admins can see it.
@@ -777,12 +713,17 @@ export function TeamRoster({
       {rows.length === 0 ? (
         <EmptyState
           title={
-            venueName ? `No one works at ${venueName} yet` : "No one works here yet"
+            venueName
+              ? `No one works at ${venueName} yet`
+              : "No one works here yet"
           }
           description="An admin adds staff and sets their venue. Their targets are set here once they join."
         />
       ) : (
-        <section aria-labelledby={`${ids}-people`} className="grid min-w-0 gap-3">
+        <section
+          aria-labelledby={`${ids}-people`}
+          className="grid min-w-0 gap-3"
+        >
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-2">
             <h2
               id={`${ids}-people`}
@@ -807,7 +748,10 @@ export function TeamRoster({
         </section>
       )}
       {moved.length > 0 ? (
-        <section aria-labelledby={`${ids}-moved`} className="grid min-w-0 gap-3">
+        <section
+          aria-labelledby={`${ids}-moved`}
+          className="grid min-w-0 gap-3"
+        >
           <h2
             id={`${ids}-moved`}
             className="text-section-title-touch text-ink md:text-section-title"
@@ -997,11 +941,7 @@ function CorrectTargetDialog({
             </Notice>
           ) : null}
           <div className="flex items-center gap-3">
-            <ProfileAvatar
-              name={name}
-              src={row.person.avatarUrl}
-              size="md"
-            />
+            <ProfileAvatar name={name} src={row.person.avatarUrl} size="md" />
             <p className="min-w-0 text-body-touch md:text-body-sm">
               <strong className="font-semibold">{name}</strong>{" "}
               <TeamTag department={row.person.department} />
@@ -1065,7 +1005,9 @@ function CorrectTargetDialog({
             />
             <div className="flex items-start gap-3">
               {errors.reason ? (
-                <FieldError id={`${ids}-reason-hint`}>{errors.reason}</FieldError>
+                <FieldError id={`${ids}-reason-hint`}>
+                  {errors.reason}
+                </FieldError>
               ) : (
                 <span id={`${ids}-reason-hint`} className={fieldHint}>
                   Kept in {month}&apos;s history with your name and the time.

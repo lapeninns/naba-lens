@@ -202,6 +202,11 @@ export function periodKeyLabel(period: PeriodKey): string {
   )
 }
 
+/** "November" for "2026-11". */
+export function monthName(period: PeriodKey): string {
+  return periodKeyLabel(period).split(" ")[0] ?? period
+}
+
 const localDateFormatter = new Intl.DateTimeFormat("en-GB", {
   day: "numeric",
   month: "short",

@@ -32,7 +32,8 @@ import {
 } from "./copy"
 import { CoverageSection, Quote } from "./layout"
 import { ReasonDialog, textareaClass } from "./reason-dialog"
-import { Stepper, TeamTag, bySurname } from "./team-roster"
+import { bySurname } from "./roster"
+import { Stepper, TeamTag } from "./team-roster"
 import type {
   CoveragePerson,
   CoverageResult,
