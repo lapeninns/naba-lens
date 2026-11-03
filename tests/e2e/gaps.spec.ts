@@ -407,8 +407,15 @@ test.describe("GAP-11 over HTTP: community reads and management isolation", () =
     await pageB.goto(`/admin/staff/${staffA.id}`)
     await expect(pageB).toHaveURL(STAFF_LANDING)
     await expect(pageB.getByText("private-dish.jpg")).toHaveCount(0)
-    // Staff Home lists same-venue colleagues' photos ("From your colleagues"),
-    // a permitted community read; A's name must appear nowhere else.
+    // Staff Home shows colleagues' photos from across the organisation
+    // ("From your colleagues"), a permitted community read. A's name may
+    // appear there and nowhere else, with no management or download controls.
+    const colleagues = pageB.getByRole("region", {
+      name: "From your colleagues",
+    })
+    await expect(
+      colleagues.getByText("TEST e2e-gaps-http-a").first()
+    ).toBeVisible()
     await expect
       .poll(() =>
         pageB.evaluate((name) => {
@@ -416,20 +423,33 @@ test.describe("GAP-11 over HTTP: community reads and management isolation", () =
             document.body,
             NodeFilter.SHOW_TEXT
           )
-          let outside = 0
+          const outside: string[] = []
           for (let n = walker.nextNode(); n; n = walker.nextNode()) {
             if (!n.textContent?.includes(name)) continue
-            if (
-              !n.parentElement?.closest(
-                '[aria-labelledby="colleagues-heading"]'
+            const parent = n.parentElement
+            if (parent?.closest('[aria-labelledby="colleagues-heading"]'))
+              continue
+            const path: string[] = []
+            for (let a = parent; a && a !== document.body; a = a.parentElement)
+              path.unshift(
+                a.tagName.toLowerCase() +
+                  (a.getAttribute("aria-label")
+                    ? `[aria-label="${a.getAttribute("aria-label")}"]`
+                    : a.getAttribute("data-slot")
+                      ? `[data-slot=${a.getAttribute("data-slot")}]`
+                      : "")
               )
-            )
-              outside++
+            outside.push(path.join(" > "))
           }
           return outside
         }, "TEST e2e-gaps-http-a")
       )
-      .toBe(0)
+      .toEqual([])
+    await expect(
+      pageB.locator(
+        'a[href*="/download"], a[href^="/admin"], [role="menuitem"]'
+      )
+    ).toHaveCount(0)
 
     // Allowed reads carry private, no-store headers and nosniff.
     const allowed: [Page, string, number][] = [
