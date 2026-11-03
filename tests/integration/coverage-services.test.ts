@@ -10,6 +10,7 @@ import {
   createRequirement,
   getCoverageScope,
   getGroupOverview,
+  getManagerReviewCount,
   getMenuCoverage,
   getMyMonth,
   getMyTasks,
@@ -340,6 +341,23 @@ describe("coverage services", () => {
     ).toMatchObject({
       code: "asset_ineligible",
       assetErrors: [{ assetId: old.id, reason: "outside_period" }],
+    })
+  })
+
+  it("counts the manager's photos to review and refuses everyone else", async () => {
+    const queue = okOf(await listReviewQueue(actors.manager, {}))
+    expect(queue.nextCursor).toBeNull()
+    expect(okOf(await getManagerReviewCount(actors.manager)).count).toBe(
+      queue.items.length
+    )
+    expect(queue.items.length).toBeGreaterThan(0)
+    expect(await getManagerReviewCount(actors.staff1)).toMatchObject({
+      ok: false,
+      code: "not_permitted",
+    })
+    expect(await getManagerReviewCount(actors.admin)).toMatchObject({
+      ok: false,
+      code: "invalid_input",
     })
   })
 

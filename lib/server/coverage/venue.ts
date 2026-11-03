@@ -79,6 +79,25 @@ export async function getVenueCoverage(
   }
 }
 
+/**
+ * Photos waiting for the manager's review at their own venue: the same
+ * `pending_review_count` the venue overview shows. Anyone who is not a
+ * manager (admins included, as they have no own venue) is refused.
+ */
+export async function getManagerReviewCount(
+  actor: MediaActor
+): Promise<CoverageResult<{ count: number }>> {
+  const venue = await resolveVenue(actor, undefined)
+  if (!venue.ok) return venue
+  const summary = await actor.db.rpc("venue_coverage_summary", {
+    p_venue_id: venue.venueId,
+  })
+  if (summary.error) return coverageRpcFailure(summary.error, "venue summary")
+  const row = summary.data?.[0]
+  if (!row) return failure("not_found", "This venue could not be found.")
+  return { ok: true, count: row.pending_review_count }
+}
+
 /** One requirement of the venue (retired ones included, as history). */
 export async function getVenueRequirement(
   actor: MediaActor,

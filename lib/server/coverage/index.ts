@@ -11,6 +11,7 @@ export {
   submitPhotos,
 } from "./staff"
 export {
+  getManagerReviewCount,
   getStaffMonth,
   getVenueCoverage,
   getVenueRequirement,
