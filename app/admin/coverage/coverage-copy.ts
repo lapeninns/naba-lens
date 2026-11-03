@@ -137,6 +137,11 @@ export function failureWords(errorCode: string | null): string {
     : "preparation stopped before it finished. Run it again."
 }
 
+/** The code shown after the words: the deck's name for a conflict, else the SQLSTATE. */
+export function failureCode(errorCode: string): string {
+  return CONFLICT_CODES.has(errorCode) ? "PREP_TARGET_CONFLICT" : errorCode
+}
+
 /** A18: one venue's coverage inside the admin shell. */
 export const VENUE_COVERAGE_COPY = {
   title: "Venue coverage",

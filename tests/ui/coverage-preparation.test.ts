@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 
+import { failureCode } from "@/app/admin/coverage/coverage-copy"
 import {
   buildPreparation,
   failuresFor,
@@ -295,5 +296,16 @@ describe("buildPreparation with more than 24 runs this month", () => {
     const bell = model.unfinished[0]!
     expect(failuresFor(model, bell)?.run.id).toBe("failed-run")
     expect(model.entries.map((e) => e.run.id)).not.toContain("october")
+  })
+})
+
+describe("failureCode", () => {
+  it("names a target conflict with the deck's code", () => {
+    for (const code of ["23505", "40001", "40P01", "55P03"])
+      expect(failureCode(code)).toBe("PREP_TARGET_CONFLICT")
+  })
+
+  it("keeps any other SQLSTATE", () => {
+    expect(failureCode("P0001")).toBe("P0001")
   })
 })

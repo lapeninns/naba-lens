@@ -15,6 +15,7 @@ import { SectionHead } from "./coverage-sections"
 import {
   COVERAGE_COPY,
   PREPARATION_COPY,
+  failureCode,
   failureWords,
   monthName,
 } from "./coverage-copy"
@@ -144,7 +145,7 @@ export function PreparationSection({
                   </p>
                   {run?.errorCode ? (
                     <p className="font-mono text-mono text-ink-muted">
-                      {run.errorCode}
+                      {failureCode(run.errorCode)}
                     </p>
                   ) : null}
                 </li>
@@ -280,7 +281,7 @@ export function PreparationSection({
                         <>
                           {" "}
                           <span className="font-mono text-mono text-ink-muted">
-                            {entry.run.errorCode}
+                            {failureCode(entry.run.errorCode)}
                           </span>
                         </>
                       ) : null}
