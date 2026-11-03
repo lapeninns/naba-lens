@@ -13,7 +13,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {} }))
 
 import { deleteMedia } from "@/app/_media/actions"
 import AdminLayout from "@/app/admin/layout"
-import AdminPage from "@/app/admin/page"
+import AdminPage from "@/app/admin/(content)/page"
 import { loadLibraryPage } from "@/app/admin/library-actions"
 import StaffDirectoryPage from "@/app/admin/staff/page"
 import StaffPortfolioPage from "@/app/admin/staff/[id]/page"

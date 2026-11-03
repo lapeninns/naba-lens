@@ -18,7 +18,7 @@ import { loadMyMedia } from "@/app/staff/actions"
 import { loadLibraryPage } from "@/app/admin/library-actions"
 import RootPage from "@/app/page"
 import StaffPage from "@/app/staff/page"
-import AdminPage from "@/app/admin/page"
+import AdminPage from "@/app/admin/(content)/page"
 import { getAuthState } from "@/lib/auth"
 import { proxy } from "@/proxy"
 

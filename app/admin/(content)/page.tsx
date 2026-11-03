@@ -9,9 +9,9 @@ import {
 } from "@/lib/server/media/library"
 import { libraryLabelFilterOptions } from "@/lib/server/media/library-labels"
 
-import { AdminLibrary } from "./admin-library"
-import type { LibraryPageResult } from "./library-actions"
-import { toFilterValue } from "./library-search"
+import { AdminLibrary } from "../admin-library"
+import type { LibraryPageResult } from "../library-actions"
+import { toFilterValue } from "../library-search"
 
 export const metadata = { title: "Content · Naba-Lens" }
 

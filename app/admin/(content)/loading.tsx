@@ -3,8 +3,8 @@ import { AppShell } from "@/components/nabalens"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { Skeleton } from "@/components/ui/skeleton"
 
-import { LIBRARY_COPY } from "./library-copy"
-import { LibraryGridSkeleton } from "./library-states"
+import { LIBRARY_COPY } from "../library-copy"
+import { LibraryGridSkeleton } from "../library-states"
 
 export default function AdminLoading() {
   return (
