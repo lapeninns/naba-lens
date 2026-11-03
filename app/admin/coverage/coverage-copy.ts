@@ -89,13 +89,14 @@ export const PREPARATION_COPY = {
     when: "When",
     startedBy: "Started by",
     result: "Result",
-    errorCode: "Error code",
   },
   hourly: "Hourly",
   manual: "Manual",
   notPrepared: "Not prepared yet",
   didntFinish: "Didn't finish",
   prepared: (at: string | null) => (at ? `Prepared ${at}` : "Prepared"),
+  unpreparedBody: (venues: string[], month: string) =>
+    `${venueList(venues)} ${venues.length === 1 ? "hasn't" : "haven't"} been prepared for ${month}. Until ${venues.length === 1 ? "it is" : "they are"}, their staff targets show Needs setup.`,
   preparingTitle: "Preparing",
   preparingBody: (month: string, venues: string[]) =>
     `Preparing ${month} for ${venueList(venues)}. You can leave this page; it carries on.`,

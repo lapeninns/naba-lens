@@ -8,6 +8,7 @@ import type { PeriodView } from "@/lib/server/coverage/types"
 
 import { SectionHead } from "./coverage-sections"
 import {
+  COVERAGE_COPY,
   PREPARATION_COPY,
   failureWords,
   monthName,
@@ -143,7 +144,23 @@ export function PreparationSection({
             })}
           </ul>
         </Notice>
-      ) : model.noSuccessThisMonth ? (
+      ) : null}
+
+      {model.unprepared.length > 0 ? (
+        <Notice
+          tone="attention"
+          title={COVERAGE_COPY.unpreparedTitle(model.unprepared.length)}
+        >
+          <p>
+            {PREPARATION_COPY.unpreparedBody(
+              model.unprepared.map((v) => v.venue.name),
+              month
+            )}
+          </p>
+        </Notice>
+      ) : null}
+
+      {failed.length === 0 && model.noSuccessThisMonth ? (
         <Notice tone="attention">
           <p>{PREPARATION_COPY.firstRun(nextHourlyRun(new Date()))}</p>
         </Notice>
@@ -234,9 +251,6 @@ export function PreparationSection({
                   <th scope="col" className={TH}>
                     {PREPARATION_COPY.columns.result}
                   </th>
-                  <th scope="col" className={TH}>
-                    {PREPARATION_COPY.columns.errorCode}
-                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
@@ -260,12 +274,14 @@ export function PreparationSection({
                       className={TD}
                     >
                       {runResult(entry, venueNames)}
-                    </td>
-                    <td
-                      data-label={PREPARATION_COPY.columns.errorCode}
-                      className={`${TD} font-mono text-mono text-ink-muted ${entry.run.errorCode ? "" : "max-md:hidden"}`}
-                    >
-                      {entry.run.errorCode}
+                      {entry.run.errorCode ? (
+                        <>
+                          {" "}
+                          <span className="font-mono text-mono text-ink-muted">
+                            {entry.run.errorCode}
+                          </span>
+                        </>
+                      ) : null}
                     </td>
                   </tr>
                 ))}
