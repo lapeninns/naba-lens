@@ -30,10 +30,16 @@ export function factConfirmedText(
   return `Confirmed by ${who} · ${formatDate(fact.confirmedAt)}`
 }
 
+/** Lets the facts form close its dialog: after a save, with the saved text. */
+export type FactsDialogControls = {
+  onSaved: (text: string) => void
+  onCancel: () => void
+}
+
 /**
  * What the venue has recorded about an amenity, kept apart from any photo.
  * "Record facts" opens the facts form; while presence needs verification the
- * item cannot be confirmed.
+ * item cannot be confirmed. A save closes the dialog and says so here.
  */
 export function AmenityFactsSection({
   requirement,
@@ -45,10 +51,18 @@ export function AmenityFactsSection({
   fact: AmenityFactView | null
   viewerId: string
   /** The facts form, shown in a dialog. Without it there is no "Record facts". */
-  form?: React.ReactNode
+  form?: React.ReactNode | ((controls: FactsDialogControls) => React.ReactNode)
 }) {
   const ids = React.useId()
   const [open, setOpen] = React.useState(false)
+  const [saved, setSaved] = React.useState<string | null>(null)
+  const controls: FactsDialogControls = {
+    onSaved: (text) => {
+      setSaved(text)
+      setOpen(false)
+    },
+    onCancel: () => setOpen(false),
+  }
   const presence = fact?.presence ?? requirement.amenity?.presence ?? "unknown"
   const confirmed = fact
     ? factConfirmedText(fact, viewerId)
@@ -58,6 +72,21 @@ export function AmenityFactsSection({
 
   return (
     <CoverageSection title="Amenity facts" id={`${ids}-facts`}>
+      <div aria-live="polite" className="empty:hidden">
+        {saved ? (
+          <Notice
+            tone="positive"
+            role="status"
+            action={
+              <Button variant="quiet" size="sm" onClick={() => setSaved(null)}>
+                Dismiss
+              </Button>
+            }
+          >
+            {saved}
+          </Notice>
+        ) : null}
+      </div>
       {presence === "unknown" ? (
         <Notice tone="attention">
           Needs verification blocks confirming this item. Record whether it is
@@ -81,7 +110,10 @@ export function AmenityFactsSection({
             <Button
               variant="secondary"
               size="touch"
-              onClick={() => setOpen(true)}
+              onClick={() => {
+                setSaved(null)
+                setOpen(true)
+              }}
             >
               <PencilSimpleIcon data-icon="inline-start" aria-hidden />
               Record facts
@@ -92,7 +124,7 @@ export function AmenityFactsSection({
               <DialogHeader>
                 <DialogTitle>{requirement.title} facts</DialogTitle>
               </DialogHeader>
-              {form}
+              {typeof form === "function" ? form(controls) : form}
             </DialogContent>
           </Dialog>
         </>

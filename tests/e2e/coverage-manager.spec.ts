@@ -488,13 +488,11 @@ test.describe("coverage: manager and admin journeys (WS5)", () => {
     ).toBeVisible()
     await manager.getByRole("button", { name: "Record facts" }).click()
     const facts = manager.getByRole("dialog")
-    await facts.getByRole("radio", { name: /^Present/ }).check()
-    await facts
-      .getByRole("checkbox", { name: /I have checked this at the venue/ })
-      .check()
-    await facts.getByRole("button", { name: "Save and confirm" }).click()
-    await expect(facts.getByText("Saved and confirmed: present.")).toBeVisible()
-    await manager.keyboard.press("Escape")
+    await facts.getByRole("radio", { name: /^Present/ }).click()
+    await facts.getByRole("button", { name: "Save facts" }).click()
+    await expect(
+      manager.getByText("Facts saved: Present. You can confirm the item now.")
+    ).toBeVisible()
     await expect(facts).toBeHidden()
     await expect(confirm).toBeEnabled()
     expect(

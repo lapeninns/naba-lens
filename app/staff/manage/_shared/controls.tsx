@@ -170,14 +170,17 @@ export function AmenityFactControl({
       fact={fact}
       viewerId={viewerId}
       form={
-        fact ? (
-          <AmenityFactForm
-            fact={fact}
-            candidates={candidates}
-            onSave={(input) => setAmenityFactAction({ ...input, venueId })}
-            onStale={refresh}
-          />
-        ) : undefined
+        fact
+          ? (dialog) => (
+              <AmenityFactForm
+                fact={fact}
+                candidates={candidates}
+                onSave={(input) => setAmenityFactAction({ ...input, venueId })}
+                onStale={refresh}
+                {...dialog}
+              />
+            )
+          : undefined
       }
     />
   )

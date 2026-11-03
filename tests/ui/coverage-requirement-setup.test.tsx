@@ -35,7 +35,11 @@ beforeEach(() => window.sessionStorage.clear())
 const ok = (revision: number) => ({ ok: true as const, revision })
 
 const ROSTER = [
-  person({ id: "p-ward", displayName: "TEST Lucy Ward", jobTitle: "Supervisor" }),
+  person({
+    id: "p-ward",
+    displayName: "TEST Lucy Ward",
+    jobTitle: "Supervisor",
+  }),
   person({
     id: "p-gurung",
     displayName: "TEST Priya Gurung",
@@ -201,7 +205,9 @@ describe("RequirementSetup", () => {
         "It stays on the checklist so everyone can see why. Choose Applies to set it up again."
       )
     ).toBeTruthy()
-    expect(screen.queryByRole("button", { name: "Save and confirm" })).toBeNull()
+    expect(
+      screen.queryByRole("button", { name: "Save and confirm" })
+    ).toBeNull()
     expect(screen.queryByText("Who photographs it")).toBeNull()
     await user.click(screen.getByRole("radio", { name: "Applies" }))
     expect(screen.getByLabelText("Photo target")).toBeTruthy()
@@ -431,35 +437,147 @@ describe("RequirementList", () => {
 })
 
 describe("AmenityFactForm", () => {
-  it("cannot confirm unknown, and confirms a known presence", async () => {
+  it("records a known presence as checked by you, never needs verification", async () => {
     const user = userEvent.setup()
     const onSave = vi.fn(async () => ({ ok: true as const, revision: 1 }))
     render(
       <AmenityFactForm fact={amenityFact()} candidates={[]} onSave={onSave} />
     )
-    const confirm = screen.getByRole("checkbox", {
-      name: /I have checked this at the venue/,
+    const group = screen.getByRole("radiogroup", {
+      name: "Dog-related facilities and policy",
     })
-    expect(confirm.hasAttribute("disabled")).toBe(true)
-    expect(screen.getByText(/never establish accessibility or/)).toBeTruthy()
+    expect(
+      within(group)
+        .getAllByRole("radio")
+        .map((r) => [r.textContent, r.getAttribute("aria-checked")])
+    ).toEqual([
+      ["Present", "false"],
+      ["Not present", "false"],
+      ["Needs verification", "true"],
+    ])
+    expect(
+      screen.getByText(
+        "While it needs verification, the item can't be confirmed. Staff can still send photos."
+      )
+    ).toBeTruthy()
+    expect(
+      screen.getByText(
+        "A photo never proves a claim. Record what you have checked yourself. Last confirmed: never."
+      )
+    ).toBeTruthy()
+    expect(
+      screen.getByText("Saved with the facts. Admins can see it.")
+    ).toBeTruthy()
+    expect(screen.queryByRole("checkbox")).toBeNull()
 
-    await user.click(screen.getByRole("radio", { name: /^Present/ }))
-    expect(confirm.hasAttribute("disabled")).toBe(false)
-    await user.click(confirm)
+    await user.click(screen.getByRole("button", { name: "Save facts" }))
+    expect(onSave.mock.calls[0]).toEqual([
+      expect.objectContaining({ presence: "unknown", confirm: false }),
+    ])
+
+    await user.click(screen.getByRole("radio", { name: "Not present" }))
+    expect(
+      screen.getByText(
+        "Recorded as not present. Decide on the item whether it still applies; if it doesn't, mark it not applicable."
+      )
+    ).toBeTruthy()
+    await user.click(screen.getByRole("radio", { name: "Present" }))
+    expect(
+      screen.getByText(
+        "Recorded as present by you. You can then confirm the item."
+      )
+    ).toBeTruthy()
+    await user.type(
+      screen.getByLabelText("What you checked (optional)"),
+      "Bowls by the door"
+    )
     await user.type(
       screen.getByLabelText("Policy (optional)"),
       "Dogs welcome in the bar"
     )
-    await user.click(screen.getByRole("button", { name: "Save and confirm" }))
-    expect(onSave).toHaveBeenCalledWith({
+    await user.click(screen.getByRole("button", { name: "Save facts" }))
+    expect(onSave).toHaveBeenLastCalledWith({
       templateKey: "dog_facilities",
       expectedRevision: null,
       presence: "present",
-      facts: null,
+      facts: "Bowls by the door",
       policy: "Dogs welcome in the bar",
       confirm: true,
       supportingAssetIds: null,
     })
+    expect(
+      await screen.findByText(
+        "Facts saved: Present. You can confirm the item now."
+      )
+    ).toBeTruthy()
+  })
+
+  it("moves through the fact choices with the arrow keys", async () => {
+    const user = userEvent.setup()
+    render(
+      <AmenityFactForm fact={amenityFact()} candidates={[]} onSave={vi.fn()} />
+    )
+    screen.getByRole("radio", { name: "Needs verification" }).focus()
+    await user.keyboard("{ArrowRight}")
+    const present = screen.getByRole("radio", { name: "Present" })
+    expect(present.getAttribute("aria-checked")).toBe("true")
+    expect(document.activeElement).toBe(present)
+    await user.keyboard("{ArrowLeft}")
+    expect(
+      screen
+        .getByRole("radio", { name: "Needs verification" })
+        .getAttribute("aria-checked")
+    ).toBe("true")
+  })
+
+  it("says it couldn't save, and that nothing is saved twice, when offline", async () => {
+    const user = userEvent.setup()
+    const onSaved = vi.fn()
+    const onSave = vi.fn<SetAmenityFactHandler>(async () => {
+      throw new Error("offline")
+    })
+    render(
+      <AmenityFactForm
+        fact={amenityFact()}
+        candidates={[]}
+        onSave={onSave}
+        onSaved={onSaved}
+        onCancel={vi.fn()}
+      />
+    )
+    await user.click(screen.getByRole("radio", { name: "Present" }))
+    await user.click(screen.getByRole("button", { name: "Save facts" }))
+    const alert = await screen.findByRole("alert")
+    expect(within(alert).getByText("We couldn't save the facts")).toBeTruthy()
+    expect(
+      within(alert).getByText(
+        "Check your connection and try again. Nothing is saved twice."
+      )
+    ).toBeTruthy()
+    expect(onSaved).not.toHaveBeenCalled()
+  })
+
+  it("hands the saved text to the dialog instead of showing it", async () => {
+    const user = userEvent.setup()
+    const onSaved = vi.fn()
+    const onCancel = vi.fn()
+    render(
+      <AmenityFactForm
+        fact={amenityFact()}
+        candidates={[]}
+        onSave={vi.fn(async () => ok(1))}
+        onSaved={onSaved}
+        onCancel={onCancel}
+      />
+    )
+    await user.click(screen.getByRole("radio", { name: "Present" }))
+    await user.click(screen.getByRole("button", { name: "Save facts" }))
+    expect(onSaved).toHaveBeenCalledWith(
+      "Facts saved: Present. You can confirm the item now."
+    )
+    expect(screen.queryByRole("status")).toBeNull()
+    await user.click(screen.getByRole("button", { name: "Cancel" }))
+    expect(onCancel).toHaveBeenCalled()
   })
 
   const linked = {
@@ -631,7 +749,7 @@ describe("AmenityFactForm", () => {
       />
     )
     expect(
-      screen.getByText(/Confirmed by TEST Manager on 2 Nov 2026/)
+      screen.getByText(/Last confirmed: 2 Nov 2026, by TEST Manager\./)
     ).toBeTruthy()
   })
 })
@@ -690,13 +808,61 @@ describe("AmenityFactsSection", () => {
     })
     expect(within(dialog).getByText("The facts form")).toBeTruthy()
   })
+
+  it("closes the facts dialog after a save and says what was saved", async () => {
+    const user = userEvent.setup()
+    render(
+      <AmenityFactsSection
+        requirement={requirement({
+          kind: "amenity",
+          title: "Accessible toilet",
+          amenity: { presence: "unknown", confirmed: false },
+        })}
+        fact={amenityFact()}
+        viewerId={MANAGER_ID}
+        form={({ onSaved, onCancel }) => (
+          <>
+            <button
+              type="button"
+              onClick={() =>
+                onSaved("Facts saved: Present. You can confirm the item now.")
+              }
+            >
+              Pretend save
+            </button>
+            <button type="button" onClick={onCancel}>
+              Pretend cancel
+            </button>
+          </>
+        )}
+      />
+    )
+    await user.click(screen.getByRole("button", { name: "Record facts" }))
+    await user.click(
+      await screen.findByRole("button", { name: "Pretend cancel" })
+    )
+    expect(screen.queryByRole("dialog")).toBeNull()
+    await user.click(screen.getByRole("button", { name: "Record facts" }))
+    await user.click(
+      await screen.findByRole("button", { name: "Pretend save" })
+    )
+    expect(screen.queryByRole("dialog")).toBeNull()
+    expect(
+      screen.getByText("Facts saved: Present. You can confirm the item now.")
+    ).toBeTruthy()
+  })
 })
 
 describe("unsaved edits survive a refresh", () => {
   it("keeps an assignee choice when the page re-renders with the same saved set", async () => {
     const user = userEvent.setup()
     const roster = [person(), person({ id: "p-2", displayName: "TEST Kim" })]
-    const props = { roster, onUpdate: vi.fn(), onSetStatus: vi.fn(), onSetAssignees: vi.fn() }
+    const props = {
+      roster,
+      onUpdate: vi.fn(),
+      onSetStatus: vi.fn(),
+      onSetAssignees: vi.fn(),
+    }
     const { rerender } = render(
       <RequirementSetup
         requirement={requirement({ status: "active" })}
