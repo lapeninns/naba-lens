@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
+import { AddProvider } from "@/components/nabalens/shell/add-context"
 import {
   FIRST_RUN_COOKIE,
   FirstRun,
@@ -50,6 +51,20 @@ describe("FirstRun", () => {
       screen.getByRole("link", { name: "Take your first photo" })
     ).toBeTruthy()
     expect(screen.queryByRole("navigation")).toBeNull()
+  })
+
+  it("opens the Add sheet from the photo action inside the staff layout", () => {
+    const openAdd = vi.fn()
+    render(
+      <AddProvider value={{ openAdd }}>
+        <FirstRun {...props} />
+      </AddProvider>
+    )
+    fireEvent.click(
+      screen.getByRole("button", { name: "Take your first photo" })
+    )
+    expect(openAdd).toHaveBeenCalledTimes(1)
+    expect(document.cookie).toContain(`${FIRST_RUN_COOKIE}=1`)
   })
 
   it("records that it was seen when either button is pressed", () => {
