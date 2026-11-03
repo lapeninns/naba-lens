@@ -144,6 +144,17 @@ async function sendSelected(page: Page, count: number) {
   ).toBeVisible()
 }
 
+async function sendReplacement(page: Page) {
+  const send = page.getByRole("button", { name: "Send another photo" })
+  await expect(send).toBeEnabled({ timeout: 30_000 })
+  await send.click()
+  await expect(
+    page.getByRole("status").filter({
+      hasText: "Your new photo is waiting for review",
+    })
+  ).toBeVisible()
+}
+
 function items(requirementId: string) {
   return psql(`
     select coalesce(string_agg(i.id || '|' || i.state || '|' || i.revision || '|' || coalesce(i.replaces_item_id::text, '-') || '|' || a.original_filename, ',' order by i.submitted_at, a.original_filename), '')
@@ -324,7 +335,7 @@ async function staffJourney(
   ).toBeVisible()
   await expect(page.getByText(reason).first()).toBeVisible()
   await uploadForTask(page, [third!])
-  await sendSelected(page, 1)
+  await sendReplacement(page)
 
   sent = items(setup.requirementId)
   const replacement = sent.find((i) => i.name === third!.name)!

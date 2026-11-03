@@ -313,14 +313,24 @@ describe("SubmitPhotosPanel", () => {
     const { user, submit } = setup({ replacesSubmissionId: original })
     submit.mockResolvedValueOnce(sent(1))
     await user.click(tile("2 Nov 2026"))
-    await user.click(
-      screen.getByRole("button", { name: "Send 1 photo for review" })
-    )
+    await user.click(screen.getByRole("button", { name: "Send another photo" }))
     expect(submit.mock.calls[0][0]).toMatchObject({
       requirementId: REQUIREMENT,
       assetIds: [A.assetId],
       replacesSubmissionId: original,
     })
+  })
+
+  it("says who reviews a sent replacement", async () => {
+    const { user, submit } = setup({
+      replacesSubmissionId: "4a000000-0000-4000-8000-0000000000ee",
+    })
+    submit.mockResolvedValueOnce(sent(1))
+    await user.click(tile("2 Nov 2026"))
+    await user.click(screen.getByRole("button", { name: "Send another photo" }))
+    expect((await screen.findByRole("status")).textContent).toContain(
+      "Your new photo is waiting for review"
+    )
   })
 
   it("reports photos already live on the task as already sent", async () => {

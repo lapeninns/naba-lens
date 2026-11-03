@@ -336,6 +336,42 @@ describe("NeedsAnotherPhotoList", () => {
   })
 })
 
+describe("replacement note", () => {
+  it("always shows the reviewer's reason, or a fallback", () => {
+    const { unmount } = render(
+      <ReplacementNote
+        submission={needsAnother("Too dark, use the pass lights.")}
+      />
+    )
+    expect(screen.getByText("Too dark, use the pass lights.")).toBeTruthy()
+    expect(
+      screen.getByText("The photos you send now replace this one.")
+    ).toBeTruthy()
+    unmount()
+    render(<ReplacementNote submission={needsAnother("")} />)
+    expect(
+      screen.getByText("Your reviewer didn't leave a reason.")
+    ).toBeTruthy()
+  })
+
+  it("explains a request from last month", () => {
+    const base = needsAnother("Blurry.")
+    render(
+      <ReplacementNote
+        submission={{
+          ...base,
+          decision: {
+            ...base.decision!,
+            decidedAt: "2026-10-30T09:00:00.000Z",
+          },
+        }}
+        currentPeriod="2026-11"
+      />
+    )
+    expect(screen.getByText(/asked in October 2026/)).toBeTruthy()
+  })
+})
+
 describe("replacement requests", () => {
   const TASK = {
     id: "6c000000-0000-4000-8000-000000000501",

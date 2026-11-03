@@ -44,6 +44,8 @@ type SubmitPhotosPanelProps = {
   requirementId: string | null
   /** The "needs another photo" item this send answers, if any. */
   replacesSubmissionId?: string | null
+  /** Who asked for the replacement; named in the sent message. */
+  reviewerName?: string | null
   /** The first page of photos, as loaded by the page. */
   initialPhotos: SubmittablePhotosResult
   loadPhotos: (
@@ -80,6 +82,7 @@ function initialState(result: SubmittablePhotosResult): PhotoList {
 export function SubmitPhotosPanel({
   requirementId,
   replacesSubmissionId = null,
+  reviewerName = null,
   initialPhotos,
   loadPhotos,
   submit,
@@ -325,7 +328,14 @@ export function SubmitPhotosPanel({
           onReload={onReload}
           signInHref={signInHref}
           retrying={sending}
+          replacing={replacesSubmissionId !== null}
+          reviewerName={reviewerName}
         />
+        {replacesSubmissionId && count > 0 && !sending ? (
+          <p className="text-sm text-muted-foreground">
+            {count} selected · it replaces the earlier photo
+          </p>
+        ) : null}
         <Button
           size="touch"
           onClick={() => void send()}
@@ -344,9 +354,11 @@ export function SubmitPhotosPanel({
           )}
           {sending
             ? "Sending…"
-            : count === 0
-              ? "Select photos to send"
-              : `Send ${plural(count, "photo", "photos")} for review`}
+            : replacesSubmissionId
+              ? "Send another photo"
+              : count === 0
+                ? "Select photos to send"
+                : `Send ${plural(count, "photo", "photos")} for review`}
         </Button>
       </div>
 
@@ -368,14 +380,31 @@ function OutcomeMessage({
   onReload,
   signInHref,
   retrying,
+  replacing,
+  reviewerName,
 }: {
   outcome: Outcome | null
   onRetry: () => void
   onReload: () => void
   signInHref: string
   retrying: boolean
+  replacing: boolean
+  reviewerName: string | null
 }) {
   if (!outcome) return null
+  if (outcome.kind === "sent" && replacing && !outcome.alreadySent) {
+    return (
+      <div role="status" className="flex flex-col gap-1 text-sm">
+        <p className="font-medium text-positive">
+          Your new photo is waiting for review
+        </p>
+        <p>
+          Sent. {reviewerName ?? "Your reviewer"} reviews it next. Your earlier
+          photo stays in Photos and on your profile.
+        </p>
+      </div>
+    )
+  }
   if (outcome.kind === "sent") {
     return (
       <div role="status" className="flex flex-col gap-1 text-sm">
@@ -429,7 +458,13 @@ function OutcomeMessage({
     <Notice
       tone="negative"
       role="alert"
-      title={retry ? "We couldn't send your photos" : undefined}
+      title={
+        retry
+          ? replacing
+            ? "We couldn't send your photo"
+            : "We couldn't send your photos"
+          : undefined
+      }
       action={action}
     >
       {retry
