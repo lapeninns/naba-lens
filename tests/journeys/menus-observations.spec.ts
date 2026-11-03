@@ -34,7 +34,7 @@ test("menus.o2-narrow-draft-editor: at 360px section names are readable and the 
   const saveBar = page.getByRole("button", { name: "Save", exact: true })
   await expect(saveBar).toBeVisible()
   // Not vacuous: the editor lists sections to measure.
-  const names = page.locator("h3 > button > span.truncate")
+  const names = page.locator('h3 > button > [data-slot="section-name"]')
   expect(await names.count()).toBeGreaterThan(5)
   await attachShot(testInfo, "draft-editor-360", page)
 
