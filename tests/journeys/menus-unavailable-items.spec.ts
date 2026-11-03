@@ -161,6 +161,11 @@ test("menus.unavailable-items: Item not on the menu? reaches the venue's Menus p
 
   await test.step("the admin links it to a menu item and it resolves", async () => {
     const list = admin.getByRole("list", { name: "Missing-item suggestions" })
+    const link = list.getByRole("button", {
+      name: `Link to an item: “${missing}”`,
+    })
+    // The first press opens the item picker; the second links.
+    await link.click()
     await list
       .getByRole("combobox", { name: `Menu item for “${missing}”` })
       .click()
@@ -168,9 +173,7 @@ test("menus.unavailable-items: Item not on the menu? reaches the venue's Menus p
       .getByRole("option", { name: /^Lamb Chops/ })
       .first()
       .click()
-    await list
-      .getByRole("button", { name: `Link to item: “${missing}”` })
-      .click()
+    await link.click()
     await expect(
       admin.getByRole("region", { name: "Missing-item suggestions" })
     ).toContainText("0 · typed by staff while labelling")
