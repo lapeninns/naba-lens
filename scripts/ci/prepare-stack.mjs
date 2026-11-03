@@ -4,17 +4,21 @@ import { pathToFileURL } from "node:url"
 import net from "node:net"
 
 const PORT_BLOCK_COUNT = 60
+const LOCAL_LANE_COUNT = 4
+const APP_PORT_OFFSET = 1
 const IPV6_UNAVAILABLE = new Set([
   "EAFNOSUPPORT",
   "EADDRNOTAVAIL",
   "EPROTONOSUPPORT",
 ])
 
-function candidates() {
-  const first = Math.floor(Math.random() * PORT_BLOCK_COUNT)
+function candidates(lane) {
+  const count = lane ? PORT_BLOCK_COUNT / LOCAL_LANE_COUNT : PORT_BLOCK_COUNT
+  const start = lane ? (lane - 1) * count : 0
+  const first = Math.floor(Math.random() * count)
   return Array.from(
-    { length: PORT_BLOCK_COUNT },
-    (_, index) => 58000 + ((first + index) % PORT_BLOCK_COUNT) * 100
+    { length: count },
+    (_, index) => 58000 + (start + ((first + index) % count)) * 100
   )
 }
 
@@ -90,7 +94,12 @@ export async function prepareStack(work) {
   const offsets = [...config.matchAll(/^\s*(?:\w+_)?port = (554\d\d)$/gm)].map(
     (match) => Number(match[1]) - 55400
   )
-  const reservation = await reserveAvailablePortBlock(offsets)
+  const lane = process.env.CI_FIXTURE_LANE
+  if (lane && !/^[1-4]$/.test(lane)) throw new Error("Invalid CI fixture lane")
+  if (lane) offsets.push(APP_PORT_OFFSET)
+  const reservation = await reserveAvailablePortBlock(offsets, {
+    baseCandidates: candidates(lane ? Number(lane) : undefined),
+  })
   try {
     config = config
       .replace(
@@ -105,7 +114,10 @@ export async function prepareStack(work) {
       )
     // Auth links point at the e2e server; only the owned stack's per-IP
     // fixture limits are raised. Invite-only signup remains unchanged.
-    const site = `http://127.0.0.1:${Number(process.env.E2E_PORT ?? 3457)}`
+    const appPort = lane
+      ? reservation.base + APP_PORT_OFFSET
+      : Number(process.env.E2E_PORT ?? 3457)
+    const site = `http://127.0.0.1:${appPort}`
     config = config
       .replace(/^site_url = ".*"$/m, `site_url = "${site}"`)
       .replace(
@@ -123,6 +135,7 @@ export async function prepareStack(work) {
       )
     }
     writeFileSync(path, config)
+    writeFileSync(join(work, "e2e-port"), `${appPort}\n`)
   } finally {
     await reservation.release()
   }

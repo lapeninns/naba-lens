@@ -16,7 +16,14 @@ const env = { ...process.env, NEXT_PUBLIC_SUPABASE_URL: status.API_URL,
   // Playwright's resolver: isolated-stack checks, E2E_DB_URL for fixtures.
   E2E_SUPABASE_WORKDIR: work }
 let failed = false
-for (const args of [['test:integration'], ['test:lifecycle', work], ['test:security', work], ['exec', 'playwright', 'test', '--config', 'scripts/ci/playwright.config.ts']]) {
+const playwright = ['exec', 'playwright', 'test', '--config', 'scripts/ci/playwright.config.ts']
+if (env.CI_PLAYWRIGHT_SHARD) {
+  if ((env.CI_BROWSER ?? 'chromium') !== 'chromium' || !/^[12]\/2$/.test(env.CI_PLAYWRIGHT_SHARD)) {
+    throw new Error('CI_PLAYWRIGHT_SHARD must be 1/2 or 2/2 on Chromium')
+  }
+  playwright.push('--shard', env.CI_PLAYWRIGHT_SHARD)
+}
+for (const args of [['test:integration'], ['test:lifecycle', work], ['test:security', work], playwright]) {
   const result = spawnSync('pnpm', args, { stdio: 'inherit', env })
   console.log(`${args[0]}: ${result.status === 0 ? 'PASS' : 'FAIL'}`)
   failed ||= result.status !== 0

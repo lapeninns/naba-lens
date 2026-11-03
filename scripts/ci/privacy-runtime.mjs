@@ -97,6 +97,8 @@ const stop = () => {
   } catch {}
 }
 process.on("exit", stop)
+process.once("SIGINT", () => process.exit(130))
+process.once("SIGTERM", () => process.exit(143))
 // Our child, not merely "something on the port", must be the one answering.
 let exited = null
 server.once("exit", (code, signal) => {

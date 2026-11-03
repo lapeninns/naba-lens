@@ -15,16 +15,29 @@ concurrency:
 
 jobs:
   fixtures:
-    name: Fixtures (${{ matrix.browser }})
+    name: Fixtures (${{ matrix.lane }})
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
-        browser: [chromium, firefox, webkit]
+        include:
+          - lane: chromium-1
+            browser: chromium
+            shard: 1/2
+          - lane: chromium-2
+            browser: chromium
+            shard: 2/2
+          - lane: firefox
+            browser: firefox
+            shard: ""
+          - lane: webkit
+            browser: webkit
+            shard: ""
     env:
       CI: "true"
       CI_BROWSER: ${{ matrix.browser }}
+      CI_PLAYWRIGHT_SHARD: ${{ matrix.shard }}
       NEXT_TELEMETRY_DISABLED: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -59,7 +72,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: playwright-${{ matrix.browser }}-${{ github.run_attempt }}
+          name: playwright-${{ matrix.lane }}-${{ github.run_attempt }}
           path: |
             test-results/
             playwright-report/
