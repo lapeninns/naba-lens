@@ -217,9 +217,13 @@ export function AppShell(props: AppShellProps) {
             {staff ? (
               <Link
                 href={ME.href}
-                aria-label={userName ? `Me: ${userName}` : "Me"}
                 className="-mr-1 grid size-11 place-items-center rounded-round outline-none focus-visible:outline-2 focus-visible:outline-focus md:hidden"
               >
+                {/* Text, not aria-label: the visible initials would not be
+                    part of an aria-label name (WCAG 2.5.3). */}
+                <span className="sr-only">
+                  {userName ? `Me: ${userName}` : "Me"}
+                </span>
                 <ProfileAvatar
                   name={userName ?? "Me"}
                   src={staff.avatarUrl}
