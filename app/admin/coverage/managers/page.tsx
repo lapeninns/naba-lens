@@ -73,7 +73,10 @@ export default async function VenueManagersPage({
             actions={
               <Link
                 href="/admin/coverage"
-                className={buttonVariants({ variant: "secondary" })}
+                className={buttonVariants({
+                  variant: "secondary",
+                  className: "max-md:min-h-11",
+                })}
               >
                 <ArrowLeftIcon aria-hidden />
                 Coverage

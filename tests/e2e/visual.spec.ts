@@ -1245,7 +1245,10 @@ test("coverage: staff Home, a task, its send dialog and the month", async ({
   const page = await signIn(browser, w.staffA.email, baseURL!)
   await expect(page).toHaveURL(STAFF_LANDING)
   await expect(
-    page.getByRole("region", { name: "What your reviewer asked for" })
+    page.getByRole("region", { name: /^To do/ }).getByRole("heading", {
+      name: `${w.manager.name} asked for another photo`,
+      exact: true,
+    })
   ).toBeVisible()
   await capture(page, testInfo, "coverage-staff-home")
   await expectFocusVisibleEverywhere(page, "coverage-staff-home")
@@ -1257,7 +1260,9 @@ test("coverage: staff Home, a task, its send dialog and the month", async ({
   await capture(page, testInfo, "coverage-staff-task")
   await page.goto(`/staff/tasks/${requirementId}?replaces=${askedAgain}`)
   await expect(
-    page.getByText("The photos you send now replace this one.")
+    page
+      .getByRole("region", { name: "Send photos" })
+      .getByText("The photos you send now replace this one.", { exact: true })
   ).toBeVisible()
   await capture(page, testInfo, "coverage-staff-task-replacement")
   const send = page.getByRole("button", { name: "Take a photo" })

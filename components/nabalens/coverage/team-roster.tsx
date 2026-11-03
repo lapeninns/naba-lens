@@ -773,6 +773,7 @@ export function TeamRoster({
           </p>
           <Button
             onClick={() => void save()}
+            className="max-md:min-h-11"
             aria-disabled={saving || undefined}
             aria-busy={saving || undefined}
           >

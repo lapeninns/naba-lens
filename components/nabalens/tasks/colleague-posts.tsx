@@ -43,12 +43,12 @@ export function ColleaguePosts({
           <li key={item.id} className="flex min-w-0 flex-col gap-2">
             <Link
               href={`${peopleHref}/${item.contributorId}`}
-              aria-label={`${item.contributorName}'s profile`}
-              className="flex min-w-0 items-center gap-2 text-body-touch font-medium text-ink md:text-body"
+              className="flex min-w-0 items-center gap-2 text-body-touch font-medium text-ink max-md:min-h-11 md:text-body"
             >
               <ProfileAvatar name={item.contributorName} size="sm" />
-              <span className="min-w-0 truncate" aria-hidden>
+              <span className="min-w-0 truncate">
                 {item.contributorName}
+                <span className="sr-only">&apos;s profile</span>
               </span>
             </Link>
             <Link
@@ -73,7 +73,7 @@ export function ColleaguePosts({
       </ul>
       <Link
         href={photosHref}
-        className="w-fit text-body-touch font-medium text-ink underline underline-offset-3 md:text-body"
+        className="w-fit text-body-touch font-medium text-ink underline underline-offset-3 max-md:flex max-md:min-h-11 max-md:items-center md:text-body"
       >
         See more photos
       </Link>
