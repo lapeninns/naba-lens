@@ -76,12 +76,13 @@ function ManageRow({
 }) {
   const hintId = React.useId()
   const title = venueName ? `Manage ${venueName}` : "Manage"
+  const toReview = `${reviewCount === 1 ? "photo" : "photos"} to review`
   return (
     <nav aria-label="Manage" className="grid border-y border-line">
       <Link
         href="/staff/manage"
         aria-label={
-          reviewCount > 0 ? `${title}, ${reviewCount} photos to review` : title
+          reviewCount > 0 ? `${title}, ${reviewCount} ${toReview}` : title
         }
         aria-describedby={hintId}
         className="grid min-h-13 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 py-3 text-ink outline-none hover:bg-fill-hover focus-visible:outline-2 focus-visible:outline-focus md:min-h-11"
@@ -99,7 +100,7 @@ function ManageRow({
           </span>
         </span>
         <span className="flex items-center gap-2 text-ink-muted">
-          <CountBadge count={reviewCount} label="photos to review" />
+          <CountBadge count={reviewCount} label={toReview} />
           <CaretRightIcon aria-hidden className="size-5" />
         </span>
       </Link>

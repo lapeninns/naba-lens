@@ -74,6 +74,17 @@ describe("Me: the Manage row", () => {
     expect(link.getAttribute("href")).toBe("/staff/manage")
   })
 
+  it("says photo for a single photo to review", async () => {
+    grant.canManageVenue.mockResolvedValueOnce(true)
+    coverage.getManagerReviewCount.mockResolvedValueOnce({ ok: true, count: 1 })
+    render(await StaffPage())
+    expect(
+      screen
+        .getByRole("link", { name: "Manage The Railway, 1 photo to review" })
+        .getAttribute("href")
+    ).toBe("/staff/manage")
+  })
+
   it("keeps the row without a number when the count can't be read", async () => {
     grant.canManageVenue.mockResolvedValueOnce(true)
     coverage.getManagerReviewCount.mockResolvedValueOnce({
