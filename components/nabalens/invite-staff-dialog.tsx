@@ -116,7 +116,7 @@ export function TeamField({
             <label
               key={team.name}
               className={cn(
-                "flex min-h-11 cursor-pointer items-center justify-center rounded-[calc(var(--radius-control)-2px)] px-2 text-center text-meta-touch font-semibold has-focus-visible:outline-2 has-focus-visible:outline-offset-1 has-focus-visible:outline-focus md:min-h-8 md:text-meta-strong",
+                "flex min-h-11 cursor-pointer items-center justify-center rounded-chip px-2 text-center text-meta-touch font-semibold has-focus-visible:outline-2 has-focus-visible:outline-offset-1 has-focus-visible:outline-focus md:min-h-8 md:text-meta-strong",
                 checked
                   ? "bg-well text-ink"
                   : "text-ink-muted hover:bg-fill-hover"

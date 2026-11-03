@@ -640,7 +640,7 @@ test("row 2: CSV imports; PDF and other formats are refused; malformed and dupli
     await expect(preview.getByRole("region", { name: "Added" })).toBeVisible()
     await admin.getByRole("button", { name: "Create draft" }).click()
     await admin.waitForURL(/\/admin\/menus\/versions\//)
-    const provenance = admin.getByRole("region", { name: "This version" })
+    const provenance = admin.getByRole("region", { name: "Menu version" })
     await expect(provenance).toContainText("synthetic-quoting.csv")
     await expect(provenance).toContainText("CSV")
   })

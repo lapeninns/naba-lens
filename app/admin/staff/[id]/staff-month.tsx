@@ -32,7 +32,7 @@ function Frames({
           style={{ width: `${(filled / target) * 100}%` }}
         />
         <span
-          className="bg-[repeating-linear-gradient(135deg,var(--color-ink-muted)_0_1.5px,transparent_1.5px_5px)]"
+          className="border-2 border-dashed border-ink-muted"
           style={{ width: `${(pending / target) * 100}%` }}
         />
       </div>
@@ -49,7 +49,7 @@ function Frames({
             index < filled && "border-positive-fill bg-positive-fill",
             index >= filled &&
               index < filled + pending &&
-              "border-[1.5px] border-dashed border-ink-muted"
+              "border-2 border-dashed border-ink-muted"
           )}
         />
       ))}
@@ -127,7 +127,7 @@ export function StaffMonth({
             <span className="inline-flex items-center gap-1.5">
               <i
                 aria-hidden
-                className="inline-block h-2 w-3.5 rounded-print border-[1.5px] border-dashed border-ink-muted"
+                className="inline-block h-2 w-3.5 rounded-print border-2 border-dashed border-ink-muted"
               />
               {monthly.pending} waiting for review
             </span>

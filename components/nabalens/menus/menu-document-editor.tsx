@@ -277,14 +277,14 @@ export function MenuDocumentEditor({
               onChange({ ...value, title: e.currentTarget.value })
             }
             aria-invalid={!value.title.trim() || undefined}
-            className="h-11 sm:h-9"
+            className="h-11 md:h-9"
           />
         </Field>
       )}
 
       <ImportIssueList issues={allIssues} />
 
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+      <div className="flex flex-col gap-2 md:flex-row md:items-end">
         <Field className="min-w-0 flex-1 gap-1.5">
           <FieldLabel htmlFor={ids.search}>Search items</FieldLabel>
           <div className="relative">
@@ -298,7 +298,7 @@ export function MenuDocumentEditor({
               value={query}
               onChange={(e) => setQuery(e.currentTarget.value)}
               placeholder="Name or alias"
-              className="h-11 pl-8 sm:h-9"
+              className="h-11 pl-8 md:h-9"
               aria-describedby={`${base}-search-result`}
             />
           </div>
@@ -487,7 +487,7 @@ function SectionPanel({
             aria-expanded={expanded}
             aria-controls={panelId}
             onClick={onToggle}
-            className="flex min-h-11 w-full min-w-0 items-center gap-2 rounded-control px-2 text-left outline-none hover:bg-fill-hover focus-visible:outline-2 focus-visible:outline-focus sm:min-h-9"
+            className="flex min-h-11 w-full min-w-0 items-center gap-2 rounded-control px-2 text-left outline-none hover:bg-fill-hover focus-visible:outline-2 focus-visible:outline-focus md:min-h-9"
           >
             {expanded ? (
               <CaretDownIcon className="size-4 shrink-0" aria-hidden />
@@ -590,7 +590,7 @@ function SectionPanel({
                   maxLength={L.sectionNameMax}
                   onChange={(e) => onRename(e.currentTarget.value)}
                   aria-invalid={!section.name.trim() || undefined}
-                  className="h-11 sm:h-9"
+                  className="h-11 md:h-9"
                 />
               </Field>
               <fieldset className="grid gap-1">
@@ -601,7 +601,7 @@ function SectionPanel({
                   {KINDS.map((kind) => (
                     <label
                       key={kind}
-                      className="flex min-h-11 items-center gap-2 text-body-touch sm:min-h-8 md:text-body-sm"
+                      className="flex min-h-11 items-center gap-2 text-body-touch md:min-h-8 md:text-body-sm"
                     >
                       <input
                         type="radio"
@@ -755,7 +755,7 @@ function ItemRow({
             </p>
           ) : null}
           {readOnly ? (
-            <dl className="grid gap-1 text-body-touch sm:grid-cols-[max-content_minmax(0,1fr)] sm:gap-x-4 md:text-body-sm">
+            <dl className="grid gap-1 text-body-touch md:grid-cols-[max-content_minmax(0,1fr)] md:gap-x-4 md:text-body-sm">
               <dt className="text-ink-muted">Description</dt>
               <dd className="whitespace-pre-line">{item.description || "—"}</dd>
               <dt className="text-ink-muted">Aliases</dt>
@@ -780,7 +780,7 @@ function ItemRow({
                   maxLength={L.nameMax}
                   onChange={(e) => onChange({ name: e.currentTarget.value })}
                   aria-invalid={!item.name.trim() || undefined}
-                  className="h-11 sm:h-9"
+                  className="h-11 md:h-9"
                 />
               </Field>
               <Field className="gap-1.5">
@@ -961,7 +961,7 @@ function StringListEditor({
                 onChange={(e) => onRename(i, e.currentTarget.value)}
                 aria-label={`${itemLabel} ${i + 1} of ${ownerName}`}
                 aria-invalid={!v.trim() || undefined}
-                className="h-11 sm:h-9"
+                className="h-11 md:h-9"
               />
               <IconButton
                 label={`Remove ${itemLabel.toLowerCase()} ${v.trim() || i + 1}`}
@@ -1053,7 +1053,7 @@ function AddInlineForm({
               submit()
             }
           }}
-          className="h-11 sm:h-9"
+          className="h-11 md:h-9"
         />
         <Button
           variant={compact ? "outline" : "secondary"}
@@ -1092,7 +1092,7 @@ function AddSectionForm({
         {KINDS.map((k) => (
           <label
             key={k}
-            className="flex min-h-11 items-center gap-2 text-body-touch sm:min-h-8 md:text-body-sm"
+            className="flex min-h-11 items-center gap-2 text-body-touch md:min-h-8 md:text-body-sm"
           >
             <input
               type="radio"
@@ -1136,7 +1136,7 @@ function IconButton({
       id={id}
       variant="quiet"
       size="icon-lg"
-      className="size-11 shrink-0 sm:size-9"
+      className="size-11 shrink-0 md:size-9"
       aria-label={label}
       disabled={disabled}
       onClick={onClick}

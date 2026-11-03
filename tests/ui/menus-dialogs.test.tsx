@@ -456,7 +456,7 @@ describe("Venue list, provenance and status", () => {
   it("shows provenance with a short hash and the full value on request", async () => {
     const user = userEvent.setup()
     render(<ProvenanceCard version={version} />)
-    const card = screen.getByRole("region", { name: "This version" })
+    const card = screen.getByRole("region", { name: "Menu version" })
     expect(card.textContent).toContain("JSON file")
     expect(card.textContent).toContain("autumn.json")
     expect(card.textContent).toContain("abc1234")
