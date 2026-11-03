@@ -9,7 +9,7 @@ import {
 } from "@playwright/test"
 
 import { provisioner } from "../../e2e/helpers/stack"
-import { staffTile } from "../../e2e/helpers/ui"
+import { STAFF_LANDING, openPortfolio, staffTile } from "../../e2e/helpers/ui"
 import {
   provisionWorld,
   signedInPage,
@@ -49,11 +49,12 @@ export function fixtureFile(name: string): string {
 
 export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
-/** One unique world; the staff member of venue one is the uploader. */
+/** One unique world; the staff member of venue one uploads from their portfolio. */
 export async function stage(browser: Browser, baseURL: string) {
   const world = await provisionWorld()
   const page = await signedInPage(browser, world.staffA, { baseURL })
-  await expect(page).toHaveURL(/\/staff$/)
+  await expect(page).toHaveURL(STAFF_LANDING)
+  await openPortfolio(page)
   return { world, staff: world.staffA, page }
 }
 

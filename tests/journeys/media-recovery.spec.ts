@@ -4,7 +4,12 @@ import { createHash } from "node:crypto"
 import { expect, test, type Route } from "@playwright/test"
 
 import { provisioner, psql } from "../e2e/helpers/stack"
-import { libraryList, staffTile } from "../e2e/helpers/ui"
+import {
+  STAFF_LANDING,
+  libraryList,
+  openPortfolio,
+  staffTile,
+} from "../e2e/helpers/ui"
 import {
   CHUNK,
   SIGNED_PUT,
@@ -389,7 +394,8 @@ test.describe("media.reopen-states", () => {
     await dialog.getByRole("button", { name: "Cancel" }).click()
 
     // Another device sees the same states from the server.
-    const fresh = await signInAs(browser, staff, baseURL!, /\/staff$/)
+    const fresh = await signInAs(browser, staff, baseURL!, STAFF_LANDING)
+    await openPortfolio(fresh)
     await expectStates(fresh)
     await fresh.context().close()
 
