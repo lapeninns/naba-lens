@@ -72,3 +72,13 @@ export {
 export { useCoverageAction } from "./use-coverage-action"
 export { useRequestIds } from "./use-request-id"
 export type * from "./types"
+export {
+  CoverageSection,
+  Frames,
+  ItemList,
+  ItemRow,
+  Quote,
+  Tally,
+  TallyItem,
+  type TallyTone,
+} from "./layout"
