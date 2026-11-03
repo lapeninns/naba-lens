@@ -105,9 +105,13 @@ export function StaffActionsMenu({
       >
         <DotsThreeIcon weight="bold" aria-hidden />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-auto min-w-52">
+      {/* Capped so a long name wraps instead of widening the menu off-screen. */}
+      <DropdownMenuContent
+        align="end"
+        className="w-auto max-w-[min(20rem,var(--available-width))] min-w-52"
+      >
         <DropdownMenuGroup>
-          <DropdownMenuLabel className="truncate text-meta-strong text-ink-muted">
+          <DropdownMenuLabel className="text-meta-strong break-words text-ink-muted">
             {member.displayName}
           </DropdownMenuLabel>
           <DropdownMenuItem onClick={() => onEdit(member)}>
@@ -192,7 +196,9 @@ export function StaffDirectoryTable({
   const nameLink = (member: StaffMember) => (
     <Link
       href={getPortfolioHref(member)}
-      className="rounded-chip font-semibold text-ink underline-offset-3 outline-none hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+      // On phones the padding makes a 44px+ hit area; the negative margin keeps
+      // the text where it was, and `relative` keeps it above the meta line.
+      className="relative block truncate rounded-chip font-semibold text-ink underline-offset-3 outline-none hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid max-md:-my-3.5 max-md:py-3.5"
     >
       {member.displayName}
     </Link>
@@ -218,7 +224,7 @@ export function StaffDirectoryTable({
               size="md"
             />
             <div className="grid min-w-0 flex-1 gap-1 py-1 text-body-touch">
-              <span className="truncate">{nameLink(member)}</span>
+              {nameLink(member)}
               <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-meta-touch text-ink-muted">
                 <StatusCell member={member} manager={isManager(member)} />
                 <span className="truncate">
@@ -266,7 +272,7 @@ export function StaffDirectoryTable({
                       size="md"
                     />
                     <div className="grid min-w-0">
-                      <span className="truncate">{nameLink(member)}</span>
+                      {nameLink(member)}
                       {member.email ? (
                         <span className="truncate text-meta text-ink-muted">
                           {member.email}
