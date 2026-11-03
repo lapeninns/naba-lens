@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { AppShell } from "@/components/nabalens"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
+import { AddProvider } from "@/components/nabalens/shell/add-context"
 
 const refresh = vi.fn()
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }))
@@ -87,6 +88,28 @@ describe("AppShell staff navigation", () => {
     ).toEqual(["Home, 2 things to do", "Photos", "Add", "People", "Me"])
     expect(current("Staff", "tabbar")).toEqual(["Photos"])
     expect(tabbar.queryByRole("link", { name: /Manage/ })).toBeNull()
+  })
+
+  it("names Add with the hidden queue's unfinished files and opens it", () => {
+    const openAdd = vi.fn()
+    render(
+      <AddProvider
+        value={{ openAdd, busy: { count: 3, words: "2 in progress, 1 failed" } }}
+      >
+        <AppShell variant="staff" active="community">
+          x
+        </AppShell>
+      </AddProvider>
+    )
+    const add = nav("Staff", "tabbar").getByRole("button", {
+      name: "Add, 2 in progress, 1 failed",
+    })
+    expect(add.querySelector("[data-slot=add-busy]")?.textContent).toBe("3")
+    expect(
+      screen.getByRole("button", { name: "Add photos, 2 in progress, 1 failed" })
+    ).toBeTruthy()
+    add.click()
+    expect(openAdd).toHaveBeenCalledOnce()
   })
 })
 

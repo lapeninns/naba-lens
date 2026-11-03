@@ -7,7 +7,11 @@ import { PlusIcon } from "@phosphor-icons/react"
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
-type AddContextValue = { openAdd: () => void }
+type AddContextValue = {
+  openAdd: () => void
+  /** Files in the Add queue that are not finished, in the queue's words. */
+  busy?: { count: number; words: string } | null
+}
 
 const AddContext = React.createContext<AddContextValue | null>(null)
 
@@ -28,7 +32,26 @@ export function useAdd(): (() => void) | null {
  * profile's own upload lives.
  */
 export function AddTrigger({ kind }: { kind: "tab" | "bar" }) {
-  const openAdd = useAdd()
+  const add = React.useContext(AddContext)
+  const openAdd = add?.openAdd ?? null
+  const busy = add?.busy
+  const label = kind === "tab" ? "Add" : "Add photos"
+  // While the hidden Add queue has unfinished files, Add shows that queue:
+  // a count on the trigger, and the words after its name. The name is set
+  // whole because Chrome inserts a space before an sr-only suffix.
+  const busyName = busy ? `${label}, ${busy.words}` : undefined
+  const badge = busy ? (
+    <span
+      aria-hidden
+      data-slot="add-busy"
+      className={cn(
+        "inline-grid h-5 min-w-5 place-items-center rounded-round bg-ink px-1.5 text-chip text-paper tabular-nums",
+        kind === "tab" && "absolute -top-3 left-[calc(50%+10px)]"
+      )}
+    >
+      {busy.count}
+    </span>
+  ) : null
   const content =
     kind === "tab" ? (
       <>
@@ -39,12 +62,14 @@ export function AddTrigger({ kind }: { kind: "tab" | "bar" }) {
         >
           <PlusIcon className="size-7" />
         </span>
-        Add
+        {label}
+        {badge}
       </>
     ) : (
       <>
         <PlusIcon data-icon="inline-start" aria-hidden />
-        Add photos
+        {label}
+        {badge}
       </>
     )
   const className =
@@ -52,7 +77,12 @@ export function AddTrigger({ kind }: { kind: "tab" | "bar" }) {
       ? cn(TAB_ITEM, "group text-ink")
       : buttonVariants({ variant: "secondary" })
   return openAdd ? (
-    <button type="button" className={className} onClick={openAdd}>
+    <button
+      type="button"
+      className={className}
+      aria-label={busyName}
+      onClick={openAdd}
+    >
       {content}
     </button>
   ) : (

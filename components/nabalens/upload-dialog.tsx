@@ -71,6 +71,12 @@ type UploadDialogProps = {
    * is refused until the run ends or is cancelled.
    */
   keepRunningWhenClosed?: boolean
+  /**
+   * Called when the count of unfinished files changes: running or waiting,
+   * failed, and stopped by a sign-out. All zero once the run is finished or
+   * the queue is cleared.
+   */
+  onBusyChange?: (busy: UploadBusy) => void
   /** Offer the camera-capture input as an enhancement. Default true. */
   allowCamera?: boolean
   /** Accept photos only; videos are rejected with a reason. Default false. */
@@ -81,6 +87,8 @@ type UploadDialogProps = {
    */
   initialFiles?: File[]
 }
+
+export type UploadBusy = { active: number; failed: number; stopped: number }
 
 const IMAGE_ACCEPT_ATTRIBUTE = [
   ...ACCEPTED_IMAGE_TYPES,
@@ -241,6 +249,7 @@ export function UploadDialog({
   onLabel,
   onReady,
   keepRunningWhenClosed = false,
+  onBusyChange,
   allowCamera = true,
   imagesOnly = false,
   initialFiles,
@@ -270,6 +279,10 @@ export function UploadDialog({
   const queue = useUploadQueue({ upload, limits })
   const { items, summary, isActive, pause } = queue
   useLeaveGuard(summary.active, queue.cancelAll)
+  const { active, failed, stopped } = summary
+  React.useEffect(() => {
+    onBusyChange?.({ active, failed, stopped })
+  }, [active, failed, stopped, onBusyChange])
   const signedOut = pause === "signed-out"
   const [signInOpen, setSignInOpen] = React.useState(false)
 

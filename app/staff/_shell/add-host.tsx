@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 
 import { useMediaUploader } from "@/app/_media/use-media-uploader"
 import { UploadDialog } from "@/components/nabalens"
+import type { UploadBusy } from "@/components/nabalens/upload-dialog"
 import {
   SessionGuardProvider,
   type SessionGuard,
@@ -23,9 +24,11 @@ import { getSiteUrl } from "@/lib/supabase/env"
 
 /**
  * Hosts Add, the session guard every upload on the page uses, and the leave
- * guard, for every staff page. The Add queue keeps uploading when closed. Phones get the Add sheet first; from md the
- * upload dialog opens straight away. A blocked account sees why instead. The
- * database repeats the block check, so this is display only.
+ * guard, for every staff page. The Add queue keeps uploading when closed, and
+ * while it has unfinished files Add reopens it. Otherwise phones get the Add
+ * sheet first; from md the upload dialog opens straight away. A blocked
+ * account sees why instead. The database repeats the block check, so this is
+ * display only.
  */
 export function AddHost({
   blocked,
@@ -77,18 +80,36 @@ export function AddHost({
     }
   }, [email, captchaRequired, captchaSiteKey])
 
+  const [busy, setBusy] = React.useState<UploadBusy>({
+    active: 0,
+    failed: 0,
+    stopped: 0,
+  })
+  const unfinished = busy.active + busy.failed + busy.stopped
+  const busyWords = [
+    busy.active ? `${busy.active} in progress` : null,
+    busy.failed ? `${busy.failed} failed` : null,
+    busy.stopped ? `${busy.stopped} stopped` : null,
+  ]
+    .filter(Boolean)
+    .join(", ")
+
   const value = React.useMemo(
     () => ({
       openAdd: () => {
         const phone = !window.matchMedia("(min-width: 48rem)").matches
-        if (blocked || phone) setSheetOpen(true)
+        // Unfinished files: Add shows that queue at every width, so a hidden
+        // run (or a file that failed while hidden) is never out of reach.
+        if (unfinished > 0) setUploadOpen(true)
+        else if (blocked || phone) setSheetOpen(true)
         else {
           setPicked(undefined)
           setUploadOpen(true)
         }
       },
+      busy: unfinished > 0 ? { count: unfinished, words: busyWords } : null,
     }),
-    [blocked]
+    [blocked, unfinished, busyWords]
   )
 
   return (
@@ -114,6 +135,7 @@ export function AddHost({
             initialFiles={picked}
             onUploaded={() => router.refresh()}
             keepRunningWhenClosed
+            onBusyChange={setBusy}
           />
         </AddProvider>
       </LeaveGuard>

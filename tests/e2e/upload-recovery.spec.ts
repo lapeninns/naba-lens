@@ -1211,4 +1211,64 @@ test.describe("leaving while uploads run", () => {
     await expect(page).toHaveURL(/\/login/)
     await context.close()
   })
+
+  test("S20 phone: a hidden queue marks Add; Add shows the queue, not the Add sheet, with Retry for a file that failed while hidden", async ({
+    browser,
+    baseURL,
+  }) => {
+    test.setTimeout(180_000)
+    const { staff } = await newStaff("e2e-leave-phone")
+    const page = await signIn(browser, staff, baseURL!)
+    const context = page.context()
+    await page.setViewportSize({ width: 390, height: 844 })
+
+    // Held until released; while `failing`, a PUT (and its retries) drops.
+    const held: Route[] = []
+    let failing = false
+    await page.route(SIGNED_PUT, (route) => {
+      if (failing) return route.abort("connectionreset")
+      held.push(route)
+    })
+
+    const tabbar = page.locator('[data-slot="tabbar"]')
+    const sheet = page.getByRole("dialog", { name: "Add photos" })
+    const queue = page.getByRole("dialog", { name: "Upload photos or videos" })
+    await tabbar.getByRole("button", { name: "Add", exact: true }).click()
+    await expect(sheet).toBeVisible()
+    const chooser = page.waitForEvent("filechooser")
+    await sheet.getByRole("button", { name: /Choose from your photos/ }).click()
+    await (await chooser).setFiles(["photo.jpg", "photo.png"].map(file))
+    await expect(queue).toBeVisible()
+    await queue.getByRole("button", { name: "Upload 2 files" }).click()
+    await expect.poll(() => held.length, { timeout: 60_000 }).toBe(2)
+
+    await page.keyboard.press("Escape")
+    await expect(queue).toBeHidden()
+    const add = tabbar.getByRole("button", { name: /^Add\b/ })
+    await expect(add).toHaveAccessibleName("Add, 2 in progress")
+    await expect(add.locator('[data-slot="add-busy"]')).toHaveText("2")
+
+    // One transfer drops while the queue is hidden.
+    failing = true
+    await held.shift()!.abort("connectionreset")
+    await expect(add).toHaveAccessibleName("Add, 1 in progress, 1 failed", {
+      timeout: 90_000,
+    })
+
+    await add.click()
+    await expect(queue).toBeVisible()
+    await expect(sheet).toBeHidden()
+    await expect(queue.getByRole("status").last()).toHaveText(
+      "0 uploaded · 1 in progress · 1 failed"
+    )
+    const retry = queue.getByRole("button", { name: /^Retry photo\.(jpg|png)$/ })
+    await expect(retry).toHaveCount(1)
+    await retry.scrollIntoViewIfNeeded()
+    await expect(retry).toBeInViewport()
+
+    failing = false
+    for (const route of held.splice(0)) await route.abort().catch(() => {})
+    await page.unrouteAll({ behavior: "ignoreErrors" })
+    await context.close()
+  })
 })

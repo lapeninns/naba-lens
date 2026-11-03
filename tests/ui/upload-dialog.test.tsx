@@ -138,4 +138,29 @@ describe("UploadDialog", () => {
     rerender(view(true))
     expect(await screen.findByText("1 uploaded")).toBeTruthy()
   })
+
+  it("reports unfinished files: running, then failed, then none after Retry", async () => {
+    const onBusyChange = vi.fn()
+    render(
+      <UploadDialog
+        open
+        onOpenChange={vi.fn()}
+        uploader={fakeUploader}
+        limits={LIMITS}
+        onBusyChange={onBusyChange}
+      />
+    )
+    const user = userEvent.setup()
+    await user.upload(screen.getByLabelText("Choose photos or videos"), [
+      jpeg("fail.jpg"),
+    ])
+    await user.click(screen.getByRole("button", { name: "Upload 1 file" }))
+    expect(await screen.findByText("0 uploaded · 1 failed")).toBeTruthy()
+    expect(onBusyChange).toHaveBeenCalledWith({ active: 1, failed: 0, stopped: 0 })
+    expect(onBusyChange).toHaveBeenLastCalledWith({ active: 0, failed: 1, stopped: 0 })
+
+    await user.click(screen.getByRole("button", { name: "Retry fail.jpg" }))
+    expect(await screen.findByText("1 uploaded")).toBeTruthy()
+    expect(onBusyChange).toHaveBeenLastCalledWith({ active: 0, failed: 0, stopped: 0 })
+  })
 })
