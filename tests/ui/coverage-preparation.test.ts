@@ -5,6 +5,7 @@ import {
   buildPreparation,
   failuresFor,
   loadPeriodRuns,
+  runsSince,
 } from "@/app/admin/coverage/preparation"
 import type {
   GroupOverviewRow,
@@ -307,5 +308,47 @@ describe("failureCode", () => {
 
   it("keeps any other SQLSTATE", () => {
     expect(failureCode("P0001")).toBe("P0001")
+  })
+})
+
+describe("late in the month", () => {
+  // 29 Nov 10:00: 682 hourly runs this month; only the first copied targets.
+  const nowHour = 28 * 24 + 10
+  const now = new Date(at(nowHour))
+  const runs = hourly(1, nowHour, 1)
+  const rows = [
+    row(BELL, { lastPreparation: { at: at(nowHour), status: "succeeded" } }),
+  ]
+
+  it("reads runs back to Recent runs' window, not the start of the month", () => {
+    expect(runsSince(PERIOD, now)).toBe(at(nowHour - 7 * 24))
+    expect(runsSince(PERIOD, new Date(at(58)))).toBe(PERIOD.startsAt)
+  })
+
+  it("pages about a week of runs", async () => {
+    const load = pagedLoader(runs)
+    const result = await loadPeriodRuns(load, runsSince(PERIOD, now))
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.complete).toBe(true)
+    expect(result.runs).toHaveLength(7 * 24 + 1)
+    expect(load).toHaveBeenCalledTimes(8)
+  })
+
+  it("shows the venue's latest run when the preparing run is older", async () => {
+    const since = runsSince(PERIOD, now)
+    const result = await loadPeriodRuns(pagedLoader(runs), since)
+    if (!result.ok) throw new Error("load failed")
+    const model = buildPreparation(rows, result.runs, PERIOD, now, {
+      status: { ...STATUS, lastRunAt: at(nowHour), lastSuccessAt: at(nowHour) },
+      complete: result.complete && since === PERIOD.startsAt,
+    })
+    const bell = model.venues[0]!
+    expect(bell.state).toBe("prepared")
+    expect(bell.preparedBy).toBeNull()
+    expect(bell.preparedAt).toBe(at(nowHour))
+    expect(model.recent).toEqual([])
+    expect(model.noSuccessThisMonth).toBe(false)
+    expect(model.lastRunAt).toBe(at(nowHour))
   })
 })

@@ -45,32 +45,43 @@ export type PreparationModel = {
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000
 
 /**
- * Hourly runs add about 744 rows a month, 31 pages of 24; the cap leaves room
- * for manual runs while bounding a page render.
+ * A week of hourly runs is 168 rows, 7 pages of 24; the cap leaves room for
+ * manual runs while bounding a page render.
  */
-export const RUN_PAGE_LIMIT = 40
+export const RUN_PAGE_LIMIT = 10
+
+/**
+ * How far back the page reads runs: Recent runs' window, the last seven days
+ * of the period. Venue state and the month's success come from the overview,
+ * so older runs only matter for a venue's "Prepared" time.
+ */
+export function runsSince(period: PeriodView, now: Date): string {
+  return new Date(
+    Math.max(new Date(period.startsAt).getTime(), now.getTime() - WEEK_MS)
+  ).toISOString()
+}
 
 export type PeriodRuns = {
-  /** Every run that finished since `startsAt`, newest first. */
+  /** Every run that finished since `since`, newest first. */
   runs: PreparationRunView[]
   /** The first page as served, for the full paged history. */
   firstPage: Page<PreparationRunView>
-  /** False when the page cap stopped paging before `startsAt`. */
+  /** False when the page cap stopped paging before `since`. */
   complete: boolean
 }
 
 /**
- * Pages the newest-first run list until it passes the start of the period, so
- * a month of hourly runs can't push the run that prepared a venue off the page.
+ * Pages the newest-first run list until it passes `since`, so hourly runs
+ * can't push the runs Recent runs needs off a single page.
  */
 export async function loadPeriodRuns(
   load: (
     cursor: string | null
   ) => Promise<CoverageResult<Page<PreparationRunView>>>,
-  startsAt: string,
+  since: string,
   maxPages = RUN_PAGE_LIMIT
 ): Promise<CoverageResult<PeriodRuns>> {
-  const start = new Date(startsAt).getTime()
+  const start = new Date(since).getTime()
   const runs: PreparationRunView[] = []
   let firstPage: Page<PreparationRunView> = { items: [], nextCursor: null }
   let cursor: string | null = null
@@ -165,10 +176,7 @@ export function buildPreparation(
     }
   })
 
-  const since = Math.max(
-    new Date(period.startsAt).getTime(),
-    now.getTime() - WEEK_MS
-  )
+  const since = new Date(runsSince(period, now)).getTime()
   const newestFirst = [...entries].reverse()
   const recent = newestFirst.filter(
     (e) =>

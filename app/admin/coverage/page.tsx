@@ -40,7 +40,7 @@ import {
   Tallies,
   VenueList,
 } from "./coverage-sections"
-import { buildPreparation, loadPeriodRuns } from "./preparation"
+import { buildPreparation, loadPeriodRuns, runsSince } from "./preparation"
 import { PreparationSection } from "./preparation-section"
 import {
   PrepareButton,
@@ -71,14 +71,17 @@ export default async function CoverageOverviewPage({
   if (!auth.ok) unexpected(auth)
   const isCurrent = period === current
   const actor = auth.actor
+  const now = new Date()
+  const view = periodView(period)
+  const since = runsSince(view, now)
   const [overview, selfReviews, runs] = await Promise.all([
     getGroupOverview(actor, { period }),
     listSelfReviews(actor, { period }),
-    // Past months hide Monthly preparation, so only this month pages runs.
+    // Past months hide Monthly preparation, so only this month reads runs.
     isCurrent
       ? loadPeriodRuns(
           (cursor) => listPreparationRuns(actor, cursor ? { cursor } : {}),
-          periodView(period).startsAt
+          since
         )
       : Promise.resolve({
           ok: true as const,
@@ -92,13 +95,10 @@ export default async function CoverageOverviewPage({
   if (!runs.ok) unexpected(runs)
   const { venues, preparation } = overview
   const month = monthName(overview.period.label)
-  const model = buildPreparation(
-    venues,
-    runs.runs,
-    overview.period,
-    new Date(),
-    { ...preparation, complete: runs.complete }
-  )
+  const model = buildPreparation(venues, runs.runs, overview.period, now, {
+    ...preparation,
+    complete: runs.complete && since === view.startsAt,
+  })
   const venueNames = Object.fromEntries(
     venues.map((row) => [row.venue.id, row.venue.name])
   )
