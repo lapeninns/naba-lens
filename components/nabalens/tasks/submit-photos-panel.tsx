@@ -10,9 +10,12 @@ import {
 } from "@phosphor-icons/react"
 
 import { Button, buttonVariants } from "@/components/ui/button"
+import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton"
 
 import { LoadMoreButton } from "../load-more-button"
+import { EmptyState } from "../empty-state"
 import { Notice } from "../notice"
+import { useOnline } from "../offline-notice"
 import type { UploadLimits } from "../types"
 import { UploadDialog } from "../upload-dialog"
 import type { Uploader } from "../upload-queue"
@@ -46,6 +49,10 @@ type SubmitPhotosPanelProps = {
   replacesSubmissionId?: string | null
   /** Who asked for the replacement; named in the sent message. */
   reviewerName?: string | null
+  /** The task's title, for the heading; null in monthly mode. */
+  taskTitle?: string | null
+  /** The venue photos must be taken at, named when nothing can be sent. */
+  venueName?: string | null
   /** The first page of photos, as loaded by the page. */
   initialPhotos: SubmittablePhotosResult
   loadPhotos: (
@@ -81,6 +88,8 @@ function initialState(result: SubmittablePhotosResult): PhotoList {
  */
 export function SubmitPhotosPanel({
   requirementId,
+  taskTitle = null,
+  venueName = null,
   replacesSubmissionId = null,
   reviewerName = null,
   initialPhotos,
@@ -93,6 +102,7 @@ export function SubmitPhotosPanel({
 }: SubmitPhotosPanelProps) {
   const monthly = requirementId === null
   const maxSelected = limits.maxBatchFiles
+  const online = useOnline()
   const intent = useRequestIntent()
   const [list, setList] = React.useState(() => initialState(initialPhotos))
   const [loadingMore, setLoadingMore] = React.useState(false)
@@ -203,7 +213,7 @@ export function SubmitPhotosPanel({
   }
 
   async function send() {
-    if (inFlight.current || selected.length === 0) return
+    if (inFlight.current || selected.length === 0 || !online) return
     inFlight.current = true
     const assetIds = selected
     const key = intentKey(requirementId, assetIds, replacesSubmissionId)
@@ -261,19 +271,39 @@ export function SubmitPhotosPanel({
   }
 
   const count = selected.length
+  const full = count >= maxSelected
+  const nothingEligible =
+    list.photos.length > 0 && !list.photos.some((p) => p.eligible)
 
   return (
     <div className="flex flex-col gap-4">
+      <h2 className="font-display text-xl text-ink">
+        {monthly || !taskTitle ? "Send photos" : `Send photos to ${taskTitle}`}
+      </h2>
+
+      {nothingEligible ? (
+        <Notice tone="plain">
+          None of your photos can be sent for this task.
+          {venueName ? ` Take a new one at ${venueName}.` : ""}
+        </Notice>
+      ) : null}
+
+      {full ? (
+        <Notice tone="attention">
+          You can send up to {maxSelected} at a time.
+        </Notice>
+      ) : null}
+
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <Button
           size="touch"
-          variant="secondary"
+          variant={nothingEligible ? "primary" : "secondary"}
           onClick={() => setUploadOpen(true)}
         >
           <CameraIcon data-icon="inline-start" aria-hidden />
-          Take or upload photos
+          Take a photo
         </Button>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-meta-touch text-ink-muted md:text-meta">
           New photos are selected for you once they&apos;re ready.
         </p>
       </div>
@@ -283,8 +313,10 @@ export function SubmitPhotosPanel({
       </div>
 
       <div className="flex flex-col gap-2">
-        <h3 className="text-sm font-medium">Or choose from your photos</h3>
-        <p className="text-sm text-muted-foreground">
+        <h3 className="text-lg font-semibold text-ink">
+          Or choose from your photos
+        </h3>
+        <p className="text-meta-touch text-ink-muted md:text-meta">
           {monthly
             ? "Photos you upload and send this month count toward your target once accepted."
             : "Photos from earlier months can still count for this task."}{" "}
@@ -303,12 +335,23 @@ export function SubmitPhotosPanel({
           monthly={monthly}
         />
       ) : list.error ? null : (
-        <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-          {monthly
-            ? "No photos from this month yet. Take or upload one to get started."
-            : "No photos yet. Take or upload one to get started."}
-        </p>
+        <EmptyState
+          inline
+          title={monthly ? "No photos from this month yet." : "No photos yet."}
+          description="Take a photo to get started."
+        />
       )}
+
+      {loadingMore ? (
+        <SkeletonRegion
+          label="Loading photos…"
+          className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6"
+        >
+          {[0, 1, 2].map((n) => (
+            <Skeleton key={n} shape="tile" />
+          ))}
+        </SkeletonRegion>
+      ) : null}
 
       <LoadMoreButton
         hasMore={list.nextCursor !== null}
@@ -321,25 +364,29 @@ export function SubmitPhotosPanel({
         }
       />
 
-      <div className="sticky bottom-0 z-20 -mx-4 flex flex-col gap-3 border-t bg-background/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
+      <div className="sticky bottom-0 z-20 -mx-4 flex flex-col gap-3 border-t border-line bg-paper/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
         <OutcomeMessage
           outcome={outcome}
           onRetry={() => void send()}
           onReload={onReload}
           signInHref={signInHref}
-          retrying={sending}
+          retrying={sending || !online}
           replacing={replacesSubmissionId !== null}
           reviewerName={reviewerName}
         />
-        {replacesSubmissionId && count > 0 && !sending ? (
-          <p className="text-sm text-muted-foreground">
-            {count} selected · it replaces the earlier photo
+        {!sending ? (
+          <p className="text-meta-touch text-ink-muted md:text-meta">
+            {replacesSubmissionId
+              ? count > 0
+                ? `${count} selected · it replaces the earlier photo`
+                : null
+              : `${count} selected · up to ${maxSelected}`}
           </p>
         ) : null}
         <Button
           size="touch"
           onClick={() => void send()}
-          disabled={count === 0 || sending}
+          disabled={count === 0 || sending || !online}
           aria-busy={sending}
           className="sm:self-start"
         >
@@ -358,7 +405,7 @@ export function SubmitPhotosPanel({
               ? "Send another photo"
               : count === 0
                 ? "Select photos to send"
-                : `Send ${plural(count, "photo", "photos")} for review`}
+                : `Send ${plural(count, "photo", "photos")}`}
         </Button>
       </div>
 

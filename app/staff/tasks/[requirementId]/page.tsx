@@ -122,6 +122,8 @@ export default async function TaskPage({
                 ) : null}
                 <TaskSubmit
                   requirementId={assignment.requirement.id}
+                  taskTitle={assignment.requirement.title}
+                  venueName={scope.venue?.name ?? null}
                   replacesSubmissionId={replacing?.id ?? null}
                   reviewerName={replacing ? askerName(replacing) : null}
                   initialPhotos={photos}

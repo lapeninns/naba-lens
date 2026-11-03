@@ -113,7 +113,7 @@ async function managerSetup(w: CoverageWorld): Promise<Setup> {
 
 /** The task flow's images-only upload dialog; new photos come back selected. */
 async function uploadForTask(page: Page, files: SourceFile[]) {
-  await page.getByRole("button", { name: "Take or upload photos" }).click()
+  await page.getByRole("button", { name: "Take a photo" }).click()
   const dialog = page.getByRole("dialog", { name: "Upload photos" })
   await dialog
     .getByLabel("Choose photos")
@@ -133,7 +133,7 @@ async function uploadForTask(page: Page, files: SourceFile[]) {
 
 async function sendSelected(page: Page, count: number) {
   const send = page.getByRole("button", {
-    name: `Send ${count} ${count === 1 ? "photo" : "photos"} for review`,
+    name: `Send ${count} ${count === 1 ? "photo" : "photos"}`,
   })
   await expect(send).toBeEnabled({ timeout: 30_000 })
   await send.click()

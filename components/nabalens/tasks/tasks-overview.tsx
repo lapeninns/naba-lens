@@ -47,6 +47,7 @@ export function TasksOverview({
   photosPath = "/staff/community",
   peoplePath = "/staff/people",
   welcomeHref = null,
+  reviewCount = 0,
 }: {
   tasks: MyTasksView
   profile: {
@@ -66,13 +67,15 @@ export function TasksOverview({
   peoplePath?: string
   /** The first-run screen, offered to new starters; null to hide it. */
   welcomeHref?: string | null
+  /** Photos waiting for this manager; 0 for everyone else. */
+  reviewCount?: number
 }) {
   const { scope, period, monthly, assignments, needsAnotherPhoto } = tasks
   const blocked = submitBlockedCopy(scope)
   const replacing = new Set(
     needsAnotherPhoto.flatMap((s) => (s.requirement ? [s.requirement.id] : []))
   )
-  const items = todoItems(tasks)
+  const items = todoItems(tasks, new Date(), reviewCount)
 
   return (
     <div className="flex flex-col gap-6">

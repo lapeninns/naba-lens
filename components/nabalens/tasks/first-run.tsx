@@ -6,6 +6,7 @@ import { CheckCircleIcon, CircleIcon } from "@phosphor-icons/react"
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
+import { useAdd } from "../shell/add-context"
 import { Notice } from "../notice"
 import { FIRST_RUN_COOKIE } from "./first-run-state"
 import { StatusChip } from "./status-badges"
@@ -65,6 +66,7 @@ export function FirstRun({
   profileHref: string
   homeHref: string
 }) {
+  const openAdd = useAdd()
   const firstName = name.trim().split(/\s+/)[0] || name
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-xl flex-col gap-6 px-4 py-6 md:py-10">
@@ -167,6 +169,17 @@ export function FirstRun({
             <button
               type="button"
               disabled
+              className={cn(buttonVariants({ size: "touch" }), "w-full")}
+            >
+              Take your first photo
+            </button>
+          ) : openAdd ? (
+            <button
+              type="button"
+              onClick={() => {
+                dismiss()
+                openAdd()
+              }}
               className={cn(buttonVariants({ size: "touch" }), "w-full")}
             >
               Take your first photo

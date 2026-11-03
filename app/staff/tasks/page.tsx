@@ -12,7 +12,11 @@ import {
   type JustSent,
 } from "@/components/nabalens/tasks"
 import { requireActiveStaff } from "@/lib/auth"
-import { getCoverageActor, getMyTasks } from "@/lib/server/coverage"
+import {
+  getCoverageActor,
+  getManagerReviewCount,
+  getMyTasks,
+} from "@/lib/server/coverage"
 import { listCommunityMedia } from "@/lib/server/community"
 import { avatarUrl } from "@/lib/server/media/library"
 import { getMediaActor } from "@/lib/server/media/context"
@@ -57,11 +61,16 @@ export default async function TasksPage({
 }) {
   const profile = await requireActiveStaff()
   const { actor } = unwrap(await getCoverageActor())
-  const [{ tasks }, colleagues, params] = await Promise.all([
-    getMyTasks(actor).then(unwrap),
+  const myTasks = getMyTasks(actor).then(unwrap)
+  const [{ tasks }, colleagues, params, review] = await Promise.all([
+    myTasks,
     recentColleaguePhotos(),
     searchParams,
+    myTasks.then(({ tasks }) =>
+      tasks.scope.canManageVenue ? getManagerReviewCount(actor) : null
+    ),
   ])
+  const reviewCount = review?.ok ? review.count : undefined
 
   const seenWelcome = (await cookies()).has(FIRST_RUN_COOKIE)
 
@@ -79,7 +88,8 @@ export default async function TasksPage({
       canManage={tasks.scope.canManageVenue}
       userName={profile.displayName}
       avatarUrl={avatarUrl(profile.id, profile.avatarPath)}
-      todoCount={todoCount(todoItems(tasks))}
+      todoCount={todoCount(todoItems(tasks, new Date(), reviewCount))}
+      reviewCount={reviewCount}
       logoutAction={logout}
     >
       <OfflineNotice className="mb-4" />
@@ -93,6 +103,7 @@ export default async function TasksPage({
         }}
         tasksPath={TASKS_PATH}
         portfolioPath={PORTFOLIO_PATH}
+        reviewCount={reviewCount}
         justSent={justSent}
         colleagues={colleagues}
         welcomeHref={!seenWelcome && isNewStarter(tasks) ? WELCOME_PATH : null}
