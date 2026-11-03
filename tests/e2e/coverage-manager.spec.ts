@@ -80,6 +80,9 @@ async function grantInUi(admin: Page, w: CoverageWorld) {
   await expect(row).toContainText(w.venue1.name)
   // A grant that is not in effect carries a "Not in effect: …" chip.
   await expect(row).not.toContainText("Not in effect")
+  await expect(
+    row.getByRole("button", { name: `More actions for ${w.manager.name}` })
+  ).toBeVisible()
 }
 
 async function reviewJourney(
