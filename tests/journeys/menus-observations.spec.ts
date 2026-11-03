@@ -119,23 +119,41 @@ test("menus.o5-early-file-choice: a menu file chosen before the page hydrates is
   })
 
   await page.goto(`/admin/menus/${world.venue1.id}`, { waitUntil: "commit" })
-  await expect(page.locator("body")).toBeAttached()
+  // The venue heading is server-rendered and needs no JS: once it shows
+  // while scripts are still held back, the server HTML has streamed in.
+  const heading = page.getByRole("heading", {
+    level: 1,
+    name: world.venue1.name,
+  })
+  await expect(heading).toBeVisible()
   const input = page.getByLabel("Menu file (JSON or CSV)")
-  // The import panel now opens from "Import a menu", a client control, so
-  // before hydration there may be no file input to choose a file with.
   const early = (await input.count()) > 0
-  if (early) await input.setInputFiles(RAILWAY)
-  release()
-
-  await expect(
-    page.getByRole("heading", { level: 1, name: world.venue1.name })
-  ).toBeVisible()
-  if (!early) {
+  if (early) {
+    await input.setInputFiles(RAILWAY)
+    release()
+  } else {
     testInfo.annotations.push({
-      type: "observation",
+      type: "design-removed",
       description:
-        "No file input is server-rendered, so a file cannot be chosen before hydration.",
+        "O5: the import panel opens client-side from Import a menu, so no file can be chosen before hydration.",
     })
+    // Does an Import a menu click made before hydration survive it?
+    const trigger = page.getByRole("button", { name: "Import a menu" })
+    const serverTrigger = (await trigger.count()) > 0
+    if (serverTrigger) await trigger.click()
+    release()
+    const lostClick =
+      serverTrigger &&
+      (await input.waitFor({ state: "attached", timeout: 10_000 }).then(
+        () => false,
+        () => true
+      ))
+    if (lostClick)
+      testInfo.annotations.push({
+        type: "observation",
+        description:
+          "An Import a menu click made before hydration is lost; it works once clicked again.",
+      })
     await chooseMenuFile(page, RAILWAY)
   }
   const shown = await page
