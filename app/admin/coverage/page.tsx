@@ -7,7 +7,6 @@ import { SelfReviewsControl } from "@/app/staff/manage/_shared/controls"
 import { unexpected } from "@/app/staff/manage/_shared/context"
 import type { ManageSearch } from "@/app/staff/manage/_shared/screens"
 import { AppShell } from "@/components/nabalens/app-shell"
-import { SELF_REVIEW_COPY } from "@/components/nabalens/coverage"
 import { EmptyState } from "@/components/nabalens/empty-state"
 import { formatDateTime } from "@/components/nabalens/menus/copy"
 import { Notice } from "@/components/nabalens/notice"
@@ -27,6 +26,7 @@ import { isPeriodKey, periodKeyOf } from "@/lib/server/coverage/time"
 import {
   COVERAGE_COPY,
   PREPARATION_COPY,
+  SELF_REVIEWS_COPY,
   monthName,
 } from "./coverage-copy"
 import {
@@ -227,14 +227,20 @@ export default async function CoverageOverviewPage({
                 <div className="grid gap-1">
                   <SectionHead
                     id="self-review-title"
-                    title={`${COVERAGE_COPY.selfReviews}, ${overview.period.label}`}
+                    title={SELF_REVIEWS_COPY.title}
                   />
                   <p className="max-w-(--size-reading) text-body-touch text-ink-muted md:text-body-sm">
-                    {SELF_REVIEW_COPY} Managers may review their own photos;
-                    each decision is listed here.
+                    {SELF_REVIEWS_COPY.body}
                   </p>
                 </div>
-                <SelfReviewsControl initial={selfReviews} period={period} />
+                {selfReviews.items.length === 0 ? (
+                  <EmptyState
+                    title={SELF_REVIEWS_COPY.emptyTitle(overview.period.label)}
+                    description={<p>{SELF_REVIEWS_COPY.emptyText}</p>}
+                  />
+                ) : (
+                  <SelfReviewsControl initial={selfReviews} period={period} />
+                )}
               </section>
             </>
           )}
