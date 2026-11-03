@@ -34,7 +34,7 @@ export function ColleaguePosts({
     >
       <h2
         id="colleagues-heading"
-        className="font-display text-2xl break-words text-ink"
+        className="font-display text-section-title-touch break-words text-ink md:text-section-title"
       >
         From your colleagues
       </h2>
