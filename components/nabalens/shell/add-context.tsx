@@ -15,12 +15,20 @@ const AddContext = React.createContext<AddContextValue | null>(null)
 export const AddProvider = AddContext.Provider
 
 /**
+ * Opens the global Add sheet, or null outside the staff layout (previews,
+ * tests), where callers should fall back to a link to /staff.
+ */
+export function useAdd(): (() => void) | null {
+  return React.useContext(AddContext)?.openAdd ?? null
+}
+
+/**
  * Opens Add: the raised tab on phones, "Add photos" in the AppBar from md.
  * Outside the staff layout (previews, tests) it links to Me, where the
  * profile's own upload lives.
  */
 export function AddTrigger({ kind }: { kind: "tab" | "bar" }) {
-  const add = React.useContext(AddContext)
+  const openAdd = useAdd()
   const content =
     kind === "tab" ? (
       <>
@@ -43,8 +51,8 @@ export function AddTrigger({ kind }: { kind: "tab" | "bar" }) {
     kind === "tab"
       ? cn(TAB_ITEM, "group text-ink")
       : buttonVariants({ variant: "secondary" })
-  return add ? (
-    <button type="button" className={className} onClick={add.openAdd}>
+  return openAdd ? (
+    <button type="button" className={className} onClick={openAdd}>
       {content}
     </button>
   ) : (
