@@ -594,3 +594,63 @@ describe("period helpers", () => {
     expect(shiftPeriod("2026-12", 1)).toBe("2027-01")
   })
 })
+
+describe("Home: From your colleagues", () => {
+  const post = (n: number) => ({
+    id: `m${n}`,
+    mediaType: "image" as const,
+    uploadState: "ready" as const,
+    thumbnailUrl: `/thumb/${n}`,
+    previewUrl: `/preview/${n}`,
+    mimeType: "image/jpeg",
+    originalFilename: null,
+    createdAt: "2026-11-02T12:00:00Z",
+    contributorId: `c${n}`,
+    contributorName: `Colleague ${n}`,
+    venueName: "The Railway",
+    width: null,
+    height: null,
+    durationSeconds: null,
+    sizeBytes: null,
+    labels: null,
+  })
+  const overview = (colleagues: ReturnType<typeof post>[]) =>
+    render(
+      <TasksOverview
+        tasks={base}
+        profile={PROFILE}
+        tasksPath="/staff/tasks"
+        portfolioPath="/staff"
+        colleagues={colleagues}
+      />
+    )
+
+  it("shows at most three posts below To do with a See more photos link", () => {
+    overview([1, 2, 3, 4, 5].map(post))
+    const heading = screen.getByRole("heading", {
+      name: "From your colleagues",
+    })
+    const todo = screen.getByRole("heading", { name: /^To do/ })
+    expect(
+      todo.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(
+      screen.getByRole("link", { name: "Colleague 1's profile" })
+    ).toBeTruthy()
+    expect(
+      screen.getByAltText(
+        "Photo by Colleague 1, The Railway, uploaded 2 Nov 2026"
+      )
+    ).toBeTruthy()
+    expect(screen.queryByAltText(/Colleague 4/)).toBeNull()
+    expect(
+      screen.getByRole("link", { name: "See more photos" }).getAttribute("href")
+    ).toBe("/staff/community")
+  })
+
+  it("is hidden when there are no posts", () => {
+    overview([])
+    expect(screen.queryByText("From your colleagues")).toBeNull()
+    expect(screen.queryByText("See more photos")).toBeNull()
+  })
+})

@@ -2,6 +2,7 @@
 export type * from "./types"
 export * from "./copy"
 export { AssignmentList, SharedProgress } from "./assignment-list"
+export { COLLEAGUE_POST_LIMIT, ColleaguePosts } from "./colleague-posts"
 export { EvidenceImage, versionedSrc } from "./evidence-image"
 export { EvidenceThumb } from "./evidence-thumb"
 export { MonthlyProgressCard } from "./monthly-progress-card"

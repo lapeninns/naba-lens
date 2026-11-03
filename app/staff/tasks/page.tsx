@@ -9,7 +9,9 @@ import {
 } from "@/components/nabalens/tasks"
 import { requireActiveStaff } from "@/lib/auth"
 import { getCoverageActor, getMyTasks } from "@/lib/server/coverage"
+import { listCommunityMedia } from "@/lib/server/community"
 import { avatarUrl } from "@/lib/server/media/library"
+import { getMediaActor } from "@/lib/server/media/context"
 
 import { PORTFOLIO_PATH, TASKS_PATH, unwrap } from "./result"
 
@@ -31,6 +33,18 @@ function parseJustSent(
   return count > 0 && count <= 10 ? { kind: "sent", count, taskTitle } : null
 }
 
+/** The newest colleague photos; Home still works when this read fails. */
+async function recentColleaguePhotos() {
+  try {
+    const auth = await getMediaActor("staff")
+    if (!auth.ok) return []
+    const page = await listCommunityMedia(auth.actor)
+    return page.ok ? page.items : []
+  } catch {
+    return []
+  }
+}
+
 /** Staff Home: the next thing to do, this month's photos and all tasks. */
 export default async function TasksPage({
   searchParams,
@@ -39,8 +53,11 @@ export default async function TasksPage({
 }) {
   const profile = await requireActiveStaff()
   const { actor } = unwrap(await getCoverageActor())
-  const { tasks } = unwrap(await getMyTasks(actor))
-  const params = await searchParams
+  const [{ tasks }, colleagues, params] = await Promise.all([
+    getMyTasks(actor).then(unwrap),
+    recentColleaguePhotos(),
+    searchParams,
+  ])
 
   const justSent = parseJustSent(
     params,
@@ -71,6 +88,7 @@ export default async function TasksPage({
         tasksPath={TASKS_PATH}
         portfolioPath={PORTFOLIO_PATH}
         justSent={justSent}
+        colleagues={colleagues}
       />
     </AppShell>
   )

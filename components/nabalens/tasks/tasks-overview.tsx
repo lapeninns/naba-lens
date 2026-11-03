@@ -4,7 +4,9 @@ import { EmptyState } from "../empty-state"
 import { Notice } from "../notice"
 import { PageHeader } from "../page-header"
 import { CountBadge } from "../status-chip"
+import type { MediaItem } from "../types"
 import { AssignmentList } from "./assignment-list"
+import { ColleaguePosts } from "./colleague-posts"
 import { MonthlyProgressCard } from "./monthly-progress-card"
 import { todoItems, TodoSection } from "./todo-list"
 import type { CoverageScope, MyTasksView } from "./types"
@@ -40,6 +42,9 @@ export function TasksOverview({
   tasksPath,
   portfolioPath,
   justSent = null,
+  colleagues = [],
+  photosPath = "/staff/community",
+  peoplePath = "/staff/people",
 }: {
   tasks: MyTasksView
   profile: {
@@ -53,6 +58,10 @@ export function TasksOverview({
   /** Where Edit profile lives ("/staff"). */
   portfolioPath: string
   justSent?: JustSent | null
+  /** Newest colleague photos, shown below To do. */
+  colleagues?: MediaItem[]
+  photosPath?: string
+  peoplePath?: string
 }) {
   const { scope, period, monthly, assignments, needsAnotherPhoto } = tasks
   const blocked = submitBlockedCopy(scope)
@@ -95,6 +104,12 @@ export function TasksOverview({
       <p className="max-w-(--size-reading) text-body-touch text-ink-muted md:text-body">
         {RULE_SENTENCE}
       </p>
+
+      <ColleaguePosts
+        items={colleagues}
+        photosHref={photosPath}
+        peopleHref={peoplePath}
+      />
 
       <section
         aria-labelledby="all-tasks-heading"
