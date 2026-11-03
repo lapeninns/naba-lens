@@ -3,6 +3,7 @@
 import * as React from "react"
 import {
   CheckIcon,
+  ProhibitIcon,
   SpinnerGapIcon,
   TrashIcon,
   WarningIcon,
@@ -22,7 +23,13 @@ import { cn } from "@/lib/utils"
 
 import { RequirementChip, requirementIssues } from "./checklist-body"
 import { CoverageNotice } from "./coverage-notice"
-import { COVERAGE_LIMITS, TEAM_SUGGESTION_COPY, plural } from "./copy"
+import {
+  COVERAGE_LIMITS,
+  REQUIREMENT_KIND_SINGULAR,
+  TEAM_SUGGESTION_COPY,
+  labelFor,
+  plural,
+} from "./copy"
 import { CoverageSection, Quote } from "./layout"
 import { ReasonDialog, textareaClass } from "./reason-dialog"
 import { Stepper, TeamTag, bySurname } from "./team-roster"
@@ -441,7 +448,7 @@ export function RequirementSetup({
           }),
         next === "retired"
           ? "Retired. Its photos and history are kept."
-          : "Marked not applicable. It stays visible and is not counted."
+          : "Marked as not applicable. It stays on the checklist and isn't counted."
       )
       if (result.ok) return { ok: true as const }
       if (action.reportedOnPage(result)) return REPORTED
@@ -500,8 +507,8 @@ export function RequirementSetup({
         ) : null}
         {notApplicable ? (
           <p className={MUTED}>
-            It stays on the checklist so everyone can see why. Choose Applies
-            to set it up again.
+            It stays on the checklist so everyone can see why. Choose Applies to
+            set it up again.
           </p>
         ) : null}
         {retired ? (
@@ -584,7 +591,9 @@ export function RequirementSetup({
                   </Field>
                 ) : null}
                 <Field className="gap-1.5">
-                  <FieldLabel htmlFor={`${ids}-target`}>Photo target</FieldLabel>
+                  <FieldLabel htmlFor={`${ids}-target`}>
+                    Photo target
+                  </FieldLabel>
                   <Stepper
                     id={`${ids}-target`}
                     name={`${requirement.title} photo target`}
@@ -707,8 +716,7 @@ export function RequirementSetup({
                       </span>
                       {choice.away ? (
                         <span className="text-meta-touch text-attention md:text-meta">
-                          No longer at {venueName}. Can&apos;t be assigned
-                          here.
+                          No longer at {venueName}. Can&apos;t be assigned here.
                         </span>
                       ) : choice.person?.jobTitle ? (
                         <span className={HINT}>{choice.person.jobTitle}</span>
@@ -756,9 +764,7 @@ export function RequirementSetup({
             variant={confirming ? "primary" : "secondary"}
             className="ms-auto"
             onClick={() => void save(confirming)}
-            disabled={
-              action.pending || (confirming ? blocked != null : !dirty)
-            }
+            disabled={action.pending || (confirming ? blocked != null : !dirty)}
             aria-describedby={barStatus ? statusId : undefined}
             aria-busy={action.pending || undefined}
           >
@@ -779,15 +785,33 @@ export function RequirementSetup({
       <ReasonDialog
         open={dialog === "not_applicable"}
         onOpenChange={(isOpen) => setDialog(isOpen ? "not_applicable" : null)}
-        title={`“${requirement.title}” does not apply`}
-        description="It stays visible on the checklist with your reason and leaves the applicable count."
+        title="Mark as not applicable"
         label="Reason"
-        help="For example: “No garden at this venue.”"
-        confirmLabel="Mark not applicable"
-        pendingLabel="Saving…"
+        help="Shown on the checklist with the item. Admins can see it."
+        emptyError="Add a reason. It's shown with the item on the checklist."
+        note="The item stays on the checklist and isn't counted. Photos already sent stay in Photos."
+        confirmLabel="Mark as not applicable"
+        pendingLabel="Marking…"
+        confirmIcon={<ProhibitIcon aria-hidden />}
         onConfirm={statusChange("not_applicable")}
         reportFocus={() => noticeRef.current}
-      />
+      >
+        <p className="text-body-touch md:text-body-sm">
+          <strong className="font-semibold text-ink">
+            {requirement.title}
+          </strong>
+          <br />
+          <span className="text-ink-muted">
+            {[
+              labelFor(REQUIREMENT_KIND_SINGULAR, requirement.kind),
+              venueName,
+              month,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </span>
+        </p>
+      </ReasonDialog>
       <ReasonDialog
         open={dialog === "retire"}
         onOpenChange={(isOpen) => setDialog(isOpen ? "retire" : null)}

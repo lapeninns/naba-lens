@@ -1175,9 +1175,7 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
         name: `Monthly photo: photo by ${w.staffB.name}`,
       })
     await card(first).getByRole("button", { name: "Accept" }).click()
-    await expect(
-      first.getByText(/^Accepted\. It counts for /)
-    ).toBeVisible()
+    await expect(first.getByText(/^Accepted\. It counts for /)).toBeVisible()
     await card(second)
       .getByRole("button", { name: "Ask for another photo" })
       .click()
@@ -1257,11 +1255,10 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
       })
     )
     await page.getByRole("radio", { name: "Does not apply" }).click()
-    const dialog = page.getByRole("dialog", {
-      name: `“${title}” does not apply`,
-    })
+    const dialog = page.getByRole("dialog", { name: "Mark as not applicable" })
+    await expect(dialog.getByText(title, { exact: true })).toBeVisible()
     await dialog.getByLabel("Reason").fill("WS5: changed in another tab")
-    await dialog.getByRole("button", { name: "Mark not applicable" }).click()
+    await dialog.getByRole("button", { name: "Mark as not applicable" }).click()
     await expect(dialog).toBeHidden()
     await expectConflictNotice(page)
     expect(

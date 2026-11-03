@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { WarningCircleIcon } from "@phosphor-icons/react"
+import { SpinnerGapIcon, WarningCircleIcon } from "@phosphor-icons/react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -254,7 +254,11 @@ export function ReasonDialog({
               disabled={pending}
               aria-busy={pending || undefined}
             >
-              {pending ? null : confirmIcon}
+              {pending && confirmIcon ? (
+                <SpinnerGapIcon aria-hidden className="animate-spin" />
+              ) : (
+                confirmIcon
+              )}
               {pending ? pendingLabel : confirmLabel}
             </Button>
           </DialogFooter>

@@ -144,21 +144,81 @@ describe("RequirementSetup", () => {
       })
     ).toBeTruthy()
     await user.click(screen.getByRole("radio", { name: "Does not apply" }))
-    const dialog = await screen.findByRole("dialog")
-    await user.click(
-      within(dialog).getByRole("button", { name: "Mark not applicable" })
-    )
-    expect(within(dialog).getByText("Give a reason.")).toBeTruthy()
+    const dialog = await screen.findByRole("dialog", {
+      name: "Mark as not applicable",
+    })
+    expect(within(dialog).getByText("Bar area")).toBeTruthy()
+    expect(
+      within(dialog).getByText("Venue or service area · The Railway · November")
+    ).toBeTruthy()
+    expect(
+      within(dialog).getByText(
+        "Shown on the checklist with the item. Admins can see it."
+      )
+    ).toBeTruthy()
+    expect(
+      within(dialog).getByText(
+        "The item stays on the checklist and isn't counted. Photos already sent stay in Photos."
+      )
+    ).toBeTruthy()
+    const mark = () =>
+      within(dialog).getByRole("button", { name: "Mark as not applicable" })
+    await user.click(mark())
+    expect(
+      within(dialog).getByText(
+        "Add a reason. It's shown with the item on the checklist."
+      )
+    ).toBeTruthy()
+    expect(
+      within(dialog).getByLabelText("Reason").getAttribute("aria-invalid")
+    ).toBe("true")
+    expect(onSetStatus).not.toHaveBeenCalled()
     await user.type(within(dialog).getByLabelText("Reason"), "No bar here")
-    await user.click(
-      within(dialog).getByRole("button", { name: "Mark not applicable" })
-    )
+    await user.click(mark())
     expect(onSetStatus).toHaveBeenCalledWith({
       requirementId: requirement().id,
       expectedRevision: 3,
       status: "not_applicable",
       reason: "No bar here",
     })
+    expect(
+      await screen.findByText(
+        "Marked as not applicable. It stays on the checklist and isn't counted."
+      )
+    ).toBeTruthy()
+  })
+
+  it("says Marking… while it marks the item not applicable", async () => {
+    const user = userEvent.setup()
+    let finish: (value: ReturnType<typeof ok>) => void = () => {}
+    const onSetStatus = vi.fn<SetRequirementStatusHandler>(
+      () => new Promise((resolve) => (finish = resolve))
+    )
+    render(
+      <RequirementSetup
+        requirement={requirement()}
+        venueName="The Railway"
+        month="November"
+        onUpdate={vi.fn()}
+        onSetStatus={onSetStatus}
+      />
+    )
+    await user.click(screen.getByRole("radio", { name: "Does not apply" }))
+    const dialog = await screen.findByRole("dialog", {
+      name: "Mark as not applicable",
+    })
+    await user.type(within(dialog).getByLabelText("Reason"), "No bar here")
+    await user.click(
+      within(dialog).getByRole("button", { name: "Mark as not applicable" })
+    )
+    const busy = within(dialog).getByRole("button", { name: "Marking…" })
+    expect(busy.hasAttribute("disabled")).toBe(true)
+    finish(ok(5))
+    expect(
+      await screen.findByText(
+        "Marked as not applicable. It stays on the checklist and isn't counted."
+      )
+    ).toBeTruthy()
   })
 
   it("keeps an unknown amenity in verification: confirm disabled with its reason, no exclusion", () => {
