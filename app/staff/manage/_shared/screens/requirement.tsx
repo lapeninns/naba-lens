@@ -155,7 +155,7 @@ export async function RequirementScreen({
           emptyTitle="No photos yet."
           emptyDescription={
             requirement.isCurrent
-              ? "Assigned staff submit photos from My tasks, or attach existing venue photos here."
+              ? "Assigned staff submit photos from Home, or attach existing venue photos here."
               : "Photos can be added once this item is confirmed."
           }
         />
