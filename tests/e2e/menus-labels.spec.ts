@@ -11,6 +11,7 @@ import {
   escape,
   libraryList,
   portfolioList,
+  staffTile,
   uploadThroughDialog,
   openPortfolio,
 } from "./helpers/ui"
@@ -146,10 +147,8 @@ async function withRailway(
 const tileName = (kind: "Photo" | "Video", file: string) =>
   new RegExp(`^${kind}, ${escape(file)}`)
 
-async function openOwn(page: Page, kind: "Photo" | "Video", file: string) {
-  await portfolioList(page)
-    .getByRole("button", { name: tileName(kind, file) })
-    .click()
+async function openOwn(page: Page, file: string) {
+  await (await staffTile(portfolioList(page), file)).click()
   const viewer = page.getByRole("dialog").first()
   await expect(viewer.getByRole("region", { name: "Labels" })).toBeVisible()
   return viewer
@@ -261,14 +260,14 @@ test("rows 5+7: photo + video uploaded, batch-labelled with per-file overrides; 
   await test.step("reload: both files keep exactly what was saved", async () => {
     await staff.goto("/staff")
     const list = portfolioList(staff)
-    await expect(
-      list.getByRole("button", { name: tileName("Photo", photo.name) })
-    ).toHaveAccessibleName(/, 3 labels$/)
-    await expect(
-      list.getByRole("button", { name: tileName("Video", video.name) })
-    ).toHaveAccessibleName(/, 3 labels$/)
+    await expect(await staffTile(list, photo.name)).toHaveAccessibleName(
+      /, 3 labels$/
+    )
+    await expect(await staffTile(list, video.name)).toHaveAccessibleName(
+      /, 3 labels$/
+    )
 
-    const p = await openOwn(staff, "Photo", photo.name)
+    const p = await openOwn(staff, photo.name)
     const pl = p.getByRole("region", { name: "Labels" })
     await expect(
       pl.getByRole("list", { name: "Menu items" }).getByRole("listitem")
@@ -285,7 +284,7 @@ test("rows 5+7: photo + video uploaded, batch-labelled with per-file overrides; 
     await expect(pl).toContainText(note)
     await staff.keyboard.press("Escape")
 
-    const v = await openOwn(staff, "Video", video.name)
+    const v = await openOwn(staff, video.name)
     const vl = v.getByRole("region", { name: "Labels" })
     await expect(
       vl.getByRole("list", { name: "Menu items" }).getByRole("listitem")
@@ -327,9 +326,7 @@ test("row 6: skip labelling at upload, label later from the viewer; the asset is
     await upload.getByRole("button", { name: "Done" }).click()
 
   await expect(
-    portfolioList(staff).getByRole("button", {
-      name: tileName("Photo", photo.name),
-    })
+    await staffTile(portfolioList(staff), photo.name)
   ).toHaveAccessibleName(/, Needs labels$/)
   await admin.goto("/admin")
   await expect(
@@ -338,7 +335,7 @@ test("row 6: skip labelling at upload, label later from the viewer; the asset is
     })
   ).toBeVisible()
 
-  const viewer = await openOwn(staff, "Photo", photo.name)
+  const viewer = await openOwn(staff, photo.name)
   await expect(viewer.getByRole("region", { name: "Labels" })).toContainText(
     "No labels yet"
   )
@@ -360,9 +357,7 @@ test("row 6: skip labelling at upload, label later from the viewer; the asset is
   await staff.keyboard.press("Escape")
   await staff.reload()
   await expect(
-    portfolioList(staff).getByRole("button", {
-      name: tileName("Photo", photo.name),
-    })
+    await staffTile(portfolioList(staff), photo.name)
   ).toHaveAccessibleName(/, 2 labels$/)
 })
 
@@ -379,7 +374,7 @@ test("row 8: missing-item suggestion reaches the admin; catalogue changed while 
 
   await test.step("staff suggests an item not on the menu", async () => {
     await staff.goto("/staff")
-    const viewer = await openOwn(staff, "Photo", `${prefix}-01.jpg`)
+    const viewer = await openOwn(staff, `${prefix}-01.jpg`)
     const editor = await openEditorFromViewer(staff, viewer)
     await editor.getByRole("button", { name: "Item not on the menu?" }).click()
     await editor
@@ -430,7 +425,7 @@ test("row 8: missing-item suggestion reaches the admin; catalogue changed while 
 
   await test.step("a new menu is activated while staff are editing: recoverable, nothing lost", async () => {
     await staff.goto("/staff")
-    const viewer = await openOwn(staff, "Photo", `${prefix}-02.jpg`)
+    const viewer = await openOwn(staff, `${prefix}-02.jpg`)
     const editor = await openEditorFromViewer(staff, viewer)
     await pick(
       editor,
@@ -512,18 +507,12 @@ test("row 9: staff B cannot label staff A's asset, even by rewriting the Server 
     await staffB.goto("/staff")
     await expect(portfolioList(staffB).getByRole("button")).toHaveCount(1)
     await expect(
-      portfolioList(staffB).getByRole("button", {
-        name: tileName("Photo", `qa-own-a-${world.tag}-01.jpg`),
-      })
+      await staffTile(portfolioList(staffB), `qa-own-a-${world.tag}-01.jpg`)
     ).toHaveCount(0)
   })
 
   await test.step("Server Function: B's save rewritten to A's asset id is refused", async () => {
-    const viewer = await openOwn(
-      staffB,
-      "Photo",
-      `qa-own-b-${world.tag}-01.jpg`
-    )
+    const viewer = await openOwn(staffB, `qa-own-b-${world.tag}-01.jpg`)
     const editor = await openEditorFromViewer(staffB, viewer)
     await pick(
       editor,
@@ -644,7 +633,7 @@ test("row 11: a transferred staff member labels an older asset with the old venu
     staff.getByText(world.venue2.name, { exact: false }).first()
   ).toBeVisible()
 
-  const oldViewer = await openOwn(staff, "Photo", `qa-old-${world.tag}-01.jpg`)
+  const oldViewer = await openOwn(staff, `qa-old-${world.tag}-01.jpg`)
   const oldEditor = await openEditorFromViewer(staff, oldViewer)
   await expect(oldEditor).toContainText(
     `Menu items come from the menu of ${world.venue1.name}`
@@ -672,7 +661,7 @@ test("row 11: a transferred staff member labels an older asset with the old venu
   ).toBe(world.venue1.id)
   await staff.keyboard.press("Escape")
 
-  const newViewer = await openOwn(staff, "Photo", `qa-new-${world.tag}-01.jpg`)
+  const newViewer = await openOwn(staff, `qa-new-${world.tag}-01.jpg`)
   const newEditor = await openEditorFromViewer(staff, newViewer)
   await expect(newEditor).toContainText(
     `Menu items come from the menu of ${world.venue2.name}`
@@ -882,7 +871,7 @@ test("rows 12+13: label filters combine with venue/staff/type, search and dates;
     ).toBe("t")
     const staffB = await signedInPage(browser, world.staffB)
     await staffB.goto("/staff")
-    const own = await openOwn(staffB, "Photo", `qa-lib-b-img-${t}-01.jpg`)
+    const own = await openOwn(staffB, `qa-lib-b-img-${t}-01.jpg`)
     await expect(own.getByRole("list", { name: "Menu items" })).toContainText(
       "Onion Bhaji"
     )

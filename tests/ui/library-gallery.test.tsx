@@ -187,6 +187,10 @@ function renderGallery(
   )
 }
 
+// Staff tile names carry no file name, so tiles are found by media id.
+const tileFor = (id: string) =>
+  document.querySelector<HTMLButtonElement>(`button[data-media-id="${id}"]`)
+
 const thumbOf = (container: HTMLElement, id: string) =>
   container.querySelector<HTMLImageElement>(`img[src^="/api/media/${id}/"]`)
 
@@ -267,7 +271,7 @@ describe("signed-URL recovery", () => {
 
   it("recovers the viewer's preview the same way", async () => {
     const { container } = renderGallery(vi.fn<LoadPage>())
-    fireEvent.click(screen.getByRole("button", { name: /^Photo, 01\.jpg/ }))
+    fireEvent.click(tileFor(ID_A)!)
     const dialog = await screen.findByRole("dialog")
     const preview = () =>
       dialog.querySelector<HTMLImageElement>(`img[src^="/api/media/${ID_A}/"]`)
@@ -357,8 +361,8 @@ describe("foreground refresh", () => {
     expect(
       screen
         .getAllByRole("button", { name: /^Photo, / })[0]
-        .getAttribute("aria-label")
-    ).toMatch(/^Photo, 03\.jpg/)
+        .getAttribute("data-media-id")
+    ).toBe("0a6f3c2e-6a51-4f43-9a6a-2f1f8d1c0a03")
 
     // Window focus (e.g. switching back from another app) refreshes too.
     await act(async () => {
@@ -420,7 +424,7 @@ describe("foreground refresh", () => {
       settle({ ok: true, page: { items: [], nextCursor: null } })
     })
     expect(refreshPage).toHaveBeenCalledTimes(2)
-    expect(screen.getByRole("button", { name: /^Photo, 01\.jpg/ })).toBeTruthy()
+    expect(tileFor(ID_A)!).toBeTruthy()
     expect(loadPage).not.toHaveBeenCalled()
 
     // A new callback identity must not replay an already consumed signal.
@@ -476,7 +480,7 @@ describe("foreground refresh", () => {
       settle({ ok: true, page: { items: [], nextCursor: null } })
     })
     expect(loadPage).toHaveBeenCalledTimes(2)
-    expect(screen.getByRole("button", { name: /^Photo, 01\.jpg/ })).toBeTruthy()
+    expect(tileFor(ID_A)!).toBeTruthy()
     expect(screen.queryByRole("status")).toBeNull()
   })
 
@@ -564,7 +568,7 @@ describe("foreground refresh", () => {
     const tiles = screen.getAllByRole("button", { name: /^Photo, / })
     expect(tiles).toHaveLength(78)
     expect(
-      new Set(tiles.map((tile) => tile.getAttribute("aria-label"))).size
+      new Set(tiles.map((tile) => tile.getAttribute("data-media-id"))).size
     ).toBe(78)
     expect(screen.queryByRole("button", { name: "Load more" })).toBeNull()
   })
@@ -629,25 +633,19 @@ describe("foreground refresh", () => {
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Load more" }))
     })
-    expect(
-      screen
-        .getByRole("button", { name: /^Photo, photo-30\.jpg/ })
-        .getAttribute("aria-label")
-    ).toContain("Processing")
+    expect(tileFor(all[30].id)!.getAttribute("aria-label")).toContain(
+      "Processing"
+    )
     expect(thumbOf(container, pending.id)).toBeNull()
     await act(async () => {
       window.dispatchEvent(new Event("focus"))
     })
     expect(screen.getAllByRole("button", { name: /^Photo, / })).toHaveLength(47)
-    expect(
-      screen
-        .getByRole("button", { name: /^Photo, photo-30\.jpg/ })
-        .getAttribute("aria-label")
-    ).not.toContain("Processing")
+    expect(tileFor(all[30].id)!.getAttribute("aria-label")).not.toContain(
+      "Processing"
+    )
     expect(thumbOf(container, pending.id)).not.toBeNull()
-    expect(
-      screen.queryByRole("button", { name: /^Photo, photo-31\.jpg/ })
-    ).toBeNull()
+    expect(tileFor(all[31].id)).toBeNull()
     expect(screen.queryByRole("button", { name: "Load more" })).toBeNull()
     expect(refreshPage).toHaveBeenCalledTimes(2)
   })
@@ -676,9 +674,7 @@ describe("foreground refresh", () => {
         fireEvent.click(screen.getByRole("button", { name: "Load more" }))
       })
     }
-    fireEvent.click(
-      screen.getByRole("button", { name: /^Photo, photo-170\.jpg/ })
-    )
+    fireEvent.click(tileFor(all[170].id)!)
     expect(screen.getByRole("dialog").textContent).toContain("photo-170.jpg")
     await act(async () => {
       window.dispatchEvent(new Event("focus"))
@@ -718,12 +714,8 @@ describe("foreground refresh", () => {
     })
     expect(refreshPage).toHaveBeenCalledTimes(2)
     expect(screen.getAllByRole("button", { name: /^Photo, / })).toHaveLength(48)
-    expect(
-      screen.queryByRole("button", { name: /^Photo, photo-47\.jpg/ })
-    ).toBeNull()
-    expect(
-      screen.getByRole("button", { name: /^Photo, photo-48\.jpg/ })
-    ).toBeTruthy()
+    expect(tileFor(all[47].id)).toBeNull()
+    expect(tileFor(all[48].id)!).toBeTruthy()
     expect(screen.getByRole("button", { name: "Load more" })).toBeTruthy()
   })
 
@@ -817,7 +809,7 @@ describe("foreground refresh", () => {
         window.dispatchEvent(new Event("focus"))
       })
       if (queueUpload) rerender(gallery(1))
-      fireEvent.click(screen.getByRole("button", { name: /^Photo, 01\.jpg/ }))
+      fireEvent.click(tileFor(ID_A)!)
       fireEvent.click(screen.getByRole("button", { name: "Delete" }))
       await act(async () => {
         fireEvent.click(
@@ -833,12 +825,8 @@ describe("foreground refresh", () => {
           page: { items: [item(ID_A), item(ID_B)], nextCursor: null },
         })
       })
-      expect(
-        screen.queryByRole("button", { name: /^Photo, 01\.jpg/ })
-      ).toBeNull()
-      expect(
-        screen.getByRole("button", { name: /^Photo, 02\.jpg/ })
-      ).toBeTruthy()
+      expect(tileFor(ID_A)).toBeNull()
+      expect(tileFor(ID_B)!).toBeTruthy()
       expect(screen.queryByRole("status")).toBeNull()
       expect(refreshPage).toHaveBeenCalledTimes(queueUpload ? 2 : 1)
     }
@@ -945,8 +933,8 @@ describe("foreground refresh", () => {
     expect(
       screen
         .getAllByRole("button", { name: /^Photo, / })[0]
-        .getAttribute("aria-label")
-    ).toMatch(/^Photo, 03\.jpg/)
+        .getAttribute("data-media-id")
+    ).toBe("0a6f3c2e-6a51-4f43-9a6a-2f1f8d1c0a03")
 
     // The interval keeps running too; the Server Function is never used for it.
     await act(async () => {
@@ -1010,7 +998,7 @@ describe("failed downloads", () => {
       undefined,
       (i) => `/api/media/${i.id}/download`
     )
-    fireEvent.click(screen.getByRole("button", { name: /^Photo, 01\.jpg/ }))
+    fireEvent.click(tileFor(ID_A)!)
     const dialog = await screen.findByRole("dialog")
     const link = screen.getByRole("link", { name: "Download original" })
     // jsdom does not navigate; the browser's own download is not prevented.
@@ -1051,5 +1039,57 @@ describe("failed downloads", () => {
       async () => new Response(new Uint8Array([1]), { status: 206 })
     )
     expect(screen.queryByRole("alert")).toBeNull()
+  })
+})
+
+describe("viewer and delete", () => {
+  it("names the owner and passes the coverage impact to the admin confirm", () => {
+    render(
+      <MediaGallery
+        label="Library"
+        initialPage={{ items: [item(ID_A)], nextCursor: null }}
+        loadPage={vi.fn<LoadPage>()}
+        showAttribution
+        showFileName
+        canDelete
+        getDownloadHref={(i) => `/api/media/${i.id}/download`}
+        getDeleteImpact={() => ({
+          kind: "counts",
+          taskName: "Chef's Specials",
+          monthName: "November",
+        })}
+        empty={<p>Empty</p>}
+      />
+    )
+    fireEvent.click(screen.getByRole("button", { name: /^Photo, 01\.jpg/ }))
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }))
+    const confirm = screen.getByRole("alertdialog")
+    expect(confirm.textContent).toContain(
+      "Remove this file from TEST's profile, Photos and the library? It stops counting for Chef's Specials and TEST's November target. When backups are enabled, copies are retained indefinitely for recovery. Previously downloaded copies cannot be recalled."
+    )
+    expect(
+      within(confirm).getByRole("button", { name: "Keep file" })
+    ).toBeTruthy()
+  })
+
+  it("keeps the owner's confirm neutral without a known impact", () => {
+    render(
+      <MediaGallery
+        label="Portfolio"
+        initialPage={{ items: [item(ID_A)], nextCursor: null }}
+        loadPage={vi.fn<LoadPage>()}
+        canDelete
+        empty={<p>Empty</p>}
+      />
+    )
+    fireEvent.click(tileFor(ID_A)!)
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }))
+    const confirm = screen.getByRole("alertdialog")
+    expect(confirm.textContent).toContain(
+      "It's removed from your profile and from Photos. When backups are enabled, copies are retained indefinitely for recovery. Previously downloaded copies cannot be recalled."
+    )
+    expect(
+      within(confirm).getByRole("button", { name: "Keep photo" })
+    ).toBeTruthy()
   })
 })

@@ -40,6 +40,7 @@ export function AdminPortfolio({
       loadPage={loadPage}
       refreshPage={refreshPage}
       showAttribution
+      showFileName
       canDelete
       refreshIntervalMs={REFRESH_MS}
       getDownloadHref={(item) => `/api/media/${item.id}/download`}

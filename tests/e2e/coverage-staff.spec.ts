@@ -21,7 +21,7 @@ import {
   openPortfolio,
   portfolioList,
   STAFF_LANDING,
-  tile,
+  staffTile,
 } from "./helpers/ui"
 import { signedInPage } from "./helpers/world"
 
@@ -299,14 +299,14 @@ async function staffJourney(
   ])
   await openPortfolio(page)
   for (const file of [first!, second!]) {
-    await expect(tile(portfolioList(page), "Photo", file.name)).toBeVisible()
+    await expect(await staffTile(portfolioList(page), file.name)).toBeVisible()
   }
   const colleague = await signedInPage(browser, w.staffB)
   await colleague.goto("/staff/community")
   // Colleagues see the photos by author, never their file names (R-02).
   await expect(
     colleague.getByRole("button", {
-      name: new RegExp(`^Photo, by ${escape(w.staffA.name)}, `),
+      name: new RegExp(`^Photo by ${escape(w.staffA.name)}, `),
     })
   ).toHaveCount(2)
   const explore = await colleague.content()

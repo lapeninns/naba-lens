@@ -18,6 +18,8 @@ type MediaGridProps = {
   showAttribution?: boolean
   /** Show the small labels badge on ready tiles (staff portfolio). */
   showLabelBadge?: boolean
+  /** Admin views only: tile names include the original file name. */
+  showFileName?: boolean
   /** Accessible name for the list, e.g. "Your portfolio" or "Library". */
   label: string
   className?: string
@@ -29,6 +31,7 @@ export function MediaGrid({
   onOpen,
   showAttribution = false,
   showLabelBadge = false,
+  showFileName = false,
   label,
   className,
 }: MediaGridProps) {
@@ -44,6 +47,7 @@ export function MediaGrid({
             onOpen={onOpen}
             showAttribution={showAttribution}
             showLabelBadge={showLabelBadge}
+            showFileName={showFileName}
           />
         </li>
       ))}

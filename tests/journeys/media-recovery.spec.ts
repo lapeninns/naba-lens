@@ -4,7 +4,7 @@ import { createHash } from "node:crypto"
 import { expect, test, type Route } from "@playwright/test"
 
 import { provisioner, psql } from "../e2e/helpers/stack"
-import { libraryList } from "../e2e/helpers/ui"
+import { libraryList, staffTile } from "../e2e/helpers/ui"
 import {
   CHUNK,
   SIGNED_PUT,
@@ -264,7 +264,9 @@ test.describe("media.reload-resume", () => {
     const unfinished = await rowsOf(staff.id)
     expect(unfinished).toHaveLength(1)
     expect(unfinished[0].upload_state).toBe("uploading")
-    await expect(tileOf(page, "tus-video.mp4", "Uploading")).toHaveCount(1)
+    await expect(
+      await tileOf(page, staff.id, "tus-video.mp4", "Uploading")
+    ).toHaveCount(1)
 
     storage.reset()
     dialog = await openUploadDialog(page)
@@ -281,7 +283,9 @@ test.describe("media.reload-resume", () => {
       upload_state: "ready",
     })
     await dialog.getByRole("button", { name: "Done" }).click()
-    await expect(tileOf(page, "tus-video.mp4", "ready")).toHaveCount(1)
+    await expect(
+      await tileOf(page, staff.id, "tus-video.mp4", "ready")
+    ).toHaveCount(1)
     await page.context().close()
   })
 })
@@ -324,7 +328,7 @@ test.describe("media.removed-reservation", () => {
     expect(live[0].id).not.toBe(reserved.id)
     expect(live[0].upload_state).toBe("ready")
     await dialog.getByRole("button", { name: "Done" }).click()
-    await expect(tileOf(page, "tus-video.mp4")).toHaveCount(1)
+    await expect(await tileOf(page, staff.id, "tus-video.mp4")).toHaveCount(1)
     await page.context().close()
   })
 })
@@ -354,13 +358,19 @@ test.describe("media.reopen-states", () => {
 
     const expectStates = async (p: typeof page) => {
       await expect(portfolio(p).getByRole("button")).toHaveCount(3)
-      await expect(tileOf(p, "photo.jpg", "ready")).toHaveCount(1)
-      await expect(tileOf(p, "disguised.jpg", "Failed")).toHaveCount(1)
-      await expect(tileOf(p, "tus-video.mp4", "Uploading")).toHaveCount(1)
+      await expect(await tileOf(p, staff.id, "photo.jpg", "ready")).toHaveCount(
+        1
+      )
+      await expect(
+        await tileOf(p, staff.id, "disguised.jpg", "Failed")
+      ).toHaveCount(1)
+      await expect(
+        await tileOf(p, staff.id, "tus-video.mp4", "Uploading")
+      ).toHaveCount(1)
       // The completed photo has a real thumbnail; the others are not "ready".
       await expect
-        .poll(() =>
-          tileOf(p, "photo.jpg", "ready")
+        .poll(async () =>
+          (await tileOf(p, staff.id, "photo.jpg", "ready"))
             .locator("img")
             .evaluate((img: HTMLImageElement) => img.naturalWidth)
         )
@@ -518,7 +528,9 @@ test.describe("media.stuck-processing", () => {
     )
 
     await page.reload()
-    await expect(tileOf(page, "photo.jpg", "Processing")).toHaveCount(1)
+    await expect(
+      await tileOf(page, staff.id, "photo.jpg", "Processing")
+    ).toHaveCount(1)
     await testInfo.attach("stuck-processing", {
       body: await page.screenshot({ fullPage: true }),
       contentType: "image/png",
@@ -535,8 +547,12 @@ test.describe("media.stuck-processing", () => {
     expect((await rowsOf(staff.id))[0].upload_state).toBe("failed")
 
     await page.reload()
-    await expect(tileOf(page, "photo.jpg", "Failed")).toHaveCount(1)
-    await expect(tileOf(page, "photo.jpg", "Processing")).toHaveCount(0)
+    await expect(
+      await tileOf(page, staff.id, "photo.jpg", "Failed")
+    ).toHaveCount(1)
+    await expect(
+      await tileOf(page, staff.id, "photo.jpg", "Processing")
+    ).toHaveCount(0)
 
     // Recovery: choosing the file again finalises the stored bytes.
     dialog = await openUploadDialog(page)
@@ -615,9 +631,9 @@ test.describe("media.reload-metadata", () => {
     // venue in the profile header.
     for (const r of rows) {
       const date = appDate(r.created_at)
-      const tile = portfolio(page).getByRole("button", {
-        name: `Photo, ${r.original_filename}, uploaded ${date}`,
-      })
+      const tile = (
+        await staffTile(portfolio(page), r.original_filename, staff.id)
+      ).and(page.getByRole("button", { name: `Photo, uploaded ${date}` }))
       await expect(tile).toBeVisible()
       await expect
         .poll(() =>

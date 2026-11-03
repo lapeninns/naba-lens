@@ -18,7 +18,7 @@ import {
   uploadAs,
 } from "../integration/gaps-support"
 import { actorFor, syntheticJpeg } from "../slice/media-actor"
-import { openPortfolio, STAFF_LANDING } from "./helpers/ui"
+import { openPortfolio, STAFF_LANDING, staffTile } from "./helpers/ui"
 import {
   createVenue,
   serviceClient,
@@ -293,9 +293,10 @@ test.describe("GAP-12: staff at a deactivated venue", () => {
     ).toHaveCount(0)
     // Their own retained media is still listed for them.
     await expect(
-      staffPage
-        .getByRole("list", { name: "Your portfolio" })
-        .getByRole("button", { name: /^Photo, before-pause\.jpg/ })
+      await staffTile(
+        staffPage.getByRole("list", { name: "Your portfolio" }),
+        "before-pause.jpg"
+      )
     ).toBeVisible()
 
     const adminPage = await signIn(browser, adminUser, baseURL!)

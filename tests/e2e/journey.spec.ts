@@ -18,6 +18,7 @@ import {
   libraryList,
   markDocument,
   portfolioList,
+  staffTile,
   tile,
   uploadThroughDialog,
   openPortfolio,
@@ -150,14 +151,15 @@ test.describe("release journey @core", () => {
       rows!.find((r) => r.original_filename === name)!.id
 
     const portfolio = portfolioList(staff)
-    await expect(tile(portfolio, "Photo", jpeg.name)).toBeVisible()
-    await expect(tile(portfolio, "Video", mp4.name)).toBeVisible()
-    await expect(tile(portfolio, "Photo", heic.name)).toBeVisible()
+    const ownJpeg = await staffTile(portfolio, jpeg.name)
+    await expect(ownJpeg).toBeVisible()
+    await expect(await staffTile(portfolio, mp4.name)).toBeVisible()
+    await expect(await staffTile(portfolio, heic.name)).toBeVisible()
 
     // Persists after reload, with real thumbnails (HEIC decoded server-side).
     await staff.reload()
     for (const name of [jpeg.name, heic.name]) {
-      const img = tile(portfolio, "Photo", name).locator("img")
+      const img = (await staffTile(portfolio, name)).locator("img")
       await expect
         .poll(() =>
           img.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth)
@@ -276,7 +278,7 @@ test.describe("release journey @core", () => {
     await markDocument(adminB)
     await expect(tile(libraryList(adminB), "Photo", jpeg.name)).toBeVisible()
 
-    await tile(portfolio, "Photo", jpeg.name).click()
+    await ownJpeg.click()
     await staff
       .getByRole("dialog")
       .getByRole("button", { name: "Delete" })
@@ -289,7 +291,7 @@ test.describe("release journey @core", () => {
     ).toBeVisible()
     await confirm.getByRole("button", { name: "Delete" }).click()
     await expect(confirm).toBeHidden()
-    await expect(tile(portfolio, "Photo", jpeg.name)).toHaveCount(0)
+    await expect(ownJpeg).toHaveCount(0)
     await expect(portfolio.getByRole("button")).toHaveCount(2)
 
     // Admin B's open library drops it on its next refresh, without reload.

@@ -43,17 +43,29 @@ type MediaTileProps = {
   showAttribution?: boolean
   /** v0.3: small "Needs labels" / "N labels" badge on ready tiles. */
   showLabelBadge?: boolean
+  /** Admin views only: staff and managers never see original file names. */
+  showFileName?: boolean
   className?: string
 }
 
 function describe(
   item: MediaItem,
   showAttribution: boolean,
+  showFileName: boolean,
   labelText: string | null
 ) {
-  const parts = [item.mediaType === "video" ? "Video" : "Photo"]
-  if (item.originalFilename !== null) parts.push(item.originalFilename)
-  if (showAttribution) parts.push(`by ${item.contributorName}`, item.venueName)
+  const kind = item.mediaType === "video" ? "Video" : "Photo"
+  const parts: string[] = []
+  if (showFileName) {
+    parts.push(kind)
+    if (item.originalFilename !== null) parts.push(item.originalFilename)
+    if (showAttribution)
+      parts.push(`by ${item.contributorName}`, item.venueName)
+  } else if (showAttribution) {
+    parts.push(`${kind} by ${item.contributorName}`, item.venueName)
+  } else {
+    parts.push(kind)
+  }
   parts.push(`uploaded ${formatDate(item.createdAt)}`)
   if (item.uploadState !== "ready")
     parts.push(UPLOAD_STATE_LABEL[item.uploadState])
@@ -74,6 +86,7 @@ export function MediaTile({
   onOpen,
   showAttribution = false,
   showLabelBadge = false,
+  showFileName = false,
   className,
 }: MediaTileProps) {
   const labelText =
@@ -96,7 +109,8 @@ export function MediaTile({
         <button
           type="button"
           onClick={() => onOpen(item)}
-          aria-label={describe(item, showAttribution, labelText)}
+          data-media-id={item.id}
+          aria-label={describe(item, showAttribution, showFileName, labelText)}
           className={cn(
             "relative block aspect-square w-full overflow-hidden rounded-print bg-media-placeholder outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus",
             item.uploadState === "failed" &&

@@ -8,6 +8,7 @@ import {
   LoadMoreButton,
   MediaGrid,
   MediaViewer,
+  type DeleteImpact,
   type MediaItem,
 } from "@/components/nabalens"
 import { Button } from "@/components/ui/button"
@@ -58,6 +59,13 @@ type MediaGalleryProps = {
   canLabel?: boolean
   /** Small labels badge on ready tiles (staff portfolio). */
   showLabelBadge?: boolean
+  /**
+   * What deleting this file does to coverage credit, when the page has read
+   * it. Without it the confirm says nothing about tasks or targets.
+   */
+  getDeleteImpact?: (item: MediaItem) => DeleteImpact | undefined
+  /** Admin views only: tile names include the original file name. */
+  showFileName?: boolean
 }
 
 /**
@@ -119,6 +127,8 @@ export function MediaGallery({
   refreshSignal,
   canLabel = false,
   showLabelBadge = false,
+  getDeleteImpact,
+  showFileName = false,
 }: MediaGalleryProps) {
   const [labelIds, setLabelIds] = React.useState<string[] | null>(null)
   const [page, setPage] = React.useState(initialPage)
@@ -355,6 +365,7 @@ export function MediaGallery({
           label={label}
           showAttribution={showAttribution}
           showLabelBadge={showLabelBadge}
+          showFileName={showFileName}
           onOpen={(item) => {
             setDownloadError(null)
             setOpenId(item.id)
@@ -420,7 +431,11 @@ export function MediaGallery({
         onOpenChange={(open) => {
           if (!open) setDeleting(null)
         }}
-        fileName={deleting?.originalFilename ?? undefined}
+        mediaType={deleting?.mediaType}
+        // Only the admin views offer downloads; there the confirm names the
+        // owner of the file being removed.
+        ownerName={getDownloadHref ? deleting?.contributorName : undefined}
+        impact={deleting ? getDeleteImpact?.(deleting) : undefined}
         onConfirm={async () => {
           if (!deleting) return
           const result = await deleteMedia(deleting.id)

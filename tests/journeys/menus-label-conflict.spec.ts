@@ -37,7 +37,7 @@ async function staleEditor(
   await seedReadyAssets(world.staffA.id, world.venue1.id, 1, "image", prefix)
   const fileName = `${prefix}-01.jpg`
   const staff = await signedInPage(browser, world.staffA)
-  const { viewer, editor } = await openOwnLabelEditor(staff, "Photo", fileName)
+  const { viewer, editor } = await openOwnLabelEditor(staff, fileName)
   await pickMenuItem(editor, "onion bhaji", /^Onion Bhaji in Appetisers/)
   await editor.getByRole("button", { name: "Kitchen" }).click()
   await activateNewVersion(admin, world.venue1)
