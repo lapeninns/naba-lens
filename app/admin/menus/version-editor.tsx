@@ -239,6 +239,7 @@ export function VersionEditor({
             decisions={decisions}
             onDecide={readOnly ? undefined : decide}
             readOnly={readOnly}
+            locked={isDraft && (saving || refreshing)}
           />
         </section>
       ) : isDraft ? (

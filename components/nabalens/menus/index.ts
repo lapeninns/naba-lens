@@ -8,6 +8,7 @@ export {
   SOURCE_KIND_LABEL,
   UNSUPPORTED_IMPORT_COPY,
   formatDateTime,
+  plural,
   possessive,
   type MenuActionResult,
 } from "./copy"

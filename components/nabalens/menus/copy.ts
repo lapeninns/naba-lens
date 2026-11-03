@@ -17,7 +17,7 @@ export const MENUS_SUMMARY_COPY = `Each venue's menu, used only for labelling ph
 export const possessive = (name: string) => `${name}'s`
 
 export const UNSUPPORTED_IMPORT_COPY =
-  "PDF, image, Word and JavaScript menus are not supported. They are not read or parsed; convert the menu to JSON or CSV first."
+  "PDF, image, Word and spreadsheet menus aren't read."
 
 export const LABELS_KEPT_COPY = "Existing labels on photos and videos are kept."
 

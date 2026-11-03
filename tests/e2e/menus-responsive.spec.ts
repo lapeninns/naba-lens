@@ -218,7 +218,9 @@ for (const width of WIDTHS) {
     await check(page, width, "menus-venue")
     await page.getByRole("button", { name: "Import a menu" }).click()
     await page.getByLabel("Menu file (JSON or CSV)").setInputFiles(RAILWAY)
-    await expect(page.getByRole("heading", { name: /^Preview:/ })).toBeVisible()
+    await expect(
+      page.getByRole("region", { name: "Changes from the active menu" })
+    ).toBeVisible()
     await check(page, width, "menus-import-preview")
 
     await page.goto(draftUrl)

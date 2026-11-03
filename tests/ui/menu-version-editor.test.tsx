@@ -139,9 +139,6 @@ describe("draft review while saving", () => {
     const user = userEvent.setup()
     const resolve = deferredSave()
     const { rerender } = render(editor())
-    await user.click(
-      within(match()).getByRole("radio", { name: /Same item as/ })
-    )
     await user.type(
       screen.getByRole("textbox", { name: "Menu title" }),
       " updated"
@@ -150,8 +147,12 @@ describe("draft review while saving", () => {
 
     expect(match().hasAttribute("disabled")).toBe(true)
     expect(
-      within(match()).queryByRole("button", { name: /Confirm decision/ })
-    ).toBeNull()
+      (
+        within(match()).getByRole("button", {
+          name: "Same item as Pie (Mains)",
+        }) as HTMLButtonElement
+      ).matches(":disabled")
+    ).toBe(true)
     expect(vi.mocked(saveDraftAction).mock.calls[0][0]).toMatchObject({
       document: {
         title: "Autumn menu updated",
@@ -178,10 +179,12 @@ describe("draft review while saving", () => {
     )
     expect(match().hasAttribute("disabled")).toBe(false)
     await user.click(
-      within(match()).getByRole("button", { name: "Confirm decision for Pie" })
+      within(match()).getByRole("button", { name: "Same item as Pie (Mains)" })
     )
     expect(
-      within(match()).getByText("Resolved: same item as “Pie”")
+      within(match()).getByText(
+        "Same item as Pie (Mains). Labels stay with it."
+      )
     ).toBeTruthy()
     vi.mocked(saveDraftAction).mockResolvedValueOnce({ ok: true, revision: 3 })
     await user.click(screen.getByRole("button", { name: "Save draft" }))
@@ -208,13 +211,12 @@ describe("draft review while saving", () => {
         .value
     ).toBe("Autumn menu updated")
     await user.click(
-      within(match()).getByRole("radio", { name: /Same item as/ })
-    )
-    await user.click(
-      within(match()).getByRole("button", { name: "Confirm decision for Pie" })
+      within(match()).getByRole("button", { name: "Same item as Pie (Mains)" })
     )
     expect(
-      within(match()).getByText("Resolved: same item as “Pie”")
+      within(match()).getByText(
+        "Same item as Pie (Mains). Labels stay with it."
+      )
     ).toBeTruthy()
   })
 })
