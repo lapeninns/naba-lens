@@ -1,10 +1,18 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, within } from "@testing-library/react"
-import { afterEach, describe, expect, it } from "vitest"
+import { act, cleanup, render, screen, within } from "@testing-library/react"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { AppShell } from "@/components/nabalens"
+import { OfflineNotice } from "@/components/nabalens/offline-notice"
 
-afterEach(cleanup)
+const refresh = vi.fn()
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }))
+
+afterEach(() => {
+  cleanup()
+  vi.restoreAllMocks()
+  refresh.mockClear()
+})
 
 // The AppBar nav (md up) and the TabBar (phones) share a name; CSS shows one.
 function nav(name: string, slot: "app-nav" | "tabbar") {
@@ -98,5 +106,87 @@ describe("AppShell admin navigation", () => {
     expect(links("Admin", "tabbar")).toEqual(links("Admin"))
     expect(current("Admin")).toEqual(["Coverage"])
     expect(screen.getByRole("link", { name: "Naba-Lens Admin" })).toBeTruthy()
+  })
+})
+
+describe("AppShell offline notice", () => {
+  function goOffline() {
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false)
+    act(() => {
+      window.dispatchEvent(new Event("offline"))
+    })
+  }
+
+  function goOnline() {
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(true)
+    act(() => {
+      window.dispatchEvent(new Event("online"))
+    })
+  }
+
+  const offlineAlerts = () =>
+    screen
+      .queryAllByRole("alert")
+      .filter((el) => el.textContent?.includes("You're offline"))
+
+  it("shows the copy-deck notice with the time once the browser goes offline", () => {
+    render(
+      <AppShell variant="admin" active="content">
+        <h1>Content</h1>
+      </AppShell>
+    )
+    expect(offlineAlerts()).toHaveLength(0)
+
+    goOffline()
+    const [alert] = offlineAlerts()
+    expect(alert).toBeTruthy()
+    expect(within(alert).getByText("You're offline")).toBeTruthy()
+    expect(alert.textContent).toMatch(
+      /What you see was last updated at \d{1,2}:\d{2}(\s?[ap]m)?\. Nothing is sent twice when you try again\./i
+    )
+    // Above the page content, inside main.
+    const main = screen.getByRole("main")
+    expect(main.contains(alert)).toBe(true)
+    expect(
+      alert.compareDocumentPosition(screen.getByRole("heading")) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+
+    within(alert).getByRole("button", { name: "Try again" }).click()
+    expect(refresh).toHaveBeenCalledTimes(1)
+
+    goOnline()
+    expect(offlineAlerts()).toHaveLength(0)
+  })
+
+  it("leaves the notice to a page that places its own", () => {
+    render(
+      <AppShell variant="staff" active="people">
+        <h1>People</h1>
+        <div data-testid="page-slot">
+          <OfflineNotice />
+        </div>
+      </AppShell>
+    )
+    goOffline()
+    const alerts = offlineAlerts()
+    expect(alerts).toHaveLength(1)
+    expect(screen.getByTestId("page-slot").contains(alerts[0])).toBe(true)
+  })
+
+  it("comes back when the page's own notice unmounts", () => {
+    const { rerender } = render(
+      <AppShell variant="admin" active="staff">
+        <OfflineNotice />
+      </AppShell>
+    )
+    goOffline()
+    expect(offlineAlerts()).toHaveLength(1)
+    rerender(
+      <AppShell variant="admin" active="staff">
+        <p>No notice here</p>
+      </AppShell>
+    )
+    expect(offlineAlerts()).toHaveLength(1)
   })
 })

@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
+import { OfflineShell } from "./offline-notice"
 import { ProfileAvatar } from "./profile-avatar"
 import { AddTrigger, TAB_ITEM } from "./shell/add-context"
 import { CountBadge } from "./status-chip"
@@ -239,7 +240,7 @@ export function AppShell(props: AppShellProps) {
         id="main"
         className="mx-auto w-full max-w-(--size-page) flex-1 px-4 pt-6 pb-[calc(var(--size-tabbar)+env(safe-area-inset-bottom,0px)+2rem)] md:px-6 md:py-8"
       >
-        {children}
+        <OfflineShell>{children}</OfflineShell>
       </main>
       <nav
         aria-label={navLabel}
