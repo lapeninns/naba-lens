@@ -53,7 +53,7 @@ test("venue + staff + type filters combine across pages, then clear", async ({
   // Same staff + venue, videos only.
   await admin
     .getByRole("group", { name: "Media type" })
-    .getByRole("button", { name: "Videos" })
+    .getByRole("button", { name: "Videos", exact: true })
     .click()
   await expect(tiles).toHaveCount(4)
   for (const name of await tiles.evaluateAll((els) =>
@@ -67,7 +67,7 @@ test("venue + staff + type filters combine across pages, then clear", async ({
   await expect(admin.getByText("Nothing matches these filters.")).toBeVisible()
   await admin
     .getByRole("group", { name: "Media type" })
-    .getByRole("button", { name: "All" })
+    .getByRole("button", { name: "Photos and videos", exact: true })
     .click()
   await expect(tiles).toHaveCount(3)
 

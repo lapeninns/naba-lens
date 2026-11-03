@@ -124,10 +124,13 @@ async function importAndActivate(
   await page.getByRole("button", { name: "Import a menu" }).click()
   await page.getByLabel("Menu file (JSON or CSV)").setInputFiles(path)
   await expect(
-    page.getByRole("heading", { name: `Preview: ${title}` })
+    page.getByRole("region", { name: "Changes from the active menu" })
   ).toBeVisible()
   await page.getByRole("button", { name: "Create draft" }).click()
   await page.waitForURL(/\/admin\/menus\/versions\//)
+  await expect(
+    page.getByRole("heading", { level: 1, name: title })
+  ).toBeVisible()
   await page.getByRole("button", { name: "Activate…" }).click()
   await page
     .getByRole("alertdialog")
