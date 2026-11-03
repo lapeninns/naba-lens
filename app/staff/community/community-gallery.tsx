@@ -38,7 +38,7 @@ export function CommunityGallery({
   )
   return (
     <MediaGallery
-      label={uploaderId ? "Colleague portfolio" : "Organization portfolio"}
+      label={uploaderId ? "Shared photos" : "Organization portfolio"}
       initialPage={initialPage}
       loadPage={loadPage}
       showAttribution
