@@ -255,7 +255,7 @@ test.describe("release journey @core", () => {
 
     // Open the contributor's portfolio from the viewer.
     await tile(library, "Video", mp4.name).click()
-    await viewer.getByRole("link", { name: "Open portfolio" }).click()
+    await viewer.getByRole("link", { name: "Open profile" }).click()
     await expect(adminB).toHaveURL(new RegExp(`/admin/staff/${inviteeId}$`))
     await expect(
       adminB.getByRole("heading", { name: inviteeName })
