@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import {
   cleanup,
+  fireEvent,
   render,
   screen,
   waitFor,
@@ -305,6 +306,82 @@ describe("TeamRoster", () => {
     expect(notice.getAttribute("role")).toBe("status")
     expect(screen.queryByRole("alert")).toBeNull()
     await waitFor(() => expect(document.activeElement).toBe(notice))
+  })
+
+  it("keeps drafts within their month when the next target has the same revision", async () => {
+    const user = userEvent.setup()
+    const onSetTarget = vi.fn<SetTargetHandler>(ok)
+    const props = {
+      period: PERIOD,
+      currentPeriod: PERIOD.key,
+      canEdit: true,
+      isAdmin: false,
+      basePath: "/staff/manage",
+      onSetTarget,
+    }
+    const december = {
+      ...PERIOD,
+      key: "2026-12",
+      label: "December 2026",
+      startsAt: "2026-12-01T00:00:00.000Z",
+      endsAt: "2027-01-01T00:00:00.000Z",
+      isCurrent: false,
+    }
+    const targetInput = () => screen.getByLabelText("TEST Sam's photo target")
+    const openDueDate = () =>
+      user.click(
+        screen.getByRole("button", { name: "Change due date for TEST Sam" })
+      )
+    const { rerender } = render(<TeamRoster {...props} rows={[monthly()]} />)
+
+    await user.click(
+      screen.getByRole("button", { name: "Increase TEST Sam's photo target" })
+    )
+    await user.type(
+      screen.getByLabelText("Reason for changing November's target"),
+      "Extra November shifts"
+    )
+    await openDueDate()
+    fireEvent.change(screen.getByLabelText("Due date"), {
+      target: { value: "2026-11-18" },
+    })
+
+    rerender(<TeamRoster {...props} rows={[monthly({ accepted: 3 })]} />)
+    expect(targetInput()).toHaveProperty("value", "6")
+    expect(screen.getByLabelText("Due date")).toHaveProperty(
+      "value",
+      "2026-11-18"
+    )
+    expect(
+      screen.getByLabelText("Reason for changing November's target")
+    ).toHaveProperty("value", "Extra November shifts")
+
+    rerender(
+      <TeamRoster
+        {...props}
+        period={december}
+        rows={[
+          monthly({
+            period: december,
+            targetId: "dddddddd-0000-4000-8000-000000000002",
+            targetCount: 8,
+            due: null,
+          }),
+        ]}
+      />
+    )
+    expect(targetInput()).toHaveProperty("value", "8")
+    expect(screen.queryByLabelText("Due date")).toBeNull()
+    expect(
+      screen.queryByLabelText("Reason for changing December's target")
+    ).toBeNull()
+    expect(screen.queryByRole("button", { name: "Save targets" })).toBeNull()
+    await openDueDate()
+    expect(screen.getByLabelText("Due date")).toHaveProperty(
+      "value",
+      "2026-12-31"
+    )
+    expect(onSetTarget).not.toHaveBeenCalled()
   })
 
   it("drops an unsaved change when a refresh brings a newer target", async () => {

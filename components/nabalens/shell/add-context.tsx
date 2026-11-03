@@ -9,6 +9,8 @@ import { cn } from "@/lib/utils"
 
 type AddContextValue = {
   openAdd: () => void
+  /** Changes after a global Add upload completes so mounted galleries refresh. */
+  refreshSignal?: number
   /** Files in the Add queue that are not finished, in the queue's words. */
   busy?: { count: number; words: string } | null
 }
@@ -24,6 +26,10 @@ export const AddProvider = AddContext.Provider
  */
 export function useAdd(): (() => void) | null {
   return React.useContext(AddContext)?.openAdd ?? null
+}
+
+export function useAddRefreshSignal(): number {
+  return React.useContext(AddContext)?.refreshSignal ?? 0
 }
 
 /**

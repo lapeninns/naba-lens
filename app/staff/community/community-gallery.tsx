@@ -4,6 +4,7 @@ import * as React from "react"
 
 import { MediaGallery } from "@/app/_media/media-gallery"
 import { EmptyState } from "@/components/nabalens/empty-state"
+import { useAddRefreshSignal } from "@/components/nabalens/shell/add-context"
 import type { MediaPage } from "@/lib/server/media/types"
 
 import { loadCommunityPage } from "./actions"
@@ -32,6 +33,7 @@ export function CommunityGallery({
   /** "Showing 24, newest first" above the grid. */
   showCount?: boolean
 }) {
+  const refreshSignal = useAddRefreshSignal()
   const loadPage = React.useCallback(
     (cursor: string | null) => loadCommunityPage(search, cursor, uploaderId),
     [search, uploaderId]
@@ -41,6 +43,7 @@ export function CommunityGallery({
       label={uploaderId ? "Shared photos" : "Organization portfolio"}
       initialPage={initialPage}
       loadPage={loadPage}
+      refreshSignal={uploaderId ? undefined : refreshSignal}
       showAttribution
       getPortfolioHref={(item) => `/staff/people/${item.contributorId}`}
       summary={showCount ? showingCount : undefined}

@@ -27,6 +27,7 @@ import {
   type ProfileFormValues,
 } from "@/components/nabalens"
 import { CountBadge } from "@/components/nabalens/status-chip"
+import { useAddRefreshSignal } from "@/components/nabalens/shell/add-context"
 import { Button } from "@/components/ui/button"
 import { MEDIA_LIMITS } from "@/lib/config/media"
 import type { MediaPage } from "@/lib/server/media/types"
@@ -119,6 +120,7 @@ export function StaffPortfolio({
   const [uploadOpen, setUploadOpen] = React.useState(false)
   const [editOpen, setEditOpen] = React.useState(false)
   const [refreshSignal, setRefreshSignal] = React.useState(0)
+  const addRefreshSignal = useAddRefreshSignal()
   // Optional labelling right after an upload (v0.3); skipping changes nothing.
   const [labelIds, setLabelIds] = React.useState<string[] | null>(null)
   const refreshGallery = React.useCallback(
@@ -182,7 +184,7 @@ export function StaffPortfolio({
         loadPage={loadMyMedia}
         refreshPage={refreshMyMedia}
         canDelete
-        refreshSignal={refreshSignal}
+        refreshSignal={refreshSignal + addRefreshSignal}
         canLabel
         showLabelBadge
         empty={<EmptyState action={uploadButton} />}

@@ -271,23 +271,7 @@ function isChanged(
   )
 }
 
-/**
- * Monthly participation for one venue: each person's photo target and their
- * accepted photos, edited in place and saved together. A missing target or
- * team is "Needs setup", never met. A person's month is never added to the
- * venue's checklist. Shows names, avatars, teams and progress only.
- */
-export function TeamRoster({
-  period,
-  currentPeriod,
-  rows,
-  canEdit,
-  isAdmin,
-  basePath,
-  venueName,
-  onSetTarget,
-  onStale,
-}: {
+type TeamRosterProps = {
   period: PeriodView
   currentPeriod: PeriodKey
   rows: MonthlyProgress[]
@@ -300,7 +284,31 @@ export function TeamRoster({
   venueName?: string
   onSetTarget?: SetTargetHandler
   onStale?: () => void
-}) {
+}
+
+/**
+ * Monthly participation for one venue: each person's photo target and their
+ * accepted photos, edited in place and saved together. A missing target or
+ * team is "Needs setup", never met. A person's month is never added to the
+ * venue's checklist. Shows names, avatars, teams and progress only.
+ */
+export function TeamRoster(props: TeamRosterProps) {
+  // The month stepper keeps this roster mounted. Scope its local edits and
+  // feedback to the month, even when the next target has the same revision.
+  return <TeamRosterMonth key={props.period.key} {...props} />
+}
+
+function TeamRosterMonth({
+  period,
+  currentPeriod,
+  rows,
+  canEdit,
+  isAdmin,
+  basePath,
+  venueName,
+  onSetTarget,
+  onStale,
+}: TeamRosterProps) {
   const ids = React.useId()
   const staffHref = (id: string) =>
     `${manageHrefs(basePath).staff(id)}&period=${period.key}`

@@ -46,6 +46,7 @@ export function AddHost({
   const [sheetOpen, setSheetOpen] = React.useState(false)
   const [uploadOpen, setUploadOpen] = React.useState(false)
   const [picked, setPicked] = React.useState<File[] | undefined>(undefined)
+  const [refreshSignal, setRefreshSignal] = React.useState(0)
   const [email, setEmail] = React.useState<string | null>(null)
   const supabase = React.useMemo(() => createClient(), [])
 
@@ -116,8 +117,9 @@ export function AddHost({
         }
       },
       busy: unfinished > 0 ? { count: unfinished, words: busyWords } : null,
+      refreshSignal,
     }),
-    [blocked, unfinished, busyWords]
+    [blocked, unfinished, busyWords, refreshSignal]
   )
 
   return (
@@ -141,7 +143,10 @@ export function AddHost({
             uploader={uploader}
             limits={MEDIA_LIMITS}
             initialFiles={picked}
-            onUploaded={() => router.refresh()}
+            onUploaded={() => {
+              setRefreshSignal((signal) => signal + 1)
+              router.refresh()
+            }}
             keepRunningWhenClosed
             onBusyChange={setBusy}
           />
