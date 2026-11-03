@@ -1,15 +1,13 @@
 "use client"
 
 import * as React from "react"
+import { CheckIcon, SpinnerGapIcon } from "@phosphor-icons/react"
 
-import { formatDateTime } from "@/components/nabalens/menus/copy"
+import { formatDate } from "@/components/nabalens/format"
+import { Notice } from "@/components/nabalens/notice"
 import { Button } from "@/components/ui/button"
-import {
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldLabel,
-} from "@/components/ui/field"
+import { DialogFooter } from "@/components/ui/dialog"
+import { FieldError } from "@/components/ui/field"
 
 import { CoverageNotice } from "./coverage-notice"
 import {
@@ -18,9 +16,8 @@ import {
   PRESENCE_LABEL,
   labelFor,
 } from "./copy"
-import { PresenceBadge } from "./coverage-badges"
 import { EvidenceThumb } from "./evidence-image"
-import { textareaClass } from "./reason-dialog"
+import { ReasonField } from "./reason-dialog"
 import type {
   AmenityFactView,
   AmenityPresence,
@@ -28,17 +25,43 @@ import type {
   EvidenceAsset,
   SetAmenityFactInput,
 } from "./types"
-import { useCoverageAction } from "./use-coverage-action"
+import { NETWORK_ERROR, useCoverageAction } from "./use-coverage-action"
 
 export type SetAmenityFactHandler = (
   input: Omit<SetAmenityFactInput, "venueId">
 ) => Promise<CoverageResult<{ revision: number }>>
 
-const PRESENCE_OPTIONS: { value: AmenityPresence; help: string }[] = [
-  { value: "present", help: "Checked: the venue has it." },
-  { value: "absent", help: "Checked: the venue does not have it." },
-  { value: "unknown", help: "Not checked yet. Stays “Needs verification”." },
-]
+const PRESENCE_ORDER: AmenityPresence[] = ["present", "absent", "unknown"]
+
+const PRESENCE_NOTE: Record<AmenityPresence, string> = {
+  present: "Recorded as present by you. You can then confirm the item.",
+  absent:
+    "Recorded as not present. Decide on the item whether it still applies; if it doesn't, mark it not applicable.",
+  unknown:
+    "While it needs verification, the item can't be confirmed. Staff can still send photos.",
+}
+
+const UNCHECKED_PRESENT_NOTE =
+  "Present, not checked yet. The item can be confirmed once you have checked it."
+
+function presenceNote(presence: AmenityPresence, checked: boolean): string {
+  return presence === "present" && !checked
+    ? UNCHECKED_PRESENT_NOTE
+    : PRESENCE_NOTE[presence]
+}
+
+/** "Facts saved: Present. You can confirm the item now." */
+export function factsSavedText(
+  presence: AmenityPresence,
+  checked: boolean
+): string {
+  const word = labelFor(PRESENCE_LABEL, presence)
+  if (presence === "unknown") return `Facts saved: ${word}.`
+  if (!checked) return `Facts saved: ${word}, not checked yet.`
+  return presence === "present"
+    ? `Facts saved: ${word}. You can confirm the item now.`
+    : `Facts saved: ${word}.`
+}
 
 type Draft = {
   presence: AmenityPresence
@@ -55,6 +78,8 @@ function sameIds(a: string[], b: string[]) {
 const PICK_GONE_TEXT =
   "A photo you just picked is no longer available, so nothing was saved. The photos have been reloaded and your new picks unticked. Pick again, then save."
 
+const MUTED = "text-body-touch text-ink-muted md:text-body-sm"
+
 function draftOf(fact: AmenityFactView): Draft {
   return {
     presence: fact.presence,
@@ -65,22 +90,91 @@ function draftOf(fact: AmenityFactView): Draft {
   }
 }
 
+function lastConfirmed(fact: AmenityFactView): string {
+  if (!fact.confirmed || !fact.confirmedAt) return "Last confirmed: never."
+  const who = fact.confirmedBy?.displayName
+  return `Last confirmed: ${formatDate(fact.confirmedAt)}${who ? `, by ${who}` : ""}.`
+}
+
+/** Present / Not present / Needs verification as one radio group (`nl-seg`). */
+function FactChoice({
+  label,
+  value,
+  onChange,
+  disabled,
+}: {
+  label: string
+  value: AmenityPresence
+  onChange: (value: AmenityPresence) => void
+  disabled?: boolean
+}) {
+  const refs = React.useRef<(HTMLButtonElement | null)[]>([])
+
+  function onKeyDown(event: React.KeyboardEvent, index: number) {
+    const step =
+      event.key === "ArrowRight" || event.key === "ArrowDown"
+        ? 1
+        : event.key === "ArrowLeft" || event.key === "ArrowUp"
+          ? -1
+          : 0
+    if (step === 0) return
+    event.preventDefault()
+    const next = (index + step + PRESENCE_ORDER.length) % PRESENCE_ORDER.length
+    refs.current[next]?.focus()
+    onChange(PRESENCE_ORDER[next])
+  }
+
+  return (
+    <div
+      role="radiogroup"
+      aria-label={label}
+      className="grid w-full grid-cols-2 gap-0.5 rounded-control bg-well p-0.5 md:grid-cols-3"
+    >
+      {PRESENCE_ORDER.map((option, i) => (
+        <button
+          key={option}
+          ref={(el) => {
+            refs.current[i] = el
+          }}
+          type="button"
+          role="radio"
+          aria-checked={value === option}
+          tabIndex={value === option ? 0 : -1}
+          disabled={disabled}
+          onClick={() => onChange(option)}
+          onKeyDown={(e) => onKeyDown(e, i)}
+          className="min-h-11 rounded-[6px] border border-transparent px-2 text-center text-label-touch text-ink-muted hover:text-ink disabled:cursor-not-allowed disabled:opacity-60 aria-checked:border-line-control aria-checked:bg-panel aria-checked:text-ink md:min-h-9 md:text-label"
+        >
+          {labelFor(PRESENCE_LABEL, option)}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 /**
- * Venue facts for one amenity: present / absent / unknown, what is there,
- * policy wording, who confirmed it and when, and optional supporting photos.
- * Unknown cannot be confirmed and keeps the checklist item in setup.
+ * Venue facts for one amenity: present, not present or needs verification,
+ * what was checked, policy wording and optional supporting photos. Ticking
+ * "I have checked this at the venue" records the viewer as the person who
+ * checked it, today; needs verification can never be ticked and keeps the
+ * item from being confirmed. Inside the facts dialog, `onCancel` adds Cancel and `onSaved`
+ * closes the dialog with the saved text instead of showing it here.
  */
 export function AmenityFactForm({
   fact,
   candidates,
   onSave,
   onStale,
+  onSaved,
+  onCancel,
 }: {
   fact: AmenityFactView
   /** Accepted photos of this venue that may support the record. */
   candidates: EvidenceAsset[]
   onSave: SetAmenityFactHandler
   onStale?: () => void
+  onSaved?: (text: string) => void
+  onCancel?: () => void
 }) {
   const ids = React.useId()
   const action = useCoverageAction(onStale)
@@ -137,30 +231,34 @@ export function AmenityFactForm({
     setErrors(found)
     setRefused({})
     if (Object.keys(found).length > 0) return
-    const confirm = draft.confirm && draft.presence !== "unknown"
+    const presence = draft.presence
+    const confirm = draft.confirm && presence !== "unknown"
     const linkedIds = fact.supportingAssets.map((a) => a.id)
     // The database checks only photos added since the last save, so a photo
     // refusal is always about one of these, never a linked photo.
     const added = draft.assetIds.filter((id) => !linkedIds.includes(id))
     const photosChanged = !sameIds(draft.assetIds, linkedIds)
+    const saved = factsSavedText(presence, confirm)
     const result = await action.run(
       () =>
         onSave({
           templateKey: fact.templateKey,
           expectedRevision: fact.revision,
-          presence: draft.presence,
+          presence,
           facts: draft.facts.trim() || null,
           policy: draft.policy.trim() || null,
           confirm,
           supportingAssetIds: photosChanged ? draft.assetIds : null,
         }),
-      confirm
-        ? `Saved and confirmed: ${labelFor(PRESENCE_LABEL, draft.presence).toLowerCase()}.`
-        : draft.presence === "unknown"
-          ? "Saved. It still needs verification."
-          : "Saved, not confirmed yet."
+      saved
     )
-    if (result.ok) return
+    if (result.ok) {
+      if (onSaved) {
+        action.dismiss()
+        onSaved(saved)
+      }
+      return
+    }
     if ("fieldErrors" in result && result.fieldErrors) {
       setErrors(result.fieldErrors)
     }
@@ -192,176 +290,164 @@ export function AmenityFactForm({
     }
   }
 
+  const notice = action.notice
+  const submit = (
+    <Button
+      type="submit"
+      size="touch"
+      disabled={action.pending}
+      aria-busy={action.pending || undefined}
+    >
+      {action.pending ? (
+        <SpinnerGapIcon aria-hidden className="animate-spin" />
+      ) : (
+        <CheckIcon aria-hidden />
+      )}
+      {action.pending ? "Saving…" : "Save facts"}
+    </Button>
+  )
+
   return (
-    <section aria-labelledby={`${ids}-title`} className="grid gap-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <h2 id={`${ids}-title`} className="text-lg font-medium">
-          Amenity facts
-        </h2>
-        <PresenceBadge presence={fact.presence} />
+    <form onSubmit={save} className="grid gap-4" noValidate>
+      {notice?.tone === "error" ? (
+        <Notice tone="negative" role="alert" title="We couldn't save the facts">
+          {notice.text === NETWORK_ERROR
+            ? "Check your connection and try again. Nothing is saved twice."
+            : notice.text}
+        </Notice>
+      ) : (
+        <CoverageNotice notice={notice} onDismiss={action.dismiss} />
+      )}
+      <div className="grid gap-1.5">
+        <span
+          id={`${ids}-fact`}
+          className="text-label-touch text-ink md:text-label"
+        >
+          Fact
+        </span>
+        <FactChoice
+          label={fact.title}
+          value={draft.presence}
+          onChange={(value) => set("presence", value)}
+          disabled={action.pending}
+        />
       </div>
-      <p className="text-sm text-muted-foreground">
-        {fact.confirmed && fact.confirmedAt
-          ? `Confirmed by ${fact.confirmedBy?.displayName ?? "a manager"} on ${formatDateTime(fact.confirmedAt)}.`
-          : "Not confirmed yet."}{" "}
-        Photos support this record; they never establish accessibility or
-        dog-friendly claims on their own.
-      </p>
-      <CoverageNotice notice={action.notice} onDismiss={action.dismiss} />
-      <form onSubmit={save} className="grid gap-4" noValidate>
-        <fieldset className="grid gap-1" disabled={action.pending}>
-          <legend className="mb-1 text-sm font-medium">Is it present?</legend>
-          {PRESENCE_OPTIONS.map((option) => (
-            <label
-              key={option.value}
-              className="flex min-h-11 cursor-pointer items-start gap-2 rounded-md px-2 py-2 hover:bg-muted/50 sm:min-h-9"
-            >
-              <input
-                type="radio"
-                name={`${ids}-presence`}
-                value={option.value}
-                checked={draft.presence === option.value}
-                onChange={() => set("presence", option.value)}
-                className="mt-0.5 size-4 accent-primary"
-              />
-              <span className="grid">
-                <span className="text-sm font-medium">
-                  {labelFor(PRESENCE_LABEL, option.value)}
-                </span>
-                <span className="text-sm text-muted-foreground">
-                  {option.help}
-                </span>
-              </span>
-            </label>
-          ))}
-        </fieldset>
-        <Field className="gap-1.5">
-          <FieldLabel htmlFor={`${ids}-facts`}>
-            What is there (optional)
-          </FieldLabel>
-          <textarea
-            id={`${ids}-facts`}
-            value={draft.facts}
-            onChange={(e) => set("facts", e.currentTarget.value)}
-            maxLength={COVERAGE_LIMITS.factsMax}
-            rows={3}
-            aria-invalid={!!errors.facts || undefined}
-            aria-describedby={`${ids}-facts-help`}
-            className={textareaClass}
-            disabled={action.pending}
-          />
-          <FieldDescription id={`${ids}-facts-help`}>
-            What you checked, for example “Step-free route from the car park
-            through the side door”.
-          </FieldDescription>
-          {errors.facts ? <FieldError>{errors.facts}</FieldError> : null}
-        </Field>
-        <Field className="gap-1.5">
-          <FieldLabel htmlFor={`${ids}-policy`}>Policy (optional)</FieldLabel>
-          <textarea
-            id={`${ids}-policy`}
-            value={draft.policy}
-            onChange={(e) => set("policy", e.currentTarget.value)}
-            maxLength={COVERAGE_LIMITS.factsMax}
-            rows={2}
-            aria-invalid={!!errors.policy || undefined}
-            aria-describedby={`${ids}-policy-help`}
-            className={textareaClass}
-            disabled={action.pending}
-          />
-          <FieldDescription id={`${ids}-policy-help`}>
-            House rules, for example “Dogs welcome in the bar, not the
-            restaurant”.
-          </FieldDescription>
-          {errors.policy ? <FieldError>{errors.policy}</FieldError> : null}
-        </Field>
-        {photos.length > 0 ? (
-          <fieldset className="grid gap-2" disabled={action.pending}>
-            <legend className="mb-1 text-sm font-medium">
-              Supporting photos (optional)
-            </legend>
-            <ul className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-              {photos.map((photo, index) => {
-                const checked = draft.assetIds.includes(photo.id)
-                const reason = refused[photo.id]
-                return (
-                  <li key={photo.id}>
-                    <label className="grid cursor-pointer gap-1 rounded-md p-1 has-checked:bg-primary/10 has-focus-visible:ring-3 has-focus-visible:ring-ring/50">
-                      <EvidenceThumb
-                        src={photo.available ? photo.thumbnailUrl : null}
+      <ReasonField
+        id={`${ids}-facts`}
+        label="What you checked"
+        required={false}
+        value={draft.facts}
+        onChange={(value) => set("facts", value)}
+        maxLength={COVERAGE_LIMITS.factsMax}
+        help="Saved with the facts. Admins can see it."
+        error={errors.facts}
+        disabled={action.pending}
+      />
+      <ReasonField
+        id={`${ids}-policy`}
+        label="Policy"
+        required={false}
+        value={draft.policy}
+        onChange={(value) => set("policy", value)}
+        maxLength={COVERAGE_LIMITS.factsMax}
+        help="House rules, for example “Dogs welcome in the bar, not the restaurant”."
+        error={errors.policy}
+        disabled={action.pending}
+      />
+      {photos.length > 0 ? (
+        <fieldset className="grid gap-2" disabled={action.pending}>
+          <legend className="mb-1 text-label-touch text-ink md:text-label">
+            Supporting photos{" "}
+            <span className="font-normal text-ink-muted">(optional)</span>
+          </legend>
+          <ul className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+            {photos.map((photo, index) => {
+              const checked = draft.assetIds.includes(photo.id)
+              const reason = refused[photo.id]
+              return (
+                <li key={photo.id}>
+                  <label className="grid cursor-pointer gap-1 rounded-md p-1 has-checked:bg-primary/10 has-focus-visible:ring-3 has-focus-visible:ring-ring/50">
+                    <EvidenceThumb
+                      src={photo.available ? photo.thumbnailUrl : null}
+                    />
+                    <span className="flex items-center gap-1.5 text-meta-touch md:text-meta">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleAsset(photo.id)}
+                        className="size-4 accent-primary"
                       />
-                      <span className="flex items-center gap-1.5 text-xs">
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleAsset(photo.id)}
-                          className="size-4 accent-primary"
-                        />
-                        Photo {index + 1}
+                      Photo {index + 1}
+                    </span>
+                    {reason ? (
+                      <span className="text-meta-touch text-negative md:text-meta">
+                        Not added: {reason}
                       </span>
-                      {reason ? (
-                        <span className="text-xs text-negative">
-                          Not added: {reason}
-                        </span>
-                      ) : !photo.available ? (
-                        <span className="text-xs text-muted-foreground">
-                          Not available
-                        </span>
-                      ) : null}
-                    </label>
-                  </li>
-                )
-              })}
-            </ul>
-            {photos.some((p) => !p.available) ? (
-              <p className="text-sm text-muted-foreground">
-                “Not available” photos were deleted or taken by someone who has
-                left. They stay linked until you untick them.
-              </p>
-            ) : null}
-            {errors.supportingAssetIds ? (
-              <FieldError>{errors.supportingAssetIds}</FieldError>
-            ) : null}
-          </fieldset>
-        ) : null}
-        <label className="flex min-h-11 cursor-pointer items-start gap-2 sm:min-h-9">
-          <input
-            type="checkbox"
-            checked={draft.confirm}
-            onChange={(e) => set("confirm", e.currentTarget.checked)}
-            disabled={action.pending || draft.presence === "unknown"}
-            aria-describedby={`${ids}-confirm-help`}
-            className="mt-0.5 size-4 accent-primary"
-          />
-          <span className="grid">
-            <span className="text-sm font-medium">
-              I have checked this at the venue
-            </span>
-            <span
-              id={`${ids}-confirm-help`}
-              className="text-sm text-muted-foreground"
-            >
-              {draft.presence === "unknown"
-                ? "Unknown cannot be confirmed. Choose present or not present first."
-                : "Records you as the person who confirmed it, with today’s date."}
-            </span>
+                    ) : !photo.available ? (
+                      <span className="text-meta-touch text-ink-muted md:text-meta">
+                        Not available
+                      </span>
+                    ) : null}
+                  </label>
+                </li>
+              )
+            })}
+          </ul>
+          {photos.some((p) => !p.available) ? (
+            <p className={MUTED}>
+              “Not available” photos were deleted or taken by someone who has
+              left. They stay linked until you untick them.
+            </p>
+          ) : null}
+          {errors.supportingAssetIds ? (
+            <FieldError>{errors.supportingAssetIds}</FieldError>
+          ) : null}
+        </fieldset>
+      ) : null}
+      <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-control px-2 py-2 hover:bg-fill-hover has-disabled:cursor-not-allowed has-disabled:hover:bg-transparent">
+        <input
+          type="checkbox"
+          checked={draft.confirm}
+          onChange={(e) => set("confirm", e.currentTarget.checked)}
+          disabled={action.pending || draft.presence === "unknown"}
+          aria-describedby={`${ids}-confirm-help`}
+          className="mt-0.5 size-4 shrink-0 accent-primary"
+        />
+        <span className="grid min-w-0 gap-0.5">
+          <span className="text-label-touch text-ink md:text-label">
+            I have checked this at the venue
           </span>
-        </label>
-        <div>
-          <Button
-            type="submit"
-            size="touch"
-            disabled={action.pending}
-            aria-busy={action.pending || undefined}
+          <span
+            id={`${ids}-confirm-help`}
+            className="text-meta-touch text-ink-muted md:text-meta"
           >
-            {action.pending
-              ? "Saving…"
-              : draft.confirm && draft.presence !== "unknown"
-                ? "Save and confirm"
-                : "Save facts"}
+            {draft.presence === "unknown"
+              ? "Needs verification can't be checked. Choose Present or Not present first."
+              : "Records you as the person who checked it, with today’s date."}
+          </span>
+        </span>
+      </label>
+      <p className={MUTED}>{presenceNote(draft.presence, draft.confirm)}</p>
+      <p className={MUTED}>
+        A photo never proves a claim. Record what you have checked yourself.{" "}
+        {lastConfirmed(fact)}
+      </p>
+      {onCancel ? (
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="secondary"
+            size="touch"
+            onClick={onCancel}
+            disabled={action.pending}
+          >
+            Cancel
           </Button>
-        </div>
-      </form>
-    </section>
+          {submit}
+        </DialogFooter>
+      ) : (
+        <div>{submit}</div>
+      )}
+    </form>
   )
 }

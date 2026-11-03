@@ -1289,7 +1289,7 @@ test("coverage: manager overview, review, team, checklist, item and menu", async
   await page.goto("/staff/manage/review")
   const ask = page
     .getByRole("article", { name: `Monthly photo: photo by ${w.staffB.name}` })
-    .getByRole("button", { name: "Needs another photo" })
+    .getByRole("button", { name: "Ask for another photo" })
   const askDialog = page.getByRole("dialog", { name: "Ask for another photo" })
   await ask.click()
   await expect(askDialog).toBeVisible()

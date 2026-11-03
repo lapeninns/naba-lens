@@ -29,7 +29,7 @@ import {
 } from "@/app/_coverage/actions"
 import {
   AmenityFactForm,
-  AssigneePicker,
+  AmenityFactsSection,
   AttachPhotosDialog,
   ManagerGrants,
   MenuCoveragePanel,
@@ -69,12 +69,14 @@ export function ReviewQueueControl({
   venueId,
   filter,
   canReview = true,
+  currentPeriod,
   emptyTitle,
   emptyDescription,
 }: {
   initial: Page<SubmissionView>
   viewerId: string
   venueId: string
+  currentPeriod?: PeriodKey
   filter?: {
     state?: SubmissionState | "all"
     requirementId?: string
@@ -91,6 +93,7 @@ export function ReviewQueueControl({
     <ReviewQueue
       initial={initial}
       viewerId={viewerId}
+      currentPeriod={currentPeriod}
       onReview={
         canReview ? (input) => reviewSubmissionAction(input) : undefined
       }
@@ -106,59 +109,79 @@ export function ReviewQueueControl({
 
 export function RequirementSetupControl({
   requirement,
+  roster,
+  venueName,
+  month,
+  readOnly,
+  facts,
+  notice,
+  photos,
 }: {
   requirement: RequirementView
+  roster: CoveragePerson[]
+  venueName: string
+  month: string
+  readOnly: boolean
+  facts?: React.ReactNode
+  notice?: React.ReactNode
+  photos?: React.ReactNode
 }) {
   const refresh = useRefresh()
   return (
     <RequirementSetup
       requirement={requirement}
+      roster={roster}
+      venueName={venueName}
+      month={month}
+      readOnly={readOnly}
+      facts={facts}
+      notice={notice}
+      photos={photos}
       onUpdate={(input) => updateRequirementAction(input)}
       onSetStatus={(input) => setRequirementStatusAction(input)}
-      onStale={refresh}
-    />
-  )
-}
-
-export function AmenityFactControl({
-  fact,
-  candidates,
-  venueId,
-}: {
-  fact: AmenityFactView
-  candidates: EvidenceAsset[]
-  venueId: string
-}) {
-  const refresh = useRefresh()
-  return (
-    <AmenityFactForm
-      fact={fact}
-      candidates={candidates}
-      onSave={(input) => setAmenityFactAction({ ...input, venueId })}
-      onStale={refresh}
-    />
-  )
-}
-
-export function AssigneeControl({
-  requirement,
-  roster,
-}: {
-  requirement: RequirementView
-  roster: CoveragePerson[]
-}) {
-  const refresh = useRefresh()
-  return (
-    <AssigneePicker
-      requirement={requirement}
-      roster={roster}
-      onSave={(assigneeIds) =>
+      onSetAssignees={(assigneeIds) =>
         setRequirementAssigneesAction({
           requirementId: requirement.id,
           assigneeIds,
         })
       }
       onStale={refresh}
+    />
+  )
+}
+
+export function AmenityFactControl({
+  requirement,
+  fact,
+  candidates,
+  viewerId,
+  venueId,
+}: {
+  requirement: RequirementView
+  fact: AmenityFactView | null
+  candidates: EvidenceAsset[]
+  viewerId: string
+  venueId: string
+}) {
+  const refresh = useRefresh()
+  return (
+    <AmenityFactsSection
+      requirement={requirement}
+      fact={fact}
+      viewerId={viewerId}
+      form={
+        fact
+          ? (dialog) => (
+              <AmenityFactForm
+                fact={fact}
+                candidates={candidates}
+                onSave={(input) => setAmenityFactAction({ ...input, venueId })}
+                onStale={refresh}
+                {...dialog}
+              />
+            )
+          : undefined
+      }
     />
   )
 }
@@ -193,13 +216,16 @@ export function AttachPhotosControl({
 export function NewRequirementControl({
   venueId,
   basePath,
+  label,
 }: {
   venueId: string
   basePath: string
+  label?: string
 }) {
   const router = useRouter()
   return (
     <NewRequirementDialog
+      triggerLabel={label}
       onCreate={(input) => createRequirementAction({ ...input, venueId })}
       onCreated={(id) => router.push(manageHrefs(basePath).requirement(id))}
     />
@@ -214,6 +240,7 @@ export function TeamRosterControl({
   isAdmin,
   basePath,
   venueId,
+  venueName,
 }: {
   period: PeriodView
   currentPeriod: PeriodKey
@@ -222,6 +249,7 @@ export function TeamRosterControl({
   isAdmin: boolean
   basePath: string
   venueId: string
+  venueName?: string
 }) {
   const refresh = useRefresh()
   return (
@@ -232,6 +260,7 @@ export function TeamRosterControl({
       canEdit={canEdit}
       isAdmin={isAdmin}
       basePath={basePath}
+      venueName={venueName}
       onSetTarget={(input) => setMonthlyTargetAction({ ...input, venueId })}
       onStale={refresh}
     />
@@ -241,15 +270,27 @@ export function TeamRosterControl({
 export function PrepareMonthControl({
   venueId,
   label,
+  period,
+  venueName,
+  teamHref,
+  available,
 }: {
   /** Omit (admins only) to prepare every active venue. */
   venueId?: string
   label?: string
+  period?: PeriodKey
+  venueName?: string
+  teamHref?: string
+  available?: boolean
 }) {
   const refresh = useRefresh()
   return (
     <PrepareMonthButton
       label={label}
+      period={period}
+      venueName={venueName}
+      teamHref={teamHref}
+      available={available}
       onPrepare={() => prepareMonthAction(venueId ? { venueId } : {})}
       onStale={refresh}
     />

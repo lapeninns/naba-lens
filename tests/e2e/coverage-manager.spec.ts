@@ -105,14 +105,12 @@ async function reviewJourney(
 
   // Accept a colleague's photo.
   await card(w.staffB).getByRole("button", { name: "Accept" }).click()
-  await expect(
-    manager.getByText(`Accepted ${w.staffB.name}’s photo.`)
-  ).toBeVisible()
+  await expect(manager.getByText(/^Accepted\. It counts for /)).toBeVisible()
   expect(itemState(items[w.staffB.id]!)).toBe("accepted:false")
 
   // "Needs another photo" needs a reason; without one nothing is saved.
   await card(w.staffA)
-    .getByRole("button", { name: "Needs another photo" })
+    .getByRole("button", { name: "Ask for another photo" })
     .click()
   const ask = manager.getByRole("dialog", { name: "Ask for another photo" })
   await ask.getByRole("button", { name: "Ask for another photo" }).click()
@@ -124,7 +122,7 @@ async function reviewJourney(
   await ask.getByRole("button", { name: "Ask for another photo" }).click()
   await expect(ask).toBeHidden()
   await expect(
-    manager.getByText(`Asked ${w.staffA.name} for another photo.`)
+    manager.getByText(`Asked ${w.staffA.name.split(" ")[0]} for another photo.`)
   ).toBeVisible()
   expect(itemState(items[w.staffA.id]!)).toBe("needs_another_photo:false")
 
@@ -213,7 +211,9 @@ test.describe("coverage: manager and admin journeys (WS5)", () => {
     // Checklist: the first save's answer is lost on the way back; the
     // retry reuses the request id and opens the one item that exists.
     await manager.goto("/staff/manage/checklist")
-    await manager.getByRole("button", { name: "Add a checklist item" }).click()
+    await manager
+      .getByRole("button", { name: "Add a venue-specific item" })
+      .click()
     const add = manager.getByRole("dialog", { name: "Add a checklist item" })
     const title = `WS5 cellar door ${w.tag}`
     await add.getByLabel("Title").fill(title)
@@ -440,7 +440,7 @@ test.describe("coverage: manager and admin journeys (WS5)", () => {
     // A prepared service item: confirm, assign, attach an existing photo.
     const serviceId = await openItem("Venue and service areas")
     expect(status(serviceId)).toBe("needs_setup")
-    await manager.getByRole("button", { name: /^Confirm: applies/ }).click()
+    await manager.getByRole("button", { name: "Save and confirm" }).click()
     await expect(
       manager.getByText(/It now counts toward venue coverage\.$/)
     ).toBeVisible()
@@ -448,7 +448,7 @@ test.describe("coverage: manager and admin journeys (WS5)", () => {
     await manager
       .getByRole("checkbox", { name: new RegExp(escape(w.staffB.name)) })
       .check()
-    await manager.getByRole("button", { name: "Save assignees" }).click()
+    await manager.getByRole("button", { name: "Save changes" }).click()
     await expect(manager.getByText("Saved. 1 person assigned.")).toBeVisible()
     expect(
       psql(
@@ -479,22 +479,22 @@ test.describe("coverage: manager and admin journeys (WS5)", () => {
 
     // An amenity with unknown presence cannot be confirmed until it is checked.
     const amenityId = await openItem("Amenities")
-    const confirm = manager.getByRole("button", { name: /^Confirm: applies/ })
+    const confirm = manager.getByRole("button", { name: "Save and confirm" })
     await expect(confirm).toBeDisabled()
     await expect(
-      manager.getByText(
-        "Needs verification: record whether it is present (amenity facts below) first.",
-        { exact: false }
-      )
+      manager.getByText("Can't confirm yet: Needs verification.")
     ).toBeVisible()
-    await manager.getByRole("radio", { name: /^Present/ }).check()
-    await manager
+    await manager.getByRole("button", { name: "Record facts" }).click()
+    const facts = manager.getByRole("dialog")
+    await facts.getByRole("radio", { name: /^Present/ }).click()
+    await facts
       .getByRole("checkbox", { name: /I have checked this at the venue/ })
       .check()
-    await manager.getByRole("button", { name: "Save and confirm" }).click()
+    await facts.getByRole("button", { name: "Save facts" }).click()
     await expect(
-      manager.getByText("Saved and confirmed: present.")
+      manager.getByText("Facts saved: Present. You can confirm the item now.")
     ).toBeVisible()
+    await expect(facts).toBeHidden()
     await expect(confirm).toBeEnabled()
     expect(
       psql(

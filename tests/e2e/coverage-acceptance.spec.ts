@@ -294,7 +294,7 @@ async function newTask(
   return row!.requirement_id
 }
 
-const CONFLICT = "Someone else changed this a moment ago."
+const CONFLICT = "a moment ago. The latest decision is shown."
 
 /**
  * D21: after a conflict the dialog is gone, the page notice (a focusable
@@ -1175,11 +1175,9 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
         name: `Monthly photo: photo by ${w.staffB.name}`,
       })
     await card(first).getByRole("button", { name: "Accept" }).click()
-    await expect(
-      first.getByText(`Accepted ${w.staffB.name}’s photo.`)
-    ).toBeVisible()
+    await expect(first.getByText(/^Accepted\. It counts for /)).toBeVisible()
     await card(second)
-      .getByRole("button", { name: "Needs another photo" })
+      .getByRole("button", { name: "Ask for another photo" })
       .click()
     const ask = second.getByRole("dialog", { name: "Ask for another photo" })
     await ask.getByLabel("Reason").fill("WS5: decided in another tab")
@@ -1214,13 +1212,13 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
         name: `Monthly photo: photo by ${w.staffB.name}`,
       })
     await card(first)
-      .getByRole("button", { name: "Needs another photo" })
+      .getByRole("button", { name: "Ask for another photo" })
       .click()
     const ask = first.getByRole("dialog", { name: "Ask for another photo" })
     await ask.getByLabel("Reason").fill("WS5: decided first in this tab")
     await ask.getByRole("button", { name: "Ask for another photo" }).click()
     await expect(
-      first.getByText(`Asked ${w.staffB.name} for another photo.`)
+      first.getByText(`Asked ${w.staffB.name.split(" ")[0]} for another photo.`)
     ).toBeVisible()
     await card(second).getByRole("button", { name: "Accept" }).click()
     await expectConflictNotice(second)
@@ -1256,12 +1254,11 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
         p_client_request_key: none,
       })
     )
-    await page.getByRole("button", { name: "Does not apply" }).click()
-    const dialog = page.getByRole("dialog", {
-      name: `“${title}” does not apply`,
-    })
+    await page.getByRole("radio", { name: "Does not apply" }).click()
+    const dialog = page.getByRole("dialog", { name: "Mark as not applicable" })
+    await expect(dialog.getByText(title, { exact: true })).toBeVisible()
     await dialog.getByLabel("Reason").fill("WS5: changed in another tab")
-    await dialog.getByRole("button", { name: "Mark not applicable" }).click()
+    await dialog.getByRole("button", { name: "Mark as not applicable" }).click()
     await expect(dialog).toBeHidden()
     await expectConflictNotice(page)
     expect(

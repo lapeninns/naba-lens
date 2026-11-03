@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { SpinnerGapIcon, WarningCircleIcon } from "@phosphor-icons/react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -16,7 +17,7 @@ import { COVERAGE_LIMITS } from "./copy"
 import type { Reported } from "./use-coverage-action"
 
 export const textareaClass =
-  "min-h-20 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-2 text-base outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50 aria-invalid:border-destructive md:text-sm dark:bg-input/30"
+  "block min-h-24 w-full min-w-0 resize-y rounded-control border border-line-control bg-panel px-[11px] py-[7px] text-body-touch text-ink outline-none placeholder:text-ink-subtle focus-visible:border-focus focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus disabled:cursor-not-allowed disabled:bg-well disabled:text-ink-muted aria-invalid:border-negative md:text-body"
 
 /**
  * Dialog `finalFocus` that sends focus to `reportFocus` after a `REPORTED`
@@ -61,7 +62,7 @@ export function ReasonField({
   required?: boolean
 }) {
   const describedBy = [
-    help ? `${id}-help` : null,
+    help && !error ? `${id}-help` : null,
     `${id}-count`,
     error ? `${id}-error` : null,
   ]
@@ -69,17 +70,12 @@ export function ReasonField({
     .join(" ")
   return (
     <div className="grid gap-1.5">
-      <label htmlFor={id} className="text-sm font-medium">
+      <label htmlFor={id} className="text-label-touch text-ink md:text-label">
         {label}
         {required ? null : (
-          <span className="font-normal text-muted-foreground"> (optional)</span>
+          <span className="font-normal text-ink-muted"> (optional)</span>
         )}
       </label>
-      {help ? (
-        <p id={`${id}-help`} className="text-sm text-muted-foreground">
-          {help}
-        </p>
-      ) : null}
       <textarea
         id={id}
         value={value}
@@ -92,16 +88,29 @@ export function ReasonField({
         aria-describedby={describedBy}
         className={textareaClass}
       />
-      <div className="flex flex-wrap justify-between gap-x-3 text-sm">
+      <div className="flex items-start gap-3">
         {error ? (
-          <p id={`${id}-error`} role="alert" className="text-negative">
+          <p
+            id={`${id}-error`}
+            role="alert"
+            className="flex items-start gap-1.5 text-meta-touch font-semibold text-negative md:text-meta-strong"
+          >
+            <WarningCircleIcon aria-hidden className="mt-px size-4 shrink-0" />
             {error}
           </p>
-        ) : (
-          <span />
-        )}
-        <p id={`${id}-count`} className="text-muted-foreground tabular-nums">
-          {value.length}/{maxLength}
+        ) : help ? (
+          <p
+            id={`${id}-help`}
+            className="text-meta-touch text-ink-muted md:text-meta"
+          >
+            {help}
+          </p>
+        ) : null}
+        <p
+          id={`${id}-count`}
+          className="ms-auto text-meta-touch whitespace-nowrap text-ink-muted tabular-nums md:text-caption"
+        >
+          {value.length} / {maxLength}
         </p>
       </div>
     </div>
@@ -119,6 +128,9 @@ export function ReasonDialog({
   confirmLabel,
   pendingLabel,
   destructive,
+  emptyError = "Give a reason.",
+  note,
+  confirmIcon,
   children,
   onConfirm,
   reportFocus,
@@ -133,6 +145,11 @@ export function ReasonDialog({
   confirmLabel: string
   pendingLabel: string
   destructive?: boolean
+  /** Shown when the reason is left empty. */
+  emptyError?: string
+  /** A rule shown under the reason. */
+  note?: React.ReactNode
+  confirmIcon?: React.ReactNode
   /** Extra content shown above the reason (e.g. the photo). */
   children?: React.ReactNode
   onConfirm: (reason: string) => Promise<ReasonOutcome>
@@ -162,7 +179,7 @@ export function ReasonDialog({
     event.preventDefault()
     const trimmed = reason.trim()
     if (!trimmed) {
-      setFieldError("Give a reason.")
+      setFieldError(emptyError)
       return
     }
     setPending(true)
@@ -189,7 +206,7 @@ export function ReasonDialog({
 
   return (
     <Dialog open={open} onOpenChange={close}>
-      <DialogContent className="sm:max-w-md" finalFocus={finalFocus}>
+      <DialogContent finalFocus={finalFocus}>
         <form onSubmit={submit} className="grid gap-4" noValidate>
           <DialogHeader>
             <DialogTitle className="break-words">{title}</DialogTitle>
@@ -207,15 +224,23 @@ export function ReasonDialog({
             error={fieldError}
             disabled={pending}
           />
+          {note ? (
+            <p className="text-body-touch text-ink-muted md:text-body-sm">
+              {note}
+            </p>
+          ) : null}
           {error ? (
-            <p role="alert" className="text-sm text-negative">
+            <p
+              role="alert"
+              className="text-body-touch text-negative md:text-body-sm"
+            >
               {error}
             </p>
           ) : null}
           <DialogFooter>
             <Button
               type="button"
-              variant="outline"
+              variant="secondary"
               size="touch"
               onClick={() => close(false)}
               disabled={pending}
@@ -225,10 +250,15 @@ export function ReasonDialog({
             <Button
               type="submit"
               size="touch"
-              variant={destructive ? "destructive" : "default"}
+              variant={destructive ? "destructive" : "primary"}
               disabled={pending}
               aria-busy={pending || undefined}
             >
+              {pending && confirmIcon ? (
+                <SpinnerGapIcon aria-hidden className="animate-spin" />
+              ) : (
+                confirmIcon
+              )}
               {pending ? pendingLabel : confirmLabel}
             </Button>
           </DialogFooter>
