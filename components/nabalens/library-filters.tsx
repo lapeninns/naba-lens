@@ -2,14 +2,13 @@
 
 import * as React from "react"
 import {
-  CaretDownIcon,
+  FunnelSimpleIcon,
   MagnifyingGlassIcon,
   XIcon,
 } from "@phosphor-icons/react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import {
   CONTENT_TYPE_LABELS,
@@ -20,7 +19,9 @@ import {
 } from "@/lib/menus/types"
 import { cn } from "@/lib/utils"
 
+import { formatDate } from "./format"
 import { OptionSelect } from "./option-select"
+import { CountBadge } from "./status-chip"
 import type { MediaType, Option } from "./types"
 
 /**
@@ -84,6 +85,142 @@ export function countActiveFilters(value: LibraryFilterValue): number {
   )
 }
 
+type FilterNames = {
+  venues: Option[]
+  staff: Option[]
+  /** The selected venue's menu, when loaded. */
+  menuOptions?: LibraryMenuOptions | null
+}
+
+/** A run of the filter summary; the chosen values are `strong`. */
+type Phrase = { text: string; strong?: boolean }
+
+const MEDIA_WORDS: Record<LibraryFilterValue["type"], string> = {
+  all: "photos and videos",
+  image: "photos",
+  video: "videos",
+}
+
+const day = (date: string) => formatDate(`${date}T12:00:00Z`)
+
+/**
+ * The filters in words: "photos and videos from all venues that need labels".
+ * "Needs labels" is a filter here, never a state of the file.
+ */
+export function describeLibraryFilters(
+  value: LibraryFilterValue,
+  { venues, staff, menuOptions = null }: FilterNames
+): Phrase[] {
+  const v = { ...EMPTY_LIBRARY_FILTERS, ...value }
+  const menu =
+    v.venueId && menuOptions?.venueId === v.venueId ? menuOptions : null
+  const name = (options: Option[], id: string) =>
+    options.find((o) => o.id === id)?.name ?? null
+
+  const phrases: Phrase[] = [{ text: MEDIA_WORDS[v.type], strong: true }]
+  phrases.push(
+    { text: " from " },
+    {
+      text: (v.venueId && name(venues, v.venueId)) || "all venues",
+      strong: true,
+    }
+  )
+  const staffName = v.staffId ? name(staff, v.staffId) : null
+  if (v.staffId) {
+    phrases.push(
+      { text: " by " },
+      { text: staffName ?? "the chosen staff member", strong: true }
+    )
+  }
+  if (v.labelState) {
+    phrases.push(
+      { text: " that " },
+      {
+        text: v.labelState === "unlabelled" ? "need labels" : "have labels",
+        strong: true,
+      }
+    )
+  }
+  const labelled: string[] = []
+  if (v.itemId) {
+    const item = menu?.items.find((i) => i.id === v.itemId)
+    const variant = item?.variants.find((x) => x.id === v.variantId)
+    labelled.push(
+      item
+        ? variant
+          ? `${item.name}, ${variant.name}`
+          : item.name
+        : "the chosen menu item"
+    )
+  }
+  if (v.contentType) labelled.push(CONTENT_TYPE_LABELS[v.contentType])
+  labelled.forEach((text, index) => {
+    phrases.push(
+      { text: index === 0 ? " labelled " : " and " },
+      { text, strong: true }
+    )
+  })
+  if (v.category) {
+    phrases.push(
+      { text: " in " },
+      {
+        text:
+          menu?.categories.find((c) => c.slug === v.category)?.name ??
+          v.category,
+        strong: true,
+      }
+    )
+  }
+  if (v.query) {
+    phrases.push({ text: " matching " }, { text: `“${v.query}”`, strong: true })
+  }
+  if (v.from && v.to) {
+    phrases.push(
+      { text: " uploaded " },
+      { text: `${day(v.from)} to ${day(v.to)}`, strong: true }
+    )
+  } else if (v.from) {
+    phrases.push(
+      { text: " uploaded since " },
+      { text: day(v.from), strong: true }
+    )
+  } else if (v.to) {
+    phrases.push(
+      { text: " uploaded up to " },
+      { text: day(v.to), strong: true }
+    )
+  }
+  return phrases
+}
+
+/** The widest single step back from an empty result. */
+export function widenFiltersHint(value: LibraryFilterValue): string {
+  const v = { ...EMPTY_LIBRARY_FILTERS, ...value }
+  if (v.venueId) return "Try all venues."
+  if (v.staffId) return "Try all staff."
+  if (v.type !== "all") return "Try photos and videos."
+  return "Try fewer filters."
+}
+
+export function FilterPhrases({
+  phrases,
+  plain = false,
+}: {
+  phrases: Phrase[]
+  /** Leave the chosen values unstressed (inside an empty state). */
+  plain?: boolean
+}) {
+  return phrases.map((phrase, index) =>
+    phrase.strong && !plain ? (
+      <strong key={index} className="font-semibold text-ink">
+        {phrase.text}
+      </strong>
+    ) : (
+      <React.Fragment key={index}>{phrase.text}</React.Fragment>
+    )
+  )
+}
+
 type LibraryFiltersProps = {
   venues: Option[]
   staff: Option[]
@@ -102,7 +239,7 @@ type LibraryFiltersProps = {
 const TYPES: { value: LibraryFilterValue["type"]; label: string }[] = [
   { value: "image", label: "Photos" },
   { value: "video", label: "Videos" },
-  { value: "all", label: "All" },
+  { value: "all", label: "Photos and videos" },
 ]
 
 const LABEL_STATES: { value: LabelState | "all"; label: string }[] = [
@@ -115,6 +252,13 @@ const CONTENT_OPTIONS: Option[] = CONTENT_TYPES.map((code) => ({
   id: code,
   name: CONTENT_TYPE_LABELS[code],
 }))
+
+const FIELD_LABEL = "text-label-touch text-ink md:text-label"
+const HINT = "text-body-touch text-ink-muted md:text-body-sm"
+const SEGMENTS = "w-full rounded-control bg-well p-1 md:w-auto"
+const SEGMENT =
+  "h-11 flex-1 rounded-control border border-transparent px-3 text-label-touch text-ink-muted hover:bg-fill-hover hover:text-ink aria-pressed:border-line-control aria-pressed:bg-panel aria-pressed:text-ink aria-pressed:hover:bg-panel md:h-8 md:flex-none md:text-label"
+const CONTROL = "h-11 sm:h-9"
 
 /** Same normalisation as the search box sends: trimmed, single spaces. */
 const tidy = (text: string) => text.replace(/\s+/g, " ").trim()
@@ -141,6 +285,7 @@ export function LibraryFilters({
   const menuState = !v.venueId ? "no-venue" : menu ? "ready" : "loading"
   const selectedItem = menu?.items.find((i) => i.id === v.itemId) ?? null
   const hintId = `${id}-menu-hint`
+  const searchFormId = `${id}-search`
   const menuHint =
     menuState === "no-venue"
       ? "Choose a venue to filter by menu item or category."
@@ -154,102 +299,118 @@ export function LibraryFilters({
       aria-label="Filter library"
       className={cn("flex flex-col gap-3", className)}
     >
-      <div className="grid grid-cols-2 items-center gap-2 md:flex md:flex-wrap md:gap-3">
-        <OptionSelect
-          aria-label="Venue"
-          options={venues}
-          value={v.venueId}
-          emptyLabel="All venues"
-          // Item ids and categories belong to one venue's menu.
-          onValueChange={(venueId) =>
-            set({ venueId, itemId: null, variantId: null, category: null })
-          }
-          className="md:w-48"
-        />
-        <OptionSelect
-          aria-label="Staff member"
-          options={staff}
-          value={v.staffId}
-          emptyLabel="All staff"
-          onValueChange={(staffId) => set({ staffId })}
-          className="md:w-48"
-        />
-        <ToggleGroup
-          aria-label="Media type"
-          variant="outline"
-          spacing={0}
-          value={[v.type]}
-          onValueChange={(next) => {
-            const type = next[0] as LibraryFilterValue["type"] | undefined
-            if (type) set({ type })
-          }}
-          className="col-span-2 w-full md:w-auto"
+      <div className="grid grid-cols-2 gap-x-3 gap-y-4 md:flex md:flex-wrap md:items-end">
+        <Field label="Venue" htmlFor={`${id}-venue`} className="md:w-48">
+          <OptionSelect
+            id={`${id}-venue`}
+            options={venues}
+            value={v.venueId}
+            emptyLabel="All venues"
+            // Item ids and categories belong to one venue's menu.
+            onValueChange={(venueId) =>
+              set({ venueId, itemId: null, variantId: null, category: null })
+            }
+          />
+        </Field>
+        <Field label="Staff member" htmlFor={`${id}-staff`} className="md:w-48">
+          <OptionSelect
+            id={`${id}-staff`}
+            options={staff}
+            value={v.staffId}
+            emptyLabel="All staff"
+            onValueChange={(staffId) => set({ staffId })}
+          />
+        </Field>
+        <div className="col-span-2 grid content-start gap-1.5 md:col-auto">
+          <span id={`${id}-media`} className={FIELD_LABEL}>
+            Media
+          </span>
+          <ToggleGroup
+            aria-labelledby={`${id}-media`}
+            spacing={1}
+            value={[v.type]}
+            onValueChange={(next) => {
+              const type = next[0] as LibraryFilterValue["type"] | undefined
+              if (type) set({ type })
+            }}
+            className={SEGMENTS}
+          >
+            {TYPES.map((t) => (
+              <ToggleGroupItem
+                key={t.value}
+                value={t.value}
+                className={SEGMENT}
+              >
+                {t.label}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+        </div>
+        <Field
+          label="Search"
+          htmlFor={`${id}-q`}
+          className="col-span-2 md:w-64 md:flex-auto lg:flex-none"
         >
-          {TYPES.map((t) => (
-            <ToggleGroupItem
-              key={t.value}
-              value={t.value}
-              className="h-11 flex-1 px-4 sm:h-9 md:flex-none"
-            >
-              {t.label}
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
-      </div>
-
-      <div className="flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center md:gap-3">
-        <SearchBox
-          value={v.query}
-          onSearch={(query) => set({ query })}
-          className="md:w-96"
-        />
-        <div className="flex flex-wrap items-center gap-2">
+          <SearchBox
+            formId={searchFormId}
+            inputId={`${id}-q`}
+            value={v.query}
+            onSearch={(query) => set({ query })}
+          />
+        </Field>
+        <div className="col-span-2 flex gap-2 *:flex-1 md:*:flex-none">
           <Button
             type="button"
-            variant="outline"
+            variant="secondary"
             size="touch"
             aria-expanded={open}
             aria-controls={`${id}-more`}
             onClick={() => setOpen((o) => !o)}
           >
+            <FunnelSimpleIcon aria-hidden />
             More filters
-            {moreCount > 0 ? (
-              <span className="rounded-full bg-primary px-1.5 text-xs text-primary-foreground tabular-nums">
-                <span className="sr-only">(</span>
-                {moreCount}
-                <span className="sr-only"> on)</span>
-              </span>
-            ) : null}
-            <CaretDownIcon
-              aria-hidden
-              className={cn("transition-transform", open && "rotate-180")}
-            />
+            <CountBadge count={moreCount} label="on" />
           </Button>
-          <p
-            aria-live="polite"
-            className="text-sm text-muted-foreground tabular-nums"
+          {/* Selects and segments apply at once; this sends the typed search. */}
+          <Button
+            type="submit"
+            form={searchFormId}
+            variant="secondary"
+            size="touch"
           >
-            {total > 0
-              ? `${total} ${total === 1 ? "filter" : "filters"} on`
-              : ""}
-          </p>
-          {total > 0 ? (
+            Apply filters
+          </Button>
+        </div>
+      </div>
+
+      <p role="status" className={HINT}>
+        {total > 0 ? (
+          <>
+            Showing{" "}
+            <FilterPhrases
+              phrases={describeLibraryFilters(v, {
+                venues,
+                staff,
+                menuOptions,
+              })}
+            />
+            , newest first.{" "}
             <Button
               type="button"
-              variant="ghost"
-              size="touch"
+              variant="link"
+              className="ml-1 align-baseline"
               onClick={() => onChange(EMPTY_LIBRARY_FILTERS)}
             >
               Clear filters
             </Button>
-          ) : null}
-        </div>
-      </div>
+          </>
+        ) : null}
+      </p>
 
       <div
         id={`${id}-more`}
         hidden={!open}
-        className="grid gap-4 rounded-lg border p-3 sm:grid-cols-2 lg:grid-cols-3"
+        className="grid gap-4 rounded-panel border border-line bg-panel p-4 sm:grid-cols-2 lg:grid-cols-3"
       >
         <div className="grid content-start gap-1.5 sm:col-span-2 lg:col-span-1">
           <MenuItemFilter
@@ -261,7 +422,7 @@ export function LibraryFilters({
             onSelect={(itemId) => set({ itemId, variantId: null })}
           />
           {menuHint ? (
-            <p id={hintId} className="text-sm text-muted-foreground">
+            <p id={hintId} className={HINT}>
               {menuHint}
             </p>
           ) : null}
@@ -303,25 +464,24 @@ export function LibraryFilters({
           />
         </Field>
         <div className="grid content-start gap-1.5">
-          <span id={`${id}-labels`} className="text-sm font-medium">
+          <span id={`${id}-labels`} className={FIELD_LABEL}>
             Labels
           </span>
           <ToggleGroup
             aria-labelledby={`${id}-labels`}
-            variant="outline"
-            spacing={0}
+            spacing={1}
             value={[v.labelState ?? "all"]}
             onValueChange={(next) => {
               const state = next[0] as LabelState | "all" | undefined
               if (state) set({ labelState: state === "all" ? null : state })
             }}
-            className="w-full"
+            className={cn(SEGMENTS, "md:w-full")}
           >
             {LABEL_STATES.map((s) => (
               <ToggleGroupItem
                 key={s.value}
                 value={s.value}
-                className="h-11 flex-1 px-3 sm:h-9"
+                className={cn(SEGMENT, "md:flex-1")}
               >
                 {s.label}
               </ToggleGroupItem>
@@ -336,7 +496,7 @@ export function LibraryFilters({
               value={v.from ?? ""}
               max={v.to ?? undefined}
               onChange={(e) => set({ from: e.currentTarget.value || null })}
-              className="h-11 sm:h-9"
+              className={CONTROL}
             />
           </Field>
           <Field label="To" htmlFor={`${id}-to`}>
@@ -346,10 +506,15 @@ export function LibraryFilters({
               value={v.to ?? ""}
               min={v.from ?? undefined}
               onChange={(e) => set({ to: e.currentTarget.value || null })}
-              className="h-11 sm:h-9"
+              className={CONTROL}
             />
           </Field>
         </div>
+        <p className={cn(HINT, "sm:col-span-2 lg:col-span-3")}>
+          A label describes what is in the file. It is not a claim about
+          allergens, dietary suitability, price or availability, and not
+          permission to publish.
+        </p>
       </div>
     </div>
   )
@@ -358,34 +523,40 @@ export function LibraryFilters({
 function Field({
   label,
   htmlFor,
+  className,
   children,
 }: {
   label: string
   htmlFor: string
+  className?: string
   children: React.ReactNode
 }) {
   return (
-    <div className="grid content-start gap-1.5">
-      <Label htmlFor={htmlFor}>{label}</Label>
+    <div className={cn("grid min-w-0 content-start gap-1.5", className)}>
+      <label htmlFor={htmlFor} className={FIELD_LABEL}>
+        {label}
+      </label>
       {children}
     </div>
   )
 }
 
 /**
- * Label/note search. Applies on Enter, on the Search button and when the box
- * loses focus with changed text; Escape clears it (and the filter).
+ * Label/note search. Applies on Enter, on "Apply filters" (which submits this
+ * form from outside it) and when the box loses focus with changed text;
+ * Escape clears it (and the filter).
  */
 function SearchBox({
+  formId,
+  inputId,
   value,
   onSearch,
-  className,
 }: {
+  formId: string
+  inputId: string
   value: string | null
   onSearch: (query: string | null) => void
-  className?: string
 }) {
-  const id = React.useId()
   const [draft, setDraft] = React.useState(value ?? "")
   // Follow the applied value when it changes elsewhere (Clear filters, URL).
   const [applied, setApplied] = React.useState(value)
@@ -408,46 +579,39 @@ function SearchBox({
 
   return (
     <form
+      id={formId}
       role="search"
       aria-label="Library search"
-      className={cn("flex gap-2", className)}
+      className="relative min-w-0"
       onSubmit={(e) => {
         e.preventDefault()
         apply(draft)
       }}
     >
-      <div className="relative min-w-0 flex-1">
-        <label htmlFor={`${id}-q`} className="sr-only">
-          Search labels and notes
-        </label>
-        <MagnifyingGlassIcon
-          aria-hidden
-          className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-        />
-        <Input
-          id={`${id}-q`}
-          type="search"
-          name="q"
-          autoComplete="off"
-          enterKeyHint="search"
-          maxLength={80}
-          placeholder="Search labels and notes"
-          value={draft}
-          onChange={(e) => setDraft(e.currentTarget.value)}
-          onBlur={() => apply(draft)}
-          onKeyDown={(e) => {
-            if (e.key === "Escape" && (draft || value)) {
-              e.preventDefault()
-              setDraft("")
-              apply("")
-            }
-          }}
-          className="h-11 pl-9 sm:h-9"
-        />
-      </div>
-      <Button type="submit" variant="outline" size="touch">
-        Search
-      </Button>
+      <MagnifyingGlassIcon
+        aria-hidden
+        className="pointer-events-none absolute top-1/2 left-3 size-[18px] -translate-y-1/2 text-ink-muted"
+      />
+      <Input
+        id={inputId}
+        type="search"
+        name="q"
+        autoComplete="off"
+        enterKeyHint="search"
+        maxLength={80}
+        placeholder="Search labels and notes"
+        value={draft}
+        onChange={(e) => setDraft(e.currentTarget.value)}
+        onBlur={() => apply(draft)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape" && (draft || value)) {
+            e.preventDefault()
+            setDraft("")
+            apply("")
+          }
+        }}
+        className={cn(CONTROL, "pl-9")}
+      />
     </form>
   )
 }
@@ -549,7 +713,9 @@ function MenuItemFilter({
 
   return (
     <>
-      <Label htmlFor={inputId}>Menu item</Label>
+      <label htmlFor={inputId} className={FIELD_LABEL}>
+        Menu item
+      </label>
       <div className="relative flex gap-2">
         <Input
           id={inputId}
@@ -577,13 +743,13 @@ function MenuItemFilter({
             setText("")
             setActive(-1)
           }}
-          className="h-11 min-w-0 flex-1 sm:h-9"
+          className={cn(CONTROL, "min-w-0 flex-1")}
         />
         {selectedId && !disabled ? (
           <Button
             type="button"
-            variant="ghost"
-            size="touch"
+            variant="quiet"
+            size="icon"
             aria-label="Clear menu item"
             onClick={() => onSelect(null)}
           >
@@ -596,12 +762,12 @@ function MenuItemFilter({
         role="listbox"
         aria-label="Menu items"
         hidden={!open}
-        className="max-h-72 overflow-y-auto rounded-lg border bg-background p-1"
+        className="max-h-72 overflow-y-auto rounded-card border border-line bg-panel p-1"
       >
         {open && shown.length === 0 ? (
           <li
             role="presentation"
-            className="px-3 py-2 text-sm text-muted-foreground"
+            className="px-3 py-2 text-body-sm text-ink-muted"
           >
             No menu items match.
           </li>
@@ -623,7 +789,7 @@ function MenuItemFilter({
               >
                 <span className="font-medium">{item.name}</span>
                 {item.sectionName ? (
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-meta text-ink-muted">
                     {item.sectionName}
                   </span>
                 ) : null}
@@ -633,7 +799,7 @@ function MenuItemFilter({
         {open && hits.length > MAX_SHOWN ? (
           <li
             role="presentation"
-            className="px-3 py-2 text-sm text-muted-foreground"
+            className="px-3 py-2 text-body-sm text-ink-muted"
           >
             Keep typing to see more ({hits.length} match).
           </li>

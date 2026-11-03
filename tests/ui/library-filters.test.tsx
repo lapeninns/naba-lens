@@ -82,9 +82,7 @@ const withVenue = { ...EMPTY_LIBRARY_FILTERS, venueId: "v1" }
 describe("LibraryFilters label search", () => {
   it("applies on Enter, tidied, and once on blur", async () => {
     const { onChange, user } = setup()
-    const box = screen.getByRole("searchbox", {
-      name: "Search labels and notes",
-    })
+    const box = screen.getByRole("searchbox", { name: "Search" })
     await user.type(box, "  lamb   bhuna {Enter}")
     expect(onChange).toHaveBeenCalledTimes(1)
     expect(onChange).toHaveBeenLastCalledWith({
@@ -96,13 +94,11 @@ describe("LibraryFilters label search", () => {
     expect(onChange).toHaveBeenCalledTimes(1)
   })
 
-  it("applies with the Search button and on blur with changed text", async () => {
+  it("applies with Apply filters and on blur with changed text", async () => {
     const { onChange, user } = setup()
-    const box = screen.getByRole("searchbox", {
-      name: "Search labels and notes",
-    })
+    const box = screen.getByRole("searchbox", { name: "Search" })
     await user.type(box, "platter")
-    await user.click(screen.getByRole("button", { name: "Search" }))
+    await user.click(screen.getByRole("button", { name: "Apply filters" }))
     expect(onChange).toHaveBeenCalledTimes(1)
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({ query: "platter" })
@@ -116,7 +112,7 @@ describe("LibraryFilters label search", () => {
       query: "lamb",
     })
     const box = screen.getByRole<HTMLInputElement>("searchbox", {
-      name: "Search labels and notes",
+      name: "Search",
     })
     expect(box.value).toBe("lamb")
     await user.click(box)
@@ -164,7 +160,9 @@ describe("LibraryFilters more filters", () => {
     const more = screen.getByRole("button", { name: /More filters/ })
     expect(more.getAttribute("aria-expanded")).toBe("true")
     expect(more.textContent).toContain("2")
-    expect(screen.getByText("3 filters on")).toBeTruthy()
+    expect(screen.getByRole("status").textContent).toBe(
+      "Showing photos and videos from The Railway that need labels uploaded since 1 Oct 2026, newest first. Clear filters"
+    )
   })
 
   it("waits for the menu of a newly chosen venue", async () => {
@@ -255,6 +253,12 @@ describe("LibraryFilters more filters", () => {
     )
   })
 
+  it("says nothing without filters", () => {
+    setup()
+    expect(screen.getByRole("status").textContent).toBe("")
+    expect(screen.queryByRole("button", { name: "Clear filters" })).toBeNull()
+  })
+
   it("clears every filter and counts them", async () => {
     const all: LibraryFilterValue = {
       venueId: "v1",
@@ -274,7 +278,9 @@ describe("LibraryFilters more filters", () => {
       countActiveFilters({ venueId: null, staffId: null, type: "all" })
     ).toBe(0)
     const { onChange, user } = setup(all, MENU)
-    expect(screen.getByText("11 filters on")).toBeTruthy()
+    expect(screen.getByRole("status").textContent).toBe(
+      "Showing videos from The Railway by Asha that have labels labelled House Curry, Chicken and Finished dish in Curries matching “lamb” uploaded 1 Oct 2026 to 31 Oct 2026, newest first. Clear filters"
+    )
     await user.click(screen.getByRole("button", { name: "Clear filters" }))
     expect(onChange).toHaveBeenLastCalledWith(EMPTY_LIBRARY_FILTERS)
   })
