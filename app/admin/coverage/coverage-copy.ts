@@ -79,7 +79,8 @@ export const PREPARATION_COPY = {
   venuesNote: "Need setup: active staff with no target, team or venue",
   venuesTable: "Preparation by venue",
   recentRuns: "Recent runs",
-  recentRunsNote: "Last 7 days · runs that prepared a venue or failed",
+  // Not in the copy deck yet: all-venues top-ups are listed too.
+  recentRunsNote: "Last 7 days · runs that prepared something or failed",
   noRecentRuns: (since: string) =>
     `No runs have prepared anything since ${since}.`,
   columns: {
