@@ -7,6 +7,7 @@ import {
   submitPhotosAction,
 } from "@/app/_coverage/actions"
 import { useMediaUploader } from "@/app/_media/use-media-uploader"
+import { useAddRefreshSignal } from "@/components/nabalens/shell/add-context"
 import {
   SubmitPhotosPanel,
   type SubmittablePhotosResult,
@@ -36,6 +37,7 @@ export function TaskSubmit({
 }) {
   const router = useRouter()
   const uploader = useMediaUploader()
+  const refreshSignal = useAddRefreshSignal()
   return (
     <SubmitPhotosPanel
       requirementId={requirementId}
@@ -44,6 +46,7 @@ export function TaskSubmit({
       replacesSubmissionId={replacesSubmissionId}
       reviewerName={reviewerName}
       initialPhotos={initialPhotos}
+      refreshSignal={refreshSignal}
       loadPhotos={loadSubmittablePhotosAction}
       submit={submitPhotosAction}
       uploader={uploader}

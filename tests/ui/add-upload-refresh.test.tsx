@@ -8,8 +8,14 @@ import { AddHost } from "@/app/staff/_shell/add-host"
 import { CommunityGallery } from "@/app/staff/community/community-gallery"
 import { loadCommunityPage } from "@/app/staff/community/actions"
 import { StaffPortfolio } from "@/app/staff/staff-portfolio"
+import { TaskSubmit } from "@/app/staff/tasks/task-submit"
+import {
+  loadSubmittablePhotosAction,
+  submitPhotosAction,
+} from "@/app/_coverage/actions"
 import { AddTrigger } from "@/components/nabalens/shell/add-context"
 import type { MediaItemView } from "@/lib/server/media/types"
+import { photo } from "./tasks-fixtures"
 
 const { refresh, supabase } = vi.hoisted(() => ({
   refresh: vi.fn(),
@@ -39,6 +45,10 @@ vi.mock("@/app/_labels/actions", () => ({
 vi.mock("@/app/staff/actions", () => ({ loadMyMedia: vi.fn() }))
 vi.mock("@/app/staff/community/actions", () => ({
   loadCommunityPage: vi.fn(),
+}))
+vi.mock("@/app/_coverage/actions", () => ({
+  loadSubmittablePhotosAction: vi.fn(),
+  submitPhotosAction: vi.fn(),
 }))
 vi.mock("@/components/nabalens", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/components/nabalens")>()
@@ -108,6 +118,52 @@ afterEach(() => {
 })
 
 describe("global Add gallery refresh", () => {
+  it.each([null, "6c000000-0000-4000-8000-0000000000aa"])(
+    "refreshes the task picker for requirement %s and preserves its selection",
+    async (requirementId) => {
+      const user = userEvent.setup()
+      const original = photo({
+        assetId: OLD_ID,
+        uploadedAt: "2026-11-02T10:00:00.000Z",
+      })
+      const uploaded = photo({
+        assetId: NEW_ID,
+        uploadedAt: "2026-11-02T15:00:00.000Z",
+      })
+      vi.mocked(loadSubmittablePhotosAction).mockResolvedValue({
+        ok: true,
+        items: [uploaded, original],
+        nextCursor: null,
+      })
+      render(
+        host(
+          <TaskSubmit
+            requirementId={requirementId}
+            replacesSubmissionId={null}
+            initialPhotos={{ ok: true, items: [original], nextCursor: null }}
+          />
+        )
+      )
+      const selected = screen.getByRole("button", {
+        name: "Photo uploaded 2 Nov 2026, 10:00",
+      })
+      await user.click(selected)
+      await user.click(screen.getByRole("button", { name: "Add photos" }))
+      await user.click(screen.getByRole("button", { name: "Complete upload" }))
+      expect(
+        await screen.findByRole("button", {
+          name: "Photo uploaded 2 Nov 2026, 15:00",
+        })
+      ).toBeTruthy()
+      expect(selected.getAttribute("aria-pressed")).toBe("true")
+      expect(loadSubmittablePhotosAction).toHaveBeenCalledExactlyOnceWith({
+        requirementId,
+        cursor: null,
+      })
+      expect(submitPhotosAction).not.toHaveBeenCalled()
+    }
+  )
+
   it("refreshes Photos after each completion without waiting for focus and retains filters", async () => {
     const user = userEvent.setup()
     const search = { venue: "venue-filter", type: "image" }

@@ -61,6 +61,8 @@ type SubmitPhotosPanelProps = {
   venueName?: string | null
   /** The first page of photos, as loaded by the page. */
   initialPhotos: SubmittablePhotosResult
+  /** Changes when a global Add upload completes while this picker is open. */
+  refreshSignal?: number
   loadPhotos: (
     input: SubmittablePhotosInput
   ) => Promise<SubmittablePhotosResult>
@@ -78,12 +80,23 @@ type PhotoList = {
   photos: SubmittablePhoto[]
   nextCursor: string | null
   error: string | null
+  errorSource: "first" | "more" | null
 }
 
 function initialState(result: SubmittablePhotosResult): PhotoList {
   return result.ok
-    ? { photos: result.items, nextCursor: result.nextCursor, error: null }
-    : { photos: [], nextCursor: null, error: failureCopy(result).message }
+    ? {
+        photos: result.items,
+        nextCursor: result.nextCursor,
+        error: null,
+        errorSource: null,
+      }
+    : {
+        photos: [],
+        nextCursor: null,
+        error: failureCopy(result).message,
+        errorSource: "first",
+      }
 }
 
 /**
@@ -99,6 +112,7 @@ export function SubmitPhotosPanel({
   replacesSubmissionId = null,
   reviewerName = null,
   initialPhotos,
+  refreshSignal,
   loadPhotos,
   submit,
   uploader,
@@ -121,70 +135,125 @@ export function SubmitPhotosPanel({
   const [outcome, setOutcome] = React.useState<Outcome | null>(null)
   const [uploadNote, setUploadNote] = React.useState<string | null>(null)
   const inFlight = React.useRef(false)
+  const loadingPhotos = React.useRef(false)
+  const queuedReload = React.useRef<Set<string> | null>(null)
+  const selectedRef = React.useRef(selected)
+  const mounted = React.useRef(false)
+
+  React.useLayoutEffect(() => {
+    selectedRef.current = selected
+  }, [selected])
+
+  React.useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+      queuedReload.current = null
+    }
+  }, [])
 
   const reloadFirstPage = React.useCallback(
-    async (select: string[] = []) => {
-      let result: SubmittablePhotosResult
+    async function reloadFirstPage(select: string[] = []) {
+      if (loadingPhotos.current) {
+        queuedReload.current ??= new Set()
+        for (const id of select) queuedReload.current.add(id)
+        return
+      }
+      queuedReload.current = null
+      loadingPhotos.current = true
       try {
-        result = await loadPhotos({ requirementId, cursor: null })
-      } catch {
-        setList((l) => ({ ...l, error: NETWORK_FAILURE.message }))
-        return
-      }
-      if (!result.ok) {
-        setList((l) => ({ ...l, error: failureCopy(result).message }))
-        return
-      }
-      setList({
-        photos: result.items,
-        nextCursor: result.nextCursor,
-        error: null,
-      })
-      // The fresh listing is authoritative for the photos it includes.
-      const listed = new Set(result.items.map((p) => p.assetId))
-      setFlagged((current) =>
-        current.size === 0
-          ? current
-          : new Map([...current].filter(([id]) => !listed.has(id)))
-      )
-      if (select.length === 0) return
-      const ready = new Set(
-        result.items.filter((p) => p.eligible).map((p) => p.assetId)
-      )
-      const picked = select.filter((id) => ready.has(id))
-      setSelected((current) => {
-        const next = [...current]
-        for (const id of picked) {
-          if (next.length >= maxSelected) break
-          if (!next.includes(id)) next.push(id)
+        const result = await loadPhotos({ requirementId, cursor: null })
+        if (!mounted.current) return
+        if (!result.ok) {
+          setList((l) => ({
+            ...l,
+            error: failureCopy(result).message,
+            errorSource: "first",
+          }))
+          return
         }
-        return next
-      })
-      const waiting = select.length - picked.length
-      setUploadNote(
-        [
-          picked.length
-            ? `${plural(picked.length, "new photo", "new photos")} selected.`
-            : null,
-          waiting
-            ? `${plural(waiting, "new photo isn't", "new photos aren't")} ready to send yet.`
-            : null,
-        ]
-          .filter(Boolean)
-          .join(" ")
-      )
+        const listed = new Set(result.items.map((p) => p.assetId))
+        const selectedIds = new Set(selectedRef.current)
+        // Keep selected photos from older pages visible while the fresh
+        // page supplies the latest eligibility for every photo it includes.
+        setList((current) => ({
+          photos: [
+            ...result.items,
+            ...current.photos.filter(
+              (p) => selectedIds.has(p.assetId) && !listed.has(p.assetId)
+            ),
+          ],
+          nextCursor: result.nextCursor,
+          error: null,
+          errorSource: null,
+        }))
+        setFlagged((current) =>
+          current.size === 0
+            ? current
+            : new Map([...current].filter(([id]) => !listed.has(id)))
+        )
+        if (select.length === 0) return
+        const ready = new Set(
+          result.items.filter((p) => p.eligible).map((p) => p.assetId)
+        )
+        const picked = select.filter((id) => ready.has(id))
+        setSelected((current) => {
+          const next = [...current]
+          for (const id of picked) {
+            if (next.length >= maxSelected) break
+            if (!next.includes(id)) next.push(id)
+          }
+          return next
+        })
+        const waiting = select.length - picked.length
+        setUploadNote(
+          [
+            picked.length
+              ? `${plural(picked.length, "new photo", "new photos")} selected.`
+              : null,
+            waiting
+              ? `${plural(waiting, "new photo isn't", "new photos aren't")} ready to send yet.`
+              : null,
+          ]
+            .filter(Boolean)
+            .join(" ")
+        )
+      } catch {
+        if (mounted.current)
+          setList((l) => ({
+            ...l,
+            error: NETWORK_FAILURE.message,
+            errorSource: "first",
+          }))
+      } finally {
+        loadingPhotos.current = false
+        const queued = queuedReload.current
+        queuedReload.current = null
+        if (queued !== null && mounted.current) {
+          void reloadFirstPage(Array.from(queued))
+        }
+      }
     },
     [loadPhotos, requirementId, maxSelected]
   )
 
+  const lastRefreshSignal = React.useRef(refreshSignal)
+  React.useEffect(() => {
+    if (refreshSignal === lastRefreshSignal.current) return
+    lastRefreshSignal.current = refreshSignal
+    void reloadFirstPage()
+  }, [refreshSignal, reloadFirstPage])
+
   async function loadMore() {
-    if (!list.nextCursor) return
+    if (!list.nextCursor || loadingPhotos.current) return
+    loadingPhotos.current = true
     setLoadingMore(true)
     try {
       const result = await loadPhotos({
         requirementId,
         cursor: list.nextCursor,
       })
+      if (!mounted.current) return
       if (result.ok) {
         setList((l) => {
           const seen = new Set(l.photos.map((p) => p.assetId))
@@ -195,15 +264,31 @@ export function SubmitPhotosPanel({
             ],
             nextCursor: result.nextCursor,
             error: null,
+            errorSource: null,
           }
         })
       } else {
-        setList((l) => ({ ...l, error: failureCopy(result).message }))
+        setList((l) => ({
+          ...l,
+          error: failureCopy(result).message,
+          errorSource: "more",
+        }))
       }
     } catch {
-      setList((l) => ({ ...l, error: NETWORK_FAILURE.message }))
+      if (mounted.current)
+        setList((l) => ({
+          ...l,
+          error: NETWORK_FAILURE.message,
+          errorSource: "more",
+        }))
     } finally {
-      setLoadingMore(false)
+      loadingPhotos.current = false
+      if (mounted.current) {
+        setLoadingMore(false)
+        if (queuedReload.current !== null) {
+          void reloadFirstPage(Array.from(queuedReload.current))
+        }
+      }
     }
   }
 
@@ -371,7 +456,7 @@ export function SubmitPhotosPanel({
         loading={loadingMore}
         error={list.error}
         onLoadMore={() =>
-          list.photos.length === 0 && list.error
+          list.errorSource === "first"
             ? void reloadFirstPage()
             : void loadMore()
         }

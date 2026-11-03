@@ -3,6 +3,7 @@
 // Retries after a dropped connection or "unavailable" reuse the ID (the server
 // replays instead of acting twice); conflicts reload; per-photo reasons show.
 import {
+  act,
   cleanup,
   render,
   screen,
@@ -114,6 +115,147 @@ beforeEach(() => window.sessionStorage.clear())
 afterEach(cleanup)
 
 describe("SubmitPhotosPanel", () => {
+  it.each([null, "older"])(
+    "retries a failed global upload refresh from the first page with cursor %s",
+    async (nextCursor) => {
+      const user = userEvent.setup()
+      const loadPhotos = vi
+        .fn<(input: unknown) => Promise<SubmittablePhotosResult>>()
+        .mockRejectedValueOnce(new Error("offline"))
+        .mockResolvedValue(page([B, A]))
+      const panel = (refreshSignal: number) => (
+        <SubmitPhotosPanel
+          requirementId={REQUIREMENT}
+          initialPhotos={page([A], nextCursor)}
+          refreshSignal={refreshSignal}
+          loadPhotos={loadPhotos}
+          submit={vi.fn()}
+          uploader={noUpload}
+          limits={LIMITS}
+          onReload={vi.fn()}
+          signInHref="/login"
+        />
+      )
+      const { rerender } = render(panel(0))
+      await user.click(tile("2 Nov 2026"))
+      rerender(panel(1))
+      await user.click(await screen.findByRole("button", { name: "Try again" }))
+      await waitFor(() => expect(loadPhotos).toHaveBeenCalledTimes(2))
+      expect(loadPhotos).toHaveBeenLastCalledWith({
+        requirementId: REQUIREMENT,
+        cursor: null,
+      })
+      expect(tile("1 Nov 2026")).toBeTruthy()
+      expect(tile("2 Nov 2026").getAttribute("aria-pressed")).toBe("true")
+      expect(screen.queryByRole("button", { name: "Try again" })).toBeNull()
+    }
+  )
+
+  it("retries a failed next page using its pagination cursor", async () => {
+    const loadPhotos = vi
+      .fn<() => Promise<SubmittablePhotosResult>>()
+      .mockResolvedValueOnce({
+        ok: false,
+        code: "unavailable",
+        status: 503,
+        message: "offline",
+      })
+      .mockResolvedValue(page([B]))
+    const { user } = setup({ initial: page([A], "older"), loadPhotos })
+    await user.click(screen.getByRole("button", { name: "Load more" }))
+    await user.click(await screen.findByRole("button", { name: "Try again" }))
+    expect(loadPhotos).toHaveBeenNthCalledWith(2, {
+      requirementId: REQUIREMENT,
+      cursor: "older",
+    })
+    expect(tile("2 Nov 2026")).toBeTruthy()
+    expect(tile("1 Nov 2026")).toBeTruthy()
+  })
+
+  it("coalesces refresh signals behind an active photo read and retains selected older photos", async () => {
+    const user = userEvent.setup()
+    let finishFirst!: (value: SubmittablePhotosResult) => void
+    const loadPhotos = vi
+      .fn<(input: unknown) => Promise<SubmittablePhotosResult>>()
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishFirst = resolve
+          })
+      )
+      .mockResolvedValue(page([C]))
+    const panel = (refreshSignal: number) => (
+      <SubmitPhotosPanel
+        requirementId={REQUIREMENT}
+        initialPhotos={page([A])}
+        refreshSignal={refreshSignal}
+        loadPhotos={loadPhotos}
+        submit={vi.fn()}
+        uploader={noUpload}
+        limits={LIMITS}
+        onReload={vi.fn()}
+        signInHref="/login"
+      />
+    )
+    const { rerender } = render(panel(0))
+    await user.click(tile("2 Nov 2026"))
+    rerender(panel(1))
+    rerender(panel(2))
+    rerender(panel(3))
+    expect(loadPhotos).toHaveBeenCalledTimes(1)
+    await act(async () => finishFirst(page([B])))
+    await waitFor(() => expect(loadPhotos).toHaveBeenCalledTimes(2))
+    expect(tile("30 Oct 2026")).toBeTruthy()
+    expect(tile("2 Nov 2026").getAttribute("aria-pressed")).toBe("true")
+  })
+
+  it("finishes pagination before refreshing after an upload and preserves a newly selected page item", async () => {
+    const user = userEvent.setup()
+    let finishMore!: (value: SubmittablePhotosResult) => void
+    let finishRefresh!: (value: SubmittablePhotosResult) => void
+    const loadPhotos = vi
+      .fn<(input: unknown) => Promise<SubmittablePhotosResult>>()
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishMore = resolve
+          })
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishRefresh = resolve
+          })
+      )
+    const panel = (refreshSignal: number) => (
+      <SubmitPhotosPanel
+        requirementId={REQUIREMENT}
+        initialPhotos={page([A], "older")}
+        refreshSignal={refreshSignal}
+        loadPhotos={loadPhotos}
+        submit={vi.fn()}
+        uploader={noUpload}
+        limits={LIMITS}
+        onReload={vi.fn()}
+        signInHref="/login"
+      />
+    )
+    const { rerender } = render(panel(0))
+    await user.click(screen.getByRole("button", { name: "Load more" }))
+    rerender(panel(1))
+    rerender(panel(2))
+    expect(loadPhotos).toHaveBeenCalledExactlyOnceWith({
+      requirementId: REQUIREMENT,
+      cursor: "older",
+    })
+    await act(async () => finishMore(page([B])))
+    await user.click(tile("1 Nov 2026"))
+    await act(async () => finishRefresh(page([C])))
+    expect(tile("1 Nov 2026").getAttribute("aria-pressed")).toBe("true")
+    expect(tile("30 Oct 2026")).toBeTruthy()
+    expect(loadPhotos).toHaveBeenCalledTimes(2)
+  })
+
   it("sends the selected photos once and explains that sharing is not gated", async () => {
     const { user, submit, loadPhotos } = setup()
     submit.mockResolvedValue(sent(2))
