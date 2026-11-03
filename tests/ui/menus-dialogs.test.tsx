@@ -39,6 +39,7 @@ describe("ActivateMenuDialog", () => {
         onOpenChange={vi.fn()}
         versionTitle="Winter"
         currentActiveTitle="Autumn"
+        venueName="The Railway"
         unresolvedCount={2}
         errorCount={1}
         itemCount={0}
@@ -47,15 +48,24 @@ describe("ActivateMenuDialog", () => {
       />
     )
     expect(
-      screen.getByRole("alertdialog", { name: "Activate “Winter”?" })
+      screen.getByRole("alertdialog", {
+        name: "Activate this draft for labelling?",
+      })
     ).toBeTruthy()
     expect(screen.getByText(ACTIVE_MEANING_COPY)).toBeTruthy()
     expect(ACTIVE_MEANING_COPY).toContain("isn't a public menu")
     expect(
-      screen.getByText(/The current active menu, “Autumn”, becomes retired/)
+      screen.getByText(
+        (_, el) =>
+          el?.tagName === "P" &&
+          el.textContent ===
+            "Winter becomes The Railway's active menu for labelling. Autumn is retired; labels on it are kept."
+      )
     ).toBeTruthy()
     expect(
-      screen.getByText("Existing labels on photos and videos are kept.")
+      screen.getByText(
+        'Nothing carries over automatically. The Railway\'s coverage shows "Menu changed — review coverage" until its manager decides what still applies.'
+      )
     ).toBeTruthy()
 
     const button = screen.getByRole("button", {
@@ -97,13 +107,13 @@ describe("ActivateMenuDialog", () => {
       />
     )
     expect(
-      screen.getByText(/no active menu now; this becomes its first/)
+      screen.getByText(/It is the venue's first active menu\./)
     ).toBeTruthy()
     const button = screen.getByRole("button", {
       name: "Activate for labelling",
     })
     await user.click(button)
-    expect((await screen.findByRole("alert")).textContent).toBe(
+    expect((await screen.findByRole("alert")).textContent).toContain(
       "Another admin changed this draft."
     )
     expect(onOpenChange).not.toHaveBeenCalled()
@@ -149,15 +159,25 @@ describe("Retire, discard and archive confirmations", () => {
         open
         onOpenChange={vi.fn()}
         versionTitle="Autumn"
+        venueName="The Railway"
         onConfirm={onConfirm}
       />
     )
     expect(
-      screen.getByRole("alertdialog", { name: "Retire “Autumn”?" })
+      screen.getByRole("alertdialog", {
+        name: "Retire The Railway's active menu?",
+      })
     ).toBeTruthy()
     expect(screen.getByText(/Existing labels .* are kept/)).toBeTruthy()
-    await user.click(screen.getByRole("button", { name: "Retire menu" }))
-    expect((await screen.findByRole("alert")).textContent).toBe("Not allowed.")
+    expect(
+      screen.getByText(
+        "Nothing carries over automatically, and The Railway's menu coverage shows No active menu."
+      )
+    ).toBeTruthy()
+    await user.click(screen.getByRole("button", { name: "Retire" }))
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "Not allowed."
+    )
   })
 
   it("discard confirms and closes", async () => {
@@ -168,10 +188,21 @@ describe("Retire, discard and archive confirmations", () => {
         open
         onOpenChange={onOpenChange}
         versionTitle="Draft 2"
+        activeTitle="Autumn"
+        decisionCount={3}
+        imported
         onConfirm={async () => ({ ok: true })}
       />
     )
-    await user.click(screen.getByRole("button", { name: "Discard draft" }))
+    expect(
+      screen.getByRole("alertdialog", { name: "Discard this draft?" })
+    ).toBeTruthy()
+    expect(
+      screen.getByText(
+        "Draft 2 and your 3 decisions are set aside as Discarded. Autumn stays active. The imported file stays in the import history."
+      )
+    ).toBeTruthy()
+    await user.click(screen.getByRole("button", { name: "Discard" }))
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
@@ -186,7 +217,9 @@ describe("Retire, discard and archive confirmations", () => {
         onSetArchived={onSetArchived}
       />
     )
-    await user.click(screen.getByRole("button", { name: "Archive item: Tikka" }))
+    await user.click(
+      screen.getByRole("button", { name: "Archive item: Tikka" })
+    )
     const dialog = screen.getByRole("alertdialog", {
       name: "Archive “Tikka”?",
     })
@@ -206,7 +239,9 @@ describe("Retire, discard and archive confirmations", () => {
         onSetArchived={onSetArchived}
       />
     )
-    await user.click(screen.getByRole("button", { name: "Unarchive item: Tikka" }))
+    await user.click(
+      screen.getByRole("button", { name: "Unarchive item: Tikka" })
+    )
     await user.click(
       within(
         screen.getByRole("alertdialog", { name: "Unarchive “Tikka”?" })
@@ -361,7 +396,9 @@ describe("Venue list, provenance and status", () => {
     const first = screen.getByRole("link", { name: /^The Test Arms/ })
     expect(first.getAttribute("href")).toBe("/admin/menus/v1")
     expect(first.textContent).toContain("Active · for labelling only")
-    expect(first.textContent).toContain("Autumn · 42 items · activated 3 Oct 2026")
+    expect(first.textContent).toContain(
+      "Autumn · 42 items · activated 3 Oct 2026"
+    )
     expect(first.textContent).toContain("Draft")
     expect(first.textContent).toContain("2 suggestions")
     const second = screen.getByRole("link", { name: /^Second Venue/ })
@@ -419,13 +456,12 @@ describe("Venue list, provenance and status", () => {
   it("shows provenance with a short hash and the full value on request", async () => {
     const user = userEvent.setup()
     render(<ProvenanceCard version={version} />)
-    const card = screen.getByRole("region", { name: "Provenance" })
+    const card = screen.getByRole("region", { name: "This version" })
     expect(card.textContent).toContain("JSON file")
     expect(card.textContent).toContain("autumn.json")
     expect(card.textContent).toContain("abc1234")
     expect(card.textContent).toContain("Exported from the venue site")
-    expect(card.textContent).toContain("by Test admin")
-    expect(card.textContent).toContain(ACTIVE_MEANING_COPY)
+    expect(card.textContent).toContain(" · Test admin")
     const summary = screen.getByText("aaaaaaaaaaaa…", { exact: false })
     await user.click(summary)
     expect(screen.getByText(version.source.sha256!)).toBeTruthy()

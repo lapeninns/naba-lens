@@ -13,10 +13,12 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 
+import { Notice } from "../notice"
 import {
   ACTIVE_MEANING_COPY,
   LABELS_KEPT_COPY,
   plural,
+  possessive,
   type MenuActionResult,
 } from "./copy"
 
@@ -33,6 +35,8 @@ type ActivateMenuDialogProps = {
   itemCount: number
   /** Unsaved editor changes also block activation. */
   hasUnsavedChanges?: boolean
+  /** Names the venue in the consequences ("The Railway's active menu"). */
+  venueName?: string
   onConfirm: () => Promise<MenuActionResult>
 }
 
@@ -58,11 +62,17 @@ export function activationBlockers({
   return reasons
 }
 
+/** The coverage consequence of a menu change (spec: nothing carries over). */
+export function coverageAfterActivationCopy(venueName: string): string {
+  return `Nothing carries over automatically. ${possessive(venueName)} coverage shows "Menu changed — review coverage" until its manager decides what still applies.`
+}
+
 export function ActivateMenuDialog({
   open,
   onOpenChange,
   versionTitle,
   currentActiveTitle,
+  venueName,
   onConfirm,
   ...counts
 }: ActivateMenuDialogProps) {
@@ -90,6 +100,8 @@ export function ActivateMenuDialog({
     }
   }
 
+  const venue = venueName ? possessive(venueName) : "the venue's"
+
   return (
     <AlertDialog
       open={open}
@@ -102,44 +114,39 @@ export function ActivateMenuDialog({
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>
-            Activate <span className="break-words">“{versionTitle}”</span>?
+            Activate this draft for labelling?
           </AlertDialogTitle>
-          <AlertDialogDescription>{ACTIVE_MEANING_COPY}</AlertDialogDescription>
-        </AlertDialogHeader>
-        <ul className="grid list-disc gap-1 pl-5 text-sm">
-          <li>
-            Staff can label this venue&apos;s photos and videos with its items.
-          </li>
-          <li>
+          <AlertDialogDescription>
+            <span className="break-words">{versionTitle}</span> becomes {venue}{" "}
+            active menu for labelling.{" "}
             {currentActiveTitle ? (
               <>
-                The current active menu, “{currentActiveTitle}”, becomes
-                retired.
+                <span className="break-words">{currentActiveTitle}</span> is
+                retired; labels on it are kept.
               </>
             ) : (
-              "This venue has no active menu now; this becomes its first."
+              <>It is the venue&apos;s first active menu. {LABELS_KEPT_COPY}</>
             )}
-          </li>
-          <li>{LABELS_KEPT_COPY}</li>
-        </ul>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <p className="text-body-touch text-ink-muted md:text-body">
+          {currentActiveTitle && venueName
+            ? coverageAfterActivationCopy(venueName)
+            : "Nothing carries over automatically."}
+        </p>
+        <p className="text-body-touch text-ink-muted md:text-body-sm">
+          {ACTIVE_MEANING_COPY}
+        </p>
         {blocked ? (
-          <div
-            id={reasonsId}
-            className="rounded-md border border-warning/40 bg-warning-surface px-3 py-2 text-sm"
-          >
-            <p className="font-medium">Activation is blocked</p>
+          <Notice id={reasonsId} tone="attention" title="Activation is blocked">
             <ul className="mt-1 grid list-disc gap-0.5 pl-5">
               {blockers.map((reason) => (
                 <li key={reason}>{reason}</li>
               ))}
             </ul>
-          </div>
+          </Notice>
         ) : null}
-        {error ? (
-          <p role="alert" className="text-sm text-negative">
-            {error}
-          </p>
-        ) : null}
+        {error ? <Notice tone="negative">{error}</Notice> : null}
         <AlertDialogFooter>
           <AlertDialogCancel size="touch" disabled={pending}>
             Cancel
