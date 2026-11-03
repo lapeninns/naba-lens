@@ -21,6 +21,7 @@ export {
   RequirementSetup,
   hasEditableTitle,
   type RevisionResult,
+  type SetAssigneesHandler,
   type SetRequirementStatusHandler,
   type UpdateRequirementHandler,
 } from "./requirement-setup"
@@ -29,10 +30,9 @@ export {
   type SetAmenityFactHandler,
 } from "./amenity-fact-form"
 export {
-  AssigneePicker,
-  suggestedTeam,
-  type SetAssigneesHandler,
-} from "./assignee-picker"
+  AmenityFactsSection,
+  factConfirmedText,
+} from "./amenity-facts-section"
 export {
   AttachPhotosDialog,
   type AttachPhotosHandler,

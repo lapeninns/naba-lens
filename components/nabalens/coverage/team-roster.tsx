@@ -183,7 +183,7 @@ export function TeamPerson({
 }
 
 /** A whole-number field with minus and plus (`nl-stepper`). */
-function Stepper({
+export function Stepper({
   id,
   name,
   value,
@@ -192,6 +192,7 @@ function Stepper({
   invalid,
   disabled,
   describedBy,
+  max = COVERAGE_LIMITS.targetCountMax,
 }: {
   id?: string
   /** "Priya Gurung's photo target" */
@@ -202,6 +203,7 @@ function Stepper({
   invalid?: boolean
   disabled?: boolean
   describedBy?: string
+  max?: number
 }) {
   const n = Number(value)
   const set = value !== "" && Number.isInteger(n)
@@ -244,11 +246,11 @@ function Stepper({
         type="button"
         aria-label={`Increase ${name}`}
         className={step}
-        disabled={disabled || (set && n >= COVERAGE_LIMITS.targetCountMax)}
+        disabled={disabled || (set && n >= max)}
         onClick={() =>
           onChange(
             String(
-              set ? Math.min(COVERAGE_LIMITS.targetCountMax, n + 1) : 1
+              set ? Math.min(max, n + 1) : 1
             )
           )
         }

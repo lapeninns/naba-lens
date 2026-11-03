@@ -1256,7 +1256,7 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
         p_client_request_key: none,
       })
     )
-    await page.getByRole("button", { name: "Does not apply" }).click()
+    await page.getByRole("radio", { name: "Does not apply" }).click()
     const dialog = page.getByRole("dialog", {
       name: `“${title}” does not apply`,
     })

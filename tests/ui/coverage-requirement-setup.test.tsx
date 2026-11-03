@@ -5,17 +5,28 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
   AmenityFactForm,
-  AssigneePicker,
+  AmenityFactsSection,
   NewRequirementDialog,
   RequirementList,
   RequirementSetup,
   type CreateRequirementHandler,
   type SetAmenityFactHandler,
+  type SetAssigneesHandler,
   type SetRequirementStatusHandler,
   type UpdateRequirementHandler,
 } from "@/components/nabalens/coverage"
 
-import { amenityFact, person, requirement, STAFF_ID } from "./coverage-fixtures"
+import {
+  MANAGER_ID,
+  STAFF_ID,
+  amenityFact,
+  person,
+  requirement,
+} from "./coverage-fixtures"
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+}))
 
 afterEach(cleanup)
 // Pending request ids persist per tab; each test starts with none.
@@ -23,32 +34,56 @@ beforeEach(() => window.sessionStorage.clear())
 
 const ok = (revision: number) => ({ ok: true as const, revision })
 
-function setup(overrides: Parameters<typeof requirement>[0] = {}) {
+const ROSTER = [
+  person({ id: "p-ward", displayName: "TEST Lucy Ward", jobTitle: "Supervisor" }),
+  person({
+    id: "p-gurung",
+    displayName: "TEST Priya Gurung",
+    department: "boh",
+    jobTitle: "Chef de partie",
+  }),
+  person({ id: "p-lama", displayName: "TEST Kiran Lama", department: "boh" }),
+]
+
+function setup(
+  overrides: Parameters<typeof requirement>[0] = {},
+  options: { roster?: typeof ROSTER } = {}
+) {
   const onUpdate = vi.fn<UpdateRequirementHandler>(async () => ok(4))
   const onSetStatus = vi.fn<SetRequirementStatusHandler>(async () => ok(5))
+  const onSetAssignees = vi.fn<SetAssigneesHandler>(async () => ({
+    ok: true as const,
+  }))
   const onStale = vi.fn()
   render(
     <RequirementSetup
       requirement={requirement(overrides)}
+      venueName="The Railway"
+      month="November"
+      roster={options.roster ?? ROSTER}
       onUpdate={onUpdate}
       onSetStatus={onSetStatus}
+      onSetAssignees={onSetAssignees}
       onStale={onStale}
     />
   )
-  return { onUpdate, onSetStatus, onStale }
+  return { onUpdate, onSetStatus, onSetAssignees, onStale }
 }
+
+const confirmButton = () =>
+  screen.getByRole("button", { name: "Save and confirm" })
 
 describe("RequirementSetup", () => {
   it("confirms a template item applies with the revision shown", async () => {
     const user = userEvent.setup()
-    const { onUpdate, onSetStatus } = setup()
+    const { onUpdate, onSetStatus, onSetAssignees } = setup()
     expect(
       screen.getByText("Confirm whether this applies and its photo target")
     ).toBeTruthy()
-    await user.click(
-      screen.getByRole("button", { name: "Confirm: applies, 1 photo" })
-    )
+    expect(screen.getByText("Not confirmed yet")).toBeTruthy()
+    await user.click(confirmButton())
     expect(onUpdate).not.toHaveBeenCalled()
+    expect(onSetAssignees).not.toHaveBeenCalled()
     expect(onSetStatus).toHaveBeenCalledWith({
       requirementId: requirement().id,
       expectedRevision: 3,
@@ -57,23 +92,31 @@ describe("RequirementSetup", () => {
     expect(await screen.findByText(/Confirmed: 1 photo needed/)).toBeTruthy()
   })
 
-  it("saves an edited target first, then confirms with the new revision", async () => {
+  it("saves an edited target first, then confirms with the new revision, then assignees", async () => {
     const user = userEvent.setup()
-    const { onUpdate, onSetStatus } = setup()
-    const target = screen.getByLabelText("Photo target")
-    await user.clear(target)
-    await user.type(target, "4")
+    const { onUpdate, onSetStatus, onSetAssignees } = setup()
     await user.click(
-      screen.getByRole("button", { name: "Confirm: applies, 4 photos" })
+      screen.getByRole("button", { name: "Increase Bar area photo target" })
     )
+    await user.click(screen.getByRole("checkbox", { name: /TEST Kiran Lama/ }))
+    expect(screen.getByText("Ready to confirm")).toBeTruthy()
+    await user.click(confirmButton())
     expect(onUpdate).toHaveBeenCalledWith({
       requirementId: requirement().id,
       expectedRevision: 3,
-      patch: { photoTarget: 4 },
+      patch: { photoTarget: 2 },
     })
     expect(onSetStatus).toHaveBeenCalledWith(
       expect.objectContaining({ expectedRevision: 4, status: "active" })
     )
+    expect(onSetAssignees).toHaveBeenCalledWith(["p-lama"])
+    expect(onUpdate.mock.invocationCallOrder[0]).toBeLessThan(
+      onSetStatus.mock.invocationCallOrder[0]
+    )
+    expect(onSetStatus.mock.invocationCallOrder[0]).toBeLessThan(
+      onSetAssignees.mock.invocationCallOrder[0]
+    )
+    expect(await screen.findByText(/Confirmed: 2 photos needed/)).toBeTruthy()
   })
 
   it("rejects a photo target outside 1–200 before calling the server", async () => {
@@ -82,7 +125,7 @@ describe("RequirementSetup", () => {
     const target = screen.getByLabelText("Photo target")
     await user.clear(target)
     await user.type(target, "201")
-    await user.click(screen.getByRole("button", { name: /Confirm: applies/ }))
+    await user.click(confirmButton())
     expect(screen.getByText("Enter a whole number from 1 to 200.")).toBeTruthy()
     expect(onUpdate).not.toHaveBeenCalled()
     expect(onSetStatus).not.toHaveBeenCalled()
@@ -91,7 +134,12 @@ describe("RequirementSetup", () => {
   it("needs a reason to mark an item not applicable", async () => {
     const user = userEvent.setup()
     const { onSetStatus } = setup()
-    await user.click(screen.getByRole("button", { name: "Does not apply" }))
+    expect(
+      screen.getByRole("radiogroup", {
+        name: "Does this apply at The Railway?",
+      })
+    ).toBeTruthy()
+    await user.click(screen.getByRole("radio", { name: "Does not apply" }))
     const dialog = await screen.findByRole("dialog")
     await user.click(
       within(dialog).getByRole("button", { name: "Mark not applicable" })
@@ -109,7 +157,7 @@ describe("RequirementSetup", () => {
     })
   })
 
-  it("keeps an unknown amenity in verification: no confirm, no exclusion", () => {
+  it("keeps an unknown amenity in verification: confirm disabled with its reason, no exclusion", () => {
     setup({
       kind: "amenity",
       templateKey: "dog_facilities",
@@ -117,18 +165,14 @@ describe("RequirementSetup", () => {
       amenity: { presence: "unknown", confirmed: false },
     })
     expect(
-      screen.getByText(/Needs verification: record whether it is present/, {
-        selector: "p",
-      })
+      screen.getByText("Needs verification: record whether it is present")
     ).toBeTruthy()
+    const status = screen.getByText("Can't confirm yet: Needs verification.")
+    expect(confirmButton().hasAttribute("disabled")).toBe(true)
+    expect(confirmButton().getAttribute("aria-describedby")).toBe(status.id)
     expect(
       screen
-        .getByRole("button", { name: /Confirm: applies/ })
-        .hasAttribute("disabled")
-    ).toBe(true)
-    expect(
-      screen
-        .getByRole("button", { name: "Does not apply" })
+        .getByRole("radio", { name: "Does not apply" })
         .hasAttribute("disabled")
     ).toBe(true)
   })
@@ -140,22 +184,122 @@ describe("RequirementSetup", () => {
       setupIssues: ["unconfirmed"],
       amenity: { presence: "present", confirmed: true },
     })
-    expect(
-      screen
-        .getByRole("button", { name: /Confirm: applies/ })
-        .hasAttribute("disabled")
-    ).toBe(false)
+    expect(confirmButton().hasAttribute("disabled")).toBe(false)
   })
 
-  it("shows a not-applicable reason and offers to include it again", () => {
-    setup({
+  it("shows a not-applicable reason, stays uncounted, and sets it up again from Applies", async () => {
+    const user = userEvent.setup()
+    const { onSetStatus } = setup({
       status: "not_applicable",
       statusReason: "No garden",
       setupIssues: [],
     })
     expect(screen.getByText("No garden")).toBeTruthy()
+    expect(screen.getByText("Not counted")).toBeTruthy()
     expect(
-      screen.getByRole("button", { name: "It applies after all" })
+      screen.getByText(
+        "It stays on the checklist so everyone can see why. Choose Applies to set it up again."
+      )
+    ).toBeTruthy()
+    expect(screen.queryByRole("button", { name: "Save and confirm" })).toBeNull()
+    expect(screen.queryByText("Who photographs it")).toBeNull()
+    await user.click(screen.getByRole("radio", { name: "Applies" }))
+    expect(screen.getByLabelText("Photo target")).toBeTruthy()
+    await user.click(confirmButton())
+    expect(onSetStatus).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "active", expectedRevision: 3 })
+    )
+  })
+
+  it("saves changes to a confirmed item without confirming it again", async () => {
+    const user = userEvent.setup()
+    const { onUpdate, onSetStatus, onSetAssignees } = setup({
+      status: "active",
+      setupIssues: [],
+      assigneeIds: ["p-ward"],
+    })
+    const save = screen.getByRole("button", { name: "Save changes" })
+    expect(save.hasAttribute("disabled")).toBe(true)
+    await user.click(screen.getByRole("checkbox", { name: /TEST Kiran Lama/ }))
+    await user.click(save)
+    expect(onUpdate).not.toHaveBeenCalled()
+    expect(onSetStatus).not.toHaveBeenCalled()
+    expect(onSetAssignees).toHaveBeenCalledWith(["p-ward", "p-lama"])
+    expect(await screen.findByText("Saved. 2 people assigned.")).toBeTruthy()
+  })
+
+  it("says overdue is for follow-up and never blocks sending", () => {
+    setup({
+      status: "active",
+      setupIssues: [],
+      assigneeIds: ["p-gurung"],
+      assignees: [ROSTER[1]],
+      due: {
+        dueOn: "2026-10-31",
+        dueAt: "2026-11-01T00:00:00.000Z",
+        label: "Due 31 Oct 2026",
+        overdue: true,
+      },
+      progress: { ...requirement().progress, overdue: true },
+    })
+    expect(
+      screen.getByText(
+        "Due 31 Oct 2026. Overdue is for follow-up: TEST can still send photos, and they count once accepted."
+      )
+    ).toBeTruthy()
+    expect(
+      screen.getByText(
+        "Overdue is for follow-up. It never stops anyone sending photos."
+      )
+    ).toBeTruthy()
+  })
+
+  it("says a complete item is complete for the month", () => {
+    setup({
+      status: "active",
+      setupIssues: [],
+      assigneeIds: ["p-ward"],
+      progress: { ...requirement().progress, accepted: 1, satisfied: true },
+    })
+    expect(
+      screen.getByText(
+        "Complete for November. Extra photos still go to Photos and can be accepted."
+      )
+    ).toBeTruthy()
+  })
+
+  it("lists anyone needing reassignment first, then A to Z by surname", () => {
+    setup({
+      status: "active",
+      setupIssues: ["needs_reassignment"],
+      needsReassignment: true,
+      assigneeIds: ["p-gone", "p-ward"],
+      assignees: [
+        person({ id: "p-gone", displayName: "TEST Rina Tamang" }),
+        ROSTER[0],
+      ],
+    })
+    const names = screen
+      .getAllByRole("checkbox")
+      .map((box) => box.closest("label")?.textContent ?? "")
+    expect(names[0]).toMatch(/^TEST Rina Tamang/)
+    expect(names[0]).toContain("Can't be assigned here.")
+    expect(names.slice(1).map((n) => n.split(/FOH|BOH/)[0])).toEqual([
+      "TEST Priya Gurung",
+      "TEST Kiran Lama",
+      "TEST Lucy Ward",
+    ])
+    expect(
+      screen.getByText(
+        "Teams (FOH/BOH) only suggest who to assign. They do not give anyone extra access."
+      )
+    ).toBeTruthy()
+  })
+
+  it("asks for someone when no one is assigned", () => {
+    setup()
+    expect(
+      screen.getByText("No one is assigned. Choose who photographs this.")
     ).toBeTruthy()
   })
 
@@ -177,11 +321,30 @@ describe("RequirementSetup", () => {
         onStale={onStale}
       />
     )
-    await user.click(screen.getByRole("button", { name: /Confirm: applies/ }))
+    await user.click(confirmButton())
     expect(
       await screen.findByText(/Someone else changed this a moment ago/)
     ).toBeTruthy()
     expect(onStale).toHaveBeenCalledTimes(1)
+  })
+
+  it("shows a retired item as history only", () => {
+    setup({
+      kind: "menu_section",
+      templateKey: null,
+      status: "retired",
+      statusReason: "Retired with the old food menu",
+      setupIssues: [],
+    })
+    expect(screen.getByText("Retired")).toBeTruthy()
+    expect(screen.getByText("Not counted")).toBeTruthy()
+    expect(
+      screen.getByText(
+        "Retired with the old food menu. Its photos stay in Photos and on people's profiles."
+      )
+    ).toBeTruthy()
+    expect(screen.queryByText("Setup")).toBeNull()
+    expect(screen.queryByRole("button", { name: /Save/ })).toBeNull()
   })
 
   it("lets manager-created items be retired but never menu sections", () => {
@@ -473,27 +636,59 @@ describe("AmenityFactForm", () => {
   })
 })
 
-describe("AssigneePicker", () => {
-  it("treats teams as suggestions and saves the full set", async () => {
-    const user = userEvent.setup()
-    const onSave = vi.fn(async () => ({ ok: true as const }))
+describe("AmenityFactsSection", () => {
+  it("keeps facts apart from photos and says who confirmed them", () => {
     render(
-      <AssigneePicker
-        requirement={requirement({ status: "active" })}
-        roster={[
-          person(),
-          person({ id: "p-boh", displayName: "TEST Kim", department: "boh" }),
-          person({ id: "p-none", displayName: "TEST Lee", department: null }),
-        ]}
-        onSave={onSave}
+      <AmenityFactsSection
+        requirement={requirement({
+          kind: "amenity",
+          amenity: { presence: "present", confirmed: true },
+        })}
+        fact={amenityFact({
+          presence: "present",
+          confirmed: true,
+          confirmedBy: { id: MANAGER_ID, displayName: "TEST Anil" },
+          confirmedAt: "2026-10-28T10:00:00.000Z",
+        })}
+        viewerId={MANAGER_ID}
+        form={<p>Form</p>}
       />
     )
-    expect(screen.getByText(/only suggest who to assign/)).toBeTruthy()
-    expect(screen.getByText(/· suggested/)).toBeTruthy()
-    await user.click(screen.getByRole("checkbox", { name: /TEST Kim/ }))
-    await user.click(screen.getByRole("checkbox", { name: /TEST Sam/ }))
-    await user.click(screen.getByRole("button", { name: "Save assignees" }))
-    expect(onSave).toHaveBeenCalledWith(["p-boh", STAFF_ID])
+    expect(screen.getByText("Present")).toBeTruthy()
+    expect(screen.getByText("Confirmed by you · 28 Oct 2026")).toBeTruthy()
+    expect(
+      screen.getByText(
+        "A photo never proves a claim. Facts are recorded separately, by you."
+      )
+    ).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Record facts" })).toBeTruthy()
+  })
+
+  it("says needs verification blocks confirming the item", async () => {
+    const user = userEvent.setup()
+    render(
+      <AmenityFactsSection
+        requirement={requirement({
+          kind: "amenity",
+          title: "Accessible toilet",
+          amenity: { presence: "unknown", confirmed: false },
+        })}
+        fact={amenityFact()}
+        viewerId={MANAGER_ID}
+        form={<p>The facts form</p>}
+      />
+    )
+    expect(
+      screen.getByText(
+        "Needs verification blocks confirming this item. Record whether it is present."
+      )
+    ).toBeTruthy()
+    expect(screen.getByText("Not confirmed yet")).toBeTruthy()
+    await user.click(screen.getByRole("button", { name: "Record facts" }))
+    const dialog = await screen.findByRole("dialog", {
+      name: "Accessible toilet facts",
+    })
+    expect(within(dialog).getByText("The facts form")).toBeTruthy()
   })
 })
 
@@ -501,9 +696,9 @@ describe("unsaved edits survive a refresh", () => {
   it("keeps an assignee choice when the page re-renders with the same saved set", async () => {
     const user = userEvent.setup()
     const roster = [person(), person({ id: "p-2", displayName: "TEST Kim" })]
-    const props = { roster, onSave: vi.fn() }
+    const props = { roster, onUpdate: vi.fn(), onSetStatus: vi.fn(), onSetAssignees: vi.fn() }
     const { rerender } = render(
-      <AssigneePicker
+      <RequirementSetup
         requirement={requirement({ status: "active" })}
         {...props}
       />
@@ -511,7 +706,7 @@ describe("unsaved edits survive a refresh", () => {
     await user.click(screen.getByRole("checkbox", { name: /TEST Kim/ }))
     // A Server Action response re-renders the page with new, equal props.
     rerender(
-      <AssigneePicker
+      <RequirementSetup
         requirement={requirement({ status: "active" })}
         {...props}
       />
@@ -520,10 +715,9 @@ describe("unsaved edits survive a refresh", () => {
       (screen.getByRole("checkbox", { name: /TEST Kim/ }) as HTMLInputElement)
         .checked
     ).toBe(true)
-    expect(screen.getByText("1 person selected")).toBeTruthy()
     // A changed saved set (someone else saved) replaces the choice.
     rerender(
-      <AssigneePicker
+      <RequirementSetup
         requirement={requirement({ status: "active", assigneeIds: [STAFF_ID] })}
         {...props}
       />
@@ -544,10 +738,10 @@ describe("unsaved edits survive a refresh", () => {
     const { rerender } = render(
       <RequirementSetup requirement={requirement()} {...handlers} />
     )
-    await user.type(screen.getByLabelText("Guidance for staff"), "Wide shot")
+    await user.type(screen.getByLabelText(/^Guidance/), "Wide shot")
     rerender(<RequirementSetup requirement={requirement()} {...handlers} />)
     expect(
-      (screen.getByLabelText("Guidance for staff") as HTMLTextAreaElement).value
+      (screen.getByLabelText(/^Guidance/) as HTMLTextAreaElement).value
     ).toBe("Wide shot")
     rerender(
       <RequirementSetup
@@ -556,7 +750,7 @@ describe("unsaved edits survive a refresh", () => {
       />
     )
     expect(
-      (screen.getByLabelText("Guidance for staff") as HTMLTextAreaElement).value
+      (screen.getByLabelText(/^Guidance/) as HTMLTextAreaElement).value
     ).toBe("Saved elsewhere")
   })
 })

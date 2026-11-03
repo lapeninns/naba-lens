@@ -1,22 +1,24 @@
 import Link from "next/link"
 
 import {
-  PhotoProgress,
-  REQUIREMENT_KIND_SINGULAR,
-  labelFor,
+  CoverageSection,
+  Frames,
   manageHrefs,
+  monthName,
 } from "@/components/nabalens/coverage"
+import { Notice } from "@/components/nabalens/notice"
 import {
   getVenueRequirement,
   getVenueRoster,
   listAmenityFacts,
   listReviewQueue,
 } from "@/lib/server/coverage"
+import { periodKeyOf } from "@/lib/server/coverage/time"
+import type { RequirementView } from "@/lib/server/coverage/types"
 
 import { type ManageContext } from "../context"
 import {
   AmenityFactControl,
-  AssigneeControl,
   AttachPhotosControl,
   RequirementSetupControl,
   ReviewQueueControl,
@@ -24,6 +26,30 @@ import {
 import { ManageFrame } from "../frame"
 
 import { failed } from "./common"
+
+const KIND_WORD: Record<RequirementView["kind"], string> = {
+  amenity: "Amenity",
+  venue_specific: "Venue-specific",
+  service: "Venue or service area",
+  menu_section: "Menu section",
+}
+
+/** The kind, then whether and where the item counts. */
+function itemSummary(requirement: RequirementView, venueName: string): string {
+  const kind = KIND_WORD[requirement.kind]
+  const menuPlan = requirement.menuSection?.menuPlanStatus ?? null
+  if (
+    requirement.menuSection &&
+    (requirement.status === "retired" || menuPlan === "superseded")
+  ) {
+    const menu = requirement.menuSection.sectionKind
+    return `${kind} · from the retired ${menu ? `${menu} ` : ""}menu.`
+  }
+  if (requirement.status === "not_applicable")
+    return `${kind} · not counted while it doesn't apply.`
+  if (requirement.status === "retired") return `${kind} · retired, not counted.`
+  return `${kind} · counted on ${venueName}'s checklist, not toward anyone's target.`
+}
 
 export async function RequirementScreen({
   ctx,
@@ -66,100 +92,102 @@ export async function RequirementScreen({
   const supporting = evidence.items
     .filter((s) => s.state === "accepted" && s.asset.available)
     .map((s) => s.asset)
-  const open =
-    requirement.status === "active" || requirement.status === "needs_setup"
   const menuPlan = requirement.menuSection?.menuPlanStatus ?? null
   const historyOnly =
     requirement.status === "retired" || menuPlan === "superseded"
+  const applicable =
+    requirement.status === "active" || requirement.status === "needs_setup"
+  const { progress } = requirement
+  const toTake = Math.max(0, progress.target - progress.accepted - progress.pending)
+
+  const photos = (
+    <CoverageSection title="Photos" id="item-photos">
+      {applicable && !historyOnly ? (
+        <div className="grid gap-2">
+          <Frames
+            accepted={progress.accepted}
+            target={progress.target}
+            pending={progress.pending}
+          />
+          {progress.pending > 0 || toTake > 0 ? (
+            <p
+              aria-hidden
+              className="flex flex-wrap gap-x-4 gap-y-1 text-meta-touch text-ink-muted md:text-meta"
+            >
+              {progress.pending > 0 ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <i className="inline-block h-2 w-4 rounded-print border-[1.5px] border-dashed border-ink-muted" />
+                  {progress.pending} waiting for review
+                </span>
+              ) : null}
+              {toTake > 0 ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <i className="inline-block h-2 w-4 rounded-print border border-line-control" />
+                  {toTake} to take
+                </span>
+              ) : null}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+      <ReviewQueueControl
+        initial={evidence}
+        viewerId={ctx.viewerId}
+        venueId={ctx.venueId}
+        filter={{ requirementId, state: "all", newestFirst: true }}
+        emptyTitle="No photos sent for this item yet."
+      />
+      {requirement.isCurrent ? (
+        <div>
+          <AttachPhotosControl
+            requirementId={requirement.id}
+            requirementTitle={requirement.title}
+            viewerId={ctx.viewerId}
+            venueId={ctx.venueId}
+          />
+        </div>
+      ) : null}
+    </CoverageSection>
+  )
 
   return (
     <ManageFrame
       ctx={ctx}
       section="checklist"
       title={requirement.title}
-      summary={[
-        labelFor(REQUIREMENT_KIND_SINGULAR, requirement.kind),
-        requirement.menuSection
-          ? `from the “${requirement.menuSection.sectionName}” section`
-          : null,
-        requirement.due?.label ?? null,
-      ]
-        .filter(Boolean)
-        .join(" · ")}
-
+      summary={itemSummary(requirement, ctx.venue.name)}
     >
-      <section aria-labelledby="progress-title" className="grid gap-2">
-        <h2 id="progress-title" className="sr-only">
-          Progress
-        </h2>
-        {requirement.status === "active" ? (
-          <PhotoProgress
-            accepted={requirement.progress.accepted}
-            target={requirement.photoTarget}
-            pending={requirement.progress.pending}
-            className="max-w-sm"
-          />
-        ) : null}
-        {requirement.guidance ? (
-          <p className="max-w-prose text-sm whitespace-pre-line">
-            {requirement.guidance}
-          </p>
-        ) : null}
-        {menuPlan === "superseded" ? (
-          <p className="text-sm text-warning">
-            This section belongs to the previous menu. Carry its photos over on
-            the{" "}
-            <Link href={hrefs.menu} className="underline underline-offset-3">
-              Menu
-            </Link>{" "}
-            page.
-          </p>
-        ) : null}
-      </section>
-
-      {historyOnly ? null : (
-        <RequirementSetupControl requirement={requirement} />
-      )}
-
-      {isAmenity && fact && !historyOnly ? (
-        <AmenityFactControl
-          fact={fact}
-          candidates={supporting}
-          venueId={ctx.venueId}
-        />
-      ) : null}
-
-      {open && !historyOnly ? (
-        <AssigneeControl requirement={requirement} roster={people} />
-      ) : null}
-
-      <section aria-labelledby="evidence-title" className="grid gap-3">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <h2 id="evidence-title" className="text-lg font-medium">
-            Photos
-          </h2>
-          {requirement.isCurrent ? (
-            <AttachPhotosControl
-              requirementId={requirement.id}
-              requirementTitle={requirement.title}
+      <RequirementSetupControl
+        requirement={requirement}
+        roster={people}
+        venueName={ctx.venue.name}
+        month={monthName(periodKeyOf(new Date()))}
+        readOnly={historyOnly}
+        facts={
+          isAmenity ? (
+            <AmenityFactControl
+              requirement={requirement}
+              fact={fact}
+              candidates={supporting}
               viewerId={ctx.viewerId}
               venueId={ctx.venueId}
             />
-          ) : null}
-        </div>
-        <ReviewQueueControl
-          initial={evidence}
-          viewerId={ctx.viewerId}
-          venueId={ctx.venueId}
-          filter={{ requirementId, state: "all", newestFirst: true }}
-          emptyTitle="No photos yet."
-          emptyDescription={
-            requirement.isCurrent
-              ? "Assigned staff submit photos from Home, or attach existing venue photos here."
-              : "Photos can be added once this item is confirmed."
-          }
-        />
-      </section>
+          ) : undefined
+        }
+        notice={
+          menuPlan === "superseded" && requirement.status !== "retired" ? (
+            <Notice>
+              This section belongs to the previous menu. Carry its photos over
+              on the{" "}
+              <Link href={hrefs.menu} className="underline underline-offset-3">
+                Menu
+              </Link>{" "}
+              page.
+            </Notice>
+          ) : undefined
+        }
+        photos={photos}
+      />
     </ManageFrame>
   )
 }

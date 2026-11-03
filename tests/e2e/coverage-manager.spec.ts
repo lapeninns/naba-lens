@@ -442,7 +442,7 @@ test.describe("coverage: manager and admin journeys (WS5)", () => {
     // A prepared service item: confirm, assign, attach an existing photo.
     const serviceId = await openItem("Venue and service areas")
     expect(status(serviceId)).toBe("needs_setup")
-    await manager.getByRole("button", { name: /^Confirm: applies/ }).click()
+    await manager.getByRole("button", { name: "Save and confirm" }).click()
     await expect(
       manager.getByText(/It now counts toward venue coverage\.$/)
     ).toBeVisible()
@@ -450,7 +450,7 @@ test.describe("coverage: manager and admin journeys (WS5)", () => {
     await manager
       .getByRole("checkbox", { name: new RegExp(escape(w.staffB.name)) })
       .check()
-    await manager.getByRole("button", { name: "Save assignees" }).click()
+    await manager.getByRole("button", { name: "Save changes" }).click()
     await expect(manager.getByText("Saved. 1 person assigned.")).toBeVisible()
     expect(
       psql(
@@ -481,22 +481,21 @@ test.describe("coverage: manager and admin journeys (WS5)", () => {
 
     // An amenity with unknown presence cannot be confirmed until it is checked.
     const amenityId = await openItem("Amenities")
-    const confirm = manager.getByRole("button", { name: /^Confirm: applies/ })
+    const confirm = manager.getByRole("button", { name: "Save and confirm" })
     await expect(confirm).toBeDisabled()
     await expect(
-      manager.getByText(
-        "Needs verification: record whether it is present (amenity facts below) first.",
-        { exact: false }
-      )
+      manager.getByText("Can't confirm yet: Needs verification.")
     ).toBeVisible()
-    await manager.getByRole("radio", { name: /^Present/ }).check()
-    await manager
+    await manager.getByRole("button", { name: "Record facts" }).click()
+    const facts = manager.getByRole("dialog")
+    await facts.getByRole("radio", { name: /^Present/ }).check()
+    await facts
       .getByRole("checkbox", { name: /I have checked this at the venue/ })
       .check()
-    await manager.getByRole("button", { name: "Save and confirm" }).click()
-    await expect(
-      manager.getByText("Saved and confirmed: present.")
-    ).toBeVisible()
+    await facts.getByRole("button", { name: "Save and confirm" }).click()
+    await expect(facts.getByText("Saved and confirmed: present.")).toBeVisible()
+    await manager.keyboard.press("Escape")
+    await expect(facts).toBeHidden()
     await expect(confirm).toBeEnabled()
     expect(
       psql(
