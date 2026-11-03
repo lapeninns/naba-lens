@@ -528,7 +528,10 @@ describe("AmenityFactForm", () => {
     expect(
       screen.getByText("Saved with the facts. Admins can see it.")
     ).toBeTruthy()
-    expect(screen.queryByRole("checkbox")).toBeNull()
+    const check = screen.getByRole("checkbox", {
+      name: /I have checked this at the venue/,
+    })
+    expect(check.hasAttribute("disabled")).toBe(true)
 
     await user.click(screen.getByRole("button", { name: "Save facts" }))
     expect(onSave.mock.calls[0]).toEqual([
@@ -542,6 +545,22 @@ describe("AmenityFactForm", () => {
       )
     ).toBeTruthy()
     await user.click(screen.getByRole("radio", { name: "Present" }))
+    expect(check.hasAttribute("disabled")).toBe(false)
+    expect((check as HTMLInputElement).checked).toBe(false)
+    expect(
+      screen.getByText(
+        "Present, not checked yet. The item can be confirmed once you have checked it."
+      )
+    ).toBeTruthy()
+    await user.click(screen.getByRole("button", { name: "Save facts" }))
+    expect(onSave).toHaveBeenLastCalledWith(
+      expect.objectContaining({ presence: "present", confirm: false })
+    )
+    expect(
+      await screen.findByText("Facts saved: Present, not checked yet.")
+    ).toBeTruthy()
+
+    await user.click(check)
     expect(
       screen.getByText(
         "Recorded as present by you. You can then confirm the item."
@@ -570,6 +589,27 @@ describe("AmenityFactForm", () => {
         "Facts saved: Present. You can confirm the item now."
       )
     ).toBeTruthy()
+  })
+
+  it("unticks the check when the fact goes back to needs verification", async () => {
+    const user = userEvent.setup()
+    const onSave = vi.fn(async () => ok(1))
+    render(
+      <AmenityFactForm fact={amenityFact()} candidates={[]} onSave={onSave} />
+    )
+    await user.click(screen.getByRole("radio", { name: "Not present" }))
+    const check = screen.getByRole("checkbox", {
+      name: /I have checked this at the venue/,
+    }) as HTMLInputElement
+    await user.click(check)
+    expect(check.checked).toBe(true)
+    await user.click(screen.getByRole("radio", { name: "Needs verification" }))
+    expect(check.checked).toBe(false)
+    expect(check.disabled).toBe(true)
+    await user.click(screen.getByRole("button", { name: "Save facts" }))
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ presence: "unknown", confirm: false })
+    )
   })
 
   it("moves through the fact choices with the arrow keys", async () => {
@@ -631,6 +671,9 @@ describe("AmenityFactForm", () => {
       />
     )
     await user.click(screen.getByRole("radio", { name: "Present" }))
+    await user.click(
+      screen.getByRole("checkbox", { name: /I have checked this at the venue/ })
+    )
     await user.click(screen.getByRole("button", { name: "Save facts" }))
     expect(onSaved).toHaveBeenCalledWith(
       "Facts saved: Present. You can confirm the item now."

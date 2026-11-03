@@ -105,9 +105,7 @@ async function reviewJourney(
 
   // Accept a colleague's photo.
   await card(w.staffB).getByRole("button", { name: "Accept" }).click()
-  await expect(
-    manager.getByText(/^Accepted\. It counts for /)
-  ).toBeVisible()
+  await expect(manager.getByText(/^Accepted\. It counts for /)).toBeVisible()
   expect(itemState(items[w.staffB.id]!)).toBe("accepted:false")
 
   // "Needs another photo" needs a reason; without one nothing is saved.
@@ -489,6 +487,9 @@ test.describe("coverage: manager and admin journeys (WS5)", () => {
     await manager.getByRole("button", { name: "Record facts" }).click()
     const facts = manager.getByRole("dialog")
     await facts.getByRole("radio", { name: /^Present/ }).click()
+    await facts
+      .getByRole("checkbox", { name: /I have checked this at the venue/ })
+      .check()
     await facts.getByRole("button", { name: "Save facts" }).click()
     await expect(
       manager.getByText("Facts saved: Present. You can confirm the item now.")

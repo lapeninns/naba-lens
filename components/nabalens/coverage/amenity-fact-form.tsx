@@ -41,9 +41,23 @@ const PRESENCE_NOTE: Record<AmenityPresence, string> = {
     "While it needs verification, the item can't be confirmed. Staff can still send photos.",
 }
 
+const UNCHECKED_PRESENT_NOTE =
+  "Present, not checked yet. The item can be confirmed once you have checked it."
+
+function presenceNote(presence: AmenityPresence, checked: boolean): string {
+  return presence === "present" && !checked
+    ? UNCHECKED_PRESENT_NOTE
+    : PRESENCE_NOTE[presence]
+}
+
 /** "Facts saved: Present. You can confirm the item now." */
-export function factsSavedText(presence: AmenityPresence): string {
+export function factsSavedText(
+  presence: AmenityPresence,
+  checked: boolean
+): string {
   const word = labelFor(PRESENCE_LABEL, presence)
+  if (presence === "unknown") return `Facts saved: ${word}.`
+  if (!checked) return `Facts saved: ${word}, not checked yet.`
   return presence === "present"
     ? `Facts saved: ${word}. You can confirm the item now.`
     : `Facts saved: ${word}.`
@@ -53,6 +67,7 @@ type Draft = {
   presence: AmenityPresence
   facts: string
   policy: string
+  confirm: boolean
   assetIds: string[]
 }
 
@@ -70,6 +85,7 @@ function draftOf(fact: AmenityFactView): Draft {
     presence: fact.presence,
     facts: fact.facts ?? "",
     policy: fact.policy ?? "",
+    confirm: fact.confirmed,
     assetIds: fact.supportingAssets.map((a) => a.id),
   }
 }
@@ -138,10 +154,10 @@ function FactChoice({
 
 /**
  * Venue facts for one amenity: present, not present or needs verification,
- * what was checked, policy wording and optional supporting photos. Saving a
- * known presence records the viewer as the person who checked it, today;
- * needs verification is never confirmed and keeps the item from being
- * confirmed. Inside the facts dialog, `onCancel` adds Cancel and `onSaved`
+ * what was checked, policy wording and optional supporting photos. Ticking
+ * "I have checked this at the venue" records the viewer as the person who
+ * checked it, today; needs verification can never be ticked and keeps the
+ * item from being confirmed. Inside the facts dialog, `onCancel` adds Cancel and `onSaved`
  * closes the dialog with the saved text instead of showing it here.
  */
 export function AmenityFactForm({
@@ -187,7 +203,11 @@ export function AmenityFactForm({
   }, [fact.supportingAssets, candidates])
 
   function set<K extends keyof Draft>(key: K, value: Draft[K]) {
-    setDraft((current) => ({ ...current, [key]: value }))
+    setDraft((current) => {
+      const next = { ...current, [key]: value }
+      if (next.presence === "unknown") next.confirm = false
+      return next
+    })
   }
 
   function toggleAsset(id: string) {
@@ -212,12 +232,13 @@ export function AmenityFactForm({
     setRefused({})
     if (Object.keys(found).length > 0) return
     const presence = draft.presence
+    const confirm = draft.confirm && presence !== "unknown"
     const linkedIds = fact.supportingAssets.map((a) => a.id)
     // The database checks only photos added since the last save, so a photo
     // refusal is always about one of these, never a linked photo.
     const added = draft.assetIds.filter((id) => !linkedIds.includes(id))
     const photosChanged = !sameIds(draft.assetIds, linkedIds)
-    const saved = factsSavedText(presence)
+    const saved = factsSavedText(presence, confirm)
     const result = await action.run(
       () =>
         onSave({
@@ -226,7 +247,7 @@ export function AmenityFactForm({
           presence,
           facts: draft.facts.trim() || null,
           policy: draft.policy.trim() || null,
-          confirm: presence !== "unknown",
+          confirm,
           supportingAssetIds: photosChanged ? draft.assetIds : null,
         }),
       saved
@@ -383,7 +404,30 @@ export function AmenityFactForm({
           ) : null}
         </fieldset>
       ) : null}
-      <p className={MUTED}>{PRESENCE_NOTE[draft.presence]}</p>
+      <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-control px-2 py-2 hover:bg-fill-hover has-disabled:cursor-not-allowed has-disabled:hover:bg-transparent">
+        <input
+          type="checkbox"
+          checked={draft.confirm}
+          onChange={(e) => set("confirm", e.currentTarget.checked)}
+          disabled={action.pending || draft.presence === "unknown"}
+          aria-describedby={`${ids}-confirm-help`}
+          className="mt-0.5 size-4 shrink-0 accent-primary"
+        />
+        <span className="grid min-w-0 gap-0.5">
+          <span className="text-label-touch text-ink md:text-label">
+            I have checked this at the venue
+          </span>
+          <span
+            id={`${ids}-confirm-help`}
+            className="text-meta-touch text-ink-muted md:text-meta"
+          >
+            {draft.presence === "unknown"
+              ? "Needs verification can't be checked. Choose Present or Not present first."
+              : "Records you as the person who checked it, with today’s date."}
+          </span>
+        </span>
+      </label>
+      <p className={MUTED}>{presenceNote(draft.presence, draft.confirm)}</p>
       <p className={MUTED}>
         A photo never proves a claim. Record what you have checked yourself.{" "}
         {lastConfirmed(fact)}
