@@ -1,6 +1,6 @@
 "use client"
 
-import { CheckCircleIcon } from "@phosphor-icons/react"
+import { CheckCircleIcon, ProhibitIcon } from "@phosphor-icons/react"
 
 import { cn } from "@/lib/utils"
 
@@ -33,11 +33,6 @@ export function PhotoPicker({
   const full = selected.length >= maxSelected
   return (
     <div className="flex flex-col gap-2">
-      {full ? (
-        <p className="text-sm text-muted-foreground" role="status">
-          You can send up to {maxSelected} photos at a time.
-        </p>
-      ) : null}
       <ul
         aria-label="Your photos"
         className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6"
@@ -100,11 +95,14 @@ export function PhotoPicker({
               {note ? (
                 <p
                   id={noteId}
-                  className={cn(
-                    "text-xs break-words",
-                    eligible ? "text-muted-foreground" : "text-foreground"
-                  )}
+                  className="flex items-start gap-1 text-meta-touch break-words text-ink-muted md:text-meta"
                 >
+                  {eligible ? null : (
+                    <ProhibitIcon
+                      className="mt-0.5 size-3.5 shrink-0"
+                      aria-hidden
+                    />
+                  )}
                   {note}
                 </p>
               ) : null}

@@ -21,11 +21,15 @@ import { MEDIA_LIMITS } from "@/lib/config/media"
  */
 export function TaskSubmit({
   requirementId,
+  taskTitle,
+  venueName,
   replacesSubmissionId,
   reviewerName,
   initialPhotos,
 }: {
   requirementId: string | null
+  taskTitle?: string | null
+  venueName?: string | null
   replacesSubmissionId: string | null
   reviewerName?: string | null
   initialPhotos: SubmittablePhotosResult
@@ -35,6 +39,8 @@ export function TaskSubmit({
   return (
     <SubmitPhotosPanel
       requirementId={requirementId}
+      taskTitle={taskTitle}
+      venueName={venueName}
       replacesSubmissionId={replacesSubmissionId}
       reviewerName={reviewerName}
       initialPhotos={initialPhotos}

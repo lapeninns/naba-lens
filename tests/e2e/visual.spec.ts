@@ -1229,7 +1229,7 @@ test("coverage: staff Home, a task, its send dialog and the month", async ({
     page.getByText("The photos you send now replace this one.")
   ).toBeVisible()
   await capture(page, testInfo, "coverage-staff-task-replacement")
-  const send = page.getByRole("button", { name: "Take or upload photos" })
+  const send = page.getByRole("button", { name: "Take a photo" })
   const dialog = page.getByRole("dialog")
   await send.click()
   await expect(dialog).toBeVisible()
