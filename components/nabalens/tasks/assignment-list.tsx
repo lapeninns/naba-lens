@@ -19,7 +19,7 @@ export function SharedProgress({
     <div className="flex flex-col gap-1.5">
       {progress.target ? (
         <>
-          <p className="text-sm">
+          <p className="text-body-touch md:text-body-sm">
             <span className="font-medium tabular-nums">
               {progress.accepted} of {progress.target}
             </span>{" "}
@@ -37,7 +37,7 @@ export function SharedProgress({
           />
         </>
       ) : null}
-      <p className="text-sm text-muted-foreground">
+      <p className="text-meta-touch text-ink-muted md:text-meta">
         You: {assignment.myAccepted} accepted · {assignment.myPending} waiting
         for review
       </p>
@@ -45,7 +45,21 @@ export function SharedProgress({
   )
 }
 
-/** Tasks assigned to me, overdue first (service order). */
+/** Overdue first, then due soonest (no due date last), complete tasks at the end. */
+export function sortByUrgency(assignments: MyAssignment[]): MyAssignment[] {
+  const rank = (a: MyAssignment) => {
+    const { progress, due } = a.requirement
+    if (progress.satisfied) return 2
+    return progress.overdue || due?.overdue ? 0 : 1
+  }
+  const dueAt = (a: MyAssignment) =>
+    a.requirement.due ? new Date(a.requirement.due.dueAt).getTime() : Infinity
+  return [...assignments].sort(
+    (a, b) => rank(a) - rank(b) || dueAt(a) - dueAt(b)
+  )
+}
+
+/** Tasks assigned to me, most urgent first. */
 export function AssignmentList({
   assignments,
   tasksPath,
@@ -58,7 +72,7 @@ export function AssignmentList({
 }) {
   return (
     <ul aria-label="Assigned tasks" className="grid gap-3 sm:grid-cols-2">
-      {assignments.map((assignment) => {
+      {sortByUrgency(assignments).map((assignment) => {
         const { requirement } = assignment
         const satisfied = requirement.progress.satisfied
         return (
@@ -74,7 +88,7 @@ export function AssignmentList({
                 <StatusChip tone="positive">Complete</StatusChip>
               ) : null}
               {!requirement.isCurrent ? (
-                <StatusChip tone="muted">Closed to new photos</StatusChip>
+                <StatusChip tone="muted">Closed</StatusChip>
               ) : null}
               {needsAnotherPhoto.has(requirement.id) ? (
                 <StatusChip tone="warning">Needs another photo</StatusChip>
@@ -94,7 +108,7 @@ export function AssignmentList({
               {requirement.due ? (
                 <DueLine due={requirement.due} done={satisfied} />
               ) : (
-                <span className="text-sm text-muted-foreground">
+                <span className="text-meta-touch text-ink-muted md:text-meta">
                   No due date
                 </span>
               )}

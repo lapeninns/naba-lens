@@ -13,7 +13,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {} }))
 
 import { deleteMedia } from "@/app/_media/actions"
 import AdminLayout from "@/app/admin/layout"
-import AdminPage from "@/app/admin/page"
+import AdminPage from "@/app/admin/(content)/page"
 import { loadLibraryPage } from "@/app/admin/library-actions"
 import StaffDirectoryPage from "@/app/admin/staff/page"
 import StaffPortfolioPage from "@/app/admin/staff/[id]/page"
@@ -34,6 +34,7 @@ import BlockedPage from "@/app/auth/blocked/page"
 import LoginPage from "@/app/login/page"
 import RootPage from "@/app/page"
 import { finaliseUpload, loadMyMedia, reserveUpload } from "@/app/staff/actions"
+import { AddHost } from "@/app/staff/_shell/add-host"
 import StaffLayout from "@/app/staff/layout"
 import StaffPage from "@/app/staff/page"
 import { getAuthState } from "@/lib/auth"
@@ -377,7 +378,7 @@ describe("inactive admin with a still-valid session", () => {
 
 describe("segment layouts reject before anything renders (privacy R3)", () => {
   const children = "CHILD"
-  it("admin layout sends staff to My tasks and lets admins through", async () => {
+  it("admin layout sends staff to Home and lets admins through", async () => {
     expect(
       (
         await staff.browser.run(() =>
@@ -408,7 +409,7 @@ describe("segment layouts reject before anything renders (privacy R3)", () => {
           redirectOf(() => StaffLayout({ children }))
         )
       ).value
-    ).toBe(children)
+    ).toMatchObject({ type: AddHost, props: { children } })
   })
 
   it("signed-out browsers go to /login from both", async () => {
@@ -443,7 +444,7 @@ describe("signed-in account without a profile", () => {
     }
     const blocked = await run(() => redirectOf(BlockedPage))
     expect(blocked.location).toBeNull()
-    expect(textOf(blocked.value)).toContain("not linked to an active")
+    expect(textOf(blocked.value)).toContain("isn't linked to an active")
   })
 
   it("gets no data from Server Functions, routes or the Data API", async () => {

@@ -34,13 +34,23 @@ export function LabelSummary({
 }) {
   if (!labels || isEmptyLabelSummary(labels)) {
     return (
-      <p className={cn("text-sm text-muted-foreground", className)}>
+      <p
+        className={cn(
+          "text-body-touch text-ink-muted md:text-body-sm",
+          className
+        )}
+      >
         No labels yet
       </p>
     )
   }
   return (
-    <div className={cn("grid min-w-0 gap-2 text-sm", className)}>
+    <div
+      className={cn(
+        "grid min-w-0 gap-2 text-body-touch text-ink md:text-body-sm",
+        className
+      )}
+    >
       {labels.items.length > 0 ? (
         <ul aria-label="Menu items" className="grid gap-1">
           {labels.items.map((item) => (
@@ -48,21 +58,18 @@ export function LabelSummary({
               key={`${item.itemId}:${item.variantId ?? ""}`}
               className="min-w-0 break-words"
             >
-              <span className="font-medium">{item.name}</span>
+              <span className="font-semibold">{item.name}</span>
               {item.variantName ? <span>, {item.variantName}</span> : null}
               {item.sectionName ? (
-                <span className="text-muted-foreground">
-                  {" "}
-                  · {item.sectionName}
-                </span>
+                <span className="text-ink-muted"> · {item.sectionName}</span>
               ) : null}
               {item.state !== "current" ? (
-                <span className="ml-1.5 inline-flex h-5 items-center rounded-sm bg-muted px-1.5 align-middle text-xs font-medium text-muted-foreground">
+                <span className="ms-1.5 inline-flex min-h-5 items-center rounded-chip bg-well px-1.5 align-middle text-chip-touch text-ink-muted md:text-chip">
                   {ITEM_STATE_TEXT[item.state]}
                 </span>
               ) : null}
               {item.labelledAs ? (
-                <span className="block text-xs text-muted-foreground">
+                <span className="block text-meta-touch text-ink-muted md:text-meta">
                   labelled as {item.labelledAs}
                 </span>
               ) : null}
@@ -75,7 +82,7 @@ export function LabelSummary({
           {labels.contentTypes.map((type) => (
             <li
               key={type}
-              className="inline-flex h-6 items-center rounded-md border px-2 text-xs font-medium"
+              className="inline-flex min-h-7 items-center rounded-control border border-line-control px-2 text-chip-touch md:min-h-6 md:text-chip"
             >
               {CONTENT_TYPE_LABELS[type]}
             </li>
@@ -89,10 +96,10 @@ export function LabelSummary({
         </p>
       ) : null}
       {labels.missingItem ? (
-        <p className="break-words text-muted-foreground">
+        <p className="break-words text-ink-muted">
           Suggested missing item:{" "}
-          <span className="text-foreground">{labels.missingItem}</span> (an
-          admin will review it)
+          <span className="text-ink">{labels.missingItem}</span> (an admin will
+          review it)
         </p>
       ) : null}
     </div>
@@ -126,10 +133,7 @@ export function LabelBadge({
     <span
       data-labelled={labels?.hasLabels || undefined}
       className={cn(
-        "inline-flex h-5 items-center rounded-sm px-1.5 text-xs font-medium whitespace-nowrap",
-        labels?.hasLabels
-          ? "bg-black/70 text-white"
-          : "bg-background/90 text-foreground ring-1 ring-foreground/15",
+        "inline-flex min-h-5.5 items-center gap-1 rounded-chip bg-tile-badge px-1.75 text-chip-touch whitespace-nowrap text-on-tile-badge tabular-nums md:text-chip",
         className
       )}
     >

@@ -6,4 +6,8 @@ export {
   isEmptyLabelSummary,
   ITEM_STATE_TEXT,
 } from "./label-summary"
-export type { CatalogueProp, LabelEditorDialogProps } from "./types"
+export type {
+  CatalogueProp,
+  LabelAudience,
+  LabelEditorDialogProps,
+} from "./types"

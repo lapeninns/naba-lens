@@ -6,7 +6,7 @@ import { provisioner } from "./helpers/stack"
 import {
   openPortfolio,
   portfolioList,
-  tile,
+  staffTile,
   uploadThroughDialog,
 } from "./helpers/ui"
 import { signedInPage } from "./helpers/world"
@@ -84,9 +84,9 @@ test.describe("a hung gallery refresh", () => {
     // aborts in its turn, so keep asking until one gets through.)
     await expect(async () => {
       await page.evaluate(() => window.dispatchEvent(new Event("focus")))
-      await expect(tile(portfolioList(page), "Photo", jpeg.name)).toBeVisible({
-        timeout: 2_000,
-      })
+      await expect(await staffTile(portfolioList(page), jpeg.name)).toBeVisible(
+        { timeout: 2_000 }
+      )
     }).toPass({ timeout: 30_000 })
 
     await page.context().close()

@@ -35,7 +35,7 @@ export function ArchiveItemControl({
   return (
     <>
       <Button
-        variant="outline"
+        variant="secondary"
         size="touch"
         disabled={disabled}
         onClick={() => setOpen(true)}

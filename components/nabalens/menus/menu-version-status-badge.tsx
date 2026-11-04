@@ -1,13 +1,15 @@
 import type { MenuVersionStatus } from "@/lib/menus/types"
 import { cn } from "@/lib/utils"
 
+import { StatusChip, type ChipStateKey } from "../status-chip"
+
 import { MENU_STATUS_DESCRIPTION, MENU_STATUS_LABEL } from "./copy"
 
-const TONE: Record<MenuVersionStatus, string> = {
-  draft: "bg-info-surface text-info",
-  active: "bg-positive-surface text-positive",
-  retired: "bg-muted text-muted-foreground",
-  discarded: "bg-muted text-muted-foreground line-through decoration-1",
+const STATE: Record<MenuVersionStatus, ChipStateKey> = {
+  draft: "draft",
+  active: "active_menu",
+  retired: "retired_menu",
+  discarded: "discarded",
 }
 
 type MenuVersionStatusBadgeProps = {
@@ -24,18 +26,12 @@ export function MenuVersionStatusBadge({
   className,
 }: MenuVersionStatusBadgeProps) {
   const badge = (
-    <span
-      className={cn(
-        "inline-flex h-5 shrink-0 items-center rounded-sm px-1.5 text-xs font-medium",
-        TONE[status],
-        !withDescription && className
-      )}
+    <StatusChip
+      state={STATE[status]}
+      className={cn("shrink-0", !withDescription && className)}
     >
       {MENU_STATUS_LABEL[status]}
-      {status === "active" && !withDescription ? (
-        <span className="sr-only">, available for labelling only</span>
-      ) : null}
-    </span>
+    </StatusChip>
   )
   if (!withDescription) return badge
   return (

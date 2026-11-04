@@ -6,16 +6,25 @@ import { usePathname, useRouter } from "next/navigation"
 import { fetchMediaPage } from "@/app/_media/fetch-page"
 import { MediaGallery } from "@/app/_media/media-gallery"
 import {
+  EMPTY_LIBRARY_FILTERS,
   EmptyState,
   LibraryFilters,
   type LibraryFilterValue,
   type Option,
 } from "@/components/nabalens"
-import type { LibraryMenuOptions } from "@/components/nabalens/library-filters"
-import type { MediaPage } from "@/lib/server/media/types"
+import {
+  describeLibraryFilters,
+  FilterPhrases,
+  widenFiltersHint,
+  type LibraryMenuOptions,
+} from "@/components/nabalens/library-filters"
+import { PageHeader } from "@/components/nabalens/page-header"
+import { Button } from "@/components/ui/button"
 
-import { loadLibraryPage } from "./library-actions"
+import { loadLibraryPage, type LibraryPageResult } from "./library-actions"
 import { filtersToSearch, type LibrarySearchParams } from "./library-search"
+import { LIBRARY_COPY } from "./library-copy"
+import { LibraryErrorBoundary, LibraryGridSkeleton } from "./library-states"
 
 type AdminLibraryProps = {
   venues: Option[]
@@ -23,7 +32,8 @@ type AdminLibraryProps = {
   /** The selected venue's menu choices; null without a venue. */
   menuOptions: LibraryMenuOptions | null
   filters: Required<LibraryFilterValue>
-  initialPage: MediaPage
+  /** The first page, streamed after the header and filters. */
+  initialPage: Promise<LibraryPageResult>
 }
 
 const REFRESH_MS = 15_000
@@ -44,6 +54,95 @@ export function AdminLibrary({
   const [shown, setShown] = React.useOptimistic(filters)
   const search = filtersToSearch(filters)
 
+  function navigate(next: Required<LibraryFilterValue>) {
+    const qs = filtersToSearch(next)
+    startTransition(() => {
+      setShown(next)
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+    })
+  }
+
+  const venueName = filters.venueId
+    ? venues.find((v) => v.id === filters.venueId)?.name
+    : null
+
+  return (
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        venueScope
+        scope={[venueName ?? LIBRARY_COPY.allVenues, LIBRARY_COPY.order]}
+        title={LIBRARY_COPY.title}
+        summary={<p>{LIBRARY_COPY.summary}</p>}
+        className="pb-0 md:pb-0"
+      />
+      <LibraryFilters
+        venues={venues}
+        staff={staff}
+        menuOptions={menuOptions}
+        value={shown}
+        onChange={navigate}
+      />
+      <div aria-busy={pending} className={pending ? "opacity-60" : undefined}>
+        <LibraryErrorBoundary>
+          <React.Suspense fallback={<LibraryGridSkeleton />}>
+            <LibraryResults
+              // New filters mean a new server-rendered first page.
+              key={search}
+              search={search}
+              initialPage={initialPage}
+              empty={
+                search !== "" ? (
+                  <EmptyState
+                    variant="filtered"
+                    title="Nothing matches these filters."
+                    description={
+                      <p>
+                        Showing{" "}
+                        <FilterPhrases
+                          plain
+                          phrases={describeLibraryFilters(filters, {
+                            venues,
+                            staff,
+                            menuOptions,
+                          })}
+                        />
+                        . {widenFiltersHint(filters)}
+                      </p>
+                    }
+                    action={
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="touch"
+                        onClick={() => navigate(EMPTY_LIBRARY_FILTERS)}
+                      >
+                        Clear filters
+                      </Button>
+                    }
+                  />
+                ) : (
+                  <EmptyState title="No uploads yet. New staff uploads appear here automatically." />
+                )
+              }
+            />
+          </React.Suspense>
+        </LibraryErrorBoundary>
+      </div>
+    </div>
+  )
+}
+
+function LibraryResults({
+  search,
+  initialPage,
+  empty,
+}: {
+  search: string
+  initialPage: Promise<LibraryPageResult>
+  empty: React.ReactNode
+}) {
+  const result = React.use(initialPage)
+
   // Load more and the 15-second refresh use this page's filters exactly.
   const params = React.useMemo(
     () =>
@@ -60,54 +159,22 @@ export function AdminLibrary({
     [params]
   )
 
-  const filtered = search !== ""
-
+  if (!result.ok) throw new Error(result.message)
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">Content</h1>
-      </div>
-      <LibraryFilters
-        venues={venues}
-        staff={staff}
-        menuOptions={menuOptions}
-        value={shown}
-        onChange={(next) => {
-          const qs = filtersToSearch(next)
-          startTransition(() => {
-            setShown(next)
-            router.replace(qs ? `${pathname}?${qs}` : pathname, {
-              scroll: false,
-            })
-          })
-        }}
-      />
-      <div aria-busy={pending} className={pending ? "opacity-60" : undefined}>
-        <MediaGallery
-          // New filters mean a new server-rendered first page.
-          key={search}
-          label="Library"
-          canLabel
-          initialPage={initialPage}
-          loadPage={loadPage}
-          refreshPage={refreshPage}
-          showAttribution
-          canDelete
-          refreshIntervalMs={REFRESH_MS}
-          getDownloadHref={(item) => `/api/media/${item.id}/download`}
-          getPortfolioHref={(item) => `/admin/staff/${item.contributorId}`}
-          empty={
-            filtered ? (
-              <EmptyState
-                title="Nothing matches these filters."
-                description="Try a different search, fewer filters or a wider date range. Uploads without labels show under Labels: Needs labels."
-              />
-            ) : (
-              <EmptyState title="No uploads yet. New staff uploads appear here automatically." />
-            )
-          }
-        />
-      </div>
-    </div>
+    <MediaGallery
+      label="Library"
+      canLabel
+      initialPage={result.page}
+      loadPage={loadPage}
+      refreshPage={refreshPage}
+      showAttribution
+      showLabelBadge
+      showFileName
+      canDelete
+      refreshIntervalMs={REFRESH_MS}
+      getDownloadHref={(item) => `/api/media/${item.id}/download`}
+      getPortfolioHref={(item) => `/admin/staff/${item.contributorId}`}
+      empty={empty}
+    />
   )
 }

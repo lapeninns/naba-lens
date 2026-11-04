@@ -6,7 +6,11 @@ if (!['chromium', 'firefox', 'webkit'].includes(browserName)) throw new Error('I
 // The root config's projects, unchanged (device settings, @core filters, Firefox
 // app-data fix), narrowed to the engine this CI job installed: chromium runs the
 // desktop suite and the phone-width project, firefox/webkit the @core journey.
-const projects = (base.projects ?? []).filter(p => (p.name === 'mobile-chromium' ? 'chromium' : p.name) === browserName)
+const projects = (base.projects ?? [])
+  .filter(p => (p.name === 'mobile-chromium' ? 'chromium' : p.name) === browserName)
+  .map(p => p.name === 'webkit' && process.env.CI_WEBKIT_HEADED === '1'
+    ? { ...p, use: { ...p.use, headless: false } }
+    : p)
 if (projects.length === 0) throw new Error(`No root Playwright project for ${browserName}`)
 export default defineConfig({
   ...base,

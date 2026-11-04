@@ -3,6 +3,7 @@
 // Retries after a dropped connection or "unavailable" reuse the ID (the server
 // replays instead of acting twice); conflicts reload; per-photo reasons show.
 import {
+  act,
   cleanup,
   render,
   screen,
@@ -114,6 +115,147 @@ beforeEach(() => window.sessionStorage.clear())
 afterEach(cleanup)
 
 describe("SubmitPhotosPanel", () => {
+  it.each([null, "older"])(
+    "retries a failed global upload refresh from the first page with cursor %s",
+    async (nextCursor) => {
+      const user = userEvent.setup()
+      const loadPhotos = vi
+        .fn<(input: unknown) => Promise<SubmittablePhotosResult>>()
+        .mockRejectedValueOnce(new Error("offline"))
+        .mockResolvedValue(page([B, A]))
+      const panel = (refreshSignal: number) => (
+        <SubmitPhotosPanel
+          requirementId={REQUIREMENT}
+          initialPhotos={page([A], nextCursor)}
+          refreshSignal={refreshSignal}
+          loadPhotos={loadPhotos}
+          submit={vi.fn()}
+          uploader={noUpload}
+          limits={LIMITS}
+          onReload={vi.fn()}
+          signInHref="/login"
+        />
+      )
+      const { rerender } = render(panel(0))
+      await user.click(tile("2 Nov 2026"))
+      rerender(panel(1))
+      await user.click(await screen.findByRole("button", { name: "Try again" }))
+      await waitFor(() => expect(loadPhotos).toHaveBeenCalledTimes(2))
+      expect(loadPhotos).toHaveBeenLastCalledWith({
+        requirementId: REQUIREMENT,
+        cursor: null,
+      })
+      expect(tile("1 Nov 2026")).toBeTruthy()
+      expect(tile("2 Nov 2026").getAttribute("aria-pressed")).toBe("true")
+      expect(screen.queryByRole("button", { name: "Try again" })).toBeNull()
+    }
+  )
+
+  it("retries a failed next page using its pagination cursor", async () => {
+    const loadPhotos = vi
+      .fn<() => Promise<SubmittablePhotosResult>>()
+      .mockResolvedValueOnce({
+        ok: false,
+        code: "unavailable",
+        status: 503,
+        message: "offline",
+      })
+      .mockResolvedValue(page([B]))
+    const { user } = setup({ initial: page([A], "older"), loadPhotos })
+    await user.click(screen.getByRole("button", { name: "Load more" }))
+    await user.click(await screen.findByRole("button", { name: "Try again" }))
+    expect(loadPhotos).toHaveBeenNthCalledWith(2, {
+      requirementId: REQUIREMENT,
+      cursor: "older",
+    })
+    expect(tile("2 Nov 2026")).toBeTruthy()
+    expect(tile("1 Nov 2026")).toBeTruthy()
+  })
+
+  it("coalesces refresh signals behind an active photo read and retains selected older photos", async () => {
+    const user = userEvent.setup()
+    let finishFirst!: (value: SubmittablePhotosResult) => void
+    const loadPhotos = vi
+      .fn<(input: unknown) => Promise<SubmittablePhotosResult>>()
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishFirst = resolve
+          })
+      )
+      .mockResolvedValue(page([C]))
+    const panel = (refreshSignal: number) => (
+      <SubmitPhotosPanel
+        requirementId={REQUIREMENT}
+        initialPhotos={page([A])}
+        refreshSignal={refreshSignal}
+        loadPhotos={loadPhotos}
+        submit={vi.fn()}
+        uploader={noUpload}
+        limits={LIMITS}
+        onReload={vi.fn()}
+        signInHref="/login"
+      />
+    )
+    const { rerender } = render(panel(0))
+    await user.click(tile("2 Nov 2026"))
+    rerender(panel(1))
+    rerender(panel(2))
+    rerender(panel(3))
+    expect(loadPhotos).toHaveBeenCalledTimes(1)
+    await act(async () => finishFirst(page([B])))
+    await waitFor(() => expect(loadPhotos).toHaveBeenCalledTimes(2))
+    expect(tile("30 Oct 2026")).toBeTruthy()
+    expect(tile("2 Nov 2026").getAttribute("aria-pressed")).toBe("true")
+  })
+
+  it("finishes pagination before refreshing after an upload and preserves a newly selected page item", async () => {
+    const user = userEvent.setup()
+    let finishMore!: (value: SubmittablePhotosResult) => void
+    let finishRefresh!: (value: SubmittablePhotosResult) => void
+    const loadPhotos = vi
+      .fn<(input: unknown) => Promise<SubmittablePhotosResult>>()
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishMore = resolve
+          })
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishRefresh = resolve
+          })
+      )
+    const panel = (refreshSignal: number) => (
+      <SubmitPhotosPanel
+        requirementId={REQUIREMENT}
+        initialPhotos={page([A], "older")}
+        refreshSignal={refreshSignal}
+        loadPhotos={loadPhotos}
+        submit={vi.fn()}
+        uploader={noUpload}
+        limits={LIMITS}
+        onReload={vi.fn()}
+        signInHref="/login"
+      />
+    )
+    const { rerender } = render(panel(0))
+    await user.click(screen.getByRole("button", { name: "Load more" }))
+    rerender(panel(1))
+    rerender(panel(2))
+    expect(loadPhotos).toHaveBeenCalledExactlyOnceWith({
+      requirementId: REQUIREMENT,
+      cursor: "older",
+    })
+    await act(async () => finishMore(page([B])))
+    await user.click(tile("1 Nov 2026"))
+    await act(async () => finishRefresh(page([C])))
+    expect(tile("1 Nov 2026").getAttribute("aria-pressed")).toBe("true")
+    expect(tile("30 Oct 2026")).toBeTruthy()
+    expect(loadPhotos).toHaveBeenCalledTimes(2)
+  })
+
   it("sends the selected photos once and explains that sharing is not gated", async () => {
     const { user, submit, loadPhotos } = setup()
     submit.mockResolvedValue(sent(2))
@@ -124,9 +266,7 @@ describe("SubmitPhotosPanel", () => {
     await user.click(tile("2 Nov 2026"))
     await user.click(tile("1 Nov 2026"))
     expect(tile("2 Nov 2026").getAttribute("aria-pressed")).toBe("true")
-    await user.click(
-      screen.getByRole("button", { name: "Send 2 photos for review" })
-    )
+    await user.click(screen.getByRole("button", { name: "Send 2 photos" }))
 
     expect(submit).toHaveBeenCalledTimes(1)
     const input = submit.mock.calls[0][0]
@@ -154,9 +294,7 @@ describe("SubmitPhotosPanel", () => {
       .mockRejectedValueOnce(new TypeError("Failed to fetch"))
       .mockResolvedValueOnce(sent(1))
     await user.click(tile("2 Nov 2026"))
-    await user.click(
-      screen.getByRole("button", { name: "Send 1 photo for review" })
-    )
+    await user.click(screen.getByRole("button", { name: "Send 1 photo" }))
     const alert = await screen.findByRole("alert")
     expect(alert.textContent).toContain("Nothing is sent twice.")
 
@@ -182,9 +320,7 @@ describe("SubmitPhotosPanel", () => {
       .mockResolvedValueOnce(sent(1))
       .mockResolvedValueOnce(sent(1))
     await user.click(tile("2 Nov 2026"))
-    await user.click(
-      screen.getByRole("button", { name: "Send 1 photo for review" })
-    )
+    await user.click(screen.getByRole("button", { name: "Send 1 photo" }))
     await user.click(
       within(await screen.findByRole("alert")).getByRole("button", {
         name: "Try again",
@@ -193,9 +329,7 @@ describe("SubmitPhotosPanel", () => {
     await screen.findByRole("status")
     // A later intent with the same photo is a new request.
     await user.click(tile("2 Nov 2026"))
-    await user.click(
-      screen.getByRole("button", { name: "Send 1 photo for review" })
-    )
+    await user.click(screen.getByRole("button", { name: "Send 1 photo" }))
     const ids = submit.mock.calls.map((c) => c[0].requestId)
     expect(ids[1]).toBe(ids[0])
     expect(ids[2]).not.toBe(ids[0])
@@ -207,14 +341,10 @@ describe("SubmitPhotosPanel", () => {
       .mockRejectedValueOnce(new Error("offline"))
       .mockResolvedValueOnce(sent(2))
     await user.click(tile("2 Nov 2026"))
-    await user.click(
-      screen.getByRole("button", { name: "Send 1 photo for review" })
-    )
+    await user.click(screen.getByRole("button", { name: "Send 1 photo" }))
     await screen.findByRole("alert")
     await user.click(tile("1 Nov 2026"))
-    await user.click(
-      screen.getByRole("button", { name: "Send 2 photos for review" })
-    )
+    await user.click(screen.getByRole("button", { name: "Send 2 photos" }))
     expect(submit.mock.calls[1][0].requestId).not.toBe(
       submit.mock.calls[0][0].requestId
     )
@@ -224,9 +354,7 @@ describe("SubmitPhotosPanel", () => {
     const first = setup()
     first.submit.mockRejectedValueOnce(new Error("page closed"))
     await first.user.click(tile("2 Nov 2026"))
-    await first.user.click(
-      screen.getByRole("button", { name: "Send 1 photo for review" })
-    )
+    await first.user.click(screen.getByRole("button", { name: "Send 1 photo" }))
     await screen.findByRole("alert")
     const lost = first.submit.mock.calls[0][0].requestId
     cleanup()
@@ -235,7 +363,7 @@ describe("SubmitPhotosPanel", () => {
     second.submit.mockResolvedValueOnce(sent(1, { replayed: true }))
     await second.user.click(tile("2 Nov 2026"))
     await second.user.click(
-      screen.getByRole("button", { name: "Send 1 photo for review" })
+      screen.getByRole("button", { name: "Send 1 photo" })
     )
     expect(second.submit.mock.calls[0][0].requestId).toBe(lost)
     expect((await screen.findByRole("status")).textContent).toContain(
@@ -254,17 +382,13 @@ describe("SubmitPhotosPanel", () => {
       })
       .mockResolvedValueOnce(sent(1))
     await user.click(tile("2 Nov 2026"))
-    await user.click(
-      screen.getByRole("button", { name: "Send 1 photo for review" })
-    )
+    await user.click(screen.getByRole("button", { name: "Send 1 photo" }))
     const alert = await screen.findByRole("alert")
     expect(alert.textContent).toMatch(/This task changed/)
     await user.click(within(alert).getByRole("button", { name: "Reload" }))
     expect(onReload).toHaveBeenCalledTimes(1)
 
-    await user.click(
-      screen.getByRole("button", { name: "Send 1 photo for review" })
-    )
+    await user.click(screen.getByRole("button", { name: "Send 1 photo" }))
     expect(submit.mock.calls[1][0].requestId).not.toBe(
       submit.mock.calls[0][0].requestId
     )
@@ -279,9 +403,7 @@ describe("SubmitPhotosPanel", () => {
       message: "x",
     })
     await user.click(tile("2 Nov 2026"))
-    await user.click(
-      screen.getByRole("button", { name: "Send 1 photo for review" })
-    )
+    await user.click(screen.getByRole("button", { name: "Send 1 photo" }))
     const alert = await screen.findByRole("alert")
     expect(alert.textContent).toMatch(/can't send photos to this task any more/)
     expect(within(alert).getByRole("button", { name: "Reload" })).toBeTruthy()
@@ -297,9 +419,7 @@ describe("SubmitPhotosPanel", () => {
       assetErrors: [{ assetId: A.assetId, reason: "counted_elsewhere" }],
     })
     await user.click(tile("2 Nov 2026"))
-    await user.click(
-      screen.getByRole("button", { name: "Send 1 photo for review" })
-    )
+    await user.click(screen.getByRole("button", { name: "Send 1 photo" }))
     await screen.findByRole("alert")
     expect(
       screen.getByText("Already counting toward another task.")
@@ -313,9 +433,7 @@ describe("SubmitPhotosPanel", () => {
     const { user, submit } = setup({ replacesSubmissionId: original })
     submit.mockResolvedValueOnce(sent(1))
     await user.click(tile("2 Nov 2026"))
-    await user.click(
-      screen.getByRole("button", { name: "Send 1 photo for review" })
-    )
+    await user.click(screen.getByRole("button", { name: "Send another photo" }))
     expect(submit.mock.calls[0][0]).toMatchObject({
       requirementId: REQUIREMENT,
       assetIds: [A.assetId],
@@ -323,13 +441,56 @@ describe("SubmitPhotosPanel", () => {
     })
   })
 
+  it("says who reviews a sent replacement", async () => {
+    const { user, submit } = setup({
+      replacesSubmissionId: "4a000000-0000-4000-8000-0000000000ee",
+    })
+    submit.mockResolvedValueOnce(sent(1))
+    await user.click(tile("2 Nov 2026"))
+    await user.click(screen.getByRole("button", { name: "Send another photo" }))
+    expect((await screen.findByRole("status")).textContent).toContain(
+      "Your new photo is waiting for review"
+    )
+  })
+
+  it("keeps the replacement message when a refresh closes the request mid-send", async () => {
+    const submit =
+      vi.fn<(input: SubmitPhotosInput) => Promise<SubmitPhotosResult>>()
+    let resolve!: (result: SubmitPhotosResult) => void
+    submit.mockReturnValueOnce(new Promise((r) => (resolve = r)))
+    const panel = (replacing: boolean) => (
+      <SubmitPhotosPanel
+        requirementId={REQUIREMENT}
+        replacesSubmissionId={
+          replacing ? "4a000000-0000-4000-8000-0000000000ee" : null
+        }
+        reviewerName={replacing ? "Anil Thapa" : null}
+        initialPhotos={page([A, B, C])}
+        loadPhotos={vi.fn(async () => page([A, B, C]))}
+        submit={submit}
+        uploader={noUpload}
+        limits={LIMITS}
+        onReload={vi.fn()}
+        signInHref="/login"
+      />
+    )
+    const user = userEvent.setup()
+    const { rerender } = render(panel(true))
+    await user.click(tile("2 Nov 2026"))
+    await user.click(screen.getByRole("button", { name: "Send another photo" }))
+    // The router refresh lands first: the answered request is closed.
+    rerender(panel(false))
+    resolve(sent(1))
+    const status = await screen.findByRole("status")
+    expect(status.textContent).toContain("Your new photo is waiting for review")
+    expect(status.textContent).toContain("Anil Thapa reviews it next.")
+  })
+
   it("reports photos already live on the task as already sent", async () => {
     const { user, submit } = setup()
     submit.mockResolvedValueOnce(sent(1, {}, true))
     await user.click(tile("2 Nov 2026"))
-    await user.click(
-      screen.getByRole("button", { name: "Send 1 photo for review" })
-    )
+    await user.click(screen.getByRole("button", { name: "Send 1 photo" }))
     expect((await screen.findByRole("status")).textContent).toContain(
       "These photos were already sent. Nothing was sent twice."
     )
@@ -344,9 +505,7 @@ describe("SubmitPhotosPanel", () => {
     )
     await user.click(tile("2 Nov 2026"))
     await user.click(tile("1 Nov 2026"))
-    await user.click(
-      screen.getByRole("button", { name: "Send 2 photos for review" })
-    )
+    await user.click(screen.getByRole("button", { name: "Send 2 photos" }))
     expect((await screen.findByRole("status")).textContent).toContain(
       "1 photo wasn't sent."
     )
@@ -459,9 +618,7 @@ describe("SubmitPhotosPanel", () => {
     const { user } = setup({ limits: { ...LIMITS, maxBatchFiles: 2 } })
     await user.click(tile("2 Nov 2026"))
     await user.click(tile("1 Nov 2026"))
-    expect(
-      screen.getByText("You can send up to 2 photos at a time.")
-    ).toBeTruthy()
+    expect(screen.getByText("You can send up to 2 at a time.")).toBeTruthy()
     await user.click(tile("30 Oct 2026"))
     expect(tile("30 Oct 2026").getAttribute("aria-pressed")).toBe("false")
   })
@@ -475,9 +632,7 @@ describe("SubmitPhotosPanel", () => {
       message: "x",
     })
     await user.click(tile("2 Nov 2026"))
-    await user.click(
-      screen.getByRole("button", { name: "Send 1 photo for review" })
-    )
+    await user.click(screen.getByRole("button", { name: "Send 1 photo" }))
     const alert = await screen.findByRole("alert")
     expect(
       within(alert).getByRole("link", { name: "Sign in" }).getAttribute("href")
@@ -516,9 +671,7 @@ describe("SubmitPhotosPanel", () => {
     const loadPhotos = vi.fn(async () => page([fresh, A]))
     const { user } = setup({ photos: [A], uploader, loadPhotos })
 
-    await user.click(
-      screen.getByRole("button", { name: "Take or upload photos" })
-    )
+    await user.click(screen.getByRole("button", { name: "Take a photo" }))
     const dialog = await screen.findByRole("dialog")
     expect(
       within(dialog).getByRole("heading", { name: "Upload photos" })
@@ -538,8 +691,6 @@ describe("SubmitPhotosPanel", () => {
     ).getByRole("button", { name: "Photo uploaded 2 Nov 2026, 15:00" })
     expect(uploaded.getAttribute("aria-pressed")).toBe("true")
     expect(tile("2 Nov 2026").getAttribute("aria-pressed")).toBe("false")
-    expect(
-      screen.getByRole("button", { name: "Send 1 photo for review" })
-    ).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Send 1 photo" })).toBeTruthy()
   })
 })

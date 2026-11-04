@@ -71,18 +71,18 @@ async function grantInUi(admin: Page, w: CoverageWorld) {
   // "Venue" is also a substring of the person picker's name.
   await form.getByRole("combobox", { name: "Venue", exact: true }).click()
   await admin.getByRole("option", { name: w.venue1.name, exact: true }).click()
-  // Options read "Name (Job title)".
-  await chooseOption(
-    admin,
-    form,
-    "Person (active staff at that venue)",
-    `${w.manager.name} (General Manager)`
-  )
+  await chooseOption(admin, form, "Staff member", w.manager.name)
   await form.getByRole("button", { name: "Make venue manager" }).click()
-  const managers = admin.getByRole("list", { name: "Venue managers" })
+  const row = admin
+    .getByRole("table", { name: "Current grants" })
+    .getByRole("row")
+    .filter({ hasText: w.manager.name })
+  await expect(row).toContainText(w.venue1.name)
+  // A grant that is not in effect carries a "Not in effect: …" chip.
+  await expect(row).not.toContainText("Not in effect")
   await expect(
-    managers.getByRole("listitem").filter({ hasText: w.manager.name })
-  ).toContainText("In effect")
+    row.getByRole("button", { name: `More actions for ${w.manager.name}` })
+  ).toBeVisible()
 }
 
 async function reviewJourney(
@@ -105,14 +105,12 @@ async function reviewJourney(
 
   // Accept a colleague's photo.
   await card(w.staffB).getByRole("button", { name: "Accept" }).click()
-  await expect(
-    manager.getByText(`Accepted ${w.staffB.name}’s photo.`)
-  ).toBeVisible()
+  await expect(manager.getByText(/^Accepted\. It counts for /)).toBeVisible()
   expect(itemState(items[w.staffB.id]!)).toBe("accepted:false")
 
   // "Needs another photo" needs a reason; without one nothing is saved.
   await card(w.staffA)
-    .getByRole("button", { name: "Needs another photo" })
+    .getByRole("button", { name: "Ask for another photo" })
     .click()
   const ask = manager.getByRole("dialog", { name: "Ask for another photo" })
   await ask.getByRole("button", { name: "Ask for another photo" }).click()
@@ -124,23 +122,23 @@ async function reviewJourney(
   await ask.getByRole("button", { name: "Ask for another photo" }).click()
   await expect(ask).toBeHidden()
   await expect(
-    manager.getByText(`Asked ${w.staffA.name} for another photo.`)
+    manager.getByText(`Asked ${w.staffA.name.split(" ")[0]} for another photo.`)
   ).toBeVisible()
   expect(itemState(items[w.staffA.id]!)).toBe("needs_another_photo:false")
 
   // The manager's own photo: allowed, recorded as self-review.
   await card(w.manager).getByRole("button", { name: "Accept" }).click()
   await expect(
-    manager.getByText("Accepted your photo (recorded as self-review).")
+    manager.getByText(
+      /^Accepted\. It counts for .+ Recorded as a self-review\.$/
+    )
   ).toBeVisible()
   expect(itemState(items[w.manager.id]!)).toBe("accepted:true")
 
-  // Staff A sees the reason on My tasks; the admin sees the self-review.
+  // Staff A sees the reason on Home; the admin sees the self-review.
   const staffA = await signedInPage(browser, w.staffA, context)
   await expect(
-    staffA
-      .getByRole("region", { name: "Needs another photo" })
-      .getByText(reason)
+    staffA.getByRole("region", { name: /^To do/ }).getByText(reason)
   ).toBeVisible()
   await admin.goto("/admin/coverage")
   await expect(
@@ -182,38 +180,38 @@ test.describe("coverage: manager and admin journeys (WS5)", () => {
 
     // Team: a first target needs no reason; changing it does.
     await manager.goto("/staff/manage/team")
-    await manager
-      .getByRole("button", { name: `Set target for ${w.staffB.name}` })
-      .click()
-    let dialog = manager.getByRole("dialog")
-    await dialog.getByLabel("Photos this month").fill("4")
-    await expect(dialog.getByLabel("Reason for the change")).toHaveCount(0)
-    await dialog.getByRole("button", { name: "Save target" }).click()
-    await expect(dialog).toBeHidden()
     const target = () =>
       psql(
         `select coalesce(string_agg(target_count::text || ':' || source, ','), '') from public.monthly_targets where staff_id = '${w.staffB.id}'::uuid and venue_id = '${w.venue1.id}'::uuid`
       )
+    const targetBox = manager.getByRole("textbox", {
+      name: `${w.staffB.name}'s photo target`,
+    })
+    const targetReason = manager.getByLabel(/^Reason for changing .+'s target$/)
+    const saveTargets = manager.getByRole("button", { name: "Save targets" })
+    await targetBox.fill("4")
+    await expect(targetReason).toHaveCount(0)
+    await saveTargets.click()
+    await expect(saveTargets).toHaveCount(0)
+    await expect.poll(target).toBe("4:manager")
+    // The saved value comes back with the refreshed row; edit after that.
+    await expect(targetBox).toHaveValue("4")
+    await targetBox.fill("6")
+    await expect(targetReason).toBeVisible()
+    await saveTargets.click()
+    await expect(targetReason).toHaveAttribute("aria-invalid", "true")
     expect(target()).toBe("4:manager")
-    await manager
-      .getByRole("button", { name: `Edit target for ${w.staffB.name}` })
-      .click()
-    dialog = manager.getByRole("dialog")
-    await dialog.getByLabel("Photos this month").fill("6")
-    await dialog.getByRole("button", { name: "Save target" }).click()
-    await expect(dialog).toBeVisible()
-    expect(target()).toBe("4:manager")
-    await dialog
-      .getByLabel("Reason for the change")
-      .fill("WS5: busier month at the bar")
-    await dialog.getByRole("button", { name: "Save target" }).click()
-    await expect(dialog).toBeHidden()
-    expect(target()).toBe("6:manager")
+    await targetReason.fill("WS5: busier month at the bar")
+    await saveTargets.click()
+    await expect(saveTargets).toHaveCount(0)
+    await expect.poll(target).toBe("6:manager")
 
     // Checklist: the first save's answer is lost on the way back; the
     // retry reuses the request id and opens the one item that exists.
     await manager.goto("/staff/manage/checklist")
-    await manager.getByRole("button", { name: "Add a checklist item" }).click()
+    await manager
+      .getByRole("button", { name: "Add a venue-specific item" })
+      .click()
     const add = manager.getByRole("dialog", { name: "Add a checklist item" })
     const title = `WS5 cellar door ${w.tag}`
     await add.getByLabel("Title").fill(title)
@@ -275,29 +273,30 @@ test.describe("coverage: manager and admin journeys (WS5)", () => {
       expect(await manager.content(), id).not.toContain(otherTitle)
     }
     const staffC = await signedInPage(browser, w.staffC)
-    await expect(staffC.getByRole("link", { name: "Manage" })).toHaveCount(0)
+    await expect(staffC.locator('a[href="/staff/manage"]')).toHaveCount(0)
     await staffC.goto("/staff/manage")
     await expect(
-      staffC.getByRole("heading", { name: "Venue manager tools" })
+      staffC.getByRole("heading", { name: "Manage isn't available" })
     ).toBeVisible()
     await expect(
-      staffC.getByText("These tools are for venue managers.", { exact: false })
+      staffC.getByRole("main").getByText("Manage is for venue managers.")
     ).toBeVisible()
 
     // Revoked in the admin UI: the manager's next page load is refused.
     await admin.goto("/admin/coverage/managers")
     await admin
-      .getByRole("button", { name: `Revoke ${w.manager.name}’s manager grant` })
+      .getByRole("button", { name: `More actions for ${w.manager.name}` })
       .click()
+    await admin.getByRole("menuitem", { name: "Revoke grant" }).click()
     const revoke = admin.getByRole("dialog")
     await revoke.getByLabel("Reason").fill("WS5: revoke check")
-    await revoke.getByRole("button", { name: "Revoke" }).click()
+    await revoke.getByRole("button", { name: "Revoke grant" }).click()
     await expect(revoke).toBeHidden()
     await manager.goto("/staff/manage/review")
     await expect(
-      manager.getByRole("heading", { name: "Venue manager tools" })
+      manager.getByRole("heading", { name: "Manage isn't available" })
     ).toBeVisible()
-    await expect(manager.getByRole("link", { name: "Manage" })).toHaveCount(0)
+    await expect(manager.locator('a[href="/staff/manage"]')).toHaveCount(0)
 
     for (const page of [admin, manager, staffC]) await page.context().close()
   })
@@ -367,8 +366,10 @@ test.describe("coverage: manager and admin journeys (WS5)", () => {
     const admin = await signedInPage(browser, w.admin)
     await grantInUi(admin, w)
     await admin.goto("/admin/coverage")
+    // "Prepare again" once every venue is prepared; both run for all venues.
     await admin
-      .getByRole("button", { name: "Prepare this month for all venues" })
+      .getByRole("button", { name: /^Prepare (this month|again)$/ })
+      .first()
       .click()
     await expect(admin.getByText(/^This month is prepared: /)).toBeVisible({
       timeout: 90_000,
@@ -440,7 +441,7 @@ test.describe("coverage: manager and admin journeys (WS5)", () => {
     // A prepared service item: confirm, assign, attach an existing photo.
     const serviceId = await openItem("Venue and service areas")
     expect(status(serviceId)).toBe("needs_setup")
-    await manager.getByRole("button", { name: /^Confirm: applies/ }).click()
+    await manager.getByRole("button", { name: "Save and confirm" }).click()
     await expect(
       manager.getByText(/It now counts toward venue coverage\.$/)
     ).toBeVisible()
@@ -448,7 +449,7 @@ test.describe("coverage: manager and admin journeys (WS5)", () => {
     await manager
       .getByRole("checkbox", { name: new RegExp(escape(w.staffB.name)) })
       .check()
-    await manager.getByRole("button", { name: "Save assignees" }).click()
+    await manager.getByRole("button", { name: "Save changes" }).click()
     await expect(manager.getByText("Saved. 1 person assigned.")).toBeVisible()
     expect(
       psql(
@@ -479,22 +480,22 @@ test.describe("coverage: manager and admin journeys (WS5)", () => {
 
     // An amenity with unknown presence cannot be confirmed until it is checked.
     const amenityId = await openItem("Amenities")
-    const confirm = manager.getByRole("button", { name: /^Confirm: applies/ })
+    const confirm = manager.getByRole("button", { name: "Save and confirm" })
     await expect(confirm).toBeDisabled()
     await expect(
-      manager.getByText(
-        "Needs verification: record whether it is present (amenity facts below) first.",
-        { exact: false }
-      )
+      manager.getByText("Can't confirm yet: Needs verification.")
     ).toBeVisible()
-    await manager.getByRole("radio", { name: /^Present/ }).check()
-    await manager
+    await manager.getByRole("button", { name: "Record facts" }).click()
+    const facts = manager.getByRole("dialog")
+    await facts.getByRole("radio", { name: /^Present/ }).click()
+    await facts
       .getByRole("checkbox", { name: /I have checked this at the venue/ })
       .check()
-    await manager.getByRole("button", { name: "Save and confirm" }).click()
+    await facts.getByRole("button", { name: "Save facts" }).click()
     await expect(
-      manager.getByText("Saved and confirmed: present.")
+      manager.getByText("Facts saved: Present. You can confirm the item now.")
     ).toBeVisible()
+    await expect(facts).toBeHidden()
     await expect(confirm).toBeEnabled()
     expect(
       psql(

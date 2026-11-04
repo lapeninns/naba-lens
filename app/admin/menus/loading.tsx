@@ -1,11 +1,27 @@
-import { Skeleton } from "@/components/ui/skeleton"
+import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton"
+
+import { MenusHeader } from "./menus-header"
+
+const ROWS = [
+  ["60%", "35%"],
+  ["52%", "30%"],
+  ["66%", "40%"],
+  ["48%", "28%"],
+  ["58%", "36%"],
+]
 
 export default function MenusLoading() {
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-6 sm:px-6 sm:py-8">
-      <Skeleton className="h-8 w-32" />
-      <Skeleton className="h-5 w-full max-w-xl" />
-      <Skeleton className="h-64 w-full" />
+    <div className="mx-auto w-full max-w-(--size-page) px-4 pt-6 md:px-6 md:py-8">
+      <MenusHeader />
+      <SkeletonRegion label="Loading menus…" className="grid gap-5">
+        {ROWS.map(([title, meta], index) => (
+          <div key={index} className="grid gap-2">
+            <Skeleton shape="line" style={{ width: title }} />
+            <Skeleton shape="line" style={{ width: meta }} />
+          </div>
+        ))}
+      </SkeletonRegion>
     </div>
   )
 }

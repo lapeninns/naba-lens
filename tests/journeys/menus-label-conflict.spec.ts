@@ -37,8 +37,8 @@ async function staleEditor(
   await seedReadyAssets(world.staffA.id, world.venue1.id, 1, "image", prefix)
   const fileName = `${prefix}-01.jpg`
   const staff = await signedInPage(browser, world.staffA)
-  const { viewer, editor } = await openOwnLabelEditor(staff, "Photo", fileName)
-  await pickMenuItem(editor, "onion bhaji", /^Onion Bhaji in Appetisers/)
+  const { viewer, editor } = await openOwnLabelEditor(staff, fileName)
+  await pickMenuItem(editor, "onion bhaji", /^Onion Bhaji\s*Appetisers/)
   await editor.getByRole("button", { name: "Kitchen" }).click()
   await activateNewVersion(admin, world.venue1)
   return { world, staff, viewer, editor, fileName }
@@ -78,7 +78,7 @@ test("menus.label-conflict: a menu activated while staff edit is refused, nothin
     await editor.getByRole("button", { name: "Reload the menu" }).click()
     await expect(editor.getByText("Loading the menu…")).toHaveCount(0)
     await expect(
-      editor.getByRole("combobox", { name: /^Search the menu/ })
+      editor.getByRole("combobox", { name: /^Menu item at / })
     ).toBeVisible()
     await expectChoicesKept(editor)
     await editor.getByRole("button", { name: /^Save labels/ }).click()

@@ -11,7 +11,12 @@ import {
 } from "./helpers/coverage-world"
 import { supportedMp4, syntheticJpeg } from "./helpers/media"
 import { provisioner, psql } from "./helpers/stack"
-import { openPortfolio, uploadThroughDialog } from "./helpers/ui"
+import {
+  openPortfolio,
+  portfolioList,
+  staffTile,
+  uploadThroughDialog,
+} from "./helpers/ui"
 import { provisionWorld, seedReadyAssets, signedInPage } from "./helpers/world"
 
 /**
@@ -196,11 +201,11 @@ test.describe("review fixes (schema v6, services v1.3)", () => {
       const res = await colleague.goto(path)
       expect(res?.status(), path).toBe(200)
       await expect(
-        colleague.getByRole("button", { name: /^Photo, / }).first()
+        colleague.getByRole("button", { name: /^Photo by / }).first()
       ).toBeVisible()
       expect(await colleague.content(), path).not.toContain(stem)
       await colleague
-        .getByRole("button", { name: /^Photo, / })
+        .getByRole("button", { name: /^Photo by / })
         .first()
         .click()
       const viewer = colleague.getByRole("dialog")
@@ -208,9 +213,11 @@ test.describe("review fixes (schema v6, services v1.3)", () => {
       await expect(viewer).not.toContainText(stem)
       await viewer.press("Escape")
     }
-    // The owner still sees their own filename.
+    // Not even the owner's tile carries the file name.
     await owner.reload()
-    expect(await owner.content()).toContain(stem)
+    const ownTile = await staffTile(portfolioList(owner), photo.name)
+    await expect(ownTile).toBeVisible()
+    expect(await ownTile.getAttribute("aria-label")).not.toContain(stem)
 
     // The projection colleagues read through: no paths, filename or key.
     const projected = await rawRpc(staffA, "community_readable_assets", {

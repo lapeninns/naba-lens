@@ -18,7 +18,7 @@ import {
   uploadAs,
 } from "../integration/gaps-support"
 import { actorFor, syntheticJpeg } from "../slice/media-actor"
-import { openPortfolio, STAFF_LANDING } from "./helpers/ui"
+import { openPortfolio, STAFF_LANDING, staffTile } from "./helpers/ui"
 import {
   createVenue,
   serviceClient,
@@ -293,9 +293,10 @@ test.describe("GAP-12: staff at a deactivated venue", () => {
     ).toHaveCount(0)
     // Their own retained media is still listed for them.
     await expect(
-      staffPage
-        .getByRole("list", { name: "Your portfolio" })
-        .getByRole("button", { name: /^Photo, before-pause\.jpg/ })
+      await staffTile(
+        staffPage.getByRole("list", { name: "Your portfolio" }),
+        "before-pause.jpg"
+      )
     ).toBeVisible()
 
     const adminPage = await signIn(browser, adminUser, baseURL!)
@@ -406,7 +407,66 @@ test.describe("GAP-11 over HTTP: community reads and management isolation", () =
     await pageB.goto(`/admin/staff/${staffA.id}`)
     await expect(pageB).toHaveURL(STAFF_LANDING)
     await expect(pageB.getByText("private-dish.jpg")).toHaveCount(0)
-    await expect(pageB.getByText("TEST e2e-gaps-http-a")).toHaveCount(0)
+    // Staff Home shows colleagues' photos from across the organisation
+    // ("From your colleagues"), a permitted community read. A's name may
+    // appear there and nowhere else, with no management or download controls.
+    const colleagues = pageB.getByRole("region", {
+      name: "From your colleagues",
+    })
+    await expect(
+      colleagues.getByText("TEST e2e-gaps-http-a").first()
+    ).toBeVisible()
+    await expect
+      .poll(() =>
+        pageB.evaluate((name) => {
+          const walker = document.createTreeWalker(
+            document.body,
+            NodeFilter.SHOW_TEXT
+          )
+          const outside: string[] = []
+          for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+            if (!n.textContent?.includes(name)) continue
+            const parent = n.parentElement
+            if (parent?.closest('[aria-labelledby="colleagues-heading"]'))
+              continue
+            // The RSC payload carries the colleagues section's props; it is
+            // never rendered. Any other script still counts.
+            if (
+              parent?.tagName === "SCRIPT" &&
+              n.textContent.trimStart().startsWith("self.__next_f")
+            )
+              continue
+            const path: string[] = []
+            for (let a = parent; a && a !== document.body; a = a.parentElement)
+              path.unshift(
+                a.tagName.toLowerCase() +
+                  (a.getAttribute("aria-label")
+                    ? `[aria-label="${a.getAttribute("aria-label")}"]`
+                    : a.getAttribute("data-slot")
+                      ? `[data-slot=${a.getAttribute("data-slot")}]`
+                      : "")
+              )
+            outside.push(path.join(" > "))
+          }
+          return outside
+        }, "TEST e2e-gaps-http-a")
+      )
+      .toEqual([])
+    await expect(
+      pageB.locator(
+        'a[href*="/download"], a[href^="/admin"], [role="menuitem"]'
+      )
+    ).toHaveCount(0)
+    // The raw Home HTML, including the RSC payload the check above skips,
+    // carries no original file name, download route or admin portfolio link.
+    // (Thumb URLs legitimately contain A's media id.)
+    const home = await (await pageB.request.get("/staff/tasks")).text()
+    // Not vacuous: this is Home with the colleagues payload, not an error page,
+    // redirect body or empty response.
+    expect(home).toContain("TEST e2e-gaps-http-a")
+    expect(home).not.toContain("private-dish")
+    expect(home).not.toContain(`/api/media/${photoA}/download`)
+    expect(home).not.toContain("/admin/staff/")
 
     // Allowed reads carry private, no-store headers and nosniff.
     const allowed: [Page, string, number][] = [

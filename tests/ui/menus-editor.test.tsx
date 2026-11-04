@@ -376,7 +376,7 @@ describe("MenuDocumentEditor", () => {
       screen.getByRole("button", { name: /^Tikka.*4 labelled photos\/videos/ })
     ).toBeTruthy()
     expect(
-      screen.getByRole("button", { name: /^Korma.*Archived.*Needs review/ })
+      screen.getByRole("button", { name: /^Korma.*Archived.*Needs a decision/ })
     ).toBeTruthy()
 
     await focusAndType(

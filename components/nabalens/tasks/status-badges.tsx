@@ -1,16 +1,31 @@
 import { cn } from "@/lib/utils"
 
+import {
+  StatusChip as SystemChip,
+  type ChipStateKey,
+  type ChipTone,
+} from "../status-chip"
+
 import { periodLabel, submissionStateLabel, type ReviewedState } from "./copy"
 import type { DueView, PeriodKey, SubmissionState } from "./types"
 
 type Tone = "info" | "positive" | "warning" | "negative" | "muted"
 
-const TONE: Record<Tone, string> = {
-  info: "bg-info-surface text-info",
-  positive: "bg-positive-surface text-positive",
-  warning: "bg-warning-surface text-warning",
-  negative: "bg-negative-surface text-negative",
-  muted: "bg-muted text-muted-foreground",
+const CHIP_TONE: Record<Tone, ChipTone> = {
+  info: "pending",
+  positive: "positive",
+  warning: "attention",
+  negative: "negative",
+  muted: "closed",
+}
+
+/** Words that have a fixed state key get its icon as well as its tone. */
+const WORD_STATE: Record<string, ChipStateKey> = {
+  "Needs setup": "needs_setup",
+  "Target met": "target_met",
+  Complete: "complete",
+  "Needs another photo": "needs_another_photo",
+  Overdue: "overdue",
 }
 
 /** Small status chip. The text carries the meaning; colour only repeats it. */
@@ -23,16 +38,13 @@ export function StatusChip({
   children: React.ReactNode
   className?: string
 }) {
-  return (
-    <span
-      className={cn(
-        "inline-flex min-h-5 items-center rounded-sm px-1.5 text-xs font-medium",
-        TONE[tone],
-        className
-      )}
-    >
+  const state = typeof children === "string" ? WORD_STATE[children] : undefined
+  return state ? (
+    <SystemChip state={state} className={className} />
+  ) : (
+    <SystemChip tone={CHIP_TONE[tone]} className={className}>
       {children}
-    </span>
+    </SystemChip>
   )
 }
 
@@ -44,10 +56,10 @@ const STATE_TONE: Record<ReviewedState, Tone> = {
 
 /** Review state of one sent photo. Completion only; sharing is never gated. */
 export function SubmissionStateChip({ state }: { state: SubmissionState }) {
-  return (
-    <StatusChip tone={STATE_TONE[state as ReviewedState] ?? "muted"}>
-      {submissionStateLabel(state)}
-    </StatusChip>
+  return Object.hasOwn(STATE_TONE, state) ? (
+    <SystemChip state={state} />
+  ) : (
+    <SystemChip state="closed">{submissionStateLabel(state)}</SystemChip>
   )
 }
 
@@ -75,8 +87,8 @@ export function DueLine({
   return (
     <span
       className={cn(
-        "inline-flex flex-wrap items-center gap-1.5 text-sm",
-        overdue ? "text-foreground" : "text-muted-foreground",
+        "inline-flex flex-wrap items-center gap-1.5 text-body-touch md:text-body-sm",
+        overdue ? "text-ink" : "text-ink-muted",
         className
       )}
     >

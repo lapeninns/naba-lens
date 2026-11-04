@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { redirect } from "next/navigation"
 
 import { requestSignInLink } from "@/app/login/actions"
+import { SignInPage } from "@/app/login/sign-in-frame"
 import { LoginCard } from "@/components/nabalens"
 import { getAuthState, homePathFor, ROUTES } from "@/lib/auth"
 import { getLoginCaptchaConfig } from "@/lib/auth/captcha"
@@ -24,14 +25,14 @@ export default async function LoginPage({
   const captcha = getLoginCaptchaConfig()
 
   return (
-    <main className="flex min-h-svh items-center justify-center p-6">
+    <SignInPage>
       <LoginCard
         onSubmit={requestSignInLink}
         linkExpired={params.error === "link_invalid"}
-        notice={params.signed_out ? "You have signed out." : null}
+        signedOut={!!params.signed_out}
         captchaRequired={captcha.enabled}
         captchaSiteKey={captcha.siteKey}
       />
-    </main>
+    </SignInPage>
   )
 }

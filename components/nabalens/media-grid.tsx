@@ -4,8 +4,13 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { MediaTile } from "./media-tile"
 import type { MediaItem } from "./types"
 
+/*
+ * A contact sheet: three across with 2px gutters on phones, like the camera
+ * roll; captioned grids take two across. From md, tiles auto-fill from 160px.
+ */
 const GRID =
-  "grid grid-cols-2 gap-2 min-[480px]:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 sm:gap-3"
+  "grid grid-cols-3 gap-0.5 md:grid-cols-[repeat(auto-fill,minmax(var(--size-tile-min),1fr))] md:gap-x-3 md:gap-y-4"
+const CAPTIONED = "max-md:grid-cols-2 max-md:gap-x-3 max-md:gap-y-4"
 
 type MediaGridProps = {
   items: MediaItem[]
@@ -13,6 +18,8 @@ type MediaGridProps = {
   showAttribution?: boolean
   /** Show the small labels badge on ready tiles (staff portfolio). */
   showLabelBadge?: boolean
+  /** Admin views only: tile names include the original file name. */
+  showFileName?: boolean
   /** Accessible name for the list, e.g. "Your portfolio" or "Library". */
   label: string
   className?: string
@@ -24,11 +31,15 @@ export function MediaGrid({
   onOpen,
   showAttribution = false,
   showLabelBadge = false,
+  showFileName = false,
   label,
   className,
 }: MediaGridProps) {
   return (
-    <ul aria-label={label} className={cn(GRID, className)}>
+    <ul
+      aria-label={label}
+      className={cn(GRID, showAttribution && CAPTIONED, className)}
+    >
       {items.map((item) => (
         <li key={item.id} className="min-w-0">
           <MediaTile
@@ -36,6 +47,7 @@ export function MediaGrid({
             onOpen={onOpen}
             showAttribution={showAttribution}
             showLabelBadge={showLabelBadge}
+            showFileName={showFileName}
           />
         </li>
       ))}
@@ -44,7 +56,7 @@ export function MediaGrid({
 }
 
 export function MediaGridSkeleton({
-  count = 12,
+  count = 24,
   showAttribution = false,
   className,
 }: {
@@ -56,15 +68,16 @@ export function MediaGridSkeleton({
     <div
       role="status"
       aria-label="Loading media"
-      className={cn(GRID, className)}
+      aria-busy="true"
+      className={cn(GRID, showAttribution && CAPTIONED, className)}
     >
       {Array.from({ length: count }, (_, i) => (
         <div key={i} className="flex flex-col gap-1.5">
-          <Skeleton className="aspect-square w-full rounded-md" />
+          <Skeleton shape="tile" />
           {showAttribution ? (
             <>
-              <Skeleton className="h-3 w-3/4" />
-              <Skeleton className="h-3 w-1/2" />
+              <Skeleton shape="line" className="w-3/4" />
+              <Skeleton shape="line" className="w-1/2" />
             </>
           ) : null}
         </div>

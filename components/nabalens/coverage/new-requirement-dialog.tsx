@@ -53,8 +53,10 @@ const KINDS: {
 export function NewRequirementDialog({
   onCreate,
   onCreated,
+  triggerLabel = "Add a checklist item",
 }: {
   onCreate: CreateRequirementHandler
+  triggerLabel?: string
   /** Called with the new item's id (e.g. to open it and assign people). */
   onCreated: (requirementId: string) => void
 }) {
@@ -145,7 +147,7 @@ export function NewRequirementDialog({
     <>
       <Button size="touch" variant="outline" onClick={() => setOpen(true)}>
         <PlusIcon data-icon="inline-start" aria-hidden />
-        Add a checklist item
+        {triggerLabel}
       </Button>
       <Dialog
         open={open}

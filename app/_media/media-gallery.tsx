@@ -8,6 +8,7 @@ import {
   LoadMoreButton,
   MediaGrid,
   MediaViewer,
+  type DeleteImpact,
   type MediaItem,
 } from "@/components/nabalens"
 import { Button } from "@/components/ui/button"
@@ -40,6 +41,8 @@ type MediaGalleryProps = {
   refreshPage?: RefreshPage
   /** Shown when there is nothing to list. */
   empty: React.ReactNode
+  /** A line above the grid given how many are shown, e.g. "Showing 24". */
+  summary?: (shownCount: number) => React.ReactNode
   showAttribution?: boolean
   getDownloadHref?: (item: MediaItem) => string
   getPortfolioHref?: (item: MediaItem) => string
@@ -58,6 +61,13 @@ type MediaGalleryProps = {
   canLabel?: boolean
   /** Small labels badge on ready tiles (staff portfolio). */
   showLabelBadge?: boolean
+  /**
+   * What deleting this file does to coverage credit, when the page has read
+   * it. Without it the confirm says nothing about tasks or targets.
+   */
+  getDeleteImpact?: (item: MediaItem) => DeleteImpact | undefined
+  /** Admin views only: tile names include the original file name. */
+  showFileName?: boolean
 }
 
 /**
@@ -111,6 +121,7 @@ export function MediaGallery({
   loadPage,
   refreshPage,
   empty,
+  summary,
   showAttribution = false,
   getDownloadHref,
   getPortfolioHref,
@@ -119,6 +130,8 @@ export function MediaGallery({
   refreshSignal,
   canLabel = false,
   showLabelBadge = false,
+  getDeleteImpact,
+  showFileName = false,
 }: MediaGalleryProps) {
   const [labelIds, setLabelIds] = React.useState<string[] | null>(null)
   const [page, setPage] = React.useState(initialPage)
@@ -163,6 +176,12 @@ export function MediaGallery({
   const { display, brokenCount, onError, attach, retryBroken } =
     usePreviewRecovery(items)
   const openItem = display.find((item) => item.id === openId) ?? null
+  // The last loaded view of the open file. If a refresh drops it (removed
+  // elsewhere), the viewer keeps showing it with a notice instead of closing.
+  const [shownItem, setShownItem] = React.useState<MediaItem | null>(null)
+  if (openItem && openItem !== shownItem) setShownItem(openItem)
+  const viewerItem =
+    openItem ?? (shownItem && shownItem.id === openId ? shownItem : null)
   const hasPending = items.some(
     (i) => i.uploadState === "uploading" || i.uploadState === "processing"
   )
@@ -347,6 +366,7 @@ export function MediaGallery({
           </Button>
         </div>
       ) : null}
+      {items.length > 0 && summary ? summary(items.length) : null}
       {items.length === 0 ? (
         empty
       ) : (
@@ -355,6 +375,7 @@ export function MediaGallery({
           label={label}
           showAttribution={showAttribution}
           showLabelBadge={showLabelBadge}
+          showFileName={showFileName}
           onOpen={(item) => {
             setDownloadError(null)
             setOpenId(item.id)
@@ -370,7 +391,8 @@ export function MediaGallery({
         shownCount={items.length}
       />
       <MediaViewer
-        item={openItem}
+        item={viewerItem}
+        removed={viewerItem !== null && openItem === null}
         open={viewerOpen}
         onOpenChange={setViewerOpen}
         showAttribution={showAttribution}
@@ -420,7 +442,11 @@ export function MediaGallery({
         onOpenChange={(open) => {
           if (!open) setDeleting(null)
         }}
-        fileName={deleting?.originalFilename ?? undefined}
+        mediaType={deleting?.mediaType}
+        // Only the admin views offer downloads; there the confirm names the
+        // owner of the file being removed.
+        ownerName={getDownloadHref ? deleting?.contributorName : undefined}
+        impact={deleting ? getDeleteImpact?.(deleting) : undefined}
         onConfirm={async () => {
           if (!deleting) return
           const result = await deleteMedia(deleting.id)

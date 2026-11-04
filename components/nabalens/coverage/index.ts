@@ -12,9 +12,16 @@ export { PhotoProgress } from "./photo-progress"
 export { ReasonDialog, ReasonField, textareaClass } from "./reason-dialog"
 export { RequirementList } from "./requirement-list"
 export {
+  CHECKLIST_KIND_ORDER,
+  ChecklistBody,
+  RequirementChip,
+  requirementIssues,
+} from "./checklist-body"
+export {
   RequirementSetup,
   hasEditableTitle,
   type RevisionResult,
+  type SetAssigneesHandler,
   type SetRequirementStatusHandler,
   type UpdateRequirementHandler,
 } from "./requirement-setup"
@@ -22,11 +29,7 @@ export {
   AmenityFactForm,
   type SetAmenityFactHandler,
 } from "./amenity-fact-form"
-export {
-  AssigneePicker,
-  suggestedTeam,
-  type SetAssigneesHandler,
-} from "./assignee-picker"
+export { AmenityFactsSection, factConfirmedText } from "./amenity-facts-section"
 export {
   AttachPhotosDialog,
   type AttachPhotosHandler,
@@ -40,10 +43,17 @@ export {
 } from "./review-queue"
 export { SubmissionCard, isOwnPhoto } from "./submission-card"
 export {
+  TeamPerson,
   TeamRoster,
-  targetReasonRequired,
+  TeamTag,
   type SetTargetHandler,
 } from "./team-roster"
+export {
+  bySurname,
+  rosterOrder,
+  targetReasonRequired,
+  targetSourceText,
+} from "./roster"
 export {
   PrepareMonthButton,
   preparationSummary,
@@ -72,3 +82,13 @@ export {
 export { useCoverageAction } from "./use-coverage-action"
 export { useRequestIds } from "./use-request-id"
 export type * from "./types"
+export {
+  CoverageSection,
+  Frames,
+  ItemList,
+  ItemRow,
+  Quote,
+  Tally,
+  TallyItem,
+  type TallyTone,
+} from "./layout"

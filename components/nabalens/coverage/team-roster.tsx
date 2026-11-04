@@ -2,90 +2,850 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { PencilSimpleIcon, UsersIcon } from "@phosphor-icons/react"
+import {
+  CheckIcon,
+  MinusIcon,
+  PencilSimpleIcon,
+  PlusIcon,
+  SpinnerGapIcon,
+  WarningCircleIcon,
+} from "@phosphor-icons/react"
 
+import { EmptyState } from "@/components/nabalens/empty-state"
+import { Notice } from "@/components/nabalens/notice"
 import { ProfileAvatar } from "@/components/nabalens/profile-avatar"
+import { StatusChip } from "@/components/nabalens/status-chip"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import {
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldLabel,
-} from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { departmentLabel } from "@/lib/config/departments"
+import { cn } from "@/lib/utils"
 
-import { CoverageNotice } from "./coverage-notice"
-import { manageHrefs } from "./manage-nav"
+import { CoverageNotice, type Notice as PageNotice } from "./coverage-notice"
 import {
   COVERAGE_LIMITS,
-  TARGET_SOURCE_LABEL,
   failureText,
-  labelFor,
   firstDayOfPeriod,
   lastDayOfPeriod,
   localDateLabel,
+  monthName,
   needsRefresh,
   plural,
 } from "./copy"
-import { CoverageBadge, NeedsSetupBadge, OverdueBadge } from "./coverage-badges"
-import { PhotoProgress } from "./photo-progress"
-import { ReasonField, useReportedFocus } from "./reason-dialog"
+import { Frames, ItemList } from "./layout"
+import { manageHrefs } from "./manage-nav"
+import { useReportedFocus } from "./reason-dialog"
+import {
+  rosterOrder,
+  targetReasonRequired,
+  targetSourceText,
+  timingOf,
+} from "./roster"
 import type {
+  CoverageFailure,
+  CoveragePerson,
   CoverageResult,
   MonthlyProgress,
   PeriodKey,
   PeriodView,
   SetMonthlyTargetInput,
 } from "./types"
-import {
-  REPORTED,
-  type Reported,
-  useCoverageAction,
-} from "./use-coverage-action"
+import { NETWORK_ERROR, REPORTED, type Reported } from "./use-coverage-action"
 
 export type SetTargetHandler = (
   input: Omit<SetMonthlyTargetInput, "venueId">
 ) => Promise<CoverageResult<{ revision: number }>>
 
-type PeriodTiming = "past" | "current" | "future"
-
-function timingOf(period: PeriodKey, current: PeriodKey): PeriodTiming {
-  return period < current ? "past" : period === current ? "current" : "future"
+function firstName(name: string): string {
+  return name.trim().split(/\s+/)[0] ?? name
 }
 
-/** When a target change must carry a reason (current-month edits, any past month). */
-export function targetReasonRequired(
-  row: Pick<MonthlyProgress, "targetCount" | "source">,
-  timing: PeriodTiming
-): boolean {
-  if (timing === "past") return true
+function lowerFirst(text: string): string {
+  return text.charAt(0).toLowerCase() + text.slice(1)
+}
+
+/** "FOH" or "BOH" as a tag, or the No team chip. */
+export function TeamTag({
+  department,
+}: {
+  department: CoveragePerson["department"]
+}) {
+  if (!department) return <StatusChip state="needs_setup">No team</StatusChip>
   return (
-    timing === "current" &&
-    row.targetCount != null &&
-    row.source !== "placeholder"
+    <span className="inline-flex min-h-5 items-center rounded-chip border border-line-control px-1.5 text-chip-touch tracking-[0.04em] whitespace-nowrap text-ink-muted wdth-92 md:text-chip">
+      {department.toUpperCase()}
+    </span>
   )
 }
 
-function setupText(row: MonthlyProgress): string {
-  const parts: string[] = []
-  if (row.setupMissing.includes("team")) parts.push("no FOH/BOH team")
-  if (row.setupMissing.includes("target")) parts.push("no monthly target")
-  return `Needs setup: ${parts.join(" and ")}`
+/** Avatar, name with team, and one quiet line (`nl-person`). */
+export function TeamPerson({
+  person,
+  href,
+  meta,
+  className,
+}: {
+  person: CoveragePerson
+  href?: string
+  meta?: React.ReactNode
+  className?: string
+}) {
+  return (
+    <div className={cn("flex min-w-0 items-center gap-3", className)}>
+      <ProfileAvatar name={person.displayName} src={person.avatarUrl} />
+      <span className="grid min-w-0">
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-item-title-touch text-ink md:text-item-title">
+          {href ? (
+            <Link
+              href={href}
+              className="rounded-chip break-words underline-offset-3 outline-none hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+            >
+              {person.displayName}
+            </Link>
+          ) : (
+            <span className="break-words">{person.displayName}</span>
+          )}
+          <TeamTag department={person.department} />
+        </span>
+        {meta ? (
+          <span className="truncate text-meta-touch text-ink-muted md:text-meta">
+            {meta}
+          </span>
+        ) : null}
+      </span>
+    </div>
+  )
 }
 
-function TargetDialog({
+/** A whole-number field with minus and plus (`nl-stepper`). */
+export function Stepper({
+  id,
+  name,
+  value,
+  onChange,
+  changed,
+  invalid,
+  disabled,
+  describedBy,
+  max = COVERAGE_LIMITS.targetCountMax,
+}: {
+  id?: string
+  /** "Priya Gurung's photo target" */
+  name: string
+  value: string
+  onChange: (value: string) => void
+  changed?: boolean
+  invalid?: boolean
+  disabled?: boolean
+  describedBy?: string
+  max?: number
+}) {
+  const n = Number(value)
+  const set = value !== "" && Number.isInteger(n)
+  const step =
+    "grid min-h-11 w-11 place-items-center text-ink-muted hover:bg-fill-hover hover:text-ink disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent md:min-h-9 md:w-9"
+  return (
+    <div
+      className={cn(
+        "inline-flex items-stretch justify-self-start overflow-hidden rounded-control border bg-panel",
+        invalid
+          ? "border-negative"
+          : changed
+            ? "border-accent"
+            : "border-line-control"
+      )}
+    >
+      <button
+        type="button"
+        aria-label={`Decrease ${name}`}
+        className={step}
+        disabled={disabled || !set || n <= 1}
+        onClick={() => onChange(String(Math.max(1, n - 1)))}
+      >
+        <MinusIcon aria-hidden className="size-4" />
+      </button>
+      <input
+        id={id}
+        aria-label={name}
+        inputMode="numeric"
+        autoComplete="off"
+        placeholder="–"
+        value={value}
+        onChange={(e) => onChange(e.currentTarget.value.replace(/\D/g, ""))}
+        aria-invalid={invalid || undefined}
+        aria-describedby={describedBy}
+        disabled={disabled}
+        className="w-[3em] border-x border-line bg-transparent text-center text-body font-semibold text-ink tabular-nums outline-none placeholder:text-ink-subtle focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid disabled:opacity-60"
+      />
+      <button
+        type="button"
+        aria-label={`Increase ${name}`}
+        className={step}
+        disabled={disabled || (set && n >= max)}
+        onClick={() => onChange(String(set ? Math.min(max, n + 1) : 1))}
+      >
+        <PlusIcon aria-hidden className="size-4" />
+      </button>
+    </div>
+  )
+}
+
+function FieldError({ id, children }: { id?: string; children: string }) {
+  return (
+    <p
+      id={id}
+      className="flex items-start gap-1.5 text-meta-touch font-semibold text-negative md:text-meta"
+    >
+      <WarningCircleIcon aria-hidden className="mt-px size-4 shrink-0" />
+      {children}
+    </p>
+  )
+}
+
+const fieldLabel = "text-label-touch text-ink md:text-label"
+const fieldHint = "text-meta-touch text-ink-muted md:text-meta"
+const fieldInput =
+  "h-11 rounded-control border-line-control bg-panel px-3 text-body-touch text-ink md:h-9 md:text-body dark:bg-panel"
+
+function Counter({ value }: { value: string }) {
+  return (
+    <span
+      className={cn(
+        "ms-auto shrink-0 text-meta-touch whitespace-nowrap tabular-nums md:text-caption",
+        value.length > COVERAGE_LIMITS.reasonMax
+          ? "font-semibold text-negative"
+          : "text-ink-muted"
+      )}
+    >
+      {value.length} / {COVERAGE_LIMITS.reasonMax}
+    </span>
+  )
+}
+
+function countError(value: string): string | null {
+  const n = Number(value)
+  if (value !== "" && Number.isInteger(n) && n > COVERAGE_LIMITS.targetCountMax)
+    return `Targets can be up to ${COVERAGE_LIMITS.targetCountMax} photos.`
+  if (value === "" || !Number.isInteger(n) || n < 1)
+    return `Enter a whole number from 1 to ${COVERAGE_LIMITS.targetCountMax}.`
+  return null
+}
+
+type Draft = {
+  /** The row and revision the draft was started from. */
+  base: string
+  count: string
+  dueOn: string
+  reason: string
+  dueOpen: boolean
+}
+
+type RowErrors = { count?: string; dueOn?: string; reason?: string }
+
+function rowKey(row: MonthlyProgress) {
+  return `${row.person.id}:${row.revision ?? "new"}`
+}
+
+function originalCount(row: MonthlyProgress) {
+  return row.targetCount != null ? String(row.targetCount) : ""
+}
+
+function originalDue(row: MonthlyProgress, period: PeriodKey) {
+  return row.due?.dueOn ?? lastDayOfPeriod(period)
+}
+
+function isChanged(
+  row: MonthlyProgress,
+  draft: Draft | null,
+  period: PeriodKey
+) {
+  return (
+    !!draft &&
+    (draft.count !== originalCount(row) ||
+      draft.dueOn !== originalDue(row, period))
+  )
+}
+
+type TeamRosterProps = {
+  period: PeriodView
+  currentPeriod: PeriodKey
+  rows: MonthlyProgress[]
+  /** Managers: current and next month. Admins: any month. */
+  canEdit: boolean
+  isAdmin: boolean
+  /** The venue's manager tools (`/staff/manage` or an admin venue). */
+  basePath: string
+  /** For the empty roster ("No one works at The Railway yet"). */
+  venueName?: string
+  onSetTarget?: SetTargetHandler
+  onStale?: () => void
+}
+
+/**
+ * Monthly participation for one venue: each person's photo target and their
+ * accepted photos, edited in place and saved together. A missing target or
+ * team is "Needs setup", never met. A person's month is never added to the
+ * venue's checklist. Shows names, avatars, teams and progress only.
+ */
+export function TeamRoster(props: TeamRosterProps) {
+  // The month stepper keeps this roster mounted. Scope its local edits and
+  // feedback to the month, even when the next target has the same revision.
+  return <TeamRosterMonth key={props.period.key} {...props} />
+}
+
+function TeamRosterMonth({
+  period,
+  currentPeriod,
+  rows,
+  canEdit,
+  isAdmin,
+  basePath,
+  venueName,
+  onSetTarget,
+  onStale,
+}: TeamRosterProps) {
+  const ids = React.useId()
+  const staffHref = (id: string) =>
+    `${manageHrefs(basePath).staff(id)}&period=${period.key}`
+  const timing = timingOf(period.key, currentPeriod)
+  const month = monthName(period.key)
+  // Past months are corrected one person at a time (admins only), the rest in place.
+  const inPlace = !!onSetTarget && canEdit && timing !== "past"
+  const correcting = !!onSetTarget && canEdit && timing === "past" && isAdmin
+  const noticeRef = React.useRef<HTMLDivElement>(null)
+  const [notice, setNotice] = React.useState<PageNotice | null>(null)
+  const [focusNotice, setFocusNotice] = React.useState(0)
+  const [drafts, setDrafts] = React.useState<Record<string, Draft>>({})
+  const [errors, setErrors] = React.useState<Record<string, RowErrors>>({})
+  const [saving, setSaving] = React.useState(false)
+  // The row stays set while the dialog animates closed.
+  const [correctingRow, setCorrectingRow] =
+    React.useState<MonthlyProgress | null>(null)
+  const [correctOpen, setCorrectOpen] = React.useState(false)
+
+  React.useEffect(() => {
+    if (focusNotice > 0) noticeRef.current?.focus()
+  }, [focusNotice])
+
+  const sorted = React.useMemo(() => [...rows].sort(rosterOrder), [rows])
+  // History after a transfer stays in a past month's list; this month it is
+  // listed apart so it is not read as part of the current team.
+  const team =
+    timing === "past" ? sorted : sorted.filter((r) => r.isCurrentMember)
+  const moved =
+    timing === "past" ? [] : sorted.filter((r) => !r.isCurrentMember)
+  const unprepared =
+    timing === "current" && team.some((r) => r.targetId == null)
+  const met = team.filter((r) => r.complete).length
+
+  const draftFor = (row: MonthlyProgress) => {
+    const draft = drafts[row.person.id]
+    return draft && draft.base === rowKey(row) ? draft : null
+  }
+  const canEditRow = (row: MonthlyProgress) =>
+    inPlace && (row.isCurrentMember || isAdmin)
+  const changes = rows.filter(
+    (row) => canEditRow(row) && isChanged(row, draftFor(row), period.key)
+  )
+
+  function update(row: MonthlyProgress, patch: Partial<Draft>) {
+    setDrafts((all) => {
+      const current = all[row.person.id]
+      const base: Draft =
+        current && current.base === rowKey(row)
+          ? current
+          : {
+              base: rowKey(row),
+              count: originalCount(row),
+              dueOn: originalDue(row, period.key),
+              reason: "",
+              dueOpen: false,
+            }
+      return { ...all, [row.person.id]: { ...base, ...patch } }
+    })
+    setErrors((all) => {
+      if (!all[row.person.id]) return all
+      const next = { ...all }
+      delete next[row.person.id]
+      return next
+    })
+  }
+
+  function discard(personId: string) {
+    setDrafts((all) => {
+      const next = { ...all }
+      delete next[personId]
+      return next
+    })
+  }
+
+  function validate(row: MonthlyProgress, draft: Draft): RowErrors {
+    const found: RowErrors = {}
+    const count = countError(draft.count)
+    if (count) found.count = count
+    const min = firstDayOfPeriod(period.key)
+    const max = lastDayOfPeriod(period.key)
+    if (draft.dueOn && (draft.dueOn < min || draft.dueOn > max))
+      found.dueOn = `Choose a date in ${period.label}.`
+    if (targetReasonRequired(row, timing) && !draft.reason.trim())
+      found.reason = "Add a reason. It's saved with the change."
+    else if (draft.reason.length > COVERAGE_LIMITS.reasonMax)
+      found.reason = `Keep the reason to ${COVERAGE_LIMITS.reasonMax} characters.`
+    return found
+  }
+
+  async function save() {
+    if (!onSetTarget || saving) return
+    const found: Record<string, RowErrors> = {}
+    for (const row of changes) {
+      const rowErrors = validate(row, draftFor(row)!)
+      if (Object.keys(rowErrors).length > 0) found[row.person.id] = rowErrors
+    }
+    setErrors(found)
+    if (Object.keys(found).length > 0) {
+      const first = changes.find((row) => found[row.person.id])
+      if (first)
+        document
+          .querySelector<HTMLElement>(
+            `[data-target-row="${first.person.id}"] [aria-invalid="true"]`
+          )
+          ?.focus()
+      return
+    }
+    setSaving(true)
+    setNotice(null)
+    const saved: { row: MonthlyProgress; count: number; reason: string }[] = []
+    let failure: { tone: "error" | "warning"; text: string } | null = null
+    for (const row of changes) {
+      const draft = draftFor(row)!
+      const count = Number(draft.count)
+      const reason = draft.reason.trim()
+      let result: CoverageResult<{ revision: number }>
+      try {
+        result = await onSetTarget({
+          staffId: row.person.id,
+          period: period.key,
+          targetCount: count,
+          dueOn: draft.dueOn || null,
+          reason: reason || null,
+          expectedRevision: row.revision,
+        })
+      } catch {
+        failure = { tone: "error", text: NETWORK_ERROR }
+        break
+      }
+      if (!result.ok) {
+        const refresh = needsRefresh(result)
+        if (refresh) onStale?.()
+        failure = {
+          tone: refresh ? "warning" : "error",
+          text: failureText(result),
+        }
+        if ("fieldErrors" in result && result.fieldErrors) {
+          const fields = result.fieldErrors as Partial<Record<string, string>>
+          setErrors({
+            [row.person.id]: {
+              count: fields.targetCount,
+              dueOn: fields.dueOn,
+              reason: fields.reason,
+            },
+          })
+        }
+        if (saved.length > 0)
+          failure.text = `${plural(saved.length, "target")} saved. ${row.person.displayName}: ${failure.text}`
+        break
+      }
+      saved.push({ row, count, reason })
+      discard(row.person.id)
+    }
+    setSaving(false)
+    if (failure) {
+      setNotice(failure)
+    } else if (saved.length === 1) {
+      const { row, count, reason } = saved[0]
+      const who = `${firstName(row.person.displayName)}'s ${month} target is ${count}`
+      const from =
+        row.targetCount != null && row.targetCount !== count
+          ? `, changed from ${row.targetCount}`
+          : ""
+      setNotice({
+        tone: "success",
+        text: `Saved. ${who}${from}.${reason ? " The reason is kept with it." : ""}`,
+      })
+    } else {
+      setNotice({
+        tone: "success",
+        text: `Saved ${plural(saved.length, "target")} for ${month}.`,
+      })
+    }
+    setFocusNotice((n) => n + 1)
+  }
+
+  function renderRow(row: MonthlyProgress, movedAway: boolean) {
+    const id = row.person.id
+    const name = row.person.displayName
+    const draft = draftFor(row)
+    const editable = canEditRow(row)
+    const changed = editable && isChanged(row, draft, period.key)
+    const rowErrors = errors[id] ?? {}
+    const count = draft?.count ?? originalCount(row)
+    const shownTarget = changed
+      ? countError(count)
+        ? null
+        : Number(count)
+      : row.targetCount
+    const needsReason = changed && targetReasonRequired(row, timing)
+    const missingTeam = row.setupMissing.includes("team")
+    const met = changed
+      ? shownTarget != null && !missingTeam && row.accepted >= shownTarget
+      : row.complete
+    const source = targetSourceText(row, period.key, timing)
+    const reasonId = `${ids}-${id}-reason`
+    const dueId = `${ids}-${id}-due`
+    const countErrorId = `${ids}-${id}-count-error`
+
+    let due: string
+    if (movedAway) {
+      due = "Photos sent before the move still count here."
+    } else if (changed) {
+      due =
+        row.targetCount == null
+          ? needsReason
+            ? "First target"
+            : "First target · no reason needed"
+          : [`Was ${row.targetCount}`, source ? lowerFirst(source) : null]
+              .filter(Boolean)
+              .join(" · ")
+    } else if (timing === "past") {
+      due = source ?? (row.targetCount == null ? `No target for ${month}.` : "")
+    } else if (row.targetId == null && timing === "current") {
+      due = "Copied when you prepare this month"
+    } else if (row.status === "needs_setup") {
+      const parts: string[] = []
+      if (row.setupMissing.includes("target")) parts.push("Set a target.")
+      if (missingTeam) parts.push("An admin assigns the team.")
+      due = parts.join(" ")
+    } else {
+      due = [
+        row.due?.label ?? null,
+        row.lateAcceptances > 0 ? `${row.lateAcceptances} accepted late` : null,
+        row.evidenceRemoved > 0
+          ? `${row.evidenceRemoved} credited, photo since removed`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    }
+
+    const chip =
+      row.status === "needs_setup" && !changed ? (
+        <StatusChip state="needs_setup" />
+      ) : met ? (
+        <StatusChip state="target_met" />
+      ) : row.due?.overdue && timing !== "past" ? (
+        <StatusChip state="overdue" />
+      ) : null
+
+    let progress: React.ReactNode
+    if ((movedAway && !editable) || (changed && shownTarget == null)) {
+      progress = <span aria-hidden />
+    } else if (shownTarget != null) {
+      progress = (
+        <Frames
+          compact
+          accepted={row.accepted}
+          target={shownTarget}
+          pending={row.pending}
+          chip={chip}
+          className="@max-[640px]:col-span-full"
+        />
+      )
+    } else {
+      progress = (
+        <p className="@max-[640px]:col-span-full">
+          <StatusChip state="needs_setup" />
+        </p>
+      )
+    }
+
+    return (
+      <li
+        key={`${id}:${row.venue.id}`}
+        data-target-row={id}
+        className="grid grid-cols-[minmax(0,1.3fr)_auto_minmax(0,1fr)_minmax(0,0.8fr)] items-center gap-x-5 gap-y-3 p-3 @max-[640px]:grid-cols-[minmax(0,1fr)_auto]"
+      >
+        <TeamPerson
+          person={row.person}
+          href={staffHref(id)}
+          meta={
+            movedAway
+              ? "No longer at this venue"
+              : [
+                  row.person.jobTitle,
+                  timing === "past" && !row.isCurrentMember
+                    ? "No longer at this venue"
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ") || null
+          }
+        />
+        {editable ? (
+          <Stepper
+            name={`${name}'s photo target`}
+            value={count}
+            onChange={(value) => update(row, { count: value })}
+            changed={changed}
+            invalid={!!rowErrors.count}
+            disabled={saving}
+            describedBy={rowErrors.count ? countErrorId : undefined}
+          />
+        ) : movedAway ? (
+          <span aria-hidden />
+        ) : (
+          <p className="text-item-title-touch text-ink tabular-nums md:text-item-title">
+            {row.targetCount != null ? plural(row.targetCount, "photo") : "–"}
+          </p>
+        )}
+        {progress}
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 @max-[640px]:col-span-full">
+          {due ? (
+            <p className="text-meta-touch text-ink-muted md:text-meta">{due}</p>
+          ) : null}
+          {editable && !draft?.dueOpen ? (
+            <Button
+              variant="link"
+              size="sm"
+              className="text-meta-touch md:text-meta"
+              onClick={() => update(row, { dueOpen: true })}
+              disabled={saving}
+              aria-label={`Change due date for ${name}`}
+            >
+              Change due date
+            </Button>
+          ) : null}
+          {correcting ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setCorrectingRow(row)
+                setCorrectOpen(true)
+              }}
+              aria-label={`Correct target for ${name}, ${month}`}
+            >
+              <PencilSimpleIcon aria-hidden />
+              Correct target
+            </Button>
+          ) : null}
+        </div>
+        {editable && draft?.dueOpen ? (
+          <div className="col-span-full grid max-w-xs gap-1.5">
+            <label htmlFor={dueId} className={fieldLabel}>
+              Due date
+            </label>
+            <Input
+              id={dueId}
+              type="date"
+              min={firstDayOfPeriod(period.key)}
+              max={lastDayOfPeriod(period.key)}
+              value={draft.dueOn}
+              onChange={(e) => update(row, { dueOn: e.currentTarget.value })}
+              aria-invalid={!!rowErrors.dueOn || undefined}
+              aria-describedby={`${dueId}-hint`}
+              disabled={saving}
+              className={fieldInput}
+            />
+            {rowErrors.dueOn ? (
+              <FieldError id={`${dueId}-hint`}>{rowErrors.dueOn}</FieldError>
+            ) : (
+              <p id={`${dueId}-hint`} className={fieldHint}>
+                Defaults to {localDateLabel(lastDayOfPeriod(period.key))}. An
+                earlier date is for follow-up only; photos can still be sent all
+                month.
+              </p>
+            )}
+          </div>
+        ) : null}
+        {needsReason ? (
+          <div className="col-span-full grid gap-1.5">
+            <label htmlFor={reasonId} className={fieldLabel}>
+              Reason for changing {month}&apos;s target
+            </label>
+            <Input
+              id={reasonId}
+              type="text"
+              value={draft?.reason ?? ""}
+              onChange={(e) => update(row, { reason: e.currentTarget.value })}
+              maxLength={COVERAGE_LIMITS.reasonMax}
+              aria-invalid={!!rowErrors.reason || undefined}
+              aria-describedby={`${reasonId}-hint`}
+              disabled={saving}
+              className={fieldInput}
+            />
+            <div className="flex items-start gap-3">
+              {rowErrors.reason ? (
+                <FieldError id={`${reasonId}-hint`}>
+                  {rowErrors.reason}
+                </FieldError>
+              ) : (
+                <span id={`${reasonId}-hint`} className={fieldHint}>
+                  Saved with the change. Admins can see it.
+                </span>
+              )}
+              <Counter value={draft?.reason ?? ""} />
+            </div>
+          </div>
+        ) : null}
+        {rowErrors.count ? (
+          <div className="col-span-full">
+            <FieldError id={countErrorId}>{rowErrors.count}</FieldError>
+          </div>
+        ) : null}
+      </li>
+    )
+  }
+
+  return (
+    <div className="grid gap-6 md:gap-8">
+      <CoverageNotice
+        ref={noticeRef}
+        notice={notice}
+        onDismiss={() => setNotice(null)}
+      />
+      {rows.length === 0 ? (
+        <EmptyState
+          title={
+            venueName
+              ? `No one works at ${venueName} yet`
+              : "No one works here yet"
+          }
+          description="An admin adds staff and sets their venue. Their targets are set here once they join."
+        />
+      ) : (
+        <section
+          aria-labelledby={`${ids}-people`}
+          className="grid min-w-0 gap-3"
+        >
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-2">
+            <h2
+              id={`${ids}-people`}
+              className="text-section-title-touch text-ink md:text-section-title"
+            >
+              People
+            </h2>
+            <span className="text-meta-touch text-ink-muted tabular-nums md:text-meta">
+              {unprepared
+                ? plural(team.length, "person", "people")
+                : `${met} of ${team.length} met their target`}
+            </span>
+          </div>
+          <p className="text-body-touch text-ink-muted md:text-body-sm">
+            Needs setup first, then A to Z by surname.
+          </p>
+          {team.length > 0 ? (
+            <ItemList label={`Team targets, ${period.label}`}>
+              {team.map((row) => renderRow(row, false))}
+            </ItemList>
+          ) : null}
+        </section>
+      )}
+      {moved.length > 0 ? (
+        <section
+          aria-labelledby={`${ids}-moved`}
+          className="grid min-w-0 gap-3"
+        >
+          <h2
+            id={`${ids}-moved`}
+            className="text-section-title-touch text-ink md:text-section-title"
+          >
+            Moved away this month
+          </h2>
+          <ItemList label="Moved away this month">
+            {moved.map((row) => renderRow(row, true))}
+          </ItemList>
+        </section>
+      ) : null}
+      {changes.length > 0 ? (
+        <div className="sticky bottom-[calc(var(--size-tabbar)+env(safe-area-inset-bottom,0px))] z-30 -mx-4 flex flex-wrap items-center justify-between gap-3 bg-panel px-4 py-3 shadow-(--shadow-bar) md:bottom-0 md:mx-0 md:rounded-panel">
+          <p
+            role="status"
+            className="text-meta-touch text-ink-muted tabular-nums md:text-meta"
+          >
+            {plural(changes.length, "change")} not saved
+          </p>
+          <Button
+            onClick={() => void save()}
+            className="max-md:min-h-11"
+            aria-disabled={saving || undefined}
+            aria-busy={saving || undefined}
+          >
+            {saving ? (
+              <SpinnerGapIcon aria-hidden className="animate-spin" />
+            ) : (
+              <CheckIcon aria-hidden />
+            )}
+            {saving ? "Saving…" : "Save targets"}
+          </Button>
+        </div>
+      ) : null}
+      <CorrectTargetDialog
+        row={correctingRow}
+        period={period}
+        venueName={venueName}
+        open={correctOpen}
+        onOpenChange={setCorrectOpen}
+        reportFocus={() => noticeRef.current}
+        onSave={async (row, values) => {
+          if (!onSetTarget) return { ok: false, error: "Not available." }
+          let result: CoverageResult<{ revision: number }>
+          try {
+            result = await onSetTarget({
+              staffId: row.person.id,
+              period: period.key,
+              targetCount: values.targetCount,
+              dueOn: row.due?.dueOn ?? null,
+              reason: values.reason,
+              expectedRevision: row.revision,
+            })
+          } catch {
+            return { ok: false, network: true, error: NETWORK_ERROR }
+          }
+          if (!result.ok) {
+            if (needsRefresh(result)) {
+              onStale?.()
+              setNotice({ tone: "warning", text: failureText(result) })
+              return REPORTED
+            }
+            return { ok: false, error: failureText(result), failure: result }
+          }
+          setNotice({
+            tone: "success",
+            text: `${firstName(row.person.displayName)}'s ${month} target is now ${values.targetCount}. The correction and its reason are kept in ${month}'s history.`,
+          })
+          setFocusNotice((n) => n + 1)
+          return { ok: true }
+        }}
+      />
+    </div>
+  )
+}
+
+type CorrectOutcome =
+  | { ok: true }
+  | { ok: false; error: string; network?: boolean; failure?: CoverageFailure }
+  | Reported
+
+/** Admin-only correction of a past month's target, with a recorded reason (A20). */
+function CorrectTargetDialog({
   row,
   period,
-  timing,
+  venueName,
   open,
   onOpenChange,
   onSave,
@@ -93,83 +853,74 @@ function TargetDialog({
 }: {
   row: MonthlyProgress | null
   period: PeriodView
-  timing: PeriodTiming
+  venueName?: string
   open: boolean
   onOpenChange: (open: boolean) => void
-  onSave: (values: {
-    targetCount: number
-    dueOn: string | null
-    reason: string | null
-  }) => Promise<
-    | { ok: true }
-    | {
-        ok: false
-        error: string
-        fieldErrors?: Partial<Record<string, string>>
-      }
-    | Reported
-  >
-  /** Takes focus after a `REPORTED` close; the row may have gone. */
+  onSave: (
+    row: MonthlyProgress,
+    values: { targetCount: number; reason: string }
+  ) => Promise<CorrectOutcome>
   reportFocus: () => HTMLElement | null
 }) {
   const ids = React.useId()
   const { reportedRef, finalFocus } = useReportedFocus(reportFocus)
   const [count, setCount] = React.useState("")
-  const [dueOn, setDueOn] = React.useState("")
   const [reason, setReason] = React.useState("")
-  const [errors, setErrors] = React.useState<Partial<Record<string, string>>>(
-    {}
-  )
-  const [error, setError] = React.useState<string | null>(null)
+  const [errors, setErrors] = React.useState<RowErrors>({})
+  const [failure, setFailure] = React.useState<{
+    network: boolean
+    text: string
+  } | null>(null)
   const [pending, setPending] = React.useState(false)
-  // Keyed by person and saved revision, so a refresh while the dialog is
-  // open does not wipe what is being typed.
-  const rowKey = row ? `${row.person.id}:${row.revision ?? "new"}` : null
+  const key = row ? rowKey(row) : null
   const [seed, setSeed] = React.useState<string | null>(null)
-  if (open && row && seed !== rowKey) {
-    setSeed(rowKey)
-    setCount(row.targetCount != null ? String(row.targetCount) : "")
-    setDueOn(row.due?.dueOn ?? lastDayOfPeriod(period.key))
+  if (open && row && seed !== key) {
+    setSeed(key)
+    setCount(originalCount(row))
     setReason("")
     setErrors({})
-    setError(null)
+    setFailure(null)
   }
-  const needsReason = row ? targetReasonRequired(row, timing) : false
-  const min = firstDayOfPeriod(period.key)
-  const max = lastDayOfPeriod(period.key)
+  const month = monthName(period.key)
+  if (!row) return null
+  const name = row.person.displayName
+  const first = firstName(name)
+  const n = Number(count)
+  const valid = !countError(count)
+  const source = targetSourceText(row, period.key, "past")
+  const hint =
+    valid && row.targetCount != null
+      ? `Was ${row.targetCount}. With ${n}, ${first}'s ${month} shows ${
+          row.accepted >= n && !row.setupMissing.includes("team")
+            ? "Target met"
+            : `${row.accepted} of ${n} accepted`
+        }. Venue coverage isn't affected.`
+      : "Venue coverage isn't affected."
 
   async function submit(event: React.FormEvent) {
     event.preventDefault()
-    const found: Record<string, string> = {}
-    const n = Number(count)
-    if (!Number.isInteger(n) || n < 1 || n > COVERAGE_LIMITS.targetCountMax)
-      found.targetCount = `Enter a whole number from 1 to ${COVERAGE_LIMITS.targetCountMax}.`
-    if (dueOn && (dueOn < min || dueOn > max))
-      found.dueOn = `Choose a date in ${period.label}.`
-    if (needsReason && !reason.trim())
-      found.reason = "Give a reason for this change."
+    if (!row || pending) return
+    const found: RowErrors = {}
+    const countProblem = countError(count)
+    if (countProblem) found.count = countProblem
+    if (!reason.trim())
+      found.reason = `Add a reason. It's kept in ${month}'s history.`
     setErrors(found)
     if (Object.keys(found).length > 0) return
     setPending(true)
-    setError(null)
+    setFailure(null)
     try {
-      const outcome = await onSave({
+      const outcome = await onSave(row, {
         targetCount: n,
-        dueOn: dueOn || null,
-        reason: reason.trim() || null,
+        reason: reason.trim(),
       })
       if (!outcome.ok && !("reported" in outcome)) {
-        setError(outcome.error)
-        setErrors(outcome.fieldErrors ?? {})
+        setFailure({ network: !!outcome.network, text: outcome.error })
         return
       }
-      reportedRef.current = !outcome.ok
+      reportedRef.current = true
       setSeed(null)
       onOpenChange(false)
-    } catch {
-      setError(
-        "Could not reach the server. Check your connection and try again."
-      )
     } finally {
       setPending(false)
     }
@@ -184,76 +935,101 @@ function TargetDialog({
         onOpenChange(next)
       }}
     >
-      <DialogContent className="sm:max-w-md" finalFocus={finalFocus}>
+      <DialogContent finalFocus={finalFocus}>
         <form onSubmit={submit} className="grid gap-4" noValidate>
           <DialogHeader>
             <DialogTitle className="break-words">
-              {row?.person.displayName}: {period.label} target
+              Correct {name}&apos;s {month} target
             </DialogTitle>
-            <DialogDescription>
-              {timing === "past"
-                ? "Correcting a past month is recorded with your reason. Accepted photos already credited stay credited."
-                : "Only new photos the person uploads and submits in this month count once accepted."}
-            </DialogDescription>
           </DialogHeader>
-          <Field className="gap-1.5">
-            <FieldLabel htmlFor={`${ids}-count`}>Photos this month</FieldLabel>
-            <Input
-              id={`${ids}-count`}
-              type="number"
-              inputMode="numeric"
-              min={1}
-              max={COVERAGE_LIMITS.targetCountMax}
-              step={1}
-              value={count}
-              onChange={(e) => setCount(e.currentTarget.value)}
-              aria-invalid={!!errors.targetCount || undefined}
-              className="h-11 sm:h-9"
-              disabled={pending}
-            />
-            {errors.targetCount ? (
-              <FieldError>{errors.targetCount}</FieldError>
-            ) : null}
-          </Field>
-          <Field className="gap-1.5">
-            <FieldLabel htmlFor={`${ids}-due`}>Due date</FieldLabel>
-            <Input
-              id={`${ids}-due`}
-              type="date"
-              min={min}
-              max={max}
-              value={dueOn}
-              onChange={(e) => setDueOn(e.currentTarget.value)}
-              aria-invalid={!!errors.dueOn || undefined}
-              aria-describedby={`${ids}-due-help`}
-              className="h-11 sm:h-9"
-              disabled={pending}
-            />
-            <FieldDescription id={`${ids}-due-help`}>
-              UK date, defaults to {localDateLabel(max)}. An earlier date is for
-              follow-up only; photos can still be submitted all month.
-            </FieldDescription>
-            {errors.dueOn ? <FieldError>{errors.dueOn}</FieldError> : null}
-          </Field>
-          {needsReason ? (
-            <ReasonField
-              id={`${ids}-reason`}
-              label="Reason for the change"
-              value={reason}
-              onChange={setReason}
-              error={errors.reason}
-              disabled={pending}
-            />
+          {failure ? (
+            <Notice tone="negative" title="Couldn't save the correction">
+              {failure.network
+                ? "Nothing changed. Check your connection and try again."
+                : `Nothing changed. ${failure.text}`}
+            </Notice>
           ) : null}
-          {error ? (
-            <p role="alert" className="text-sm text-negative">
-              {error}
+          <div className="flex items-center gap-3">
+            <ProfileAvatar name={name} src={row.person.avatarUrl} size="md" />
+            <p className="min-w-0 text-body-touch md:text-body-sm">
+              <strong className="font-semibold">{name}</strong>{" "}
+              <TeamTag department={row.person.department} />
+              <br />
+              <span className="text-ink-muted">
+                {[
+                  venueName ?? row.venue.name,
+                  period.label,
+                  row.targetCount != null
+                    ? `${row.accepted} of ${row.targetCount} accepted`
+                    : "Needs setup",
+                  source ? lowerFirst(source) : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </span>
             </p>
-          ) : null}
+          </div>
+          <div className="grid gap-1.5">
+            <label htmlFor={`${ids}-count`} className={fieldLabel}>
+              {month} target
+            </label>
+            <Stepper
+              id={`${ids}-count`}
+              name={`${name}'s ${month} target`}
+              value={count}
+              onChange={(value) => {
+                setCount(value)
+                setErrors((e) => ({ ...e, count: undefined }))
+              }}
+              changed={count !== originalCount(row)}
+              invalid={!!errors.count}
+              disabled={pending}
+              describedBy={`${ids}-count-hint`}
+            />
+            {errors.count ? (
+              <FieldError id={`${ids}-count-hint`}>{errors.count}</FieldError>
+            ) : (
+              <p id={`${ids}-count-hint`} className={fieldHint}>
+                {hint}
+              </p>
+            )}
+          </div>
+          <div className="grid gap-1.5">
+            <label htmlFor={`${ids}-reason`} className={fieldLabel}>
+              Reason
+            </label>
+            <textarea
+              id={`${ids}-reason`}
+              rows={3}
+              value={reason}
+              onChange={(e) => {
+                setReason(e.currentTarget.value)
+                setErrors((all) => ({ ...all, reason: undefined }))
+              }}
+              maxLength={COVERAGE_LIMITS.reasonMax}
+              aria-invalid={!!errors.reason || undefined}
+              aria-describedby={`${ids}-reason-hint`}
+              disabled={pending}
+              className="min-h-24 w-full resize-y rounded-control border border-line-control bg-panel px-3 py-2 text-body-touch text-ink outline-none placeholder:text-ink-subtle focus-visible:border-focus focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus focus-visible:outline-solid aria-invalid:border-negative md:text-body"
+            />
+            <div className="flex items-start gap-3">
+              {errors.reason ? (
+                <FieldError id={`${ids}-reason-hint`}>
+                  {errors.reason}
+                </FieldError>
+              ) : (
+                <span id={`${ids}-reason-hint`} className={fieldHint}>
+                  Kept in {month}&apos;s history with your name and the time.
+                  The target&apos;s source becomes Corrected by an admin.
+                </span>
+              )}
+              <Counter value={reason} />
+            </div>
+          </div>
           <DialogFooter>
             <Button
               type="button"
-              variant="outline"
+              variant="secondary"
               size="touch"
               onClick={() => onOpenChange(false)}
               disabled={pending}
@@ -263,308 +1039,17 @@ function TargetDialog({
             <Button
               type="submit"
               size="touch"
-              disabled={pending}
+              aria-disabled={pending || undefined}
               aria-busy={pending || undefined}
             >
-              {pending ? "Saving…" : "Save target"}
+              {pending ? (
+                <SpinnerGapIcon aria-hidden className="animate-spin" />
+              ) : null}
+              {pending ? "Saving…" : "Save correction"}
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
-  )
-}
-
-/**
- * Monthly participation for one venue: each person's target, accepted photos
- * and setup gaps. A missing target or team is "Needs setup", never complete.
- * Shows names, avatars, teams and progress only.
- */
-export function TeamRoster({
-  period,
-  currentPeriod,
-  rows,
-  canEdit,
-  isAdmin,
-  basePath,
-  onSetTarget,
-  onStale,
-}: {
-  period: PeriodView
-  currentPeriod: PeriodKey
-  rows: MonthlyProgress[]
-  /** Managers: current and next month. Admins: any month. */
-  canEdit: boolean
-  isAdmin: boolean
-  /** The venue's manager tools (`/staff/manage` or an admin venue). */
-  basePath: string
-  onSetTarget?: SetTargetHandler
-  onStale?: () => void
-}) {
-  const staffHref = (id: string) =>
-    `${manageHrefs(basePath).staff(id)}&period=${period.key}`
-  const timing = timingOf(period.key, currentPeriod)
-  const editable = !!onSetTarget && canEdit && (timing !== "past" || isAdmin)
-  const action = useCoverageAction(onStale)
-  const noticeRef = React.useRef<HTMLDivElement>(null)
-  const [editing, setEditing] = React.useState<MonthlyProgress | null>(null)
-  const [bulkOpen, setBulkOpen] = React.useState(false)
-
-  const missingTarget = React.useMemo(
-    () =>
-      rows.filter(
-        (r) => r.isCurrentMember && r.setupMissing.includes("target")
-      ),
-    [rows]
-  )
-  // The bulk dialog edits a stand-in row named after the group; it must keep
-  // its identity between renders (the dialog resets its form on a new row).
-  const bulkRow = React.useMemo<MonthlyProgress | null>(() => {
-    const first = missingTarget[0]
-    if (!first) return null
-    return {
-      ...first,
-      targetCount: null,
-      source: "placeholder",
-      due: null,
-      person: {
-        ...first.person,
-        displayName: plural(missingTarget.length, "person", "people"),
-      },
-    }
-  }, [missingTarget])
-  const complete = rows.filter((r) => r.complete).length
-  const needsSetup = rows.filter((r) => r.status === "needs_setup").length
-
-  async function saveOne(
-    row: MonthlyProgress,
-    values: { targetCount: number; dueOn: string | null; reason: string | null }
-  ) {
-    if (!onSetTarget) return { ok: false as const, error: "Not available." }
-    const result = await action.run(
-      () =>
-        onSetTarget({
-          staffId: row.person.id,
-          period: period.key,
-          targetCount: values.targetCount,
-          dueOn: values.dueOn,
-          reason: values.reason,
-          expectedRevision: row.revision,
-        }),
-      `Saved ${row.person.displayName}’s target: ${plural(values.targetCount, "photo")}.`
-    )
-    if (result.ok) return { ok: true as const }
-    if (action.reportedOnPage(result)) return REPORTED
-    return {
-      ok: false as const,
-      error: result.code === "network" ? result.message : failureText(result),
-      fieldErrors: "fieldErrors" in result ? result.fieldErrors : undefined,
-    }
-  }
-
-  async function saveMissing(values: {
-    targetCount: number
-    dueOn: string | null
-    reason: string | null
-  }) {
-    if (!onSetTarget) return { ok: false as const, error: "Not available." }
-    let saved = 0
-    for (const row of missingTarget) {
-      try {
-        const result = await onSetTarget({
-          staffId: row.person.id,
-          period: period.key,
-          targetCount: values.targetCount,
-          dueOn: values.dueOn,
-          reason: values.reason,
-          expectedRevision: row.revision,
-        })
-        if (!result.ok) {
-          onStale?.()
-          const text = `${plural(saved, "target")} saved. ${row.person.displayName}: ${failureText(result)}`
-          if (needsRefresh(result)) {
-            action.setNotice({ tone: "warning", text })
-            return REPORTED
-          }
-          action.setNotice({ tone: "error", text })
-          return { ok: false as const, error: text }
-        }
-        saved += 1
-      } catch {
-        onStale?.()
-        const text = `${plural(saved, "target")} saved. Could not reach the server; try again for the rest.`
-        action.setNotice({ tone: "error", text })
-        return { ok: false as const, error: text }
-      }
-    }
-    action.setNotice({
-      tone: "success",
-      text: `Saved ${plural(saved, "target")} of ${plural(values.targetCount, "photo")}.`,
-    })
-    return { ok: true as const }
-  }
-
-  return (
-    <section aria-labelledby="team-title" className="grid gap-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="grid gap-1">
-          <h2 id="team-title" className="text-lg font-medium">
-            Team targets, {period.label}
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            {plural(rows.length, "person", "people")} · {complete} complete ·{" "}
-            {needsSetup} need setup
-          </p>
-        </div>
-        {editable && missingTarget.length > 0 ? (
-          <Button size="touch" onClick={() => setBulkOpen(true)}>
-            <UsersIcon data-icon="inline-start" aria-hidden />
-            Set targets for {plural(
-              missingTarget.length,
-              "person",
-              "people"
-            )}{" "}
-            without one
-          </Button>
-        ) : null}
-      </div>
-      {timing === "past" && !isAdmin ? (
-        <p className="text-sm text-muted-foreground">
-          Past months are read-only. Only an admin can correct them, with a
-          reason.
-        </p>
-      ) : null}
-      <CoverageNotice
-        ref={noticeRef}
-        notice={action.notice}
-        onDismiss={action.dismiss}
-      />
-      {rows.length === 0 ? (
-        <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-          No one at this venue has a target for {period.label} yet. Use “Prepare
-          this month” on the overview to set the month up.
-        </p>
-      ) : (
-        <ul aria-label="Team" className="divide-y rounded-lg border bg-card">
-          {rows.map((row) => {
-            const team = departmentLabel(row.person.department)
-            const targetAction =
-              row.targetCount == null ? "Set target" : "Edit target"
-            return (
-              <li
-                key={`${row.person.id}:${row.venue.id}`}
-                className="flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center sm:px-4"
-              >
-                <Link
-                  href={staffHref(row.person.id)}
-                  className="flex min-w-0 flex-1 items-center gap-3 rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-                >
-                  <ProfileAvatar
-                    name={row.person.displayName}
-                    src={row.person.avatarUrl}
-                    className="size-10"
-                  />
-                  <span className="grid min-w-0 gap-0.5">
-                    <span className="flex flex-wrap items-center gap-1.5">
-                      <span className="font-medium break-words">
-                        {row.person.displayName}
-                      </span>
-                      {row.isManager ? (
-                        <CoverageBadge tone="info">Manager</CoverageBadge>
-                      ) : null}
-                      {row.status === "needs_setup" ? (
-                        <NeedsSetupBadge />
-                      ) : null}
-                      {row.complete ? (
-                        <CoverageBadge tone="positive">Complete</CoverageBadge>
-                      ) : null}
-                      {row.due?.overdue && !row.complete ? (
-                        <OverdueBadge />
-                      ) : null}
-                    </span>
-                    <span className="text-sm text-muted-foreground">
-                      {[
-                        team ?? "No team",
-                        row.person.jobTitle,
-                        row.isCurrentMember ? null : "No longer at this venue",
-                      ]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </span>
-                    {row.status === "needs_setup" ? (
-                      <span className="text-sm text-warning">
-                        {setupText(row)}
-                      </span>
-                    ) : null}
-                  </span>
-                </Link>
-                <div className="grid gap-1 sm:w-64">
-                  <PhotoProgress
-                    accepted={row.accepted}
-                    target={row.targetCount}
-                    pending={row.pending}
-                  />
-                  <span className="text-xs text-muted-foreground">
-                    {[
-                      row.due?.label ?? null,
-                      row.source
-                        ? labelFor(TARGET_SOURCE_LABEL, row.source)
-                        : null,
-                      row.needsAnotherPhoto > 0
-                        ? `${row.needsAnotherPhoto} need another photo`
-                        : null,
-                      row.lateAcceptances > 0
-                        ? `${row.lateAcceptances} accepted late`
-                        : null,
-                      row.evidenceRemoved > 0
-                        ? `${row.evidenceRemoved} credited, photo since removed`
-                        : null,
-                    ]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </span>
-                </div>
-                {editable && (row.isCurrentMember || isAdmin) ? (
-                  <Button
-                    variant="outline"
-                    size="touch"
-                    className="sm:w-auto"
-                    onClick={() => setEditing(row)}
-                    aria-label={`${targetAction} for ${row.person.displayName}`}
-                  >
-                    <PencilSimpleIcon data-icon="inline-start" aria-hidden />
-                    {targetAction}
-                  </Button>
-                ) : null}
-              </li>
-            )
-          })}
-        </ul>
-      )}
-      <TargetDialog
-        row={editing}
-        period={period}
-        timing={timing}
-        open={!!editing}
-        onOpenChange={(open) => {
-          if (!open) setEditing(null)
-        }}
-        onSave={(values) =>
-          editing
-            ? saveOne(editing, values)
-            : Promise.resolve({ ok: false as const, error: "Nothing to save." })
-        }
-        reportFocus={() => noticeRef.current}
-      />
-      <TargetDialog
-        row={bulkRow}
-        period={period}
-        timing={timing}
-        open={bulkOpen && bulkRow !== null}
-        onOpenChange={setBulkOpen}
-        onSave={(values) => saveMissing(values)}
-        reportFocus={() => noticeRef.current}
-      />
-    </section>
   )
 }

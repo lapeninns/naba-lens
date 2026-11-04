@@ -15,7 +15,7 @@ import {
   setStaffActiveAction,
   updateStaffAccountAction,
 } from "@/app/admin/staff/actions"
-import AdminPage from "@/app/admin/page"
+import AdminPage from "@/app/admin/(content)/page"
 import RootPage from "@/app/page"
 import { getAuthState } from "@/lib/auth"
 import {

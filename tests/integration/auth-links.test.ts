@@ -18,7 +18,7 @@ import { loadMyMedia } from "@/app/staff/actions"
 import { loadLibraryPage } from "@/app/admin/library-actions"
 import RootPage from "@/app/page"
 import StaffPage from "@/app/staff/page"
-import AdminPage from "@/app/admin/page"
+import AdminPage from "@/app/admin/(content)/page"
 import { getAuthState } from "@/lib/auth"
 import { proxy } from "@/proxy"
 
@@ -242,7 +242,7 @@ describe("email link scanners (GET must not use the token)", () => {
         action: "/auth/confirm/verify",
         method: "post",
         fields: { token_hash: tokenHashOf(link), type: "email" },
-        heading: "Sign in to Naba-Lens",
+        heading: "Continue signing in",
       })
     }
     expect(scanner.authCookies()).toEqual([])

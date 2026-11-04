@@ -5,6 +5,7 @@ import * as React from "react"
 import { LoadMoreButton } from "@/components/nabalens/load-more-button"
 import { formatDateTime } from "@/components/nabalens/menus/copy"
 
+import { failureCode } from "./failure-code"
 import {
   failureText,
   labelFor,
@@ -154,7 +155,7 @@ export function PreparationRunList({
   const list = usePagedList(initial, (i) => i.id, onLoadMore)
   if (list.items.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground">
+      <p className="text-body-touch text-ink-muted md:text-body">
         No preparation has run yet.
       </p>
     )
@@ -163,12 +164,12 @@ export function PreparationRunList({
     <div className="grid gap-2">
       <ul
         aria-label="Preparation runs"
-        className="divide-y rounded-lg border bg-card"
+        className="divide-y divide-line rounded-panel border border-line bg-panel"
       >
         {list.items.map((run) => (
           <li key={run.id} className="grid gap-1 px-3 py-3 sm:px-4">
             <p className="flex flex-wrap items-center gap-1.5">
-              <span className="font-medium">
+              <span className="text-item-title-touch text-ink md:text-item-title">
                 {periodKeyLabel(run.period)},{" "}
                 {run.venueId
                   ? (venueNames[run.venueId] ?? "One venue")
@@ -183,10 +184,10 @@ export function PreparationRunList({
                 {run.trigger === "scheduled" ? "Scheduled" : "Manual"}
               </CoverageBadge>
             </p>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-meta-touch text-ink-muted md:text-meta">
               {formatDateTime(run.startedAt)} ·{" "}
               {run.status === "failed"
-                ? `Error code ${run.errorCode ?? "unknown"}. Nothing was half-done.`
+                ? `Error code ${run.errorCode ? failureCode(run.errorCode) : "unknown"}. Nothing was half-done.`
                 : `${plural(run.staffConsidered, "person", "people")} checked, ${run.targetsCopied} copied, ${run.placeholdersCreated} need setup, ${run.alreadyPresent} already set`}
             </p>
           </li>

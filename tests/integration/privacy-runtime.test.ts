@@ -234,6 +234,9 @@ async function signInOverHttp(admin: Db, role: Role, email: string) {
 const sha256 = (b: Uint8Array) => createHash("sha256").update(b).digest("hex")
 const EMAIL =
   /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}/g
+// The sign-in form's example address (its placeholder and error copy). It is
+// product copy, not anyone's data, so any page may show it.
+const EXAMPLE_EMAIL = "name@example.com"
 const SIGNED_URL = /\/storage\/v1\/object\/sign\/[^"'\s\\]+/g
 
 // CI (scripts/ci/privacy-runtime.mjs) sets this, so a missing server fails
@@ -646,7 +649,8 @@ describe.skipIf(!BASE)("privacy: runtime headers, bodies and logs", () => {
     for (const r of observed) {
       if (r.role !== "staffA" && r.role !== "staffB" && r.role !== "anon")
         continue
-      const own = r.role === "anon" ? [] : [emails[r.role]]
+      const own =
+        r.role === "anon" ? [EXAMPLE_EMAIL] : [EXAMPLE_EMAIL, emails[r.role]]
       const where = `${r.role} ${r.method} ${r.path}`
       for (const email of r.body.match(EMAIL) ?? []) {
         expect(own, `${where} leaks ${email}`).toContain(email)

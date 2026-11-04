@@ -2,7 +2,7 @@ import { redirect } from "next/navigation"
 
 import { getAuthState, homePathFor, ROUTES } from "@/lib/auth"
 
-/** Role redirect: staff to My tasks, admins to the library. */
+/** Role redirect: staff to Home, admins to the library. */
 export default async function RootPage() {
   const state = await getAuthState()
   switch (state.status) {

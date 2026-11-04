@@ -5,7 +5,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test"
 
 import { signIn } from "../support/identities"
 import { provisioner, psql, requireIsolatedStack } from "./helpers/stack"
-import { escape } from "./helpers/ui"
+import { escape, staffTile } from "./helpers/ui"
 import {
   provisionWorld,
   seedReadyAssets,
@@ -110,19 +110,49 @@ async function openVenueMenus(page: Page, venueId: string, venueName: string) {
 }
 
 async function previewImport(page: Page, path: string) {
-  await page.getByLabel("Menu file (JSON or CSV)").setInputFiles(path)
+  const input = page.getByLabel("Menu file (JSON or CSV)")
+  // The import panel opens from the page header's "Import a menu".
+  if ((await input.count()) === 0)
+    await page.getByRole("button", { name: "Import a menu" }).click()
+  await input.setInputFiles(path)
 }
 
-/** From a version page: Activate… → confirm → the version is active. */
+/** From a venue's menus: open its active version from the Versions table. */
+async function openActiveVersion(page: Page) {
+  await page
+    .getByRole("table", { name: "Menu versions" })
+    .getByRole("row")
+    .filter({ hasText: "Active · for labelling only" })
+    .getByRole("link")
+    .click()
+  await page.waitForURL(/\/admin\/menus\/versions\//)
+}
+
+/** From a version page: Activate for labelling → confirm → the version is active. */
 async function activateOpenDraft(page: Page) {
-  await page.getByRole("button", { name: "Activate…" }).click()
-  const dialog = page.getByRole("alertdialog")
+  await page.getByRole("button", { name: "Activate for labelling" }).click()
+  const dialog = page.getByRole("alertdialog", {
+    name: "Activate this draft for labelling?",
+  })
   await expect(dialog).toContainText(
-    "Active means available for labelling photos and videos."
+    "Active means available for labelling, nothing more."
   )
   await dialog.getByRole("button", { name: "Activate for labelling" }).click()
   await expect(dialog).toBeHidden()
-  await expect(page.getByRole("button", { name: "Retire menu…" })).toBeVisible()
+  await expect(
+    page.getByRole("button", { name: "Start a draft from this version" })
+  ).toBeVisible()
+}
+
+/** From an active version page: More actions → Retire → confirm. */
+async function retireOpenVersion(page: Page) {
+  await page.getByRole("button", { name: /^More actions for / }).click()
+  await page.getByRole("menuitem", { name: "Retire" }).click()
+  const confirm = page.getByRole("alertdialog", {
+    name: /^Retire .* active menu\?$/,
+  })
+  await confirm.getByRole("button", { name: "Retire", exact: true }).click()
+  return confirm
 }
 
 async function importAndActivate(
@@ -134,7 +164,7 @@ async function importAndActivate(
   await openVenueMenus(page, venue.id, venue.name)
   await previewImport(page, path)
   await expect(
-    page.getByRole("heading", { name: `Preview: ${title}` })
+    page.getByRole("region", { name: "Changes from the active menu" })
   ).toBeVisible()
   await page.getByRole("button", { name: "Create draft" }).click()
   await page.waitForURL(/\/admin\/menus\/versions\//)
@@ -147,19 +177,21 @@ async function importAndActivate(
 /** Staff: open one of their own photos and its label editor. */
 async function openOwnLabelEditor(page: Page, fileName: string) {
   await page.goto("/staff")
-  await page
-    .getByRole("list", { name: "Your portfolio" })
-    .getByRole("button", { name: new RegExp(`^Photo, ${escape(fileName)}`) })
-    .click()
+  await (
+    await staffTile(
+      page.getByRole("list", { name: "Your portfolio" }),
+      fileName
+    )
+  ).click()
   const viewer = page.getByRole("dialog").first()
   await viewer.getByRole("button", { name: /^(Add|Edit) labels$/ }).click()
-  const editor = page.getByRole("dialog", { name: /^(Add|Edit) labels$/ })
+  const editor = page.getByRole("dialog", { name: /^(Labels|Edit labels)$/ })
   await expect(editor).toBeVisible()
   return editor
 }
 
 async function searchMenu(editor: Locator, query: string) {
-  await editor.getByRole("combobox", { name: /^Search the menu/ }).fill(query)
+  await editor.getByRole("combobox", { name: /^Menu item at / }).fill(query)
 }
 
 test("rows 1+3: two venue menus imported separately; a draft is never active for staff", async ({
@@ -203,24 +235,25 @@ test("rows 1+3: two venue menus imported separately; a draft is never active for
     await expect(
       admin.getByRole("heading", { level: 1, name: world.venue1.name })
     ).toBeVisible()
+    await admin.getByRole("button", { name: "Import a menu" }).click()
     await expect(
-      admin.getByText(
-        "PDF, image, Word and JavaScript menus are not supported.",
-        {
-          exact: false,
-        }
-      )
+      admin.getByText("PDF, image, Word and spreadsheet menus aren't read.", {
+        exact: false,
+      })
     ).toBeVisible()
     await previewImport(admin, RAILWAY)
     const preview = admin.getByRole("region", {
-      name: `Preview: ${RAILWAY_TITLE}`,
+      name: "Changes from the active menu",
     })
     await expect(preview).toContainText(
-      "the-railway.food.json · 14 sections, 125 items."
+      "the-railway.food.json · 14 sections, 125 items"
     )
-    await expect(
-      preview.getByRole("heading", { name: "Added (125)" })
-    ).toBeVisible()
+    await expect(preview).toContainText(
+      "This venue has no active menu, so every item is new."
+    )
+    await expect(preview.getByRole("region", { name: "Added" })).toContainText(
+      "125 items"
+    )
     await admin.getByRole("button", { name: "Create draft" }).click()
     await admin.waitForURL(/\/admin\/menus\/versions\//)
     await expect(admin.getByText("Saved · revision 1")).toBeVisible()
@@ -232,7 +265,7 @@ test("rows 1+3: two venue menus imported separately; a draft is never active for
       `${world.venue1.name} has no active menu yet`
     )
     await expect(
-      editor.getByRole("combobox", { name: /^Search the menu/ })
+      editor.getByRole("combobox", { name: /^Menu item at / })
     ).toHaveCount(0)
     await expect(
       editor.getByRole("button", { name: "Finished dish" })
@@ -267,14 +300,16 @@ test("rows 1+3: two venue menus imported separately; a draft is never active for
     ).toBeVisible()
     await searchMenu(a, "Stuffed Tandoori")
     await expect(
-      a.getByText("No menu items match", { exact: false }).first()
+      a.getByText(
+        `Nothing on ${world.venue1.name}'s menu matches "Stuffed Tandoori".`
+      )
     ).toBeVisible()
     await searchMenu(a, "Onion Bhaji")
     // Both files list "Onion Bhaji"; only venue 1's own item is offered.
-    await expect(
-      a.getByRole("option", { name: /^Onion Bhaji in / })
-    ).toHaveCount(1)
-    await a.getByRole("option", { name: /^Onion Bhaji in Appetisers/ }).click()
+    await expect(a.getByRole("option", { name: /^Onion Bhaji / })).toHaveCount(
+      1
+    )
+    await a.getByRole("option", { name: /^Onion Bhaji Appetisers/ }).click()
     await a.getByRole("button", { name: /^Save labels/ }).click()
     await expect(a).toBeHidden()
     await expect(
@@ -288,7 +323,7 @@ test("rows 1+3: two venue menus imported separately; a draft is never active for
     ).toBeVisible()
     await searchMenu(c, "Sherpali")
     await expect(
-      c.getByText("No menu items match", { exact: false }).first()
+      c.getByText(`Nothing on ${world.venue2.name}'s menu matches "Sherpali".`)
     ).toBeVisible()
   })
 
@@ -382,35 +417,29 @@ test("rows 2+4: re-import with rename, removal, key change and category move; un
     await openVenueMenus(admin, venue.id, venue.name)
     await previewImport(admin, v2)
     const preview = admin.getByRole("region", {
-      name: "Preview: The Railway food v2 (QA SYNTHETIC)",
+      name: "Changes from the active menu",
     })
-    await expect(preview).toContainText("Compared with the active menu.")
+    await expect(preview).toContainText("1 uncertain")
     await expect(
-      preview.getByRole("heading", { name: "Uncertain matches (1)" })
-    ).toBeVisible()
+      preview.getByRole("region", { name: "Needs a decision" })
+    ).toContainText("1 item · decide before activating")
     await expect(
-      preview.getByRole("heading", { name: "Changed (2)" })
-    ).toBeVisible()
-    await expect(
-      preview.getByRole("heading", { name: /^Removed \(\d+\)$/ })
-    ).toBeVisible()
-    await expect(
-      preview.getByRole("heading", { name: "Added (0)" })
-    ).toHaveCount(0)
+      preview.getByRole("region", { name: "Changed" })
+    ).toContainText("2 items")
+    await expect(preview.getByRole("region", { name: "Removed" })).toBeVisible()
+    await expect(preview.getByRole("region", { name: "Added" })).toHaveCount(0)
     await expect(preview).toContainText("Onion Bhaji Tower")
     await expect(preview).toContainText("Spring Roll")
-    await expect(preview).toContainText("Not resolved")
   })
 
   await test.step("resolve the uncertain match as the same item, create the draft, activate", async () => {
     await admin
-      .getByRole("radio", { name: /Same item as “Chilli Paneer”/ })
-      .check()
-    await admin
-      .getByRole("button", { name: "Confirm decision for Chilli Paneer" })
+      .getByRole("button", { name: /^Same item as Chilli Paneer \(/ })
       .click()
     await expect(
-      admin.getByText("Resolved: same item as “Chilli Paneer”")
+      admin.getByText(
+        /^Same item as Chilli Paneer \(.+\)\. Labels stay with it\.$/
+      )
     ).toBeVisible()
     await admin.getByRole("button", { name: "Create draft" }).click()
     await admin.waitForURL(/\/admin\/menus\/versions\//)
@@ -440,7 +469,9 @@ test("rows 2+4: re-import with rename, removal, key change and category move; un
     await admin.goto("/admin")
     await admin
       .getByRole("list", { name: "Library" })
-      .getByRole("button", { name: new RegExp(`^Photo, ${escape(file(n))}`) })
+      .getByRole("button", {
+        name: new RegExp(`^Photo, ${escape(file(n))}`),
+      })
       .click()
     return admin.getByRole("dialog").getByRole("region", { name: "Labels" })
   }
@@ -464,7 +495,7 @@ test("rows 2+4: re-import with rename, removal, key change and category move; un
 
   await test.step("archive Momo: staff can no longer pick it; its label stays (Archived)", async () => {
     await openVenueMenus(admin, venue.id, venue.name)
-    await admin.getByRole("link", { name: "View active menu" }).click()
+    await openActiveVersion(admin)
     await admin.getByRole("searchbox", { name: "Search items" }).fill("Momo")
     // Item rows expand to show their controls (and the label count).
     await admin
@@ -493,25 +524,28 @@ test("rows 2+4: re-import with rename, removal, key change and category move; un
     const editor = await openOwnLabelEditor(staff, file(1))
     await searchMenu(editor, "Momo")
     await expect(
-      editor.getByText("No menu items match", { exact: false }).first()
+      editor.getByText(`Nothing on ${world.venue1.name}'s menu matches "Momo".`)
     ).toBeVisible()
     await staff.context().close()
   })
 
   await test.step("retire: no active menu, content types only; labels kept", async () => {
     await openVenueMenus(admin, venue.id, venue.name)
-    await admin.getByRole("link", { name: "View active menu" }).click()
-    await admin.getByRole("button", { name: "Retire menu…" }).click()
-    const confirm = admin.getByRole("alertdialog")
-    await confirm.getByRole("button", { name: "Retire menu" }).click()
+    await openActiveVersion(admin)
+    const confirm = await retireOpenVersion(admin)
     await expect(confirm).toBeHidden()
     await openVenueMenus(admin, venue.id, venue.name)
+    const versions = admin.getByRole("table", { name: "Menu versions" })
     await expect(
-      admin.getByRole("region", { name: "Active menu" })
-    ).toContainText("No active menu.")
+      versions
+        .getByRole("row")
+        .filter({ hasText: "Active · for labelling only" })
+    ).toHaveCount(0)
     await expect(
-      admin.getByRole("list", { name: "Retired and discarded versions" })
-    ).toContainText("The Railway food v2 (QA SYNTHETIC)")
+      versions
+        .getByRole("row")
+        .filter({ hasText: "The Railway food v2 (QA SYNTHETIC)" })
+    ).toContainText("Retired")
 
     const staff = await signedInPage(browser, world.staffA)
     const editor = await openOwnLabelEditor(staff, file(1))
@@ -554,13 +588,13 @@ test("row 2: CSV imports; PDF and other formats are refused; malformed and dupli
     writeFileSync(pdf, "%PDF-1.4\n% SYNTHETIC TEST DATA, not a real menu\n")
     await previewImport(admin, pdf)
     await expect(
-      admin.getByText("Only .json and .csv files can be imported.", {
+      admin.getByText("menu.pdf is a PDF, so it can't be read.", {
         exact: false,
       })
     ).toBeVisible()
-    await expect(admin.getByRole("heading", { name: /^Preview:/ })).toHaveCount(
-      0
-    )
+    await expect(
+      admin.getByRole("region", { name: "Changes from the active menu" })
+    ).toHaveCount(0)
   })
 
   await test.step("PDF posted straight to the preview route is refused (400)", async () => {
@@ -584,28 +618,32 @@ test("row 2: CSV imports; PDF and other formats are refused; malformed and dupli
 
   await test.step("malformed JSON: preview failed, nothing created", async () => {
     await previewImport(admin, fixture("synthetic-malformed.json"))
-    await expect(admin.getByText("Preview failed")).toBeVisible()
-    await expect(admin.getByRole("heading", { name: /^Preview:/ })).toHaveCount(
-      0
-    )
+    await expect(
+      admin.getByText(/stops? this file being imported$/)
+    ).toBeVisible()
+    await expect(
+      admin.getByRole("region", { name: "Changes from the active menu" })
+    ).toHaveCount(0)
   })
 
   await test.step("duplicate keys: reported, no preview", async () => {
     await previewImport(admin, fixture("synthetic-duplicates.json"))
-    await expect(admin.getByText("Preview failed")).toBeVisible()
+    await expect(
+      admin.getByText(/stops? this file being imported$/)
+    ).toBeVisible()
     await expect(admin.getByText(/duplicate/i).first()).toBeVisible()
   })
 
   await test.step("CSV with BOM/CRLF and quoting: preview, draft with CSV provenance", async () => {
     await previewImport(admin, fixture("synthetic-quoting.csv"))
-    const preview = admin.getByRole("region", { name: /^Preview:/ })
+    const preview = admin.getByRole("region", {
+      name: "Changes from the active menu",
+    })
     await expect(preview).toContainText("synthetic-quoting.csv ·")
-    await expect(
-      preview.getByRole("heading", { name: /^Added \(\d+\)$/ })
-    ).toBeVisible()
+    await expect(preview.getByRole("region", { name: "Added" })).toBeVisible()
     await admin.getByRole("button", { name: "Create draft" }).click()
     await admin.waitForURL(/\/admin\/menus\/versions\//)
-    const provenance = admin.getByRole("region", { name: "Provenance" })
+    const provenance = admin.getByRole("region", { name: "Menu version" })
     await expect(provenance).toContainText("synthetic-quoting.csv")
     await expect(provenance).toContainText("CSV")
   })
@@ -623,7 +661,7 @@ test("row 15: a stale draft save in a second page is a recoverable conflict", as
   const world = await provisionWorld()
   const one = await signedInPage(browser, world.adminA)
   await openVenueMenus(one, world.venue1.id, world.venue1.name)
-  await one.getByRole("button", { name: "New empty draft" }).click()
+  await one.getByRole("button", { name: "Start an empty draft" }).click()
   await one.waitForURL(/\/admin\/menus\/versions\//)
   await expect(one.getByText("Saved · revision 1")).toBeVisible()
   const two = await one.context().newPage()
@@ -633,22 +671,24 @@ test("row 15: a stale draft save in a second page is a recoverable conflict", as
   await one
     .getByRole("textbox", { name: "Menu title" })
     .fill(`QA first ${world.tag}`)
-  await one.getByRole("button", { name: "Save draft" }).click()
-  await expect(one.getByText("Draft saved (revision 2).")).toBeVisible()
+  await one.getByRole("button", { name: "Save", exact: true }).click()
+  await expect(
+    one.getByText(/^Saved\. \d+ items? in \d+ sections?\.$/)
+  ).toBeVisible()
 
   await two
     .getByRole("textbox", { name: "Menu title" })
     .fill(`QA second ${world.tag}`)
-  await two.getByRole("button", { name: "Save draft" }).click()
+  await two.getByRole("button", { name: "Save", exact: true }).click()
   const alert = two
     .getByRole("alert")
-    .filter({ hasText: "This draft changed elsewhere" })
+    .filter({ hasText: "Someone else saved first" })
   await expect(alert).toBeVisible()
   // The local edit is still there until the admin chooses.
   await expect(two.getByRole("textbox", { name: "Menu title" })).toHaveValue(
     `QA second ${world.tag}`
   )
-  await alert.getByRole("button", { name: "Reload latest" }).click()
+  await alert.getByRole("button", { name: "Reload" }).click()
   await expect(two.getByRole("textbox", { name: "Menu title" })).toHaveValue(
     `QA first ${world.tag}`
   )

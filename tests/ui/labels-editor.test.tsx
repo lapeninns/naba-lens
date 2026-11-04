@@ -89,9 +89,9 @@ async function pick(
 describe("LabelEditorDialog: search and selection", () => {
   it("finds items by name, alias and section, keeping same names apart", async () => {
     const { user } = await setup()
-    const dialog = screen.getByRole("dialog", { name: "Add labels" })
+    const dialog = screen.getByRole("dialog", { name: "Labels" })
     const box = within(dialog).getByRole("combobox", {
-      name: "Search the menu",
+      name: "Menu item at The Railway (optional)",
     })
 
     await user.type(box, "bhajia")
@@ -103,9 +103,9 @@ describe("LabelEditorDialog: search and selection", () => {
     await user.type(box, "chicken")
     const options = screen.getAllByRole("option")
     expect(options.map((o) => o.textContent)).toEqual([
-      "Chickenin Korma Dishes",
-      "Chickenin Madras Dishes",
-      "Tikka Masalain House Specials · Chicken, Lamb",
+      "ChickenKorma Dishes",
+      "ChickenMadras Dishes",
+      "Tikka MasalaHouse Specials · choose a variant",
     ])
     expect(box.getAttribute("aria-expanded")).toBe("true")
 
@@ -157,7 +157,9 @@ describe("LabelEditorDialog: search and selection", () => {
 
   it("works with the keyboard only: choose, remove, Escape clears search not the dialog", async () => {
     const { user, onOpenChange } = await setup()
-    const box = screen.getByRole("combobox", { name: "Search the menu" })
+    const box = screen.getByRole("combobox", {
+      name: "Menu item at The Railway (optional)",
+    })
     box.focus()
     await user.keyboard("mango")
     await user.keyboard("{ArrowDown}")
@@ -198,7 +200,9 @@ describe("LabelEditorDialog: search and selection", () => {
 
   it("limits content types to four with an explanation", async () => {
     const { user } = await setup()
-    const group = screen.getByRole("group", { name: "Content types" })
+    const group = screen.getByRole("group", {
+      name: "What's in the photo (up to 4)",
+    })
     for (const name of ["Finished dish", "Plating", "Drinks", "Kitchen"])
       await user.click(within(group).getByRole("button", { name }))
     expect(within(group).getByText(/4 chosen, the most allowed/)).toBeTruthy()
@@ -234,7 +238,7 @@ describe("LabelEditorDialog: search and selection", () => {
       ],
     })
     const { user, onSave } = await setup({ assets: [asset("a1", labels)] })
-    expect(screen.getByRole("dialog", { name: "Edit labels" })).toBeTruthy()
+    expect(screen.getByRole("dialog", { name: "Labels" })).toBeTruthy()
     const chips = screen.getByRole("list", { name: "Selected menu items" })
     expect(
       within(chips).getByText(
@@ -245,7 +249,9 @@ describe("LabelEditorDialog: search and selection", () => {
 
     await user.type(screen.getByRole("combobox"), "bhuna")
     expect(screen.queryAllByRole("option")).toHaveLength(0)
-    expect(screen.getByText(/No menu items match “bhuna”/)).toBeTruthy()
+    expect(
+      screen.getByText(/Nothing on The Railway's menu matches "bhuna"/)
+    ).toBeTruthy()
 
     await user.click(screen.getByRole("button", { name: "Remove Prawn Puri" }))
     await user.click(screen.getByRole("button", { name: "Save labels" }))
@@ -267,7 +273,9 @@ describe("LabelEditorDialog: saving one file", () => {
       assets: [asset("a1", labels)],
     })
     await pick(user, "lassi", /Mango Lassi/)
-    const types = screen.getByRole("group", { name: "Content types" })
+    const types = screen.getByRole("group", {
+      name: "What's in the photo (up to 4)",
+    })
     await user.click(
       within(types).getByRole("button", { name: "Finished dish" })
     )
@@ -282,7 +290,7 @@ describe("LabelEditorDialog: saving one file", () => {
       screen.getByRole("textbox", { name: "Missing menu item" }),
       "Lamb shank"
     )
-    expect(screen.getByText(/An admin reviews it/)).toBeTruthy()
+    expect(screen.getByText(/isn't on The Railway's menu/)).toBeTruthy()
 
     await user.click(screen.getByRole("button", { name: "Save labels" }))
     expect(onSave).toHaveBeenCalledTimes(1)
@@ -388,7 +396,7 @@ describe("LabelEditorDialog: saving one file", () => {
     )
     await user.click(screen.getByRole("button", { name: "Save labels" }))
 
-    const problem = await screen.findByText("Someone else changed these labels")
+    const problem = await screen.findByText(/^An admin changed these labels/)
     await waitFor(() =>
       expect(document.activeElement).toBe(problem.closest("[tabindex]"))
     )
@@ -529,7 +537,9 @@ describe("LabelEditorDialog: batch", () => {
   async function fillCommonAndAdjustSecond(
     user: ReturnType<typeof userEvent.setup>
   ) {
-    const common = screen.getByRole("region", { name: "Common to all 2 files" })
+    const common = screen.getByRole("region", {
+      name: "Common to all 2 photos",
+    })
     expect(
       within(common).getByText(/Each file keeps the labels it already has/)
     ).toBeTruthy()
@@ -543,27 +553,27 @@ describe("LabelEditorDialog: batch", () => {
     )
 
     await user.click(
-      screen.getByRole("button", { name: "Adjust labels for a2.jpg" })
+      screen.getByRole("button", { name: "Adjust labels for photo 2" })
     )
     const panel = document.getElementById(
       screen
-        .getByRole("button", { name: "Adjust labels for a2.jpg" })
+        .getByRole("button", { name: "Adjust labels for photo 2" })
         .getAttribute("aria-controls")!
     )!
     const fileChips = within(panel).getByRole("list", {
-      name: "Selected menu items for a2.jpg",
+      name: "Selected menu items for photo 2",
     })
     await user.click(
       within(fileChips).getByRole("button", { name: "Remove Mango Lassi" })
     )
     expect(
       within(panel).getByRole("button", {
-        name: "Add back Mango Lassi for a2.jpg",
+        name: "Add back Mango Lassi for photo 2",
       })
     ).toBeTruthy()
     await pick(user, "bhaji", /Onion Bhaji/, panel)
     const note = within(panel).getByRole("textbox", {
-      name: "Note (optional) for a2.jpg",
+      name: "Note (optional) for photo 2",
     })
     expect((note as HTMLTextAreaElement).value).toBe("Common note")
     await user.clear(note)
@@ -573,14 +583,10 @@ describe("LabelEditorDialog: batch", () => {
 
   it("applies the common selection to every file with per-file overrides", async () => {
     const { user, onSave } = await setup({ assets: [a1, a2] })
-    expect(
-      screen.getByRole("dialog", { name: "Label these files" })
-    ).toBeTruthy()
+    expect(screen.getByRole("dialog", { name: "Labels" })).toBeTruthy()
     expect(screen.getByRole("button", { name: "Cancel" })).toBeTruthy()
     await fillCommonAndAdjustSecond(user)
-    await user.click(
-      screen.getByRole("button", { name: "Save labels for 2 files" })
-    )
+    await user.click(screen.getByRole("button", { name: "Save labels" }))
     expect(onSave.mock.calls[0][0]).toEqual([
       {
         assetId: "a1",
@@ -624,15 +630,13 @@ describe("LabelEditorDialog: batch", () => {
       onSave,
     })
     const panel = await fillCommonAndAdjustSecond(user)
-    await user.click(
-      screen.getByRole("button", { name: "Save labels for 2 files" })
-    )
+    await user.click(screen.getByRole("button", { name: "Save labels" }))
 
     expect(await screen.findByText("That note is not allowed.")).toBeTruthy()
     expect(screen.getByRole("status").textContent).toBe(
       "1 of 2 files saved. 1 needs attention."
     )
-    const files = screen.getByRole("list", { name: "Files" })
+    const files = screen.getByRole("list", { name: "Photos" })
     const [row1, row2] = within(files)
       .getAllByRole("listitem")
       .filter((li) => li.parentElement === files)
@@ -649,7 +653,7 @@ describe("LabelEditorDialog: batch", () => {
     expect(
       (
         within(panel).getByRole("textbox", {
-          name: "Note (optional) for a2.jpg",
+          name: "Note (optional) for photo 2",
         }) as HTMLTextAreaElement
       ).value
     ).toBe("Only a2")
@@ -659,9 +663,7 @@ describe("LabelEditorDialog: batch", () => {
       )
     )
 
-    await user.click(
-      screen.getByRole("button", { name: "Save labels for 1 file" })
-    )
+    await user.click(screen.getByRole("button", { name: "Save labels" }))
     expect(
       onSave.mock.calls[1][0].map((i: SaveLabelsInput) => i.assetId)
     ).toEqual(["a2"])
@@ -677,7 +679,9 @@ describe("LabelEditorDialog: catalogue states", () => {
     await user.click(screen.getByRole("button", { name: "Kitchen" }))
     rerender({ catalogue: READY })
     expect(
-      screen.getByRole("combobox", { name: "Search the menu" })
+      screen.getByRole("combobox", {
+        name: "Menu item at The Railway (optional)",
+      })
     ).toBeTruthy()
     expect(
       screen
@@ -730,7 +734,7 @@ describe("LabelEditorDialog: catalogue states", () => {
 describe("LabelEditorDialog: skip and cancel", () => {
   it("skips straight away when nothing changed", async () => {
     const { user, onOpenChange, onSave } = await setup()
-    await user.click(screen.getByRole("button", { name: "Skip for now" }))
+    await user.click(screen.getByRole("button", { name: "Cancel" }))
     expect(onOpenChange).toHaveBeenCalledWith(false)
     expect(onSave).not.toHaveBeenCalled()
   })
@@ -738,7 +742,7 @@ describe("LabelEditorDialog: skip and cancel", () => {
   it("asks before discarding unsaved edits (button and Escape)", async () => {
     const { user, onOpenChange } = await setup()
     await user.click(screen.getByRole("button", { name: "Drinks" }))
-    await user.click(screen.getByRole("button", { name: "Skip for now" }))
+    await user.click(screen.getByRole("button", { name: "Cancel" }))
     const confirm = await screen.findByRole("alertdialog", {
       name: "Discard label changes?",
     })
@@ -766,5 +770,81 @@ describe("LabelEditorDialog: skip and cancel", () => {
   it("renders nothing when closed", async () => {
     await setup({ open: false })
     expect(screen.queryByRole("dialog")).toBeNull()
+  })
+})
+
+describe("LabelEditorDialog: staff and admin", () => {
+  it("never shows staff their original file names", async () => {
+    await setup({ assets: [asset("a1"), asset("a2")] })
+    const dialog = screen.getByRole("dialog", { name: "Labels" })
+    expect(dialog.textContent).not.toMatch(/a[12]\.jpg/)
+    expect(
+      screen.getByText(
+        "These labels go on all 2 photos. You can change one photo's labels later from the photo itself."
+      )
+    ).toBeTruthy()
+    expect(
+      screen.getByRole("button", { name: "Adjust labels for photo 2" })
+    ).toBeTruthy()
+  })
+
+  it("shows staff their photo and the label rule", async () => {
+    await setup()
+    const dialog = screen.getByRole("dialog", { name: "Labels" })
+    expect(within(dialog).getByText("Your photo")).toBeTruthy()
+    expect(dialog.textContent).not.toMatch(/a1\.jpg/)
+    expect(
+      screen.getByText(
+        "A label describes what is in the file. It is not a claim about allergens, dietary suitability, price or availability, and not permission to publish."
+      )
+    ).toBeTruthy()
+  })
+
+  it("names the missing item from a search with no match", async () => {
+    const { user, onSave } = await setup()
+    await user.type(screen.getByRole("combobox"), "momo")
+    expect(
+      screen.getByText(`Nothing on The Railway's menu matches "momo".`)
+    ).toBeTruthy()
+    await user.click(
+      screen.getByRole("button", { name: 'Add "momo" as a missing item' })
+    )
+    const field = screen.getByRole("textbox", { name: "Missing menu item" })
+    expect((field as HTMLInputElement).value).toBe("momo")
+    expect(document.activeElement).toBe(field)
+    expect(
+      screen.getByText(
+        "momo isn't on The Railway's menu. We'll save it as a suggestion and an admin will review it."
+      )
+    ).toBeTruthy()
+    await user.click(screen.getByRole("button", { name: "Save labels" }))
+    expect(onSave.mock.calls[0][0][0].missingItem).toBe("momo")
+  })
+
+  it("gives admins the file name, the upload-venue rule and the open suggestion", async () => {
+    await setup({
+      audience: "admin",
+      assets: [
+        asset("a1", summary({ revision: 2, missingItem: "Momo platter" })),
+      ],
+    })
+    const dialog = screen.getByRole("dialog", { name: "Edit labels" })
+    expect(within(dialog).getByText("The Railway · a1.jpg")).toBeTruthy()
+    expect(
+      screen.getByRole("combobox", { name: "Menu item at The Railway" })
+    ).toBeTruthy()
+    expect(
+      screen.getByText(
+        "Searches the menu of the venue at upload, The Railway, not where the uploader works now."
+      )
+    ).toBeTruthy()
+    expect(screen.getByText("1 missing-item suggestion")).toBeTruthy()
+    expect(
+      screen.getByRole("link", { name: "Open Menus" }).getAttribute("href")
+    ).toBe("/admin/menus/venue-1")
+    // The saved suggestion is not prefilled for editing.
+    expect(
+      screen.queryByRole("textbox", { name: "Missing menu item" })
+    ).toBeNull()
   })
 })

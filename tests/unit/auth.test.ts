@@ -25,7 +25,7 @@ const base: CurrentProfile = {
 }
 
 describe("role routing", () => {
-  it("sends staff to My tasks and admins to /admin", () => {
+  it("sends staff to Home and admins to /admin", () => {
     expect(homePathFor("staff")).toBe("/staff/tasks")
     expect(homePathFor("admin")).toBe("/admin")
   })

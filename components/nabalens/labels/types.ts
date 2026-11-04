@@ -11,8 +11,17 @@ export type CatalogueProp =
   | { state: "error"; message: string }
   | { state: "ready"; catalogue: LabelCatalogue }
 
+/**
+ * Who is labelling. Staff label their own files and never see admin-only
+ * details (original file names); admins see the file name and get a link to
+ * Menus for open missing-item suggestions.
+ */
+export type LabelAudience = "staff" | "admin"
+
 export type LabelEditorDialogProps = {
   open: boolean
+  /** Default "staff" (the safer one: shows no admin-only details). */
+  audience?: LabelAudience
   onOpenChange: (open: boolean) => void
   /** 1..LABEL_LIMITS.maxBatchAssets ready assets of one venue. */
   assets: LabelEditorAsset[]
@@ -26,8 +35,8 @@ export type LabelEditorDialogProps = {
   onSave: (inputs: SaveLabelsInput[]) => Promise<SaveLabelsResult[]>
   /** After each save attempt that stored at least one file: the ok results. */
   onSaved?: (results: SaveLabelsResult[]) => void
-  /** Default: "Label these files" (2+), else "Edit labels" / "Add labels". */
+  /** Default: "Labels" for staff, "Edit labels" for admins. */
   title?: string
-  /** Default: "Skip for now" when no file has labels yet, else "Cancel". */
+  /** Default: "Cancel". */
   cancelLabel?: string
 }

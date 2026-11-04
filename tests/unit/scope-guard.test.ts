@@ -37,11 +37,12 @@ const ALLOWED_PAGES = new Set([
   "/staff/community",
   "/staff/people",
   "/staff/people/[id]",
-  // v0.4 My tasks, the staff landing: own target, assignments, submissions and
+  // v0.4 Home (was My tasks), the staff landing: own target, assignments, submissions and
   // review results (docs/spec/NabaLens-Staff-Coverage-v0.4.md §3).
   "/staff/tasks",
   "/staff/tasks/[requirementId]",
   "/staff/tasks/month",
+  "/staff/tasks/welcome",
   "/admin",
   "/admin/staff",
   "/admin/staff/[id]",
