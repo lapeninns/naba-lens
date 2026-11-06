@@ -24,7 +24,8 @@ import {
   type TestIdentity,
 } from "../support/identities"
 import { firefoxLaunchOptions } from "./helpers/firefox"
-import { openPortfolio, STAFF_LANDING } from "./helpers/ui"
+import { mailboxIds, SUBJECTS, waitForLink } from "./helpers/mailpit"
+import { openPortfolio, STAFF_LANDING, staffTile } from "./helpers/ui"
 
 /**
  * Upload recovery and video handling in the real app (spec §5, §10: partial
@@ -150,10 +151,15 @@ async function expectSummary(
   expected: string,
   timeout = 60_000
 ) {
+  // The status line also reports the run while it is going, so wait for the
+  // settled text rather than for the line to appear.
   const status = dialog.getByRole("status")
-  await expect(status).toBeVisible({ timeout })
-  const files = await dialog.getByRole("list", { name: "Files" }).innerText()
-  expect(await status.textContent(), files).toBe(expected)
+  try {
+    await expect(status).toHaveText(expected, { timeout })
+  } catch (error) {
+    const files = await dialog.getByRole("list", { name: "Files" }).innerText()
+    throw new Error(`${(error as Error).message}\n\nFiles:\n${files}`)
+  }
 }
 
 /** Records storage upload requests and the most that were in flight at once. */
@@ -340,15 +346,11 @@ test.describe("upload recovery in the real UI", () => {
       await expect(
         portfolio.getByRole("button", { name: /, Failed$/ })
       ).toHaveCount(2)
-      await expect(
-        portfolio.getByRole("button", {
-          name: /^Photo, disguised\.jpg.*Failed$/,
-        })
-      ).toBeVisible()
+      const disguised = await staffTile(portfolio, "disguised.jpg", staff.id)
+      await expect(disguised).toBeVisible()
+      await expect(disguised).toHaveAccessibleName(/^Photo, .*Failed$/)
       for (const name of valid) {
-        const tile = portfolio.getByRole("button", {
-          name: new RegExp(`^(Photo|Video), ${name.replace(".", "\\.")}, `),
-        })
+        const tile = await staffTile(portfolio, name, staff.id)
         await expect(tile).toBeVisible()
         await expect(tile).not.toHaveAccessibleName(
           /(Uploading|Processing|Failed)$/
@@ -488,8 +490,13 @@ test.describe("upload recovery in the real UI", () => {
     const portfolio = page.getByRole("list", { name: "Your portfolio" })
     await page.reload()
     await expect(
-      portfolio.getByRole("button", { name: /^Photo, cancel-.*Uploading$/ })
+      portfolio.getByRole("button", { name: /^Photo, uploaded .*Uploading$/ })
     ).toHaveCount(2)
+    for (const r of cancelled) {
+      await expect(
+        portfolio.locator(`button[data-media-id="${r.id}"]`)
+      ).toHaveAccessibleName(/Uploading$/)
+    }
 
     // Cleanup (24 h window) removes the abandoned reservations.
     const { error } = await admin.rpc("prepare_media_cleanup", {
@@ -509,7 +516,7 @@ test.describe("upload recovery in the real UI", () => {
     await page.reload()
     await expect(portfolio.getByRole("button")).toHaveCount(1)
     await expect(
-      portfolio.getByRole("button", { name: /^Photo, retry\.jpg/ })
+      await staffTile(portfolio, "retry.jpg", staff.id)
     ).toBeVisible()
     await page.context().close()
   })
@@ -631,9 +638,10 @@ test.describe("upload recovery in the real UI", () => {
     expect(unfinished.upload_state).toBe("uploading")
     const portfolio = page.getByRole("list", { name: "Your portfolio" })
     await expect(
-      portfolio.getByRole("button", {
-        name: /^Video, tus-video\.mp4.*Uploading$/,
-      })
+      portfolio.locator(`button[data-media-id="${unfinished.id}"]`)
+    ).toHaveAccessibleName(/^Video, uploaded .*Uploading$/)
+    await expect(
+      portfolio.getByRole("button", { name: /^Video, uploaded .*Uploading$/ })
     ).toHaveCount(1)
     // A fresh context (another device or browser) shows the same states.
     const other = await signIn(browser, staff, baseURL!)
@@ -642,7 +650,7 @@ test.describe("upload recovery in the real UI", () => {
       otherPortfolio.getByRole("button", { name: /Uploading$/ })
     ).toHaveCount(1)
     await expect(
-      otherPortfolio.getByRole("button", { name: /^Video, tus-video\.mp4/ })
+      otherPortfolio.getByRole("button", { name: /^Video, uploaded / })
     ).toHaveCount(3)
     await other.context().close()
 
@@ -748,9 +756,7 @@ test.describe("upload recovery in the real UI", () => {
           const r = rows.find((x) => x.original_filename === name)!
           await p
             .getByRole("list", { name: "Your portfolio" })
-            .getByRole("button", {
-              name: new RegExp(`^Video, ${name.replace(".", "\\.")}, `),
-            })
+            .locator(`button[data-media-id="${r.id}"]`)
             .click()
           const viewer = p.getByRole("dialog")
           await expect(viewer).toBeVisible()
@@ -850,5 +856,419 @@ test.describe("upload recovery in the real UI", () => {
         ).not.toBe("broken")
       }
     }
+  })
+})
+
+test.describe("upload queue on a phone", () => {
+  test("the queue is a bottom sheet; offline it waits for a signal and resumes; a dropped upload offers Retry and Retry 1 failed", async ({
+    browser,
+    baseURL,
+  }) => {
+    test.setTimeout(240_000)
+    const { staff } = await newStaff("e2e-upl-phone")
+    const page = await signIn(browser, staff, baseURL!)
+    const context = page.context()
+    await page.setViewportSize({ width: 390, height: 844 })
+    const actions = watchActions(page)
+
+    const dialog = await openUploadDialog(page)
+    // Below md the dialog is a sheet pinned to the bottom edge, full width.
+    await expect
+      .poll(async () => {
+        const box = (await dialog.boundingBox())!
+        return [box.x, box.width, box.y + box.height].map(Math.round)
+      })
+      .toEqual([0, 390, 844])
+
+    // --- Offline: the first PUT loses the signal. The file waits, not fails.
+    let cut = false
+    await page.route(SIGNED_PUT, async (route) => {
+      if (!cut) {
+        cut = true
+        await context.setOffline(true)
+      }
+      await route.continue()
+    })
+    await dialog
+      .getByLabel("Choose photos or videos")
+      .setInputFiles(file("photo.jpg"))
+    await expect(dialog.getByRole("status").last()).toHaveText(
+      "1 ready · up to 10 at a time"
+    )
+    await dialog.getByRole("button", { name: "Upload 1 file" }).click()
+    await expect(
+      dialog.getByText(
+        "Waiting for a signal. Keep this page open; nothing is sent twice."
+      )
+    ).toBeVisible({ timeout: 30_000 })
+    // Still waiting once the transport has given up on its own retries.
+    await expect(row(dialog, "photo.jpg")).toContainText("Waiting", {
+      timeout: 90_000,
+    })
+    await expect(dialog.getByRole("status").last()).toHaveText(
+      "0 uploaded · 1 waiting"
+    )
+    await expect(row(dialog, "photo.jpg")).not.toContainText("Failed")
+    expect(actions.finalises()).toHaveLength(0)
+
+    await context.setOffline(false)
+    await page.unroute(SIGNED_PUT)
+    await expectSummary(dialog, "1 uploaded", 60_000)
+    await expect(dialog.getByText(/Waiting for a signal/)).toHaveCount(0)
+    // Nothing was sent twice: one asset, finalised once.
+    const afterSignal = await rowsOf(staff.id)
+    expect(afterSignal).toHaveLength(1)
+    expect(afterSignal[0]).toMatchObject({
+      original_filename: "photo.jpg",
+      upload_state: "ready",
+    })
+    expect(actions.finalises()).toHaveLength(1)
+
+    // --- Online, the connection drops: that file fails with its own Retry.
+    let drop = true
+    await page.route(SIGNED_PUT, (route) =>
+      drop ? route.abort("connectionreset") : route.continue()
+    )
+    await dialog
+      .getByLabel("Choose photos or videos")
+      .setInputFiles(file("extra.jpg"))
+    await dialog.getByRole("button", { name: "Upload 1 file" }).click()
+    await expectSummary(dialog, "1 uploaded · 1 failed", 90_000)
+    await expect(row(dialog, "extra.jpg")).toContainText("Failed")
+    await expect(
+      dialog.getByRole("button", { name: "Retry extra.jpg" })
+    ).toBeVisible()
+    const retryAll = dialog.getByRole("button", { name: "Retry 1 failed" })
+    await expect(retryAll).toBeVisible()
+    // The one primary action in the footer.
+    await expect(retryAll).toHaveAttribute("data-variant", "primary")
+
+    drop = false
+    await retryAll.click()
+    await expectSummary(dialog, "2 uploaded", 60_000)
+    const rows = await rowsOf(staff.id)
+    expect(rows).toHaveLength(2)
+    expect(rows.every((r) => r.upload_state === "ready")).toBe(true)
+    expect(actions.finalises()).toHaveLength(2)
+    await context.close()
+  })
+})
+
+test.describe("session ends mid-queue", () => {
+  test("E7: clearing the auth cookie stops running files, keeps the page and queue; after Sign in again in another tab the waiting file resumes and Retry finishes the stopped ones", async ({
+    browser,
+    baseURL,
+  }, testInfo) => {
+    test.setTimeout(240_000)
+    const { staff } = await newStaff("e2e-upl-signout")
+    const page = await signIn(browser, staff, baseURL!)
+    const context = page.context()
+    await page.setViewportSize({ width: 390, height: 844 })
+    const url = page.url()
+
+    // The first PUT goes through; the next two are held until the cookie is gone.
+    const heldPuts: Route[] = []
+    let puts = 0
+    await page.route(SIGNED_PUT, async (route) => {
+      puts++
+      if (puts === 1) return route.continue()
+      if (puts <= 3) {
+        heldPuts.push(route)
+        return
+      }
+      return route.continue()
+    })
+
+    const dialog = await openUploadDialog(page)
+    await dialog
+      .getByLabel("Choose photos or videos")
+      .setInputFiles(
+        ["photo.jpg", "photo.png", "photo.webp", "extra.jpg"].map(file)
+      )
+    await dialog.getByRole("button", { name: "Upload 4 files" }).click()
+    await expect.poll(() => heldPuts.length, { timeout: 60_000 }).toBe(2)
+    await expect(
+      dialog.getByRole("listitem").filter({ hasText: "Uploaded" })
+    ).toHaveCount(1)
+    const waiting = dialog.getByRole("listitem").filter({ hasText: "Waiting" })
+    await expect(waiting).toHaveCount(1)
+
+    await context.clearCookies()
+    for (const route of heldPuts.splice(0)) await route.continue()
+
+    const e7 = page.getByRole("dialog", { name: "Sign in again" })
+    await expect(e7).toBeVisible({ timeout: 60_000 })
+    await expect(e7).toContainText(
+      "You were signed out after a while away. 1 photo finished uploading and is safe. 2 stopped."
+    )
+    await expect(e7).toContainText(
+      `We'll send a sign-in link to ${staff.email}.`
+    )
+    // Same page, same queue: nothing navigated to /login.
+    expect(page.url()).toBe(url)
+    await testInfo.attach("e7-sign-in-again", {
+      body: await page.screenshot(),
+      contentType: "image/png",
+    })
+
+    const seen = await mailboxIds(staff.email)
+    const otpResponse = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === "/auth/v1/otp" &&
+        response.request().method() === "POST"
+    )
+    await e7.getByRole("button", { name: "Send sign-in link" }).click()
+    const otp = await otpResponse
+    await expect(
+      page.getByRole("dialog", { name: "Check your email" })
+    ).toBeVisible()
+    await page
+      .getByRole("dialog", { name: "Check your email" })
+      .getByRole("button", { name: "Done" })
+      .click()
+
+    const stoppedText =
+      "Failed — You were signed out. Sign in again, then choose the same file to finish."
+    await expect(
+      dialog.getByText("You were signed out", { exact: true })
+    ).toBeVisible()
+    await expect(
+      dialog.getByRole("listitem").filter({ hasText: stoppedText })
+    ).toHaveCount(2)
+    await expect(waiting).toHaveCount(1)
+    await expect(dialog.getByRole("status").last()).toHaveText(
+      "1 uploaded · 1 waiting · 2 stopped"
+    )
+    await expect(
+      dialog.getByRole("button", { name: "Sign in again" })
+    ).toHaveAttribute("data-variant", "primary")
+    const beforeSignIn = await rowsOf(staff.id)
+    expect(beforeSignIn.filter((r) => r.upload_state === "ready")).toHaveLength(
+      1
+    )
+
+    // Open the emailed link in another tab, as a phone's mail app would.
+    let link: string
+    if (otp.status() !== 429) {
+      expect(otp.status()).toBe(200)
+      const redirectTo = new URL(otp.url()).searchParams.get("redirect_to")
+      expect(redirectTo).toBe(`${baseURL}/auth/callback`)
+      link = await waitForLink(staff.email, SUBJECTS.signIn, seen, 20_000)
+    } else {
+      // Only the local auth server's hourly email limit may skip the email;
+      // such a run is not evidence for the email path.
+      test.info().annotations.push({
+        type: "sign-in-link",
+        description:
+          "429 from /auth/v1/otp: used an admin-generated magic link, email path not exercised",
+      })
+      const generated = await admin.auth.admin.generateLink({
+        type: "magiclink",
+        email: staff.email,
+      })
+      if (generated.error) throw generated.error
+      link = `/auth/confirm?token_hash=${generated.data.properties.hashed_token}&type=email`
+    }
+    const other = await context.newPage()
+    await openEmailLink(other, link)
+    await expect(other).toHaveURL(STAFF_LANDING)
+    await page.bringToFront()
+
+    // The waiting file carries on by itself; stopped ones wait for Retry.
+    await expectSummary(dialog, "2 uploaded · 2 stopped", 60_000)
+    await expect(
+      dialog.getByText("You were signed out", { exact: true })
+    ).toHaveCount(0)
+    expect(page.url()).toBe(url)
+
+    const stopped = dialog
+      .getByRole("listitem")
+      .filter({ hasText: stoppedText })
+    for (const name of await stopped.evaluateAll((els) =>
+      els.map((el) => el.querySelector("p")?.textContent ?? "")
+    )) {
+      await dialog.getByRole("button", { name: `Retry ${name}` }).click()
+    }
+    await expectSummary(dialog, "4 uploaded", 60_000)
+    // Nothing was sent twice: one asset per file, all ready.
+    const rows = await rowsOf(staff.id)
+    expect(rows).toHaveLength(4)
+    expect(rows.every((r) => r.upload_state === "ready")).toBe(true)
+    await context.close()
+  })
+})
+
+test.describe("leaving while uploads run", () => {
+  test("S20: Log out without uploads logs out straight away", async ({
+    browser,
+    baseURL,
+  }) => {
+    const { staff } = await newStaff("e2e-leave-idle")
+    const page = await signIn(browser, staff, baseURL!)
+    await page
+      .getByRole("banner")
+      .getByRole("button", { name: "Log out" })
+      .click()
+    await expect(page).toHaveURL(/\/login\?signed_out=1$/)
+    await expect(page.getByRole("alertdialog")).toHaveCount(0)
+    await page.context().close()
+  })
+
+  test("S20: Log out while uploading asks Log out now?; Keep uploading stays; Log out anyway (phone, on Me) logs out", async ({
+    browser,
+    baseURL,
+  }) => {
+    test.setTimeout(180_000)
+    const { staff } = await newStaff("e2e-leave-upl")
+    const page = await signIn(browser, staff, baseURL!)
+    const context = page.context()
+    let unload = 0
+    page.on("dialog", (d) => {
+      unload++
+      void d.dismiss()
+    })
+
+    // Throttled: every signed PUT is held until the test lets it go.
+    const held: Route[] = []
+    await page.route(SIGNED_PUT, (route) => {
+      held.push(route)
+    })
+
+    await page
+      .getByRole("banner")
+      .getByRole("button", { name: "Add photos" })
+      .click()
+    const queue = page.getByRole("dialog", { name: "Upload photos or videos" })
+    await expect(queue).toBeVisible()
+    await queue
+      .getByLabel("Choose photos or videos")
+      .setInputFiles(["photo.jpg", "photo.png"].map(file))
+    await queue.getByRole("button", { name: "Upload 2 files" }).click()
+    await expect.poll(() => held.length, { timeout: 60_000 }).toBe(2)
+
+    // Closing the Add queue lets the uploads carry on behind the page.
+    await page.keyboard.press("Escape")
+    await expect(queue).toBeHidden()
+
+    const logOut = page.getByRole("banner").getByRole("button", {
+      name: "Log out",
+    })
+    await logOut.click()
+    const confirm = page.getByRole("alertdialog", { name: "Log out now?" })
+    await expect(confirm).toBeVisible()
+    await expect(confirm).toContainText(
+      "Leave now and 2 uploads stop. Finished photos stay uploaded."
+    )
+    const keep = confirm.getByRole("button", { name: "Keep uploading" })
+    await expect(keep).toBeFocused()
+    await expect(
+      confirm.getByRole("button", { name: "Log out anyway" })
+    ).toBeVisible()
+
+    await keep.click()
+    await expect(confirm).toBeHidden()
+    await expect(logOut).toBeFocused()
+    await expect(page).toHaveURL(/\/staff$/)
+    expect(held).toHaveLength(2)
+
+    // Add shows the same queue, still running.
+    await page
+      .getByRole("banner")
+      .getByRole("button", { name: "Add photos" })
+      .click()
+    await expect(queue.getByRole("status").last()).toHaveText(
+      "0 uploaded · 2 in progress"
+    )
+    await page.keyboard.press("Escape")
+    await expect(queue).toBeHidden()
+
+    // Phones: Log out lives on Me (staff-portfolio), behind the same guard.
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page
+      .getByRole("main")
+      .getByRole("button", { name: "Log out" })
+      .click()
+    await expect(confirm).toBeVisible()
+    // A bottom sheet, once its slide-in settles.
+    await expect
+      .poll(async () => {
+        const box = (await confirm.boundingBox())!
+        return Math.round(box.y + box.height)
+      })
+      .toBe(844)
+    for (const name of ["Log out anyway", "Keep uploading"]) {
+      const b = (await confirm.getByRole("button", { name }).boundingBox())!
+      expect(b.height).toBeGreaterThanOrEqual(52)
+    }
+    await confirm.getByRole("button", { name: "Log out anyway" }).click()
+    await expect(page).toHaveURL(/\/login\?signed_out=1$/)
+    // A client navigation: no beforeunload prompt on the way out.
+    expect(unload).toBe(0)
+
+    for (const route of held.splice(0)) await route.abort().catch(() => {})
+    await page.unrouteAll({ behavior: "ignoreErrors" })
+    await page.goto("/staff")
+    await expect(page).toHaveURL(/\/login/)
+    await context.close()
+  })
+
+  test("S20 phone: a hidden queue marks Add; Add shows the queue, not the Add sheet, with Retry for a file that failed while hidden", async ({
+    browser,
+    baseURL,
+  }) => {
+    test.setTimeout(180_000)
+    const { staff } = await newStaff("e2e-leave-phone")
+    const page = await signIn(browser, staff, baseURL!)
+    const context = page.context()
+    await page.setViewportSize({ width: 390, height: 844 })
+
+    // Held until released; while `failing`, a PUT (and its retries) drops.
+    const held: Route[] = []
+    let failing = false
+    await page.route(SIGNED_PUT, (route) => {
+      if (failing) return route.abort("connectionreset")
+      held.push(route)
+    })
+
+    const tabbar = page.locator('[data-slot="tabbar"]')
+    const sheet = page.getByRole("dialog", { name: "Add photos" })
+    const queue = page.getByRole("dialog", { name: "Upload photos or videos" })
+    await tabbar.getByRole("button", { name: "Add", exact: true }).click()
+    await expect(sheet).toBeVisible()
+    const chooser = page.waitForEvent("filechooser")
+    await sheet.getByRole("button", { name: /Choose from your photos/ }).click()
+    await (await chooser).setFiles(["photo.jpg", "photo.png"].map(file))
+    await expect(queue).toBeVisible()
+    await queue.getByRole("button", { name: "Upload 2 files" }).click()
+    await expect.poll(() => held.length, { timeout: 60_000 }).toBe(2)
+
+    await page.keyboard.press("Escape")
+    await expect(queue).toBeHidden()
+    const add = tabbar.getByRole("button", { name: /^Add\b/ })
+    await expect(add).toHaveAccessibleName("Add, 2 in progress")
+    await expect(add.locator('[data-slot="add-busy"]')).toHaveText("2")
+
+    // One transfer drops while the queue is hidden.
+    failing = true
+    await held.shift()!.abort("connectionreset")
+    await expect(add).toHaveAccessibleName("Add, 1 in progress, 1 failed", {
+      timeout: 90_000,
+    })
+
+    await add.click()
+    await expect(queue).toBeVisible()
+    await expect(sheet).toBeHidden()
+    await expect(queue.getByRole("status").last()).toHaveText(
+      "0 uploaded · 1 in progress · 1 failed"
+    )
+    const retry = queue.getByRole("button", { name: /^Retry photo\.(jpg|png)$/ })
+    await expect(retry).toHaveCount(1)
+    await retry.scrollIntoViewIfNeeded()
+    await expect(retry).toBeInViewport()
+
+    failing = false
+    for (const route of held.splice(0)) await route.abort().catch(() => {})
+    await page.unrouteAll({ behavior: "ignoreErrors" })
+    await context.close()
   })
 })

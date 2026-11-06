@@ -104,4 +104,63 @@ describe("UploadDialog", () => {
     await waitFor(() => expect(screen.getByText("0 uploaded · 1 cancelled")).toBeTruthy())
     expect(screen.getByRole("button", { name: "Retry slow.jpg" })).toBeTruthy()
   })
+
+  it("with keepRunningWhenClosed, closing hides the queue and the upload carries on", async () => {
+    let finish = () => {}
+    const held: Uploader = (_file, ctx) =>
+      new Promise<void>((resolve, reject) => {
+        finish = resolve
+        ctx.signal.addEventListener("abort", () => reject(new Error("x")))
+      })
+    const onOpenChange = vi.fn()
+    const onUploaded = vi.fn()
+    const view = (open: boolean) => (
+      <UploadDialog
+        open={open}
+        onOpenChange={onOpenChange}
+        uploader={held}
+        limits={LIMITS}
+        onUploaded={onUploaded}
+        keepRunningWhenClosed
+      />
+    )
+    const { rerender } = render(view(true))
+    const user = userEvent.setup()
+    await user.upload(screen.getByLabelText("Choose photos or videos"), [jpeg("slow.jpg")])
+    await user.click(screen.getByRole("button", { name: "Upload 1 file" }))
+    await user.keyboard("{Escape}")
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+    expect(screen.queryByText(/Uploads are still running/)).toBeNull()
+
+    rerender(view(false))
+    finish()
+    await waitFor(() => expect(onUploaded).toHaveBeenCalledWith(1))
+    rerender(view(true))
+    expect(await screen.findByText("1 uploaded")).toBeTruthy()
+  })
+
+  it("reports unfinished files: running, then failed, then none after Retry", async () => {
+    const onBusyChange = vi.fn()
+    render(
+      <UploadDialog
+        open
+        onOpenChange={vi.fn()}
+        uploader={fakeUploader}
+        limits={LIMITS}
+        onBusyChange={onBusyChange}
+      />
+    )
+    const user = userEvent.setup()
+    await user.upload(screen.getByLabelText("Choose photos or videos"), [
+      jpeg("fail.jpg"),
+    ])
+    await user.click(screen.getByRole("button", { name: "Upload 1 file" }))
+    expect(await screen.findByText("0 uploaded · 1 failed")).toBeTruthy()
+    expect(onBusyChange).toHaveBeenCalledWith({ active: 1, failed: 0, stopped: 0 })
+    expect(onBusyChange).toHaveBeenLastCalledWith({ active: 0, failed: 1, stopped: 0 })
+
+    await user.click(screen.getByRole("button", { name: "Retry fail.jpg" }))
+    expect(await screen.findByText("1 uploaded")).toBeTruthy()
+    expect(onBusyChange).toHaveBeenLastCalledWith({ active: 0, failed: 0, stopped: 0 })
+  })
 })

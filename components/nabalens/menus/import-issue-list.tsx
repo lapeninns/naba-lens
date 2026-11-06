@@ -1,3 +1,5 @@
+import { WarningCircleIcon, WarningIcon } from "@phosphor-icons/react/dist/ssr"
+
 import type { ImportIssue } from "@/lib/menus/types"
 import { cn } from "@/lib/utils"
 
@@ -23,25 +25,23 @@ export function ImportIssueList({ issues, className }: ImportIssueListProps) {
       <section
         aria-label={title}
         className={cn(
-          "rounded-lg border px-3 py-2 text-sm",
-          tone === "error"
-            ? "border-negative/30 bg-negative-surface"
-            : "border-warning/40 bg-warning-surface"
+          "rounded-control px-3.5 py-3 text-body-touch text-ink md:text-body-sm",
+          tone === "error" ? "bg-negative-soft" : "bg-attention-soft"
         )}
       >
-        <p
-          className={cn(
-            "font-medium",
-            tone === "error" ? "text-negative" : "text-foreground"
+        <p className="flex items-center gap-2 font-semibold">
+          {tone === "error" ? (
+            <WarningCircleIcon aria-hidden className="size-5 text-negative" />
+          ) : (
+            <WarningIcon aria-hidden className="size-5 text-attention" />
           )}
-        >
           {title}
         </p>
-        <ul className="mt-1 grid max-h-64 gap-1 overflow-y-auto">
+        <ul className="mt-1 grid max-h-64 gap-1 overflow-y-auto pl-7">
           {list.map((issue, i) => (
             <li key={`${issue.path}-${i}`} className="break-words">
               {issue.path ? (
-                <span className="font-mono text-xs text-muted-foreground">
+                <span className="font-mono text-mono text-ink-muted">
                   {issue.path}:{" "}
                 </span>
               ) : null}

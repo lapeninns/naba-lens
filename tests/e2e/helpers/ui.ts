@@ -1,10 +1,15 @@
 import { expect, type Locator, type Page } from "@playwright/test"
 
 import type { SourceFile } from "./media"
+import { provisioner } from "./stack"
 
 export const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 
-/** A gallery tile by its accessible name ("Photo, file.jpg, by …, Venue, uploaded …"). */
+/**
+ * An admin-view gallery tile by its accessible name
+ * ("Photo, file.jpg, by …, Venue, uploaded …"). Staff views never show file
+ * names: use `staffTile` there.
+ */
 export function tile(
   scope: Page | Locator,
   kind: "Photo" | "Video",
@@ -16,7 +21,42 @@ export function tile(
   })
 }
 
-/** Where staff land after sign-in or a wrong-role redirect: My tasks. */
+/**
+ * A staff-view tile (own portfolio or community), found by the media id of the
+ * newest asset uploaded under `fileName` (by `uploaderId`, when names repeat); the tile's accessible name carries no
+ * file name. The row exists from the moment the upload is reserved. If none
+ * appears the locator matches nothing, so `toBeVisible` fails and
+ * `toHaveCount(0)` holds only because the file never existed.
+ */
+export async function staffTile(
+  scope: Page | Locator,
+  fileName: string,
+  uploaderId?: string
+): Promise<Locator> {
+  let id: string | null = null
+  await expect
+    .poll(
+      async () => {
+        let query = provisioner()
+          .from("media_assets")
+          .select("id")
+          .eq("original_filename", fileName)
+        if (uploaderId) query = query.eq("uploader_id", uploaderId)
+        const { data, error } = await query
+          .order("created_at", { ascending: false })
+          .limit(1)
+        if (error) throw error
+        id = data[0]?.id ?? null
+        return id
+      },
+      { timeout: 15_000 }
+    )
+    .not.toBeNull()
+    .catch(() => undefined)
+  return scope.locator(`button[data-media-id="${id ?? "no-such-asset"}"]`)
+}
+
+/** Where staff land after sign-in or a wrong-role redirect: Home. */
 export const STAFF_LANDING = /\/staff\/tasks$/
 
 /** My portfolio is a page staff open, no longer where they land. */

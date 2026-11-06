@@ -56,10 +56,10 @@ test("menus.d1-video-tile-name: video and photo tiles name what they show", asyn
   const list = portfolioList(page)
   // Not vacuous: both video tiles and the photo tile must be on the page.
   await expect(
-    list.getByRole("button", { name: /^Video, jr-d1-/ })
+    list.getByRole("button", { name: /^Video, uploaded / })
   ).toHaveCount(2)
   await expect(
-    list.getByRole("button", { name: /^Photo, jr-d1-/ })
+    list.getByRole("button", { name: /^Photo, uploaded / })
   ).toHaveCount(1)
   await attachShot(testInfo, "staff-portfolio", page)
 
@@ -91,10 +91,19 @@ test("menus.d1-video-tile-name: video and photo tiles name what they show", asyn
         )
       }
     }
-    const video = tiles.find((t) => t.name.includes(`jr-d1-labelled-${tag}`))!
-    expect(video.visible).toEqual(expect.arrayContaining(["<0:01"]))
-    expect(video.name).toMatch(/duration <0:01, 2 labels$/)
-    const needs = tiles.find((t) => t.name.includes(`jr-d1-needs-${tag}`))!
-    expect(needs.name).toMatch(/duration 1:15, Needs labels$/)
+    // Staff tile names leave out file names, so tell the two videos apart
+    // by their label state.
+    expect(
+      tiles.every((t) => !t.name.includes("jr-d1-")),
+      "no tile name carries a file name"
+    ).toBe(true)
+    const videos = tiles.filter((t) => t.name.startsWith("Video"))
+    const video = videos.find((t) => t.name.endsWith(", 2 labels"))
+    expect(video, "the labelled video tile").toBeDefined()
+    expect(video!.visible).toEqual(expect.arrayContaining(["<0:01"]))
+    expect(video!.name).toMatch(/duration <0:01, 2 labels$/)
+    const needs = videos.find((t) => t.name.endsWith(", Needs labels"))
+    expect(needs, "the unlabelled video tile").toBeDefined()
+    expect(needs!.name).toMatch(/duration 1:15, Needs labels$/)
   })
 })

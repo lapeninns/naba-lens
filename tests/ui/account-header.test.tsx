@@ -4,7 +4,15 @@
 // That re-render re-reads Auth, media and venues and arrived after 30 s on a
 // loaded machine (acceptance-map run, mobile e2e). Here the page props never
 // change, which is the worst case of that delay.
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { StaffMember } from "@/components/nabalens"
@@ -45,6 +53,21 @@ function header(status: StaffMember["status"]) {
   )
 }
 
+/** Account actions sit in the header's More actions menu. */
+async function openMenu() {
+  await userEvent
+    .setup()
+    .click(screen.getByRole("button", { name: "More actions for TEST Sam" }))
+  return screen.findByRole("menu")
+}
+
+async function chooseFromMenu(item: string) {
+  const menu = await openMenu()
+  await userEvent
+    .setup()
+    .click(within(menu).getByRole("menuitem", { name: item }))
+}
+
 const statusText = () =>
   ["Active", "Invited", "Inactive"].filter(
     (text) => screen.queryAllByText(text, { exact: true }).length > 0
@@ -62,7 +85,7 @@ describe("AccountHeader status after an activation change", () => {
     render(header("active"))
     expect(statusText()).toEqual(["Active"])
 
-    fireEvent.click(screen.getByRole("button", { name: "Deactivate" }))
+    await chooseFromMenu("Deactivate")
     const dialog = await screen.findByRole("alertdialog")
     await act(async () => {
       fireEvent.click(
@@ -76,11 +99,18 @@ describe("AccountHeader status after an activation change", () => {
       member("active").id,
       false
     )
-    expect(await screen.findByText(/is deactivated/)).toBeTruthy()
+    expect(await screen.findByText(/is inactive\./)).toBeTruthy()
     // The props still say "active": the confirmed status wins until they change.
     expect(statusText()).toEqual(["Inactive"])
     expect(screen.getByRole("button", { name: "Reactivate" })).toBeTruthy()
     expect(screen.queryByRole("button", { name: "Deactivate" })).toBeNull()
+    const menu = await openMenu()
+    expect(
+      within(menu).getByRole("menuitem", { name: "Reactivate" })
+    ).toBeTruthy()
+    expect(
+      within(menu).queryByRole("menuitem", { name: "Deactivate" })
+    ).toBeNull()
     expect(refresh).toHaveBeenCalled()
   })
 
@@ -92,16 +122,22 @@ describe("AccountHeader status after an activation change", () => {
     })
     expect(await screen.findByText(/can sign in again/)).toBeTruthy()
     expect(statusText()).toEqual(["Invited"])
-    expect(screen.getByRole("button", { name: "Deactivate" })).toBeTruthy()
     expect(
       screen.getByRole("button", { name: "Resend invitation" })
+    ).toBeTruthy()
+    const menu = await openMenu()
+    expect(
+      within(menu).getByRole("menuitem", { name: "Deactivate" })
+    ).toBeTruthy()
+    expect(
+      within(menu).getByRole("menuitem", { name: "Resend invitation" })
     ).toBeTruthy()
   })
 
   it("a refused change leaves the status alone", async () => {
     setStaffActiveAction.mockResolvedValue({ ok: false, error: "Nope." })
     render(header("active"))
-    fireEvent.click(screen.getByRole("button", { name: "Deactivate" }))
+    await chooseFromMenu("Deactivate")
     const dialog = await screen.findByRole("alertdialog")
     await act(async () => {
       fireEvent.click(
@@ -117,7 +153,7 @@ describe("AccountHeader status after an activation change", () => {
   it("fresh server props take over from the confirmed status", async () => {
     setStaffActiveAction.mockResolvedValue({ ok: true, status: "inactive" })
     const view = render(header("active"))
-    fireEvent.click(screen.getByRole("button", { name: "Deactivate" }))
+    await chooseFromMenu("Deactivate")
     const dialog = await screen.findByRole("alertdialog")
     await act(async () => {
       fireEvent.click(

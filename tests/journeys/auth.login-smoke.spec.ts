@@ -3,7 +3,12 @@ import { expect, test } from "@playwright/test"
 import { openEmailLink } from "../e2e/helpers/email-link"
 import { SUBJECTS, mailboxIds, waitForLink } from "../e2e/helpers/mailpit"
 import { requireIsolatedStack } from "../e2e/helpers/stack"
-import { portfolioList, tile } from "../e2e/helpers/ui"
+import {
+  STAFF_LANDING,
+  openPortfolio,
+  portfolioList,
+  staffTile,
+} from "../e2e/helpers/ui"
 import { JOURNEY_PEOPLE } from "../support/journey-world"
 
 // Proves the journey harness end to end on the fixture world: a real sign-in
@@ -29,14 +34,15 @@ test("auth.login-smoke: staff A signs in and sees only their own photo", async (
     page,
     await waitForLink(staff.email, SUBJECTS.signIn, seen)
   )
-  await expect(page).toHaveURL(/\/staff$/)
+  await expect(page).toHaveURL(STAFF_LANDING)
+  await openPortfolio(page)
   await expect(page.getByRole("heading", { name: staff.name })).toBeVisible()
 
   const list = portfolioList(page)
-  await expect(tile(list, "Photo", "JOURNEY staffA-photo.jpg")).toBeVisible()
-  await expect(tile(list, "Video", "JOURNEY staffA-video.mp4")).toBeVisible()
-  await expect(tile(page, "Photo", "JOURNEY staffB-photo.jpg")).toHaveCount(0)
-  await expect(tile(page, "Photo", "JOURNEY staffC-photo.jpg")).toHaveCount(0)
+  await expect(await staffTile(list, "JOURNEY staffA-photo.jpg")).toBeVisible()
+  await expect(await staffTile(list, "JOURNEY staffA-video.mp4")).toBeVisible()
+  await expect(await staffTile(page, "JOURNEY staffB-photo.jpg")).toHaveCount(0)
+  await expect(await staffTile(page, "JOURNEY staffC-photo.jpg")).toHaveCount(0)
 
   await testInfo.attach("staff-a-portfolio", {
     body: await page.screenshot(),

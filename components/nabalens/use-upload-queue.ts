@@ -33,8 +33,25 @@ export function useUploadQueue({
     queue.getSnapshot,
     queue.getSnapshot
   )
+  const pause = React.useSyncExternalStore(
+    queue.subscribe,
+    queue.getPause,
+    queue.getPause
+  )
   const summary = React.useMemo(() => summarize(items), [items])
   const isActive = summary.active > 0
+
+  // Files wait while the device is offline and start again on `online`.
+  React.useEffect(() => {
+    const sync = () => queue.setOnline(navigator.onLine !== false)
+    sync()
+    window.addEventListener("online", sync)
+    window.addEventListener("offline", sync)
+    return () => {
+      window.removeEventListener("online", sync)
+      window.removeEventListener("offline", sync)
+    }
+  }, [queue])
 
   React.useEffect(() => {
     if (!warnBeforeUnload || !isActive) return
@@ -51,6 +68,8 @@ export function useUploadQueue({
     items,
     summary,
     isActive,
+    /** Why waiting files are not starting, if they are paused. */
+    pause,
     add: React.useCallback(
       (files: Iterable<File>) => queue.add(files),
       [queue]
@@ -61,6 +80,7 @@ export function useUploadQueue({
     cancelAll: React.useCallback(() => queue.cancelAll(), [queue]),
     retry: React.useCallback((id: string) => queue.retry(id), [queue]),
     retryFailed: React.useCallback(() => queue.retryFailed(), [queue]),
+    resume: React.useCallback(() => queue.resume(), [queue]),
     reset: React.useCallback(() => queue.reset(), [queue]),
   }
 }

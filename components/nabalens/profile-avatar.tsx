@@ -1,26 +1,37 @@
 "use client"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { cn } from "@/lib/utils"
 
 import { initials } from "./format"
 
-/** Profile photo with an initials fallback. Decorative: the name is always shown beside it. */
+/**
+ * A profile photo in a circle, or up to two initials on `well`. Beside a
+ * visible name it is decorative; set `labelled` when it stands alone, so it
+ * is announced as the person's name.
+ */
 export function ProfileAvatar({
   name,
   src,
+  size = "default",
+  labelled = false,
   className,
 }: {
   name: string
   src?: string | null
+  size?: "default" | "sm" | "md" | "target" | "lg"
+  labelled?: boolean
   className?: string
 }) {
   return (
-    <Avatar className={cn("size-10", className)}>
+    <Avatar
+      size={size}
+      className={className}
+      {...(labelled
+        ? { role: "img", "aria-label": name }
+        : { "aria-hidden": true })}
+    >
       {src ? <AvatarImage src={src} alt="" /> : null}
-      <AvatarFallback className="font-medium text-foreground" aria-hidden>
-        {initials(name)}
-      </AvatarFallback>
+      <AvatarFallback>{initials(name)}</AvatarFallback>
     </Avatar>
   )
 }

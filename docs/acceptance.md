@@ -297,7 +297,7 @@ them, including the SQL fix for finding 1.
   after a reload reuses the asset and resumes the transfer" and "a removed
   reservation fails once with a clear reason". `e2e/upload-recovery.spec.ts` is in
   progress. Assertion 3 is unknown.
-- _WS1 journeys:_ `media.tus-interrupted-resume` (MEDIA-INTERRUPTED-RESUME), `media.tus-offline-retry` (MEDIA-OFFLINE-RETRY), `media.reload-resume` (MEDIA-RELOAD-RESUME), `media.reopen-states` and `media.removed-reservation` (MEDIA-REOPEN-STATES). Finding, not a defect: when the browser itself is offline the upload client fails at once and recovers through Retry; its 0, 3, 5, 10, 20 s schedule applies only while the browser stays online. results are in `docs/qa/evidence/`.
+- _WS1 journeys:_ `media.tus-interrupted-resume` (MEDIA-INTERRUPTED-RESUME), `media.tus-offline-retry` (MEDIA-OFFLINE-RETRY), `media.reload-resume` (MEDIA-RELOAD-RESUME), `media.reopen-states` and `media.removed-reservation` (MEDIA-REOPEN-STATES). When the browser itself is offline the queue waits for a signal and resumes the same asset by itself once it is back online; the 0, 3, 5, 10, 20 s retry schedule applies while the browser stays online, after which the file shows Retry. results are in `docs/qa/evidence/`.
 
 **GAP-5: Partial batch in the real app (§10 Partial batch).**
 

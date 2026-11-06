@@ -294,26 +294,27 @@ async function newTask(
   return row!.requirement_id
 }
 
-const CONFLICT = "Someone else changed this a moment ago."
+const REVIEW_CONFLICT = "a moment ago. The latest decision is shown."
+const EDIT_CONFLICT = "Someone else changed this a moment ago."
 
 /**
  * D21: after a conflict the dialog is gone, the page notice (a focusable
  * `role="status"` CoverageNotice) is the one place the message appears, no
  * `role="alert"` repeats it, and focus is on the notice.
  */
-async function expectConflictNotice(page: Page) {
+async function expectConflictNotice(page: Page, conflict = REVIEW_CONFLICT) {
   await expect(
-    page.getByRole("status").filter({ hasText: CONFLICT })
+    page.getByRole("status").filter({ hasText: conflict })
   ).toHaveCount(1)
   await expect(
-    page.getByRole("alert").filter({ hasText: CONFLICT })
+    page.getByRole("alert").filter({ hasText: conflict })
   ).toHaveCount(0)
   await expect
     .poll(() =>
       page.evaluate((text) => {
-        const notice = document.activeElement?.closest('[data-slot="alert"]')
+        const notice = document.activeElement?.closest('[data-slot="notice"]')
         return !!notice && (notice.textContent ?? "").includes(text)
-      }, CONFLICT)
+      }, conflict)
     )
     .toBe(true)
 }
@@ -477,19 +478,17 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
     expect(Number(group!.staff_count)).toBeGreaterThan(0)
     const adminPage = await signedInPage(browser, w.admin)
     await adminPage.goto("/admin/coverage")
-    const coverageRow = adminPage
-      .getByRole("region", { name: "Venue coverage" })
-      .getByRole("row")
+    // One row per venue, with coverage and participation as separate figures.
+    const venueRow = adminPage
+      .getByRole("list", { name: "Venues" })
+      .getByRole("listitem")
       .filter({ hasText: w.venue1.name })
-    const participationRow = adminPage
-      .getByRole("region", { name: /^Staff participation, / })
-      .getByRole("row")
-      .filter({ hasText: w.venue1.name })
-    await expect(coverageRow).toBeVisible()
-    await expect(participationRow).toBeVisible()
+    await expect(venueRow).toBeVisible()
+    await expect(venueRow).toContainText("Venue coverage")
+    await expect(venueRow).toContainText("Staff participation")
     test.info().annotations.push({
       type: "AC-19 admin rows",
-      description: `coverage: ${await coverageRow.innerText()} | participation: ${await participationRow.innerText()}`,
+      description: await venueRow.innerText(),
     })
 
     // D11 setup: one more photo waits for review on the v1 section.
@@ -564,7 +563,9 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
       })
     ).toBeVisible()
     await expect(
-      managerPage.getByText("Nothing is matched by name.", { exact: false })
+      managerPage
+        .getByRole("region", { name: "Carry photos from the previous menu" })
+        .getByText("Nothing is matched by name.", { exact: false })
     ).toBeVisible()
 
     // D11: the superseded section takes no new photos, but the waiting one
@@ -685,7 +686,15 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
     await managerPage.goto(`/staff/manage/team?period=${previousKey}`)
     await expect(managerPage.getByRole("heading", { level: 1 })).toBeVisible()
     await expect(
-      managerPage.getByRole("button", { name: /^(Set|Edit) target for / })
+      managerPage.getByText(`${w.staffA.name}`, { exact: false }).first()
+    ).toBeVisible()
+    await expect(
+      managerPage.getByRole("button", {
+        name: /^(Correct .+ target|(Decrease|Increase) .+ photo target)$/,
+      })
+    ).toHaveCount(0)
+    await expect(
+      managerPage.getByRole("button", { name: "Save targets" })
     ).toHaveCount(0)
 
     // R-A3: the admin corrects last month in the UI, with a reason.
@@ -694,24 +703,28 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
       `/admin/coverage/${w.venue1.id}/team?period=${previousKey}`
     )
     await adminPage
-      .getByRole("button", { name: `Set target for ${w.staffA.name}` })
+      .getByRole("button", {
+        name: new RegExp(`^Correct target for ${w.staffA.name}, \\w+$`),
+      })
       .click()
     const dialog = adminPage.getByRole("dialog")
     await expect(
-      dialog.getByText(
-        "Correcting a past month is recorded with your reason.",
-        {
-          exact: false,
-        }
-      )
+      dialog.getByText("Venue coverage isn't affected.")
     ).toBeVisible()
-    await dialog.getByLabel("Photos this month").fill("3")
-    await dialog.getByRole("button", { name: "Save target" }).click()
+    await dialog
+      .getByRole("textbox", {
+        name: new RegExp(`^${w.staffA.name}'s \\w+ target$`),
+      })
+      .fill("3")
+    await dialog.getByRole("button", { name: "Save correction" }).click()
     await expect(dialog).toBeVisible()
+    await expect(
+      dialog.getByText("Add a reason.", { exact: false })
+    ).toBeVisible()
     expect(pastRow()).toBe("")
     const reason = `WS5: corrected after the stock count (${w.tag})`
-    await dialog.getByLabel("Reason for the change").fill(reason)
-    await dialog.getByRole("button", { name: "Save target" }).click()
+    await dialog.getByLabel("Reason", { exact: true }).fill(reason)
+    await dialog.getByRole("button", { name: "Save correction" }).click()
     await expect(dialog).toBeHidden()
     expect(pastRow()).toBe("3:admin_correction")
     expect(
@@ -769,7 +782,7 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
     ).toHaveCount(0)
     await staffPage.goto(`/staff/tasks/${task}`)
     await expect(
-      staffPage.getByRole("heading", { name: "This task isn't available" })
+      staffPage.getByRole("heading", { name: "This task isn't yours" })
     ).toBeVisible()
     await refused(
       staffA.rpc("submit_coverage_photos", {
@@ -804,7 +817,7 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
     const managerPage = await signedInPage(browser, w.manager)
     await managerPage.goto("/staff/manage")
     await expect(
-      managerPage.getByRole("heading", { name: "Venue manager tools" })
+      managerPage.getByRole("heading", { name: "Manage isn't available" })
     ).toBeVisible()
     await expect(managerPage.getByRole("link", { name: "Manage" })).toHaveCount(
       0
@@ -833,12 +846,15 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
 
     const adminPage = await signedInPage(browser, w.admin)
     await adminPage.goto(`/admin/staff/${w.staffB.id}`)
-    await adminPage.getByRole("button", { name: "Deactivate" }).click()
+    await adminPage
+      .getByRole("button", { name: `More actions for ${w.staffB.name}` })
+      .click()
+    await adminPage.getByRole("menuitem", { name: "Deactivate" }).click()
     await adminPage
       .getByRole("alertdialog")
       .getByRole("button", { name: "Deactivate" })
       .click()
-    await expect(adminPage.getByText(/is deactivated/)).toBeVisible()
+    await expect(adminPage.getByText(/is inactive\./)).toBeVisible()
 
     await leaver.goto("/staff/tasks")
     await expect(leaver).toHaveURL(/\/auth\/blocked$/)
@@ -885,12 +901,18 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
     )
     const staffPage = await signedInPage(browser, w.staffA)
     await expect(staffPage).toHaveURL(STAFF_LANDING)
-    const listed = staffPage.getByRole("listitem").filter({ hasText: title })
+    // Home also raises it on the To do card; the task list row must carry it.
+    const listed = staffPage
+      .getByRole("list", { name: "Assigned tasks" })
+      .getByRole("listitem")
+      .filter({ hasText: title })
     await expect(listed.getByText("Overdue", { exact: true })).toBeVisible()
     await staffPage.goto(`/staff/tasks/${task}`)
-    await expect(staffPage.getByText("Overdue", { exact: true })).toBeVisible()
+    const taskPage = staffPage.getByRole("main")
+    const overdue = taskPage.getByText("Overdue", { exact: true })
+    await expect(overdue).toBeVisible()
     await expect(
-      staffPage.getByRole("button", { name: "Take or upload photos" })
+      staffPage.getByRole("button", { name: "Take a photo" })
     ).toBeEnabled()
 
     const [sent] = (await ok(
@@ -908,7 +930,8 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
     await accept(manager, sent!)
     expect(await progress()).toMatchObject({ overdue: false, satisfied: true })
     await staffPage.reload()
-    await expect(staffPage.getByText("Overdue", { exact: true })).toHaveCount(0)
+    await expect(taskPage.getByRole("heading", { name: title, level: 1 })).toBeVisible()
+    await expect(overdue).toHaveCount(0)
     await staffPage.context().close()
   })
 
@@ -1175,11 +1198,9 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
         name: `Monthly photo: photo by ${w.staffB.name}`,
       })
     await card(first).getByRole("button", { name: "Accept" }).click()
-    await expect(
-      first.getByText(`Accepted ${w.staffB.name}’s photo.`)
-    ).toBeVisible()
+    await expect(first.getByText(/^Accepted\. It counts for /)).toBeVisible()
     await card(second)
-      .getByRole("button", { name: "Needs another photo" })
+      .getByRole("button", { name: "Ask for another photo" })
       .click()
     const ask = second.getByRole("dialog", { name: "Ask for another photo" })
     await ask.getByLabel("Reason").fill("WS5: decided in another tab")
@@ -1214,13 +1235,13 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
         name: `Monthly photo: photo by ${w.staffB.name}`,
       })
     await card(first)
-      .getByRole("button", { name: "Needs another photo" })
+      .getByRole("button", { name: "Ask for another photo" })
       .click()
     const ask = first.getByRole("dialog", { name: "Ask for another photo" })
     await ask.getByLabel("Reason").fill("WS5: decided first in this tab")
     await ask.getByRole("button", { name: "Ask for another photo" }).click()
     await expect(
-      first.getByText(`Asked ${w.staffB.name} for another photo.`)
+      first.getByText(`Asked ${w.staffB.name.split(" ")[0]} for another photo.`)
     ).toBeVisible()
     await card(second).getByRole("button", { name: "Accept" }).click()
     await expectConflictNotice(second)
@@ -1256,14 +1277,13 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
         p_client_request_key: none,
       })
     )
-    await page.getByRole("button", { name: "Does not apply" }).click()
-    const dialog = page.getByRole("dialog", {
-      name: `“${title}” does not apply`,
-    })
+    await page.getByRole("radio", { name: "Does not apply" }).click()
+    const dialog = page.getByRole("dialog", { name: "Mark as not applicable" })
+    await expect(dialog.getByText(title, { exact: true })).toBeVisible()
     await dialog.getByLabel("Reason").fill("WS5: changed in another tab")
-    await dialog.getByRole("button", { name: "Mark not applicable" }).click()
+    await dialog.getByRole("button", { name: "Mark as not applicable" }).click()
     await expect(dialog).toBeHidden()
-    await expectConflictNotice(page)
+    await expectConflictNotice(page, EDIT_CONFLICT)
     expect(
       psql(
         `select status from public.coverage_requirements where id = '${task}'::uuid`
@@ -1272,23 +1292,24 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
     await page.context().close()
   })
 
-  test("a month nobody prepared shows under missing periods until it is prepared (AC-26)", async ({
+  test("a month nobody prepared shows as not prepared until it is prepared (AC-26)", async ({
     browser,
   }) => {
     const w = await provisionCoverageWorld()
     const { admin } = await people(w)
     const page = await signedInPage(browser, w.admin)
-    const missing = () =>
+    const venueRow = () =>
       page
-        .getByRole("list", { name: "Missing periods" })
-        .getByRole("listitem")
+        .getByRole("table", { name: "Preparation by venue" })
+        .getByRole("row")
         .filter({ hasText: w.venue1.name })
     await page.goto("/admin/coverage")
-    await expect(missing()).toContainText("without a target row")
+    await expect(venueRow()).toContainText("Not prepared yet")
     await ok(admin.rpc("prepare_coverage_month", { p_venue_id: w.venue1.id }))
     await page.reload()
     await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible()
-    await expect(missing()).toHaveCount(0)
+    await expect(venueRow()).toBeVisible()
+    await expect(venueRow()).not.toContainText("Not prepared yet")
     await page.context().close()
   })
 
@@ -1317,7 +1338,7 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
     const page = await signedInPage(browser, w.manager)
     await page.goto("/staff/manage")
     await expect(
-      page.getByRole("heading", { name: "Venue manager tools" })
+      page.getByRole("heading", { name: "Manage isn't available" })
     ).toBeVisible()
     await expect(page.getByRole("link", { name: "Manage" })).toHaveCount(0)
     await page.context().close()

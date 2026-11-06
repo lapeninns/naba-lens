@@ -7,7 +7,9 @@ import {
   testEmail,
 } from "../support/identities"
 import { getLocalSupabaseEnv } from "../support/local-supabase"
+import { psql } from "./helpers/stack"
 import { openPortfolio, STAFF_LANDING } from "./helpers/ui"
+import { provisionWorld, signedInPage } from "./helpers/world"
 
 const admin = serviceClient()
 // Server Functions and routes compile on first use under `next dev`.
@@ -93,14 +95,14 @@ test.describe("admin staff management", () => {
     await dialog.getByRole("combobox", { name: "Venue" }).click()
     await adminPage.getByRole("option", { name: venue.name }).click()
     await dialog.getByRole("button", { name: "Send invitation" }).click()
+    // With the taken address in the list, the field names the account and
+    // links to it; otherwise the server's message shows.
     await expect(
-      dialog.getByText("This email already has a Naba-Lens account", {
-        exact: false,
-      })
+      dialog.getByText("This email already has", { exact: false }).first()
     ).toBeVisible()
     await dialog.getByRole("button", { name: "Cancel" }).click()
 
-    // The invitee accepts from the real email, lands on My tasks and opens
+    // The invitee accepts from the real email, lands on Home and opens
     // their portfolio.
     const staffContext = await browser.newContext()
     const staffPage = await staffContext.newPage()
@@ -108,7 +110,9 @@ test.describe("admin staff management", () => {
     await expect(
       staffPage.getByRole("heading", { name: "Accept your invitation" })
     ).toBeVisible()
-    await staffPage.getByRole("button", { name: "Continue" }).click()
+    await staffPage
+      .getByRole("button", { name: "Accept your invitation" })
+      .click()
     await expect(staffPage).toHaveURL(STAFF_LANDING)
     await openPortfolio(staffPage)
     await expect(staffPage.getByRole("heading", { name })).toBeVisible()
@@ -138,20 +142,26 @@ test.describe("admin staff management", () => {
     // Admin sees them as Active, opens the portfolio and deactivates them.
     await adminPage.goto(`/admin/staff/${invitee!.id}`)
     await expect(adminPage.getByRole("heading", { name })).toBeVisible()
-    await expect(adminPage.getByText("Active", { exact: true })).toBeVisible()
-    await expect(adminPage.getByText(`has no uploads yet`)).toBeVisible()
-    await adminPage.getByRole("button", { name: "Deactivate" }).click()
+    // The status shows in the header summary and again under Account.
+    await expect(
+      adminPage.getByText("Active", { exact: true }).first()
+    ).toBeVisible()
+    await expect(adminPage.getByText("No photos yet.")).toBeVisible()
+    await adminPage
+      .getByRole("button", { name: `More actions for ${name}` })
+      .click()
+    await adminPage.getByRole("menuitem", { name: "Deactivate" }).click()
     await adminPage
       .getByRole("alertdialog")
       .getByRole("button", { name: "Deactivate" })
       .click()
-    await expect(adminPage.getByText(/is deactivated/)).toBeVisible()
+    await expect(adminPage.getByText(/is inactive\./)).toBeVisible()
     // The header follows the confirmed result at once; it must not wait for the
     // page re-render, which took over 30 s on a loaded machine (mobile run).
     const fast = { timeout: 5_000 }
-    await expect(adminPage.getByText("Inactive", { exact: true })).toBeVisible(
-      fast
-    )
+    await expect(
+      adminPage.getByText("Inactive", { exact: true }).first()
+    ).toBeVisible(fast)
     await expect(adminPage.getByText("Active", { exact: true })).toHaveCount(
       0,
       fast
@@ -170,9 +180,9 @@ test.describe("admin staff management", () => {
     // Reactivation restores access with a fresh sign-in.
     await adminPage.getByRole("button", { name: "Reactivate" }).click()
     await expect(adminPage.getByText(/can sign in again/)).toBeVisible()
-    await expect(adminPage.getByText("Active", { exact: true })).toBeVisible(
-      fast
-    )
+    await expect(
+      adminPage.getByText("Active", { exact: true }).first()
+    ).toBeVisible(fast)
     await staffContext.clearCookies()
     await signInAs(staffPage, email)
     await expect(staffPage).toHaveURL(STAFF_LANDING)
@@ -194,5 +204,37 @@ test.describe("admin staff management", () => {
       .eq("id", invitee!.id)
       .single()
     expect(saved?.job_title).toBe("TEST Head chef")
+  })
+
+  test("at 360px a long name keeps a 44px link and a menu inside the screen", async ({
+    browser,
+  }) => {
+    const world = await provisionWorld()
+    const name = `${world.staffA.name} Bartholomew-Featherstonehaugh Montgomery`
+    psql(
+      `update public.profiles set display_name = '${name}' where id = '${world.staffA.id}'::uuid`
+    )
+    const page = await signedInPage(browser, world.adminA, {
+      viewport: { width: 360, height: 780 },
+    })
+    await page.goto("/admin/staff")
+    const row = page
+      .getByRole("list", { name: "Staff" })
+      .getByRole("listitem")
+      .filter({ hasText: name })
+    const link = row.getByRole("link", { name })
+    const box = await link.boundingBox()
+    expect(box!.height).toBeGreaterThanOrEqual(44)
+    await row.getByRole("button", { name: `More actions for ${name}` }).click()
+    const menu = page.getByRole("menu")
+    await expect(menu).toBeVisible()
+    await expect(menu.getByText(name, { exact: true })).toBeVisible()
+    const menuBox = await menu.boundingBox()
+    expect(menuBox!.x).toBeGreaterThanOrEqual(0)
+    expect(menuBox!.x + menuBox!.width).toBeLessThanOrEqual(360)
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth)
+    ).toBeLessThanOrEqual(360)
+    await page.context().close()
   })
 })

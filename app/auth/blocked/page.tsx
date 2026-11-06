@@ -2,6 +2,11 @@ import type { Metadata } from "next"
 import { redirect } from "next/navigation"
 
 import { SignOutButton } from "@/app/auth/sign-out-button"
+import {
+  SignInCard,
+  SignInHeading,
+  SignInPage,
+} from "@/app/login/sign-in-frame"
 import { getAuthState, homePathFor, ROUTES } from "@/lib/auth"
 
 export const metadata: Metadata = {
@@ -15,20 +20,16 @@ export default async function BlockedPage() {
   if (state.status === "active") redirect(homePathFor(state.profile.role))
 
   return (
-    <main className="flex min-h-svh items-center justify-center p-6">
-      <div className="flex w-full max-w-sm flex-col gap-4">
-        <h1 className="font-heading text-2xl font-semibold">
-          Account unavailable
-        </h1>
-        <p className="text-sm text-muted-foreground">
+    <SignInPage>
+      <SignInCard aria-labelledby="blocked-title">
+        <SignInHeading id="blocked-title" title="Account unavailable">
           {state.status === "inactive"
-            ? "Your Naba-Lens account has been deactivated."
-            : "This sign-in is not linked to an active Naba-Lens account."}{" "}
-          Ask a Naba-Lens admin at your organisation if you think this is a
-          mistake.
-        </p>
-        <SignOutButton />
-      </div>
-    </main>
+            ? "This account has been deactivated, so it can't open Naba-Lens. Your photos stay in the library. If that's a mistake, ask an admin."
+            : "This email isn't linked to an active Naba-Lens account yet. Ask an admin to check your invitation."}
+        </SignInHeading>
+        {/* A grid form stretches the button to the card's width. */}
+        <SignOutButton className="grid" />
+      </SignInCard>
+    </SignInPage>
   )
 }

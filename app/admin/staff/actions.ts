@@ -56,6 +56,17 @@ function toActionResult(
     : { ok: false, error: result.error }
 }
 
+/** The partial-invite message in the Invite staff dialog's words. */
+function emailNotSentMessage(values: unknown, fallback: string) {
+  const name =
+    values && typeof values === "object" && "displayName" in values
+      ? String(values.displayName).trim()
+      : ""
+  if (!name) return fallback
+  const first = name.split(/\s+/)[0]
+  return `${name}'s account exists, but the invitation email didn't go. Close this, then choose Resend invitation in ${first}'s More actions menu. Don't create the account again.`
+}
+
 export async function inviteStaffAction(
   values: unknown
 ): Promise<InviteActionResult> {
@@ -65,7 +76,10 @@ export async function inviteStaffAction(
     case "sent":
       return { status: "sent" }
     case "partial":
-      return { status: "partial", message: result.message }
+      return {
+        status: "partial",
+        message: emailNotSentMessage(values, result.message),
+      }
     default:
       return result.fieldErrors
         ? {

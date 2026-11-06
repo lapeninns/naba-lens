@@ -49,6 +49,8 @@ run monitoring pnpm test:monitoring || true
 run archive pnpm test:archive || true
 run build pnpm build && run scan-bundle node scripts/ci/scan-bundle.mjs || true
 run prepare node scripts/ci/prepare-stack.mjs "$work" || exit 1
+export E2E_PORT
+E2E_PORT=$(cat "$work/e2e-port") || exit 1
 started=1
 run start supabase --workdir "$work" start || exit 1
 run reset supabase --workdir "$work" db reset || exit 1

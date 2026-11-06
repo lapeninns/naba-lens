@@ -1,10 +1,15 @@
 import type { Department } from "@/lib/config/departments"
 
+import { EmptyState } from "../empty-state"
+import { Notice } from "../notice"
+import { PageHeader } from "../page-header"
+import { CountBadge } from "../status-chip"
+import type { MediaItem } from "../types"
 import { AssignmentList } from "./assignment-list"
-import { plural } from "./copy"
+import { ColleaguePosts } from "./colleague-posts"
+import { FirstRunEntry } from "./first-run-entry"
 import { MonthlyProgressCard } from "./monthly-progress-card"
-import { NeedsAnotherPhotoList } from "./needs-another-photo-list"
-import { SetupChecklist } from "./setup-checklist"
+import { todoItems, TodoSection } from "./todo-list"
 import type { CoverageScope, MyTasksView } from "./types"
 
 /** Why sending is paused (no venue, or an inactive venue), or null. */
@@ -16,12 +21,33 @@ export function submitBlockedCopy(scope: CoverageScope): string | null {
   return "Sending photos is paused because your venue isn't taking photos right now. Ask an admin to check your venue."
 }
 
-/** Staff landing: setup, this month, replacements and assigned tasks. */
+/** A send the person just made, announced above To do. */
+export type JustSent =
+  | { kind: "sent"; count: number; taskTitle: string | null }
+  | { kind: "replaced"; taskTitle: string | null }
+
+export const RULE_SENTENCE =
+  "Ready photos are already in Photos and on your profile. Review decides whether they count, not whether they are shared."
+
+function sentNotice(justSent: JustSent) {
+  const task = justSent.taskTitle ?? "this month's photos"
+  return justSent.kind === "replaced"
+    ? `Your new photo for ${task} is waiting for review.`
+    : `${justSent.count === 1 ? "1 photo" : `${justSent.count} photos`} sent to ${task}. A reviewer reviews ${justSent.count === 1 ? "it" : "them"} next.`
+}
+
+/** Staff Home: the one thing to do next, this month's photos, then all tasks. */
 export function TasksOverview({
   tasks,
   profile,
   tasksPath,
   portfolioPath,
+  justSent = null,
+  colleagues = [],
+  photosPath = "/staff/community",
+  peoplePath = "/staff/people",
+  welcomeHref = null,
+  reviewCount = 0,
 }: {
   tasks: MyTasksView
   profile: {
@@ -34,56 +60,48 @@ export function TasksOverview({
   tasksPath: string
   /** Where Edit profile lives ("/staff"). */
   portfolioPath: string
+  justSent?: JustSent | null
+  /** Newest colleague photos, shown below To do. */
+  colleagues?: MediaItem[]
+  photosPath?: string
+  peoplePath?: string
+  /** The first-run screen, offered to new starters; null to hide it. */
+  welcomeHref?: string | null
+  /** Photos waiting for this manager; 0 for everyone else. */
+  reviewCount?: number
 }) {
   const { scope, period, monthly, assignments, needsAnotherPhoto } = tasks
   const blocked = submitBlockedCopy(scope)
   const replacing = new Set(
     needsAnotherPhoto.flatMap((s) => (s.requirement ? [s.requirement.id] : []))
   )
-  const openTaskIds = new Set(
-    assignments.filter((a) => a.canSubmit).map((a) => a.requirement.id)
-  )
-  const overdue = assignments.filter(
-    (a) => a.requirement.progress.overdue && !a.requirement.progress.satisfied
-  ).length
+  const items = todoItems(tasks, new Date(), reviewCount)
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-2">
-        <p className="text-sm font-medium text-muted-foreground">
-          {[scope.venue?.name, period.label].filter(Boolean).join(" · ")}
-        </p>
-        <h1 className="text-2xl font-semibold tracking-tight">My tasks</h1>
-        <ul
-          aria-label="At a glance"
-          className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground"
-        >
-          <li>{tasks.pendingReview} waiting for review</li>
-          <li>
-            {plural(needsAnotherPhoto.length, "photo needs", "photos need")}{" "}
-            replacing
-          </li>
-          <li>
-            {plural(assignments.length, "task", "tasks")} assigned
-            {overdue > 0 ? ` (${overdue} overdue)` : ""}
-          </li>
-        </ul>
-      </div>
-
-      <SetupChecklist
-        setup={scope.setup}
-        profile={profile}
-        editProfileHref={portfolioPath}
+      <PageHeader
+        scope={[scope.venue?.name, period.label]}
+        venueScope={Boolean(scope.venue)}
+        title="Home"
       />
 
-      {blocked && scope.venue ? (
-        <p
-          role="status"
-          className="rounded-md border bg-muted/40 px-4 py-3 text-sm"
-        >
-          {blocked}
-        </p>
+      {justSent ? (
+        <Notice tone="positive" role="status">
+          {sentNotice(justSent)}
+        </Notice>
       ) : null}
+
+      {welcomeHref ? <FirstRunEntry href={welcomeHref} /> : null}
+
+      {blocked && scope.venue ? <Notice role="status">{blocked}</Notice> : null}
+
+      <TodoSection
+        items={items}
+        scope={scope}
+        profile={profile}
+        tasksPath={tasksPath}
+        portfolioPath={portfolioPath}
+      />
 
       <MonthlyProgressCard
         monthly={monthly}
@@ -92,20 +110,36 @@ export function TasksOverview({
         canSubmit={scope.canSubmit}
       />
 
-      <NeedsAnotherPhotoList
-        submissions={needsAnotherPhoto}
-        tasksPath={tasksPath}
-        canSubmit={scope.canSubmit}
-        openTaskIds={openTaskIds}
+      <p className="max-w-(--size-reading) text-body-touch text-ink-muted md:text-body">
+        {RULE_SENTENCE}
+      </p>
+
+      <ColleaguePosts
+        items={colleagues}
+        photosHref={photosPath}
+        peopleHref={peoplePath}
       />
 
       <section
-        aria-labelledby="assigned-heading"
-        className="flex flex-col gap-3"
+        aria-labelledby="all-tasks-heading"
+        className="flex flex-col gap-4"
       >
-        <h2 id="assigned-heading" className="text-lg font-semibold">
+        <div className="grid gap-2">
+          <h2
+            id="all-tasks-heading"
+            className="font-display text-2xl break-words text-ink"
+          >
+            All tasks
+          </h2>
+          <p className="max-w-(--size-reading) text-body-touch text-ink-muted md:text-body">
+            Tasks assigned to you at {scope.venue?.name ?? "your venue"}.
+            Overdue tasks still take photos.
+          </p>
+        </div>
+        <h3 className="flex items-center gap-2 text-item-title-touch text-ink md:text-item-title">
           Assigned to you
-        </h2>
+          <CountBadge count={assignments.length} label="tasks" />
+        </h3>
         {assignments.length > 0 ? (
           <AssignmentList
             assignments={assignments}
@@ -113,10 +147,12 @@ export function TasksOverview({
             needsAnotherPhoto={replacing}
           />
         ) : (
-          <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-            Nothing is assigned to you right now. You can still add photos for
-            this month.
-          </p>
+          <EmptyState
+            inline
+            variant="done"
+            title="Nothing is assigned to you this month."
+            description={`Your manager assigns tasks at ${scope.venue?.name ?? "your venue"}. You can still add photos to your profile.`}
+          />
         )}
       </section>
     </div>

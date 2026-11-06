@@ -1,16 +1,10 @@
-import { cn } from "@/lib/utils"
-
-import { UPLOAD_STATE_LABEL } from "./format"
+import { StatusChip } from "./status-chip"
 import type { UploadState } from "./types"
 
-const tone: Record<UploadState, string> = {
-  uploading: "bg-info-surface text-info",
-  processing: "bg-warning-surface text-warning",
-  ready: "bg-positive-surface text-positive",
-  failed: "bg-negative-surface text-negative",
-}
-
-/** Technical pipeline state. Never an approval status. */
+/**
+ * Technical pipeline state. Never an approval status, and ready media carries
+ * no mark at all, so ready can never be mistaken for accepted.
+ */
 export function UploadStateBadge({
   state,
   className,
@@ -18,16 +12,6 @@ export function UploadStateBadge({
   state: UploadState
   className?: string
 }) {
-  return (
-    <span
-      data-state={state}
-      className={cn(
-        "inline-flex h-5 items-center rounded-sm px-1.5 text-xs font-medium",
-        tone[state],
-        className
-      )}
-    >
-      {UPLOAD_STATE_LABEL[state]}
-    </span>
-  )
+  if (state === "ready") return null
+  return <StatusChip state={state} className={className} />
 }

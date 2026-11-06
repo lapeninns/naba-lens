@@ -4,7 +4,12 @@ import { createHash } from "node:crypto"
 import { expect, test, type Route } from "@playwright/test"
 
 import { provisioner, psql } from "../e2e/helpers/stack"
-import { libraryList } from "../e2e/helpers/ui"
+import {
+  STAFF_LANDING,
+  libraryList,
+  openPortfolio,
+  staffTile,
+} from "../e2e/helpers/ui"
 import {
   CHUNK,
   SIGNED_PUT,
@@ -176,11 +181,12 @@ test.describe("media.tus-interrupted-resume", () => {
 })
 
 // The retry schedule of the TUS client is 0, 3, 5, 10 and 20 s: the second
-// test waits about 40 s for it to run out. The first goes through the
-// browser's offline switch, where tus-js-client does not retry at all.
+// test waits about 40 s for it to run out, then shows Retry. The first goes
+// through the browser's offline switch: the file waits for a signal and resumes
+// by itself when the browser is back online.
 test.describe("media.tus-offline-retry", () => {
   for (const mode of ["browser offline", "outage past the retry schedule"]) {
-    test(`media.tus-offline-retry: ${mode} shows Retry, and Retry resumes the same asset`, async ({
+    test(`media.tus-offline-retry: ${mode} waits or shows Retry, and resumes the same asset`, async ({
       browser,
       baseURL,
     }, testInfo) => {
@@ -207,14 +213,29 @@ test.describe("media.tus-offline-retry", () => {
       })
       const dialog = await openUploadDialog(page)
       await chooseAndUpload(dialog, ["tus-video.mp4"])
-      await expect(row(dialog, "tus-video.mp4")).toContainText(
-        "Failed — The connection was interrupted. Check your connection, then retry: the upload continues where it stopped.",
-        { timeout: 120_000 }
-      )
-      await expect(dialog.getByRole("status")).toHaveText(
-        "0 uploaded · 1 failed"
-      )
-      await testInfo.attach("offline-failed", {
+      if (offline) {
+        // Offline the file waits for a signal instead of failing.
+        await expect(
+          dialog.getByText(
+            "Waiting for a signal. Keep this page open; nothing is sent twice."
+          )
+        ).toBeVisible({ timeout: 120_000 })
+        await expect(row(dialog, "tus-video.mp4")).toContainText("Waiting", {
+          timeout: 120_000,
+        })
+        await expect(dialog.getByRole("status").last()).toHaveText(
+          "0 uploaded · 1 waiting"
+        )
+      } else {
+        await expect(row(dialog, "tus-video.mp4")).toContainText(
+          "Failed — The connection was interrupted. Check your connection, then retry: the upload continues where it stopped.",
+          { timeout: 120_000 }
+        )
+        await expect(dialog.getByRole("status")).toHaveText(
+          "0 uploaded · 1 failed"
+        )
+      }
+      await testInfo.attach(offline ? "offline-waiting" : "offline-failed", {
         body: await dialog.screenshot(),
         contentType: "image/png",
       })
@@ -223,10 +244,15 @@ test.describe("media.tus-offline-retry", () => {
       expect(interrupted[0].upload_state).toBe("uploading")
 
       down = false
-      if (offline) await context.setOffline(false)
-      await page.unroute(TUS)
       storage.reset()
-      await dialog.getByRole("button", { name: "Retry tus-video.mp4" }).click()
+      await page.unroute(TUS)
+      // Back online the waiting file carries on by itself; a failed one
+      // needs its Retry.
+      if (offline) await context.setOffline(false)
+      else
+        await dialog
+          .getByRole("button", { name: "Retry tus-video.mp4" })
+          .click()
       await expectSummary(dialog, "1 uploaded", 90_000)
       expect(storage.methods()[0]).toBe("HEAD")
       expect(storage.methods()).not.toContain("POST")
@@ -264,7 +290,9 @@ test.describe("media.reload-resume", () => {
     const unfinished = await rowsOf(staff.id)
     expect(unfinished).toHaveLength(1)
     expect(unfinished[0].upload_state).toBe("uploading")
-    await expect(tileOf(page, "tus-video.mp4", "Uploading")).toHaveCount(1)
+    await expect(
+      await tileOf(page, staff.id, "tus-video.mp4", "Uploading")
+    ).toHaveCount(1)
 
     storage.reset()
     dialog = await openUploadDialog(page)
@@ -281,7 +309,9 @@ test.describe("media.reload-resume", () => {
       upload_state: "ready",
     })
     await dialog.getByRole("button", { name: "Done" }).click()
-    await expect(tileOf(page, "tus-video.mp4", "ready")).toHaveCount(1)
+    await expect(
+      await tileOf(page, staff.id, "tus-video.mp4", "ready")
+    ).toHaveCount(1)
     await page.context().close()
   })
 })
@@ -324,7 +354,7 @@ test.describe("media.removed-reservation", () => {
     expect(live[0].id).not.toBe(reserved.id)
     expect(live[0].upload_state).toBe("ready")
     await dialog.getByRole("button", { name: "Done" }).click()
-    await expect(tileOf(page, "tus-video.mp4")).toHaveCount(1)
+    await expect(await tileOf(page, staff.id, "tus-video.mp4")).toHaveCount(1)
     await page.context().close()
   })
 })
@@ -354,13 +384,19 @@ test.describe("media.reopen-states", () => {
 
     const expectStates = async (p: typeof page) => {
       await expect(portfolio(p).getByRole("button")).toHaveCount(3)
-      await expect(tileOf(p, "photo.jpg", "ready")).toHaveCount(1)
-      await expect(tileOf(p, "disguised.jpg", "Failed")).toHaveCount(1)
-      await expect(tileOf(p, "tus-video.mp4", "Uploading")).toHaveCount(1)
+      await expect(await tileOf(p, staff.id, "photo.jpg", "ready")).toHaveCount(
+        1
+      )
+      await expect(
+        await tileOf(p, staff.id, "disguised.jpg", "Failed")
+      ).toHaveCount(1)
+      await expect(
+        await tileOf(p, staff.id, "tus-video.mp4", "Uploading")
+      ).toHaveCount(1)
       // The completed photo has a real thumbnail; the others are not "ready".
       await expect
-        .poll(() =>
-          tileOf(p, "photo.jpg", "ready")
+        .poll(async () =>
+          (await tileOf(p, staff.id, "photo.jpg", "ready"))
             .locator("img")
             .evaluate((img: HTMLImageElement) => img.naturalWidth)
         )
@@ -379,7 +415,8 @@ test.describe("media.reopen-states", () => {
     await dialog.getByRole("button", { name: "Cancel" }).click()
 
     // Another device sees the same states from the server.
-    const fresh = await signInAs(browser, staff, baseURL!, /\/staff$/)
+    const fresh = await signInAs(browser, staff, baseURL!, STAFF_LANDING)
+    await openPortfolio(fresh)
     await expectStates(fresh)
     await fresh.context().close()
 
@@ -518,7 +555,9 @@ test.describe("media.stuck-processing", () => {
     )
 
     await page.reload()
-    await expect(tileOf(page, "photo.jpg", "Processing")).toHaveCount(1)
+    await expect(
+      await tileOf(page, staff.id, "photo.jpg", "Processing")
+    ).toHaveCount(1)
     await testInfo.attach("stuck-processing", {
       body: await page.screenshot({ fullPage: true }),
       contentType: "image/png",
@@ -535,8 +574,12 @@ test.describe("media.stuck-processing", () => {
     expect((await rowsOf(staff.id))[0].upload_state).toBe("failed")
 
     await page.reload()
-    await expect(tileOf(page, "photo.jpg", "Failed")).toHaveCount(1)
-    await expect(tileOf(page, "photo.jpg", "Processing")).toHaveCount(0)
+    await expect(
+      await tileOf(page, staff.id, "photo.jpg", "Failed")
+    ).toHaveCount(1)
+    await expect(
+      await tileOf(page, staff.id, "photo.jpg", "Processing")
+    ).toHaveCount(0)
 
     // Recovery: choosing the file again finalises the stored bytes.
     dialog = await openUploadDialog(page)
@@ -615,9 +658,9 @@ test.describe("media.reload-metadata", () => {
     // venue in the profile header.
     for (const r of rows) {
       const date = appDate(r.created_at)
-      const tile = portfolio(page).getByRole("button", {
-        name: `Photo, ${r.original_filename}, uploaded ${date}`,
-      })
+      const tile = (
+        await staffTile(portfolio(page), r.original_filename, staff.id)
+      ).and(page.getByRole("button", { name: `Photo, uploaded ${date}` }))
       await expect(tile).toBeVisible()
       await expect
         .poll(() =>

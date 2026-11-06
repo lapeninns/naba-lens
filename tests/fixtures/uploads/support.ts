@@ -9,6 +9,7 @@ import {
 } from "@playwright/test"
 
 import { provisioner } from "../../e2e/helpers/stack"
+import { STAFF_LANDING, openPortfolio, staffTile } from "../../e2e/helpers/ui"
 import {
   provisionWorld,
   signedInPage,
@@ -48,11 +49,12 @@ export function fixtureFile(name: string): string {
 
 export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
-/** One unique world; the staff member of venue one is the uploader. */
+/** One unique world; the staff member of venue one uploads from their portfolio. */
 export async function stage(browser: Browser, baseURL: string) {
   const world = await provisionWorld()
   const page = await signedInPage(browser, world.staffA, { baseURL })
-  await expect(page).toHaveURL(/\/staff$/)
+  await expect(page).toHaveURL(STAFF_LANDING)
+  await openPortfolio(page)
   return { world, staff: world.staffA, page }
 }
 
@@ -136,29 +138,38 @@ export async function expectSummary(
   expected: string,
   timeout = 60_000
 ) {
+  // The status line also reports the run while it is going, so wait for the
+  // settled text rather than for the line to appear.
   const status = dialog.getByRole("status")
-  await expect(status).toBeVisible({ timeout })
-  const files = await dialog.getByRole("list", { name: "Files" }).innerText()
-  expect(await status.textContent(), files).toBe(expected)
+  try {
+    await expect(status).toHaveText(expected, { timeout })
+  } catch (error) {
+    const files = await dialog.getByRole("list", { name: "Files" }).innerText()
+    throw new Error(`${(error as Error).message}\n\nFiles:\n${files}`)
+  }
 }
 
 export const portfolio = (page: Page) =>
   page.getByRole("list", { name: "Your portfolio" })
 
-/** A portfolio tile by file name; `state` is the suffix of its accessible name. */
-export function tileOf(
+/**
+ * A portfolio tile by file name; `state` is the suffix of its accessible name.
+ * Staff tile names carry no file name, so the tile is found by the media id of
+ * the uploader's newest asset with that name.
+ */
+export async function tileOf(
   page: Page,
+  uploaderId: string,
   fileName: string,
   state?: "Uploading" | "Processing" | "Failed" | "ready"
 ) {
-  const base = `^(Photo|Video), ${fileName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}, `
+  const tile = await staffTile(portfolio(page), fileName, uploaderId)
+  if (state === undefined) return tile
   const name =
-    state === undefined
-      ? new RegExp(base)
-      : state === "ready"
-        ? new RegExp(`${base}uploaded (?!.*, (Uploading|Processing|Failed)$)`)
-        : new RegExp(`${base}uploaded [^,]+, ${state}$`)
-  return portfolio(page).getByRole("button", { name })
+    state === "ready"
+      ? /^(Photo|Video), uploaded (?!.*, (Uploading|Processing|Failed)$)/
+      : new RegExp(`^(Photo|Video), uploaded [^,]+, ${state}$`)
+  return tile.and(page.getByRole("button", { name }))
 }
 
 /** Storage upload requests of a page and the bytes the server received. */

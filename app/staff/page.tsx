@@ -1,6 +1,7 @@
 import { logout } from "@/app/_media/actions"
 import { AppShell } from "@/components/nabalens"
 import { requireActiveStaff, uploadBlockReason } from "@/lib/auth"
+import { getManagerReviewCount } from "@/lib/server/coverage"
 import { getMediaActor } from "@/lib/server/media/context"
 import { avatarUrl, listOwnMedia } from "@/lib/server/media/library"
 
@@ -32,12 +33,16 @@ export default async function StaffPage() {
   ])
   if (!page.ok) throw new Error(page.message)
   const blocked = uploadBlockReason(profile)
+  // A failed count read keeps the row (Manage re-reads it) without a number.
+  const review = canManage ? await getManagerReviewCount(auth.actor) : null
+  const reviewCount = review?.ok ? review.count : undefined
 
   return (
     <AppShell
       variant="staff"
       active="portfolio"
       canManage={canManage}
+      reviewCount={reviewCount}
       userName={profile.displayName}
       logoutAction={logout}
     >
@@ -51,6 +56,14 @@ export default async function StaffPage() {
         }}
         uploadBlocked={blocked ? BLOCKED_COPY[blocked] : null}
         initialPage={{ items: page.items, nextCursor: page.nextCursor }}
+        manage={
+          canManage
+            ? {
+                venueName: profile.venue?.name ?? null,
+                reviewCount: reviewCount ?? 0,
+              }
+            : null
+        }
       />
     </AppShell>
   )

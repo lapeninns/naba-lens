@@ -18,6 +18,7 @@ import {
   libraryList,
   markDocument,
   portfolioList,
+  staffTile,
   tile,
   uploadThroughDialog,
   openPortfolio,
@@ -102,9 +103,10 @@ test.describe("release journey @core", () => {
     await expect(
       staff.getByRole("heading", { name: inviteeName })
     ).toBeVisible()
-    await expect(staff.getByText(venue1.name)).toBeVisible()
+    const profile = staff.getByRole("region", { name: "Profile" })
+    await expect(profile.getByText(venue1.name)).toBeVisible()
     await expect(
-      staff.getByText("Your portfolio starts here.", { exact: false })
+      staff.getByRole("main").getByText("Your profile starts here.")
     ).toBeVisible()
     const { data: invitee } = await provisioner()
       .from("profiles")
@@ -150,14 +152,15 @@ test.describe("release journey @core", () => {
       rows!.find((r) => r.original_filename === name)!.id
 
     const portfolio = portfolioList(staff)
-    await expect(tile(portfolio, "Photo", jpeg.name)).toBeVisible()
-    await expect(tile(portfolio, "Video", mp4.name)).toBeVisible()
-    await expect(tile(portfolio, "Photo", heic.name)).toBeVisible()
+    const ownJpeg = await staffTile(portfolio, jpeg.name)
+    await expect(ownJpeg).toBeVisible()
+    await expect(await staffTile(portfolio, mp4.name)).toBeVisible()
+    await expect(await staffTile(portfolio, heic.name)).toBeVisible()
 
     // Persists after reload, with real thumbnails (HEIC decoded server-side).
     await staff.reload()
     for (const name of [jpeg.name, heic.name]) {
-      const img = tile(portfolio, "Photo", name).locator("img")
+      const img = (await staffTile(portfolio, name)).locator("img")
       await expect
         .poll(() =>
           img.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth)
@@ -206,7 +209,7 @@ test.describe("release journey @core", () => {
     await expect(adminB).toHaveURL(new RegExp(`staff=${inviteeId}`))
     await adminB
       .getByRole("group", { name: "Media type" })
-      .getByRole("button", { name: "Photos" })
+      .getByRole("button", { name: "Photos", exact: true })
       .click()
     await expect(adminB).toHaveURL(/type=image/)
     await expect(adminB).toHaveURL(new RegExp(`venue=${venue1.id}`))
@@ -219,7 +222,9 @@ test.describe("release journey @core", () => {
     // equal the uploaded sources (photos, then the video under "Videos").
     const viewer = adminB.getByRole("dialog")
     await tile(library, "Photo", jpeg.name).click()
-    const preview = viewer.getByRole("img", { name: `Photo ${jpeg.name}` })
+    const preview = viewer.getByRole("img", {
+      name: `Photo by ${inviteeName}, ${venue1.name}, uploaded`,
+    })
     await expect
       .poll(() =>
         preview.evaluate(
@@ -243,7 +248,7 @@ test.describe("release journey @core", () => {
     await downloadFrom("Photo", heic)
     await adminB
       .getByRole("group", { name: "Media type" })
-      .getByRole("button", { name: "Videos" })
+      .getByRole("button", { name: "Videos", exact: true })
       .click()
     await expect(adminB).toHaveURL(/type=video/)
     await expect(library.getByRole("button")).toHaveCount(1)
@@ -251,7 +256,7 @@ test.describe("release journey @core", () => {
 
     // Open the contributor's portfolio from the viewer.
     await tile(library, "Video", mp4.name).click()
-    await viewer.getByRole("link", { name: "Open portfolio" }).click()
+    await viewer.getByRole("link", { name: "Open profile" }).click()
     await expect(adminB).toHaveURL(new RegExp(`/admin/staff/${inviteeId}$`))
     await expect(
       adminB.getByRole("heading", { name: inviteeName })
@@ -276,7 +281,7 @@ test.describe("release journey @core", () => {
     await markDocument(adminB)
     await expect(tile(libraryList(adminB), "Photo", jpeg.name)).toBeVisible()
 
-    await tile(portfolio, "Photo", jpeg.name).click()
+    await ownJpeg.click()
     await staff
       .getByRole("dialog")
       .getByRole("button", { name: "Delete" })
@@ -284,12 +289,12 @@ test.describe("release journey @core", () => {
     const confirm = staff.getByRole("alertdialog")
     await expect(
       confirm.getByText(
-        "Remove this file from your portfolio and the admin library? When backups are enabled, copies are retained indefinitely for recovery. Previously downloaded copies cannot be recalled."
+        /When backups are enabled, copies are retained indefinitely for recovery\. Previously downloaded copies cannot be recalled\.$/
       )
     ).toBeVisible()
     await confirm.getByRole("button", { name: "Delete" }).click()
     await expect(confirm).toBeHidden()
-    await expect(tile(portfolio, "Photo", jpeg.name)).toHaveCount(0)
+    await expect(ownJpeg).toHaveCount(0)
     await expect(portfolio.getByRole("button")).toHaveCount(2)
 
     // Admin B's open library drops it on its next refresh, without reload.

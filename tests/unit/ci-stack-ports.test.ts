@@ -1,4 +1,8 @@
+import { execFileSync } from "node:child_process"
+import { mkdtempSync, readFileSync, rmSync } from "node:fs"
 import net from "node:net"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 
 import { describe, expect, it } from "vitest"
 
@@ -26,6 +30,36 @@ async function unusedPort() {
 }
 
 describe("CI stack port blocks", () => {
+  it("gives every local browser lane distinct stack and auth app ports", () => {
+    const root = mkdtempSync(join(tmpdir(), "nabalens-lanes-"))
+    const used = new Set<number>()
+    try {
+      for (const lane of [1, 2, 3, 4]) {
+        const work = join(root, `lane-${lane}`)
+        execFileSync(process.execPath, ["scripts/ci/prepare-stack.mjs", work], {
+          env: { ...process.env, CI_FIXTURE_LANE: String(lane) },
+        })
+        const config = readFileSync(join(work, "supabase/config.toml"), "utf8")
+        const appPort = Number(readFileSync(join(work, "e2e-port"), "utf8"))
+        const stackPorts = [...config.matchAll(/^\s*(?:\w+_)?port = (\d+)$/gm)]
+          .map((match) => Number(match[1]))
+          .filter((port) => port >= 58000 && port < 64000)
+        expect(stackPorts.length).toBeGreaterThan(1)
+        expect(config).toContain(`project_id = "lane-${lane}"`)
+        expect(config).toContain(`site_url = "http://127.0.0.1:${appPort}"`)
+        expect(config).toContain(`"http://127.0.0.1:${appPort}/auth/confirm"`)
+        expect(appPort).toBeGreaterThanOrEqual(58000)
+        expect(appPort).toBeLessThan(64000)
+        for (const port of [appPort, ...new Set(stackPorts)]) {
+          expect(used.has(port)).toBe(false)
+          used.add(port)
+        }
+      }
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
   it("skips repeated wildcard conflicts, reserves the whole free block and releases it", async () => {
     const occupied = await listen()
     const another = await listen()

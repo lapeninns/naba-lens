@@ -12,7 +12,7 @@ import {
 } from "@phosphor-icons/react"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
@@ -25,13 +25,23 @@ import { Progress } from "@/components/ui/progress"
 import { cn } from "@/lib/utils"
 
 import { formatBytes } from "./format"
+import { Notice } from "./notice"
+import { useLeaveGuard } from "./shell/leave-guard"
+import {
+  SignInAgainSheet,
+  useSessionGuard,
+  useSignedInAgain,
+} from "./session-guard"
 import type { UploadLimits } from "./types"
 import {
   ACCEPT_ATTRIBUTE,
   ACCEPTED_IMAGE_TYPES,
   guessMediaKind,
   type QueueItem,
+  type QueuePause,
+  type QueueSummary,
   type RejectedFile,
+  SessionExpiredError,
   type Uploader,
 } from "./upload-queue"
 import { useObjectUrl, useUploadQueue } from "./use-upload-queue"
@@ -55,11 +65,30 @@ type UploadDialogProps = {
    * in that run (only files whose uploader reported an asset ID).
    */
   onReady?: (assetIds: string[]) => void
+  /**
+   * Closing while files upload hides the queue and lets them carry on (the
+   * owner stays mounted; Add shows the queue again). Default false: closing
+   * is refused until the run ends or is cancelled.
+   */
+  keepRunningWhenClosed?: boolean
+  /**
+   * Called when the count of unfinished files changes: running or waiting,
+   * failed, and stopped by a sign-out. All zero once the run is finished or
+   * the queue is cleared.
+   */
+  onBusyChange?: (busy: UploadBusy) => void
   /** Offer the camera-capture input as an enhancement. Default true. */
   allowCamera?: boolean
   /** Accept photos only; videos are rejected with a reason. Default false. */
   imagesOnly?: boolean
+  /**
+   * Files already picked elsewhere (the Add sheet). Each new array is queued
+   * once while the dialog is open.
+   */
+  initialFiles?: File[]
 }
+
+export type UploadBusy = { active: number; failed: number; stopped: number }
 
 const IMAGE_ACCEPT_ATTRIBUTE = [
   ...ACCEPTED_IMAGE_TYPES,
@@ -79,6 +108,38 @@ const STATUS_TEXT: Record<QueueItem["status"], string> = {
   done: "Uploaded",
   failed: "Failed",
   cancelled: "Cancelled",
+}
+
+/**
+ * The footer status line: what is done, then what is still going on. Offline,
+ * running files are "waiting"; after a sign-out, unfinished ones are "stopped".
+ */
+function statusLine(
+  summary: QueueSummary,
+  pause: QueuePause,
+  started: boolean,
+  maxBatchFiles: number
+) {
+  if (!started) {
+    return summary.selected > 0
+      ? `${summary.selected} ready · up to ${maxBatchFiles} at a time`
+      : null
+  }
+  const running =
+    summary.active === 0
+      ? null
+      : pause === "offline" || (pause && summary.active === summary.waiting)
+        ? `${summary.active} waiting`
+        : `${summary.active} in progress`
+  return [
+    `${summary.done} uploaded`,
+    running,
+    summary.failed ? `${summary.failed} failed` : null,
+    summary.stopped ? `${summary.stopped} stopped` : null,
+    summary.cancelled ? `${summary.cancelled} cancelled` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ")
 }
 
 function mb(bytes: number) {
@@ -187,11 +248,61 @@ export function UploadDialog({
   onUploaded,
   onLabel,
   onReady,
+  keepRunningWhenClosed = false,
+  onBusyChange,
   allowCamera = true,
   imagesOnly = false,
+  initialFiles,
 }: UploadDialogProps) {
-  const queue = useUploadQueue({ upload: uploader, limits })
-  const { items, summary, isActive } = queue
+  const guard = useSessionGuard()
+  const isSignedIn = guard?.isSignedIn
+  // Check the session before each attempt and after a failure, so an ended
+  // session stops the file (and pauses the rest) instead of failing it with a
+  // transport error.
+  const upload = React.useMemo<Uploader>(() => {
+    if (!isSignedIn) return uploader
+    return async (file, context) => {
+      if (!(await isSignedIn())) throw new SessionExpiredError()
+      try {
+        return await uploader(file, context)
+      } catch (error) {
+        if (
+          !context.signal.aborted &&
+          !(error instanceof SessionExpiredError) &&
+          !(await isSignedIn())
+        )
+          throw new SessionExpiredError()
+        throw error
+      }
+    }
+  }, [uploader, isSignedIn])
+  const queue = useUploadQueue({ upload, limits })
+  const { items, summary, isActive, pause } = queue
+  useLeaveGuard(summary.active, queue.cancelAll)
+  const { active, failed, stopped } = summary
+  React.useEffect(() => {
+    onBusyChange?.({ active, failed, stopped })
+  }, [active, failed, stopped, onBusyChange])
+  const signedOut = pause === "signed-out"
+  const [signInOpen, setSignInOpen] = React.useState(false)
+
+  // Show E7 over the queue when the session ends; it stays reachable from
+  // "Sign in again" after "Not now".
+  const wasSignedOut = React.useRef(false)
+  React.useEffect(() => {
+    if (signedOut && !wasSignedOut.current && guard) {
+      // Opening the sheet follows the queue's external state.
+      setSignInOpen(true)
+      if (!open) onOpenChange(true)
+    }
+    wasSignedOut.current = signedOut
+  }, [signedOut, guard, open, onOpenChange])
+
+  const { resume } = queue
+  useSignedInAgain(signedOut, isSignedIn, () => {
+    setSignInOpen(false)
+    resume()
+  })
   const [rejected, setRejected] = React.useState<RejectedFile[]>([])
   const [closeBlocked, setCloseBlocked] = React.useState(false)
   const fileInput = React.useRef<HTMLInputElement>(null)
@@ -201,13 +312,14 @@ export function UploadDialog({
   // Report newly finished files once per settled run.
   const reported = React.useRef(0)
   React.useEffect(() => {
-    if (isActive) return
+    // A refresh while signed out would send the page to /login; wait.
+    if (isActive || signedOut) return
     const fresh = summary.done - reported.current
     if (fresh > 0) {
       reported.current = summary.done
       onUploaded?.(fresh)
     }
-  }, [isActive, summary.done, onUploaded])
+  }, [isActive, signedOut, summary.done, onUploaded])
 
   const reportedReady = React.useRef(new Set<string>())
   React.useEffect(() => {
@@ -222,7 +334,18 @@ export function UploadDialog({
     onReady(fresh)
   }, [isActive, items, onReady])
 
-  function addFiles(list: FileList | null, input: HTMLInputElement | null) {
+  const queuedInitial = React.useRef<File[] | null>(null)
+  React.useEffect(() => {
+    if (!open || !initialFiles?.length) return
+    if (queuedInitial.current === initialFiles) return
+    queuedInitial.current = initialFiles
+    addFiles(initialFiles, null)
+  })
+
+  function addFiles(
+    list: FileList | File[] | null,
+    input: HTMLInputElement | null
+  ) {
     if (!list || list.length === 0) return
     const files = Array.from(list)
     const notPhotos: RejectedFile[] = []
@@ -249,6 +372,10 @@ export function UploadDialog({
 
   function handleOpenChange(next: boolean) {
     if (!next && isActive) {
+      if (keepRunningWhenClosed) {
+        onOpenChange(false)
+        return
+      }
       setCloseBlocked(true)
       return
     }
@@ -264,6 +391,7 @@ export function UploadDialog({
 
   const started = items.some((i) => i.status !== "selected")
   const settled = started && !isActive && summary.selected === 0
+  const status = statusLine(summary, pause, started, limits.maxBatchFiles)
   const labelIds = settled
     ? items.flatMap((i) =>
         i.status === "done" && i.assetId ? [i.assetId] : []
@@ -272,7 +400,7 @@ export function UploadDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-h-[calc(100svh-1rem)] overflow-y-auto sm:max-w-lg">
+      <DialogContent className="md:max-w-lg">
         <DialogHeader>
           <DialogTitle>
             {imagesOnly ? "Upload photos" : "Upload photos or videos"}
@@ -359,6 +487,19 @@ export function UploadDialog({
           </Alert>
         ) : null}
 
+        {signedOut ? (
+          <Notice tone="negative" title="You were signed out">
+            Nothing is sent twice. We&apos;ll email you a sign-in link and keep
+            this page.
+          </Notice>
+        ) : pause === "offline" && isActive ? (
+          <Notice tone="attention" role="status">
+            Waiting for a signal. Keep this page open; nothing is sent twice.
+          </Notice>
+        ) : !pause && isActive ? (
+          <Notice>Keep this page open while files upload.</Notice>
+        ) : null}
+
         {items.length > 0 ? (
           <ul aria-label="Files" className="-my-1 divide-y">
             {items.map((item) => (
@@ -379,17 +520,6 @@ export function UploadDialog({
               Uploads are still running. Keep this open, or cancel them first.
             </p>
           ) : null}
-          {settled ? (
-            <p className="font-medium" role="status">
-              {[
-                `${summary.done} uploaded`,
-                summary.failed ? `${summary.failed} failed` : null,
-                summary.cancelled ? `${summary.cancelled} cancelled` : null,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </p>
-          ) : null}
           {onLabel && labelIds.length > 0 ? (
             <p className="mt-1 text-muted-foreground">
               Optional: add menu items or details now, or later from each file.
@@ -398,6 +528,14 @@ export function UploadDialog({
         </div>
 
         <DialogFooter>
+          {items.length > 0 && status ? (
+            <p
+              role="status"
+              className="text-meta-touch text-ink-muted tabular-nums md:mr-auto md:self-center md:text-meta"
+            >
+              {status}
+            </p>
+          ) : null}
           {isActive ? (
             <Button variant="outline" size="touch" onClick={queue.cancelAll}>
               Cancel all
@@ -413,7 +551,9 @@ export function UploadDialog({
           )}
           {onLabel && labelIds.length > 0 ? (
             <Button
-              variant={summary.failed > 0 ? "outline" : "default"}
+              variant={
+                summary.failed + summary.stopped > 0 ? "outline" : "default"
+              }
               size="touch"
               onClick={() => {
                 const ids = labelIds
@@ -425,10 +565,32 @@ export function UploadDialog({
               {labelIds.length === 1 ? "Label this file" : "Label these files"}
             </Button>
           ) : null}
-          {settled && summary.failed > 0 ? (
-            <Button size="touch" onClick={queue.retryFailed}>
+          {signedOut ? (
+            guard ? (
+              <Button
+                variant="primary"
+                size="touch"
+                onClick={() => setSignInOpen(true)}
+              >
+                Sign in again
+              </Button>
+            ) : (
+              <a
+                href="/login"
+                target="_blank"
+                rel="noopener"
+                className={buttonVariants({
+                  variant: "primary",
+                  size: "touch",
+                })}
+              >
+                Sign in again
+              </a>
+            )
+          ) : settled && summary.failed > 0 ? (
+            <Button variant="primary" size="touch" onClick={queue.retryFailed}>
               <ArrowClockwiseIcon data-icon="inline-start" aria-hidden />
-              Retry failed
+              Retry {summary.failed} failed
             </Button>
           ) : summary.selected > 0 ? (
             <Button
@@ -444,6 +606,15 @@ export function UploadDialog({
             </Button>
           ) : null}
         </DialogFooter>
+        {guard ? (
+          <SignInAgainSheet
+            open={signInOpen}
+            onOpenChange={setSignInOpen}
+            guard={guard}
+            done={summary.done}
+            stopped={summary.stopped}
+          />
+        ) : null}
       </DialogContent>
     </Dialog>
   )

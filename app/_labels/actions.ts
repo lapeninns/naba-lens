@@ -23,6 +23,8 @@ import { getMediaActor } from "@/lib/server/media/context"
 export type LabelEditorContextResult =
   | {
       ok: true
+      /** The caller's role, so the editor shows admin-only details to admins only. */
+      viewer: "admin" | "staff"
       /** Readable, ready assets of ONE venue, in request order. */
       assets: LabelEditorAsset[]
       /** Requested ids that are unknown, not ready, removed or not the caller's. */
@@ -68,8 +70,15 @@ export async function loadLabelEditorContext(
       venueGroups: [...groups.values()],
     }
   }
+  const viewer = auth.actor.profile.role === "admin" ? "admin" : "staff"
   if (context.assets.length === 0) {
-    return { ok: true, assets: [], missing: context.missing, catalogue: null }
+    return {
+      ok: true,
+      viewer,
+      assets: [],
+      missing: context.missing,
+      catalogue: null,
+    }
   }
 
   const found = await getLabellingCatalogue(
@@ -79,12 +88,14 @@ export async function loadLabelEditorContext(
   return found.ok
     ? {
         ok: true,
+        viewer,
         assets: context.assets,
         missing: context.missing,
         catalogue: found.catalogue,
       }
     : {
         ok: true,
+        viewer,
         assets: context.assets,
         missing: context.missing,
         catalogue: null,

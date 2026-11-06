@@ -9,6 +9,7 @@ import {
   GroupParticipationTable,
   ManagerGrants,
   MANAGER_POWERS_COPY,
+  PreparationRunList,
   VenueCoverageSummary,
   manageHrefs,
   type AttachPhotosHandler,
@@ -430,5 +431,49 @@ describe("VenueCoverageSummary", () => {
     )
     expect(screen.getByText("1 item not applicable (not counted)")).toBeTruthy()
     expect(screen.getByText("2 old sections to reconcile")).toBeTruthy()
+  })
+})
+
+describe("PreparationRunList", () => {
+  const failed = {
+    id: "run-1",
+    period: "2026-11" as const,
+    venueId: null,
+    trigger: "scheduled" as const,
+    startedAt: "2026-11-03T10:00:00.000Z",
+    finishedAt: "2026-11-03T10:00:01.000Z",
+    status: "failed" as const,
+    staffConsidered: 0,
+    targetsCopied: 0,
+    placeholdersCreated: 0,
+    alreadyPresent: 0,
+    candidatesAdded: 0,
+    errorCode: "23505",
+  }
+
+  it("names a conflict failure and shows any other stored SQLSTATE", () => {
+    for (const code of ["23505", "40001", "40P01", "55P03"]) {
+      render(
+        <PreparationRunList
+          initial={{
+            items: [{ ...failed, errorCode: code }],
+            nextCursor: null,
+          }}
+          venueNames={{}}
+        />
+      )
+      expect(screen.getByText(/Error code PREP_TARGET_CONFLICT\./)).toBeTruthy()
+      cleanup()
+    }
+    render(
+      <PreparationRunList
+        initial={{
+          items: [{ ...failed, errorCode: "XX000" }],
+          nextCursor: null,
+        }}
+        venueNames={{}}
+      />
+    )
+    expect(screen.getByText(/Error code XX000\./)).toBeTruthy()
   })
 })

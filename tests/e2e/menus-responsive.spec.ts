@@ -18,6 +18,7 @@ import {
   chooseOption,
   escape,
   portfolioList,
+  staffTile,
   uploadThroughDialog,
 } from "./helpers/ui"
 import {
@@ -28,7 +29,7 @@ import {
 } from "./helpers/world"
 
 /**
- * v0.3 QA (packet J), contract §7 row 14: the new screens at 360, 390, 768 and
+ * v0.3 QA (packet J), contract §7 row 14: the new screens at 320, 360, 390, 768 and
  * 1280 CSS px (Chromium emulation, not a phone test). For each state: no
  * horizontal overflow, axe (WCAG 2.x A/AA) without serious/critical findings,
  * the admin nav reachable at phone widths, and a full-page screenshot in
@@ -41,8 +42,9 @@ test.beforeAll(() => requireIsolatedStack())
 const SHOTS =
   process.env.QA_SHOTS_DIR ??
   join(process.cwd(), ".artifacts/screenshots/menus")
-const WIDTHS = [360, 390, 768, 1280] as const
+const WIDTHS = [320, 360, 390, 768, 1280] as const
 const HEIGHT: Record<number, number> = {
+  320: 640,
   360: 780,
   390: 844,
   768: 1024,
@@ -149,16 +151,17 @@ test.beforeAll(async ({ browser }) => {
   const admin = await signedInPage(browser, world.adminA)
   await admin.goto(`/admin/menus/${world.venue1.id}`)
   await expect(admin.getByRole("heading", { level: 1 })).toBeVisible()
+  await admin.getByRole("button", { name: "Import a menu" }).click()
   await admin.getByLabel("Menu file (JSON or CSV)").setInputFiles(RAILWAY)
   await admin.getByRole("button", { name: "Create draft" }).click()
   await admin.waitForURL(/\/admin\/menus\/versions\//)
-  await admin.getByRole("button", { name: "Activate…" }).click()
+  await admin.getByRole("button", { name: "Activate for labelling" }).click()
   await admin
     .getByRole("alertdialog")
     .getByRole("button", { name: "Activate for labelling" })
     .click()
   await expect(
-    admin.getByRole("button", { name: "Retire menu…" })
+    admin.getByRole("button", { name: "Start a draft from this version" })
   ).toBeVisible()
   // A second draft (from the active menu) for the editor screens.
   await admin.goto(`/admin/menus/${world.venue1.id}`)
@@ -215,18 +218,23 @@ for (const width of WIDTHS) {
       page.getByRole("heading", { level: 1, name: world.venue1.name })
     ).toBeVisible()
     await check(page, width, "menus-venue")
+    await page.getByRole("button", { name: "Import a menu" }).click()
     await page.getByLabel("Menu file (JSON or CSV)").setInputFiles(RAILWAY)
-    await expect(page.getByRole("heading", { name: /^Preview:/ })).toBeVisible()
+    await expect(
+      page.getByRole("region", { name: "Changes from the active menu" })
+    ).toBeVisible()
     await check(page, width, "menus-import-preview")
 
     await page.goto(draftUrl)
-    await expect(page.getByRole("button", { name: "Save draft" })).toBeVisible()
+    await expect(
+      page.getByRole("button", { name: "Save", exact: true })
+    ).toBeVisible()
     await page.getByRole("searchbox", { name: "Search items" }).fill("Momo")
     await page
       .getByRole("button", { name: /^Momo Veg · Chicken/, expanded: false })
       .click()
     await check(page, width, "menus-draft-editor")
-    await page.getByRole("button", { name: "Activate…" }).click()
+    await page.getByRole("button", { name: "Activate for labelling" }).click()
     const dialog = page.getByRole("alertdialog")
     await expect(dialog).toBeVisible()
     await check(page, width, "menus-activate-dialog", dialog)
@@ -247,25 +255,23 @@ for (const width of WIDTHS) {
     test.setTimeout(180_000)
     const page = await at(browser, world.staffA, width)
     await page.goto("/staff")
-    await portfolioList(page)
-      .getByRole("button", {
-        name: new RegExp(`^Photo, qa-rsp-${world.tag}-01\\.jpg`),
-      })
-      .click()
+    await (
+      await staffTile(portfolioList(page), `qa-rsp-${world.tag}-01.jpg`)
+    ).click()
     await page
       .getByRole("dialog")
       .first()
       .getByRole("button", { name: /^(Add|Edit) labels$/ })
       .click()
-    const single = page.getByRole("dialog", { name: /^(Add|Edit) labels$/ })
+    const single = page.getByRole("dialog", { name: /^(Labels|Edit labels)$/ })
     await single
-      .getByRole("combobox", { name: /^Search the menu/ })
+      .getByRole("combobox", { name: /^Menu item at / })
       .fill("chicken")
     await expect(
       single.getByRole("listbox", { name: "Matching menu items" })
     ).toBeVisible()
     await check(page, width, "label-editor-single-search", single)
-    await single.getByRole("combobox", { name: /^Search the menu/ }).fill("")
+    await single.getByRole("combobox", { name: /^Menu item at / }).fill("")
     await single.getByRole("button", { name: "Item not on the menu?" }).click()
     await check(page, width, "label-editor-single-missing", single)
     await page.keyboard.press("Escape")
@@ -281,18 +287,24 @@ for (const width of WIDTHS) {
       .getByRole("dialog", { name: "Upload photos or videos" })
       .getByRole("button", { name: "Label these files" })
       .click()
-    const batch = page.getByRole("dialog", { name: "Label these files" })
+    const batch = page.getByRole("dialog", { name: "Labels", exact: true })
     await batch
-      .getByRole("combobox", { name: "Search the menu for all files" })
+      .getByRole("combobox", {
+        name: new RegExp(
+          `^Menu item at ${escape(world.venue1.name)}\\b.* for all files$`
+        ),
+      })
       .fill("momo")
-    await batch.getByRole("option", { name: /^Momo in Appetisers/ }).click()
+    await batch.getByRole("option", { name: /^Momo Appetisers/ }).click()
     await check(page, width, "label-editor-batch-variant", batch)
     await batch.getByRole("button", { name: "Chicken" }).click()
     await batch
-      .getByRole("button", { name: `Adjust labels for ${video.name}` })
+      .getByRole("button", { name: "Adjust labels for video 2" })
       .click()
     await check(page, width, "label-editor-batch-adjust", batch)
-    await batch.getByRole("button", { name: "Save labels for 2 files" }).click()
+    await batch
+      .getByRole("button", { name: "Save labels", exact: true })
+      .click()
     await expect(batch).toBeHidden()
     await page.context().close()
   })
@@ -304,26 +316,28 @@ test("keyboard only: open the editor, pick an item, a content type, a note, save
   test.setTimeout(120_000)
   const page = await at(browser, world.staffA, 390)
   await page.goto("/staff")
-  const tile = portfolioList(page).getByRole("button", {
-    name: new RegExp(`^Photo, qa-rsp-${world.tag}-02\\.jpg`),
-  })
+  const tile = await staffTile(
+    portfolioList(page),
+    `qa-rsp-${world.tag}-02.jpg`
+  )
   await tile.focus()
   await page.keyboard.press("Enter")
   const viewer = page.getByRole("dialog").first()
   const add = viewer.getByRole("button", { name: /^(Add|Edit) labels$/ })
   await tabTo(page, add)
   await page.keyboard.press("Enter")
-  const editor = page.getByRole("dialog", { name: /^(Add|Edit) labels$/ })
+  const editor = page.getByRole("dialog", { name: /^(Labels|Edit labels)$/ })
   await expect(editor).toBeVisible()
-  expect(await editor.evaluate((d) => d.contains(document.activeElement))).toBe(
-    true
-  )
+  // The editor takes focus a frame after it is shown.
+  await expect
+    .poll(() => editor.evaluate((d) => d.contains(document.activeElement)))
+    .toBe(true)
 
-  const search = editor.getByRole("combobox", { name: /^Search the menu/ })
+  const search = editor.getByRole("combobox", { name: /^Menu item at / })
   await tabTo(page, search)
   await page.keyboard.type("onion bhaji")
   await expect(
-    editor.getByRole("option", { name: /^Onion Bhaji in Appetisers/ })
+    editor.getByRole("option", { name: /^Onion Bhaji Appetisers/ })
   ).toBeVisible()
   await page.keyboard.press("ArrowDown")
   await page.keyboard.press("Enter")
@@ -366,23 +380,17 @@ test("touch (Pixel 7 emulation): upload, label with taps, labels persist", async
     .getByRole("dialog", { name: "Upload photos or videos" })
     .getByRole("button", { name: "Label this file" })
     .tap()
-  const editor = page.getByRole("dialog", {
-    name: /^(Label this file|Add labels)$/,
-  })
+  const editor = page.getByRole("dialog", { name: "Labels" })
+  await editor.getByRole("combobox", { name: /^Menu item at / }).fill("garlic")
   await editor
-    .getByRole("combobox", { name: /^Search the menu/ })
-    .fill("garlic")
-  await editor
-    .getByRole("option", { name: /^Garlic Mushroom in Appetisers/ })
+    .getByRole("option", { name: /^Garlic Mushroom Appetisers/ })
     .tap()
   await editor.getByRole("button", { name: "Plating" }).tap()
   await editor.getByRole("button", { name: /^Save labels/ }).tap()
   await expect(editor).toBeHidden()
   await page.reload()
   await expect(
-    portfolioList(page).getByRole("button", {
-      name: new RegExp(`^Photo, ${escape(photo.name)}`),
-    })
+    await staffTile(portfolioList(page), photo.name)
   ).toHaveAccessibleName(/, 2 labels$/)
   await page.context().close()
 })

@@ -21,7 +21,7 @@ import { seedVisualFixtures, type VisualFixtures } from "../visual/fixtures"
 import { provisionCoverageWorld, seedImages } from "./helpers/coverage-world"
 import { openEmailLink } from "./helpers/email-link"
 import { provisioner, psql } from "./helpers/stack"
-import { openPortfolio, STAFF_LANDING } from "./helpers/ui"
+import { openPortfolio, STAFF_LANDING, staffTile } from "./helpers/ui"
 
 /**
  * Visual and accessibility regression pass (spec §4). For every screen and
@@ -54,6 +54,7 @@ const HEIGHT: Record<number, number> = {
   1440: 900,
 }
 const PHONE_MAX = 480
+const MAX_SHOT_HEIGHT = 16_000
 const MIN_TOUCH = 44
 
 test.skip(
@@ -357,9 +358,20 @@ async function capture(
     if (options.restore) await options.restore()
     await settle(page)
     const label = `${name}-${scheme}-${width}`
+    // Firefox refuses captures taller than 32767px, and fixture rows pile up
+    // on long admin pages across runs.
+    const pageHeight = await page.evaluate(
+      () => document.documentElement.scrollHeight
+    )
     await page.screenshot({
       path: join(shotDir(testInfo), `${label}.png`),
       fullPage: true,
+      clip: {
+        x: 0,
+        y: 0,
+        width,
+        height: Math.min(pageHeight, MAX_SHOT_HEIGHT),
+      },
     })
     const overflow = await horizontalOverflow(page)
     expect.soft(overflow, `${label}: horizontal overflow`).toEqual([])
@@ -478,7 +490,14 @@ async function expectWholeImage(page: Page, label: string) {
   expect.soft(box.inside, `${label}: viewer image fits the viewport`).toBe(true)
 }
 
+// Staff tile names carry no file name: find the populated staff member's
+// tile by the media id of that file.
 async function tile(page: Page, filename: string) {
+  return staffTile(page, filename, fx.populated.id)
+}
+
+// Admin tile names keep the file name.
+function adminTile(page: Page, filename: string) {
   return page.getByRole("button", {
     name: new RegExp(filename.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
   })
@@ -495,7 +514,7 @@ test("login: idle, validation error, sent, expired link, signed out", async ({
   await expectFocusVisibleEverywhere(page, "login")
 
   await page.getByRole("button", { name: "Send sign-in link" }).click()
-  await expect(page.getByText("Enter the email address")).toBeVisible()
+  await expect(page.getByText("Enter a full email address")).toBeVisible()
   await expect(page.getByLabel("Email")).toHaveAttribute("aria-invalid", "true")
   await capture(page, testInfo, "login-error")
 
@@ -538,7 +557,7 @@ test("staff: empty portfolio", async ({ browser, baseURL }, testInfo) => {
   const page = await signIn(browser, fx.empty.email, baseURL!)
   await expect(page).toHaveURL(STAFF_LANDING)
   await openPortfolio(page)
-  await expect(page.getByText("Your portfolio starts here")).toBeVisible()
+  await expect(page.getByText("Your profile starts here")).toBeVisible()
   await capture(page, testInfo, "staff-empty")
   await expectFocusVisibleEverywhere(page, "staff-empty")
   await page.context().close()
@@ -795,7 +814,7 @@ test("staff: video and non-ready viewer states", async ({
   // Non-ready states explain themselves.
   for (const [name, text] of [
     ["failed-upload.mov", "could not be processed"],
-    ["still-processing.jpg", "Still processing"],
+    ["still-processing.jpg", "Processing. It appears here in a moment."],
   ] as const) {
     await (await tile(page, name)).click()
     await expect(page.getByRole("dialog").getByText(text)).toBeVisible()
@@ -814,7 +833,12 @@ test("staff: delete confirmation and edit profile", async ({
 }, testInfo) => {
   const page = await populatedStaff(browser, baseURL!)
   // Long filename in the viewer, then delete confirmation and keep.
-  await (await tile(page, "IMG_20261030_dessert")).click()
+  await (
+    await tile(
+      page,
+      "IMG_20261030_dessert-with-a-very-long-original-filename-from-the-phone-camera.jpg"
+    )
+  ).click()
   const viewer = page.getByRole("dialog")
   await expect(viewer).toBeVisible()
   await capture(page, testInfo, "viewer-photo-long-filename")
@@ -827,7 +851,9 @@ test("staff: delete confirmation and edit profile", async ({
     "Previously downloaded copies cannot be recalled"
   )
   await capture(page, testInfo, "delete-confirm")
-  await confirm.getByRole("button", { name: "Keep file" }).click()
+  await confirm
+    .getByRole("button", { name: /^Keep (photo|video|file)$/ })
+    .click()
   await expect(confirm).toBeHidden()
   await page.waitForTimeout(300)
   expect
@@ -929,7 +955,7 @@ test("admin: library and filters", async ({ browser, baseURL }, testInfo) => {
   })
   await page.getByRole("option", { name: fx.venue.name }).click()
   await expect(page).toHaveURL(/venue=/)
-  await page.getByRole("button", { name: "Videos" }).click()
+  await page.getByRole("button", { name: "Videos", exact: true }).click()
   await expect(page).toHaveURL(/type=video/)
   await expect(
     page.getByRole("button", { name: /kitchen-pass\.mp4/ })
@@ -951,7 +977,10 @@ test("admin: library and filters", async ({ browser, baseURL }, testInfo) => {
     }))
   ).toEqual({ overflow: true, ellipsis: "ellipsis" })
   await capture(page, testInfo, "admin-filter-empty")
-  await page.getByRole("button", { name: "Clear filters" }).click()
+  await page
+    .locator("[data-slot=empty-state]")
+    .getByRole("button", { name: "Clear filters" })
+    .click()
   await expect(page).toHaveURL(/\/admin$/)
   await page.context().close()
 })
@@ -963,7 +992,7 @@ test("admin: viewer, download, dark mode", async ({
   const page = await signIn(browser, fx.admin.email, baseURL!)
   // Viewer with admin actions; download is an attachment of the original.
   await page.goto(`/admin?staff=${fx.populated.id}`)
-  const opener = await tile(page, "landscape-dish.jpg")
+  const opener = adminTile(page, "landscape-dish.jpg")
   await opener.focus()
   await page.keyboard.press("Enter")
   const viewer = page.getByRole("dialog")
@@ -1065,7 +1094,9 @@ test("admin: row actions, edit, deactivate confirm", async ({
     restore: reopen(page, more, page.getByRole("menu")),
   })
   await page.getByRole("menuitem", { name: "Edit details" }).click()
-  const editDialog = page.getByRole("dialog", { name: "Edit staff account" })
+  const editDialog = page.getByRole("dialog", {
+    name: /^Edit .+'s details$/,
+  })
   await expect(editDialog).toBeVisible()
   await capture(page, testInfo, "admin-edit-staff")
   await page.keyboard.press("Escape")
@@ -1205,7 +1236,7 @@ async function seedCoverageScenes() {
 const pageHeading = (page: Page) =>
   expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible()
 
-test("coverage: staff My tasks, a task, its send dialog and the month", async ({
+test("coverage: staff Home, a task, its send dialog and the month", async ({
   browser,
   baseURL,
 }, testInfo) => {
@@ -1214,10 +1245,13 @@ test("coverage: staff My tasks, a task, its send dialog and the month", async ({
   const page = await signIn(browser, w.staffA.email, baseURL!)
   await expect(page).toHaveURL(STAFF_LANDING)
   await expect(
-    page.getByRole("region", { name: "Needs another photo" })
+    page.getByRole("region", { name: /^To do/ }).getByRole("heading", {
+      name: `${w.manager.name} asked for another photo`,
+      exact: true,
+    })
   ).toBeVisible()
-  await capture(page, testInfo, "coverage-staff-my-tasks")
-  await expectFocusVisibleEverywhere(page, "coverage-staff-my-tasks")
+  await capture(page, testInfo, "coverage-staff-home")
+  await expectFocusVisibleEverywhere(page, "coverage-staff-home")
 
   await page.goto(`/staff/tasks/${requirementId}`)
   await expect(
@@ -1226,10 +1260,12 @@ test("coverage: staff My tasks, a task, its send dialog and the month", async ({
   await capture(page, testInfo, "coverage-staff-task")
   await page.goto(`/staff/tasks/${requirementId}?replaces=${askedAgain}`)
   await expect(
-    page.getByText("The photos you send now replace this one.")
+    page
+      .getByRole("region", { name: "Send photos" })
+      .getByText("The photos you send now replace this one.", { exact: true })
   ).toBeVisible()
   await capture(page, testInfo, "coverage-staff-task-replacement")
-  const send = page.getByRole("button", { name: "Take or upload photos" })
+  const send = page.getByRole("button", { name: "Take a photo" })
   const dialog = page.getByRole("dialog")
   await send.click()
   await expect(dialog).toBeVisible()
@@ -1246,7 +1282,7 @@ test("coverage: staff My tasks, a task, its send dialog and the month", async ({
   await useDark(page)
   await page.goto("/staff/tasks")
   await pageHeading(page)
-  await capture(page, testInfo, "coverage-staff-my-tasks", {
+  await capture(page, testInfo, "coverage-staff-home", {
     widths: some(page, testInfo, [390, 1280]),
   })
   await page.context().close()
@@ -1275,7 +1311,7 @@ test("coverage: manager overview, review, team, checklist, item and menu", async
   await page.goto("/staff/manage/review")
   const ask = page
     .getByRole("article", { name: `Monthly photo: photo by ${w.staffB.name}` })
-    .getByRole("button", { name: "Needs another photo" })
+    .getByRole("button", { name: "Ask for another photo" })
   const askDialog = page.getByRole("dialog", { name: "Ask for another photo" })
   await ask.click()
   await expect(askDialog).toBeVisible()
@@ -1292,16 +1328,15 @@ test("coverage: manager overview, review, team, checklist, item and menu", async
   await expectFocusVisibleEverywhere(page, "coverage-manager-review")
 
   await page.goto("/staff/manage/team")
-  const edit = page.getByRole("button", {
-    name: `Edit target for ${w.staffA.name}`,
+  // Targets are edited inline on each row; a changed row shows Save changes.
+  const target = page.getByRole("textbox", {
+    name: `${w.staffA.name}'s photo target`,
   })
-  const targetDialog = page.getByRole("dialog")
-  await edit.click()
-  await expect(targetDialog).toBeVisible()
-  await capture(page, testInfo, "coverage-manager-target-dialog", {
-    restore: reopen(page, edit, targetDialog),
-  })
-  await page.keyboard.press("Escape")
+  await expect(target).toBeVisible()
+  const savedTarget = await target.inputValue()
+  await target.fill(String((Number(savedTarget) || 0) + 1))
+  await capture(page, testInfo, "coverage-manager-target-edit")
+  await target.fill(savedTarget)
 
   await useDark(page)
   await page.goto("/staff/manage/review")

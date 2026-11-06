@@ -15,6 +15,18 @@ export function formatDate(iso: string): string {
     : dateFormatter.format(date)
 }
 
+const timeFormatter = new Intl.DateTimeFormat("en-GB", {
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+  timeZone: "Europe/London",
+})
+
+/** 24-hour UK time, "14:06". */
+export function formatTime(date: Date): string {
+  return timeFormatter.format(date)
+}
+
 const MIB = 1024 * 1024
 
 export function formatBytes(bytes: number): string {

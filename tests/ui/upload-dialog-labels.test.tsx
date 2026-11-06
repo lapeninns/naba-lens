@@ -57,7 +57,7 @@ describe("UploadDialog optional labelling", () => {
     await user.click(screen.getByRole("button", { name: "Upload 3 files" }))
     expect(await screen.findByText("2 uploaded · 1 failed")).toBeTruthy()
     // Retry stays available next to the optional action.
-    expect(screen.getByRole("button", { name: "Retry failed" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Retry 1 failed" })).toBeTruthy()
     await user.click(screen.getByRole("button", { name: "Label these files" }))
     expect(onLabel).toHaveBeenCalledWith(["asset-a.jpg", "asset-b.jpg"])
     expect(onOpenChange).toHaveBeenCalledWith(false)

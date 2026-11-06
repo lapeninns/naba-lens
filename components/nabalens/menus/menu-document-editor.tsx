@@ -9,6 +9,8 @@ import {
   MagnifyingGlassIcon,
   PlusIcon,
   TrashIcon,
+  WarningCircleIcon,
+  WarningIcon,
   XIcon,
 } from "@phosphor-icons/react"
 
@@ -26,6 +28,7 @@ import {
 import { cn } from "@/lib/utils"
 
 import { OptionSelect } from "../option-select"
+import { StatusChip } from "../status-chip"
 import { labelledFilesCopy, plural, SECTION_KIND_LABEL } from "./copy"
 import {
   addItem,
@@ -50,7 +53,7 @@ const EXPAND_ALL_UP_TO = 40
 const L = MENU_IMPORT_LIMITS
 
 const textareaClass =
-  "min-h-20 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-base outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-destructive md:text-sm dark:bg-input/30"
+  "min-h-20 w-full min-w-0 rounded-control border border-line-control bg-panel px-2.5 py-1.5 text-body-touch text-ink outline-none placeholder:text-ink-subtle focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-1 focus-visible:outline-focus aria-invalid:border-negative md:text-body-sm"
 
 export type MenuDocumentEditorProps = {
   value: MenuDocument
@@ -62,6 +65,8 @@ export type MenuDocumentEditorProps = {
   /** Validation issues (paths such as `sections[2].items[5].name`). */
   issues?: ImportIssue[]
   readOnly?: boolean
+  /** Show the menu title (a heading when read-only); off when the page names it. */
+  showTitle?: boolean
   /** Items of this venue that cannot receive new labels. */
   archivedItemIds?: string[]
   /** Labelled photos/videos per item id. */
@@ -82,6 +87,7 @@ export function MenuDocumentEditor({
   slugify,
   issues = [],
   readOnly = false,
+  showTitle = true,
   archivedItemIds = [],
   labelCounts = {},
   renderItemActions,
@@ -256,8 +262,10 @@ export function MenuDocumentEditor({
 
   return (
     <div className={cn("grid min-w-0 gap-4", className)}>
-      {readOnly ? (
-        <h2 className="text-lg font-medium">{value.title}</h2>
+      {!showTitle && readOnly ? null : readOnly ? (
+        <h2 className="text-section-title-touch text-ink md:text-section-title">
+          {value.title}
+        </h2>
       ) : (
         <Field className="gap-1.5">
           <FieldLabel htmlFor={ids.title}>Menu title</FieldLabel>
@@ -269,19 +277,19 @@ export function MenuDocumentEditor({
               onChange({ ...value, title: e.currentTarget.value })
             }
             aria-invalid={!value.title.trim() || undefined}
-            className="h-11 sm:h-9"
+            className="h-11 md:h-9"
           />
         </Field>
       )}
 
       <ImportIssueList issues={allIssues} />
 
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+      <div className="flex flex-col gap-2 md:flex-row md:items-end">
         <Field className="min-w-0 flex-1 gap-1.5">
           <FieldLabel htmlFor={ids.search}>Search items</FieldLabel>
           <div className="relative">
             <MagnifyingGlassIcon
-              className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+              className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-ink-muted"
               aria-hidden
             />
             <Input
@@ -290,14 +298,14 @@ export function MenuDocumentEditor({
               value={query}
               onChange={(e) => setQuery(e.currentTarget.value)}
               placeholder="Name or alias"
-              className="h-11 pl-8 sm:h-9"
+              className="h-11 pl-8 md:h-9"
               aria-describedby={`${base}-search-result`}
             />
           </div>
         </Field>
         <div className="flex gap-2">
           <Button
-            variant="outline"
+            variant="secondary"
             size="touch"
             className="flex-1"
             onClick={() =>
@@ -307,7 +315,7 @@ export function MenuDocumentEditor({
             Expand all
           </Button>
           <Button
-            variant="outline"
+            variant="secondary"
             size="touch"
             className="flex-1"
             onClick={() => setExpandedSections(new Set())}
@@ -319,7 +327,10 @@ export function MenuDocumentEditor({
       <p
         id={`${base}-search-result`}
         aria-live="polite"
-        className={cn("text-sm text-muted-foreground", !searching && "sr-only")}
+        className={cn(
+          "text-body-touch text-ink-muted md:text-body-sm",
+          !searching && "sr-only"
+        )}
       >
         {searching
           ? `${plural(matchCount, "item")} of ${totalItems} match “${query.trim()}”.`
@@ -327,7 +338,7 @@ export function MenuDocumentEditor({
       </p>
 
       {value.sections.length === 0 ? (
-        <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
+        <p className="rounded-panel border border-dashed border-line px-4 py-8 text-center text-body-touch text-ink-muted md:text-body-sm">
           No sections yet.
           {readOnly ? null : " Add a section, then add items to it."}
         </p>
@@ -467,7 +478,7 @@ function SectionPanel({
     section.items.some((i) => flagged.items.has(i.sourceKey))
 
   return (
-    <li className="min-w-0 rounded-lg border bg-card">
+    <li className="min-w-0 rounded-panel border border-line bg-panel">
       <div className="flex items-center gap-1 p-1">
         <h3 className="min-w-0 flex-1">
           <button
@@ -476,24 +487,34 @@ function SectionPanel({
             aria-expanded={expanded}
             aria-controls={panelId}
             onClick={onToggle}
-            className="flex min-h-11 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left outline-none hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50 sm:min-h-9"
+            // Below md the row also holds three 44px buttons, so the count
+            // and flags take a second line and the name wraps instead of
+            // being cut off.
+            className="flex min-h-11 w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 rounded-control px-2 py-1.5 text-left outline-none hover:bg-fill-hover focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-solid md:min-h-9 md:flex-nowrap md:py-0"
           >
             {expanded ? (
               <CaretDownIcon className="size-4 shrink-0" aria-hidden />
             ) : (
               <CaretRightIcon className="size-4 shrink-0" aria-hidden />
             )}
-            <span className="min-w-0 truncate font-medium">{sectionLabel}</span>
-            <span className="shrink-0 text-xs text-muted-foreground">
-              {SECTION_KIND_LABEL[section.kind]} ·{" "}
-              {searching
-                ? `${items.length} of ${section.items.length}`
-                : plural(section.items.length, "item")}
+            <span
+              data-slot="section-name"
+              className="min-w-0 flex-1 font-semibold break-words text-ink md:flex-initial md:truncate"
+            >
+              {sectionLabel}
             </span>
-            {reviewCount > 0 ? (
-              <Flag tone="warning">{reviewCount} to review</Flag>
-            ) : null}
-            {hasErrors ? <Flag tone="error">Has errors</Flag> : null}
+            <span className="flex basis-full flex-wrap items-center gap-x-2 gap-y-1 pl-6 md:shrink-0 md:basis-auto md:flex-nowrap md:pl-0">
+              <span className="text-meta-touch text-ink-muted md:text-meta">
+                {SECTION_KIND_LABEL[section.kind]} ·{" "}
+                {searching
+                  ? `${items.length} of ${section.items.length}`
+                  : plural(section.items.length, "item")}
+              </span>
+              {reviewCount > 0 ? (
+                <Flag tone="warning">{reviewCount} uncertain</Flag>
+              ) : null}
+              {hasErrors ? <Flag tone="error">Has errors</Flag> : null}
+            </span>
           </button>
         </h3>
         {readOnly ? null : (
@@ -530,7 +551,7 @@ function SectionPanel({
         <div
           role="group"
           aria-label={`Confirm removing section ${sectionLabel}`}
-          className="mx-2 mb-2 grid gap-2 rounded-md border border-negative/30 bg-negative-surface p-3 text-sm"
+          className="mx-2 mb-2 grid gap-2 rounded-control bg-negative-soft p-3 text-body-touch text-ink md:text-body-sm"
         >
           <p>
             Remove “{sectionLabel}” and its{" "}
@@ -539,7 +560,7 @@ function SectionPanel({
           </p>
           <div className="flex flex-wrap gap-2">
             <Button
-              variant="destructive"
+              variant="danger"
               size="touch"
               onClick={() => {
                 setConfirmRemove(false)
@@ -549,7 +570,7 @@ function SectionPanel({
               Remove section
             </Button>
             <Button
-              variant="outline"
+              variant="secondary"
               size="touch"
               autoFocus
               onClick={() => setConfirmRemove(false)}
@@ -561,7 +582,7 @@ function SectionPanel({
       ) : null}
 
       {expanded ? (
-        <div id={panelId} className="grid gap-3 border-t p-3">
+        <div id={panelId} className="grid gap-3 border-t border-line p-3">
           {readOnly ? null : (
             <FieldSet className="gap-3">
               <FieldLegend variant="label" className="sr-only">
@@ -577,16 +598,18 @@ function SectionPanel({
                   maxLength={L.sectionNameMax}
                   onChange={(e) => onRename(e.currentTarget.value)}
                   aria-invalid={!section.name.trim() || undefined}
-                  className="h-11 sm:h-9"
+                  className="h-11 md:h-9"
                 />
               </Field>
               <fieldset className="grid gap-1">
-                <legend className="mb-1 text-sm font-medium">Kind</legend>
+                <legend className="mb-1 text-label-touch text-ink md:text-label">
+                  Kind
+                </legend>
                 <div className="flex flex-wrap gap-x-4">
                   {KINDS.map((kind) => (
                     <label
                       key={kind}
-                      className="flex min-h-11 items-center gap-2 text-sm sm:min-h-8"
+                      className="flex min-h-11 items-center gap-2 text-body-touch md:min-h-8 md:text-body-sm"
                     >
                       <input
                         type="radio"
@@ -607,7 +630,7 @@ function SectionPanel({
           {items.length > 0 ? (
             <ul
               aria-label={`Items in ${sectionLabel}`}
-              className="divide-y rounded-md border"
+              className="divide-y divide-line rounded-control border border-line"
             >
               {items.map((item) => (
                 <ItemRow
@@ -633,7 +656,7 @@ function SectionPanel({
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-body-touch text-ink-muted md:text-body-sm">
               No items in this section.
             </p>
           )}
@@ -704,11 +727,13 @@ function ItemRow({
         aria-expanded={expanded}
         aria-controls={panelId}
         onClick={onToggle}
-        className="flex min-h-11 w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2 text-left text-sm outline-none hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
+        className="flex min-h-11 w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2 text-left text-body-touch outline-none hover:bg-fill-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid md:text-body-sm"
       >
-        <span className="min-w-0 font-medium break-words">{name}</span>
+        <span className="min-w-0 font-semibold break-words text-ink">
+          {name}
+        </span>
         {variants.length > 0 ? (
-          <span className="min-w-0 text-xs break-words text-muted-foreground">
+          <span className="min-w-0 text-meta-touch break-words text-ink-muted md:text-meta">
             {variants.join(" · ")}
           </span>
         ) : null}
@@ -717,33 +742,38 @@ function ItemRow({
         {labelCount > 0 ? (
           <Flag tone="muted">{labelledFilesCopy(labelCount)}</Flag>
         ) : null}
-        {item.review ? <Flag tone="warning">Needs review</Flag> : null}
+        {item.review ? <Flag tone="warning">Needs a decision</Flag> : null}
         {hasErrors ? <Flag tone="error">Has errors</Flag> : null}
       </button>
 
       {expanded ? (
-        <div id={panelId} className="grid gap-3 border-t bg-muted/20 px-3 py-3">
+        <div
+          id={panelId}
+          className="grid gap-3 border-t border-line bg-well px-3 py-3"
+        >
           {item.review ? (
-            <p className="rounded-md border border-warning/40 bg-warning-surface px-3 py-2 text-sm">
-              Needs review: {item.review.reason}
+            <p className="rounded-control bg-attention-soft px-3 py-2 text-body-touch text-ink md:text-body-sm">
+              Needs a decision: {item.review.reason}
             </p>
           ) : null}
           {isArchived ? (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-body-touch text-ink-muted md:text-body-sm">
               Archived: staff cannot add it to new labels. Existing labels are
               kept.
             </p>
           ) : null}
           {readOnly ? (
-            <dl className="grid gap-1 text-sm sm:grid-cols-[max-content_minmax(0,1fr)] sm:gap-x-4">
-              <dt className="text-muted-foreground">Description</dt>
+            <dl className="grid gap-1 text-body-touch md:grid-cols-[max-content_minmax(0,1fr)] md:gap-x-4 md:text-body-sm">
+              <dt className="text-ink-muted">Description</dt>
               <dd className="whitespace-pre-line">{item.description || "—"}</dd>
-              <dt className="text-muted-foreground">Aliases</dt>
+              <dt className="text-ink-muted">Aliases</dt>
               <dd>{item.aliases.join(", ") || "—"}</dd>
-              <dt className="text-muted-foreground">Variants</dt>
+              <dt className="text-ink-muted">Variants</dt>
               <dd>{variants.join(", ") || "—"}</dd>
-              <dt className="text-muted-foreground">Source key</dt>
-              <dd className="font-mono text-xs break-all">{key}</dd>
+              <dt className="text-ink-muted">Source key</dt>
+              <dd className="font-mono text-meta-touch break-all md:text-meta">
+                {key}
+              </dd>
             </dl>
           ) : (
             <FieldSet className="gap-3">
@@ -758,7 +788,7 @@ function ItemRow({
                   maxLength={L.nameMax}
                   onChange={(e) => onChange({ name: e.currentTarget.value })}
                   aria-invalid={!item.name.trim() || undefined}
-                  className="h-11 sm:h-9"
+                  className="h-11 md:h-9"
                 />
               </Field>
               <Field className="gap-1.5">
@@ -840,7 +870,7 @@ function ItemRow({
                   />
                 </Field>
               ) : null}
-              <p className="text-xs text-muted-foreground">
+              <p className="text-meta-touch text-ink-muted md:text-meta">
                 Source key <span className="font-mono break-all">{key}</span>
                 {labelCount > 0
                   ? `. Removing it from this draft keeps its ${labelledFilesCopy(labelCount)}.`
@@ -849,7 +879,7 @@ function ItemRow({
               <div className="flex flex-wrap gap-2">
                 <Button
                   id={ids.itemUp(key)}
-                  variant="outline"
+                  variant="secondary"
                   size="touch"
                   disabled={index === 0}
                   onClick={() => onMove(-1)}
@@ -860,7 +890,7 @@ function ItemRow({
                 </Button>
                 <Button
                   id={ids.itemDown(key)}
-                  variant="outline"
+                  variant="secondary"
                   size="touch"
                   disabled={index === total - 1}
                   onClick={() => onMove(1)}
@@ -870,7 +900,7 @@ function ItemRow({
                   Down
                 </Button>
                 <Button
-                  variant="destructive"
+                  variant="danger-quiet"
                   size="touch"
                   onClick={onRemove}
                   aria-label={`Remove ${name}`}
@@ -922,8 +952,12 @@ function StringListEditor({
 
   return (
     <fieldset className="grid min-w-0 gap-2">
-      <legend className="mb-1 text-sm font-medium">{legend}</legend>
-      <p className="-mt-1 text-xs text-muted-foreground">{hint}</p>
+      <legend className="mb-1 text-label-touch text-ink md:text-label">
+        {legend}
+      </legend>
+      <p className="-mt-1 text-meta-touch text-ink-muted md:text-meta">
+        {hint}
+      </p>
       {values.length > 0 ? (
         <ul className="grid gap-1.5">
           {values.map((v, i) => (
@@ -935,7 +969,7 @@ function StringListEditor({
                 onChange={(e) => onRename(i, e.currentTarget.value)}
                 aria-label={`${itemLabel} ${i + 1} of ${ownerName}`}
                 aria-invalid={!v.trim() || undefined}
-                className="h-11 sm:h-9"
+                className="h-11 md:h-9"
               />
               <IconButton
                 label={`Remove ${itemLabel.toLowerCase()} ${v.trim() || i + 1}`}
@@ -964,7 +998,7 @@ function StringListEditor({
           compact
         />
       ) : (
-        <p className="text-xs text-muted-foreground">
+        <p className="text-meta-touch text-ink-muted md:text-meta">
           Up to {maxCount} {legend.toLowerCase()}.
         </p>
       )}
@@ -1027,7 +1061,7 @@ function AddInlineForm({
               submit()
             }
           }}
-          className="h-11 sm:h-9"
+          className="h-11 md:h-9"
         />
         <Button
           variant={compact ? "outline" : "secondary"}
@@ -1040,7 +1074,10 @@ function AddInlineForm({
         </Button>
       </div>
       {error ? (
-        <p id={`${inputId}-error`} className="text-sm text-negative">
+        <p
+          id={`${inputId}-error`}
+          className="text-body-touch text-negative md:text-body-sm"
+        >
           {error}
         </p>
       ) : null}
@@ -1057,13 +1094,13 @@ function AddSectionForm({
 }) {
   const [kind, setKind] = React.useState<MenuSectionKind>("food")
   return (
-    <FieldSet className="gap-2 rounded-lg border border-dashed p-3">
+    <FieldSet className="gap-2 rounded-panel border border-dashed border-line p-3">
       <FieldLegend variant="label">Add a section</FieldLegend>
       <div className="flex flex-wrap gap-x-4">
         {KINDS.map((k) => (
           <label
             key={k}
-            className="flex min-h-11 items-center gap-2 text-sm sm:min-h-8"
+            className="flex min-h-11 items-center gap-2 text-body-touch md:min-h-8 md:text-body-sm"
           >
             <input
               type="radio"
@@ -1105,9 +1142,9 @@ function IconButton({
   return (
     <Button
       id={id}
-      variant="ghost"
+      variant="quiet"
       size="icon-lg"
-      className="size-11 shrink-0 sm:size-9"
+      className="size-11 shrink-0 md:size-9"
       aria-label={label}
       disabled={disabled}
       onClick={onClick}
@@ -1118,10 +1155,10 @@ function IconButton({
 }
 
 const FLAG_TONE = {
-  info: "bg-info-surface text-info",
-  warning: "bg-warning-surface text-foreground",
-  error: "bg-negative-surface text-negative",
-  muted: "bg-muted text-muted-foreground",
+  info: "neutral",
+  warning: "attention",
+  error: "negative",
+  muted: "closed",
 } as const
 
 function Flag({
@@ -1132,13 +1169,10 @@ function Flag({
   children: React.ReactNode
 }) {
   return (
-    <span
-      className={cn(
-        "inline-flex h-5 shrink-0 items-center rounded-sm px-1.5 text-xs font-medium",
-        FLAG_TONE[tone]
-      )}
-    >
+    <StatusChip tone={FLAG_TONE[tone]} className="shrink-0">
+      {tone === "warning" ? <WarningIcon aria-hidden /> : null}
+      {tone === "error" ? <WarningCircleIcon aria-hidden /> : null}
       {children}
-    </span>
+    </StatusChip>
   )
 }

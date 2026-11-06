@@ -11,7 +11,7 @@ import {
 
 import { signIn } from "../../support/identities"
 import { provisioner, psql } from "../../e2e/helpers/stack"
-import { escape, portfolioList } from "../../e2e/helpers/ui"
+import { portfolioList, staffTile } from "../../e2e/helpers/ui"
 import {
   provisionWorld,
   signedInPage,
@@ -61,16 +61,25 @@ export async function openVenueMenus(
   ).toBeVisible()
 }
 
+/**
+ * Choose a menu file on a venue's menus page. The import panel opens from the
+ * page header's "Import a menu" unless it is already showing.
+ */
+export async function chooseMenuFile(page: Page, path: string) {
+  const input = page.getByLabel("Menu file (JSON or CSV)")
+  if ((await input.count()) === 0)
+    await page.getByRole("button", { name: "Import a menu" }).click()
+  await input.setInputFiles(path)
+  await expect(page.getByRole("button", { name: "Create draft" })).toBeVisible()
+}
+
 /** Preview the Railway file at the venue; leaves the admin on the draft page. */
 export async function importRailwayDraft(
   page: Page,
   venue: { id: string; name: string }
 ) {
   await openVenueMenus(page, venue)
-  await page.getByLabel("Menu file (JSON or CSV)").setInputFiles(RAILWAY)
-  await expect(
-    page.getByRole("heading", { name: `Preview: ${RAILWAY_TITLE}` })
-  ).toBeVisible()
+  await chooseMenuFile(page, RAILWAY)
   await page.getByRole("button", { name: "Create draft" }).click()
   await page.waitForURL(/\/admin\/menus\/versions\//)
   await expect(
@@ -78,13 +87,26 @@ export async function importRailwayDraft(
   ).toBeVisible()
 }
 
-/** From a draft version page: Activate… → confirm → the version is active. */
+/** From a venue's menus: open its active version from the Versions table. */
+export async function openActiveVersion(page: Page) {
+  await page
+    .getByRole("table", { name: "Menu versions" })
+    .getByRole("row")
+    .filter({ hasText: "Active · for labelling only" })
+    .getByRole("link")
+    .click()
+  await page.waitForURL(/\/admin\/menus\/versions\//)
+}
+
+/** From a draft version page: Activate for labelling → confirm → the version is active. */
 export async function activateOpenDraft(page: Page) {
-  await page.getByRole("button", { name: "Activate…" }).click()
+  await page.getByRole("button", { name: "Activate for labelling" }).click()
   const dialog = page.getByRole("alertdialog")
   await dialog.getByRole("button", { name: "Activate for labelling" }).click()
   await expect(dialog).toBeHidden()
-  await expect(page.getByRole("button", { name: "Retire menu…" })).toBeVisible()
+  await expect(
+    page.getByRole("button", { name: "Start a draft from this version" })
+  ).toBeVisible()
 }
 
 /** A new draft of the venue's active menu, activated: a new active version id. */
@@ -113,18 +135,12 @@ export async function worldWithActiveRailway(
   return { world, admin }
 }
 
-export async function openOwnLabelEditor(
-  page: Page,
-  kind: "Photo" | "Video",
-  fileName: string
-) {
+export async function openOwnLabelEditor(page: Page, fileName: string) {
   await page.goto("/staff")
-  await portfolioList(page)
-    .getByRole("button", { name: new RegExp(`^${kind}, ${escape(fileName)}`) })
-    .click()
+  await (await staffTile(portfolioList(page), fileName)).click()
   const viewer = page.getByRole("dialog").first()
   await viewer.getByRole("button", { name: /^(Add|Edit) labels$/ }).click()
-  const editor = page.getByRole("dialog", { name: /^(Add|Edit) labels$/ })
+  const editor = page.getByRole("dialog", { name: /^(Labels|Edit labels)$/ })
   await expect(editor).toBeVisible()
   return { viewer, editor }
 }
@@ -134,7 +150,7 @@ export async function pickMenuItem(
   query: string,
   option: RegExp
 ) {
-  await editor.getByRole("combobox", { name: /^Search the menu/ }).fill(query)
+  await editor.getByRole("combobox", { name: /^Menu item at / }).fill(query)
   await editor.getByRole("option", { name: option }).click()
 }
 

@@ -8,10 +8,17 @@ import { Field, FieldLabel } from "@/components/ui/field"
 import type { SuggestionView } from "@/lib/menus/types"
 import { cn } from "@/lib/utils"
 
+import { EmptyState } from "../empty-state"
 import { formatDate } from "../format"
 import { OptionSelect } from "../option-select"
+import { StatusChip } from "../status-chip"
 import type { Option } from "../types"
 import type { MenuActionResult } from "./copy"
+import {
+  menuItemTitleClassName,
+  menuListClassName,
+  menuMetaClassName,
+} from "./section-head"
 
 const STATUS_LABEL: Record<SuggestionView["status"], string> = {
   open: "Open",
@@ -39,20 +46,17 @@ export function SuggestionList({
 }: SuggestionListProps) {
   if (suggestions.length === 0) {
     return (
-      <p
-        className={cn(
-          "rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground",
-          className
-        )}
-      >
-        No missing-item suggestions.
-      </p>
+      <EmptyState
+        variant="done"
+        title="No missing-item suggestions."
+        className={cn("py-0", className)}
+      />
     )
   }
   return (
     <ul
       aria-label="Missing-item suggestions"
-      className={cn("divide-y rounded-lg border bg-card", className)}
+      className={cn(menuListClassName, className)}
     >
       {suggestions.map((s) => (
         <SuggestionRow
@@ -79,6 +83,7 @@ function SuggestionRow({
   onDismiss: SuggestionListProps["onDismiss"]
 }) {
   const id = React.useId()
+  const [picking, setPicking] = React.useState(false)
   const [itemId, setItemId] = React.useState<string | null>(null)
   const [pending, setPending] = React.useState<"resolve" | "dismiss" | null>(
     null
@@ -87,6 +92,10 @@ function SuggestionRow({
   const [thumbFailed, setThumbFailed] = React.useState(false)
 
   async function run(kind: "resolve" | "dismiss") {
+    if (kind === "resolve" && !picking) {
+      setPicking(true)
+      return
+    }
     if (kind === "resolve" && !itemId) {
       setError("Choose the menu item this photo or video shows.")
       return
@@ -106,14 +115,14 @@ function SuggestionRow({
     }
   }
 
-  const by = [
+  const meta = [
     s.createdByName ? `Suggested by ${s.createdByName}` : "Suggested",
     `on ${formatDate(s.createdAt)}`,
   ].join(" ")
 
   return (
-    <li className="grid gap-3 p-3 sm:grid-cols-[4rem_minmax(0,1fr)]">
-      <div className="size-16 overflow-hidden rounded-md bg-media-placeholder">
+    <li className="grid grid-cols-[3rem_minmax(0,1fr)] gap-3 px-4 py-3">
+      <div className="size-12 overflow-hidden rounded-print bg-media-placeholder">
         {s.assetThumbnailUrl && !thumbFailed ? (
           // Signed private URL: not routed through next/image (see MediaTile).
           // eslint-disable-next-line @next/next/no-img-element
@@ -126,36 +135,38 @@ function SuggestionRow({
             className="size-full object-cover"
           />
         ) : (
-          <span className="flex size-full items-center justify-center text-muted-foreground">
-            <ImageIcon className="size-6" aria-hidden />
+          <span className="flex size-full items-center justify-center text-ink-muted">
+            <ImageIcon className="size-5" aria-hidden />
           </span>
         )}
       </div>
       <div className="grid min-w-0 gap-2">
-        <div className="min-w-0">
+        <div className="grid min-w-0 gap-0.5">
           <p className="flex flex-wrap items-center gap-2">
-            <span className="font-medium break-words">“{s.suggestedName}”</span>
+            <span className={cn("break-words", menuItemTitleClassName)}>
+              “{s.suggestedName}”
+            </span>
             {s.status !== "open" ? (
-              <span className="inline-flex h-5 items-center rounded-sm bg-muted px-1.5 text-xs font-medium text-muted-foreground">
-                {STATUS_LABEL[s.status]}
-              </span>
+              <StatusChip tone="closed">{STATUS_LABEL[s.status]}</StatusChip>
             ) : null}
           </p>
-          <p className="text-sm text-muted-foreground">
-            {by}
+          <p className={menuMetaClassName}>
+            {meta}
             {s.assetId ? null : " · the file is no longer available"}
           </p>
           {s.status === "resolved" && s.resolvedItemName ? (
-            <p className="text-sm">Linked to “{s.resolvedItemName}”</p>
+            <p className="text-body-sm text-ink">
+              Linked to “{s.resolvedItemName}”
+            </p>
           ) : null}
           {s.resolutionNote ? (
-            <p className="text-sm text-muted-foreground">{s.resolutionNote}</p>
+            <p className={menuMetaClassName}>{s.resolutionNote}</p>
           ) : null}
         </div>
 
         {s.status === "open" ? (
           <div className="grid gap-2">
-            {itemOptions.length > 0 ? (
+            {picking && itemOptions.length > 0 ? (
               <Field className="gap-1.5">
                 <FieldLabel htmlFor={`${id}-item`}>
                   Menu item for “{s.suggestedName}”
@@ -172,37 +183,54 @@ function SuggestionRow({
                   disabled={pending !== null}
                 />
               </Field>
-            ) : (
-              <p className="text-sm text-muted-foreground">
+            ) : null}
+            {itemOptions.length === 0 ? (
+              <p className={menuMetaClassName}>
                 No active menu items to link to. Add the item to a draft and
                 activate it, or dismiss this suggestion.
               </p>
-            )}
+            ) : null}
             <div className="flex flex-wrap gap-2">
               {itemOptions.length > 0 ? (
                 <Button
-                  size="touch"
+                  variant={picking ? "primary" : "secondary"}
+                  size="sm"
                   onClick={() => run("resolve")}
                   disabled={pending !== null}
                   aria-busy={pending === "resolve" || undefined}
-                  aria-label={`Link to item: “${s.suggestedName}”`}
+                  aria-label={`Link to an item: “${s.suggestedName}”`}
                 >
-                  {pending === "resolve" ? "Linking…" : "Link to item"}
+                  {pending === "resolve" ? "Linking…" : "Link to an item"}
                 </Button>
               ) : null}
-              <Button
-                variant="outline"
-                size="touch"
-                onClick={() => run("dismiss")}
-                disabled={pending !== null}
-                aria-busy={pending === "dismiss" || undefined}
-                aria-label={`Dismiss “${s.suggestedName}”`}
-              >
-                {pending === "dismiss" ? "Dismissing…" : "Dismiss"}
-              </Button>
+              {picking ? (
+                <Button
+                  variant="quiet"
+                  size="sm"
+                  onClick={() => {
+                    setPicking(false)
+                    setItemId(null)
+                    setError(null)
+                  }}
+                  disabled={pending !== null}
+                >
+                  Cancel
+                </Button>
+              ) : (
+                <Button
+                  variant="quiet"
+                  size="sm"
+                  onClick={() => run("dismiss")}
+                  disabled={pending !== null}
+                  aria-busy={pending === "dismiss" || undefined}
+                  aria-label={`Dismiss “${s.suggestedName}”`}
+                >
+                  {pending === "dismiss" ? "Dismissing…" : "Dismiss"}
+                </Button>
+              )}
             </div>
             {error ? (
-              <p role="alert" className="text-sm text-negative">
+              <p role="alert" className="text-body-sm text-negative">
                 {error}
               </p>
             ) : null}

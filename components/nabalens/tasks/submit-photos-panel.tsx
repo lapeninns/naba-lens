@@ -9,10 +9,13 @@ import {
   SpinnerGapIcon,
 } from "@phosphor-icons/react"
 
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button, buttonVariants } from "@/components/ui/button"
+import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton"
 
 import { LoadMoreButton } from "../load-more-button"
+import { EmptyState } from "../empty-state"
+import { Notice } from "../notice"
+import { useOnline } from "../offline-notice"
 import type { UploadLimits } from "../types"
 import { UploadDialog } from "../upload-dialog"
 import type { Uploader } from "../upload-queue"
@@ -36,6 +39,12 @@ type Outcome =
       skipped: number
       /** Nothing new: a replay, or every photo was already sent here. */
       alreadySent: boolean
+      /**
+       * Taken when the send starts: the refresh after a replacement closes
+       * the request, so the props no longer say a photo was replaced.
+       */
+      replaced: boolean
+      reviewerName: string | null
     }
   | { kind: "failed"; copy: FailureCopy }
 
@@ -44,8 +53,16 @@ type SubmitPhotosPanelProps = {
   requirementId: string | null
   /** The "needs another photo" item this send answers, if any. */
   replacesSubmissionId?: string | null
+  /** Who asked for the replacement; named in the sent message. */
+  reviewerName?: string | null
+  /** The task's title, for the heading; null in monthly mode. */
+  taskTitle?: string | null
+  /** The venue photos must be taken at, named when nothing can be sent. */
+  venueName?: string | null
   /** The first page of photos, as loaded by the page. */
   initialPhotos: SubmittablePhotosResult
+  /** Changes when a global Add upload completes while this picker is open. */
+  refreshSignal?: number
   loadPhotos: (
     input: SubmittablePhotosInput
   ) => Promise<SubmittablePhotosResult>
@@ -63,12 +80,23 @@ type PhotoList = {
   photos: SubmittablePhoto[]
   nextCursor: string | null
   error: string | null
+  errorSource: "first" | "more" | null
 }
 
 function initialState(result: SubmittablePhotosResult): PhotoList {
   return result.ok
-    ? { photos: result.items, nextCursor: result.nextCursor, error: null }
-    : { photos: [], nextCursor: null, error: failureCopy(result).message }
+    ? {
+        photos: result.items,
+        nextCursor: result.nextCursor,
+        error: null,
+        errorSource: null,
+      }
+    : {
+        photos: [],
+        nextCursor: null,
+        error: failureCopy(result).message,
+        errorSource: "first",
+      }
 }
 
 /**
@@ -79,8 +107,12 @@ function initialState(result: SubmittablePhotosResult): PhotoList {
  */
 export function SubmitPhotosPanel({
   requirementId,
+  taskTitle = null,
+  venueName = null,
   replacesSubmissionId = null,
+  reviewerName = null,
   initialPhotos,
+  refreshSignal,
   loadPhotos,
   submit,
   uploader,
@@ -90,6 +122,7 @@ export function SubmitPhotosPanel({
 }: SubmitPhotosPanelProps) {
   const monthly = requirementId === null
   const maxSelected = limits.maxBatchFiles
+  const online = useOnline()
   const intent = useRequestIntent()
   const [list, setList] = React.useState(() => initialState(initialPhotos))
   const [loadingMore, setLoadingMore] = React.useState(false)
@@ -102,70 +135,125 @@ export function SubmitPhotosPanel({
   const [outcome, setOutcome] = React.useState<Outcome | null>(null)
   const [uploadNote, setUploadNote] = React.useState<string | null>(null)
   const inFlight = React.useRef(false)
+  const loadingPhotos = React.useRef(false)
+  const queuedReload = React.useRef<Set<string> | null>(null)
+  const selectedRef = React.useRef(selected)
+  const mounted = React.useRef(false)
+
+  React.useLayoutEffect(() => {
+    selectedRef.current = selected
+  }, [selected])
+
+  React.useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+      queuedReload.current = null
+    }
+  }, [])
 
   const reloadFirstPage = React.useCallback(
-    async (select: string[] = []) => {
-      let result: SubmittablePhotosResult
+    async function reloadFirstPage(select: string[] = []) {
+      if (loadingPhotos.current) {
+        queuedReload.current ??= new Set()
+        for (const id of select) queuedReload.current.add(id)
+        return
+      }
+      queuedReload.current = null
+      loadingPhotos.current = true
       try {
-        result = await loadPhotos({ requirementId, cursor: null })
-      } catch {
-        setList((l) => ({ ...l, error: NETWORK_FAILURE.message }))
-        return
-      }
-      if (!result.ok) {
-        setList((l) => ({ ...l, error: failureCopy(result).message }))
-        return
-      }
-      setList({
-        photos: result.items,
-        nextCursor: result.nextCursor,
-        error: null,
-      })
-      // The fresh listing is authoritative for the photos it includes.
-      const listed = new Set(result.items.map((p) => p.assetId))
-      setFlagged((current) =>
-        current.size === 0
-          ? current
-          : new Map([...current].filter(([id]) => !listed.has(id)))
-      )
-      if (select.length === 0) return
-      const ready = new Set(
-        result.items.filter((p) => p.eligible).map((p) => p.assetId)
-      )
-      const picked = select.filter((id) => ready.has(id))
-      setSelected((current) => {
-        const next = [...current]
-        for (const id of picked) {
-          if (next.length >= maxSelected) break
-          if (!next.includes(id)) next.push(id)
+        const result = await loadPhotos({ requirementId, cursor: null })
+        if (!mounted.current) return
+        if (!result.ok) {
+          setList((l) => ({
+            ...l,
+            error: failureCopy(result).message,
+            errorSource: "first",
+          }))
+          return
         }
-        return next
-      })
-      const waiting = select.length - picked.length
-      setUploadNote(
-        [
-          picked.length
-            ? `${plural(picked.length, "new photo", "new photos")} selected.`
-            : null,
-          waiting
-            ? `${plural(waiting, "new photo isn't", "new photos aren't")} ready to send yet.`
-            : null,
-        ]
-          .filter(Boolean)
-          .join(" ")
-      )
+        const listed = new Set(result.items.map((p) => p.assetId))
+        const selectedIds = new Set(selectedRef.current)
+        // Keep selected photos from older pages visible while the fresh
+        // page supplies the latest eligibility for every photo it includes.
+        setList((current) => ({
+          photos: [
+            ...result.items,
+            ...current.photos.filter(
+              (p) => selectedIds.has(p.assetId) && !listed.has(p.assetId)
+            ),
+          ],
+          nextCursor: result.nextCursor,
+          error: null,
+          errorSource: null,
+        }))
+        setFlagged((current) =>
+          current.size === 0
+            ? current
+            : new Map([...current].filter(([id]) => !listed.has(id)))
+        )
+        if (select.length === 0) return
+        const ready = new Set(
+          result.items.filter((p) => p.eligible).map((p) => p.assetId)
+        )
+        const picked = select.filter((id) => ready.has(id))
+        setSelected((current) => {
+          const next = [...current]
+          for (const id of picked) {
+            if (next.length >= maxSelected) break
+            if (!next.includes(id)) next.push(id)
+          }
+          return next
+        })
+        const waiting = select.length - picked.length
+        setUploadNote(
+          [
+            picked.length
+              ? `${plural(picked.length, "new photo", "new photos")} selected.`
+              : null,
+            waiting
+              ? `${plural(waiting, "new photo isn't", "new photos aren't")} ready to send yet.`
+              : null,
+          ]
+            .filter(Boolean)
+            .join(" ")
+        )
+      } catch {
+        if (mounted.current)
+          setList((l) => ({
+            ...l,
+            error: NETWORK_FAILURE.message,
+            errorSource: "first",
+          }))
+      } finally {
+        loadingPhotos.current = false
+        const queued = queuedReload.current
+        queuedReload.current = null
+        if (queued !== null && mounted.current) {
+          void reloadFirstPage(Array.from(queued))
+        }
+      }
     },
     [loadPhotos, requirementId, maxSelected]
   )
 
+  const lastRefreshSignal = React.useRef(refreshSignal)
+  React.useEffect(() => {
+    if (refreshSignal === lastRefreshSignal.current) return
+    lastRefreshSignal.current = refreshSignal
+    void reloadFirstPage()
+  }, [refreshSignal, reloadFirstPage])
+
   async function loadMore() {
-    if (!list.nextCursor) return
+    if (!list.nextCursor || loadingPhotos.current) return
+    loadingPhotos.current = true
     setLoadingMore(true)
     try {
       const result = await loadPhotos({
         requirementId,
         cursor: list.nextCursor,
       })
+      if (!mounted.current) return
       if (result.ok) {
         setList((l) => {
           const seen = new Set(l.photos.map((p) => p.assetId))
@@ -176,15 +264,31 @@ export function SubmitPhotosPanel({
             ],
             nextCursor: result.nextCursor,
             error: null,
+            errorSource: null,
           }
         })
       } else {
-        setList((l) => ({ ...l, error: failureCopy(result).message }))
+        setList((l) => ({
+          ...l,
+          error: failureCopy(result).message,
+          errorSource: "more",
+        }))
       }
     } catch {
-      setList((l) => ({ ...l, error: NETWORK_FAILURE.message }))
+      if (mounted.current)
+        setList((l) => ({
+          ...l,
+          error: NETWORK_FAILURE.message,
+          errorSource: "more",
+        }))
     } finally {
-      setLoadingMore(false)
+      loadingPhotos.current = false
+      if (mounted.current) {
+        setLoadingMore(false)
+        if (queuedReload.current !== null) {
+          void reloadFirstPage(Array.from(queuedReload.current))
+        }
+      }
     }
   }
 
@@ -200,9 +304,11 @@ export function SubmitPhotosPanel({
   }
 
   async function send() {
-    if (inFlight.current || selected.length === 0) return
+    if (inFlight.current || selected.length === 0 || !online) return
     inFlight.current = true
     const assetIds = selected
+    const replaced = replacesSubmissionId !== null
+    const reviewer = reviewerName
     const key = intentKey(requirementId, assetIds, replacesSubmissionId)
     const requestId = intent.idFor(key)
     setSending(true)
@@ -235,6 +341,8 @@ export function SubmitPhotosPanel({
         sent: fresh,
         skipped: result.skipped.length,
         alreadySent: result.replayed || fresh === 0,
+        replaced,
+        reviewerName: reviewer,
       })
       // Sent photos now read "Already sent for this task".
       void reloadFirstPage()
@@ -258,30 +366,55 @@ export function SubmitPhotosPanel({
   }
 
   const count = selected.length
+  const full = count >= maxSelected
+  const nothingEligible =
+    list.photos.length > 0 && !list.photos.some((p) => p.eligible)
 
   return (
     <div className="flex flex-col gap-4">
+      <h2 className="font-display text-section-title-touch text-ink md:text-section-title">
+        {monthly || !taskTitle ? "Send photos" : `Send photos to ${taskTitle}`}
+      </h2>
+
+      {nothingEligible ? (
+        <Notice tone="plain">
+          None of your photos can be sent for this task.
+          {venueName ? ` Take a new one at ${venueName}.` : ""}
+        </Notice>
+      ) : null}
+
+      {full ? (
+        <Notice tone="attention">
+          You can send up to {maxSelected} at a time.
+        </Notice>
+      ) : null}
+
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <Button
           size="touch"
-          variant="outline"
+          variant={nothingEligible ? "primary" : "secondary"}
           onClick={() => setUploadOpen(true)}
         >
           <CameraIcon data-icon="inline-start" aria-hidden />
-          Take or upload photos
+          Take a photo
         </Button>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-meta-touch text-ink-muted md:text-meta">
           New photos are selected for you once they&apos;re ready.
         </p>
       </div>
 
-      <div aria-live="polite" className="text-sm empty:hidden">
+      <div
+        aria-live="polite"
+        className="text-body-touch empty:hidden md:text-body-sm"
+      >
         {uploadNote ? <p>{uploadNote}</p> : null}
       </div>
 
       <div className="flex flex-col gap-2">
-        <h3 className="text-sm font-medium">Or choose from your photos</h3>
-        <p className="text-sm text-muted-foreground">
+        <h3 className="text-item-title-touch text-ink md:text-item-title">
+          Or choose from your photos
+        </h3>
+        <p className="text-meta-touch text-ink-muted md:text-meta">
           {monthly
             ? "Photos you upload and send this month count toward your target once accepted."
             : "Photos from earlier months can still count for this task."}{" "}
@@ -300,36 +433,57 @@ export function SubmitPhotosPanel({
           monthly={monthly}
         />
       ) : list.error ? null : (
-        <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-          {monthly
-            ? "No photos from this month yet. Take or upload one to get started."
-            : "No photos yet. Take or upload one to get started."}
-        </p>
+        <EmptyState
+          inline
+          title={monthly ? "No photos from this month yet." : "No photos yet."}
+          description="Take a photo to get started."
+        />
       )}
+
+      {loadingMore ? (
+        <SkeletonRegion
+          label="Loading photos…"
+          className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6"
+        >
+          {[0, 1, 2].map((n) => (
+            <Skeleton key={n} shape="tile" />
+          ))}
+        </SkeletonRegion>
+      ) : null}
 
       <LoadMoreButton
         hasMore={list.nextCursor !== null}
         loading={loadingMore}
         error={list.error}
         onLoadMore={() =>
-          list.photos.length === 0 && list.error
+          list.errorSource === "first"
             ? void reloadFirstPage()
             : void loadMore()
         }
       />
 
-      <div className="sticky bottom-0 z-20 -mx-4 flex flex-col gap-3 border-t bg-background/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
+      <div className="sticky bottom-0 z-20 -mx-4 flex flex-col gap-3 border-t border-line bg-paper/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
         <OutcomeMessage
           outcome={outcome}
           onRetry={() => void send()}
           onReload={onReload}
           signInHref={signInHref}
-          retrying={sending}
+          retrying={sending || !online}
+          replacing={replacesSubmissionId !== null}
         />
+        {!sending ? (
+          <p className="text-meta-touch text-ink-muted md:text-meta">
+            {replacesSubmissionId
+              ? count > 0
+                ? `${count} selected · it replaces the earlier photo`
+                : null
+              : `${count} selected · up to ${maxSelected}`}
+          </p>
+        ) : null}
         <Button
           size="touch"
           onClick={() => void send()}
-          disabled={count === 0 || sending}
+          disabled={count === 0 || sending || !online}
           aria-busy={sending}
           className="sm:self-start"
         >
@@ -344,9 +498,11 @@ export function SubmitPhotosPanel({
           )}
           {sending
             ? "Sending…"
-            : count === 0
-              ? "Select photos to send"
-              : `Send ${plural(count, "photo", "photos")} for review`}
+            : replacesSubmissionId
+              ? "Send another photo"
+              : count === 0
+                ? "Select photos to send"
+                : `Send ${plural(count, "photo", "photos")}`}
         </Button>
       </div>
 
@@ -368,17 +524,38 @@ function OutcomeMessage({
   onReload,
   signInHref,
   retrying,
+  replacing,
 }: {
   outcome: Outcome | null
   onRetry: () => void
   onReload: () => void
   signInHref: string
   retrying: boolean
+  replacing: boolean
 }) {
   if (!outcome) return null
+  if (outcome.kind === "sent" && outcome.replaced && !outcome.alreadySent) {
+    return (
+      <div
+        role="status"
+        className="flex flex-col gap-1 text-body-touch md:text-body-sm"
+      >
+        <p className="font-medium text-positive">
+          Your new photo is waiting for review
+        </p>
+        <p>
+          Sent. {outcome.reviewerName ?? "Your reviewer"} reviews it next. Your
+          earlier photo stays in Photos and on your profile.
+        </p>
+      </div>
+    )
+  }
   if (outcome.kind === "sent") {
     return (
-      <div role="status" className="flex flex-col gap-1 text-sm">
+      <div
+        role="status"
+        className="flex flex-col gap-1 text-body-touch md:text-body-sm"
+      >
         <p className="font-medium text-positive">
           {outcome.alreadySent
             ? "These photos were already sent. Nothing was sent twice."
@@ -400,44 +577,47 @@ function OutcomeMessage({
     )
   }
   const { copy } = outcome
+  const retry = copy.action === "retry"
+  const action =
+    copy.action === "retry" ? (
+      <Button
+        variant="secondary"
+        size="touch"
+        onClick={onRetry}
+        disabled={retrying}
+      >
+        <ArrowClockwiseIcon data-icon="inline-start" aria-hidden />
+        Try again
+      </Button>
+    ) : copy.action === "reload" ? (
+      <Button variant="secondary" size="touch" onClick={onReload}>
+        <ArrowClockwiseIcon data-icon="inline-start" aria-hidden />
+        Reload
+      </Button>
+    ) : copy.action === "sign_in" ? (
+      <Link
+        href={signInHref}
+        className={buttonVariants({ variant: "secondary", size: "touch" })}
+      >
+        Sign in
+      </Link>
+    ) : undefined
   return (
-    <Alert variant="destructive">
-      <AlertDescription className="flex flex-col gap-2 text-destructive">
-        <p>{copy.message}</p>
-        {copy.action === "retry" ? (
-          <Button
-            variant="outline"
-            size="touch"
-            onClick={onRetry}
-            disabled={retrying}
-            className="self-start"
-          >
-            <ArrowClockwiseIcon data-icon="inline-start" aria-hidden />
-            Try again
-          </Button>
-        ) : copy.action === "reload" ? (
-          <Button
-            variant="outline"
-            size="touch"
-            onClick={onReload}
-            className="self-start"
-          >
-            <ArrowClockwiseIcon data-icon="inline-start" aria-hidden />
-            Reload
-          </Button>
-        ) : copy.action === "sign_in" ? (
-          <Link
-            href={signInHref}
-            className={buttonVariants({
-              variant: "outline",
-              size: "touch",
-              className: "self-start",
-            })}
-          >
-            Sign in
-          </Link>
-        ) : null}
-      </AlertDescription>
-    </Alert>
+    <Notice
+      tone="negative"
+      role="alert"
+      title={
+        retry
+          ? replacing
+            ? "We couldn't send your photo"
+            : "We couldn't send your photos"
+          : undefined
+      }
+      action={action}
+    >
+      {retry
+        ? "Check your connection and try again. Nothing is sent twice."
+        : copy.message}
+    </Notice>
   )
 }

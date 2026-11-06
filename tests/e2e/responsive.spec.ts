@@ -5,9 +5,11 @@ import AxeBuilder from "@axe-core/playwright"
 import { expect, test, type Locator, type Page } from "@playwright/test"
 
 import { supportedMp4, syntheticJpeg, type SourceFile } from "./helpers/media"
+import { horizontalOverflow } from "./helpers/overflow"
 import {
   libraryList,
   portfolioList,
+  staffTile,
   tile,
   uploadThroughDialog,
   openPortfolio,
@@ -98,16 +100,7 @@ async function check(
     undefined,
     { timeout: 20_000 }
   )
-  const overflowPx = await page.evaluate(() => {
-    const doc = document.documentElement
-    let worst = doc.scrollWidth - window.innerWidth
-    for (const el of Array.from(
-      document.querySelectorAll('[role="dialog"], [role="alertdialog"]')
-    )) {
-      worst = Math.max(worst, el.scrollWidth - el.clientWidth)
-    }
-    return Math.max(0, worst)
-  })
+  const { overflowPx, culprit } = await horizontalOverflow(page)
   const box = await primary.boundingBox()
   const primaryVisible =
     !!box && box.x >= 0 && box.x + box.width <= width + 0.5 && box.width > 0
@@ -138,12 +131,16 @@ async function check(
     path: join(SHOTS, `${String(width).padStart(4, "0")}-${state}.png`),
     fullPage: !scope,
   })
-  expect.soft(overflowPx, `${state}@${width}: horizontal overflow`).toBe(0)
+  expect
+    .soft(overflowPx, `${state}@${width}: horizontal overflow (${culprit})`)
+    .toBe(0)
   expect.soft(primaryVisible, `${state}@${width}: primary action`).toBe(true)
   expect
     .soft(
       serious.map((v) => v.id),
-      `${state}@${width}: axe serious/critical`
+      `${state}@${width}: axe serious/critical ${JSON.stringify(
+        serious.flatMap((v) => v.targets)
+      )}`
     )
     .toEqual([])
 }
@@ -184,13 +181,14 @@ for (const width of WIDTHS) {
       anon,
       width,
       "login-expired",
-      anon.getByRole("button", { name: "Send sign-in link" })
+      anon.getByRole("button", { name: "Send a new link" })
     )
 
     // --- /staff and its dialogs
     await staff.goto("/staff")
     const portfolio = portfolioList(staff)
-    await expect(tile(portfolio, "Photo", jpeg.name)).toBeVisible()
+    const ownPhoto = await staffTile(portfolio, jpeg.name)
+    await expect(ownPhoto).toBeVisible()
     const upload = staff
       .getByRole("button", { name: "Upload photos or videos" })
       .first()
@@ -222,7 +220,7 @@ for (const width of WIDTHS) {
     )
     await closeDialog(staff)
 
-    await tile(portfolio, "Photo", jpeg.name).click()
+    await ownPhoto.click()
     const viewer = staff.getByRole("dialog")
     await check(
       staff,
@@ -240,7 +238,9 @@ for (const width of WIDTHS) {
       confirm.getByRole("button", { name: "Delete" }),
       confirm
     )
-    await confirm.getByRole("button", { name: "Keep file" }).click()
+    await confirm
+      .getByRole("button", { name: /^Keep (photo|video|file)$/ })
+      .click()
     await closeDialog(staff)
 
     // --- /admin library, filters and viewer
@@ -315,7 +315,10 @@ for (const width of WIDTHS) {
       details
     )
     await closeDialog(admin)
-    await admin.getByRole("button", { name: "Deactivate" }).click()
+    await admin
+      .getByRole("button", { name: `More actions for ${world.staffA.name}` })
+      .click()
+    await admin.getByRole("menuitem", { name: "Deactivate" }).click()
     const deactivate = admin.getByRole("alertdialog")
     await check(
       admin,
@@ -389,9 +392,11 @@ test("keyboard only: upload, open the viewer, download", async () => {
   await expect(dialog).toBeHidden()
 
   // Viewer: open from the grid, focus is trapped in it, Escape returns focus.
-  const keyboardTile = tile(portfolioList(staff), "Photo", extra.name)
+  const keyboardTile = await staffTile(portfolioList(staff), extra.name)
   await expect(keyboardTile).toBeVisible()
-  await tabTo(staff, new RegExp(`^Photo, ${extra.name.replace(".", "\\.")}`))
+  // Staff tile names carry no file name; the newest upload is the first tile,
+  // and focus returning to `keyboardTile` below proves it was the one opened.
+  await tabTo(staff, /^Photo, uploaded /)
   await staff.keyboard.press("Enter")
   const viewer = staff.getByRole("dialog")
   await expect(viewer).toBeVisible()

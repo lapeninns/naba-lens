@@ -103,7 +103,13 @@ function findAll(
   }
   const element = node as { type?: unknown; props?: Record<string, unknown> }
   if (match(element)) out.push(element)
-  if (element.props) findAll(element.props.children, match, out)
+  // Pages pass parts of the screen (notices, sections) as element props, not
+  // only as children, so walk every element- or array-valued prop.
+  for (const value of Object.values(element.props ?? {})) {
+    if (Array.isArray(value) || (value as { $$typeof?: unknown })?.$$typeof) {
+      findAll(value, match, out)
+    }
+  }
   return out
 }
 

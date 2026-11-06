@@ -3,6 +3,7 @@ import { expect, test, type Page } from "@playwright/test"
 import {
   activeItemId,
   attachShot,
+  openActiveVersion,
   openOwnLabelEditor,
   openVenueMenus,
   pickMenuItem,
@@ -24,7 +25,7 @@ const MOMO_KEY = "appetisers--momo-veg-chicken"
 /** Admin archives "Momo" in the venue's active menu through the Menus UI. */
 async function archiveMomo(admin: Page, venue: { id: string; name: string }) {
   await openVenueMenus(admin, venue)
-  await admin.getByRole("link", { name: "View active menu" }).click()
+  await openActiveVersion(admin)
   await admin.getByRole("searchbox", { name: "Search items" }).fill("Momo")
   await admin
     .getByRole("button", { name: /^Momo Veg · Chicken/, expanded: false })
@@ -55,16 +56,10 @@ test("menus.unavailable-items: an archived item is no longer offered to staff", 
   const staff = await signedInPage(browser, world.staffA)
 
   await test.step("before: Momo is offered", async () => {
-    const { editor } = await openOwnLabelEditor(
-      staff,
-      "Photo",
-      `${prefix}-01.jpg`
-    )
-    await editor
-      .getByRole("combobox", { name: /^Search the menu/ })
-      .fill("Momo")
+    const { editor } = await openOwnLabelEditor(staff, `${prefix}-01.jpg`)
+    await editor.getByRole("combobox", { name: /^Menu item at / }).fill("Momo")
     await expect(
-      editor.getByRole("option", { name: /^Momo in Appetisers/ })
+      editor.getByRole("option", { name: /^Momo\s*Appetisers/ })
     ).toBeVisible()
     await staff.keyboard.press("Escape")
   })
@@ -76,20 +71,16 @@ test("menus.unavailable-items: an archived item is no longer offered to staff", 
   ).toBe("t")
 
   await test.step("after: Momo is not offered", async () => {
-    const { editor } = await openOwnLabelEditor(
-      staff,
-      "Photo",
-      `${prefix}-01.jpg`
+    const { editor } = await openOwnLabelEditor(staff, `${prefix}-01.jpg`)
+    await editor.getByRole("combobox", { name: /^Menu item at / }).fill("Momo")
+    const matches = editor.getByRole("listbox", {
+      name: "Matching menu items",
+    })
+    await expect(matches).toBeVisible()
+    await expect(matches).toContainText(
+      `Nothing on ${world.venue1.name}'s menu matches "Momo".`
     )
-    await editor
-      .getByRole("combobox", { name: /^Search the menu/ })
-      .fill("Momo")
-    await expect(
-      editor.getByText("No menu items match", { exact: false }).first()
-    ).toBeVisible()
-    await expect(
-      editor.getByRole("option", { name: /^Momo in Appetisers/ })
-    ).toHaveCount(0)
+    await expect(matches.getByRole("option")).toHaveCount(0)
     await attachShot(testInfo, "archived-item-not-offered", staff)
   })
 })
@@ -103,8 +94,8 @@ test("menus.unavailable-items: an item archived while staff edit is flagged and 
   await seedReadyAssets(world.staffA.id, world.venue1.id, 1, "image", prefix)
   const fileName = `${prefix}-01.jpg`
   const staff = await signedInPage(browser, world.staffA)
-  const { viewer, editor } = await openOwnLabelEditor(staff, "Photo", fileName)
-  await pickMenuItem(editor, "Momo", /^Momo in Appetisers/)
+  const { viewer, editor } = await openOwnLabelEditor(staff, fileName)
+  await pickMenuItem(editor, "Momo", /^Momo\s*Appetisers/)
   await editor
     .getByRole("group", { name: /^Which Momo\?/ })
     .getByRole("button", { name: "Not specified" })
@@ -144,7 +135,6 @@ test("menus.unavailable-items: Item not on the menu? reaches the venue's Menus p
   await test.step("staff suggests an item that is not on the menu", async () => {
     const { viewer, editor } = await openOwnLabelEditor(
       staff,
-      "Photo",
       `${prefix}-01.jpg`
     )
     await editor.getByRole("button", { name: "Item not on the menu?" }).click()
@@ -161,8 +151,8 @@ test("menus.unavailable-items: Item not on the menu? reaches the venue's Menus p
   await test.step("the suggestion is on the venue's Menus page", async () => {
     await openVenueMenus(admin, world.venue1)
     await expect(
-      admin.getByRole("heading", { name: "Missing-item suggestions (1 open)" })
-    ).toBeVisible()
+      admin.getByRole("region", { name: "Missing-item suggestions" })
+    ).toContainText("1 · typed by staff while labelling")
     const list = admin.getByRole("list", { name: "Missing-item suggestions" })
     await expect(list).toContainText(missing)
     await expect(list).toContainText(`Suggested by ${world.staffA.name}`)
@@ -171,6 +161,11 @@ test("menus.unavailable-items: Item not on the menu? reaches the venue's Menus p
 
   await test.step("the admin links it to a menu item and it resolves", async () => {
     const list = admin.getByRole("list", { name: "Missing-item suggestions" })
+    const link = list.getByRole("button", {
+      name: `Link to an item: “${missing}”`,
+    })
+    // The first press opens the item picker; the second links.
+    await link.click()
     await list
       .getByRole("combobox", { name: `Menu item for “${missing}”` })
       .click()
@@ -178,12 +173,10 @@ test("menus.unavailable-items: Item not on the menu? reaches the venue's Menus p
       .getByRole("option", { name: /^Lamb Chops/ })
       .first()
       .click()
-    await list
-      .getByRole("button", { name: `Link to item: “${missing}”` })
-      .click()
+    await link.click()
     await expect(
-      admin.getByRole("heading", { name: "Missing-item suggestions (0 open)" })
-    ).toBeVisible()
+      admin.getByRole("region", { name: "Missing-item suggestions" })
+    ).toContainText("0 · typed by staff while labelling")
     expect(
       psql(
         `select status from public.menu_item_suggestions where suggested_name = ${sql(missing)}`

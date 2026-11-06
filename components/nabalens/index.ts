@@ -8,6 +8,8 @@ export { StaffStatusBadge } from "./staff-status-badge"
 export { MediaTile } from "./media-tile"
 export { MediaGrid, MediaGridSkeleton } from "./media-grid"
 export { EmptyState, STAFF_EMPTY_COPY } from "./empty-state"
+export { ErrorState, ERROR_COPY } from "./error-state"
+export { PageHeader } from "./page-header"
 export { LoadMoreButton } from "./load-more-button"
 export { MediaViewer, PREVIEW_UNAVAILABLE } from "./media-viewer"
 export { UploadDialog } from "./upload-dialog"
@@ -20,6 +22,7 @@ export {
 export {
   ConfirmDeleteDialog,
   DELETE_CONFIRM_COPY,
+  type DeleteImpact,
 } from "./confirm-delete-dialog"
 export {
   LibraryFilters,

@@ -12,9 +12,29 @@ import {
 import { cn } from "@/lib/utils"
 
 import { formatDate, formatDuration, UPLOAD_STATE_LABEL } from "./format"
-import { LabelBadge, labelBadgeText } from "./labels"
+import { labelBadgeText } from "./labels"
 import type { MediaItem } from "./types"
-import { UploadStateBadge } from "./upload-state-badge"
+
+/** A small badge over a photo: the photo, not the theme, is behind it. */
+export function TileBadge({
+  children,
+  className,
+}: {
+  children: React.ReactNode
+  className?: string
+}) {
+  return (
+    <span
+      data-slot="tile-badge"
+      className={cn(
+        "inline-flex min-h-[22px] items-center gap-1 rounded-chip bg-tile-badge px-[7px] text-chip-touch whitespace-nowrap text-on-tile-badge tabular-nums backdrop-blur-[6px] wdth-92 md:text-chip [&_svg]:size-[13px]",
+        className
+      )}
+    >
+      {children}
+    </span>
+  )
+}
 
 type MediaTileProps = {
   item: MediaItem
@@ -23,17 +43,29 @@ type MediaTileProps = {
   showAttribution?: boolean
   /** v0.3: small "Needs labels" / "N labels" badge on ready tiles. */
   showLabelBadge?: boolean
+  /** Admin views only: staff and managers never see original file names. */
+  showFileName?: boolean
   className?: string
 }
 
 function describe(
   item: MediaItem,
   showAttribution: boolean,
+  showFileName: boolean,
   labelText: string | null
 ) {
-  const parts = [item.mediaType === "video" ? "Video" : "Photo"]
-  if (item.originalFilename !== null) parts.push(item.originalFilename)
-  if (showAttribution) parts.push(`by ${item.contributorName}`, item.venueName)
+  const kind = item.mediaType === "video" ? "Video" : "Photo"
+  const parts: string[] = []
+  if (showFileName) {
+    parts.push(kind)
+    if (item.originalFilename !== null) parts.push(item.originalFilename)
+    if (showAttribution)
+      parts.push(`by ${item.contributorName}`, item.venueName)
+  } else if (showAttribution) {
+    parts.push(`${kind} by ${item.contributorName}`, item.venueName)
+  } else {
+    parts.push(kind)
+  }
   parts.push(`uploaded ${formatDate(item.createdAt)}`)
   if (item.uploadState !== "ready")
     parts.push(UPLOAD_STATE_LABEL[item.uploadState])
@@ -54,6 +86,7 @@ export function MediaTile({
   onOpen,
   showAttribution = false,
   showLabelBadge = false,
+  showFileName = false,
   className,
 }: MediaTileProps) {
   const labelText =
@@ -66,7 +99,8 @@ export function MediaTile({
 
   return (
     <figure
-      className={cn("group/tile flex min-w-0 flex-col gap-1.5", className)}
+      data-state={item.uploadState}
+      className={cn("group/tile grid min-w-0 content-start gap-1.5", className)}
     >
       {/* The labels badge sits outside the button (aria-hidden; its text is
           already in the button's name) so the button's visible text stays a
@@ -75,8 +109,13 @@ export function MediaTile({
         <button
           type="button"
           onClick={() => onOpen(item)}
-          aria-label={describe(item, showAttribution, labelText)}
-          className="relative block aspect-square w-full overflow-hidden rounded-md bg-media-placeholder outline-none focus-visible:ring-3 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          data-media-id={item.id}
+          aria-label={describe(item, showAttribution, showFileName, labelText)}
+          className={cn(
+            "relative block aspect-square w-full overflow-hidden rounded-print bg-media-placeholder outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid",
+            item.uploadState === "failed" &&
+              "shadow-[inset_0_0_0_2px_var(--negative)]"
+          )}
         >
           {showThumb ? (
             // Signed private URLs: deliberately not routed through next/image so
@@ -88,42 +127,49 @@ export function MediaTile({
               loading="lazy"
               decoding="async"
               onError={() => setFailedUrl(item.thumbnailUrl)}
-              className="size-full object-cover transition-transform duration-200 group-hover/tile:scale-[1.02] motion-reduce:transition-none"
+              className="absolute inset-0 size-full object-cover"
             />
           ) : (
-            <span className="flex size-full items-center justify-center text-muted-foreground">
+            <span className="absolute inset-0 grid place-items-center text-ink-muted">
               {item.uploadState === "uploading" ||
               item.uploadState === "processing" ? (
                 <SpinnerGapIcon
-                  className="size-6 motion-safe:animate-spin"
+                  className="size-7 motion-safe:animate-spin"
                   aria-hidden
                 />
               ) : item.uploadState === "failed" ? (
                 <WarningCircleIcon
-                  className="size-6 text-negative"
+                  className="size-7 text-negative"
                   aria-hidden
                 />
               ) : // No video poster frames (no transcoding); a neutral video tile.
               item.mediaType === "video" ? (
-                <FilmStripIcon className="size-8" aria-hidden />
+                <FilmStripIcon className="size-7" aria-hidden />
               ) : (
-                <ImageIcon className="size-6" aria-hidden />
+                <ImageIcon className="size-7" aria-hidden />
               )}
             </span>
           )}
           {item.mediaType === "video" ? (
-            <span className="absolute right-1.5 bottom-1.5 inline-flex h-5 items-center gap-1 rounded-sm bg-black/70 px-1.5 text-xs font-medium text-white tabular-nums">
-              <PlayIcon weight="fill" className="size-3" aria-hidden />
+            <TileBadge className="pointer-events-none absolute right-1.5 bottom-1.5">
+              <PlayIcon aria-hidden />
               {item.durationSeconds
                 ? formatDuration(item.durationSeconds)
                 : "Video"}
-            </span>
+            </TileBadge>
           ) : null}
           {item.uploadState !== "ready" ? (
-            <UploadStateBadge
-              state={item.uploadState}
-              className="absolute top-1.5 left-1.5"
-            />
+            <TileBadge className="pointer-events-none absolute top-1.5 left-1.5">
+              {item.uploadState === "processing" ? (
+                <SpinnerGapIcon
+                  aria-hidden
+                  className="motion-safe:animate-spin"
+                />
+              ) : item.uploadState === "failed" ? (
+                <WarningCircleIcon aria-hidden />
+              ) : null}
+              {UPLOAD_STATE_LABEL[item.uploadState]}
+            </TileBadge>
           ) : null}
         </button>
         {item.uploadState === "ready" && labelText ? (
@@ -131,16 +177,16 @@ export function MediaTile({
             aria-hidden
             className="pointer-events-none absolute top-1.5 left-1.5"
           >
-            <LabelBadge labels={item.labels} />
+            <TileBadge>{labelText}</TileBadge>
           </span>
         ) : null}
       </div>
       {showAttribution ? (
-        <figcaption className="min-w-0 px-0.5 text-xs leading-snug">
-          <span className="block truncate font-medium text-foreground">
+        <figcaption className="grid min-w-0 px-px">
+          <span className="truncate text-meta-touch font-semibold text-ink md:text-meta-strong">
             {item.contributorName}
           </span>
-          <span className="block truncate text-muted-foreground">
+          <span className="truncate text-meta-touch text-ink-muted md:text-caption">
             {item.venueName} · {formatDate(item.createdAt)}
           </span>
         </figcaption>

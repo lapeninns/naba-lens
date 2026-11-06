@@ -1,8 +1,7 @@
 # Reproducible CI
 
-The fixture gate is `.github/workflows/ci.yml`; the shared implementation is
-`scripts/ci/local-ci.sh`. No remote is configured yet, so the workflow has not
-executed on GitHub. It neither deploys nor links to a hosted Supabase project.
+The fixture gate in `.github/workflows/ci.yml` runs `scripts/ci/local-ci.sh`
+against disposable local Supabase stacks.
 
 ## Tools and execution
 
@@ -35,9 +34,10 @@ CI_BROWSER=webkit bash scripts/ci/local-ci.sh
 
 On Linux use `pnpm exec playwright install --with-deps chromium` (or the selected
 browser) to install operating-system dependencies. Do not run these commands
-against staging or production. Local runs default to Chromium. GitHub runs
-Chromium, Firefox and WebKit on separate Ubuntu 24.04 runners with `fail-fast:
-false`; each lane executes the same full gate. `CI result` requires all three.
+against staging or production. Local single-lane runs default to the full
+Chromium suite. GitHub runs two Chromium shards, Firefox and WebKit on
+separate Ubuntu 24.04 runners. Each lane executes the full fixture gate,
+with its assigned browser cases. `CI result` requires all four lanes.
 The workflow uses read-only repository permission and does not persist checkout
 credentials. Actions are pinned to commit SHAs.
 
@@ -47,8 +47,11 @@ stack, runs integration, lifecycle and security suites, and executes Playwright.
 The CI-owned Playwright wrapper (`scripts/ci/playwright.config.ts`) reuses the
 root config's projects unchanged and keeps only those for the requested engine:
 Chromium runs `chromium` (every spec, 1280×800) and `mobile-chromium` (Pixel 7:
-the `@core` journey plus auth, slice, staff-accounts, library and gaps); Firefox
-and WebKit run the `@core` journey. `run-suites.mjs` passes the CI stack as
+the `@core` journey plus auth, slice, staff-accounts, library, gaps and
+menus-labels). Firefox
+and WebKit run the `@core` journey. `CI_PLAYWRIGHT_SHARD=1/2` and `2/2`
+partition both Chromium projects and keep each project's test files whole.
+`run-suites.mjs` passes the CI stack as
 `E2E_SUPABASE_WORKDIR`, and `prepare-stack.mjs` points its Auth Site URL at the
 e2e server (`E2E_PORT`, default 3457). One worker and zero retries. Phone viewport tests do not certify physical devices, camera selection,
 background transfer behavior or actual phone HEIC files.
@@ -61,6 +64,19 @@ that can satisfy CI. The workflow uploads root `test-results/` and
 `playwright-report/` on failure with seven-day retention. Traces can contain
 fixture session tokens and fixture media: keep artifact access restricted to
 repository collaborators and never add real staff or customer data to fixtures.
+
+For a concurrent Mac run of the same four lanes from a committed tree:
+
+```sh
+pnpm exec playwright install chromium firefox webkit
+bash scripts/ci/local-matrix.sh HEAD
+```
+
+The launcher gives each lane a copy of the same commit, its own build and
+browser artifacts, and a disposable Supabase stack and app port. It prints the
+private evidence directory and returns nonzero if any lane fails. The shared
+`lci` runner continues to provide its existing serial gate and GitHub status
+reporting.
 
 ## Stack isolation and credentials
 

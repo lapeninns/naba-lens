@@ -4,13 +4,11 @@ import * as React from "react"
 import {
   ArrowClockwiseIcon,
   CaretDownIcon,
-  CheckCircleIcon,
   FilmStripIcon,
   ImageIcon,
-  WarningCircleIcon,
 } from "@phosphor-icons/react"
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Notice } from "@/components/nabalens/notice"
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -38,6 +36,7 @@ import {
 } from "@/lib/menus/types"
 import { cn } from "@/lib/utils"
 
+import { formatTime } from "../format"
 import { buildCatalogueIndex } from "./catalogue-search"
 import {
   EMPTY_COMMON,
@@ -60,16 +59,14 @@ import {
   type FileAdjust,
   type FileStatus,
 } from "./label-draft"
+import { FIELD_HINT } from "./field-styles"
 import { LabelFields } from "./label-fields"
 import { LabelSummary } from "./label-summary"
-import type { LabelEditorDialogProps } from "./types"
+import type { LabelAudience, LabelEditorDialogProps } from "./types"
 
 /** The merge rule, stated where the common selection is edited. */
 export const BATCH_MERGE_RULE =
   "Each file keeps the labels it already has and gets everything chosen here. To leave something off one file, open that file below and remove it there. A note written for one file replaces the common note for that file."
-
-const NETWORK_ERROR =
-  "Labels could not be saved. Check your connection and try again. Your changes are still here."
 
 type FileState = {
   base: MediaLabelSummary
@@ -93,7 +90,7 @@ function Thumb({ asset }: { asset: LabelEditorAsset }) {
   const [failed, setFailed] = React.useState(false)
   const Icon = asset.mediaType === "video" ? FilmStripIcon : ImageIcon
   return (
-    <span className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-md bg-media-placeholder text-muted-foreground">
+    <span className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-print bg-media-placeholder text-ink-muted">
       {asset.thumbnailUrl && !failed ? (
         // Signed private URL; not routed through next/image (see MediaTile).
         // eslint-disable-next-line @next/next/no-img-element
@@ -110,6 +107,13 @@ function Thumb({ asset }: { asset: LabelEditorAsset }) {
   )
 }
 
+/** "photo", "video" or "file" for what the assets are. */
+function nounFor(assets: LabelEditorAsset[]) {
+  if (assets.every((a) => a.mediaType === "image")) return "photo"
+  if (assets.every((a) => a.mediaType === "video")) return "video"
+  return "file"
+}
+
 function countText(eff: EffectiveLabels) {
   const parts = []
   if (eff.items.length)
@@ -124,8 +128,18 @@ function countText(eff: EffectiveLabels) {
   return parts.length ? parts.join(" · ") : "No labels"
 }
 
+function conflictText(audience: LabelAudience, current?: MediaLabelSummary) {
+  if (audience === "staff")
+    return "An admin changed these labels a moment ago. Their labels are shown; check them, then save."
+  const at = current?.updatedAt ? new Date(current.updatedAt) : null
+  const when =
+    at && !Number.isNaN(at.getTime()) ? `at ${formatTime(at)}` : "a moment ago"
+  return `Someone else changed these labels ${when}. The latest labels are shown; check them and save again if you still need to.`
+}
+
 function FileProblem({
   id,
+  audience,
   status,
   problem,
   unavailableCount,
@@ -136,6 +150,7 @@ function FileProblem({
   onReloadMenu,
 }: {
   id: string
+  audience: LabelAudience
   status: FileStatus
   problem: string | null
   unavailableCount: number
@@ -145,73 +160,67 @@ function FileProblem({
   onRemoveUnavailable: () => void
   onReloadMenu: () => void
 }) {
+  // Focus moves to these notices and the editor's status line announces the
+  // outcome, so they are not live regions themselves (no double announcement).
   if (status.kind === "adopted") {
     return (
-      <p
-        id={id}
-        tabIndex={-1}
-        className="flex items-start gap-2 rounded-md border border-positive/40 bg-positive-surface px-3 py-2 text-sm outline-none"
-      >
-        <CheckCircleIcon
-          className="mt-0.5 size-4 shrink-0 text-positive"
-          aria-hidden
-        />
+      <Notice id={id} tabIndex={-1} tone="positive" role="none">
         Using the labels that are saved now. Nothing to save for this file
         unless you change it again.
-      </p>
+      </Notice>
     )
   }
   if (status.kind !== "error" && !problem) return null
 
+  if (!problem && status.kind === "error" && status.code === "conflict") {
+    return (
+      <Notice id={id} tabIndex={-1} tone="attention" role="none">
+        <div className="grid gap-3">
+          <p>{conflictText(audience, status.current)}</p>
+          {status.current ? (
+            <>
+              <div className="rounded-control bg-panel p-3">
+                <p className="mb-1 text-meta-strong text-ink-muted">
+                  Saved now
+                </p>
+                <LabelSummary labels={status.current} />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={onAdopt}
+                  disabled={pending}
+                >
+                  Use the saved labels
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={onReapply}
+                  disabled={pending}
+                >
+                  Keep my changes on top
+                </Button>
+              </div>
+            </>
+          ) : null}
+        </div>
+      </Notice>
+    )
+  }
+
   let title = "Labels not saved"
   let body: React.ReactNode = null
-  let actions: React.ReactNode = null
+  let action: React.ReactNode = null
   if (problem) {
     title = "Too many labels for this file"
     body = problem
   } else if (status.kind === "error") {
     body = status.message
-    if (status.code === "conflict") {
-      title = "Someone else changed these labels"
-      body = (
-        <>
-          <p>
-            They were changed after you opened this. Choose which labels to
-            keep.
-          </p>
-          {status.current ? (
-            <div className="mt-2 rounded-md border bg-background p-2">
-              <p className="mb-1 text-xs font-medium text-muted-foreground">
-                Saved now
-              </p>
-              <LabelSummary labels={status.current} />
-            </div>
-          ) : null}
-        </>
-      )
-      actions = status.current ? (
-        <>
-          <Button
-            type="button"
-            variant="outline"
-            size="touch"
-            onClick={onAdopt}
-            disabled={pending}
-          >
-            Use the saved labels
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="touch"
-            onClick={onReapply}
-            disabled={pending}
-          >
-            Keep my changes on top
-          </Button>
-        </>
-      ) : null
-    } else if (status.code === "unavailable_items") {
+    if (status.code === "unavailable_items") {
       title = "Some menu items are no longer available"
       body = (
         <>
@@ -219,12 +228,12 @@ function FileProblem({
           <p>Remove the highlighted menu items, then save again.</p>
         </>
       )
-      actions =
+      action =
         unavailableCount > 0 ? (
           <Button
             type="button"
-            variant="outline"
-            size="touch"
+            variant="secondary"
+            size="sm"
             onClick={onRemoveUnavailable}
             disabled={pending}
           >
@@ -235,11 +244,11 @@ function FileProblem({
       title = "The menu for this venue was updated while you were editing"
       body =
         "Your changes are kept. Check the menu items you picked against the updated menu, then save again."
-      actions = (
+      action = (
         <Button
           type="button"
-          variant="outline"
-          size="touch"
+          variant="secondary"
+          size="sm"
           onClick={onReloadMenu}
           disabled={pending}
         >
@@ -251,25 +260,14 @@ function FileProblem({
   }
 
   return (
-    <div
-      id={id}
-      tabIndex={-1}
-      className="grid gap-2 rounded-md border border-negative/50 bg-negative-surface px-3 py-2 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-    >
-      <p className="flex items-start gap-2 font-medium">
-        <WarningCircleIcon
-          className="mt-0.5 size-4 shrink-0 text-negative"
-          aria-hidden
-        />
-        {title}
-      </p>
+    <Notice id={id} tabIndex={-1} tone="negative" title={title} action={action}>
       <div className="grid gap-1">{body}</div>
-      {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
-    </div>
+    </Notice>
   )
 }
 
 function LabelEditor({
+  audience = "staff",
   onOpenChange,
   assets,
   catalogue,
@@ -294,7 +292,7 @@ function LabelEditor({
   const [expanded, setExpanded] = React.useState<string[]>([])
   const [problems, setProblems] = React.useState<Record<string, string>>({})
   const [pending, setPending] = React.useState(false)
-  const [networkError, setNetworkError] = React.useState<string | null>(null)
+  const [networkError, setNetworkError] = React.useState(false)
   const [announcement, setAnnouncement] = React.useState("")
   const [confirmOpen, setConfirmOpen] = React.useState(false)
   const [focusTarget, setFocusTarget] = React.useState<{ id: string } | null>(
@@ -440,7 +438,7 @@ function LabelEditor({
 
   async function save() {
     if (pending) return
-    setNetworkError(null)
+    setNetworkError(false)
 
     const nextProblems: Record<string, string> = {}
     for (const id of dirtyIds) {
@@ -478,7 +476,7 @@ function LabelEditor({
       if (!Array.isArray(results)) throw new Error("No results")
     } catch {
       setPending(false)
-      setNetworkError(NETWORK_ERROR)
+      setNetworkError(true)
       setAnnouncement("")
       setFocusTarget({ id: ids.network })
       return
@@ -559,17 +557,28 @@ function LabelEditor({
   // Render
   // -------------------------------------------------------------------------
 
-  const allNew = assets.every(
-    (a) => !a.labels.hasLabels && a.labels.revision === 0
-  )
-  const heading =
-    title ??
-    (batch
-      ? "Label these files"
-      : assets[0].labels.hasLabels
-        ? "Edit labels"
-        : "Add labels")
-  const dismissText = cancelLabel ?? (allNew ? "Skip for now" : "Cancel")
+  const noun = nounFor(assets)
+  const nouns = `${noun}s`
+  const heading = title ?? (audience === "admin" ? "Edit labels" : "Labels")
+  const dismissText = cancelLabel ?? "Cancel"
+
+  /** How a file is named on screen: staff never see original file names. */
+  function fileLabel(asset: LabelEditorAsset) {
+    if (audience === "admin") return asset.originalFilename
+    const n = assets.indexOf(asset) + 1
+    return `${asset.mediaType === "video" ? "Video" : "Photo"} ${n}`
+  }
+  /** The same name inside a sentence ("for photo 2", "for IMG_2041.HEIC"). */
+  function fileRef(asset: LabelEditorAsset) {
+    return audience === "admin"
+      ? asset.originalFilename
+      : fileLabel(asset).toLowerCase()
+  }
+
+  const menusHref =
+    audience === "admin"
+      ? `/admin/menus/${encodeURIComponent(assets[0].venueId)}`
+      : undefined
 
   function fileFields(asset: LabelEditorAsset, scope: "single" | "file") {
     const f = files[asset.id]
@@ -577,8 +586,11 @@ function LabelEditor({
     return (
       <LabelFields
         scope={scope}
-        fileName={asset.originalFilename}
+        audience={audience}
+        fileName={fileRef(asset)}
+        mediaNoun={asset.mediaType === "video" ? "video" : "photo"}
         venueName={venueName}
+        menusHref={menusHref}
         catalogue={catalogue}
         index={index}
         items={eff.items}
@@ -616,6 +628,7 @@ function LabelEditor({
     return (
       <FileProblem
         id={ids.problem(asset.id)}
+        audience={audience}
         status={f.status}
         problem={
           problems[asset.id] && limitProblem(eff) ? problems[asset.id] : null
@@ -644,11 +657,19 @@ function LabelEditor({
     removedCommon: [],
   }
 
-  const saveText = pending
-    ? "Saving…"
-    : batch && dirtyIds.length > 0
-      ? `Save labels for ${dirtyIds.length} ${dirtyIds.length === 1 ? "file" : "files"}`
-      : "Save labels"
+  const single = assets[0]
+  const singleTitle =
+    audience === "admin"
+      ? single.mediaType === "video"
+        ? "Video"
+        : "Photo"
+      : single.mediaType === "video"
+        ? "Your video"
+        : "Your photo"
+  const singleMeta =
+    audience === "admin"
+      ? `${venueName} · ${single.originalFilename}`
+      : venueName
 
   return (
     <Dialog
@@ -657,7 +678,12 @@ function LabelEditor({
         if (!next) requestClose()
       }}
     >
-      <DialogContent className="max-h-[calc(100svh-1rem)] gap-0 overflow-y-auto p-0 sm:max-w-lg">
+      <DialogContent
+        className={cn(
+          "gap-0 p-0 pt-3 pb-0 md:p-0",
+          audience === "admin" && "md:max-w-(--size-dialog-wide)"
+        )}
+      >
         <form
           noValidate
           onSubmit={(e) => {
@@ -669,73 +695,75 @@ function LabelEditor({
           }}
           className="grid min-w-0 grid-cols-[minmax(0,1fr)]"
         >
-          <div className="grid min-w-0 gap-5 p-4">
-            <DialogHeader className="pr-10">
+          <div className="grid min-w-0 gap-4 px-4 pt-1 pb-4 md:px-5 md:pt-5 md:pb-5">
+            <DialogHeader>
               <DialogTitle>{heading}</DialogTitle>
-              <DialogDescription>
-                Optional. Labels help find {batch ? "these files" : "this file"}{" "}
-                later. Menu items come from the menu of {venueName}.
+              <DialogDescription className="sr-only">
+                {`Optional. Labels help find ${batch ? `these ${nouns}` : `this ${noun}`} later.`}
               </DialogDescription>
             </DialogHeader>
 
-            {!batch ? (
-              <div className="flex min-w-0 items-center gap-3">
-                <Thumb asset={assets[0]} />
-                <p className="min-w-0 truncate text-sm font-medium">
-                  {assets[0].originalFilename}
-                </p>
-              </div>
+            {networkError ? (
+              <Notice
+                tone="negative"
+                id={ids.network}
+                tabIndex={-1}
+                title="The labels couldn't be saved"
+              >
+                Your choices are still here. Check your connection and try
+                again.
+              </Notice>
             ) : null}
 
             {catalogue.state === "error" ? (
-              <Alert variant="destructive">
-                <AlertTitle>The menu could not be loaded</AlertTitle>
-                <AlertDescription>
-                  <p>{catalogue.message}</p>
-                  <p>Your choices so far are kept.</p>
-                </AlertDescription>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="touch"
-                  className="mt-2 w-fit"
-                  onClick={onRetryCatalogue}
-                >
-                  <ArrowClockwiseIcon data-icon="inline-start" aria-hidden />
-                  Retry loading the menu
-                </Button>
-              </Alert>
-            ) : null}
-
-            {networkError ? (
-              <Alert
-                variant="destructive"
-                id={ids.network}
-                tabIndex={-1}
-                className="outline-none"
+              <Notice
+                tone="negative"
+                title="The menu couldn't be loaded"
+                action={
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={onRetryCatalogue}
+                  >
+                    <ArrowClockwiseIcon data-icon="inline-start" aria-hidden />
+                    Retry loading the menu
+                  </Button>
+                }
               >
-                <WarningCircleIcon aria-hidden />
-                <AlertDescription>{networkError}</AlertDescription>
-              </Alert>
+                <p>{catalogue.message}</p>
+                <p>Your choices so far are kept.</p>
+              </Notice>
             ) : null}
 
             {batch ? (
               <>
                 <section
                   aria-labelledby={`${uid}-common`}
-                  className="grid gap-4 rounded-lg border p-3"
+                  className="grid gap-4"
                 >
+                  <h3 id={`${uid}-common`} className="sr-only">
+                    {`Common to all ${assets.length} ${nouns}`}
+                  </h3>
+                  <ul aria-hidden="true" className="flex flex-wrap gap-2">
+                    {assets.map((asset) => (
+                      <li key={asset.id}>
+                        <Thumb asset={asset} />
+                      </li>
+                    ))}
+                  </ul>
                   <div className="grid gap-1">
-                    <h3 id={`${uid}-common`} className="font-medium">
-                      Common to all {assets.length} files
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      {BATCH_MERGE_RULE}
+                    <p className="text-body-touch text-ink-muted md:text-body-sm">
+                      {`These labels go on all ${assets.length} ${nouns}. You can change one ${noun}'s labels later from the ${noun} itself.`}
                     </p>
+                    <p className={FIELD_HINT}>{BATCH_MERGE_RULE}</p>
                   </div>
                   <LabelFields
                     scope="common"
+                    audience={audience}
+                    mediaNoun={noun}
                     venueName={venueName}
+                    menusHref={menusHref}
                     catalogue={catalogue}
                     index={index}
                     items={commonEff.items}
@@ -755,14 +783,20 @@ function LabelEditor({
                   className="grid gap-2"
                 >
                   <div className="grid gap-1">
-                    <h3 id={`${uid}-files`} className="font-medium">
-                      Each file
+                    <h3
+                      id={`${uid}-files`}
+                      className="text-label-touch text-ink md:text-label"
+                    >
+                      {`Each ${noun}`}
                     </h3>
-                    <p className="text-sm text-muted-foreground">
-                      Open a file to add or remove labels for that file only.
+                    <p className={FIELD_HINT}>
+                      {`Open a ${noun} to add or remove labels for that ${noun} only.`}
                     </p>
                   </div>
-                  <ul aria-label="Files" className="divide-y rounded-lg border">
+                  <ul
+                    aria-label={`${noun[0].toUpperCase()}${nouns.slice(1)}`}
+                    className="divide-y divide-line rounded-control border border-line"
+                  >
                     {assets.map((asset) => {
                       const f = files[asset.id]
                       const eff = effective[asset.id]
@@ -776,12 +810,12 @@ function LabelEditor({
                           <div className="flex min-w-0 items-center gap-3">
                             <Thumb asset={asset} />
                             <div className="min-w-0 flex-1">
-                              <p className="truncate text-sm font-medium">
-                                {asset.originalFilename}
+                              <p className="truncate text-label-touch text-ink md:text-label">
+                                {fileLabel(asset)}
                               </p>
                               <p
                                 className={cn(
-                                  "text-xs text-muted-foreground",
+                                  "text-meta-touch text-ink-muted md:text-meta",
                                   hasProblem && "text-negative",
                                   f.status.kind === "saved" &&
                                     !dirty &&
@@ -798,11 +832,11 @@ function LabelEditor({
                             </div>
                             <Button
                               type="button"
-                              variant="outline"
-                              size="touch"
+                              variant="secondary"
+                              size="sm"
                               aria-expanded={isOpen}
                               aria-controls={ids.panel(asset.id)}
-                              aria-label={`Adjust labels for ${asset.originalFilename}`}
+                              aria-label={`Adjust labels for ${fileRef(asset)}`}
                               aria-describedby={
                                 hasProblem ? ids.problem(asset.id) : undefined
                               }
@@ -829,7 +863,7 @@ function LabelEditor({
                           <div
                             id={ids.panel(asset.id)}
                             hidden={!isOpen}
-                            className="grid gap-4 border-t pt-3"
+                            className="grid gap-4 border-t border-line pt-3"
                           >
                             {isOpen ? fileFields(asset, "file") : null}
                           </div>
@@ -841,8 +875,19 @@ function LabelEditor({
               </>
             ) : (
               <>
-                {problemBlock(assets[0])}
-                {fileFields(assets[0], "single")}
+                {problemBlock(single)}
+                <div className="flex min-w-0 items-center gap-3">
+                  <Thumb asset={single} />
+                  <p className="min-w-0 text-body-touch md:text-body-sm">
+                    <span className="block font-semibold text-ink">
+                      {singleTitle}
+                    </span>
+                    <span className="block truncate text-ink-muted">
+                      {singleMeta}
+                    </span>
+                  </p>
+                </div>
+                {fileFields(single, "single")}
               </>
             )}
 
@@ -850,16 +895,16 @@ function LabelEditor({
               id={ids.status}
               role="status"
               aria-live="polite"
-              className="text-sm font-medium empty:hidden"
+              className="text-body-touch font-semibold text-ink empty:hidden md:text-body-sm"
             >
               {announcement}
             </p>
           </div>
 
-          <DialogFooter className="sticky bottom-0 mx-0 mb-0 bg-popover">
+          <DialogFooter className="sticky bottom-0 mx-0 mb-0 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] md:mx-0 md:mb-0 md:pb-4">
             <Button
               type="button"
-              variant="outline"
+              variant="secondary"
               size="touch"
               onClick={requestClose}
               disabled={pending}
@@ -873,7 +918,7 @@ function LabelEditor({
               disabled={pending || catalogue.state === "loading"}
               aria-busy={pending || catalogue.state === "loading"}
             >
-              {saveText}
+              {pending ? "Saving…" : "Save labels"}
             </Button>
           </DialogFooter>
         </form>
@@ -884,16 +929,16 @@ function LabelEditor({
               <AlertDialogTitle>Discard label changes?</AlertDialogTitle>
               <AlertDialogDescription>
                 {dirtyIds.length > 1
-                  ? `Labels for ${dirtyIds.length} files have not been saved.`
+                  ? `Labels for ${dirtyIds.length} ${nouns} have not been saved.`
                   : "Your label changes have not been saved."}{" "}
-                The files themselves stay uploaded either way.
+                {`The ${batch ? nouns : noun} ${batch ? "stay" : "stays"} uploaded either way.`}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel size="touch">Keep editing</AlertDialogCancel>
               <Button
                 type="button"
-                variant="destructive"
+                variant="danger"
                 size="touch"
                 onClick={() => {
                   setConfirmOpen(false)

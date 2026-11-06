@@ -102,92 +102,134 @@ describe("MenuDiffView", () => {
       <MenuDiffView diff={diff} document={doc} labelCounts={{ "i-stew": 3 }} />
     )
     const count = (label: string) =>
-      screen.getByTestId(`diff-count-${label}`).querySelector("dd")?.textContent
-    expect(count("added")).toBe("1")
-    expect(count("changed")).toBe("1")
-    expect(count("removed")).toBe("1")
-    expect(count("uncertain")).toBe("2")
-    expect(count("unchanged")).toBe("40")
+      screen.getByTestId(`diff-count-${label}`).textContent
+    expect(count("added")).toBe("+ 1 added")
+    expect(count("changed")).toBe("~ 1 changed")
+    expect(count("removed")).toBe("− 1 removed")
+    expect(count("uncertain")).toBe("2 uncertain")
+    expect(count("unchanged")).toBe("40 unchanged")
 
-    const changed = screen.getByRole("region", { name: "Changed (1)" })
+    const changed = screen.getByRole("region", { name: "Changed" })
     const text = changed.textContent?.replace(/\s+/g, " ")
-    expect(text).toContain("Name: Curry → changed to Lamb curry")
-    expect(text).toContain("Variants: Veg → changed to Veg, Lamb")
+    expect(text).toContain("Name Curry changed to Lamb curry")
+    expect(text).toContain("Variants Veg changed to Veg, Lamb")
 
-    const removed = screen.getByRole("region", { name: "Removed (1)" })
+    const removed = screen.getByRole("region", { name: "Removed" })
     expect(removed.textContent).toContain(
       "3 labelled photos/videos keep this item"
     )
-    expect(removed.textContent).toContain("The items are not deleted.")
+    expect(removed.textContent).toContain("the item is not deleted.")
   })
 
-  it("blocks activation until uncertain matches are resolved and reports decisions", async () => {
+  it("shows changed source details as reference only", () => {
+    render(
+      <MenuDiffView
+        diff={{
+          ...diff,
+          changed: [
+            {
+              ...diff.changed[0],
+              fields: ["meta"],
+              before: { meta: { price: "£13.95" } },
+            },
+          ],
+        }}
+        document={{
+          ...doc,
+          sections: doc.sections.map((s) => ({
+            ...s,
+            items: s.items.map((i) => ({
+              ...i,
+              sourceMeta: { price: "£14.50" },
+            })),
+          })),
+        }}
+      />
+    )
+    const changed = screen.getByRole("region", { name: "Changed" })
+    expect(changed.textContent?.replace(/\s+/g, " ")).toContain(
+      "Source price £13.95 changed to £14.50 · kept for reference only"
+    )
+  })
+
+  it("asks for a decision on uncertain matches and reports it", async () => {
     const user = userEvent.setup()
     const onDecide = vi.fn()
     render(<MenuDiffView diff={diff} onDecide={onDecide} />)
 
-    expect(screen.getByText("2 uncertain matches to resolve")).toBeTruthy()
-    expect(
-      screen.getByText(/Activation is blocked until every uncertain match/)
-    ).toBeTruthy()
+    expect(screen.getByText("2 items · decide before activating")).toBeTruthy()
 
-    const fish = screen.getByRole("group", { name: /Fish and chips in Mains/ })
-    const confirmFish = within(fish).getByRole("button", {
-      name: "Confirm decision for Fish and chips",
-    })
-    expect(confirmFish.hasAttribute("disabled")).toBe(true)
+    const fish = screen.getByRole("group", { name: "Fish and chips in Mains" })
     await user.click(
-      within(fish).getByRole("radio", {
-        name: "Same item as “Fish and chips” (Classics)",
+      within(fish).getByRole("button", {
+        name: "Same item as Fish and chips (Classics)",
       })
     )
-    await user.click(confirmFish)
     expect(onDecide).toHaveBeenLastCalledWith("mains--fish-and-chips", {
       kind: "same",
       itemId: "i-fish",
     })
 
-    const cola = screen.getByRole("group", { name: /Cola in Drinks/ })
-    // Keyboard only: focus the radio group, arrow to "new", confirm.
+    const cola = screen.getByRole("group", { name: "Cola in Drinks" })
+    // Keyboard only.
     within(cola)
-      .getByRole("radio", { name: /Same item as “Cola”/ })
-      .focus()
-    await user.keyboard(" ")
-    await user.keyboard("{ArrowDown}")
-    expect(
-      (
-        within(cola).getByRole("radio", {
-          name: "Treat as new item",
-        }) as HTMLInputElement
-      ).checked
-    ).toBe(true)
-    within(cola)
-      .getByRole("button", { name: "Confirm decision for Cola" })
+      .getByRole("button", { name: "Treat as new item: Cola" })
       .focus()
     await user.keyboard("{Enter}")
     expect(onDecide).toHaveBeenLastCalledWith("drinks--cola", { kind: "new" })
   })
 
-  it("counts decisions as resolved", () => {
+  it("disables the choices while locked and hides them when read-only", () => {
+    const { rerender } = render(
+      <MenuDiffView diff={diff} onDecide={vi.fn()} locked />
+    )
+    const fish = screen.getByRole("group", { name: "Fish and chips in Mains" })
+    expect(fish.hasAttribute("disabled")).toBe(true)
+    rerender(<MenuDiffView diff={diff} readOnly />)
+    expect(screen.queryByRole("button", { name: /Same item as/ })).toBeNull()
+  })
+
+  it("counts decisions as resolved", async () => {
+    const user = userEvent.setup()
+    const onDecide = vi.fn()
     const decisions = {
       "mains--fish-and-chips": { kind: "same", itemId: "i-fish" } as const,
     }
     expect(countUnresolved(diff, decisions)).toBe(1)
     const { rerender } = render(
-      <MenuDiffView diff={diff} decisions={decisions} onDecide={vi.fn()} />
+      <MenuDiffView diff={diff} decisions={decisions} onDecide={onDecide} />
     )
-    expect(screen.getByText("1 uncertain match to resolve")).toBeTruthy()
+    expect(screen.getByTestId("diff-count-uncertain").textContent).toBe(
+      "1 uncertain"
+    )
     expect(
-      screen.getByText("Resolved: same item as “Fish and chips”")
+      screen.getByText(
+        "Same item as Fish and chips (Classics). Labels stay with it."
+      )
     ).toBeTruthy()
     rerender(
       <MenuDiffView
         diff={diff}
         decisions={{ ...decisions, "drinks--cola": { kind: "new" } }}
-        onDecide={vi.fn()}
+        onDecide={onDecide}
       />
     )
-    expect(screen.getByText("All uncertain matches are resolved.")).toBeTruthy()
+    expect(screen.getByTestId("diff-count-uncertain").textContent).toBe(
+      "0 uncertain"
+    )
+    expect(screen.getByText("2 decided")).toBeTruthy()
+    expect(screen.getByText("Treated as a new item in Drinks.")).toBeTruthy()
+
+    await user.click(
+      screen.getByRole("button", { name: "Change the decision for Cola" })
+    )
+    await user.click(
+      screen.getByRole("button", { name: "Same item as Cola (Soft drinks)" })
+    )
+    expect(onDecide).toHaveBeenLastCalledWith("drinks--cola", {
+      kind: "same",
+      itemId: "i-cola",
+    })
   })
 
   it("says when nothing changed", () => {

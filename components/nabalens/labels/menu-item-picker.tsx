@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 
+import { FIELD_CONTROL, FIELD_HINT, FIELD_LABEL } from "./field-styles"
 import {
   searchCatalogue,
   type CatalogueHit,
@@ -24,6 +25,12 @@ type MenuItemPickerProps = {
   disabled?: boolean
   /** Shown under the box, and linked to it (e.g. "at most 20 items"). */
   description?: React.ReactNode
+  /** Names the menu in the no-match message. */
+  venueName: string
+  /** Offered when nothing matches: name the search text as a missing item. */
+  onAddMissing?: (text: string) => void
+  /** Follows the add-missing action, saying what happens next. */
+  addMissingHint?: string
 }
 
 function toDraft(hit: CatalogueHit, variantId: string | null): DraftItem {
@@ -57,6 +64,9 @@ export function MenuItemPicker({
   onPick,
   disabled = false,
   description,
+  venueName,
+  onAddMissing,
+  addMissingHint,
 }: MenuItemPickerProps) {
   const id = React.useId()
   const inputId = `${id}-input`
@@ -137,13 +147,13 @@ export function MenuItemPicker({
     .join(" ")
 
   return (
-    <div className="grid gap-2">
-      <label htmlFor={inputId} className="text-sm font-medium">
+    <div className="grid gap-1.5">
+      <label htmlFor={inputId} className={FIELD_LABEL}>
         {label}
       </label>
       <div className="relative">
         <MagnifyingGlassIcon
-          className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+          className="pointer-events-none absolute top-1/2 left-3 size-[18px] -translate-y-1/2 text-ink-muted"
           aria-hidden
         />
         <Input
@@ -169,18 +179,18 @@ export function MenuItemPicker({
             setChoosing(null)
           }}
           onKeyDown={onKeyDown}
-          className="h-11 pl-9 sm:h-9"
+          className={cn(FIELD_CONTROL, "ps-9.5")}
         />
       </div>
       {description ? (
-        <p id={descId} className="text-sm text-muted-foreground">
+        <p id={descId} className={FIELD_HINT}>
           {description}
         </p>
       ) : null}
       <p id={`${id}-count`} className="sr-only" aria-live="polite">
         {open
           ? hits.length === 0
-            ? "No menu items match. You can suggest a missing item instead."
+            ? `Nothing on ${venueName}'s menu matches.`
             : `${hits.length} menu ${hits.length === 1 ? "item" : "items"} found`
           : ""}
       </p>
@@ -191,15 +201,14 @@ export function MenuItemPicker({
         role="listbox"
         aria-label="Matching menu items"
         hidden={!open}
-        className="max-h-72 overflow-y-auto rounded-lg border bg-background p-1"
+        className="max-h-72 overflow-y-auto rounded-control border border-line bg-panel"
       >
         {open && hits.length === 0 ? (
           <li
             role="presentation"
-            className="px-3 py-2 text-sm text-muted-foreground"
+            className="px-3 py-2.5 text-body-touch text-ink-muted md:text-body-sm"
           >
-            No menu items match “{query.trim()}”. Use “Item not on the menu?” to
-            suggest one.
+            {`Nothing on ${venueName}'s menu matches "${query.trim()}".`}
           </li>
         ) : null}
         {open
@@ -217,23 +226,23 @@ export function MenuItemPicker({
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => choose(hit)}
                   className={cn(
-                    "flex min-h-11 cursor-pointer flex-col justify-center rounded-md px-3 py-1.5 text-sm data-active:bg-muted",
-                    chosen && "cursor-default opacity-60"
+                    "flex min-h-11 cursor-pointer flex-col justify-center border-t border-line px-3 py-2 text-ink first:border-t-0 hover:bg-fill-hover data-active:bg-accent-soft",
+                    chosen && "cursor-default text-ink-muted"
                   )}
                 >
-                  <span className="font-medium">
+                  <span className="text-label-touch md:text-label">
                     {hit.item.name}
                     {chosen ? (
-                      <span className="font-normal text-muted-foreground">
+                      <span className="font-normal text-ink-muted">
                         {" "}
                         (added)
                       </span>
                     ) : null}
                   </span>
-                  <span className="text-xs text-muted-foreground">
-                    in {hit.section.name}
+                  <span className="text-meta-touch text-ink-muted md:text-meta">
+                    {hit.section.name}
                     {hit.item.variants.length > 0
-                      ? ` · ${hit.item.variants.map((v) => v.name).join(", ")}`
+                      ? " · choose a variant"
                       : null}
                     {hit.matchedAlias
                       ? ` · also called ${hit.matchedAlias}`
@@ -245,12 +254,32 @@ export function MenuItemPicker({
           : null}
       </ul>
 
+      {open && hits.length === 0 && onAddMissing ? (
+        <p className={FIELD_HINT}>
+          <Button
+            type="button"
+            variant="link"
+            className="text-meta-touch md:text-meta"
+            disabled={disabled}
+            onClick={() => {
+              const text = query.trim()
+              setQuery("")
+              setActive(-1)
+              onAddMissing(text)
+            }}
+          >
+            {`Add "${query.trim()}" as a missing item`}
+          </Button>
+          {addMissingHint ? `. ${addMissingHint}` : null}
+        </p>
+      ) : null}
+
       {choosing ? (
         <div
           ref={variantGroupRef}
           role="group"
           aria-labelledby={variantHeadingId}
-          className="grid gap-2 rounded-lg border bg-muted/40 p-3"
+          className="grid gap-2 rounded-control bg-well p-3"
           onKeyDown={(e) => {
             if (e.key === "Escape") {
               e.preventDefault()
@@ -259,11 +288,9 @@ export function MenuItemPicker({
             }
           }}
         >
-          <p id={variantHeadingId} className="text-sm">
-            <span className="font-medium">Which {choosing.item.name}?</span>{" "}
-            <span className="text-muted-foreground">
-              (in {choosing.section.name})
-            </span>
+          <p id={variantHeadingId} className="text-body-touch md:text-body-sm">
+            <span className="font-semibold">Which {choosing.item.name}?</span>{" "}
+            <span className="text-ink-muted">(in {choosing.section.name})</span>
           </p>
           <div className="flex flex-wrap gap-2">
             {choosing.item.variants.map((v) => {
@@ -277,8 +304,8 @@ export function MenuItemPicker({
                 <Button
                   key={v.variantId}
                   type="button"
-                  variant="outline"
-                  size="touch"
+                  variant="secondary"
+                  size="sm"
                   disabled={added}
                   onClick={() => finish(toDraft(choosing, v.variantId))}
                 >
@@ -289,8 +316,8 @@ export function MenuItemPicker({
             })}
             <Button
               type="button"
-              variant="outline"
-              size="touch"
+              variant="secondary"
+              size="sm"
               disabled={selectedKeys.has(
                 itemKey({ itemId: choosing.item.itemId, variantId: null })
               )}
@@ -300,8 +327,8 @@ export function MenuItemPicker({
             </Button>
             <Button
               type="button"
-              variant="ghost"
-              size="touch"
+              variant="quiet"
+              size="sm"
               onClick={() => finish(null)}
             >
               Cancel

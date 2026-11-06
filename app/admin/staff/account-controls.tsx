@@ -2,16 +2,10 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
-import { CheckCircleIcon, WarningIcon } from "@phosphor-icons/react"
+import { XIcon } from "@phosphor-icons/react"
 
-import {
-  EditProfileDialog,
-  type ActionResult,
-  type Option,
-  type ProfileFormValues,
-  type StaffMember,
-} from "@/components/nabalens"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import type { ActionResult, Option, StaffMember } from "@/components/nabalens"
+import { Notice, type NoticeTone } from "@/components/nabalens/notice"
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -28,8 +22,27 @@ import {
   setStaffActiveAction,
   updateStaffAccountAction,
 } from "./actions"
+import {
+  EditStaffDialog,
+  type EditStaffResult,
+  type EditStaffValues,
+} from "./edit-staff-dialog"
+import { firstName } from "./staff-order"
 
 export type Notice = { tone: "success" | "error" | "warning"; text: string }
+
+/** An effective venue manager grant, as the staff pages need it. */
+export type ManagerGrant = {
+  staffId: string
+  venueId: string
+  venueName: string
+}
+
+const NOTICE_TONE: Record<Notice["tone"], NoticeTone> = {
+  success: "positive",
+  error: "negative",
+  warning: "attention",
+}
 
 /** Polite live region for the outcome of the last account action. */
 export function AccountNotice({
@@ -42,27 +55,22 @@ export function AccountNotice({
   return (
     <div aria-live="polite" className="empty:hidden">
       {notice ? (
-        <Alert
+        <Notice
+          tone={NOTICE_TONE[notice.tone]}
           role="status"
-          variant={
-            notice.tone === "error"
-              ? "destructive"
-              : notice.tone === "warning"
-                ? "warning"
-                : "default"
+          action={
+            <Button
+              variant="quiet"
+              size="icon-sm"
+              aria-label="Close"
+              onClick={onDismiss}
+            >
+              <XIcon aria-hidden />
+            </Button>
           }
-          className="flex items-start gap-2"
         >
-          {notice.tone === "success" ? (
-            <CheckCircleIcon aria-hidden className="mt-0.5" />
-          ) : (
-            <WarningIcon aria-hidden className="mt-0.5" />
-          )}
-          <AlertDescription className="flex-1">{notice.text}</AlertDescription>
-          <Button variant="ghost" size="sm" onClick={onDismiss}>
-            Dismiss
-          </Button>
-        </Alert>
+          {notice.text}
+        </Notice>
       ) : null}
     </div>
   )
@@ -97,14 +105,17 @@ async function uploadAvatar(
 /**
  * Edit, resend and (de)activate for one or many staff accounts. Returns the
  * handlers plus the dialogs to render once; both the directory and a single
- * portfolio page use it.
+ * staff member's page use it.
  */
 export function useAccountControls({
   venues,
   maxAvatarBytes,
+  grants = [],
 }: {
   venues: Option[]
   maxAvatarBytes: number
+  /** Effective venue manager grants, to say what a move or deactivation ends. */
+  grants?: ManagerGrant[]
 }) {
   const router = useRouter()
   const [notice, setNotice] = React.useState<Notice | null>(null)
@@ -126,6 +137,9 @@ export function useAccountControls({
   >({})
   // Copies made by withConfirmedStatus -> the props object they came from.
   const basisOf = React.useRef(new WeakMap<StaffMember, StaffMember>())
+
+  const grantOf = (member: StaffMember) =>
+    grants.find((grant) => grant.staffId === member.id) ?? null
 
   function confirmStatus(member: StaffMember, status?: StaffMember["status"]) {
     if (status) {
@@ -155,7 +169,7 @@ export function useAccountControls({
       result.ok
         ? {
             tone: "success",
-            text: `Invitation sent again to ${member.email ?? member.displayName}.`,
+            text: `Invitation sent again to ${member.email ?? member.displayName}. Earlier links stop working.`,
           }
         : { tone: "error", text: result.error }
     )
@@ -188,6 +202,7 @@ export function useAccountControls({
 
   async function confirmDeactivate() {
     if (!deactivating) return
+    const first = firstName(deactivating.displayName)
     setPending(true)
     setDeactivateError(null)
     try {
@@ -202,11 +217,13 @@ export function useAccountControls({
         tone: result.warning ? "warning" : "success",
         text:
           result.warning ??
-          `${deactivating.displayName} is deactivated. Their uploads stay in the library.`,
+          `${deactivating.displayName} is inactive. ${first}'s uploads stay in the library.`,
       })
       setDeactivating(null)
     } catch {
-      setDeactivateError("The account could not be deactivated. Try again.")
+      setDeactivateError(
+        `Nothing changed. ${first} still has access. Check your connection and try again.`
+      )
     } finally {
       setPending(false)
     }
@@ -214,12 +231,14 @@ export function useAccountControls({
 
   async function saveEdit(
     member: StaffMember,
-    values: ProfileFormValues
-  ): Promise<ActionResult> {
+    values: EditStaffValues
+  ): Promise<EditStaffResult> {
+    let photoSaved = false
     try {
       if (values.avatarFile) {
         const avatar = await uploadAvatar(member.id, values.avatarFile)
         if (!avatar.ok) return avatar
+        photoSaved = true
       }
       const result = await updateStaffAccountAction(member.id, {
         displayName: values.displayName,
@@ -230,13 +249,24 @@ export function useAccountControls({
         ...(values.venueId ? { venueId: values.venueId } : {}),
         ...(values.active !== undefined ? { active: values.active } : {}),
       })
-      if (result.ok) {
-        if (result.status) confirmStatus(member, result.status)
-        setNotice({
-          tone: result.warning ? "warning" : "success",
-          text: result.warning ?? `Saved ${values.displayName}.`,
-        })
-      }
+      if (!result.ok) return { ...result, photoSaved }
+      if (result.status) confirmStatus(member, result.status)
+      const moved =
+        values.venueId && member.venueId && values.venueId !== member.venueId
+      const grant = grantOf(member)
+      const newVenue = venues.find((v) => v.id === values.venueId)?.name
+      setNotice({
+        tone: result.warning ? "warning" : "success",
+        text:
+          result.warning ??
+          (moved && newVenue
+            ? `${values.displayName} now works at ${newVenue}.${
+                grant
+                  ? ` The manager grant at ${grant.venueName} ended: Ended: moved to another venue.`
+                  : ""
+              }`
+            : `Saved ${values.displayName}.`),
+      })
       return result
     } finally {
       // The only refresh for an edit (also after an activation change): picks
@@ -245,23 +275,25 @@ export function useAccountControls({
     }
   }
 
+  const deactivatingGrant = deactivating ? grantOf(deactivating) : null
+  const deactivatingFirst = deactivating
+    ? firstName(deactivating.displayName)
+    : ""
+
   const dialogs = (
     <>
-      <EditProfileDialog
-        open={!!editing}
-        onOpenChange={(open) => {
-          if (!open) setEditing(null)
-        }}
-        variant="admin"
-        initial={{
-          displayName: editing?.displayName ?? "",
-          avatarUrl: editing?.avatarUrl ?? null,
-          jobTitle: editing?.jobTitle ?? null,
-          department: editing?.department ?? null,
-          venueId: editing?.venueId ?? null,
-          active: editing ? editing.status !== "inactive" : true,
-        }}
+      <EditStaffDialog
+        member={editing}
+        onClose={() => setEditing(null)}
         venues={venues}
+        grant={editing ? grantOf(editing) : null}
+        managedVenueIds={
+          new Set(
+            grants
+              .filter((grant) => grant.staffId !== editing?.id)
+              .map((grant) => grant.venueId)
+          )
+        }
         maxAvatarBytes={maxAvatarBytes}
         onSubmit={(values) =>
           editing
@@ -280,23 +312,50 @@ export function useAccountControls({
             <AlertDialogTitle>
               Deactivate {deactivating?.displayName}?
             </AlertDialogTitle>
-            <AlertDialogDescription>
-              They lose access straight away, including on phones where they are
-              still signed in. Their uploads stay in the library, and you can
-              reactivate the account later.
-            </AlertDialogDescription>
           </AlertDialogHeader>
           {deactivateError ? (
-            <p role="alert" className="text-sm text-negative">
+            <Notice tone="negative" title="Couldn't deactivate">
               {deactivateError}
-            </p>
+            </Notice>
           ) : null}
+          <AlertDialogDescription
+            render={<div />}
+            className="grid gap-3 text-ink"
+          >
+            <p>
+              They lose access straight away. On a phone that&apos;s still
+              signed in, the next thing they do shows Account unavailable.
+            </p>
+            <p>
+              Their uploads stay in the library, and you can reactivate the
+              account later.
+            </p>
+            {deactivatingGrant ? (
+              <p>
+                {deactivatingFirst}&apos;s venue manager grant at{" "}
+                {deactivatingGrant.venueName} ends: &quot;Ended: account
+                deactivated&quot;. Reactivating doesn&apos;t restore it.
+              </p>
+            ) : null}
+            <p>
+              {deactivatingFirst}&apos;s open task assignments
+              {deactivating?.venueName
+                ? ` at ${deactivating.venueName}`
+                : ""}{" "}
+              close, so those items show Needs reassignment. Accepted photos
+              still count.
+            </p>
+          </AlertDialogDescription>
           <AlertDialogFooter>
-            <AlertDialogCancel size="touch" disabled={pending}>
+            <AlertDialogCancel
+              variant="secondary"
+              size="touch"
+              disabled={pending}
+            >
               Cancel
             </AlertDialogCancel>
             <Button
-              variant="destructive"
+              variant="danger"
               size="touch"
               onClick={confirmDeactivate}
               disabled={pending}
@@ -318,6 +377,7 @@ export function useAccountControls({
     resend,
     setActive,
     withConfirmedStatus,
+    grantOf,
     dialogs,
   }
 }

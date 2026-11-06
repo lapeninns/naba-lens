@@ -1,13 +1,23 @@
 "use client"
 
 import Link from "next/link"
-import { DotsThreeIcon } from "@phosphor-icons/react"
+import {
+  ArrowCounterClockwiseIcon,
+  DotsThreeIcon,
+  EnvelopeSimpleIcon,
+  IdentificationCardIcon,
+  PencilSimpleIcon,
+  ProhibitIcon,
+  UserGearIcon,
+} from "@phosphor-icons/react"
 
-import { Button, buttonVariants } from "@/components/ui/button"
+import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
@@ -19,58 +29,118 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import type { Department } from "@/lib/config/departments"
 import { cn } from "@/lib/utils"
 
 import { ProfileAvatar } from "./profile-avatar"
 import { StaffStatusBadge } from "./staff-status-badge"
+import { StatusChip } from "./status-chip"
 import type { StaffMember } from "./types"
 
-type StaffDirectoryTableProps = {
-  staff: StaffMember[]
-  getPortfolioHref: (member: StaffMember) => string
+type StaffActions = {
   onEdit: (member: StaffMember) => void
   onResendInvite: (member: StaffMember) => void
   onSetActive: (member: StaffMember, active: boolean) => void
+}
+
+type StaffDirectoryTableProps = StaffActions & {
+  staff: StaffMember[]
+  getPortfolioHref: (member: StaffMember) => string
+  /** Accounts holding an effective venue manager grant. */
+  managerIds?: ReadonlySet<string>
   className?: string
 }
 
-function RowActions({
+const TEAM_SHORT: Record<Department, { short: string; long: string }> = {
+  foh: { short: "FOH", long: "Front of house" },
+  boh: { short: "BOH", long: "Back of house" },
+}
+
+/** FOH, BOH or Unassigned, in the quiet weight of a fact. */
+export function TeamLabel({
+  department,
+}: {
+  department: Department | null | undefined
+}) {
+  if (!department) return <span className="text-ink-muted">Unassigned</span>
+  const team = TEAM_SHORT[department]
+  return (
+    <abbr title={team.long} className="font-semibold no-underline">
+      {team.short}
+    </abbr>
+  )
+}
+
+/**
+ * Every action on one account, behind one "More actions" button. Rows never
+ * carry inline buttons; the menu repeats the person's name as its label.
+ */
+export function StaffActionsMenu({
   member,
   onEdit,
   onResendInvite,
   onSetActive,
-}: Omit<
-  StaffDirectoryTableProps,
-  "staff" | "getPortfolioHref" | "className"
-> & {
+  profileHref,
+  makeManagerHref,
+  className,
+}: StaffActions & {
   member: StaffMember
+  /** "Open profile", where the menu is not already on the profile. */
+  profileHref?: string
+  /** "Make venue manager", for active accounts without a grant. */
+  makeManagerHref?: string
+  className?: string
 }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
           <Button
-            variant="ghost"
-            size="icon-lg"
-            className="size-11 sm:size-9"
+            variant="quiet"
+            size="icon"
+            className={className}
             aria-label={`More actions for ${member.displayName}`}
           />
         }
       >
         <DotsThreeIcon weight="bold" aria-hidden />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-48">
-        <DropdownMenuItem onClick={() => onEdit(member)}>
-          Edit details
-        </DropdownMenuItem>
-        {member.status === "invited" ? (
-          <DropdownMenuItem onClick={() => onResendInvite(member)}>
-            Resend invitation
+      {/* Capped so a long name wraps instead of widening the menu off-screen. */}
+      <DropdownMenuContent
+        align="end"
+        className="w-auto max-w-[min(20rem,var(--available-width))] min-w-52"
+      >
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className="text-meta-strong break-words text-ink-muted">
+            {member.displayName}
+          </DropdownMenuLabel>
+          <DropdownMenuItem onClick={() => onEdit(member)}>
+            <PencilSimpleIcon aria-hidden />
+            Edit details
           </DropdownMenuItem>
-        ) : null}
+          {member.status === "invited" ? (
+            <DropdownMenuItem onClick={() => onResendInvite(member)}>
+              <EnvelopeSimpleIcon aria-hidden />
+              Resend invitation
+            </DropdownMenuItem>
+          ) : null}
+          {profileHref ? (
+            <DropdownMenuItem render={<Link href={profileHref} />}>
+              <IdentificationCardIcon aria-hidden />
+              Open profile
+            </DropdownMenuItem>
+          ) : null}
+          {makeManagerHref && member.status !== "inactive" ? (
+            <DropdownMenuItem render={<Link href={makeManagerHref} />}>
+              <UserGearIcon aria-hidden />
+              Make venue manager
+            </DropdownMenuItem>
+          ) : null}
+        </DropdownMenuGroup>
         <DropdownMenuSeparator />
         {member.status === "inactive" ? (
           <DropdownMenuItem onClick={() => onSetActive(member, true)}>
+            <ArrowCounterClockwiseIcon aria-hidden />
             Reactivate
           </DropdownMenuItem>
         ) : (
@@ -78,6 +148,7 @@ function RowActions({
             variant="destructive"
             onClick={() => onSetActive(member, false)}
           >
+            <ProhibitIcon aria-hidden />
             Deactivate
           </DropdownMenuItem>
         )}
@@ -86,20 +157,50 @@ function RowActions({
   )
 }
 
-/** Table from md up; a list of two-line rows on phones. Same actions in both. */
+function StatusCell({
+  member,
+  manager,
+}: {
+  member: StaffMember
+  manager: boolean
+}) {
+  return (
+    <span className="flex flex-wrap items-center gap-1">
+      <StaffStatusBadge status={member.status} />
+      {manager && member.status !== "inactive" ? (
+        <StatusChip state="venue_manager" />
+      ) : null}
+    </span>
+  )
+}
+
+/**
+ * Staff accounts: a table from md up, two-line rows on phones. The order is
+ * the caller's; every action sits in the row's More actions menu.
+ */
 export function StaffDirectoryTable({
   staff,
   getPortfolioHref,
+  managerIds,
   className,
   ...actions
 }: StaffDirectoryTableProps) {
-  const portfolioLink = (member: StaffMember) => (
+  const isManager = (member: StaffMember) => managerIds?.has(member.id) ?? false
+  const menu = (member: StaffMember) => (
+    <StaffActionsMenu
+      member={member}
+      profileHref={getPortfolioHref(member)}
+      {...actions}
+    />
+  )
+  const nameLink = (member: StaffMember) => (
     <Link
       href={getPortfolioHref(member)}
-      className={cn(buttonVariants({ variant: "outline" }))}
-      aria-label={`Open ${member.displayName}'s portfolio`}
+      // On phones the padding makes a 44px+ hit area; the negative margin keeps
+      // the text where it was, and `relative` keeps it above the meta line.
+      className="relative block truncate rounded-chip font-semibold text-ink underline-offset-3 outline-none hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid max-md:-my-3.5 max-md:py-3.5"
     >
-      Portfolio
+      {member.displayName}
     </Link>
   )
 
@@ -107,96 +208,95 @@ export function StaffDirectoryTable({
     <div className={cn("min-w-0", className)}>
       <ul
         aria-label="Staff"
-        className="divide-y rounded-lg border bg-card md:hidden"
+        className="divide-y divide-line rounded-panel border border-line bg-panel md:hidden"
       >
         {staff.map((member) => (
           <li
             key={member.id}
-            className="flex items-center gap-1 py-1 pr-1 pl-3"
+            className={cn(
+              "flex items-center gap-3 py-2 pr-1 pl-3",
+              member.status === "inactive" && "text-ink-muted"
+            )}
           >
-            <Link
-              href={getPortfolioHref(member)}
-              // Name comes from the visible content (WCAG 2.5.3 label in name).
-              className="flex min-h-14 min-w-0 flex-1 items-center gap-3 rounded-md py-1.5 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-            >
-              <ProfileAvatar name={member.displayName} src={member.avatarUrl} />
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium">
-                  {member.displayName}
-                </span>
-                <span className="mt-0.5 flex min-w-0 items-center gap-2">
-                  <StaffStatusBadge
-                    status={member.status}
-                    className="shrink-0"
-                  />
-                  <span className="truncate text-xs text-muted-foreground">
-                    {[member.jobTitle, member.venueName ?? "No venue"]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </span>
+            <ProfileAvatar
+              name={member.displayName}
+              src={member.avatarUrl}
+              size="md"
+            />
+            <div className="grid min-w-0 flex-1 gap-1 py-1 text-body-touch">
+              {nameLink(member)}
+              <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-meta-touch text-ink-muted">
+                <StatusCell member={member} manager={isManager(member)} />
+                <span className="truncate">
+                  {member.venueName ?? "No venue"} ·{" "}
+                  <TeamLabel department={member.department} />
                 </span>
               </span>
-              <span className="sr-only">, open portfolio</span>
-            </Link>
-            <RowActions member={member} {...actions} />
+            </div>
+            {menu(member)}
           </li>
         ))}
       </ul>
 
-      <div className="hidden overflow-hidden rounded-lg border bg-card md:block">
-        <Table>
+      <div className="hidden overflow-hidden rounded-panel border border-line bg-panel md:block">
+        <Table aria-label="Staff">
           <TableHeader>
             <TableRow className="hover:bg-transparent">
-              <TableHead className="pl-4">Name</TableHead>
-              <TableHead className="hidden lg:table-cell">Job title</TableHead>
-              <TableHead>Venue</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="pr-4 text-right">
+              <TableHead scope="col" className="pl-4">
+                Name
+              </TableHead>
+              <TableHead scope="col">Venue</TableHead>
+              <TableHead scope="col" className="hidden lg:table-cell">
+                Team
+              </TableHead>
+              <TableHead scope="col">Status</TableHead>
+              <TableHead scope="col" className="w-12 pr-3 text-right">
                 <span className="sr-only">Actions</span>
               </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {staff.map((member) => (
-              <TableRow key={member.id}>
-                <TableCell className="max-w-64 py-2.5 pl-4 whitespace-normal">
+              <TableRow
+                key={member.id}
+                className={cn(
+                  "text-body-sm",
+                  member.status === "inactive" && "text-ink-muted"
+                )}
+              >
+                <TableCell className="max-w-72 py-2.5 pl-4 whitespace-normal">
                   <div className="flex min-w-0 items-center gap-3">
                     <ProfileAvatar
                       name={member.displayName}
                       src={member.avatarUrl}
-                      className="size-8"
+                      size="md"
                     />
-                    <div className="min-w-0">
-                      <p className="truncate font-medium">
-                        {member.displayName}
-                      </p>
-                      <p className="truncate text-xs text-muted-foreground lg:hidden">
-                        {member.jobTitle ?? "No job title"}
-                      </p>
+                    <div className="grid min-w-0">
+                      {nameLink(member)}
                       {member.email ? (
-                        <p className="hidden truncate text-xs text-muted-foreground lg:block">
+                        <span className="truncate text-meta text-ink-muted">
                           {member.email}
-                        </p>
+                        </span>
                       ) : null}
                     </div>
                   </div>
                 </TableCell>
-                <TableCell className="hidden text-muted-foreground lg:table-cell">
-                  {member.jobTitle ?? "—"}
-                </TableCell>
                 <TableCell className="min-w-32 whitespace-normal">
                   {member.venueName ?? (
-                    <span className="text-muted-foreground">No venue</span>
+                    <span className="text-ink-muted">No venue</span>
                   )}
+                  <span className="block text-meta text-ink-muted lg:hidden">
+                    <TeamLabel department={member.department} />
+                  </span>
                 </TableCell>
-                <TableCell>
-                  <StaffStatusBadge status={member.status} />
+                <TableCell className="hidden lg:table-cell">
+                  <TeamLabel department={member.department} />
                 </TableCell>
-                <TableCell className="pr-4">
-                  <div className="flex items-center justify-end gap-1">
-                    {portfolioLink(member)}
-                    <RowActions member={member} {...actions} />
-                  </div>
+                <TableCell className="whitespace-normal">
+                  <StatusCell member={member} manager={isManager(member)} />
+                </TableCell>
+                <TableCell className="pr-3 text-right">
+                  {menu(member)}
                 </TableCell>
               </TableRow>
             ))}

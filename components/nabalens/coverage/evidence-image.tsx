@@ -13,13 +13,13 @@ import {
 } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 
-const THUMB = "aspect-[4/3] w-full rounded-md"
+const THUMB = "aspect-[4/3] w-full rounded-print bg-media-placeholder"
 
 function Unavailable({ className }: { className?: string }) {
   return (
     <span
       className={cn(
-        "flex flex-col items-center justify-center gap-1 bg-muted text-xs text-muted-foreground",
+        "flex flex-col items-center justify-center gap-1 bg-media-placeholder text-meta text-ink-muted",
         className
       )}
     >
@@ -73,7 +73,7 @@ export function EvidencePreviewButton({
           type="button"
           onClick={() => setOpen(true)}
           aria-label={`Open ${label}`}
-          className="absolute inset-0 z-10 rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          className="absolute inset-0 z-10 rounded-print outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
         />
       ) : null}
       <Dialog open={open} onOpenChange={setOpen}>
@@ -89,10 +89,10 @@ export function EvidencePreviewButton({
               src={large}
               alt={label}
               fit="contain"
-              className="h-[60svh] w-full rounded-md"
+              className="h-[60svh] w-full rounded-print"
             />
           ) : (
-            <Unavailable className="h-40 w-full rounded-md" />
+            <Unavailable className="h-40 w-full rounded-print" />
           )}
         </DialogContent>
       </Dialog>

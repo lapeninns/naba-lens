@@ -6,7 +6,7 @@ export const ROUTES = {
   login: "/login",
   /** Root of the staff area (and My portfolio); the protected prefix. */
   staffHome: "/staff",
-  /** My tasks: where staff land, inside the staff area. */
+  /** Home: where staff land, inside the staff area. */
   staffLanding: "/staff/tasks",
   adminHome: "/admin",
   blocked: "/auth/blocked",

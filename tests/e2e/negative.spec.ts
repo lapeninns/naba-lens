@@ -17,6 +17,7 @@ import {
   chooseOption,
   libraryList,
   portfolioList,
+  staffTile,
   tile,
   uploadThroughDialog,
   openPortfolio,
@@ -69,7 +70,9 @@ async function requestLinkViaForm(page: Page, email: string) {
     page.getByRole("heading", { name: "Check your email" })
   ).toBeVisible()
   await expect(
-    page.getByText(`If ${email} has a Naba-Lens account`, { exact: false })
+    page.getByText(`If ${email} has an account, a sign-in link is on its way`, {
+      exact: false,
+    })
   ).toBeVisible()
 }
 
@@ -98,9 +101,9 @@ test.describe("release negatives", () => {
     await openPortfolio(staffA)
     // Same venue, still nothing of B's in A's own portfolio.
     await expect(
-      staffA.getByText("Your portfolio starts here.", { exact: false })
+      staffA.getByRole("main").getByText("Your profile starts here.")
     ).toBeVisible()
-    await expect(tile(staffA, "Photo", photo.name)).toHaveCount(0)
+    await expect(await staffTile(staffA, photo.name)).toHaveCount(0)
 
     // Community (docs/community.md): an active colleague's ready photo has
     // signed previews; its original never leaves through a staff route (stream
@@ -162,7 +165,9 @@ test.describe("release negatives", () => {
 
     // B still has their file: nothing above changed it.
     await staffB.reload()
-    await expect(tile(portfolioList(staffB), "Photo", photo.name)).toBeVisible()
+    await expect(
+      await staffTile(portfolioList(staffB), photo.name)
+    ).toBeVisible()
   })
 
   test("staff are denied media the community hides: inactive uploader, deleted or unfinished", async ({
@@ -280,7 +285,7 @@ test.describe("release negatives", () => {
     const seen3 = await mailboxIds(email)
     await respectSendInterval(email)
     await third.getByLabel("Email").fill(email)
-    await third.getByRole("button", { name: "Send sign-in link" }).click()
+    await third.getByRole("button", { name: "Send a new link" }).click()
     await expect(
       third.getByRole("heading", { name: "Check your email" })
     ).toBeVisible()
@@ -306,17 +311,21 @@ test.describe("release negatives", () => {
     await uploadThroughDialog(staff, [kept])
     const [asset] = await assetIdsOf(world.staffB.id)
     const portfolio = portfolioList(staff)
-    await expect(tile(portfolio, "Photo", kept.name)).toBeVisible()
+    const keptTile = await staffTile(portfolio, kept.name)
+    await expect(keptTile).toBeVisible()
 
     // Admin A deactivates through the UI.
     const admin = await signedInPage(browser, world.adminA)
     await admin.goto(`/admin/staff/${world.staffB.id}`)
-    await admin.getByRole("button", { name: "Deactivate" }).click()
+    await admin
+      .getByRole("button", { name: `More actions for ${world.staffB.name}` })
+      .click()
+    await admin.getByRole("menuitem", { name: "Deactivate" }).click()
     await admin
       .getByRole("alertdialog")
       .getByRole("button", { name: "Deactivate" })
       .click()
-    await expect(admin.getByText(/is deactivated/)).toBeVisible()
+    await expect(admin.getByText(/is inactive\./)).toBeVisible()
 
     // Read: the open page's next refresh (focus) is refused.
     await staff.evaluate(() => window.dispatchEvent(new Event("focus")))
@@ -343,7 +352,7 @@ test.describe("release negatives", () => {
     await staff.getByRole("button", { name: "Done" }).click()
 
     // Delete own media: refused with a clear message, the file stays.
-    await tile(portfolio, "Photo", kept.name).click()
+    await keptTile.click()
     await staff
       .getByRole("dialog")
       .getByRole("button", { name: "Delete" })
@@ -379,7 +388,8 @@ test.describe("release negatives", () => {
     const after = await syntheticJpeg(`after-move-${world.tag}.jpg`)
     const staff = await signedInPage(browser, staffC)
     await openPortfolio(staff)
-    await expect(staff.getByText(venue2.name)).toBeVisible()
+    const profile = staff.getByRole("region", { name: "Profile" })
+    await expect(profile.getByText(venue2.name)).toBeVisible()
     await uploadThroughDialog(staff, [before])
 
     const admin = await signedInPage(browser, world.adminA)
@@ -391,7 +401,7 @@ test.describe("release negatives", () => {
     await expect(edit).toBeHidden()
 
     await staff.reload()
-    await expect(staff.getByText(venue1.name)).toBeVisible()
+    await expect(profile.getByText(venue1.name)).toBeVisible()
     await uploadThroughDialog(staff, [after])
 
     const rows = await assetIdsOf(staffC.id)
@@ -461,8 +471,8 @@ test.describe("release negatives", () => {
     const staff = await signedInPage(browser, world.staffA)
     await openPortfolio(staff)
     await expect(
-      staff.getByText(
-        "Your portfolio starts here. Upload your first photo or video."
+      staff.getByRole("main").getByText(
+        "Your profile starts here. Add your first photo or video."
       )
     ).toBeVisible()
 
@@ -470,14 +480,20 @@ test.describe("release negatives", () => {
     // Admin portfolio of someone without uploads.
     await admin.goto(`/admin/staff/${world.staffA.id}`)
     await expect(
-      admin.getByText(`${world.staffA.name} has no uploads yet`)
+      admin.getByRole("heading", { name: world.staffA.name })
+    ).toBeVisible()
+    await expect(
+      admin.locator('[data-slot="empty-state"]').getByText("No photos yet.")
     ).toBeVisible()
     // Filters that match nothing, and clearing them.
     await admin.goto(`/admin?staff=${world.staffA.id}&type=video`)
     await expect(
       admin.getByText("Nothing matches these filters.")
     ).toBeVisible()
-    await admin.getByRole("button", { name: "Clear filters" }).click()
+    await admin
+      .locator('[data-slot="empty-state"]')
+      .getByRole("button", { name: "Clear filters" })
+      .click()
     await expect(admin).toHaveURL(/\/admin$/)
 
     // A ready record whose original is missing from storage (fixture): the

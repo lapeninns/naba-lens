@@ -1,11 +1,16 @@
 "use client"
 
-import { CheckCircleIcon, WarningIcon } from "@phosphor-icons/react"
-
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 
+import { Notice as NoticeBox } from "../notice"
+
 export type Notice = { tone: "success" | "error" | "warning"; text: string }
+
+const TONE = {
+  success: "positive",
+  error: "negative",
+  warning: "attention",
+} as const
 
 /**
  * Polite live region for the outcome of the last coverage action. With `ref`
@@ -23,29 +28,19 @@ export function CoverageNotice({
   return (
     <div aria-live="polite" className="empty:hidden">
       {notice ? (
-        <Alert
+        <NoticeBox
           ref={ref}
           tabIndex={ref ? -1 : undefined}
           role="status"
-          variant={
-            notice.tone === "error"
-              ? "destructive"
-              : notice.tone === "warning"
-                ? "warning"
-                : "default"
+          tone={TONE[notice.tone]}
+          action={
+            <Button variant="quiet" size="sm" onClick={onDismiss}>
+              Dismiss
+            </Button>
           }
-          className="flex items-start gap-2 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
         >
-          {notice.tone === "success" ? (
-            <CheckCircleIcon aria-hidden className="mt-0.5" />
-          ) : (
-            <WarningIcon aria-hidden className="mt-0.5" />
-          )}
-          <AlertDescription className="flex-1">{notice.text}</AlertDescription>
-          <Button variant="ghost" size="sm" onClick={onDismiss}>
-            Dismiss
-          </Button>
-        </Alert>
+          {notice.text}
+        </NoticeBox>
       ) : null}
     </div>
   )
