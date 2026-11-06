@@ -45,4 +45,24 @@ describe("next.config headers", () => {
       )
     }
   })
+
+  it("caches /guide/v1 examples as immutable, and nothing else", async () => {
+    const guide = await effectiveHeaders("/guide/v1/mixed-grill-45.webp")
+    expect(guide.get("Cache-Control")).toBe(
+      "public, max-age=31536000, immutable"
+    )
+    // Every security header still applies.
+    const page = await effectiveHeaders("/staff")
+    guide.delete("Cache-Control")
+    expect(guide).toEqual(page)
+    for (const path of [
+      "/staff/tasks/guide",
+      "/guide/v2/mixed-grill-45.webp",
+      "/api/media/00000000-0000-4000-8000-000000000001/thumb",
+    ]) {
+      expect((await effectiveHeaders(path)).has("Cache-Control"), path).toBe(
+        false
+      )
+    }
+  })
 })
