@@ -135,6 +135,9 @@ Dates are UK time.
 - Open a venue for the same **Overview**, **Review**, **Checklist**, **Menu**
   and **Team** screens a manager has (see the
   [staff guide](usage-staff.md#manage-venue-managers-only)), for any venue.
+  Food menu sections show staff the dish
+  [photo guide](usage-staff.md#photo-guide); its examples are fixed app
+  images, not venue media, and cannot be changed from the admin screens.
   Admins can also attach retained photos from people who have left, and
   correct a past month's target with a reason; the correction is recorded.
 

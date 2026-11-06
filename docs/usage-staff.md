@@ -74,6 +74,20 @@ also lists **Past months**, read-only.
 If sending fails, **Try again** resends the same request, so nothing is sent
 twice. If the task changed while you were working, choose **Reload**.
 
+### Photo guide
+
+A food menu-section task shows **How to photograph it** between **What to
+photograph** and **On this section**: four example angles in order (**45°
+angle**, **Overhead**, **Close-up**, **Side view**), each with a short tip.
+The first angles are marked **Suggested** to match the section's photo target
+(all four from a target of 4). Dish buttons switch the example; tap an angle
+for a full-screen view with **Previous** and **Next** (arrow keys or a swipe
+also work). **See the full photo guide** (`/staff/tasks/guide`, also linked as
+**How to photograph a dish** on **Monthly photos**) adds the **Every shot**
+checklist and the safety note. The pictures are examples only, not your menu,
+and your manager still decides which photos are accepted. Drinks sections and
+amenity, service and venue tasks do not show the guide.
+
 ### What counts toward your monthly target
 
 A photo counts once a reviewer accepts it and all of these are true: you
@@ -149,6 +163,8 @@ next page load or action.
   accepted photos to carry and the new section to carry them to, with a reason,
   or **Carry nothing and close it**. Menu coverage is not current until every
   old section is done.
+  Staff see the dish [photo guide](#photo-guide) on food sections (and
+  sections of unset or "other" kind), never on drinks sections.
 - **Team**: set each person's monthly target and optional due date within the
   month. Changing a target already set for this month needs a reason. Past
   months are **Read-only**; only an admin can correct them. **Prepare this
