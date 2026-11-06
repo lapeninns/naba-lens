@@ -30,7 +30,10 @@ export function TaskPhotoGuide({
 }) {
   const lede = guideLede(photoTarget)
   return (
-    <section aria-labelledby="photo-guide-heading" className="grid gap-4">
+    <section
+      aria-labelledby="photo-guide-heading"
+      className="grid gap-4 rounded-panel border border-line bg-panel p-4 md:p-5"
+    >
       <div className="grid gap-1">
         <h2
           id="photo-guide-heading"
