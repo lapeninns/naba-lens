@@ -34,6 +34,7 @@ export function TaskSummary({
   monthLabel,
   venueName,
   sendHref,
+  guide,
 }: {
   assignment: MyAssignment
   /** "November": names the monthly target the photos count toward. */
@@ -41,6 +42,8 @@ export function TaskSummary({
   venueName?: string | null
   /** Where "Send photos" jumps to; omitted when the caller can't send. */
   sendHref?: string
+  /** Shown between "What to photograph" and "On this section". */
+  guide?: React.ReactNode
 }) {
   const { requirement } = assignment
   const closed = !requirement.isCurrent
@@ -110,6 +113,8 @@ export function TaskSummary({
           </p>
         </section>
       ) : null}
+
+      {guide}
 
       <section aria-labelledby="progress-heading" className="grid gap-3">
         <h2

@@ -246,6 +246,9 @@ export function MenuCoveragePanel({
           photos. Dishes do not each need a photo, and optional dish labels
           never count toward completion.
         </p>
+        <p className="max-w-prose text-sm text-muted-foreground">
+          Staff see the dish photo guide on food sections.
+        </p>
         {activeVersion ? (
           <p className="text-sm">
             Active menu:{" "}

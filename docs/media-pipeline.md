@@ -4,6 +4,11 @@ This library processes media in the Node runtime, with no Supabase imports.
 Original bytes are retained unchanged by the caller. Client filenames and MIME
 labels do not establish safe content, and validation is not publication clearance.
 
+The dish photo guide's examples (`public/guide/v1`, built once by
+`scripts/guide/build-guide-images.ts`) are static app assets, not media: they
+never pass through this pipeline or enter `media_assets`, are served without a
+session, and are cached as immutable (replacements go in `/guide/v2`).
+
 ## Upload API: one image decode
 
 For an image upload call `processImage(bytes, declaredMime?)` once. It validates,

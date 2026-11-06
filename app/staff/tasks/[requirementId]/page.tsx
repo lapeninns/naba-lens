@@ -1,5 +1,6 @@
 import { logout } from "@/app/_media/actions"
 import { AppShell } from "@/components/nabalens/app-shell"
+import { TaskPhotoGuide } from "@/components/nabalens/guide"
 import { Notice } from "@/components/nabalens/notice"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
@@ -17,6 +18,7 @@ import {
   type CoverageScope,
 } from "@/components/nabalens/tasks"
 import { requireActiveStaff } from "@/lib/auth"
+import { showsDishGuide, suggestedAngles } from "@/lib/guide/dish-guide"
 import {
   getCoverageActor,
   getCoverageScope,
@@ -103,6 +105,16 @@ export default async function TaskPage({
             monthLabel={monthFormatter.format(new Date())}
             venueName={scope.venue?.name ?? null}
             sendHref={assignment.canSubmit ? "#send" : undefined}
+            guide={
+              showsDishGuide(assignment.requirement) ? (
+                <TaskPhotoGuide
+                  photoTarget={assignment.requirement.photoTarget}
+                  suggested={suggestedAngles(
+                    assignment.requirement.photoTarget
+                  )}
+                />
+              ) : null
+            }
           />
         )}
 

@@ -54,7 +54,9 @@ export async function provisionManagedWorld(
   const checklistItemId = psql(
     `select id from public.coverage_requirements where venue_id = '${world.venue1.id}'::uuid and status = 'needs_setup' order by title limit 1`
   )
-  expect(checklistItemId, "a prepared checklist item").toMatch(/^[0-9a-f-]{36}$/)
+  expect(checklistItemId, "a prepared checklist item").toMatch(
+    /^[0-9a-f-]{36}$/
+  )
   const [task] = await ok(
     managerDb.rpc("save_coverage_requirement", {
       p_venue_id: world.venue1.id,
@@ -82,6 +84,7 @@ export const staffPages = (m: ManagedWorld) => [
   "/staff/tasks",
   `/staff/tasks/${m.taskId}`,
   "/staff/tasks/month",
+  "/staff/tasks/guide",
   "/staff",
   "/staff/community",
   "/staff/people",

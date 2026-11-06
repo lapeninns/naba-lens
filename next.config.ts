@@ -84,6 +84,18 @@ export const NO_REFERRER_SOURCES = [
   "/api/avatars/:path*",
 ]
 
+/**
+ * Dish photo guide examples (public/guide/v1, generic static files reachable
+ * without a session). Next serves public/ with `max-age=0`; these never change
+ * in place, so they are cached for a year. New or changed images go in a new
+ * folder (/guide/v2) with a new entry, never over a v1 file.
+ */
+export const GUIDE_IMAGES_SOURCE = "/guide/v1/:path*"
+const GUIDE_IMAGES_CACHE = {
+  key: "Cache-Control",
+  value: "public, max-age=31536000, immutable",
+}
+
 const nextConfig: NextConfig = {
   // Next 16 development logs include Server Function arguments by default.
   // Sign-in arguments contain single-use CAPTCHA tokens and email addresses.
@@ -103,6 +115,7 @@ const nextConfig: NextConfig = {
         source,
         headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
       })),
+      { source: GUIDE_IMAGES_SOURCE, headers: [GUIDE_IMAGES_CACHE] },
     ]
   },
 }

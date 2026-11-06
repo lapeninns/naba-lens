@@ -34,6 +34,8 @@ import {
 } from "@/components/nabalens"
 import { Button } from "@/components/ui/button"
 import { OptionSelect } from "@/components/nabalens/option-select"
+import { TaskPhotoGuide } from "@/components/nabalens/guide"
+import { suggestedAngles } from "@/lib/guide/dish-guide"
 
 import {
   FAKE_MEDIA,
@@ -385,6 +387,13 @@ export function UiPreview() {
             </div>
           </AppShell>
         </Frame>
+      </Section>
+
+      <Section
+        title="Dish photo guide"
+        note="Food menu-section task with a target of 2; tap a photo for the full-screen viewer."
+      >
+        <TaskPhotoGuide photoTarget={2} suggested={suggestedAngles(2)} />
       </Section>
 
       <Section title="Dialogs" note="Open each dialog directly.">

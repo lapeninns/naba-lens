@@ -43,6 +43,9 @@ const ALLOWED_PAGES = new Set([
   "/staff/tasks/[requirementId]",
   "/staff/tasks/month",
   "/staff/tasks/welcome",
+  // Dish photo guide (November 2026): static example angles and a checklist,
+  // no media, no scoring (docs/usage-staff.md "Photo guide").
+  "/staff/tasks/guide",
   "/admin",
   "/admin/staff",
   "/admin/staff/[id]",
