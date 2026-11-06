@@ -8,6 +8,7 @@ import { ErrorState } from "@/components/nabalens/error-state"
 import { Notice } from "@/components/nabalens/notice"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
 import { PageHeader } from "@/components/nabalens/page-header"
+import { GUIDE_PATH } from "@/components/nabalens/guide"
 import {
   askerName,
   BackToTasks,
@@ -279,6 +280,12 @@ export default async function MonthPage({
           >
             {replacing ? "Send another photo" : "Add photos for this month"}
           </h2>
+          <Link
+            href={GUIDE_PATH}
+            className="inline-flex min-h-11 items-center self-start text-body-touch font-semibold text-accent-text underline underline-offset-3 outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid md:min-h-0 md:text-body"
+          >
+            How to photograph a dish
+          </Link>
           {scope.canSubmit && photos ? (
             <>
               {replacing ? (
