@@ -514,15 +514,21 @@ test.describe("coverage: staff tasks journey (WS5)", () => {
       )
       .toBe(true)
     await tile.click()
-    const viewer = page.getByRole("dialog", { name: "45° angle" })
+    // The dialog is named after the angle on screen, so its name changes
+    // with Previous/Next; find it by role and check the name at each step.
+    const viewer = page.getByRole("dialog")
     await expect(viewer).toBeVisible()
+    await expect(viewer).toHaveAccessibleName("45° angle")
     await expect(viewer.getByText("1 of 4 · Mixed grill")).toBeVisible()
     await expect(
       viewer.getByRole("button", { name: "Previous" })
     ).toBeDisabled()
     await viewer.getByRole("button", { name: "Next" }).click()
+    await expect(viewer).toHaveAccessibleName("Overhead")
     await expect(viewer.getByText("2 of 4 · Mixed grill")).toBeVisible()
-    await expect(page.getByRole("dialog", { name: "Overhead" })).toBeVisible()
+    await viewer.getByRole("button", { name: "Previous" }).click()
+    await expect(viewer).toHaveAccessibleName("45° angle")
+    await expect(viewer.getByText("1 of 4 · Mixed grill")).toBeVisible()
     await page.keyboard.press("Escape")
     await expect(page.getByRole("dialog")).toHaveCount(0)
     await expect(tile).toBeFocused()
