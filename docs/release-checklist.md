@@ -36,11 +36,13 @@ Stay here while any prerequisite below is missing. Current blockers:
   or obtain an explicit scope decision before treating the MVP as complete;
   this documentation does not silently certify that missing UI.
 - [v0.4](spec/NabaLens-Staff-Coverage-v0.4.md) monthly targets, venue coverage,
-  review and venue-manager grants have no release evidence. Their migrations
-  (from `20261102130000`) follow the pending local-only community migrations,
-  and none is applied to a hosted database. The hourly monthly-preparation cron
-  in `vercel.json` fails on any target without them. The required `lci` run on
-  the final local commit has not happened.
+  review and venue-manager grants have no release evidence. Their database
+  side is in place: on 6 Nov 2026, `supabase migration list --linked` showed
+  all 20 files in `supabase/migrations/` (through
+  `20261102160000_community_asset_access`) applied to `naba-lens-production`,
+  and `supabase db diff --linked --schema public,storage` found no schema
+  drift. The hourly monthly-preparation cron returns 200 there. The required
+  `lci` run on the final local commit has not happened.
 
 This docs pass runs the contract's install/typecheck/lint/unit/build checks; see
 [its handoff](fanout/handoffs/docs-expand.md) for exact results and not-run suites.
