@@ -1,5 +1,11 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, within } from "@testing-library/react"
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it } from "vitest"
 
@@ -127,6 +133,51 @@ describe("DishGuide", () => {
     expect(within(dialog).getByText("4 of 4 · Curry")).toBeTruthy()
     await user.keyboard("{ArrowLeft}{ArrowLeft}")
     expect(within(dialog).getByText("2 of 4 · Curry")).toBeTruthy()
+    // Alt+Arrow is browser Back/Forward, not a step.
+    await user.keyboard("{Alt>}{ArrowLeft}{/Alt}")
+    expect(within(dialog).getByText("2 of 4 · Curry")).toBeTruthy()
+  })
+
+  it("announces the angle that comes in, not just the count", async () => {
+    const user = userEvent.setup()
+    render(<DishGuide suggested={[]} />)
+    await user.click(tile(/^45° angle/))
+    const dialog = await screen.findByRole("dialog")
+    await user.click(within(dialog).getByRole("button", { name: "Next" }))
+    const live = dialog.querySelector("[aria-live='polite']")
+    expect(live?.textContent).toBe(
+      "2 of 4, Overhead. Phone flat, straight above. Whole plate in, with some dark background around it."
+    )
+  })
+
+  it("a swipe steps; a second finger (pinch) does not", async () => {
+    const user = userEvent.setup()
+    render(<DishGuide suggested={[]} />)
+    await user.click(tile(/^45° angle/))
+    const dialog = await screen.findByRole("dialog")
+    const area = within(dialog).getByRole("img").parentElement!
+    const pointer = (
+      type: string,
+      init: { pointerId: number; clientX: number; isPrimary: boolean }
+    ) =>
+      fireEvent(
+        area,
+        Object.assign(new MouseEvent(type, { bubbles: true, ...init }), {
+          pointerId: init.pointerId,
+          pointerType: "touch",
+          isPrimary: init.isPrimary,
+        })
+      )
+
+    pointer("pointerdown", { pointerId: 1, clientX: 200, isPrimary: true })
+    pointer("pointerup", { pointerId: 1, clientX: 100, isPrimary: true })
+    expect(within(dialog).getByText("2 of 4 · Mixed grill")).toBeTruthy()
+
+    pointer("pointerdown", { pointerId: 2, clientX: 100, isPrimary: true })
+    pointer("pointerdown", { pointerId: 3, clientX: 300, isPrimary: false })
+    pointer("pointerup", { pointerId: 2, clientX: 20, isPrimary: true })
+    pointer("pointerup", { pointerId: 3, clientX: 380, isPrimary: false })
+    expect(within(dialog).getByText("2 of 4 · Mixed grill")).toBeTruthy()
   })
 })
 

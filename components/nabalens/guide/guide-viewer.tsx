@@ -45,7 +45,8 @@ export function GuideViewer({
 }: GuideViewerProps) {
   const previousRef = React.useRef<HTMLButtonElement>(null)
   const nextRef = React.useRef<HTMLButtonElement>(null)
-  const swipeStart = React.useRef<number | null>(null)
+  /** The touch or pen that started a possible swipe; a second one cancels it. */
+  const swipeStart = React.useRef<{ id: number; x: number } | null>(null)
   const angle = GUIDE_ANGLES[index] ?? GUIDE_ANGLES[0]
   const image = dish.images[angle.id]
 
@@ -68,6 +69,9 @@ export function GuideViewer({
         showCloseButton={false}
         finalFocus={() => returnFocus?.() ?? true}
         onKeyDown={(event) => {
+          // Leave Alt+Arrow (Back/Forward) and other shortcuts to the browser.
+          if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey)
+            return
           if (event.key === "ArrowRight") {
             event.preventDefault()
             go(index + 1)
@@ -84,11 +88,12 @@ export function GuideViewer({
         )}
       >
         <div className="flex items-center justify-between gap-3 px-4 pt-2 md:px-5">
-          <p
-            aria-live="polite"
-            className="text-meta-touch text-on-viewer-muted tabular-nums md:text-meta"
-          >
+          <p className="text-meta-touch text-on-viewer-muted tabular-nums md:text-meta">
             {index + 1} of {GUIDE_ANGLES.length} · {dish.name}
+          </p>
+          {/* Focus stays on Previous/Next, so name the angle that came in. */}
+          <p aria-live="polite" className="sr-only">
+            {`${index + 1} of ${GUIDE_ANGLES.length}, ${angle.name}. ${angle.tip}`}
           </p>
           <DialogClose
             render={
@@ -104,16 +109,20 @@ export function GuideViewer({
           </DialogClose>
         </div>
         <div
-          className="grid touch-pan-y place-items-center px-0 py-3 md:px-5"
+          // Vertical scroll and pinch-zoom stay with the browser.
+          className="grid touch-pan-y touch-pinch-zoom place-items-center px-0 py-3 md:px-5"
           onPointerDown={(event) => {
-            if (event.pointerType !== "mouse")
-              swipeStart.current = event.clientX
+            if (event.pointerType === "mouse") return
+            // A second finger means a pinch, never a swipe.
+            swipeStart.current = event.isPrimary
+              ? { id: event.pointerId, x: event.clientX }
+              : null
           }}
           onPointerUp={(event) => {
             const start = swipeStart.current
+            if (start === null || start.id !== event.pointerId) return
             swipeStart.current = null
-            if (start === null) return
-            const dx = event.clientX - start
+            const dx = event.clientX - start.x
             if (Math.abs(dx) > SWIPE_PX) go(index + (dx < 0 ? 1 : -1))
           }}
           onPointerCancel={() => {
