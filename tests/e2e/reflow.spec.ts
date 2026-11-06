@@ -108,6 +108,15 @@ for (const size of SIZES) {
           .click(),
       staff.getByRole("dialog", { name: "Add photos" })
     )
+    await reflow(staff, size, "/staff/tasks/guide")
+    await dialogReflows(
+      staff,
+      size,
+      "Photo guide viewer",
+      () =>
+        staff.getByRole("button", { name: "45° angle. Open example" }).click(),
+      staff.getByRole("dialog", { name: "45° angle" })
+    )
   })
 
   test(`manager pages and Add a checklist item reflow at ${size.name}`, async () => {

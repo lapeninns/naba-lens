@@ -18,7 +18,7 @@ const PUBLIC = fileURLToPath(new URL("../../public", import.meta.url))
 function section(sectionKind: string | null): MenuSectionRef {
   return {
     menuPlanId: "p1",
-    menuPlanStatus: "active",
+    menuPlanStatus: "confirmed",
     menuVersionId: "v1",
     sectionName: "Starters",
     sectionSlug: "starters",

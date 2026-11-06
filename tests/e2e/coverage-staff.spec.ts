@@ -15,6 +15,7 @@ import {
   type CoverageWorld,
 } from "./helpers/coverage-world"
 import { syntheticJpeg, type SourceFile } from "./helpers/media"
+import { activateMenu, createMenuDraft } from "./helpers/menus"
 import { provisioner, psql } from "./helpers/stack"
 import {
   escape,
@@ -109,6 +110,74 @@ async function managerSetup(w: CoverageWorld): Promise<Setup> {
     })
   )
   return { manager, requirementId, title }
+}
+
+const revisionOf = (table: string, id: string) =>
+  Number(psql(`select revision from public.${table} where id = '${id}'::uuid`))
+
+/**
+ * A confirmed menu plan from the fixture menu (two food sections): Starters
+ * (target 2, assigned to staff A) and Mains (target 1). Returns Starters.
+ */
+async function menuSectionSetup(w: CoverageWorld, manager: Db) {
+  const admin = await signIn(provisioner(), w.admin.email)
+  const versionId = await createMenuDraft(
+    admin,
+    w.venue1.id,
+    `WS5 menu ${w.tag}`
+  )
+  await activateMenu(admin, versionId)
+  const [plan] = await ok(
+    manager.rpc("start_menu_coverage_plan", {
+      p_venue_id: w.venue1.id,
+      p_menu_version_id: versionId,
+    })
+  )
+  const planId = (plan as { plan_id: string }).plan_id
+  const section = (title: string) =>
+    psql(
+      `select id from public.coverage_requirements where menu_plan_id = '${planId}'::uuid and title = '${title}'`
+    )
+  const starters = section("Starters")
+  const mains = section("Mains")
+  for (const [id, title, target, guidance] of [
+    [starters, "Starters", 2, "Any starter, plated as it goes to the table."],
+    [mains, "Mains", 1, null],
+  ] as const) {
+    await ok(
+      manager.rpc("save_coverage_requirement", {
+        p_venue_id: none,
+        p_requirement_id: id,
+        p_expected_revision: revisionOf("coverage_requirements", id),
+        p_kind: none,
+        p_title: title,
+        p_guidance: guidance ?? none,
+        p_photo_target: target,
+        p_due_on: none,
+        p_client_request_key: none,
+      })
+    )
+    await ok(
+      manager.rpc("set_coverage_requirement_status", {
+        p_requirement_id: id,
+        p_expected_revision: revisionOf("coverage_requirements", id),
+        p_status: "active",
+      })
+    )
+  }
+  await ok(
+    manager.rpc("set_coverage_requirement_assignees", {
+      p_requirement_id: starters,
+      p_staff_ids: [w.staffA.id],
+    })
+  )
+  await ok(
+    manager.rpc("confirm_menu_coverage_plan", {
+      p_plan_id: planId,
+      p_expected_revision: revisionOf("menu_coverage_plans", planId),
+    })
+  )
+  return starters
 }
 
 /** The task flow's images-only upload dialog; new photos come back selected. */
@@ -398,5 +467,112 @@ test.describe("coverage: staff tasks journey (WS5)", () => {
     await expect(monthly).toBeVisible()
     await expect(monthly.getByText("Target met")).toHaveCount(0)
     await expect(page.getByText("Needs setup").first()).toBeVisible()
+  })
+
+  test("photo guide: a food menu task teaches the four angles; other tasks do not (phone)", async ({
+    browser,
+    request,
+  }) => {
+    const w = await provisionCoverageWorld()
+    const setup = await managerSetup(w)
+    const startersId = await menuSectionSetup(w, setup.manager)
+    const page = await signedInPage(browser, w.staffA, devices["Pixel 7"])
+
+    await page.goto(`/staff/tasks/${startersId}`)
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Starters" })
+    ).toBeVisible()
+    const guide = page.getByRole("region", { name: "How to photograph it" })
+    await expect(guide).toBeVisible()
+    await expect(
+      guide.getByText(
+        "This section needs 2 photos. Start with the marked angles."
+      )
+    ).toBeVisible()
+    await expect(guide.getByText("Suggested", { exact: true })).toHaveCount(2)
+    // Between "What to photograph" and "On this section".
+    const headings = await page
+      .getByRole("heading", { level: 2 })
+      .allTextContents()
+    const at = (name: string) => headings.indexOf(name)
+    expect(at("What to photograph")).toBeGreaterThanOrEqual(0)
+    expect(at("How to photograph it")).toBe(at("What to photograph") + 1)
+    expect(at("On this section")).toBe(at("How to photograph it") + 1)
+
+    // The example loads as a static file, then opens full screen.
+    const tile = guide.getByRole("button", {
+      name: "45° angle, suggested. Open example",
+    })
+    await tile.scrollIntoViewIfNeeded()
+    await expect
+      .poll(() =>
+        tile
+          .locator("img")
+          .evaluate(
+            (img: HTMLImageElement) => img.complete && img.naturalWidth > 0
+          )
+      )
+      .toBe(true)
+    await tile.click()
+    const viewer = page.getByRole("dialog", { name: "45° angle" })
+    await expect(viewer).toBeVisible()
+    await expect(viewer.getByText("1 of 4 · Mixed grill")).toBeVisible()
+    await expect(
+      viewer.getByRole("button", { name: "Previous" })
+    ).toBeDisabled()
+    await viewer.getByRole("button", { name: "Next" }).click()
+    await expect(viewer.getByText("2 of 4 · Mixed grill")).toBeVisible()
+    await expect(page.getByRole("dialog", { name: "Overhead" })).toBeVisible()
+    await page.keyboard.press("Escape")
+    await expect(page.getByRole("dialog")).toHaveCount(0)
+    await expect(tile).toBeFocused()
+
+    // The full guide: checklist, safety note, no angle marked.
+    await guide.getByRole("link", { name: "See the full photo guide" }).click()
+    await expect(page).toHaveURL(/\/staff\/tasks\/guide$/)
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Photo guide" })
+    ).toBeVisible()
+    await expect(
+      page.getByRole("heading", { name: "Every shot" })
+    ).toBeVisible()
+    await expect(page.getByText("No flash.")).toBeVisible()
+    await expect(
+      page.getByText("Only take photos when it's safe.", { exact: false })
+    ).toBeVisible()
+    await expect(page.getByText("Suggested", { exact: true })).toHaveCount(0)
+    await page
+      .getByRole("group", { name: "Example dish" })
+      .getByRole("button", { name: "Momos" })
+      .click()
+    await expect(
+      page
+        .getByRole("group", { name: "Example dish" })
+        .getByRole("button", { name: "Momos" })
+    ).toHaveAttribute("aria-pressed", "true")
+
+    // Monthly photos links to the guide.
+    await page.goto("/staff/tasks/month")
+    await expect(
+      page.getByRole("link", { name: "How to photograph a dish" })
+    ).toHaveAttribute("href", "/staff/tasks/guide")
+
+    // A non-menu task has no guide.
+    await page.goto(`/staff/tasks/${setup.requirementId}`)
+    await expect(
+      page.getByRole("heading", { level: 1, name: setup.title })
+    ).toBeVisible()
+    await expect(
+      page.getByRole("region", { name: "How to photograph it" })
+    ).toHaveCount(0)
+
+    // Generic examples are public static files, cached as immutable.
+    const image = await request.get("/guide/v1/mixed-grill-45.webp")
+    expect(image.status()).toBe(200)
+    expect(image.headers()["content-type"]).toBe("image/webp")
+    expect(image.headers()["cache-control"]).toBe(
+      "public, max-age=31536000, immutable"
+    )
+    await page.context().close()
   })
 })
