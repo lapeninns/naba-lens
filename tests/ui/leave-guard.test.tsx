@@ -17,19 +17,27 @@ afterEach(() => {
   push.mockClear()
 })
 
-function Queue({ active, stop }: { active: number; stop: () => void }) {
-  useLeaveGuard(active, stop)
+function Queue({
+  active,
+  stop,
+  labels,
+}: {
+  active: number
+  stop: () => void
+  labels?: number
+}) {
+  useLeaveGuard(active, stop, labels)
   return null
 }
 
-function setup(active: number, queues = 1) {
+function setup(active: number, queues = 1, labels = 0) {
   const stop = vi.fn()
   const loggedOut = vi.fn((e: React.FormEvent) => e.preventDefault())
   const followed = vi.fn((e: React.MouseEvent) => e.preventDefault())
   render(
     <LeaveGuard>
       {Array.from({ length: queues }, (_, i) => (
-        <Queue key={i} active={active} stop={stop} />
+        <Queue key={i} active={active} stop={stop} labels={labels} />
       ))}
       <form data-logout onSubmit={loggedOut}>
         <button type="submit">Log out</button>
@@ -126,6 +134,34 @@ describe("LeaveGuard", () => {
     expect(followed).toHaveBeenCalledTimes(2)
   })
 
+  it("asks before Log out while only labels have not reached the server", async () => {
+    const { user, stop, loggedOut } = setup(0, 1, 1)
+    await user.click(screen.getByRole("button", { name: "Log out" }))
+    const dialog = await screen.findByRole("alertdialog", {
+      name: "Log out now?",
+    })
+    expect(dialog.textContent).toContain(
+      "Labels for 1 photo haven't saved yet."
+    )
+    expect(dialog.textContent).not.toContain("upload")
+    expect(loggedOut).not.toHaveBeenCalled()
+    await user.click(screen.getByRole("button", { name: "Log out anyway" }))
+    expect(stop).toHaveBeenCalledTimes(1)
+    expect(loggedOut).toHaveBeenCalledTimes(1)
+  })
+
+  it("asks before a link out of /staff with uploads and labels pending", async () => {
+    const { user, followed } = setup(1, 1, 3)
+    await user.click(screen.getByRole("link", { name: "Elsewhere" }))
+    const dialog = await screen.findByRole("alertdialog", {
+      name: "Leave now?",
+    })
+    expect(dialog.textContent).toContain(
+      "Leave now and 1 upload stops. Finished photos stay uploaded. Labels for 3 photos haven't saved yet."
+    )
+    expect(followed).not.toHaveBeenCalled()
+  })
+
   it("does nothing outside the guard", () => {
     const stop = vi.fn()
     render(<Queue active={3} stop={stop} />)
@@ -145,6 +181,12 @@ describe("leaveCopy", () => {
       title: "Leave now?",
       leave: "Leave anyway",
       stay: "Keep uploading",
+    })
+    expect(leaveCopy("leave", 0, 1)).toEqual({
+      title: "Leave now?",
+      body: "Labels for 1 photo haven't saved yet.",
+      leave: "Leave anyway",
+      stay: "Stay",
     })
   })
 })

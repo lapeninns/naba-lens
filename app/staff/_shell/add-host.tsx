@@ -3,12 +3,17 @@
 import * as React from "react"
 import { useRouter } from "next/navigation"
 
-import { LabelEditorHost } from "@/app/_labels/label-editor-host"
 import { useMediaUploader } from "@/app/_media/use-media-uploader"
 import { UploadDialog } from "@/components/nabalens"
-import type { UploadLabelDrafts } from "@/components/nabalens/upload-label-drafts"
+import type { CatalogueProp } from "@/components/nabalens/labels"
 import type { UploadBusy } from "@/components/nabalens/upload-dialog"
 import type {
+  UploadLabelFixProps,
+  UploadLabelPanelHostProps,
+  UploadLabels,
+} from "@/components/nabalens/upload-label-drafts"
+import type {
+  QueueItem,
   Uploader,
   UploadPurpose,
 } from "@/components/nabalens/upload-queue"
@@ -28,14 +33,25 @@ import {
   AddSheet,
   type AddBlocked,
 } from "@/components/nabalens/shell/add-sheet"
+import { useObjectUrl } from "@/components/nabalens/use-upload-queue"
 import { CAPTCHA_RETRY_MESSAGE } from "@/lib/auth/captcha"
 import { sendSignInLink, signInWithCode } from "@/lib/auth/magic-link"
 import { MEDIA_LIMITS } from "@/lib/config/media"
+import type { WorkFocus } from "@/lib/config/work-roles"
+import { EMPTY_LABEL_SUMMARY, type LabelCatalogue } from "@/lib/menus/types"
 import { createClient } from "@/lib/supabase/browser"
 import { getSiteUrl } from "@/lib/supabase/env"
 
-import { saveUploadLabelDraft } from "./upload-label-api"
-import { UploadLabelEditor } from "./upload-label-editor"
+import {
+  discardUploadLabels,
+  loadLabelAttention,
+  loadUploadLabelContext,
+  saveUploadLabels,
+  type UploadLabelContext,
+} from "./upload-label-api"
+// TODO(integration): import both from "@/components/nabalens/labels" (S2, C3)
+// and delete the stub.
+import { FixLabelsDialog, UploadLabelPanel } from "./upload-label-panel-stub"
 
 /** What one Add call brings for the files it picks. */
 type PickOwner = {
@@ -45,20 +61,34 @@ type PickOwner = {
   purpose: UploadPurpose
 }
 
-function samePreset(a: AddLabelPreset | undefined, b: AddLabelPreset) {
+function samePreset(a: AddLabelPreset | null | undefined, b: AddLabelPreset) {
   return !!a && a.itemId === b.itemId && a.variantId === b.variantId
+}
+
+/** The catalogue item for a preset, when this menu still offers it. */
+function onMenu(catalogue: LabelCatalogue, preset: AddLabelPreset) {
+  if (catalogue.status !== "active") return false
+  return catalogue.sections.some((section) =>
+    section.items.some(
+      (item) =>
+        item.itemId === preset.itemId &&
+        (preset.variantId === null ||
+          item.variants.some((v) => v.variantId === preset.variantId))
+    )
+  )
 }
 
 /**
  * Hosts Add, the session guard every upload on the page uses, and the leave
  * guard, for every staff page. There is one upload queue for every staff
- * screen (Add, Home, welcome, Me and task screens): it keeps uploading when
- * closed, and while it has unfinished files, or files that finished out of
- * sight and are ready to label, Add reopens it. `openAdd({ source })` opens
- * that picker straight away; otherwise phones get the Add sheet first and from
- * md the upload dialog opens straight away. Finished files can be labelled
- * from the queue ("Label these files"). A blocked account sees why instead.
- * The database repeats the block check, so this is display only.
+ * screen (Add, Home, welcome, Me, Our menu and task screens): files start
+ * uploading as soon as they are picked, in one "Saving N photos" sheet with
+ * optional labels ("What's in these photos?"). It keeps uploading when
+ * closed, and while files are unfinished or need the person, Add reopens it.
+ * `openAdd({ source })` opens that picker straight away; otherwise phones get
+ * the Add sheet first and from md the upload dialog opens straight away. A
+ * blocked account sees why instead. The database repeats the block check, so
+ * this is display only.
  */
 export function AddHost({
   blocked,
@@ -135,41 +165,61 @@ export function AddHost({
     failed: 0,
     stopped: 0,
   })
-  // Per Add call: photos only for task screens, a suggested label from Our
-  // menu, and who to tell once files are actually picked.
+  // Per Add call: photos only for task screens, Our menu's dish, and who to
+  // tell once files are actually picked.
   const [imagesOnly, setImagesOnly] = React.useState(false)
   const onPicked = React.useRef<(() => void) | null>(null)
   // What an Add call brings for the files it picks (and only those): a task
-  // screen's ready listener and Our menu's suggested label. Set by each
-  // openAdd, given to the next picked files, kept per File until ready.
+  // screen's ready listener and Our menu's dish. Set by each openAdd, given to
+  // the next picked files, kept per File.
   const pendingOwner = React.useRef<PickOwner | null>(null)
   const fileOwners = React.useRef(new WeakMap<File, PickOwner>())
-  const presetFor = React.useRef(new Map<string, AddLabelPreset>())
-  const [labelPreset, setLabelPreset] = React.useState<{
-    preset: AddLabelPreset
-    assetIds: string[]
-  } | null>(null)
-  // Files that finished while the queue was hidden: Add reopens the settled
-  // queue so they can be labelled ("Ready to label").
-  const [readyToLabel, setReadyToLabel] = React.useState<string[]>([])
-  const [labelIds, setLabelIds] = React.useState<string[] | null>(null)
-  const uploadOpenRef = React.useRef(uploadOpen)
-  React.useLayoutEffect(() => {
-    uploadOpenRef.current = uploadOpen
-  }, [uploadOpen])
   const readyListeners = React.useRef(new Set<AddReadyListener>())
 
-  const unfinished = busy.active + busy.failed + busy.stopped
-  const waiting = unfinished + readyToLabel.length + (busy.labels ?? 0)
+  const waiting =
+    busy.active +
+    busy.failed +
+    busy.stopped +
+    (busy.labels ?? 0) +
+    (busy.attention ?? 0)
   const busyWords = [
     busy.active ? `${busy.active} in progress` : null,
     busy.failed ? `${busy.failed} failed` : null,
     busy.stopped ? `${busy.stopped} stopped` : null,
-    busy.labels ? `${busy.labels} with pending labels` : null,
-    readyToLabel.length ? `${readyToLabel.length} ready to label` : null,
+    busy.labels ? `${busy.labels} saving labels` : null,
+    busy.attention ? `${busy.attention} need attention` : null,
   ]
     .filter(Boolean)
     .join(", ")
+
+  // The labelling menu (catalogue), loaded once files are picked: the sheet's
+  // label field, and Our menu's dish, which is applied as soon as it is known.
+  const [labelContext, setLabelContext] =
+    React.useState<UploadLabelContext | null>(null)
+  const [catalogueWanted, setCatalogueWanted] = React.useState(false)
+  const [catalogueAttempt, setCatalogueAttempt] = React.useState(0)
+  React.useEffect(() => {
+    if (!catalogueWanted) return
+    const controller = new AbortController()
+    void loadUploadLabelContext(controller.signal)
+      .catch((): UploadLabelContext => ({
+        ok: false,
+        message: "The menu could not be loaded. Try again.",
+      }))
+      .then((result) => {
+        if (!controller.signal.aborted) setLabelContext(result)
+      })
+    return () => controller.abort()
+  }, [catalogueWanted, catalogueAttempt])
+  const reloadCatalogue = React.useCallback(() => {
+    setLabelContext(null)
+    setCatalogueAttempt((attempt) => attempt + 1)
+  }, [])
+  const catalogueProp: CatalogueProp = !labelContext
+    ? { state: "loading" }
+    : labelContext.ok
+      ? { state: "ready", catalogue: labelContext.catalogue }
+      : { state: "error", message: labelContext.message }
 
   const picked = React.useCallback((files: File[]) => {
     const notify = onPicked.current
@@ -178,7 +228,10 @@ export function AddHost({
     pendingOwner.current = null
     if (owner && (owner.onReady || owner.preset || owner.purpose !== "general"))
       for (const file of files) fileOwners.current.set(file, owner)
-    if (files.length > 0) notify?.()
+    if (files.length > 0) {
+      setCatalogueWanted(true)
+      notify?.()
+    }
   }, [])
 
   /** Files from Add's own picker or the sheet go to the queue, shown. */
@@ -200,66 +253,26 @@ export function AddHost({
     }
   }, [])
 
-  const handleReady = React.useCallback(
-    (ids: string[], files?: File[], drafted: string[] = []) => {
-      // Each Add call hears only its own files; a task screen that takes them
-      // claims them, so they are not "ready to label" on Add as well.
-      const unclaimed: string[] = []
-      const byOwner = new Map<PickOwner, string[]>()
-      ids.forEach((id, i) => {
-        const file = files?.[i]
-        const owner = file ? fileOwners.current.get(file) : undefined
-        if (owner?.preset) presetFor.current.set(id, owner.preset)
-        if (owner?.onReady)
-          byOwner.set(owner, [...(byOwner.get(owner) ?? []), id])
-        else if (!drafted.includes(id)) unclaimed.push(id)
-      })
-      for (const [owner, own] of byOwner) {
-        if (owner.onReady?.(own) === false) unclaimed.push(...own)
-      }
-      if (!uploadOpenRef.current && unclaimed.length > 0) {
-        setReadyToLabel((current) => [
-          ...current,
-          ...unclaimed.filter((id) => !current.includes(id)),
-        ])
-      }
-      for (const listener of readyListeners.current) listener(ids)
-    },
-    []
-  )
-
-  const labelled = React.useCallback((ids: string[]) => {
-    setReadyToLabel((current) => {
-      const next = current.filter((id) => !ids.includes(id))
-      return next.length === current.length ? current : next
+  // Each file as soon as it is ready: its own Add call hears it (a task
+  // screen selects it), then every subscriber.
+  const handleReady = React.useCallback((ids: string[], files: File[]) => {
+    ids.forEach((id, i) => {
+      const owner = fileOwners.current.get(files[i])
+      owner?.onReady?.([id])
     })
+    for (const listener of readyListeners.current) listener(ids)
   }, [])
 
-  /** The editor for these files, with the suggestion only on files it came with. */
-  const openLabels = React.useCallback((ids: string[]) => {
-    const last = [...ids].reverse().find((id) => presetFor.current.has(id))
-    const preset = last ? presetFor.current.get(last)! : null
-    setLabelPreset(
-      preset
-        ? {
-            preset,
-            assetIds: ids.filter((id) =>
-              samePreset(presetFor.current.get(id), preset)
-            ),
-          }
-        : null
-    )
-    setLabelIds(ids)
-  }, [])
+  const labelled = React.useCallback(() => {}, [])
 
   const value = React.useMemo(
     () => ({
       openAdd: (opts: OpenAddOptions = {}) => {
-        // Waiting files (unfinished, or finished while hidden and not yet
-        // labelled): Add shows that queue at every width, so a hidden run is
-        // never out of reach. A source still opens its picker straight away.
-        // A suggestion and a ready listener belong to the files this call
-        // picks, never to the queue (see picked and handleReady).
+        // Waiting files (unfinished, or needing the person): Add shows that
+        // queue at every width, so a hidden run is never out of reach. A
+        // source still opens its picker straight away. A dish and a ready
+        // listener belong to the files this call picks, never to the queue
+        // (see picked and handleReady).
         pendingOwner.current = {
           onReady: opts.onReady ?? null,
           preset: opts.preset ?? null,
@@ -290,17 +303,30 @@ export function AddHost({
     [blocked, waiting, busyWords, refreshSignal, onReady, labelled, openPicker]
   )
 
+  // Resume keys belong to the signed-in account (audit finding 15).
+  const accountRef = React.useRef(userId)
+  React.useLayoutEffect(() => {
+    accountRef.current = userId
+  }, [userId])
+
   // One queue, files from several Add calls: each file is reserved with the
   // purpose of the call that picked it (general unless it said otherwise).
   const upload = React.useMemo<Uploader>(
-    () => (file, context) => {
+    () => async (file, context) => {
       const purpose = fileOwners.current.get(file)?.purpose
-      return uploader(
-        file,
-        purpose && purpose !== "general" ? { ...context, purpose } : context
-      )
+      const account =
+        accountRef.current ??
+        (await supabase.auth
+          .getSession()
+          .then(({ data }) => data.session?.user.id ?? null)
+          .catch(() => null))
+      return uploader(file, {
+        ...context,
+        ...(purpose && purpose !== "general" ? { purpose } : {}),
+        ...(account ? { account } : {}),
+      })
     },
-    [uploader]
+    [uploader, supabase]
   )
 
   const refreshAfterLabels = React.useCallback(() => {
@@ -308,45 +334,75 @@ export function AddHost({
     router.refresh()
   }, [router])
 
-  const draftLabels = React.useMemo<UploadLabelDrafts>(
+  const catalogue = labelContext?.ok ? labelContext.catalogue : null
+  const focus = labelContext?.ok ? labelContext.focus : null
+  const labels = React.useMemo<UploadLabels>(
     () => ({
-      // Task screens own their upload hand-off and may open their own editor.
-      canDraft: (file) => {
+      // Task screens own their upload hand-off; amenity evidence is never
+      // labelled.
+      canLabel: (file) => {
         const owner = fileOwners.current.get(file)
         return !owner || (!owner.onReady && owner.purpose === "general")
       },
-      save: saveUploadLabelDraft,
-      onSaved: (id) => {
-        labelled([id])
-        refreshAfterLabels()
+      // Our menu's dish is applied by default, once the menu is known.
+      seed: (item) => {
+        const preset = fileOwners.current.get(item.file)?.preset
+        if (!preset) return null
+        if (!catalogue) return undefined
+        if (!onMenu(catalogue, preset)) return null
+        return {
+          venueId: catalogue.venueId,
+          input: {
+            assetId: item.id,
+            expectedRevision: 0,
+            catalogueVersionId:
+              catalogue.status === "active" ? catalogue.versionId : null,
+            contentTypes: [],
+            note: null,
+            items: [{ itemId: preset.itemId, variantId: preset.variantId }],
+            missingItem: null,
+          },
+        }
       },
-      renderEditor: (props) => {
-        const last = [...props.items]
-          .reverse()
-          .find((item) => fileOwners.current.get(item.file)?.preset)
-        const preset =
-          (last && fileOwners.current.get(last.file)?.preset) ?? null
-        return (
-          <UploadLabelEditor
-            {...props}
-            preset={preset}
-            presetAssetIds={
-              preset
-                ? props.items
-                    .filter((item) =>
-                      samePreset(
-                        fileOwners.current.get(item.file)?.preset ?? undefined,
-                        preset
-                      )
-                    )
-                    .map((item) => item.id)
-                : []
-            }
-          />
-        )
-      },
+      save: saveUploadLabels,
+      discard: discardUploadLabels,
+      attention: loadLabelAttention,
+      itemNames: (input) =>
+        input.items.flatMap((ref) => {
+          if (catalogue?.status !== "active") return []
+          for (const section of catalogue.sections)
+            for (const item of section.items)
+              if (item.itemId === ref.itemId) {
+                const variant = item.variants.find(
+                  (v) => v.variantId === ref.variantId
+                )
+                return [variant ? `${item.name} (${variant.name})` : item.name]
+              }
+          return []
+        }),
+      onSaved: refreshAfterLabels,
+      renderPanel: (props) => (
+        <PanelHost
+          {...props}
+          catalogue={catalogueProp}
+          venueId={catalogue?.venueId ?? null}
+          focus={focus}
+          onRetryCatalogue={reloadCatalogue}
+          presetOf={(file) => fileOwners.current.get(file)?.preset ?? null}
+        />
+      ),
+      renderFix: (props) => (
+        <FixHost
+          {...props}
+          catalogue={catalogueProp}
+          focus={focus}
+          onRetryCatalogue={reloadCatalogue}
+        />
+      ),
     }),
-    [labelled, refreshAfterLabels]
+    // catalogueProp is derived from labelContext.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [catalogue, focus, labelContext, refreshAfterLabels, reloadCatalogue]
   )
 
   return (
@@ -365,12 +421,7 @@ export function AddHost({
           />
           <UploadDialog
             open={uploadOpen}
-            onOpenChange={(open) => {
-              setUploadOpen(open)
-              // Closed when settled: the queue was cleared (or its files are
-              // being labelled), so nothing waits any more.
-              if (!open && busy.active === 0) setReadyToLabel([])
-            }}
+            onOpenChange={setUploadOpen}
             uploader={upload}
             limits={MEDIA_LIMITS}
             imagesOnly={imagesOnly}
@@ -381,30 +432,118 @@ export function AddHost({
               router.refresh()
             }}
             onReady={handleReady}
-            draftLabels={draftLabels}
-            onLabel={(ids) => {
-              setReadyToLabel([])
-              openLabels(ids)
-            }}
+            labels={labels}
+            startOnPick
             keepRunningWhenClosed
             onBusyChange={setBusy}
-          />
-          <LabelEditorHost
-            assetIds={labelIds ?? []}
-            open={labelIds !== null}
-            onOpenChange={(open) => {
-              if (!open) {
-                for (const id of labelIds ?? []) presetFor.current.delete(id)
-                setLabelIds(null)
-                setLabelPreset(null)
-              }
-            }}
-            preset={labelPreset?.preset ?? null}
-            presetAssetIds={labelPreset?.assetIds}
-            onSaved={refreshAfterLabels}
           />
         </AddProvider>
       </LeaveGuard>
     </SessionGuardProvider>
   )
+}
+
+/** The sheet's label field for the files that can carry labels. */
+function PanelHost({
+  items,
+  initial,
+  disabledIds,
+  onChange,
+  onPendingChange,
+  catalogue,
+  venueId,
+  focus,
+  onRetryCatalogue,
+  presetOf,
+}: UploadLabelPanelHostProps & {
+  catalogue: CatalogueProp
+  venueId: string | null
+  focus: WorkFocus | null
+  onRetryCatalogue: () => void
+  presetOf: (file: File) => AddLabelPreset | null
+}) {
+  // The dish of the latest files that came with one, on those files only.
+  const last = [...items].reverse().find((item) => presetOf(item.file))
+  const preset = last ? presetOf(last.file) : null
+  return (
+    <UploadLabelPanel
+      catalogue={catalogue}
+      onRetryCatalogue={onRetryCatalogue}
+      focus={focus}
+      files={items.map((item) => ({
+        id: item.id,
+        name: item.file.name,
+        kind: item.kind,
+      }))}
+      preset={preset}
+      presetAssetIds={
+        preset
+          ? items
+              .filter((item) => samePreset(presetOf(item.file), preset))
+              .map((item) => item.id)
+          : []
+      }
+      initial={initial}
+      disabledIds={disabledIds}
+      onChange={(inputs) => {
+        if (venueId) onChange(venueId, inputs)
+      }}
+      onPendingChange={onPendingChange}
+    />
+  )
+}
+
+/** "Fix labels": the stored labels against the menu as it is now. */
+function FixHost({
+  item,
+  assetId,
+  draft,
+  problem,
+  onClose,
+  onSave,
+  catalogue,
+  focus,
+  onRetryCatalogue,
+}: UploadLabelFixProps & {
+  catalogue: CatalogueProp
+  focus: WorkFocus | null
+  onRetryCatalogue: () => void
+}) {
+  // The menu may have changed since the sheet loaded it: load it again.
+  const reload = React.useRef(onRetryCatalogue)
+  React.useEffect(() => reload.current(), [])
+  const preview = useObjectUrl(item.kind === "image" ? item.file : null)
+  const ready = catalogue.state === "ready" ? catalogue.catalogue : null
+  return (
+    <FixLabelsDialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose()
+      }}
+      asset={assetOf(item, assetId, ready, preview)}
+      draft={draft}
+      problem={problem}
+      catalogue={catalogue}
+      onRetryCatalogue={onRetryCatalogue}
+      focus={focus}
+      onSave={onSave}
+    />
+  )
+}
+
+function assetOf(
+  item: QueueItem,
+  assetId: string,
+  catalogue: LabelCatalogue | null,
+  preview: string | null
+) {
+  return {
+    id: assetId,
+    venueId: catalogue?.venueId ?? "",
+    venueName: catalogue?.venueName ?? "",
+    originalFilename: item.file.name,
+    mediaType: item.kind,
+    thumbnailUrl: preview,
+    labels: EMPTY_LABEL_SUMMARY,
+  }
 }

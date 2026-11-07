@@ -12,9 +12,9 @@ import type { UploadPurpose } from "../upload-queue"
 import { TAB_ITEM } from "./tab-item"
 
 /**
- * A menu item to suggest as a label for the next files (from Our menu's "Add
- * a photo of this dish"). It is shown as an unsaved draft in the label editor
- * for the person to confirm; it is never saved on its own.
+ * A menu item to label the next files with (from Our menu's dish row). It is
+ * applied by default: the upload sheet shows it as a chip the person can
+ * remove, and it is saved on each of those photos unless they do.
  */
 export type AddLabelPreset = {
   itemId: string
@@ -25,24 +25,26 @@ export type AddLabelPreset = {
 
 export type OpenAddOptions = {
   /**
-   * Open this picker straight away (no sheet). The host clicks its hidden
-   * input synchronously, so call openAdd inside the click handler.
+   * Open this picker straight away (no sheet): "camera" captures with the
+   * back camera, "library" picks several. The host clicks its hidden input
+   * synchronously, so call openAdd inside the click handler. The picked files
+   * start uploading at once and the "Saving N photos" sheet opens.
    */
   source?: PhotoSource
   /** Accept photos only for the files picked from this call (task screens). */
   imagesOnly?: boolean
   /**
-   * Suggested label for the files picked from this call only: earlier files in
-   * the queue, and later picks, never get it.
+   * Label applied to the files picked from this call only (a removable chip):
+   * earlier files in the queue, and later picks, never get it.
    */
   preset?: AddLabelPreset | null
   /** Called once files are actually picked (not when the picker is cancelled). */
   onPicked?: () => void
   /**
-   * Hears only the files picked from this call once they are ready (a task
-   * screen selecting its own uploads). Return false when the screen is gone:
-   * Add then keeps them as ready to label. Files claimed here are not counted
-   * as "ready to label" on Add.
+   * Hears only the files picked from this call, each one as soon as THAT file
+   * is ready (one asset ID per call, many calls per pick), so a task screen
+   * selects a photo while a slow video is still uploading. Return false when
+   * the screen is gone.
    */
   onReady?: (assetIds: string[]) => boolean | void
   /**
@@ -63,8 +65,8 @@ export type AddReadyListener = (assetIds: string[]) => void
 type AddContextValue = {
   openAdd: (opts?: OpenAddOptions) => void
   /**
-   * Subscribe to uploads of the one Add queue that became ready (once per
-   * settled run, asset IDs known). Returns the unsubscribe function.
+   * Subscribe to uploads of the one Add queue as each becomes ready (one asset
+   * ID per call, asset IDs known). Returns the unsubscribe function.
    */
   onReady?: (listener: AddReadyListener) => () => void
   /** Changes after a global Add upload completes so mounted galleries refresh. */
@@ -72,8 +74,8 @@ type AddContextValue = {
   /** Files in the Add queue that are not finished, in the queue's words. */
   busy?: { count: number; words: string } | null
   /**
-   * Labels were saved for these photos elsewhere (Me's "Needs labels"): Add
-   * stops counting them as ready to label.
+   * Labels were saved for these photos elsewhere (Me's "Needs labels"). Kept
+   * for callers; Add no longer counts photos as "ready to label".
    */
   labelled?: (assetIds: string[]) => void
 }

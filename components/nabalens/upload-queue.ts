@@ -4,7 +4,8 @@
 // Item lifecycle:
 //   selected --start()--> queued --> uploading --> processing --> done
 //                                          \             \
-//                                           +--> failed <-+   (retry() -> queued)
+//                                           +--> failed <-+   (retry() -> queued,
+//                                                              unless not retryable)
 //   selected|queued|uploading|processing --cancel()--> cancelled (retry() -> queued)
 //
 // The queue pauses while the device is offline or the session has ended: queued
@@ -17,7 +18,10 @@
 // switch to server-side processing; whatever token it stores with
 // `setResumeToken` (for example the server-reserved asset ID) is handed back on
 // retry so a retried file finalises the same asset instead of creating a
-// duplicate.
+// duplicate. The asset ID is on the item as soon as the server reserves it, so
+// labels can be sent while the bytes are still on their way.
+
+import type { MediaLabelSummary, SaveLabelsErrorCode } from "@/lib/menus/types"
 
 import type { MediaType, UploadLimits } from "./types"
 
@@ -41,9 +45,24 @@ export type QueueItem = {
   attempts: number
   /** Failed because the session ended; Retry once signed in again. */
   stopped?: boolean
-  /** Server asset ID once done, when the uploader reports it (labelling). */
+  /**
+   * Failed for good (the server could not process the file): Retry would only
+   * fail again, so the person can only remove it.
+   */
+  retryable?: boolean
+  /**
+   * Server asset ID, from the reservation on (when the uploader reports it),
+   * so labels can be sent before the file is done.
+   */
   assetId?: string
+  /** What finalise did with labels that waited for this asset, if any. */
+  labels?: UploadLabelOutcome
 }
+
+/** Mirrors lib/upload's FinaliseLabels (lib/ never imports components/). */
+export type UploadLabelOutcome =
+  | { state: "saved"; labels: MediaLabelSummary }
+  | { state: "needs_attention"; code: SaveLabelsErrorCode; message: string }
 
 export type UploadContext = {
   signal: AbortSignal
@@ -60,6 +79,10 @@ export type UploadContext = {
    * evidence never appears in the organisation community. Omitted: general.
    */
   purpose?: UploadPurpose
+  /** Call once the server has reserved the asset (its ID is known). */
+  onReserved?: (assetId: string) => void
+  /** The signed-in account, when the owner knows it (scopes resume keys). */
+  account?: string
 }
 
 /** Mirrors `media_assets.purpose`. */
@@ -67,12 +90,13 @@ export type UploadPurpose = "general" | "amenity"
 
 /**
  * Injected upload function. Resolve when the asset is ready (optionally with
- * its server asset ID, so the UI can offer labelling); reject on failure.
+ * its server asset ID, so the UI can offer labelling, and what finalise did
+ * with labels waiting for it); reject on failure.
  */
 export type Uploader = (
   file: File,
   context: UploadContext
-) => Promise<void | { assetId: string }>
+) => Promise<void | { assetId: string; labels?: UploadLabelOutcome }>
 
 export type RejectedFile = { name: string; reason: string }
 
@@ -95,8 +119,7 @@ export type QueueSummary = {
 
 export type QueuePause = "offline" | "signed-out" | null
 
-export const SIGNED_OUT_MESSAGE =
-  "You were signed out. Sign in again, then choose the same file to finish."
+export const SIGNED_OUT_MESSAGE = "Sign in again, then tap Retry."
 
 /**
  * Thrown by an uploader when the request failed because the person is no
@@ -358,16 +381,21 @@ export class UploadQueue {
     const item = this.items.find((i) => i.id === id)
     if (!item || (item.status !== "failed" && item.status !== "cancelled"))
       return
+    if (item.retryable === false) return
     this.update(id, {
       status: "queued",
       error: null,
       progress: 0,
       stopped: false,
+      retryable: undefined,
     })
     this.pump()
   }
 
-  /** Retry every file that failed for its own reason (not stopped ones). */
+  /**
+   * Retry every file that failed for its own reason (not stopped ones, and
+   * not those that cannot succeed).
+   */
   retryFailed() {
     for (const item of this.items)
       if (item.status === "failed" && !item.stopped) this.retry(item.id)
@@ -432,6 +460,11 @@ export class UploadQueue {
       onProcessing: () => {
         if (current()) this.update(id, { status: "processing", progress: 1 })
       },
+      onReserved: (assetId) => {
+        if (!current()) return
+        const latest = this.items.find((i) => i.id === id)
+        if (latest && latest.assetId !== assetId) this.update(id, { assetId })
+      },
     }
 
     try {
@@ -441,6 +474,7 @@ export class UploadQueue {
         status: "done",
         progress: 1,
         ...(result?.assetId ? { assetId: result.assetId } : {}),
+        ...(result?.labels ? { labels: result.labels } : {}),
       })
     } catch (error) {
       if (!current()) return
@@ -463,7 +497,11 @@ export class UploadQueue {
         this.setPause()
         this.update(id, { status: "queued", progress: 0, error: null })
       } else {
-        this.update(id, { status: "failed", error: errorMessage(error) })
+        this.update(id, {
+          status: "failed",
+          error: errorMessage(error),
+          ...(isRetryable(error) ? {} : { retryable: false }),
+        })
       }
     } finally {
       if (current()) {
@@ -488,13 +526,21 @@ const TRANSFER_CODES = new Set([
   "finalise_failed",
 ])
 
+function errorDetail(error: unknown) {
+  return error && typeof error === "object" && "error" in error
+    ? (error as { error?: { code?: unknown; retryable?: unknown } }).error
+    : undefined
+}
+
 function isRetryableTransfer(error: unknown): boolean {
-  const detail =
-    error && typeof error === "object" && "error" in error
-      ? (error as { error?: { code?: unknown; retryable?: unknown } }).error
-      : undefined
+  const detail = errorDetail(error)
   if (!detail || typeof detail.code !== "string") return true
   return TRANSFER_CODES.has(detail.code) && detail.retryable !== false
+}
+
+/** False only when the uploader says so (e.g. the file could not be processed). */
+function isRetryable(error: unknown): boolean {
+  return errorDetail(error)?.retryable !== false
 }
 
 export function summarize(items: readonly QueueItem[]): QueueSummary {
