@@ -283,7 +283,7 @@ describe("LibraryFilters more filters", () => {
     ).toBe(0)
     const { onChange, user } = setup(all, MENU)
     expect(screen.getByRole("status").textContent).toBe(
-      "Showing videos from The Railway by Asha that have labels labelled House Curry, Chicken and Finished dish in Curries matching “lamb” uploaded 1 Oct 2026 to 31 Oct 2026, newest first. Clear filters"
+      "Showing videos from The Railway by Asha that have labels labelled House Curry (Chicken) and Finished dish in Curries matching “lamb” uploaded 1 Oct 2026 to 31 Oct 2026, newest first. Clear filters"
     )
     await user.click(screen.getByRole("button", { name: "Clear filters" }))
     expect(onChange).toHaveBeenLastCalledWith(EMPTY_LIBRARY_FILTERS)

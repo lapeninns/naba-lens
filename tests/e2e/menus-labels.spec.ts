@@ -324,11 +324,11 @@ test("rows 5+7: photo + video uploaded, batch-labelled with per-file overrides; 
     await expect(
       files.getByRole("listitem").filter({ hasText: "Photo 1" })
     ).toContainText(
-      /(Momo, Chicken, Onion Bhaji|Onion Bhaji, Momo, Chicken) · 1 content type · note/
+      /(Momo \(Chicken\), Onion Bhaji|Onion Bhaji, Momo \(Chicken\)) · 1 content type · note/
     )
     await expect(
       files.getByRole("listitem").filter({ hasText: "Video 2" })
-    ).toContainText("Momo, Chicken · 2 content types · note")
+    ).toContainText("Momo (Chicken) · 2 content types · note")
   })
 
   await test.step("labels are kept on the server while the files are unfinished, then saved with them", async () => {
@@ -378,11 +378,11 @@ test("rows 5+7: photo + video uploaded, batch-labelled with per-file overrides; 
     await expect(
       pl.getByRole("list", { name: "Menu items" }).getByRole("listitem")
     ).toHaveText([
-      /Onion Bhaji · Appetisers|Momo, Chicken · Appetisers/,
-      /Onion Bhaji · Appetisers|Momo, Chicken · Appetisers/,
+      /Onion Bhaji · Appetisers|Momo \(Chicken\) · Appetisers/,
+      /Onion Bhaji · Appetisers|Momo \(Chicken\) · Appetisers/,
     ])
     await expect(pl.getByRole("list", { name: "Menu items" })).toContainText(
-      "Momo, Chicken"
+      "Momo (Chicken)"
     )
     await expect(
       pl.getByRole("list", { name: "Content types" }).getByRole("listitem")
@@ -394,7 +394,7 @@ test("rows 5+7: photo + video uploaded, batch-labelled with per-file overrides; 
     const vl = v.getByRole("region", { name: "Labels" })
     await expect(
       vl.getByRole("list", { name: "Menu items" }).getByRole("listitem")
-    ).toHaveText(["Momo, Chicken · Appetisers"])
+    ).toHaveText(["Momo (Chicken) · Appetisers"])
     await expect(
       vl.getByRole("list", { name: "Content types" }).getByRole("listitem")
     ).toHaveText(["Finished dish", "Preparation"])
@@ -992,7 +992,7 @@ test("rows 12+13: label filters combine with venue/staff/type, search and dates;
     await tiles.first().click()
     const viewer = admin.getByRole("dialog").first()
     const editor = await openEditorFromViewer(admin, viewer)
-    await editor.getByRole("button", { name: "Remove Momo, Chicken" }).click()
+    await editor.getByRole("button", { name: "Remove Momo (Chicken)" }).click()
     await pick(
       editor,
       /^Menu item at /,

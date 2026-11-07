@@ -642,7 +642,7 @@ describe("catalogue lifecycle", () => {
       name: "Royal Korma",
       variantName: "Lamb shoulder",
       sectionName: "House Curries",
-      labelledAs: "Korma, Lamb",
+      labelledAs: "Korma (Lamb)",
       state: "current",
     })
     expect(byItem[rows["curries--saag"].itemId]).toMatchObject({

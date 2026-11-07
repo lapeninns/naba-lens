@@ -857,11 +857,11 @@ function itemView(row: DetailRow): MediaLabelItemView {
   const variantRenamed =
     row.variant_id !== null &&
     (row.snapshot_variant_name ?? null) !== (row.variant_name ?? null)
-  // The snapshot, in the editor's "Name, Variant" form, when it differs.
+  // The snapshot, in the editor's "Name (Variant)" form, when it differs.
   const labelledAs =
     renamed || variantRenamed
       ? row.variant_id !== null && row.snapshot_variant_name
-        ? `${row.snapshot_name}, ${row.snapshot_variant_name}`
+        ? `${row.snapshot_name} (${row.snapshot_variant_name})`
         : row.snapshot_name
       : null
   return {
