@@ -235,6 +235,8 @@ describe("/manager/amenities/[checkId]/capture", () => {
       actor,
       checkId: WIFI_CHECK.id,
       mode: "manager",
+      // Manager accounts can't upload (reserve_media_asset is staff-only).
+      canUpload: false,
       venueId: VENUE.id,
       venueName: VENUE.name,
       backHref: checkHref,

@@ -473,12 +473,12 @@ describe("CaptureForm", () => {
     expect(screen.getByText("Odd.")).toBeTruthy()
   })
 
-  it("lets an admin pick existing media only, with earlier Coverage photos under their own heading", async () => {
+  it("without uploads (admin, manager account) offers existing media only, with earlier Coverage photos under their own heading", async () => {
     setup({ upload: null, assets: [PHOTO, LEGACY] })
     expect(
       screen.queryByRole("button", { name: "Choose from your photos" })
     ).toBeNull()
-    expect(screen.getByText(/Admins can't upload/)).toBeTruthy()
+    expect(screen.getByText(/You can't upload here/)).toBeTruthy()
     const legacy = screen.getByRole("list", { name: UI_TEXT.legacyMedia })
     expect(
       within(legacy).getByRole("checkbox", {

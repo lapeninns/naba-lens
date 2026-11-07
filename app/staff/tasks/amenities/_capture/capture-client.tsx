@@ -22,7 +22,8 @@ import { MEDIA_LIMITS } from "@/lib/config/media"
 /**
  * Wires the capture form to the amenity actions and the existing upload flow:
  * the staff layout's one Add queue where there is one, the form's own upload
- * dialog otherwise. Admins can't upload, so they get no upload flow.
+ * dialog otherwise. Admins and manager accounts can't upload, so they get no
+ * upload flow.
  */
 export function CaptureClient({
   check,
