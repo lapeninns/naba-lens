@@ -434,8 +434,8 @@ const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-")
 
 /**
  * DEV FIXTURE: a draft with these sections and dish names, made and activated
- * as the Menus admin. Source keys are `<section>--<dish>`, so a dish kept
- * between two such menus is the same menu item.
+ * as the Menus admin. Every call makes new menu items (itemId null), so a
+ * dish left out of the next menu is no longer on the active menu.
  */
 export async function activateSmallMenu(
   admin: Db,

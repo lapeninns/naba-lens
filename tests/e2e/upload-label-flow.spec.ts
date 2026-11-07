@@ -130,6 +130,8 @@ test("a1 log out while the photo is still saving: its labels land on it with no 
   // The server already keeps the labels, so they are not counted as unsaved.
   await expect(guard).not.toContainText("haven't saved yet")
   await guard.getByRole("button", { name: "Log out anyway" }).click()
+  // Log out is a Server Action too, queued behind finalise's held answer.
+  finalise.deliver()
   await page.waitForURL(/\/login/)
 
   expect(labelsOn(id)).toBe("Onion Bhaji")
@@ -505,7 +507,10 @@ test("g a file that can't be processed shows its reason with Remove only", async
     timeout: 60_000,
   })
   await expect(row).toContainText("Needs attention")
-  await expect(row).toContainText("Not saved (photo not saved)")
+  // On the row or in the label panel's photo list, wherever the sheet puts it.
+  await expect(
+    sheet.getByText("Not saved (photo not saved)").first()
+  ).toBeVisible()
   await expect(
     row.getByRole("button", { name: `Remove ${bad.name}` })
   ).toBeVisible()
