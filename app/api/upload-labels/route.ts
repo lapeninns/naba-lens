@@ -1,13 +1,22 @@
 import { workFocus } from "@/lib/config/work-roles"
 import type { SaveLabelsInput, SaveLabelsResult } from "@/lib/menus/types"
-import { getLabellingCatalogue, saveAssetLabels } from "@/lib/server/labels"
+import {
+  discardPendingLabels,
+  getLabellingCatalogue,
+  listPendingLabels,
+  stageAssetLabels,
+} from "@/lib/server/labels"
 import { getMediaActor } from "@/lib/server/media/context"
 import { isUuid } from "@/lib/server/menus/validate"
 
 const headers = { "Cache-Control": "private, no-store" }
 
-/** Keep these requests independent of the Server Actions processing uploads. */
-export async function GET() {
+/**
+ * Keep these requests independent of the Server Actions processing uploads.
+ * No query: the caller's labelling catalogue. `?attention=1`: the caller's
+ * stored upload drafts (PendingLabelItem[]).
+ */
+export async function GET(request: Request) {
   const auth = await getMediaActor("staff")
   if (!auth.ok)
     return Response.json(
@@ -15,6 +24,17 @@ export async function GET() {
       { status: auth.status, headers }
     )
   const { actor } = auth
+
+  if (new URL(request.url).searchParams.get("attention") === "1") {
+    const listed = await listPendingLabels(actor)
+    if (!listed.ok)
+      return Response.json(
+        { ok: false, message: listed.message },
+        { status: listed.status, headers }
+      )
+    return Response.json({ ok: true, items: listed.items }, { headers })
+  }
+
   if (!actor.profile.venueId)
     return Response.json(
       { ok: false, message: "Your account is not assigned to a venue." },
@@ -37,6 +57,10 @@ export async function GET() {
   )
 }
 
+/**
+ * Labels for one of the caller's uploads: saved now when it is ready
+ * (`state: "saved"`), otherwise stored for finalise (`state: "pending"`).
+ */
 export async function POST(request: Request) {
   function fail(
     assetId: string,
@@ -62,32 +86,35 @@ export async function POST(request: Request) {
   if (!isUuid(input?.assetId) || !isUuid(body?.venueId))
     return fail("", "invalid", "This label draft was invalid.", 400)
 
-  const { actor } = auth
-  const asset = await actor.db
-    .from("media_assets")
-    .select("venue_id")
-    .eq("id", input.assetId)
-    .eq("uploader_id", actor.profile.id)
-    .eq("upload_state", "ready")
-    .eq("purpose", "general")
-    .is("deleted_at", null)
-    .maybeSingle()
-  if (asset.error)
-    return fail(
-      input.assetId,
-      "unavailable",
-      "Could not check this upload. Try again.",
-      503
-    )
-  if (!asset.data || asset.data.venue_id !== body.venueId)
-    return fail(
-      input.assetId,
-      "not_found",
-      "These labels could not be applied to this upload. Check the file in your portfolio.",
-      404
-    )
+  // The RPCs check ownership, purpose, venue and state under the asset row
+  // lock, and validate the complete input before anything is stored or saved.
+  const { status, result } = await stageAssetLabels(
+    auth.actor,
+    body.venueId,
+    input
+  )
+  return Response.json(result, { status, headers })
+}
 
-  // The RPC validates the complete input, catalogue and revision, and rechecks
-  // that the caller still owns a ready asset before writing.
-  return Response.json(await saveAssetLabels(actor, input), { headers })
+/** Discards the caller's stored draft of `?assetId=` (idempotent). */
+export async function DELETE(request: Request) {
+  const auth = await getMediaActor("staff")
+  if (!auth.ok)
+    return Response.json(
+      { ok: false, message: auth.message },
+      { status: auth.status, headers }
+    )
+  const assetId = new URL(request.url).searchParams.get("assetId")
+  if (!isUuid(assetId))
+    return Response.json(
+      { ok: false, message: "This upload could not be found." },
+      { status: 400, headers }
+    )
+  const discarded = await discardPendingLabels(auth.actor, assetId)
+  if (!discarded.ok)
+    return Response.json(
+      { ok: false, message: discarded.message },
+      { status: discarded.status, headers }
+    )
+  return Response.json({ ok: true }, { headers })
 }
