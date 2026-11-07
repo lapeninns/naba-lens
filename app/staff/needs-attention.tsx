@@ -11,6 +11,7 @@ import type { CatalogueProp } from "@/components/nabalens"
 import { FixLabelsDialog, LabelSummary } from "@/components/nabalens/labels"
 import { Notice } from "@/components/nabalens/notice"
 import { CountBadge, StatusChip } from "@/components/nabalens/status-chip"
+import { LABELS_LOST } from "@/components/nabalens/upload-label-drafts"
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -47,7 +48,7 @@ export const ATTENTION_COPY = {
     "The photo didn't finish saving. These labels are kept and go on it when it does.",
   conflict: "These labels were changed somewhere else. Check the dish.",
   otherFailure: "Labels couldn't be added.",
-  unusableLabels: "Not saved (photo not saved)",
+  unusableLabels: LABELS_LOST,
   /** The list doesn't say why an upload failed. */
   noReason: "no reason was given",
   alreadySaved: "These labels were already saved on the photo.",

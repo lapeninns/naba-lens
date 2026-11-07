@@ -558,7 +558,7 @@ export function StaffPortfolio({
         onSaved={(results) => {
           const saved = results.flatMap((r) => (r.ok ? [r.assetId] : []))
           if (saved.length === 0) return
-          // Add stops counting these as "ready to label".
+          // Saved here, so Add's sheet settles its rows for them (C6).
           addLabelled(saved)
           setLabelled((current) => new Set([...current, ...saved]))
           setLabelSaves((n) => n + 1)

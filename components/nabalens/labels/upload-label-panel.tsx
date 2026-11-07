@@ -10,6 +10,7 @@ import {
 } from "@phosphor-icons/react"
 
 import { Notice } from "@/components/nabalens/notice"
+import { LABELS_LOST } from "@/components/nabalens/upload-label-drafts"
 import { Button } from "@/components/ui/button"
 import type { WorkFocus } from "@/lib/config/work-roles"
 import {
@@ -412,7 +413,7 @@ export function UploadLabelPanel({
   ]
 
   function summaryText(f: UploadLabelFile, input: SaveLabelsInput) {
-    if (disabled.has(f.id)) return "Not saved (photo not saved)"
+    if (disabled.has(f.id)) return LABELS_LOST
     if (!seeded.has(f.id) && initialFor(f.id)) {
       const n = input.items.length
       const kept = [
