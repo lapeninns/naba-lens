@@ -170,4 +170,29 @@ describe("AccountHeader status after an activation change", () => {
     view.rerender(header("active"))
     expect(statusText()).toEqual(["Active"])
   })
+
+  it("marks a venue manager account and offers no grant link for staff", async () => {
+    render(
+      <AccountHeader
+        member={member("active")}
+        venueActive
+        venues={[]}
+        maxAvatarBytes={5 * 1024 * 1024}
+        role="manager"
+        accountType={<p>TEST account type slot</p>}
+      />
+    )
+    expect(screen.getAllByText("Venue manager").length).toBeGreaterThan(0)
+    expect(screen.getByText("TEST account type slot")).toBeTruthy()
+    expect(screen.getByRole("link", { name: "Venue managers" })).toBeTruthy()
+    cleanup()
+
+    render(header("active"))
+    expect(screen.queryByText("Venue manager")).toBeNull()
+    expect(screen.queryByRole("link", { name: "Venue managers" })).toBeNull()
+    const menu = await openMenu()
+    expect(
+      within(menu).queryByRole("menuitem", { name: "Make venue manager" })
+    ).toBeNull()
+  })
 })

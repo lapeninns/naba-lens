@@ -17,9 +17,17 @@ import { isUuid } from "./validation"
 /** active: signed in at least once. invited: never signed in. inactive: deactivated. */
 export type StaffAccountStatus = "active" | "invited" | "inactive"
 
+/** Staff and venue manager accounts; admins are never listed. */
+export type AccountRole = "staff" | "manager"
+
+/** The roles the directory and account pages list. */
+const LISTED_ROLES: AccountRole[] = ["staff", "manager"]
+
 /** Same shape as the UI's StaffMember, plus the fields the admin pages need. */
 export type StaffDirectoryEntry = {
   id: string
+  /** Account type: a venue manager account was converted from staff by an admin. */
+  role: AccountRole
   displayName: string
   avatarUrl: string | null
   jobTitle: string | null
@@ -33,10 +41,11 @@ export type StaffDirectoryEntry = {
 }
 
 const PROFILE_COLUMNS =
-  "id, display_name, avatar_path, job_title, department, venue_id, active, venue:venues(name, active)"
+  "id, role, display_name, avatar_path, job_title, department, venue_id, active, venue:venues(name, active)"
 
 type ProfileRow = {
   id: string
+  role: AccountRole
   display_name: string
   avatar_path: string | null
   job_title: string | null
@@ -97,6 +106,7 @@ function toEntry(
 ): StaffDirectoryEntry {
   return {
     id: row.id,
+    role: row.role,
     displayName: row.display_name,
     avatarUrl: row.avatar_path
       ? (avatarUrls.get(row.avatar_path) ?? null)
@@ -117,7 +127,7 @@ function toEntry(
   }
 }
 
-/** Every staff account (not admins), by name. One organisation: no pagination. */
+/** Every staff and venue manager account (not admins), by name. One organisation: no pagination. */
 export async function listStaffDirectory(
   ctx: AccountsContext
 ): Promise<
@@ -129,7 +139,7 @@ export async function listStaffDirectory(
   const { data, error } = await ctx.caller
     .from("profiles")
     .select(PROFILE_COLUMNS)
-    .eq("role", "staff")
+    .in("role", LISTED_ROLES)
     .order("display_name", { ascending: true })
     .order("id", { ascending: true })
   if (error) return dbFailed()
@@ -173,7 +183,7 @@ export async function getStaffAccount(
     .from("profiles")
     .select(PROFILE_COLUMNS)
     .eq("id", staffId)
-    .eq("role", "staff")
+    .in("role", LISTED_ROLES)
     .maybeSingle()
   if (error) return dbFailed()
   if (!data) return notFound()

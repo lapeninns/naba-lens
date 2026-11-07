@@ -18,7 +18,11 @@ import sharp from "sharp"
 import { serviceClient, signIn as signInDb } from "../support/identities"
 import { seedVisualFixtures, type VisualFixtures } from "../visual/fixtures"
 
-import { provisionCoverageWorld, seedImages } from "./helpers/coverage-world"
+import {
+  legacyStaffGrant,
+  provisionCoverageWorld,
+  seedImages,
+} from "./helpers/coverage-world"
 import { openEmailLink } from "./helpers/email-link"
 import { provisioner, psql } from "./helpers/stack"
 import { openPortfolio, STAFF_LANDING, staffTile } from "./helpers/ui"
@@ -1156,16 +1160,10 @@ const requestKey = () => `visual-${randomUUID()}`
 async function seedCoverageScenes() {
   const w = await provisionCoverageWorld()
   const service = provisioner()
-  const admin = await signInDb(service, w.admin.email)
   const manager = await signInDb(service, w.manager.email)
   const staffA = await signInDb(service, w.staffA.email)
   const staffB = await signInDb(service, w.staffB.email)
-  await must(
-    admin.rpc("grant_venue_manager", {
-      p_staff_id: w.manager.id,
-      p_venue_id: w.venue1.id,
-    })
-  )
+  await legacyStaffGrant(w.admin, w.manager, w.venue1)
   const month = psql("select private.current_london_month()::text")
   for (const [person, count] of [
     [w.staffA, 3],

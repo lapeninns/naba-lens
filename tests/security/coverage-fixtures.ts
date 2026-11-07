@@ -209,18 +209,79 @@ export async function accept(
   return ok(review(reviewer, itemId, revision, "accepted"))
 }
 
+/** Regrants a manager account (grant_venue_manager accepts manager accounts only). */
 export async function grantManager(
   admin: TestIdentity,
-  staffId: string,
+  managerId: string,
   venueId: string
 ) {
   return ok(
     admin.client.rpc("grant_venue_manager", {
-      p_staff_id: staffId,
+      p_staff_id: managerId,
       p_venue_id: venueId,
       p_reason: "TEST grant",
     })
   )
+}
+
+/**
+ * Converts a staff account into a venue manager account for `venueId`, as an
+ * admin does in the app. Returns the new grant id.
+ */
+export async function makeManager(
+  admin: TestIdentity,
+  staff: { id: string },
+  venueId: string,
+  key = requestKey()
+): Promise<string> {
+  const [row] = await ok(
+    admin.client.rpc("convert_account_to_manager", {
+      p_profile_id: staff.id,
+      p_venue_id: venueId,
+      p_reason: "TEST conversion",
+      p_client_request_key: key,
+    })
+  )
+  return row!.grant_id
+}
+
+/**
+ * A grant held by a staff account, as granted before manager accounts
+ * existed. It stays effective under the transitional rule (legacy
+ * /staff/manage); new grants can no longer be made this way, so the service
+ * role writes the rows grant_venue_manager used to write.
+ */
+export async function legacyStaffGrant(
+  service: Db,
+  admin: TestIdentity,
+  staffId: string,
+  venueId: string
+): Promise<string> {
+  const { data, error } = await service
+    .from("venue_manager_grants")
+    .insert({
+      staff_id: staffId,
+      venue_id: venueId,
+      granted_by: admin.id,
+      grant_reason: "TEST legacy grant",
+    })
+    .select("id")
+    .single()
+  if (error) throw error
+  const { error: auditError } = await service
+    .from("coverage_audit_events")
+    .insert({
+      venue_id: venueId,
+      entity: "manager_grant",
+      entity_id: data.id,
+      actor_id: admin.id,
+      actor_role: "admin",
+      action: "granted",
+      reason: "TEST legacy grant",
+      after: { staffId },
+    })
+  if (auditError) throw auditError
+  return data.id
 }
 
 /** Creates an active service/venue-specific requirement (manager or admin). */

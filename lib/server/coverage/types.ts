@@ -57,12 +57,17 @@ export type CoverageVenue = { id: string; name: string }
 export type ProfileSetupGap = "venue" | "team"
 
 export type CoverageScope = {
-  role: "staff" | "admin"
+  /** Managers have no coverage surface: no submitting, no legacy manage tools. */
+  role: "staff" | "manager" | "admin"
   /** Staff profile setup (venue, FOH/BOH team). Always complete for admins. */
   setup: { complete: boolean; missing: ProfileSetupGap[] }
   /** The venue a staff member works at now, or null. */
   venue: (CoverageVenue & { active: boolean }) | null
-  /** The venue of the caller's effective manager grant, or null (always null for admins). */
+  /**
+   * The venue of a staff account's effective (legacy, staff-held) manager
+   * grant, or null. Always null for admins and for manager accounts, whose
+   * workspace is /manager.
+   */
   managedVenue: CoverageVenue | null
   /** Active staff assigned to an active venue (the database's submit rule). */
   canSubmit: boolean
@@ -461,6 +466,11 @@ export type ManagerGrantView = {
   revokeKind: GrantRevokeKind | null
   revokeReason: string | null
   effective: boolean
+  /**
+   * Held by a staff account (made before venue manager accounts existed).
+   * Still in effect during the transition; converting the person replaces it.
+   */
+  legacyStaffGrant?: boolean
 }
 
 export type PreparationRunView = {

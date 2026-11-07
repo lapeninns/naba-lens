@@ -80,6 +80,73 @@ describe("Our menu photo routes", () => {
   })
 })
 
+describe("Our menu photo routes for manager accounts", () => {
+  const routes = async () =>
+    [
+      [
+        await import("@/app/api/menu-photos/[assetId]/thumb/route"),
+        "thumbnail",
+      ],
+      [
+        await import("@/app/api/menu-photos/[assetId]/preview/route"),
+        "preview",
+      ],
+    ] as const
+
+  it("manager actor is admitted by thumb and preview", async () => {
+    mocks.getMediaActor.mockResolvedValue({ ok: true, actor })
+    mocks.signEvidence.mockResolvedValue({ ok: true, url: "http://x/s" })
+    for (const [route] of await routes()) {
+      const res = await route.GET(
+        new Request("http://local.test"),
+        ctx(crypto.randomUUID())
+      )
+      expect(res.status).toBe(302)
+    }
+    for (const call of mocks.getMediaActor.mock.calls)
+      expect(call[0]).toEqual(["staff", "manager", "admin"])
+  })
+
+  it("staff and admin still admitted", async () => {
+    const roles = mocks.getMediaActor.mock
+    mocks.getMediaActor.mockResolvedValue({ ok: true, actor })
+    mocks.signEvidence.mockResolvedValue({ ok: true, url: "http://x/s" })
+    for (const [route] of await routes())
+      await route.GET(new Request("http://local.test"), ctx("a"))
+    for (const call of roles.calls) {
+      expect(call[0]).toContain("staff")
+      expect(call[0]).toContain("admin")
+    }
+  })
+
+  it("RPC zero rows → 404", async () => {
+    mocks.getMediaActor.mockResolvedValue({ ok: true, actor })
+    const { signEvidence } = await vi.importActual<
+      typeof import("@/lib/server/coverage/evidence")
+    >("@/lib/server/coverage/evidence")
+    mocks.signEvidence.mockImplementation((a, id, which, check) =>
+      signEvidence(
+        {
+          profile: { active: true },
+          db: { rpc: vi.fn().mockResolvedValue({ data: [], error: null }) },
+          service: { from: vi.fn() },
+        } as never,
+        id,
+        which,
+        check
+      )
+    )
+    for (const [route] of await routes()) {
+      const res = await route.GET(
+        new Request("http://local.test"),
+        ctx(crypto.randomUUID())
+      )
+      expect(res.status).toBe(404)
+      expect(res.headers.get("cache-control")).toBe("private, no-store")
+    }
+  })
+})
+
 describe("signEvidence with the item-photo check", () => {
   it("runs the named check and signs nothing when it finds nothing", async () => {
     const { signEvidence } = await vi.importActual<

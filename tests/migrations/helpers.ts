@@ -16,6 +16,11 @@ export const env: StackEnv = stackEnv(workdir)
 export const LATER = "20991231000000_test_only_additive.sql"
 export const laterTarget = join(workdir, "supabase", "migrations", LATER)
 
+// Newest migration of the sibling base branch (staff portfolio and Our menu).
+// Phase `sibling-upgrade` resets to it, seeds data with that schema and applies
+// the later migrations over it. Keep in step with SIBLING_BASE in run.mjs.
+export const SIBLING_BASE = "20261106130000"
+
 export const repoMigrations = readdirSync("supabase/migrations")
   .filter((f) => f.endsWith(".sql"))
   .sort()
@@ -62,4 +67,5 @@ export function schemaFingerprint(): string {
   )
 }
 
-export const ids = (rows: unknown[]) => rows.map((r) => (r as { id: string }).id)
+export const ids = (rows: unknown[]) =>
+  rows.map((r) => (r as { id: string }).id)

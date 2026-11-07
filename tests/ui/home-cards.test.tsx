@@ -69,6 +69,25 @@ describe("ContributeCard", () => {
       )
     ).toBeTruthy()
     expect(screen.queryByRole("button")).toBeNull()
+    // The guide stays reachable while adding is paused.
+    expect(
+      screen
+        .getByRole("link", { name: "How to photograph a dish" })
+        .getAttribute("href")
+    ).toBe("/staff/tasks/guide")
+  })
+
+  it("links to the photo guide next to the pickers", () => {
+    render(
+      <AddProvider value={{ openAdd: vi.fn() }}>
+        <ContributeCard prompt={homePrompt("head_chef")} blocked={null} />
+      </AddProvider>
+    )
+    expect(
+      screen
+        .getByRole("link", { name: "How to photograph a dish" })
+        .getAttribute("href")
+    ).toBe("/staff/tasks/guide")
   })
 })
 

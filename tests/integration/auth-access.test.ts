@@ -13,6 +13,9 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {} }))
 
 import { deleteMedia } from "@/app/_media/actions"
 import AdminLayout from "@/app/admin/layout"
+import ManagerLayout from "@/app/manager/layout"
+import { ManagerShell } from "@/components/nabalens/manager/manager-shell"
+import { VenueAccessUnavailablePage } from "@/components/nabalens/manager/venue-access-unavailable"
 import AdminPage from "@/app/admin/(content)/page"
 import { loadLibraryPage } from "@/app/admin/library-actions"
 import StaffDirectoryPage from "@/app/admin/staff/page"
@@ -37,9 +40,15 @@ import { finaliseUpload, loadMyMedia, reserveUpload } from "@/app/staff/actions"
 import { AddHost } from "@/app/staff/_shell/add-host"
 import StaffLayout from "@/app/staff/layout"
 import StaffPage from "@/app/staff/page"
-import { getAuthState } from "@/lib/auth"
+import { authorize, getAuthState, requireActiveManager } from "@/lib/auth"
+import { getManagerWorkspace, requireManagerVenue } from "@/lib/auth/manager"
 import { proxy } from "@/proxy"
 
+import {
+  legacyStaffGrant,
+  makeManager,
+  requestKey,
+} from "../security/coverage-fixtures"
 import { syntheticJpeg } from "../slice/media-actor"
 import {
   anonClient,
@@ -783,5 +792,222 @@ describe("profile reads", () => {
     const ownKey = (await profileRow(staff.id)).avatar_path!
     expect((await bucket.download(ownKey)).data).toBeNull()
     expect((await bucket.createSignedUrl(ownKey, 60)).data).toBeNull()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Venue manager accounts (docs/plans/venue-manager-workspace.md): a manager
+// lands at /manager, never gets staff or admin pages, and has a workspace only
+// while the database reports an effective grant for its own active venue.
+// ---------------------------------------------------------------------------
+
+describe("venue manager accounts", () => {
+  const children = "CHILD"
+  let managerVenue: { id: string; name: string }
+  let manager: Person
+
+  /** A staff account an admin converts, as in the app (never a direct role write). */
+  async function managerPerson(label: string, venueId: string) {
+    const p = await person(label, { role: "staff", venueId })
+    await makeManager({ ...admin, client: admin.rest }, p, venueId)
+    return p
+  }
+
+  beforeAll(async () => {
+    managerVenue = await createVenue(service, "access-mgr")
+    manager = await managerPerson("acc-manager", managerVenue.id)
+  })
+
+  it("lands at /manager from the root, login and blocked pages", async () => {
+    const run = <T>(fn: () => Promise<T>) => manager.browser.run(fn)
+    const state = await run(getAuthState)
+    expect(state.status === "active" && state.profile.role).toBe("manager")
+    for (const page of [RootPage, () => LoginPage(noSearch), BlockedPage]) {
+      expect((await run(() => redirectOf(page))).location).toBe("/manager")
+    }
+  })
+
+  it("is sent from staff and admin areas to /manager", async () => {
+    const run = <T>(fn: () => Promise<T>) => manager.browser.run(fn)
+    for (const page of [
+      () => StaffLayout({ children }),
+      () => AdminLayout({ children }),
+      StaffPage,
+      () => AdminPage(noSearch),
+      StaffDirectoryPage,
+    ]) {
+      expect((await run(() => redirectOf(page))).location).toBe("/manager")
+    }
+  })
+
+  it("has a workspace for its own venue, read from the database", async () => {
+    const run = <T>(fn: () => Promise<T>) => manager.browser.run(fn)
+    const workspace = await run(getManagerWorkspace)
+    expect(workspace).toMatchObject({
+      status: "available",
+      profile: { id: manager.id, role: "manager" },
+      venue: { id: managerVenue.id, name: managerVenue.name },
+      grant: { venueId: managerVenue.id },
+    })
+    expect((await run(requireManagerVenue)).venue.id).toBe(managerVenue.id)
+    expect((await run(requireActiveManager)).id).toBe(manager.id)
+    const layout = await run(() =>
+      redirectOf(() => ManagerLayout({ children }))
+    )
+    expect(layout.location).toBeNull()
+    expect(layout.value).toMatchObject({
+      type: ManagerShell,
+      props: { venueName: managerVenue.name, children },
+    })
+  })
+
+  it("authorize('manager') admits manager accounts only", async () => {
+    expect(await manager.browser.run(() => authorize("manager"))).toMatchObject(
+      { ok: true, profile: { id: manager.id } }
+    )
+    for (const p of [staff, admin]) {
+      expect(await p.browser.run(() => authorize("manager"))).toEqual({
+        ok: false,
+        status: 403,
+        reason: "forbidden",
+      })
+    }
+    expect(await manager.browser.run(() => authorize("staff"))).toMatchObject({
+      ok: false,
+      status: 403,
+    })
+  })
+
+  it("sends staff and admins away from the manager workspace", async () => {
+    for (const [p, home] of [
+      [staff, "/staff/tasks"],
+      [admin, "/admin"],
+    ] as const) {
+      const run = <T>(fn: () => Promise<T>) => p.browser.run(fn)
+      expect((await run(() => redirectOf(getManagerWorkspace))).location).toBe(
+        home
+      )
+      expect(
+        (await run(() => redirectOf(() => ManagerLayout({ children }))))
+          .location
+      ).toBe(home)
+    }
+  })
+
+  it("a staff-held grant opens the legacy tools, never the workspace", async () => {
+    const legacy = await person("acc-legacy-grantee", {
+      role: "staff",
+      venueId: managerVenue.id,
+    })
+    await legacyStaffGrant(
+      service,
+      { ...admin, client: admin.rest },
+      legacy.id,
+      managerVenue.id
+    )
+    const run = <T>(fn: () => Promise<T>) => legacy.browser.run(fn)
+    expect((await run(() => redirectOf(getManagerWorkspace))).location).toBe(
+      "/staff/tasks"
+    )
+    expect((await run(() => redirectOf(RootPage))).location).toBe(
+      "/staff/tasks"
+    )
+  })
+
+  it("shows Venue access unavailable once the grant is revoked", async () => {
+    const revoked = await managerPerson("acc-mgr-revoked", managerVenue.id)
+    const { data: grant } = await service
+      .from("venue_manager_grants")
+      .select("id")
+      .eq("staff_id", revoked.id)
+      .is("revoked_at", null)
+      .single()
+    const { error } = await admin.rest.rpc("revoke_venue_manager", {
+      p_grant_id: grant!.id,
+      p_reason: "TEST cover ended",
+    })
+    expect(error).toBeNull()
+
+    const run = <T>(fn: () => Promise<T>) => revoked.browser.run(fn)
+    expect(await run(getManagerWorkspace)).toMatchObject({
+      status: "unavailable",
+      reason: "no_grant",
+    })
+    expect((await run(() => redirectOf(requireManagerVenue))).location).toBe(
+      "/manager"
+    )
+    const layout = await run(() =>
+      redirectOf(() => ManagerLayout({ children }))
+    )
+    expect(layout.location).toBeNull()
+    expect(layout.value).toMatchObject({
+      type: VenueAccessUnavailablePage,
+      props: { reason: "no_grant" },
+    })
+    // Still a manager account: no way back into the staff area.
+    expect(
+      (await run(() => redirectOf(() => StaffLayout({ children })))).location
+    ).toBe("/manager")
+  })
+
+  it("shows Venue access unavailable while the venue is inactive", async () => {
+    const venue = await createVenue(service, "access-mgr-closed")
+    const closed = await managerPerson("acc-mgr-closed", venue.id)
+    const { error } = await service
+      .from("venues")
+      .update({ active: false })
+      .eq("id", venue.id)
+    expect(error).toBeNull()
+    expect(await closed.browser.run(getManagerWorkspace)).toMatchObject({
+      status: "unavailable",
+      reason: "venue_inactive",
+    })
+  })
+
+  it("a deactivated manager is blocked; a signed-out browser goes to /login", async () => {
+    const former = await managerPerson("acc-mgr-former", managerVenue.id)
+    const { error } = await service
+      .from("profiles")
+      .update({ active: false })
+      .eq("id", former.id)
+    expect(error).toBeNull()
+    expect(
+      (await former.browser.run(() => redirectOf(getManagerWorkspace))).location
+    ).toBe("/auth/blocked")
+
+    const anon = new Browser("anon-manager")
+    for (const path of ["/manager", "/manager/review", "/manager/account"]) {
+      const res = await proxy(appRequest(anon, path))
+      expect(new URL(res.headers.get("location")!).pathname, path).toBe(
+        "/login"
+      )
+    }
+    expect(
+      (await anon.run(() => redirectOf(() => ManagerLayout({ children }))))
+        .location
+    ).toBe("/login")
+  })
+
+  it("conversion replays by request key and keeps one open grant", async () => {
+    const p = await person("acc-mgr-replay", {
+      role: "staff",
+      venueId: managerVenue.id,
+    })
+    const key = requestKey()
+    const first = await makeManager(
+      { ...admin, client: admin.rest },
+      p,
+      managerVenue.id,
+      key
+    )
+    const again = await makeManager(
+      { ...admin, client: admin.rest },
+      p,
+      managerVenue.id,
+      key
+    )
+    expect(again).toBe(first)
+    const workspace = await p.browser.run(getManagerWorkspace)
+    expect(workspace.status === "available" && workspace.grant.id).toBe(first)
   })
 })

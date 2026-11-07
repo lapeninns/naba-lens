@@ -134,9 +134,10 @@ angle**, **Overhead**, **Close-up**, **Side view**), each with a short tip.
 The first angles are marked **Suggested** to match the section's photo target
 (all four from a target of 4). Dish buttons switch the example; tap an angle
 for a full-screen view with **Previous** and **Next** (arrow keys or a swipe
-also work). **See the full photo guide** (`/staff/tasks/guide`, also linked as
-**How to photograph a dish** on **Monthly photos**) adds the **Every shot**
-checklist and the safety note. The pictures are examples only, not your menu,
+also work). **See the full photo guide** (`/staff/tasks/guide`) adds the
+**Every shot** checklist and the safety note. You can open it at any time, even
+when your venue has no menu tasks yet: **How to photograph a dish** on Home's
+add-photos card and on **Monthly photos**, or **Photo guide** on **Me**. The pictures are examples only, not your menu,
 and your manager still decides which photos are accepted. Drinks sections and
 amenity, service and venue tasks do not show the guide.
 
@@ -211,7 +212,12 @@ the meantime, choose **Reload**; your draft stays.
 
 ## Manage (venue managers only)
 
-An admin can make you the manager of your current venue. **Manage**
+Venue managers now have their own account type and workspace (see the
+[manager guide](usage-manager.md)). This section covers grants made before
+that change, which an admin can still see as **Legacy staff grant**: they keep
+working until the admin converts the account.
+
+With such a grant for your current venue, **Manage**
 (`/staff/manage`) then appears in the top bar on a tablet or computer, with
 **Overview**, **Review**, **Checklist**, **Menu**, **Our menu** and **Team**. On a phone,
 open **Me** and choose **Manage {venue}** at the top. When photos are waiting,

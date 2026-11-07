@@ -4,6 +4,7 @@ import { expect } from "@playwright/test"
 
 import { signIn } from "../../support/identities"
 import {
+  legacyStaffGrant,
   provisionCoverageWorld,
   seedImages,
   type CoverageWorld,
@@ -12,7 +13,7 @@ import { activateMenu, createMenuDraft, ok } from "./menus"
 import { provisioner, psql } from "./stack"
 
 /**
- * A coverage world whose manager holds a venue grant and has prepared the
+ * A coverage world whose manager holds a (legacy, staff-held) venue grant and has prepared the
  * month, so coverage, team, checklist and task pages carry real chips; plus a
  * staff task, an active menu and a draft for the editor.
  */
@@ -42,12 +43,7 @@ export async function provisionManagedWorld(
     world.venue1.id,
     `${label} menu draft`
   )
-  await ok(
-    adminDb.rpc("grant_venue_manager", {
-      p_staff_id: world.manager.id,
-      p_venue_id: world.venue1.id,
-    })
-  )
+  await legacyStaffGrant(world.admin, world.manager, world.venue1)
   await ok(
     managerDb.rpc("prepare_coverage_month", { p_venue_id: world.venue1.id })
   )

@@ -2,11 +2,12 @@ import { expect, test, type Page } from "@playwright/test"
 
 import { signIn, type Db } from "../support/identities"
 import {
+  legacyStaffGrant,
   provisionCoverageWorld,
   seedImages,
   type CoverageWorld,
 } from "./helpers/coverage-world"
-import { activateMenu, createMenuDraft, ok } from "./helpers/menus"
+import { activateMenu, createMenuDraft } from "./helpers/menus"
 import { provisioner, psql } from "./helpers/stack"
 import { escape } from "./helpers/ui"
 import { signedInPage, type Person } from "./helpers/world"
@@ -72,12 +73,7 @@ async function menuWorld(w: CoverageWorld) {
     `Our menu ${w.tag}`
   )
   await activateMenu(admin, versionId)
-  await ok(
-    admin.rpc("grant_venue_manager", {
-      p_staff_id: w.manager.id,
-      p_venue_id: w.venue1.id,
-    })
-  )
+  await legacyStaffGrant(w.admin, w.manager, w.venue1)
   const soup = activeItemId(w.venue1.id, "starters--soup")
   const [asset] = await seedImages(w.staffA, w.venue1, 1, {
     prefix: "DEV-FIXTURE-our-menu",

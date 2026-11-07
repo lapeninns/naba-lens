@@ -6,6 +6,7 @@ import type { Department } from "@/lib/config/departments"
 import {
   BookOpenTextIcon,
   BriefcaseIcon,
+  CameraIcon,
   CaretRightIcon,
   ClipboardTextIcon,
   ForkKnifeIcon,
@@ -28,6 +29,7 @@ import {
   type ProfileFormValues,
 } from "@/components/nabalens"
 import type { MediaItem } from "@/components/nabalens/types"
+import { GUIDE_PATH } from "@/components/nabalens/guide"
 import { CountBadge, StatusChip } from "@/components/nabalens/status-chip"
 import {
   useAdd,
@@ -386,6 +388,12 @@ export function StaffPortfolio({
             }
             title="How Naba-Lens works"
             hint="What your photos are for and how to add them"
+          />
+          <MeRow
+            href={GUIDE_PATH}
+            icon={<CameraIcon aria-hidden className="size-5 text-ink-muted" />}
+            title="Photo guide"
+            hint="How to photograph a dish: the checklist and four angles"
           />
           <MeRow
             href="/staff/menu"

@@ -183,8 +183,9 @@ export async function inviteStaff(
 }
 
 /**
- * Sends the invitation again to a staff member who has not signed in yet. Safe
- * to repeat: it never creates a user or profile.
+ * Sends the invitation again to a staff or manager account (an invited staff
+ * account may be converted to manager before its first sign-in) that has not
+ * signed in yet. Safe to repeat: it never creates a user or profile.
  */
 export async function resendInvitation(
   ctx: AccountsContext,
@@ -201,7 +202,8 @@ export async function resendInvitation(
     .eq("id", staffId)
     .maybeSingle()
   if (error) return dbFailed()
-  if (!profile || profile.role !== "staff") return notFound()
+  if (!profile || (profile.role !== "staff" && profile.role !== "manager"))
+    return notFound()
   if (!profile.active) {
     return fail(
       "account_inactive",

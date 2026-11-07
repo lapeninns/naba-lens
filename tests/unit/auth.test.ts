@@ -10,6 +10,7 @@ import {
   homePathFor,
   isProtectedPath,
   PROTECTED_PREFIXES,
+  type AppRole,
 } from "@/lib/auth/routes"
 
 const base: CurrentProfile = {
@@ -26,13 +27,27 @@ const base: CurrentProfile = {
 }
 
 describe("role routing", () => {
-  it("sends staff to Home and admins to /admin", () => {
+  it("sends staff to Home, managers to /manager and admins to /admin", () => {
     expect(homePathFor("staff")).toBe("/staff/tasks")
+    expect(homePathFor("manager")).toBe("/manager")
     expect(homePathFor("admin")).toBe("/admin")
   })
 
+  it("has a home for every role, each inside a protected area", () => {
+    const roles: Record<AppRole, true> = {
+      staff: true,
+      manager: true,
+      admin: true,
+    }
+    for (const role of Object.keys(roles) as AppRole[]) {
+      expect(isProtectedPath(homePathFor(role)), role).toBe(true)
+    }
+    // A value outside the enum (a corrupt row) is refused, not sent to staff.
+    expect(() => homePathFor("owner" as AppRole)).toThrow()
+  })
+
   it("protects the whole staff area, not just the landing page", () => {
-    expect(PROTECTED_PREFIXES).toEqual(["/staff", "/admin"])
+    expect(PROTECTED_PREFIXES).toEqual(["/staff", "/manager", "/admin"])
     for (const path of [
       "/staff",
       "/staff/tasks",
@@ -45,6 +60,21 @@ describe("role routing", () => {
     }
     expect(isProtectedPath(homePathFor("staff"))).toBe(true)
     expect(isProtectedPath("/staffroom")).toBe(false)
+  })
+
+  it("protects the whole manager workspace", () => {
+    for (const path of [
+      "/manager",
+      "/manager/review",
+      "/manager/review/contributors/123",
+      "/manager/menu",
+      "/manager/menu/123",
+      "/manager/account",
+    ]) {
+      expect(isProtectedPath(path), path).toBe(true)
+    }
+    expect(isProtectedPath("/managers")).toBe(false)
+    expect(isProtectedPath("/management")).toBe(false)
   })
 
   it("protects only the app areas", () => {

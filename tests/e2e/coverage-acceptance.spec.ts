@@ -4,6 +4,7 @@ import { expect, test, type Page } from "@playwright/test"
 
 import { signIn, type Db } from "../support/identities"
 import {
+  legacyStaffGrant,
   provisionCoverageWorld,
   seedImages,
   type CoverageWorld,
@@ -78,12 +79,7 @@ async function people(w: CoverageWorld) {
   const manager = await signIn(service, w.manager.email)
   const staffA = await signIn(service, w.staffA.email)
   const staffB = await signIn(service, w.staffB.email)
-  await ok(
-    admin.rpc("grant_venue_manager", {
-      p_staff_id: w.manager.id,
-      p_venue_id: w.venue1.id,
-    })
-  )
+  await legacyStaffGrant(w.admin, w.manager, w.venue1)
   return { admin, manager, staffA, staffB }
 }
 

@@ -21,7 +21,7 @@ import type { CoverageResult } from "@/lib/server/coverage/types"
 import type { MediaActor } from "@/lib/server/media/types"
 
 import { seedAsset } from "../library/seed"
-import { grantManager } from "../security/coverage-fixtures"
+import { legacyStaffGrant } from "../security/coverage-fixtures"
 import {
   item,
   menu,
@@ -111,8 +111,8 @@ describe("Our menu services", () => {
         venueId: venueB,
       }),
     ])
-    await grantManager(admin, manager.id, venueA)
-    await grantManager(admin, otherManager.id, venueB)
+    await legacyStaffGrant(service, admin, manager.id, venueA)
+    await legacyStaffGrant(service, admin, otherManager.id, venueB)
     versionA = await publishMenu(
       admin,
       venueA,

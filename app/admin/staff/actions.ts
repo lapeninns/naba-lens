@@ -5,6 +5,8 @@ import { redirect } from "next/navigation"
 
 import { ROUTES } from "@/lib/auth"
 import {
+  convertToManager,
+  convertToStaff,
   inviteStaff,
   resendInvitation,
   setStaffActive,
@@ -40,6 +42,12 @@ export type AccountActionResult =
 
 function refreshStaffPages() {
   revalidatePath("/admin/staff", "layout")
+}
+
+/** A conversion also changes the grants on Venue managers. */
+function refreshConvertedPages() {
+  refreshStaffPages()
+  revalidatePath("/admin/coverage/managers")
 }
 
 function toActionResult(
@@ -119,6 +127,23 @@ export async function setStaffActiveAction(
   const result = await setStaffActive(await accountsContext(), staffId, active)
   if (result.ok) refreshStaffPages()
   return toActionResult(result)
+}
+
+/**
+ * Staff account → venue manager account at the chosen venue, with a reason.
+ * Returns the coverage result shape for useCoverageAction.
+ */
+export async function convertToManagerAction(input: unknown) {
+  const result = await convertToManager(await accountsContext(), input)
+  if (result.ok) refreshConvertedPages()
+  return result
+}
+
+/** Venue manager account → staff account at the chosen venue, with a reason. */
+export async function convertToStaffAction(input: unknown) {
+  const result = await convertToStaff(await accountsContext(), input)
+  if (result.ok) refreshConvertedPages()
+  return result
 }
 
 /** Log out from the admin shell (same behaviour as POST /auth/logout). */

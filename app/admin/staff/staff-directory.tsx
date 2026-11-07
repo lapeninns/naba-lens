@@ -111,6 +111,9 @@ function countLine(shown: StaffMember[], filtered: boolean) {
   return parts.join(" · ")
 }
 
+/** A directory row; `role` "manager" is a venue manager account. */
+export type DirectoryMember = StaffMember & { role?: "staff" | "manager" }
+
 export function StaffDirectory({
   staff,
   venues,
@@ -118,7 +121,7 @@ export function StaffDirectory({
   maxAvatarBytes,
   notices,
 }: {
-  staff: StaffMember[]
+  staff: DirectoryMember[]
   venues: Option[]
   /** Effective venue manager grants. */
   grants: ManagerGrant[]
@@ -131,9 +134,14 @@ export function StaffDirectory({
   const [applied, setApplied] = React.useState<Filters>(NO_FILTERS)
   const controls = useAccountControls({ venues, maxAvatarBytes, grants })
   const id = React.useId()
+  // Venue manager accounts, and staff accounts still holding a grant.
   const managers = React.useMemo(
-    () => new Set(grants.map((g) => g.staffId)),
-    [grants]
+    () =>
+      new Set([
+        ...grants.map((g) => g.staffId),
+        ...staff.filter((m) => m.role === "manager").map((m) => m.id),
+      ]),
+    [grants, staff]
   )
 
   // Venues people are at, including inactive ones nobody can be moved to.

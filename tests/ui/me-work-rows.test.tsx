@@ -174,6 +174,9 @@ describe("Me: work details and the guide", () => {
         .getByRole("link", { name: /^How Naba-Lens works/ })
         .getAttribute("href")
     ).toBe("/staff/tasks/welcome?from=me")
+    expect(
+      rows.getByRole("link", { name: /^Photo guide/ }).getAttribute("href")
+    ).toBe("/staff/tasks/guide")
   })
 
   it("passes the avatar and Home's To do count to the shell", async () => {

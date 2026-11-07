@@ -11,6 +11,7 @@ import {
 
 import { signIn, type Db } from "../support/identities"
 import {
+  legacyStaffGrant,
   provisionCoverageWorld,
   type CoverageWorld,
 } from "./helpers/coverage-world"
@@ -72,14 +73,8 @@ type Setup = { manager: Db; requirementId: string; title: string }
 /** Manager grant, one task for staff A (target 2) and A's monthly target 2. */
 async function managerSetup(w: CoverageWorld): Promise<Setup> {
   const service = provisioner()
-  const admin = await signIn(service, w.admin.email)
   const manager = await signIn(service, w.manager.email)
-  await ok(
-    admin.rpc("grant_venue_manager", {
-      p_staff_id: w.manager.id,
-      p_venue_id: w.venue1.id,
-    })
-  )
+  await legacyStaffGrant(w.admin, w.manager, w.venue1)
   const title = `WS5 Back bar shelf ${w.tag}`
   const [row] = await ok(
     manager.rpc("save_coverage_requirement", {

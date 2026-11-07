@@ -19,14 +19,33 @@ export const PROFILE_UNAVAILABLE = {
   message: "Could not check your account right now. Try again in a moment.",
 } as const
 
+/** The account's role is not one the operation admits. */
+export const ROLE_NOT_ALLOWED = {
+  ok: false,
+  status: 403,
+  message: "Not allowed.",
+} as const
+
+/**
+ * Roles admitted when a caller names none: staff and admins. Venue managers are
+ * excluded by default, so a surface opens to them only by naming "manager".
+ */
+export const DEFAULT_MEDIA_ROLES = [
+  "staff",
+  "admin",
+] as const satisfies readonly AppRole[]
+
 /**
  * Authorises the current request (fresh profile read: deactivation applies to
- * existing sessions) and builds the clients a media operation needs. Pass a role
- * to require it, or omit it for routes both roles use. Returns a status instead
- * of redirecting, for Route Handlers and Server Functions that report errors.
- * A profile read that fails (not a missing or inactive profile) is a 503.
+ * existing sessions) and builds the clients a media operation needs. Pass a
+ * role, or a list of roles, to admit; omitted means `DEFAULT_MEDIA_ROLES`
+ * (staff and admin, never managers). Returns a status instead of redirecting,
+ * for Route Handlers and Server Functions that report errors. A profile read
+ * that fails (not a missing or inactive profile) is a 503.
  */
-export async function getMediaActor(role?: AppRole): Promise<ActorResult> {
+export async function getMediaActor(
+  roles: AppRole | readonly AppRole[] = DEFAULT_MEDIA_ROLES
+): Promise<ActorResult> {
   let state: Awaited<ReturnType<typeof getAuthState>>
   try {
     state = await getAuthState()
@@ -44,9 +63,9 @@ export async function getMediaActor(role?: AppRole): Promise<ActorResult> {
   if (state.status !== "active") {
     return { ok: false, status: 403, message: "Your account is not active." }
   }
-  if (role && state.profile.role !== role) {
-    return { ok: false, status: 403, message: "Not allowed." }
-  }
+  const admitted: readonly AppRole[] =
+    typeof roles === "string" ? [roles] : roles
+  if (!admitted.includes(state.profile.role)) return ROLE_NOT_ALLOWED
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!serviceKey) {
     throw new Error("Missing environment variable SUPABASE_SERVICE_ROLE_KEY.")

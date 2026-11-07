@@ -6,10 +6,10 @@ export const MANAGERS_COPY = {
   title: "Venue managers",
   scope: "All venues",
   summary:
-    "A grant on a staff account for one venue, never a role. It works only while the person is active and at that venue.",
+    "Venue managers are a separate account type. Convert an account from its staff page, then manage its venue access here.",
   powers:
-    "Managers review photos, set targets and run their venue's checklist. They can't invite or deactivate people, change venues or teams, change menus, download originals or delete colleagues' photos. A grant ends if the person moves venue or is deactivated, and never moves with them.",
-  grantHeading: "Make someone a venue manager",
+    "Venue managers sign in to the manager workspace for their venue. They can't add or label photos, invite or deactivate people, change venues or teams, change menus, download originals or delete colleagues' photos. Access ends if the person moves venue, is deactivated or returns to a staff account, and never moves with them.",
+  grantHeading: "Give a venue manager access",
   currentHeading: "Current grants",
   endedHeading: "Ended grants",
   endedNote: "Kept for history",
@@ -19,9 +19,9 @@ export const MANAGERS_COPY = {
   fields: {
     venue: "Venue",
     venuePlaceholder: "Choose a venue",
-    person: "Staff member",
+    person: "Venue manager",
     personPlaceholder: "Choose a person",
-    personHint: "Only active staff currently at this venue.",
+    personHint: "Manager accounts at this venue without access.",
     note: "Note",
     optional: "(optional)",
   },
@@ -34,8 +34,8 @@ export const MANAGERS_COPY = {
     howItEnded: "How it ended",
     actions: "Actions",
   },
-  grant: "Make venue manager",
-  granting: "Making venue manager…",
+  grant: "Give access",
+  granting: "Giving access…",
   showEnded: "Show ended grants",
   hideEnded: "Hide ended grants",
   moreActions: (name: string) => `More actions for ${name}`,
@@ -43,12 +43,15 @@ export const MANAGERS_COPY = {
   chooseVenue: "Choose a venue.",
   choosePerson: "Choose a person.",
   granted: (name: string, venue: string) =>
-    `${name} is now ${venue}'s venue manager. It takes effect on ${firstName(name)}'s next page load.`,
+    `${name} now has venue access at ${venue}. It takes effect on ${firstName(name)}'s next page load.`,
   noStaff: (venue: string) =>
-    `${venue} has no active staff. Invite staff first.`,
+    `${venue} has no manager accounts without access. Convert a staff account to a venue manager from its page in Staff.`,
   emptyTitle: "No venue managers yet.",
   emptyText:
-    "Make someone a venue manager above. Until then, admins review every venue's photos from Coverage.",
+    "Convert a staff account to a venue manager from its page in Staff. Until then, admins review every venue's photos from Coverage.",
+  legacyStaffGrant: "Legacy staff grant",
+  legacyStaffGrantNote:
+    "Legacy staff grant: made before venue manager accounts. It stays in effect until you convert the person to a venue manager account from their staff page.",
   loading: "Loading grants…",
   couldNotLoad: "We couldn't load venue managers",
   couldNotLoadBody:
@@ -58,7 +61,7 @@ export const MANAGERS_COPY = {
   revoke: {
     title: (name: string) => `Revoke ${name}'s manager grant?`,
     description: (name: string) =>
-      `It takes effect on ${firstName(name)}'s next page load: Manage disappears and Manage links show why. Review decisions ${firstName(name)} has made stand.`,
+      `It takes effect on ${firstName(name)}'s next page load, when ${firstName(name)}'s venue access ends. Review decisions ${firstName(name)} has made stand.`,
     reason: "Reason",
     help: "It's kept in the grant history, with your name and the time.",
     confirm: "Revoke grant",

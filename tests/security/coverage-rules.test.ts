@@ -17,7 +17,7 @@ import {
   createRequirement,
   currentMonth,
   fails,
-  grantManager,
+  legacyStaffGrant,
   insertAsset,
   insertSubmittedItem,
   itemRevision,
@@ -82,7 +82,7 @@ beforeAll(async () => {
     role: "admin",
   })
   manager = await staff("cov-rules-mgr")
-  await grantManager(admin, manager.id, venue)
+  await legacyStaffGrant(service, admin, manager.id, venue)
 })
 
 describe("Europe/London calendar", () => {
@@ -252,7 +252,7 @@ describe("monthly preparation", () => {
     prepVenue = (await createVenue(service, "cov-prep")).id
     const oldVenue = (await createVenue(service, "cov-prep-old")).id
     prepManager = await staff("cov-prep-mgr", prepVenue)
-    await grantManager(admin, prepManager.id, prepVenue)
+    await legacyStaffGrant(service, admin, prepManager.id, prepVenue)
     copied = await staff("cov-prep-copied", prepVenue)
     fresh = await staff("cov-prep-fresh", prepVenue, null)
     moved = await staff("cov-prep-moved", oldVenue)

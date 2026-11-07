@@ -77,7 +77,7 @@ export function ManagersView({
   grants: ManagerGrantView[]
   venues: CoverageVenue[]
   selectedVenueId: string | null
-  /** Active staff currently at the selected venue. */
+  /** Active venue manager accounts at the selected venue without access there. */
   candidates: CoveragePerson[]
   includeRevoked: boolean
   basePath: string
@@ -94,6 +94,7 @@ export function ManagersView({
   const [revoking, setRevoking] = React.useState<ManagerGrantView | null>(null)
 
   const current = grants.filter((g) => !g.revokedAt).sort(byName)
+  const anyLegacy = current.some((g) => g.legacyStaffGrant)
   const ended = grants.filter((g) => g.revokedAt).sort(byName)
   const managed = new Set(
     current.filter((g) => g.effective).map((g) => g.venue.id)
@@ -323,6 +324,11 @@ export function ManagersView({
                               {notInEffect(g)}
                             </StatusChip>
                           ) : null}
+                          {g.legacyStaffGrant ? (
+                            <StatusChip tone="pending">
+                              {MANAGERS_COPY.legacyStaffGrant}
+                            </StatusChip>
+                          ) : null}
                         </span>
                       </td>
                       <td
@@ -368,6 +374,11 @@ export function ManagersView({
                 </tbody>
               </table>
             </div>
+            {anyLegacy ? (
+              <p className="max-w-prose text-meta-touch text-ink-muted md:text-meta">
+                {MANAGERS_COPY.legacyStaffGrantNote}
+              </p>
+            ) : null}
             <p className="text-meta-touch text-ink-muted md:text-meta">
               {MANAGERS_COPY.sortNote}
             </p>

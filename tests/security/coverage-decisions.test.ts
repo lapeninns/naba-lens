@@ -18,7 +18,7 @@ import {
   createRequirement,
   currentMonth,
   fails,
-  grantManager,
+  legacyStaffGrant,
   itemRevision,
   ok,
   psql,
@@ -40,7 +40,7 @@ async function staff(label: string, venueId: string) {
 async function managedVenue(label: string) {
   const venueId = (await createVenue(service, label)).id
   const manager = await staff(`${label}-mgr`, venueId)
-  await grantManager(admin, manager.id, venueId)
+  await legacyStaffGrant(service, admin, manager.id, venueId)
   return { venueId, manager }
 }
 

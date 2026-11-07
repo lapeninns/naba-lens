@@ -36,6 +36,11 @@ export const FIXTURE = {
     id: "00000000-0000-4000-8000-0000000000b2",
     email: "dev-staff-b@nabalens.test",
   },
+  /** Venue manager account (converted from staff in the seed). */
+  manager: {
+    id: "00000000-0000-4000-8000-0000000000b4",
+    email: "dev-manager-a@nabalens.test",
+  },
 } as const
 
 export type FixtureUser = keyof typeof FIXTURE
@@ -379,7 +384,9 @@ export async function seedFixtureMedia(
 
   // A small coverage history through the real RPCs (manager grant, task,
   // assignment, submission, review), so a restore is checked against coverage
-  // rows rather than empty tables.
+  // rows rather than empty tables. The seed converted the manager fixture (its
+  // grant is idempotent here); manager accounts make no coverage writes, so the
+  // admin configures and reviews.
   const adminUser = await signIn(env, "admin")
   const key = () => `dev-fixture-${randomUUID()}`
   const venueId = check(
@@ -392,14 +399,14 @@ export async function seedFixtureMedia(
   ).data!.venue_id!
   check(
     await adminUser.rpc("grant_venue_manager", {
-      p_staff_id: FIXTURE.staffA.id,
+      p_staff_id: FIXTURE.manager.id,
       p_venue_id: venueId,
       p_reason: "DEV FIXTURE manager",
     }),
     "grant_venue_manager"
   )
   const requirementId = check(
-    await staffA.rpc("save_coverage_requirement", {
+    await adminUser.rpc("save_coverage_requirement", {
       p_venue_id: venueId,
       p_requirement_id: null as unknown as string,
       p_expected_revision: null as unknown as number,
@@ -413,7 +420,7 @@ export async function seedFixtureMedia(
     "save_coverage_requirement"
   ).data![0]!.requirement_id
   check(
-    await staffA.rpc("set_coverage_requirement_assignees", {
+    await adminUser.rpc("set_coverage_requirement_assignees", {
       p_requirement_id: requirementId,
       p_staff_ids: [FIXTURE.staffB.id],
     }),
@@ -428,7 +435,7 @@ export async function seedFixtureMedia(
     "submit_coverage_photos"
   ).data![0]!.item_id
   check(
-    await staffA.rpc("review_coverage_item", {
+    await adminUser.rpc("review_coverage_item", {
       p_item_id: itemId,
       p_expected_revision: 1,
       p_decision: "accepted",
@@ -621,6 +628,7 @@ export async function accessMatrix(
     admin: clients?.admin ?? (await signIn(env, "admin")),
     staffA: clients?.staffA ?? (await signIn(env, "staffA")),
     staffB: clients?.staffB ?? (await signIn(env, "staffB")),
+    manager: clients?.manager ?? (await signIn(env, "manager")),
     anon: anonClient(env),
   }
   const objects = [
@@ -672,7 +680,8 @@ export function expectedRows(
   manifest: FixtureManifest,
   who: FixtureUser | "anon"
 ): string[] {
-  if (who === "anon") return []
+  // A manager account reads no media rows (staff-own and admin policies only).
+  if (who === "anon" || who === "manager") return []
   return manifest.assets
     .filter((a) =>
       who === "admin"
