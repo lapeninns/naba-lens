@@ -13,8 +13,7 @@ import {
 import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import type { FixLabelsDialogProps } from "@/app/staff/fix-labels-dialog-stub"
-import type { PendingLabelItem } from "@/app/staff/needs-attention-api"
+import type { FixLabelsDialogProps } from "@/components/nabalens/labels"
 import {
   ATTENTION_COPY,
   NeedsAttention,
@@ -25,6 +24,7 @@ import {
 import {
   EMPTY_LABEL_SUMMARY,
   type LabelCatalogue,
+  type PendingLabelItem,
   type SaveLabelsInput,
 } from "@/lib/menus/types"
 
@@ -33,12 +33,13 @@ vi.mock("@/app/_labels/actions", () => ({
   loadLabelCatalogue: vi.fn(),
 }))
 
-// TODO(integration): S2's FixLabelsDialog replaces the stub; point this mock
-// at "@/components/nabalens/labels" (keeping the real exports) instead.
+// The real FixLabelsDialog is covered in labels-fix-dialog.test.tsx; here it
+// only records what Me hands it.
 const dialog = vi.hoisted(() => ({
   last: null as FixLabelsDialogProps | null,
 }))
-vi.mock("@/app/staff/fix-labels-dialog-stub", () => ({
+vi.mock("@/components/nabalens/labels", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/components/nabalens/labels")>()),
   FixLabelsDialog: (props: FixLabelsDialogProps) => {
     dialog.last = props
     return props.open ? (
@@ -165,6 +166,17 @@ describe("Needs attention: which rows and why", () => {
       uploadState: "failed",
     })
     expect(attentionItems([fix, saving, dead])).toEqual([fix, dead])
+  })
+
+  it("keeps labels on a ready photo that are still waiting off the list", () => {
+    // upload_state is uploading | processing | ready | failed, and a removed
+    // photo's stored labels go with it: only failed is a dead upload.
+    expect(
+      attentionItems([
+        row(1, { status: "pending", code: null, uploadState: "ready" }),
+        row(2, { status: "pending", code: null, uploadState: "uploading" }),
+      ])
+    ).toEqual([])
   })
 })
 

@@ -18,41 +18,14 @@ import * as React from "react"
 
 import type {
   MediaLabelSummary,
+  PendingLabelItem,
   SaveLabelsErrorCode,
   SaveLabelsInput,
   SaveLabelsResult,
+  UploadLabelPostResult,
 } from "@/lib/menus/types"
 
 import type { QueueItem, UploadLabelOutcome } from "./upload-queue"
-
-// TODO(integration): import from "@/lib/menus/types" (S1 adds them, C1).
-/** POST /api/upload-labels. */
-export type UploadLabelPostResult =
-  | { ok: true; assetId: string; state: "saved"; labels: MediaLabelSummary }
-  | { ok: true; assetId: string; state: "pending" }
-  | {
-      ok: false
-      assetId: string
-      code: SaveLabelsErrorCode
-      message: string
-      current?: MediaLabelSummary
-      unavailableItemIds?: string[]
-    }
-
-// TODO(integration): import from "@/lib/menus/types" (S1 adds it, C1).
-/** One row of GET /api/upload-labels?attention=1. */
-export type PendingLabelItem = {
-  assetId: string
-  venueId: string
-  status: "pending" | "needs_attention"
-  code: SaveLabelsErrorCode | null
-  message: string | null
-  input: SaveLabelsInput
-  uploadState: string
-  mediaType: "image" | "video"
-  thumbnailUrl: string | null
-  updatedAt: string
-}
 
 /** What the sheet hands the label panel (the host adds the catalogue). */
 export type UploadLabelPanelHostProps = {

@@ -1,9 +1,10 @@
-import type {
-  PendingLabelItem,
-  UploadLabelPostResult,
-} from "@/components/nabalens/upload-label-drafts"
 import type { WorkFocus } from "@/lib/config/work-roles"
-import type { LabelCatalogue, SaveLabelsInput } from "@/lib/menus/types"
+import type {
+  LabelCatalogue,
+  PendingLabelItem,
+  SaveLabelsInput,
+  UploadLabelPostResult,
+} from "@/lib/menus/types"
 
 export type UploadLabelContext =
   | { ok: true; catalogue: LabelCatalogue; focus: WorkFocus | null }

@@ -16,11 +16,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { LeaveGuard } from "@/components/nabalens/shell/leave-guard"
 import { UploadDialog } from "@/components/nabalens/upload-dialog"
-import type {
-  PendingLabelItem,
-  UploadLabelPostResult,
-  UploadLabels,
-} from "@/components/nabalens/upload-label-drafts"
+import type { UploadLabels } from "@/components/nabalens/upload-label-drafts"
 import type {
   Uploader,
   UploadLabelOutcome,
@@ -28,7 +24,9 @@ import type {
 import {
   EMPTY_LABEL_SUMMARY,
   type MediaLabelSummary,
+  type PendingLabelItem,
   type SaveLabelsInput,
+  type UploadLabelPostResult,
 } from "@/lib/menus/types"
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }))
@@ -315,6 +313,8 @@ describe("Saving sheet: labels by asset ID", () => {
     expect(screen.queryByText(/still saving labels/)).toBeNull()
     expect(labels.onSaved).toHaveBeenCalledWith("asset-1")
     expect(labels.save).toHaveBeenCalledTimes(1)
+    // Finalise's own answer is enough: the attention list is not asked.
+    expect(labels.attention).not.toHaveBeenCalled()
   })
 
   it("sends a change again and discards labels the person clears", async () => {
@@ -824,7 +824,7 @@ describe("Saving sheet: label edge cases", () => {
   it("removing a file while its labels are being sent discards what the send left", async () => {
     const { upload, find } = heldUploader()
     const labels = labelsConfig()
-    let answer = (_: UploadLabelPostResult) => {}
+    let answer: (result: UploadLabelPostResult) => void = () => {}
     labels.save.mockImplementationOnce(
       () => new Promise((resolve) => (answer = resolve))
     )

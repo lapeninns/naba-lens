@@ -8,20 +8,21 @@ import {
   loadLabelEditorContext,
 } from "@/app/_labels/actions"
 import type { CatalogueProp } from "@/components/nabalens"
+import { FixLabelsDialog } from "@/components/nabalens/labels"
 import { Notice } from "@/components/nabalens/notice"
 import { CountBadge, StatusChip } from "@/components/nabalens/status-chip"
 import { Button } from "@/components/ui/button"
 import type { WorkFocus } from "@/lib/config/work-roles"
-import type { LabelEditorAsset, SaveLabelsInput } from "@/lib/menus/types"
+import type {
+  LabelEditorAsset,
+  PendingLabelItem,
+  SaveLabelsInput,
+} from "@/lib/menus/types"
 
-// TODO(integration): import { FixLabelsDialog } from "@/components/nabalens/labels"
-// and delete ./fix-labels-dialog-stub.tsx.
-import { FixLabelsDialog } from "./fix-labels-dialog-stub"
 import {
   discardPendingLabels,
   loadNeedsAttention,
   saveFixedLabels,
-  type PendingLabelItem,
 } from "./needs-attention-api"
 
 /** The exact words of Me's "Needs attention" list. */
@@ -43,8 +44,12 @@ export const ATTENTION_COPY = {
   tryAgain: "Try again",
 } as const
 
-/** Upload states that will never give the stored labels a photo to go on. */
-const UNUSABLE = new Set(["failed", "rejected", "deleted"])
+/**
+ * Upload states that will never give the stored labels a photo to go on. Only
+ * `failed` reaches this list: upload_state has no other end state, and a
+ * removed photo takes its stored labels with it.
+ */
+const UNUSABLE = new Set(["failed"])
 
 /**
  * Rows Me lists: labels the server could not apply, and labels whose upload
