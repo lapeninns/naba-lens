@@ -14,6 +14,7 @@ import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
+  FixLabelsDialog,
   LabelEditorDialog,
   UploadLabelPanel,
   type CatalogueProp,
@@ -298,5 +299,92 @@ describe("m12: photos restored before the menu loads", () => {
     )
     expect(last().map((i) => i.note)).toEqual(["Own note", "Common"])
     expect(last()[0].items).toEqual([BHAJI_REF])
+  })
+})
+
+describe("m14: Fix labels after its menu reload lands", () => {
+  it("names the chips from the menu as it is now, before Save", async () => {
+    const draft = stored("a1", {
+      items: [
+        { itemId: "item-bhaji", variantId: null },
+        { itemId: "item-tikka", variantId: "var-lamb" },
+        { itemId: "item-gone", variantId: null },
+      ],
+    })
+    if (CATALOGUE.status !== "active") throw new Error("fixture")
+    // Since the sheet loaded the menu: Onion Bhaji renamed, Tikka Masala
+    // dropped, and the dish that was gone is back.
+    const now = {
+      ...CATALOGUE,
+      versionId: "version-2",
+      sections: [
+        {
+          ...CATALOGUE.sections[0],
+          items: [{ ...CATALOGUE.sections[0].items[0], name: "Onion Pakora" }],
+        },
+        {
+          id: "sec-curries",
+          slug: "curries",
+          name: "Curries",
+          kind: "food" as const,
+          items: [
+            {
+              itemId: "item-gone",
+              name: "Lamb Rogan",
+              description: null,
+              aliases: [],
+              variants: [],
+            },
+          ],
+        },
+      ],
+    }
+    const onSave = vi.fn(
+      async (input: SaveLabelsInput): Promise<SaveLabelsResult> => ({
+        ok: true,
+        assetId: input.assetId,
+        labels: summary({ revision: 1 }),
+      })
+    )
+    const props = {
+      open: true,
+      onOpenChange: () => {},
+      asset: asset("a1"),
+      draft,
+      onRetryCatalogue: () => {},
+      onSave,
+    }
+    // FixHost opens with the sheet's menu, then reloads it.
+    const view = render(<FixLabelsDialog {...props} catalogue={READY} />)
+    const chips = () =>
+      screen.getByRole("list", { name: "Selected menu items" })
+    expect(within(chips()).getByText("Onion Bhaji")).toBeTruthy()
+    view.rerender(<FixLabelsDialog {...props} catalogue={{ state: "loading" }} />)
+    view.rerender(
+      <FixLabelsDialog
+        {...props}
+        catalogue={{ state: "ready", catalogue: now }}
+      />
+    )
+
+    await waitFor(() =>
+      expect(within(chips()).getByText("Onion Pakora")).toBeTruthy()
+    )
+    expect(within(chips()).queryByText("Onion Bhaji")).toBeNull()
+    const back = within(chips()).getByText("Lamb Rogan").closest("li")!
+    expect(back.textContent).not.toMatch(/No longer on the menu/)
+    expect(within(chips()).queryByText("Dish no longer on the menu")).toBeNull()
+    const gone = within(chips())
+      .getByText(/^Tikka Masala/)
+      .closest("li")!
+    expect(gone.textContent).toMatch(/No longer on the menu/)
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole("button", { name: /^Save/ }))
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1))
+    expect(onSave.mock.calls[0][0]).toMatchObject({
+      catalogueVersionId: "version-2",
+      items: draft.items,
+    })
   })
 })

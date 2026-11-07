@@ -55,6 +55,7 @@ import {
   itemKey,
   limitProblem,
   presetDraft,
+  OFF_MENU_NAME,
   removeItem,
   renameRemoved,
   setContentType,
@@ -381,8 +382,29 @@ function LabelEditor({
   const [seeded, setSeeded] = React.useState<Record<string, FileState> | null>(
     null
   )
+  // The menu the chips are named from. Fix labels reloads the menu as it
+  // opens, so it may change after the draft went in: the chips are named
+  // again from the menu as it is now (a dish dropped since keeps the name it
+  // had, flagged "No longer on the menu"), before Save is possible.
+  const [namedFrom, setNamedFrom] = React.useState<typeof ready>(null)
+  if (fix && !fixPending && ready && namedFrom !== ready) {
+    setNamedFrom(ready)
+    setFiles((prev) =>
+      Object.fromEntries(
+        assets.map((a) => {
+          const f = prev[a.id]
+          const add = draftItemsFromRefs(ready, f.adj.add, [
+            ...a.labels.items,
+            ...f.adj.add.filter((i) => i.name !== OFF_MENU_NAME),
+          ])
+          return [a.id, { ...f, adj: { ...f.adj, add } }]
+        })
+      )
+    )
+  }
   if (fixPending && ready) {
     setFixPending(false)
+    setNamedFrom(ready)
     const a = assets[0]
     const items = draftItemsFromRefs(ready, fix!.draft.items, a.labels.items)
     const next = {
