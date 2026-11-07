@@ -1,4 +1,5 @@
 import { fail, redirectTo } from "@/app/api/media/_respond"
+import { AMENITY_ROLES } from "@/lib/server/amenities/context"
 import { signEvidence } from "@/lib/server/coverage/evidence"
 import { getMediaActor } from "@/lib/server/media/context"
 
@@ -11,7 +12,7 @@ export async function GET(
   _request: Request,
   ctx: { params: Promise<{ assetId: string }> }
 ) {
-  const auth = await getMediaActor()
+  const auth = await getMediaActor(AMENITY_ROLES)
   if (!auth.ok) return fail(auth.status, auth.message)
   const { assetId } = await ctx.params
   const signed = await signEvidence(

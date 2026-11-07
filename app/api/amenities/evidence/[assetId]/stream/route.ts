@@ -1,4 +1,5 @@
 import { fail } from "@/app/api/media/_respond"
+import { AMENITY_ROLES } from "@/lib/server/amenities/context"
 import { amenityVideo } from "@/lib/server/amenities/media"
 import { streamOriginal } from "@/lib/server/media/access"
 import { getMediaActor } from "@/lib/server/media/context"
@@ -13,7 +14,7 @@ export async function GET(
   request: Request,
   ctx: { params: Promise<{ assetId: string }> }
 ) {
-  const auth = await getMediaActor()
+  const auth = await getMediaActor(AMENITY_ROLES)
   if (!auth.ok) return fail(auth.status, auth.message)
   const { assetId } = await ctx.params
   const found = await amenityVideo(auth.actor, assetId)

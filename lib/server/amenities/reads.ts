@@ -139,11 +139,13 @@ export async function getCheck(
 /**
  * Active checks assigned to the caller that still need capturing. Takes no
  * input; typed as a service so callers pass `(actor, {})` like the others.
+ * Only staff are assignable, so a manager account always gets an empty list.
  */
 export const getMyAmenityTasks: (
   actor: MediaActor,
   input?: unknown
 ) => Promise<AmenityResult<{ tasks: MyAmenityTask[] }>> = async (actor) => {
+  if (actor.profile.role === "manager") return { ok: true, tasks: [] }
   const { data, error } = await amenityRpc(actor, "amenity_my_checks", {})
   if (error) return amenityRpcFailure(error, "my checks")
   return { ok: true, tasks: myTasks(data, actor.profile.id) }

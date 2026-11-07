@@ -31,9 +31,10 @@ type Service<T> = (
   input: unknown
 ) => Promise<AmenityResult<T>>
 
-/** Staff tasks and the manager area, and the admin coverage mirror. */
+/** Staff tasks, the legacy and account manager areas, and the admin coverage mirror. */
 function refreshAmenities() {
   revalidatePath("/staff", "layout")
+  revalidatePath("/manager", "layout")
   revalidatePath("/admin/coverage", "layout")
 }
 

@@ -46,9 +46,7 @@ export function parseCheckId(input: unknown): Parsed<string> {
   return ok(input.checkId)
 }
 
-function parseRevisioned(
-  input: unknown
-): Parsed<{
+function parseRevisioned(input: unknown): Parsed<{
   checkId: string
   revision: number
   input: Record<string, unknown>

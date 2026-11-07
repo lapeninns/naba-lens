@@ -8,12 +8,12 @@ const mocks = vi.hoisted(() => ({
   signEvidence: vi.fn(),
   streamOriginal: vi.fn(),
   revalidatePath: vi.fn(),
-  getCoverageActor: vi.fn(),
 }))
 
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({}) }))
 vi.mock("@/lib/server/media/context", () => ({
   getMediaActor: mocks.getMediaActor,
+  ROLE_NOT_ALLOWED: { ok: false, status: 403, message: "Not allowed." },
 }))
 vi.mock("@/lib/server/coverage/evidence", () => ({
   signEvidence: mocks.signEvidence,
@@ -22,13 +22,11 @@ vi.mock("@/lib/server/media/access", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   streamOriginal: mocks.streamOriginal,
 }))
-vi.mock("@/lib/server/coverage/context", async (importOriginal) => ({
-  ...(await importOriginal<Record<string, unknown>>()),
-  getCoverageActor: mocks.getCoverageActor,
-}))
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }))
 
 const ASSET = "55555555-5555-4555-8555-555555555555"
+/** Staff, manager accounts and admins reach every amenity surface. */
+const ROLES = ["staff", "manager", "admin"]
 const CHECK = "33333333-3333-4333-8333-333333333333"
 
 beforeEach(() => {
@@ -92,6 +90,7 @@ describe("amenity evidence photo routes", () => {
       expect(res.status).toBe(302)
       expect(res.headers.get("location")).toBe("https://storage.test/signed")
       expect(res.headers.get("cache-control")).toBe("private, no-store")
+      expect(mocks.getMediaActor).toHaveBeenCalledWith(ROLES)
       expect(mocks.signEvidence).toHaveBeenCalledWith(
         a.value,
         ASSET,
@@ -209,6 +208,7 @@ describe("amenity evidence video stream", () => {
     })
     expect((await stream(a)).status).toBe(206)
     expect((await stream(a)).status).toBe(206)
+    expect(mocks.getMediaActor).toHaveBeenCalledWith(ROLES)
     expect(a.rpc).toHaveBeenCalledTimes(2)
     expect(a.rpc).toHaveBeenCalledWith("amenity_evidence_asset", {
       p_asset_id: ASSET,
@@ -234,19 +234,45 @@ describe("amenity evidence video stream", () => {
 describe("amenity server actions", () => {
   it("returns the auth failure without calling the database", async () => {
     const actions = await import("@/app/_amenities/actions")
-    mocks.getCoverageActor.mockResolvedValue({
+    mocks.getMediaActor.mockResolvedValue({
       ok: false,
-      code: "unauthenticated",
       status: 401,
       message: "Sign in.",
     })
     expect(
       await actions.archiveCheckAction({ checkId: CHECK, revision: 1 })
     ).toMatchObject({ ok: false, code: "unauthenticated", status: 401 })
+    expect(mocks.getMediaActor).toHaveBeenCalledWith(ROLES)
+    mocks.getMediaActor.mockResolvedValue({
+      ok: false,
+      status: 403,
+      message: "Not allowed.",
+    })
+    expect(await actions.getCheckAction({ checkId: CHECK })).toMatchObject({
+      code: "not_permitted",
+      status: 403,
+    })
+    mocks.getMediaActor.mockResolvedValue({
+      ok: false,
+      status: 403,
+      message: "Your account is not active.",
+    })
+    expect(await actions.getCheckAction({ checkId: CHECK })).toMatchObject({
+      code: "account_inactive",
+    })
+    mocks.getMediaActor.mockResolvedValue({
+      ok: false,
+      status: 503,
+      message: "Could not check your account right now.",
+    })
+    expect(await actions.getCheckAction({ checkId: CHECK })).toMatchObject({
+      code: "unavailable",
+      status: 503,
+    })
     expect(mocks.revalidatePath).not.toHaveBeenCalled()
   })
 
-  it("refreshes staff and admin coverage pages only after a successful write", async () => {
+  it("refreshes staff, manager and admin coverage pages only after a successful write", async () => {
     const actions = await import("@/app/_amenities/actions")
     const rpc = vi.fn(async (fn: string) =>
       fn === "amenity_archive_check"
@@ -256,7 +282,7 @@ describe("amenity server actions", () => {
             error: { message: "amenity_conflict", details: '{"revision":4}' },
           }
     )
-    mocks.getCoverageActor.mockResolvedValue({
+    mocks.getMediaActor.mockResolvedValue({
       ok: true,
       actor: { profile: { id: "u", active: true }, db: { rpc } },
     })
@@ -264,6 +290,7 @@ describe("amenity server actions", () => {
       await actions.archiveCheckAction({ checkId: CHECK, revision: 1 })
     ).toEqual({ ok: true, revision: 2 })
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/staff", "layout")
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/manager", "layout")
     expect(mocks.revalidatePath).toHaveBeenCalledWith(
       "/admin/coverage",
       "layout"
