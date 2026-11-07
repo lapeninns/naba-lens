@@ -156,6 +156,16 @@ async function discardRow(
 
 const DISCARDED: DiscardResult = { ok: true, state: "discarded" }
 
+function deferredMenu() {
+  let resolve!: (
+    value: Awaited<ReturnType<NeedsAttentionApi["loadCatalogue"]>>
+  ) => void
+  const promise = new Promise<
+    Awaited<ReturnType<NeedsAttentionApi["loadCatalogue"]>>
+  >((r) => (resolve = r))
+  return { promise, resolve }
+}
+
 describe("Needs attention: which rows and why", () => {
   it("words each reason in the flow's own copy", () => {
     expect(attentionReason(row(1))).toBe("The menu changed. Check the dish.")
@@ -590,7 +600,115 @@ describe("Needs attention: honest about what is on the photo", () => {
     })
     expect(onFixed).not.toHaveBeenCalled()
     await waitFor(() => expect(calls.load).toHaveBeenCalledTimes(2))
-    expect(within(list()).getAllByRole("listitem")).toHaveLength(1)
+    const [still] = within(list()).getAllByRole("listitem")
+    expect(still.textContent).toContain("Labels not saved yet.")
+    expect(within(still).queryByText("Saved")).toBeNull()
+  })
+
+  // A retryable row the Fix labels can't open: the menu doesn't load.
+  const RETRYING = row(1, {
+    status: "pending",
+    code: null,
+    message: null,
+    uploadState: "failed",
+    retryable: true,
+  })
+  const notReady: NeedsAttentionApi["loadContext"] = async () => ({
+    ok: true,
+    viewer: "staff",
+    assets: [],
+    missing: [RETRYING.assetId],
+    catalogue: null,
+    focus: null,
+  })
+
+  it("says so when the menu for a retryable fix can't be loaded", async () => {
+    const user = userEvent.setup()
+    const calls = api([RETRYING], {
+      loadContext: vi.fn(notReady),
+      loadCatalogue: vi.fn<NeedsAttentionApi["loadCatalogue"]>(async () => ({
+        ok: false,
+        message: "The menu could not be loaded.",
+      })),
+    })
+    render(<NeedsAttention api={calls} />)
+    const fix = await screen.findByRole("button", { name: "Fix labels" })
+    await user.click(fix)
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "The menu could not be loaded."
+    )
+    expect(screen.queryByRole("dialog")).toBeNull()
+    expect((fix as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it("saves a retryable row's fix on the photo once it is ready, and only then drops it", async () => {
+    const user = userEvent.setup()
+    const onFixed = vi.fn()
+    // The default api: the photo is ready now, and the save lands on it.
+    const calls = api([RETRYING])
+    render(<NeedsAttention api={calls} onFixed={onFixed} />)
+    await user.click(await screen.findByRole("button", { name: "Fix labels" }))
+    await screen.findByRole("dialog", { name: "Fix labels" })
+    expect(calls.loadCatalogue).not.toHaveBeenCalled()
+    await act(async () => {
+      await dialog.last!.onSave(RETRYING.input)
+    })
+    expect(onFixed).toHaveBeenCalledWith([RETRYING.assetId])
+    act(() => dialog.last!.onOpenChange(false))
+    expect(
+      screen.queryByRole("list", { name: "Photos that need attention" })
+    ).toBeNull()
+  })
+
+  it("opens nothing when the row leaves the list while Fix labels loads", async () => {
+    const user = userEvent.setup()
+    const menu = deferredMenu()
+    const calls = api([RETRYING], {
+      loadContext: vi.fn(notReady),
+      loadCatalogue: vi.fn(() => menu.promise),
+    })
+    const { rerender } = render(
+      <NeedsAttention api={calls} refreshSignal={0} />
+    )
+    await user.click(await screen.findByRole("button", { name: "Fix labels" }))
+    // The photo's Retry applied the labels: the next read lists only
+    // another photo.
+    vi.mocked(calls.load).mockResolvedValue({ ok: true, items: [row(2)] })
+    rerender(<NeedsAttention api={calls} refreshSignal={1} />)
+    await waitFor(() => expect(calls.load).toHaveBeenCalledTimes(2))
+    await waitFor(() =>
+      expect(within(list()).getAllByRole("listitem")).toHaveLength(1)
+    )
+    await act(async () => menu.resolve({ ok: true, catalogue: CATALOGUE }))
+    expect(screen.queryByRole("dialog")).toBeNull()
+  })
+
+  it("says the labels were already saved even when the server didn't list them", async () => {
+    const user = userEvent.setup()
+    const onFixed = vi.fn()
+    const calls = api([row(1)], {
+      discard: vi.fn<NeedsAttentionApi["discard"]>(async () => ({
+        ok: true,
+        state: "already_applied",
+        labels: null,
+      })),
+    })
+    render(<NeedsAttention api={calls} onFixed={onFixed} />)
+    await discardRow(user, (await screen.findAllByRole("listitem"))[0])
+    const item = await screen.findByText(
+      "These labels were already saved on the photo."
+    )
+    const rowEl = item.closest("li")!
+    expect(within(rowEl).getByText("Saved")).toBeTruthy()
+    expect(within(rowEl).queryByRole("list", { name: "Menu items" })).toBeNull()
+    expect(onFixed).toHaveBeenCalledWith([row(1).assetId])
+    // Fix labels opens what the photo has now, at its revision.
+    await user.click(within(rowEl).getByRole("button", { name: "Fix labels" }))
+    await screen.findByRole("dialog", { name: "Fix labels" })
+    expect(dialog.last!.draft.expectedRevision).toBe(
+      dialog.last!.asset.labels.revision
+    )
+    expect(dialog.last!.problem).toBeNull()
   })
 
   it("says the labels were already on the photo when a discard came too late (m2)", async () => {

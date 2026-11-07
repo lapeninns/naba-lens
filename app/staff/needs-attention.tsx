@@ -208,6 +208,9 @@ export function NeedsAttention({
   // Rows discarded or fixed here: a read that started before the server
   // changed must not bring them back.
   const handled = React.useRef(new Set<string>())
+  // The rows the server listed last: an open that ends after its row left
+  // the list (its photo's Retry applied the labels) opens nothing.
+  const listed = React.useRef(new Set<string>())
 
   React.useEffect(() => {
     const controller = new AbortController()
@@ -218,6 +221,7 @@ export function NeedsAttention({
           const next = attentionItems(result.items).filter(
             (i) => !handled.current.has(i.assetId)
           )
+          listed.current = new Set(next.map((i) => i.assetId))
           // A row whose labels turned out to be on the photo stays until the
           // person is done with it; the server no longer lists it.
           setItems((current) => [...next, ...current.filter((i) => i.applied)])
@@ -325,8 +329,13 @@ export function NeedsAttention({
         setRowError(item.assetId, ATTENTION_COPY.openFailed)
         return
       }
-      // Discarded (or fixed) while its labels were loading: nothing to fix.
-      if (handled.current.has(item.assetId) && !item.applied) return
+      // Discarded, fixed or gone from the list while its labels were
+      // loading: nothing to fix.
+      if (
+        !item.applied &&
+        (handled.current.has(item.assetId) || !listed.current.has(item.assetId))
+      )
+        return
       setFixing({
         item,
         asset,
