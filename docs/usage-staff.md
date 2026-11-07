@@ -111,10 +111,11 @@ shared.**
 
 1. Open a task and read **What to photograph**.
 2. Choose **Send photos** (or **Send more photos**). Use **Choose from your
-   photos** or **Take a photo** to add new ones (they are selected for you
-   once ready), or pick your own ready photos from this venue under **Or send
-   photos you've already added**; a photo that can't be sent says why under
-   it. You can send up to 10 at a time.
+   photos** or **Take a photo** to add new ones, or pick your own ready photos
+   from this venue under **Or send photos you've already added**; a photo that
+   can't be sent says why under it. You can send up to 10 at a time. New
+   photos are selected for you one by one, as soon as each is ready: you
+   don't wait for a slow file, and photos you already selected stay selected.
 3. Choose the send button, which counts your selection ("Send 2 photos").
 
 Only tasks assigned to you accept photos. Your team (FOH or BOH) can help your
@@ -191,8 +192,9 @@ evidence** (**Photo**, **Video**, **Photo or video** or **Photo and video**).
    applicable** need a **Reason**; evidence is optional for them.
 2. Add **What you found** and any **Limitations** in plain words.
 3. Under **Evidence**, choose **Choose from your photos** or **Take a photo**
-   to add a photo or video, or tick ones you already uploaded. New uploads are
-   ticked for you once they are ready. A line under **Evidence** says whether
+   to add a photo or video, or tick ones you already uploaded. Each new upload
+   is ticked for you as soon as it is ready, one by one, without waiting for
+   the others. A line under **Evidence** says whether
    the evidence rule is met; a **Yes** cannot be sent until it is (a photo is
    not enough where a video is required).
 4. Choose **Submit finding**. There is no review step: the finding becomes the
@@ -345,69 +347,91 @@ missing or inactive venue if uploads are paused.
 Choose **Add** in the TabBar (or **Add photos** in the top bar). On a phone the
 **Add photos** sheet opens first:
 
-- **Choose from your photos** (first) picks up to 10 at a time from your
-  phone's library.
-- **Take a photo** (second) opens your phone's camera for one photo.
+- **Take a photo** opens your phone's camera.
+- **Choose from your photos** picks up to 10 at a time from your phone's
+  library.
 
-Either way the files go into the upload queue as **Ready to upload**; nothing
-uploads until you choose **Upload** there. Your colleagues will see them in
-Photos, and you can label them after. If your account can't add photos yet,
-the sheet says **You can't add photos yet** and why. From a tablet or computer
-the upload queue opens directly, with the same two buttons. Home, the welcome,
-**Me** and task screens all use this one queue.
+**Photos start saving as soon as you pick them.** There is no separate Upload
+button. If your account can't add photos yet, the sheet says **You can't add
+photos yet** and why. Home, the welcome, **Me**, **Our menu** and task screens
+all use this one Add.
 
-### The upload queue
+### Saving your photos
 
-Picked files appear in **Upload photos or videos** as **Ready to upload**. Remove one
-with its × control ("Remove" plus its filename), then choose **Upload 3 files**
-(the button counts your selection). Each photo can be up to **20 MiB**, each
-video **200 MiB** (shown as **20 MB** and **200 MB**).
+After you pick, the **Saving 3 photos** sheet (**Saving 1 photo** for one)
+shows a row for each file. Each photo can be up to **20 MiB**, each video
+**200 MiB** (shown as **20 MB** and **200 MB**).
 
-- Each file moves from **Waiting** through **Uploading** (with a percentage)
-  and **Processing** to **Uploaded**, or **Failed** with its error. A summary
-  line such as **1 uploaded · 3 in progress** keeps count. A failure does not
-  undo successful files. Ready files reach Photos, your profile and the admin
-  library once processing finishes; processing is a technical step, not a
-  review decision.
-- **Keep this page open while files upload.** You can close the queue and
-  move between staff pages: uploads carry on, and while any file is unfinished
-  **Add** reopens the same queue instead of starting a new one.
-- With a weak or lost connection the queue shows **Waiting for a signal. Keep
-  this page open; nothing is sent twice.** It carries on when the signal
-  returns.
-- **Retry** beside a failed or **Cancelled** file tries it again, and
-  **Retry 2 failed** (for example) retries every failure. Retry reuses the
-  same upload, so nothing is sent twice. For rejected or corrupt content,
-  choose a valid replacement rather than retrying the same file.
-- **Cancel** beside a waiting or uploading file stops that file; **Cancel all**
-  stops every unfinished file. Neither deletes finished uploads. Choose
-  **Done** when everything has settled.
+1. Optionally say what's in them under **What's in these photos?
+   (optional)**: search your venue's menu and pick a dish or drink. It applies
+   to every photo in the sheet. If one photo is different, choose **Adjust**
+   on that photo to change just that one.
+2. Choose **Done** at any time. You don't have to wait: uploads and labels
+   carry on while this page stays open. **Add more** picks more files into the
+   same sheet.
 
-If you are signed out while files upload, the queue shows **You were signed
-out**. Finished files are safe. Choose **Sign in again**, then **Send sign-in
-link** (or **Not now**). Enter the code from that email in the same window to
-carry on with the stopped files, or open the email link on the
-same device and choose the stopped file again to finish it. If the code signs
-in a different account, the stopped files are not resumed; reload the page to
-continue as that account. The page and the queue stay as they were.
+Each row ends in exactly one of three words:
 
-If you choose **Log out** or a link that leaves the staff pages while files
-are still uploading, you are asked **Log out now?** or **Leave now?** first.
-**Keep uploading** stays; **Log out anyway** or **Leave anyway** stops the
-unfinished uploads, and finished photos stay uploaded. Closing or reloading
-the tab gets your browser's own warning. Do not rely on uploads continuing
-after the browser closes; check **Me** before choosing files again.
+- **Saved**: the photo is processed and its labels, if you chose any, are
+  stored on it. A dish photo says, for example, **Saved · Onion Bhaji ·
+  waiting for manager review**.
+- **Saving…**: still working. The line under it says **Uploading 40%** or
+  **Processing**. With a weak or lost connection it carries on when the signal
+  returns; nothing is sent twice.
+- **Needs attention**: something needs you. The line says why, with one
+  action:
+  - **Sign in again, then tap Retry.** You were signed out. Sign in, then
+    choose **Retry**; finished photos are safe.
+  - **This file can't be used: {reason}.** The file itself can't be
+    processed (for example it is corrupt). Choose **Remove** and pick a
+    different file; retrying the same file won't help. Its labels show **Not
+    saved (photo not saved)**.
+  - **The menu changed. Check the dish.** The dish you chose was changed or
+    removed from the menu while the photo was saving. Choose **Fix labels**,
+    pick the dish again from the current menu and save.
+  - **Labels not saved yet.** The labels couldn't be sent (usually the
+    connection). Choose **Retry labels**.
+
+The footer counts what is left, for example **1 photo still saving labels**.
+Labels you choose are kept on the server with the photo as soon as you choose
+them, so they are added once the photo is ready even if you close the tab,
+reload or log out. If you discard a photo's labels, the confirmation says
+**Uploads carry on; only these labels are discarded.**
+
+While files are still uploading, or labels haven't reached the server yet,
+**Log out** and links that leave the staff pages ask first, for example
+**Leave now? Labels for 1 photo haven't saved yet.** Closing or reloading the
+tab gets your browser's own warning. Do not rely on uploads continuing after
+the browser closes; check **Me** before choosing files again.
+
+On task screens and amenity checks the sheet does not ask for labels. Each
+photo is handed to the screen as soon as it is ready, and you still choose
+**Send photos** (or **Submit finding**) there yourself.
 
 ## Upload from Me
 
-On **Me**, **Upload photos or videos** opens the same queue with **Choose
-from your photos** and, on some devices, **Take a photo**. The picker accepts
-JPEG, PNG, WebP and HEIC/HEIF photos, plus MP4, MOV and WebM videos; server
-validation can still reject a file. You can label files while they upload or
-afterwards.
+On **Me**, **Upload photos or videos** opens the same Add with **Choose from
+your photos** and, on some devices, **Take a photo**. The picker accepts JPEG,
+PNG, WebP and HEIC/HEIF photos, plus MP4, MOV and WebM videos; server
+validation can still reject a file.
 
 **Me** also has **Edit work details**, **How Naba-Lens works** and **Our
 menu** rows.
+
+### Needs attention
+
+When labels were kept for a photo but couldn't be added to it (most often
+because the menu changed before the photo finished saving), **Me** lists the
+photo under **Needs attention**, with its thumbnail and the reason. This list
+stays until you deal with it, even after you leave Add or sign in on another
+day.
+
+- **Fix labels** opens the labels you chose against the current menu. Dishes
+  still on the menu are kept; any that are gone say **No longer on the menu**
+  and can be removed. Choose the right dish and save. The photo is never
+  uploaded again.
+- **Discard labels** drops those labels. The photo stays saved either way; you
+  can label it later.
 
 ## Add labels (optional)
 
@@ -427,21 +451,22 @@ Each photo passes three separate milestones:
    better photo instead, **Me** shows it under **Better photo requested** with
    the dish and their note.
 
-- In **Add**, choose **Upload and label** to start both, or **Label while
-  uploading** if the upload has already started. Choose **Save labels when
-  ready**. Each file gets its labels as soon as it finishes processing. If a
-  file needs a retry, its draft stays with it while this page is open.
-- You can also choose **Label these files** (**Label this file** for one)
-  after uploading, or **Done** to skip.
-- **Me** shows ready photos without a label under **Needs labels**; choose
-  **Label these photos** (or **Label this photo**) to label them together.
-  You can also open any of your ready photos or videos later and choose
+- The easiest time to label is while saving: **What's in these photos?** in
+  the **Saving** sheet (see above). To skip, just choose **Done**.
+- To label later, **Me** counts your ready photos without a label under
+  **Needs labels**; choose **Label these photos** (or **Label this photo**) to
+  label them together. Those photos are marked **Needs labels** in your
+  portfolio. You can also open any of your ready photos or videos and choose
   **Add labels** or **Edit labels**.
+- Cards in your portfolio and in the admin library show the dishes each photo
+  is labelled with, so you can find it without opening it.
 - Dishes from your main job's areas come first, but search covers the whole
   menu.
 - Search the menu of the venue the file was **uploaded at** (not your current
   venue, if you have moved). Results show the section, so "Chicken" under Korma
-  and "Chicken" under Masala are different items. Pick a variant if asked.
+  and "Chicken" under Masala are different items.
+- For a dish with options (for example **Which Momo?**), **Not specified** is
+  chosen until you pick one, so the dish is always saved.
 - Add up to four content types (Finished dish, Preparation, Plating, Drinks,
   Kitchen, Team, Venue, Event) and an optional short note (280 characters).
 - Dish not listed? Use **Item not on the menu?** and type its name; an admin
@@ -466,9 +491,12 @@ change**.
 - **Search the menu** by dish or drink, choose a section (or **All
   sections**), and switch between **All dishes** and **Still needs a photo**.
   **Clear search** starts again.
-- **Add a photo of this dish** opens your photo library. Choose **Upload** in
-  the queue, then **Label these files**: that dish is already filled in as a
-  draft for you to check and save. Nothing is labelled until you save.
+- **Take a photo of this dish** opens your camera; **Choose from photos**
+  opens your photo library instead. The photo starts saving straight away,
+  already labelled with that dish: it shows as a chip (for example **Onion
+  Bhaji**) that you can remove with **Remove Onion Bhaji** if the photo shows
+  something else. Then choose **Done**. That's two taps in the app: **Take a
+  photo of this dish**, then **Done**.
 - A dish counts once a manager accepts a photo labelled with it for menu use.
   An upload or a label alone does not count. Your photos are saved to your
   portfolio either way.
