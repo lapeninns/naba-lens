@@ -531,3 +531,44 @@ describe("N1: files changing while the menu is not ready", () => {
     await waitFor(() => expect(pending()).toBe(false))
   })
 })
+
+describe("N2: Fix labels when its own menu reload fails", () => {
+  it("saves with the menu version its chips were named from, never null", async () => {
+    const draft = stored("a1", {
+      items: [{ itemId: "item-bhaji", variantId: null }],
+    })
+    const onSave = vi.fn(
+      async (input: SaveLabelsInput): Promise<SaveLabelsResult> => ({
+        ok: true,
+        assetId: input.assetId,
+        labels: summary({ revision: 1 }),
+      })
+    )
+    const props = {
+      open: true,
+      onOpenChange: () => {},
+      asset: asset("a1"),
+      draft,
+      onRetryCatalogue: () => {},
+      onSave,
+    }
+    // FixHost opens with the sheet's menu, then its reload fails.
+    const view = render(<FixLabelsDialog {...props} catalogue={READY} />)
+    view.rerender(
+      <FixLabelsDialog {...props} catalogue={{ state: "loading" }} />
+    )
+    view.rerender(
+      <FixLabelsDialog
+        {...props}
+        catalogue={{ state: "error", message: "Menu down" }}
+      />
+    )
+    const user = userEvent.setup()
+    await user.click(screen.getByRole("button", { name: /^Save/ }))
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1))
+    expect(onSave.mock.calls[0][0]).toMatchObject({
+      catalogueVersionId: "version-1",
+      items: draft.items,
+    })
+  })
+})

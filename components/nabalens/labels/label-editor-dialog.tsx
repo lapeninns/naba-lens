@@ -369,7 +369,13 @@ function LabelEditor({
   }, [focusTarget])
 
   const ready = catalogue.state === "ready" ? catalogue.catalogue : null
-  const catalogueVersionId = ready?.status === "active" ? ready.versionId : null
+  const readyVersionId = ready?.status === "active" ? ready.versionId : null
+  // While the menu reloads or failed (Fix labels reloads it as it opens), the
+  // chips are still named from the version last shown: a save sends that one.
+  const [shownVersionId, setShownVersionId] = React.useState(readyVersionId)
+  if (ready && readyVersionId !== shownVersionId)
+    setShownVersionId(readyVersionId)
+  const catalogueVersionId = ready ? readyVersionId : shownVersionId
   const index = React.useMemo(
     () => buildCatalogueIndex(ready, focus),
     [ready, focus]
