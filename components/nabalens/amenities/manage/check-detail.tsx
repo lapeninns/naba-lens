@@ -67,8 +67,10 @@ export type CheckDetailHandlers = {
 /**
  * One amenity check for its venue's manager or an admin: the question and
  * brief, where it stands, who captures it, notes, and every submission and
- * change. Each write sends the revision the page was read at; key it by
- * revision so a re-read resets the drafts to what is saved.
+ * change. Each write sends the revision the page was read at. A re-read
+ * (after any write) keeps the notice; the assignee and notes drafts follow
+ * what is saved unless the manager has unsaved changes in them, so typed
+ * notes survive a revision conflict.
  */
 export function AmenityCheckDetail({
   detail,
@@ -83,10 +85,29 @@ export function AmenityCheckDetail({
   const id = React.useId()
   const hrefs = amenityHrefs(basePath)
   const action = useAmenityAction()
+  const savedAssigneeId = check.assignee?.id ?? null
+  const savedNotes = check.notes ?? ""
   const [assigneeId, setAssigneeId] = React.useState<string | null>(
-    check.assignee?.id ?? null
+    savedAssigneeId
   )
-  const [notes, setNotes] = React.useState(check.notes ?? "")
+  const [notes, setNotes] = React.useState(savedNotes)
+  // What the drafts were last reset to, to tell an unsaved edit from a
+  // value that is simply behind the page after a re-read.
+  const [base, setBase] = React.useState({
+    revision: check.revision,
+    assigneeId: savedAssigneeId,
+    notes: savedNotes,
+  })
+  if (base.revision !== check.revision) {
+    setBase({
+      revision: check.revision,
+      assigneeId: savedAssigneeId,
+      notes: savedNotes,
+    })
+    if (assigneeId === base.assigneeId) setAssigneeId(savedAssigneeId)
+    if (notes === base.notes || notes.trim() === savedNotes)
+      setNotes(savedNotes)
+  }
   const [reopenOpen, setReopenOpen] = React.useState(false)
   const active = check.status === "active"
   const revision = check.revision

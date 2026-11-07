@@ -1,19 +1,31 @@
 import { SUBMIT_ANSWERS, type SubmitAnswer } from "@/lib/amenities/contract"
 
 /**
- * One unsent finding per check, kept in localStorage so a failed upload, a
- * dropped connection or a reload never loses it. The idempotency key lives
- * with the draft: "Try again" resends the same draft with the same key, so a
- * finding whose response was lost is replayed, never recorded twice. Editing
- * after an attempt starts a new key (a new intent).
+ * One unsent finding per person and check, kept in localStorage so a failed
+ * upload, a dropped connection or a reload never loses it. The idempotency key
+ * lives with the draft: "Try again" resends the same draft with the same key,
+ * so a finding whose response was lost is replayed, never recorded twice.
+ * Editing after an attempt starts a new key (a new intent), and so does a
+ * check that changed since the draft was written (see `reconcileDraft`).
+ * Sign-out removes every draft on the device (`clearAllDrafts`).
  */
 
-const PREFIX = "nabalens.amenity-draft.v1:"
+/** Every draft key, of any version, starts with this. */
+const NAMESPACE = "nabalens.amenity-draft."
+const PREFIX = `${NAMESPACE}v2:`
+
+/** Whose draft, for which check. */
+export type DraftOwner = { userId: string; checkId: string }
+
+const storageKey = ({ userId, checkId }: DraftOwner) =>
+  `${PREFIX}${userId}:${checkId}`
 
 export type CaptureDraft = {
   idempotencyKey: string
   /** True once a submit was sent with this key and its outcome is unknown or failed. */
   attempted: boolean
+  /** The check revision this draft (and its key) belongs to; null if unknown. */
+  revision: number | null
   answer: SubmitAnswer | null
   finding: string
   limitations: string
@@ -26,6 +38,11 @@ export type CaptureDraft = {
     uploadMbps: string
   }
   redactionConfirmed: boolean
+  /**
+   * The evidence the redaction tick was given for. The tick only counts while
+   * the chosen evidence is exactly this set (see `redactionHolds`).
+   */
+  redactionAssetIds: string[]
 }
 
 /** A v4 UUID; falls back to getRandomValues where randomUUID is missing (http on a LAN). */
@@ -41,11 +58,13 @@ export function newIdempotencyKey(): string {
 }
 
 export function emptyDraft(
-  newKey: () => string = newIdempotencyKey
+  newKey: () => string = newIdempotencyKey,
+  revision: number | null = null
 ): CaptureDraft {
   return {
     idempotencyKey: newKey(),
     attempted: false,
+    revision,
     answer: null,
     finding: "",
     limitations: "",
@@ -53,20 +72,55 @@ export function emptyDraft(
     assetIds: [],
     wifi: { testSpot: "", testedOn: "", downloadMbps: "", uploadMbps: "" },
     redactionConfirmed: false,
+    redactionAssetIds: [],
+  }
+}
+
+/** True when the redaction tick was given for exactly these assets. */
+export function redactionHolds(draft: CaptureDraft, assetIds: string[]) {
+  if (!draft.redactionConfirmed) return false
+  const ticked = new Set(draft.redactionAssetIds)
+  return (
+    ticked.size === assetIds.length && assetIds.every((id) => ticked.has(id))
+  )
+}
+
+/**
+ * A draft written for another revision of the check (a manager reopened it,
+ * or the earlier send was recorded) keeps its words and evidence but is a new
+ * intent: a new key, not attempted, and the redaction tick asked for again.
+ */
+export function reconcileDraft(
+  draft: CaptureDraft,
+  revision: number,
+  newKey: () => string = newIdempotencyKey
+): CaptureDraft {
+  if (draft.revision === revision) return draft
+  return {
+    ...draft,
+    revision,
+    idempotencyKey: newKey(),
+    attempted: false,
+    redactionConfirmed: false,
+    redactionAssetIds: [],
   }
 }
 
 const str = (value: unknown) => (typeof value === "string" ? value : "")
 
 /** The stored draft, or null when there is none or it is unreadable. */
-export function loadDraft(checkId: string): CaptureDraft | null {
+export function loadDraft(owner: DraftOwner): CaptureDraft | null {
   try {
-    const raw = window.localStorage.getItem(PREFIX + checkId)
+    const raw = window.localStorage.getItem(storageKey(owner))
     if (!raw) return null
     const parsed: unknown = JSON.parse(raw)
     if (!parsed || typeof parsed !== "object") return null
     const d = parsed as Record<string, unknown>
     if (typeof d.idempotencyKey !== "string" || !d.idempotencyKey) return null
+    const strings = (value: unknown) =>
+      Array.isArray(value)
+        ? value.filter((id): id is string => typeof id === "string")
+        : []
     const wifi =
       d.wifi && typeof d.wifi === "object"
         ? (d.wifi as Record<string, unknown>)
@@ -74,15 +128,17 @@ export function loadDraft(checkId: string): CaptureDraft | null {
     return {
       idempotencyKey: d.idempotencyKey,
       attempted: d.attempted === true,
+      revision:
+        typeof d.revision === "number" && Number.isInteger(d.revision)
+          ? d.revision
+          : null,
       answer: SUBMIT_ANSWERS.includes(d.answer as SubmitAnswer)
         ? (d.answer as SubmitAnswer)
         : null,
       finding: str(d.finding),
       limitations: str(d.limitations),
       reason: str(d.reason),
-      assetIds: Array.isArray(d.assetIds)
-        ? d.assetIds.filter((id): id is string => typeof id === "string")
-        : [],
+      assetIds: strings(d.assetIds),
       wifi: {
         testSpot: str(wifi.testSpot),
         testedOn: str(wifi.testedOn),
@@ -90,24 +146,40 @@ export function loadDraft(checkId: string): CaptureDraft | null {
         uploadMbps: str(wifi.uploadMbps),
       },
       redactionConfirmed: d.redactionConfirmed === true,
+      redactionAssetIds: strings(d.redactionAssetIds),
     }
   } catch {
     return null
   }
 }
 
-export function saveDraft(checkId: string, draft: CaptureDraft) {
+export function saveDraft(owner: DraftOwner, draft: CaptureDraft) {
   try {
-    window.localStorage.setItem(PREFIX + checkId, JSON.stringify(draft))
+    window.localStorage.setItem(storageKey(owner), JSON.stringify(draft))
   } catch {
     // Storage unavailable (private mode, quota): the draft stays in memory.
   }
 }
 
-export function clearDraft(checkId: string) {
+export function clearDraft(owner: DraftOwner) {
   try {
-    window.localStorage.removeItem(PREFIX + checkId)
+    window.localStorage.removeItem(storageKey(owner))
   } catch {
     // Nothing stored.
+  }
+}
+
+/** Removes every amenity draft on this device, any person, any version. */
+export function clearAllDrafts() {
+  try {
+    const storage = window.localStorage
+    const keys: string[] = []
+    for (let i = 0; i < storage.length; i++) {
+      const key = storage.key(i)
+      if (key?.startsWith(NAMESPACE)) keys.push(key)
+    }
+    for (const key of keys) storage.removeItem(key)
+  } catch {
+    // Storage unavailable: nothing stored.
   }
 }

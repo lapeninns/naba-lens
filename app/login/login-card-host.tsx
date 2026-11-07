@@ -3,6 +3,7 @@
 import * as React from "react"
 
 import { LoginCard } from "@/components/nabalens"
+import { clearAllDrafts } from "@/components/nabalens/amenities/capture/draft"
 import { normaliseEmail, signInWithCode } from "@/lib/auth/magic-link"
 import { createClient } from "@/lib/supabase/browser"
 
@@ -16,9 +17,16 @@ type LoginCardHostProps = Omit<
  * sheet: GoTrue then rate-limits code checks per person's own IP instead of
  * pooling every staff member's tries behind the server's address. The browser
  * client writes the session cookies; the card then loads "/".
+ *
+ * Every sign-out (app shell, Me, the blocked page) lands here with
+ * `signed_out`, so unsent amenity drafts on a shared device go with it.
  */
 export function LoginCardHost(props: LoginCardHostProps) {
   const supabase = React.useMemo(() => createClient(), [])
+  const { signedOut } = props
+  React.useEffect(() => {
+    if (signedOut) clearAllDrafts()
+  }, [signedOut])
   const verify = React.useCallback(
     async (rawEmail: string, code: string) => {
       const email = normaliseEmail(rawEmail)

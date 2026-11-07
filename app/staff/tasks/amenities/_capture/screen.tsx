@@ -119,6 +119,7 @@ export async function CaptureScreen({
       {open ? (
         <CaptureClient
           check={check}
+          viewerId={actor.profile.id}
           initialAssets={assets}
           canUpload={mode !== "admin"}
           canAttachLegacy={permissions.canAttachLegacy}
