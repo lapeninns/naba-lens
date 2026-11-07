@@ -86,6 +86,16 @@ async function menuWorld(w: CoverageWorld) {
   return { soup, asset: asset! }
 }
 
+/** Streaming shows the loading shell first; wait until React swaps the page in. */
+async function settled(page: Page) {
+  await expect(page.locator('div[hidden][id^="S:"]')).toHaveCount(0)
+}
+
+async function open(page: Page, path: string) {
+  await page.goto(path)
+  await settled(page)
+}
+
 const progress = (page: Page, covered: number) =>
   page
     .getByRole("main")
@@ -107,7 +117,7 @@ test.describe("Our menu: menu items with an accepted photo", () => {
 
     // Staff: the whole menu, grouped by section, then only the gaps.
     const staff = await signedInPage(browser, w.staffA)
-    await staff.goto("/staff/menu")
+    await open(staff, "/staff/menu")
     await expect(
       staff.getByRole("heading", { level: 1, name: "Our menu" })
     ).toBeVisible()
@@ -138,7 +148,7 @@ test.describe("Our menu: menu items with an accepted photo", () => {
 
     // Manager: the labelled photo waits under its dish; accept it.
     const manager = await signedInPage(browser, w.manager)
-    await manager.goto("/staff/manage/menu/items")
+    await open(manager, "/staff/manage/menu/items")
     await expect(
       manager.getByRole("heading", { level: 1, name: "Our menu" })
     ).toBeVisible()
@@ -163,20 +173,26 @@ test.describe("Our menu: menu items with an accepted photo", () => {
     )
     await card.getByRole("button", { name: "Accept for this dish" }).click()
     await expect(manager.getByText(/^Accepted for Soup\./)).toBeVisible()
-    await expect(card.getByText("Accepted for menu use")).toBeVisible()
+    // Once accepted, the photo leaves the "To review" queue (the refresh may
+    // land before or after this line), so assert the settled queue instead.
+    await expect(card).toHaveCount(0)
+    await expect(
+      manager.getByText("Nothing to review", { exact: false })
+    ).toBeVisible()
     expect(photoState(asset, soup)).toBe("accepted:false")
 
     // The count went up for the reviewer and for staff; Soup left the gaps.
     await manager.reload()
+    await settled(manager)
     await expect(progress(manager, 1)).toBeVisible()
-    await staff.goto("/staff/menu")
+    await open(staff, "/staff/menu")
     await expect(progress(staff, 1)).toBeVisible()
     await expect(
       staff
         .getByRole("article", { name: "Soup" })
         .getByText("Has an accepted photo")
     ).toBeVisible()
-    await staff.goto("/staff/menu?filter=gaps")
+    await open(staff, "/staff/menu?filter=gaps")
     await expect(dishes(staff)).toHaveText(["Salad", "Pie"])
 
     for (const page of [staff, manager]) await page.context().close()

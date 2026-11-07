@@ -43,6 +43,9 @@ test.afterAll(async () => {
 async function tabThrough(page: Page, path: string) {
   await page.goto(path)
   await expect(page.locator("h1").first()).toBeVisible()
+  // The loading shell (with its own TabBar and heading) shows first while the
+  // page streams into a hidden boundary; wait for React to swap it in.
+  await expect(page.locator('[data-slot="tabbar"]')).toHaveCount(1)
   const bar = page.locator('[data-slot="tabbar"]')
   await expect(bar).toBeVisible()
   const covered: string[] = []
