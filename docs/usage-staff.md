@@ -134,9 +134,10 @@ angle**, **Overhead**, **Close-up**, **Side view**), each with a short tip.
 The first angles are marked **Suggested** to match the section's photo target
 (all four from a target of 4). Dish buttons switch the example; tap an angle
 for a full-screen view with **Previous** and **Next** (arrow keys or a swipe
-also work). **See the full photo guide** (`/staff/tasks/guide`, also linked as
-**How to photograph a dish** on **Monthly photos**) adds the **Every shot**
-checklist and the safety note. The pictures are examples only, not your menu,
+also work). **See the full photo guide** (`/staff/tasks/guide`) adds the
+**Every shot** checklist and the safety note. You can open it at any time, even
+when your venue has no menu tasks yet: **How to photograph a dish** on Home's
+add-photos card and on **Monthly photos**, or **Photo guide** on **Me**. The pictures are examples only, not your menu,
 and your manager still decides which photos are accepted. Drinks sections and
 amenity, service and venue tasks do not show the guide.
 
