@@ -594,6 +594,26 @@ describe("scope", () => {
     expect(await previewable(f.manager, unreviewed)).toBe(true)
   })
 
+  it("denies a signed-in account that is no longer active staff, for any venue", async () => {
+    // Regression: with no active staff venue the scope check compared with
+    // NULL and fell through, so a deactivated account could read any venue.
+    const g = await venueWithMenu("mip-scope-inactive")
+    const { error } = await service
+      .from("profiles")
+      .update({ active: false })
+      .eq("id", g.staff2.id)
+    if (error) throw error
+    for (const venue of [f.venue, g.venue, null]) {
+      for (const fn of ["menu_item_photo_summary", "menu_item_photo_items"]) {
+        await fails(
+          g.staff2.client.rpc(fn, { p_venue_id: venue }),
+          "venue_not_found",
+          "P0002"
+        )
+      }
+    }
+  })
+
   it("requires an admin to name the venue", async () => {
     await fails(
       admin.client.rpc("menu_item_photo_summary", {}),

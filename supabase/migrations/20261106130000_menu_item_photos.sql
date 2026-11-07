@@ -430,7 +430,8 @@ declare
   v_venue uuid := coalesce(p_venue_id, v_staff_venue);
 begin
   if auth.uid() is null or v_venue is null
-     or not (private.is_active_admin() or v_venue = v_staff_venue) then
+     -- coalesce: with no staff venue the comparison is NULL, which must deny.
+     or not coalesce(private.is_active_admin() or v_venue = v_staff_venue, false) then
     raise exception 'venue_not_found' using errcode = 'P0002';
   end if;
   return v_venue;
