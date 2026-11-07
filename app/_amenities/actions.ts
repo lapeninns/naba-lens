@@ -1,32 +1,100 @@
 "use server"
 
-// Placeholder actions with the final signatures; replaced by the amenity
-// services work. Every argument is untrusted.
+import { revalidatePath } from "next/cache"
 
-import type { AmenityFailure, AmenityServices } from "@/lib/amenities/contract"
+import type { AmenityResult } from "@/lib/amenities/contract"
+import {
+  addChecks,
+  archiveCheck,
+  assignCheck,
+  enableAmenities,
+  getAmenityActor,
+  getCheck,
+  listCatalogue,
+  listSubmittableAssets,
+  reopenCheck,
+  restoreCheck,
+  setCheckNotes,
+  submitFinding,
+} from "@/lib/server/amenities"
+import type { MediaActor } from "@/lib/server/media/types"
 
-const UNAVAILABLE: AmenityFailure = {
-  ok: false,
-  code: "unavailable",
-  status: 503,
-  message: "Amenities are not available yet.",
+// Server Functions are reachable by direct POST, so every argument is
+// untrusted: each action re-authorises the caller (fresh profile read), the
+// service validates the input and derives venue and role itself, and the
+// database re-checks scope in the same transaction. Expected failures are
+// returned as AmenityResult values, never thrown (Next hides thrown messages
+// in production).
+
+type Service<T> = (
+  actor: MediaActor,
+  input: unknown
+) => Promise<AmenityResult<T>>
+
+/** Staff tasks and the manager area, and the admin coverage mirror. */
+function refreshAmenities() {
+  revalidatePath("/staff", "layout")
+  revalidatePath("/admin/coverage", "layout")
 }
 
-type Action<K extends keyof AmenityServices> = (
-  input: unknown
-) => ReturnType<AmenityServices[K]>
+async function read<T>(service: Service<T>, input: unknown) {
+  const auth = await getAmenityActor()
+  if (!auth.ok) return auth
+  return service(auth.actor, input)
+}
 
-const pending = async () => UNAVAILABLE
+async function write<T>(service: Service<T>, input: unknown) {
+  const auth = await getAmenityActor()
+  if (!auth.ok) return auth
+  const result = await service(auth.actor, input)
+  if (result.ok) refreshAmenities()
+  return result
+}
 
-export const enableAmenitiesAction: Action<"enableAmenities"> = pending
-export const addChecksAction: Action<"addChecks"> = pending
-export const archiveCheckAction: Action<"archiveCheck"> = pending
-export const restoreCheckAction: Action<"restoreCheck"> = pending
-export const assignCheckAction: Action<"assignCheck"> = pending
-export const setCheckNotesAction: Action<"setCheckNotes"> = pending
-export const reopenCheckAction: Action<"reopenCheck"> = pending
-export const submitFindingAction: Action<"submitFinding"> = pending
-export const listCatalogueAction: Action<"listCatalogue"> = pending
-export const listSubmittableAssetsAction: Action<"listSubmittableAssets"> =
-  pending
-export const getCheckAction: Action<"getCheck"> = pending
+// ---- Managers and admins ----------------------------------------------------------
+
+export async function enableAmenitiesAction(input: unknown) {
+  return write(enableAmenities, input)
+}
+
+export async function addChecksAction(input: unknown) {
+  return write(addChecks, input)
+}
+
+export async function archiveCheckAction(input: unknown) {
+  return write(archiveCheck, input)
+}
+
+export async function restoreCheckAction(input: unknown) {
+  return write(restoreCheck, input)
+}
+
+export async function assignCheckAction(input: unknown) {
+  return write(assignCheck, input)
+}
+
+export async function setCheckNotesAction(input: unknown) {
+  return write(setCheckNotes, input)
+}
+
+export async function reopenCheckAction(input: unknown) {
+  return write(reopenCheck, input)
+}
+
+export async function listCatalogueAction(input: unknown) {
+  return read(listCatalogue, input)
+}
+
+export async function getCheckAction(input: unknown) {
+  return read(getCheck, input)
+}
+
+// ---- Capture (assignee, manager or admin) --------------------------------------------
+
+export async function submitFindingAction(input: unknown) {
+  return write(submitFinding, input)
+}
+
+export async function listSubmittableAssetsAction(input: unknown) {
+  return read(listSubmittableAssets, input)
+}
