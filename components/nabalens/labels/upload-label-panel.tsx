@@ -36,6 +36,7 @@ import {
   limitProblem,
   presetDraft,
   removeItem,
+  renameRemoved,
   setContentType,
   type CommonDraft,
   type DraftItem,
@@ -516,7 +517,7 @@ export function UploadLabelPanel({
             items: c.items.filter((i) => itemKey(i) !== item.key),
           }))
         }}
-        onReplaceItem={(fromKey, item) =>
+        onReplaceItem={(fromKey, item) => {
           setCommon((c) => ({
             ...c,
             items: [
@@ -526,7 +527,16 @@ export function UploadLabelPanel({
               item,
             ],
           }))
-        }
+          // A photo that left the dish off (Adjust) leaves it off as well.
+          setAdjs((prev) =>
+            Object.fromEntries(
+              Object.entries(prev).map(([id, adj]) => [
+                id,
+                renameRemoved(adj, fromKey, itemKey(item)),
+              ])
+            )
+          )
+        }}
         contentTypes={common.contentTypes}
         onToggleType={toggleCommonType}
         note={common.note}

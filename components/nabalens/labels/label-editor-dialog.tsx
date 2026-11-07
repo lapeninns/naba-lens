@@ -56,6 +56,7 @@ import {
   limitProblem,
   presetDraft,
   removeItem,
+  renameRemoved,
   setContentType,
   type CommonDraft,
   type DraftItem,
@@ -513,6 +514,26 @@ function LabelEditor({
     }))
   }
 
+  /** The variant question answered: files that left the dish off still do. */
+  function replaceCommonItem(fromKey: string, item: DraftItem) {
+    const toKey = itemKey(item)
+    setCommon((c) => ({
+      ...c,
+      items: [
+        ...c.items.filter((i) => itemKey(i) !== fromKey && itemKey(i) !== toKey),
+        item,
+      ],
+    }))
+    setFiles((prev) =>
+      Object.fromEntries(
+        Object.entries(prev).map(([id, f]) => [
+          id,
+          { ...f, adj: renameRemoved(f.adj, fromKey, toKey) },
+        ])
+      )
+    )
+  }
+
   // -------------------------------------------------------------------------
   // Recovery
   // -------------------------------------------------------------------------
@@ -956,19 +977,7 @@ function LabelEditor({
                     unavailableKeys={unavailableKeysFor(commonEff.items)}
                     onAddItem={addCommonItem}
                     onRemoveItem={removeCommonItem}
-                    onReplaceItem={(fromKey, item) =>
-                      setCommon((c) => ({
-                        ...c,
-                        items: [
-                          ...c.items.filter(
-                            (i) =>
-                              itemKey(i) !== fromKey &&
-                              itemKey(i) !== itemKey(item)
-                          ),
-                          item,
-                        ],
-                      }))
-                    }
+                    onReplaceItem={replaceCommonItem}
                     onPendingChange={pendingFor("common")}
                     contentTypes={common.contentTypes}
                     onToggleType={toggleCommonType}
