@@ -352,6 +352,213 @@ describe("ReviewList: a conflict with more cards than one page", () => {
   })
 })
 
+describe("menu photo flags on loaded cards beyond the fresh page", () => {
+  // 30 accepted Soup photos on the Accepted view; the menu photo is the last,
+  // beyond the 24 a decision's re-read returns.
+  const accepted = (n: number, over: Partial<QueueCard> = {}): ListCard =>
+    card({
+      key: id(0x3000 + n),
+      labelId: id(0x3000 + n),
+      photoId: id(0x4000 + n),
+      asset: { ...card().asset, assetId: id(0x5000 + n) },
+      kind: "decided",
+      basis: "staff_label",
+      state: "accepted",
+      item: { ...card().item!, covered: true },
+      groupCount: 29,
+      ...over,
+    })
+  const loaded = Array.from({ length: 30 }, (_, n) =>
+    accepted(n, n === 29 ? { isPrimary: true, isEffectivePrimary: true } : {})
+  )
+  const page = (
+    primaryAt: number | null,
+    flagged = true,
+    over: Partial<QueueCard> = {}
+  ) =>
+    loaded.slice(0, 24).map((c, n) => ({
+      ...c,
+      itemRevision: 8,
+      isPrimary: flagged && n === primaryAt,
+      isEffectivePrimary: n === primaryAt,
+      ...over,
+    }))
+
+  it("set as menu photo: the old menu photo beyond the page becomes an alternative", () => {
+    const next = mergeOutcome(
+      loaded,
+      loaded[0],
+      "set_preferred",
+      decision({
+        action: "set_preferred",
+        itemRevision: 8,
+        preferredAssetId: loaded[0].asset.assetId,
+        preferredPhotoId: loaded[0].photoId,
+        preferredIsFallback: false,
+        cards: page(0),
+      })
+    )
+    const old = next[29]
+    expect(old.key).toBe(loaded[29].key)
+    expect(old.isPrimary).toBe(false)
+    expect(old.isEffectivePrimary).toBe(false)
+    expect(old.itemRevision).toBe(8)
+    expect(availableActions(old)).toContain("set_preferred")
+    expect(next[0].isEffectivePrimary).toBe(true)
+    // Exactly one menu photo across the loaded list.
+    expect(next.filter((c) => c.isEffectivePrimary)).toHaveLength(1)
+  })
+
+  it("withdrawing the menu photo: the fallback beyond the page becomes it", () => {
+    // Menu photo on the page (card 0) is withdrawn; the earliest accepted
+    // remaining (card 25, beyond the page) is the fallback.
+    const start = loaded.map((c, n) =>
+      n === 0
+        ? { ...c, isPrimary: true, isEffectivePrimary: true }
+        : { ...c, isPrimary: false, isEffectivePrimary: false }
+    )
+    const next = mergeOutcome(
+      start,
+      start[0],
+      "withdraw",
+      decision({
+        action: "withdraw",
+        itemRevision: 8,
+        preferredAssetId: start[25].asset.assetId,
+        preferredPhotoId: start[25].photoId,
+        preferredIsFallback: true,
+        cards: page(null, false, { groupCount: 28 }).slice(1),
+      })
+    )
+    const fallback = next.find((c) => c.key === start[25].key)!
+    expect(fallback.isEffectivePrimary).toBe(true)
+    expect(fallback.isPrimary).toBe(false)
+    expect(availableActions(fallback)).not.toContain("set_preferred")
+    expect(fallback.groupCount).toBe(28)
+    const other = next.find((c) => c.key === start[26].key)!
+    expect(other.isEffectivePrimary).toBe(false)
+    expect(availableActions(other)).toContain("set_preferred")
+  })
+
+  it("withdrawing the last accepted photo uncovers the retained cards", () => {
+    const next = mergeOutcome(
+      loaded,
+      loaded[0],
+      "withdraw",
+      decision({
+        action: "withdraw",
+        itemRevision: 8,
+        itemCovered: false,
+        preferredPhotoId: null,
+        preferredIsFallback: false,
+        cards: [],
+      })
+    )
+    expect(next[29].item?.covered).toBe(false)
+    expect(next[29].isEffectivePrimary).toBe(false)
+    expect(next[29].isPrimary).toBe(false)
+  })
+
+  it("an unknown menu photo (item read failed) holds back Set as menu photo", () => {
+    const next = mergeOutcome(
+      loaded,
+      loaded[0],
+      "set_preferred",
+      decision({
+        action: "set_preferred",
+        itemRevision: 8,
+        preferredAssetId: null,
+        cards: page(0),
+      })
+    )
+    const kept = next[25]
+    expect(kept.primaryUnknown).toBe(true)
+    expect(kept.itemRevision).toBe(8)
+    expect(availableActions(kept)).not.toContain("set_preferred")
+    expect(availableActions(kept)).toContain("withdraw")
+    // A later decision that knows the menu photo clears the hold.
+    const later = mergeOutcome(
+      next,
+      next[1],
+      "set_preferred",
+      decision({
+        action: "set_preferred",
+        itemRevision: 9,
+        preferredAssetId: next[1].asset.assetId,
+        preferredPhotoId: next[1].photoId,
+        preferredIsFallback: false,
+        cards: page(1),
+      })
+    )
+    expect(later[25].primaryUnknown).toBe(false)
+    expect(availableActions(later[25])).toContain("set_preferred")
+    expect(later[29].isEffectivePrimary).toBe(false)
+  })
+
+  it("applyCurrent: a re-read showing the menu photo clears the old one beyond the page", () => {
+    const next = applyCurrent(loaded, SOUP, page(3), () => true, false)
+    expect(next[29].isEffectivePrimary).toBe(false)
+    expect(next[29].isPrimary).toBe(false)
+    expect(next[29].itemRevision).toBe(8)
+    expect(availableActions(next[29])).toContain("set_preferred")
+  })
+
+  it("applyCurrent: a re-read without the menu photo marks it unknown", () => {
+    const start = loaded.map((c, n) =>
+      n === 29 ? { ...c, isPrimary: false, isEffectivePrimary: false } : c
+    )
+    const next = applyCurrent(start, SOUP, page(null), () => true, false)
+    expect(next[29].primaryUnknown).toBe(true)
+    expect(availableActions(next[29])).not.toContain("set_preferred")
+  })
+
+  it("applyCurrent: an uncovered item has no menu photo", () => {
+    const next = applyCurrent(
+      loaded,
+      SOUP,
+      page(null, false, { item: { ...card().item!, covered: false } }),
+      () => true,
+      false
+    )
+    expect(next[29].isEffectivePrimary).toBe(false)
+    expect(next[29].item?.covered).toBe(false)
+    expect(next[29].primaryUnknown).toBe(false)
+  })
+
+  it("ReviewList: the old menu photo beyond the page loses its chip", async () => {
+    const user = userEvent.setup()
+    actions.decideMenuPhotoAction.mockResolvedValue({
+      ok: true,
+      outcome: decision({
+        action: "set_preferred",
+        itemRevision: 8,
+        preferredAssetId: loaded[0].asset.assetId,
+        preferredPhotoId: loaded[0].photoId,
+        preferredIsFallback: false,
+        cards: page(0),
+      }),
+    })
+    renderList(loaded, { view: { ...VIEW, status: "accepted" } })
+    const old = cardEl(loaded[29].key)
+    expect(within(old).getByText(REVIEW_COPY.state.menuPhoto)).toBeTruthy()
+    await user.click(
+      within(cardEl(loaded[0].key)).getByRole("button", {
+        name: REVIEW_COPY.setPreferred,
+      })
+    )
+    await waitFor(() =>
+      expect(
+        within(cardEl(loaded[29].key)).queryByText(REVIEW_COPY.state.menuPhoto)
+      ).toBeNull()
+    )
+    expect(
+      within(cardEl(loaded[29].key)).getByRole("button", {
+        name: REVIEW_COPY.setPreferred,
+      })
+    ).toBeTruthy()
+  })
+})
+
 describe("own photos by scope", () => {
   it("managers may not review their own photos; admins may", () => {
     const own = card({ isSelf: true })

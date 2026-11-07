@@ -265,6 +265,14 @@ export type DecisionOutcome = {
   itemCovered: boolean
   preferredAssetId: string | null
   /**
+   * The item's effective menu photo (flagged, else the earliest accepted);
+   * null when it has none. Absent when the item could not be re-read: loaded
+   * cards of the item then cannot tell whether they are its menu photo.
+   */
+  preferredPhotoId?: string | null
+  /** The effective menu photo is the earliest-accepted fallback, not a flagged one. */
+  preferredIsFallback?: boolean
+  /**
    * The corrected (source) item's new head after a relink or a correction:
    * its other loaded cards need this revision for the next decision.
    */

@@ -180,18 +180,29 @@ async function freshCards(
   }
 }
 
+type ItemState = {
+  covered: boolean
+  preferredAssetId: string | null
+  preferredPhotoId: string | null
+  preferredIsFallback: boolean
+}
+
+/** The item's coverage and effective menu photo; null when it cannot be read. */
 async function itemState(
   ctx: ManagerPhotoCtx,
   itemId: string
-): Promise<{ covered: boolean; preferredAssetId: string | null }> {
-  const { data } = await ctx.actor.db.rpc("manager_menu_photo_item", {
+): Promise<ItemState | null> {
+  const { data, error } = await ctx.actor.db.rpc("manager_menu_photo_item", {
     p_venue_id: ctx.venueId,
     p_item_id: itemId,
   })
   const row = data?.[0]
+  if (error || !row) return null
   return {
-    covered: row?.covered ?? false,
-    preferredAssetId: row?.preferred_asset_id ?? null,
+    covered: row.covered,
+    preferredAssetId: row.preferred_asset_id ?? null,
+    preferredPhotoId: row.preferred_photo_id ?? null,
+    preferredIsFallback: row.preferred_is_fallback,
   }
 }
 
@@ -232,6 +243,11 @@ export async function decideMenuPhoto(
     freshCards(ctx, status, written.itemId, i.assetId),
     itemState(ctx, written.itemId),
   ])
+  // Without the item read, the fresh cards still carry its coverage; the menu
+  // photo stays unknown (preferredPhotoId absent) rather than reported as none.
+  const freshCovered = fresh.cards.find(
+    (c) => c.item?.itemId === written.itemId
+  )?.item?.covered
   return {
     ok: true,
     outcome: {
@@ -239,8 +255,14 @@ export async function decideMenuPhoto(
       itemId: written.itemId,
       itemRevision: written.itemRevision,
       replayed: written.replayed,
-      itemCovered: state.covered,
-      preferredAssetId: state.preferredAssetId,
+      itemCovered: state ? state.covered : (freshCovered ?? false),
+      preferredAssetId: state ? state.preferredAssetId : null,
+      ...(state
+        ? {
+            preferredPhotoId: state.preferredPhotoId,
+            preferredIsFallback: state.preferredIsFallback,
+          }
+        : {}),
       correctsItem: written.correctsItem ?? null,
       cards: fresh.cards,
     },

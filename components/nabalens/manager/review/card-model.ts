@@ -18,6 +18,12 @@ export type ListCard = QueueCard & {
   settled?: boolean
   /** The item a settled card was decided for (the picked one after a match). */
   settledItemName?: string
+  /**
+   * Whether this accepted card is the item's menu photo is not known (a
+   * decision or conflict re-read could not say): "Set as menu photo" is held
+   * back until fresh data arrives, as the card may already be it.
+   */
+  primaryUnknown?: boolean
 }
 
 /** The buttons a card shows. `picker` actions open the item picker. */
@@ -86,7 +92,12 @@ export function availableActions(
     out.push("accept")
     if (card.item.covered) out.push("accept_preferred")
   }
-  if (card.state === "accepted" && !card.isEffectivePrimary && card.photoId)
+  if (
+    card.state === "accepted" &&
+    !card.isEffectivePrimary &&
+    !card.primaryUnknown &&
+    card.photoId
+  )
     out.push("set_preferred")
   if (card.state === "needs_recheck" && !variantGone) out.push("reaccept")
   if (labelled && card.state === null) out.push("relink")
@@ -132,6 +143,54 @@ export function pendingDelta(card: QueueCard, action: DecisionAction): number {
 }
 
 const sameCard = (a: QueueCard, b: QueueCard) => a.key === b.key
+
+/** An item's menu photo as the server last said: its effective primary photo. */
+type ItemPrimary = {
+  /** The effective primary photo (flagged, else the earliest accepted); null when none. */
+  photoId: string | null
+  /** The effective primary is flagged (not the earliest-accepted fallback). */
+  flagged: boolean
+  covered: boolean
+}
+
+/**
+ * A loaded card of the item that the fresh cards did not replace: its menu
+ * photo flags and coverage brought in line with `primary`. With `primary`
+ * unknown the flags stay as loaded, but an accepted card is marked
+ * `primaryUnknown` so it offers no "Set as menu photo" it may not need.
+ */
+function reconcileItem(
+  card: ListCard,
+  primary: ItemPrimary | null,
+  over: Partial<QueueCard>
+): ListCard {
+  if (!card.item) return { ...card, ...over }
+  if (!primary) {
+    return {
+      ...card,
+      ...over,
+      primaryUnknown: card.state === "accepted" ? true : card.primaryUnknown,
+    }
+  }
+  const effective =
+    card.state === "accepted" &&
+    card.photoId !== null &&
+    card.photoId === primary.photoId
+  // Only one photo of an item is flagged. A flagged effective primary means no
+  // other card is; with the fallback showing, a non-accepted card may still
+  // carry a flag (it does not count while it is not accepted).
+  const isPrimary = effective
+    ? primary.flagged
+    : !primary.flagged && card.state !== "accepted" && card.isPrimary
+  return {
+    ...card,
+    ...over,
+    item: { ...card.item, covered: primary.covered },
+    isPrimary,
+    isEffectivePrimary: effective,
+    primaryUnknown: false,
+  }
+}
 
 /** The decided card as it is now when it has left the current view. */
 function settledCard(
@@ -180,6 +239,19 @@ export function mergeOutcome(
   targetName?: string
 ): ListCard[] {
   const fresh = outcome.cards.filter(keep)
+  const primary: ItemPrimary | null =
+    outcome.preferredPhotoId === undefined
+      ? null
+      : {
+          photoId: outcome.preferredPhotoId,
+          flagged:
+            outcome.preferredPhotoId !== null && !outcome.preferredIsFallback,
+          covered: outcome.itemCovered,
+        }
+  // Every card of the item in the status set carries the same count.
+  const groupCount = outcome.cards.find(
+    (c) => c.item?.itemId === outcome.itemId
+  )?.groupCount
   const used = new Set<string>()
   const take = (card: ListCard): ListCard | null => {
     const byKey = fresh.find((f) => !used.has(f.key) && sameCard(f, card))
@@ -216,12 +288,14 @@ export function mergeOutcome(
       continue
     }
     if (card.item && card.item.itemId === outcome.itemId && !card.settled) {
-      // Beyond the fresh page: keep it, with the item's new revision.
-      next.push({
-        ...card,
-        itemRevision: outcome.itemRevision,
-        item: { ...card.item, covered: outcome.itemCovered },
-      })
+      // Beyond the fresh page: keep it, with the item's new revision, menu
+      // photo, coverage and group count (another card may now be preferred).
+      next.push(
+        reconcileItem(card, primary, {
+          itemRevision: outcome.itemRevision,
+          ...(groupCount === undefined ? {} : { groupCount }),
+        })
+      )
       continue
     }
     const source = outcome.correctsItem
@@ -259,7 +333,23 @@ export function applyCurrent(
   keep: (card: QueueCard) => boolean = () => true,
   complete = false
 ): ListCard[] {
-  const head = current.find((c) => c.item?.itemId === itemId)?.itemRevision
+  const headCard = current.find((c) => c.item?.itemId === itemId)
+  // The menu photo, when the re-read shows it: its card is in `current`, or
+  // the item is not covered (so there is none). Otherwise it may sit beyond
+  // the page, and loaded accepted cards are held as unknown.
+  const effectiveCard = current.find(
+    (c) => c.item?.itemId === itemId && c.isEffectivePrimary
+  )
+  const covered = headCard?.item?.covered ?? false
+  const primary: ItemPrimary | null = effectiveCard
+    ? {
+        photoId: effectiveCard.photoId,
+        flagged: effectiveCard.isPrimary,
+        covered: true,
+      }
+    : headCard && !covered
+      ? { photoId: null, flagged: false, covered: false }
+      : null
   const fresh = current.filter(keep)
   const byKey = new Map(fresh.map((c) => [c.key, c]))
   const used = new Set<string>()
@@ -279,8 +369,19 @@ export function applyCurrent(
         // Gone from the item's current set: shown collapsed until the filter changes.
         next.push({ ...card, settled: true })
       } else {
-        // Not in the partial re-read: unknown, so kept for its next decision.
-        next.push(head === undefined ? card : { ...card, itemRevision: head })
+        // Not in the partial re-read: unknown, so kept for its next decision,
+        // with what the re-read says of the item.
+        next.push(
+          headCard === undefined
+            ? card
+            : reconcileItem(card, primary, {
+                itemRevision: headCard.itemRevision,
+                groupCount: headCard.groupCount,
+                ...(primary || !card.item
+                  ? {}
+                  : { item: { ...card.item, covered } }),
+              })
+        )
       }
       continue
     }

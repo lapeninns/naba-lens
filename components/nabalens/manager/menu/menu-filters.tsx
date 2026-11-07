@@ -69,6 +69,13 @@ export function MenuFilters({
     if (query.trim() !== filter.query) setQuery(filter.query)
   }
   const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  // The filter the page shows now. A pending search reads it when it fires,
+  // so a status or section chosen during the debounce is kept, not replaced
+  // by the filter from the render the typing happened in.
+  const latest = React.useRef(filter)
+  React.useLayoutEffect(() => {
+    latest.current = filter
+  }, [filter])
   React.useEffect(
     () => () => {
       if (timer.current) clearTimeout(timer.current)
@@ -77,15 +84,22 @@ export function MenuFilters({
   )
 
   const go = (change: Partial<MenuFilter>) =>
-    router.replace(menuHref({ ...filter, ...change }), { scroll: false })
+    router.replace(menuHref({ ...latest.current, ...change }), {
+      scroll: false,
+    })
+
+  function cancelSearch() {
+    if (timer.current) clearTimeout(timer.current)
+    timer.current = null
+  }
 
   function onSearch(value: string) {
     setQuery(value)
-    if (timer.current) clearTimeout(timer.current)
+    cancelSearch()
     timer.current = setTimeout(() => {
       timer.current = null
       const next = value.trim().slice(0, MENU_QUERY_MAX)
-      if (next !== filter.query) go({ query: next })
+      if (next !== latest.current.query) go({ query: next })
     }, SEARCH_DEBOUNCE_MS)
   }
 
@@ -98,7 +112,7 @@ export function MenuFilters({
         aria-label={copy.search}
         onSubmit={(event) => {
           event.preventDefault()
-          if (timer.current) clearTimeout(timer.current)
+          cancelSearch()
           go({ query: query.trim().slice(0, MENU_QUERY_MAX) })
         }}
         className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(12rem,16rem)] md:items-end"
@@ -136,7 +150,20 @@ export function MenuFilters({
               }))}
               value={filter.sectionId}
               emptyLabel={copy.allSections}
-              onValueChange={(sectionId) => go({ sectionId })}
+              onValueChange={(sectionId) => {
+                // Apply typed text that is still waiting with the new section
+                // in one navigation.
+                const pending = timer.current !== null
+                cancelSearch()
+                go(
+                  pending
+                    ? {
+                        sectionId,
+                        query: query.trim().slice(0, MENU_QUERY_MAX),
+                      }
+                    : { sectionId }
+                )
+              }}
             />
           </Field>
         ) : null}
