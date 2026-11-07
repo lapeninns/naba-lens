@@ -9,6 +9,7 @@ import {
   WarningCircleIcon,
 } from "@phosphor-icons/react"
 
+import { dishName } from "@/lib/menus/dish-name"
 import { cn } from "@/lib/utils"
 
 import { Post } from "./common-room/post"
@@ -19,13 +20,12 @@ import type { MediaItem } from "./types"
 
 /**
  * The dishes and drinks a file is labelled with, as cards show them under
- * the photo: "Onion Bhaji, Momo (Veg)". Null when it has none.
+ * the photo: "Onion Bhaji, Momo (Veg)", "Momo (Not specified)". Null when it
+ * has none.
  */
 export function labelDishNames(labels: MediaItem["labels"]): string | null {
   if (!labels || labels.items.length === 0) return null
-  return labels.items
-    .map((i) => (i.variantName ? `${i.name} (${i.variantName})` : i.name))
-    .join(", ")
+  return labels.items.map((i) => dishName(i, i.unspecified)).join(", ")
 }
 
 /** A small badge over a photo: the photo, not the theme, is behind it. */

@@ -295,6 +295,11 @@ export type MediaLabelItemView = {
   /** The snapshot name when it differs from `name` (renamed since). */
   labelledAs: string | null
   state: "current" | "not_on_active_menu" | "archived"
+  /**
+   * True when the dish has variants and none was chosen: shown as "Momo (Not
+   * specified)". Absent otherwise (or when the menu could not be read).
+   */
+  unspecified?: boolean
 }
 
 export type MediaLabelSummary = {

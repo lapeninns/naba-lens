@@ -44,6 +44,7 @@ import { CAPTCHA_RETRY_MESSAGE } from "@/lib/auth/captcha"
 import { sendSignInLink, signInWithCode } from "@/lib/auth/magic-link"
 import { MEDIA_LIMITS } from "@/lib/config/media"
 import type { WorkFocus } from "@/lib/config/work-roles"
+import { dishName } from "@/lib/menus/dish-name"
 import type {
   LabelCatalogue,
   MediaLabelSummary,
@@ -473,7 +474,12 @@ export function AddHost({
                 const variant = item.variants.find(
                   (v) => v.variantId === ref.variantId
                 )
-                return [variant ? `${item.name} (${variant.name})` : item.name]
+                return [
+                  dishName(
+                    { name: item.name, variantName: variant?.name ?? null },
+                    ref.variantId === null && item.variants.length > 0
+                  ),
+                ]
               }
           return []
         }),

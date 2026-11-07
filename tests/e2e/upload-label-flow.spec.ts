@@ -44,6 +44,7 @@ import {
   TapCounter,
   uploadState,
 } from "./helpers/upload-label-flow"
+import { portfolioList, staffTile } from "./helpers/ui"
 import { signedInPage } from "./helpers/world"
 
 /**
@@ -248,6 +249,17 @@ test("b Momo with no variant picked saves as Momo (Not specified)", async ({
   await expect
     .poll(() => labelItems(id), { timeout: 90_000 })
     .toBe("Momo|null|null")
+
+  // Named the same way once saved: Me's photo says Not specified (A2).
+  await page.goto("/staff")
+  await (await staffTile(portfolioList(page), photo.name)).click()
+  const viewer = page.getByRole("dialog").first()
+  await expect(
+    viewer
+      .getByRole("region", { name: "Labels" })
+      .getByRole("list", { name: "Menu items" })
+      .getByRole("listitem")
+  ).toHaveText(["Momo (Not specified) · Appetisers"])
 })
 
 // ---------------------------------------------------------------------------

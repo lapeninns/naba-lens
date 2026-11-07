@@ -1048,6 +1048,40 @@ describe("Review 2 regressions: Add host", () => {
     ).toEqual([])
   })
 
+  it("A2: the Saved line names a dish with variants saved without one Name (Not specified)", async () => {
+    const user = userEvent.setup()
+    const { find } = holdUploads()
+    host(<Opener opts={{ source: "library" }} />)
+    await user.click(screen.getByRole("button", { name: "Open" }))
+    await user.upload(input("library"), [jpeg("momo.jpg")])
+    await screen.findByRole("dialog", { name: "Saving 1 photo" })
+    await act(async () =>
+      find("momo.jpg").finish({
+        state: "saved",
+        labels: {
+          ...SAVED_BHAJI.labels,
+          items: [
+            {
+              itemId: "item-momo",
+              variantId: null,
+              name: "Momo",
+              variantName: null,
+              sectionName: "Starters",
+              labelledAs: null,
+              state: "current",
+              unspecified: true,
+            },
+          ],
+        },
+      })
+    )
+    await waitFor(() =>
+      expect(fileRow("momo.jpg").textContent).toContain(
+        "Saved · Momo (Not specified) · waiting for manager review"
+      )
+    )
+  })
+
   it("B2: a check's upload saved after its screen closed says check, not task or portfolio", async () => {
     const user = userEvent.setup()
     const { find } = holdUploads()

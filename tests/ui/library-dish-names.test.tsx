@@ -141,3 +141,17 @@ describe("library cards show dish names", () => {
     expect(within(figures[1]).getByText("Soup")).toBeTruthy()
   })
 })
+
+describe("A2: a dish with variants labelled without one", () => {
+  it("reads Name (Not specified); a dish without variants stays plain", () => {
+    expect(
+      labelDishNames(
+        labels([
+          { ...dish("Momo"), unspecified: true },
+          dish("Onion Bhaji"),
+          dish("Momo", "Veg"),
+        ])
+      )
+    ).toBe("Momo (Not specified), Onion Bhaji, Momo (Veg)")
+  })
+})

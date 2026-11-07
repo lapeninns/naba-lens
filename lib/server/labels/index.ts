@@ -852,7 +852,10 @@ type DetailRow = {
 
 const ITEM_STATES = ["current", "not_on_active_menu", "archived"] as const
 
-function itemView(row: DetailRow): MediaLabelItemView {
+function itemView(
+  row: DetailRow,
+  withVariants: ReadonlySet<string>
+): MediaLabelItemView {
   const renamed = row.snapshot_name !== row.name
   const variantRenamed =
     row.variant_id !== null &&
@@ -874,7 +877,53 @@ function itemView(row: DetailRow): MediaLabelItemView {
     state: (ITEM_STATES as readonly string[]).includes(row.state)
       ? (row.state as MediaLabelItemView["state"])
       : "not_on_active_menu",
+    ...(row.variant_id === null && withVariants.has(row.item_id)
+      ? { unspecified: true }
+      : {}),
   }
+}
+
+const VARIANT_PAGE = 1000
+
+/**
+ * Of these items, those whose menu entry (the active one, else the latest
+ * activated) has variants, as the caller can read it: one labelled without a
+ * variant reads "Momo (Not specified)". Only how a name is shown depends on
+ * it, so a failed read leaves the plain name.
+ */
+async function itemsWithVariants(
+  db: Db,
+  itemIds: string[]
+): Promise<Set<string>> {
+  const best = new Map<string, { rank: string; variants: boolean }>()
+  for (let i = 0; i < itemIds.length; i += DETAILS_CHUNK)
+    for (let from = 0; ; from += VARIANT_PAGE) {
+      const { data, error } = await db
+        .from("menu_entries")
+        .select(
+          "id, item_id, version:menu_versions!inner(status, activated_at), menu_entry_variants(variant_id)"
+        )
+        .in("item_id", itemIds.slice(i, i + DETAILS_CHUNK))
+        .in("version.status", ["active", "retired"])
+        .not("version.activated_at", "is", null)
+        .order("id")
+        .range(from, from + VARIANT_PAGE - 1)
+      if (error) {
+        logFailure("label variants read", error)
+        return new Set()
+      }
+      for (const row of data) {
+        const rank = `${row.version.status === "active" ? 1 : 0}|${row.version.activated_at}`
+        const seen = best.get(row.item_id)
+        if (!seen || rank > seen.rank)
+          best.set(row.item_id, {
+            rank,
+            variants: row.menu_entry_variants.length > 0,
+          })
+      }
+      if (data.length < VARIANT_PAGE) break
+    }
+  return new Set([...best].filter(([, b]) => b.variants).map(([id]) => id))
 }
 
 export type LoadLabelSummariesOptions = {
@@ -889,7 +938,8 @@ export type LoadLabelSummariesOptions = {
 /**
  * Label summaries for a page of gallery assets, read as the caller (RLS), in
  * at most a few queries (no N+1): per 100 ids, one `media_labels` read, one
- * `media_label_details` call and one open-suggestion read. Assets without a
+ * `media_label_details` call and one open-suggestion read, plus a menu read
+ * for dishes labelled without a variant (itemsWithVariants). Assets without a
  * visible label row are absent (callers use EMPTY_LABEL_SUMMARY for ready
  * assets, A2.1). Throws (redacted log) when a read fails, so a failure is never
  * mistaken for "no labels"; see `tryLoadLabelSummaries`.
@@ -923,10 +973,16 @@ export async function loadLabelSummaries(
       throw new Error("Labels could not be loaded.")
     }
 
+    const rows = details.data as unknown as DetailRow[]
+    const withVariants = await itemsWithVariants(db, [
+      ...new Set(
+        rows.filter((r) => r.variant_id === null).map((r) => r.item_id)
+      ),
+    ])
     const items = new Map<string, MediaLabelItemView[]>()
-    for (const row of details.data as unknown as DetailRow[]) {
+    for (const row of rows) {
       const list = items.get(row.asset_id) ?? []
-      list.push(itemView(row))
+      list.push(itemView(row, withVariants))
       items.set(row.asset_id, list)
     }
 

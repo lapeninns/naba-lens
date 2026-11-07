@@ -1,3 +1,4 @@
+import { dishName } from "@/lib/menus/dish-name"
 import { CONTENT_TYPE_LABELS, type MediaLabelSummary } from "@/lib/menus/types"
 import { cn } from "@/lib/utils"
 
@@ -46,8 +47,9 @@ export function LabelSummary({
               key={`${item.itemId}:${item.variantId ?? ""}`}
               className="min-w-0 break-words"
             >
-              <span className="font-bold">{item.name}</span>
-              {item.variantName ? <span> ({item.variantName})</span> : null}
+              <span className="font-bold">
+                {dishName(item, item.unspecified)}
+              </span>
               {item.sectionName ? (
                 <span className="text-ink-muted"> · {item.sectionName}</span>
               ) : null}

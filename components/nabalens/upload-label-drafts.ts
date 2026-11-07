@@ -19,6 +19,7 @@
 
 import * as React from "react"
 
+import { dishName } from "@/lib/menus/dish-name"
 import {
   EMPTY_LABEL_SUMMARY,
   type MediaLabelSummary,
@@ -999,9 +1000,7 @@ export function useUploadLabels(
     ) {
       if (empty) return { kind: "none" }
       const names = record.summary
-        ? record.summary.items.map((i) =>
-            i.variantName ? `${i.name} (${i.variantName})` : i.name
-          )
+        ? record.summary.items.map((i) => dishName(i, i.unspecified))
         : record.settled
           ? []
           : (config?.itemNames?.(record.input) ?? [])
