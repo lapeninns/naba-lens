@@ -5,8 +5,9 @@ import { SUBMIT_ANSWERS, type SubmitAnswer } from "@/lib/amenities/contract"
  * upload, a dropped connection or a reload never loses it. The idempotency key
  * lives with the draft: "Try again" resends the same draft with the same key,
  * so a finding whose response was lost is replayed, never recorded twice.
- * Editing after an attempt starts a new key (a new intent), and so does a
- * check that changed since the draft was written (see `reconcileDraft`).
+ * Editing after an attempt starts a new key (a new intent). An unsent draft
+ * for a check that changed since it was written starts a new key too; an
+ * attempted one keeps its key (see `reconcileDraft`).
  * Sign-out removes every draft on the device (`clearAllDrafts`).
  */
 
@@ -86,9 +87,15 @@ export function redactionHolds(draft: CaptureDraft, assetIds: string[]) {
 }
 
 /**
- * A draft written for another revision of the check (a manager reopened it,
- * or the earlier send was recorded) keeps its words and evidence but is a new
- * intent: a new key, not attempted, and the redaction tick asked for again.
+ * A draft written for another revision of the check keeps its words and
+ * evidence; the redaction tick is asked for again.
+ *
+ * An attempted draft keeps its key: its send may have been recorded (and
+ * moved the revision) with the answer lost, so the next send must replay it,
+ * never record it twice. The form tells a stale replay apart (the check
+ * changed since) by the revision the replay returns.
+ *
+ * A draft never sent is a new intent with a new key.
  */
 export function reconcileDraft(
   draft: CaptureDraft,
@@ -99,8 +106,7 @@ export function reconcileDraft(
   return {
     ...draft,
     revision,
-    idempotencyKey: newKey(),
-    attempted: false,
+    idempotencyKey: draft.attempted ? draft.idempotencyKey : newKey(),
     redactionConfirmed: false,
     redactionAssetIds: [],
   }

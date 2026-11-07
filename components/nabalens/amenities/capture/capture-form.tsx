@@ -73,6 +73,8 @@ type Outcome =
   | { kind: "sign_in" }
   | { kind: "failed"; message: string }
   | { kind: "sent"; replayed: boolean }
+  /** An earlier send was recorded, but the check has changed since. */
+  | { kind: "stale" }
 
 const ASSET_REASON_TEXT: Record<
   NonNullable<AmenityFailure["assetReason"]>,
@@ -253,8 +255,9 @@ export function CaptureForm({
   }, [])
 
   // Read the stored draft after hydration (the server has no storage). A
-  // draft from another revision of the check is a new intent with a new key;
-  // a re-read after a conflict brings a new revision too.
+  // draft from another revision of the check keeps its key only if it was
+  // sent (it may have been recorded); a re-read after a conflict brings a new
+  // revision too.
   const revision = check.revision
   React.useEffect(() => {
     const stored = loadDraft(owner)
@@ -288,16 +291,21 @@ export function CaptureForm({
   const redactionConfirmed = redactionHolds(draft, selected)
 
   /**
-   * Every edit after an attempt is a new intent with a new key. Changing the
-   * evidence clears the redaction tick: it was given for other photos.
+   * Every edit after an attempt is a new intent with a new key, except the
+   * redaction tick (`sameIntent`): it vouches for the finding, it doesn't
+   * change it, so ticking again after a reopen still replays. Changing the
+   * evidence clears the tick: it was given for other photos.
    */
-  function edit(change: (d: CaptureDraft) => CaptureDraft) {
+  function edit(
+    change: (d: CaptureDraft) => CaptureDraft,
+    { sameIntent = false } = {}
+  ) {
     setOutcome((o) => (o?.kind === "sent" ? o : null))
     setDraft((current) => {
       let next = change(current)
       if (!sameIds(next.assetIds, current.assetIds))
         next = { ...next, redactionConfirmed: false, redactionAssetIds: [] }
-      return current.attempted
+      return current.attempted && !sameIntent
         ? { ...next, attempted: false, idempotencyKey: newKey() }
         : next
     })
@@ -312,11 +320,14 @@ export function CaptureForm({
   }
 
   function confirmRedaction(confirmed: boolean) {
-    edit((d) => ({
-      ...d,
-      redactionConfirmed: confirmed,
-      redactionAssetIds: confirmed ? selected : [],
-    }))
+    edit(
+      (d) => ({
+        ...d,
+        redactionConfirmed: confirmed,
+        redactionAssetIds: confirmed ? selected : [],
+      }),
+      { sameIntent: true }
+    )
     if (errors.redactionConfirmed)
       setErrors((e) => ({ ...e, redactionConfirmed: undefined }))
   }
@@ -465,11 +476,26 @@ export function CaptureForm({
       inFlight.current = false
       if (mounted.current) setSending(false)
     }
+    // A replay older than the revision on screen: the earlier send was
+    // recorded, but the check changed since (a manager reopened it). This
+    // answer still has to be sent, as a new intent with a new key.
+    const stale =
+      result.ok && result.replayed && result.revision < check.revision
     // Recorded: drop the stored draft even when the form is gone, or a later
     // visit would replay this key after a reopen.
-    if (result.ok) clearDraft(sentFor)
+    if (result.ok && !stale) clearDraft(sentFor)
     if (!mounted.current) return
 
+    if (stale) {
+      setDraft((d) => ({
+        ...d,
+        attempted: false,
+        idempotencyKey: newKey(),
+        revision: check.revision,
+      }))
+      setOutcome({ kind: "stale" })
+      return
+    }
     if (result.ok) {
       setDraft(emptyDraft(newKey, check.revision))
       setOutcome({ kind: "sent", replayed: result.replayed })
@@ -916,6 +942,13 @@ function OutcomeMessage({
           {outcome.replayed
             ? "This finding was already sent. Nothing was recorded twice."
             : "Finding sent. The check is complete."}
+        </Notice>
+      )
+    case "stale":
+      return (
+        <Notice tone="attention" role="alert">
+          Your earlier finding was recorded. This check has changed since, so
+          review your answer and send it again.
         </Notice>
       )
     case "retry":
