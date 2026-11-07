@@ -993,9 +993,10 @@ $$;
 
 -- Media gate (same shape as task_evidence_asset): a row only when the asset
 -- is ready and the caller is the venue's effective manager or an admin for a
--- submission containing it, or its submitter (another person's media only
--- while the submitter still works at that venue), or may attach it to a check
--- they can submit. Unknown and forbidden are the same empty result.
+-- submission containing it, or its submitter while still active staff at that
+-- venue (own uploads included: a submitter converted to a manager account,
+-- transferred or deactivated keeps nothing), or may attach it to a check they
+-- can submit. Unknown and forbidden are the same empty result.
 create function public.amenity_evidence_asset(p_asset_id uuid)
 returns table (asset_id uuid, media_type public.media_type, has_thumbnail boolean, has_preview boolean)
 language sql
@@ -1019,7 +1020,7 @@ as $$
             private.can_manage_venue(s.venue_id)
             or (
               s.submitted_by = (select auth.uid())
-              and (a.uploader_id = (select auth.uid()) or private.active_staff_venue_id() = s.venue_id)
+              and private.active_staff_venue_id() = s.venue_id
             )
           )
       )
