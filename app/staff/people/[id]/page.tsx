@@ -1,9 +1,11 @@
 import { notFound } from "next/navigation"
-import { StorefrontIcon } from "@phosphor-icons/react/dist/ssr"
+import { MapPinIcon } from "@phosphor-icons/react/dist/ssr"
 
 import { logout } from "@/app/_media/actions"
 import { AppShell } from "@/components/nabalens/app-shell"
+import { SectionHeader } from "@/components/nabalens/common-room"
 import { EmptyState } from "@/components/nabalens/empty-state"
+import { Notice } from "@/components/nabalens/notice"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { ProfileAvatar } from "@/components/nabalens/profile-avatar"
@@ -14,7 +16,7 @@ import { getMediaActor } from "@/lib/server/media/context"
 import { canManageVenue } from "../../can-manage"
 import { CommunityGallery } from "../../community/community-gallery"
 import { firstName, movedNotice, photoCount, PROFILE_COPY } from "../people"
-import { TeamTag } from "../person-card"
+import { RoleLine } from "../person-card"
 
 export const metadata = { title: "Profile · Naba-Lens" }
 
@@ -50,9 +52,11 @@ export default async function ColleaguePage({
       userName={profile.displayName}
       logoutAction={logout}
     >
-      <div className="flex flex-col gap-4">
+      <div className="mx-auto flex w-full max-w-(--size-feed) flex-col gap-(--gutter)">
         <OfflineNotice />
-        <div className="flex min-w-0 items-center gap-4">
+        {/* Common Room profile card: a face, a name, where they work and
+            how many photos they've shared. No likes or rankings. */}
+        <div className="flex min-w-0 items-center gap-4 rounded-card bg-surface p-4 shadow-card">
           <ProfileAvatar
             name={member.displayName}
             src={member.avatarUrl}
@@ -62,55 +66,50 @@ export default async function ColleaguePage({
             scope={[...PROFILE_COPY.scope]}
             title={member.displayName}
             summary={
-              <div className="grid gap-0.5 text-meta-touch md:text-meta">
+              <div className="grid gap-1">
                 {member.jobTitle || member.department ? (
-                  <p className="flex flex-wrap items-center gap-1.5">
-                    {member.jobTitle}
-                    <TeamTag department={member.department} />
+                  <p className="[overflow-wrap:anywhere]">
+                    <RoleLine member={member} />
                   </p>
                 ) : null}
-                <p className="flex flex-wrap items-center gap-1.5">
-                  <StorefrontIcon aria-hidden className="size-4 shrink-0" />
-                  {member.venueName ?? "No venue assigned"}
-                  <span aria-hidden className="text-ink-subtle">
-                    ·
-                  </span>
-                  <span className="tabular-nums">
-                    {photoCount(member.mediaCount)}
-                  </span>
+                <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                  <MapPinIcon aria-hidden className="size-[18px] shrink-0" />
+                  <b className="font-bold [overflow-wrap:anywhere] text-ink">
+                    {member.venueName ?? "No venue assigned"}
+                  </b>
+                </p>
+                <p className="font-mono tabular-nums">
+                  {photoCount(member.mediaCount)}
                 </p>
               </div>
             }
-            className="min-w-0 flex-1 pb-0 md:pb-0"
+            className="min-w-0 flex-1 px-0 pb-0 md:pb-0"
           />
         </div>
         {moved ? (
-          <p className="text-body-touch text-ink-muted md:text-body-sm">
+          <Notice tone="info" role="none">
             {moved}
-          </p>
+          </Notice>
         ) : null}
         <section
           aria-labelledby="shared-photos-heading"
-          className="flex flex-col gap-3"
+          className="flex flex-col gap-(--gutter)"
         >
-          <div className="flex items-baseline justify-between gap-3">
-            <h2
-              id="shared-photos-heading"
-              className="text-section-title-touch text-ink md:text-section-title"
-            >
-              {PROFILE_COPY.shared}
-            </h2>
-            <span className="text-meta-touch text-ink-muted md:text-meta">
-              {PROFILE_COPY.order}
-            </span>
-          </div>
+          <SectionHeader
+            id="shared-photos-heading"
+            title={PROFILE_COPY.shared}
+            action={
+              <span className="text-meta text-ink-muted">
+                {PROFILE_COPY.order}
+              </span>
+            }
+          />
           <CommunityGallery
             initialPage={{ items: media.items, nextCursor: media.nextCursor }}
             search={{}}
             uploaderId={member.id}
             empty={
               <EmptyState
-                variant="done"
                 title={`${firstName(member.displayName)} hasn't shared any photos yet.`}
                 description={PROFILE_COPY.emptyBody}
               />

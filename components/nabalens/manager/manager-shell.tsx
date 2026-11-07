@@ -11,7 +11,7 @@ import { ManagerNav } from "./manager-nav"
 import { ReviewCountProvider } from "./review-count"
 
 const FOCUS =
-  "outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+  "outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
 
 /**
  * Page frame of the venue manager workspace: the wordmark, the venue's name,
@@ -35,24 +35,25 @@ export function ManagerShell({
 }) {
   return (
     <ReviewCountProvider count={reviewCount}>
-      <div className="flex min-h-svh flex-col bg-paper">
+      <div className="flex min-h-svh flex-col bg-bg text-ink">
         <a
           href="#main"
-          className="sr-only z-50 rounded-control bg-accent px-3 py-2 text-on-accent focus:not-sr-only focus:fixed focus:top-2 focus:left-2"
+          className="sr-only z-50 rounded-control bg-accent px-4 py-3 text-button text-on-accent focus:not-sr-only focus:fixed focus:top-2 focus:left-2"
         >
           Skip to content
         </a>
-        <header className="border-b border-line bg-paper">
-          <div className="mx-auto flex h-14 w-full max-w-(--size-page) items-center gap-3 px-4 md:gap-4 md:px-6">
+        {/* Common Room top bar: white, a hairline under it. */}
+        <header className="relative z-10 bg-surface shadow-[0_1px_0_var(--line)]">
+          <div className="mx-auto flex min-h-15 w-full max-w-(--size-page) items-center gap-3 px-3 md:gap-4 md:px-6">
             <Link
               href={managerHrefs.overview}
-              className={`inline-flex flex-none items-baseline font-display text-xl leading-6 font-bold tracking-[-0.01em] whitespace-nowrap text-ink max-md:py-2.5 ${FOCUS}`}
+              className={`inline-flex flex-none items-baseline rounded-control font-display text-[1.5rem] leading-none font-extrabold tracking-[-0.02em] whitespace-nowrap text-ink max-md:py-2.5 ${FOCUS}`}
             >
               Naba-Lens
             </Link>
             <p
               data-slot="venue-name"
-              className="min-w-0 truncate border-l border-line-control pl-3 text-label font-semibold text-ink-muted"
+              className="min-w-0 truncate border-l border-line-control pl-3 text-meta-strong text-ink-muted"
             >
               {venueName}
             </p>
@@ -62,7 +63,7 @@ export function ManagerShell({
               </span>
               <Link
                 href={managerHrefs.account}
-                className={`-mr-1 grid size-11 place-items-center rounded-round ${FOCUS}`}
+                className={`-mr-1 grid size-12 place-items-center rounded-round ${FOCUS}`}
               >
                 {/* The avatar is aria-hidden, so this text is the whole name. */}
                 <span className="sr-only">
@@ -76,7 +77,11 @@ export function ManagerShell({
                 data-logout
                 className="hidden md:block"
               >
-                <Button type="submit" variant="quiet">
+                <Button
+                  type="submit"
+                  variant="quiet"
+                  className="lg:whitespace-nowrap"
+                >
                   <SignOutIcon data-icon="inline-start" aria-hidden />
                   {MANAGER_COPY.logOut}
                 </Button>
@@ -89,7 +94,7 @@ export function ManagerShell({
         </header>
         <main
           id="main"
-          className="mx-auto w-full max-w-(--size-page) flex-1 px-4 pt-6 pb-[calc(var(--size-tabbar)+env(safe-area-inset-bottom,0px)+2rem)] md:px-6 md:py-8"
+          className="mx-auto w-full max-w-(--size-page) flex-1 overflow-x-clip px-(--page-gutter) pt-4 pb-[calc(var(--size-tabbar)+env(safe-area-inset-bottom,0px)+2rem)] md:px-6 md:py-8"
         >
           <OfflineShell>{children}</OfflineShell>
         </main>

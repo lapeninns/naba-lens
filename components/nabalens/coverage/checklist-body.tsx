@@ -5,6 +5,7 @@ import {
   WarningIcon,
 } from "@phosphor-icons/react/dist/ssr"
 
+import { Card } from "../common-room"
 import { EmptyState } from "../empty-state"
 import { Notice } from "../notice"
 import { OfflineNotice } from "../offline-notice"
@@ -219,13 +220,12 @@ export function ChecklistBody({
       <OfflineNotice />
 
       {allDone ? (
-        <p
-          role="status"
-          className="text-body-touch text-ink-muted md:text-body"
-        >
-          Every counted item at {venueName} is complete for {month}. New photos
-          still appear in Review as they&apos;re sent.
-        </p>
+        <Card tone="ok">
+          <p role="status" className="text-body text-ink">
+            Every counted item at {venueName} is complete for {month}. New
+            photos still appear in Review as they&apos;re sent.
+          </p>
+        </Card>
       ) : null}
 
       <Tally>

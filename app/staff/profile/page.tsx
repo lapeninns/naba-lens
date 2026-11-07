@@ -44,11 +44,12 @@ export default async function WorkProfilePage({
       avatarUrl={avatar}
       logoutAction={logout}
     >
-      <div className="mx-auto flex w-full max-w-2xl flex-col gap-2">
+      <div className="mx-auto flex w-full max-w-(--size-feed) flex-col gap-(--gutter)">
         <PageHeader
           scope={venueName}
           venueScope={Boolean(venueName)}
           title="Work details"
+          className="pb-0 md:pb-0"
           summary="Only you and admins see your work details. Your admin still sets your job title, team and venue."
         />
         <WorkProfileForm

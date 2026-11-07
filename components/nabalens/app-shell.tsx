@@ -14,7 +14,8 @@ import { cn } from "@/lib/utils"
 
 import { OfflineShell } from "./offline-notice"
 import { ProfileAvatar } from "./profile-avatar"
-import { AddTrigger, TAB_ITEM } from "./shell/add-context"
+import { AddTrigger } from "./shell/add-context"
+import { TAB_ITEM } from "./shell/tab-item"
 import { CountBadge } from "./status-chip"
 
 type AdminSection = "content" | "staff" | "menus" | "coverage"
@@ -115,8 +116,10 @@ const MANAGE: NavItem<StaffSection> = {
   icon: ClipboardTextIcon,
 }
 
+// AppBar section link (md up). Like the phone tabs: muted Figtree, the
+// current one in accent-text with a 3px bar under it. No other blue.
 const BAR_LINK =
-  "inline-flex items-center gap-2 px-2.5 text-label text-ink-muted whitespace-nowrap shadow-[inset_0_-2px_0_transparent] transition-colors outline-none hover:text-ink focus-visible:outline-2 focus-visible:outline-solid focus-visible:-outline-offset-2 focus-visible:outline-focus"
+  "inline-flex items-center gap-2 px-3 font-display text-tab-label text-ink-muted whitespace-nowrap shadow-[inset_0_-3px_0_transparent] transition-colors duration-(--duration-quick) outline-none hover:bg-surface-2 hover:text-ink focus-visible:outline-3 focus-visible:outline-solid focus-visible:-outline-offset-3 focus-visible:outline-focus"
 
 /**
  * Page frame for signed-in pages. From md: the AppBar with the role's
@@ -152,7 +155,7 @@ export function AppShell(props: AppShellProps) {
   const logoutButton = (
     <Button
       variant="quiet"
-      className="max-md:min-h-11"
+      className="max-md:min-h-11 lg:whitespace-nowrap"
       type={logoutAction ? "submit" : "button"}
       onClick={logoutAction ? undefined : onLogout}
     >
@@ -163,23 +166,24 @@ export function AppShell(props: AppShellProps) {
   )
 
   return (
-    <div className={cn("flex min-h-svh flex-col bg-paper", className)}>
+    <div className={cn("flex min-h-svh flex-col bg-bg text-ink", className)}>
       <a
         href="#main"
-        className="sr-only z-50 rounded-control bg-accent px-3 py-2 text-on-accent focus:not-sr-only focus:fixed focus:top-2 focus:left-2"
+        className="sr-only z-50 rounded-control bg-accent px-4 py-3 text-button text-on-accent focus:not-sr-only focus:fixed focus:top-2 focus:left-2"
       >
         Skip to content
       </a>
-      <header className="border-b border-line bg-paper">
-        <div className="mx-auto flex h-14 w-full max-w-(--size-page) items-center gap-3 px-4 md:gap-4 md:px-6 lg:gap-6">
+      {/* Common Room top bar: white, a hairline under it. */}
+      <header className="relative z-10 bg-surface shadow-[0_1px_0_var(--line)]">
+        <div className="mx-auto flex min-h-15 w-full max-w-(--size-page) items-center gap-3 px-3 md:gap-4 md:px-6 lg:gap-6">
           <Link
             href={admin ? "/admin" : "/staff/tasks"}
-            className="inline-flex flex-none items-baseline gap-2 font-display text-xl leading-6 font-bold tracking-[-0.01em] whitespace-nowrap text-ink outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid max-md:py-2.5"
+            className="inline-flex flex-none items-baseline gap-2 rounded-control font-display text-[1.5rem] leading-none font-extrabold tracking-[-0.02em] whitespace-nowrap text-ink outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid max-md:py-2.5"
           >
             Naba-Lens
             {admin ? " " : null}
             {admin ? (
-              <span className="border-l border-line-control pl-2 font-sans text-[0.8125rem] leading-[1.125rem] font-semibold tracking-normal text-ink-muted">
+              <span className="border-l border-line-control pl-2 font-sans text-meta-strong tracking-normal text-ink-muted">
                 Admin
               </span>
             ) : null}
@@ -199,7 +203,8 @@ export function AppShell(props: AppShellProps) {
                   aria-current={current ? "page" : undefined}
                   className={cn(
                     BAR_LINK,
-                    current && "text-ink shadow-[inset_0_-2px_0_var(--accent)]",
+                    current &&
+                      "font-extrabold text-accent-text shadow-[inset_0_-3px_0_var(--accent-text)] hover:text-accent-text",
                     // A manager's six sections don't fit from md to lg; there
                     // Our menu is reached from Home and Manage instead.
                     item.id === "menu" && staff?.canManage && "md:max-lg:hidden"
@@ -210,6 +215,7 @@ export function AppShell(props: AppShellProps) {
                     <CountBadge
                       count={count}
                       label="to review"
+                      tone="warn"
                       className="-ml-0.5"
                     />
                   ) : null}
@@ -240,7 +246,7 @@ export function AppShell(props: AppShellProps) {
             {staff ? (
               <Link
                 href={ME.href}
-                className="-mr-1 grid size-11 place-items-center rounded-round outline-none focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-solid md:hidden"
+                className="-mr-1 grid size-12 place-items-center rounded-round outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid md:hidden"
               >
                 {/* The avatar is aria-hidden, so this text is the whole name.
                     axe's label-content-name-mismatch flags an aria-label that
@@ -260,14 +266,17 @@ export function AppShell(props: AppShellProps) {
       </header>
       <main
         id="main"
-        className="mx-auto w-full max-w-(--size-page) flex-1 px-4 pt-6 pb-[calc(var(--size-tabbar)+env(safe-area-inset-bottom,0px)+2rem)] md:px-6 md:py-8"
+        // Feed gutter 12px on phones (DESIGN.md §2), on the grey canvas.
+        // overflow-x-clip (not hidden: sticky docks still stick) keeps an
+        // older -mx-4 full-bleed bar from scrolling a 320px page sideways.
+        className="mx-auto w-full max-w-(--size-page) flex-1 overflow-x-clip px-(--page-gutter) pt-4 pb-[calc(var(--size-tabbar)+env(safe-area-inset-bottom,0px)+2rem)] md:px-6 md:py-8"
       >
         <OfflineShell>{children}</OfflineShell>
       </main>
       <nav
         aria-label={navLabel}
         data-slot="tabbar"
-        className="fixed inset-x-0 bottom-0 z-40 grid auto-cols-fr grid-flow-col border-t border-line bg-panel pb-[env(safe-area-inset-bottom,0px)] md:hidden"
+        className="fixed inset-x-0 bottom-0 z-40 grid auto-cols-fr grid-flow-col bg-surface px-1 pb-[env(safe-area-inset-bottom,0px)] shadow-[0_-1px_0_var(--line)] md:hidden"
       >
         {admin
           ? barItems.map(({ item, href }) => (
@@ -319,9 +328,11 @@ function TabLink({
       aria-current={current ? "page" : undefined}
       className={cn(
         TAB_ITEM,
-        "text-ink-muted hover:text-ink",
+        "text-ink-muted hover:bg-surface-2 hover:text-ink",
+        // Active tab: accent-text, 800, a 3px bar along the top. The only
+        // light blue on the screen.
         current &&
-          "text-accent-text before:absolute before:inset-x-[24%] before:-top-px before:h-0.5 before:rounded-b-[2px] before:bg-accent hover:text-accent-text"
+          "font-extrabold text-accent-text before:absolute before:inset-x-[18%] before:top-0 before:h-[3px] before:rounded-b-[3px] before:bg-accent-text hover:text-accent-text"
       )}
     >
       <Icon aria-hidden className="size-[26px]" />
@@ -330,7 +341,8 @@ function TabLink({
         <CountBadge
           count={count}
           label={count === 1 ? "thing to do" : "things to do"}
-          className="absolute top-1.5 left-[calc(50%+6px)]"
+          tone="warn"
+          className="absolute top-1 left-[calc(50%+6px)] ring-2 ring-surface"
         />
       ) : null}
     </Link>

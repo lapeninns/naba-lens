@@ -29,6 +29,11 @@ const TYPE_STYLES = [
   "caption",
   "mono",
   "tab-label",
+  // Common Room additions
+  "display",
+  "card-title",
+  "lead",
+  "button",
 ]
 
 const RADII = [
@@ -40,6 +45,8 @@ const RADII = [
   "card",
   "sheet",
   "round",
+  "stamp",
+  "square",
 ]
 
 export const cn = createCn({

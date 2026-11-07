@@ -103,12 +103,12 @@ function ReconcileCard({
   const options = targets.map((t) => ({ id: t.id, name: sectionLabel(t) }))
 
   return (
-    <li className="grid gap-3 rounded-lg border bg-card p-4">
+    <li className="grid gap-3 rounded-card bg-surface p-4 shadow-card">
       <div className="grid gap-0.5">
-        <h3 className="font-medium break-words">
+        <h3 className="text-item-title [overflow-wrap:anywhere] text-ink">
           Previous section: {sectionLabel(requirement)}
         </h3>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-meta text-ink-muted">
           {plural(carryable.length, "accepted photo")} with the photo still
           available
           {requirement.menuSection?.sectionKind
@@ -118,22 +118,22 @@ function ReconcileCard({
       </div>
       {carryable.length > 0 ? (
         <fieldset className="grid gap-2" disabled={pending}>
-          <legend className="mb-1 text-sm font-medium">
+          <legend className="mb-1 text-label text-ink">
             Photos to carry over
           </legend>
           <ul className="grid grid-cols-3 gap-2 sm:grid-cols-6">
             {carryable.map((submission) => (
               <li key={submission.id}>
-                <label className="grid cursor-pointer gap-1 rounded-chip p-1 has-checked:bg-accent-soft has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus">
+                <label className="grid cursor-pointer gap-1.5 rounded-control bg-surface-2 p-1.5 has-checked:bg-accent-soft has-checked:shadow-[inset_0_0_0_3px_var(--select)] has-focus-visible:outline-3 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus has-focus-visible:outline-solid">
                   <EvidenceThumb src={submission.asset.thumbnailUrl} />
-                  <span className="flex items-center gap-1.5 text-xs">
+                  <span className="flex items-center gap-1.5 text-meta">
                     <input
                       type="checkbox"
                       checked={selected.includes(submission.id)}
                       onChange={() => toggle(submission.id)}
-                      className="size-4 accent-primary"
+                      className="size-6 accent-select"
                     />
-                    <span className="min-w-0 break-words">
+                    <span className="min-w-0 [overflow-wrap:anywhere]">
                       {submission.author.displayName}
                     </span>
                   </span>
@@ -148,7 +148,7 @@ function ReconcileCard({
       ) : null}
       {carryable.length > 0 ? (
         <div className="grid gap-1.5">
-          <label htmlFor={`${ids}-target`} className="text-sm font-medium">
+          <label htmlFor={`${ids}-target`} className="text-label text-ink">
             Carry them to this section of the new menu
           </label>
           <OptionSelect
@@ -188,7 +188,7 @@ function ReconcileCard({
           </Button>
         ) : null}
         <Button
-          variant="outline"
+          variant="secondary"
           size="touch"
           onClick={() => void submit(false)}
           disabled={pending}
@@ -231,28 +231,31 @@ export function MenuCoveragePanel({
     (menu.menuState === "needs_setup" || menu.menuState === "menu_changed")
 
   return (
-    <div className="grid gap-6">
-      <section aria-labelledby="menu-state-title" className="grid gap-3">
+    <div className="grid min-w-0 gap-(--gutter) md:gap-4">
+      <section
+        aria-labelledby="menu-state-title"
+        className="grid min-w-0 gap-3 rounded-card bg-surface p-4 shadow-card"
+      >
         <h2
           id="menu-state-title"
-          className="flex flex-wrap items-center gap-2 text-lg font-medium"
+          className="flex flex-wrap items-center gap-2 font-display text-card-title text-ink"
         >
-          <ForkKnifeIcon aria-hidden />
+          <ForkKnifeIcon aria-hidden className="size-6 shrink-0" />
           {labelFor(MENU_STATE_LABEL, menu.menuState)}
         </h2>
         <MenuChangedBanner state={menu.menuState} />
-        <p className="max-w-prose text-sm text-muted-foreground">
+        <p className="max-w-prose text-body text-ink-muted">
           Each menu section you include needs a set number of distinct accepted
           photos. Dishes do not each need a photo, and optional dish labels
           never count toward completion.
         </p>
-        <p className="max-w-prose text-sm text-muted-foreground">
+        <p className="max-w-prose text-body text-ink-muted">
           Staff see the dish photo guide on food sections.
         </p>
         {activeVersion ? (
-          <p className="text-sm">
+          <p className="border-t border-line pt-3 text-body text-ink">
             Active menu:{" "}
-            <span className="font-medium">{activeVersion.title}</span>
+            <span className="font-bold">{activeVersion.title}</span>
             {activeVersion.activatedAt
               ? ` (since ${formatDateTime(activeVersion.activatedAt)})`
               : null}
@@ -261,7 +264,7 @@ export function MenuCoveragePanel({
               : null}
           </p>
         ) : (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-body text-ink-muted">
             There is no active menu at this venue. An admin activates menus;
             menu sections join the checklist after that.
           </p>
@@ -272,12 +275,15 @@ export function MenuCoveragePanel({
       {canStart && activeVersion ? (
         <section
           aria-labelledby="menu-start-title"
-          className="grid gap-3 rounded-lg border bg-card p-4"
+          className="grid min-w-0 gap-3 rounded-card bg-surface p-4 pt-5 shadow-[var(--elevation-card),inset_0_4px_0_var(--warn-fg)]"
         >
-          <h2 id="menu-start-title" className="font-medium">
+          <h2
+            id="menu-start-title"
+            className="font-display text-card-title [overflow-wrap:anywhere] text-ink"
+          >
             Use “{activeVersion.title}” for menu coverage
           </h2>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-body text-ink-muted">
             This adds one checklist item per section below, each needing setup.
             You then choose which sections apply, their photo targets and who
             takes them, and confirm.
@@ -285,17 +291,17 @@ export function MenuCoveragePanel({
               ? " The previous plan and its photos stay until you confirm."
               : null}
           </p>
-          <ul className="grid gap-1 text-sm sm:grid-cols-2">
+          <ul className="grid gap-1 text-body sm:grid-cols-2">
             {activeVersion.sections.map((section) => (
               <li key={section.sectionId}>
                 {section.name}{" "}
-                <span className="text-muted-foreground">
+                <span className="text-ink-muted">
                   ({labelFor(SECTION_KIND, section.kind)})
                 </span>
               </li>
             ))}
           </ul>
-          <div>
+          <div className="grid">
             <Button
               size="touch"
               onClick={() =>
@@ -313,12 +319,18 @@ export function MenuCoveragePanel({
       ) : null}
 
       {draftPlan ? (
-        <section aria-labelledby="menu-draft-title" className="grid gap-3">
-          <div className="grid gap-1">
-            <h2 id="menu-draft-title" className="text-lg font-medium">
+        <section
+          aria-labelledby="menu-draft-title"
+          className="grid min-w-0 gap-(--gutter)"
+        >
+          <div className="grid gap-1 px-1 pt-2">
+            <h2
+              id="menu-draft-title"
+              className="font-display text-section-title text-ink"
+            >
               New menu plan (not confirmed)
             </h2>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-body text-ink-muted">
               {menu.draft.length - draftOpen.length} of{" "}
               {plural(menu.draft.length, "section")} set up. Open each section
               to confirm whether it applies, its photo target and who takes it.
@@ -331,7 +343,7 @@ export function MenuCoveragePanel({
             emptyTitle="This plan has no sections."
           />
           {draftOpen.length > 0 ? (
-            <p className="text-sm text-warning">
+            <p className="px-1 text-meta font-bold text-warn-fg">
               Set up or exclude {plural(draftOpen.length, "more section")}{" "}
               before confirming.
             </p>
@@ -357,7 +369,7 @@ export function MenuCoveragePanel({
               Confirm menu coverage
             </Button>
             <Button
-              variant="outline"
+              variant="secondary"
               size="touch"
               onClick={() =>
                 void action.run(
@@ -379,19 +391,25 @@ export function MenuCoveragePanel({
       ) : null}
 
       {menu.superseded.length > 0 ? (
-        <section aria-labelledby="menu-reconcile-title" className="grid gap-3">
-          <div className="grid gap-1">
-            <h2 id="menu-reconcile-title" className="text-lg font-medium">
+        <section
+          aria-labelledby="menu-reconcile-title"
+          className="grid min-w-0 gap-(--gutter)"
+        >
+          <div className="grid gap-1 px-1 pt-2">
+            <h2
+              id="menu-reconcile-title"
+              className="font-display text-section-title text-ink"
+            >
               Carry photos from the previous menu
             </h2>
-            <p className="max-w-prose text-sm text-muted-foreground">
+            <p className="max-w-prose text-body text-ink-muted">
               For each previous section, choose which accepted photos still fit
               a section of the new menu. Nothing is matched by name. Carried
               photos count for venue coverage only, never for monthly targets,
               and the previous plan stays in the history.
             </p>
           </div>
-          <ul className="grid gap-3">
+          <ul className="grid gap-(--gutter)">
             {menu.superseded.map((requirement) => (
               <ReconcileCard
                 key={requirement.id}
@@ -421,8 +439,14 @@ export function MenuCoveragePanel({
       ) : null}
 
       {currentPlan ? (
-        <section aria-labelledby="menu-current-title" className="grid gap-3">
-          <h2 id="menu-current-title" className="text-lg font-medium">
+        <section
+          aria-labelledby="menu-current-title"
+          className="grid min-w-0 gap-(--gutter)"
+        >
+          <h2
+            id="menu-current-title"
+            className="px-1 pt-2 font-display text-section-title text-ink"
+          >
             Current menu sections
           </h2>
           <RequirementList

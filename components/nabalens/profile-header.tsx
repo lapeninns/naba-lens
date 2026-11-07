@@ -1,3 +1,5 @@
+import { MapPinIcon } from "@phosphor-icons/react/dist/ssr"
+
 import { departmentLabel, type Department } from "@/lib/config/departments"
 import { cn } from "@/lib/utils"
 
@@ -27,6 +29,10 @@ type ProfileHeaderProps = {
   className?: string
 }
 
+/**
+ * Common Room profile card: a face, a name, job and team, the venue (pin and
+ * bold name), then the actions full width underneath (one blue at most).
+ */
 export function ProfileHeader({
   displayName,
   avatarUrl,
@@ -41,42 +47,43 @@ export function ProfileHeader({
   className,
 }: ProfileHeaderProps) {
   const Heading = headingLevel
+  const role = [jobTitle, departmentLabel(department)].filter(Boolean)
   return (
-    // Side by side only from md: at 640px (a phone landscape, or 1280px at
-    // 200% zoom) the name plus up to three actions does not fit on one row.
     <section
       aria-label="Profile"
       className={cn(
-        "flex w-full min-w-0 flex-col gap-5 md:flex-row md:items-center md:justify-between",
+        "grid w-full min-w-0 gap-4 rounded-card bg-surface p-4 shadow-card",
         className
       )}
     >
       <div className="flex min-w-0 items-center gap-4">
-        <ProfileAvatar
-          name={displayName}
-          src={avatarUrl}
-          className="size-16 text-lg sm:size-20 sm:text-xl"
-        />
-        <div className="min-w-0">
-          <Heading className="text-xl font-semibold tracking-tight break-words sm:text-2xl">
+        <ProfileAvatar name={displayName} src={avatarUrl} size="lg" />
+        <div className="grid min-w-0 gap-1">
+          <Heading className="font-display text-card-title [overflow-wrap:anywhere] text-ink">
             {displayName}
           </Heading>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            {[
-              jobTitle,
-              departmentLabel(department),
-              venueName ?? missingVenueLabel,
-            ]
-              .filter(Boolean)
-              .join(" · ")}
+          {role.length > 0 ? (
+            <p className="text-body [overflow-wrap:anywhere] text-ink-muted">
+              {role.join(" · ")}
+            </p>
+          ) : null}
+          <p className="flex flex-wrap items-center gap-1.5 text-body text-ink-muted">
+            <MapPinIcon aria-hidden className="size-[18px] shrink-0" />
+            {venueName ? (
+              <b className="font-bold [overflow-wrap:anywhere] text-ink">
+                {venueName}
+              </b>
+            ) : (
+              <span>{missingVenueLabel}</span>
+            )}
           </p>
           {workRole ? (
-            <p className="mt-0.5 text-sm text-ink">
+            <p className="text-body text-ink">
               <span className="sr-only">Your work: </span>
               {venueName ? `${workRole} at ${venueName}` : workRole}
             </p>
           ) : null}
-          {meta ? <div className="mt-1.5">{meta}</div> : null}
+          {meta ? <div className="mt-1">{meta}</div> : null}
         </div>
       </div>
       {actions ? (

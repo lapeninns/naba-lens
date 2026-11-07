@@ -31,14 +31,15 @@ export function PeopleSearch({
       method="get"
       role="search"
       aria-label="Find people"
-      className="grid gap-3 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end"
+      // Common Room: the search sits in one white card above the list.
+      className="grid gap-3 rounded-card bg-surface p-4 shadow-card md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end"
     >
       <Field>
         <FieldLabel htmlFor="people-name">Name</FieldLabel>
         <span className="relative block">
           <MagnifyingGlassIcon
             aria-hidden
-            className="pointer-events-none absolute top-1/2 left-3 size-[18px] -translate-y-1/2 text-ink-muted"
+            className="pointer-events-none absolute top-1/2 left-4 size-5 -translate-y-1/2 text-ink-muted"
           />
           <Input
             id="people-name"
@@ -49,7 +50,7 @@ export function PeopleSearch({
             defaultValue={query}
             placeholder="Search by name"
             maxLength={80}
-            className="h-11 pl-9 md:h-9"
+            className="pl-11"
           />
         </span>
       </Field>

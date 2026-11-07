@@ -39,7 +39,7 @@ export function MenuVersionStatusBadge({
       className={cn("inline-flex flex-wrap items-baseline gap-2", className)}
     >
       {badge}
-      <span className="text-sm text-muted-foreground">
+      <span className="text-meta text-ink-muted">
         {MENU_STATUS_DESCRIPTION[status]}
       </span>
     </span>

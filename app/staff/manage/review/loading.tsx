@@ -1,34 +1,36 @@
 import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton"
 
+/** Review's skeleton: header, filter pills, then a feed of posts. */
 export default function ManageReviewLoading() {
   return (
     <SkeletonRegion
       label="Loading photos to review…"
-      className="mx-auto grid w-full max-w-(--size-page) gap-4 px-4 py-6 sm:px-6 sm:py-8"
+      className="mx-auto grid w-full max-w-(--size-page) gap-(--gutter) px-(--page-gutter) py-4 md:gap-4 md:px-6 md:py-8"
     >
-      <div className="grid gap-2">
+      <div className="grid gap-2 px-1">
         <Skeleton shape="title" className="w-48" />
         <Skeleton shape="line" className="w-[70%]" />
       </div>
-      <div className="grid grid-cols-2 gap-2 md:flex">
-        {[0, 1, 2, 3].map((tab) => (
-          <Skeleton key={tab} shape="line" className="h-9 md:w-28" />
+      <div className="flex flex-wrap gap-2">
+        {["w-28", "w-52", "w-28", "w-14"].map((width) => (
+          <Skeleton key={width} className={`h-11 rounded-round ${width}`} />
         ))}
       </div>
       {[0, 1].map((card) => (
         <div
           key={card}
-          className="grid gap-5 rounded-panel border border-line bg-panel p-4 md:grid-cols-[minmax(0,340px)_minmax(0,1fr)]"
+          className="grid w-full max-w-(--size-feed) overflow-hidden rounded-card bg-surface shadow-card"
         >
-          <Skeleton shape="tile" className="aspect-[4/3]" />
-          <div className="grid content-start gap-5">
-            <div className="flex items-center gap-3">
-              <Skeleton shape="av" />
-              <span className="grid flex-1 gap-2">
-                <Skeleton shape="line" className="w-3/5" />
-                <Skeleton shape="line" className="w-[35%]" />
-              </span>
-            </div>
+          <div className="flex items-center gap-2.5 p-3">
+            <Skeleton shape="av" />
+            <span className="grid flex-1 gap-2">
+              <Skeleton shape="line" className="w-3/5" />
+              <Skeleton shape="line" className="w-[35%]" />
+            </span>
+          </div>
+          <Skeleton className="aspect-[4/3] w-full rounded-none" />
+          <div className="grid gap-2 p-3">
+            <Skeleton shape="line" className="w-[50%]" />
             <Skeleton shape="line" className="w-[70%]" />
           </div>
         </div>

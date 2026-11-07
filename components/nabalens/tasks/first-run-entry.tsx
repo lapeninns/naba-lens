@@ -7,20 +7,26 @@ export function FirstRunEntry({ href }: { href: string }) {
   return (
     <section
       aria-labelledby="first-run-heading"
-      className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line p-4"
+      className="flex flex-wrap items-center justify-between gap-3 rounded-card bg-surface p-4 shadow-card"
     >
-      <div className="grid gap-1">
+      <div className="grid min-w-0 gap-1">
         <h2
           id="first-run-heading"
-          className="font-display text-section-title-touch text-ink md:text-section-title"
+          className="font-display text-section-title [overflow-wrap:anywhere] text-ink"
         >
           New to Naba-Lens?
         </h2>
-        <p className="text-body-touch text-ink-muted md:text-body">
+        <p className="text-meta text-ink-muted">
           A short welcome shows what to do first.
         </p>
       </div>
-      <Link href={href} className={buttonVariants({ variant: "secondary" })}>
+      <Link
+        href={href}
+        className={buttonVariants({
+          variant: "secondary",
+          className: "w-full sm:w-auto",
+        })}
+      >
         Start here
       </Link>
     </section>

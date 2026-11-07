@@ -133,10 +133,13 @@ export default async function StaffPortfolioPage({
           account.authDetails === "unavailable" ? <AuthDetailsNotice /> : null
         }
         photos={
-          <section aria-labelledby="photos-heading" className="grid gap-3">
+          <section
+            aria-labelledby="photos-heading"
+            className="grid min-w-0 gap-3 rounded-card bg-surface p-4 shadow-card"
+          >
             <h2
               id="photos-heading"
-              className="text-section-title-touch text-ink md:text-section-title"
+              className="font-display text-section-title text-ink"
             >
               Photos
             </h2>

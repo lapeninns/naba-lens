@@ -96,7 +96,7 @@ function GrantDetail({
       None. Give venue access on{" "}
       <Link
         href="/admin/coverage/managers"
-        className="font-semibold text-ink underline underline-offset-3"
+        className="font-bold text-ink underline underline-offset-4"
       >
         Venue managers
       </Link>
@@ -191,7 +191,12 @@ export function AccountHeader({
         actions={
           <>
             <Button
-              variant="secondary"
+              // The one blue action, unless a notice below holds the next step.
+              variant={
+                member.status === "invited" || inactive
+                  ? "secondary"
+                  : "primary"
+              }
               size="touch"
               onClick={() => controls.edit(member)}
             >
@@ -216,7 +221,7 @@ export function AccountHeader({
           title="Invited"
           action={
             <Button
-              variant="secondary"
+              variant="primary"
               size="sm"
               onClick={() => void controls.resend(member)}
             >
@@ -233,7 +238,7 @@ export function AccountHeader({
           title="Inactive"
           action={
             <Button
-              variant="secondary"
+              variant="primary"
               size="sm"
               onClick={() => controls.setActive(member, true)}
             >
@@ -250,45 +255,48 @@ export function AccountHeader({
         </Notice>
       ) : null}
 
-      <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,20rem)]">
+      <div className="grid items-start gap-(--gutter) lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]">
         {photos}
-        <div className="grid gap-8">
-          <section aria-labelledby="account-heading" className="grid gap-3">
+        <div className="grid gap-(--gutter)">
+          <section
+            aria-labelledby="account-heading"
+            className="grid min-w-0 gap-3 rounded-card bg-surface p-4 shadow-card"
+          >
             <h2
               id="account-heading"
-              className="text-section-title-touch text-ink md:text-section-title"
+              className="font-display text-section-title text-ink"
             >
               Account
             </h2>
-            <dl className="grid gap-3 text-body-touch md:text-body-sm">
+            <dl className="grid gap-3 text-body [&_dd]:font-bold">
               {member.email ? (
-                <div className="grid gap-0.5">
-                  <dt className="text-meta-strong text-ink-muted">Email</dt>
-                  <dd className="break-all">{member.email}</dd>
+                <div className="grid gap-0.5 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-3">
+                  <dt className="text-meta text-ink-muted">Email</dt>
+                  <dd className="font-mono break-all">{member.email}</dd>
                 </div>
               ) : null}
-              <div className="grid gap-0.5">
-                <dt className="text-meta-strong text-ink-muted">Status</dt>
+              <div className="grid gap-0.5 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-3">
+                <dt className="text-meta text-ink-muted">Status</dt>
                 <dd>
                   <StaffStatusBadge status={member.status} />
                 </dd>
               </div>
-              <div className="grid gap-0.5">
-                <dt className="text-meta-strong text-ink-muted">Venue</dt>
+              <div className="grid gap-0.5 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-3">
+                <dt className="text-meta text-ink-muted">Venue</dt>
                 <dd>{venueName ?? "No venue"}</dd>
               </div>
-              <div className="grid gap-0.5">
-                <dt className="text-meta-strong text-ink-muted">Team</dt>
+              <div className="grid gap-0.5 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-3">
+                <dt className="text-meta text-ink-muted">Team</dt>
                 <dd>
                   <TeamLabel department={member.department} />
                 </dd>
               </div>
-              <div className="grid gap-0.5">
-                <dt className="text-meta-strong text-ink-muted">Job title</dt>
+              <div className="grid gap-0.5 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-3">
+                <dt className="text-meta text-ink-muted">Job title</dt>
                 <dd>{member.jobTitle ?? "None"}</dd>
               </div>
-              <div className="grid gap-0.5">
-                <dt className="text-meta-strong text-ink-muted">
+              <div className="grid gap-0.5 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-3">
+                <dt className="text-meta text-ink-muted">
                   Venue manager grant
                 </dt>
                 <dd>

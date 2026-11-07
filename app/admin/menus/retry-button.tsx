@@ -11,8 +11,7 @@ export function RetryButton({ onRetry }: { onRetry?: () => void }) {
   const router = useRouter()
   return (
     <Button
-      variant="secondary"
-      size="sm"
+      variant="primary"
       onClick={() => (onRetry ? onRetry() : router.refresh())}
     >
       <ArrowClockwiseIcon aria-hidden />

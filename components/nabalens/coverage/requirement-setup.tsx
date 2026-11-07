@@ -230,7 +230,7 @@ function AppliesChoice({
     <div
       role="radiogroup"
       aria-label={label}
-      className="grid w-full grid-cols-2 gap-0.5 rounded-control bg-well p-0.5"
+      className="grid w-full grid-cols-2 gap-1 rounded-control bg-surface-2 p-1"
     >
       {options.map((option, i) => (
         <button
@@ -247,7 +247,7 @@ function AppliesChoice({
             if (!option.checked) option.pick()
           }}
           onKeyDown={(e) => onKeyDown(e, i)}
-          className="min-h-11 rounded-chip border border-transparent px-3 text-label-touch text-ink-muted hover:text-ink disabled:cursor-not-allowed disabled:opacity-60 aria-checked:border-line-control aria-checked:bg-panel aria-checked:text-ink md:min-h-9 md:text-label"
+          className="min-h-11 rounded-control px-3 py-1.5 text-label leading-tight font-bold text-ink-muted transition-[background-color,color,box-shadow] duration-(--duration-quick) outline-none hover:bg-raised hover:text-ink focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid disabled:cursor-not-allowed disabled:opacity-60 aria-checked:bg-surface aria-checked:text-ink aria-checked:shadow-[0_1px_2px_oklch(0.2_0.01_250/0.16),0_0_0_1.5px_var(--border-strong)]"
         >
           {option.text}
         </button>
@@ -256,8 +256,10 @@ function AppliesChoice({
   )
 }
 
-const HINT = "text-meta-touch text-ink-muted md:text-meta"
-const MUTED = "text-body-touch text-ink-muted md:text-body-sm"
+const HINT = "text-meta text-ink-muted"
+const MUTED = "text-body text-ink-muted"
+/** The white card each block of the item sits in (DESIGN.md §4). */
+const CARD = "grid min-w-0 gap-4 rounded-card bg-surface p-4 shadow-card"
 
 /**
  * One checklist item: its state, setup (applies, photo target, guidance, due
@@ -477,16 +479,14 @@ export function RequirementSetup({
       : null
 
   const left = (
-    <div className="grid min-w-0 content-start gap-6 md:gap-8">
-      <div className="grid gap-3">
-        <OfflineNotice />
+    <div className="grid min-w-0 content-start gap-(--gutter) md:gap-4">
+      <OfflineNotice />
+      <div className={cn(CARD, "gap-3")}>
         <div className="grid gap-2">
           <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <RequirementChip requirement={requirement} />
             {notApplicable || retired ? (
-              <span className="text-meta-touch text-ink-muted md:text-meta">
-                Not counted
-              </span>
+              <span className="text-meta text-ink-muted">Not counted</span>
             ) : null}
           </p>
           {issues.length > 0 && !readOnly ? (
@@ -494,9 +494,12 @@ export function RequirementSetup({
               {issues.map((issue) => (
                 <li
                   key={issue}
-                  className="flex items-start gap-1.5 text-meta-strong text-attention"
+                  className="flex items-start gap-1.5 text-meta font-bold text-warn-fg"
                 >
-                  <WarningIcon aria-hidden className="mt-px size-4 shrink-0" />
+                  <WarningIcon
+                    aria-hidden
+                    className="mt-0.5 size-[18px] shrink-0"
+                  />
                   <span>{issue}</span>
                 </li>
               ))}
@@ -544,7 +547,7 @@ export function RequirementSetup({
       {!retired && !readOnly ? (
         <CoverageSection title="Setup" id={`${ids}-setup`}>
           <form
-            className="grid gap-5"
+            className={cn(CARD, "gap-5")}
             noValidate
             onSubmit={(event) => {
               event.preventDefault()
@@ -552,7 +555,7 @@ export function RequirementSetup({
             }}
           >
             <div className="grid gap-1.5">
-              <span className="text-label-touch text-ink md:text-label">
+              <span className="text-label text-ink">
                 Does this apply at {venueName}?
               </span>
               <AppliesChoice
@@ -583,7 +586,6 @@ export function RequirementSetup({
                       maxLength={COVERAGE_LIMITS.titleMax}
                       required
                       aria-invalid={!!errors.title || undefined}
-                      className="h-11 sm:h-9"
                       disabled={action.pending}
                     />
                     {errors.title ? (
@@ -652,7 +654,7 @@ export function RequirementSetup({
                     onChange={(e) => set("dueOn", e.currentTarget.value)}
                     aria-invalid={!!errors.dueOn || undefined}
                     aria-describedby={`${ids}-due-help`}
-                    className="h-11 w-full sm:h-9 sm:w-56"
+                    className="w-full sm:w-64"
                     disabled={action.pending}
                   />
                   <FieldDescription id={`${ids}-due-help`} className={HINT}>
@@ -667,11 +669,10 @@ export function RequirementSetup({
             ) : null}
           </form>
           {requirement.kind !== "menu_section" ? (
-            <div className="grid justify-items-start gap-1 border-t border-line pt-4">
+            <div className={cn(CARD, "justify-items-start gap-2")}>
               <Button
-                variant="quiet"
+                variant="danger"
                 size="touch"
-                className="text-negative"
                 onClick={() => setDialog("retire")}
                 disabled={action.pending}
               >
@@ -695,28 +696,31 @@ export function RequirementSetup({
             </Notice>
           ) : null}
           {choices.length === 0 ? (
-            <p className={MUTED}>No active staff at this venue.</p>
+            <p className={cn(CARD, MUTED)}>No active staff at this venue.</p>
           ) : (
-            <ul className="grid gap-0.5" aria-label="Who photographs it">
+            <ul
+              className="grid min-w-0 divide-y divide-line overflow-hidden rounded-card bg-surface shadow-card"
+              aria-label="Who photographs it"
+            >
               {choices.map((choice) => (
                 <li key={choice.id}>
-                  <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-control px-2 py-2 hover:bg-fill-hover has-disabled:cursor-not-allowed">
+                  <label className="flex min-h-16 cursor-pointer items-center gap-3 px-3 py-2.5 transition-colors duration-(--duration-quick) hover:bg-surface-2 has-checked:bg-accent-soft has-disabled:cursor-not-allowed md:px-4">
                     <input
                       type="checkbox"
                       checked={selected.includes(choice.id)}
                       onChange={() => toggle(choice.id)}
                       disabled={action.pending}
-                      className="mt-0.5 size-4 shrink-0 accent-primary"
+                      className="size-6 shrink-0 accent-select"
                     />
                     <span className="grid min-w-0 gap-0.5">
-                      <span className="flex flex-wrap items-center gap-2 text-label-touch break-words text-ink md:text-label">
+                      <span className="flex flex-wrap items-center gap-2 text-item-title [overflow-wrap:anywhere] text-ink">
                         {choice.name}
                         {!choice.away && choice.person ? (
                           <TeamTag department={choice.person.department} />
                         ) : null}
                       </span>
                       {choice.away ? (
-                        <span className="text-meta-touch text-attention md:text-meta">
+                        <span className="text-meta font-semibold text-warn-fg">
                           No longer at {venueName}. Can&apos;t be assigned here.
                         </span>
                       ) : choice.person?.jobTitle ? (
@@ -741,24 +745,22 @@ export function RequirementSetup({
     <>
       <div
         className={cn(
-          "grid gap-6 md:gap-8",
+          "grid gap-(--gutter) md:gap-4",
           photos &&
             "lg:grid-cols-[minmax(0,var(--size-reading))_minmax(340px,1fr)] lg:items-start"
         )}
       >
         {left}
         {photos ? (
-          <div className="grid min-w-0 content-start gap-6">{photos}</div>
+          <div className="grid min-w-0 content-start gap-(--gutter) md:gap-4">
+            {photos}
+          </div>
         ) : null}
       </div>
 
       {settingUp ? (
-        <div className="sticky bottom-[calc(var(--size-tabbar)+env(safe-area-inset-bottom,0px))] z-30 -mx-4 flex flex-wrap items-center justify-between gap-3 bg-panel px-4 py-3 shadow-(--shadow-bar) md:bottom-0 md:mx-0 md:rounded-panel">
-          <p
-            id={statusId}
-            role="status"
-            className="text-meta-touch text-ink-muted md:text-meta"
-          >
+        <div className="sticky bottom-[calc(var(--size-tabbar)+env(safe-area-inset-bottom,0px))] z-30 -mx-(--page-gutter) flex flex-wrap items-center justify-between gap-3 border-t border-line bg-surface px-(--page-gutter) py-3 shadow-float md:bottom-0 md:mx-0 md:rounded-card md:border-t-0 md:px-4 md:shadow-card">
+          <p id={statusId} role="status" className="text-meta text-ink-muted">
             {barStatus}
           </p>
           <Button
@@ -798,10 +800,8 @@ export function RequirementSetup({
         onConfirm={statusChange("not_applicable")}
         reportFocus={() => noticeRef.current}
       >
-        <p className="text-body-touch md:text-body-sm">
-          <strong className="font-semibold text-ink">
-            {requirement.title}
-          </strong>
+        <p className="text-body">
+          <strong className="font-bold text-ink">{requirement.title}</strong>
           <br />
           <span className="text-ink-muted">
             {[

@@ -87,7 +87,7 @@ describe("staff member's month", () => {
         inactive={false}
       />
     )
-    expect(container.querySelectorAll("span.border-dashed")).toHaveLength(0)
+    expect(container.querySelectorAll("span.bg-stripe")).toHaveLength(0)
     rerender(
       <StaffMonth
         monthly={month({ targetCount: 30, accepted: 4, pending: 3 })}
@@ -95,8 +95,7 @@ describe("staff member's month", () => {
         inactive={false}
       />
     )
-    const waiting =
-      container.querySelectorAll<HTMLElement>("span.border-dashed")
+    const waiting = container.querySelectorAll<HTMLElement>("span.bg-stripe")
     expect(waiting).toHaveLength(1)
     expect(waiting[0].style.width).toBe("10%")
   })

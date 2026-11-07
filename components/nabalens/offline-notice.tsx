@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { ArrowClockwiseIcon } from "@phosphor-icons/react"
+import { ArrowClockwiseIcon, WifiSlashIcon } from "@phosphor-icons/react"
 import { useRouter } from "next/navigation"
 
 import { Button } from "@/components/ui/button"
@@ -63,7 +63,9 @@ export function OfflineShell({ children }: { children: React.ReactNode }) {
       {/* Mounted only while it shows: OfflineNotice needs the app router. */}
       {online || pageNotices > 0 ? null : (
         <PageNotices value={null}>
-          <OfflineNotice className="mb-6 md:mb-8" />
+          {/* Common Room offline banner: edge to edge under the bar on
+              phones, a card in the page column from md. */}
+          <OfflineNotice className="-mx-(--page-gutter) -mt-4 mb-3 rounded-none md:mx-0 md:mt-0 md:mb-8 md:rounded-card" />
         </PageNotices>
       )}
       {children}
@@ -88,14 +90,11 @@ export function OfflineNotice({ className }: { className?: string }) {
   return (
     <Notice
       tone="negative"
+      icon={WifiSlashIcon}
       title={OFFLINE_COPY.title}
       className={className}
       action={
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={() => router.refresh()}
-        >
+        <Button variant="secondary" size="sm" onClick={() => router.refresh()}>
           <ArrowClockwiseIcon aria-hidden />
           {OFFLINE_COPY.action}
         </Button>

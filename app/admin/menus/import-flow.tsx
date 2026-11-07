@@ -158,16 +158,13 @@ export function ImportFlow({
   return (
     <section
       aria-labelledby={titleId}
-      className="grid gap-5 rounded-panel border border-line bg-panel p-4 md:p-6"
+      className="grid gap-5 rounded-card bg-surface p-4 shadow-card md:p-6"
     >
       <div className="grid gap-1">
-        <h2
-          id={titleId}
-          className="text-section-title-touch text-ink md:text-section-title"
-        >
+        <h2 id={titleId} className="font-display text-section-title text-ink">
           Import a menu
         </h2>
-        <p className="max-w-(--size-reading) text-body-touch text-ink-muted md:text-body">
+        <p className="max-w-(--size-reading) text-body text-ink-muted">
           Compares a file with {possessive(venueName)} active menu. Items match
           only by their source key. Nothing is saved until you create the draft.
         </p>

@@ -65,7 +65,8 @@ export default async function CommunityPage({
       userName={profile.displayName}
       logoutAction={logout}
     >
-      <div className="flex flex-col gap-4">
+      {/* Common Room: one feed column of posts on the grey canvas. */}
+      <div className="mx-auto flex w-full max-w-(--size-feed) flex-col gap-(--gutter)">
         <OfflineNotice />
         <PageHeader
           scope={venueName ?? "All venues"}
@@ -80,10 +81,10 @@ export default async function CommunityPage({
               activeCount={activeCount}
             />
           }
-          className="pb-0 md:pb-0"
+          className="pb-1 md:pb-1"
         />
         {summary && media.items.length > 0 ? (
-          <Notice role="status" action={clearFilters}>
+          <Notice tone="info" role="status" action={clearFilters}>
             {summary}
           </Notice>
         ) : null}

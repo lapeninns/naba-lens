@@ -25,15 +25,17 @@ export function ImportIssueList({ issues, className }: ImportIssueListProps) {
       <section
         aria-label={title}
         className={cn(
-          "rounded-control px-3.5 py-3 text-body-touch text-ink md:text-body-sm",
-          tone === "error" ? "bg-negative-soft" : "bg-attention-soft"
+          "rounded-card bg-warn-bg px-4 py-3 text-body text-ink",
+          tone === "error"
+            ? "shadow-[inset_4px_0_0_var(--warn-fg)]"
+            : "shadow-[inset_4px_0_0_var(--border-strong)]"
         )}
       >
-        <p className="flex items-center gap-2 font-semibold">
+        <p className="flex items-center gap-2 font-bold">
           {tone === "error" ? (
-            <WarningCircleIcon aria-hidden className="size-5 text-negative" />
+            <WarningCircleIcon aria-hidden className="size-5 text-warn-fg" />
           ) : (
-            <WarningIcon aria-hidden className="size-5 text-attention" />
+            <WarningIcon aria-hidden className="size-5 text-warn-fg" />
           )}
           {title}
         </p>
@@ -41,7 +43,7 @@ export function ImportIssueList({ issues, className }: ImportIssueListProps) {
           {list.map((issue, i) => (
             <li key={`${issue.path}-${i}`} className="break-words">
               {issue.path ? (
-                <span className="font-mono text-mono text-ink-muted">
+                <span className="font-mono text-meta text-ink-muted">
                   {issue.path}:{" "}
                 </span>
               ) : null}

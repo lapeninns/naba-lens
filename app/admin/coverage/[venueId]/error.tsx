@@ -31,12 +31,7 @@ export default function VenueCoverageError({
           title={VENUE_COVERAGE_COPY.couldNotLoad}
           action={
             <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={() => retry()}
-              >
+              <Button type="button" variant="primary" onClick={() => retry()}>
                 <ArrowClockwiseIcon aria-hidden />
                 {ERROR_COPY.tryAgain}
               </Button>

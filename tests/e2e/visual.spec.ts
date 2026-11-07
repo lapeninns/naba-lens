@@ -25,7 +25,11 @@ import {
 } from "./helpers/coverage-world"
 import { openEmailLink } from "./helpers/email-link"
 import { provisioner, psql } from "./helpers/stack"
-import { openPortfolio, STAFF_LANDING, staffTile } from "./helpers/ui"
+import {
+  openPortfolio as gotoPortfolio,
+  STAFF_LANDING,
+  staffTile,
+} from "./helpers/ui"
 
 /**
  * Visual and accessibility regression pass (spec §4). For every screen and
@@ -505,6 +509,17 @@ function adminTile(page: Page, filename: string) {
   return page.getByRole("button", {
     name: new RegExp(filename.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
   })
+}
+
+/**
+ * Opens My portfolio and waits for React's streamed segments to be revealed.
+ * For a moment after `load`, a completed boundary sits both in the page and in
+ * a hidden `<div id="S:n">` it is moved out of, so strict text and tile
+ * locators would match twice (seen on HEAD and on this branch alike).
+ */
+async function openPortfolio(page: Page) {
+  await gotoPortfolio(page)
+  await expect(page.locator('body > div[hidden][id^="S:"]')).toHaveCount(0)
 }
 
 // ---------------------------------------------------------------------------
@@ -1263,12 +1278,29 @@ test("coverage: staff Home, a task, its send dialog and the month", async ({
       .getByText("The photos you send now replace this one.", { exact: true })
   ).toBeVisible()
   await capture(page, testInfo, "coverage-staff-task-replacement")
+  // "Take a photo" opens the camera (a file input); the send dialog opens
+  // once a photo is picked, and nothing uploads until "Upload N files".
   const send = page.getByRole("button", { name: "Take a photo" })
   const dialog = page.getByRole("dialog")
-  await send.click()
-  await expect(dialog).toBeVisible()
+  const photo = {
+    name: "task-photo.jpg",
+    mimeType: "image/jpeg",
+    buffer: await sharp({
+      create: { width: 800, height: 600, channels: 3, background: "#b85a28" },
+    })
+      .jpeg()
+      .toBuffer(),
+  }
+  const openSend = async () => {
+    if (await dialog.isVisible()) return
+    const chooser = page.waitForEvent("filechooser")
+    await send.click()
+    await (await chooser).setFiles(photo)
+    await expect(dialog).toBeVisible()
+  }
+  await openSend()
   await capture(page, testInfo, "coverage-staff-send-dialog", {
-    restore: reopen(page, send, dialog),
+    restore: openSend,
   })
   await page.keyboard.press("Escape")
   await expect(dialog).toBeHidden()

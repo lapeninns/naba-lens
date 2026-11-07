@@ -3,14 +3,20 @@
 import * as React from "react"
 import {
   ArrowClockwiseIcon,
+  ArrowUpIcon,
+  CheckIcon,
+  ClockIcon,
+  FileIcon,
   FilmStripIcon,
+  HourglassIcon,
   ImageIcon,
   TagIcon,
   UploadSimpleIcon,
+  WarningCircleIcon,
   XIcon,
 } from "@phosphor-icons/react"
+import type { Icon } from "@phosphor-icons/react"
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button, buttonVariants } from "@/components/ui/button"
 import {
   Dialog,
@@ -137,6 +143,28 @@ function statusLine(
     .join(" · ")
 }
 
+/** The mono state word's icon and tone (DESIGN.md §3 upload states). */
+const STATUS_LOOK: Record<QueueItem["status"], { icon?: Icon; tone: string }> =
+  {
+    selected: { tone: "text-ink-muted" },
+    queued: { icon: ClockIcon, tone: "text-ink-muted" },
+    uploading: { icon: ArrowUpIcon, tone: "text-ink" },
+    processing: { icon: HourglassIcon, tone: "text-ink" },
+    done: { icon: CheckIcon, tone: "text-ok-fg" },
+    failed: { icon: WarningCircleIcon, tone: "text-warn-fg" },
+    cancelled: { icon: XIcon, tone: "text-ink-muted" },
+  }
+
+/** Icon for a file that was not added, from its reason. */
+function rejectedIcon(file: RejectedFile): Icon {
+  const kind = guessMediaKind({ name: file.name, type: "" } as File)
+  return kind === "video"
+    ? FilmStripIcon
+    : kind === "image"
+      ? ImageIcon
+      : FileIcon
+}
+
 function mb(bytes: number) {
   return `${Math.round(bytes / (1024 * 1024))} MB`
 }
@@ -146,7 +174,7 @@ function FileThumb({ item }: { item: QueueItem }) {
   const [failed, setFailed] = React.useState(false)
   const Icon = item.kind === "video" ? FilmStripIcon : ImageIcon
   return (
-    <span className="relative flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-md bg-media-placeholder text-muted-foreground">
+    <span className="relative flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-control bg-media-placeholder text-ink-muted">
       {url && !failed ? (
         // Local object URL preview; HEIC and similar fall back to the icon.
         // eslint-disable-next-line @next/next/no-img-element
@@ -157,7 +185,7 @@ function FileThumb({ item }: { item: QueueItem }) {
           onError={() => setFailed(true)}
         />
       ) : (
-        <Icon className="size-5" aria-hidden />
+        <Icon className="size-6" aria-hidden />
       )}
     </span>
   )
@@ -176,19 +204,30 @@ function QueueRow({
 }) {
   const percent = Math.round(item.progress * 100)
   const statusId = `${item.id}-status`
+  const look = STATUS_LOOK[item.status]
+  const StatusIcon = look.icon
   return (
-    <li className="flex items-center gap-3 py-2.5" aria-describedby={statusId}>
+    <li
+      className="flex min-w-0 items-center gap-3 rounded-card bg-surface p-3 shadow-card"
+      aria-describedby={statusId}
+    >
       <FileThumb item={item} />
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium">{item.file.name}</p>
+      <div className="grid min-w-0 flex-1 gap-0.5">
+        <p className="truncate text-label text-ink">{item.file.name}</p>
         <p
           id={statusId}
           className={cn(
-            "text-xs text-muted-foreground tabular-nums",
-            item.status === "failed" && "text-negative",
-            item.status === "done" && "text-positive"
+            "font-mono text-meta-strong [overflow-wrap:anywhere] tabular-nums",
+            look.tone
           )}
         >
+          {StatusIcon ? (
+            <StatusIcon
+              aria-hidden
+              weight="bold"
+              className="me-1.5 inline size-[18px] -translate-y-px align-middle"
+            />
+          ) : null}
           {formatBytes(item.file.size)} · {STATUS_TEXT[item.status]}
           {item.status === "uploading" ? ` ${percent}%` : null}
           {item.status === "failed" && item.error ? ` — ${item.error}` : null}
@@ -197,6 +236,7 @@ function QueueRow({
           <Progress
             value={item.status === "processing" ? null : percent}
             aria-label={`${item.file.name} ${STATUS_TEXT[item.status]}`}
+            tone="neutral"
             className="mt-1.5"
           />
         ) : null}
@@ -205,7 +245,6 @@ function QueueRow({
         <Button
           variant="ghost"
           size="icon-lg"
-          className="size-11 sm:size-9"
           onClick={onRemove}
           aria-label={`Remove ${item.file.name}`}
         >
@@ -214,7 +253,7 @@ function QueueRow({
       ) : item.status === "queued" || item.status === "uploading" ? (
         <Button
           variant="ghost"
-          size="touch"
+          size="sm"
           onClick={onCancel}
           aria-label={`Cancel ${item.file.name}`}
         >
@@ -222,8 +261,8 @@ function QueueRow({
         </Button>
       ) : item.status === "failed" || item.status === "cancelled" ? (
         <Button
-          variant="outline"
-          size="touch"
+          variant="secondary"
+          size="sm"
           onClick={onRetry}
           aria-label={`Retry ${item.file.name}`}
         >
@@ -424,6 +463,9 @@ export function UploadDialog({
         <div>
           <PhotoSourceActions
             layout="row"
+            // One blue button per screen: once files are queued, the footer
+            // action is the primary and choosing more goes grey.
+            libraryVariant={items.length > 0 ? "secondary" : "primary"}
             describedBy={limitsId}
             onChoose={(source) =>
               (source === "library" ? fileInput : cameraInput).current?.click()
@@ -453,22 +495,47 @@ export function UploadDialog({
         </div>
 
         {rejected.length > 0 ? (
-          <Alert variant="destructive">
-            <AlertTitle>
+          // A warn card: what wasn't added, then each file with its reason.
+          <div
+            role="alert"
+            className="grid gap-2 rounded-card bg-surface p-3 ps-4 shadow-[var(--elevation-card),inset_4px_0_0_var(--warn-fg)]"
+          >
+            <p className="flex items-center gap-2 font-display text-section-title text-ink">
+              <WarningCircleIcon
+                aria-hidden
+                weight="bold"
+                className="size-6 shrink-0 text-warn-fg"
+              />
               {rejected.length === 1
                 ? "1 file was not added"
                 : `${rejected.length} files were not added`}
-            </AlertTitle>
-            <AlertDescription>
-              <ul className="list-none">
-                {rejected.map((r, i) => (
-                  <li key={`${r.name}-${i}`} className="break-words">
-                    <span className="font-medium">{r.name}</span>: {r.reason}
+            </p>
+            <ul className="grid list-none divide-y divide-line rounded-card border border-line">
+              {rejected.map((r, i) => {
+                const FileKind = rejectedIcon(r)
+                return (
+                  <li
+                    key={`${r.name}-${i}`}
+                    className="flex min-w-0 items-start gap-3 p-3"
+                  >
+                    <span
+                      aria-hidden
+                      className="grid size-11 shrink-0 place-items-center rounded-round bg-warn-bg text-warn-fg"
+                    >
+                      <FileKind className="size-5" />
+                    </span>
+                    <span className="min-w-0 text-body [overflow-wrap:anywhere] text-ink-muted">
+                      <span className="block text-label text-ink">
+                        {r.name}
+                        <span className="sr-only">:</span>
+                      </span>{" "}
+                      {r.reason}
+                    </span>
                   </li>
-                ))}
-              </ul>
-            </AlertDescription>
-          </Alert>
+                )
+              })}
+            </ul>
+          </div>
         ) : null}
 
         {signedOut ? (
@@ -485,7 +552,11 @@ export function UploadDialog({
         ) : null}
 
         {items.length > 0 ? (
-          <ul aria-label="Files" className="-my-1 divide-y">
+          // Each file as a white row on the grey canvas (Common Room queue).
+          <ul
+            aria-label="Files"
+            className="-mx-1 grid gap-2 rounded-card bg-bg p-1.5"
+          >
             {items.map((item) => (
               <QueueRow
                 key={item.id}
@@ -498,14 +569,20 @@ export function UploadDialog({
           </ul>
         ) : null}
 
-        <div aria-live="polite" className="text-sm">
+        <div aria-live="polite" className="grid gap-1 text-body">
           {closeBlocked && isActive ? (
-            <p className="text-warning">
-              Uploads are still running. Keep this open, or cancel them first.
+            <p className="flex items-start gap-2 font-semibold text-warn-fg">
+              <WarningCircleIcon
+                aria-hidden
+                className="mt-0.5 size-5 shrink-0"
+              />
+              <span>
+                Uploads are still running. Keep this open, or cancel them first.
+              </span>
             </p>
           ) : null}
           {onLabel && labelIds.length > 0 ? (
-            <p className="mt-1 text-muted-foreground">
+            <p className="text-ink-muted">
               Optional: add menu items or details now, or later from each file.
             </p>
           ) : null}
@@ -515,18 +592,18 @@ export function UploadDialog({
           {items.length > 0 && status ? (
             <p
               role="status"
-              className="text-meta-touch text-ink-muted tabular-nums md:mr-auto md:self-center md:text-meta"
+              className="font-mono text-meta-strong text-ink-muted tabular-nums md:mr-auto md:self-center"
             >
               {status}
             </p>
           ) : null}
           {isActive ? (
-            <Button variant="outline" size="touch" onClick={queue.cancelAll}>
+            <Button variant="secondary" size="touch" onClick={queue.cancelAll}>
               Cancel all
             </Button>
           ) : (
             <Button
-              variant="outline"
+              variant="secondary"
               size="touch"
               onClick={() => handleOpenChange(false)}
             >
@@ -536,7 +613,7 @@ export function UploadDialog({
           {onLabel && labelIds.length > 0 ? (
             <Button
               variant={
-                summary.failed + summary.stopped > 0 ? "outline" : "default"
+                summary.failed + summary.stopped > 0 ? "secondary" : "primary"
               }
               size="touch"
               onClick={() => {

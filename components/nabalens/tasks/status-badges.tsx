@@ -26,9 +26,17 @@ const WORD_STATE: Record<string, ChipStateKey> = {
   Complete: "complete",
   "Needs another photo": "needs_another_photo",
   Overdue: "overdue",
+  // Common Room: each fixed word is drawn in its own shape (DESIGN.md §3)
+  Accepted: "accepted",
+  Submitted: "submitted",
+  Closed: "closed",
+  "Not applicable": "not_applicable",
+  Retired: "retired",
+  "Needs reassignment": "needs_reassignment",
+  "Self-review": "self_review",
 }
 
-/** Small status chip. The text carries the meaning; colour only repeats it. */
+/** Status chip. The text carries the meaning; shape and colour only repeat it. */
 export function StatusChip({
   tone,
   children,

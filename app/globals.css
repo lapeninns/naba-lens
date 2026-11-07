@@ -5,121 +5,159 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Naba-Lens design system tokens. The source of truth is the "Naba-Lens"
- * design system (tokens.json); keep the names and values in step with it.
+ * Naba-Lens "Common Room" tokens (DESIGN.md v0.3). The source of truth is
+ * research/naba-lens-common-room-2026-11-07/assets/common-room.css §0.
  *
- * The photographs carry the colour, the interface keeps count. Surfaces are
- * true neutral so a photo is judged against a fair grey; only ink and the
- * cyanotype accent carry a hue. The accent means "you can act here" or
- * "chosen", never a status. Status tones: positive (counted or complete),
- * attention (a person needs to act), negative (failed, late or destructive).
- * Waiting states are a dashed ink-muted edge, not a colour. Every text token
- * reaches 4.5:1 on the grounds tokens.json names for it, in both themes.
+ * A staff room you already know: a light grey canvas, white cards, grey
+ * buttons, one solid blue primary per screen. Blue is rationed: solid
+ * --accent fills the one primary button (and marks a selection the person
+ * made); --accent-text marks the active tab; --accent-soft marks a selected
+ * filter, segment, side nav item or row. Blue never marks a state. State is a
+ * word, a shape and a tone (ok / warn / info), never colour alone.
+ *
+ * Two name sets resolve to the same values:
+ *  - Common Room names: --bg --surface --surface-2 --raised --fg --border
+ *    --border-strong --accent* --focus --ok-* --warn-* --info-fg/-bg …
+ *  - The app's earlier names (--paper --panel --well --ink --ink-muted
+ *    --line --positive --attention --negative …), kept as aliases so every
+ *    existing component reads the new system. CR "--muted" (secondary text)
+ *    is --ink-muted here: shadcn already owns --muted as a fill.
  */
 :root {
-  /* Surfaces */
-  --paper: oklch(0.985 0 0);
-  --panel: oklch(1 0 0);
-  --well: oklch(0.955 0 0);
-  --fill-hover: oklch(0.94 0 0);
-  --fill-press: oklch(0.915 0 0);
-  --line: oklch(0.905 0 0);
-  --line-control: oklch(0.62 0 0);
-  /* Ink: blue-black, like cyanotype captions */
-  --ink: oklch(0.235 0.022 255);
-  --ink-muted: oklch(0.455 0.02 255);
-  --ink-subtle: oklch(0.53 0.016 255);
-  /* Accent: cyanotype blue */
-  --accent: oklch(0.46 0.115 250);
-  --accent-hover: oklch(0.405 0.115 250);
+  /* Common Room: surfaces and ink */
+  --bg: oklch(0.955 0.004 250); /* #eef0f3 grey canvas */
+  --surface: oklch(1 0 0); /* #ffffff cards, bars, sheets */
+  --surface-2: oklch(0.935 0.005 250); /* #e7eaed grey buttons, fields */
+  --raised: oklch(0.895 0.006 250); /* #d9dde0 hover on grey */
+  --fg: oklch(0.2 0.01 250); /* #13161a */
+  --fg-muted: oklch(0.45 0.012 250); /* #50565c (CR --muted) */
+  --border-strong: oklch(0.56 0.012 250); /* #6f757b */
+  /* Accent */
+  --accent: oklch(0.5 0.16 252); /* #0063ba primary fill */
+  --accent-hover: oklch(0.44 0.15 252); /* #0052a1 */
   --on-accent: oklch(1 0 0);
-  --accent-text: oklch(0.46 0.115 250);
-  --accent-soft: oklch(0.955 0.021 248);
-  --focus: oklch(0.5 0.13 250);
-  /* Status */
-  --positive: oklch(0.47 0.1 158);
-  --positive-soft: oklch(0.955 0.04 158);
-  --positive-fill: oklch(0.57 0.12 158);
-  --on-positive-fill: oklch(1 0 0);
-  --attention: oklch(0.505 0.105 65);
-  --attention-soft: oklch(0.962 0.042 88);
-  --negative: oklch(0.52 0.17 27);
-  --negative-soft: oklch(0.956 0.018 25);
-  --negative-fill: oklch(0.52 0.17 27);
-  --on-negative-fill: oklch(1 0 0);
-  /* Media: the same viewer and badges in both themes */
-  --media-placeholder: oklch(0.93 0 0);
-  --viewer: oklch(0.15 0 0);
-  --on-viewer: oklch(0.965 0 0);
-  --on-viewer-muted: oklch(0.76 0 0);
-  --tile-badge: rgba(14, 14, 14, 0.74);
-  --on-tile-badge: oklch(1 0 0);
-  --scrim: rgba(12, 12, 12, 0.48);
-  /* Elevation, for things that float. Use as shadow-(--shadow-overlay). */
-  --shadow-overlay:
-    0 1px 2px rgba(23, 31, 40, 0.06), 0 8px 24px rgba(23, 31, 40, 0.12);
-  --shadow-sheet:
-    0 -1px 0 rgba(23, 31, 40, 0.04), 0 16px 48px rgba(23, 31, 40, 0.18);
-  --shadow-bar:
-    0 -1px 0 rgba(23, 31, 40, 0.08), 0 -6px 16px rgba(23, 31, 40, 0.06);
+  --accent-text: oklch(0.5 0.16 252); /* active tab */
+  --accent-soft: oklch(0.93 0.035 252); /* selected filter, side nav item */
+  --focus: oklch(0.5 0.16 252);
+  --select: var(--accent); /* ticked box, chosen radio, picked tile ring */
+  --on-select: var(--on-accent);
+  /* State tones: text on tint */
+  --ok-fg: oklch(0.42 0.11 155);
+  --ok-bg: oklch(0.94 0.045 155);
+  --warn-fg: oklch(0.47 0.15 32);
+  --warn-bg: oklch(0.95 0.035 35);
+  --info-fg: oklch(0.44 0.09 215);
+  --info-bg: oklch(0.95 0.03 215);
+  --stamp-fg: oklch(0.2 0.01 250);
+  --hatch: oklch(0.88 0.006 250);
+  --plate: oklch(0.15 0.01 250 / 0.86); /* solid plate under text on photos */
+  --stage: oklch(0.12 0.005 250); /* camera and viewer stage */
+  /* Elevation. Use as shadow-card / shadow-float. */
+  --elevation-card:
+    0 1px 2px oklch(0.2 0.01 250 / 0.12), 0 0 0 1px oklch(0.2 0.01 250 / 0.04);
+  --elevation-float:
+    0 12px 28px oklch(0.2 0.01 250 / 0.18), 0 2px 4px oklch(0.2 0.01 250 / 0.1);
+  --gutter: 0.75rem; /* card gap in a feed: 12px */
+
+  /* Earlier names with their own values (the var() aliases are below) */
+  --line: oklch(0.88 0.006 250); /* #d5d8db dividers (CR --border) */
+  --ink-subtle: oklch(0.49 0.012 250); /* still 6:1 on surface */
+  --viewer: var(--stage);
+  --on-viewer: oklch(0.97 0 0);
+  --on-viewer-muted: oklch(0.78 0.005 250);
+  --on-tile-badge: oklch(0.97 0 0);
+  --scrim: oklch(0.15 0.01 250 / 0.5);
   --radius: 0.5rem;
   /* Sizes that are not on Tailwind's 4px scale. Use as max-w-(--size-page). */
   --size-reading: 40rem;
-  --size-dialog: 32.5rem;
+  --size-dialog: 35rem;
   --size-dialog-wide: 47.5rem;
   --size-page: 75rem;
+  --size-feed: 37.5rem;
   --size-tile-min: 10rem;
-  --size-tabbar: 4.25rem;
-  /* Motion */
-  --duration-quick: 120ms;
+  --size-tabbar: 4rem; /* tab 60px + 4px; the bar adds the safe area */
+  /* Phone page gutter (feed gutter 12px). Full-bleed: -mx-(--page-gutter). */
+  --page-gutter: 0.75rem;
+  /* Motion: hover 150ms, sheets rise in 260ms */
+  --duration-quick: 150ms;
   --duration-move: 180ms;
-  --duration-sheet: 240ms;
-  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --duration-sheet: 260ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  color-scheme: light;
 }
 
 .dark {
-  --paper: oklch(0.18 0 0);
-  --panel: oklch(0.218 0 0);
-  --well: oklch(0.258 0 0);
-  --fill-hover: oklch(0.28 0 0);
-  --fill-press: oklch(0.315 0 0);
-  --line: oklch(0.31 0 0);
-  --line-control: oklch(0.555 0 0);
-  --ink: oklch(0.945 0.008 255);
-  --ink-muted: oklch(0.765 0.014 255);
-  --ink-subtle: oklch(0.68 0.012 255);
-  --accent: oklch(0.745 0.1 245);
-  --accent-hover: oklch(0.8 0.09 245);
-  --on-accent: oklch(0.2 0.03 255);
-  --accent-text: oklch(0.79 0.095 245);
-  --accent-soft: oklch(0.31 0.055 250);
-  --focus: oklch(0.8 0.098 245);
-  --positive: oklch(0.81 0.12 158);
-  --positive-soft: oklch(0.29 0.045 158);
-  --positive-fill: oklch(0.72 0.13 158);
-  --on-positive-fill: oklch(0.2 0.03 160);
-  --attention: oklch(0.85 0.11 82);
-  --attention-soft: oklch(0.3 0.05 78);
-  --negative: oklch(0.77 0.13 25);
-  --negative-soft: oklch(0.3 0.065 25);
-  --negative-fill: oklch(0.72 0.14 25);
-  --on-negative-fill: oklch(0.18 0.02 25);
-  --media-placeholder: oklch(0.27 0 0);
-  --scrim: rgba(0, 0, 0, 0.62);
-  --shadow-overlay:
-    0 1px 2px rgba(0, 0, 0, 0.5), 0 12px 32px rgba(0, 0, 0, 0.55);
-  --shadow-sheet:
-    0 -1px 0 rgba(255, 255, 255, 0.04), 0 20px 56px rgba(0, 0, 0, 0.6);
-  --shadow-bar:
-    0 -1px 0 rgba(255, 255, 255, 0.06), 0 -6px 16px rgba(0, 0, 0, 0.4);
+  --bg: oklch(0.19 0.003 250); /* #131415 */
+  --surface: oklch(0.245 0.004 250); /* #1f2122 */
+  --surface-2: oklch(0.31 0.005 250); /* #2e3133 */
+  --raised: oklch(0.36 0.006 250); /* #3b3d40 */
+  --fg: oklch(0.95 0.003 250); /* #edeff0 */
+  --fg-muted: oklch(0.77 0.008 250); /* #b0b5b9 */
+  --border-strong: oklch(0.6 0.008 250);
+  --accent: oklch(0.5 0.16 252);
+  --accent-hover: oklch(0.44 0.15 252);
+  --on-accent: oklch(1 0 0);
+  --accent-text: oklch(0.76 0.12 250); /* #73b6fa */
+  --accent-soft: oklch(0.32 0.06 252); /* #1a3450 */
+  --focus: oklch(0.76 0.12 250);
+  /* solid accent is 2.7:1 on dark surface; selection marks use accent-text */
+  --select: var(--accent-text);
+  --on-select: var(--surface);
+  --ok-fg: oklch(0.86 0.13 155);
+  --ok-bg: oklch(0.31 0.06 155);
+  --warn-fg: oklch(0.85 0.11 35);
+  --warn-bg: oklch(0.32 0.07 30);
+  --info-fg: oklch(0.84 0.08 215);
+  --info-bg: oklch(0.31 0.05 215);
+  --stamp-fg: oklch(0.95 0.003 250);
+  --hatch: oklch(0.38 0.005 250);
+  --plate: oklch(0.12 0.005 250 / 0.9);
+  --elevation-card: 0 0 0 1px oklch(1 0 0 / 0.06);
+  --elevation-float:
+    0 12px 28px oklch(0 0 0 / 0.5), 0 0 0 1px oklch(1 0 0 / 0.08);
+  --line: oklch(0.36 0.005 250);
+  --ink-subtle: oklch(0.7 0.008 250);
+  --scrim: oklch(0 0 0 / 0.6);
+  color-scheme: dark;
 }
 
 /*
- * shadcn slot names, kept so the existing primitives read the system while
- * components move to the system names. Declared on .dark as well so a dark
- * subtree resolves them against its own values. shadcn's own "accent" slot
- * (a neutral hover fill) is fill-hover here: --accent is the brand colour.
+ * Aliases. A var() in a custom property is resolved on the element that
+ * declares it and inherited as a value, so each alias is declared on .dark
+ * too: a dark subtree then reads its own Common Room values.
+ */
+:root,
+.dark {
+  --paper: var(--bg);
+  --panel: var(--surface);
+  --well: var(--surface-2);
+  --fill-hover: var(--surface-2);
+  --fill-press: var(--raised);
+  --line-control: var(--border-strong);
+  --ink: var(--fg);
+  --ink-muted: var(--fg-muted);
+  --positive: var(--ok-fg);
+  --positive-soft: var(--ok-bg);
+  --positive-fill: var(--ok-fg);
+  --on-positive-fill: var(--surface);
+  --attention: var(--warn-fg);
+  --attention-soft: var(--warn-bg);
+  --negative: var(--warn-fg);
+  --negative-soft: var(--warn-bg);
+  --negative-fill: var(--warn-fg);
+  --on-negative-fill: var(--surface);
+  --media-placeholder: var(--surface-2);
+  --tile-badge: var(--plate);
+  --shadow-overlay: var(--elevation-float);
+  --shadow-sheet: var(--elevation-float);
+  --shadow-bar: 0 -1px 0 var(--line);
+}
+
+/*
+ * shadcn slot names, kept so the existing primitives read the system.
+ * shadcn's own "accent" slot (a neutral hover fill) is fill-hover here:
+ * --accent is the brand colour. shadcn "--muted" is a grey fill (surface-2).
  */
 :root,
 .dark {
@@ -140,7 +178,8 @@
   --input: var(--line-control);
   --ring: var(--focus);
   /* Earlier status names. Waiting states (submitted, uploading, invited,
-     draft) are neutral in the system, so "info" maps to ink-muted on well. */
+     draft) are neutral, so "info" stays ink-muted on well. The Common Room
+     info tone (Ready, self-review) is --info-fg on --info-bg. */
   --positive-surface: var(--positive-soft);
   --warning: var(--attention);
   --warning-surface: var(--attention-soft);
@@ -150,82 +189,125 @@
 }
 
 @theme inline {
-  /* next/font sets --font-archivo, --font-besley and --font-jetbrains-mono on <html> */
+  /* next/font sets --font-figtree, --font-atkinson-next and
+     --font-atkinson-mono on <html> (app/layout.tsx).
+     sans = body (Atkinson Hyperlegible Next); display and heading = Figtree
+     (titles, counts, tab labels, the Complete stamp); mono = meta, times and
+     percentages (Atkinson Hyperlegible Mono, tabular). */
   --font-sans:
-    var(--font-archivo), -apple-system, BlinkMacSystemFont, "Segoe UI",
-    system-ui, sans-serif;
-  --font-display: var(--font-besley), "Iowan Old Style", Georgia, serif;
+    var(--font-atkinson-next), "Atkinson Hyperlegible", system-ui,
+    -apple-system, "Segoe UI", sans-serif;
+  --font-display:
+    var(--font-figtree), system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-heading:
-    var(--font-archivo), -apple-system, BlinkMacSystemFont, "Segoe UI",
-    system-ui, sans-serif;
+    var(--font-figtree), system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono:
-    var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+    var(--font-atkinson-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
 
-  /* Type styles. The Display ones (page-title*, count*) go with font-display. */
-  --text-page-title: 1.875rem;
-  --text-page-title--line-height: 2.25rem;
-  --text-page-title--font-weight: 600;
-  --text-page-title--letter-spacing: -0.015em;
-  --text-page-title-compact: 1.5625rem;
-  --text-page-title-compact--line-height: 1.875rem;
-  --text-page-title-compact--font-weight: 600;
+  /*
+   * Type styles (DESIGN.md §2 Type). The floor is 17px for product text at
+   * every width; the only exception is text-caption (15px), for a caption
+   * laid over a photo. The *-touch names are kept for components that pair
+   * them with the compact name from md up; both now resolve to the same
+   * Common Room size. Tailwind's text-xs/sm/base are lifted to the floor.
+   */
+  --text-xs: 1.0625rem;
+  --text-xs--line-height: 1.4;
+  --text-sm: 1.0625rem;
+  --text-sm--line-height: 1.45;
+  --text-base: 1.0625rem;
+  --text-base--line-height: 1.5;
+  /* Display XL 34/1.05/800 */
+  --text-display: 2.125rem;
+  --text-display--line-height: 1.05;
+  --text-display--font-weight: 800;
+  --text-display--letter-spacing: -0.02em;
+  /* Heading LG 26/1.15/750: a page's <h1> */
+  --text-page-title: 1.625rem;
+  --text-page-title--line-height: 1.15;
+  --text-page-title--font-weight: 750;
+  --text-page-title--letter-spacing: -0.01em;
+  /* Top bar title 24/1.15/800 */
+  --text-page-title-compact: 1.5rem;
+  --text-page-title-compact--line-height: 1.15;
+  --text-page-title-compact--font-weight: 800;
   --text-page-title-compact--letter-spacing: -0.01em;
-  --text-count: 1.875rem;
-  --text-count--line-height: 2rem;
-  --text-count--font-weight: 600;
-  --text-count-sm: 1.375rem;
-  --text-count-sm--line-height: 1.625rem;
-  --text-count-sm--font-weight: 600;
-  --text-section-title: 1.125rem;
-  --text-section-title--line-height: 1.5rem;
-  --text-section-title--font-weight: 600;
-  --text-item-title: 1rem;
-  --text-item-title--line-height: 1.375rem;
-  --text-item-title--font-weight: 600;
-  --text-body: 0.9375rem;
-  --text-body--line-height: 1.375rem;
-  --text-body-sm: 0.875rem;
-  --text-body-sm--line-height: 1.25rem;
-  --text-label: 0.875rem;
-  --text-label--line-height: 1.25rem;
-  --text-label--font-weight: 600;
-  /* Phone styles, below md, for staff aged 40 and over. Pair them with the
-     compact style from md up: text-body-touch md:text-body. */
-  --text-label-touch: 1.0625rem;
-  --text-label-touch--line-height: 1.375rem;
-  --text-label-touch--font-weight: 600;
+  /* Count 46/0.95/800, tabular (pair with font-display tabular-nums) */
+  --text-count: 2.875rem;
+  --text-count--line-height: 0.95;
+  --text-count--font-weight: 800;
+  --text-count--letter-spacing: -0.03em;
+  --text-count-sm: 1.625rem;
+  --text-count-sm--line-height: 1.1;
+  --text-count-sm--font-weight: 800;
+  --text-count-touch: 2.875rem;
+  --text-count-touch--line-height: 0.95;
+  --text-count-touch--font-weight: 800;
+  /* Heading MD / card title 21/1.25/700 (lead card title: text-card-title) */
+  --text-section-title: 1.3125rem;
+  --text-section-title--line-height: 1.25;
+  --text-section-title--font-weight: 700;
+  --text-section-title-touch: 1.3125rem;
+  --text-section-title-touch--line-height: 1.25;
+  --text-section-title-touch--font-weight: 700;
+  --text-card-title: 1.5rem;
+  --text-card-title--line-height: 1.15;
+  --text-card-title--font-weight: 750;
+  --text-card-title--letter-spacing: -0.01em;
+  /* Row title 18/1.3/700 */
+  --text-item-title: 1.125rem;
+  --text-item-title--line-height: 1.3;
+  --text-item-title--font-weight: 700;
+  --text-item-title-touch: 1.125rem;
+  --text-item-title-touch--line-height: 1.3;
+  --text-item-title-touch--font-weight: 700;
+  /* Body 17/1.5/400, lead 18 */
+  --text-body: 1.0625rem;
+  --text-body--line-height: 1.5;
   --text-body-touch: 1.0625rem;
-  --text-body-touch--line-height: 1.625rem;
-  --text-item-title-touch: 1.0625rem;
-  --text-item-title-touch--line-height: 1.375rem;
-  --text-item-title-touch--font-weight: 600;
-  --text-section-title-touch: 1.375rem;
-  --text-section-title-touch--line-height: 1.75rem;
-  --text-section-title-touch--font-weight: 600;
-  --text-meta-touch: 0.9375rem;
-  --text-meta-touch--line-height: 1.25rem;
-  --text-chip-touch: 0.8125rem;
-  --text-chip-touch--line-height: 1.125rem;
-  --text-chip-touch--font-weight: 600;
-  --text-tab-label: 0.8125rem;
-  --text-tab-label--line-height: 1rem;
-  --text-tab-label--font-weight: 600;
-  --text-count-touch: 2.125rem;
-  --text-count-touch--line-height: 2.375rem;
-  --text-count-touch--font-weight: 600;
-  --text-meta: 0.8125rem;
-  --text-meta--line-height: 1.125rem;
-  --text-meta-strong: 0.8125rem;
-  --text-meta-strong--line-height: 1.125rem;
+  --text-body-touch--line-height: 1.5;
+  --text-body-sm: 1.0625rem;
+  --text-body-sm--line-height: 1.45;
+  --text-lead: 1.125rem;
+  --text-lead--line-height: 1.5;
+  /* Field labels 17/700; button 18/1.2/700 */
+  --text-label: 1.0625rem;
+  --text-label--line-height: 1.3;
+  --text-label--font-weight: 700;
+  --text-label-touch: 1.0625rem;
+  --text-label-touch--line-height: 1.3;
+  --text-label-touch--font-weight: 700;
+  --text-button: 1.125rem;
+  --text-button--line-height: 1.2;
+  --text-button--font-weight: 700;
+  /* Meta, times: 17 (use font-mono for times and %) */
+  --text-meta: 1.0625rem;
+  --text-meta--line-height: 1.35;
+  --text-meta-strong: 1.0625rem;
+  --text-meta-strong--line-height: 1.35;
   --text-meta-strong--font-weight: 600;
-  --text-chip: 0.75rem;
-  --text-chip--line-height: 1rem;
-  --text-chip--font-weight: 600;
-  --text-chip--letter-spacing: 0.01em;
-  --text-caption: 0.75rem;
-  --text-caption--line-height: 1rem;
-  --text-mono: 0.78125rem;
-  --text-mono--line-height: 1.125rem;
+  --text-meta-touch: 1.0625rem;
+  --text-meta-touch--line-height: 1.35;
+  /* State chip 17/1.2/700 */
+  --text-chip: 1.0625rem;
+  --text-chip--line-height: 1.2;
+  --text-chip--font-weight: 700;
+  --text-chip-touch: 1.0625rem;
+  --text-chip-touch--line-height: 1.2;
+  --text-chip-touch--font-weight: 700;
+  /* Tab label 17/1.1/600 (Figtree; active 800) */
+  --text-tab-label: 1.0625rem;
+  --text-tab-label--line-height: 1.1;
+  --text-tab-label--font-weight: 600;
+  /* Caption on a photo only */
+  --text-caption: 0.9375rem;
+  --text-caption--line-height: 1.25;
+  --text-mono: 1.0625rem;
+  --text-mono--line-height: 1.3;
+
+  /* Shadows: cards, and things that float (sheets, dialogs, menus) */
+  --shadow-card: var(--elevation-card);
+  --shadow-float: var(--elevation-float);
 
   /* System colours */
   --color-paper: var(--paper);
@@ -262,6 +344,27 @@
   --color-on-tile-badge: var(--on-tile-badge);
   --color-scrim: var(--scrim);
 
+  /* Common Room names */
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-raised: var(--raised);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-border-strong: var(--border-strong);
+  --color-select: var(--select);
+  --color-on-select: var(--on-select);
+  --color-ok-fg: var(--ok-fg);
+  --color-ok-bg: var(--ok-bg);
+  --color-warn-fg: var(--warn-fg);
+  --color-warn-bg: var(--warn-bg);
+  --color-info-fg: var(--info-fg);
+  --color-info-bg: var(--info-bg);
+  --color-stamp-fg: var(--stamp-fg);
+  --color-hatch: var(--hatch);
+  --color-plate: var(--plate);
+  --color-stage: var(--stage);
+
   /* shadcn slots and earlier status names */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -286,14 +389,17 @@
   --color-info: var(--info);
   --color-info-surface: var(--info-surface);
 
-  /* Radii: the system's names, and Tailwind's scale set to the same steps */
+  /* Radii (DESIGN.md §2): button and field 8, card/post/row 12, sheet top 16,
+     square state 4, stamp 2, pills full. Tailwind's scale set to the same. */
   --radius-print: 2px;
+  --radius-stamp: 2px;
   --radius-chip: 0.25rem;
+  --radius-square: 0.25rem;
   --radius-control: 0.5rem;
   --radius-touch: 0.75rem;
   --radius-panel: 0.75rem;
-  --radius-card: 1rem;
-  --radius-sheet: 1.25rem;
+  --radius-card: 0.75rem;
+  --radius-sheet: 1rem;
   --radius-round: 9999px;
   --radius-sm: 0.25rem;
   --radius-md: 0.375rem;
@@ -326,12 +432,40 @@
   }
 }
 
-/* Archivo's width axis narrows chips and tab labels so they fit at 320px. */
+/* Kept for older markup. Figtree and Atkinson have no width axis, so these
+   are no-ops now; long words wrap instead (DESIGN.md §7: nothing scrolls
+   sideways from 320px). */
 @utility wdth-92 {
   font-variation-settings: "wdth" 92;
 }
 @utility wdth-88 {
   font-variation-settings: "wdth" 88;
+}
+
+/* Needs setup / Needs verification: the hatched fill of the dashed square. */
+@utility bg-hatch {
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent 0 6px,
+    var(--hatch) 6px 8px
+  );
+}
+/* Submitted segment in a progress row (striped, never blue). */
+@utility bg-stripe {
+  background-image: repeating-linear-gradient(
+    135deg,
+    var(--surface-2) 0 4px,
+    var(--border-strong) 4px 6px
+  );
+}
+
+/*
+ * Focus (DESIGN.md §7): a 3px --focus outline on every interactive element,
+ * in both themes. Unlayered, so it wins over the `outline-2` utilities that
+ * components set; their colour and offset still apply.
+ */
+:focus-visible {
+  outline-width: 3px;
 }
 
 /* Reduced motion removes every animation; states are always written in words. */

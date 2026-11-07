@@ -168,7 +168,7 @@ export default async function CoverageOverviewPage({
           (v) => v.venue.name
         )}
       >
-        <div className="flex flex-col gap-8">
+        <div className="flex flex-col gap-6">
           <div className="flex flex-col gap-4">
             {header}
             <OfflineNotice />
@@ -202,8 +202,8 @@ export default async function CoverageOverviewPage({
               ) : null}
               <VenueList rows={venues} />
               {isCurrent ? (
-                <div className="grid gap-6 lg:grid-cols-2">
-                  <div className="grid content-start gap-2">
+                <div className="grid items-start gap-(--gutter) lg:grid-cols-2">
+                  <div className="grid min-w-0 content-start gap-2 rounded-card bg-surface p-4 shadow-card">
                     <SectionHead
                       id="preparation-summary-title"
                       title={PREPARATION_COPY.title}
@@ -213,7 +213,7 @@ export default async function CoverageOverviewPage({
                     >
                       <a
                         href="#preparation"
-                        className="underline-offset-3 hover:underline"
+                        className="underline decoration-1 underline-offset-4 hover:decoration-2"
                       >
                         {PREPARATION_COPY.summaryLine(
                           prepared,
@@ -223,16 +223,16 @@ export default async function CoverageOverviewPage({
                       </a>
                     </SummaryLine>
                   </div>
-                  <div className="grid content-start gap-2">
+                  <div className="grid min-w-0 content-start gap-2 rounded-card bg-surface p-4 shadow-card">
                     <SectionHead
                       id="self-review-summary-title"
                       title={COVERAGE_COPY.selfReviews}
                     />
-                    <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-body-touch md:text-body-sm">
+                    <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-body">
                       <StatusChip state="self_review" />
                       <a
                         href="#self-reviews"
-                        className="inline-flex min-h-11 items-center text-ink underline underline-offset-3 md:min-h-0"
+                        className="inline-flex min-h-11 items-center text-ink underline underline-offset-4"
                       >
                         {COVERAGE_COPY.selfReviewsThisMonth(selfReviewCount)}
                       </a>
@@ -262,7 +262,7 @@ export default async function CoverageOverviewPage({
                     id="self-review-title"
                     title={SELF_REVIEWS_COPY.title}
                   />
-                  <p className="max-w-(--size-reading) text-body-touch text-ink-muted md:text-body-sm">
+                  <p className="max-w-(--size-reading) px-1 text-body text-ink-muted">
                     {SELF_REVIEWS_COPY.body}
                   </p>
                 </div>
@@ -275,10 +275,10 @@ export default async function CoverageOverviewPage({
                   <SelfReviewsControl initial={selfReviews} period={period} />
                 )}
                 <div className="mt-3 grid gap-1">
-                  <h3 className="text-item-title-touch text-ink md:text-item-title">
+                  <h3 className="px-1 font-display text-item-title text-ink">
                     {ITEM_SELF_REVIEWS_COPY.title}
                   </h3>
-                  <p className="max-w-(--size-reading) text-body-touch text-ink-muted md:text-body-sm">
+                  <p className="max-w-(--size-reading) px-1 text-body text-ink-muted">
                     {ITEM_SELF_REVIEWS_COPY.body}
                   </p>
                 </div>

@@ -7,6 +7,7 @@ import { StarIcon } from "@phosphor-icons/react"
 import { EvidenceThumb } from "@/components/nabalens/coverage/evidence-image"
 import { formatDateTime } from "@/components/nabalens/menus/copy"
 import { waitingFor } from "@/components/nabalens/menu-photos/copy"
+import { Card } from "@/components/nabalens/common-room"
 import { Notice } from "@/components/nabalens/notice"
 import { StatusChip } from "@/components/nabalens/status-chip"
 import { Button } from "@/components/ui/button"
@@ -92,39 +93,40 @@ export function ReviewCard({
 
   if (card.settled) {
     return (
-      <article
+      <Card
+        as="article"
+        variant="tint"
+        tight
         data-card-key={card.key}
         aria-labelledby={titleId}
-        className="flex items-center gap-3 rounded-panel border border-line bg-well p-3"
+        className="flex items-center gap-3"
       >
         <EvidenceThumb
           src={card.asset.thumbnailUrl}
-          className="aspect-square w-14 shrink-0"
+          className="aspect-square w-14 shrink-0 rounded-control"
         />
         <div className="grid min-w-0 gap-1">
-          <p
-            id={titleId}
-            className="text-label-touch break-words text-ink md:text-label"
-          >
+          <p id={titleId} className="text-label break-words text-ink">
             {card.settledItemName ?? itemName ?? REVIEW_COPY.noMenuItem} ·{" "}
             {label}
           </p>
           <div className="flex flex-wrap items-center gap-1.5">
             <CardStateChip card={card} />
-            <span className="text-meta-touch text-ink-muted md:text-meta">
+            <span className="text-meta text-ink-muted">
               {REVIEW_COPY.settled}
             </span>
           </div>
         </div>
-      </article>
+      </Card>
     )
   }
 
   return (
-    <article
+    <Card
+      as="article"
       data-card-key={card.key}
       aria-labelledby={titleId}
-      className="grid gap-4 rounded-panel border border-line bg-panel p-4 @min-[40rem]:grid-cols-[minmax(0,320px)_minmax(0,1fr)]"
+      className="gap-4 @min-[40rem]:grid-cols-[minmax(0,320px)_minmax(0,1fr)]"
     >
       <div className="relative">
         <EvidenceThumb src={card.asset.thumbnailUrl ?? card.asset.previewUrl} />
@@ -133,7 +135,7 @@ export function ReviewCard({
           data-preview-trigger={card.key}
           onClick={(event) => onOpenPreview(event.currentTarget)}
           aria-label={REVIEW_COPY.openPreview(card.contributor.name)}
-          className="absolute inset-0 z-10 min-h-11 rounded-print outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+          className="absolute inset-0 z-10 min-h-11 rounded-control outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
         />
       </div>
       <div className="grid min-w-0 content-start gap-3">
@@ -150,15 +152,12 @@ export function ReviewCard({
             </StatusChip>
           ) : null}
         </div>
-        <h3
-          id={titleId}
-          className="text-item-title-touch break-words text-ink md:text-item-title"
-        >
+        <h3 id={titleId} className="text-item-title break-words text-ink">
           {card.item ? (
             showItemLink ? (
               <Link
                 href={itemHref(scope, card.item.itemId)}
-                className="rounded-control underline-offset-3 outline-none hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+                className="rounded-control underline-offset-3 outline-none hover:underline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
               >
                 {card.item.name}
               </Link>
@@ -175,7 +174,7 @@ export function ReviewCard({
             </span>
           ) : null}
         </h3>
-        <dl className="grid gap-1 text-body-touch md:text-body-sm">
+        <dl className="grid gap-1.5 text-body">
           <div className="flex flex-wrap gap-x-2">
             <dt className="sr-only">Staff label</dt>
             {labelLines(card).map((line) => (
@@ -199,25 +198,25 @@ export function ReviewCard({
             </div>
           ) : null}
         </dl>
-        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-body-touch md:text-body-sm">
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-body">
           {card.isSelf ? (
             <span className="font-semibold text-ink">{who}</span>
           ) : (
             <Link
               href={contributorHref(scope, card.contributor.id)}
-              className="rounded-control font-semibold break-words text-accent-text underline underline-offset-3 outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid max-md:inline-flex max-md:min-h-11 max-md:items-center"
+              className="rounded-control font-bold break-words text-ink underline underline-offset-3 outline-none hover:decoration-2 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid max-md:inline-flex max-md:min-h-11 max-md:items-center"
             >
               {who}
             </Link>
           )}
           {chip ? <StatusChip tone="closed">{chip}</StatusChip> : null}
-          <span className="text-meta-touch text-ink-muted md:text-meta">
+          <span className="text-meta text-ink-muted">
             {REVIEW_COPY.uploaded(formatDateTime(card.uploadedAt), waited)}
           </span>
         </p>
         {card.recheckKind === "variant_removed" &&
         !ownPhotoBlocked(card, scope.kind) ? (
-          <p className="text-body-touch text-ink-muted md:text-body-sm">
+          <p className="text-body text-ink-muted">
             {REVIEW_COPY.variantRemovedNote}
           </p>
         ) : null}
@@ -230,7 +229,7 @@ export function ReviewCard({
           <div
             role="alert"
             className={cn(
-              "flex flex-wrap items-center gap-x-3 gap-y-1 text-body-touch text-negative md:text-body-sm"
+              "flex flex-wrap items-center gap-x-3 gap-y-1 text-body font-semibold text-warn-fg"
             )}
           >
             <span>{error.text}</span>
@@ -242,6 +241,6 @@ export function ReviewCard({
           </div>
         ) : null}
       </div>
-    </article>
+    </Card>
   )
 }

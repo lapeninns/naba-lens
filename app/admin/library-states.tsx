@@ -11,7 +11,7 @@ import { LIBRARY_COPY } from "./library-copy"
 
 /** The captioned library grid's columns, so the placeholder holds its place. */
 const GRID =
-  "grid grid-cols-2 gap-x-3 gap-y-4 md:grid-cols-[repeat(auto-fill,minmax(var(--size-tile-min),1fr))]"
+  "grid grid-cols-2 gap-(--gutter) md:grid-cols-[repeat(auto-fill,minmax(var(--size-tile-min),1fr))]"
 
 /** The library grid while its first page loads (12 tiles, two desktop rows). */
 export function LibraryGridSkeleton() {
@@ -26,7 +26,7 @@ export function LibraryGridSkeleton() {
 
 export function LibraryRetryButton({ onClick }: { onClick: () => void }) {
   return (
-    <Button type="button" variant="secondary" size="sm" onClick={onClick}>
+    <Button type="button" variant="primary" onClick={onClick}>
       <ArrowClockwiseIcon aria-hidden />
       {ERROR_COPY.tryAgain}
     </Button>

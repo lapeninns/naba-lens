@@ -8,6 +8,7 @@ import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 import type { PhotoSource } from "../photo-source"
+import { TAB_ITEM } from "./tab-item"
 
 /**
  * A menu item to suggest as a label for the next files (from Our menu's "Add
@@ -137,8 +138,9 @@ export function AddTrigger({ kind }: { kind: "tab" | "bar" }) {
       aria-hidden
       data-slot="add-busy"
       className={cn(
-        "inline-grid h-5 min-w-5 place-items-center rounded-round bg-ink px-1.5 text-chip text-paper tabular-nums",
-        kind === "tab" && "absolute -top-3 left-[calc(50%+10px)]"
+        "inline-grid h-[26px] min-w-[26px] place-items-center rounded-round bg-ink px-[7px] font-mono text-[1.0625rem] leading-none font-bold text-surface tabular-nums",
+        kind === "tab" &&
+          "absolute top-1 left-[calc(50%+12px)] ring-2 ring-surface"
       )}
     >
       {busy.count}
@@ -147,12 +149,14 @@ export function AddTrigger({ kind }: { kind: "tab" | "bar" }) {
   const content =
     kind === "tab" ? (
       <>
+        {/* Common Room Add tab: a grey pill around the plus, never blue
+            (the screen's one blue is its own primary). */}
         <span
           data-slot="tabbar-disc"
           aria-hidden
-          className="-mt-6 grid size-13 place-items-center rounded-round bg-accent text-on-accent shadow-[0_0_0_4px_var(--panel)] transition-colors duration-(--duration-quick) group-hover:bg-accent-hover"
+          className="grid h-[30px] w-11 place-items-center rounded-round bg-surface-2 text-ink transition-colors duration-(--duration-quick) group-hover:bg-raised"
         >
-          <PlusIcon className="size-7" />
+          <PlusIcon weight="bold" className="size-[22px]" />
         </span>
         {label}
         {badge}
@@ -166,8 +170,9 @@ export function AddTrigger({ kind }: { kind: "tab" | "bar" }) {
     )
   const className =
     kind === "tab"
-      ? cn(TAB_ITEM, "group text-ink")
-      : buttonVariants({ variant: "secondary" })
+      ? cn(TAB_ITEM, "group text-ink hover:bg-surface-2")
+      : // One line from lg: wrapping doubled the bar height at 1280 (768 needs the wrap).
+        cn(buttonVariants({ variant: "secondary" }), "lg:whitespace-nowrap")
   return openAdd ? (
     <button
       type="button"
@@ -183,7 +188,3 @@ export function AddTrigger({ kind }: { kind: "tab" | "bar" }) {
     </Link>
   )
 }
-
-/** One TabBar item: icon over an always-visible label, full bar height. */
-export const TAB_ITEM =
-  "relative grid min-h-(--size-tabbar) content-center justify-items-center gap-1 px-0.5 py-1.5 text-center text-tab-label wdth-88 outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-focus focus-visible:-outline-offset-3"

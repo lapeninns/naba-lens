@@ -120,7 +120,7 @@ export function PrepareButton({ primary }: { primary: boolean }) {
       disabled={pending}
     >
       {pending ? (
-        <SpinnerGapIcon aria-hidden className="animate-spin" />
+        <SpinnerGapIcon aria-hidden className="motion-safe:animate-spin" />
       ) : (
         <CalendarCheckIcon aria-hidden />
       )}

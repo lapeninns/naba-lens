@@ -2,11 +2,11 @@
 
 import { CheckIcon } from "@phosphor-icons/react"
 
+import { Post } from "@/components/nabalens/common-room"
 import { formatDateTime } from "@/components/nabalens/menus/copy"
 import { Notice } from "@/components/nabalens/notice"
 import { ProfileAvatar } from "@/components/nabalens/profile-avatar"
 import { StatusChip } from "@/components/nabalens/status-chip"
-import { cn } from "@/lib/utils"
 
 import { SELF_REVIEW_PENDING_COPY, periodKeyLabel } from "./copy"
 import {
@@ -98,23 +98,45 @@ export function SubmissionCard({
   const lateAccepted =
     submission.state === "accepted" && decision?.lateAcceptance === true
   return (
-    <article
+    <Post
       aria-label={`${purpose}: photo by ${author.displayName}`}
-      className={cn(
-        "grid gap-5 rounded-panel border border-line bg-panel p-4 @min-[40rem]:grid-cols-[minmax(0,340px)_minmax(0,1fr)]",
-        className
-      )}
+      className={className}
+      avatar={<ProfileAvatar name={author.displayName} />}
+      name={
+        <>
+          {own ? "You" : author.displayName}
+          {!author.active ? (
+            <span className="font-normal text-ink-muted">
+              {" "}
+              · no longer active
+            </span>
+          ) : null}
+        </>
+      }
+      meta={
+        <span className="tabular-nums">
+          Submitted {formatDateTime(submission.submittedAt)}
+          {submission.origin === "attached" &&
+          submission.submittedById === viewerId
+            ? " by you"
+            : null}
+        </span>
+      }
+      media={
+        <EvidencePreviewButton
+          thumbnailUrl={
+            submission.asset.available ? submission.asset.thumbnailUrl : null
+          }
+          previewUrl={
+            submission.asset.available ? submission.asset.previewUrl : null
+          }
+          label={`Photo by ${author.displayName}`}
+          description={purpose}
+          edge
+          className="size-full"
+        />
+      }
     >
-      <EvidencePreviewButton
-        thumbnailUrl={
-          submission.asset.available ? submission.asset.thumbnailUrl : null
-        }
-        previewUrl={
-          submission.asset.available ? submission.asset.previewUrl : null
-        }
-        label={`Photo by ${author.displayName}`}
-        description={purpose}
-      />
       <div className="grid min-w-0 content-start gap-3">
         <div className="flex flex-wrap items-center gap-1.5">
           {lateAccepted ? (
@@ -138,35 +160,14 @@ export function SubmissionCard({
           ) : null}
         </div>
         <div className="grid gap-0.5">
-          <p className="text-meta-touch font-semibold text-ink-muted md:text-meta-strong">
+          <p className="text-meta font-semibold text-ink-muted">
             {submission.requirement ? "Checklist item" : "Monthly target"}
           </p>
-          <h3 className="text-item-title-touch break-words text-ink md:text-item-title">
+          <h3 className="text-item-title [overflow-wrap:anywhere] text-ink">
             {purpose}
           </h3>
         </div>
-        <div className="flex min-w-0 items-center gap-3">
-          <ProfileAvatar name={author.displayName} />
-          <span className="grid min-w-0">
-            <span className="text-item-title-touch break-words text-ink md:text-label">
-              {own ? "You" : author.displayName}
-              {!author.active ? (
-                <span className="font-normal text-ink-muted">
-                  {" "}
-                  · no longer active
-                </span>
-              ) : null}
-            </span>
-            <span className="truncate text-meta-touch text-ink-muted md:text-meta">
-              Submitted {formatDateTime(submission.submittedAt)}
-              {submission.origin === "attached" &&
-              submission.submittedById === viewerId
-                ? " by you"
-                : null}
-            </span>
-          </span>
-        </div>
-        <p className="text-meta-touch text-ink-muted md:text-body-sm">
+        <p className="text-body text-ink-muted">
           {countsText(submission, viewerId, currentPeriod)}
         </p>
         {decision?.decision === "needs_another_photo" && decision.reason ? (
@@ -174,15 +175,15 @@ export function SubmissionCard({
             <Quote by={`${decidedByYou ? "You" : decidedBy} · ${decidedAt}`}>
               {decision.reason}
             </Quote>
-            <p className="text-meta-touch text-ink-muted md:text-meta">
+            <p className="text-meta text-ink-muted">
               Decisions are final. {own ? "You" : firstName(author.displayName)}{" "}
               can send a replacement from the task.
             </p>
           </>
         ) : decision ? (
-          <p className="flex flex-wrap items-center gap-2 text-meta-touch text-ink-muted md:text-meta">
+          <p className="flex flex-wrap items-center gap-2 text-meta text-ink-muted">
             {decision.decision === "accept" ? (
-              <CheckIcon aria-hidden className="size-4 shrink-0" />
+              <CheckIcon aria-hidden className="size-[18px] shrink-0" />
             ) : null}
             {decision.decision === "accept"
               ? "Accepted"
@@ -191,11 +192,11 @@ export function SubmissionCard({
           </p>
         ) : null}
         {own && submission.state === "submitted" && actions ? (
-          <Notice tone="attention">{SELF_REVIEW_PENDING_COPY}</Notice>
+          <Notice tone="info">{SELF_REVIEW_PENDING_COPY}</Notice>
         ) : null}
         {actions}
         {footer}
       </div>
-    </article>
+    </Post>
   )
 }

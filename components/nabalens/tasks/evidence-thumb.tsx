@@ -33,7 +33,7 @@ export function EvidenceThumb({
   return (
     <span
       className={cn(
-        "relative block shrink-0 overflow-hidden rounded-md",
+        "relative block shrink-0 overflow-hidden rounded-control bg-media-placeholder",
         className
       )}
     >
@@ -45,10 +45,10 @@ export function EvidenceThumb({
             type="button"
             onClick={() => setOpen(true)}
             aria-label={`View larger: ${label}`}
-            className="absolute inset-0 z-10 rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            className="absolute inset-0 z-10 cursor-zoom-in rounded-[inherit] outline-none focus-visible:outline-3 focus-visible:-outline-offset-3 focus-visible:outline-focus focus-visible:outline-solid"
           />
           <Dialog open={open} onOpenChange={setOpen}>
-            <DialogContent className="sm:max-w-2xl">
+            <DialogContent className="md:max-w-2xl">
               <DialogHeader>
                 <DialogTitle>{label}</DialogTitle>
               </DialogHeader>
@@ -57,7 +57,7 @@ export function EvidenceThumb({
                   src={preview}
                   alt={label}
                   fit="contain"
-                  className="h-[min(70svh,40rem)] w-full rounded-md"
+                  className="h-[min(70svh,40rem)] w-full rounded-control bg-stage"
                 />
               ) : null}
             </DialogContent>

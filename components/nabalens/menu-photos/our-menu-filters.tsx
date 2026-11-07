@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { MagnifyingGlassIcon } from "@phosphor-icons/react/dist/ssr"
+import { CheckIcon, MagnifyingGlassIcon } from "@phosphor-icons/react/dist/ssr"
 
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Field, FieldLabel } from "@/components/ui/field"
@@ -35,11 +35,21 @@ export function ourMenuHref(
   return search ? `${basePath}?${search}` : basePath
 }
 
-const SEGMENT =
-  "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-chip px-3 text-center text-meta-touch font-semibold text-ink-muted outline-none hover:text-ink focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-0 focus-visible:outline-focus aria-[current=page]:bg-panel aria-[current=page]:text-ink aria-[current=page]:shadow-[0_0_0_1px_var(--color-line-control)] md:min-h-8 md:text-label md:whitespace-nowrap"
+/*
+ * Select pills (DESIGN.md §4): grey; the current one is accent-soft with an
+ * accent-text inset edge and a tick. Pills wrap; nothing scrolls sideways.
+ */
+const PILL =
+  "group/pill inline-flex min-h-11 items-center gap-1.5 rounded-round bg-surface-2 px-4 text-label [overflow-wrap:anywhere] text-ink outline-none transition-colors duration-(--duration-quick) hover:bg-raised focus-visible:outline-3 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-focus aria-[current=page]:bg-accent-soft aria-[current=page]:shadow-[inset_0_0_0_1.5px_var(--accent-text)]"
 
-const CHIP =
-  "inline-flex min-h-11 items-center gap-1.5 rounded-chip border border-line-control px-3 text-meta-touch whitespace-nowrap text-ink outline-none hover:bg-fill-hover focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-focus aria-[current=page]:border-ink aria-[current=page]:bg-ink aria-[current=page]:text-paper md:min-h-8 md:text-meta"
+/** The tick on the current pill (decorative: aria-current carries it). */
+const tick = (
+  <CheckIcon
+    aria-hidden
+    weight="bold"
+    className="hidden size-4 shrink-0 group-aria-[current=page]/pill:inline"
+  />
+)
 
 /**
  * Search, "Still needs a photo" and the section chips for Our menu. Plain GET
@@ -83,7 +93,7 @@ export function OurMenuFilters({
           <span className="relative block">
             <MagnifyingGlassIcon
               aria-hidden
-              className="pointer-events-none absolute top-1/2 left-3 size-[18px] -translate-y-1/2 text-ink-muted"
+              className="pointer-events-none absolute top-1/2 left-4 size-5 -translate-y-1/2 text-ink-muted"
             />
             <Input
               id="our-menu-q"
@@ -94,14 +104,14 @@ export function OurMenuFilters({
               defaultValue={filter.query}
               placeholder={OUR_MENU_COPY.searchPlaceholder}
               maxLength={OUR_MENU_QUERY_MAX}
-              className="h-11 pl-9 md:h-9"
+              className="pl-11"
             />
           </span>
         </Field>
         <div className="flex flex-wrap gap-2">
           <Button
             type="submit"
-            variant="primary"
+            variant="secondary"
             size="touch"
             className="flex-auto md:flex-none"
           >
@@ -121,51 +131,52 @@ export function OurMenuFilters({
           ) : null}
         </div>
       </form>
-      <nav
-        aria-label="Show"
-        className="grid w-full grid-cols-2 gap-0.5 rounded-control bg-well p-0.5 md:inline-flex md:w-auto md:justify-self-start"
-      >
+      <nav aria-label="Show" className="flex flex-wrap gap-2">
         <Link
           href={hrefWith({ gapsOnly: false })}
           aria-current={filter.gapsOnly ? undefined : "page"}
-          className={SEGMENT}
+          className={PILL}
         >
+          {tick}
           {OUR_MENU_COPY.allDishes}
         </Link>
         <Link
           href={hrefWith({ gapsOnly: true })}
           aria-current={filter.gapsOnly ? "page" : undefined}
-          className={SEGMENT}
+          className={PILL}
         >
+          {tick}
           {OUR_MENU_COPY.gaps}
         </Link>
       </nav>
       {sections.length > 1 ? (
-        <nav
-          aria-label="Menu sections"
-          className="[scrollbar-width:none] overflow-x-auto contain-inline-size [&::-webkit-scrollbar]:hidden"
-        >
-          <ul className="flex gap-2 pb-1">
-            <li className="flex-none">
+        <nav aria-label="Menu sections">
+          <ul className="flex flex-wrap gap-2">
+            <li className="min-w-0">
               <Link
                 href={hrefWith({ sectionId: null })}
                 aria-current={filter.sectionId ? undefined : "page"}
-                className={CHIP}
+                className={PILL}
               >
+                {tick}
                 {OUR_MENU_COPY.allSections}
               </Link>
             </li>
             {sections.map((section) => (
-              <li key={section.sectionId} className="flex-none">
+              <li key={section.sectionId} className="min-w-0">
                 <Link
                   href={hrefWith({ sectionId: section.sectionId })}
                   aria-current={
                     filter.sectionId === section.sectionId ? "page" : undefined
                   }
-                  className={CHIP}
+                  className={PILL}
                 >
+                  {tick}
                   {section.name}
-                  <span aria-hidden className="tabular-nums opacity-75">
+                  <span
+                    aria-hidden
+                    className="font-mono font-semibold text-ink-muted tabular-nums"
+                  >
                     {section.covered}/{section.eligible}
                   </span>
                   <span className="sr-only">

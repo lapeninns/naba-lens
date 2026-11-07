@@ -115,7 +115,7 @@ export function ManagerGrants({
 
   return (
     <div className="grid gap-8">
-      <p className="max-w-prose text-sm text-muted-foreground">
+      <p className="max-w-prose text-meta text-ink-muted">
         {MANAGER_POWERS_COPY}
       </p>
       <CoverageNotice
@@ -126,15 +126,15 @@ export function ManagerGrants({
 
       <section
         aria-labelledby={`${ids}-grant`}
-        className="grid gap-3 rounded-lg border bg-card p-4"
+        className="grid gap-3 rounded-card bg-surface p-4 shadow-card"
       >
-        <h2 id={`${ids}-grant`} className="font-medium">
+        <h2 id={`${ids}-grant`} className="font-bold">
           Make someone a venue manager
         </h2>
         <form onSubmit={grant} className="grid gap-4" noValidate>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-1.5">
-              <label htmlFor={`${ids}-venue`} className="text-sm font-medium">
+              <label htmlFor={`${ids}-venue`} className="text-label text-ink">
                 Venue
               </label>
               <OptionSelect
@@ -154,7 +154,7 @@ export function ManagerGrants({
               ) : null}
             </div>
             <div className="grid gap-1.5">
-              <label htmlFor={`${ids}-staff`} className="text-sm font-medium">
+              <label htmlFor={`${ids}-staff`} className="text-label text-ink">
                 Person (active staff at that venue)
               </label>
               <OptionSelect
@@ -204,24 +204,27 @@ export function ManagerGrants({
 
       <section aria-labelledby={`${ids}-list`} className="grid gap-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 id={`${ids}-list`} className="text-lg font-medium">
+          <h2
+            id={`${ids}-list`}
+            className="font-display text-section-title text-ink"
+          >
             {includeRevoked ? "All grants" : "Current grants"}
           </h2>
           <Link
             href={query.size ? `${basePath}?${query.toString()}` : basePath}
-            className="inline-flex min-h-11 items-center text-sm underline underline-offset-3 sm:min-h-0"
+            className="inline-flex min-h-11 items-center text-meta underline underline-offset-3 sm:min-h-0"
           >
             {includeRevoked ? "Hide ended grants" : "Show ended grants"}
           </Link>
         </div>
         {grants.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-meta text-ink-muted">
             No venue managers{selectedVenueId ? " at this venue" : ""} yet.
           </p>
         ) : (
           <ul
             aria-label="Venue managers"
-            className="divide-y rounded-lg border bg-card"
+            className="grid divide-y divide-line overflow-hidden rounded-card bg-surface shadow-card"
           >
             {grants.map((grant) => {
               const notEffective = ineffectiveText(grant)
@@ -232,10 +235,10 @@ export function ManagerGrants({
                 >
                   <div className="grid min-w-0 flex-1 gap-1">
                     <p className="flex flex-wrap items-center gap-1.5">
-                      <span className="font-medium break-words">
+                      <span className="font-bold [overflow-wrap:anywhere]">
                         {grant.staff.displayName}
                       </span>
-                      <span className="text-muted-foreground">
+                      <span className="text-ink-muted">
                         · {grant.venue.name}
                       </span>
                       {grant.effective ? (
@@ -248,7 +251,7 @@ export function ManagerGrants({
                         </CoverageBadge>
                       )}
                     </p>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-meta text-ink-muted">
                       Granted {formatDateTime(grant.grantedAt)}
                       {grant.grantedBy.displayName
                         ? ` by ${grant.grantedBy.displayName}`
@@ -258,7 +261,7 @@ export function ManagerGrants({
                         : null}
                     </p>
                     {grant.revokedAt ? (
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-meta text-ink-muted">
                         {grant.revokeKind
                           ? labelFor(REVOKE_KIND_LABEL, grant.revokeKind)
                           : "Ended"}{" "}
@@ -271,12 +274,14 @@ export function ManagerGrants({
                           : null}
                       </p>
                     ) : notEffective ? (
-                      <p className="text-sm text-warning">{notEffective}</p>
+                      <p className="text-meta font-bold text-warn-fg">
+                        {notEffective}
+                      </p>
                     ) : null}
                   </div>
                   {!grant.revokedAt ? (
                     <Button
-                      variant="outline"
+                      variant="secondary"
                       size="touch"
                       onClick={() => setRevoking(grant)}
                       disabled={action.pending}

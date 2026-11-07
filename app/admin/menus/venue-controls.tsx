@@ -221,14 +221,14 @@ export function VenueMenusView({
       />
       {/* minmax(0, 1fr): an auto track would grow to the versions table's
           min-content and push the page wider than the screen. */}
-      <div className="grid grid-cols-1 gap-6 md:gap-8">
+      <div className="grid grid-cols-1 gap-6">
         <OfflineNotice />
         {draft.error ? <Notice tone="negative">{draft.error}</Notice> : null}
         {importing ? (
           <div
             ref={importRef}
             tabIndex={-1}
-            className="rounded-panel outline-none"
+            className="rounded-card outline-none"
           >
             <ImportFlow
               venueId={venueId}
@@ -286,7 +286,7 @@ export function VersionRowActions({
         </DropdownMenuContent>
       </DropdownMenu>
       {draft.error ? (
-        <p role="alert" className="text-meta text-negative">
+        <p role="alert" className="text-meta font-bold text-warn-fg">
           {draft.error}
         </p>
       ) : null}

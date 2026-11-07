@@ -88,7 +88,7 @@ export function GuideViewer({
         )}
       >
         <div className="flex items-center justify-between gap-3 px-4 pt-2 md:px-5">
-          <p className="text-meta-touch text-on-viewer-muted tabular-nums md:text-meta">
+          <p className="font-mono text-meta text-on-viewer-muted tabular-nums">
             {index + 1} of {GUIDE_ANGLES.length} · {dish.name}
           </p>
           {/* Focus stays on Previous/Next, so name the angle that came in. */}
@@ -99,13 +99,13 @@ export function GuideViewer({
             render={
               <Button
                 variant="quiet"
-                size="icon"
-                className="text-on-viewer hover:bg-on-viewer/12 hover:text-on-viewer active:bg-on-viewer/20"
+                size="sm"
+                className="-mr-2 text-on-viewer hover:bg-on-viewer/12 hover:text-on-viewer active:bg-on-viewer/20"
               />
             }
           >
             <XIcon aria-hidden />
-            <span className="sr-only">Close</span>
+            Close
           </DialogClose>
         </div>
         <div
@@ -148,16 +148,16 @@ export function GuideViewer({
               <span
                 key={a.id}
                 className={cn(
-                  "size-2 rounded-round",
+                  "size-2.5 rounded-round",
                   i === index ? "bg-on-viewer" : "bg-on-viewer/30"
                 )}
               />
             ))}
           </div>
-          <DialogTitle className="pr-0 text-on-viewer">
+          <DialogTitle className="pr-0 font-display text-section-title text-on-viewer">
             {angle.name}
           </DialogTitle>
-          <DialogDescription className="max-w-(--size-reading) text-on-viewer-muted">
+          <DialogDescription className="max-w-(--size-reading) text-body text-on-viewer-muted">
             {angle.tip}
           </DialogDescription>
         </div>

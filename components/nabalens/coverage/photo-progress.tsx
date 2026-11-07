@@ -15,7 +15,7 @@ export function PhotoProgress({
 }) {
   if (target == null) {
     return (
-      <p className={cn("text-sm text-muted-foreground", className)}>
+      <p className={cn("text-meta text-ink-muted", className)}>
         No photo target set
         {pending > 0 ? ` · ${pending} to review` : null}
       </p>
@@ -24,11 +24,11 @@ export function PhotoProgress({
   const value = target > 0 ? Math.min(100, (accepted / target) * 100) : 0
   const text = `${accepted} of ${target} accepted`
   return (
-    <div className={cn("grid min-w-32 gap-1", className)}>
-      <p className="flex flex-wrap gap-x-2 text-sm tabular-nums">
-        <span>{text}</span>
+    <div className={cn("grid min-w-32 gap-1.5", className)}>
+      <p className="flex flex-wrap gap-x-2 font-mono text-meta-strong tabular-nums">
+        <span className="text-ink">{text}</span>
         {pending > 0 ? (
-          <span className="text-muted-foreground">{pending} to review</span>
+          <span className="text-ink-muted">{pending} to review</span>
         ) : null}
       </p>
       <Progress value={value} aria-label={text} />

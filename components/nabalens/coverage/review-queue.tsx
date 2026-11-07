@@ -253,7 +253,7 @@ export function ReviewQueue({
   const asker = asking ? whoTook(asking, viewerId) : null
 
   return (
-    <div className="grid gap-4">
+    <div className="grid min-w-0 gap-(--gutter)">
       <CoverageNotice
         ref={noticeRef}
         notice={notice}
@@ -272,7 +272,7 @@ export function ReviewQueue({
             ref={listRef}
             tabIndex={-1}
             aria-label="Photos"
-            className="@container grid gap-4 outline-none"
+            className="@container grid w-full max-w-(--size-feed) gap-(--gutter) outline-none"
           >
             {items.map((submission) => {
               const busy = pendingId === submission.id
@@ -284,7 +284,7 @@ export function ReviewQueue({
                     currentPeriod={currentPeriod}
                     actions={
                       decidable(submission) ? (
-                        <div className="flex flex-wrap gap-2 @max-[40rem]:*:flex-auto">
+                        <div className="grid gap-2 pt-1">
                           {/* A deleted photo cannot count; it can only be replaced. */}
                           {submission.asset.available ? (
                             <Button
@@ -321,7 +321,7 @@ export function ReviewQueue({
                       itemErrors[submission.id] ? (
                         <p
                           role="alert"
-                          className="text-body-touch text-negative md:text-body-sm"
+                          className="text-body font-semibold text-warn-fg"
                         >
                           {itemErrors[submission.id]}
                         </p>
@@ -381,8 +381,8 @@ export function ReviewQueue({
               src={asking.asset.available ? asking.asset.thumbnailUrl : null}
               className="aspect-square w-16 shrink-0"
             />
-            <p className="min-w-0 text-body-touch md:text-body-sm">
-              <strong className="font-semibold break-words text-ink">
+            <p className="min-w-0 text-body">
+              <strong className="font-bold [overflow-wrap:anywhere] text-ink">
                 {asking.requirement
                   ? (asking.requirement.title ?? "Checklist item")
                   : "Monthly photo"}
