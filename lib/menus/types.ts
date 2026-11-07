@@ -367,6 +367,34 @@ export type SaveLabelsResult =
       unavailableItemIds?: string[]
     }
 
+/**
+ * POST /api/upload-labels. "saved": the asset was ready and the labels are on
+ * it now. "pending": the asset is still uploading or processing; the labels
+ * are stored on the server and finalise applies them (a repeat POST replaces
+ * them). Failures are SaveLabelsResult failures.
+ */
+export type UploadLabelPostResult =
+  | { ok: true; assetId: string; state: "saved"; labels: MediaLabelSummary }
+  | { ok: true; assetId: string; state: "pending" }
+  | Extract<SaveLabelsResult, { ok: false }>
+
+/** GET /api/upload-labels?attention=1: one of the caller's stored drafts. */
+export type PendingLabelItem = {
+  assetId: string
+  venueId: string
+  /** "pending": waiting for the photo; "needs_attention": could not apply. */
+  status: "pending" | "needs_attention"
+  /** Why it could not apply (needs_attention only). */
+  code: SaveLabelsErrorCode | null
+  message: string | null
+  input: SaveLabelsInput
+  /** The photo's upload_state: uploading, processing, ready or failed. */
+  uploadState: string
+  mediaType: "image" | "video"
+  thumbnailUrl: string | null
+  updatedAt: string
+}
+
 // ---------------------------------------------------------------------------
 // Admin library label filters (H)
 // ---------------------------------------------------------------------------

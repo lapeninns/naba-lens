@@ -1,7 +1,13 @@
 import { maxBytesFor, MEDIA_LIMITS } from "@/lib/config/media"
 import { mediaObjectKeys, STORAGE_BUCKETS } from "@/lib/config/storage"
 import { sniffMedia, validateMedia } from "@/lib/media"
+import {
+  EMPTY_LABEL_SUMMARY,
+  type MediaLabelSummary,
+  type SaveLabelsErrorCode,
+} from "@/lib/menus/types"
 import { ensureMediaOriginalArchived } from "@/lib/server/archive"
+import { labelSaveMessage, tryLoadLabelSummaries } from "@/lib/server/labels"
 import { touchMediaReservation } from "@/lib/server/lifecycle/cleanup"
 
 import { validationMessage } from "./errors"
@@ -10,9 +16,23 @@ import type { MediaActor, Outcome } from "./types"
 
 export type FinaliseRequest = { assetId: string; idempotencyKey: string }
 
-/** lib/upload FinaliseResult. A non-ok Outcome means "could not confirm, retry". */
+/**
+ * Labels stored while the file was uploading (media_pending_labels): applied
+ * by this finalise ("saved"), or not applied and waiting for the uploader to
+ * fix them ("needs_attention"; the photo is ready either way).
+ */
+export type FinaliseLabels =
+  | { state: "saved"; labels: MediaLabelSummary }
+  | { state: "needs_attention"; code: SaveLabelsErrorCode; message: string }
+
+/**
+ * lib/upload FinaliseResult. A non-ok Outcome means "could not confirm, retry".
+ * `labels` is present only when the asset had stored labels: applied in this
+ * finalise, or an existing needs_attention draft on an already-ready asset.
+ */
 export type FinaliseResponse =
-  { state: "ready" } | { state: "failed"; error: string }
+  | { state: "ready"; labels?: FinaliseLabels }
+  | { state: "failed"; error: string }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -240,7 +260,7 @@ export async function finaliseAsset(
   if (row.client_upload_key && row.client_upload_key !== input.idempotencyKey) {
     return notFound
   }
-  if (row.upload_state === "ready") return { ok: true, state: "ready" }
+  if (row.upload_state === "ready") return readyWithAttention(actor, row.id)
 
   // Finalise begins: record upload activity for cleanup (lifecycle's
   // recordUploadActivity). Skipped for `processing`, which cleanup never
@@ -258,7 +278,7 @@ export async function finaliseAsset(
   }
 
   const claimed = await claim(actor, row)
-  if (claimed === "ready") return { ok: true, state: "ready" }
+  if (claimed === "ready") return readyWithAttention(actor, row.id)
   if (claimed === "gone") return notFound
   if (claimed === "busy") {
     return {
@@ -274,7 +294,8 @@ export async function finaliseAsset(
     if (size === null && row.upload_state === "failed") {
       // Failed validation earlier and its bytes were removed: still failed.
       // (A retry through reserve reopens the reservation for a new transfer.)
-      await setState(actor, row.id, ["processing"], "failed")
+      if (await setState(actor, row.id, ["processing"], "failed"))
+        await discardStoredLabels(actor, row.id)
       return {
         ok: true,
         state: "failed",
@@ -302,7 +323,9 @@ export async function finaliseAsset(
   }
 
   if (!validation.ok) {
-    await setState(actor, row.id, ["processing"], "failed")
+    // false: this claim was lost (another finalise took it over and may have
+    // made the asset ready), so its stored labels are not ours to discard.
+    const failedHere = await setState(actor, row.id, ["processing"], "failed")
     if (validation.error === "decoder_busy") {
       return {
         ok: false,
@@ -313,6 +336,8 @@ export async function finaliseAsset(
     // Terminal: the bytes can never become ready, so don't keep them for the
     // 24 h cleanup. Best effort; cleanup still removes a failed row's objects.
     await removeObjects(actor, [row.original_path])
+    // Nor its stored labels: they can never apply ("photo not saved").
+    if (failedHere) await discardStoredLabels(actor, row.id)
     return {
       ok: true,
       state: "failed",
@@ -321,28 +346,8 @@ export async function finaliseAsset(
   }
 
   const keys = mediaObjectKeys(row.uploader_id, row.id, "bin")
-  let claimLost = false
-  const update: {
-    upload_state: "ready"
-    validated_mime_type: string
-    size_bytes: number
-    width: number | null
-    height: number | null
-    duration_seconds: number | null
-    preview_path?: string
-    thumbnail_path?: string
-  } = {
-    upload_state: "ready",
-    validated_mime_type: validation.mime,
-    size_bytes: validation.size,
-    width: validation.width ?? null,
-    height: validation.height ?? null,
-    duration_seconds:
-      validation.durationSeconds === undefined
-        ? null
-        : Math.round(validation.durationSeconds * 1000) / 1000,
-  }
-
+  let derivatives = false
+  let completed: CompleteRow
   try {
     // A successful upload must have a verified durable original + attribution
     // receipt before it can become ready. Archival failure remains retryable.
@@ -365,19 +370,28 @@ export async function finaliseAsset(
         })
         if (error) throw new Error("derivative_upload")
       }
-      update.preview_path = keys.preview
-      update.thumbnail_path = keys.thumbnail
+      derivatives = true
     }
 
-    const { data, error } = await actor.service
-      .from("media_assets")
-      .update(update)
-      .eq("id", row.id)
-      .eq("upload_state", "processing")
-      .is("deleted_at", null)
-      .select("id")
-    if (error) throw new Error("asset_ready_update")
-    claimLost = !data?.length
+    // `ready` (compare-and-set on processing) and any labels stored while the
+    // file uploaded, applied as the uploader, in one transaction: a label POST
+    // either lands before this and is applied here, or sees `ready` and saves
+    // directly. An omitted argument is NULL (a video has no derivatives).
+    const { data, error } = await actor.service.rpc("complete_media_finalise", {
+      p_asset_id: row.id,
+      p_validated_mime_type: validation.mime,
+      p_size_bytes: validation.size,
+      p_width: validation.width,
+      p_height: validation.height,
+      p_duration_seconds:
+        validation.durationSeconds === undefined
+          ? undefined
+          : Math.round(validation.durationSeconds * 1000) / 1000,
+      p_preview_path: derivatives ? keys.preview : undefined,
+      p_thumbnail_path: derivatives ? keys.thumbnail : undefined,
+    })
+    if (error || !data?.[0]) throw new Error("asset_ready_update")
+    completed = data[0] as CompleteRow
   } catch {
     await setState(actor, row.id, ["processing"], "failed").catch(() => {})
     return {
@@ -387,8 +401,103 @@ export async function finaliseAsset(
     }
   }
 
-  if (claimLost) return settleLostClaim(actor, row, keys)
-  return { ok: true, state: "ready" }
+  if (!completed.became_ready) return settleLostClaim(actor, row, keys)
+  const labels = await completedLabels(actor, row.id, completed)
+  return labels
+    ? { ok: true, state: "ready", labels }
+    : { ok: true, state: "ready" }
+}
+
+/** One row of complete_media_finalise (nulls as the database sends them). */
+type CompleteRow = {
+  became_ready: boolean
+  labels_state: "saved" | "needs_attention" | null
+  labels_code: string | null
+  labels_revision: number | null
+  labels_has_labels: boolean | null
+}
+
+const LABEL_CODES: readonly SaveLabelsErrorCode[] = [
+  "conflict",
+  "unavailable_items",
+  "not_found",
+  "forbidden",
+  "invalid",
+  "catalogue_changed",
+  "unavailable",
+]
+
+const asLabelCode = (code: string | null): SaveLabelsErrorCode =>
+  LABEL_CODES.find((c) => c === code) ?? "unavailable"
+
+function needsAttention(code: string | null): FinaliseLabels {
+  const known = asLabelCode(code)
+  return {
+    state: "needs_attention",
+    code: known,
+    message: labelSaveMessage(known),
+  }
+}
+
+/** The `labels` of a finalise that just made the asset ready. */
+async function completedLabels(
+  actor: MediaActor,
+  assetId: string,
+  done: CompleteRow
+): Promise<FinaliseLabels | null> {
+  if (done.labels_state === "needs_attention")
+    return needsAttention(done.labels_code)
+  if (done.labels_state !== "saved") return null
+  const summaries = await tryLoadLabelSummaries(actor.db, [assetId], {
+    viewerId: actor.profile.id,
+  })
+  const labels = summaries?.get(assetId)
+  if (labels) return { state: "saved", labels }
+  // Saved, but the fresh read failed: never report a failure that hides a
+  // save. The revision is the database's, so the next edit does not conflict.
+  return {
+    state: "saved",
+    labels: {
+      ...EMPTY_LABEL_SUMMARY,
+      revision: done.labels_revision ?? 0,
+      hasLabels: done.labels_has_labels ?? false,
+    },
+  }
+}
+
+/**
+ * An already-ready asset: `labels` only for a needs_attention draft (one that
+ * was applied left nothing behind). A failed read just omits it; finalise
+ * itself succeeded.
+ */
+async function readyWithAttention(
+  actor: MediaActor,
+  assetId: string
+): Promise<Outcome<FinaliseResponse>> {
+  const { data, error } = await actor.service
+    .from("media_pending_labels")
+    .select("code")
+    .eq("asset_id", assetId)
+    .eq("status", "needs_attention")
+    .maybeSingle()
+  if (error || !data) return { ok: true, state: "ready" }
+  return { ok: true, state: "ready", labels: needsAttention(data.code) }
+}
+
+/**
+ * A file that can never become ready takes its stored labels with it. Best
+ * effort: if this fails, the 24 h cleanup tombstones the failed asset and the
+ * tombstone trigger removes them.
+ */
+async function discardStoredLabels(actor: MediaActor, assetId: string) {
+  try {
+    await actor.service
+      .from("media_pending_labels")
+      .delete()
+      .eq("asset_id", assetId)
+  } catch {
+    // Left for the cleanup.
+  }
 }
 
 /**
@@ -423,7 +532,8 @@ async function settleLostClaim(
     ])
     return notFound
   }
-  if (current.upload_state === "ready") return { ok: true, state: "ready" }
+  // Another finalise made it ready and applied any stored labels.
+  if (current.upload_state === "ready") return readyWithAttention(actor, row.id)
   return {
     ok: false,
     status: 409,

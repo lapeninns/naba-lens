@@ -40,6 +40,11 @@ function actorFixture() {
   const events: string[] = []
   const updates: Record<string, unknown>[] = []
   let deleted = false
+  /** What complete_media_finalise reports about stored labels. */
+  let labels: { state: string | null; code: string | null } = {
+    state: null,
+    code: null,
+  }
   const asset = {
     id,
     uploader_id: "00000000-0000-4000-8000-000000000002",
@@ -60,6 +65,29 @@ function actorFixture() {
   }
   const service = {
     storage: { from: () => bucket },
+    // `ready` + stored labels in one transaction (compare-and-set on processing).
+    async rpc(name: string, args: Record<string, unknown>) {
+      if (name !== "complete_media_finalise")
+        throw new Error(`unexpected rpc ${name}`)
+      const becameReady = !deleted && asset.upload_state === "processing"
+      if (becameReady) {
+        updates.push({ upload_state: "ready", ...args })
+        events.push("ready")
+        asset.upload_state = "ready"
+      }
+      return {
+        error: null,
+        data: [
+          {
+            became_ready: becameReady,
+            labels_state: becameReady ? labels.state : null,
+            labels_code: becameReady ? labels.code : null,
+            labels_revision: null,
+            labels_has_labels: null,
+          },
+        ],
+      }
+    },
     from() {
       let patch: Record<string, unknown> | null = null
       const query = {
@@ -131,6 +159,9 @@ function actorFixture() {
     deleteNow: () => {
       deleted = true
     },
+    storedLabels: (state: string, code: string | null) => {
+      labels = { state, code }
+    },
   }
 }
 beforeEach(() => {
@@ -186,6 +217,29 @@ describe("archive enforced at successful upload and physical deletion boundaries
     expect(f.events.indexOf("verified-archive")).toBeLessThan(
       f.events.indexOf("physical-remove")
     )
+  })
+  it("reports stored labels that could not be applied, and the photo is still ready", async () => {
+    const f = actorFixture()
+    f.storedLabels("needs_attention", "catalogue_changed")
+    expect(
+      await finaliseAsset(f.actor, {
+        assetId: id,
+        idempotencyKey: "fixture-key",
+      })
+    ).toEqual({
+      ok: true,
+      state: "ready",
+      labels: {
+        state: "needs_attention",
+        code: "catalogue_changed",
+        message: expect.stringContaining("The menu changed"),
+      },
+    })
+    expect(f.updates.at(-1)).toMatchObject({
+      upload_state: "ready",
+      p_asset_id: id,
+      p_validated_mime_type: "image/jpeg",
+    })
   })
   it("refuses physical removal while archival is unavailable", async () => {
     const f = actorFixture()

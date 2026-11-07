@@ -226,6 +226,34 @@ describe("upgrade with retained data", () => {
       .staffB!.storage.from("media")
       .upload(path.replace("original.jpg", "original.png"), new Uint8Array([1]))
     expect(foreign.error).not.toBeNull()
+    // Labels chosen while uploading are stored for the uploader alone
+    // (20261107140000_media_pending_labels).
+    const asset = data![0]
+    const staged = await staffA.rpc("stage_media_labels", {
+      p_asset_id: asset.id,
+      p_venue_id: asset.venue_id,
+      p_input: {
+        assetId: asset.id,
+        expectedRevision: 0,
+        catalogueVersionId: null,
+        contentTypes: ["dish"],
+        note: null,
+        items: [],
+        missingItem: null,
+      },
+    })
+    expect(staged.error).toBeNull()
+    expect(staged.data).toBe("pending")
+    const own = await staffA
+      .from("media_pending_labels")
+      .select("status")
+      .eq("asset_id", asset.id)
+    expect(own.data).toEqual([{ status: "pending" }])
+    const peek = await sessions
+      .staffB!.from("media_pending_labels")
+      .select("status")
+      .eq("asset_id", asset.id)
+    expect(peek.data).toEqual([])
     // No end-user update grant on media_assets, including the new column.
     const { error: updateError } = await staffA
       .from("media_assets")

@@ -121,6 +121,8 @@ describe("coverage access withdrawal", () => {
         encoding: "utf8",
         input: `begin;\n${script}\nselect 'manager' = any(enum_range(null::public.app_role))
           and position('v_role not in (''staff'', ''admin'')' in
+            pg_get_functiondef('private.save_media_labels_as'::regproc)) > 0
+          and position('private.save_media_labels_as(' in
             pg_get_functiondef('public.save_media_labels'::regproc)) > 0
           and exists (select 1 from pg_trigger
             where tgname = 'coverage_review_events_deny_manager_writes')

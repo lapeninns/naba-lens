@@ -6,6 +6,7 @@
 import { beforeAll, describe, expect, it } from "vitest"
 
 import {
+  anonClient,
   createIdentity,
   createVenue,
   serviceClient,
@@ -1344,5 +1345,220 @@ describe("direct writes are denied for authenticated users", () => {
       venue_id: venueB,
     })
     expect(forgedVenue.error?.code).toBe("23503")
+  })
+})
+
+// Labels stored while a photo uploads (20261107140000_media_pending_labels):
+// matrix row 9 at the database layer. Only the uploader (active staff) reads
+// or discards their own drafts; every write goes through stage_media_labels
+// (own, general, not failed/deleted, at the asset's venue) or the service-role
+// complete_media_finalise.
+describe("row 9: stored upload drafts are the uploader's alone", () => {
+  const draft = (assetId: string, patch: Record<string, unknown> = {}) =>
+    asJson({
+      assetId,
+      expectedRevision: 0,
+      catalogueVersionId: activeA,
+      contentTypes: ["dish"],
+      note: null,
+      items: [tuple(a["curries--korma"])],
+      missingItem: null,
+      ...patch,
+    })
+
+  const stage = (
+    user: TestIdentity,
+    asset: { id: string; venue_id: string },
+    patch: Record<string, unknown> = {}
+  ) =>
+    user.client.rpc("stage_media_labels", {
+      p_asset_id: asset.id,
+      p_venue_id: asset.venue_id,
+      p_input: draft(asset.id, patch),
+    })
+
+  async function drafts(user: TestIdentity, assetId: string) {
+    const { data, error } = await user.client
+      .from("media_pending_labels")
+      .select("asset_id, status")
+      .eq("asset_id", assetId)
+    if (error) throw error
+    return data
+  }
+
+  it("stores a draft for the uploader only; colleagues, other venues, admins and managers read nothing", async () => {
+    const asset = await reserve(staffA)
+    const staged = await stage(staffA, asset)
+    expect(staged.error).toBeNull()
+    expect(staged.data).toBe("pending")
+    expect(await drafts(staffA, asset.id)).toEqual([
+      { asset_id: asset.id, status: "pending" },
+    ])
+
+    const manager = await createIdentity(service, {
+      label: "labels-pending-manager",
+      role: "manager",
+      venueId: venueA,
+    })
+    for (const other of [staffA2, staffB, admin, manager])
+      expect(await drafts(other, asset.id)).toEqual([])
+    const anon = await anonClient()
+      .from("media_pending_labels")
+      .select("asset_id")
+      .eq("asset_id", asset.id)
+    expect(anon.error?.code).toBe("42501")
+  })
+
+  it("another staff member cannot replace, discard or apply the draft", async () => {
+    const asset = await reserve(staffA)
+    expect((await stage(staffA, asset)).data).toBe("pending")
+
+    // Same not-found as an unknown asset, nothing changed.
+    expectDbError(
+      await stage(staffA2, asset, { items: [] }),
+      "media_asset_not_found",
+      "P0002"
+    )
+    const unknown = crypto.randomUUID()
+    expectDbError(
+      await staffA2.client.rpc("stage_media_labels", {
+        p_asset_id: unknown,
+        p_venue_id: venueA,
+        p_input: draft(unknown),
+      }),
+      "media_asset_not_found",
+      "P0002"
+    )
+    // A draft for another asset id than the one named is refused outright.
+    expectDbError(
+      await staffA.client.rpc("stage_media_labels", {
+        p_asset_id: asset.id,
+        p_venue_id: venueA,
+        p_input: draft(unknown),
+      }),
+      "invalid_label_draft",
+      "22023"
+    )
+    // Admins and managers do not stage drafts (staff upload only).
+    expectDbError(await stage(admin, asset), "not_active_user", "42501")
+
+    const removed = await staffA2.client
+      .from("media_pending_labels")
+      .delete()
+      .eq("asset_id", asset.id)
+      .select("asset_id")
+    expect(removed.error).toBeNull()
+    expect(removed.data).toEqual([])
+
+    const { data } = await service
+      .from("media_pending_labels")
+      .select("uploader_id, status, input")
+      .eq("asset_id", asset.id)
+      .single()
+    expect(data).toMatchObject({
+      uploader_id: staffA.id,
+      status: "pending",
+      input: { items: [tuple(a["curries--korma"])] },
+    })
+
+    // Only the service role may complete a finalise.
+    for (const user of [staffA, staffA2, admin]) {
+      const applied = await user.client.rpc("complete_media_finalise", {
+        p_asset_id: asset.id,
+        p_validated_mime_type: "image/jpeg",
+        p_size_bytes: 4,
+      })
+      expect(applied.error?.code).toBe("42501")
+    }
+  })
+
+  it("denies direct inserts and updates; the uploader may discard their own draft", async () => {
+    const asset = await reserve(staffA)
+    expect((await stage(staffA, asset)).data).toBe("pending")
+    for (const user of [staffA, admin]) {
+      const insert = await user.client.from("media_pending_labels").insert({
+        asset_id: (await reserve(staffA)).id,
+        uploader_id: staffA.id,
+        venue_id: venueA,
+        input: draft(asset.id),
+      })
+      expect(insert.error?.code).toBe("42501")
+      const update = await user.client
+        .from("media_pending_labels")
+        .update({ status: "needs_attention", code: "invalid" })
+        .eq("asset_id", asset.id)
+      expect(update.error?.code).toBe("42501")
+    }
+    const own = await staffA.client
+      .from("media_pending_labels")
+      .delete()
+      .eq("asset_id", asset.id)
+      .select("asset_id")
+    expect(own.data).toEqual([{ asset_id: asset.id }])
+  })
+
+  it("refuses ready-asset storage, failed, amenity and other-venue assets", async () => {
+    const ready = await reserveReady(service, staffA)
+    const staged = await stage(staffA, ready)
+    expect(staged.data).toBe("ready")
+    expect(await drafts(staffA, ready.id)).toEqual([])
+
+    const failed = await reserve(staffA)
+    await service
+      .from("media_assets")
+      .update({ upload_state: "failed" })
+      .eq("id", failed.id)
+    expectDbError(await stage(staffA, failed), "media_asset_not_found", "P0002")
+
+    const amenity = await staffA.client.rpc("reserve_media_asset", {
+      p_client_upload_key: crypto.randomUUID(),
+      p_size_bytes: 4,
+      p_media_type: "image",
+      p_extension: "jpg",
+      p_original_filename: "TEST amenity.jpg",
+      p_purpose: "amenity",
+    })
+    expect(amenity.error).toBeNull()
+    expectDbError(
+      await stage(staffA, amenity.data![0]),
+      "media_asset_not_found",
+      "P0002"
+    )
+
+    const elsewhere = await reserve(staffA)
+    expectDbError(
+      await stage(staffA, { id: elsewhere.id, venue_id: venueB }),
+      "media_asset_not_found",
+      "P0002"
+    )
+  })
+
+  it("upload_label_metrics is for active admins only", async () => {
+    const asset = await reserveReady(service, staffA)
+    await saveOk(staffA, {
+      asset: asset.id,
+      revision: 0,
+      types: ["dish"],
+      items: [tuple(a["curries--korma"])],
+      catalogue: activeA,
+    })
+    const { data: rows, error } = await admin.client
+      .from("upload_label_metrics")
+      .select("*")
+      .eq("venue_id", venueA)
+    expect(error).toBeNull()
+    expect(rows!.length).toBeGreaterThan(0)
+    const total = rows!.reduce((n, r) => n + (r.uploads ?? 0), 0)
+    const labelled = rows!.reduce((n, r) => n + (r.uploads_labelled ?? 0), 0)
+    expect(labelled).toBeGreaterThan(0)
+    expect(labelled).toBeLessThanOrEqual(total)
+    expect(rows!.some((r) => r.median_seconds_to_label !== null)).toBe(true)
+
+    for (const user of [staffA, staffB])
+      expect(
+        (await user.client.from("upload_label_metrics").select("venue_id")).data
+      ).toEqual([])
+    const anon = await anonClient().from("upload_label_metrics").select("*")
+    expect(anon.error?.code).toBe("42501")
   })
 })
