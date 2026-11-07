@@ -62,9 +62,9 @@ test.describe("amenity capture at phone width", () => {
     expect(checkState(id).answeredBy).toBe(w.staffA.id)
     expect(currentSubmission(id).assets).toEqual([photo])
 
-    // The manager's check page at the same width.
+    // The manager's check page at the same width, in the /manager workspace.
     const manager = await signedInPage(browser, w.managerA, device)
-    await manager.goto(amenityHrefs("/staff/manage").check(id))
+    await manager.goto(amenityHrefs("/manager").check(id))
     await expect(
       manager.getByText(PROGRESS_LABEL.complete, { exact: true }).first()
     ).toBeVisible()
