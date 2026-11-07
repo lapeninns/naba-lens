@@ -12,6 +12,7 @@ import {
 } from "../../lib/amenities/contract"
 import {
   amenityOk,
+  assigneeOption,
   captureForm,
   checkId,
   checkItem,
@@ -57,17 +58,11 @@ async function openStaffCheck(page: Page, key: string, id: string) {
   await expect(page).toHaveURL(new RegExp(`${escape(staffCaptureHref(id))}$`))
 }
 
-/** Archive and Restore may ask for confirmation in a dialog of the same name. */
-async function confirmAction(page: Page, name: string) {
-  await page.getByRole("button", { name, exact: true }).click()
-  const dialog = page.getByRole("dialog", { name })
-  if (await dialog.isVisible().catch(() => false)) {
-    await dialog.getByRole("button", { name, exact: true }).click()
-    await expect(dialog).toBeHidden()
-  }
-}
-
-/** The check page states progress, answer, who answered and when. */
+/**
+ * The check page states progress, answer, and who answered and when, as
+ * "Answered by <name> on 7 Nov 2026" under the answer (answeredText in
+ * components/nabalens/amenities/manage/check-row.tsx).
+ */
 async function expectAnswered(
   page: Page,
   answer: keyof typeof ANSWER_LABEL,
@@ -80,8 +75,15 @@ async function expectAnswered(
   await expect(
     main.getByText(ANSWER_LABEL[answer], { exact: true }).first()
   ).toBeVisible()
-  await expect(main.getByText(by.name).first()).toBeVisible()
-  await expect(main.locator("time[datetime]").first()).toBeVisible()
+  await expect(
+    main
+      .getByText(
+        new RegExp(
+          `^Answered by ${escape(by.name)} on \\d{1,2} [A-Za-z]+ \\d{4}$`
+        )
+      )
+      .first()
+  ).toBeVisible()
 }
 
 test.describe("amenity checks", () => {
@@ -142,7 +144,9 @@ test.describe("amenity checks", () => {
       .getByRole("button", { name: UI_TEXT.addFromCatalogue })
       .click()
     const add = manager.getByRole("dialog", { name: UI_TEXT.addFromCatalogue })
-    await add.getByRole("checkbox", { name: question("darts") }).check()
+    await add
+      .getByRole("checkbox", { name: question("darts"), exact: true })
+      .check()
     await add.getByRole("button", { name: UI_TEXT.addSelected }).click()
     await expect(add).toBeHidden()
     await expect(checkItem(manager, "darts")).toContainText(
@@ -152,7 +156,7 @@ test.describe("amenity checks", () => {
 
     await manager.getByRole("link", { name: question("darts") }).click()
     await expect(manager).toHaveURL(new RegExp(`${escape(MANAGE.check(id))}$`))
-    await chooseOption(manager, manager, "Assignee", w.staffA.name)
+    await chooseOption(manager, manager, "Assignee", assigneeOption(w.staffA))
     await manager.getByRole("button", { name: UI_TEXT.assign }).click()
     await expect.poll(() => checkState(id).assignee).toBe(w.staffA.id)
 
@@ -392,12 +396,15 @@ test.describe("amenity checks", () => {
     const manager = await signedInPage(browser, w.managerA)
     await manager.goto(MANAGE.check(id))
     await manager.getByRole("button", { name: UI_TEXT.reopen }).click()
-    const dialog = manager.getByRole("dialog", { name: UI_TEXT.reopen })
+    const dialog = manager.getByRole("dialog", { name: "Reopen this check" })
     await dialog
-      .getByRole("radio", { name: REOPEN_PRESET_LABEL.wrong_area })
+      .getByRole("radio", { name: REOPEN_PRESET_LABEL.wrong_area, exact: true })
       .check()
-    await dialog.getByLabel("Reason", { exact: true }).fill(extra)
-    await dialog.getByRole("button", { name: UI_TEXT.reopen }).click()
+    // Optional text for a preset other than Other: "Details (optional)".
+    await dialog.getByLabel(/^Details/).fill(extra)
+    await dialog
+      .getByRole("button", { name: UI_TEXT.reopen, exact: true })
+      .click()
     await expect(dialog).toBeHidden()
     await expect(
       manager.getByText(PROGRESS_LABEL.needs_recheck).first()
@@ -451,7 +458,10 @@ test.describe("amenity checks", () => {
 
     const manager = await signedInPage(browser, w.managerA)
     await manager.goto(MANAGE.check(id))
-    await confirmAction(manager, UI_TEXT.archive)
+    // Archive and Restore act at once; there is no confirmation dialog.
+    await manager
+      .getByRole("button", { name: UI_TEXT.archive, exact: true })
+      .click()
     await expect.poll(() => checkState(id).status).toBe("archived")
 
     await manager.goto(MANAGE.list)
@@ -462,7 +472,9 @@ test.describe("amenity checks", () => {
 
     await archived.getByRole("link", { name: question("darts") }).click()
     await expect(manager).toHaveURL(new RegExp(`${escape(MANAGE.check(id))}$`))
-    await confirmAction(manager, UI_TEXT.restore)
+    await manager
+      .getByRole("button", { name: UI_TEXT.restore, exact: true })
+      .click()
     await expect.poll(() => checkState(id).status).toBe("active")
     expect(checkState(id)).toMatchObject({
       progress: "complete",
