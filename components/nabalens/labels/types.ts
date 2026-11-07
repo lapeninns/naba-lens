@@ -36,16 +36,11 @@ export type LabelEditorDialogProps = {
   /** Default "staff" (the safer one: shows no admin-only details). */
   audience?: LabelAudience
   onOpenChange: (open: boolean) => void
-  /** 1..LABEL_LIMITS.maxBatchAssets ready assets of one venue. */
+  /** 1..LABEL_LIMITS.maxBatchAssets files of one venue. */
   assets: LabelEditorAsset[]
   catalogue: CatalogueProp
   /** Reload the catalogue (after an error, or when the menu changed). */
   onRetryCatalogue: () => void
-  /**
-   * Save every input (one per changed file). Must resolve with one result per
-   * input (matched by assetId). A rejection is treated as a network failure.
-   */
-  onSave: (inputs: SaveLabelsInput[]) => Promise<SaveLabelsResult[]>
   /** After each save attempt that stored at least one file: the ok results. */
   onSaved?: (results: SaveLabelsResult[]) => void
   /** Default: "Labels" for staff, "Edit labels" for admins. */
@@ -64,4 +59,17 @@ export type LabelEditorDialogProps = {
    * Omitted: every file. Other files of the batch never get it.
    */
   presetAssetIds?: readonly string[]
-}
+} & (
+  | {
+      /** Resolve with one result per input, matched by assetId. */
+      onSave: (inputs: SaveLabelsInput[]) => Promise<SaveLabelsResult[]>
+      uploadDraft?: never
+    }
+  | {
+      onSave?: never
+      uploadDraft: {
+        files: ReadonlyMap<string, File>
+        onQueue: (inputs: SaveLabelsInput[]) => void
+      }
+    }
+)

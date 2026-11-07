@@ -67,7 +67,9 @@ function okFor(inputs: SaveLabelsInput[]): SaveLabelsResult[] {
   }))
 }
 
-async function open(props: Partial<LabelEditorDialogProps> = {}) {
+async function open(
+  props: Partial<Extract<LabelEditorDialogProps, { uploadDraft?: never }>> = {}
+) {
   const onSave = vi.fn(async (inputs: SaveLabelsInput[]) => okFor(inputs))
   const onOpenChange = vi.fn()
   render(

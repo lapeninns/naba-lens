@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 // v0.3: optional "Label these files" after upload. Labelling is offered only
 // for finished files with a known asset id and never blocks or changes uploads.
-import { cleanup, render, screen } from "@testing-library/react"
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { UploadDialog } from "@/components/nabalens/upload-dialog"
 import type { Uploader } from "@/components/nabalens/upload-queue"
+import { EMPTY_LABEL_SUMMARY, type SaveLabelsInput } from "@/lib/menus/types"
 
 const LIMITS = {
   maxBatchFiles: 10,
@@ -43,6 +44,100 @@ function setup(onLabel?: (ids: string[]) => void) {
 }
 
 describe("UploadDialog optional labelling", () => {
+  it("applies each queued draft only when its file is ready, including after retry", async () => {
+    const attempts = new Map<
+      string,
+      PromiseWithResolvers<{ assetId: string }>
+    >()
+    const upload: Uploader = (file, context) => {
+      const attempt = Promise.withResolvers<{ assetId: string }>()
+      attempts.set(file.name, attempt)
+      context.onProcessing()
+      return attempt.promise
+    }
+    const save = vi.fn(async (_venue: string, input: SaveLabelsInput) => ({
+      ok: true as const,
+      assetId: input.assetId,
+      labels: EMPTY_LABEL_SUMMARY,
+    }))
+    const user = userEvent.setup()
+    render(
+      <UploadDialog
+        open
+        keepRunningWhenClosed
+        onOpenChange={vi.fn()}
+        uploader={upload}
+        limits={LIMITS}
+        draftLabels={{
+          save,
+          renderEditor: ({ items, onQueue, onClose }) => (
+            <button
+              onClick={() => {
+                onQueue(
+                  "venue",
+                  items.map((item) => ({
+                    assetId: item.id,
+                    expectedRevision: 0,
+                    catalogueVersionId: "menu",
+                    contentTypes: ["preparation"],
+                    note: item.file.name,
+                    items: [],
+                    missingItem: null,
+                  }))
+                )
+                onClose()
+              }}
+            >
+              Save test drafts
+            </button>
+          ),
+        }}
+      />
+    )
+    await user.upload(screen.getByLabelText("Choose photos or videos"), [
+      jpeg("first.jpg"),
+      jpeg("second.jpg"),
+    ])
+    await user.click(screen.getByRole("button", { name: "Upload and label" }))
+    await waitFor(() => expect(attempts.size).toBe(2))
+    await user.click(screen.getByRole("button", { name: "Save test drafts" }))
+    expect(save).not.toHaveBeenCalled()
+
+    await act(async () =>
+      attempts.get("first.jpg")!.resolve({ assetId: "first-asset" })
+    )
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1))
+    expect(save).toHaveBeenNthCalledWith(
+      1,
+      "venue",
+      expect.objectContaining({
+        assetId: "first-asset",
+        note: "first.jpg",
+      })
+    )
+    const failed = attempts.get("second.jpg")!
+    await act(async () => failed.reject(new Error("Upload interrupted")))
+    expect(
+      screen.getByText("Labels will save when this file is ready")
+    ).toBeTruthy()
+    expect(save).toHaveBeenCalledTimes(1)
+    await user.click(screen.getByRole("button", { name: "Retry second.jpg" }))
+    await waitFor(() => expect(attempts.get("second.jpg")).not.toBe(failed))
+    await act(async () =>
+      attempts.get("second.jpg")!.resolve({ assetId: "second-asset" })
+    )
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(2))
+    expect(save).toHaveBeenNthCalledWith(
+      2,
+      "venue",
+      expect.objectContaining({
+        assetId: "second-asset",
+        note: "second.jpg",
+      })
+    )
+    expect(await screen.findAllByText("Labels saved")).toHaveLength(2)
+  })
+
   it("offers labelling for the finished files only, then closes", async () => {
     const onLabel = vi.fn()
     const { user, onOpenChange } = setup(onLabel)

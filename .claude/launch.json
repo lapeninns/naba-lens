@@ -1,0 +1,28 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "photo-guide-prototype",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "4517",
+        "--bind",
+        "127.0.0.1",
+        "--directory",
+        "/private/tmp/claude-501/-Users-amankumarshrestha-LapenInns-Project-platform-nabalens/08284a79-9946-4254-8d76-a78989e06e26/scratchpad/prototype"
+      ],
+      "port": 4517
+    },
+    {
+      "name": "nabalens-local",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "/private/tmp/claude-501/-Users-amankumarshrestha--claude-spares-spare-Hhjjii/51424f56-6c2c-494e-a4fb-71d8a8de41a3/scratchpad/dev-local.mjs"
+      ],
+      "port": 3000,
+      "url": "http://127.0.0.1:3000"
+    }
+  ]
+}

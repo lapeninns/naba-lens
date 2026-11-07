@@ -7,6 +7,7 @@ import { LabelEditorHost } from "@/app/_labels/label-editor-host"
 import { useMediaUploader } from "@/app/_media/use-media-uploader"
 import { UploadDialog } from "@/components/nabalens"
 import type { UploadBusy } from "@/components/nabalens/upload-dialog"
+import type { UploadLabelDrafts } from "@/components/nabalens/upload-label-drafts"
 import {
   SessionGuardProvider,
   type SessionGuard,
@@ -28,6 +29,9 @@ import { sendSignInLink, signInWithCode } from "@/lib/auth/magic-link"
 import { MEDIA_LIMITS } from "@/lib/config/media"
 import { createClient } from "@/lib/supabase/browser"
 import { getSiteUrl } from "@/lib/supabase/env"
+
+import { saveUploadLabelDraft } from "./upload-label-api"
+import { UploadLabelEditor } from "./upload-label-editor"
 
 /** What one Add call brings for the files it picks. */
 type PickOwner = {
@@ -150,11 +154,12 @@ export function AddHost({
   const readyListeners = React.useRef(new Set<AddReadyListener>())
 
   const unfinished = busy.active + busy.failed + busy.stopped
-  const waiting = unfinished + readyToLabel.length
+  const waiting = unfinished + readyToLabel.length + (busy.labels ?? 0)
   const busyWords = [
     busy.active ? `${busy.active} in progress` : null,
     busy.failed ? `${busy.failed} failed` : null,
     busy.stopped ? `${busy.stopped} stopped` : null,
+    busy.labels ? `${busy.labels} with pending labels` : null,
     readyToLabel.length ? `${readyToLabel.length} ready to label` : null,
   ]
     .filter(Boolean)
@@ -189,30 +194,33 @@ export function AddHost({
     }
   }, [])
 
-  const handleReady = React.useCallback((ids: string[], files?: File[]) => {
-    // Each Add call hears only its own files; a task screen that takes them
-    // claims them, so they are not "ready to label" on Add as well.
-    const unclaimed: string[] = []
-    const byOwner = new Map<PickOwner, string[]>()
-    ids.forEach((id, i) => {
-      const file = files?.[i]
-      const owner = file ? fileOwners.current.get(file) : undefined
-      if (owner?.preset) presetFor.current.set(id, owner.preset)
-      if (owner?.onReady)
-        byOwner.set(owner, [...(byOwner.get(owner) ?? []), id])
-      else unclaimed.push(id)
-    })
-    for (const [owner, own] of byOwner) {
-      if (owner.onReady?.(own) === false) unclaimed.push(...own)
-    }
-    if (!uploadOpenRef.current && unclaimed.length > 0) {
-      setReadyToLabel((current) => [
-        ...current,
-        ...unclaimed.filter((id) => !current.includes(id)),
-      ])
-    }
-    for (const listener of readyListeners.current) listener(ids)
-  }, [])
+  const handleReady = React.useCallback(
+    (ids: string[], files?: File[], drafted: string[] = []) => {
+      // Each Add call hears only its own files; a task screen that takes them
+      // claims them, so they are not "ready to label" on Add as well.
+      const unclaimed: string[] = []
+      const byOwner = new Map<PickOwner, string[]>()
+      ids.forEach((id, i) => {
+        const file = files?.[i]
+        const owner = file ? fileOwners.current.get(file) : undefined
+        if (owner?.preset) presetFor.current.set(id, owner.preset)
+        if (owner?.onReady)
+          byOwner.set(owner, [...(byOwner.get(owner) ?? []), id])
+        else if (!drafted.includes(id)) unclaimed.push(id)
+      })
+      for (const [owner, own] of byOwner) {
+        if (owner.onReady?.(own) === false) unclaimed.push(...own)
+      }
+      if (!uploadOpenRef.current && unclaimed.length > 0) {
+        setReadyToLabel((current) => [
+          ...current,
+          ...unclaimed.filter((id) => !current.includes(id)),
+        ])
+      }
+      for (const listener of readyListeners.current) listener(ids)
+    },
+    []
+  )
 
   const labelled = React.useCallback((ids: string[]) => {
     setReadyToLabel((current) => {
@@ -280,6 +288,44 @@ export function AddHost({
     router.refresh()
   }, [router])
 
+  const draftLabels = React.useMemo<UploadLabelDrafts>(
+    () => ({
+      // Task screens own their upload hand-off and may open their own editor.
+      canDraft: (file) => !fileOwners.current.get(file)?.onReady,
+      save: saveUploadLabelDraft,
+      onSaved: (id) => {
+        labelled([id])
+        refreshAfterLabels()
+      },
+      renderEditor: (props) => {
+        const last = [...props.items]
+          .reverse()
+          .find((item) => fileOwners.current.get(item.file)?.preset)
+        const preset =
+          (last && fileOwners.current.get(last.file)?.preset) ?? null
+        return (
+          <UploadLabelEditor
+            {...props}
+            preset={preset}
+            presetAssetIds={
+              preset
+                ? props.items
+                    .filter((item) =>
+                      samePreset(
+                        fileOwners.current.get(item.file)?.preset ?? undefined,
+                        preset
+                      )
+                    )
+                    .map((item) => item.id)
+                : []
+            }
+          />
+        )
+      },
+    }),
+    [labelled, refreshAfterLabels]
+  )
+
   return (
     <SessionGuardProvider value={guard}>
       <LeaveGuard>
@@ -312,6 +358,7 @@ export function AddHost({
               router.refresh()
             }}
             onReady={handleReady}
+            draftLabels={draftLabels}
             onLabel={(ids) => {
               setReadyToLabel([])
               openLabels(ids)
