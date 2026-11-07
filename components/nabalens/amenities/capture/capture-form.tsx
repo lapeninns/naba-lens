@@ -451,7 +451,8 @@ export function CaptureForm({
         },
         // Once per upload, as soon as that upload is ready (not when the
         // whole pick settles): each is added to the evidence, never
-        // replacing it. False after unmount, so Add keeps the upload.
+        // replacing it. False after unmount ("the screen is gone"): Add keeps
+        // the upload saved, not attached to this check.
         onReady: (assetIds) => {
           if (!mounted.current) return false
           void reloadRef.current(assetIds)

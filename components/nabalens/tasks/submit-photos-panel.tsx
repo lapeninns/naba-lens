@@ -260,8 +260,8 @@ export function SubmitPhotosPanel({
 
   // Only the files picked from this panel are selected here once ready (not
   // every upload of the shared Add queue). The latest reload function, so a
-  // batch that settles later uses current state; after unmount Add keeps the
-  // files as ready to label instead.
+  // batch that settles later uses current state. After unmount the photo is
+  // still saved in the person's photos, just not selected here.
   const reloadRef = React.useRef(reloadFirstPage)
   React.useLayoutEffect(() => {
     reloadRef.current = reloadFirstPage
@@ -285,7 +285,8 @@ export function SubmitPhotosPanel({
         imagesOnly: true,
         // Once per photo, as soon as that photo is ready (not when the whole
         // pick settles): each one is added to the selection, never replacing
-        // it. False after unmount, so Add keeps the photo instead.
+        // it. False after unmount ("the screen is gone"): Add keeps the photo
+        // saved in the person's photos, not attached to this task.
         onPicked: () => {
           if (mounted.current) arrivals.current = newArrivals()
         },
@@ -394,7 +395,9 @@ export function SubmitPhotosPanel({
 
     if (result.ok) {
       intent.settle(key)
-      setSelected([])
+      // Only what was sent leaves the selection: a photo that became ready
+      // during the send stays selected (and counted) for the next one.
+      setSelected((current) => current.filter((id) => !assetIds.includes(id)))
       setFlagged(new Map(result.skipped.map((s) => [s.assetId, s.reason])))
       const fresh = result.submitted.filter((p) => !p.reused).length
       setOutcome({

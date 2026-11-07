@@ -2,7 +2,8 @@
 // Task and amenity screens take each upload as soon as THAT file is ready
 // (Add's onReady fires once per file): selections accumulate, never replace
 // or wait for the batch, "Send photos" stays a separate step, and a late
-// callback after the screen is gone returns false so Add keeps the file.
+// callback after the screen is gone returns false: Add keeps the file saved
+// in the person's photos, not attached to the screen.
 import {
   act,
   cleanup,
@@ -195,6 +196,57 @@ describe("SubmitPhotosPanel: photos arrive one at a time", () => {
     expect(screen.getByText("1 new photo selected.")).toBeTruthy()
   })
 
+  it("keeps a photo that became ready during a send selected after it succeeds", async () => {
+    let listed = [P1, OLD]
+    const loadPhotos = vi.fn(async () => page(listed))
+    const { user, openAdd, submit } = setup(loadPhotos)
+    await user.click(
+      screen.getByRole("button", { name: "Choose from your photos" })
+    )
+    const opts = openAdd.mock.lastCall![0]!
+    act(() => opts.onPicked?.())
+    opts.onReady!([P1.assetId])
+    await waitFor(() =>
+      expect(tile("11:00").getAttribute("aria-pressed")).toBe("true")
+    )
+
+    const sending = deferred<unknown>()
+    submit.mockReturnValueOnce(sending.promise)
+    await user.click(screen.getByRole("button", { name: "Send 1 photo" }))
+    expect(submit.mock.lastCall![0].assetIds).toEqual([P1.assetId])
+
+    // P2 finishes saving while P1 is being sent: it is selected.
+    listed = [P2, P1, OLD]
+    opts.onReady!([P2.assetId])
+    await waitFor(() =>
+      expect(tile("12:00").getAttribute("aria-pressed")).toBe("true")
+    )
+
+    await act(async () =>
+      sending.resolve({
+        ok: true,
+        submitted: [
+          {
+            submissionId: "4a000000-0000-4000-8000-000000000001",
+            assetId: P1.assetId,
+            state: "submitted",
+            revision: 1,
+            reused: false,
+          },
+        ],
+        skipped: [],
+        replayed: false,
+      })
+    )
+    // Only the sent photo leaves the selection; P2 waits for the next send.
+    await waitFor(() =>
+      expect(tile("11:00").getAttribute("aria-pressed")).toBe("false")
+    )
+    expect(tile("12:00").getAttribute("aria-pressed")).toBe("true")
+    expect(screen.getByText("1 new photo selected.")).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Send 1 photo" })).toBeTruthy()
+  })
+
   it("returns false for a photo ready after the screen is gone", async () => {
     const loadPhotos = vi.fn(async () => page([P1, OLD]))
     const { user, openAdd, unmount } = setup(loadPhotos)
@@ -203,7 +255,7 @@ describe("SubmitPhotosPanel: photos arrive one at a time", () => {
     )
     const opts = openAdd.mock.lastCall![0]!
     unmount()
-    // Add then keeps the photo itself (ready to label) instead.
+    // Add then keeps the photo saved, just not attached to this task.
     expect(opts.onReady!([P1.assetId])).toBe(false)
     expect(loadPhotos).not.toHaveBeenCalled()
   })
