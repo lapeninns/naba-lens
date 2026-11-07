@@ -20,9 +20,11 @@ export type CatalogueProp =
 export type LabelAudience = "staff" | "admin"
 
 /**
- * A menu item suggested for the files (Our menu's "Add a photo of this dish";
- * the same shape as AddLabelPreset). The editor shows it as an unsaved draft
- * for the person to keep or remove; it is never saved without them.
+ * The dish the files were picked for (Our menu's "Add a photo of this dish",
+ * a task's dish; the same shape as AddLabelPreset). It is applied as soon as
+ * the menu names it, as a removable chip, and saved with the other labels
+ * unless the person removes it. A dish the current menu no longer offers is
+ * not added (the upload panel says so).
  */
 export type LabelPreset = {
   itemId: string
@@ -63,7 +65,10 @@ export type LabelEditorDialogProps = {
    * Order only; search still covers the whole menu.
    */
   focus?: WorkFocus | null
-  /** Pre-filled as a draft label when it is on this venue's menu. */
+  /**
+   * Applied as a removable chip when it is on this venue's menu, and saved
+   * with the other labels unless removed.
+   */
   preset?: LabelPreset | null
   /**
    * The files the preset belongs to (the ones picked from Our menu's dish).

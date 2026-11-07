@@ -282,7 +282,7 @@ export function isPickable(catalogue: LabelCatalogue, ref: LabelItemRef) {
 }
 
 /**
- * A suggested item (Our menu's photo request) as a draft item, when the
+ * A preset (the dish the files were picked for) as a draft item, when the
  * catalogue still offers it. Names come from the catalogue, so a renamed dish
  * shows its current name.
  */
