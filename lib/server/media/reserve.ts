@@ -16,7 +16,15 @@ export type ReserveRequest = {
   contentType: string
   mediaType: MediaKind
   preferResumable: boolean
+  /** Omitted: general. Fixed by the first reservation for this key. */
+  purpose?: MediaPurpose
 }
+
+/**
+ * `media_assets.purpose`. Amenity evidence is kept out of the organisation
+ * community; the uploader, admins and the amenity routes still read it.
+ */
+export type MediaPurpose = "general" | "amenity"
 
 export type ReserveResponse = {
   assetId: string
@@ -117,6 +125,10 @@ export async function reserveAsset(
   if (input.mediaType !== "image" && input.mediaType !== "video") {
     return invalid("Choose a photo or a video.")
   }
+  const purpose = input.purpose ?? "general"
+  if (purpose !== "general" && purpose !== "amenity") {
+    return invalid("This upload request is invalid.")
+  }
   const filename = cleanFilename(String(input.filename ?? ""))
   if (!filename) return invalid("This file has no name.")
   const size = Number(input.sizeBytes)
@@ -146,6 +158,7 @@ export async function reserveAsset(
     p_original_filename: filename,
     p_size_bytes: size,
     p_client_upload_key: input.idempotencyKey,
+    p_purpose: purpose,
   })
   if (error) return rpcFailure(error)
   const row = data?.[0]

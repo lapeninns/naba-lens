@@ -1010,6 +1010,7 @@ export type Database = {
           original_filename: string
           original_path: string
           preview_path: string | null
+          purpose: string
           size_bytes: number | null
           thumbnail_path: string | null
           updated_at: string
@@ -1030,6 +1031,7 @@ export type Database = {
           original_filename: string
           original_path: string
           preview_path?: string | null
+          purpose?: string
           size_bytes?: number | null
           thumbnail_path?: string | null
           updated_at?: string
@@ -1050,6 +1052,7 @@ export type Database = {
           original_filename?: string
           original_path?: string
           preview_path?: string | null
+          purpose?: string
           size_bytes?: number | null
           thumbnail_path?: string | null
           updated_at?: string
@@ -3181,6 +3184,7 @@ export type Database = {
           original_filename: string
           original_path: string
           preview_path: string | null
+          purpose: string
           size_bytes: number | null
           thumbnail_path: string | null
           updated_at: string
@@ -3228,6 +3232,7 @@ export type Database = {
           original_filename: string
           original_path: string
           preview_path: string | null
+          purpose: string
           size_bytes: number | null
           thumbnail_path: string | null
           updated_at: string
@@ -3460,6 +3465,7 @@ export type Database = {
           p_extension: string
           p_media_type: Database["public"]["Enums"]["media_type"]
           p_original_filename: string
+          p_purpose?: string
           p_size_bytes?: number
         }
         Returns: {

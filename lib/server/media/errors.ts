@@ -42,7 +42,8 @@ export function rpcFailure(error: DbError): Outcome<never> {
   if (
     message.includes("invalid_extension") ||
     message.includes("invalid_size") ||
-    message.includes("invalid_upload_key")
+    message.includes("invalid_upload_key") ||
+    message.includes("invalid_purpose")
   ) {
     return {
       ok: false,

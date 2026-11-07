@@ -833,6 +833,7 @@ export function CaptureForm({
           limits={upload.limits}
           initialFiles={pickedFiles}
           onReady={(assetIds) => void reloadAssets(assetIds)}
+          purpose="amenity"
         />
       ) : null}
     </form>

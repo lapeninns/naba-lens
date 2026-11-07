@@ -73,6 +73,7 @@ export function toQueueUploader(
     try {
       result = await upload(file, {
         idempotencyKey,
+        ...(context.purpose ? { purpose: context.purpose } : {}),
         signal: context.signal,
         onProgress: context.onProgress,
         onStateChange: (state) => {
