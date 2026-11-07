@@ -874,6 +874,28 @@ describe("Review 1 regressions: Add host", () => {
     ])
   })
 
+  it("R3: a failed menu is not tried again while no dish waits for it", async () => {
+    const user = userEvent.setup()
+    holdUploads()
+    const menu = vi.fn(() => ({
+      ok: false,
+      message: "The menu is unavailable.",
+    }))
+    api.menu = menu
+    host(<Opener opts={{ source: "library" }} />)
+    await user.click(screen.getByRole("button", { name: "Open" }))
+    await user.upload(input("library"), [jpeg("plain.jpg")])
+    const dialog = await screen.findByRole("dialog", { name: "Saving 1 photo" })
+    expect(
+      await within(dialog).findByText("The menu couldn't be loaded")
+    ).toBeTruthy()
+    const calls = menu.mock.calls.length
+    await act(async () => {
+      window.dispatchEvent(new Event("online"))
+    })
+    expect(menu).toHaveBeenCalledTimes(calls)
+  })
+
   it("m16: a photo ready after its task screen closed is listed as not added to the task", async () => {
     const user = userEvent.setup()
     const { find } = holdUploads()

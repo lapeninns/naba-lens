@@ -96,6 +96,8 @@ export type UploadLabels = {
     | "unavailable"
   /** Loads the menu again for a dish that waits for it. */
   retrySeed?: () => void
+  /** Whether some file's dish waits for a menu that failed to load. */
+  onSeedWaiting?: (waiting: boolean) => void
   /** Rejects with SessionExpiredError when the person is signed out. */
   save: (
     venueId: string,
@@ -959,6 +961,15 @@ export function useUploadLabels(
         ? "failed"
         : null
   }
+
+  const seedWaiting = labelable.some(
+    (item) => !records[item.id] && undecided(item) === "failed"
+  )
+  React.useEffect(
+    () => config?.onSeedWaiting?.(seedWaiting),
+    [config, seedWaiting]
+  )
+  React.useEffect(() => () => latest.current.config?.onSeedWaiting?.(false), [])
 
   function view(item: QueueItem): LabelView {
     const record = records[item.id]
