@@ -5,6 +5,7 @@ import Link from "next/link"
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
+import { GUIDE_PATH } from "../guide/task-photo-guide"
 import { Notice } from "../notice"
 import { PhotoSourceActions, LIBRARY_LABEL } from "../photo-source"
 import { useAdd } from "../shell/add-context"
@@ -61,6 +62,12 @@ export function ContributeCard({
           {LIBRARY_LABEL}
         </Link>
       )}
+      <Link
+        href={GUIDE_PATH}
+        className="inline-flex min-h-11 items-center self-start text-body-touch font-semibold text-accent-text underline underline-offset-3 outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid md:min-h-0 md:text-body"
+      >
+        How to photograph a dish
+      </Link>
     </section>
   )
 }
