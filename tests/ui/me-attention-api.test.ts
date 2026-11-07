@@ -46,8 +46,19 @@ describe("needs-attention API client", () => {
     )
   })
 
-  it("treats a server without the list (the catalogue answer) as nothing to fix", async () => {
+  it("treats a reply without the list as a failed check, not as nothing to fix", async () => {
+    // e.g. a server answering with the label catalogue instead (review n3).
     answer({ ok: true, catalogue: { status: "none" }, focus: null })
+    expect(await loadNeedsAttention()).toEqual({
+      ok: false,
+      message: ATTENTION_LOAD_FAILED,
+    })
+    answer({ ok: true, items: null })
+    expect(await loadNeedsAttention()).toEqual({
+      ok: false,
+      message: ATTENTION_LOAD_FAILED,
+    })
+    answer({ ok: true, items: [] })
     expect(await loadNeedsAttention()).toEqual({ ok: true, items: [] })
   })
 
@@ -67,14 +78,43 @@ describe("needs-attention API client", () => {
     })
   })
 
-  it("discards one asset's labels with DELETE", async () => {
-    const fetch = answer({ ok: true })
-    expect(await discardPendingLabels(ASSET)).toBe(true)
+  it("discards one asset's labels with DELETE and says what happened", async () => {
+    const fetch = answer({ ok: true, state: "discarded" })
+    expect(await discardPendingLabels(ASSET)).toEqual({
+      ok: true,
+      state: "discarded",
+    })
     expect(fetch).toHaveBeenCalledWith(`/api/upload-labels?assetId=${ASSET}`, {
       method: "DELETE",
     })
+    answer({ ok: true, state: "none" })
+    expect(await discardPendingLabels(ASSET)).toEqual({
+      ok: true,
+      state: "none",
+    })
     answer({ ok: false, message: "nope" }, 500)
-    expect(await discardPendingLabels(ASSET)).toBe(false)
+    expect(await discardPendingLabels(ASSET)).toEqual({ ok: false })
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Promise.reject(new TypeError()))
+    )
+    expect(await discardPendingLabels(ASSET)).toEqual({ ok: false })
+  })
+
+  it("reports labels the upload applied before the discard (review m2)", async () => {
+    const labels = { ...EMPTY_LABEL_SUMMARY, hasLabels: true, revision: 1 }
+    answer({ ok: true, state: "already_applied", labels })
+    expect(await discardPendingLabels(ASSET)).toEqual({
+      ok: true,
+      state: "already_applied",
+      labels,
+    })
+    answer({ ok: true, state: "already_applied" })
+    expect(await discardPendingLabels(ASSET)).toEqual({
+      ok: true,
+      state: "already_applied",
+      labels: null,
+    })
   })
 
   it("saves a fix and maps saved, pending, refused and offline answers", async () => {

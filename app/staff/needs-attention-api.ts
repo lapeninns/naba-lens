@@ -1,5 +1,6 @@
 import {
   EMPTY_LABEL_SUMMARY,
+  type MediaLabelSummary,
   type PendingLabelItem,
   type SaveLabelsInput,
   type SaveLabelsResult,
@@ -12,6 +13,16 @@ import {
 
 export type AttentionResult =
   { ok: true; items: PendingLabelItem[] } | { ok: false; message: string }
+
+/**
+ * What a discard did (C6). "already_applied": the photo's upload applied the
+ * labels first, so nothing was discarded and the photo has these labels
+ * (null when the server didn't say which). "none": nothing was kept.
+ */
+export type DiscardResult =
+  | { ok: true; state: "discarded" | "none" }
+  | { ok: true; state: "already_applied"; labels: MediaLabelSummary | null }
+  | { ok: false }
 
 export const ATTENTION_LOAD_FAILED =
   "We couldn't check for photos that need attention. Check your connection and try again."
@@ -27,9 +38,11 @@ export async function loadNeedsAttention(
     })
     const result = (await response.json()) as AttentionResult
     if (!result.ok) return { ok: false, message: result.message }
-    // A server without the list answers with the label catalogue instead:
-    // nothing is stored there, so nothing needs attention.
-    return { ok: true, items: Array.isArray(result.items) ? result.items : [] }
+    // A reply without the list is not "nothing needs attention": saying so
+    // could hide labels that are waiting for the person.
+    if (!Array.isArray(result.items))
+      return { ok: false, message: ATTENTION_LOAD_FAILED }
+    return { ok: true, items: result.items }
   } catch (error) {
     if (signal?.aborted) throw error
     return { ok: false, message: ATTENTION_LOAD_FAILED }
@@ -37,23 +50,42 @@ export async function loadNeedsAttention(
 }
 
 /** Discard the stored labels of one own upload (idempotent). */
-export async function discardPendingLabels(assetId: string): Promise<boolean> {
+export async function discardPendingLabels(
+  assetId: string
+): Promise<DiscardResult> {
   try {
     const response = await fetch(
       `/api/upload-labels?assetId=${encodeURIComponent(assetId)}`,
       { method: "DELETE" }
     )
-    const result = (await response.json()) as { ok: boolean }
-    return result.ok === true
+    const result = (await response.json()) as {
+      ok?: boolean
+      state?: string
+      labels?: MediaLabelSummary
+    }
+    if (result.ok !== true) return { ok: false }
+    if (result.state === "already_applied")
+      return {
+        ok: true,
+        state: "already_applied",
+        labels:
+          result.labels && typeof result.labels === "object"
+            ? result.labels
+            : null,
+      }
+    if (result.state === "none") return { ok: true, state: "none" }
+    // "discarded", and a server from before the state was reported (it only
+    // answered ok once the labels were gone).
+    return { ok: true, state: "discarded" }
   } catch {
-    return false
+    return { ok: false }
   }
 }
 
 /**
- * "Fix labels": save the corrected input. The photo is ready, so the server
- * saves it now and drops the stored row. "pending" (the photo is somehow
- * still processing) keeps the input on the server; it counts as stored.
+ * "Fix labels": save the corrected input. A ready photo saves it now and
+ * drops the stored row. "pending" (the photo hasn't finished saving) keeps
+ * the input on the server; it counts as stored, not as on the photo.
  */
 export async function saveFixedLabels(
   venueId: string,

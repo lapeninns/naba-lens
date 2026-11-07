@@ -8,15 +8,26 @@ import {
   loadLabelEditorContext,
 } from "@/app/_labels/actions"
 import type { CatalogueProp } from "@/components/nabalens"
-import { FixLabelsDialog } from "@/components/nabalens/labels"
+import { FixLabelsDialog, LabelSummary } from "@/components/nabalens/labels"
 import { Notice } from "@/components/nabalens/notice"
 import { CountBadge, StatusChip } from "@/components/nabalens/status-chip"
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import type { WorkFocus } from "@/lib/config/work-roles"
-import type {
-  LabelEditorAsset,
-  PendingLabelItem,
-  SaveLabelsInput,
+import {
+  EMPTY_LABEL_SUMMARY,
+  type LabelEditorAsset,
+  type MediaLabelSummary,
+  type PendingLabelItem,
+  type SaveLabelsInput,
 } from "@/lib/menus/types"
 
 import {
@@ -32,42 +43,72 @@ export const ATTENTION_COPY = {
   list: "Photos that need attention",
   menuChanged: "The menu changed. Check the dish.",
   notSaved: "Labels not saved yet.",
+  photoNotFinished:
+    "The photo didn't finish saving. These labels are kept and go on it when it does.",
   conflict: "These labels were changed somewhere else. Check the dish.",
   otherFailure: "Labels couldn't be added.",
-  unusable: "This file can't be used.",
   unusableLabels: "Not saved (photo not saved)",
+  /** The list doesn't say why an upload failed. */
+  noReason: "no reason was given",
+  alreadySaved: "These labels were already saved on the photo.",
+  saved: "Saved",
+  keep: "Keep labels",
   fix: "Fix labels",
   discard: "Discard labels",
+  discardTitle: "Discard these labels?",
+  discardMeaning: "The photo isn't changed; only these labels are discarded.",
   discardFailed: "Couldn't discard the labels. Try again.",
   openFailed: "Couldn't open the labels. Check your connection and try again.",
   loadFailed: "We couldn't check for photos that need attention.",
   tryAgain: "Try again",
 } as const
 
+/** "This file can't be used: {reason}." */
+export function cannotUse(reason: string | null) {
+  const why = (reason?.trim() || ATTENTION_COPY.noReason).replace(/[.\s]+$/, "")
+  return `This file can't be used: ${why}.`
+}
+
+// TODO(integration): `retryable` (contract C6) comes with PendingLabelItem
+// from lib/menus/types.ts; read it here until that lands.
+type ListedItem = PendingLabelItem & { retryable?: boolean }
+
 /**
- * Upload states that will never give the stored labels a photo to go on. Only
- * `failed` reaches this list: upload_state has no other end state, and a
- * removed photo takes its stored labels with it.
+ * A failed upload whose labels the server still keeps: the failure was
+ * temporary, and a successful Retry of the photo applies them (a permanent
+ * failure deletes them).
  */
-const UNUSABLE = new Set(["failed"])
+export function isRetryable(item: PendingLabelItem): boolean {
+  return (
+    item.uploadState === "failed" && (item as ListedItem).retryable === true
+  )
+}
+
+/** An upload that will never give the stored labels a photo to go on. */
+export function isUnusable(item: PendingLabelItem): boolean {
+  return item.uploadState === "failed" && !isRetryable(item)
+}
 
 /**
  * Rows Me lists: labels the server could not apply, and labels whose upload
- * can never finish. Labels still waiting for their photo are not listed:
- * they are saving, and Add shows them.
+ * failed (for now or for good). Labels still waiting for their photo to
+ * finish uploading are not listed: they are saving, and Add shows them.
+ * Only `failed` is an upload problem: upload_state has no other end state,
+ * and a removed photo takes its stored labels with it.
  */
 export function attentionItems(
   items: readonly PendingLabelItem[]
 ): PendingLabelItem[] {
   return items.filter(
-    (item) =>
-      item.status === "needs_attention" || UNUSABLE.has(item.uploadState)
+    (item) => item.status === "needs_attention" || item.uploadState === "failed"
   )
 }
 
 /** Why one row needs attention, in the flow's own words. */
 export function attentionReason(item: PendingLabelItem): string {
-  if (UNUSABLE.has(item.uploadState)) return ATTENTION_COPY.unusable
+  // The list carries no reason for the upload's failure.
+  if (isUnusable(item)) return cannotUse(null)
+  if (isRetryable(item)) return ATTENTION_COPY.notSaved
   switch (item.code) {
     case "catalogue_changed":
     case "unavailable_items":
@@ -81,9 +122,38 @@ export function attentionReason(item: PendingLabelItem): string {
   }
 }
 
+/** The labels now on a photo, as the input that would save them unchanged. */
+function inputFromLabels(
+  assetId: string,
+  labels: MediaLabelSummary
+): SaveLabelsInput {
+  return {
+    assetId,
+    expectedRevision: labels.revision,
+    catalogueVersionId: null,
+    contentTypes: labels.contentTypes,
+    note: labels.note,
+    items: labels.items.map((i) => ({
+      itemId: i.itemId,
+      variantId: i.variantId,
+    })),
+    missingItem: null,
+  }
+}
+
+/**
+ * One listed row. `applied`: a discard found the labels already on the
+ * photo (its upload applied them first), so the row stays to say so.
+ */
+type Row = PendingLabelItem & {
+  applied?: { labels: MediaLabelSummary | null }
+}
+
 type Fixing = {
-  item: PendingLabelItem
+  item: Row
   asset: LabelEditorAsset
+  /** What the dialog opens with: the stored labels, or those on the photo. */
+  draft: SaveLabelsInput
   catalogue: CatalogueProp
   focus: WorkFocus | null
 }
@@ -106,22 +176,26 @@ const API: NeedsAttentionApi = {
 
 /**
  * Me's "Needs attention": the caller's own photos whose labels the server
- * kept but could not add (the menu changed, a save failed), each with its
- * reason, "Fix labels" (the stored labels against the current menu) and
- * "Discard labels". Reloads whenever `refreshSignal` changes (an upload
- * finished). Renders nothing while there is nothing to fix.
+ * kept but could not add (the menu changed, a save failed, the photo didn't
+ * finish saving), each with its reason, "Fix labels" (the stored labels
+ * against the current menu) and "Discard labels" (after a confirmation).
+ * Reloads whenever `refreshSignal` changes (an upload finished). Renders
+ * nothing while there is nothing to fix.
  */
 export function NeedsAttention({
   refreshSignal = 0,
   onFixed,
+  onDiscarded,
   api = API,
 }: {
   refreshSignal?: number
-  /** Labels were saved on these photos: refresh the gallery. */
+  /** Labels are on these photos now: refresh the gallery. */
   onFixed?: (assetIds: string[]) => void
+  /** These photos' stored labels were discarded: they have none from Add. */
+  onDiscarded?: (assetIds: string[]) => void
   api?: NeedsAttentionApi
 }) {
-  const [items, setItems] = React.useState<PendingLabelItem[]>([])
+  const [items, setItems] = React.useState<Row[]>([])
   const [loadError, setLoadError] = React.useState<string | null>(null)
   const [reloads, setReloads] = React.useState(0)
   // Each row's own action in flight: one finishing never frees another.
@@ -130,6 +204,7 @@ export function NeedsAttention({
     new Map()
   )
   const [fixing, setFixing] = React.useState<Fixing | null>(null)
+  const [confirming, setConfirming] = React.useState<Row | null>(null)
   // Rows discarded or fixed here: a read that started before the server
   // changed must not bring them back.
   const handled = React.useRef(new Set<string>())
@@ -143,10 +218,15 @@ export function NeedsAttention({
           const next = attentionItems(result.items).filter(
             (i) => !handled.current.has(i.assetId)
           )
-          setItems(next)
+          // A row whose labels turned out to be on the photo stays until the
+          // person is done with it; the server no longer lists it.
+          setItems((current) => [...next, ...current.filter((i) => i.applied)])
           // A row that left the list takes its open Fix labels with it.
           setFixing((f) =>
-            f && next.some((i) => i.assetId === f.item.assetId) ? f : null
+            f &&
+            (f.item.applied || next.some((i) => i.assetId === f.item.assetId))
+              ? f
+              : null
           )
           setLoadError(null)
         } else setLoadError(ATTENTION_COPY.loadFailed)
@@ -179,39 +259,82 @@ export function NeedsAttention({
       return next
     })
 
-  async function discard(item: PendingLabelItem) {
+  async function discard(item: Row) {
     markBusy(item.assetId, true)
     setRowError(item.assetId, null)
-    const ok = await api.discard(item.assetId)
+    const result = await api.discard(item.assetId)
     markBusy(item.assetId, false)
-    if (ok) drop(item.assetId)
-    else setRowError(item.assetId, ATTENTION_COPY.discardFailed)
+    if (!result.ok) {
+      setRowError(item.assetId, ATTENTION_COPY.discardFailed)
+      return
+    }
+    if (result.state === "already_applied") {
+      // Nothing was discarded: the photo's upload added these labels first.
+      // Say so and show them, with Fix labels to change them.
+      handled.current.add(item.assetId)
+      setItems((current) =>
+        current.map((i) =>
+          i.assetId === item.assetId
+            ? { ...i, applied: { labels: result.labels } }
+            : i
+        )
+      )
+      onFixed?.([item.assetId])
+      return
+    }
+    drop(item.assetId)
+    onDiscarded?.([item.assetId])
   }
 
-  async function openFix(item: PendingLabelItem) {
+  async function openFix(item: Row) {
     markBusy(item.assetId, true)
     setRowError(item.assetId, null)
     try {
       const context = await api.loadContext([item.assetId])
-      const asset = context.ok ? context.assets[0] : undefined
-      if (!context.ok || !asset) {
-        setRowError(
-          item.assetId,
-          context.ok ? ATTENTION_COPY.openFailed : context.message
-        )
+      if (!context.ok) {
+        setRowError(item.assetId, context.message)
+        return
+      }
+      let asset = context.assets[0]
+      let catalogue: CatalogueProp = context.catalogue
+        ? { state: "ready", catalogue: context.catalogue }
+        : {
+            state: "error",
+            message: context.catalogueError ?? ATTENTION_COPY.openFailed,
+          }
+      if (!asset && isRetryable(item) && !item.applied) {
+        // The photo didn't finish saving, so it has no labels yet: fix the
+        // kept labels against the venue's current menu.
+        const menu = await api.loadCatalogue(item.venueId)
+        if (!menu.ok) {
+          setRowError(item.assetId, menu.message)
+          return
+        }
+        asset = {
+          id: item.assetId,
+          venueId: item.venueId,
+          venueName: menu.catalogue.venueName,
+          originalFilename: "",
+          mediaType: item.mediaType,
+          thumbnailUrl: item.thumbnailUrl,
+          labels: EMPTY_LABEL_SUMMARY,
+        }
+        catalogue = { state: "ready", catalogue: menu.catalogue }
+      }
+      if (!asset) {
+        setRowError(item.assetId, ATTENTION_COPY.openFailed)
         return
       }
       // Discarded (or fixed) while its labels were loading: nothing to fix.
-      if (handled.current.has(item.assetId)) return
+      if (handled.current.has(item.assetId) && !item.applied) return
       setFixing({
         item,
         asset,
-        catalogue: context.catalogue
-          ? { state: "ready", catalogue: context.catalogue }
-          : {
-              state: "error",
-              message: context.catalogueError ?? ATTENTION_COPY.openFailed,
-            },
+        // Labels already on the photo open as they are now.
+        draft: item.applied
+          ? inputFromLabels(item.assetId, asset.labels)
+          : item.input,
+        catalogue,
         focus: context.focus ?? null,
       })
     } catch {
@@ -241,11 +364,12 @@ export function NeedsAttention({
     }
   }
 
-  async function saveFix(item: PendingLabelItem, input: SaveLabelsInput) {
+  async function saveFix(item: Row, input: SaveLabelsInput) {
     const result = await api.save(item.venueId, input)
     if (!result.ok) return result
     if (result.pending) {
-      // Still kept on the server for a photo that isn't ready: re-read.
+      // Kept on the server for a photo that hasn't finished saving: the row
+      // stays (not on the photo yet) with the new labels, so re-read.
       setReloads((n) => n + 1)
     } else {
       drop(item.assetId)
@@ -308,11 +432,43 @@ export function NeedsAttention({
               busy={busy.has(item.assetId)}
               error={rowErrors.get(item.assetId) ?? null}
               onFix={() => void openFix(item)}
-              onDiscard={() => void discard(item)}
+              onDiscard={() => setConfirming(item)}
+              onKeep={() => drop(item.assetId)}
             />
           ))}
         </ul>
       ) : null}
+      <AlertDialog
+        open={confirming !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirming(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{ATTENTION_COPY.discardTitle}</AlertDialogTitle>
+            <AlertDialogDescription className="text-ink">
+              {ATTENTION_COPY.discardMeaning}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button
+              variant="outline"
+              size="touch"
+              onClick={() => {
+                const item = confirming
+                setConfirming(null)
+                if (item) void discard(item)
+              }}
+            >
+              {ATTENTION_COPY.discard}
+            </Button>
+            <AlertDialogCancel variant="primary" size="touch">
+              {ATTENTION_COPY.keep}
+            </AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       {fixing ? (
         <FixLabelsDialog
           open
@@ -320,9 +476,9 @@ export function NeedsAttention({
             if (!open) setFixing(null)
           }}
           asset={fixing.asset}
-          draft={fixing.item.input}
+          draft={fixing.draft}
           problem={
-            fixing.item.code
+            fixing.item.code && !fixing.item.applied
               ? {
                   code: fixing.item.code,
                   message: attentionReason(fixing.item),
@@ -346,17 +502,20 @@ function AttentionRow({
   error,
   onFix,
   onDiscard,
+  onKeep,
 }: {
-  item: PendingLabelItem
+  item: Row
   /** "1 of 2": tells rows (and their same-named buttons) apart by ear. */
   position: string
   busy: boolean
   error: string | null
   onFix: () => void
   onDiscard: () => void
+  onKeep: () => void
 }) {
   const id = React.useId()
-  const unusable = UNUSABLE.has(item.uploadState)
+  const applied = item.applied
+  const unusable = !applied && isUnusable(item)
   const kind = item.mediaType === "video" ? "Video" : "Photo"
   return (
     <li
@@ -381,8 +540,8 @@ function AttentionRow({
         )}
       </span>
       <div className="grid min-w-0 content-start gap-1">
-        <StatusChip tone="attention" className="w-fit">
-          {ATTENTION_COPY.heading}
+        <StatusChip tone={applied ? "positive" : "attention"} className="w-fit">
+          {applied ? ATTENTION_COPY.saved : ATTENTION_COPY.heading}
         </StatusChip>
         <p
           id={`${id}-reason`}
@@ -391,11 +550,17 @@ function AttentionRow({
           <span className="sr-only">
             {kind} {position}:{" "}
           </span>
-          {attentionReason(item)}
+          {applied ? ATTENTION_COPY.alreadySaved : attentionReason(item)}
         </p>
+        {applied?.labels ? <LabelSummary labels={applied.labels} /> : null}
         {unusable ? (
           <p className="text-meta text-ink-muted">
             Labels: {ATTENTION_COPY.unusableLabels}
+          </p>
+        ) : null}
+        {!applied && isRetryable(item) ? (
+          <p className="text-meta text-ink-muted">
+            {ATTENTION_COPY.photoNotFinished}
           </p>
         ) : null}
         {error ? (
@@ -417,16 +582,29 @@ function AttentionRow({
             {ATTENTION_COPY.fix}
           </Button>
         )}
-        <Button
-          type="button"
-          variant="quiet"
-          size="sm"
-          disabled={busy}
-          aria-describedby={`${id}-reason`}
-          onClick={onDiscard}
-        >
-          {ATTENTION_COPY.discard}
-        </Button>
+        {applied ? (
+          <Button
+            type="button"
+            variant="quiet"
+            size="sm"
+            disabled={busy}
+            aria-describedby={`${id}-reason`}
+            onClick={onKeep}
+          >
+            {ATTENTION_COPY.keep}
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            variant="quiet"
+            size="sm"
+            disabled={busy}
+            aria-describedby={`${id}-reason`}
+            onClick={onDiscard}
+          >
+            {ATTENTION_COPY.discard}
+          </Button>
+        )}
       </div>
     </li>
   )
