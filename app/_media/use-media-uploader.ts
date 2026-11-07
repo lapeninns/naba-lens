@@ -19,12 +19,13 @@ import {
  * The real transport for UploadDialog: reserve (Server Function) -> signed PUT or
  * TUS straight to the private `media` bucket -> finalise (Server Function).
  * Server errors arrive as values and are re-thrown here so the dialog shows them.
- * Unfinished uploads' keys are kept in localStorage per file, so choosing the
- * same file after a reload reuses the same asset and resumes a TUS transfer.
+ * Unfinished uploads' keys are kept in localStorage per file and signed-in
+ * account, so choosing the same file after a reload reuses the same asset and
+ * resumes a TUS transfer, and nobody else signed in on the device reuses it.
  */
 export function useMediaUploader(): Uploader {
+  const supabase = React.useMemo(() => createClient(), [])
   const upload = React.useMemo(() => {
-    const supabase = createClient()
     const { url, publishableKey } = getSupabasePublicEnv()
     return createUploader({
       reserve: async (input) => {
@@ -48,16 +49,23 @@ export function useMediaUploader(): Uploader {
         (await supabase.auth.getSession()).data.session?.access_token ?? null,
       limits: MEDIA_LIMITS,
     })
-  }, [])
+  }, [supabase])
 
   React.useEffect(
     () => guardBeforeUnload(() => upload.activeCount() > 0),
     [upload]
   )
 
-  // Choosing the same file again after a reload resumes its reservation.
+  // Choosing the same file again after a reload resumes its reservation, for
+  // the account that reserved it only (audit finding 15): callers that do not
+  // pass `account` (task and amenity screens) get the signed-in user's.
   return React.useMemo(
-    () => toQueueUploader(upload, { keys: localUploadKeyStore() }),
-    [upload]
+    () =>
+      toQueueUploader(upload, {
+        keys: localUploadKeyStore(),
+        account: async () =>
+          (await supabase.auth.getSession()).data.session?.user.id ?? null,
+      }),
+    [upload, supabase]
   )
 }
