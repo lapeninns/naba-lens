@@ -27,8 +27,7 @@ import {
 /** The exact words of Me's "Needs attention" list. */
 export const ATTENTION_COPY = {
   heading: "Needs attention",
-  intro:
-    "Labels we couldn't add to these photos. Fix them, or discard them; the photos stay saved either way.",
+  intro: "Labels we couldn't add to these photos. Fix them, or discard them.",
   list: "Photos that need attention",
   menuChanged: "The menu changed. Check the dish.",
   notSaved: "Labels not saved yet.",
@@ -120,11 +119,15 @@ export function NeedsAttention({
   const [items, setItems] = React.useState<PendingLabelItem[]>([])
   const [loadError, setLoadError] = React.useState<string | null>(null)
   const [reloads, setReloads] = React.useState(0)
-  const [busy, setBusy] = React.useState<string | null>(null)
+  // Each row's own action in flight: one finishing never frees another.
+  const [busy, setBusy] = React.useState<ReadonlySet<string>>(() => new Set())
   const [rowErrors, setRowErrors] = React.useState<ReadonlyMap<string, string>>(
     new Map()
   )
   const [fixing, setFixing] = React.useState<Fixing | null>(null)
+  // Rows discarded or fixed here: a read that started before the server
+  // changed must not bring them back.
+  const handled = React.useRef(new Set<string>())
 
   React.useEffect(() => {
     const controller = new AbortController()
@@ -132,7 +135,14 @@ export function NeedsAttention({
       (result) => {
         if (controller.signal.aborted) return
         if (result.ok) {
-          setItems(attentionItems(result.items))
+          const next = attentionItems(result.items).filter(
+            (i) => !handled.current.has(i.assetId)
+          )
+          setItems(next)
+          // A row that left the list takes its open Fix labels with it.
+          setFixing((f) =>
+            f && next.some((i) => i.assetId === f.item.assetId) ? f : null
+          )
           setLoadError(null)
         } else setLoadError(ATTENTION_COPY.loadFailed)
       },
@@ -151,20 +161,30 @@ export function NeedsAttention({
       return next
     })
 
-  const drop = (assetId: string) =>
+  const drop = (assetId: string) => {
+    handled.current.add(assetId)
     setItems((current) => current.filter((i) => i.assetId !== assetId))
+  }
+
+  const markBusy = (assetId: string, on: boolean) =>
+    setBusy((current) => {
+      const next = new Set(current)
+      if (on) next.add(assetId)
+      else next.delete(assetId)
+      return next
+    })
 
   async function discard(item: PendingLabelItem) {
-    setBusy(item.assetId)
+    markBusy(item.assetId, true)
     setRowError(item.assetId, null)
     const ok = await api.discard(item.assetId)
-    setBusy(null)
+    markBusy(item.assetId, false)
     if (ok) drop(item.assetId)
     else setRowError(item.assetId, ATTENTION_COPY.discardFailed)
   }
 
   async function openFix(item: PendingLabelItem) {
-    setBusy(item.assetId)
+    markBusy(item.assetId, true)
     setRowError(item.assetId, null)
     try {
       const context = await api.loadContext([item.assetId])
@@ -176,6 +196,8 @@ export function NeedsAttention({
         )
         return
       }
+      // Discarded (or fixed) while its labels were loading: nothing to fix.
+      if (handled.current.has(item.assetId)) return
       setFixing({
         item,
         asset,
@@ -190,7 +212,7 @@ export function NeedsAttention({
     } catch {
       setRowError(item.assetId, ATTENTION_COPY.openFailed)
     } finally {
-      setBusy(null)
+      markBusy(item.assetId, false)
     }
   }
 
@@ -273,11 +295,12 @@ export function NeedsAttention({
           aria-label={ATTENTION_COPY.list}
           className="grid divide-y divide-line overflow-hidden rounded-card bg-surface shadow-card"
         >
-          {items.map((item) => (
+          {items.map((item, index) => (
             <AttentionRow
               key={item.assetId}
               item={item}
-              busy={busy === item.assetId}
+              position={`${index + 1} of ${items.length}`}
+              busy={busy.has(item.assetId)}
               error={rowErrors.get(item.assetId) ?? null}
               onFix={() => void openFix(item)}
               onDiscard={() => void discard(item)}
@@ -313,12 +336,15 @@ export function NeedsAttention({
 
 function AttentionRow({
   item,
+  position,
   busy,
   error,
   onFix,
   onDiscard,
 }: {
   item: PendingLabelItem
+  /** "1 of 2": tells rows (and their same-named buttons) apart by ear. */
+  position: string
   busy: boolean
   error: string | null
   onFix: () => void
@@ -357,7 +383,9 @@ function AttentionRow({
           id={`${id}-reason`}
           className="text-body [overflow-wrap:anywhere] text-ink"
         >
-          <span className="sr-only">{kind}: </span>
+          <span className="sr-only">
+            {kind} {position}:{" "}
+          </span>
           {attentionReason(item)}
         </p>
         {unusable ? (

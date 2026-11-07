@@ -432,6 +432,9 @@ day.
   uploaded again.
 - **Discard labels** drops those labels. The photo stays saved either way; you
   can label it later.
+- If the file itself couldn't be used, the row says **This file can't be
+  used.** and its labels **Not saved (photo not saved)**. The only action is
+  **Discard labels**; to add that photo, pick it again from **Add**.
 
 ## Add labels (optional)
 

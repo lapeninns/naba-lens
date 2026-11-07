@@ -208,7 +208,15 @@ describe("NeedsAttention on Me", () => {
     expect(
       document.getElementById(fix.getAttribute("aria-describedby")!)
         ?.textContent
-    ).toBe("Photo: The menu changed. Check the dish.")
+    ).toBe("Photo 1 of 2: The menu changed. Check the dish.")
+    // Rows with the same reason are still told apart by ear.
+    expect(rows[1].getAttribute("aria-labelledby")).not.toBe(
+      rows[0].getAttribute("aria-labelledby")
+    )
+    expect(
+      document.getElementById(rows[1].getAttribute("aria-labelledby")!)
+        ?.textContent
+    ).toBe("Video 2 of 2: Labels not saved yet.")
     expect(
       within(rows[0]).getByRole("button", { name: "Discard labels" })
     ).toBeTruthy()
@@ -358,5 +366,79 @@ describe("NeedsAttention on Me", () => {
       await screen.findByRole("list", { name: "Photos that need attention" })
     ).toBeTruthy()
     expect(calls.load).toHaveBeenCalledTimes(3)
+  })
+
+  it("keeps a discarded row gone when an older read answers afterwards", async () => {
+    const user = userEvent.setup()
+    let answer!: (r: Awaited<ReturnType<NeedsAttentionApi["load"]>>) => void
+    const calls = api([row(1), row(2)])
+    const { rerender } = render(
+      <NeedsAttention api={calls} refreshSignal={0} />
+    )
+    await screen.findByRole("list", { name: "Photos that need attention" })
+    // An upload finishes: a new read starts and is answered late, with the
+    // list as it was before the discard below.
+    vi.mocked(calls.load).mockImplementationOnce(
+      () => new Promise((resolve) => (answer = resolve))
+    )
+    rerender(<NeedsAttention api={calls} refreshSignal={1} />)
+    const first = within(list()).getAllByRole("listitem")[0]
+    await user.click(
+      within(first).getByRole("button", { name: "Discard labels" })
+    )
+    await waitFor(() =>
+      expect(within(list()).getAllByRole("listitem")).toHaveLength(1)
+    )
+    await act(async () => answer({ ok: true, items: [row(1), row(2)] }))
+    expect(within(list()).getAllByRole("listitem")).toHaveLength(1)
+  })
+
+  it("keeps each row busy until its own action ends, and drops a fix for a row discarded meanwhile", async () => {
+    const user = userEvent.setup()
+    let discardDone!: (ok: boolean) => void
+    let contextDone!: () => void
+    const calls = api([row(1), row(2)])
+    vi.mocked(calls.discard).mockImplementationOnce(
+      () => new Promise((resolve) => (discardDone = resolve))
+    )
+    const realContext = calls.loadContext
+    calls.loadContext = vi.fn(
+      (ids: string[]) =>
+        new Promise((resolve) => {
+          contextDone = () => resolve(realContext(ids))
+        })
+    ) as typeof calls.loadContext
+    render(<NeedsAttention api={calls} />)
+    await screen.findByRole("list", { name: "Photos that need attention" })
+    const [a, b] = within(list()).getAllByRole("listitem")
+    await user.click(within(a).getByRole("button", { name: "Discard labels" }))
+    await user.click(within(b).getByRole("button", { name: "Fix labels" }))
+    // A's discard ends; B is still loading its labels, so it stays busy.
+    await act(async () => discardDone(true))
+    const fixB = within(list()).getByRole("button", { name: "Fix labels" })
+    expect((fixB as HTMLButtonElement).disabled).toBe(true)
+    await act(async () => contextDone())
+    expect(
+      await screen.findByRole("dialog", { name: "Fix labels" })
+    ).toBeTruthy()
+  })
+
+  it("closes an open Fix labels when a re-read no longer lists that row", async () => {
+    const user = userEvent.setup()
+    const calls = api([row(1)])
+    const { rerender, container } = render(
+      <NeedsAttention api={calls} refreshSignal={0} />
+    )
+    await user.click(await screen.findByRole("button", { name: "Fix labels" }))
+    await screen.findByRole("dialog", { name: "Fix labels" })
+    // Fixed on another device: the next read has nothing.
+    vi.mocked(calls.load).mockResolvedValue({ ok: true, items: [] })
+    rerender(<NeedsAttention api={calls} refreshSignal={1} />)
+    await waitFor(() => expect(container.textContent).toBe(""))
+    // A later row needing attention must not reopen the old dialog.
+    vi.mocked(calls.load).mockResolvedValue({ ok: true, items: [row(2)] })
+    rerender(<NeedsAttention api={calls} refreshSignal={2} />)
+    await screen.findByRole("list", { name: "Photos that need attention" })
+    expect(screen.queryByRole("dialog")).toBeNull()
   })
 })
