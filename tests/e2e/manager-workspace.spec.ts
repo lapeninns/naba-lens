@@ -23,6 +23,7 @@ import {
   escape,
   openPortfolio,
   STAFF_LANDING,
+  uploadSheet,
   uploadThroughDialog,
 } from "./helpers/ui"
 import { signedInPage, type Person } from "./helpers/world"
@@ -279,24 +280,34 @@ test.describe("venue manager workspace (Phase 2)", () => {
   }, info) => {
     const w = await provisionManagerWorld()
 
-    // Staff 1 uploads a JPEG and labels it Soup in the real dialogs.
+    // Staff 1 uploads a JPEG and labels it Soup in the real upload sheet: the
+    // label field sits in the sheet and is sent by asset id (no Save button);
+    // the row says "Saved" with the dish once the labels are on the photo.
     const staff = await signedInPage(browser, w.staffA1, view(info))
     await openPortfolio(staff)
     const photo = await syntheticJpeg(`mgr-journey-${w.tag}.jpg`)
     await uploadThroughDialog(staff, [photo], { close: false })
-    const upload = staff.getByRole("dialog", {
-      name: "Upload photos or videos",
-    })
-    await upload.getByRole("button", { name: "Label this file" }).click()
-    const editor = staff.getByRole("dialog", { name: "Labels", exact: true })
-    await editor
-      .getByRole("combobox", { name: new RegExp(`^Menu item at `) })
+    const upload = uploadSheet(staff)
+    await upload
+      .getByRole("combobox", { name: "What's in these photos? (optional)" })
       .fill("soup")
-    await editor.getByRole("option", { name: /^Soup\b/ }).click()
-    await editor.getByRole("button", { name: /^Save labels/ }).click()
-    await expect(editor).toBeHidden()
-    if (await upload.isVisible())
-      await upload.getByRole("button", { name: "Done" }).click()
+    await upload.getByRole("option", { name: /^Soup\b/ }).click()
+    await expect(
+      upload
+        .getByRole("list", { name: "Selected menu items" })
+        .getByText("Soup", { exact: true })
+    ).toBeVisible()
+    await expect(
+      upload
+        .getByRole("list", { name: "Files" })
+        .getByRole("listitem")
+        .filter({ hasText: photo.name })
+    ).toContainText("Saved · Soup · waiting for manager review", {
+      timeout: 30_000,
+    })
+    await expect(upload.getByRole("status")).toHaveText("1 saved")
+    await upload.getByRole("button", { name: "Done" }).click()
+    await expect(upload).toBeHidden()
     const first = psql(
       `select id from public.media_assets where uploader_id = '${w.staffA1.id}'::uuid and original_filename = '${photo.name}'`
     )
