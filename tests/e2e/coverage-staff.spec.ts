@@ -180,13 +180,19 @@ async function menuSectionSetup(w: CoverageWorld, manager: Db) {
   return starters
 }
 
-/** The task flow's images-only upload dialog; new photos come back selected. */
+/**
+ * The task flow: "Choose from your photos" opens the photo picker straight
+ * away, and the picked files wait in the images-only upload queue; new photos
+ * come back selected.
+ */
 async function uploadForTask(page: Page, files: SourceFile[]) {
-  await page.getByRole("button", { name: "Take a photo" }).click()
+  const [chooser] = await Promise.all([
+    page.waitForEvent("filechooser"),
+    page.getByRole("button", { name: "Choose from your photos" }).click(),
+  ])
+  expect(chooser.isMultiple()).toBe(true)
+  await chooser.setFiles(files.map((f) => f.path))
   const dialog = page.getByRole("dialog", { name: "Upload photos" })
-  await dialog
-    .getByLabel("Choose photos")
-    .setInputFiles(files.map((f) => f.path))
   await dialog
     .getByRole("button", {
       name: `Upload ${files.length} ${files.length === 1 ? "file" : "files"}`,

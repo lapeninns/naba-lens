@@ -50,6 +50,7 @@ import {
   isPickable,
   itemKey,
   limitProblem,
+  presetDraft,
   removeItem,
   setContentType,
   type CommonDraft,
@@ -60,7 +61,7 @@ import {
   type FileStatus,
 } from "./label-draft"
 import { FIELD_HINT } from "./field-styles"
-import { LabelFields } from "./label-fields"
+import { itemDisplayName, LabelFields } from "./label-fields"
 import { LabelSummary } from "./label-summary"
 import type { LabelAudience, LabelEditorDialogProps } from "./types"
 
@@ -276,6 +277,9 @@ function LabelEditor({
   onSaved,
   title,
   cancelLabel,
+  focus = null,
+  preset = null,
+  presetAssetIds,
 }: LabelEditorDialogProps) {
   const uid = React.useId()
   const batch = assets.length > 1
@@ -312,7 +316,50 @@ function LabelEditor({
 
   const ready = catalogue.state === "ready" ? catalogue.catalogue : null
   const catalogueVersionId = ready?.status === "active" ? ready.versionId : null
-  const index = React.useMemo(() => buildCatalogueIndex(ready), [ready])
+  const index = React.useMemo(
+    () => buildCatalogueIndex(ready, focus),
+    [ready, focus]
+  )
+
+  // A suggested item (Our menu's photo request) goes in once, as an unsaved
+  // draft, as soon as the menu is loaded, on the files it came with only: a
+  // common item when that is every file of a batch, else on each of those
+  // files. Earlier files in the same batch stay as they were. Saving stays the
+  // person's choice.
+  const presetTargets = assets
+    .filter((a) => !presetAssetIds || presetAssetIds.includes(a.id))
+    .map((a) => a.id)
+  const [presetPending, setPresetPending] = React.useState(
+    preset !== null && presetTargets.length > 0
+  )
+  const [suggested, setSuggested] = React.useState<DraftItem | null>(null)
+  if (presetPending && ready) {
+    setPresetPending(false)
+    const draft = presetDraft(ready, preset)
+    if (draft) {
+      setSuggested(draft)
+      if (presetTargets.length < assets.length) {
+        setFiles((prev) => {
+          const next = { ...prev }
+          for (const id of presetTargets)
+            next[id] = { ...prev[id], adj: addItem(prev[id].adj, draft) }
+          return next
+        })
+      } else if (batch) {
+        const key = itemKey(draft)
+        setCommon((c) => ({
+          ...c,
+          items: [...c.items.filter((i) => itemKey(i) !== key), draft],
+        }))
+      } else {
+        const id = assets[0].id
+        setFiles((prev) => ({
+          ...prev,
+          [id]: { ...prev[id], adj: addItem(prev[id].adj, draft) },
+        }))
+      }
+    }
+  }
 
   const effective = React.useMemo(
     () =>
@@ -559,6 +606,12 @@ function LabelEditor({
 
   const noun = nounFor(assets)
   const nouns = `${noun}s`
+  const suggestedKey = suggested ? itemKey(suggested) : null
+  const suggestedShown =
+    suggestedKey !== null &&
+    assets.some((a) =>
+      effective[a.id].items.some((i) => i.key === suggestedKey && !i.saved)
+    )
   const heading = title ?? (audience === "admin" ? "Edit labels" : "Labels")
   const dismissText = cancelLabel ?? "Cancel"
 
@@ -618,6 +671,7 @@ function LabelEditor({
             adjust(asset.id, (adj) => ({ ...adj, missingItem })),
         }}
         disabled={pending}
+        focusTypes={focus?.contentTypes}
       />
     )
   }
@@ -736,6 +790,14 @@ function LabelEditor({
               </Notice>
             ) : null}
 
+            {suggested && suggestedShown ? (
+              <Notice tone="plain" title="Suggested from Our menu">
+                {presetTargets.length < assets.length
+                  ? `${itemDisplayName(suggested)} is added as a label for the ${presetTargets.length === 1 ? `${noun} picked` : `${presetTargets.length} ${nouns} picked`} for it, not the others. It's saved only when you choose Save labels; remove it if it isn't in the ${presetTargets.length === 1 ? noun : nouns}.`
+                  : `${itemDisplayName(suggested)} is added as a label for ${batch ? `these ${nouns}` : `this ${noun}`}. It's saved only when you choose Save labels; remove it if it isn't in the ${batch ? nouns : noun}.`}
+              </Notice>
+            ) : null}
+
             {batch ? (
               <>
                 <section
@@ -775,6 +837,7 @@ function LabelEditor({
                     note={common.note}
                     onNoteChange={(note) => setCommon((c) => ({ ...c, note }))}
                     disabled={pending}
+                    focusTypes={focus?.contentTypes}
                   />
                 </section>
 

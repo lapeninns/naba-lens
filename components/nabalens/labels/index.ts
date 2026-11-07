@@ -10,4 +10,5 @@ export type {
   CatalogueProp,
   LabelAudience,
   LabelEditorDialogProps,
+  LabelPreset,
 } from "./types"

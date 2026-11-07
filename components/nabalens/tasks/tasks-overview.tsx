@@ -1,6 +1,8 @@
 import type { Department } from "@/lib/config/departments"
 
 import { EmptyState } from "../empty-state"
+import { ContributeCard } from "../home/contribute-card"
+import { OurMenuCard, type OurMenuProgress } from "../home/our-menu-card"
 import { Notice } from "../notice"
 import { PageHeader } from "../page-header"
 import { CountBadge } from "../status-chip"
@@ -48,6 +50,8 @@ export function TasksOverview({
   peoplePath = "/staff/people",
   welcomeHref = null,
   reviewCount = 0,
+  contribute = null,
+  ourMenu = null,
 }: {
   tasks: MyTasksView
   profile: {
@@ -58,7 +62,7 @@ export function TasksOverview({
   }
   /** "/staff/tasks" */
   tasksPath: string
-  /** Where Edit profile lives ("/staff"). */
+  /** Me ("/staff"); its Edit profile opens with `?edit=profile`. */
   portfolioPath: string
   justSent?: JustSent | null
   /** Newest colleague photos, shown below To do. */
@@ -69,6 +73,10 @@ export function TasksOverview({
   welcomeHref?: string | null
   /** Photos waiting for this manager; 0 for everyone else. */
   reviewCount?: number
+  /** The role-aware "add photos" card; null to hide it. */
+  contribute?: { prompt: string; blocked: string | null } | null
+  /** The venue's menu photo progress; null to hide the card (no venue). */
+  ourMenu?: OurMenuProgress | null
 }) {
   const { scope, period, monthly, assignments, needsAnotherPhoto } = tasks
   const blocked = submitBlockedCopy(scope)
@@ -93,6 +101,13 @@ export function TasksOverview({
 
       {welcomeHref ? <FirstRunEntry href={welcomeHref} /> : null}
 
+      {contribute ? (
+        <ContributeCard
+          prompt={contribute.prompt}
+          blocked={contribute.blocked}
+        />
+      ) : null}
+
       {blocked && scope.venue ? <Notice role="status">{blocked}</Notice> : null}
 
       <TodoSection
@@ -113,6 +128,10 @@ export function TasksOverview({
       <p className="max-w-(--size-reading) text-body-touch text-ink-muted md:text-body">
         {RULE_SENTENCE}
       </p>
+
+      {ourMenu ? (
+        <OurMenuCard progress={ourMenu} venueName={scope.venue?.name ?? null} />
+      ) : null}
 
       <ColleaguePosts
         items={colleagues}

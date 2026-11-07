@@ -51,6 +51,8 @@ function installWidget() {
 }
 
 afterEach(() => {
+  // Sent-email memory (resend cooldowns) is per tab.
+  window.sessionStorage.clear()
   cleanup()
   vi.clearAllMocks()
   vi.useRealTimers()

@@ -46,6 +46,12 @@ const ALLOWED_PAGES = new Set([
   // Dish photo guide (November 2026): static example angles and a checklist,
   // no media, no scoring (docs/usage-staff.md "Photo guide").
   "/staff/tasks/guide",
+  // Our menu (November 2026): the venue's active menu with how many items have
+  // an accepted photo, search and "Still needs a photo"; no scoring.
+  "/staff/menu",
+  // Self-described work details (November 2026): main job and extra areas for
+  // Home's prompt and the label picker's order; never access or team.
+  "/staff/profile",
   "/admin",
   "/admin/staff",
   "/admin/staff/[id]",
@@ -65,6 +71,9 @@ const ALLOWED_PAGES = new Set([
   "/staff/manage/checklist",
   "/staff/manage/checklist/[requirementId]",
   "/staff/manage/menu",
+  // Our menu review: accept a labelled photo for a dish, ask for a better one
+  // or undo an acceptance, with a reason. Decides what counts, never visibility.
+  "/staff/manage/menu/items",
   "/staff/manage/team",
   // v0.4 admin coverage oversight: the same tools for any venue, plus grants.
   "/admin/coverage",
@@ -73,6 +82,7 @@ const ALLOWED_PAGES = new Set([
   "/admin/coverage/[venueId]/checklist",
   "/admin/coverage/[venueId]/checklist/[requirementId]",
   "/admin/coverage/[venueId]/menu",
+  "/admin/coverage/[venueId]/menu/items",
   "/admin/coverage/[venueId]/team",
   "/admin/coverage/managers",
 ])
@@ -106,6 +116,11 @@ const ALLOWED_HANDLERS = new Set([
   // reviewers; no originals, downloads or video, and community access is unchanged.
   "/api/coverage/evidence/[assetId]/thumb",
   "/api/coverage/evidence/[assetId]/preview",
+  // Our menu (November 2026): scoped item-photo thumbnail/preview, signed for
+  // 60 s per request; labelled photos for the venue's manager or an admin, an
+  // item's primary photo for staff at the venue. No originals or downloads.
+  "/api/menu-photos/[assetId]/thumb",
+  "/api/menu-photos/[assetId]/preview",
   // v0.4 §3 rule 9: hourly idempotent monthly preparation, cron-only bearer auth
   // like the other /api/internal routes; it sends nothing to staff.
   "/api/internal/coverage/monthly-preparation",

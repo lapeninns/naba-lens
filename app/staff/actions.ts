@@ -1,5 +1,13 @@
 "use server"
 
+import { revalidatePath } from "next/cache"
+
+import {
+  saveWorkProfile,
+  setWelcomeDismissed,
+  skipWorkProfile,
+  type WorkProfileOutcome,
+} from "@/lib/server/accounts/work-profile"
 import { getMediaActor } from "@/lib/server/media/context"
 import {
   finaliseAsset,
@@ -64,4 +72,41 @@ export async function loadMyMedia(
     ok: true,
     page: { items: result.items, nextCursor: result.nextCursor },
   }
+}
+
+// Work details (public.staff_work_profiles): role, extra areas, the skip and the
+// welcome guide. The RPCs act only on the caller's own row; admin-set job title
+// and team are untouched. Home, Me and the label picker read the result.
+
+async function writeWorkProfile(
+  write: (
+    actor: Parameters<typeof saveWorkProfile>[0]
+  ) => Promise<WorkProfileOutcome>
+): Promise<WorkProfileOutcome> {
+  const auth = await getMediaActor("staff")
+  if (!auth.ok) return { ok: false, status: auth.status, message: auth.message }
+  const result = await write(auth.actor)
+  if (result.ok) revalidatePath("/staff", "layout")
+  return result
+}
+
+/** Saves the caller's main role and optional extra areas. */
+export async function saveWorkProfileAction(
+  input: unknown
+): Promise<WorkProfileOutcome> {
+  return writeWorkProfile((actor) => saveWorkProfile(actor, input))
+}
+
+/** "Skip for now" on the work details page. */
+export async function skipWorkProfileAction(): Promise<WorkProfileOutcome> {
+  return writeWorkProfile((actor) => skipWorkProfile(actor))
+}
+
+/** Hides (true) or shows again (false) Home's Start here card. */
+export async function setWelcomeDismissedAction(
+  dismissed: boolean
+): Promise<WorkProfileOutcome> {
+  return writeWorkProfile((actor) =>
+    setWelcomeDismissed(actor, dismissed === true)
+  )
 }

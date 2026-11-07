@@ -46,6 +46,7 @@ describe("AppShell staff navigation", () => {
     )
     expect(links("Staff")).toEqual([
       ["Home", "/staff/tasks"],
+      ["Our menu", "/staff/menu"],
       ["Photos", "/staff/community"],
       ["People", "/staff/people"],
       ["Me", "/staff"],
@@ -64,6 +65,32 @@ describe("AppShell staff navigation", () => {
       "/staff/manage",
     ])
     expect(current("Staff")).toEqual(["Manage, 3 to review"])
+  })
+
+  it("marks Our menu current; a manager's copy steps aside from md to lg", () => {
+    render(
+      <AppShell variant="staff" active="menu" canManage>
+        x
+      </AppShell>
+    )
+    expect(current("Staff")).toEqual(["Our menu"])
+    const link = nav("Staff", "app-nav").getByRole("link", { name: "Our menu" })
+    // Six sections don't fit at 768px; Home's card and Manage link to it.
+    expect(link.className).toContain("md:max-lg:hidden")
+    // The phone TabBar never gains a sixth tab for it.
+    expect(
+      nav("Staff", "tabbar").queryByRole("link", { name: "Our menu" })
+    ).toBeNull()
+  })
+
+  it("keeps Our menu in the AppBar at every width for other staff", () => {
+    render(
+      <AppShell variant="staff" active="menu">
+        x
+      </AppShell>
+    )
+    const link = nav("Staff", "app-nav").getByRole("link", { name: "Our menu" })
+    expect(link.className).not.toContain("md:max-lg:hidden")
   })
 
   it("keeps Me current when no section is given", () => {
@@ -94,7 +121,10 @@ describe("AppShell staff navigation", () => {
     const openAdd = vi.fn()
     render(
       <AddProvider
-        value={{ openAdd, busy: { count: 3, words: "2 in progress, 1 failed" } }}
+        value={{
+          openAdd,
+          busy: { count: 3, words: "2 in progress, 1 failed" },
+        }}
       >
         <AppShell variant="staff" active="community">
           x
@@ -106,7 +136,9 @@ describe("AppShell staff navigation", () => {
     })
     expect(add.querySelector("[data-slot=add-busy]")?.textContent).toBe("3")
     expect(
-      screen.getByRole("button", { name: "Add photos, 2 in progress, 1 failed" })
+      screen.getByRole("button", {
+        name: "Add photos, 2 in progress, 1 failed",
+      })
     ).toBeTruthy()
     add.click()
     expect(openAdd).toHaveBeenCalledOnce()

@@ -2,7 +2,8 @@
 -- Reverting the UI alone leaves these database capabilities callable, so a
 -- rollback runs this script (in one transaction) against the target database.
 -- Tables, rows, media, archive and monitoring objects are untouched; re-grant
--- by re-running the grant statements of migrations 20261102130000..150000.
+-- by re-running the grant statements of migrations 20261102130000..150000 and
+-- 20261106130000 (Our menu item photos).
 -- tests/migrations/withdraw.test.ts proves it covers every coverage RPC and
 -- table and changes nothing else.
 
@@ -31,7 +32,14 @@ revoke execute on function
   public.task_evidence_asset(uuid),
   public.coverage_candidate_assets(uuid, uuid, timestamptz, uuid, integer),
   public.venue_manager_grant_list(uuid, boolean),
-  public.coverage_preparation_status(uuid)
+  public.coverage_preparation_status(uuid),
+  public.review_menu_item_photo(uuid, uuid, uuid, text, integer, text, boolean, text),
+  public.withdraw_menu_item_photo(uuid, integer, text, text),
+  public.set_menu_item_primary_photo(uuid, integer, text),
+  public.menu_item_photo_summary(uuid),
+  public.menu_item_photo_items(uuid, uuid, boolean, text, integer, integer, uuid, integer),
+  public.menu_item_photo_candidates(uuid, uuid, boolean, timestamptz, uuid, integer),
+  public.menu_item_photo_asset(uuid)
 from authenticated;
 
 -- Stops the hourly preparation even if the scheduler keeps calling it.
@@ -50,5 +58,8 @@ revoke select on
   public.coverage_submissions,
   public.coverage_submission_items,
   public.coverage_review_events,
-  public.coverage_preparation_runs
+  public.coverage_preparation_runs,
+  public.menu_item_photos,
+  public.menu_item_photo_heads,
+  public.menu_item_photo_events
 from authenticated;

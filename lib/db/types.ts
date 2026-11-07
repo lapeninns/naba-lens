@@ -1342,6 +1342,268 @@ export type Database = {
           },
         ]
       }
+      menu_item_photo_events: {
+        Row: {
+          action: string
+          actor_id: string | null
+          actor_role: string
+          asset_id: string
+          author_id: string
+          client_request_key: string | null
+          created_at: string
+          detail: Json
+          from_state: string | null
+          id: number
+          item_id: string
+          item_revision: number
+          photo_id: string
+          reason: string | null
+          revision: number
+          self_review: boolean
+          to_state: string
+          variant_id: string | null
+          venue_id: string
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          actor_role: string
+          asset_id: string
+          author_id: string
+          client_request_key?: string | null
+          created_at?: string
+          detail?: Json
+          from_state?: string | null
+          id?: never
+          item_id: string
+          item_revision: number
+          photo_id: string
+          reason?: string | null
+          revision: number
+          self_review?: boolean
+          to_state: string
+          variant_id?: string | null
+          venue_id: string
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          actor_role?: string
+          asset_id?: string
+          author_id?: string
+          client_request_key?: string | null
+          created_at?: string
+          detail?: Json
+          from_state?: string | null
+          id?: never
+          item_id?: string
+          item_revision?: number
+          photo_id?: string
+          reason?: string | null
+          revision?: number
+          self_review?: boolean
+          to_state?: string
+          variant_id?: string | null
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "menu_item_photo_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "menu_item_photo_events_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "menu_item_photo_events_photo_id_fkey"
+            columns: ["photo_id"]
+            isOneToOne: false
+            referencedRelation: "menu_item_photos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "menu_item_photo_events_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      menu_item_photo_heads: {
+        Row: {
+          item_id: string
+          revision: number
+          updated_at: string
+          venue_id: string
+        }
+        Insert: {
+          item_id: string
+          revision?: number
+          updated_at?: string
+          venue_id: string
+        }
+        Update: {
+          item_id?: string
+          revision?: number
+          updated_at?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "menu_item_photo_heads_item_fkey"
+            columns: ["item_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "menu_items"
+            referencedColumns: ["id", "venue_id"]
+          },
+        ]
+      }
+      menu_item_photos: {
+        Row: {
+          asset_id: string
+          author_id: string
+          created_at: string
+          decided_at: string
+          decided_by: string
+          id: string
+          invalidation_kind: string | null
+          is_primary: boolean
+          item_id: string
+          item_name: string
+          menu_version_id: string
+          reason: string | null
+          recheck_kind: string | null
+          revision: number
+          section_kind: string
+          section_name: string
+          self_review: boolean
+          state: string
+          updated_at: string
+          variant_id: string | null
+          variant_name: string | null
+          venue_id: string
+          withdrawn_at: string | null
+          withdrawn_by: string | null
+        }
+        Insert: {
+          asset_id: string
+          author_id: string
+          created_at?: string
+          decided_at?: string
+          decided_by: string
+          id?: string
+          invalidation_kind?: string | null
+          is_primary?: boolean
+          item_id: string
+          item_name: string
+          menu_version_id: string
+          reason?: string | null
+          recheck_kind?: string | null
+          revision?: number
+          section_kind: string
+          section_name: string
+          self_review: boolean
+          state: string
+          updated_at?: string
+          variant_id?: string | null
+          variant_name?: string | null
+          venue_id: string
+          withdrawn_at?: string | null
+          withdrawn_by?: string | null
+        }
+        Update: {
+          asset_id?: string
+          author_id?: string
+          created_at?: string
+          decided_at?: string
+          decided_by?: string
+          id?: string
+          invalidation_kind?: string | null
+          is_primary?: boolean
+          item_id?: string
+          item_name?: string
+          menu_version_id?: string
+          reason?: string | null
+          recheck_kind?: string | null
+          revision?: number
+          section_kind?: string
+          section_name?: string
+          self_review?: boolean
+          state?: string
+          updated_at?: string
+          variant_id?: string | null
+          variant_name?: string | null
+          venue_id?: string
+          withdrawn_at?: string | null
+          withdrawn_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "menu_item_photos_asset_fkey"
+            columns: ["asset_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["id", "venue_id"]
+          },
+          {
+            foreignKeyName: "menu_item_photos_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "menu_item_photos_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "menu_item_photos_item_fkey"
+            columns: ["item_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "menu_items"
+            referencedColumns: ["id", "venue_id"]
+          },
+          {
+            foreignKeyName: "menu_item_photos_variant_fkey"
+            columns: ["variant_id", "item_id"]
+            isOneToOne: false
+            referencedRelation: "menu_variants"
+            referencedColumns: ["id", "item_id"]
+          },
+          {
+            foreignKeyName: "menu_item_photos_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "menu_item_photos_version_fkey"
+            columns: ["menu_version_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "menu_versions"
+            referencedColumns: ["id", "venue_id"]
+          },
+          {
+            foreignKeyName: "menu_item_photos_withdrawn_by_fkey"
+            columns: ["withdrawn_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       menu_item_suggestions: {
         Row: {
           asset_id: string | null
@@ -1781,6 +2043,50 @@ export type Database = {
             columns: ["venue_id"]
             isOneToOne: false
             referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      staff_work_profiles: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          role_key: string | null
+          role_title: string | null
+          skipped_at: string | null
+          staff_id: string
+          updated_at: string
+          welcome_dismissed_at: string | null
+          work_areas: string[]
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          role_key?: string | null
+          role_title?: string | null
+          skipped_at?: string | null
+          staff_id: string
+          updated_at?: string
+          welcome_dismissed_at?: string | null
+          work_areas?: string[]
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          role_key?: string | null
+          role_title?: string | null
+          skipped_at?: string | null
+          staff_id?: string
+          updated_at?: string
+          welcome_dismissed_at?: string | null
+          work_areas?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_work_profiles_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -2421,6 +2727,109 @@ export type Database = {
           variant_name: string
         }[]
       }
+      menu_item_photo_asset: {
+        Args: { p_asset_id: string }
+        Returns: {
+          asset_id: string
+          has_preview: boolean
+          has_thumbnail: boolean
+          height: number
+          media_type: Database["public"]["Enums"]["media_type"]
+          uploader_id: string
+          validated_mime_type: string
+          venue_id: string
+          width: number
+        }[]
+      }
+      menu_item_photo_candidates: {
+        Args: {
+          p_after_created_at?: string
+          p_after_label_id?: string
+          p_include_reviewed?: boolean
+          p_item_id?: string
+          p_limit?: number
+          p_venue_id?: string
+        }
+        Returns: {
+          asset_id: string
+          created_at: string
+          has_preview: boolean
+          has_thumbnail: boolean
+          height: number
+          is_primary: boolean
+          is_self: boolean
+          item_id: string
+          item_name: string
+          item_revision: number
+          label_id: string
+          labelled_at: string
+          photo_id: string
+          photo_state: string
+          section_name: string
+          uploader_active: boolean
+          uploader_id: string
+          uploader_name: string
+          variant_id: string
+          variant_name: string
+          venue_id: string
+          width: number
+        }[]
+      }
+      menu_item_photo_items: {
+        Args: {
+          p_after_entry_position?: number
+          p_after_item_id?: string
+          p_after_section_position?: number
+          p_gaps_only?: boolean
+          p_limit?: number
+          p_query?: string
+          p_section_id?: string
+          p_venue_id?: string
+        }
+        Returns: {
+          accepted_count: number
+          candidate_count: number
+          covered: boolean
+          description: string
+          entry_position: number
+          item_id: string
+          item_revision: number
+          menu_version_id: string
+          name: string
+          needs_recheck_count: number
+          oldest_candidate_at: string
+          primary_asset_id: string
+          primary_has_preview: boolean
+          primary_has_thumbnail: boolean
+          primary_height: number
+          primary_photo_id: string
+          primary_width: number
+          section_id: string
+          section_kind: string
+          section_name: string
+          section_position: number
+          variants: Json
+          venue_id: string
+        }[]
+      }
+      menu_item_photo_summary: {
+        Args: { p_venue_id?: string }
+        Returns: {
+          covered_items: number
+          eligible_items: number
+          menu_state: string
+          menu_version_id: string
+          needs_recheck_items: number
+          oldest_candidate_at: string
+          pending_candidates: number
+          section_id: string
+          section_kind: string
+          section_name: string
+          section_position: number
+          venue_id: string
+          venue_name: string
+        }[]
+      }
       menu_label_counts: { Args: { p_venue_id: string }; Returns: Json }
       prepare_coverage_month: {
         Args: { p_venue_id?: string }
@@ -2549,6 +2958,27 @@ export type Database = {
           state: string
         }[]
       }
+      review_menu_item_photo: {
+        Args: {
+          p_asset_id: string
+          p_client_request_key?: string
+          p_decision: string
+          p_expected_revision: number
+          p_item_id: string
+          p_make_primary?: boolean
+          p_reason?: string
+          p_variant_id: string
+        }
+        Returns: {
+          is_primary: boolean
+          item_id: string
+          item_revision: number
+          photo_id: string
+          replayed: boolean
+          self_review: boolean
+          state: string
+        }[]
+      }
       revoke_venue_manager: {
         Args: { p_grant_id: string; p_reason: string }
         Returns: undefined
@@ -2594,6 +3024,30 @@ export type Database = {
         }
         Returns: number
       }
+      save_work_profile: {
+        Args: {
+          p_role_key: string
+          p_role_title: string
+          p_work_areas: string[]
+        }
+        Returns: {
+          completed_at: string | null
+          created_at: string
+          role_key: string | null
+          role_title: string | null
+          skipped_at: string | null
+          staff_id: string
+          updated_at: string
+          welcome_dismissed_at: string | null
+          work_areas: string[]
+        }
+        SetofOptions: {
+          from: "*"
+          to: "staff_work_profiles"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       set_amenity_fact: {
         Args: {
           p_amenity_key: string
@@ -2634,6 +3088,18 @@ export type Database = {
         Args: { p_archived: boolean; p_item_id: string }
         Returns: undefined
       }
+      set_menu_item_primary_photo: {
+        Args: {
+          p_client_request_key?: string
+          p_expected_revision: number
+          p_photo_id: string
+        }
+        Returns: {
+          item_revision: number
+          photo_id: string
+          replayed: boolean
+        }[]
+      }
       set_monthly_target: {
         Args: {
           p_due_on?: string
@@ -2648,6 +3114,46 @@ export type Database = {
           revision: number
           target_id: string
         }[]
+      }
+      set_welcome_dismissed: {
+        Args: { p_dismissed: boolean }
+        Returns: {
+          completed_at: string | null
+          created_at: string
+          role_key: string | null
+          role_title: string | null
+          skipped_at: string | null
+          staff_id: string
+          updated_at: string
+          welcome_dismissed_at: string | null
+          work_areas: string[]
+        }
+        SetofOptions: {
+          from: "*"
+          to: "staff_work_profiles"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      skip_work_profile: {
+        Args: never
+        Returns: {
+          completed_at: string | null
+          created_at: string
+          role_key: string | null
+          role_title: string | null
+          skipped_at: string | null
+          staff_id: string
+          updated_at: string
+          welcome_dismissed_at: string | null
+          work_areas: string[]
+        }
+        SetofOptions: {
+          from: "*"
+          to: "staff_work_profiles"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       start_menu_coverage_plan: {
         Args: { p_menu_version_id: string; p_venue_id: string }
@@ -2732,6 +3238,21 @@ export type Database = {
           staff_venue_id: string | null
           venue_id: string
           venue_name: string
+        }[]
+      }
+      withdraw_menu_item_photo: {
+        Args: {
+          p_client_request_key?: string
+          p_expected_revision: number
+          p_photo_id: string
+          p_reason: string
+        }
+        Returns: {
+          item_revision: number
+          new_primary_photo_id: string
+          photo_id: string
+          replayed: boolean
+          state: string
         }[]
       }
     }

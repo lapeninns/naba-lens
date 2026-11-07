@@ -1,6 +1,13 @@
 "use server"
 
-import { normaliseEmail, sendSignInLink } from "@/lib/auth/magic-link"
+import {
+  normaliseEmail,
+  normaliseSignInCode,
+  sendSignInLink,
+  signInCodeError,
+  SIGN_IN_CODE_FORMAT_MESSAGE,
+  verifySignInCode,
+} from "@/lib/auth/magic-link"
 import {
   CAPTCHA_RETRY_MESSAGE,
   CAPTCHA_UNAVAILABLE_MESSAGE,
@@ -43,4 +50,26 @@ export async function requestSignInLink(
     return { error: CAPTCHA_RETRY_MESSAGE }
   }
   return {}
+}
+
+/**
+ * Signs in with the code from the sign-in email. Wrong, used and expired codes
+ * and unknown emails get the same answer. Returns `ok` rather than calling
+ * redirect(), which the caller's try/catch would swallow; the client then loads
+ * "/" so role routing runs with the new session cookies.
+ */
+export async function verifySignInCodeAction(
+  rawEmail: string,
+  rawCode: string
+): Promise<{ error?: string; ok?: true }> {
+  const email = normaliseEmail(rawEmail)
+  if (!email) {
+    return { error: "Enter a full email address, like name@example.com." }
+  }
+  const code = normaliseSignInCode(rawCode)
+  if (!code) return { error: SIGN_IN_CODE_FORMAT_MESSAGE }
+
+  const result = await verifySignInCode(await createClient(), email, code)
+  const error = signInCodeError(result)
+  return error ? { error } : { ok: true }
 }

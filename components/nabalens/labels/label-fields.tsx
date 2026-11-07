@@ -149,18 +149,35 @@ function SelectedItems({
 // What's in the photo (multi-select toggle chips)
 // ---------------------------------------------------------------------------
 
+/**
+ * The chips' display order: the focus types first, then the rest in their
+ * usual order. Display only; saved labels keep CONTENT_TYPES order.
+ */
+export function contentTypeDisplayOrder(
+  focusTypes: readonly ContentType[] = []
+): ContentType[] {
+  const first = focusTypes.filter((t) => CONTENT_TYPES.includes(t))
+  return [...new Set([...first, ...CONTENT_TYPES])]
+}
+
 function ContentTypeChips({
   legend,
   selected,
   onToggle,
   disabled,
+  focusTypes,
 }: {
   legend: React.ReactNode
   selected: ContentType[]
   onToggle: (type: ContentType) => void
   disabled?: boolean
+  focusTypes?: readonly ContentType[]
 }) {
   const helpId = React.useId()
+  const order = React.useMemo(
+    () => contentTypeDisplayOrder(focusTypes),
+    [focusTypes]
+  )
   const atMax = selected.length >= LABEL_LIMITS.maxContentTypes
   return (
     <fieldset
@@ -169,7 +186,7 @@ function ContentTypeChips({
     >
       <legend className={cn(FIELD_LABEL, "mb-1.5")}>{legend}</legend>
       <div className="flex flex-wrap gap-2">
-        {CONTENT_TYPES.map((type) => {
+        {order.map((type) => {
           const pressed = selected.includes(type)
           const blocked = !pressed && atMax
           return (
@@ -374,6 +391,8 @@ export type LabelFieldsProps = {
     onChange: (value: string) => void
   }
   disabled?: boolean
+  /** Content types shown first (the person's work focus). Order only. */
+  focusTypes?: readonly ContentType[]
 }
 
 export function LabelFields({
@@ -399,6 +418,7 @@ export function LabelFields({
   onUseCommonNote,
   missingItem,
   disabled,
+  focusTypes,
 }: LabelFieldsProps) {
   const containerRef = React.useRef<HTMLDivElement>(null)
   const missingRef = React.useRef<HTMLInputElement>(null)
@@ -609,6 +629,7 @@ export function LabelFields({
         selected={contentTypes}
         onToggle={onToggleType}
         disabled={disabled}
+        focusTypes={focusTypes}
       />
 
       <NoteField

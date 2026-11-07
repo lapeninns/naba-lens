@@ -51,4 +51,16 @@ export {
   prepareMonth,
   runScheduledPreparation,
 } from "./preparation"
+export {
+  getMyMenuPhotoStates,
+  getOurMenu,
+  listMyMenuPhotoDecisions,
+  listItemPhotoCandidates,
+  listItemPhotoSelfReviews,
+  listOurMenuItems,
+  menuPhotoRoutes,
+  reviewItemPhoto,
+  setPrimaryItemPhoto,
+  withdrawItemPhoto,
+} from "./menu-items"
 export { signEvidence } from "./evidence"

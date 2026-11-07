@@ -8,24 +8,32 @@ import {
   createRequirement,
   discardMenuCoverage,
   getCoverageActor,
+  getMyMenuPhotoStates,
   getMyMonth,
+  getOurMenu,
   grantVenueManager,
+  listItemPhotoCandidates,
+  listItemPhotoSelfReviews,
   listMySubmittablePhotos,
+  listOurMenuItems,
   listPreparationRuns,
   listReviewQueue,
   listSelfReviews,
   listVenuePhotos,
   prepareMonth,
   reconcileMenuRequirement,
+  reviewItemPhoto,
   reviewSubmission,
   revokeVenueManager,
   setAmenityFact,
   setMonthlyTarget,
+  setPrimaryItemPhoto,
   setRequirementAssignees,
   setRequirementStatus,
   startMenuCoverage,
   submitPhotos,
   updateRequirement,
+  withdrawItemPhoto,
 } from "@/lib/server/coverage"
 import type { CoverageResult } from "@/lib/server/coverage/types"
 import type { MediaActor } from "@/lib/server/media/types"
@@ -159,4 +167,40 @@ export async function loadSelfReviewsAction(input: unknown) {
 
 export async function loadPreparationRunsAction(input: unknown) {
   return read(listPreparationRuns, input)
+}
+
+// ---- Our menu: menu items with an accepted photo ------------------------------------
+// Staff read their own venue; the venue's manager and admins review. Writes
+// refresh the staff and admin coverage layouts, which include Our menu.
+
+export async function loadOurMenuAction(input: unknown) {
+  return read(getOurMenu, input)
+}
+
+export async function loadOurMenuItemsAction(input: unknown) {
+  return read(listOurMenuItems, input)
+}
+
+export async function loadMyMenuPhotoStatesAction(input: unknown) {
+  return read(getMyMenuPhotoStates, input)
+}
+
+export async function loadItemPhotoCandidatesAction(input: unknown) {
+  return read(listItemPhotoCandidates, input)
+}
+
+export async function reviewItemPhotoAction(input: unknown) {
+  return write(reviewItemPhoto, input)
+}
+
+export async function withdrawItemPhotoAction(input: unknown) {
+  return write(withdrawItemPhoto, input)
+}
+
+export async function setPrimaryItemPhotoAction(input: unknown) {
+  return write(setPrimaryItemPhoto, input)
+}
+
+export async function loadItemPhotoSelfReviewsAction(input: unknown) {
+  return read(listItemPhotoSelfReviews, input)
 }

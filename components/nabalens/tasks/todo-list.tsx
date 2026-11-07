@@ -279,7 +279,7 @@ export function TodoSection({
                     <SetupChecklist
                       setup={scope.setup}
                       profile={profile}
-                      editProfileHref={portfolioPath}
+                      editProfileHref={`${portfolioPath}?edit=profile`}
                     />
                   </li>
                 )

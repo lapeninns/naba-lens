@@ -18,7 +18,8 @@ import { AddTrigger, TAB_ITEM } from "./shell/add-context"
 import { CountBadge } from "./status-chip"
 
 type AdminSection = "content" | "staff" | "menus" | "coverage"
-type StaffSection = "tasks" | "portfolio" | "community" | "people" | "manage"
+type StaffSection =
+  "tasks" | "menu" | "portfolio" | "community" | "people" | "manage"
 
 type AppShellProps = {
   children: React.ReactNode
@@ -79,6 +80,16 @@ const HOME: NavItem<StaffSection> = {
   href: "/staff/tasks",
   icon: HouseIcon,
 }
+/**
+ * Our menu (menu items with an accepted photo). In the AppBar only: the phone
+ * TabBar keeps its five tabs, and phones reach Our menu from Home's card.
+ */
+const OUR_MENU: NavItem<StaffSection> = {
+  id: "menu",
+  label: "Our menu",
+  href: "/staff/menu",
+  icon: ForkKnifeIcon,
+}
 const PHOTOS: NavItem<StaffSection> = {
   id: "community",
   label: "Photos",
@@ -123,13 +134,18 @@ export function AppShell(props: AppShellProps) {
           item,
           href: admin.hrefs?.[item.id] ?? item.href,
         }))
-      : [HOME, PHOTOS, PEOPLE, ME, ...(staff?.canManage ? [MANAGE] : [])].map(
-          (item) => ({
-            item,
-            href: item.href,
-            count: item.id === "manage" ? staff?.reviewCount : undefined,
-          })
-        )
+      : [
+          HOME,
+          OUR_MENU,
+          PHOTOS,
+          PEOPLE,
+          ME,
+          ...(staff?.canManage ? [MANAGE] : []),
+        ].map((item) => ({
+          item,
+          href: item.href,
+          count: item.id === "manage" ? staff?.reviewCount : undefined,
+        }))
   const active = admin ? admin.active : (staff?.active ?? "portfolio")
   const navLabel = admin ? "Admin" : "Staff"
 
@@ -183,7 +199,10 @@ export function AppShell(props: AppShellProps) {
                   aria-current={current ? "page" : undefined}
                   className={cn(
                     BAR_LINK,
-                    current && "text-ink shadow-[inset_0_-2px_0_var(--accent)]"
+                    current && "text-ink shadow-[inset_0_-2px_0_var(--accent)]",
+                    // A manager's six sections don't fit from md to lg; there
+                    // Our menu is reached from Home and Manage instead.
+                    item.id === "menu" && staff?.canManage && "md:max-lg:hidden"
                   )}
                 >
                   {item.label}

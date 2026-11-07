@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils"
 import { FIELD_CONTROL, FIELD_HINT, FIELD_LABEL } from "./field-styles"
 import {
   searchCatalogue,
+  suggestedItems,
   type CatalogueHit,
   type CatalogueIndex,
 } from "./catalogue-search"
@@ -56,6 +57,8 @@ function fullyChosen(hit: CatalogueHit, selected: ReadonlySet<string>) {
  * Search box + listbox (ARIA combobox pattern). Type to filter, ArrowUp/Down
  * to move, Enter to choose, Escape to clear. Results are an inline list with
  * 44px rows, so nothing depends on hover. Items with variants ask which one.
+ * With a work focus in the index, the empty box offers a "Suggested" list
+ * from the sections closest to the person's work; typing searches everything.
  */
 export function MenuItemPicker({
   label,
@@ -79,12 +82,24 @@ export function MenuItemPicker({
   const [query, setQuery] = React.useState("")
   const [active, setActive] = React.useState(-1)
   const [choosing, setChoosing] = React.useState<CatalogueHit | null>(null)
+  const [suggestOpen, setSuggestOpen] = React.useState(false)
+  const suggestId = `${id}-suggested`
 
   const hits = React.useMemo(
     () => searchCatalogue(index, query),
     [index, query]
   )
-  const open = query.trim() !== "" && !choosing
+  const suggestions = React.useMemo(() => suggestedItems(index), [index])
+  const searching = query.trim() !== "" && !choosing
+  const suggesting =
+    !searching &&
+    !choosing &&
+    !disabled &&
+    suggestOpen &&
+    query.trim() === "" &&
+    suggestions.length > 0
+  const open = searching || suggesting
+  const options = searching ? hits : suggesting ? suggestions : []
   const optionId = (i: number) => `${id}-opt-${i}`
 
   React.useEffect(() => {
@@ -121,24 +136,35 @@ export function MenuItemPicker({
     if (event.key === "Enter") {
       // Never submit the surrounding form from the search box.
       event.preventDefault()
-      if (open && active >= 0 && hits[active]) choose(hits[active])
+      if (open && active >= 0 && options[active]) choose(options[active])
       return
     }
-    if (event.key === "Escape" && query) {
-      // Clear the search; a second Escape reaches the dialog.
+    if (event.key === "Escape" && (query || suggesting)) {
+      // Clear the search (or close the suggestions); a second Escape reaches
+      // the dialog.
       event.preventDefault()
       event.stopPropagation()
+      if (!query) setSuggestOpen(false)
       setQuery("")
       setActive(-1)
       return
     }
-    if (!open || hits.length === 0) return
+    if (event.key === "ArrowDown" && !open && !query.trim()) {
+      // Reopen the suggestions after Escape.
+      if (suggestions.length > 0) {
+        event.preventDefault()
+        setSuggestOpen(true)
+        setActive(0)
+      }
+      return
+    }
+    if (!open || options.length === 0) return
     if (event.key === "ArrowDown") {
       event.preventDefault()
-      setActive((a) => (a + 1) % hits.length)
+      setActive((a) => (a + 1) % options.length)
     } else if (event.key === "ArrowUp") {
       event.preventDefault()
-      setActive((a) => (a <= 0 ? hits.length - 1 : a - 1))
+      setActive((a) => (a <= 0 ? options.length - 1 : a - 1))
     }
   }
 
@@ -168,7 +194,9 @@ export function MenuItemPicker({
           aria-expanded={open}
           aria-controls={listId}
           aria-activedescendant={
-            open && active >= 0 && hits[active] ? optionId(active) : undefined
+            open && active >= 0 && options[active]
+              ? optionId(active)
+              : undefined
           }
           aria-describedby={describedBy}
           disabled={disabled}
@@ -177,6 +205,11 @@ export function MenuItemPicker({
             setQuery(e.currentTarget.value)
             setActive(-1)
             setChoosing(null)
+          }}
+          onFocus={() => setSuggestOpen(true)}
+          onBlur={() => {
+            setSuggestOpen(false)
+            if (!query.trim()) setActive(-1)
           }}
           onKeyDown={onKeyDown}
           className={cn(FIELD_CONTROL, "ps-9.5")}
@@ -188,22 +221,30 @@ export function MenuItemPicker({
         </p>
       ) : null}
       <p id={`${id}-count`} className="sr-only" aria-live="polite">
-        {open
+        {searching
           ? hits.length === 0
             ? `Nothing on ${venueName}'s menu matches.`
             : `${hits.length} menu ${hits.length === 1 ? "item" : "items"} found`
-          : ""}
+          : suggesting
+            ? `${suggestions.length} suggested menu ${suggestions.length === 1 ? "item" : "items"}. Type to search the whole menu.`
+            : ""}
       </p>
 
+      {suggesting ? (
+        <p id={suggestId} className={FIELD_HINT}>
+          Suggested for your work
+        </p>
+      ) : null}
       <ul
         ref={listRef}
         id={listId}
         role="listbox"
-        aria-label="Matching menu items"
+        aria-label={suggesting ? undefined : "Matching menu items"}
+        aria-labelledby={suggesting ? suggestId : undefined}
         hidden={!open}
         className="max-h-72 overflow-y-auto rounded-control border border-line bg-panel"
       >
-        {open && hits.length === 0 ? (
+        {searching && hits.length === 0 ? (
           <li
             role="presentation"
             className="px-3 py-2.5 text-body-touch text-ink-muted md:text-body-sm"
@@ -212,7 +253,7 @@ export function MenuItemPicker({
           </li>
         ) : null}
         {open
-          ? hits.map((hit, i) => {
+          ? options.map((hit, i) => {
               const chosen = fullyChosen(hit, selectedKeys)
               return (
                 <li
@@ -254,7 +295,7 @@ export function MenuItemPicker({
           : null}
       </ul>
 
-      {open && hits.length === 0 && onAddMissing ? (
+      {searching && hits.length === 0 && onAddMissing ? (
         <p className={FIELD_HINT}>
           <Button
             type="button"

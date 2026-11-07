@@ -2,6 +2,12 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Database } from "@/lib/db/types"
 import { isDepartment, type Department } from "@/lib/config/departments"
+import {
+  isWorkArea,
+  isWorkRoleKey,
+  type WorkArea,
+  type WorkRoleKey,
+} from "@/lib/config/work-roles"
 import type { AppRole } from "@/lib/auth/routes"
 
 export type CurrentVenue = {
@@ -9,6 +15,46 @@ export type CurrentVenue = {
   name: string
   slug: string
   active: boolean
+}
+
+/**
+ * Self-described work details (public.staff_work_profiles). Ordering and prompts
+ * only: never access, team or labels. Null until the person saves, skips or
+ * dismisses the welcome guide, and for anyone who cannot read their own row.
+ */
+export type WorkProfile = {
+  roleKey: WorkRoleKey | null
+  /** The person's own title, only for role "other". */
+  roleTitle: string | null
+  workAreas: WorkArea[]
+  completedAt: string | null
+  skippedAt: string | null
+  welcomeDismissedAt: string | null
+}
+
+type WorkProfileRow = Pick<
+  Database["public"]["Tables"]["staff_work_profiles"]["Row"],
+  | "role_key"
+  | "role_title"
+  | "work_areas"
+  | "completed_at"
+  | "skipped_at"
+  | "welcome_dismissed_at"
+>
+
+/** Maps a staff_work_profiles row, dropping keys this app version does not know. */
+export function toWorkProfile(
+  row: WorkProfileRow | null | undefined
+): WorkProfile | null {
+  if (!row) return null
+  return {
+    roleKey: isWorkRoleKey(row.role_key) ? row.role_key : null,
+    roleTitle: row.role_key === "other" ? row.role_title : null,
+    workAreas: (row.work_areas ?? []).filter(isWorkArea),
+    completedAt: row.completed_at,
+    skippedAt: row.skipped_at,
+    welcomeDismissedAt: row.welcome_dismissed_at,
+  }
 }
 
 export type CurrentProfile = {
@@ -23,6 +69,7 @@ export type CurrentProfile = {
   /** Null when unassigned, or when the account is inactive (venues are then unreadable). */
   venue: CurrentVenue | null
   active: boolean
+  work: WorkProfile | null
 }
 
 export type AuthState =
@@ -44,7 +91,7 @@ export async function loadProfile(
   const { data, error } = await supabase
     .from("profiles")
     .select(
-      "id, display_name, avatar_path, job_title, department, role, venue_id, active, venue:venues(id, name, slug, active)"
+      "id, display_name, avatar_path, job_title, department, role, venue_id, active, venue:venues(id, name, slug, active), work:staff_work_profiles(role_key, role_title, work_areas, completed_at, skipped_at, welcome_dismissed_at)"
     )
     .eq("id", userId)
     .maybeSingle()
@@ -67,6 +114,8 @@ export async function loadProfile(
     venueId: data.venue_id,
     venue: data.venue ?? null,
     active: data.active,
+    // One-to-one embed (staff_id is the key): null when there is no row yet.
+    work: toWorkProfile(data.work),
   }
 }
 

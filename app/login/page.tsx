@@ -2,8 +2,8 @@ import type { Metadata } from "next"
 import { redirect } from "next/navigation"
 
 import { requestSignInLink } from "@/app/login/actions"
+import { LoginCardHost } from "@/app/login/login-card-host"
 import { SignInPage } from "@/app/login/sign-in-frame"
-import { LoginCard } from "@/components/nabalens"
 import { getAuthState, homePathFor, ROUTES } from "@/lib/auth"
 import { getLoginCaptchaConfig } from "@/lib/auth/captcha"
 
@@ -26,7 +26,8 @@ export default async function LoginPage({
 
   return (
     <SignInPage>
-      <LoginCard
+      {/* The code is checked from the browser (see LoginCardHost). */}
+      <LoginCardHost
         onSubmit={requestSignInLink}
         linkExpired={params.error === "link_invalid"}
         signedOut={!!params.signed_out}

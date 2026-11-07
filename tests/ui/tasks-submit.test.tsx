@@ -671,14 +671,21 @@ describe("SubmitPhotosPanel", () => {
     const loadPhotos = vi.fn(async () => page([fresh, A]))
     const { user } = setup({ photos: [A], uploader, loadPhotos })
 
-    await user.click(screen.getByRole("button", { name: "Take a photo" }))
+    // Outside the staff layout the panel picks through its own hidden
+    // library input (opened by "Choose from your photos").
+    const library = document.querySelector<HTMLInputElement>(
+      'input[data-photo-source="library"]'
+    )!
+    expect(library.multiple).toBe(true)
+    expect(library.hasAttribute("capture")).toBe(false)
+    expect(library.accept).not.toMatch(/video/)
+    await user.upload(library, [
+      new File([new Uint8Array(64)], "pass.jpg", { type: "image/jpeg" }),
+    ])
     const dialog = await screen.findByRole("dialog")
     expect(
       within(dialog).getByRole("heading", { name: "Upload photos" })
     ).toBeTruthy()
-    await user.upload(within(dialog).getByLabelText("Choose photos"), [
-      new File([new Uint8Array(64)], "pass.jpg", { type: "image/jpeg" }),
-    ])
     await user.click(
       within(dialog).getByRole("button", { name: "Upload 1 file" })
     )

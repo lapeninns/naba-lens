@@ -4,7 +4,6 @@ import * as React from "react"
 import Link from "next/link"
 import {
   ArrowClockwiseIcon,
-  CameraIcon,
   PaperPlaneTiltIcon,
   SpinnerGapIcon,
 } from "@phosphor-icons/react"
@@ -16,6 +15,12 @@ import { LoadMoreButton } from "../load-more-button"
 import { EmptyState } from "../empty-state"
 import { Notice } from "../notice"
 import { useOnline } from "../offline-notice"
+import {
+  PhotoSourceActions,
+  usePhotoSource,
+  type PhotoSource,
+} from "../photo-source"
+import type { OpenAddOptions } from "../shell/add-context"
 import type { UploadLimits } from "../types"
 import { UploadDialog } from "../upload-dialog"
 import type { Uploader } from "../upload-queue"
@@ -67,6 +72,16 @@ type SubmitPhotosPanelProps = {
     input: SubmittablePhotosInput
   ) => Promise<SubmittablePhotosResult>
   submit: (input: SubmitPhotosInput) => Promise<SubmitPhotosResult>
+  /**
+   * The staff layout's one Add queue (useAddQueue): the pickers open it and
+   * only the uploads picked here are selected here once ready. Without it
+   * (previews, tests) the panel uploads through its own dialog with
+   * `uploader`.
+   */
+  addQueue?: {
+    openAdd: (opts?: OpenAddOptions) => void
+    onReady?: (listener: (assetIds: string[]) => void) => () => void
+  } | null
   /** The existing upload transport (reserve -> transfer -> finalise). */
   uploader: Uploader
   /** MEDIA_LIMITS: the batch cap also caps one submission. */
@@ -100,9 +115,10 @@ function initialState(result: SubmittablePhotosResult): PhotoList {
 }
 
 /**
- * Capture or choose own ready photos and send them for review. Uploads go
- * through the existing pipeline (UploadDialog) and newly ready photos are
- * selected automatically. Each send carries one request ID per intent, so a
+ * Choose or take photos, or pick own ready photos, and send them for review.
+ * Uploads go through the staff layout's one Add queue (or, outside it, the
+ * panel's own UploadDialog) and newly ready photos are selected
+ * automatically. Each send carries one request ID per intent, so a
  * retry after a dropped connection replays instead of sending twice.
  */
 export function SubmitPhotosPanel({
@@ -115,6 +131,7 @@ export function SubmitPhotosPanel({
   refreshSignal,
   loadPhotos,
   submit,
+  addQueue = null,
   uploader,
   limits,
   onReload,
@@ -131,6 +148,9 @@ export function SubmitPhotosPanel({
     ReadonlyMap<string, AssetIneligibleReason>
   >(new Map())
   const [uploadOpen, setUploadOpen] = React.useState(false)
+  const [pickedFiles, setPickedFiles] = React.useState<File[] | undefined>(
+    undefined
+  )
   const [sending, setSending] = React.useState(false)
   const [outcome, setOutcome] = React.useState<Outcome | null>(null)
   const [uploadNote, setUploadNote] = React.useState<string | null>(null)
@@ -236,6 +256,38 @@ export function SubmitPhotosPanel({
     },
     [loadPhotos, requirementId, maxSelected]
   )
+
+  // Only the files picked from this panel are selected here once ready (not
+  // every upload of the shared Add queue). The latest reload function, so a
+  // batch that settles later uses current state; after unmount Add keeps the
+  // files as ready to label instead.
+  const reloadRef = React.useRef(reloadFirstPage)
+  React.useLayoutEffect(() => {
+    reloadRef.current = reloadFirstPage
+  }, [reloadFirstPage])
+
+  // Outside the staff layout: the panel's own pickers and dialog.
+  const ownPicker = usePhotoSource({
+    imagesOnly: true,
+    onFiles: (files) => {
+      setPickedFiles(files)
+      setUploadOpen(true)
+    },
+  })
+
+  /** Runs in the click handler: the picker needs its user activation. */
+  function choose(source: PhotoSource) {
+    if (addQueue)
+      addQueue.openAdd({
+        source,
+        imagesOnly: true,
+        onReady: (ids) => {
+          if (!mounted.current) return false
+          void reloadRef.current(ids)
+        },
+      })
+    else ownPicker.open(source)
+  }
 
   const lastRefreshSignal = React.useRef(refreshSignal)
   React.useEffect(() => {
@@ -389,18 +441,21 @@ export function SubmitPhotosPanel({
         </Notice>
       ) : null}
 
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-        <Button
-          size="touch"
-          variant={nothingEligible ? "primary" : "secondary"}
-          onClick={() => setUploadOpen(true)}
-        >
-          <CameraIcon data-icon="inline-start" aria-hidden />
-          Take a photo
-        </Button>
+      <div className="flex flex-col gap-2">
+        <PhotoSourceActions
+          layout="row"
+          className="sm:max-w-xl"
+          libraryVariant={
+            nothingEligible || list.photos.length === 0
+              ? "primary"
+              : "secondary"
+          }
+          onChoose={choose}
+        />
         <p className="text-meta-touch text-ink-muted md:text-meta">
           New photos are selected for you once they&apos;re ready.
         </p>
+        {addQueue ? null : ownPicker.inputs}
       </div>
 
       <div
@@ -412,7 +467,7 @@ export function SubmitPhotosPanel({
 
       <div className="flex flex-col gap-2">
         <h3 className="text-item-title-touch text-ink md:text-item-title">
-          Or choose from your photos
+          Or send photos you&apos;ve already added
         </h3>
         <p className="text-meta-touch text-ink-muted md:text-meta">
           {monthly
@@ -436,7 +491,7 @@ export function SubmitPhotosPanel({
         <EmptyState
           inline
           title={monthly ? "No photos from this month yet." : "No photos yet."}
-          description="Take a photo to get started."
+          description="Choose from your photos or take one to get started."
         />
       )}
 
@@ -506,14 +561,17 @@ export function SubmitPhotosPanel({
         </Button>
       </div>
 
-      <UploadDialog
-        open={uploadOpen}
-        onOpenChange={setUploadOpen}
-        uploader={uploader}
-        limits={limits}
-        imagesOnly
-        onReady={(ids) => void reloadFirstPage(ids)}
-      />
+      {addQueue ? null : (
+        <UploadDialog
+          open={uploadOpen}
+          onOpenChange={setUploadOpen}
+          uploader={uploader}
+          limits={limits}
+          imagesOnly
+          initialFiles={pickedFiles}
+          onReady={(ids) => void reloadFirstPage(ids)}
+        />
+      )}
     </div>
   )
 }

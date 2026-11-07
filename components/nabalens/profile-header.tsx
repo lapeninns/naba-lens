@@ -9,6 +9,11 @@ type ProfileHeaderProps = {
   jobTitle?: string | null
   department?: Department | null
   venueName?: string | null
+  /**
+   * The person's own description of their work (work details), shown as its
+   * own line with the venue. Separate from the admin-set job title and team.
+   */
+  workRole?: string | null
   /** Shown when the profile has no venue yet (staff cannot upload until set). */
   missingVenueLabel?: string
   /**
@@ -28,6 +33,7 @@ export function ProfileHeader({
   jobTitle,
   department,
   venueName,
+  workRole = null,
   missingVenueLabel = "No venue assigned",
   actions,
   meta,
@@ -64,6 +70,12 @@ export function ProfileHeader({
               .filter(Boolean)
               .join(" · ")}
           </p>
+          {workRole ? (
+            <p className="mt-0.5 text-sm text-ink">
+              <span className="sr-only">Your work: </span>
+              {venueName ? `${workRole} at ${venueName}` : workRole}
+            </p>
+          ) : null}
           {meta ? <div className="mt-1.5">{meta}</div> : null}
         </div>
       </div>

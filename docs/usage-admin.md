@@ -2,9 +2,11 @@
 
 ## Sign in and find media
 
-At `/login`, enter your admin **Email**, choose **Send sign-in link**, and open
-the single-use email link. **Check your email** does not confirm
-delivery or access. For **That sign-in link has expired**, request another.
+At `/login`, enter your admin **Email**, choose **Send sign-in link**, then
+open the single-use email link or enter its 6-digit code in **Sign-in code**
+and choose **Sign in with code** (see the
+[staff guide](usage-staff.md#sign-in-and-leave-safely)). **Check your email**
+does not confirm delivery or access. For **That sign-in link has expired**, request another.
 For **Account unavailable**, contact the system owner; that screen offers
 **Sign out**. Inside the app, use **Log out**.
 
@@ -132,14 +134,24 @@ Dates are UK time.
   safe to repeat. Venues not prepared yet are named at the top of Coverage.
   See [operations](operations.md#monthly-coverage-preparation).
 - **Self-reviews** lists each decision a manager made on their own photo.
-- Open a venue for the same **Overview**, **Review**, **Checklist**, **Menu**
-  and **Team** screens a manager has (see the
+  **Our menu self-reviews** lists, separately, each manager decision on their
+  own photo for a dish.
+- Open a venue for the same **Overview**, **Review**, **Checklist**, **Menu**,
+  **Our menu** and **Team** screens a manager has (see the
   [staff guide](usage-staff.md#manage-venue-managers-only)), for any venue.
   Food menu sections show staff the dish
   [photo guide](usage-staff.md#photo-guide); its examples are fixed app
   images, not venue media, and cannot be changed from the admin screens.
   Admins can also attach retained photos from people who have left, and
   correct a past month's target with a reason; the correction is recorded.
+
+**Our menu** counts menu items with an accepted photo: one photo accepted for
+a dish covers that dish (one main photo per dish; variants are recorded as
+context). It is separate from section coverage and monthly targets, and
+accepting for a dish never changes those totals. An upload or a label alone
+never counts. Staff see their own work details, set at `/staff/profile`; only
+they and admins see them, and they never change job title, department, team,
+venue or access.
 
 Accepting a photo records task completion only. It is not publishing
 clearance, and coverage does not gate what staff see: ready photos are in

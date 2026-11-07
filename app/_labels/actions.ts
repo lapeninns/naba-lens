@@ -1,5 +1,6 @@
 "use server"
 
+import { workFocus, type WorkFocus } from "@/lib/config/work-roles"
 import {
   LABEL_LIMITS,
   type LabelCatalogue,
@@ -14,6 +15,7 @@ import {
 } from "@/lib/server/labels"
 import { redactError } from "@/lib/server/log/redact"
 import { getMediaActor } from "@/lib/server/media/context"
+import type { MediaActor } from "@/lib/server/media/types"
 
 // Label editor Server Functions for both roles. Each one authorises the caller
 // itself (fresh profile read); lib/server/labels and the database re-check the
@@ -33,6 +35,12 @@ export type LabelEditorContextResult =
       catalogue: LabelCatalogue | null
       /** Why the catalogue is null although assets were found (retry with loadLabelCatalogue). */
       catalogueError?: string
+      /**
+       * The caller's own work focus (staff_work_profiles, read with the
+       * caller's profile): orders the picker, never filters it. Null when no
+       * work profile is saved.
+       */
+      focus?: WorkFocus | null
     }
   | {
       ok: false
@@ -44,6 +52,13 @@ export type LabelEditorContextResult =
        */
       venueGroups?: string[][]
     }
+
+/** Picker order from the caller's saved work role and areas, if any. */
+function focusOf(actor: MediaActor): WorkFocus | null {
+  const work = actor.profile.work
+  if (!work) return null
+  return workFocus(work.roleKey, work.workAreas)
+}
 
 const MIXED_VENUES =
   "These files are from different venues. Each venue's files are labelled separately, with that venue's menu."
@@ -71,6 +86,7 @@ export async function loadLabelEditorContext(
     }
   }
   const viewer = auth.actor.profile.role === "admin" ? "admin" : "staff"
+  const focus = focusOf(auth.actor)
   if (context.assets.length === 0) {
     return {
       ok: true,
@@ -78,6 +94,7 @@ export async function loadLabelEditorContext(
       assets: [],
       missing: context.missing,
       catalogue: null,
+      focus,
     }
   }
 
@@ -92,6 +109,7 @@ export async function loadLabelEditorContext(
         assets: context.assets,
         missing: context.missing,
         catalogue: found.catalogue,
+        focus,
       }
     : {
         ok: true,
@@ -99,6 +117,7 @@ export async function loadLabelEditorContext(
         assets: context.assets,
         missing: context.missing,
         catalogue: null,
+        focus,
         catalogueError:
           found.status === 404
             ? "The menu for this venue is not available to you."

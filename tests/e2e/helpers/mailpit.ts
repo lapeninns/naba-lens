@@ -21,8 +21,38 @@ export async function mailboxIds(to: string): Promise<Set<string>> {
 
 export const SUBJECTS = {
   invite: "You have been invited to Naba-Lens",
-  signIn: "Your Naba-Lens sign-in link",
+  signIn: "Your Naba-Lens sign-in link and code",
 } as const
+
+type Message = { HTML?: unknown; Text?: unknown }
+
+/** Waits for a NEW message (not in `seen`) to `to` with `subject`. */
+async function waitForMessage(
+  to: string,
+  subject: string,
+  seen: Set<string>,
+  timeoutMs: number
+): Promise<Message> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    const fresh = (await search(to, subject)).find((m) => !seen.has(m.ID))
+    if (fresh) {
+      return (await fetch(`${mailpitUrl()}/api/v1/message/${fresh.ID}`).then(
+        (r) => r.json()
+      )) as Message
+    }
+    await new Promise((r) => setTimeout(r, 250))
+  }
+  throw new Error(`No new "${subject}" email to ${to} within ${timeoutMs} ms`)
+}
+
+function confirmLinkOf(message: Message, subject: string): string {
+  const match = String(message.HTML).match(
+    /href="[^"]*(\/auth\/confirm\?[^"]+)"/
+  )
+  if (!match) throw new Error(`No /auth/confirm link in "${subject}"`)
+  return match[1].replace(/&amp;/g, "&")
+}
 
 /**
  * Waits for a NEW message (not in `seen`) to `to` with `subject`, and returns the
@@ -35,22 +65,27 @@ export async function waitForLink(
   seen: Set<string> = new Set(),
   timeoutMs = 30_000
 ): Promise<string> {
-  const deadline = Date.now() + timeoutMs
-  while (Date.now() < deadline) {
-    const fresh = (await search(to, subject)).find((m) => !seen.has(m.ID))
-    if (fresh) {
-      const message = await fetch(
-        `${mailpitUrl()}/api/v1/message/${fresh.ID}`
-      ).then((r) => r.json())
-      const match = String(message.HTML).match(
-        /href="[^"]*(\/auth\/confirm\?[^"]+)"/
-      )
-      if (!match) throw new Error(`No /auth/confirm link in "${subject}"`)
-      return match[1].replace(/&amp;/g, "&")
-    }
-    await new Promise((r) => setTimeout(r, 250))
-  }
-  throw new Error(`No new "${subject}" email to ${to} within ${timeoutMs} ms`)
+  const message = await waitForMessage(to, subject, seen, timeoutMs)
+  return confirmLinkOf(message, subject)
+}
+
+/**
+ * Waits for a NEW sign-in email (not in `seen`) to `to` and returns both ways in
+ * it: the /auth/confirm path+query and the one-time code. Test-only: the code
+ * stays in the test process (never in a URL or log).
+ */
+export async function waitForSignInEmail(
+  to: string,
+  seen: Set<string> = new Set(),
+  timeoutMs = 30_000
+): Promise<{ link: string; code: string }> {
+  const message = await waitForMessage(to, SUBJECTS.signIn, seen, timeoutMs)
+  const link = confirmLinkOf(message, SUBJECTS.signIn)
+  // Links carry a hex token hash; only the code is a bare run of digits.
+  const text = String(message.Text).replace(/https?:\/\/\S+/g, "")
+  const code = text.match(/\b(\d{6,10})\b/)?.[1]
+  if (!code) throw new Error(`No sign-in code in "${SUBJECTS.signIn}"`)
+  return { link, code }
 }
 
 /** Every message to `to`, for absence checks (uninvited login). */

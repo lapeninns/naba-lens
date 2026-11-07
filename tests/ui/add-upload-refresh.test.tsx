@@ -197,7 +197,7 @@ describe("global Add gallery refresh", () => {
     expect(refresh).toHaveBeenCalledTimes(2)
   })
 
-  it("refreshes Me after global Add and keeps the portfolio's own upload refresh", async () => {
+  it("refreshes Me after global Add, and Me's upload uses the same queue", async () => {
     const user = userEvent.setup()
     const fetch = vi.fn().mockImplementation(
       async () =>
@@ -235,13 +235,15 @@ describe("global Add gallery refresh", () => {
       })
     )
 
+    // Me's own upload opens the same global queue (no second dialog).
     await user.click(
       screen.getByRole("button", { name: "Upload photos or videos" })
     )
-    await user.click(
-      screen.getAllByRole("button", { name: "Complete upload" })[0]
-    )
+    expect(
+      screen.getAllByRole("button", { name: "Complete upload" })
+    ).toHaveLength(1)
+    await user.click(screen.getByRole("button", { name: "Complete upload" }))
     await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2))
-    expect(refresh).toHaveBeenCalledTimes(1)
+    expect(refresh).toHaveBeenCalledTimes(2)
   })
 })

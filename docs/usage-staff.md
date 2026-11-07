@@ -3,10 +3,24 @@
 ## Sign in and leave safely
 
 Open `/login`, enter your invited address in **Email**, then choose
-**Send sign-in link**. At **Check your email**, open the single-use email
-link. This neutral response does not confirm access or
-delivery, and never creates an account. For **That sign-in link has expired**,
-choose **Send a new link**.
+**Send sign-in link**. The email (**Your Naba-Lens sign-in link and code**)
+holds a link and a 6-digit code. At **Check your email**, either open the
+link on the same device, or type or paste the code into **Sign-in code** and
+choose **Sign in with code**. The link and the code each work once, and using
+one ends the other. **Check your email** is a neutral response: it does not
+confirm access or delivery, and never creates an account.
+
+- **Send a new code** sends a fresh email with a new link and code. You can
+  ask again after a short wait (the button shows the seconds left). Use the
+  newest sign-in email you have; older ones may stop working. If you go back
+  or reload the page within that wait, the code step comes back instead of a
+  second email being sent.
+- **Use a different email** goes back to **Sign in** if you typed the wrong
+  address.
+- For **That sign-in link has expired**, choose **Send a new link**.
+
+Invitation emails stay link-only: open the invitation link to accept it, then
+sign in later with either the link or the code.
 
 Staff land on **Home** (`/staff/tasks`). If **Account unavailable** appears,
 ask an admin; that screen has **Sign out**. Use **Log out** when you finish,
@@ -26,13 +40,44 @@ in place of **Add**; venue managers also see **Manage** there. On a phone,
   across Lapen Inns.
 - **Add**: take or choose photos and upload them.
 - **People** (`/staff/people`): find colleagues and see what they've shared.
-- **Me** (`/staff`): your profile and your own photos and videos and, for
-  venue managers, **Manage**.
+- **Me** (`/staff`): your profile, work details and your own photos and
+  videos (your portfolio) and, for venue managers, **Manage**.
+- **Our menu** (`/staff/menu`, linked from Home and **Me**): which dishes and
+  drinks on your venue's menu still need a photo.
+
+## Start here and your work details
+
+New staff see a **New to Naba-Lens?** card on Home with **Start here**. It
+opens a short welcome (`/staff/tasks/welcome`) that explains your portfolio
+and what happens to a photo, then offers **Add your work details**, an
+optional profile photo, and the photo buttons (**Choose from your photos**
+first, **Take a photo** second). Choosing a photo there, or **Skip for now**,
+hides the card from Home. It also stays away once you have added photos. To
+read the welcome again at any time, open **Me** and choose **How Naba-Lens
+works**; **Back to Me** returns you.
+
+**Work details** (`/staff/profile`, or **Edit work details** on **Me**) asks
+**What do you do at [venue]?** and shows your name and venue. Choose one main
+job (for example **Head chef**, **Bartender** or **Waiter / server**), any
+**Other areas you work in** (optional), or **Other** with a short title of up
+to 40 characters, then **Save**. **Skip for now** leaves it blank; you can
+come back to it from **Me**. If your admin already set a job title, the form
+may suggest a match for you to check.
+
+Your main job sets the question Home asks (for example **What did you cook
+today?** or **What did you make at the bar today?**) and which dishes come
+first when you label. Search still covers the whole menu, and your job never
+labels a photo for you or changes what you can see or do. Only you and admins
+see your work details. Your admin still sets your job title, team and venue.
 
 ## Home: monthly photos and venue tasks
 
 **Home** shows what you need to photograph and how your month is going. Dates
 are UK time.
+
+- At the top, a question based on your work details (**What did you make or
+  capture today?** if you have none) with **Choose from your photos** (several
+  at a time) and **Take a photo**. Both open the same upload queue as **Add**.
 
 - **To do** lists what needs you first: **Needs another photo** requests from
   your manager, with the reason and **Send another photo**, then tasks that are
@@ -49,6 +94,12 @@ are UK time.
   **Your target appears here once your manager sets it.**
 - **All tasks** lists the venue tasks assigned to you, overdue first, then by
   due date. **Overdue** is shown for follow-up only: you can still send photos.
+- **Our menu** shows how many menu items at your venue have an accepted
+  photo, such as **12 of 40 menu items have an accepted photo**, with **Browse
+  our menu**. This is a different measure from your monthly target and the
+  venue's section coverage. Before your venue has a menu it says **Menu photos
+  will appear once your venue’s menu is set up**; you can still add photos to
+  your portfolio.
 - **From your colleagues** shows a few of the newest photos. **See more
   photos** opens **Photos**.
 
@@ -59,10 +110,11 @@ shared.**
 ### Send photos to a task
 
 1. Open a task and read **What to photograph**.
-2. Choose **Send photos** (or **Send more photos**). Use **Take a photo**, or
-   pick your own ready photos from this venue under **Or choose from your
-   photos**; a photo that can't be sent says why under it. You can send up to
-   10 at a time.
+2. Choose **Send photos** (or **Send more photos**). Use **Choose from your
+   photos** or **Take a photo** to add new ones (they are selected for you
+   once ready), or pick your own ready photos from this venue under **Or send
+   photos you've already added**; a photo that can't be sent says why under
+   it. You can send up to 10 at a time.
 3. Choose the send button, which counts your selection ("Send 2 photos").
 
 Only tasks assigned to you accept photos. Your team (FOH or BOH) can help your
@@ -127,7 +179,7 @@ photos and past months stay credited to the old venue.
 
 An admin can make you the manager of your current venue. **Manage**
 (`/staff/manage`) then appears in the top bar on a tablet or computer, with
-**Overview**, **Review**, **Checklist**, **Menu** and **Team**. On a phone,
+**Overview**, **Review**, **Checklist**, **Menu**, **Our menu** and **Team**. On a phone,
 open **Me** and choose **Manage {venue}** at the top. When photos are waiting,
 Home's **Review photos** card is a shortcut. Without the grant the page
 explains that the tools are for venue managers. A grant ends if you move venue,
@@ -165,6 +217,32 @@ next page load or action.
   old section is done.
   Staff see the dish [photo guide](#photo-guide) on food sections (and
   sections of unset or "other" kind), never on drinks sections.
+- **Our menu** (`/staff/manage/menu/items`): accept photos for individual
+  dishes and drinks, a separate measure from section coverage and monthly
+  targets. Labelled ready photos taken at your venue wait here, oldest first,
+  with how long each has waited; you can also open one dish to see **All
+  photos of this dish**. Each photo shows its dish, variant, the venue it was
+  uploaded at and who took it. No task or assignment is needed.
+  - **Accept for this dish** counts the dish as covered (tick **Use as the
+    dish's main photo** to make it the one shown). The uploader sees
+    **Accepted for menu use** on **Me**.
+  - **Ask for a better photo** needs a reason the uploader can read.
+  - **Undo acceptance** needs a reason; if it was the main photo, another
+    accepted photo takes its place or the dish needs a photo again.
+  - **Make main photo** swaps which accepted photo is shown.
+
+  Only photos labelled with a dish appear; you cannot label a colleague's
+  photo, so ask them to label it first. A photo can be accepted for each dish
+  it clearly shows. You may review your own photos: the page says so and the
+  decision is recorded as a self-review that admins can see. If someone else
+  decided first, the page shows the latest state instead of overwriting it.
+  When a new menu is activated, a dish whose name, section kind or variant
+  changed shows **Check after a menu change** until someone reviews it again;
+  dishes no longer on the menu drop out of the total. If the photo's option
+  (variant) is no longer offered, the dish's review screen shows it with
+  **No longer on the menu** and only **Undo acceptance**. An undone photo
+  stays out of **To review** until its uploader labels it again.
+
 - **Team**: set each person's monthly target and optional due date within the
   month. Changing a target already set for this month needs a reason. Past
   months are **Read-only**; only an admin can correct them. **Prepare this
@@ -227,13 +305,16 @@ missing or inactive venue if uploads are paused.
 Choose **Add** in the TabBar (or **Add photos** in the top bar). On a phone the
 **Add photos** sheet opens first:
 
-- **Take a photo** opens your phone's camera. It starts uploading straight
-  away.
-- **Choose from your photos** picks up to 10 at a time.
+- **Choose from your photos** (first) picks up to 10 at a time from your
+  phone's library.
+- **Take a photo** (second) opens your phone's camera for one photo.
 
-Your colleagues will see them in Photos. If your account can't add photos yet,
+Either way the files go into the upload queue as **Ready to upload**; nothing
+uploads until you choose **Upload** there. Your colleagues will see them in
+Photos, and you can label them after. If your account can't add photos yet,
 the sheet says **You can't add photos yet** and why. From a tablet or computer
-the upload queue opens straight away.
+the upload queue opens directly, with the same two buttons. Home, the welcome,
+**Me** and task screens all use this one queue.
 
 ### The upload queue
 
@@ -246,7 +327,8 @@ video **200 MiB** (shown as **20 MB** and **200 MB**).
   and **Processing** to **Uploaded**, or **Failed** with its error. A summary
   line such as **1 uploaded · 3 in progress** keeps count. A failure does not
   undo successful files. Ready files reach Photos, your profile and the admin
-  library straight away; processing is technical, not editorial approval.
+  library once processing finishes; processing is a technical step, not a
+  review decision.
 - **Keep this page open while files upload.** You can close the queue and
   move between staff pages: uploads carry on, and while any file is unfinished
   **Add** reopens the same queue instead of starting a new one.
@@ -263,8 +345,11 @@ video **200 MiB** (shown as **20 MB** and **200 MB**).
 
 If you are signed out while files upload, the queue shows **You were signed
 out**. Finished files are safe. Choose **Sign in again**, then **Send sign-in
-link** (or **Not now**), open the email link on the same device, and choose
-the stopped file again to finish it. The page and the queue stay as they were.
+link** (or **Not now**). Enter the code from that email in the same window to
+carry on with the stopped files, or open the email link on the
+same device and choose the stopped file again to finish it. If the code signs
+in a different account, the stopped files are not resumed; reload the page to
+continue as that account. The page and the queue stay as they were.
 
 If you choose **Log out** or a link that leaves the staff pages while files
 are still uploading, you are asked **Log out now?** or **Leave now?** first.
@@ -276,20 +361,40 @@ after the browser closes; check **Me** before choosing files again.
 ## Upload from Me
 
 On **Me**, **Upload photos or videos** opens the same queue with **Choose
-files** and, on some devices, **Use camera**. The picker accepts JPEG, PNG,
-WebP and HEIC/HEIF photos, plus MP4, MOV and WebM videos; server validation
-can still reject a file. When the files have settled you can label them
-straight away (below).
+from your photos** and, on some devices, **Take a photo**. The picker accepts
+JPEG, PNG, WebP and HEIC/HEIF photos, plus MP4, MOV and WebM videos; server
+validation can still reject a file. When the files have settled you can label
+them (below).
+
+**Me** also has **Edit work details**, **How Naba-Lens works** and **Our
+menu** rows.
 
 ## Add labels (optional)
 
-Labels help admins find your photos and videos later. They are optional:
-skipping them never affects the upload, and every upload appears in the admin
-library straight away, labelled or not.
+Labels help admins find your photos and videos later, and a photo needs a
+dish label before a manager can accept it for that dish. They are optional for
+your portfolio: skipping them never affects the upload, and every upload
+appears in the admin library once ready, labelled or not.
 
-- After an upload from **Me** finishes, choose **Label these files** (or
-  **Done** to skip). You can also open any of your ready photos or videos
-  later and choose **Add labels** or **Edit labels**.
+Each photo passes three separate milestones:
+
+1. **Saved to your portfolio**: as soon as it uploads. Colleagues see it in
+   Photos.
+2. **Ready to label**: say which dish or drink it shows, so it can be found.
+3. **Accepted for menu use**: a manager chose it to show a dish on your
+   venue's menu. **Me** lists these photos under **Accepted for menu use**
+   with the dish, however long ago you uploaded them. If a manager asks for a
+   better photo instead, **Me** shows it under **Better photo requested** with
+   the dish and their note.
+
+- After an upload finishes, from **Add** or anywhere else, choose **Label
+  these files** (**Label this file** for one) or **Done** to skip.
+- **Me** shows ready photos without a label under **Needs labels**; choose
+  **Label these photos** (or **Label this photo**) to label them together.
+  You can also open any of your ready photos or videos later and choose
+  **Add labels** or **Edit labels**.
+- Dishes from your main job's areas come first, but search covers the whole
+  menu.
 - Search the menu of the venue the file was **uploaded at** (not your current
   venue, if you have moved). Results show the section, so "Chicken" under Korma
   and "Chicken" under Masala are different items. Pick a variant if asked.
@@ -305,6 +410,27 @@ library straight away, labelled or not.
 
 A label describes what is in the file. It is not a claim about allergens,
 dietary suitability, price or availability, and not permission to publish.
+
+## Our menu
+
+**Our menu** (`/staff/menu`) lists your current venue's active menu, grouped
+by section, with how many menu items have an accepted photo overall and per
+section. Food and drinks count; other sections don't. A dish shows **Has an
+accepted photo**, **Still needs a photo**, or **Being checked after a menu
+change**.
+
+- **Search the menu** by dish or drink, choose a section (or **All
+  sections**), and switch between **All dishes** and **Still needs a photo**.
+  **Clear search** starts again.
+- **Add a photo of this dish** opens your photo library. Choose **Upload** in
+  the queue, then **Label these files**: that dish is already filled in as a
+  draft for you to check and save. Nothing is labelled until you save.
+- A dish counts once a manager accepts a photo labelled with it for menu use.
+  An upload or a label alone does not count. Your photos are saved to your
+  portfolio either way.
+
+With no venue, an inactive menu or a menu without dishes, the page says so;
+you can still add photos to your portfolio.
 
 ## View or delete your media
 
