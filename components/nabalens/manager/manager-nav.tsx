@@ -6,8 +6,10 @@ import {
   ForkKnifeIcon,
   HouseIcon,
   ImagesIcon,
+  ListChecksIcon,
 } from "@phosphor-icons/react/dist/ssr"
 
+import { UI_TEXT, amenityHrefs } from "@/lib/amenities/contract"
 import { cn } from "@/lib/utils"
 
 import { SectionTabs } from "../section-tabs"
@@ -36,12 +38,18 @@ const ITEMS: {
     icon: ImagesIcon,
   },
   { id: "menu", label: "Menu", href: managerHrefs.menu(), icon: ForkKnifeIcon },
+  {
+    id: "amenities",
+    label: UI_TEXT.navTab,
+    href: amenityHrefs(managerHrefs.overview).list,
+    icon: ListChecksIcon,
+  },
 ]
 
 /**
- * Overview · Review · Menu. `tabs` is the row under the header from md;
- * `bar` is the phone tab bar pinned to the bottom. Both name the same nav, and
- * CSS shows one. There is no Add slot: managers do not upload.
+ * Overview · Review · Menu · Amenities. `tabs` is the row under the header
+ * from md; `bar` is the phone tab bar pinned to the bottom. Both name the same
+ * nav, and CSS shows one. There is no Add slot: managers do not upload.
  */
 export function ManagerNav({
   kind,

@@ -33,7 +33,7 @@ export type MenuQuery = {
   q?: string
 }
 
-export type ManagerSection = "overview" | "review" | "menu"
+export type ManagerSection = "overview" | "review" | "menu" | "amenities"
 
 function withQuery(
   path: string,
@@ -70,6 +70,7 @@ export function managerSectionFor(pathname: string): ManagerSection | null {
     path === prefix || path.startsWith(`${prefix}/`)
   if (under("/manager/review")) return "review"
   if (under("/manager/menu")) return "menu"
+  if (under("/manager/amenities")) return "amenities"
   if (path === "/manager") return "overview"
   return null
 }
