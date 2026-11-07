@@ -1497,6 +1497,35 @@ describe("row 9: stored upload drafts are the uploader's alone", () => {
     expect(own.data).toEqual([{ asset_id: asset.id }])
   })
 
+  it("only the service role may discard an unusable upload's draft", async () => {
+    const asset = await reserve(staffA)
+    expect((await stage(staffA, asset)).data).toBe("pending")
+    await service
+      .from("media_assets")
+      .update({ upload_state: "failed" })
+      .eq("id", asset.id)
+
+    const anon = await anonClient().rpc("discard_unusable_media_labels", {
+      p_asset_id: asset.id,
+    })
+    expect(anon.error?.code).toBe("42501")
+    for (const user of [staffA, staffA2, admin]) {
+      const discarded = await user.client.rpc("discard_unusable_media_labels", {
+        p_asset_id: asset.id,
+      })
+      expect(discarded.error?.code).toBe("42501")
+    }
+    expect(await drafts(staffA, asset.id)).toEqual([
+      { asset_id: asset.id, status: "pending" },
+    ])
+
+    const served = await service.rpc("discard_unusable_media_labels", {
+      p_asset_id: asset.id,
+    })
+    expect(served.error).toBeNull()
+    expect(await drafts(staffA, asset.id)).toEqual([])
+  })
+
   it("refuses ready-asset storage, failed-for-good, amenity and other-venue assets", async () => {
     const ready = await reserveReady(service, staffA)
     const staged = await stage(staffA, ready)
