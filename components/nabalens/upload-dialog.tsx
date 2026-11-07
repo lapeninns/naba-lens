@@ -503,6 +503,12 @@ export function UploadDialog({
     ReadonlyMap<string, boolean>
   >(new Map())
   const unseen = [...unattached.values()].filter((seen) => !seen).length
+  // Set as soon as a file is found unattached, before `unseen` catches up a
+  // render later: the hidden queue must not clear it in between.
+  const unseenComing = React.useRef(false)
+  React.useEffect(() => {
+    if (unseen > 0) unseenComing.current = false
+  }, [unseen])
   React.useEffect(() => {
     if (!open || unseen === 0) return
     // Shown now: once seen, Done may clear them.
@@ -579,6 +585,7 @@ export function UploadDialog({
     )
     if (gone.length === 0) return
     // The screen that picked them closed: keep them listed until seen.
+    unseenComing.current = true
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setUnattached((current) => {
       const next = new Map(current)
@@ -677,7 +684,8 @@ export function UploadDialog({
   const settledHidden =
     !open && startOnPick && keepRunningWhenClosed && items.length > 0
   React.useEffect(() => {
-    if (!settledHidden || !finished || unseen > 0) return
+    if (!settledHidden || !finished || unseen > 0 || unseenComing.current)
+      return
     // The queue (an external store) finished while hidden.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     clearQueue()
