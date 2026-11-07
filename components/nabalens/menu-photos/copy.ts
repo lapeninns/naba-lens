@@ -20,7 +20,10 @@ export const OUR_MENU_COPY = {
   needsVenue: "You need to be assigned to a venue first",
   needsVenueText:
     "An admin can add you to your venue. Then its menu appears here.",
-  addPhoto: "Add a photo of this dish",
+  /** Primary: opens the camera with the dish applied as a label. */
+  takePhoto: "Take a photo of this dish",
+  /** Secondary: the photo library, the dish applied the same way. */
+  choosePhoto: "Choose from photos",
   gaps: "Still needs a photo",
   allDishes: "All dishes",
   allSections: "All sections",

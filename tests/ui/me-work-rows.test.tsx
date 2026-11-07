@@ -225,7 +225,7 @@ describe("Me: work details and the guide", () => {
 })
 
 describe("Me: Needs labels and milestones", () => {
-  it("lists ready photos without labels and labels them in one batch", async () => {
+  it("counts ready photos without labels once and labels them in one batch", async () => {
     library.items = [
       item("a1"),
       item("a2", { labels: LABELLED }),
@@ -238,11 +238,12 @@ describe("Me: Needs labels and milestones", () => {
     })
     render(await StaffPage())
     const section = screen.getByRole("region", { name: /Needs labels/ })
-    const tiles = within(
-      within(section).getByRole("list", { name: "Photos that need labels" })
-    ).getAllByRole("listitem")
-    expect(tiles).toHaveLength(2)
-    expect(tiles[0].textContent).toContain("Ready to label")
+    // The photos are listed once, in the portfolio grid with their "Needs
+    // labels" badge; the section is the count and the batch action only.
+    expect(
+      screen.queryByRole("list", { name: "Photos that need labels" })
+    ).toBeNull()
+    expect(within(section).getByText("2")).toBeTruthy()
 
     fireEvent.click(
       within(section).getByRole("button", { name: "Label these 2 photos" })
@@ -260,10 +261,8 @@ describe("Me: Needs labels and milestones", () => {
     })
     // a1 is labelled now; the gallery refreshes so its badges catch up.
     expect(
-      within(
-        screen.getByRole("list", { name: "Photos that need labels" })
-      ).getAllByRole("listitem")
-    ).toHaveLength(1)
+      within(section).getByRole("button", { name: "Label this photo" })
+    ).toBeTruthy()
     expect(gallery.signals.at(-1)).toBe((before ?? 0) + 1)
   })
 
