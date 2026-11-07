@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-// UploadDialog's task-flow props: onReady reports ready asset IDs once per
-// settled run, and imagesOnly keeps videos out (coverage is image-only).
-import { cleanup, render, screen, within } from "@testing-library/react"
+// UploadDialog's task-flow props: onReady reports each ready asset as soon as
+// that file is ready (C4), and imagesOnly keeps videos out (coverage is
+// image-only).
+import { act, cleanup, render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
@@ -30,7 +31,7 @@ const uploader: Uploader = async (f, ctx) => {
 }
 
 describe("UploadDialog onReady", () => {
-  it("reports each ready asset once per settled run", async () => {
+  it("reports each ready asset once, as soon as it is ready", async () => {
     const onReady = vi.fn()
     const onUploaded = vi.fn()
     render(
@@ -66,6 +67,43 @@ describe("UploadDialog onReady", () => {
     // Existing callback unchanged.
     expect(onUploaded).toHaveBeenNthCalledWith(1, 1)
     expect(onUploaded).toHaveBeenNthCalledWith(2, 1)
+  })
+
+  it("hands over a photo before a slow video in the same batch finishes", async () => {
+    let finishVideo = () => {}
+    const slow: Uploader = async (f) => {
+      if (f.name.endsWith(".mp4"))
+        await new Promise<void>((resolve) => (finishVideo = resolve))
+      return { assetId: `asset-${f.name}` }
+    }
+    const onReady = vi.fn()
+    render(
+      <UploadDialog
+        open
+        onOpenChange={() => {}}
+        uploader={slow}
+        limits={LIMITS}
+        onReady={onReady}
+      />
+    )
+    const user = userEvent.setup()
+    await user.upload(screen.getByLabelText("Choose photos or videos"), [
+      file("clip.mp4", "video/mp4"),
+      file("dish.jpg", "image/jpeg"),
+    ])
+    await user.click(screen.getByRole("button", { name: "Upload 2 files" }))
+    expect(await screen.findByText("1 uploaded · 1 in progress")).toBeTruthy()
+    expect(onReady).toHaveBeenCalledTimes(1)
+    expect(onReady).toHaveBeenLastCalledWith(
+      ["asset-dish.jpg"],
+      [expect.objectContaining({ name: "dish.jpg" })]
+    )
+    await act(async () => finishVideo())
+    expect(await screen.findByText("2 uploaded")).toBeTruthy()
+    expect(onReady).toHaveBeenLastCalledWith(
+      ["asset-clip.mp4"],
+      [expect.objectContaining({ name: "clip.mp4" })]
+    )
   })
 
   it("does not call onReady for uploaders that report no asset ID", async () => {

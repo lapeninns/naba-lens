@@ -3,20 +3,27 @@
 import * as React from "react"
 import {
   ArrowClockwiseIcon,
-  ArrowUpIcon,
   CheckIcon,
-  ClockIcon,
   FileIcon,
   FilmStripIcon,
   HourglassIcon,
   ImageIcon,
-  TagIcon,
+  PlusIcon,
   UploadSimpleIcon,
   WarningCircleIcon,
   XIcon,
 } from "@phosphor-icons/react"
 import type { Icon } from "@phosphor-icons/react"
 
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Button, buttonVariants } from "@/components/ui/button"
 import {
   Dialog,
@@ -27,9 +34,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Progress } from "@/components/ui/progress"
+import { guardBeforeUnload } from "@/lib/upload/before-unload"
 import { cn } from "@/lib/utils"
 
-import { formatBytes } from "./format"
 import { Notice } from "./notice"
 import { PhotoSourceActions, photoInputProps } from "./photo-source"
 import { useLeaveGuard } from "./shell/leave-guard"
@@ -40,8 +47,11 @@ import {
 } from "./session-guard"
 import type { UploadLimits } from "./types"
 import {
-  useUploadLabelDrafts,
-  type UploadLabelDrafts,
+  LABELS_LOST,
+  LABELS_NOT_SAVED,
+  useUploadLabels,
+  type LabelView,
+  type UploadLabels,
 } from "./upload-label-drafts"
 import {
   guessMediaKind,
@@ -62,24 +72,24 @@ type UploadDialogProps = {
   uploader: Uploader
   /** Pass MEDIA_LIMITS from lib/config/media.ts. */
   limits: UploadLimits
-  /** Called after a run settles with at least one new ready file. */
+  /** Called when files became ready (not while signed out), with how many. */
   onUploaded?: (count: number) => void
   /**
-   * Optional labelling after upload (v0.3): shown once a run settles with
-   * finished files whose asset IDs are known. Skipping it changes nothing.
+   * Called once per file as soon as THAT file is ready (only files whose
+   * uploader reported an asset ID): one asset ID and its picked File, so an
+   * owner can tell its own. A slow file never holds back the others.
    */
-  onLabel?: (assetIds: string[]) => void
+  onReady?: (assetIds: string[], files: File[]) => void
   /**
-   * Called once per settled run with the asset IDs of files that became ready
-   * in that run (only files whose uploader reported an asset ID), and the
-   * picked File of each, in the same order (so an owner can tell its own).
+   * Optional labels in the sheet ("What's in these photos?"): sent by asset
+   * ID as soon as each file is reserved, and on the photo once it is ready.
    */
-  onReady?: (
-    assetIds: string[],
-    files: File[],
-    draftAssetIds?: string[]
-  ) => void
-  draftLabels?: UploadLabelDrafts
+  labels?: UploadLabels
+  /**
+   * Start uploading as soon as files are picked (Add). Default false: the
+   * person taps "Upload N files" (screens with their own dialog).
+   */
+  startOnPick?: boolean
   /**
    * Closing while files upload hides the queue and lets them carry on (the
    * owner stays mounted; Add shows the queue again). Default false: closing
@@ -87,7 +97,8 @@ type UploadDialogProps = {
    */
   keepRunningWhenClosed?: boolean
   /**
-   * Counts unfinished uploads and files that only have labels left to save.
+   * Counts unfinished uploads, files whose labels are still saving, and files
+   * that need the person (failed, or labels refused).
    */
   onBusyChange?: (busy: UploadBusy) => void
   /** Offer the camera-capture input as an enhancement. Default true. */
@@ -116,34 +127,43 @@ export type UploadBusy = {
   active: number
   failed: number
   stopped: number
+  /** Files whose labels are not on the photo yet (and need nobody). */
   labels?: number
+  /** Files whose labels the server refused or could not take. */
+  attention?: number
 }
 
-const STATUS_TEXT: Record<QueueItem["status"], string> = {
-  selected: "Ready to upload",
-  queued: "Waiting",
-  uploading: "Uploading",
-  processing: "Processing",
-  done: "Uploaded",
-  failed: "Failed",
-  cancelled: "Cancelled",
+/** The row's one state word (C5). */
+type RowWord = "Saved" | "Saving…" | "Needs attention"
+
+const WORD_LOOK: Record<RowWord, { icon: Icon; tone: string }> = {
+  Saved: { icon: CheckIcon, tone: "text-ok-fg" },
+  "Saving…": { icon: HourglassIcon, tone: "text-ink" },
+  "Needs attention": { icon: WarningCircleIcon, tone: "text-warn-fg" },
 }
+
+/** "Saving 3 photos"; files when a video is among them. */
+function sheetTitle(items: readonly QueueItem[]) {
+  const n = items.length
+  const noun = items.every((i) => i.kind === "image")
+    ? n === 1
+      ? "photo"
+      : "photos"
+    : n === 1
+      ? "file"
+      : "files"
+  return `Saving ${n} ${noun}`
+}
+
+const plural = (n: number, one: string, many: string) =>
+  `${n} ${n === 1 ? one : many}`
 
 /**
- * The footer status line: what is done, then what is still going on. Offline,
- * running files are "waiting"; after a sign-out, unfinished ones are "stopped".
+ * The footer of a screen's own dialog (no labels): what is uploaded, then what
+ * is still going on. Offline, running files are "waiting"; after a sign-out,
+ * unfinished ones are "stopped".
  */
-function statusLine(
-  summary: QueueSummary,
-  pause: QueuePause,
-  started: boolean,
-  maxBatchFiles: number
-) {
-  if (!started) {
-    return summary.selected > 0
-      ? `${summary.selected} ready · up to ${maxBatchFiles} at a time`
-      : null
-  }
+function legacyStatus(summary: QueueSummary, pause: QueuePause) {
   const running =
     summary.active === 0
       ? null
@@ -161,17 +181,73 @@ function statusLine(
     .join(" · ")
 }
 
-/** The mono state word's icon and tone (DESIGN.md §3 upload states). */
-const STATUS_LOOK: Record<QueueItem["status"], { icon?: Icon; tone: string }> =
-  {
-    selected: { tone: "text-ink-muted" },
-    queued: { icon: ClockIcon, tone: "text-ink-muted" },
-    uploading: { icon: ArrowUpIcon, tone: "text-ink" },
-    processing: { icon: HourglassIcon, tone: "text-ink" },
-    done: { icon: CheckIcon, tone: "text-ok-fg" },
-    failed: { icon: WarningCircleIcon, tone: "text-warn-fg" },
-    cancelled: { icon: XIcon, tone: "text-ink-muted" },
+/** "This file can't be used: {reason}." */
+function cannotUse(reason: string | null) {
+  const why = (reason ?? "it could not be processed").replace(/[.\s]+$/, "")
+  return `This file can't be used: ${why}.`
+}
+
+type RowState = {
+  word: RowWord | null
+  /** After the word on the same line ("· Onion Bhaji · …"). */
+  suffix: string | null
+  detail: string | null
+}
+
+function rowState(
+  item: QueueItem,
+  labels: LabelView,
+  pause: QueuePause
+): RowState {
+  const percent = Math.round(item.progress * 100)
+  switch (item.status) {
+    case "selected":
+      return { word: null, suffix: null, detail: "Ready to upload" }
+    case "queued":
+      return {
+        word: "Saving…",
+        suffix: null,
+        detail: pause === "offline" ? "Waiting for a signal" : "Waiting",
+      }
+    case "uploading":
+      return { word: "Saving…", suffix: null, detail: `Uploading ${percent}%` }
+    case "processing":
+      return { word: "Saving…", suffix: null, detail: "Processing" }
+    case "cancelled":
+      return { word: "Needs attention", suffix: null, detail: "Cancelled" }
+    case "failed":
+      return {
+        word: "Needs attention",
+        suffix: null,
+        detail: item.stopped
+          ? item.error
+          : item.retryable === false
+            ? cannotUse(item.error)
+            : item.error,
+      }
+    case "done":
+      break
   }
+  switch (labels.kind) {
+    case "none":
+      return { word: "Saved", suffix: null, detail: null }
+    case "saved":
+      return {
+        word: "Saved",
+        suffix:
+          labels.names.length > 0
+            ? `${labels.names.join(", ")} · waiting for manager review`
+            : null,
+        detail: null,
+      }
+    case "retry":
+      return { word: "Needs attention", suffix: null, detail: LABELS_NOT_SAVED }
+    case "attention":
+      return { word: "Needs attention", suffix: null, detail: labels.message }
+    default:
+      return { word: "Saving…", suffix: null, detail: "Saving labels" }
+  }
+}
 
 /** Icon for a file that was not added, from its reason. */
 function rejectedIcon(file: RejectedFile): Icon {
@@ -211,21 +287,34 @@ function FileThumb({ item }: { item: QueueItem }) {
 
 function QueueRow({
   item,
+  state,
+  labels,
   onRemove,
   onCancel,
   onRetry,
-  labels,
+  onRetryLabels,
+  onFixLabels,
 }: {
   item: QueueItem
+  state: RowState
+  labels: LabelView
   onRemove: () => void
   onCancel: () => void
   onRetry: () => void
-  labels?: React.ReactNode
+  onRetryLabels: () => void
+  onFixLabels: () => void
 }) {
   const percent = Math.round(item.progress * 100)
   const statusId = `${item.id}-status`
-  const look = STATUS_LOOK[item.status]
-  const StatusIcon = look.icon
+  const look = state.word ? WORD_LOOK[state.word] : null
+  const StatusIcon = look?.icon
+  const retryable =
+    (item.status === "failed" && item.retryable !== false) ||
+    item.status === "cancelled"
+  const removable =
+    item.status === "selected" ||
+    item.status === "failed" ||
+    item.status === "cancelled"
   return (
     <li
       className="flex min-w-0 items-center gap-3 rounded-card bg-surface p-3 shadow-card"
@@ -238,7 +327,7 @@ function QueueRow({
           id={statusId}
           className={cn(
             "font-mono text-meta-strong [overflow-wrap:anywhere] tabular-nums",
-            look.tone
+            look?.tone ?? "text-ink-muted"
           )}
         >
           {StatusIcon ? (
@@ -248,49 +337,82 @@ function QueueRow({
               className="me-1.5 inline size-[18px] -translate-y-px align-middle"
             />
           ) : null}
-          {formatBytes(item.file.size)} · {STATUS_TEXT[item.status]}
-          {item.status === "uploading" ? ` ${percent}%` : null}
-          {item.status === "failed" && item.error ? ` — ${item.error}` : null}
+          {[state.word, state.suffix].filter(Boolean).join(" · ")}
         </p>
+        {state.detail ? (
+          <p className="text-body [overflow-wrap:anywhere] text-ink-muted">
+            {state.detail}
+          </p>
+        ) : null}
         {item.status === "uploading" || item.status === "processing" ? (
           <Progress
             value={item.status === "processing" ? null : percent}
-            aria-label={`${item.file.name} ${STATUS_TEXT[item.status]}`}
+            aria-label={`${item.file.name} ${state.detail ?? ""}`.trim()}
             tone="neutral"
             className="mt-1.5"
           />
         ) : null}
-        {labels}
+        {labels.kind === "lost" ? (
+          <p className="text-body text-ink-muted">
+            <span className="text-ink">Labels: </span>
+            {LABELS_LOST}
+          </p>
+        ) : null}
+        {labels.kind === "retry" && item.status === "done" ? (
+          <Button
+            variant="link"
+            size="touch"
+            className="justify-self-start"
+            onClick={onRetryLabels}
+            aria-label={`Retry labels for ${item.file.name}`}
+          >
+            Retry labels
+          </Button>
+        ) : labels.kind === "attention" && item.status === "done" ? (
+          <Button
+            variant="link"
+            size="touch"
+            className="justify-self-start"
+            onClick={onFixLabels}
+            aria-label={`Fix labels for ${item.file.name}`}
+          >
+            Fix labels
+          </Button>
+        ) : null}
       </div>
-      {item.status === "selected" ? (
-        <Button
-          variant="ghost"
-          size="icon-lg"
-          onClick={onRemove}
-          aria-label={`Remove ${item.file.name}`}
-        >
-          <XIcon aria-hidden />
-        </Button>
-      ) : item.status === "queued" || item.status === "uploading" ? (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onCancel}
-          aria-label={`Cancel ${item.file.name}`}
-        >
-          Cancel
-        </Button>
-      ) : item.status === "failed" || item.status === "cancelled" ? (
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={onRetry}
-          aria-label={`Retry ${item.file.name}`}
-        >
-          <ArrowClockwiseIcon data-icon="inline-start" aria-hidden />
-          Retry
-        </Button>
-      ) : null}
+      <div className="flex shrink-0 items-center gap-1">
+        {item.status === "queued" || item.status === "uploading" ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onCancel}
+            aria-label={`Cancel ${item.file.name}`}
+          >
+            Cancel
+          </Button>
+        ) : null}
+        {retryable ? (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={onRetry}
+            aria-label={`Retry ${item.file.name}`}
+          >
+            <ArrowClockwiseIcon data-icon="inline-start" aria-hidden />
+            Retry
+          </Button>
+        ) : null}
+        {removable ? (
+          <Button
+            variant="ghost"
+            size="icon-lg"
+            onClick={onRemove}
+            aria-label={`Remove ${item.file.name}`}
+          >
+            <XIcon aria-hidden />
+          </Button>
+        ) : null}
+      </div>
     </li>
   )
 }
@@ -301,9 +423,9 @@ export function UploadDialog({
   uploader,
   limits,
   onUploaded,
-  onLabel,
   onReady,
-  draftLabels,
+  labels: labelsConfig,
+  startOnPick = false,
   keepRunningWhenClosed = false,
   onBusyChange,
   allowCamera = true,
@@ -340,34 +462,39 @@ export function UploadDialog({
   }, [uploader, isSignedIn, purpose])
   const queue = useUploadQueue({ upload, limits })
   const { items, summary, isActive, pause } = queue
-  const {
-    drafts,
-    waiting: waitingLabels,
-    stage,
-    retry,
-    discard,
-    reset,
-  } = useUploadLabelDrafts(items, draftLabels, pause !== null)
-  // Active and failed uploads are already counted by the Add badge.
-  const labelsOnly = items.filter(
-    (item) =>
-      (item.status === "done" || item.status === "cancelled") &&
-      drafts[item.id] &&
-      drafts[item.id].status !== "saved"
+  const labels = useUploadLabels(items, labelsConfig, pause !== null)
+  const views = new Map(items.map((item) => [item.id, labels.view(item)]))
+  const viewOf = (item: QueueItem) => views.get(item.id) ?? { kind: "none" }
+  const unstoredLabels = items.filter((item) => labels.unstored(item)).length
+  const savingLabels = items.filter(
+    (item) => viewOf(item).kind === "saving"
   ).length
-  const [draftItems, setDraftItems] = React.useState<
-    readonly QueueItem[] | null
-  >(null)
-  useLeaveGuard(summary.active, queue.cancelAll)
+  const labelTrouble = items.filter((item) => {
+    const kind = viewOf(item).kind
+    return item.status === "done" && (kind === "retry" || kind === "attention")
+  }).length
+
+  useLeaveGuard(summary.active, queue.cancelAll, unstoredLabels)
+  const unstoredRef = React.useRef(unstoredLabels)
+  React.useEffect(() => {
+    unstoredRef.current = unstoredLabels
+  })
+  // Reload or tab close would lose labels the server does not have yet.
+  React.useEffect(() => guardBeforeUnload(() => unstoredRef.current > 0), [])
+
   const { active, failed, stopped } = summary
+  const busyLabels = items.filter(
+    (item) => item.status === "done" && viewOf(item).kind === "saving"
+  ).length
   React.useEffect(() => {
     onBusyChange?.({
       active,
       failed,
       stopped,
-      ...(labelsOnly ? { labels: labelsOnly } : {}),
+      ...(busyLabels ? { labels: busyLabels } : {}),
+      ...(labelTrouble ? { attention: labelTrouble } : {}),
     })
-  }, [active, failed, stopped, labelsOnly, onBusyChange])
+  }, [active, failed, stopped, busyLabels, labelTrouble, onBusyChange])
   const signedOut = pause === "signed-out"
   const [signInOpen, setSignInOpen] = React.useState(false)
 
@@ -390,38 +517,30 @@ export function UploadDialog({
   })
   const [rejected, setRejected] = React.useState<RejectedFile[]>([])
   const [closeBlocked, setCloseBlocked] = React.useState(false)
+  const [fixing, setFixing] = React.useState<string | null>(null)
+  const [panelPending, setPanelPending] = React.useState(false)
+  const [confirmDiscard, setConfirmDiscard] = React.useState(false)
+  // A new panel (fresh from each file's labels) after "Fix labels" saved.
+  const [panelKey, setPanelKey] = React.useState(0)
   const fileInput = React.useRef<HTMLInputElement>(null)
   const cameraInput = React.useRef<HTMLInputElement>(null)
   const limitsId = React.useId()
 
-  // Report newly finished files once per settled run.
-  const reported = React.useRef(0)
+  // Report each file as soon as it is ready; a slow video holds back nothing.
+  const reported = React.useRef(new Set<string>())
   React.useEffect(() => {
     // A refresh while signed out would send the page to /login; wait.
-    if (isActive || signedOut) return
-    const fresh = summary.done - reported.current
-    if (fresh > 0) {
-      reported.current = summary.done
-      onUploaded?.(fresh)
-    }
-  }, [isActive, signedOut, summary.done, onUploaded])
-
-  const reportedReady = React.useRef(new Set<string>())
-  React.useEffect(() => {
-    if (isActive || !onReady) return
-    const fresh = items.flatMap((i) =>
-      i.status === "done" && i.assetId && !reportedReady.current.has(i.assetId)
-        ? [{ id: i.assetId, file: i.file, drafted: !!drafts[i.id] }]
-        : []
+    if (signedOut) return
+    const fresh = items.filter(
+      (i) => i.status === "done" && !reported.current.has(i.id)
     )
     if (fresh.length === 0) return
-    for (const { id } of fresh) reportedReady.current.add(id)
-    const ids = fresh.map((f) => f.id)
-    const files = fresh.map((f) => f.file)
-    const drafted = fresh.filter((f) => f.drafted).map((f) => f.id)
-    if (drafted.length) onReady(ids, files, drafted)
-    else onReady(ids, files)
-  }, [isActive, items, onReady, drafts])
+    for (const item of fresh) reported.current.add(item.id)
+    onUploaded?.(fresh.length)
+    if (!onReady) return
+    for (const item of fresh)
+      if (item.assetId) onReady([item.assetId], [item.file])
+  }, [signedOut, items, onUploaded, onReady])
 
   const queuedInitial = React.useRef<File[] | null>(null)
   React.useEffect(() => {
@@ -456,61 +575,113 @@ export function UploadDialog({
     const result = queue.add(accepted)
     setRejected([...notPhotos, ...result.rejected])
     setCloseBlocked(false)
+    if (startOnPick && result.added > 0) queue.start()
     // Allow picking the same file again after removing it.
     if (input) input.value = ""
   }
 
+  function remove(item: QueueItem) {
+    labels.discard(item)
+    reported.current.delete(item.id)
+    queue.remove(item.id)
+  }
+
+  /** Nothing left for anyone to do: every file is saved with its labels. */
+  const finished = items.every(
+    (item) =>
+      item.status === "done" && ["none", "saved"].includes(viewOf(item).kind)
+  )
+
+  function clearQueue() {
+    queue.reset()
+    labels.reset()
+    reported.current.clear()
+    setRejected([])
+    setCloseBlocked(false)
+    setPanelPending(false)
+  }
+
   function handleOpenChange(next: boolean) {
-    if (!next && waitingLabels > 0 && keepRunningWhenClosed) {
+    if (!next && panelPending && !confirmDiscard) {
+      setConfirmDiscard(true)
+      return
+    }
+    if (!next && keepRunningWhenClosed && !finished) {
+      // Done is always available: whatever is still saving carries on.
+      setRejected([])
       onOpenChange(false)
       return
     }
     if (!next && isActive) {
-      if (keepRunningWhenClosed) {
-        onOpenChange(false)
-        return
-      }
       setCloseBlocked(true)
       return
     }
-    if (!next) {
-      queue.reset()
-      reset()
-      reported.current = 0
-      reportedReady.current.clear()
-      setRejected([])
-      setCloseBlocked(false)
-    }
+    if (!next) clearQueue()
     onOpenChange(next)
   }
 
+  // Hidden and all saved: clear the queue, so Add starts afresh.
+  const settledHidden =
+    !open && startOnPick && keepRunningWhenClosed && items.length > 0
+  React.useEffect(() => {
+    if (!settledHidden || !finished) return
+    // The queue (an external store) finished while hidden.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    clearQueue()
+    // clearQueue only touches the queue and this component's state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settledHidden, finished])
+
   const started = items.some((i) => i.status !== "selected")
   const settled = started && !isActive && summary.selected === 0
-  const status = statusLine(summary, pause, started, limits.maxBatchFiles)
-  const labelIds = settled
-    ? items.flatMap((i) =>
-        i.status === "done" && i.assetId && !drafts[i.id] ? [i.assetId] : []
-      )
-    : []
-  const draftable =
-    draftLabels && !signedOut
-      ? items.filter(
-          (i) =>
-            !drafts[i.id] &&
-            (i.status === "selected" ||
-              i.status === "queued" ||
-              i.status === "uploading" ||
-              i.status === "processing") &&
-            (draftLabels.canDraft?.(i.file) ?? true)
-        )
-      : []
+  const retryableFailed = items.filter(
+    (i) => i.status === "failed" && !i.stopped && i.retryable !== false
+  ).length
+  const fixItem = fixing ? items.find((i) => i.id === fixing) : undefined
+  const fix = fixItem ? labels.fixDraft(fixItem) : null
+  const labelItems = labels.labelable
+  const disabledIds = labelItems
+    .filter((i) => i.status === "failed" && i.retryable === false)
+    .map((i) => i.id)
+
+  const saved = items.filter(
+    (i) => i.status === "done" && ["none", "saved"].includes(viewOf(i).kind)
+  ).length
+  const attention = items.filter(
+    (i) =>
+      i.status === "failed" ||
+      i.status === "cancelled" ||
+      (i.status === "done" && ["retry", "attention"].includes(viewOf(i).kind))
+  ).length
+  const saving = items.length - saved - attention - summary.selected
+  const status = !started
+    ? summary.selected > 0
+      ? `${summary.selected} ready · up to ${limits.maxBatchFiles} at a time`
+      : null
+    : !startOnPick
+      ? legacyStatus(summary, pause)
+      : [
+          `${saved} saved`,
+          saving > 0
+            ? pause === "offline"
+              ? `${saving} waiting`
+              : `${saving} saving`
+            : null,
+          attention > 0 ? `${attention} need attention` : null,
+        ]
+          .filter(Boolean)
+          .join(" · ")
 
   const uploadDialog = (
-    <Dialog open={open && draftItems === null} onOpenChange={handleOpenChange}>
+    <Dialog open={open && fixing === null} onOpenChange={handleOpenChange}>
       <DialogContent className="md:max-w-lg">
         <DialogHeader>
           <DialogTitle>
-            {imagesOnly ? "Upload photos" : "Upload photos or videos"}
+            {startOnPick && items.length > 0
+              ? sheetTitle(items)
+              : imagesOnly
+                ? "Upload photos"
+                : "Upload photos or videos"}
           </DialogTitle>
           <DialogDescription id={limitsId}>
             {imagesOnly ? (
@@ -528,7 +699,7 @@ export function UploadDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div>
+        <div className={cn(items.length > 0 && startOnPick && "hidden")}>
           <PhotoSourceActions
             layout="row"
             // One blue button per screen: once files are queued, the footer
@@ -616,7 +787,11 @@ export function UploadDialog({
             Waiting for a signal. Keep this page open; nothing is sent twice.
           </Notice>
         ) : !pause && isActive ? (
-          <Notice>Keep this page open while files upload.</Notice>
+          <Notice>
+            {keepRunningWhenClosed
+              ? "You can leave this screen. We'll finish in the background while this page stays open."
+              : "Keep this page open while files upload."}
+          </Notice>
         ) : null}
 
         {items.length > 0 ? (
@@ -626,56 +801,38 @@ export function UploadDialog({
             className="-mx-1 grid gap-2 rounded-card bg-bg p-1.5"
           >
             {items.map((item) => {
-              const draft = drafts[item.id]
+              const view = viewOf(item)
               return (
                 <QueueRow
                   key={item.id}
                   item={item}
-                  onRemove={() => {
-                    discard(item.id)
-                    queue.remove(item.id)
+                  state={rowState(item, view, pause)}
+                  labels={view}
+                  onRemove={() => remove(item)}
+                  onCancel={() => {
+                    queue.cancel(item.id)
+                    // Started on pick: a cancelled file just leaves the list.
+                    if (startOnPick) remove(item)
                   }}
-                  onCancel={() => queue.cancel(item.id)}
                   onRetry={() => queue.retry(item.id)}
-                  labels={
-                    draft && (
-                      <div className="text-body text-ink-muted">
-                        <p role="status">
-                          {draft.status === "saved"
-                            ? "Labels saved"
-                            : draft.status === "error"
-                              ? draft.message
-                              : item.status === "done"
-                                ? "Labels pending"
-                                : "Labels will save when this file is ready"}
-                        </p>
-                        {draft.status === "error" && draft.retryable && (
-                          <Button
-                            variant="link"
-                            size="touch"
-                            onClick={() => retry(item.id)}
-                          >
-                            Retry labels
-                          </Button>
-                        )}
-                        {(draft.status === "error" ||
-                          item.status === "failed" ||
-                          item.status === "cancelled") && (
-                          <Button
-                            variant="link"
-                            size="touch"
-                            onClick={() => discard(item.id)}
-                          >
-                            Discard label draft
-                          </Button>
-                        )}
-                      </div>
-                    )
-                  }
+                  onRetryLabels={() => labels.retry(item.id)}
+                  onFixLabels={() => setFixing(item.id)}
                 />
               )
             })}
           </ul>
+        ) : null}
+
+        {labelsConfig && labelItems.length > 0 ? (
+          <React.Fragment key={panelKey}>
+            {labelsConfig.renderPanel({
+              items: labelItems,
+              initial: labels.initial,
+              disabledIds,
+              onChange: labels.change,
+              onPendingChange: setPanelPending,
+            })}
+          </React.Fragment>
         ) : null}
 
         <div aria-live="polite" className="grid gap-1 text-body">
@@ -690,9 +847,9 @@ export function UploadDialog({
               </span>
             </p>
           ) : null}
-          {onLabel && labelIds.length > 0 ? (
+          {savingLabels > 0 ? (
             <p className="text-ink-muted">
-              Optional: add menu items or details now, or later from each file.
+              {plural(savingLabels, "photo", "photos")} still saving labels
             </p>
           ) : null}
         </div>
@@ -706,60 +863,10 @@ export function UploadDialog({
               {status}
             </p>
           ) : null}
-          {isActive ? (
-            <Button variant="secondary" size="touch" onClick={queue.cancelAll}>
-              Cancel all
-            </Button>
-          ) : (
-            <Button
-              variant="secondary"
-              size="touch"
-              onClick={() => handleOpenChange(false)}
-            >
-              {waitingLabels > 0 ? "Close" : settled ? "Done" : "Cancel"}
-            </Button>
-          )}
-          {onLabel && labelIds.length > 0 ? (
-            <Button
-              variant={
-                summary.failed + summary.stopped > 0 ? "secondary" : "primary"
-              }
-              size="touch"
-              onClick={() => {
-                const ids = labelIds
-                // Failed or stopped files stay in the queue (hidden, not
-                // cleared) so they can still be retried afterwards.
-                if (summary.failed + summary.stopped > 0) onOpenChange(false)
-                else handleOpenChange(false)
-                onLabel(ids)
-              }}
-            >
-              <TagIcon data-icon="inline-start" aria-hidden />
-              {labelIds.length === 1 ? "Label this file" : "Label these files"}
-            </Button>
-          ) : null}
-          {draftable.length > 0 ? (
-            <Button
-              variant="secondary"
-              size="touch"
-              onClick={() => {
-                setDraftItems(draftable)
-                if (draftable.some((i) => i.status === "selected")) {
-                  setRejected([])
-                  queue.start()
-                }
-              }}
-            >
-              <TagIcon data-icon="inline-start" aria-hidden />
-              {draftable.some((i) => i.status === "selected")
-                ? "Upload and label"
-                : "Label while uploading"}
-            </Button>
-          ) : null}
           {signedOut ? (
             guard ? (
               <Button
-                variant="primary"
+                variant="secondary"
                 size="touch"
                 onClick={() => setSignInOpen(true)}
               >
@@ -771,32 +878,103 @@ export function UploadDialog({
                 target="_blank"
                 rel="noopener"
                 className={buttonVariants({
-                  variant: "primary",
+                  variant: "secondary",
                   size: "touch",
                 })}
               >
                 Sign in again
               </a>
             )
-          ) : settled && summary.failed > 0 ? (
-            <Button variant="primary" size="touch" onClick={queue.retryFailed}>
-              <ArrowClockwiseIcon data-icon="inline-start" aria-hidden />
-              Retry {summary.failed} failed
-            </Button>
-          ) : summary.selected > 0 ? (
-            <Button
-              size="touch"
-              onClick={() => {
-                setRejected([])
-                queue.start()
-              }}
-            >
-              <UploadSimpleIcon data-icon="inline-start" aria-hidden />
-              Upload {summary.selected}{" "}
-              {summary.selected === 1 ? "file" : "files"}
-            </Button>
           ) : null}
+          {summary.selected > 0 ? (
+            <>
+              <Button
+                variant="secondary"
+                size="touch"
+                onClick={() => handleOpenChange(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="touch"
+                onClick={() => {
+                  setRejected([])
+                  queue.start()
+                }}
+              >
+                <UploadSimpleIcon data-icon="inline-start" aria-hidden />
+                Upload {summary.selected}{" "}
+                {summary.selected === 1 ? "file" : "files"}
+              </Button>
+            </>
+          ) : (
+            <>
+              {isActive && !keepRunningWhenClosed ? (
+                <Button
+                  variant="secondary"
+                  size="touch"
+                  onClick={queue.cancelAll}
+                >
+                  Cancel all
+                </Button>
+              ) : null}
+              {items.length > 0 ? (
+                <Button
+                  variant="secondary"
+                  size="touch"
+                  onClick={() => fileInput.current?.click()}
+                >
+                  <PlusIcon data-icon="inline-start" aria-hidden />
+                  Add more
+                </Button>
+              ) : null}
+              {!startOnPick && settled && retryableFailed > 0 ? (
+                <Button
+                  variant="secondary"
+                  size="touch"
+                  onClick={queue.retryFailed}
+                >
+                  <ArrowClockwiseIcon data-icon="inline-start" aria-hidden />
+                  Retry {retryableFailed} failed
+                </Button>
+              ) : null}
+              <Button size="touch" onClick={() => handleOpenChange(false)}>
+                Done
+              </Button>
+            </>
+          )}
         </DialogFooter>
+        <AlertDialog open={confirmDiscard} onOpenChange={setConfirmDiscard}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Discard these labels?</AlertDialogTitle>
+              <AlertDialogDescription className="text-ink">
+                Uploads carry on; only these labels are discarded.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <Button
+                variant="outline"
+                size="touch"
+                onClick={() => {
+                  setPanelPending(false)
+                  setConfirmDiscard(false)
+                  setPanelKey((key) => key + 1)
+                  if (keepRunningWhenClosed && !finished) onOpenChange(false)
+                  else if (!isActive) {
+                    clearQueue()
+                    onOpenChange(false)
+                  }
+                }}
+              >
+                Discard labels
+              </Button>
+              <AlertDialogCancel variant="primary" size="touch">
+                Keep labelling
+              </AlertDialogCancel>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
         {guard ? (
           <SignInAgainSheet
             open={signInOpen}
@@ -817,12 +995,23 @@ export function UploadDialog({
   return (
     <>
       {uploadDialog}
-      {draftItems &&
-        draftLabels?.renderEditor({
-          items: draftItems,
-          onClose: () => setDraftItems(null),
-          onQueue: stage,
-        })}
+      {labelsConfig && fixItem && fix && fixItem.assetId
+        ? labelsConfig.renderFix({
+            item: fixItem,
+            assetId: fixItem.assetId,
+            draft: fix.draft,
+            problem: fix.problem,
+            onClose: () => setFixing(null),
+            onSave: async (input) => {
+              const result = await labels.fix(fixItem, input)
+              if (result.ok) {
+                setPanelKey((key) => key + 1)
+                setFixing(null)
+              }
+              return result
+            },
+          })
+        : null}
     </>
   )
 }

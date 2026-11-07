@@ -115,13 +115,13 @@ const libraryInput = () =>
     'input[data-photo-source="library"]'
   )!
 
+/** Add starts uploads on pick; a screen's own dialog waits for its button. */
 async function uploadAll(user: ReturnType<typeof userEvent.setup>) {
-  const dialog = await screen.findByRole("dialog", {
-    name: "Upload photos or videos",
+  const dialog = await screen.findByRole("dialog")
+  const start = within(dialog).queryByRole("button", {
+    name: /^Upload \d+ files?$/,
   })
-  await user.click(
-    within(dialog).getByRole("button", { name: /^Upload \d+ files?$/ })
-  )
+  if (start) await user.click(start)
 }
 
 beforeEach(() => {
@@ -174,7 +174,7 @@ describe("shared Add queue: upload purpose per Add call", () => {
     fireEvent.click(screen.getByRole("button", { name: "Amenity" }))
     await user.upload(libraryInput(), [jpeg("evidence.jpg")])
     const dialog = await screen.findByRole("dialog", {
-      name: "Upload photos or videos",
+      name: "Saving 1 photo",
     })
     // A later pick in the same queue, not from that call: general.
     await user.upload(
