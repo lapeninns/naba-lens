@@ -69,19 +69,13 @@ export function cannotUse(reason: string | null) {
   return `This file can't be used: ${why}.`
 }
 
-// TODO(integration): `retryable` (contract C6) comes with PendingLabelItem
-// from lib/menus/types.ts; read it here until that lands.
-type ListedItem = PendingLabelItem & { retryable?: boolean }
-
 /**
  * A failed upload whose labels the server still keeps: the failure was
  * temporary, and a successful Retry of the photo applies them (a permanent
  * failure deletes them).
  */
 export function isRetryable(item: PendingLabelItem): boolean {
-  return (
-    item.uploadState === "failed" && (item as ListedItem).retryable === true
-  )
+  return item.uploadState === "failed" && item.retryable
 }
 
 /** An upload that will never give the stored labels a photo to go on. */
