@@ -71,30 +71,46 @@ export const libraryList = (page: Page) =>
   page.getByRole("list", { name: "Library" })
 
 /**
- * Uploads files through the real upload dialog and records every status text
- * each queue row shows, so the test can assert the real technical sequence
- * (Uploading → Processing → Uploaded) without racing transient states.
+ * The staff upload sheet. Before a pick it is "Upload photos or videos" (or
+ * "Upload photos" for photos only); once files are picked it is the
+ * "Saving N photos" sheet ("files" when a video is among them).
+ */
+export const UPLOAD_SHEET =
+  /^(Upload photos( or videos)?|Saving \d+ (photos?|files?))$/
+export const uploadSheet = (page: Page) =>
+  page.getByRole("dialog", { name: UPLOAD_SHEET })
+
+/** The sheet's title for these files once they are picked. */
+export function savingTitle(files: readonly { name: string }[]) {
+  const n = files.length
+  const photos = files.every((f) => !/\.(mp4|mov|webm)$/i.test(f.name))
+  return `Saving ${n} ${photos ? (n === 1 ? "photo" : "photos") : n === 1 ? "file" : "files"}`
+}
+
+/**
+ * Uploads files through the real upload sheet (they start saving as soon as
+ * they are picked) and records every state each queue row shows, so the test
+ * can assert the real technical sequence (Uploading → Processing → Saved)
+ * without racing transient states. `expectSettled` is the footer once the run
+ * settles ("2 saved", "0 saved · 1 need attention").
  */
 export async function uploadThroughDialog(
   page: Page,
   files: SourceFile[],
-  { expectSettled = `${files.length} uploaded`, close = true } = {}
+  { expectSettled = `${files.length} saved`, close = true } = {}
 ): Promise<Record<string, string[]>> {
   await page
     .getByRole("button", { name: "Upload photos or videos" })
     .first()
     .click()
-  const dialog = page.getByRole("dialog", { name: "Upload photos or videos" })
+  const dialog = uploadSheet(page)
+  await expect(dialog).toBeVisible()
+  // Before the pick: the files start uploading the moment they are chosen.
+  await recordQueueStatuses(page)
   await dialog
     .getByLabel("Choose photos or videos")
     .setInputFiles(files.map((f) => f.path))
   await expect(dialog.getByRole("list", { name: "Files" })).toBeVisible()
-  await recordQueueStatuses(page)
-  await dialog
-    .getByRole("button", {
-      name: `Upload ${files.length} ${files.length === 1 ? "file" : "files"}`,
-    })
-    .click()
   await expect(dialog.getByRole("status")).toHaveText(expectSettled, {
     timeout: 90_000,
   })
@@ -106,31 +122,36 @@ export async function uploadThroughDialog(
   return seen
 }
 
-/** Starts a MutationObserver on the upload queue that logs each row's status line. */
+/**
+ * Starts a MutationObserver that logs each upload queue row's state, by file
+ * name: the detail while saving ("Uploading", "Processing", "Waiting"),
+ * otherwise the word ("Saved", "Needs attention"). It may start before the
+ * queue exists (uploads start on pick).
+ */
 export async function recordQueueStatuses(page: Page) {
   await page.evaluate(() => {
     const w = window as unknown as { __queueSeen: Record<string, string[]> }
     w.__queueSeen = {}
-    const list = document.querySelector('ul[aria-label="Files"]')!
     const capture = () => {
-      for (const li of Array.from(list.querySelectorAll("li"))) {
-        const [nameEl, statusEl] = Array.from(li.querySelectorAll("p"))
-        if (!nameEl || !statusEl) continue
+      const list = document.querySelector('ul[aria-label="Files"]')
+      if (!list) return
+      for (const li of Array.from(list.querySelectorAll(":scope > li"))) {
+        // File name, "Saved · …" / "Saving…" / "Needs attention", detail.
+        const [nameEl, wordEl, detailEl] = Array.from(li.querySelectorAll("p"))
+        if (!nameEl || !wordEl) continue
         const name = nameEl.textContent ?? ""
-        // "12 KB · Uploading 40%" → "Uploading"
-        const status = (statusEl.textContent ?? "")
-          .split("·")
-          .slice(1)
-          .join("·")
+        const word = (wordEl.textContent ?? "").split("·")[0].trim()
+        const detail = (detailEl?.textContent ?? "")
           .replace(/\s+\d+%$/, "")
-          .replace(/\s+—.*$/, "")
           .trim()
+        const status = word === "Saving…" && detail ? detail : word
+        if (!status) continue
         const log = (w.__queueSeen[name] ??= [])
         if (log.at(-1) !== status) log.push(status)
       }
     }
     capture()
-    new MutationObserver(capture).observe(list, {
+    new MutationObserver(capture).observe(document.body, {
       subtree: true,
       childList: true,
       characterData: true,
