@@ -12,7 +12,7 @@ import { StatusChip } from "@/components/nabalens/status-chip"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
-import type { ListCard } from "./card-model"
+import { ownPhotoBlocked, type ListCard } from "./card-model"
 import { contributorHref, itemHref, type ReviewScope } from "./links"
 import { CONTRIBUTOR_CHIP, RECHECK_LABEL, REVIEW_COPY } from "./review-copy"
 
@@ -215,12 +215,13 @@ export function ReviewCard({
             {REVIEW_COPY.uploaded(formatDateTime(card.uploadedAt), waited)}
           </span>
         </p>
-        {card.recheckKind === "variant_removed" && !card.isSelf ? (
+        {card.recheckKind === "variant_removed" &&
+        !ownPhotoBlocked(card, scope.kind) ? (
           <p className="text-body-touch text-ink-muted md:text-body-sm">
             {REVIEW_COPY.variantRemovedNote}
           </p>
         ) : null}
-        {card.isSelf ? (
+        {ownPhotoBlocked(card, scope.kind) ? (
           <Notice tone="plain">{REVIEW_COPY.ownPhoto}</Notice>
         ) : (
           actions

@@ -20,7 +20,11 @@ import { EmptyState } from "@/components/nabalens/empty-state"
 import { LoadMoreButton } from "@/components/nabalens/load-more-button"
 import { Notice } from "@/components/nabalens/notice"
 import { buttonVariants } from "@/components/ui/button"
-import type { Page, QueueCard } from "@/lib/server/menu-photos/types"
+import type {
+  DecisionOutcome,
+  Page,
+  QueueCard,
+} from "@/lib/server/menu-photos/types"
 
 import { managerHrefs } from "../hrefs"
 import { useReviewCount } from "../review-count"
@@ -31,6 +35,7 @@ import {
   availableActions,
   decisionFor,
   mergeOutcome,
+  ownPhotoBlocked,
   pendingDelta,
   PICKER_ACTIONS,
   staleLabelOf,
@@ -127,6 +132,7 @@ export function ReviewList({
   venueName,
   now,
   showItemLinks = true,
+  onDecided,
 }: {
   initial: Page<QueueCard>
   view: ReviewView
@@ -136,6 +142,8 @@ export function ReviewList({
   now: string
   /** Link item names to the item page (off on the item page itself). */
   showItemLinks?: boolean
+  /** After a decision lands (e.g. the item page refreshes its detail). */
+  onDecided?: (outcome: DecisionOutcome) => void
 }) {
   const router = useRouter()
   const reviewCount = useReviewCount()
@@ -178,8 +186,12 @@ export function ReviewList({
   const keep = React.useCallback(
     (card: QueueCard) =>
       (!view.contributorId || card.contributor.id === view.contributorId) &&
-      (!view.sectionId || !card.item || card.item.sectionId === view.sectionId),
-    [view.contributorId, view.sectionId]
+      (!view.sectionId ||
+        !card.item ||
+        card.item.sectionId === view.sectionId) &&
+      // An item view shows that item only: a relink's target stays out.
+      (!view.itemId || card.item?.itemId === view.itemId),
+    [view.contributorId, view.sectionId, view.itemId]
   )
 
   const focusTarget = React.useCallback((): HTMLElement | null => {
@@ -205,7 +217,7 @@ export function ReviewList({
   function nextActionable(list: ListCard[], key: string): string | null {
     const at = list.findIndex((c) => c.key === key)
     for (let i = at + 1; i < list.length; i++)
-      if (availableActions(list[i]).length > 0) return list[i].key
+      if (availableActions(list[i], scope.kind).length > 0) return list[i].key
     return null
   }
 
@@ -280,6 +292,7 @@ export function ReviewList({
           return REPORTED
         }
         if (
+          scope.kind === "manager" &&
           result.code === "not_permitted" &&
           result.message === REVIEW_COPY.ownPhoto
         ) {
@@ -321,6 +334,7 @@ export function ReviewList({
         tone: "success",
         text: announcement(act, card, targetName, outcome),
       })
+      onDecided?.(outcome)
       return { ok: true }
     } finally {
       setPending(null)
@@ -383,6 +397,7 @@ export function ReviewList({
       busy={busy}
       pending={pending?.key === card.key ? pending.action : null}
       onAction={(action) => onAction(card, action)}
+      scopeKind={scope.kind}
     />
   )
 
@@ -506,7 +521,7 @@ export function ReviewList({
         onClose={() => setPreview(null)}
         returnFocus={() => previewTriggerRef.current}
         renderActions={(card) =>
-          card.isSelf ? (
+          ownPhotoBlocked(card, scope.kind) ? (
             <Notice tone="plain">{REVIEW_COPY.ownPhoto}</Notice>
           ) : (
             actionsFor(card)

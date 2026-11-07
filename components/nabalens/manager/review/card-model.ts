@@ -10,6 +10,7 @@ import type {
   StaffLabel,
 } from "@/lib/server/menu-photos/types"
 
+import type { ReviewScope } from "./links"
 import { REVIEW_COPY } from "./review-copy"
 
 /** A card in the list, plus the client-only "decided, left this view" flag. */
@@ -49,12 +50,29 @@ function staffLabelled(card: QueueCard): boolean {
   return card.kind === "decided" && card.basis === "staff_label"
 }
 
+/** Who is reviewing: a venue manager or an admin (the Review page's scope). */
+export type ReviewScopeKind = ReviewScope["kind"]
+
 /**
- * The decisions a card offers, in display order (§4.5 table). Own photos and
- * decided cards that left the view offer none.
+ * The caller's own photo, which a manager may not review. Admins may review
+ * their own photos (the card still says "You").
  */
-export function availableActions(card: ListCard): CardAction[] {
-  if (card.isSelf || card.settled) return []
+export function ownPhotoBlocked(
+  card: QueueCard,
+  scopeKind: ReviewScopeKind = "manager"
+): boolean {
+  return card.isSelf && scopeKind !== "admin"
+}
+
+/**
+ * The decisions a card offers, in display order (§4.5 table). A manager's own
+ * photos and decided cards that left the view offer none.
+ */
+export function availableActions(
+  card: ListCard,
+  scopeKind: ReviewScopeKind = "manager"
+): CardAction[] {
+  if (card.settled || ownPhotoBlocked(card, scopeKind)) return []
   if (card.kind === "stale") return ["assign_stale"]
   if (card.kind === "unlabelled") return ["assign_unlabelled"]
   if (!card.item) return []
@@ -204,6 +222,17 @@ export function mergeOutcome(
         itemRevision: outcome.itemRevision,
         item: { ...card.item, covered: outcome.itemCovered },
       })
+      continue
+    }
+    const source = outcome.correctsItem
+    if (
+      source &&
+      card.item &&
+      card.item.itemId === source.itemId &&
+      !card.settled
+    ) {
+      // The corrected item's head moved too: its next decision needs it.
+      next.push({ ...card, itemRevision: source.itemRevision })
       continue
     }
     next.push(card)

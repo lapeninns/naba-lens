@@ -17,6 +17,7 @@ import {
   MORE_ACTIONS,
   type CardAction,
   type ListCard,
+  type ReviewScopeKind,
 } from "./card-model"
 import { REVIEW_COPY } from "./review-copy"
 
@@ -66,16 +67,19 @@ export function ReviewActions({
   busy,
   pending,
   onAction,
+  scopeKind = "manager",
 }: {
   card: ListCard
   busy: boolean
   /** The action in flight on this card. */
   pending: CardAction | null
   onAction: (action: CardAction, trigger: HTMLElement) => void
+  /** Admins may review their own photos; managers may not. */
+  scopeKind?: ReviewScopeKind
 }) {
   const id = React.useId()
   const [more, setMore] = React.useState(false)
-  const actions = availableActions(card)
+  const actions = availableActions(card, scopeKind)
   if (actions.length === 0) return null
   const main = actions.filter((a) => !MORE_ACTIONS.includes(a))
   const extra = actions.filter((a) => MORE_ACTIONS.includes(a))

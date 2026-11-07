@@ -264,6 +264,11 @@ export type DecisionOutcome = {
   replayed: boolean
   itemCovered: boolean
   preferredAssetId: string | null
+  /**
+   * The corrected (source) item's new head after a relink or a correction:
+   * its other loaded cards need this revision for the next decision.
+   */
+  correctsItem?: { itemId: string; itemRevision: number } | null
   /** Fresh cards of this item for the current status (the asset's own cards on stale and unlabelled views). */
   cards: QueueCard[]
 }

@@ -21,7 +21,13 @@ import { isQueueStatus, parseDecideInput } from "./validate"
 // copy). The database checks scope, the no-self-review rule, revisions and
 // replays in the same transaction as the write.
 
-type Written = { itemId: string; itemRevision: number; replayed: boolean }
+type Written = {
+  itemId: string
+  itemRevision: number
+  replayed: boolean
+  /** The corrected (source) item's new head, when the write bumped it. */
+  correctsItem?: { itemId: string; itemRevision: number } | null
+}
 type RpcError = { message?: string; code?: string; details?: string | null }
 type Call = Promise<
   { ok: true; written: Written } | { ok: false; error: RpcError | null }
@@ -72,12 +78,21 @@ async function assignItemPhoto(ctx: ManagerPhotoCtx, i: DecideInput): Call {
   })
   const row = data?.[0]
   if (error || !row) return { ok: false, error }
+  const correctsItemId =
+    i.action === "assign_unlabelled" ? null : (i.correctsItemId ?? null)
   return {
     ok: true,
     written: {
       itemId: row.item_id,
       itemRevision: row.item_revision,
       replayed: row.replayed,
+      correctsItem:
+        correctsItemId && row.corrects_item_revision != null
+          ? {
+              itemId: correctsItemId,
+              itemRevision: row.corrects_item_revision,
+            }
+          : null,
     },
   }
 }
@@ -224,6 +239,7 @@ export async function decideMenuPhoto(
       replayed: written.replayed,
       itemCovered: state.covered,
       preferredAssetId: state.preferredAssetId,
+      correctsItem: written.correctsItem ?? null,
       cards,
     },
   }

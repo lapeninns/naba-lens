@@ -2,8 +2,8 @@ import { notFound } from "next/navigation"
 
 import { ItemDetail } from "@/components/nabalens/manager/menu/item-detail"
 import { ItemWaiting } from "@/components/nabalens/manager/menu/item-waiting"
+import { ItemWaitingReview } from "@/components/nabalens/manager/menu/item-waiting-review"
 import { backHref } from "@/components/nabalens/manager/menu/menu-query"
-import { ReviewList } from "@/components/nabalens/manager/review"
 import { requireManagerVenue } from "@/lib/auth/manager"
 import { isUuid } from "@/lib/server/coverage/validate"
 import {
@@ -56,18 +56,11 @@ export default async function ManagerMenuItemPage({
       loadEvents={loadItemEventsAction}
       waiting={
         detail.waiting.items.length > 0 ? (
-          <ReviewList
+          <ItemWaitingReview
+            itemId={detail.item.itemId}
             initial={detail.waiting}
-            view={{
-              status: "pending",
-              sectionId: null,
-              contributorId: null,
-              itemId: detail.item.itemId,
-            }}
-            scope={{ kind: "manager" }}
             venueName={venue.name}
             now={new Date().toISOString()}
-            showItemLinks={false}
           />
         ) : (
           <ItemWaiting item={detail.item} waiting={detail.waiting} />
