@@ -22,6 +22,7 @@ import {
   escape,
   openPortfolio,
   portfolioList,
+  savingTitle,
   STAFF_LANDING,
   staffTile,
 } from "./helpers/ui"
@@ -177,8 +178,9 @@ async function menuSectionSetup(w: CoverageWorld, manager: Db) {
 
 /**
  * The task flow: "Choose from your photos" opens the photo picker straight
- * away, and the picked files wait in the images-only upload queue; new photos
- * come back selected.
+ * away; the picked photos start saving at once in the staff Add queue
+ * ("Saving N photos"), and each one comes back selected as soon as it is
+ * ready. Sending them stays a separate step.
  */
 async function uploadForTask(page: Page, files: SourceFile[]) {
   const [chooser] = await Promise.all([
@@ -187,16 +189,11 @@ async function uploadForTask(page: Page, files: SourceFile[]) {
   ])
   expect(chooser.isMultiple()).toBe(true)
   await chooser.setFiles(files.map((f) => f.path))
-  const dialog = page.getByRole("dialog", { name: "Upload photos" })
-  await dialog
-    .getByRole("button", {
-      name: `Upload ${files.length} ${files.length === 1 ? "file" : "files"}`,
-    })
-    .click()
-  await expect(dialog.getByRole("status")).toHaveText(
-    `${files.length} uploaded`,
-    { timeout: 90_000 }
-  )
+  const dialog = page.getByRole("dialog", { name: savingTitle(files) })
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByRole("status")).toHaveText(`${files.length} saved`, {
+    timeout: 90_000,
+  })
   await dialog.getByRole("button", { name: "Done" }).click()
   await expect(dialog).toBeHidden()
 }

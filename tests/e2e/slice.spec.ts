@@ -13,7 +13,12 @@ import {
   serviceClient,
   type TestIdentity,
 } from "../support/identities"
-import { openPortfolio, STAFF_LANDING, staffTile } from "./helpers/ui"
+import {
+  openPortfolio,
+  STAFF_LANDING,
+  staffTile,
+  uploadSheet,
+} from "./helpers/ui"
 
 /**
  * The vertical slice (spec §9 M2 + M3) in a real browser against the local
@@ -127,15 +132,18 @@ test.describe("vertical slice: upload, portfolio, library, download, isolation",
       .getByRole("button", { name: "Upload photos or videos" })
       .first()
       .click()
-    const dialog = staffPage.getByRole("dialog")
+    const dialog = uploadSheet(staffPage)
+    await expect(dialog).toBeVisible()
+    // Both start saving as soon as they are picked.
     await dialog
       .getByLabel("Choose photos or videos")
       .setInputFiles([jpeg.path, video])
-    await dialog.getByRole("button", { name: /^Upload 2/ }).click()
-    await expect(dialog.getByText("2 uploaded")).toBeVisible({
+    await expect(dialog).toHaveAccessibleName("Saving 2 files")
+    await expect(dialog.getByRole("status")).toHaveText("2 saved", {
       timeout: 60_000,
     })
     await dialog.getByRole("button", { name: "Done" }).click()
+    await expect(dialog).toBeHidden()
 
     const portfolio = staffPage.getByRole("list", { name: "Your portfolio" })
     const ownPhoto = await staffTile(portfolio, "curry-dish.jpg")
