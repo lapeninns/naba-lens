@@ -1633,6 +1633,113 @@ describe("manager accounts", () => {
     )
     expect(options.map((o: { id: string }) => o.id)).not.toContain(converted.id)
   })
+
+  it("drops a converted submitter's own evidence once revoked, moved or deactivated", async () => {
+    // A venue of its own: every catalogue key is already in use at `venue`.
+    const site = (await createVenue(service, "amen-past")).id
+    await ok(admin.client.rpc("amenity_enable_venue", { p_venue_id: site }))
+    const siteManager = await createIdentity(service, {
+      label: "amen-past-mgr",
+      role: "staff",
+      venueId: site,
+    })
+    await makeManager(admin, siteManager, site)
+    const staff = (label: string) =>
+      createIdentity(service, { label, role: "staff", venueId: site })
+    const revoked = await staff("amen-past-revoked")
+    const moved = await staff("amen-past-moved")
+    const off = await staff("amen-past-off")
+    const stays = await staff("amen-past-stays")
+
+    const checks = await ok(
+      siteManager.client.rpc("amenity_add_checks", {
+        p_venue_id: site,
+        p_keys: ["pool_table", "darts", "arcade", "pub_quiz"],
+      })
+    )
+    // Each submits their own upload as staff at the site.
+    const people = [revoked, moved, off, stays].map((who, i) => ({
+      who,
+      check: checks[i]!,
+      asset: "",
+    }))
+    for (const p of people) {
+      p.asset = await photo(p.who.id, site)
+      await ok(assign(siteManager, p.check, p.who.id))
+      await ok(submit(p.who, p.check, { assets: [p.asset] }))
+    }
+    const gate = (who: TestIdentity, assetId: string) =>
+      ok(who.client.rpc("amenity_evidence_asset", { p_asset_id: assetId }))
+    const reads = (who: TestIdentity, checkId: string) => [
+      who.client.rpc("amenity_check", { p_check_id: checkId }),
+      who.client.rpc("amenity_check_submissions", { p_check_id: checkId }),
+      who.client.rpc("amenity_check_submission_assets", {
+        p_check_id: checkId,
+      }),
+      who.client.rpc("amenity_check_events", { p_check_id: checkId }),
+      who.client.rpc("amenity_submittable_assets", { p_check_id: checkId }),
+    ]
+    for (const p of people) {
+      expect(await gate(p.who, p.asset)).toHaveLength(1)
+    }
+
+    // Converted to manager accounts of the site: still reachable as manager.
+    const revokedGrant = await makeManager(admin, revoked, site)
+    await makeManager(admin, moved, site)
+    await makeManager(admin, off, site)
+    for (const p of people) {
+      expect(await gate(p.who, p.asset)).toHaveLength(1)
+    }
+
+    // Then: grant revoked, transferred (still active), deactivated.
+    await ok(
+      admin.client.rpc("revoke_venue_manager", {
+        p_grant_id: revokedGrant,
+        p_reason: "TEST revoke",
+      })
+    )
+    const transfer = await service
+      .from("profiles")
+      .update({ venue_id: otherVenue })
+      .eq("id", moved.id)
+    if (transfer.error) throw transfer.error
+    const deactivate = await service
+      .from("profiles")
+      .update({ active: false })
+      .eq("id", off.id)
+    if (deactivate.error) throw deactivate.error
+
+    const [r, m, d, s] = people
+    for (const p of [r!, m!]) {
+      expect(await gate(p.who, p.asset)).toEqual([])
+      for (const call of reads(p.who, p.check)) {
+        await fails(call, "amenity_check_not_found", "P0002")
+      }
+    }
+    expect(await gate(d!.who, d!.asset)).toEqual([])
+    for (const call of reads(d!.who, d!.check)) {
+      await fails(call, "not_active_user", "P0001")
+    }
+
+    // A current staff submitter at the site keeps their evidence and history.
+    expect(await gate(s!.who, s!.asset)).toMatchObject([
+      { asset_id: s!.asset, media_type: "image" },
+    ])
+    expect(await checkRow(s!.who, s!.check)).toMatchObject({ id: s!.check })
+    expect(
+      await ok(
+        s!.who.client.rpc("amenity_check_submission_assets", {
+          p_check_id: s!.check,
+        })
+      )
+    ).toMatchObject([{ asset_id: s!.asset }])
+    // The site's manager and admins are unchanged; the other site sees none.
+    for (const p of people) {
+      expect(await gate(siteManager, p.asset)).toHaveLength(1)
+      expect(await gate(admin, p.asset)).toHaveLength(1)
+      expect(await gate(otherManager, p.asset)).toEqual([])
+    }
+  })
 })
 
 describe("inactive venue", () => {
