@@ -263,7 +263,7 @@ export function NeedsAttention({
     const result = await api.discard(item.assetId)
     markBusy(item.assetId, false)
     if (!result.ok) {
-      setRowError(item.assetId, ATTENTION_COPY.discardFailed)
+      setRowError(item.assetId, result.message ?? ATTENTION_COPY.discardFailed)
       return
     }
     if (result.state === "already_applied") {

@@ -22,11 +22,13 @@ export type AttentionResult =
 export type DiscardResult =
   | { ok: true; state: "discarded" | "none" }
   | { ok: true; state: "already_applied"; labels: MediaLabelSummary | null }
-  | { ok: false }
+  | { ok: false; message?: string }
 
 export const ATTENTION_LOAD_FAILED =
   "We couldn't check for photos that need attention. Check your connection and try again."
 const SAVE_FAILED = "Labels not saved yet. Check your connection and try again."
+/** A 401: the session ended. Me's buttons say "Try again", not "Retry". */
+export const SIGNED_OUT_MESSAGE = "Sign in again, then try again."
 
 export async function loadNeedsAttention(
   signal?: AbortSignal
@@ -36,6 +38,8 @@ export async function loadNeedsAttention(
       signal,
       cache: "no-store",
     })
+    if (response.status === 401)
+      return { ok: false, message: SIGNED_OUT_MESSAGE }
     const result = (await response.json()) as AttentionResult
     if (!result.ok) return { ok: false, message: result.message }
     // A reply without the list is not "nothing needs attention": saying so
@@ -58,6 +62,8 @@ export async function discardPendingLabels(
       `/api/upload-labels?assetId=${encodeURIComponent(assetId)}`,
       { method: "DELETE" }
     )
+    if (response.status === 401)
+      return { ok: false, message: SIGNED_OUT_MESSAGE }
     const result = (await response.json()) as {
       ok?: boolean
       state?: string
@@ -98,6 +104,13 @@ export async function saveFixedLabels(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ venueId, input }),
     })
+    if (response.status === 401)
+      return {
+        ok: false,
+        assetId: input.assetId,
+        code: "forbidden",
+        message: SIGNED_OUT_MESSAGE,
+      }
     result = (await response.json()) as UploadLabelPostResult
   } catch {
     return {

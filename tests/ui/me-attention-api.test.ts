@@ -6,6 +6,7 @@ import {
   discardPendingLabels,
   loadNeedsAttention,
   saveFixedLabels,
+  SIGNED_OUT_MESSAGE,
 } from "@/app/staff/needs-attention-api"
 import { EMPTY_LABEL_SUMMARY, type SaveLabelsInput } from "@/lib/menus/types"
 
@@ -63,10 +64,13 @@ describe("needs-attention API client", () => {
   })
 
   it("passes the server's refusal on, and words a dropped connection", async () => {
-    answer({ ok: false, message: "Sign in again." }, 401)
+    answer(
+      { ok: false, message: "Your account is not assigned to a venue." },
+      403
+    )
     expect(await loadNeedsAttention()).toEqual({
       ok: false,
-      message: "Sign in again.",
+      message: "Your account is not assigned to a venue.",
     })
     vi.stubGlobal(
       "fetch",
@@ -156,6 +160,31 @@ describe("needs-attention API client", () => {
       ok: false,
       code: "unavailable",
       message: "Labels not saved yet. Check your connection and try again.",
+    })
+  })
+})
+
+describe("R7: a 401 means the session ended", () => {
+  const signedOut = () =>
+    answer({ ok: false, message: "Sign in to continue." }, 401)
+
+  it("says to sign in again when listing, discarding or fixing", async () => {
+    signedOut()
+    expect(await loadNeedsAttention()).toEqual({
+      ok: false,
+      message: SIGNED_OUT_MESSAGE,
+    })
+    signedOut()
+    expect(await discardPendingLabels(ASSET)).toEqual({
+      ok: false,
+      message: SIGNED_OUT_MESSAGE,
+    })
+    signedOut()
+    expect(await saveFixedLabels(VENUE, INPUT)).toEqual({
+      ok: false,
+      assetId: ASSET,
+      code: "forbidden",
+      message: SIGNED_OUT_MESSAGE,
     })
   })
 })
