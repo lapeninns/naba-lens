@@ -85,6 +85,11 @@ const ALLOWED_PAGES = new Set([
   "/manager/menu",
   "/manager/menu/[itemId]",
   "/manager/account",
+  // Amenities in the workspace: the /staff/manage amenity screens for the
+  // manager account's own venue (docs/plans/amenity-catalogue.md).
+  "/manager/amenities",
+  "/manager/amenities/[checkId]",
+  "/manager/amenities/[checkId]/capture",
   // v0.4 admin coverage oversight: the same tools for any venue, plus grants.
   "/admin/coverage",
   "/admin/coverage/[venueId]",
@@ -99,6 +104,16 @@ const ALLOWED_PAGES = new Set([
   "/admin/coverage/[venueId]/menu-photos/contributors/[staffId]",
   "/admin/coverage/[venueId]/team",
   "/admin/coverage/managers",
+  // Shared amenity catalogue (November 2026): per-venue checks with photo or
+  // video evidence; a valid submission is the answer, managers can reopen it.
+  // Never part of monthly targets (docs/plans/amenity-catalogue.md).
+  "/staff/tasks/amenities/[checkId]",
+  "/staff/manage/amenities",
+  "/staff/manage/amenities/[checkId]",
+  "/staff/manage/amenities/[checkId]/capture",
+  "/admin/coverage/[venueId]/amenities",
+  "/admin/coverage/[venueId]/amenities/[checkId]",
+  "/admin/coverage/[venueId]/amenities/[checkId]/capture",
 ])
 
 const ALLOWED_HANDLERS = new Set([
@@ -134,6 +149,11 @@ const ALLOWED_HANDLERS = new Set([
   // 60 s per request; labelled photos for the venue's manager or an admin, an
   // item's primary photo for staff at the venue. No originals or downloads.
   "/api/menu-photos/[assetId]/thumb",
+  // Amenity evidence for its submitter, the venue's manager or an admin:
+  // signed derivatives and inline video playback, never original downloads.
+  "/api/amenities/evidence/[assetId]/thumb",
+  "/api/amenities/evidence/[assetId]/preview",
+  "/api/amenities/evidence/[assetId]/stream",
   "/api/menu-photos/[assetId]/preview",
   // v0.4 §3 rule 9: hourly idempotent monthly preparation, cron-only bearer auth
   // like the other /api/internal routes; it sends nothing to staff.
@@ -315,7 +335,13 @@ function stripSqlComments(source: string) {
  * term, so no allow-list entry is needed for them today. Keep exceptions here,
  * each with a reason, if a library primitive ever trips a pattern.
  */
-const ALLOWED_HITS: { file: string; text: string; reason: string }[] = []
+const ALLOWED_HITS: { file: string; text: string; reason: string }[] = [
+  {
+    file: "supabase/migrations/20261107120000_amenity_catalogue.sql",
+    text: "approved performance clip",
+    reason: "catalogue capture brief text (live music), not a workflow",
+  },
+]
 
 function scan() {
   const files = [

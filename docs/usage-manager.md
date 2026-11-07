@@ -4,14 +4,18 @@ A venue manager account reviews the menu photos staff contribute at one venue
 and gets every item on the active menu to an accepted photo. It is a separate
 account type: an admin converts a staff account (see the
 [admin guide](usage-admin.md#venue-managers)). A manager account cannot add or
-label photos, and has no portfolio, staff Photos or People.
+label menu photos, and has no portfolio, staff Photos or People. It cannot
+upload at all: **Capture myself** attaches media already on Naba-Lens as
+amenity evidence, and new photos or videos come from staff (see
+[Amenities](#amenities)).
 
 ## Sign in
 
 Sign in at `/login` like staff, with the emailed link or the 6-digit code (see
 the [staff guide](usage-staff.md#sign-in-and-leave-safely)). A manager lands on
 **Overview** (`/manager`). The venue name is in the top bar, with **Overview**,
-**Review** and **Menu** at every width (a bottom bar on a phone). **Account**
+**Review**, **Menu** and **Amenities** at every width (a bottom bar on a
+phone). **Account**
 has your display name, your venue and **Sign out**; **Log out** is in the top
 bar.
 
@@ -79,3 +83,32 @@ the item's history. An id that is not on your venue's current menu shows
 **This item isn't on your current menu**.
 
 Staff see the same totals in **Our menu**.
+
+## Amenities
+
+`/manager/amenities` is the same Amenities screen venue managers had in
+`/staff/manage`, for your venue only: questions guests ask ("Is there a
+step-free entrance?"), each answered with photo or video evidence. Amenities
+are separate from menu photos and never change their counts. The full guide to
+the screen is in the [admin guide](usage-admin.md#amenities-evidence-checks-per-venue).
+
+- Until an admin turns Amenities on for the venue, the page says an admin must
+  enable them. Then it counts **Needs capture**, **Needs recheck** and
+  **Complete**, lists the active checks, **Recently completed** and
+  **Archived** (each with **Restore**).
+- **Add from catalogue** adds questions: tick them and choose **Add selected**.
+- A check (`/manager/amenities/{id}`) has its capture brief, progress and
+  answer. **Assign** gives it to active staff at your venue (manager accounts
+  are not assignable); **Unassign**, **Notes**, **Archive** and **Reopen**
+  (with a reason) work as in the admin guide. There is no review step: a valid
+  finding is the answer at once.
+- **Capture myself** (`/manager/amenities/{id}/capture`) opens the staff
+  capture form for that check, without uploads: it says **You can't upload
+  here** and lists the photos and videos you may attach (your own earlier
+  uploads, and matching Coverage photos where the check allows). After
+  **Submit finding** you return to the check. For new evidence, **Assign** the
+  check to a staff member to capture it.
+
+A check from another venue, or a wrong link, shows **This check isn't here**
+with **See all amenities**. If your venue access ends, the page goes to
+Overview, which shows **Venue access unavailable**.

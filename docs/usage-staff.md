@@ -176,6 +176,40 @@ assignments.
 If you move venue, your old venue's tasks stop taking new photos; accepted
 photos and past months stay credited to the old venue.
 
+### Amenity checks
+
+When your manager assigns you an amenity question (for example step-free
+entrance, parking or guest Wi-Fi), it shows on Home under **Amenity checks**
+with **Needs capture**, or **Needs recheck** and the manager's reason when they
+asked you to look again. Amenity checks are separate from monthly photo
+targets: they never count toward them.
+
+Open a check to see the question, **What to capture** and **Required
+evidence** (**Photo**, **Video**, **Photo or video** or **Photo and video**).
+
+1. Answer **Yes**, **No** or **Not applicable**. **No** and **Not
+   applicable** need a **Reason**; evidence is optional for them.
+2. Add **What you found** and any **Limitations** in plain words.
+3. Under **Evidence**, choose **Choose from your photos** or **Take a photo**
+   to add a photo or video, or tick ones you already uploaded. New uploads are
+   ticked for you once they are ready. A line under **Evidence** says whether
+   the evidence rule is met; a **Yes** cannot be sent until it is (a photo is
+   not enough where a video is required).
+4. Choose **Submit finding**. There is no review step: the finding becomes the
+   venue's current answer straight away and you go back to Home.
+
+For **guest Wi-Fi**, cover the Wi-Fi password and the join QR code before you
+take any photo or video, then tick **I have covered the Wi-Fi password and
+join QR code**. A **Yes** also needs the **Wi-Fi test** notes (where you
+tested, the test date, download and upload Mbps). These are internal: only
+you, your venue manager and admins see them.
+
+Your answer, text, ticked evidence and Wi-Fi notes are kept as a draft on this
+device until the finding is sent, so a failed upload, a lost connection or a
+reload loses nothing. If sending fails, choose **Try again**: the same finding
+is sent again and never recorded twice. If someone else changed the check in
+the meantime, choose **Reload**; your draft stays.
+
 ## Manage (venue managers only)
 
 Venue managers now have their own account type and workspace (see the

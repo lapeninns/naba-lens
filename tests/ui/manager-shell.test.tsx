@@ -41,7 +41,7 @@ function links(el: HTMLElement) {
 }
 
 describe("ManagerShell", () => {
-  it("shows Overview, Review and Menu at desktop and phone widths", () => {
+  it("shows Overview, Review, Menu and Amenities at desktop and phone widths", () => {
     shell()
     const found = navs()
     expect(found.map((n) => n.dataset.slot).sort()).toEqual([
@@ -53,6 +53,7 @@ describe("ManagerShell", () => {
         ["Overview", "/manager"],
         ["Review", "/manager/review"],
         ["Menu", "/manager/menu"],
+        ["Amenities", "/manager/amenities"],
       ])
     }
   })
@@ -99,6 +100,8 @@ describe("ManagerShell", () => {
     ["/manager/review/contributors/abc", "Review"],
     ["/manager/menu", "Menu"],
     ["/manager/menu/abc", "Menu"],
+    ["/manager/amenities", "Amenities"],
+    ["/manager/amenities/abc/capture", "Amenities"],
   ])("marks %s as %s with aria-current", (pathname, label) => {
     nav.pathname = pathname
     shell()

@@ -88,6 +88,7 @@ export function createUploader(options: CreateUploaderOptions): MediaUploader {
           mediaType: checked.kind,
           preferResumable:
             checked.kind === "video" || file.size > resumableThresholdBytes,
+          ...(uploadOptions.purpose ? { purpose: uploadOptions.purpose } : {}),
         })
       } catch (error) {
         if (error instanceof ReservationGoneError) {

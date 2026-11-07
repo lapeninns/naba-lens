@@ -193,6 +193,52 @@ people, change roles, venues or teams, publish menus, download originals or
 delete colleagues' photos. Manager screens show names, photos and progress,
 never email or account details.
 
+## Amenities: evidence checks per venue
+
+**Amenities** is a tab in each venue's tools (`/admin/coverage/[venueId]/amenities`;
+managers have the same screen at `/staff/manage/amenities`). Each check is one
+question from the shared catalogue ("Is there a step-free entrance?"),
+answered by staff with photo or video evidence. Amenities are separate from
+the checklist, monthly targets and Our menu, and never change those counts.
+
+1. **Enable Amenities** (admins only) turns them on for the venue and adds the
+   four core checks, unassigned: step-free entrance, on-site parking, guest
+   toilets and guest Wi-Fi. Enabling again is safe. Until then a manager sees
+   that an admin must enable Amenities.
+2. The tab counts **Needs capture**, **Needs recheck** and **Complete**, then
+   lists the active checks under those headings with the question, category,
+   evidence needed (**Photo**, **Video**, **Photo or video** or **Photo and
+   video**), the assignee and the current answer. **Recently completed** shows
+   the latest answers with who answered and when.
+3. **Add from catalogue** opens the catalogue. Search by question, category
+   or key, tick any number of questions and choose **Add selected**. Questions
+   the venue already has are marked **Already added**; an archived one can be
+   ticked again, which restores the same check and its history.
+4. Open a check to see its capture brief, progress and answer. Under **Who
+   captures it**, choose an **Assignee** (active staff at that venue) and
+   **Assign**, or **Unassign**. **Notes** are kept with the check. **Capture
+   myself** opens the capture screen for you.
+5. There is no review step: a finding that meets the evidence rule becomes the
+   venue's answer at once and the check is **Complete**. If it looks wrong or
+   things change, choose **Reopen**, pick a reason (**Password or QR visible**,
+   **Wrong area**, **Conditions changed**, **Evidence unclear** or **Other**,
+   which needs details) and confirm. The check shows **Needs recheck** with
+   that reason until someone captures it again; the old answer stays visible
+   meanwhile.
+6. **Archive** hides a check from staff and the counts; it keeps every
+   submission. **Archived** on the tab lists them, each with **Restore**.
+
+**Submissions** on a check lists every finding, newest first, with the answer,
+finding, limitations or reason, who sent it and when, the photos and videos
+(deleted media shows as no longer available) and **Current answer** on the one
+in use. Wi-Fi findings also show the test spot, date and speeds, marked
+internal; guests never see them. **History** lists each change: added,
+assigned, reopened, archived and so on. If evidence behind a Yes is deleted,
+the check goes back to **Needs recheck** on its own.
+
+If someone else changed a check while you had it open, the page says so and
+reloads; check the latest version and try again.
+
 ## Invite staff and recover email failures
 
 In **Staff**, choose **Invite staff**. Fill **Name**, **Email**,
