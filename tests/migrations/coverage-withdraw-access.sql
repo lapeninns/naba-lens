@@ -3,9 +3,10 @@
 -- rollback runs this script (in one transaction) against the target database.
 -- Tables, rows, media, archive and monitoring objects are untouched; re-grant
 -- by re-running the grant statements of migrations 20261102130000..150000 and
--- 20261106130000 (Our menu item photos) and 20261107100100. The venue
--- manager security fixes (effective grant, revoke
--- trigger, denials, audit policy) and the 'manager' enum value stay in place:
+-- 20261106130000 (Our menu item photos), 20261107100100 and
+-- 20261107100400..100500 (manager item photos). The venue manager security
+-- fixes (effective grant, revoke trigger, denials, audit policy, item-photo
+-- rules of 20261107100300) and the 'manager' enum value stay in place:
 -- convert any manager accounts back to staff first.
 -- tests/migrations/withdraw.test.ts proves it covers every coverage RPC and
 -- table and changes nothing else.
@@ -46,7 +47,15 @@ revoke execute on function
   public.manager_grant_candidates(uuid),
   public.manager_workspace_scope(),
   public.convert_account_to_manager(uuid, uuid, text, text),
-  public.convert_manager_to_staff(uuid, uuid, text, text)
+  public.convert_manager_to_staff(uuid, uuid, text, text),
+  public.assign_menu_item_photo(uuid, uuid, uuid, uuid, uuid, text, integer, boolean, text),
+  public.manager_menu_photo_overview(uuid),
+  public.manager_menu_photo_items(uuid, text, uuid, text, integer, integer, uuid, integer),
+  public.manager_menu_photo_queue(uuid, text, uuid, uuid, uuid, timestamptz, uuid, integer),
+  public.manager_menu_photo_item(uuid, uuid),
+  public.manager_menu_photo_item_events(uuid, uuid, bigint, integer),
+  public.manager_menu_photo_contributors(uuid),
+  public.manager_menu_photo_contributor(uuid, uuid)
 from authenticated;
 
 -- Stops the hourly preparation even if the scheduler keeps calling it.

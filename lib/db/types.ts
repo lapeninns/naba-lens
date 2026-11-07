@@ -1470,6 +1470,9 @@ export type Database = {
         Row: {
           asset_id: string
           author_id: string
+          basis: string
+          corrects_item_id: string | null
+          corrects_variant_id: string | null
           created_at: string
           decided_at: string
           decided_by: string
@@ -1496,6 +1499,9 @@ export type Database = {
         Insert: {
           asset_id: string
           author_id: string
+          basis?: string
+          corrects_item_id?: string | null
+          corrects_variant_id?: string | null
           created_at?: string
           decided_at?: string
           decided_by: string
@@ -1522,6 +1528,9 @@ export type Database = {
         Update: {
           asset_id?: string
           author_id?: string
+          basis?: string
+          corrects_item_id?: string | null
+          corrects_variant_id?: string | null
           created_at?: string
           decided_at?: string
           decided_by?: string
@@ -1559,6 +1568,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "menu_item_photos_corrects_item_fkey"
+            columns: ["corrects_item_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "menu_items"
+            referencedColumns: ["id", "venue_id"]
+          },
+          {
+            foreignKeyName: "menu_item_photos_corrects_variant_fkey"
+            columns: ["corrects_variant_id", "corrects_item_id"]
+            isOneToOne: false
+            referencedRelation: "menu_variants"
+            referencedColumns: ["id", "item_id"]
           },
           {
             foreignKeyName: "menu_item_photos_decided_by_fkey"
@@ -2316,6 +2339,28 @@ export type Database = {
         Args: { p_expected_revision: number; p_version_id: string }
         Returns: undefined
       }
+      assign_menu_item_photo: {
+        Args: {
+          p_asset_id: string
+          p_client_request_key?: string
+          p_corrects_item_id: string
+          p_corrects_variant_id: string
+          p_expected_revision: number
+          p_item_id: string
+          p_make_primary?: boolean
+          p_reason: string
+          p_variant_id: string
+        }
+        Returns: {
+          corrects_item_revision: number | null
+          is_primary: boolean
+          item_id: string
+          item_revision: number
+          photo_id: string
+          replayed: boolean
+          state: string
+        }[]
+      }
       attach_coverage_evidence: {
         Args: {
           p_accept?: boolean
@@ -2738,6 +2783,184 @@ export type Database = {
           display_name: string
           id: string
           venue_id: string
+        }[]
+      }
+      manager_menu_photo_contributor: {
+        Args: { p_contributor_id: string; p_venue_id: string }
+        Returns: {
+          accepted_items: number
+          contributor_id: string
+          display_name: string
+          labelled_photos: number
+          last_upload_at: string
+          open_follow_ups: number
+          status: string
+        }[]
+      }
+      manager_menu_photo_contributors: {
+        Args: { p_venue_id?: string }
+        Returns: {
+          accepted_items: number
+          contributor_id: string
+          display_name: string
+          labelled_photos: number
+          last_upload_at: string
+          open_follow_ups: number
+          status: string
+        }[]
+      }
+      manager_menu_photo_item: {
+        Args: { p_item_id: string; p_venue_id: string }
+        Returns: {
+          covered: boolean
+          description: string | null
+          item_id: string
+          item_revision: number
+          name: string
+          photos: Json
+          preferred_asset_id: string | null
+          preferred_is_fallback: boolean
+          preferred_photo_id: string | null
+          section_id: string
+          section_kind: string
+          section_name: string
+          status: string
+          variants: Json
+        }[]
+      }
+      manager_menu_photo_item_events: {
+        Args: {
+          p_before_id?: number
+          p_item_id: string
+          p_limit?: number
+          p_venue_id: string
+        }
+        Returns: {
+          action: string
+          actor_name: string | null
+          actor_role: string
+          asset_id: string
+          created_at: string
+          detail: Json
+          from_state: string | null
+          id: number
+          photo_id: string
+          reason: string | null
+          to_state: string
+        }[]
+      }
+      manager_menu_photo_items: {
+        Args: {
+          p_after_entry_position?: number
+          p_after_item_id?: string
+          p_after_section_position?: number
+          p_limit?: number
+          p_query?: string
+          p_section_id?: string
+          p_status?: string
+          p_venue_id?: string
+        }
+        Returns: {
+          accepted_count: number
+          candidate_count: number
+          covered: boolean
+          description: string | null
+          entry_position: number
+          has_pending_replacement: boolean
+          item_id: string
+          item_revision: number
+          menu_version_id: string
+          name: string
+          needs_recheck: boolean
+          needs_recheck_count: number
+          oldest_candidate_at: string | null
+          others_waiting: number
+          own_waiting: number
+          primary_asset_id: string | null
+          primary_has_preview: boolean
+          primary_has_thumbnail: boolean
+          primary_height: number | null
+          primary_photo_id: string | null
+          primary_width: number | null
+          section_id: string
+          section_kind: string
+          section_name: string
+          section_position: number
+          status: string
+          variants: Json
+          venue_id: string
+        }[]
+      }
+      manager_menu_photo_overview: {
+        Args: { p_venue_id?: string }
+        Returns: {
+          activated_at: string | null
+          awaiting_review_items: number
+          carried_items: number
+          covered_items: number
+          eligible_items: number
+          menu_state: string
+          menu_title: string | null
+          menu_version_id: string | null
+          needs_photo_items: number
+          needs_recheck_items: number
+          new_items: number
+          oldest_pending_at: string | null
+          own_waiting_photos: number
+          pending_photos: number
+          replacement_pending_items: number
+          sections: Json
+          venue_id: string
+          venue_name: string
+        }[]
+      }
+      manager_menu_photo_queue: {
+        Args: {
+          p_after_created_at?: string
+          p_after_key?: string
+          p_contributor_id?: string
+          p_item_id?: string
+          p_limit?: number
+          p_section_id?: string
+          p_status?: string
+          p_venue_id?: string
+        }
+        Returns: {
+          asset_id: string
+          basis: string | null
+          can_follow_up: boolean
+          contributor_status: string
+          corrects_item_id: string | null
+          corrects_item_name: string | null
+          corrects_variant_id: string | null
+          created_at: string
+          group_count: number
+          has_preview: boolean
+          has_thumbnail: boolean
+          height: number | null
+          is_effective_primary: boolean
+          is_primary: boolean
+          is_self: boolean
+          item_covered: boolean
+          item_id: string | null
+          item_name: string | null
+          item_revision: number | null
+          kind: string
+          label_id: string | null
+          labelled_at: string | null
+          photo_id: string | null
+          photo_state: string | null
+          reason: string | null
+          recheck_kind: string | null
+          section_id: string | null
+          section_name: string | null
+          sort_key: string
+          staff_label: Json
+          uploader_id: string
+          uploader_name: string
+          variant_id: string | null
+          variant_name: string | null
+          width: number | null
         }[]
       }
       manager_workspace_scope: {

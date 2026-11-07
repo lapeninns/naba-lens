@@ -174,6 +174,29 @@ describe("upgrade with retained data", () => {
     expect(after.rls.every((r) => r.relrowsecurity)).toBe(true)
   })
 
+  it("keeps earlier item-photo decisions as staff-label decisions under validated constraints", () => {
+    // 20261107100300 adds the decision source with a constant default, so rows
+    // written before it read as staff-label decisions and every check holds.
+    expect(
+      psql(
+        env,
+        "select pg_get_expr(d.adbin, d.adrelid) from pg_attrdef d join pg_attribute a on a.attrelid = d.adrelid and a.attnum = d.adnum where d.adrelid = 'public.menu_item_photos'::regclass and a.attname = 'basis'"
+      )
+    ).toBe("'staff_label'::text")
+    expect(
+      psql(
+        env,
+        "select count(*) from pg_constraint where conrelid = 'public.menu_item_photos'::regclass and not convalidated"
+      )
+    ).toBe("0")
+    expect(
+      psql(
+        env,
+        "select count(*) from public.menu_item_photos where basis <> 'staff_label' or corrects_item_id is not null"
+      )
+    ).toBe("0")
+  })
+
   it("serves identical bytes under the same rules, for live and new sessions", async () => {
     expect(await accessMatrix(env, manifest, sessions)).toEqual(beforeAccess)
     expect(await accessMatrix(env, manifest)).toEqual(beforeAccess)

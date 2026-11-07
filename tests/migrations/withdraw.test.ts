@@ -18,6 +18,9 @@ const MIGRATIONS = [
   "20261106130000_menu_item_photos.sql",
   "20261107100100_manager_account_access.sql",
   "20261107100200_manager_staff_denials.sql",
+  "20261107100300_manager_item_photo_rules.sql",
+  "20261107100400_manager_item_photo_writes.sql",
+  "20261107100500_manager_item_photo_reads.sql",
 ]
 const script = readFileSync(
   join(import.meta.dirname, "coverage-withdraw-access.sql"),
@@ -68,7 +71,7 @@ function privilegesAfterScript(): { fn: string; role: string; ok: boolean }[] {
 
 describe("coverage access withdrawal", () => {
   it("names every coverage RPC and table", () => {
-    expect(publicFunctions.length).toBe(37)
+    expect(publicFunctions.length).toBe(45)
     expect(publicTables.length).toBe(16)
     for (const fn of publicFunctions)
       expect(script, fn).toContain(`public.${fn}(`)
@@ -119,7 +122,15 @@ describe("coverage access withdrawal", () => {
           and position('v_role not in (''staff'', ''admin'')' in
             pg_get_functiondef('public.save_media_labels'::regproc)) > 0
           and exists (select 1 from pg_trigger
-            where tgname = 'coverage_review_events_deny_manager_writes');\nrollback;\n`,
+            where tgname = 'coverage_review_events_deny_manager_writes')
+          and position('coalesce(v_venue = v_manager_venue, false)' in
+            pg_get_functiondef('private.menu_photo_read_venue'::regproc)) > 0
+          and exists (select 1 from pg_trigger
+            where tgname = 'menu_item_photos_no_manager_self_review')
+          and (select bool_and(position('is_active_manager' in pg_get_expr(pl.polqual, pl.polrelid)) > 0)
+            from pg_policy pl
+            where pl.polname in ('menu_item_photos_select', 'menu_item_photo_events_select')
+            having count(*) = 2);\nrollback;\n`,
       }
     )
     expect(out.trim().split("\n").pop()).toBe("t")
