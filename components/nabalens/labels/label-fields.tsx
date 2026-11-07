@@ -12,6 +12,7 @@ import { Notice } from "@/components/nabalens/notice"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
+import { dishName } from "@/lib/menus/dish-name"
 import {
   CONTENT_TYPE_LABELS,
   CONTENT_TYPES,
@@ -45,8 +46,7 @@ export function itemDisplayName(
   unspecified = false
 ) {
   // The same style as cards and the portfolio: "Momo (Veg)".
-  if (item.variantName) return `${item.name} (${item.variantName})`
-  return unspecified ? `${item.name} (Not specified)` : item.name
+  return dishName(item, unspecified)
 }
 
 /** Chip text for an item the current menu no longer offers. */

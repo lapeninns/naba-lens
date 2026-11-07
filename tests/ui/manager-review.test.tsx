@@ -729,6 +729,38 @@ describe("ReviewScreen", () => {
     expect(b[0].requestId).toBe(a[0].requestId)
   })
 
+  it("A1: names a variant as Name (Variant) on the card and in the preview", async () => {
+    const user = userEvent.setup()
+    const variantId = id(0x7)
+    renderScreen([
+      card({
+        item: { ...card().item!, variantId, variantName: "Chicken" },
+        staffLabels: [
+          {
+            itemId: SOUP,
+            variantId,
+            itemName: "Soup",
+            variantName: "Chicken",
+            onMenu: true,
+          },
+        ],
+      }),
+    ])
+    expect(screen.getByText("Labelled: Soup (Chicken)")).toBeTruthy()
+    expect(
+      screen.getByRole("heading", { level: 3, name: "Soup (Chicken)" })
+    ).toBeTruthy()
+    expect(document.body.textContent).not.toContain("· Chicken")
+    expect(document.body.textContent).not.toMatch(/Soup ?· ?Chicken/)
+    await user.click(
+      screen.getByRole("button", {
+        name: REVIEW_COPY.openPreview("TEST Sam Lee"),
+      })
+    )
+    const dialog = await screen.findByRole("dialog")
+    expect(within(dialog).getByText(/^Soup \(Chicken\) · /)).toBeTruthy()
+  })
+
   it("the preview moves with the arrow keys and Esc returns focus", async () => {
     const user = userEvent.setup()
     const second = card({

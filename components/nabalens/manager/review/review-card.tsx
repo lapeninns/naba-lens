@@ -11,6 +11,7 @@ import { Card } from "@/components/nabalens/common-room"
 import { Notice } from "@/components/nabalens/notice"
 import { StatusChip } from "@/components/nabalens/status-chip"
 import { Button } from "@/components/ui/button"
+import { dishName } from "@/lib/menus/dish-name"
 import { cn } from "@/lib/utils"
 
 import { ownPhotoBlocked, type ListCard } from "./card-model"
@@ -47,7 +48,7 @@ export function CardStateChip({ card }: { card: ListCard }) {
   }
 }
 
-/** "Labelled: Soup · Large", "No label", or "Labelled for Pie, no longer on the menu". */
+/** "Labelled: Soup (Large)", "No label", or "Labelled for Pie, no longer on the menu". */
 function labelLines(card: ListCard): string[] {
   if (card.staffLabels.length === 0) return [REVIEW_COPY.noLabel]
   return card.staffLabels.map((l) =>
@@ -159,20 +160,14 @@ export function ReviewCard({
                 href={itemHref(scope, card.item.itemId)}
                 className="rounded-control underline-offset-3 outline-none hover:underline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
               >
-                {card.item.name}
+                {dishName(card.item)}
               </Link>
             ) : (
-              card.item.name
+              dishName(card.item)
             )
           ) : (
             REVIEW_COPY.noMenuItem
           )}
-          {card.item?.variantName ? (
-            <span className="font-normal text-ink-muted">
-              {" "}
-              · {card.item.variantName}
-            </span>
-          ) : null}
         </h3>
         <dl className="grid gap-1.5 text-body">
           <div className="flex flex-wrap gap-x-2">

@@ -3,6 +3,7 @@
 // Manager copy says "item", never "dish".
 
 import { plural } from "@/components/nabalens/coverage/copy"
+import { dishName } from "@/lib/menus/dish-name"
 
 import type {
   ContributorStatus,
@@ -86,7 +87,7 @@ export const REVIEW_COPY = {
   uploaded: (date: string, age: string | null) =>
     age ? `Uploaded ${date} · waiting ${age}` : `Uploaded ${date}`,
   labelled: (item: string, variant: string | null) =>
-    `Labelled: ${variant ? `${item} · ${variant}` : item}`,
+    `Labelled: ${dishName({ name: item, variantName: variant })}`,
   noLabel: "No label",
   labelledOld: (item: string) => `Labelled for ${item}, no longer on the menu`,
   menuItem: "Menu item",
