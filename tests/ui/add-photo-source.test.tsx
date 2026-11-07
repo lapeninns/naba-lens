@@ -1048,6 +1048,29 @@ describe("Review 2 regressions: Add host", () => {
     ).toEqual([])
   })
 
+  it("B2: a check's upload saved after its screen closed says check, not task or portfolio", async () => {
+    const user = userEvent.setup()
+    const { find } = holdUploads()
+    const gone = vi.fn(() => false)
+    host(
+      <Opener
+        label="Check"
+        opts={{ source: "library", purpose: "amenity", onReady: gone }}
+      />
+    )
+    await user.click(screen.getByRole("button", { name: "Check" }))
+    await user.upload(input("library"), [jpeg("bar.jpg")])
+    await screen.findByRole("dialog", { name: "Saving 1 photo" })
+    await act(async () => find("bar.jpg").finish())
+    expect(gone).toHaveBeenCalledWith(["asset-bar.jpg"])
+    await waitFor(() =>
+      expect(fileRow("bar.jpg").textContent).toContain(
+        "Saved. Not added to the check: its screen was closed."
+      )
+    )
+    expect(fileRow("bar.jpg").textContent).not.toMatch(/task|portfolio/)
+  })
+
   it("N3: labels discarded while the menu loads stay discarded", async () => {
     const user = userEvent.setup()
     const { dialog, load } = await editWhileMenuLoads(user)

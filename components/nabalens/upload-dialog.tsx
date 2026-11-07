@@ -124,6 +124,8 @@ type UploadDialogProps = {
    * organisation community (amenity evidence). Default "general".
    */
   purpose?: UploadPurpose
+  /** Each file's purpose when one queue holds both (Add). Default `purpose`. */
+  purposeOf?: (file: File) => UploadPurpose
 }
 
 export type UploadBusy = {
@@ -184,9 +186,15 @@ function legacyStatus(summary: QueueSummary, pause: QueuePause) {
     .join(" · ")
 }
 
-/** A file saved after the screen that picked it closed (C4 onReady false). */
-export const NOT_ADDED_TO_TASK =
-  "Saved to your portfolio. Not added to the task: its screen was closed."
+/**
+ * A file saved after the screen that picked it closed (C4 onReady false): a
+ * task screen's photo is in the portfolio, a check's evidence is not.
+ */
+export function notAddedText(purpose: UploadPurpose) {
+  return purpose === "amenity"
+    ? "Saved. Not added to the check: its screen was closed."
+    : "Saved to your portfolio. Not added to the task: its screen was closed."
+}
 
 /** "This file can't be used: {reason}." */
 function cannotUse(reason: string | null) {
@@ -205,7 +213,7 @@ function rowState(
   item: QueueItem,
   labels: LabelView,
   pause: QueuePause,
-  unattached = false
+  notAdded: string | null = null
 ): RowState {
   const percent = Math.round(item.progress * 100)
   switch (item.status) {
@@ -241,7 +249,7 @@ function rowState(
       return {
         word: "Saved",
         suffix: null,
-        detail: unattached ? NOT_ADDED_TO_TASK : null,
+        detail: notAdded,
       }
     case "saved":
       return {
@@ -449,6 +457,7 @@ export function UploadDialog({
   initialFiles,
   onPick,
   purpose = "general",
+  purposeOf,
 }: UploadDialogProps) {
   const guard = useSessionGuard()
   const isSignedIn = guard?.isSignedIn
@@ -866,7 +875,14 @@ export function UploadDialog({
                 <QueueRow
                   key={item.id}
                   item={item}
-                  state={rowState(item, view, pause, unattached.has(item.id))}
+                  state={rowState(
+                    item,
+                    view,
+                    pause,
+                    unattached.has(item.id)
+                      ? notAddedText(purposeOf?.(item.file) ?? purpose)
+                      : null
+                  )}
                   labels={view}
                   onRemove={() => {
                     forget([item.id])

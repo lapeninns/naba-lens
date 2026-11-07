@@ -539,6 +539,9 @@ export function AddHost({
               router.refresh()
             }}
             onReady={handleReady}
+            purposeOf={(file) =>
+              fileOwners.current.get(file)?.purpose ?? "general"
+            }
             labels={labels}
             startOnPick
             keepRunningWhenClosed
