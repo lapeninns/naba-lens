@@ -403,8 +403,8 @@ after the browser closes; check **Me** before choosing files again.
 On **Me**, **Upload photos or videos** opens the same queue with **Choose
 from your photos** and, on some devices, **Take a photo**. The picker accepts
 JPEG, PNG, WebP and HEIC/HEIF photos, plus MP4, MOV and WebM videos; server
-validation can still reject a file. When the files have settled you can label
-them (below).
+validation can still reject a file. You can label files while they upload or
+afterwards.
 
 **Me** also has **Edit work details**, **How Naba-Lens works** and **Our
 menu** rows.
@@ -427,8 +427,12 @@ Each photo passes three separate milestones:
    better photo instead, **Me** shows it under **Better photo requested** with
    the dish and their note.
 
-- After an upload finishes, from **Add** or anywhere else, choose **Label
-  these files** (**Label this file** for one) or **Done** to skip.
+- In **Add**, choose **Upload and label** to start both, or **Label while
+  uploading** if the upload has already started. Choose **Save labels when
+  ready**. Each file gets its labels as soon as it finishes processing. If a
+  file needs a retry, its draft stays with it while this page is open.
+- You can also choose **Label these files** (**Label this file** for one)
+  after uploading, or **Done** to skip.
 - **Me** shows ready photos without a label under **Needs labels**; choose
   **Label these photos** (or **Label this photo**) to label them together.
   You can also open any of your ready photos or videos later and choose

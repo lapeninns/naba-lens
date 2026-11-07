@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { FolderSimpleIcon } from "@phosphor-icons/react"
 import { usePathname, useRouter } from "next/navigation"
 
 import { fetchMediaPage } from "@/app/_media/fetch-page"
@@ -20,6 +21,7 @@ import {
 } from "@/components/nabalens/library-filters"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { Button } from "@/components/ui/button"
+import { CONTENT_TYPES, CONTENT_TYPE_LABELS } from "@/lib/menus/types"
 
 import { loadLibraryPage, type LibraryPageResult } from "./library-actions"
 import { filtersToSearch, type LibrarySearchParams } from "./library-search"
@@ -82,6 +84,11 @@ export function AdminLibrary({
         value={shown}
         onChange={navigate}
       />
+      <LibraryFolders
+        filters={shown}
+        menuOptions={menuOptions}
+        onChange={navigate}
+      />
       <div aria-busy={pending} className={pending ? "opacity-60" : undefined}>
         <LibraryErrorBoundary>
           <React.Suspense fallback={<LibraryGridSkeleton />}>
@@ -129,6 +136,85 @@ export function AdminLibrary({
         </LibraryErrorBoundary>
       </div>
     </div>
+  )
+}
+
+function LibraryFolders({
+  filters,
+  menuOptions,
+  onChange,
+}: {
+  filters: Required<LibraryFilterValue>
+  menuOptions: LibraryMenuOptions | null
+  onChange: (filters: Required<LibraryFilterValue>) => void
+}) {
+  const heading = React.useId()
+  const categories =
+    menuOptions?.venueId === filters.venueId ? menuOptions.categories : []
+  const folders = [
+    { id: "all", name: "All files", filters: {} },
+    {
+      id: "unlabelled",
+      name: "Needs labels",
+      filters: { labelState: "unlabelled" as const },
+    },
+    ...CONTENT_TYPES.map((contentType) => ({
+      id: contentType,
+      name: CONTENT_TYPE_LABELS[contentType],
+      filters: { contentType },
+    })),
+    ...categories.map(({ slug, name }) => ({
+      id: `section:${slug}`,
+      name,
+      filters: { category: slug },
+    })),
+  ]
+  const base = {
+    ...filters,
+    category: null,
+    itemId: null,
+    variantId: null,
+    contentType: null,
+    labelState: null,
+  }
+  const current = filtersToSearch(filters)
+
+  return (
+    <section aria-labelledby={heading} className="grid gap-3">
+      <div>
+        <h2 id={heading} className="font-display text-section-title text-ink">
+          Browse folders
+        </h2>
+        <p className="text-body text-ink-muted">
+          Folders show files that match their labels. A file can appear in
+          several folders. Choose a venue above to browse its menu sections.
+        </p>
+      </div>
+      <ul className="flex flex-wrap gap-2">
+        {folders.map((folder) => {
+          const next = { ...base, ...folder.filters }
+          const active = current === filtersToSearch(next)
+          return (
+            <li key={folder.id} className="max-w-full min-w-0">
+              <Button
+                type="button"
+                size="touch"
+                variant={active ? "secondary" : "outline"}
+                aria-pressed={active}
+                className="h-auto min-h-11 max-w-full text-left whitespace-normal"
+                onClick={() => onChange(next)}
+              >
+                <FolderSimpleIcon
+                  weight={active ? "fill" : "regular"}
+                  aria-hidden
+                />
+                {folder.name}
+              </Button>
+            </li>
+          )
+        })}
+      </ul>
+    </section>
   )
 }
 

@@ -834,14 +834,33 @@ test("rows 12+13: label filters combine with venue/staff/type, search and dates;
     await unique(2, new RegExp(`^Video, qa-lib-a-vid-${t}-0[12]\\.mp4`))
   })
 
-  await test.step("URL filters: item + variant match the same tuple; category; staff + needs labels", async () => {
+  await test.step("Folders switch between menu section, content type and needs labels within the venue and staff scope", async () => {
     await admin.goto(`/admin?venue=${v1}&item=${momo}&variant=${chicken}`)
     await expect(tiles).toHaveCount(2)
     await unique(2, new RegExp(`^Photo, qa-lib-b-img-${t}-0[12]\\.jpg`))
-    await admin.goto(`/admin?venue=${v1}&category=${sherpaliSection.key}`)
+    const folders = admin.getByRole("region", { name: "Browse folders" })
+    const section = folders.getByRole("button", {
+      name: sherpaliSection.name,
+      exact: true,
+    })
+    await section.click()
+    await expect(section).toHaveAttribute("aria-pressed", "true")
+    await expect(admin).toHaveURL(
+      `/admin?venue=${v1}&category=${sherpaliSection.key}`
+    )
     await expect(tiles).toHaveCount(1)
     await unique(1, new RegExp(`^Photo, qa-lib-b-img-${t}-04\\.jpg`))
-    await admin.goto(
+    await folders
+      .getByRole("button", { name: "Preparation", exact: true })
+      .click()
+    await expect(admin).toHaveURL(`/admin?venue=${v1}&content=preparation`)
+    await expect(tiles).toHaveCount(2)
+    await unique(2, new RegExp(`^Video, qa-lib-a-vid-${t}-0[12]\\.mp4`))
+    await admin.goto(`/admin?venue=${v1}&staff=${world.staffA.id}`)
+    await folders
+      .getByRole("button", { name: "Needs labels", exact: true })
+      .click()
+    await expect(admin).toHaveURL(
       `/admin?venue=${v1}&staff=${world.staffA.id}&labels=unlabelled`
     )
     await expect(tiles).toHaveCount(5)

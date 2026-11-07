@@ -40,6 +40,10 @@ import {
 } from "./session-guard"
 import type { UploadLimits } from "./types"
 import {
+  useUploadLabelDrafts,
+  type UploadLabelDrafts,
+} from "./upload-label-drafts"
+import {
   guessMediaKind,
   type QueueItem,
   type QueuePause,
@@ -70,7 +74,12 @@ type UploadDialogProps = {
    * in that run (only files whose uploader reported an asset ID), and the
    * picked File of each, in the same order (so an owner can tell its own).
    */
-  onReady?: (assetIds: string[], files: File[]) => void
+  onReady?: (
+    assetIds: string[],
+    files: File[],
+    draftAssetIds?: string[]
+  ) => void
+  draftLabels?: UploadLabelDrafts
   /**
    * Closing while files upload hides the queue and lets them carry on (the
    * owner stays mounted; Add shows the queue again). Default false: closing
@@ -78,9 +87,7 @@ type UploadDialogProps = {
    */
   keepRunningWhenClosed?: boolean
   /**
-   * Called when the count of unfinished files changes: running or waiting,
-   * failed, and stopped by a sign-out. All zero once the run is finished or
-   * the queue is cleared.
+   * Counts unfinished uploads and files that only have labels left to save.
    */
   onBusyChange?: (busy: UploadBusy) => void
   /** Offer the camera-capture input as an enhancement. Default true. */
@@ -105,7 +112,12 @@ type UploadDialogProps = {
   purpose?: UploadPurpose
 }
 
-export type UploadBusy = { active: number; failed: number; stopped: number }
+export type UploadBusy = {
+  active: number
+  failed: number
+  stopped: number
+  labels?: number
+}
 
 const STATUS_TEXT: Record<QueueItem["status"], string> = {
   selected: "Ready to upload",
@@ -202,11 +214,13 @@ function QueueRow({
   onRemove,
   onCancel,
   onRetry,
+  labels,
 }: {
   item: QueueItem
   onRemove: () => void
   onCancel: () => void
   onRetry: () => void
+  labels?: React.ReactNode
 }) {
   const percent = Math.round(item.progress * 100)
   const statusId = `${item.id}-status`
@@ -246,6 +260,7 @@ function QueueRow({
             className="mt-1.5"
           />
         ) : null}
+        {labels}
       </div>
       {item.status === "selected" ? (
         <Button
@@ -288,6 +303,7 @@ export function UploadDialog({
   onUploaded,
   onLabel,
   onReady,
+  draftLabels,
   keepRunningWhenClosed = false,
   onBusyChange,
   allowCamera = true,
@@ -324,11 +340,34 @@ export function UploadDialog({
   }, [uploader, isSignedIn, purpose])
   const queue = useUploadQueue({ upload, limits })
   const { items, summary, isActive, pause } = queue
+  const {
+    drafts,
+    waiting: waitingLabels,
+    stage,
+    retry,
+    discard,
+    reset,
+  } = useUploadLabelDrafts(items, draftLabels, pause !== null)
+  // Active and failed uploads are already counted by the Add badge.
+  const labelsOnly = items.filter(
+    (item) =>
+      (item.status === "done" || item.status === "cancelled") &&
+      drafts[item.id] &&
+      drafts[item.id].status !== "saved"
+  ).length
+  const [draftItems, setDraftItems] = React.useState<
+    readonly QueueItem[] | null
+  >(null)
   useLeaveGuard(summary.active, queue.cancelAll)
   const { active, failed, stopped } = summary
   React.useEffect(() => {
-    onBusyChange?.({ active, failed, stopped })
-  }, [active, failed, stopped, onBusyChange])
+    onBusyChange?.({
+      active,
+      failed,
+      stopped,
+      ...(labelsOnly ? { labels: labelsOnly } : {}),
+    })
+  }, [active, failed, stopped, labelsOnly, onBusyChange])
   const signedOut = pause === "signed-out"
   const [signInOpen, setSignInOpen] = React.useState(false)
 
@@ -372,16 +411,17 @@ export function UploadDialog({
     if (isActive || !onReady) return
     const fresh = items.flatMap((i) =>
       i.status === "done" && i.assetId && !reportedReady.current.has(i.assetId)
-        ? [{ id: i.assetId, file: i.file }]
+        ? [{ id: i.assetId, file: i.file, drafted: !!drafts[i.id] }]
         : []
     )
     if (fresh.length === 0) return
     for (const { id } of fresh) reportedReady.current.add(id)
-    onReady(
-      fresh.map((f) => f.id),
-      fresh.map((f) => f.file)
-    )
-  }, [isActive, items, onReady])
+    const ids = fresh.map((f) => f.id)
+    const files = fresh.map((f) => f.file)
+    const drafted = fresh.filter((f) => f.drafted).map((f) => f.id)
+    if (drafted.length) onReady(ids, files, drafted)
+    else onReady(ids, files)
+  }, [isActive, items, onReady, drafts])
 
   const queuedInitial = React.useRef<File[] | null>(null)
   React.useEffect(() => {
@@ -421,6 +461,10 @@ export function UploadDialog({
   }
 
   function handleOpenChange(next: boolean) {
+    if (!next && waitingLabels > 0 && keepRunningWhenClosed) {
+      onOpenChange(false)
+      return
+    }
     if (!next && isActive) {
       if (keepRunningWhenClosed) {
         onOpenChange(false)
@@ -431,6 +475,7 @@ export function UploadDialog({
     }
     if (!next) {
       queue.reset()
+      reset()
       reported.current = 0
       reportedReady.current.clear()
       setRejected([])
@@ -444,12 +489,24 @@ export function UploadDialog({
   const status = statusLine(summary, pause, started, limits.maxBatchFiles)
   const labelIds = settled
     ? items.flatMap((i) =>
-        i.status === "done" && i.assetId ? [i.assetId] : []
+        i.status === "done" && i.assetId && !drafts[i.id] ? [i.assetId] : []
       )
     : []
+  const draftable =
+    draftLabels && !signedOut
+      ? items.filter(
+          (i) =>
+            !drafts[i.id] &&
+            (i.status === "selected" ||
+              i.status === "queued" ||
+              i.status === "uploading" ||
+              i.status === "processing") &&
+            (draftLabels.canDraft?.(i.file) ?? true)
+        )
+      : []
 
-  return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+  const uploadDialog = (
+    <Dialog open={open && draftItems === null} onOpenChange={handleOpenChange}>
       <DialogContent className="md:max-w-lg">
         <DialogHeader>
           <DialogTitle>
@@ -568,15 +625,56 @@ export function UploadDialog({
             aria-label="Files"
             className="-mx-1 grid gap-2 rounded-card bg-bg p-1.5"
           >
-            {items.map((item) => (
-              <QueueRow
-                key={item.id}
-                item={item}
-                onRemove={() => queue.remove(item.id)}
-                onCancel={() => queue.cancel(item.id)}
-                onRetry={() => queue.retry(item.id)}
-              />
-            ))}
+            {items.map((item) => {
+              const draft = drafts[item.id]
+              return (
+                <QueueRow
+                  key={item.id}
+                  item={item}
+                  onRemove={() => {
+                    discard(item.id)
+                    queue.remove(item.id)
+                  }}
+                  onCancel={() => queue.cancel(item.id)}
+                  onRetry={() => queue.retry(item.id)}
+                  labels={
+                    draft && (
+                      <div className="text-body text-ink-muted">
+                        <p role="status">
+                          {draft.status === "saved"
+                            ? "Labels saved"
+                            : draft.status === "error"
+                              ? draft.message
+                              : item.status === "done"
+                                ? "Labels pending"
+                                : "Labels will save when this file is ready"}
+                        </p>
+                        {draft.status === "error" && draft.retryable && (
+                          <Button
+                            variant="link"
+                            size="touch"
+                            onClick={() => retry(item.id)}
+                          >
+                            Retry labels
+                          </Button>
+                        )}
+                        {(draft.status === "error" ||
+                          item.status === "failed" ||
+                          item.status === "cancelled") && (
+                          <Button
+                            variant="link"
+                            size="touch"
+                            onClick={() => discard(item.id)}
+                          >
+                            Discard label draft
+                          </Button>
+                        )}
+                      </div>
+                    )
+                  }
+                />
+              )
+            })}
           </ul>
         ) : null}
 
@@ -618,7 +716,7 @@ export function UploadDialog({
               size="touch"
               onClick={() => handleOpenChange(false)}
             >
-              {settled ? "Done" : "Cancel"}
+              {waitingLabels > 0 ? "Close" : settled ? "Done" : "Cancel"}
             </Button>
           )}
           {onLabel && labelIds.length > 0 ? (
@@ -638,6 +736,24 @@ export function UploadDialog({
             >
               <TagIcon data-icon="inline-start" aria-hidden />
               {labelIds.length === 1 ? "Label this file" : "Label these files"}
+            </Button>
+          ) : null}
+          {draftable.length > 0 ? (
+            <Button
+              variant="secondary"
+              size="touch"
+              onClick={() => {
+                setDraftItems(draftable)
+                if (draftable.some((i) => i.status === "selected")) {
+                  setRejected([])
+                  queue.start()
+                }
+              }}
+            >
+              <TagIcon data-icon="inline-start" aria-hidden />
+              {draftable.some((i) => i.status === "selected")
+                ? "Upload and label"
+                : "Label while uploading"}
             </Button>
           ) : null}
           {signedOut ? (
@@ -696,5 +812,17 @@ export function UploadDialog({
         ) : null}
       </DialogContent>
     </Dialog>
+  )
+
+  return (
+    <>
+      {uploadDialog}
+      {draftItems &&
+        draftLabels?.renderEditor({
+          items: draftItems,
+          onClose: () => setDraftItems(null),
+          onQueue: stage,
+        })}
+    </>
   )
 }

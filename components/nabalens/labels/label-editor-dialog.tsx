@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useObjectUrl } from "@/components/nabalens/use-upload-queue"
 import {
   ArrowClockwiseIcon,
   CaretDownIcon,
@@ -87,16 +88,18 @@ export function LabelEditorDialog(props: LabelEditorDialogProps) {
   )
 }
 
-function Thumb({ asset }: { asset: LabelEditorAsset }) {
+function Thumb({ asset, file }: { asset: LabelEditorAsset; file?: File }) {
   const [failed, setFailed] = React.useState(false)
+  const localUrl = useObjectUrl(asset.mediaType === "image" ? file : null)
+  const thumbnail = localUrl ?? asset.thumbnailUrl
   const Icon = asset.mediaType === "video" ? FilmStripIcon : ImageIcon
   return (
     <span className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-control bg-surface-2 text-ink-muted">
-      {asset.thumbnailUrl && !failed ? (
+      {thumbnail && !failed ? (
         // Signed private URL; not routed through next/image (see MediaTile).
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={asset.thumbnailUrl}
+          src={thumbnail}
           alt=""
           className="size-full object-cover"
           onError={() => setFailed(true)}
@@ -274,6 +277,7 @@ function LabelEditor({
   catalogue,
   onRetryCatalogue,
   onSave,
+  uploadDraft,
   onSaved,
   title,
   cancelLabel,
@@ -515,6 +519,12 @@ function LabelEditor({
       )
     )
 
+    if (uploadDraft) {
+      uploadDraft.onQueue(inputs)
+      onOpenChange(false)
+      return
+    }
+    if (!onSave) return
     setPending(true)
     setAnnouncement("Saving labels…")
     let results: SaveLabelsResult[]
@@ -617,7 +627,7 @@ function LabelEditor({
 
   /** How a file is named on screen: staff never see original file names. */
   function fileLabel(asset: LabelEditorAsset) {
-    if (audience === "admin") return asset.originalFilename
+    if (audience === "admin" || uploadDraft) return asset.originalFilename
     const n = assets.indexOf(asset) + 1
     return `${asset.mediaType === "video" ? "Video" : "Photo"} ${n}`
   }
@@ -752,8 +762,12 @@ function LabelEditor({
           <div className="grid min-w-0 gap-4 px-4 pt-1 pb-4 md:px-5 md:pt-5 md:pb-5">
             <DialogHeader>
               <DialogTitle>{heading}</DialogTitle>
-              <DialogDescription className="sr-only">
-                {`Optional. Labels help find ${batch ? `these ${nouns}` : `this ${noun}`} later.`}
+              <DialogDescription>
+                {uploadDraft
+                  ? "Uploads continue while you label. Each file gets its labels once it finishes processing."
+                  : audience === "staff"
+                    ? "Your uploads stay in your portfolio. Saved dish and content type labels also group them in the admin library."
+                    : "Saved dish and content type labels determine which folders show these files in the library."}
               </DialogDescription>
             </DialogHeader>
 
@@ -810,7 +824,10 @@ function LabelEditor({
                   <ul aria-hidden="true" className="flex flex-wrap gap-2">
                     {assets.map((asset) => (
                       <li key={asset.id}>
-                        <Thumb asset={asset} />
+                        <Thumb
+                          asset={asset}
+                          file={uploadDraft?.files.get(asset.id)}
+                        />
                       </li>
                     ))}
                   </ul>
@@ -871,7 +888,10 @@ function LabelEditor({
                       return (
                         <li key={asset.id} className="grid gap-3 p-3">
                           <div className="flex min-w-0 items-center gap-3">
-                            <Thumb asset={asset} />
+                            <Thumb
+                              asset={asset}
+                              file={uploadDraft?.files.get(asset.id)}
+                            />
                             <div className="min-w-0 flex-1">
                               <p className="truncate text-label text-ink">
                                 {fileLabel(asset)}
@@ -940,7 +960,10 @@ function LabelEditor({
               <>
                 {problemBlock(single)}
                 <div className="flex min-w-0 items-center gap-3">
-                  <Thumb asset={single} />
+                  <Thumb
+                    asset={single}
+                    file={uploadDraft?.files.get(single.id)}
+                  />
                   <p className="min-w-0 text-body">
                     <span className="block font-bold text-ink">
                       {singleTitle}
@@ -981,7 +1004,11 @@ function LabelEditor({
               disabled={pending || catalogue.state === "loading"}
               aria-busy={pending || catalogue.state === "loading"}
             >
-              {pending ? "Saving…" : "Save labels"}
+              {pending
+                ? "Saving…"
+                : uploadDraft
+                  ? "Save labels when ready"
+                  : "Save labels"}
             </Button>
           </DialogFooter>
         </form>

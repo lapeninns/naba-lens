@@ -35,7 +35,9 @@ function okFor(inputs: SaveLabelsInput[]): SaveLabelsResult[] {
 }
 
 async function setup(
-  props: Partial<LabelEditorDialogProps> & { assets?: LabelEditorAsset[] } = {}
+  props: Partial<Extract<LabelEditorDialogProps, { uploadDraft?: never }>> & {
+    assets?: LabelEditorAsset[]
+  } = {}
 ) {
   const onSave = vi.fn(
     props.onSave ?? (async (inputs: SaveLabelsInput[]) => okFor(inputs))
@@ -68,8 +70,9 @@ async function setup(
     onOpenChange,
     onSaved,
     onRetryCatalogue,
-    rerender: (next: Partial<LabelEditorDialogProps>) =>
-      view.rerender(<LabelEditorDialog {...all} {...next} />),
+    rerender: (
+      next: Partial<Extract<LabelEditorDialogProps, { uploadDraft?: never }>>
+    ) => view.rerender(<LabelEditorDialog {...all} {...next} />),
   }
 }
 
