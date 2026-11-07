@@ -4,8 +4,9 @@ A venue manager account reviews the menu photos staff contribute at one venue
 and gets every item on the active menu to an accepted photo. It is a separate
 account type: an admin converts a staff account (see the
 [admin guide](usage-admin.md#venue-managers)). A manager account cannot add or
-label menu photos, and has no portfolio, staff Photos or People; the only
-media it sends is amenity evidence through **Capture myself** (see
+label menu photos, and has no portfolio, staff Photos or People. It cannot
+upload at all: **Capture myself** attaches media already on Naba-Lens as
+amenity evidence, and new photos or videos come from staff (see
 [Amenities](#amenities)).
 
 ## Sign in
@@ -102,8 +103,11 @@ the screen is in the [admin guide](usage-admin.md#amenities-evidence-checks-per-
   (with a reason) work as in the admin guide. There is no review step: a valid
   finding is the answer at once.
 - **Capture myself** (`/manager/amenities/{id}/capture`) opens the staff
-  capture form for that check; after **Submit finding** you return to the
-  check. Earlier Coverage photos can be attached where the check allows.
+  capture form for that check, without uploads: it says **You can't upload
+  here** and lists the photos and videos you may attach (your own earlier
+  uploads, and matching Coverage photos where the check allows). After
+  **Submit finding** you return to the check. For new evidence, **Assign** the
+  check to a staff member to capture it.
 
 A check from another venue, or a wrong link, shows **This check isn't here**
 with **See all amenities**. If your venue access ends, the page goes to

@@ -735,8 +735,9 @@ export function CaptureForm({
           </div>
         ) : (
           <p className={MUTED}>
-            Admins can&apos;t upload. Choose from photos and videos already
-            added at this venue.
+            You can&apos;t upload here. Attach photos or videos already on
+            Naba-Lens, or assign this check to a staff member to capture new
+            ones.
           </p>
         )}
 

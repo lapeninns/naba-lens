@@ -6,14 +6,12 @@ import { amenityHrefs } from "@/lib/amenities/contract"
 
 export const metadata: Metadata = { title: "Capture amenity · Naba-Lens" }
 
-// finaliseUpload (Server Action used by the upload flow on this page) decodes
-// HEIC/images; same bound as the staff task pages.
-export const maxDuration = 120
-
 /**
  * "Capture myself": the manager captures a check of the workspace venue with
  * the staff form, inside the workspace shell. Another venue's check is not
- * found.
+ * found. Manager accounts can't upload (uploads are staff-only), so the form
+ * only attaches media already on Naba-Lens; new evidence means assigning the
+ * check to staff.
  */
 export default async function ManagerAmenityCapturePage({
   params,
@@ -28,6 +26,7 @@ export default async function ManagerAmenityCapturePage({
       actor={ctx.actor}
       checkId={checkId}
       mode="manager"
+      canUpload={false}
       venueId={ctx.venueId}
       venueName={ctx.venue.name}
       backHref={checkHref}
