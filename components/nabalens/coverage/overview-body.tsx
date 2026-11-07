@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { ClockCountdownIcon, WarningIcon } from "@phosphor-icons/react/dist/ssr"
 
+import { Card, LeadCard } from "../common-room"
 import { OfflineNotice } from "../offline-notice"
 import { Notice } from "../notice"
 import { StatusChip } from "../status-chip"
@@ -138,6 +139,7 @@ export function OverviewBody({
   preparation,
   retry,
   menuChange,
+  leadAction,
 }: {
   venueName: string
   period: PeriodView
@@ -153,6 +155,11 @@ export function OverviewBody({
   retry?: React.ReactNode
   /** Set when the venue's menu changed; `changedOn` is "1 Nov 2026" when known. */
   menuChange: { changedOn: string | null } | null
+  /**
+   * The screen's one blue action (Prepare this month, Review menu coverage).
+   * When given, the notice it answers is drawn as the lead card holding it.
+   */
+  leadAction?: React.ReactNode
 }) {
   const month = monthName(period.label)
   const shown = attention.slice(0, ATTENTION_SHOWN)
@@ -167,18 +174,32 @@ export function OverviewBody({
         ? "No team assigned"
         : "Target not set"
 
+  const unpreparedText = `Targets and checklist items haven’t been copied from ${previousMonth} yet. Preparing copies ${previousMonth}’s targets at ${venueName}; new starters show Needs setup.`
+  const menuText = (change: { changedOn: string | null }) =>
+    `${venueName}’s food menu changed${change.changedOn ? ` on ${change.changedOn}` : ""}. Nothing carries over automatically, so menu sections need you to decide what still applies.`
+  // The lead card holds the one blue action; a month that isn't prepared
+  // leads over a changed menu, as the action does.
+  const menuLeads =
+    Boolean(leadAction) && preparation.kind === "ready" && menuChange !== null
+
   return (
     <>
       <OfflineNotice />
 
       {preparation.kind === "unprepared" ? (
-        <Notice tone="attention" title={`${month} isn’t prepared yet`}>
-          <p>
-            Targets and checklist items haven’t been copied from {previousMonth}{" "}
-            yet. Preparing copies {previousMonth}’s targets at {venueName}; new
-            starters show Needs setup.
-          </p>
-        </Notice>
+        leadAction ? (
+          <LeadCard
+            tone="warn"
+            title={`${month} isn’t prepared yet`}
+            actions={leadAction}
+          >
+            <p>{unpreparedText}</p>
+          </LeadCard>
+        ) : (
+          <Notice tone="attention" title={`${month} isn’t prepared yet`}>
+            <p>{unpreparedText}</p>
+          </Notice>
+        )
       ) : null}
 
       {preparation.kind === "failed" ? (
@@ -196,27 +217,31 @@ export function OverviewBody({
       ) : null}
 
       {menuChange ? (
-        <Notice tone="attention" title="Menu changed — review coverage">
-          <p>
-            {venueName}’s food menu changed
-            {menuChange.changedOn ? ` on ${menuChange.changedOn}` : ""}. Nothing
-            carries over automatically, so menu sections need you to decide what
-            still applies.
-          </p>
-        </Notice>
+        menuLeads ? (
+          <LeadCard
+            tone="warn"
+            title="Menu changed — review coverage"
+            actions={leadAction}
+          >
+            <p>{menuText(menuChange)}</p>
+          </LeadCard>
+        ) : (
+          <Notice tone="attention" title="Menu changed — review coverage">
+            <p>{menuText(menuChange)}</p>
+          </Notice>
+        )
       ) : null}
 
       {allDone ? (
-        <p
-          role="status"
-          className="text-body-touch text-ink-muted md:text-body"
-        >
-          Everything at {venueName} is complete for {month}. New photos still
-          appear in Review as they’re sent.
-        </p>
+        <Card tone="ok">
+          <p role="status" className="text-body text-ink">
+            Everything at {venueName} is complete for {month}. New photos still
+            appear in Review as they’re sent.
+          </p>
+        </Card>
       ) : null}
 
-      <div className="grid gap-6 md:grid-cols-2 md:gap-8">
+      <div className="grid gap-(--gutter) md:grid-cols-2 md:gap-4">
         <CoverageSection
           id="venue-coverage"
           title="Venue coverage"
@@ -314,9 +339,11 @@ export function OverviewBody({
               ))}
             </ItemList>
           ) : (
-            <p className="text-body-touch text-ink-muted md:text-body">
-              Nothing needs setup, reassignment or follow-up.
-            </p>
+            <Card>
+              <p className="text-body text-ink-muted">
+                Nothing needs setup, reassignment or follow-up.
+              </p>
+            </Card>
           )}
         </CoverageSection>
       )}

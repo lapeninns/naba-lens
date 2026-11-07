@@ -26,12 +26,7 @@ export function LoadMoreButton({
 }: LoadMoreButtonProps) {
   if (!hasMore && !error) {
     return shownCount ? (
-      <p
-        className={cn(
-          "py-4 text-center text-sm text-muted-foreground",
-          className
-        )}
-      >
+      <p className={cn("py-4 text-center text-meta text-ink-muted", className)}>
         All {shownCount} shown
       </p>
     ) : null
@@ -39,12 +34,12 @@ export function LoadMoreButton({
   return (
     <div className={cn("flex flex-col items-center gap-2 py-4", className)}>
       {error ? (
-        <p role="alert" className="text-sm text-negative">
+        <p role="alert" className="text-body font-bold text-warn-fg">
           {error}
         </p>
       ) : null}
       <Button
-        variant="outline"
+        variant="secondary"
         size="touch"
         onClick={onLoadMore}
         disabled={loading}

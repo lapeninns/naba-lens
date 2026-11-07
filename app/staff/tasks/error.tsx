@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button"
 
 export default function TasksError({ retry }: { retry: () => void }) {
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8">
-      <PageHeader title="Home" />
+    <div className="mx-auto grid w-full max-w-(--size-feed) min-w-0 gap-(--gutter) px-(--page-gutter) py-4 md:px-0 md:py-8">
+      <PageHeader title="Home" className="pb-1 md:pb-2" />
       <ErrorState
         title="We couldn't load your tasks"
         action={

@@ -37,24 +37,27 @@ function Tile({
       <Link
         href={href}
         className={cn(
-          "flex h-full flex-col gap-2 rounded-xl border bg-card p-4 transition-colors outline-none hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50",
-          attention && "border-warning/50"
+          "flex h-full min-h-11 flex-col gap-2 rounded-card bg-surface p-4 text-ink no-underline shadow-card transition-colors duration-(--duration-quick) outline-none hover:bg-surface-2 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid",
+          attention &&
+            "shadow-[var(--elevation-card),inset_4px_0_0_var(--warn-fg)]"
         )}
       >
-        <span className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+        <span className="flex items-center gap-2 text-meta font-semibold text-ink-muted">
           {icon}
           {title}
         </span>
         <span
           className={cn(
-            "font-semibold",
-            textValue ? "text-base" : "text-2xl tabular-nums"
+            "font-display text-ink",
+            textValue
+              ? "text-item-title"
+              : "text-section-title font-extrabold tabular-nums"
           )}
         >
           {value}
         </span>
         {detail ? (
-          <span className="text-sm text-muted-foreground">{detail}</span>
+          <span className="text-meta text-ink-muted">{detail}</span>
         ) : null}
       </Link>
     </li>
@@ -80,24 +83,19 @@ export function MenuChangedBanner({
   return (
     <p
       role="status"
-      className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning-surface px-3 py-2 text-sm"
+      className="flex items-start gap-2 rounded-card bg-warn-bg px-4 py-3 text-body text-ink shadow-[inset_4px_0_0_var(--warn-fg)]"
     >
       <WarningIcon
-        className="mt-0.5 size-4 shrink-0 text-warning"
+        className="mt-0.5 size-5 shrink-0 text-warn-fg"
         aria-hidden
       />
       <span>
         {href ? (
-          <Link
-            href={href}
-            className="font-medium underline underline-offset-3"
-          >
+          <Link href={href} className="font-bold underline underline-offset-3">
             {labelFor(MENU_STATE_LABEL, state)}
           </Link>
         ) : (
-          <span className="font-medium">
-            {labelFor(MENU_STATE_LABEL, state)}
-          </span>
+          <span className="font-bold">{labelFor(MENU_STATE_LABEL, state)}</span>
         )}
         .{" "}
         {state === "menu_changed"
@@ -122,24 +120,28 @@ export function VenueCoverageSummary({
 }) {
   const menuAttention = menuNeedsAttention(summary.menuState)
   return (
-    <section aria-labelledby="coverage-summary-title" className="grid gap-4">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <h2 id="coverage-summary-title" className="text-lg font-medium">
+    <section
+      aria-labelledby="coverage-summary-title"
+      className="grid min-w-0 gap-(--gutter)"
+    >
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 pt-2">
+        <h2
+          id="coverage-summary-title"
+          className="font-display text-section-title text-ink"
+        >
           Venue coverage
         </h2>
         {summary.complete ? (
-          <span className="inline-flex items-center gap-1 text-sm font-medium text-positive">
+          <span className="inline-flex items-center gap-1 text-label text-ok-fg">
             <CheckCircleIcon aria-hidden />
             Complete
           </span>
         ) : (
-          <span className="text-sm text-muted-foreground">
-            Not complete yet
-          </span>
+          <span className="text-meta text-ink-muted">Not complete yet</span>
         )}
       </div>
       <MenuChangedBanner state={summary.menuState} href={hrefs.menu} />
-      <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <ul className="grid gap-(--gutter) sm:grid-cols-2 lg:grid-cols-3">
         <Tile
           href={hrefs.checklist}
           title="Checklist complete"

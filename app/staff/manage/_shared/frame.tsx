@@ -2,6 +2,7 @@ import Link from "next/link"
 
 import { logout } from "@/app/_media/actions"
 import { AppShell } from "@/components/nabalens/app-shell"
+import { Card } from "@/components/nabalens/common-room"
 import { ManageNav, type ManageSection } from "@/components/nabalens/coverage"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { buttonVariants } from "@/components/ui/button"
@@ -51,8 +52,8 @@ export async function ManageFrame({
     reviewCount = read.coverage.summary.pendingReview
   }
   const body = (
-    <div className="grid gap-6 md:gap-8">
-      <div>
+    <div className="grid min-w-0 gap-(--gutter) md:gap-4">
+      <div className="grid min-w-0 gap-1">
         <PageHeader
           venueScope={!venueScope}
           scope={[venueScope ?? ctx.venue.name, month ?? currentMonthLabel()]}
@@ -112,7 +113,7 @@ export function NotManagerPage({ viewerName }: { viewerName: string }) {
       logoutAction={logout}
     >
       <PageHeader scope={currentMonthLabel()} title="Manage isn't available" />
-      <div className="grid max-w-(--size-reading) gap-3 text-body-touch md:text-body">
+      <Card className="max-w-(--size-reading) text-body">
         <p>
           Manage is for venue managers. An admin can make you a venue manager
           for your venue.
@@ -128,7 +129,7 @@ export function NotManagerPage({ viewerName }: { viewerName: string }) {
             Go to Home
           </Link>
         </div>
-      </div>
+      </Card>
     </AppShell>
   )
 }

@@ -7,8 +7,9 @@ import { ArrowClockwiseIcon } from "@phosphor-icons/react"
 import { ERROR_COPY, ErrorState } from "@/components/nabalens/error-state"
 import { EmptyState } from "@/components/nabalens/empty-state"
 import { PageHeader } from "@/components/nabalens/page-header"
+import { Card } from "@/components/nabalens/common-room/card"
+import { ProgressSegments } from "@/components/nabalens/common-room/progress-segments"
 import { Button, buttonVariants } from "@/components/ui/button"
-import { Progress } from "@/components/ui/progress"
 
 import type {
   CoverageResult,
@@ -64,19 +65,18 @@ export function OurMenuScreen({
 }) {
   const router = useRouter()
   const venueName = "menu" in load ? load.menu.venue.name : null
-  const header = (summary?: React.ReactNode) => (
+  const header = () => (
     <PageHeader
       venueScope={!!venueName}
       scope={venueName ?? OUR_MENU_COPY.title}
       title={OUR_MENU_COPY.title}
-      summary={summary}
-      className="pb-0 md:pb-0"
+      className="pb-1 md:pb-1"
     />
   )
 
   if (load.state === "unavailable") {
     return (
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-(--gutter)">
         {header()}
         <ErrorState
           title={OUR_MENU_COPY.unavailableTitle}
@@ -97,7 +97,7 @@ export function OurMenuScreen({
 
   if (load.state === "needs_venue") {
     return (
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-(--gutter)">
         {header()}
         <EmptyState
           title={OUR_MENU_COPY.needsVenue}
@@ -109,7 +109,7 @@ export function OurMenuScreen({
 
   if (load.state !== "ready") {
     return (
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-(--gutter)">
         {header()}
         <EmptyState
           title={
@@ -138,20 +138,30 @@ export function OurMenuScreen({
     : menu.sections
 
   return (
-    <div className="flex flex-col gap-4">
-      {header(
-        <div className="grid gap-2">
-          <p>{progress}.</p>
-          <Progress
-            value={eligible > 0 ? (covered / eligible) * 100 : 0}
-            aria-label={progress}
-            className="max-w-sm"
-          />
-          <p className="text-body-touch md:text-body-sm">
-            {OUR_MENU_COPY.howItCounts}
-          </p>
-        </div>
-      )}
+    <div className="flex flex-col gap-(--gutter)">
+      {header()}
+      {/* The count as a card: the words, one segment per dish (a bar past
+          12), then how a dish counts. Green means accepted, never blue. */}
+      <Card>
+        <ProgressSegments
+          accepted={covered}
+          target={eligible}
+          label={`${progress}.`}
+          className="[&>p:first-child]:font-display [&>p:first-child]:text-section-title"
+        />
+        {/* The segments are drawn aria-hidden; keep the named progressbar. */}
+        <div
+          role="progressbar"
+          aria-label={progress}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={
+            eligible > 0 ? Math.round((covered / eligible) * 100) : 0
+          }
+          className="sr-only"
+        />
+        <p className="text-body text-ink-muted">{OUR_MENU_COPY.howItCounts}</p>
+      </Card>
       <OurMenuFilters
         basePath={basePath}
         filter={filter}

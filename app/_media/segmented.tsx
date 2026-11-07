@@ -39,14 +39,14 @@ export function Segmented<Value extends string>({
       aria-labelledby={labelledBy}
       aria-describedby={describedBy}
       className={cn(
-        "grid auto-cols-fr grid-flow-col gap-0.5 rounded-control bg-well p-0.5",
+        "grid auto-cols-fr grid-flow-col gap-1 rounded-round bg-surface-2 p-1",
         className
       )}
     >
       {options.map((option) => (
         <label
           key={option.value}
-          className="grid min-h-11 cursor-pointer place-items-center rounded-chip px-2 py-1 text-center text-label-touch text-ink-muted has-checked:bg-panel has-checked:text-ink has-checked:ring-1 has-checked:ring-line-control has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus md:min-h-8 md:text-label"
+          className="grid min-h-11 cursor-pointer place-items-center rounded-round px-3 py-1 text-center text-label [overflow-wrap:anywhere] text-ink-muted transition-colors duration-(--duration-quick) hover:text-ink has-checked:bg-surface has-checked:text-ink has-checked:shadow-[inset_0_0_0_1.5px_var(--border-strong)] has-focus-visible:outline-3 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus has-focus-visible:outline-solid"
         >
           <input
             type="radio"

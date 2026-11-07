@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { SpinnerGapIcon, WarningCircleIcon } from "@phosphor-icons/react"
+import { SpinnerGapIcon } from "@phosphor-icons/react"
 
 import { Button } from "@/components/ui/button"
 import { Field, FieldError, FieldLabel } from "@/components/ui/field"
@@ -181,12 +181,7 @@ export function SignInCodeStep({
     <div className={cn("grid gap-5", className)}>
       <form onSubmit={submit} noValidate className="grid gap-3">
         <Field className="gap-1.5">
-          <FieldLabel
-            htmlFor={inputId}
-            className="text-label-touch font-semibold text-ink md:text-label"
-          >
-            Sign-in code
-          </FieldLabel>
+          <FieldLabel htmlFor={inputId}>Sign-in code</FieldLabel>
           <Input
             ref={codeInput}
             id={inputId}
@@ -209,20 +204,9 @@ export function SignInCodeStep({
             }}
             aria-invalid={error ? true : undefined}
             aria-describedby={describedBy}
-            className="min-h-13 rounded-touch border-line-control bg-panel px-3 font-mono text-body-touch tracking-[0.2em] text-ink aria-invalid:border-negative md:min-h-9 md:rounded-control md:text-body dark:bg-panel"
+            className="font-mono text-lead tracking-[0.2em] tabular-nums"
           />
-          {error ? (
-            <FieldError
-              id={errorId}
-              className="flex items-start gap-1.5 text-meta-touch font-semibold text-negative md:text-meta-strong"
-            >
-              <WarningCircleIcon
-                className="mt-0.5 size-4 shrink-0"
-                aria-hidden
-              />
-              <span>{error}</span>
-            </FieldError>
-          ) : null}
+          {error ? <FieldError id={errorId}>{error}</FieldError> : null}
         </Field>
         <Button
           type="submit"
@@ -242,14 +226,15 @@ export function SignInCodeStep({
         </Button>
       </form>
 
-      <div className="grid gap-3">
+      {/* The resend group, set apart by a hairline (Common Room card foot). */}
+      <div className="grid gap-3 border-t border-line pt-5">
         {resent ? (
           <Notice tone="positive" role="status">
             New link and code sent at {sentTime(sentAt)}. Use the newest sign-in
             email you have. Older ones may stop working.
           </Notice>
         ) : (
-          <p className="text-meta-touch text-pretty text-ink-muted md:text-meta">
+          <p className="text-body text-pretty text-ink-muted">
             Sent at {sentTime(sentAt)}. Use the newest sign-in email you have.
             Older ones may stop working.
           </p>
@@ -286,7 +271,7 @@ export function SignInCodeStep({
         {coolingDown ? (
           <p
             id={waitId}
-            className="text-center text-meta-touch text-ink-muted md:text-meta"
+            className="text-center text-meta text-ink-muted tabular-nums"
           >
             You can ask for a new one in {waitSeconds}{" "}
             {waitSeconds === 1 ? "second" : "seconds"}.

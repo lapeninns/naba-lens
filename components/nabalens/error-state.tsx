@@ -29,7 +29,9 @@ export function ErrorState({
     <Notice tone="negative" title={title} action={action} className={className}>
       <p>{children}</p>
       {detail ? (
-        <p className="mt-1 font-mono text-mono text-ink-muted">{detail}</p>
+        <p className="mt-1 font-mono text-mono [overflow-wrap:anywhere] text-ink-muted">
+          {detail}
+        </p>
       ) : null}
     </Notice>
   )

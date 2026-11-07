@@ -145,7 +145,7 @@ export function NewRequirementDialog({
 
   return (
     <>
-      <Button size="touch" variant="outline" onClick={() => setOpen(true)}>
+      <Button size="touch" variant="secondary" onClick={() => setOpen(true)}>
         <PlusIcon data-icon="inline-start" aria-hidden />
         {triggerLabel}
       </Button>
@@ -166,12 +166,12 @@ export function NewRequirementDialog({
                 assign people after adding it.
               </DialogDescription>
             </DialogHeader>
-            <fieldset className="grid gap-1" disabled={pending}>
-              <legend className="mb-1 text-sm font-medium">Type</legend>
+            <fieldset className="grid gap-2" disabled={pending}>
+              <legend className="mb-1 text-label text-ink">Type</legend>
               {KINDS.map((option) => (
                 <label
                   key={option.value}
-                  className="flex min-h-11 cursor-pointer items-start gap-2 rounded-md px-2 py-2 hover:bg-muted/50 sm:min-h-9"
+                  className="flex min-h-14 cursor-pointer items-start gap-3 rounded-control bg-surface-2 px-3 py-3 hover:bg-raised has-checked:bg-accent-soft"
                 >
                   <input
                     type="radio"
@@ -179,11 +179,11 @@ export function NewRequirementDialog({
                     value={option.value}
                     checked={kind === option.value}
                     onChange={() => setKind(option.value)}
-                    className="mt-0.5 size-4 accent-primary"
+                    className="mt-0.5 size-6 accent-select"
                   />
                   <span className="grid">
-                    <span className="text-sm font-medium">{option.label}</span>
-                    <span className="text-sm text-muted-foreground">
+                    <span className="text-label text-ink">{option.label}</span>
+                    <span className="text-meta text-ink-muted">
                       {option.help}
                     </span>
                   </span>
@@ -199,7 +199,7 @@ export function NewRequirementDialog({
                 maxLength={COVERAGE_LIMITS.titleMax}
                 required
                 aria-invalid={!!errors.title || undefined}
-                className="h-11 sm:h-9"
+
                 disabled={pending}
               />
               {errors.title ? <FieldError>{errors.title}</FieldError> : null}
@@ -235,7 +235,7 @@ export function NewRequirementDialog({
                   value={target}
                   onChange={(e) => setTarget(e.currentTarget.value)}
                   aria-invalid={!!errors.photoTarget || undefined}
-                  className="h-11 sm:h-9"
+
                   disabled={pending}
                 />
                 {errors.photoTarget ? (
@@ -253,7 +253,7 @@ export function NewRequirementDialog({
                   onChange={(e) => setDueOn(e.currentTarget.value)}
                   aria-invalid={!!errors.dueOn || undefined}
                   aria-describedby={`${ids}-due-help`}
-                  className="h-11 sm:h-9"
+
                   disabled={pending}
                 />
                 <FieldDescription id={`${ids}-due-help`}>
@@ -263,14 +263,14 @@ export function NewRequirementDialog({
               </Field>
             </div>
             {error ? (
-              <p role="alert" className="text-sm text-negative">
+              <p role="alert" className="text-body font-semibold text-warn-fg">
                 {error}
               </p>
             ) : null}
             <DialogFooter>
               <Button
                 type="button"
-                variant="outline"
+                variant="secondary"
                 size="touch"
                 onClick={() => setOpen(false)}
                 disabled={pending}

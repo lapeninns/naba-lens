@@ -1,8 +1,9 @@
 import Link from "next/link"
+import { CaretDownIcon, UsersIcon } from "@phosphor-icons/react/dist/ssr"
 
 import { logout } from "@/app/_media/actions"
 import { AppShell } from "@/components/nabalens/app-shell"
-import { EmptyState } from "@/components/nabalens/empty-state"
+import { IconDisc } from "@/components/nabalens/common-room"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { buttonVariants } from "@/components/ui/button"
@@ -80,7 +81,8 @@ export default async function PeoplePage({
       userName={profile.displayName}
       logoutAction={logout}
     >
-      <div className="flex flex-col gap-4">
+      {/* Common Room feed: white cards on the grey canvas, one column. */}
+      <div className="mx-auto flex w-full max-w-(--size-feed) flex-col gap-(--gutter)">
         <OfflineNotice />
         <PageHeader
           scope={PEOPLE_COPY.scope}
@@ -96,8 +98,7 @@ export default async function PeoplePage({
           query={query}
         />
         {total === 0 ? (
-          <EmptyState
-            variant={isSearching(described) ? "filtered" : "done"}
+          <PeopleEmpty
             title={empty.title}
             description={empty.description}
             action={isSearching(described) ? clearSearch : undefined}
@@ -105,16 +106,24 @@ export default async function PeoplePage({
         ) : (
           <>
             {summary ? (
-              <p
-                role="status"
-                className="text-body-touch text-ink-muted md:text-body-sm"
-              >
-                {summary}
-              </p>
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-1">
+                <p role="status" className="text-body text-ink-muted">
+                  {summary}
+                </p>
+                <Link
+                  href="/staff/people"
+                  className={buttonVariants({
+                    variant: "link",
+                    className: "w-fit px-0",
+                  })}
+                >
+                  {PEOPLE_COPY.clear}
+                </Link>
+              </div>
             ) : null}
             <ul
               aria-label="People"
-              className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+              className="grid min-w-0 divide-y divide-line overflow-hidden rounded-card bg-surface shadow-card"
             >
               {members.map((member) => (
                 <li key={member.id}>
@@ -131,31 +140,50 @@ export default async function PeoplePage({
                     className={buttonVariants({
                       variant: "secondary",
                       size: "touch",
-                      className: "w-full md:w-auto",
+                      className: "w-full",
                     })}
                   >
+                    <CaretDownIcon aria-hidden weight="bold" />
                     {PEOPLE_COPY.next}
                   </Link>
                 ) : null}
-                <p className="text-meta-touch text-ink-muted tabular-nums md:text-meta">
+                <p className="font-mono text-meta text-ink-muted tabular-nums">
                   {showingRange(shown, total)}
                 </p>
               </div>
-            ) : null}
-            {summary ? (
-              <Link
-                href="/staff/people"
-                className={buttonVariants({
-                  variant: "link",
-                  className: "w-fit",
-                })}
-              >
-                {PEOPLE_COPY.clear}
-              </Link>
             ) : null}
           </>
         )}
       </div>
     </AppShell>
+  )
+}
+
+/** Nobody to show: a white card with the people disc, why, and what to widen. */
+function PeopleEmpty({
+  title,
+  description,
+  action,
+}: {
+  title: string
+  description: string
+  action?: React.ReactNode
+}) {
+  return (
+    <div
+      data-slot="empty-state"
+      className="grid justify-items-center gap-2.5 rounded-card bg-surface px-5 py-8 text-center shadow-card"
+    >
+      <IconDisc size="lg" className="mb-1 text-ink-muted">
+        <UsersIcon />
+      </IconDisc>
+      <p className="max-w-[32ch] font-display text-section-title text-ink">
+        {title}
+      </p>
+      <p className="max-w-[40ch] text-body text-ink-muted">{description}</p>
+      {action ? (
+        <div className="mt-2 flex flex-wrap justify-center gap-2">{action}</div>
+      ) : null}
+    </div>
   )
 }

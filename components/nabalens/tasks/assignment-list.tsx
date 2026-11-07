@@ -1,9 +1,17 @@
 import Link from "next/link"
-import { CaretRightIcon } from "@phosphor-icons/react/dist/ssr"
+import {
+  ArrowCounterClockwiseIcon,
+  CalendarBlankIcon,
+  CaretRightIcon,
+  CheckIcon,
+  ClockIcon,
+  LockIcon,
+} from "@phosphor-icons/react/dist/ssr"
 
-import { Progress } from "@/components/ui/progress"
+import { cn } from "@/lib/utils"
 
 import { plural, requirementKindLabel } from "./copy"
+import { PhotoSegments } from "./month-card"
 import { DueLine, StatusChip } from "./status-badges"
 import type { MyAssignment } from "./types"
 
@@ -16,28 +24,33 @@ export function SharedProgress({
   const { progress, assignees } = assignment.requirement
   const others = Math.max(0, assignees.length - 1)
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="grid gap-1.5">
       {progress.target ? (
         <>
-          <p className="text-body-touch md:text-body-sm">
-            <span className="font-medium tabular-nums">
+          <p className="text-body text-ink-muted">
+            <span className="font-bold text-ink tabular-nums">
               {progress.accepted} of {progress.target}
             </span>{" "}
             photos accepted
             {others > 0 ? (
-              <span className="text-muted-foreground">
+              <span>
                 {" "}
                 · shared with {plural(others, "colleague", "colleagues")}
               </span>
             ) : null}
           </p>
-          <Progress
-            value={Math.min(100, (progress.accepted / progress.target) * 100)}
+          <div
+            role="img"
             aria-label={`${progress.accepted} of ${progress.target} photos accepted`}
-          />
+          >
+            <PhotoSegments
+              accepted={progress.accepted}
+              target={progress.target}
+            />
+          </div>
         </>
       ) : null}
-      <p className="text-meta-touch text-ink-muted md:text-meta">
+      <p className="text-meta text-ink-muted">
         You: {assignment.myAccepted} accepted · {assignment.myPending} waiting
         for review
       </p>
@@ -71,52 +84,84 @@ export function AssignmentList({
   needsAnotherPhoto: ReadonlySet<string>
 }) {
   return (
-    <ul aria-label="Assigned tasks" className="grid gap-3 sm:grid-cols-2">
+    <ul
+      aria-label="Assigned tasks"
+      className="grid divide-y divide-line overflow-hidden rounded-card bg-surface shadow-card"
+    >
       {sortByUrgency(assignments).map((assignment) => {
         const { requirement } = assignment
         const satisfied = requirement.progress.satisfied
+        const closed = !requirement.isCurrent
+        const replacing = needsAnotherPhoto.has(requirement.id)
+        const overdue =
+          !satisfied &&
+          Boolean(requirement.progress.overdue || requirement.due?.overdue)
+        const tone = replacing || overdue ? "warn" : satisfied ? "ok" : null
+        const Icon = replacing
+          ? ArrowCounterClockwiseIcon
+          : overdue
+            ? ClockIcon
+            : satisfied
+              ? CheckIcon
+              : closed
+                ? LockIcon
+                : CalendarBlankIcon
         return (
           <li
             key={requirement.id}
-            className="relative flex flex-col gap-3 rounded-xl border bg-card p-4 transition-colors hover:bg-muted/40 has-[a:focus-visible]:ring-3 has-[a:focus-visible]:ring-ring/50"
+            className="relative grid min-h-16 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 p-3 transition-colors duration-(--duration-quick) hover:bg-surface-2 has-[a:focus-visible]:ring-3 has-[a:focus-visible]:ring-focus has-[a:focus-visible]:ring-inset"
           >
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                {requirementKindLabel(requirement.kind)}
-              </span>
-              {satisfied ? (
-                <StatusChip tone="positive">Complete</StatusChip>
-              ) : null}
-              {!requirement.isCurrent ? (
-                <StatusChip tone="muted">Closed</StatusChip>
-              ) : null}
-              {needsAnotherPhoto.has(requirement.id) ? (
-                <StatusChip tone="warning">Needs another photo</StatusChip>
-              ) : null}
-            </div>
-            <h3 className="font-semibold break-words">
-              {/* The whole card is the link target; the name stays the title. */}
-              <Link
-                href={`${tasksPath}/${requirement.id}`}
-                className="outline-none after:absolute after:inset-0 after:rounded-xl"
-              >
-                {requirement.title}
-              </Link>
-            </h3>
-            <SharedProgress assignment={assignment} />
-            <div className="mt-auto flex items-center justify-between gap-3">
+            <span
+              aria-hidden
+              className={cn(
+                "grid size-11 shrink-0 place-items-center rounded-round [&_svg]:size-6",
+                tone === "warn"
+                  ? "bg-warn-bg text-warn-fg"
+                  : tone === "ok"
+                    ? "bg-ok-bg text-ok-fg"
+                    : "bg-surface-2 text-ink"
+              )}
+            >
+              <Icon />
+            </span>
+            <div className="grid min-w-0 gap-1.5">
+              <div className="grid gap-0.5">
+                <span className="font-mono text-meta text-ink-muted">
+                  {requirementKindLabel(requirement.kind)}
+                </span>
+                <h3 className="text-item-title [overflow-wrap:anywhere] text-ink">
+                  {/* The whole row is the link target; the name stays the title. */}
+                  <Link
+                    href={`${tasksPath}/${requirement.id}`}
+                    className="outline-none after:absolute after:inset-0"
+                  >
+                    {requirement.title}
+                  </Link>
+                </h3>
+              </div>
+              <SharedProgress assignment={assignment} />
               {requirement.due ? (
                 <DueLine due={requirement.due} done={satisfied} />
               ) : (
-                <span className="text-meta-touch text-ink-muted md:text-meta">
-                  No due date
-                </span>
+                <span className="text-meta text-ink-muted">No due date</span>
               )}
-              <CaretRightIcon
-                className="size-4 shrink-0 text-muted-foreground"
-                aria-hidden
-              />
+              {satisfied || closed || replacing ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {satisfied ? (
+                    <StatusChip tone="positive">Complete</StatusChip>
+                  ) : null}
+                  {closed ? <StatusChip tone="muted">Closed</StatusChip> : null}
+                  {replacing ? (
+                    <StatusChip tone="warning">Needs another photo</StatusChip>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
+            <CaretRightIcon
+              aria-hidden
+              weight="bold"
+              className="size-5 shrink-0 text-ink-muted"
+            />
           </li>
         )
       })}

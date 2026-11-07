@@ -24,12 +24,12 @@ export function CoverageSection({
   return (
     <section
       aria-labelledby={titleId}
-      className={cn("grid min-w-0 gap-3", className)}
+      className={cn("grid min-w-0 gap-(--gutter)", className)}
     >
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-2">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-1 pt-2">
         <h2
           id={titleId}
-          className="text-section-title-touch text-balance text-ink md:text-section-title"
+          className="font-display text-section-title text-balance text-ink"
         >
           {title}
         </h2>
@@ -47,14 +47,17 @@ export type TallyTone =
   "neutral" | "attention" | "negative" | "positive" | "zero"
 
 const TALLY_TONE: Record<TallyTone, string> = {
-  neutral: "",
-  zero: "text-ink-subtle",
-  attention: "text-attention",
-  negative: "text-negative",
-  positive: "text-positive",
+  neutral: "text-ink",
+  zero: "text-ink-muted",
+  attention: "text-warn-fg",
+  negative: "text-warn-fg",
+  positive: "text-ok-fg",
 }
 
-/** A row of headline numbers that each link to their list (`nl-tally`). */
+/**
+ * A row of headline numbers that each link to their list: grey count tiles
+ * inside one white card on the canvas.
+ */
 export function Tally({
   children,
   className,
@@ -65,7 +68,7 @@ export function Tally({
   return (
     <ul
       className={cn(
-        "-ms-4 flex flex-wrap overflow-hidden border-y border-line",
+        "grid grid-cols-[repeat(auto-fill,minmax(min(100%,9.25rem),1fr))] gap-2 rounded-card bg-surface p-3 shadow-card",
         className
       )}
     >
@@ -95,19 +98,19 @@ export function TallyItem({
   const shownTone = tone !== "positive" && value === 0 ? "zero" : tone
   const body = (
     <>
-      <span className="text-meta text-ink-muted">{label}</span>
+      <span className="text-meta font-semibold text-ink-muted">{label}</span>
       <span
         className={cn(
-          "flex items-baseline gap-1.5 font-display text-count tabular-nums",
+          "flex items-baseline gap-1.5 font-display text-section-title font-extrabold tabular-nums",
           TALLY_TONE[shownTone]
         )}
       >
         {Icon && value > 0 ? (
-          <Icon aria-hidden className="size-[18px] self-center" />
+          <Icon aria-hidden className="size-5 self-center" />
         ) : null}
         {value}
         {of != null ? (
-          <small className="font-sans text-body-sm font-normal text-ink-muted">
+          <small className="font-sans text-body font-bold text-ink-muted">
             of {of}
           </small>
         ) : null}
@@ -116,15 +119,15 @@ export function TallyItem({
     </>
   )
   const cell =
-    "grid min-w-0 content-start gap-0.5 px-4 pt-3 pb-3.5 text-inherit no-underline"
+    "grid min-h-11 min-w-0 content-start gap-0.5 rounded-control bg-surface-2 px-3 pt-2.5 pb-3 text-ink no-underline"
   return (
-    <li className="-ms-px -mt-px flex min-w-0 flex-[1_1_148px] border-s border-t border-line">
+    <li className="flex min-w-0">
       {href ? (
         <Link
           href={href}
           className={cn(
             cell,
-            "w-full outline-offset-[-2px] hover:bg-fill-hover"
+            "w-full outline-offset-2 transition-colors duration-(--duration-quick) hover:bg-raised"
           )}
         >
           {body}
@@ -137,8 +140,8 @@ export function TallyItem({
 }
 
 /**
- * "3 of 5 accepted" with one frame per photo: filled when accepted, dashed
- * while waiting for review. A missing target is shown as Needs setup by the
+ * "3 of 5 accepted" with one segment per photo: green when accepted, striped
+ * while waiting for review, grey still needed. Blue never marks progress. A missing target is shown as Needs setup by the
  * caller, never as done.
  */
 export function Frames({
@@ -173,8 +176,10 @@ export function Frames({
       >
         <span
           className={cn(
-            "font-semibold tabular-nums",
-            compact ? "text-body-sm" : "font-display text-count"
+            "tabular-nums",
+            compact
+              ? "font-mono text-meta-strong text-ink"
+              : "font-display text-count text-ink"
           )}
         >
           {accepted}
@@ -182,7 +187,9 @@ export function Frames({
         <span
           className={cn(
             "text-ink-muted",
-            compact ? "text-body-sm" : "text-meta-touch md:text-body"
+            compact
+              ? "font-mono text-meta-strong tabular-nums"
+              : "font-display text-section-title"
           )}
         >
           of {target} accepted
@@ -194,16 +201,16 @@ export function Frames({
           <div
             aria-hidden
             className={cn(
-              "flex overflow-hidden rounded-print border border-line-control",
+              "flex overflow-hidden rounded-round bg-surface-2 shadow-[inset_0_0_0_1px_var(--border-strong)]",
               compact ? "h-2" : "h-3"
             )}
           >
             <span
-              className="bg-positive-fill"
+              className="bg-ok-fg"
               style={{ width: `${(filled / target) * 100}%` }}
             />
             <span
-              className="bg-[repeating-linear-gradient(135deg,var(--color-ink-muted)_0_1.5px,transparent_1.5px_5px)]"
+              className="bg-stripe"
               style={{ width: `${(waiting / target) * 100}%` }}
             />
           </div>
@@ -213,13 +220,13 @@ export function Frames({
               <li
                 key={i}
                 className={cn(
-                  "flex-[1_1_0] rounded-print border",
-                  compact ? "h-2 max-w-5.5" : "h-3 max-w-14",
+                  "flex-[1_1_0] rounded-round",
+                  compact ? "h-2 max-w-6" : "h-3 max-w-16",
                   i < filled
-                    ? "border-positive-fill bg-positive-fill"
+                    ? "bg-ok-fg"
                     : i < filled + waiting
-                      ? "border-[1.5px] border-dashed border-ink-muted"
-                      : "border-line-control"
+                      ? "bg-stripe"
+                      : "bg-surface-2 shadow-[inset_0_0_0_1px_var(--border-strong)]"
                 )}
               />
             ))}
@@ -234,7 +241,7 @@ export function Frames({
   )
 }
 
-/** A bordered list of rows (`nl-list`). */
+/** Rows in one white card on the canvas, hairlines between them. */
 export function ItemList({
   children,
   className,
@@ -248,7 +255,7 @@ export function ItemList({
     <ul
       aria-label={label}
       className={cn(
-        "@container -mx-3 grid border-y border-line [&>li+li]:border-t [&>li+li]:border-line",
+        "@container grid min-w-0 overflow-hidden rounded-card bg-surface shadow-card [&>li+li]:border-t [&>li+li]:border-line",
         className
       )}
     >
@@ -290,14 +297,16 @@ export function ItemRow({
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
           <span
             className={cn(
-              "text-item-title-touch break-words md:text-item-title",
+              "text-item-title [overflow-wrap:anywhere]",
               closed ? "text-ink-muted" : "text-ink"
             )}
           >
             {title}
           </span>
           {kind ? (
-            <span className="text-meta-strong text-ink-muted">{kind}</span>
+            <span className="text-meta font-semibold text-ink-muted">
+              {kind}
+            </span>
           ) : null}
           {chip}
         </div>
@@ -306,9 +315,12 @@ export function ItemRow({
             {shownIssues.map((issue, i) => (
               <li
                 key={i}
-                className="flex items-start gap-1.5 text-meta-strong text-attention"
+                className="flex items-start gap-1.5 text-meta font-bold text-warn-fg"
               >
-                <WarningIcon aria-hidden className="mt-px size-4 shrink-0" />
+                <WarningIcon
+                  aria-hidden
+                  className="mt-0.5 size-[18px] shrink-0"
+                />
                 <span>{issue}</span>
               </li>
             ))}
@@ -330,7 +342,8 @@ export function ItemRow({
       {href ? (
         <CaretRightIcon
           aria-hidden
-          className="mt-0.5 size-5 text-ink-subtle @max-[520px]:col-start-2 @max-[520px]:row-start-1"
+          weight="bold"
+          className="mt-0.5 size-5 text-ink-muted @max-[520px]:col-start-2 @max-[520px]:row-start-1"
         />
       ) : (
         <span aria-hidden />
@@ -338,7 +351,7 @@ export function ItemRow({
     </>
   )
   const grid = cn(
-    "grid grid-cols-[minmax(0,1fr)_168px_20px] items-start gap-4 px-3 py-3.5 text-inherit no-underline @max-[520px]:grid-cols-[minmax(0,1fr)_20px] @max-[520px]:gap-y-3",
+    "grid min-h-16 grid-cols-[minmax(0,1fr)_168px_20px] items-start gap-4 p-3 text-ink no-underline md:px-4 @max-[520px]:grid-cols-[minmax(0,1fr)_20px] @max-[520px]:gap-y-3",
     className
   )
   return (
@@ -346,7 +359,10 @@ export function ItemRow({
       {href ? (
         <Link
           href={href}
-          className={cn(grid, "outline-offset-[-2px] hover:bg-fill-hover")}
+          className={cn(
+            grid,
+            "-outline-offset-3 transition-colors duration-(--duration-quick) hover:bg-surface-2"
+          )}
         >
           {body}
         </Link>
@@ -370,11 +386,11 @@ export function Quote({
   return (
     <blockquote
       className={cn(
-        "grid gap-1 rounded-control bg-attention-soft px-3 py-2.5",
+        "grid gap-1 rounded-control bg-surface-2 px-3 py-2.5 ps-4 shadow-[inset_4px_0_0_var(--warn-fg)]",
         className
       )}
     >
-      <p className="text-body-touch break-words text-ink before:content-['“'] after:content-['”'] md:text-body">
+      <p className="text-body [overflow-wrap:anywhere] text-ink before:content-['“'] after:content-['”']">
         {children}
       </p>
       {by ? <p className="text-meta text-ink-muted">{by}</p> : null}

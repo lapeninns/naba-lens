@@ -81,18 +81,66 @@ export function todoCount(items: TodoItem[]): number {
   return items.filter((i) => i.kind !== "replace" || !i.closed).length
 }
 
-function cardClass(attention = false) {
+type Tone = "warn" | "info"
+
+/**
+ * The first item is the lead card (DESIGN.md §4): a 4px bar along the top in
+ * its tone and the page's one blue action. The rest are plain cards with a
+ * 4px bar on the left and a grey action.
+ */
+function cardClass(primary: boolean, tone?: Tone) {
   return cn(
-    "flex flex-col gap-3 rounded-panel border bg-card p-4",
-    attention ? "border-warning/40" : "border-line"
+    "relative grid min-w-0 gap-3 rounded-card bg-surface p-4 shadow-card",
+    primary &&
+      tone === "warn" &&
+      "pt-5 shadow-[var(--elevation-card),inset_0_4px_0_var(--warn-fg)]",
+    primary &&
+      tone === "info" &&
+      "pt-5 shadow-[var(--elevation-card),inset_0_4px_0_var(--info-fg)]",
+    !primary &&
+      tone === "warn" &&
+      "shadow-[var(--elevation-card),inset_4px_0_0_var(--warn-fg)]",
+    !primary &&
+      tone === "info" &&
+      "shadow-[var(--elevation-card),inset_4px_0_0_var(--info-fg)]"
+  )
+}
+
+function titleClass(primary: boolean) {
+  return cn(
+    "[overflow-wrap:anywhere] text-ink",
+    primary ? "font-display text-card-title" : "text-item-title"
+  )
+}
+
+/** Kicker on the left, state chip on the right (the lead card's top row). */
+function TopRow({
+  kicker,
+  chip,
+}: {
+  kicker?: React.ReactNode
+  chip?: React.ReactNode
+}) {
+  if (!kicker && !chip) return null
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      {kicker ? (
+        <span className="min-w-0 text-meta font-semibold [overflow-wrap:anywhere] text-ink-muted">
+          {kicker}
+        </span>
+      ) : (
+        <span />
+      )}
+      {chip}
+    </div>
   )
 }
 
 function action(primary: boolean) {
   return buttonVariants({
     variant: primary ? "primary" : "secondary",
-    size: "touch",
-    className: "self-start",
+    size: primary ? "lg" : "touch",
+    className: primary ? "w-full" : "w-full sm:w-auto sm:justify-self-start",
   })
 }
 
@@ -115,29 +163,27 @@ function ReplaceCard({
 }) {
   const title = submissionTitle(submission)
   return (
-    <li className={cardClass(true)}>
-      <div className="flex gap-3">
+    <li className={cardClass(primary, "warn")}>
+      <TopRow
+        kicker={<>For: {title}</>}
+        chip={<StatusChip tone="warning">Needs another photo</StatusChip>}
+      />
+      <h3 className={titleClass(primary)}>
+        {reviewerName(submission)} asked for another photo
+      </h3>
+      <div className="grid grid-cols-[4.5rem_minmax(0,1fr)] items-start gap-3">
         <EvidenceThumb
           thumbnailUrl={submission.asset.thumbnailUrl}
           previewUrl={submission.asset.previewUrl}
           label={`${title}: photo sent ${submission.submittedAt.slice(0, 10)}`}
-          className="size-20"
+          className="size-18 rounded-control bg-media-placeholder"
         />
-        <div className="flex min-w-0 flex-1 flex-col gap-2">
-          <h3 className="font-semibold break-words">
-            {reviewerName(submission)} asked for another photo
-          </h3>
-          <div>
-            <StatusChip tone="warning">Needs another photo</StatusChip>
-          </div>
+        <div className="min-w-0">
           <ReviewReason reason={submission.decision?.reason ?? null} />
-          <p className="text-meta-touch text-ink-muted md:text-meta">
-            For: {title}
-          </p>
         </div>
       </div>
       {closed ? (
-        <p className="text-meta-touch text-ink-muted md:text-meta">
+        <p className="text-meta text-ink-muted">
           This task is no longer open to you, so no replacement is needed.
         </p>
       ) : canSubmit ? (
@@ -164,18 +210,20 @@ function ReviewCard({
   primary: boolean
 }) {
   return (
-    <li className={cardClass()}>
-      <div className="flex gap-3">
-        <ClipboardTextIcon
+    <li className={cardClass(primary, "info")}>
+      <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3">
+        <span
           aria-hidden
-          className="mt-0.5 size-6 shrink-0 text-ink-muted"
-        />
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <h3 className="font-semibold break-words">
+          className="grid size-11 place-items-center rounded-round bg-info-bg text-info-fg"
+        >
+          <ClipboardTextIcon className="size-6" />
+        </span>
+        <div className="grid min-w-0 gap-1">
+          <h3 className={titleClass(primary)}>
             {count} {count === 1 ? "photo" : "photos"} to review
           </h3>
           {venueName ? (
-            <p className="text-meta-touch text-ink-muted md:text-meta">
+            <p className="text-meta font-semibold text-ink-muted">
               {venueName}
             </p>
           ) : null}
@@ -201,21 +249,20 @@ function TaskCard({
 }) {
   const { requirement } = assignment
   const { progress, due } = requirement
+  const overdue = kind === "overdue"
   return (
-    <li className={cardClass()}>
-      <div className="flex flex-col gap-1.5">
-        <h3 className="font-semibold break-words">
-          {requirement.title} is {kind === "overdue" ? "overdue" : "due soon"}
-        </h3>
-        <div className="flex flex-wrap items-center gap-1.5 text-meta-touch text-ink-muted md:text-meta">
-          {kind === "overdue" ? (
-            <StatusChip tone="negative">Overdue</StatusChip>
-          ) : null}
+    <li className={cardClass(primary, overdue ? "warn" : undefined)}>
+      <TopRow
+        chip={overdue ? <StatusChip tone="negative">Overdue</StatusChip> : null}
+      />
+      <h3 className={titleClass(primary)}>
+        {requirement.title} is {overdue ? "overdue" : "due soon"}
+      </h3>
+      {due || progress.target ? (
+        <p className="flex flex-wrap items-center gap-x-1.5 text-body text-ink-muted">
           {due ? (
             <span>
-              {kind === "overdue"
-                ? due.label.replace(/^Due /, "Was due ")
-                : due.label}
+              {overdue ? due.label.replace(/^Due /, "Was due ") : due.label}
             </span>
           ) : null}
           {progress.target ? (
@@ -223,8 +270,8 @@ function TaskCard({
               · {progress.accepted} of {progress.target} accepted
             </span>
           ) : null}
-        </div>
-      </div>
+        </p>
+      ) : null}
       <Link
         href={`${tasksPath}/${requirement.id}`}
         aria-label={`Send photos for ${requirement.title}`}
@@ -256,20 +303,24 @@ export function TodoSection({
 }) {
   const count = todoCount(items)
   return (
-    <section aria-labelledby="todo-heading" className="flex flex-col gap-3">
-      <h2
-        id="todo-heading"
-        className="flex items-center gap-2 text-section-title-touch md:text-section-title"
-      >
-        To do
-        <CountBadge count={count} label="things to do" />
-      </h2>
+    <section aria-labelledby="todo-heading" className="grid gap-(--gutter)">
+      <div className="px-1 pt-2">
+        <h2
+          id="todo-heading"
+          className="flex items-center gap-2 font-display text-section-title text-ink"
+        >
+          To do
+          <CountBadge count={count} label="things to do" />
+        </h2>
+      </div>
       {items.length === 0 ? (
-        <p className="text-body-touch text-ink-muted md:text-body">
-          Nothing to do right now.
-        </p>
+        <div className="rounded-card bg-surface p-4 shadow-card">
+          <p className="font-display text-section-title text-ink">
+            Nothing to do right now.
+          </p>
+        </div>
       ) : (
-        <ul className="flex flex-col gap-3">
+        <ul className="grid gap-(--gutter)">
           {items.map((item, index) => {
             const primary = index === 0
             switch (item.kind) {

@@ -42,11 +42,11 @@ function RequirementRow({
     <li>
       <Link
         href={href}
-        className="flex min-h-16 items-start gap-3 rounded-lg px-3 py-3 outline-none hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50 sm:px-4"
+        className="flex min-h-16 items-start gap-3 p-3 text-ink no-underline -outline-offset-3 transition-colors duration-(--duration-quick) hover:bg-surface-2 md:px-4"
       >
         <span className="grid min-w-0 flex-1 gap-1.5">
           <span className="flex min-w-0 flex-wrap items-center gap-2">
-            <span className="min-w-0 font-medium break-words">
+            <span className="min-w-0 text-item-title [overflow-wrap:anywhere]">
               {requirement.title}
             </span>
             <RequirementStatusBadge
@@ -64,7 +64,7 @@ function RequirementRow({
             ) : null}
           </span>
           {excluded ? (
-            <span className="text-sm text-muted-foreground">
+            <span className="text-meta text-ink-muted">
               Not counted
               {requirement.statusReason
                 ? `. Reason: ${requirement.statusReason}`
@@ -80,18 +80,18 @@ function RequirementRow({
                   className="max-w-xs"
                 />
               ) : (
-                <span className="text-sm text-muted-foreground">
+                <span className="text-meta text-ink-muted">
                   Suggested target {plural(requirement.photoTarget, "photo")},
                   not confirmed yet
                 </span>
               )}
-              <span className="text-sm text-muted-foreground">
+              <span className="text-meta text-ink-muted">
                 {[requirement.due?.label ?? null, assigneeText(requirement)]
                   .filter(Boolean)
                   .join(" · ")}
               </span>
               {blocking.length > 0 ? (
-                <span className="text-sm text-warning">
+                <span className="text-meta font-bold text-warn-fg">
                   {blocking
                     .map((issue) => labelFor(SETUP_ISSUE_LABEL, issue))
                     .join(". ")}
@@ -101,7 +101,8 @@ function RequirementRow({
           )}
         </span>
         <CaretRightIcon
-          className="mt-1 size-4 shrink-0 text-muted-foreground"
+          weight="bold"
+          className="mt-1 size-5 shrink-0 text-ink-muted"
           aria-hidden
         />
       </Link>
@@ -137,7 +138,7 @@ export function RequirementList({
   if (groups.length === 0) return <EmptyState title={emptyTitle} />
 
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-4">
       {groups.map((group) => {
         const applicable = group.items.filter(
           (r) => r.status === "active" || r.status === "needs_setup"
@@ -152,11 +153,11 @@ export function RequirementList({
           >
             <h3
               id={titleId}
-              className="flex flex-wrap items-baseline gap-x-2 font-medium"
+              className="flex flex-wrap items-baseline gap-x-3 px-1 font-display text-section-title text-ink"
             >
               {labelFor(REQUIREMENT_KIND_LABEL, group.kind)}
               {showCounts ? (
-                <span className="text-sm font-normal text-muted-foreground">
+                <span className="font-sans text-meta font-normal text-ink-muted tabular-nums">
                   {satisfied.length} of{" "}
                   {plural(applicable.length, "applicable item")} complete
                 </span>
@@ -164,7 +165,7 @@ export function RequirementList({
             </h3>
             <ul
               aria-label={labelFor(REQUIREMENT_KIND_LABEL, group.kind)}
-              className="divide-y rounded-lg border bg-card"
+              className="grid divide-y divide-line overflow-hidden rounded-card bg-surface shadow-card"
             >
               {group.items.map((requirement) => (
                 <RequirementRow

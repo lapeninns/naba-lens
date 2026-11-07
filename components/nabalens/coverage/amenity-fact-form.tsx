@@ -78,7 +78,7 @@ function sameIds(a: string[], b: string[]) {
 const PICK_GONE_TEXT =
   "A photo you just picked is no longer available, so nothing was saved. The photos have been reloaded and your new picks unticked. Pick again, then save."
 
-const MUTED = "text-body-touch text-ink-muted md:text-body-sm"
+const MUTED = "text-body text-ink-muted"
 
 function draftOf(fact: AmenityFactView): Draft {
   return {
@@ -128,7 +128,7 @@ function FactChoice({
     <div
       role="radiogroup"
       aria-label={label}
-      className="grid w-full grid-cols-2 gap-0.5 rounded-control bg-well p-0.5 md:grid-cols-3"
+      className="grid w-full grid-cols-2 gap-1 rounded-control bg-surface-2 p-1 md:grid-cols-3"
     >
       {PRESENCE_ORDER.map((option, i) => (
         <button
@@ -143,7 +143,7 @@ function FactChoice({
           disabled={disabled}
           onClick={() => onChange(option)}
           onKeyDown={(e) => onKeyDown(e, i)}
-          className="min-h-11 rounded-chip border border-transparent px-2 text-center text-label-touch text-ink-muted hover:text-ink disabled:cursor-not-allowed disabled:opacity-60 aria-checked:border-line-control aria-checked:bg-panel aria-checked:text-ink md:min-h-9 md:text-label"
+          className="min-h-11 rounded-control px-2 py-1.5 text-center text-label leading-tight font-bold text-ink-muted transition-[background-color,color,box-shadow] duration-(--duration-quick) outline-none hover:bg-raised hover:text-ink focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid disabled:cursor-not-allowed disabled:opacity-60 aria-checked:bg-surface aria-checked:text-ink aria-checked:shadow-[0_1px_2px_oklch(0.2_0.01_250/0.16),0_0_0_1.5px_var(--border-strong)]"
         >
           {labelFor(PRESENCE_LABEL, option)}
         </button>
@@ -319,10 +319,7 @@ export function AmenityFactForm({
         <CoverageNotice notice={notice} onDismiss={action.dismiss} />
       )}
       <div className="grid gap-1.5">
-        <span
-          id={`${ids}-fact`}
-          className="text-label-touch text-ink md:text-label"
-        >
+        <span id={`${ids}-fact`} className="text-label text-ink">
           Fact
         </span>
         <FactChoice
@@ -356,7 +353,7 @@ export function AmenityFactForm({
       />
       {photos.length > 0 ? (
         <fieldset className="grid gap-2" disabled={action.pending}>
-          <legend className="mb-1 text-label-touch text-ink md:text-label">
+          <legend className="mb-1 text-label text-ink">
             Supporting photos{" "}
             <span className="font-normal text-ink-muted">(optional)</span>
           </legend>
@@ -366,25 +363,25 @@ export function AmenityFactForm({
               const reason = refused[photo.id]
               return (
                 <li key={photo.id}>
-                  <label className="grid cursor-pointer gap-1 rounded-chip p-1 has-checked:bg-accent-soft has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus">
+                  <label className="grid cursor-pointer gap-1.5 rounded-control bg-surface-2 p-1.5 has-checked:bg-accent-soft has-checked:shadow-[inset_0_0_0_3px_var(--select)] has-focus-visible:outline-3 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus has-focus-visible:outline-solid">
                     <EvidenceThumb
                       src={photo.available ? photo.thumbnailUrl : null}
                     />
-                    <span className="flex items-center gap-1.5 text-meta-touch md:text-meta">
+                    <span className="flex items-center gap-1.5 text-meta">
                       <input
                         type="checkbox"
                         checked={checked}
                         onChange={() => toggleAsset(photo.id)}
-                        className="size-4 accent-primary"
+                        className="size-6 accent-select"
                       />
                       Photo {index + 1}
                     </span>
                     {reason ? (
-                      <span className="text-meta-touch text-negative md:text-meta">
+                      <span className="text-meta font-semibold text-warn-fg">
                         Not added: {reason}
                       </span>
                     ) : !photo.available ? (
-                      <span className="text-meta-touch text-ink-muted md:text-meta">
+                      <span className="text-meta text-ink-muted">
                         Not available
                       </span>
                     ) : null}
@@ -404,23 +401,20 @@ export function AmenityFactForm({
           ) : null}
         </fieldset>
       ) : null}
-      <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-control px-2 py-2 hover:bg-fill-hover has-disabled:cursor-not-allowed has-disabled:hover:bg-transparent">
+      <label className="flex min-h-14 cursor-pointer items-start gap-3 rounded-control bg-surface-2 px-3 py-3 hover:bg-raised has-checked:bg-accent-soft has-disabled:cursor-not-allowed has-disabled:hover:bg-surface-2">
         <input
           type="checkbox"
           checked={draft.confirm}
           onChange={(e) => set("confirm", e.currentTarget.checked)}
           disabled={action.pending || draft.presence === "unknown"}
           aria-describedby={`${ids}-confirm-help`}
-          className="mt-0.5 size-4 shrink-0 accent-primary"
+          className="size-6 shrink-0 accent-select"
         />
         <span className="grid min-w-0 gap-0.5">
-          <span className="text-label-touch text-ink md:text-label">
+          <span className="text-label text-ink">
             I have checked this at the venue
           </span>
-          <span
-            id={`${ids}-confirm-help`}
-            className="text-meta-touch text-ink-muted md:text-meta"
-          >
+          <span id={`${ids}-confirm-help`} className="text-meta text-ink-muted">
             {draft.presence === "unknown"
               ? "Needs verification can't be checked. Choose Present or Not present first."
               : "Records you as the person who checked it, with today’s date."}

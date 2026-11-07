@@ -15,14 +15,16 @@ function Switch({
       data-slot="switch"
       data-size={size}
       className={cn(
-        "peer group/switch relative inline-flex shrink-0 items-center rounded-full border border-transparent transition-all outline-none group-has-[:focus-visible]/field-label:border-transparent group-has-[:focus-visible]/field-label:ring-0 after:absolute after:-inset-x-3 after:-inset-y-3.5 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 data-[size=default]:h-[18.4px] data-[size=default]:w-[32px] data-[size=sm]:h-[14px] data-[size=sm]:w-[24px] sm:after:-inset-y-2 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 data-checked:bg-primary data-unchecked:bg-input dark:data-unchecked:bg-input/80 data-disabled:cursor-not-allowed data-disabled:opacity-50",
+        // Track 52x32 (sm 40x24) with a 44px hit area; on = the person's
+        // selection mark (--select), off = grey with a strong edge.
+        "peer group/switch relative inline-flex shrink-0 items-center rounded-round border-0 transition-colors duration-(--duration-quick) outline-none after:absolute after:-inset-x-1.5 after:-inset-y-1.5 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid aria-invalid:shadow-[inset_0_0_0_2px_var(--warn-fg)] data-[size=default]:h-8 data-[size=default]:w-13 data-[size=sm]:h-6 data-[size=sm]:w-10 data-checked:bg-select data-unchecked:bg-surface-2 data-unchecked:shadow-[inset_0_0_0_1.5px_var(--border-strong)] data-disabled:cursor-not-allowed data-disabled:opacity-60",
         className
       )}
       {...props}
     >
       <SwitchPrimitive.Thumb
         data-slot="switch-thumb"
-        className="pointer-events-none block rounded-full bg-background ring-0 transition-transform group-data-[size=default]/switch:size-4 group-data-[size=sm]/switch:size-3 group-data-[size=default]/switch:data-checked:translate-x-[calc(100%-2px)] group-data-[size=sm]/switch:data-checked:translate-x-[calc(100%-2px)] dark:data-checked:bg-primary-foreground group-data-[size=default]/switch:data-unchecked:translate-x-0 group-data-[size=sm]/switch:data-unchecked:translate-x-0 dark:data-unchecked:bg-foreground"
+        className="pointer-events-none block rounded-round bg-surface shadow-[0_1px_2px_oklch(0.2_0.01_250/0.3)] transition-transform duration-(--duration-quick) group-data-[size=default]/switch:size-6 group-data-[size=sm]/switch:size-[18px] group-data-[size=default]/switch:data-checked:translate-x-[24px] group-data-[size=sm]/switch:data-checked:translate-x-[19px] group-data-[size=default]/switch:data-unchecked:translate-x-1 group-data-[size=sm]/switch:data-unchecked:translate-x-[3px]"
       />
     </SwitchPrimitive.Root>
   )

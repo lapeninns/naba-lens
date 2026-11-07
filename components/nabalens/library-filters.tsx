@@ -253,20 +253,17 @@ const CONTENT_OPTIONS: Option[] = CONTENT_TYPES.map((code) => ({
   name: CONTENT_TYPE_LABELS[code],
 }))
 
-const FIELD_LABEL = "text-label-touch text-ink md:text-label"
-const HINT = "text-body-touch text-ink-muted md:text-body-sm"
-const SEGMENTS = "w-full rounded-control bg-well p-1 md:w-auto"
-const SEGMENT =
-  "h-11 flex-1 rounded-control border border-transparent px-3 text-label-touch text-ink-muted hover:bg-fill-hover hover:text-ink aria-pressed:border-line-control aria-pressed:bg-panel aria-pressed:text-ink aria-pressed:hover:bg-panel md:h-8 md:flex-none md:text-label"
+const FIELD_LABEL = "text-label text-ink"
+const HINT = "text-body text-ink-muted"
+/** Common Room segmented control: the grey track from ToggleGroup's default. */
+const SEGMENTS = "w-full md:w-auto"
+const SEGMENT = "flex-1 md:flex-none"
 /**
- * The shared toggle items are equal-width (flex-1 from a zero basis) and
- * nowrap, so a row is three times its longest label: "Photos and videos"
- * makes the Media row 344px and "Needs labels" the Labels row about 306px,
- * wider than a 320–360px screen leaves. On phones the words may wrap.
+ * Equal-width segments would make a row three times its longest label
+ * ("Photos and videos"), wider than a 320–360px screen leaves. On phones the
+ * words may wrap.
  */
-const SEGMENT_WRAP =
-  "h-auto min-h-11 min-w-0 shrink py-1.5 leading-tight whitespace-normal md:h-8 md:min-h-0 md:py-0 md:whitespace-nowrap"
-const CONTROL = "h-11 sm:h-9"
+const SEGMENT_WRAP = "min-w-0 shrink md:whitespace-nowrap"
 
 /** Same normalisation as the search box sends: trimmed, single spaces. */
 const tidy = (text: string) => text.replace(/\s+/g, " ").trim()
@@ -427,7 +424,7 @@ export function LibraryFilters({
       <div
         id={`${id}-more`}
         hidden={!open}
-        className="grid gap-4 rounded-panel border border-line bg-panel p-4 sm:grid-cols-2 lg:grid-cols-3"
+        className="grid gap-4 rounded-card bg-surface p-4 shadow-card sm:grid-cols-2 lg:grid-cols-3"
       >
         <div className="grid content-start gap-1.5 sm:col-span-2 lg:col-span-1">
           <MenuItemFilter
@@ -513,7 +510,6 @@ export function LibraryFilters({
               value={v.from ?? ""}
               max={v.to ?? undefined}
               onChange={(e) => set({ from: e.currentTarget.value || null })}
-              className={CONTROL}
             />
           </Field>
           <Field label="To" htmlFor={`${id}-to`}>
@@ -523,7 +519,6 @@ export function LibraryFilters({
               value={v.to ?? ""}
               min={v.from ?? undefined}
               onChange={(e) => set({ to: e.currentTarget.value || null })}
-              className={CONTROL}
             />
           </Field>
         </div>
@@ -607,7 +602,7 @@ function SearchBox({
     >
       <MagnifyingGlassIcon
         aria-hidden
-        className="pointer-events-none absolute top-1/2 left-3 size-[18px] -translate-y-1/2 text-ink-muted"
+        className="pointer-events-none absolute top-1/2 left-4 size-5 -translate-y-1/2 text-ink-muted"
       />
       <Input
         id={inputId}
@@ -629,7 +624,7 @@ function SearchBox({
             apply("")
           }
         }}
-        className={cn(CONTROL, "pl-9")}
+        className="pl-11"
       />
     </form>
   )
@@ -762,7 +757,7 @@ function MenuItemFilter({
             setText("")
             setActive(-1)
           }}
-          className={cn(CONTROL, "min-w-0 flex-1")}
+          className="min-w-0 flex-1"
         />
         {selectedId && !disabled ? (
           <Button
@@ -781,12 +776,12 @@ function MenuItemFilter({
         role="listbox"
         aria-label="Menu items"
         hidden={!open}
-        className="max-h-72 overflow-y-auto rounded-card border border-line bg-panel p-1"
+        className="max-h-72 overflow-y-auto rounded-card bg-surface p-1 shadow-float"
       >
         {open && shown.length === 0 ? (
           <li
             role="presentation"
-            className="px-3 py-2 text-body-sm text-ink-muted"
+            className="px-3 py-2 text-body text-ink-muted"
           >
             No menu items match.
           </li>
@@ -802,11 +797,12 @@ function MenuItemFilter({
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => choose(item)}
                 className={cn(
-                  "flex min-h-11 cursor-pointer flex-col justify-center rounded-md px-3 py-1.5 text-sm sm:min-h-9",
-                  i === active && "bg-fill-hover text-ink"
+                  "flex min-h-11 cursor-pointer flex-col justify-center rounded-control px-3 py-1.5 text-body",
+                  item.id === selectedId && "bg-accent-soft",
+                  i === active && "bg-surface-2 text-ink"
                 )}
               >
-                <span className="font-medium">{item.name}</span>
+                <span className="font-bold">{item.name}</span>
                 {item.sectionName ? (
                   <span className="text-meta text-ink-muted">
                     {item.sectionName}
@@ -818,7 +814,7 @@ function MenuItemFilter({
         {open && hits.length > MAX_SHOWN ? (
           <li
             role="presentation"
-            className="px-3 py-2 text-body-sm text-ink-muted"
+            className="px-3 py-2 text-body text-ink-muted"
           >
             Keep typing to see more ({hits.length} match).
           </li>

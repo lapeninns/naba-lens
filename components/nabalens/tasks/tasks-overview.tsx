@@ -86,11 +86,12 @@ export function TasksOverview({
   const items = todoItems(tasks, new Date(), reviewCount)
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="mx-auto grid w-full max-w-(--size-feed) min-w-0 gap-(--gutter)">
       <PageHeader
         scope={[scope.venue?.name, period.label]}
         venueScope={Boolean(scope.venue)}
         title="Home"
+        className="pb-1 md:pb-2"
       />
 
       {justSent ? (
@@ -99,14 +100,15 @@ export function TasksOverview({
         </Notice>
       ) : null}
 
-      {welcomeHref ? <FirstRunEntry href={welcomeHref} /> : null}
-
+      {/* The share box comes first; Start here sits between it and To do. */}
       {contribute ? (
         <ContributeCard
           prompt={contribute.prompt}
           blocked={contribute.blocked}
         />
       ) : null}
+
+      {welcomeHref ? <FirstRunEntry href={welcomeHref} /> : null}
 
       {blocked && scope.venue ? <Notice role="status">{blocked}</Notice> : null}
 
@@ -118,44 +120,48 @@ export function TasksOverview({
         portfolioPath={portfolioPath}
       />
 
-      <MonthlyProgressCard
-        monthly={monthly}
-        periodLabel={period.label}
-        addHref={`${tasksPath}/month`}
-        canSubmit={scope.canSubmit}
-      />
+      <div className="mt-3 grid gap-(--gutter)">
+        <MonthlyProgressCard
+          monthly={monthly}
+          periodLabel={period.label}
+          addHref={`${tasksPath}/month`}
+          canSubmit={scope.canSubmit}
+        />
 
-      <p className="max-w-(--size-reading) text-body-touch text-ink-muted md:text-body">
-        {RULE_SENTENCE}
-      </p>
+        <p className="max-w-(--size-reading) px-1 text-meta text-ink-muted">
+          {RULE_SENTENCE}
+        </p>
+      </div>
 
       {ourMenu ? (
         <OurMenuCard progress={ourMenu} venueName={scope.venue?.name ?? null} />
       ) : null}
 
-      <ColleaguePosts
-        items={colleagues}
-        photosHref={photosPath}
-        peopleHref={peoplePath}
-      />
+      <div className="mt-3 empty:hidden">
+        <ColleaguePosts
+          items={colleagues}
+          photosHref={photosPath}
+          peopleHref={peoplePath}
+        />
+      </div>
 
       <section
         aria-labelledby="all-tasks-heading"
-        className="flex flex-col gap-4"
+        className="mt-3 grid gap-(--gutter)"
       >
-        <div className="grid gap-2">
+        <div className="grid gap-1 px-1 pt-2">
           <h2
             id="all-tasks-heading"
-            className="font-display text-2xl break-words text-ink"
+            className="font-display text-section-title [overflow-wrap:anywhere] text-ink"
           >
             All tasks
           </h2>
-          <p className="max-w-(--size-reading) text-body-touch text-ink-muted md:text-body">
+          <p className="max-w-(--size-reading) text-body text-ink-muted">
             Tasks assigned to you at {scope.venue?.name ?? "your venue"}.
             Overdue tasks still take photos.
           </p>
         </div>
-        <h3 className="flex items-center gap-2 text-item-title-touch text-ink md:text-item-title">
+        <h3 className="flex items-center gap-2 px-1 text-item-title text-ink">
           Assigned to you
           <CountBadge count={assignments.length} label="tasks" />
         </h3>
@@ -167,8 +173,8 @@ export function TasksOverview({
           />
         ) : (
           <EmptyState
-            inline
             variant="done"
+            className="rounded-card bg-surface px-4 shadow-card"
             title="Nothing is assigned to you this month."
             description={`Your manager assigns tasks at ${scope.venue?.name ?? "your venue"}. You can still add photos to your profile.`}
           />

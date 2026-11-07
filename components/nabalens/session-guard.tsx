@@ -240,8 +240,10 @@ export function SignInAgainSheet({
           ) : guard.email ? (
             <DialogDescription>
               We&apos;ll send a sign-in link to{" "}
-              <strong className="font-semibold text-ink">{guard.email}</strong>.
-              Open it on this phone, then choose the stopped{" "}
+              <strong className="font-bold [overflow-wrap:anywhere] text-ink">
+                {guard.email}
+              </strong>
+              . Open it on this phone, then choose the stopped{" "}
               {stopped === 1 ? "photo" : "photos"} again to finish{" "}
               {stopped === 1 ? "it" : "them"}. Nothing is sent twice.
             </DialogDescription>
@@ -254,8 +256,9 @@ export function SignInAgainSheet({
             </DialogDescription>
           )}
         </DialogHeader>
+        {/* Common Room: what happened is information, not a warning. */}
         {sent ? null : (
-          <Notice tone="attention" role="status">
+          <Notice tone="info" role="status">
             {summary}
           </Notice>
         )}

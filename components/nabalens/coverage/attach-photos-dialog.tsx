@@ -185,7 +185,7 @@ export function AttachPhotosDialog({
 
   return (
     <>
-      <Button variant="outline" size="touch" onClick={openDialog}>
+      <Button variant="secondary" size="touch" onClick={openDialog}>
         <PaperclipIcon data-icon="inline-start" aria-hidden />
         Attach existing photos
       </Button>
@@ -205,7 +205,10 @@ export function AttachPhotosDialog({
             </DialogDescription>
           </DialogHeader>
           {skipped.length > 0 ? (
-            <div role="alert" className="grid gap-1 text-sm text-warning">
+            <div
+              role="alert"
+              className="grid gap-1 rounded-card bg-warn-bg px-4 py-3 text-body text-ink shadow-[inset_4px_0_0_var(--warn-fg)]"
+            >
               <p>
                 {plural(skipped.length, "photo was", "photos were")} not
                 attached:
@@ -214,7 +217,7 @@ export function AttachPhotosDialog({
                 {skipped.map((s) => (
                   <li key={s.assetId}>
                     {s.photo ? (
-                      <span className="font-medium">{s.photo}: </span>
+                      <span className="font-bold">{s.photo}: </span>
                     ) : null}
                     {labelFor(ASSET_REASON_LABEL, s.reason)}
                   </li>
@@ -223,15 +226,15 @@ export function AttachPhotosDialog({
             </div>
           ) : null}
           {!loaded && loading ? (
-            <p className="text-sm text-muted-foreground">Loading photos…</p>
+            <p className="text-body text-ink-muted">Loading photos…</p>
           ) : loaded && photos.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-body text-ink-muted">
               No ready photos from this venue yet.
             </p>
           ) : (
             <ul
               aria-label="Venue photos"
-              className="grid grid-cols-2 gap-3 sm:grid-cols-4"
+              className="grid grid-cols-2 gap-2 sm:grid-cols-4"
             >
               {photos.map((photo) => {
                 const checked = selected.includes(photo.assetId)
@@ -242,30 +245,30 @@ export function AttachPhotosDialog({
                     <label
                       className={
                         photo.eligible
-                          ? "grid cursor-pointer gap-1 rounded-chip p-1 has-checked:bg-accent-soft has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus"
-                          : "grid gap-1 rounded-md p-1 opacity-60"
+                          ? "grid cursor-pointer gap-1.5 rounded-control bg-surface-2 p-1.5 has-checked:bg-accent-soft has-checked:shadow-[inset_0_0_0_3px_var(--select)] has-focus-visible:outline-3 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus has-focus-visible:outline-solid"
+                          : "grid gap-1.5 rounded-control bg-surface-2 p-1.5 text-ink-muted"
                       }
                     >
                       <EvidenceThumb src={photo.thumbnailUrl} />
-                      <span className="flex items-start gap-1.5 text-xs">
+                      <span className="flex items-start gap-1.5 text-meta">
                         <input
                           type="checkbox"
                           checked={checked}
                           disabled={!photo.eligible || full || pending}
                           onChange={() => toggle(photo.assetId)}
-                          className="mt-0.5 size-4 accent-primary"
+                          className="mt-0.5 size-6 accent-select"
                         />
                         <span className="grid min-w-0">
-                          <span className="break-words">
+                          <span className="[overflow-wrap:anywhere]">
                             {photo.uploader.displayName}
                             {photo.uploader.id === viewerId ? " (you)" : null}
                           </span>
-                          <span className="text-muted-foreground">
+                          <span className="text-ink-muted">
                             {formatDate(photo.uploadedAt)}
                             {!photo.uploader.active ? " · left" : null}
                           </span>
                           {!photo.eligible && photo.reason ? (
-                            <span className="text-muted-foreground">
+                            <span className="text-ink-muted">
                               {labelFor(ASSET_REASON_LABEL, photo.reason)}
                             </span>
                           ) : null}
@@ -285,21 +288,21 @@ export function AttachPhotosDialog({
               onLoadMore={() => void load(cursor)}
             />
           ) : loadError ? (
-            <p role="alert" className="text-sm text-negative">
+            <p role="alert" className="text-body font-semibold text-warn-fg">
               {loadError}
             </p>
           ) : null}
-          <label className="flex min-h-11 cursor-pointer items-start gap-2 sm:min-h-9">
+          <label className="flex min-h-14 cursor-pointer items-start gap-3 rounded-control bg-surface-2 px-3 py-3 hover:bg-raised has-checked:bg-accent-soft">
             <input
               type="checkbox"
               checked={acceptNow}
               onChange={(e) => setAcceptNow(e.currentTarget.checked)}
               disabled={pending}
-              className="mt-0.5 size-4 accent-primary"
+              className="mt-0.5 size-6 accent-select"
             />
-            <span className="grid text-sm">
-              <span className="font-medium">Accept them now</span>
-              <span className="text-muted-foreground">
+            <span className="grid gap-0.5 text-body">
+              <span className="font-bold">Accept them now</span>
+              <span className="text-ink-muted">
                 {ownSelected
                   ? "You took at least one of these: accepting it is recorded as a self-review."
                   : "Otherwise they wait in the review queue."}
@@ -307,13 +310,13 @@ export function AttachPhotosDialog({
             </span>
           </label>
           {error ? (
-            <p role="alert" className="text-sm text-negative">
+            <p role="alert" className="text-body font-semibold text-warn-fg">
               {error}
             </p>
           ) : null}
           <DialogFooter>
             <Button
-              variant="outline"
+              variant="secondary"
               size="touch"
               onClick={() => setOpen(false)}
               disabled={pending}

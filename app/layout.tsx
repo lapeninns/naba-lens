@@ -1,26 +1,29 @@
-import { Archivo, Besley, JetBrains_Mono } from "next/font/google"
+import {
+  Atkinson_Hyperlegible_Mono,
+  Atkinson_Hyperlegible_Next,
+  Figtree,
+} from "next/font/google"
 
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { cn } from "@/lib/utils"
 
-// Interface face. The width axis lets chips and tab labels narrow slightly.
-const fontSans = Archivo({
+// Body face (Common Room): body text, buttons, fields, chips.
+const fontSans = Atkinson_Hyperlegible_Next({
   subsets: ["latin"],
-  axes: ["wdth"],
-  variable: "--font-archivo",
+  variable: "--font-atkinson-next",
 })
 
-// Display face: the wordmark, page titles and lead counts only.
-const fontDisplay = Besley({
+// Display face: the wordmark, titles, counts, tab labels, the Complete stamp.
+const fontDisplay = Figtree({
   subsets: ["latin"],
-  variable: "--font-besley",
+  variable: "--font-figtree",
 })
 
-// Original file names, menu source hashes and request IDs.
-const fontMono = JetBrains_Mono({
+// Meta, times and percentages (tabular), file names, request IDs.
+const fontMono = Atkinson_Hyperlegible_Mono({
   subsets: ["latin"],
-  variable: "--font-jetbrains-mono",
+  variable: "--font-atkinson-mono",
 })
 
 export default function RootLayout({

@@ -152,7 +152,7 @@ export default async function TasksPage({
       reviewCount={reviewCount}
       logoutAction={logout}
     >
-      <OfflineNotice className="mb-4" />
+      <OfflineNotice className="mb-3" />
       <TasksOverview
         tasks={tasks}
         profile={{

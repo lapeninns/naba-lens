@@ -144,14 +144,14 @@ export function MenuDiffView({
         ))}
       </p>
       {!hasBase ? (
-        <p className="text-body-touch text-ink-muted md:text-body-sm">
+        <p className="px-1 text-body text-ink-muted">
           This venue has no active menu, so every item is new. Nothing has been
           saved yet.
         </p>
       ) : null}
 
       {nothing ? (
-        <p className="text-body-touch text-ink-muted md:text-body-sm">
+        <p className="px-1 text-body text-ink-muted">
           No differences from {baseLabel}.
         </p>
       ) : null}
@@ -217,7 +217,7 @@ export function MenuDiffView({
                       {labelled > 0 ? (
                         <span className="mt-0.5 flex items-center gap-1.5 text-ink">
                           <WarningIcon
-                            className="size-4 shrink-0 text-attention"
+                            className="size-5 shrink-0 text-warn-fg"
                             aria-hidden
                           />
                           {labelledFilesCopy(labelled)} keep this item. Staff
@@ -283,22 +283,17 @@ function DiffGroup<T>({
       id={id}
       tabIndex={id ? -1 : undefined}
       aria-labelledby={titleId}
-      className="overflow-hidden rounded-panel border border-line bg-panel outline-none focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-solid"
+      className="overflow-hidden rounded-card bg-surface shadow-card outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
     >
       <details open={defaultOpen} className="group">
-        <summary className="flex min-h-12 cursor-pointer list-none flex-wrap items-baseline gap-x-2 px-4 py-3 outline-none hover:bg-fill-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid [&::-webkit-details-marker]:hidden">
-          <span
-            id={titleId}
-            className="text-label-touch text-ink md:text-label"
-          >
+        <summary className="flex min-h-14 cursor-pointer list-none flex-wrap items-baseline gap-x-2 px-4 py-3 outline-none hover:bg-surface-2 focus-visible:outline-3 focus-visible:-outline-offset-3 focus-visible:outline-focus focus-visible:outline-solid [&::-webkit-details-marker]:hidden">
+          <span id={titleId} className="font-display text-item-title text-ink">
             {title}
           </span>
-          <span className="text-meta-touch text-ink-muted md:text-meta">
-            {count}
-          </span>
+          <span className="text-meta text-ink-muted">{count}</span>
           <CaretDownIcon
             aria-hidden
-            className="ml-auto size-4 self-center text-ink-muted transition-transform group-open:rotate-180 motion-reduce:transition-none"
+            className="ml-auto size-5 self-center text-ink-muted transition-transform group-open:rotate-180 motion-reduce:transition-none"
           />
         </summary>
         <ul className="divide-y divide-line border-t border-line">
@@ -332,21 +327,19 @@ function DiffRow({
   group?: { label: string; disabled: boolean }
 }) {
   const layout =
-    "grid grid-cols-[1.25rem_minmax(0,1fr)] items-start gap-x-3 gap-y-2 md:grid-cols-[1.25rem_minmax(0,1fr)_auto]"
+    "grid grid-cols-[1.75rem_minmax(0,1fr)] items-start gap-x-3 gap-y-2 md:grid-cols-[1.75rem_minmax(0,1fr)_auto]"
   const content = (
     <>
       <span
         aria-hidden
-        className="font-mono text-mono leading-6 font-semibold text-ink-muted"
+        className="flex size-7 items-center justify-center rounded-round bg-surface-2 font-mono text-mono font-bold text-ink"
       >
         {sign}
       </span>
       <div className="min-w-0">
-        <p className="font-semibold break-words text-ink">{name}</p>
+        <p className="font-bold break-words text-ink">{name}</p>
         {detail ? (
-          <div className="text-body-touch break-words text-ink-muted md:text-body-sm">
-            {detail}
-          </div>
+          <div className="text-body break-words text-ink-muted">{detail}</div>
         ) : null}
       </div>
       {actions ? (

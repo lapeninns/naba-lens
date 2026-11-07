@@ -2,16 +2,16 @@
 
 import * as React from "react"
 import {
+  ClockIcon,
   EnvelopeSimpleIcon,
   SpinnerGapIcon,
-  WarningCircleIcon,
 } from "@phosphor-icons/react"
 
 import {
   SIGN_IN_CARD,
+  SIGN_IN_FOOTNOTE,
   SignInCard,
   SignInHeading,
-  SignInWordmark,
 } from "@/app/login/sign-in-frame"
 import { Button } from "@/components/ui/button"
 import { Field, FieldError, FieldLabel } from "@/components/ui/field"
@@ -28,6 +28,7 @@ import {
   recordSignInSent,
 } from "@/lib/auth/pending-sign-in"
 import { cn } from "@/lib/utils"
+import { IconDisc } from "./common-room/icon-disc"
 import { Notice } from "./notice"
 import { RESEND_COOLDOWN_SECONDS, SignInCodeStep } from "./sign-in-code-step"
 import { TurnstileChallenge } from "./turnstile-challenge"
@@ -198,8 +199,10 @@ export function LoginCard({
     const sentTo = email.trim()
     return (
       <SignInCard aria-labelledby={titleId} className={className}>
-        <div role="status" className="grid gap-5">
-          <EnvelopeSimpleIcon className="size-8 text-ink-muted" aria-hidden />
+        <div role="status" className="grid gap-4">
+          <IconDisc>
+            <EnvelopeSimpleIcon />
+          </IconDisc>
           <SignInHeading
             id={titleId}
             title="Check your email"
@@ -254,94 +257,86 @@ export function LoginCard({
 
   const sending = state === "sending"
   return (
-    <form
-      onSubmit={submit}
-      noValidate
-      aria-labelledby={titleId}
-      className={cn(SIGN_IN_CARD, className)}
-    >
-      <SignInWordmark />
-      {unreachable ? (
-        <Notice tone="negative" title="We couldn't reach Naba-Lens">
-          Check your connection, then send the link again. Nothing is sent
-          twice.
-        </Notice>
-      ) : signedOut && !expired ? (
-        <Notice tone="positive">You have signed out.</Notice>
-      ) : null}
-      {expired ? (
-        <SignInHeading id={titleId} title="That sign-in link has expired">
-          Links work once and expire after a short time. We&apos;ll send a new
-          one to this email.
-        </SignInHeading>
-      ) : (
-        <SignInHeading id={titleId} title="Sign in">
-          We&apos;ll email you a link and a code. There&apos;s no password.
-        </SignInHeading>
-      )}
-      <Field className="gap-1.5">
-        <FieldLabel
-          htmlFor={inputId}
-          className="text-label-touch font-semibold text-ink md:text-label"
-        >
-          Email
-        </FieldLabel>
-        <Input
-          ref={emailInput}
-          id={inputId}
-          type="email"
-          inputMode="email"
-          autoComplete="email"
-          spellCheck={false}
-          placeholder="name@example.com"
-          value={email}
-          onChange={(e) => setEmail(e.currentTarget.value)}
-          aria-invalid={emailError || undefined}
-          aria-describedby={emailError ? errorId : undefined}
-          className="min-h-13 rounded-touch border-line-control bg-panel px-3 text-body-touch text-ink placeholder:text-ink-subtle aria-invalid:border-negative md:min-h-9 md:rounded-control md:text-body dark:bg-panel"
-        />
-        {emailError ? (
-          <FieldError
-            id={errorId}
-            className="flex items-start gap-1.5 text-meta-touch font-semibold text-negative md:text-meta-strong"
-          >
-            <WarningCircleIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
-            <span>{error}</span>
-          </FieldError>
-        ) : null}
-      </Field>
-      {error && !emailError ? <Notice tone="negative">{error}</Notice> : null}
-      {requiresCaptcha ? (
-        captchaSiteKey ? (
-          <TurnstileChallenge
-            key={challengeAttempt}
-            siteKey={captchaSiteKey}
-            onToken={handleCaptchaToken}
-          />
-        ) : (
-          <Notice tone="negative">{CAPTCHA_UNAVAILABLE_MESSAGE}</Notice>
-        )
-      ) : null}
-      <Button
-        type="submit"
-        size="touch"
-        className="w-full"
-        disabled={sending || (requiresCaptcha && !captchaToken)}
-        aria-busy={sending}
+    <>
+      <form
+        onSubmit={submit}
+        noValidate
+        aria-labelledby={titleId}
+        className={cn(SIGN_IN_CARD, className)}
       >
-        {sending ? <BusyIcon /> : null}
-        {sending
-          ? "Sending…"
-          : expired
-            ? "Send a new link"
-            : "Send sign-in link"}
-      </Button>
+        {unreachable ? (
+          <Notice tone="negative" title="We couldn't reach Naba-Lens">
+            Check your connection, then send the link again. Nothing is sent
+            twice.
+          </Notice>
+        ) : signedOut && !expired ? (
+          <Notice tone="positive">You have signed out.</Notice>
+        ) : null}
+        {expired ? (
+          // Common Room expired state: a clock disc above the heading.
+          <div className="grid gap-4">
+            <IconDisc tone="warn">
+              <ClockIcon />
+            </IconDisc>
+            <SignInHeading id={titleId} title="That sign-in link has expired">
+              Links work once and expire after a short time. We&apos;ll send a
+              new one to this email.
+            </SignInHeading>
+          </div>
+        ) : (
+          <SignInHeading id={titleId} title="Sign in">
+            We&apos;ll email you a link and a code. There&apos;s no password.
+          </SignInHeading>
+        )}
+        <Field className="gap-1.5">
+          <FieldLabel htmlFor={inputId}>Email</FieldLabel>
+          <Input
+            ref={emailInput}
+            id={inputId}
+            type="email"
+            inputMode="email"
+            autoComplete="email"
+            spellCheck={false}
+            placeholder="name@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.currentTarget.value)}
+            aria-invalid={emailError || undefined}
+            aria-describedby={emailError ? errorId : undefined}
+          />
+          {emailError ? <FieldError id={errorId}>{error}</FieldError> : null}
+        </Field>
+        {error && !emailError ? <Notice tone="negative">{error}</Notice> : null}
+        {requiresCaptcha ? (
+          captchaSiteKey ? (
+            <TurnstileChallenge
+              key={challengeAttempt}
+              siteKey={captchaSiteKey}
+              onToken={handleCaptchaToken}
+            />
+          ) : (
+            <Notice tone="negative">{CAPTCHA_UNAVAILABLE_MESSAGE}</Notice>
+          )
+        ) : null}
+        <Button
+          type="submit"
+          size="touch"
+          className="w-full"
+          disabled={sending || (requiresCaptcha && !captchaToken)}
+          aria-busy={sending}
+        >
+          {sending ? <BusyIcon /> : null}
+          {sending
+            ? "Sending…"
+            : expired
+              ? "Send a new link"
+              : "Send sign-in link"}
+        </Button>
+      </form>
+      {/* On the canvas under the card, not inside it. */}
       {expired ? null : (
-        <p className="text-center text-meta-touch text-ink-muted md:text-meta">
-          Accounts are by invitation only.
-        </p>
+        <p className={SIGN_IN_FOOTNOTE}>Accounts are by invitation only.</p>
       )}
-    </form>
+    </>
   )
 }
 

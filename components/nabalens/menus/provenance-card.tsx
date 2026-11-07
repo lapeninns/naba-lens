@@ -27,7 +27,7 @@ type ProvenanceCardProps = {
 
 const SHORT_HASH = 12
 
-const termClass = "text-meta-touch text-ink-muted md:text-meta"
+const termClass = "text-meta text-ink-muted"
 
 /** Where a version came from and who moved it through its states. */
 export function ProvenanceCard({
@@ -83,7 +83,7 @@ export function ProvenanceCard({
       term: "File SHA-256",
       value: (
         <details className="group min-w-0">
-          <summary className="cursor-pointer rounded-chip font-mono text-mono outline-none focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-solid">
+          <summary className="cursor-pointer rounded-chip font-mono text-mono outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid">
             {source.sha256.slice(0, SHORT_HASH)}…
             <span className="ml-2 font-sans text-ink-muted group-open:hidden">
               Show full value
@@ -141,24 +141,25 @@ export function ProvenanceCard({
     <section
       aria-label={title}
       className={cn(
-        "grid gap-4 rounded-panel border border-line bg-panel p-4 md:p-5",
+        "grid gap-4 rounded-card bg-surface p-4 shadow-card",
         className
       )}
     >
-      <h2 className="text-section-title-touch text-ink md:text-section-title">
-        {title}
-      </h2>
-      <dl className="grid gap-3 text-body-touch text-ink md:text-body-sm">
+      <h2 className="font-display text-section-title text-ink">{title}</h2>
+      <dl className="grid gap-3 text-body text-ink">
         {rows.map((row) => (
-          <div key={row.term} className="grid min-w-0 gap-0.5">
+          <div
+            key={row.term}
+            className="grid min-w-0 gap-0.5 sm:grid-cols-[8.5rem_minmax(0,1fr)] sm:gap-3"
+          >
             <dt className={termClass}>{row.term}</dt>
-            <dd className="min-w-0 [overflow-wrap:anywhere]">{row.value}</dd>
+            <dd className="min-w-0 font-bold [overflow-wrap:anywhere]">
+              {row.value}
+            </dd>
           </div>
         ))}
       </dl>
-      {note ? (
-        <p className="text-body-touch text-ink-muted md:text-body-sm">{note}</p>
-      ) : null}
+      {note ? <p className="text-body text-ink-muted">{note}</p> : null}
     </section>
   )
 }

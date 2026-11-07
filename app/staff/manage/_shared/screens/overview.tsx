@@ -105,6 +105,11 @@ export async function OverviewScreen({ ctx }: { ctx: ManageContext }) {
         Review photos
       </Link>
     ) : undefined
+  // A month to prepare or a changed menu is the lead card that holds the
+  // action; otherwise the action stays under the page title.
+  const actionLeads =
+    preparationState.kind === "unprepared" ||
+    (preparationState.kind === "ready" && menuChanged)
 
   return (
     <ManageFrame
@@ -112,7 +117,7 @@ export async function OverviewScreen({ ctx }: { ctx: ManageContext }) {
       section="overview"
       title={title}
       summary={summaryText}
-      actions={actions}
+      actions={actionLeads ? undefined : actions}
       pendingReview={summary.pendingReview}
     >
       <OverviewBody
@@ -126,6 +131,7 @@ export async function OverviewScreen({ ctx }: { ctx: ManageContext }) {
         preparation={preparationState}
         retry={<PrepareActionControl venueId={ctx.venueId} retry />}
         menuChange={menuChange}
+        leadAction={actionLeads ? actions : undefined}
       />
     </ManageFrame>
   )

@@ -2,27 +2,33 @@ import { Button as ButtonPrimitive } from "@base-ui/react/button"
 import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
-const PRIMARY =
-  "bg-accent text-on-accent hover:bg-accent-hover disabled:bg-well disabled:text-ink-muted aria-disabled:bg-well aria-disabled:text-ink-muted"
-const SECONDARY =
-  "border-line-control bg-panel text-ink hover:bg-fill-hover aria-expanded:bg-fill-hover disabled:bg-transparent disabled:text-ink-subtle"
+/*
+ * Common Room buttons (DESIGN.md §4). One enabled primary per screen: solid
+ * blue, white text. Everything else is a grey button (secondary), a quiet
+ * ghost or a link. A disabled button keeps its label, goes grey and stays
+ * readable (say why beside it); prefer aria-disabled so it keeps focus.
+ */
+const DISABLED =
+  "disabled:bg-surface-2 disabled:text-ink-muted disabled:shadow-[inset_0_0_0_1.5px_var(--line)] aria-disabled:bg-surface-2 aria-disabled:text-ink-muted aria-disabled:shadow-[inset_0_0_0_1.5px_var(--line)]"
+const PRIMARY = `bg-accent text-on-accent hover:bg-accent-hover ${DISABLED}`
+const SECONDARY = `bg-surface-2 text-ink hover:bg-raised active:bg-raised aria-expanded:bg-raised ${DISABLED}`
 const QUIET =
-  "text-ink hover:bg-fill-hover active:bg-fill-press aria-expanded:bg-fill-hover disabled:text-ink-subtle"
-const DANGER =
-  "bg-negative-fill text-on-negative-fill hover:shadow-[inset_0_0_0_100vmax_rgba(0,0,0,0.08)] disabled:bg-well disabled:text-ink-muted"
+  "bg-transparent text-ink hover:bg-surface-2 active:bg-raised aria-expanded:bg-surface-2 disabled:text-ink-muted aria-disabled:text-ink-muted"
+// Danger: warn tint with a warn edge; the safe choice sits beside it in grey.
+const DANGER = `bg-warn-bg text-warn-fg shadow-[inset_0_0_0_1.5px_var(--warn-fg)] hover:shadow-[inset_0_0_0_2.5px_var(--warn-fg)] ${DISABLED}`
 const DANGER_QUIET =
-  "text-negative hover:bg-negative-soft focus-visible:outline-negative"
+  "bg-transparent text-warn-fg hover:bg-warn-bg disabled:text-ink-muted aria-disabled:text-ink-muted"
 const LINK =
-  "h-auto min-h-0 border-0 px-0 text-accent-text underline underline-offset-3 max-md:min-h-11"
+  "h-auto min-h-0 border-0 bg-transparent px-0 font-bold text-ink underline decoration-[1.5px] underline-offset-4 hover:decoration-[3px] max-md:min-h-11"
 
 /*
- * Sizes follow the input device: below md (phones) a button is 52px with the
- * 17px label and the 12px touch radius; from md up it is the 36px control.
- * `sm` stays 44px on phones (the tap-target floor) for actions inside notices
- * and rows. `default` and `lg` are the compact control at every width.
+ * Sizes (DESIGN.md §2): button 52px, XL 60px, sm 44px (the target floor, for
+ * actions inside notices, rows and tables). Every size keeps a 44px target at
+ * every width; labels wrap rather than push a 320px page sideways.
+ * `default` and `touch` are the same 52px button; `lg` is the 60px XL.
  */
 const buttonVariants = cva(
-  "group/button inline-flex shrink-0 items-center justify-center gap-2 rounded-control border border-transparent bg-clip-padding font-semibold whitespace-nowrap transition-colors duration-(--duration-quick) ease-(--ease-out) outline-none select-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid disabled:cursor-not-allowed aria-busy:cursor-progress aria-disabled:cursor-not-allowed aria-invalid:border-negative [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-[18px]",
+  "group/button inline-flex shrink-0 items-center justify-center gap-2.5 rounded-control border border-transparent bg-clip-padding text-center font-sans text-button font-bold text-balance transition-[background-color,box-shadow,color] duration-(--duration-quick) ease-(--ease-out) outline-none select-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid active:translate-y-px disabled:cursor-not-allowed disabled:active:translate-y-0 aria-busy:cursor-progress aria-disabled:cursor-not-allowed aria-disabled:active:translate-y-0 aria-invalid:shadow-[inset_0_0_0_2px_var(--warn-fg)] motion-reduce:active:translate-y-0 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-[22px]",
   {
     variants: {
       variant: {
@@ -38,22 +44,23 @@ const buttonVariants = cva(
         link: LINK,
       },
       size: {
-        default: "h-9 px-3.5 text-label",
-        lg: "h-9 px-3.5 text-label",
-        xs: "h-7 gap-1 px-2 text-meta-strong [&_svg:not([class*='size-'])]:size-3.5",
-        sm: "h-11 px-4 text-meta-touch font-semibold md:h-8 md:px-2.5 md:text-meta-strong [&_svg:not([class*='size-'])]:size-[18px] md:[&_svg:not([class*='size-'])]:size-4",
-        touch:
-          "min-h-13 rounded-touch px-5 text-center text-label-touch whitespace-normal text-balance md:h-9 md:min-h-0 md:rounded-control md:px-3.5 md:text-label md:whitespace-nowrap [&_svg:not([class*='size-'])]:size-[22px] md:[&_svg:not([class*='size-'])]:size-[18px]",
-        icon: "size-11 text-ink-muted hover:text-ink md:size-9",
-        "icon-xs":
-          "size-6 [&_svg:not([class*='size-'])]:size-3.5",
-        "icon-sm": "size-11 md:size-8",
-        "icon-lg": "size-11 md:size-9",
+        default: "min-h-13 px-5 py-2",
+        touch: "min-h-13 px-5 py-2",
+        lg: "min-h-15 px-6 py-2 text-[1.1875rem]",
+        sm: "min-h-11 px-3.5 py-1.5 text-label [&_svg:not([class*='size-'])]:size-5",
+        xs: "min-h-11 gap-1.5 px-2.5 py-1 text-label [&_svg:not([class*='size-'])]:size-[18px]",
+        icon: "size-11 text-ink-muted hover:text-ink",
+        "icon-xs": "size-11 [&_svg:not([class*='size-'])]:size-[18px]",
+        "icon-sm": "size-11",
+        "icon-lg": "size-12",
       },
     },
     compoundVariants: [
       // A link button is text-sized wherever it sits; only its phone target grows.
-      { variant: "link", className: "h-auto px-0 md:h-auto md:min-h-0" },
+      {
+        variant: "link",
+        className: "h-auto min-h-0 px-0 py-0 md:h-auto md:min-h-0",
+      },
     ],
     defaultVariants: {
       variant: "default",

@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 
-const THUMB = "aspect-[4/3] w-full rounded-print bg-media-placeholder"
+const THUMB = "aspect-[4/3] w-full rounded-control bg-media-placeholder"
 
 function Unavailable({ className }: { className?: string }) {
   return (
@@ -51,6 +51,7 @@ export function EvidencePreviewButton({
   previewUrl,
   label,
   description,
+  edge = false,
   className,
 }: {
   thumbnailUrl: string | null
@@ -58,6 +59,8 @@ export function EvidencePreviewButton({
   /** Accessible name, e.g. "Photo by Sam Lee". */
   label: string
   description?: React.ReactNode
+  /** Edge to edge in a post: no radius, fills its box. */
+  edge?: boolean
   className?: string
 }) {
   const [open, setOpen] = React.useState(false)
@@ -65,7 +68,10 @@ export function EvidencePreviewButton({
   const large = previewUrl ?? thumbnailUrl
   return (
     <div className={cn("relative", className)}>
-      <EvidenceThumb src={thumb} />
+      <EvidenceThumb
+        src={thumb}
+        className={edge ? "aspect-auto h-full rounded-none" : undefined}
+      />
       {large ? (
         // Overlay (z-10) under EvidenceImage's own "Try again" (z-20), so a
         // failed thumbnail can be retried without opening the dialog.
@@ -73,7 +79,12 @@ export function EvidencePreviewButton({
           type="button"
           onClick={() => setOpen(true)}
           aria-label={`Open ${label}`}
-          className="absolute inset-0 z-10 rounded-print outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+          className={cn(
+            "absolute inset-0 z-10 outline-none focus-visible:outline-3 focus-visible:outline-focus focus-visible:outline-solid",
+            edge
+              ? "focus-visible:-outline-offset-3"
+              : "rounded-control focus-visible:outline-offset-2"
+          )}
         />
       ) : null}
       <Dialog open={open} onOpenChange={setOpen}>
@@ -89,10 +100,10 @@ export function EvidencePreviewButton({
               src={large}
               alt={label}
               fit="contain"
-              className="h-[60svh] w-full rounded-print"
+              className="h-[60svh] w-full rounded-control"
             />
           ) : (
-            <Unavailable className="h-40 w-full rounded-print" />
+            <Unavailable className="h-40 w-full rounded-control" />
           )}
         </DialogContent>
       </Dialog>

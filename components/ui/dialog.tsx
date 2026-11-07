@@ -55,7 +55,7 @@ function DialogContent({
         className={cn(
           // Phones: a sheet from the bottom with a grip, at most 92% of the
           // screen. From md: centred, size-dialog wide.
-          "fixed inset-x-0 bottom-0 z-50 mx-auto grid max-h-[92dvh] w-full grid-cols-[minmax(0,1fr)] gap-4 overflow-y-auto overscroll-contain rounded-t-sheet bg-panel p-4 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] text-body-touch text-ink shadow-(--shadow-sheet) duration-(--duration-sheet) ease-(--ease-out) outline-none before:-mb-1 before:h-1 before:w-9 before:justify-self-center before:rounded-full before:bg-line-control before:content-[''] data-open:animate-in data-open:fade-in-0 data-open:slide-in-from-bottom-8 data-closed:animate-out data-closed:fade-out-0 data-closed:slide-out-to-bottom-8 md:top-1/2 md:right-auto md:bottom-auto md:left-1/2 md:max-h-[min(45rem,calc(100dvh-3rem))] md:max-w-(--size-dialog) md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-panel md:p-5 md:text-body md:before:hidden md:data-open:slide-in-from-bottom-0 md:data-open:zoom-in-95 md:data-closed:slide-out-to-bottom-0 md:data-closed:zoom-out-95",
+          "fixed inset-x-0 bottom-0 z-50 mx-auto grid max-h-[92dvh] w-full grid-cols-[minmax(0,1fr)] gap-4 overflow-y-auto overscroll-contain rounded-t-sheet bg-surface px-4 pt-2 pb-[calc(1.75rem+env(safe-area-inset-bottom,0px))] text-body text-ink shadow-float duration-(--duration-sheet) ease-(--ease-out) outline-none before:-mb-1 before:h-[5px] before:w-11 before:justify-self-center before:rounded-[3px] before:bg-border-strong before:content-[''] md:top-1/2 md:right-auto md:bottom-auto md:left-1/2 md:max-h-[min(45rem,calc(100dvh-3rem))] md:max-w-(--size-dialog) md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-sheet md:p-6 md:text-body md:before:hidden data-open:animate-in data-open:fade-in-0 data-open:slide-in-from-bottom-8 md:data-open:slide-in-from-bottom-0 md:data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:slide-out-to-bottom-8 md:data-closed:slide-out-to-bottom-0 md:data-closed:zoom-out-95",
           className
         )}
         {...props}
@@ -67,14 +67,14 @@ function DialogContent({
             render={
               <Button
                 variant="ghost"
-                // 44px touch target on phones, compact from md up.
-                className="absolute top-3 right-2 size-11 md:top-3 md:right-3 md:size-8"
-                size="icon-sm"
+                // A labelled Close (DESIGN.md §4), 44px target at every width.
+                className="absolute top-3 right-2 gap-1 px-2.5 md:top-4 md:right-4"
+                size="sm"
               />
             }
           >
-            <XIcon />
-            <span className="sr-only">Close</span>
+            <XIcon aria-hidden />
+            <span>Close</span>
           </DialogPrimitive.Close>
         )}
       </DialogPrimitive.Popup>
@@ -106,7 +106,7 @@ function DialogFooter({
       className={cn(
         // Phones stack the actions full width with the primary (last) nearest
         // the thumb; from md they sit right-aligned, secondary first.
-        "-mx-4 -mb-4 flex flex-col gap-2 border-t border-line bg-panel p-4 max-md:*:w-full md:-mx-5 md:-mb-5 md:flex-row md:flex-wrap md:justify-end md:px-5",
+        "flex flex-col gap-2 bg-surface pt-2 max-md:*:w-full md:flex-row md:flex-wrap md:justify-end md:*:min-w-35",
         className
       )}
       {...props}
@@ -126,7 +126,7 @@ function DialogTitle({ className, ...props }: DialogPrimitive.Title.Props) {
     <DialogPrimitive.Title
       data-slot="dialog-title"
       className={cn(
-        "pr-10 text-section-title-touch text-balance text-ink md:text-section-title",
+        "pr-24 font-display text-section-title text-balance text-ink md:pr-28 md:text-page-title",
         className
       )}
       {...props}
@@ -142,7 +142,7 @@ function DialogDescription({
     <DialogPrimitive.Description
       data-slot="dialog-description"
       className={cn(
-        "text-body-touch text-ink-muted md:text-body *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-ink",
+        "text-body text-ink-muted *:[a]:font-bold *:[a]:text-ink *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-ink",
         className
       )}
       {...props}

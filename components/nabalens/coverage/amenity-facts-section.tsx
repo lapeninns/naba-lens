@@ -93,19 +93,17 @@ export function AmenityFactsSection({
           present.
         </Notice>
       ) : null}
-      <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <StatusChip state={presence} />
-        {confirmed ? (
-          <span className="text-meta-touch text-ink-muted md:text-meta">
-            {confirmed}
-          </span>
-        ) : null}
-      </p>
-      <p className="text-body-touch text-ink-muted md:text-body-sm">
-        A photo never proves a claim. Facts are recorded separately, by you.
-      </p>
-      {form ? (
-        <>
+      <div className="grid min-w-0 gap-3 rounded-card bg-surface p-4 shadow-card">
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <StatusChip state={presence} />
+          {confirmed ? (
+            <span className="text-meta text-ink-muted">{confirmed}</span>
+          ) : null}
+        </p>
+        <p className="text-body text-ink-muted">
+          A photo never proves a claim. Facts are recorded separately, by you.
+        </p>
+        {form ? (
           <div>
             <Button
               variant="secondary"
@@ -119,15 +117,17 @@ export function AmenityFactsSection({
               Record facts
             </Button>
           </div>
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-lg">
-              <DialogHeader>
-                <DialogTitle>{requirement.title} facts</DialogTitle>
-              </DialogHeader>
-              {typeof form === "function" ? form(controls) : form}
-            </DialogContent>
-          </Dialog>
-        </>
+        ) : null}
+      </div>
+      {form ? (
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>{requirement.title} facts</DialogTitle>
+            </DialogHeader>
+            {typeof form === "function" ? form(controls) : form}
+          </DialogContent>
+        </Dialog>
       ) : null}
     </CoverageSection>
   )

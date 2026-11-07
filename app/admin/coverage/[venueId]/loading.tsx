@@ -22,10 +22,10 @@ export default function VenueCoverageLoading() {
         />
         <SkeletonRegion
           label={VENUE_COVERAGE_COPY.loading}
-          className="grid gap-5"
+          className="divide-y divide-line overflow-hidden rounded-card bg-surface shadow-card"
         >
           {ROWS.map(([first, second], i) => (
-            <div key={i} className="grid gap-2">
+            <div key={i} className="grid min-h-16 gap-2 px-4 py-3.5">
               <Skeleton shape="line" style={{ width: first }} />
               <Skeleton shape="line" style={{ width: second }} />
             </div>

@@ -96,7 +96,7 @@ export default async function OurMenuPage({
       userName={profile.displayName}
       logoutAction={logout}
     >
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-(--gutter)">
         <OfflineNotice />
         <OurMenuScreen
           load={load}

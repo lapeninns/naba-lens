@@ -22,8 +22,10 @@ const REVIEW_TABS: { state: SubmissionState | "all"; label: string }[] = [
   { state: "all", label: "All" },
 ]
 
+// Select pills (DESIGN.md §4 filters): grey, the current one accent-soft
+// with an accent-text edge.
 const SEGMENT =
-  "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-chip px-3 text-center text-meta-touch font-semibold text-ink-muted outline-none hover:text-ink focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-0 focus-visible:outline-focus aria-[current=page]:bg-panel aria-[current=page]:text-ink aria-[current=page]:shadow-[0_0_0_1px_var(--color-line-control)] md:min-h-8 md:text-label md:whitespace-nowrap"
+  "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-round bg-surface-2 px-3.5 py-1.5 text-center text-label leading-tight font-bold text-ink transition-[background-color,box-shadow] duration-(--duration-quick) outline-none hover:bg-raised focus-visible:outline-3 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-focus aria-[current=page]:bg-accent-soft aria-[current=page]:shadow-[inset_0_0_0_1.5px_var(--accent-text)]"
 
 export async function ReviewScreen({
   ctx,
@@ -60,10 +62,7 @@ export async function ReviewScreen({
       pendingReview={pendingReview}
     >
       <OfflineNotice />
-      <nav
-        aria-label="Show"
-        className="grid w-full grid-cols-2 gap-0.5 rounded-control bg-well p-0.5 md:inline-flex md:w-auto md:max-w-full md:justify-self-start md:overflow-x-auto"
-      >
+      <nav aria-label="Show" className="flex flex-wrap gap-2">
         {REVIEW_TABS.map((t) => (
           <Link
             key={t.state}

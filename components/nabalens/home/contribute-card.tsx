@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { LockIcon } from "@phosphor-icons/react"
 
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -31,40 +32,46 @@ export function ContributeCard({
   return (
     <section
       aria-labelledby="contribute-heading"
-      className="flex flex-col gap-3 rounded-xl border border-line bg-card p-4"
+      className="grid min-w-0 gap-3 rounded-card bg-surface p-4 shadow-card"
     >
       <div className="grid gap-1">
         <h2
           id="contribute-heading"
-          className="font-display text-section-title-touch text-ink md:text-section-title"
+          className="font-display text-section-title [overflow-wrap:anywhere] text-ink"
         >
           {prompt}
         </h2>
-        <p className="text-body-touch text-ink-muted md:text-body-sm">
+        <p className="text-meta text-ink-muted">
           Photos you add are saved to your portfolio. Label them so the right
           dish can be found.
         </p>
       </div>
-      {blocked ? (
-        <Notice tone="attention" role="status">
-          {blocked}
-        </Notice>
-      ) : openAdd ? (
-        <PhotoSourceActions
-          layout="row"
-          onChoose={(source) => openAdd({ source })}
-        />
-      ) : (
-        <Link
-          href={fallbackHref}
-          className={cn(buttonVariants({ size: "touch" }), "w-full sm:w-auto")}
-        >
-          {LIBRARY_LABEL}
-        </Link>
-      )}
+      <div className="border-t border-line pt-3">
+        {blocked ? (
+          <Notice tone="attention" role="status" icon={LockIcon}>
+            {blocked}
+          </Notice>
+        ) : openAdd ? (
+          <PhotoSourceActions
+            layout="row"
+            libraryVariant="secondary"
+            onChoose={(source) => openAdd({ source })}
+          />
+        ) : (
+          <Link
+            href={fallbackHref}
+            className={cn(
+              buttonVariants({ variant: "secondary", size: "touch" }),
+              "w-full sm:w-auto"
+            )}
+          >
+            {LIBRARY_LABEL}
+          </Link>
+        )}
+      </div>
       <Link
         href={GUIDE_PATH}
-        className="inline-flex min-h-11 items-center self-start text-body-touch font-semibold text-accent-text underline underline-offset-3 outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid md:min-h-0 md:text-body"
+        className="inline-flex min-h-11 items-center self-start text-body font-semibold text-accent-text underline underline-offset-3 outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
       >
         How to photograph a dish
       </Link>

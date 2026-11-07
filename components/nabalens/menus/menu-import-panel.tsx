@@ -109,8 +109,8 @@ function ImportProblems({
                 aria-label={issue.severity === "error" ? "Error" : "Warning"}
                 className={
                   issue.severity === "error"
-                    ? "mt-0.5 size-4 shrink-0 text-negative"
-                    : "mt-0.5 size-4 shrink-0 text-attention"
+                    ? "mt-0.5 size-5 shrink-0 text-warn-fg"
+                    : "mt-0.5 size-5 shrink-0 text-ink-muted"
                 }
               />
               <span className="min-w-0">
@@ -183,29 +183,31 @@ export function MenuImportPanel({
     <div className={cn("grid gap-4", className)}>
       <div className="grid gap-2">
         {/* The hidden input carries the name; this is its visible label. */}
-        <span aria-hidden className="text-label-touch text-ink md:text-label">
+        <span aria-hidden className="text-label text-ink">
           Menu file
         </span>
         {file ? (
           <div
             className={cn(
-              "flex items-center gap-3 rounded-control border bg-panel px-3 py-2",
-              file.rejection ? "border-negative" : "border-line"
+              "flex items-center gap-3 rounded-card bg-surface-2 px-3 py-2",
+              file.rejection
+                ? "shadow-[inset_0_0_0_2px_var(--warn-fg)]"
+                : "shadow-[inset_0_0_0_1px_var(--border-strong)]"
             )}
           >
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-control bg-well text-ink-muted">
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-round bg-surface text-ink-muted">
               <FileTextIcon aria-hidden className="size-5" />
             </span>
             <span className="grid min-w-0 flex-1 gap-0.5">
-              <span className="font-mono text-mono break-all text-ink">
+              <span className="font-mono text-body break-all text-ink">
                 {file.name}
               </span>
-              <span className="flex items-center gap-1.5 text-meta-touch text-ink-muted md:text-meta">
+              <span className="flex items-center gap-1.5 font-mono text-meta text-ink-muted tabular-nums">
                 {pending ? (
                   <>
                     <SpinnerGapIcon
                       aria-hidden
-                      className="size-4 motion-safe:animate-spin"
+                      className="size-5 motion-safe:animate-spin"
                     />
                     Comparing…
                   </>
@@ -250,16 +252,13 @@ export function MenuImportPanel({
         {file?.rejection ? (
           <p
             role="alert"
-            className="flex items-start gap-1.5 text-body-touch break-words text-negative md:text-body-sm"
+            className="flex items-start gap-1.5 text-body font-bold break-words text-warn-fg"
           >
-            <WarningCircleIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
+            <WarningCircleIcon aria-hidden className="mt-0.5 size-5 shrink-0" />
             {file.rejection}
           </p>
         ) : (
-          <p
-            id={`${id}-help`}
-            className="text-meta-touch text-ink-muted md:text-meta"
-          >
+          <p id={`${id}-help`} className="text-meta text-ink-muted">
             JSON (nabalens-menu@1) or CSV, up to {limitText(maxBytes)}.{" "}
             {UNSUPPORTED_IMPORT_COPY}
           </p>
@@ -274,13 +273,13 @@ export function MenuImportPanel({
         </Notice>
       ) : null}
 
-      <details className="group rounded-control border border-line">
-        <summary className="flex min-h-11 cursor-pointer items-center rounded-control px-3 text-label-touch text-ink outline-none focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-solid md:min-h-9 md:text-label">
+      <details className="group rounded-card bg-surface-2">
+        <summary className="flex min-h-11 cursor-pointer items-center rounded-card px-4 text-label text-ink outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid">
           Supported formats
         </summary>
-        <div className="grid gap-4 border-t border-line px-3 py-3 text-body-touch md:text-body-sm">
+        <div className="grid gap-4 border-t border-line px-4 py-3 text-body">
           <div className="grid gap-1.5">
-            <h3 className="font-semibold text-ink">JSON (nabalens-menu@1)</h3>
+            <h3 className="font-bold text-ink">JSON (nabalens-menu@1)</h3>
             <p className="text-ink-muted">
               One object with <code>format</code>, <code>title</code> and{" "}
               <code>sections</code>. Each section has a <code>name</code>, a{" "}
@@ -289,20 +288,18 @@ export function MenuImportPanel({
               <code>name</code>; <code>description</code>, <code>variants</code>
               , <code>aliases</code> and a stable <code>key</code> are optional.
             </p>
-            <pre className="overflow-x-auto rounded-control bg-well p-2 font-mono text-mono">
+            <pre className="overflow-x-auto rounded-control bg-surface p-3 font-mono text-meta">
               <code>{JSON_EXAMPLE}</code>
             </pre>
           </div>
           <div className="grid gap-1.5">
-            <h3 className="font-semibold text-ink">
-              CSV (header row required)
-            </h3>
+            <h3 className="font-bold text-ink">CSV (header row required)</h3>
             <p className="text-ink-muted">
               One row per item. Separate several variants or aliases with{" "}
               <code>|</code>. Price and dietary columns are kept as source
               information only; they are never shown as current.
             </p>
-            <pre className="overflow-x-auto rounded-control bg-well p-2 font-mono text-mono">
+            <pre className="overflow-x-auto rounded-control bg-surface p-3 font-mono text-meta">
               <code>{CSV_EXAMPLE}</code>
             </pre>
           </div>

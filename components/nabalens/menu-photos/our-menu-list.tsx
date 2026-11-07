@@ -102,25 +102,27 @@ export function OurMenuList({
   }
 
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-(--gutter)">
       {groupBySection(items).map((group) => {
         const total = totals.get(group.sectionId)
         const headingId = `our-menu-section-${group.sectionId}`
         return (
+          // One white card per section: its heading and count, then the
+          // dishes split by hairlines (Common Room row list).
           <section
             key={group.sectionId}
             aria-labelledby={headingId}
-            className="grid gap-2"
+            className="grid min-w-0 overflow-hidden rounded-card bg-surface shadow-card"
           >
-            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-3 pt-3.5 pb-1 sm:px-4">
               <h2
                 id={headingId}
-                className="text-section-title-touch break-words text-ink md:text-section-title"
+                className="font-display text-section-title [overflow-wrap:anywhere] text-ink"
               >
                 {group.name}
               </h2>
               {total ? (
-                <p className="text-meta-touch text-ink-muted tabular-nums md:text-meta">
+                <p className="font-mono text-meta-strong text-ink-muted tabular-nums">
                   {sectionCount(total.covered, total.eligible)}
                 </p>
               ) : null}

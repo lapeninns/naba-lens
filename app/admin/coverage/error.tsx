@@ -21,19 +21,11 @@ export default function CoverageError({
     <AppShell variant="admin" active="coverage" logoutAction={logout}>
       <div className="flex flex-col gap-6">
         {/* Also the boundary for /admin/coverage/[venueId] and /managers. */}
-        <PageHeader
-          title={COVERAGE_COPY.title}
-          className="pb-0 md:pb-0"
-        />
+        <PageHeader title={COVERAGE_COPY.title} className="pb-0 md:pb-0" />
         <ErrorState
           title={COVERAGE_COPY.couldNotLoad}
           action={
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={() => retry()}
-            >
+            <Button type="button" variant="primary" onClick={() => retry()}>
               <ArrowClockwiseIcon aria-hidden />
               {ERROR_COPY.tryAgain}
             </Button>

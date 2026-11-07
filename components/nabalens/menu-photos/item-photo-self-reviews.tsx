@@ -73,16 +73,14 @@ export function ItemPhotoSelfReviewList({
 
   if (items.length === 0) {
     return (
-      <p className="text-body-touch text-ink-muted md:text-body-sm">
-        {ITEM_SELF_REVIEWS_COPY.empty}
-      </p>
+      <p className="text-body text-ink-muted">{ITEM_SELF_REVIEWS_COPY.empty}</p>
     )
   }
   return (
     <div className="grid gap-2">
       <ul
         aria-label={ITEM_SELF_REVIEWS_COPY.title}
-        className="divide-y divide-line rounded-panel border border-line bg-panel"
+        className="divide-y divide-line overflow-hidden rounded-card bg-surface shadow-card"
       >
         {items.map((item) => {
           const name = item.author.displayName ?? "A manager"
@@ -105,7 +103,7 @@ export function ItemPhotoSelfReviewList({
               />
               <div className="grid min-w-0 gap-1">
                 <p className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-item-title-touch break-words text-ink md:text-label">
+                  <span className="text-label [overflow-wrap:anywhere] text-ink">
                     {name}
                   </span>
                   <SelfReviewBadge />
@@ -113,12 +111,12 @@ export function ItemPhotoSelfReviewList({
                     <CoverageBadge tone="negative">Photo removed</CoverageBadge>
                   ) : null}
                 </p>
-                <p className="text-body-touch md:text-body-sm">
+                <p className="text-body">
                   {DECISION[item.decision]} {dish} with their own photo at{" "}
                   {item.venue.name}, {formatDateTime(item.decidedAt)}
                 </p>
                 {item.reason ? (
-                  <p className="text-body-touch text-ink-muted md:text-body-sm">
+                  <p className="text-body text-ink-muted">
                     Reason: {item.reason}
                   </p>
                 ) : null}

@@ -3,17 +3,25 @@
 import { Progress as ProgressPrimitive } from "@base-ui/react/progress"
 import { cn } from "@/lib/utils"
 
+/**
+ * A Common Room bar: 8px, rounded, grey track with a hairline edge. `tone`
+ * "accepted" (default) fills green, because progress means accepted photos;
+ * "neutral" fills ink, for technical progress such as an upload. Blue never
+ * marks progress. Always pair it with the words ("3 of 5 accepted").
+ */
 function Progress({
   className,
   children,
   value,
+  tone = "accepted",
   ...props
-}: ProgressPrimitive.Root.Props) {
+}: ProgressPrimitive.Root.Props & { tone?: "accepted" | "neutral" }) {
   return (
     <ProgressPrimitive.Root
       value={value}
       data-slot="progress"
-      className={cn("flex flex-wrap gap-3", className)}
+      data-tone={tone}
+      className={cn("group/progress flex flex-wrap gap-3", className)}
       {...props}
     >
       {children}
@@ -28,7 +36,7 @@ function ProgressTrack({ className, ...props }: ProgressPrimitive.Track.Props) {
   return (
     <ProgressPrimitive.Track
       className={cn(
-        "relative flex h-1 w-full items-center overflow-x-hidden rounded-full bg-muted",
+        "relative flex h-2 w-full items-center overflow-x-hidden rounded-[4px] bg-surface-2 shadow-[inset_0_0_0_1px_var(--line)]",
         className
       )}
       data-slot="progress-track"
@@ -44,7 +52,10 @@ function ProgressIndicator({
   return (
     <ProgressPrimitive.Indicator
       data-slot="progress-indicator"
-      className={cn("h-full bg-primary transition-all", className)}
+      className={cn(
+        "h-full rounded-[4px] bg-ok-fg transition-all group-data-[tone=neutral]/progress:bg-ink",
+        className
+      )}
       {...props}
     />
   )
@@ -53,7 +64,7 @@ function ProgressIndicator({
 function ProgressLabel({ className, ...props }: ProgressPrimitive.Label.Props) {
   return (
     <ProgressPrimitive.Label
-      className={cn("text-sm font-medium", className)}
+      className={cn("text-label text-ink", className)}
       data-slot="progress-label"
       {...props}
     />
@@ -64,7 +75,7 @@ function ProgressValue({ className, ...props }: ProgressPrimitive.Value.Props) {
   return (
     <ProgressPrimitive.Value
       className={cn(
-        "ml-auto text-sm text-muted-foreground tabular-nums",
+        "ml-auto font-mono text-meta-strong text-ink-muted tabular-nums",
         className
       )}
       data-slot="progress-value"

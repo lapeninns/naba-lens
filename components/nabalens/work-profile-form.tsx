@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
+import { MapPinIcon } from "@phosphor-icons/react"
 
 import { Button } from "@/components/ui/button"
 import { FieldError } from "@/components/ui/field"
@@ -14,7 +15,6 @@ import {
   type WorkArea,
   type WorkRoleKey,
 } from "@/lib/config/work-roles"
-import { cn } from "@/lib/utils"
 
 import { Notice } from "./notice"
 import { ProfileAvatar } from "./profile-avatar"
@@ -143,34 +143,40 @@ export function WorkProfileForm({
     }
   }
 
-  const radioClass =
-    "flex min-h-11 cursor-pointer items-center gap-3 rounded-control border border-line px-3 py-2 text-body-touch has-checked:border-ink has-checked:bg-well has-focus-visible:outline-2 has-focus-visible:outline-focus has-focus-visible:outline-solid md:min-h-9 md:text-body-sm"
+  // Common Room choice rows: one white card, hairlines between rows, a 64px
+  // row per choice with a large radio or box; the chosen row is accent-soft.
+  const listClass =
+    "grid divide-y divide-line overflow-hidden rounded-card bg-surface shadow-card"
+  const rowClass =
+    "flex min-h-16 cursor-pointer items-center gap-3 px-4 py-2 text-item-title text-ink transition-colors duration-(--duration-quick) hover:bg-surface-2 has-checked:bg-accent-soft has-focus-visible:outline-3 has-focus-visible:-outline-offset-3 has-focus-visible:outline-focus has-focus-visible:outline-solid"
+  const areaRowClass =
+    "flex min-h-13 cursor-pointer items-center gap-3 px-4 py-2 text-body text-ink transition-colors duration-(--duration-quick) hover:bg-surface-2 has-focus-visible:outline-3 has-focus-visible:-outline-offset-3 has-focus-visible:outline-focus has-focus-visible:outline-solid"
+  const markClass = "size-6 shrink-0 accent-select"
 
   return (
-    <form onSubmit={submit} noValidate className="grid gap-6">
-      <div className="flex items-center gap-3">
-        <ProfileAvatar
-          name={displayName}
-          src={avatarUrl}
-          className="size-12 text-base"
-        />
+    <form onSubmit={submit} noValidate className="grid gap-5">
+      <div className="flex min-w-0 items-center gap-3 rounded-card bg-surface p-3 shadow-card">
+        <ProfileAvatar name={displayName} src={avatarUrl} />
         <p className="grid min-w-0">
-          <span className="text-body-touch font-semibold break-words text-ink md:text-body">
+          <span className="text-item-title [overflow-wrap:anywhere] text-ink">
             {displayName}
           </span>
-          <span className="text-meta-touch text-ink-muted md:text-meta">
-            {venueName ?? "No venue assigned"}
+          <span className="flex items-center gap-1.5 text-body text-ink-muted">
+            <MapPinIcon aria-hidden className="size-[18px] shrink-0" />
+            <span className="[overflow-wrap:anywhere]">
+              {venueName ?? "No venue assigned"}
+            </span>
           </span>
         </p>
       </div>
 
       {suggestion ? (
-        <Notice tone="plain" title="Check this suggestion">
+        <Notice tone="info" role="note" title="Check this suggestion">
           We picked {suggestion.name} from your job title ({suggestedFrom}).
           Change it if it&apos;s wrong, then choose Save.
         </Notice>
       ) : suggestedFrom ? (
-        <Notice tone="plain" title="Check this suggestion">
+        <Notice tone="info" role="note" title="Check this suggestion">
           We filled in your job title as Other. Change it if it&apos;s wrong,
           then choose Save.
         </Notice>
@@ -188,19 +194,16 @@ export function WorkProfileForm({
         aria-describedby={`${ids}-role-hint${fieldErrors.roleKey ? ` ${ids}-role-error` : ""}`}
         aria-invalid={!!fieldErrors.roleKey || undefined}
       >
-        <legend className="mb-1 text-label-touch font-semibold md:text-label">
+        <legend className="mb-1 px-1 font-display text-section-title text-ink">
           What do you do at {venue}?
         </legend>
-        <p
-          id={`${ids}-role-hint`}
-          className="text-meta-touch text-ink-muted md:text-meta"
-        >
+        <p id={`${ids}-role-hint`} className="px-1 text-body text-ink-muted">
           Choose your main job. It sets the question Home asks and which dishes
           come first when you label. It never changes what you can see or do.
         </p>
-        <div className="grid gap-1.5 sm:grid-cols-2">
+        <div className={listClass}>
           {WORK_ROLE_OPTIONS.map((option) => (
-            <label key={option.id} className={radioClass}>
+            <label key={option.id} className={rowClass}>
               <input
                 type="radio"
                 name={`${ids}-role`}
@@ -210,7 +213,7 @@ export function WorkProfileForm({
                   const value = event.currentTarget.value
                   if (isWorkRoleKey(value)) setRoleKey(value)
                 }}
-                className="size-4 shrink-0 accent-ink"
+                className={markClass}
               />
               {option.name}
             </label>
@@ -225,10 +228,7 @@ export function WorkProfileForm({
 
       {roleKey === "other" ? (
         <div className="grid gap-1.5">
-          <label
-            htmlFor={`${ids}-title`}
-            className="text-label-touch font-semibold md:text-label"
-          >
+          <label htmlFor={`${ids}-title`} className="px-1 text-label text-ink">
             Your role
           </label>
           <Input
@@ -240,12 +240,8 @@ export function WorkProfileForm({
             autoComplete="organization-title"
             aria-describedby={`${ids}-title-hint${fieldErrors.roleTitle ? ` ${ids}-title-error` : ""}`}
             aria-invalid={!!fieldErrors.roleTitle || undefined}
-            className="h-11 sm:h-9"
           />
-          <p
-            id={`${ids}-title-hint`}
-            className="text-meta-touch text-ink-muted md:text-meta"
-          >
+          <p id={`${ids}-title-hint`} className="px-1 text-meta text-ink-muted">
             A short title, up to {WORK_ROLE_TITLE_MAX} characters.
           </p>
           {fieldErrors.roleTitle ? (
@@ -260,13 +256,15 @@ export function WorkProfileForm({
         className="grid gap-2"
         aria-invalid={!!fieldErrors.workAreas || undefined}
       >
-        <legend className="mb-1 text-label-touch font-semibold md:text-label">
+        <legend className="mb-1 px-1 font-display text-section-title text-ink">
           Other areas you work in{" "}
-          <span className="font-normal text-ink-muted">(optional)</span>
+          <span className="font-sans text-body font-normal text-ink-muted">
+            (optional)
+          </span>
         </legend>
-        <div className="grid gap-1.5 sm:grid-cols-2">
+        <div className={listClass}>
           {WORK_AREA_OPTIONS.map((area) => (
-            <label key={area.id} className={radioClass}>
+            <label key={area.id} className={areaRowClass}>
               <input
                 type="checkbox"
                 value={area.id}
@@ -280,7 +278,7 @@ export function WorkProfileForm({
                     return nextAreas
                   })
                 }}
-                className="size-4 shrink-0 accent-ink"
+                className={markClass}
               />
               {area.name}
             </label>
@@ -291,23 +289,20 @@ export function WorkProfileForm({
         ) : null}
       </fieldset>
 
-      <div
-        className={cn(
-          "flex flex-col gap-2 sm:flex-row-reverse sm:justify-start",
-          "[&>*]:w-full sm:[&>*]:w-auto"
-        )}
-      >
-        <Button type="submit" size="touch" disabled={pending !== null}>
-          {pending === "save" ? "Saving…" : "Save"}
-        </Button>
+      {/* Skip (grey) and Save (the one blue), the same width; grey first in
+          the DOM so blue sits on the right, or below when stacked. */}
+      <div className="grid grid-cols-2 gap-2 rounded-card bg-surface p-3 shadow-card max-[359px]:grid-cols-1 md:p-4">
         <Button
           type="button"
-          variant="quiet"
+          variant="secondary"
           size="touch"
           disabled={pending !== null}
           onClick={skip}
         >
           {pending === "skip" ? "Skipping…" : "Skip for now"}
+        </Button>
+        <Button type="submit" size="touch" disabled={pending !== null}>
+          {pending === "save" ? "Saving…" : "Save"}
         </Button>
       </div>
     </form>

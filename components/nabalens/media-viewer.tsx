@@ -81,7 +81,7 @@ function StageMessage({
   return (
     <div className="flex w-full flex-col items-center justify-center gap-3 px-4 py-16 text-center text-on-viewer-muted">
       {icon}
-      <p className="text-body-touch md:text-body">{children}</p>
+      <p className="text-body">{children}</p>
     </div>
   )
 }
@@ -164,6 +164,10 @@ function Preview({ item, label }: { item: MediaItem; label: string }) {
   )
 }
 
+/** A key-value row: the term on the left, the value in bold on the right. */
+const KV_ROW =
+  "grid grid-cols-[minmax(0,8.5rem)_minmax(0,1fr)] items-baseline gap-x-3 gap-y-0.5"
+
 function DetailRow({
   term,
   children,
@@ -174,11 +178,11 @@ function DetailRow({
   className?: string
 }) {
   return (
-    <div className="grid gap-0.5">
-      <dt className="text-meta-touch text-ink-muted md:text-meta">{term}</dt>
+    <div className={KV_ROW}>
+      <dt className="text-body text-ink-muted">{term}</dt>
       <dd
         className={cn(
-          "min-w-0 text-body-touch break-words text-ink md:text-body",
+          "min-w-0 text-body font-bold [overflow-wrap:anywhere] text-ink",
           className
         )}
       >
@@ -225,168 +229,175 @@ export function MediaViewer({
       <DialogContent
         showCloseButton={false}
         className={cn(
-          // Media always sits on the dark viewer ground, in both themes.
-          // Phones: full screen, details below the media. From md: media
-          // beside a 20rem details panel.
-          "gap-0 bg-viewer p-0 pt-0 pb-0 text-ink before:hidden",
+          // The stage behind the photo is always near black (DESIGN.md §2),
+          // in both themes; the details card below follows the theme.
+          // Phones: full screen, details in a card below the media. From
+          // md: media beside a 20rem details panel.
+          "gap-0 bg-bg p-0 pt-0 pb-0 text-ink before:hidden",
           "max-md:top-0 max-md:max-h-dvh max-md:min-h-dvh max-md:rounded-none",
           "md:max-h-[calc(100dvh-3rem)] md:max-w-[min(64rem,calc(100vw-3rem))] md:grid-cols-[minmax(0,1fr)_20rem] md:p-0"
         )}
       >
         {item ? (
           <>
-            <div className="relative grid min-h-75 place-items-center pt-14 pb-4 text-on-viewer md:min-h-90 md:px-6 md:pb-6">
+            <div className="relative grid min-h-75 place-items-center bg-stage pt-15 pb-4 text-on-viewer md:min-h-90 md:px-6 md:pb-6">
               <div className="absolute inset-x-2 top-2 flex items-center justify-between gap-2">
+                {/* A labelled Close (DESIGN.md §4): icon and word. */}
                 <DialogClose
                   render={
                     <Button
                       variant="quiet"
-                      size="icon"
-                      className="text-on-viewer hover:bg-on-viewer/12 hover:text-on-viewer active:bg-on-viewer/20"
+                      size="sm"
+                      className="gap-1.5 px-3 text-on-viewer hover:bg-on-viewer/12 hover:text-on-viewer active:bg-on-viewer/20"
                     />
                   }
                 >
                   <XIcon aria-hidden />
-                  <span className="sr-only">Close</span>
+                  <span>Close</span>
                 </DialogClose>
               </div>
               <Preview key={item.id} item={item} label={label} />
             </div>
             <aside
               aria-label="Details"
-              className="grid content-start gap-5 rounded-t-sheet bg-panel p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] md:rounded-none md:border-s md:border-line md:pb-5"
+              className="grid content-start bg-bg p-(--page-gutter) pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] md:border-s md:border-line md:p-4"
             >
               <DialogTitle className="sr-only">
                 {noun(item)} by {item.contributorName}
               </DialogTitle>
-              {removed ? (
-                <Notice tone="attention">
-                  This {noun(item).toLowerCase()} was removed a moment ago.
-                </Notice>
-              ) : null}
-              <div className="flex min-w-0 items-center gap-3">
-                <ProfileAvatar name={item.contributorName} />
-                <span className="min-w-0 truncate text-item-title-touch text-ink md:text-item-title">
-                  {showAttribution ? item.contributorName : "You"}
-                </span>
-              </div>
-              <dl className="grid gap-3">
-                <DetailRow term="Venue at upload">{item.venueName}</DetailRow>
-                <DetailRow term="Uploaded" className="tabular-nums">
-                  {uploadedAt(item.createdAt)}
-                </DetailRow>
-                {labelsShown ? (
-                  <div className="grid gap-0.5">
-                    <dt
-                      id={labelsTermId}
-                      className="text-meta-touch text-ink-muted md:text-meta"
-                    >
-                      Labels
-                    </dt>
-                    <dd className="min-w-0 text-body-touch break-words text-ink md:text-body">
-                      {ready ? (
-                        <div role="region" aria-labelledby={labelsTermId}>
-                          {labelsEmpty ? (
-                            <p className="text-ink-muted">
-                              None yet. Labels are optional.
-                            </p>
-                          ) : (
-                            <LabelSummary labels={item.labels} />
-                          )}
-                        </div>
-                      ) : (
-                        <p className="text-ink-muted">None yet</p>
-                      )}
-                    </dd>
-                  </div>
+              {/* The details as one white card on the canvas (Common Room). */}
+              <div className="grid min-w-0 content-start gap-4 rounded-card bg-surface p-4 shadow-card">
+                {removed ? (
+                  <Notice tone="attention">
+                    This {noun(item).toLowerCase()} was removed a moment ago.
+                  </Notice>
                 ) : null}
-                {getDownloadHref && item.originalFilename !== null ? (
-                  <DetailRow
-                    term="Original file"
-                    className="font-mono text-mono"
-                  >
-                    {[
-                      item.originalFilename,
-                      item.sizeBytes ? formatBytes(item.sizeBytes) : null,
-                    ]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </DetailRow>
-                ) : null}
-              </dl>
-              {downloadable && downloadError ? (
-                <Notice tone="negative">{downloadError}</Notice>
-              ) : null}
-              {removed ? (
-                <div className="flex flex-col gap-2 md:flex-row md:flex-wrap">
-                  <DialogClose
-                    render={<Button variant="secondary" size="touch" />}
-                  >
-                    Close
-                  </DialogClose>
+                <div className="flex min-w-0 items-center gap-3">
+                  <ProfileAvatar name={item.contributorName} />
+                  <span className="min-w-0 text-item-title [overflow-wrap:anywhere] text-ink">
+                    {showAttribution ? item.contributorName : "You"}
+                  </span>
                 </div>
-              ) : downloadable || editLabels || profileHref || deletable ? (
-                // Phones stack the actions with the primary last, nearest the
-                // thumb; from md they read in order, primary first.
-                <div className="flex flex-col-reverse gap-2 md:flex-row md:flex-wrap">
-                  {downloadable ? (
-                    <a
-                      href={getDownloadHref(item)}
-                      download
-                      onClick={onDownload ? () => onDownload(item) : undefined}
-                      className={buttonVariants({
-                        variant: "primary",
-                        size: "touch",
-                      })}
-                    >
-                      <DownloadSimpleIcon
-                        data-icon="inline-start"
-                        aria-hidden
-                      />
-                      Download original
-                    </a>
+                <dl className="grid gap-2.5">
+                  <DetailRow term="Venue at upload">{item.venueName}</DetailRow>
+                  <DetailRow term="Uploaded" className="tabular-nums">
+                    {uploadedAt(item.createdAt)}
+                  </DetailRow>
+                  {labelsShown ? (
+                    <div className={KV_ROW}>
+                      <dt
+                        id={labelsTermId}
+                        className="text-body text-ink-muted"
+                      >
+                        Labels
+                      </dt>
+                      <dd className="min-w-0 text-body font-bold [overflow-wrap:anywhere] text-ink">
+                        {ready ? (
+                          <div role="region" aria-labelledby={labelsTermId}>
+                            {labelsEmpty ? (
+                              <p className="font-normal text-ink-muted">
+                                None yet. Labels are optional.
+                              </p>
+                            ) : (
+                              <LabelSummary labels={item.labels} />
+                            )}
+                          </div>
+                        ) : (
+                          <p className="font-normal text-ink-muted">None yet</p>
+                        )}
+                      </dd>
+                    </div>
                   ) : null}
-                  {editLabels ? (
-                    <Button
-                      variant="secondary"
-                      size="touch"
-                      onClick={() => editLabels(item)}
+                  {getDownloadHref && item.originalFilename !== null ? (
+                    <DetailRow
+                      term="Original file"
+                      className="font-mono font-semibold"
                     >
-                      {labelsEmpty ? (
-                        <TagIcon data-icon="inline-start" aria-hidden />
-                      ) : (
-                        <PencilSimpleIcon
+                      {[
+                        item.originalFilename,
+                        item.sizeBytes ? formatBytes(item.sizeBytes) : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </DetailRow>
+                  ) : null}
+                </dl>
+                {downloadable && downloadError ? (
+                  <Notice tone="negative">{downloadError}</Notice>
+                ) : null}
+                {removed ? (
+                  <div className="flex flex-col gap-2 md:flex-row md:flex-wrap">
+                    <DialogClose
+                      render={<Button variant="secondary" size="touch" />}
+                    >
+                      Close
+                    </DialogClose>
+                  </div>
+                ) : downloadable || editLabels || profileHref || deletable ? (
+                  // Phones stack the actions with the primary last, nearest the
+                  // thumb; from md they read in order, primary first.
+                  <div className="flex flex-col-reverse gap-2 md:flex-row md:flex-wrap">
+                    {downloadable ? (
+                      <a
+                        href={getDownloadHref(item)}
+                        download
+                        onClick={
+                          onDownload ? () => onDownload(item) : undefined
+                        }
+                        className={buttonVariants({
+                          variant: "primary",
+                          size: "touch",
+                        })}
+                      >
+                        <DownloadSimpleIcon
                           data-icon="inline-start"
                           aria-hidden
                         />
-                      )}
-                      {labelsEmpty ? "Add labels" : "Edit labels"}
-                    </Button>
-                  ) : null}
-                  {profileHref ? (
-                    <Link
-                      href={profileHref}
-                      className={buttonVariants({
-                        variant: "quiet",
-                        size: "touch",
-                      })}
-                    >
-                      <UserCircleIcon data-icon="inline-start" aria-hidden />
-                      Open profile
-                    </Link>
-                  ) : null}
-                  {deletable ? (
-                    <Button
-                      variant="danger-quiet"
-                      size="touch"
-                      onClick={() => deletable(item)}
-                    >
-                      <TrashIcon data-icon="inline-start" aria-hidden />
-                      Delete
-                    </Button>
-                  ) : null}
-                </div>
-              ) : null}
+                        Download original
+                      </a>
+                    ) : null}
+                    {editLabels ? (
+                      <Button
+                        variant="secondary"
+                        size="touch"
+                        onClick={() => editLabels(item)}
+                      >
+                        {labelsEmpty ? (
+                          <TagIcon data-icon="inline-start" aria-hidden />
+                        ) : (
+                          <PencilSimpleIcon
+                            data-icon="inline-start"
+                            aria-hidden
+                          />
+                        )}
+                        {labelsEmpty ? "Add labels" : "Edit labels"}
+                      </Button>
+                    ) : null}
+                    {profileHref ? (
+                      <Link
+                        href={profileHref}
+                        className={buttonVariants({
+                          variant: "secondary",
+                          size: "touch",
+                        })}
+                      >
+                        <UserCircleIcon data-icon="inline-start" aria-hidden />
+                        Open profile
+                      </Link>
+                    ) : null}
+                    {deletable ? (
+                      <Button
+                        variant="danger-quiet"
+                        size="touch"
+                        onClick={() => deletable(item)}
+                      >
+                        <TrashIcon data-icon="inline-start" aria-hidden />
+                        Delete
+                      </Button>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
             </aside>
           </>
         ) : null}
