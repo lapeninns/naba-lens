@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen, within } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 const nav = vi.hoisted(() => ({ pathname: "/manager" }))
@@ -13,6 +14,7 @@ import {
   managerSectionFor,
 } from "@/components/nabalens/manager/hrefs"
 import { ManagerShell } from "@/components/nabalens/manager/manager-shell"
+import { useReviewCount } from "@/components/nabalens/manager/review-count"
 
 beforeEach(() => {
   nav.pathname = "/manager"
@@ -135,6 +137,62 @@ describe("ManagerShell", () => {
     cleanup()
     shell({ reviewCount: 0 })
     expect(screen.queryByText(/waiting/)).toBeNull()
+  })
+})
+
+function Decide() {
+  const { settle } = useReviewCount()
+  return (
+    <button type="button" onClick={() => settle(-1)}>
+      decide
+    </button>
+  )
+}
+
+describe("Review badge", () => {
+  const badges = () =>
+    navs().map(
+      (el) =>
+        within(el).getByRole("link", { name: /^Review/ }).textContent ?? ""
+    )
+
+  it("comes from the provider and decrements on a decision", async () => {
+    const user = userEvent.setup()
+    render(
+      <ManagerShell
+        venueName="The Railway"
+        userName="Mina Patel"
+        reviewCount={2}
+      >
+        <Decide />
+      </ManagerShell>
+    )
+    expect(badges().every((t) => t.includes("2 photos waiting"))).toBe(true)
+    await user.click(screen.getByRole("button", { name: "decide" }))
+    expect(badges().every((t) => t.includes("1 photo waiting"))).toBe(true)
+    await user.click(screen.getByRole("button", { name: "decide" }))
+    expect(badges().every((t) => !t.includes("waiting"))).toBe(true)
+    // Never below zero.
+    await user.click(screen.getByRole("button", { name: "decide" }))
+    expect(badges().every((t) => t === "Review")).toBe(true)
+  })
+
+  it("is left out when the count could not be read, and settle does nothing", async () => {
+    const user = userEvent.setup()
+    render(
+      <ManagerShell venueName="The Railway" userName="Mina Patel">
+        <Decide />
+      </ManagerShell>
+    )
+    await user.click(screen.getByRole("button", { name: "decide" }))
+    expect(badges()).toEqual(["Review", "Review"])
+  })
+
+  it("settle is a no-op without a provider (the admin page)", async () => {
+    const user = userEvent.setup()
+    render(<Decide />)
+    await user.click(screen.getByRole("button", { name: "decide" }))
+    expect(screen.getByRole("button", { name: "decide" })).toBeTruthy()
   })
 })
 

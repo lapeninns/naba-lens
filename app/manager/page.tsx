@@ -1,14 +1,16 @@
-import { MANAGER_COPY } from "@/components/nabalens/manager/copy"
+import { OverviewBody } from "@/components/nabalens/manager/overview/overview-body"
 import { VenueAccessUnavailable } from "@/components/nabalens/manager/venue-access-unavailable"
-import { WorkspacePending } from "@/components/nabalens/manager/workspace-pending"
 import { getManagerWorkspace } from "@/lib/auth/manager"
+
+import { failedRead, loadManagerOverview } from "./load-overview"
 
 export const metadata = { title: "Overview · Naba-Lens" }
 
 /**
- * Overview. Phase 1: a neutral note until item review is switched on for the
- * venue. It reads the workspace itself rather than calling
- * requireManagerVenue(), which redirects here.
+ * Overview: the venue's menu photo progress and what is waiting for a
+ * decision. It reads the workspace itself rather than calling
+ * requireManagerVenue(), which redirects here. A failed read goes to
+ * error.tsx (Try again).
  */
 export default async function ManagerOverviewPage() {
   const workspace = await getManagerWorkspace()
@@ -17,13 +19,9 @@ export default async function ManagerOverviewPage() {
   if (workspace.status !== "available") {
     return <VenueAccessUnavailable reason={workspace.reason} />
   }
-  const copy = MANAGER_COPY.overview
+  const read = await loadManagerOverview()
+  if (!read.ok) failedRead(read.code)
   return (
-    <WorkspacePending
-      venueName={workspace.venue.name}
-      title={copy.title}
-      noteTitle={copy.pendingTitle}
-      note={copy.pendingBody}
-    />
+    <OverviewBody overview={read.overview} now={new Date().toISOString()} />
   )
 }

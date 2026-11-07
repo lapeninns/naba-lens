@@ -1,29 +1,48 @@
-import { notFound } from "next/navigation"
+import Link from "next/link"
+import { ArrowLeftIcon } from "@phosphor-icons/react/dist/ssr"
 
-import { MANAGER_COPY } from "@/components/nabalens/manager/copy"
+import {
+  ContributorBody,
+  type ReviewSearch,
+} from "@/app/manager/review/_shared/review-page"
 import { managerHrefs } from "@/components/nabalens/manager/hrefs"
-import { WorkspacePending } from "@/components/nabalens/manager/workspace-pending"
+import { REVIEW_COPY } from "@/components/nabalens/manager/review/review-copy"
+import { buttonVariants } from "@/components/ui/button"
 import { requireManagerVenue } from "@/lib/auth/manager"
-import { isUuid } from "@/lib/server/coverage/validate"
+import { getManagerPhotoCtx } from "@/lib/server/menu-photos"
 
 export const metadata = { title: "Contributor · Naba-Lens" }
 
-/** Contributor view. Phase 1: a neutral note until item review is switched on. */
+/** One contributor's photos at the manager's venue, with their status and tallies. */
 export default async function ManagerContributorPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ staffId: string }>
+  searchParams: Promise<ReviewSearch>
 }) {
-  const { venue } = await requireManagerVenue()
+  await requireManagerVenue()
+  const scope = await getManagerPhotoCtx()
+  if (!scope.ok) throw new Error(`Could not open Review: ${scope.code}`)
   const { staffId } = await params
-  if (!isUuid(staffId)) notFound()
-  const copy = MANAGER_COPY.contributor
   return (
-    <WorkspacePending
-      venueName={venue.name}
-      title={copy.title}
-      note={copy.pendingBody}
-      back={{ href: managerHrefs.review(), label: MANAGER_COPY.review.title }}
-    />
+    <div className="grid gap-6">
+      <Link
+        href={managerHrefs.review()}
+        className={buttonVariants({
+          variant: "link",
+          className: "justify-self-start",
+        })}
+      >
+        <ArrowLeftIcon data-icon="inline-start" aria-hidden />
+        {REVIEW_COPY.backToReview}
+      </Link>
+      <ContributorBody
+        ctx={scope.ctx}
+        scope={{ kind: "manager" }}
+        staffId={staffId}
+        search={await searchParams}
+      />
+    </div>
   )
 }

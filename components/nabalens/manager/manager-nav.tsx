@@ -15,6 +15,7 @@ import { TAB_ITEM } from "../shell/add-context"
 import { CountBadge } from "../status-chip"
 import { MANAGER_COPY } from "./copy"
 import { managerHrefs, managerSectionFor, type ManagerSection } from "./hrefs"
+import { useReviewCount } from "./review-count"
 
 const ITEMS: {
   id: ManagerSection
@@ -47,11 +48,12 @@ export function ManagerNav({
   reviewCount,
 }: {
   kind: "tabs" | "bar"
-  /** Photos waiting for this manager's decision, shown on Review. */
+  /** Photos waiting for this manager's decision, shown on Review (the provider's count wins). */
   reviewCount?: number
 }) {
   const active = managerSectionFor(usePathname() ?? "") ?? ""
-  const count = reviewCount && reviewCount > 0 ? reviewCount : undefined
+  const shared = useReviewCount().count ?? reviewCount
+  const count = shared && shared > 0 ? shared : undefined
 
   if (kind === "tabs") {
     return (

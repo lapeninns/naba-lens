@@ -4,22 +4,31 @@
  * Review and Menu stay in one place.
  */
 
+import type {
+  MenuItemStatus,
+  MenuStatusFilter,
+  QueueStatus,
+} from "@/lib/server/menu-photos/types"
+
 /** Review queue filter (`?status=`); `pending` is the default queue. */
-export type ReviewStatusFilter =
-  "pending" | "needs_another_photo" | "accepted" | "recheck" | "all"
+export type ReviewStatusFilter = QueueStatus
 
 /** An eligible menu item's photo status (`/manager/menu?status=`). */
-export type MenuPhotoStatus = "covered" | "awaiting_review" | "needs_photo"
+export type MenuPhotoStatus = MenuItemStatus
 
 export type ReviewQuery = {
   status?: ReviewStatusFilter
+  /** Section id. */
   section?: string
+  /** Contributor (uploader) id. */
   contributor?: string
+  /** Menu item id. */
   item?: string
 }
 
 export type MenuQuery = {
-  status?: MenuPhotoStatus | "recheck"
+  status?: MenuStatusFilter
+  /** Section id. */
   section?: string
   q?: string
 }
@@ -47,6 +56,11 @@ export const managerHrefs = {
     `/manager/review/contributors/${encodeURIComponent(id)}`,
   menu: (q?: MenuQuery) => withQuery("/manager/menu", q),
   item: (id: string) => `/manager/menu/${encodeURIComponent(id)}`,
+  /** The admin Review page for a venue (same Review screen, admin layout). */
+  adminMenuPhotos: (venueId: string, q?: ReviewQuery) =>
+    withQuery(`/admin/coverage/${encodeURIComponent(venueId)}/menu-photos`, q),
+  adminContributor: (venueId: string, id: string) =>
+    `/admin/coverage/${encodeURIComponent(venueId)}/menu-photos/contributors/${encodeURIComponent(id)}`,
 } as const
 
 /** The nav section a workspace path belongs to (Account belongs to none). */

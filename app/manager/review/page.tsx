@@ -1,19 +1,41 @@
-import { MANAGER_COPY } from "@/components/nabalens/manager/copy"
-import { WorkspacePending } from "@/components/nabalens/manager/workspace-pending"
+import {
+  ReviewBody,
+  type ReviewSearch,
+} from "@/app/manager/review/_shared/review-page"
+import { REVIEW_COPY } from "@/components/nabalens/manager/review/review-copy"
+import { PageHeader } from "@/components/nabalens/page-header"
 import { requireManagerVenue } from "@/lib/auth/manager"
+import { getManagerPhotoCtx } from "@/lib/server/menu-photos"
 
 export const metadata = { title: "Review · Naba-Lens" }
 
-/** Review. Phase 1: a neutral note until item review is switched on. */
-export default async function ManagerReviewPage() {
+/**
+ * Review: photos staff labelled with a menu item at the manager's venue,
+ * filtered by status, section, contributor and item (`?status=&section=
+ * &contributor=&item=`). Decisions update the list in place.
+ */
+export default async function ManagerReviewPage({
+  searchParams,
+}: {
+  searchParams: Promise<ReviewSearch>
+}) {
   const { venue } = await requireManagerVenue()
-  const copy = MANAGER_COPY.review
+  const scope = await getManagerPhotoCtx()
+  if (!scope.ok) throw new Error(`Could not open Review: ${scope.code}`)
   return (
-    <WorkspacePending
-      venueName={venue.name}
-      title={copy.title}
-      noteTitle={copy.pendingTitle}
-      note={copy.pendingBody}
-    />
+    <div className="grid gap-6">
+      <PageHeader
+        scope={venue.name}
+        venueScope
+        title={REVIEW_COPY.title}
+        summary={<p>{REVIEW_COPY.summary}</p>}
+        className="pb-0 md:pb-0"
+      />
+      <ReviewBody
+        ctx={scope.ctx}
+        scope={{ kind: "manager" }}
+        search={await searchParams}
+      />
+    </div>
   )
 }
