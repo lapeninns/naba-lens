@@ -10,6 +10,8 @@
 //   node tests/migrations/run.mjs "$W" reset     # compare the second reset with the first
 //   node tests/migrations/run.mjs "$W" lint      # db diff (no drift) and db lint
 //   node tests/migrations/run.mjs "$W" withdraw  # coverage access-withdrawal script
+//   node tests/migrations/run.mjs "$W" db-reset sibling-upgrade  # reset to SIBLING_BASE, no seed
+//   node tests/migrations/run.mjs "$W" sibling-upgrade  # seed sibling-era rows, migration up, verify
 //
 // The resets are separate commands because one reset can take several minutes on
 // a loaded machine.
@@ -19,13 +21,21 @@ import { mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs"
 import { join, resolve } from "node:path"
 
 const [workdirArg, phase] = process.argv.slice(2)
-const phases = ["upgrade", "reset", "lint", "withdraw"]
+const phases = ["upgrade", "reset", "lint", "withdraw", "sibling-upgrade"]
+// Newest migration of the sibling base branch: `sibling-upgrade` resets to it
+// (without supabase/seed.sql, which needs the later manager migrations), seeds
+// data with that schema and applies the later migrations over the rows. Keep in
+// step with SIBLING_BASE in tests/migrations/helpers.ts.
+const SIBLING_BASE = "20261106130000"
 if (
   !workdirArg ||
-  !(phases.includes(phase) || (phase === "db-reset" && phases.includes(process.argv[4])))
+  !(
+    phases.includes(phase) ||
+    (phase === "db-reset" && phases.includes(process.argv[4]))
+  )
 )
   throw new Error(
-    "Usage: node tests/migrations/run.mjs <isolated Supabase workdir> upgrade|reset|lint|withdraw|db-reset <phase>"
+    "Usage: node tests/migrations/run.mjs <isolated Supabase workdir> upgrade|reset|lint|withdraw|sibling-upgrade|db-reset <phase>"
   )
 const workdir = resolve(workdirArg)
 const state = join(workdir, ".drill")
@@ -43,19 +53,30 @@ if (newer.length > 0)
     `supabase/migrations/${newer.join(", ")} sorts after the TEST-ONLY migration ${later}; give tests/migrations/later and LATER in tests/migrations/helpers.ts a later timestamp.`
   )
 rmSync(join(workdir, "supabase", "migrations", later), { force: true })
+const migrationFiles = readdirSync("supabase/migrations").filter((f) =>
+  f.endsWith(".sql")
+)
+if (!migrationFiles.some((f) => f.startsWith(`${SIBLING_BASE}_`)))
+  throw new Error(
+    `No migration ${SIBLING_BASE}_*.sql (SIBLING_BASE in run.mjs)`
+  )
 
 if (phase === "db-reset") {
   const target = process.argv[4]
   rmSync(join(state, `${target}-reset.log`), { force: true })
-  console.log(`[${target}] supabase db reset --local (${workdir})`)
+  const args = ["--workdir", workdir, "db", "reset", "--local"]
+  if (target === "sibling-upgrade")
+    args.push("--version", SIBLING_BASE, "--no-seed")
+  console.log(`[${target}] supabase ${args.slice(2).join(" ")} (${workdir})`)
   // The CLI reports "Applying migration ..." on stderr; keep both streams.
-  const result = spawnSync(
-    "supabase",
-    ["--workdir", workdir, "db", "reset", "--local"],
-    { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }
-  )
+  const result = spawnSync("supabase", args, {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  })
   const out = `${result.stdout}\n${result.stderr}`
-  console.log(out.replace(/^A new version of Supabase CLI.*\n.*recommend.*\n?/gim, ""))
+  console.log(
+    out.replace(/^A new version of Supabase CLI.*\n.*recommend.*\n?/gim, "")
+  )
   if (result.status !== 0) process.exit(result.status ?? 1)
   writeFileSync(join(state, `${target}-reset.log`), out)
   process.exit(0)

@@ -174,9 +174,11 @@ describe("upgrade with retained data", () => {
     expect(after.rls.every((r) => r.relrowsecurity)).toBe(true)
   })
 
-  it("keeps earlier item-photo decisions as staff-label decisions under validated constraints", () => {
-    // 20261107100300 adds the decision source with a constant default, so rows
-    // written before it read as staff-label decisions and every check holds.
+  it("defaults item-photo decisions to staff-label under validated constraints", () => {
+    // Schema-level only: this database was reset with every migration on an
+    // empty database, so no item-photo row predates 20261107100300 here. The
+    // upgrade over real sibling-era rows (seeded at 20261106130000, then the
+    // manager migrations applied) is phase `sibling-upgrade`.
     expect(
       psql(
         env,
