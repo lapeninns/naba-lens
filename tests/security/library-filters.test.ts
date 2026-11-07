@@ -413,7 +413,7 @@ describe("admin library label filters (H)", () => {
           itemId: ids.curry,
           variantId: ids.chicken,
           name: "Royal Curry",
-          labelledAs: "House Curry, Chicken",
+          labelledAs: "House Curry (Chicken)",
           variantName: "Chicken",
         },
       ],
