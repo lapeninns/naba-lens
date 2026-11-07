@@ -93,6 +93,10 @@ const ALLOWED_PAGES = new Set([
   "/admin/coverage/[venueId]/checklist/[requirementId]",
   "/admin/coverage/[venueId]/menu",
   "/admin/coverage/[venueId]/menu/items",
+  // Admin Review of the manager workspace (docs/plans/venue-manager-workspace.md
+  // Phase 2): the same Review screen and contributor view for any venue.
+  "/admin/coverage/[venueId]/menu-photos",
+  "/admin/coverage/[venueId]/menu-photos/contributors/[staffId]",
   "/admin/coverage/[venueId]/team",
   "/admin/coverage/managers",
 ])

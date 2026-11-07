@@ -21,6 +21,7 @@ describe("next.config headers", () => {
       "/api/media/00000000-0000-4000-8000-000000000001/thumb",
       "/api/media/00000000-0000-4000-8000-000000000001/stream",
       "/api/coverage/evidence/00000000-0000-4000-8000-000000000001/preview",
+      "/api/menu-photos/00000000-0000-4000-8000-000000000001/thumb",
       "/api/avatars/00000000-0000-4000-8000-000000000001",
     ]) {
       const headers = await effectiveHeaders(path)

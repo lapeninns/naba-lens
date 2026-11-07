@@ -12,7 +12,7 @@ export async function GET(
   _request: Request,
   ctx: { params: Promise<{ assetId: string }> }
 ) {
-  const auth = await getMediaActor()
+  const auth = await getMediaActor(["staff", "manager", "admin"])
   if (!auth.ok) return fail(auth.status, auth.message)
   const { assetId } = await ctx.params
   const signed = await signEvidence(
