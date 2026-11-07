@@ -81,6 +81,7 @@ const securityHeaders = [
 export const NO_REFERRER_SOURCES = [
   "/api/media/:path*",
   "/api/coverage/evidence/:path*",
+  "/api/menu-photos/:path*",
   "/api/avatars/:path*",
 ]
 

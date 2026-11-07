@@ -177,7 +177,12 @@ photos and past months stay credited to the old venue.
 
 ## Manage (venue managers only)
 
-An admin can make you the manager of your current venue. **Manage**
+Venue managers now have their own account type and workspace (see the
+[manager guide](usage-manager.md)). This section covers grants made before
+that change, which an admin can still see as **Legacy staff grant**: they keep
+working until the admin converts the account.
+
+With such a grant for your current venue, **Manage**
 (`/staff/manage`) then appears in the top bar on a tablet or computer, with
 **Overview**, **Review**, **Checklist**, **Menu**, **Our menu** and **Team**. On a phone,
 open **Me** and choose **Manage {venue}** at the top. When photos are waiting,

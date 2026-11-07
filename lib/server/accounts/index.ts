@@ -26,8 +26,17 @@ export {
   listAssignableVenues,
   listStaffDirectory,
   staffStatus,
+  type AccountRole,
   type StaffAccountStatus,
   type StaffDirectoryEntry,
 } from "./directory"
+export {
+  convertToManager,
+  convertToStaff,
+  listAccountRoleHistory,
+  type AccountRoleChange,
+  type ConversionInput,
+  type ConversionOutcome,
+} from "./conversion"
 export { replaceProfileAvatar, type AvatarDeriver } from "./avatar"
 export type { AccountPatch, InviteInput } from "./validation"

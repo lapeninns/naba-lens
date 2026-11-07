@@ -16,7 +16,7 @@ import {
   createRequirement,
   currentMonth,
   fails,
-  grantManager,
+  legacyStaffGrant,
   ok,
   requestKey,
   requirementProgress,
@@ -113,7 +113,7 @@ beforeAll(async () => {
     .from("profiles")
     .update({ department: "foh" })
     .in("id", [manager.id, staffer.id])
-  await grantManager(admin, manager.id, venue)
+  await legacyStaffGrant(service, admin, manager.id, venue)
 })
 
 describe("amenities and template candidates", () => {
@@ -744,7 +744,7 @@ describe("venue completion", () => {
       role: "staff",
       venueId: w,
     })
-    await grantManager(admin, m.id, w)
+    await legacyStaffGrant(service, admin, m.id, w)
     expect(await summary(m, w)).toMatchObject({
       applicable_count: 0,
       complete: false,

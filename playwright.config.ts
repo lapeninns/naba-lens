@@ -65,7 +65,7 @@ const CORE = /@core/
 // phone width before the release suite (`grep` sees the project name, the file
 // name and the test title, so file names select whole files here).
 const PHONE =
-  /@core|\b(auth|slice|staff-accounts|library|gaps|menus-labels)\.spec\.ts\b/
+  /@core|\b(auth|slice|staff-accounts|library|gaps|menus-labels|manager-workspace)\.spec\.ts\b/
 
 export default defineConfig({
   testDir: "tests/e2e",

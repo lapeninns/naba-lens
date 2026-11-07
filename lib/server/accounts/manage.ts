@@ -18,12 +18,15 @@ import { isUuid, parseAccountPatch } from "./validation"
 
 type StaffRow = {
   id: string
-  role: "staff" | "admin"
+  role: "staff" | "manager" | "admin"
   active: boolean
   venue_id: string | null
 }
 
-/** A staff profile the calling admin can see, read through RLS. Admins are excluded. */
+/**
+ * A staff or venue manager profile the calling admin can see, read through
+ * RLS. Admins are excluded.
+ */
 async function loadStaff(
   caller: Db,
   staffId: unknown
@@ -36,7 +39,8 @@ async function loadStaff(
     .maybeSingle()
   if (error) return dbFailed()
   // Admin accounts are managed only through the bootstrap procedure.
-  if (!data || data.role !== "staff") return notFound()
+  if (!data || (data.role !== "staff" && data.role !== "manager"))
+    return notFound()
   return { ok: true, row: data }
 }
 

@@ -1,8 +1,10 @@
 import { expect, test } from "@playwright/test"
 
-import { signIn } from "../support/identities"
-import { provisionCoverageWorld } from "./helpers/coverage-world"
-import { provisioner, requireIsolatedStack } from "./helpers/stack"
+import {
+  legacyStaffGrant,
+  provisionCoverageWorld,
+} from "./helpers/coverage-world"
+import { requireIsolatedStack } from "./helpers/stack"
 import { signedInPage } from "./helpers/world"
 
 /**
@@ -19,13 +21,8 @@ test("at 390px a granted manager reaches Manage from Me; plain staff see no Mana
 }) => {
   test.setTimeout(120_000)
   const w = await provisionCoverageWorld()
-  const service = provisioner()
-  const admin = await signIn(service, w.admin.email)
-  const { error } = await admin.rpc("grant_venue_manager", {
-    p_staff_id: w.manager.id,
-    p_venue_id: w.venue1.id,
-  })
-  expect(error).toBeNull()
+  // A staff-held (legacy) grant: the transitional rule keeps /staff/manage.
+  await legacyStaffGrant(w.admin, w.manager, w.venue1)
 
   const manager = await signedInPage(browser, w.manager, PHONE)
   await manager.goto("/staff")

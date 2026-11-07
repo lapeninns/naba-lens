@@ -11,12 +11,13 @@ import {
 
 import { signIn, type Db } from "../support/identities"
 import {
+  legacyStaffGrant,
   provisionCoverageWorld,
   seedImages,
   type CoverageWorld,
 } from "./helpers/coverage-world"
 import { provisioner, psql } from "./helpers/stack"
-import { chooseOption, escape, STAFF_LANDING } from "./helpers/ui"
+import { escape, STAFF_LANDING } from "./helpers/ui"
 import { signedInPage, type Person } from "./helpers/world"
 
 /**
@@ -63,16 +64,14 @@ const itemState = (itemId: string) =>
     `select state || ':' || coalesce(self_review::text, '-') from public.coverage_submission_items where id = '${itemId}'::uuid`
   )
 
-async function grantInUi(admin: Page, w: CoverageWorld) {
+/**
+ * The manager holds a legacy, staff-held grant (fixture: new grants go to
+ * venue manager accounts only, which use /manager, not /staff/manage). The
+ * admin sees it in effect on the managers page, labelled as a legacy grant.
+ */
+async function grantLegacy(admin: Page, w: CoverageWorld) {
+  await legacyStaffGrant(w.admin, w.manager, w.venue1)
   await admin.goto("/admin/coverage/managers")
-  const form = admin.getByRole("region", {
-    name: "Make someone a venue manager",
-  })
-  // "Venue" is also a substring of the person picker's name.
-  await form.getByRole("combobox", { name: "Venue", exact: true }).click()
-  await admin.getByRole("option", { name: w.venue1.name, exact: true }).click()
-  await chooseOption(admin, form, "Staff member", w.manager.name)
-  await form.getByRole("button", { name: "Make venue manager" }).click()
   const row = admin
     .getByRole("table", { name: "Current grants" })
     .getByRole("row")
@@ -80,6 +79,7 @@ async function grantInUi(admin: Page, w: CoverageWorld) {
   await expect(row).toContainText(w.venue1.name)
   // A grant that is not in effect carries a "Not in effect: …" chip.
   await expect(row).not.toContainText("Not in effect")
+  await expect(row).toContainText("Legacy staff grant")
   await expect(
     row.getByRole("button", { name: `More actions for ${w.manager.name}` })
   ).toBeVisible()
@@ -92,7 +92,7 @@ async function reviewJourney(
 ) {
   const items = await sendMonthlyPhotos([w.staffA, w.staffB, w.manager], w)
   const admin = await signedInPage(browser, w.admin, context)
-  await grantInUi(admin, w)
+  await grantLegacy(admin, w)
 
   const manager = await signedInPage(browser, w.manager, context)
   await expect(manager).toHaveURL(STAFF_LANDING)
@@ -154,7 +154,7 @@ async function reviewJourney(
 test.describe("coverage: manager and admin journeys (WS5)", () => {
   test.setTimeout(240_000)
 
-  test("desktop: admin makes a manager; the manager reviews, asks for another photo with a reason and self-reviews", async ({
+  test("desktop: a legacy staff-held grant is in effect; the manager reviews, asks for another photo with a reason and self-reviews", async ({
     browser,
   }) => {
     await reviewJourney(browser, await provisionCoverageWorld())
@@ -175,7 +175,7 @@ test.describe("coverage: manager and admin journeys (WS5)", () => {
   }) => {
     const w = await provisionCoverageWorld()
     const admin = await signedInPage(browser, w.admin)
-    await grantInUi(admin, w)
+    await grantLegacy(admin, w)
     const manager = await signedInPage(browser, w.manager)
 
     // Team: a first target needs no reason; changing it does.
@@ -364,7 +364,7 @@ test.describe("coverage: manager and admin journeys (WS5)", () => {
 
     // Admin: grant, then prepare this month for every venue.
     const admin = await signedInPage(browser, w.admin)
-    await grantInUi(admin, w)
+    await grantLegacy(admin, w)
     await admin.goto("/admin/coverage")
     // "Prepare again" once every venue is prepared; both run for all venues.
     await admin

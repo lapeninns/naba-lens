@@ -98,7 +98,7 @@ describe("upgrade with retained data", () => {
   })
 
   it("enforces the expected access matrix before the upgrade", async () => {
-    for (const who of ["admin", "staffA", "staffB"] as const) {
+    for (const who of ["admin", "staffA", "staffB", "manager"] as const) {
       sessions[who] = await signIn(env, who)
     }
     beforeAccess = await accessMatrix(env, manifest, sessions)
@@ -109,14 +109,20 @@ describe("upgrade with retained data", () => {
     for (const d of beforeAccess.downloads) {
       expect(d).toEqual({ ...d, sha256: expectedSha() })
     }
-    for (const who of ["admin", "staffA", "staffB", "anon"] as const) {
+    for (const who of [
+      "admin",
+      "staffA",
+      "staffB",
+      "manager",
+      "anon",
+    ] as const) {
       expect(beforeAccess.rows[who]).toEqual(expectedRows(manifest, who))
     }
     // Since the security hardening no end user reads Storage directly (the app's
-    // routes sign with the service role after their own checks): all 48 direct
-    // downloads by admin, staff and anon are denied.
+    // routes sign with the service role after their own checks): all 60 direct
+    // downloads by admin, staff, the manager and anon are denied.
     const granted = beforeAccess.downloads.filter((d) => d.sha256 !== null)
-    expect(beforeAccess.downloads).toHaveLength(48)
+    expect(beforeAccess.downloads).toHaveLength(60)
     expect(granted).toHaveLength(0)
     // Not vacuous: the bytes are really there and intact (service role).
     for (const d of await storedObjectShas(env, manifest)) {
@@ -166,6 +172,31 @@ describe("upgrade with retained data", () => {
       relrowsecurity: true,
     })
     expect(after.rls.every((r) => r.relrowsecurity)).toBe(true)
+  })
+
+  it("defaults item-photo decisions to staff-label under validated constraints", () => {
+    // Schema-level only: this database was reset with every migration on an
+    // empty database, so no item-photo row predates 20261107100300 here. The
+    // upgrade over real sibling-era rows (seeded at 20261106130000, then the
+    // manager migrations applied) is phase `sibling-upgrade`.
+    expect(
+      psql(
+        env,
+        "select pg_get_expr(d.adbin, d.adrelid) from pg_attrdef d join pg_attribute a on a.attrelid = d.adrelid and a.attnum = d.adnum where d.adrelid = 'public.menu_item_photos'::regclass and a.attname = 'basis'"
+      )
+    ).toBe("'staff_label'::text")
+    expect(
+      psql(
+        env,
+        "select count(*) from pg_constraint where conrelid = 'public.menu_item_photos'::regclass and not convalidated"
+      )
+    ).toBe("0")
+    expect(
+      psql(
+        env,
+        "select count(*) from public.menu_item_photos where basis <> 'staff_label' or corrects_item_id is not null"
+      )
+    ).toBe("0")
   })
 
   it("serves identical bytes under the same rules, for live and new sessions", async () => {

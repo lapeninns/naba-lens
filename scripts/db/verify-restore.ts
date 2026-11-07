@@ -101,7 +101,7 @@ for (const d of downloads) {
     )
   }
 }
-for (const who of ["admin", "staffA", "staffB", "anon"] as const) {
+for (const who of ["admin", "staffA", "staffB", "manager", "anon"] as const) {
   const want = expectedRows(manifest, who)
   if (JSON.stringify(rows[who]) !== JSON.stringify(want)) {
     failures.push(`${who} rows: got ${rows[who].length}, want ${want.length}`)
@@ -139,9 +139,9 @@ console.log(
 )
 const granted = downloads.filter((d) => d.sha256 !== null)
 console.log(
-  `signed in: admin, staffA, staffB (magic-link token); ${downloads.length} download checks, ${granted.length} granted with matching sha256, ${downloads.length - granted.length} denied as expected`
+  `signed in: admin, staffA, staffB, manager (magic-link token); ${downloads.length} download checks, ${granted.length} granted with matching sha256, ${downloads.length - granted.length} denied as expected`
 )
-for (const who of ["admin", "staffA", "staffB", "anon"] as const) {
+for (const who of ["admin", "staffA", "staffB", "manager", "anon"] as const) {
   console.log(`  ${who}: sees ${rows[who].length} media rows`)
 }
 if (failures.length) {

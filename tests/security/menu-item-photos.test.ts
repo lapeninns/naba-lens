@@ -15,7 +15,7 @@ import {
 import {
   currentMonth,
   fails,
-  grantManager,
+  legacyStaffGrant,
   ok,
   requestKey,
   staffProgress,
@@ -76,7 +76,8 @@ async function venueWithMenu(label: string): Promise<Fixture> {
       venueId: venue,
     }),
   ])
-  await grantManager(admin, manager.id, venue)
+  // Staff-held grant: the transitional rule keeps these effective.
+  await legacyStaffGrant(service, admin, manager.id, venue)
   const version = await publishMenu(admin, venue, MENU())
   const items = (await readDocument(service, version)).byKey
   return { venue, version, manager, staff, staff2, items }
@@ -609,7 +610,7 @@ describe("scope", () => {
         "menu_item_photo_items",
       ] as const) {
         await fails(
-          g.staff2.client.rpc(fn, { p_venue_id: venue }),
+          g.staff2.client.rpc(fn, { p_venue_id: venue ?? undefined }),
           "venue_not_found",
           "P0002"
         )

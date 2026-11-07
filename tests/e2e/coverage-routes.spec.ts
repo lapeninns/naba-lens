@@ -6,6 +6,7 @@ import sharp from "sharp"
 
 import { signIn, type Db } from "../support/identities"
 import {
+  legacyStaffGrant,
   provisionCoverageWorld,
   seedImages,
   type CoverageWorld,
@@ -92,12 +93,7 @@ test.describe("coverage evidence previews (AC-27)", () => {
     const service = provisioner()
     const admin: Db = await signIn(service, w.admin.email)
     const staffA: Db = await signIn(service, w.staffA.email)
-    const grant = await ok(
-      admin.rpc("grant_venue_manager", {
-        p_staff_id: w.manager.id,
-        p_venue_id: w.venue1.id,
-      })
-    )
+    const grant = await legacyStaffGrant(w.admin, w.manager, w.venue1)
     const [photo, unsubmitted, deletedLater] = await seedImages(
       w.staffA,
       w.venue1,

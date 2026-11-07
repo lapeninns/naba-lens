@@ -43,11 +43,15 @@ node tests/migrations/run.mjs "$W" upgrade
 node tests/migrations/run.mjs "$W" db-reset reset
 node tests/migrations/run.mjs "$W" reset
 node tests/migrations/run.mjs "$W" lint
+node tests/migrations/run.mjs "$W" withdraw
+node tests/migrations/run.mjs "$W" db-reset sibling-upgrade   # reset to 20261106130000, no seed
+node tests/migrations/run.mjs "$W" sibling-upgrade
 ```
 
 The resets are separate commands because each one recreates the database container. On a
 loaded machine, one reset can take several minutes.
 
+- **`sibling-upgrade`** (`tests/migrations/sibling-upgrade.test.ts`): resets to `20261106130000`, seeds item-photo decisions, a staff-held manager grant and audit rows through the RPCs of that era, then applies the later migrations with `supabase migration up`. It checks that the rows survive as staff-label decisions, that every constraint is validated, and that the legacy grant stays effective.
 - **`upgrade`** (`tests/migrations/upgrade.test.ts`), on a freshly reset database:
   - The applied history equals the repo's `supabase/migrations`, and there is no media yet.
     The test saves a baseline snapshot and schema fingerprint for the `reset` phase.

@@ -78,6 +78,44 @@ export async function provisionCoverageWorld(): Promise<CoverageWorld> {
   return { tag, venue1, venue2, admin, manager, staffA, staffB, joiner, staffC }
 }
 
+/**
+ * A venue manager grant held by a STAFF account, as made before venue manager
+ * accounts existed. Under the transitional rule it stays in effect for the
+ * legacy /staff/manage tools; grant_venue_manager now refuses staff accounts,
+ * so the service role writes the rows it used to write (fixture setup only).
+ * The /manager workspace uses real manager accounts (helpers/manager-world).
+ */
+export async function legacyStaffGrant(
+  admin: Pick<Person, "id">,
+  staff: Pick<Person, "id">,
+  venue: Pick<Venue, "id">
+): Promise<string> {
+  const service = provisioner()
+  const { data, error } = await service
+    .from("venue_manager_grants")
+    .insert({
+      staff_id: staff.id,
+      venue_id: venue.id,
+      granted_by: admin.id,
+      grant_reason: "DEV FIXTURE legacy staff grant",
+    })
+    .select("id")
+    .single()
+  if (error) throw error
+  const audit = await service.from("coverage_audit_events").insert({
+    venue_id: venue.id,
+    entity: "manager_grant",
+    entity_id: data.id,
+    actor_id: admin.id,
+    actor_role: "admin",
+    action: "granted",
+    reason: "DEV FIXTURE legacy staff grant",
+    after: { staffId: staff.id },
+  })
+  if (audit.error) throw audit.error
+  return data.id
+}
+
 const DERIVATIVE_CACHE = new Map<string, Buffer>()
 
 async function derivative(colour: string) {
