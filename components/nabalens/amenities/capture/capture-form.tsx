@@ -254,6 +254,9 @@ export function CaptureForm({
   const queuedReload = React.useRef<Set<string> | null>(null)
   // The current pick's uploads selected here, and those not listed yet.
   const arrivals = React.useRef(newArrivals())
+  // Uploads ready while an answer was sending: not in what was sent, so they
+  // wait for its result instead of being selected into a draft it replaces.
+  const late = React.useRef(new Set<string>())
 
   React.useEffect(() => {
     mounted.current = true
@@ -388,6 +391,10 @@ export function CaptureForm({
         setAssets(result.assets)
         setListError(null)
         if (select.length === 0) return
+        if (inFlight.current) {
+          for (const id of select) late.current.add(id)
+          return
+        }
         const ready = new Set(result.assets.map((a) => a.assetId))
         const picked = select.filter((id) => ready.has(id))
         if (picked.length > 0)
@@ -453,12 +460,29 @@ export function CaptureForm({
         // whole pick settles): each is added to the evidence, never
         // replacing it. False after unmount ("the screen is gone"): Add keeps
         // the upload saved, not attached to this check.
-        onReady: (assetIds) => {
-          if (!mounted.current) return false
-          void reloadRef.current(assetIds)
-        },
+        onReady: (assetIds) => arrived.current(assetIds),
       })
     else ownPicker.open(source)
+  }
+
+  function onArrived(assetIds: string[]) {
+    if (!mounted.current) return false
+    if (inFlight.current) {
+      for (const id of assetIds) late.current.add(id)
+      return
+    }
+    void reloadRef.current(assetIds)
+  }
+  const arrived = React.useRef(onArrived)
+  React.useLayoutEffect(() => {
+    arrived.current = onArrived
+  })
+
+  /** Uploads that arrived during the send are selected for the next one. */
+  function selectLate() {
+    const ids = [...late.current]
+    late.current.clear()
+    if (ids.length > 0) void reloadAssets(ids)
   }
 
   async function send() {
@@ -497,7 +521,10 @@ export function CaptureForm({
       result = await submit(checked.input)
     } catch {
       // The draft and its key stay: Try again replays, never sends twice.
-      if (mounted.current) setOutcome({ kind: "retry" })
+      if (mounted.current) {
+        setOutcome({ kind: "retry" })
+        selectLate()
+      }
       return
     } finally {
       inFlight.current = false
@@ -521,15 +548,24 @@ export function CaptureForm({
         revision: check.revision,
       }))
       setOutcome({ kind: "stale" })
+      selectLate()
       return
     }
     if (result.ok) {
       setDraft(emptyDraft(newKey, check.revision))
       setOutcome({ kind: "sent", replayed: result.replayed })
+      const missed = late.current.size
+      late.current.clear()
+      // Stay, so the person learns those uploads are not in the answer.
+      if (missed > 0) {
+        setUploadNote(lateNote(missed))
+        return
+      }
       onDone()
       return
     }
     failed(result)
+    selectLate()
   }
 
   function failed(result: AmenityFailure) {
@@ -926,7 +962,7 @@ export function CaptureForm({
           uploader={upload.uploader}
           limits={upload.limits}
           initialFiles={pickedFiles}
-          onReady={(assetIds) => void reloadAssets(assetIds)}
+          onReady={(assetIds) => arrived.current(assetIds)}
           purpose="amenity"
         />
       ) : null}
@@ -954,6 +990,13 @@ function arrivalNote({ selected, waiting }: Arrivals): string | null {
       .filter(Boolean)
       .join(" ") || null
   )
+}
+
+/** Uploads ready after the answer was sent: saved, not in the answer. */
+function lateNote(n: number) {
+  return n === 1
+    ? "1 new upload finished while your answer was sending, so it wasn't added to this check. The upload is saved."
+    : `${n} new uploads finished while your answer was sending, so they weren't added to this check. The uploads are saved.`
 }
 
 const FIELD_NAMES = new Set<string>([

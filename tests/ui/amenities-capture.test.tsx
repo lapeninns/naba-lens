@@ -3,6 +3,7 @@
 // notes, and a per-check draft whose idempotency key survives failures and
 // reloads, so "Try again" never records a finding twice.
 import {
+  act,
   cleanup,
   render,
   screen,
@@ -33,6 +34,7 @@ import {
   type SubmitResult,
   type SubmittableAsset,
 } from "@/lib/amenities/contract"
+import type { OpenAddOptions } from "@/components/nabalens/shell/add-context"
 import type { Uploader } from "@/components/nabalens/upload-queue"
 
 const CHECK_ID = "8a000000-0000-4000-8000-000000000001"
@@ -773,5 +775,80 @@ describe("CaptureForm: Wi-Fi redaction tick follows the evidence", () => {
       idempotencyKey: "old-key",
       redactionConfirmed: true,
     })
+  })
+})
+
+describe("CaptureForm: uploads ready while an answer is sending (B1)", () => {
+  function sending(assets: SubmittableAsset[] = [PHOTO]) {
+    const openAdd = vi.fn()
+    let answer!: (result: AmenityResult<SubmitResult>) => void
+    const submit = vi.fn<SubmitHandler>(
+      () => new Promise((resolve) => (answer = resolve))
+    )
+    const view = setup({
+      assets,
+      submit,
+      upload: { addQueue: { openAdd }, uploader: noUpload, limits: LIMITS },
+    })
+    return {
+      ...view,
+      answer: (result: AmenityResult<SubmitResult>) =>
+        act(async () => answer(result)),
+      async start() {
+        await view.user.click(
+          screen.getByRole("button", { name: "Choose from your photos" })
+        )
+        await view.user.click(screen.getByRole("radio", { name: "Yes" }))
+        await view.user.click(photoBox())
+        return openAdd.mock.lastCall?.[0] as OpenAddOptions
+      },
+    }
+  }
+
+  it("stays and says so when an upload is ready during a send that succeeds", async () => {
+    const { user, submit, loadAssets, onDone, answer, start } = sending()
+    const opts = await start()
+    await user.click(submitButton())
+    loadAssets.mockResolvedValue(assetsOk([VIDEO, PHOTO]))
+    expect(opts.onReady?.([VIDEO.assetId])).toBeUndefined()
+    await answer(sentOk())
+    expect(
+      await screen.findByText(
+        "1 new upload finished while your answer was sending, so it wasn't added to this check. The upload is saved."
+      )
+    ).toBeTruthy()
+    expect(onDone).not.toHaveBeenCalled()
+    expect(lastInput(submit).assetIds).toEqual([PHOTO.assetId])
+  })
+
+  it("also when its list was still loading as the send started", async () => {
+    const { user, loadAssets, onDone, answer, start } = sending()
+    const opts = await start()
+    let list!: (result: AssetsResult) => void
+    loadAssets.mockImplementationOnce(
+      () => new Promise((resolve) => (list = resolve))
+    )
+    opts.onReady?.([VIDEO.assetId])
+    await user.click(submitButton())
+    await act(async () => list(assetsOk([VIDEO, PHOTO])))
+    await answer(sentOk())
+    expect(
+      await screen.findByText(/1 new upload finished while your answer/)
+    ).toBeTruthy()
+    expect(onDone).not.toHaveBeenCalled()
+  })
+
+  it("selects it for the next try when the send fails", async () => {
+    const { user, loadAssets, onDone, answer, start } = sending()
+    const opts = await start()
+    await user.click(submitButton())
+    loadAssets.mockResolvedValue(assetsOk([VIDEO, PHOTO]))
+    opts.onReady?.([VIDEO.assetId])
+    await answer(failure("unavailable", { status: 503 }))
+    await waitFor(() =>
+      expect((videoBox() as HTMLInputElement).checked).toBe(true)
+    )
+    expect((photoBox() as HTMLInputElement).checked).toBe(true)
+    expect(onDone).not.toHaveBeenCalled()
   })
 })
