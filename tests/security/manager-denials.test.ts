@@ -682,11 +682,20 @@ describe("work profile", () => {
   it.skipIf(!present)(
     "save_work_profile refuses manager accounts",
     async () => {
-      const { error } = await managerA.client.rpc(
-        "save_work_profile" as never,
-        {} as never
-      )
+      const { error } = await managerA.client.rpc("save_work_profile", {
+        p_role_key: "manager",
+        p_role_title: null as never,
+        p_work_areas: [],
+      })
       expect(error?.code).toBe("42501")
+      expect(error?.message).toContain("work_profile_forbidden")
+      for (const fn of ["skip_work_profile", "set_welcome_dismissed"] as const) {
+        const { error: other } = await managerA.client.rpc(
+          fn,
+          (fn === "set_welcome_dismissed" ? { p_dismissed: true } : {}) as never
+        )
+        expect(other?.code, fn).toBe("42501")
+      }
     }
   )
 })
