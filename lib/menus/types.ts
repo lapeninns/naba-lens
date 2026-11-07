@@ -390,10 +390,27 @@ export type PendingLabelItem = {
   input: SaveLabelsInput
   /** The photo's upload_state: uploading, processing, ready or failed. */
   uploadState: string
+  /**
+   * The upload failed temporarily (uploadState "failed", its bytes still
+   * stored) and the labels are kept: a successful Retry applies them. A file
+   * that can never be used loses its stored labels, so it is not listed.
+   */
+  retryable: boolean
   mediaType: "image" | "video"
   thumbnailUrl: string | null
   updatedAt: string
 }
+
+/**
+ * DELETE /api/upload-labels?assetId=. "discarded": the stored labels were
+ * removed. "already_applied": finalise applied them first, nothing was
+ * discarded and the photo has `labels`. "none": nothing was stored and
+ * nothing was applied.
+ */
+export type UploadLabelDiscardResult =
+  | { ok: true; state: "discarded" }
+  | { ok: true; state: "already_applied"; labels: MediaLabelSummary }
+  | { ok: true; state: "none" }
 
 // ---------------------------------------------------------------------------
 // Admin library label filters (H)

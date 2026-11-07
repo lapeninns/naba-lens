@@ -23,6 +23,7 @@ import {
   type SaveLabelsErrorCode,
   type SaveLabelsInput,
   type SaveLabelsResult,
+  type UploadLabelDiscardResult,
   type UploadLabelPostResult,
 } from "@/lib/menus/types"
 import { redactError } from "@/lib/server/log/redact"
@@ -591,9 +592,11 @@ const STAGE_NOT_FOUND =
  * POST /api/upload-labels. Labels for one of the caller's own portfolio
  * uploads at `venueId` (its upload-time venue): saved now through
  * `saveAssetLabels` when the asset is ready, otherwise stored on the server
- * (`stage_media_labels`) for finalise to apply. A failed, deleted or unknown
- * asset is `not_found` (404). `status` is the HTTP status: as before, a
- * rejected save answers 200 with its code.
+ * (`stage_media_labels`) for finalise to apply, also while it is failed with
+ * its bytes still stored (a Retry finalises it again). A deleted or unknown
+ * asset, or a failed one that can never be used, is `not_found` (404).
+ * `status` is the HTTP status: as before, a rejected save answers 200 with
+ * its code.
  */
 export async function stageAssetLabels(
   actor: MediaActor,
@@ -762,6 +765,10 @@ export async function listPendingLabels(
       message: code ? MESSAGES[code] : null,
       input: row.input as unknown as SaveLabelsInput,
       uploadState: asset.upload_state,
+      // finalise deletes the labels of a file that can never be used, and
+      // stage_media_labels stores them for a failed asset only while its bytes
+      // are stored: a failed asset that still has them failed temporarily.
+      retryable: asset.upload_state === "failed",
       mediaType: asset.media_type,
       thumbnailUrl: asset.thumbnail_path ? thumbnailRoute(asset.id) : null,
       updatedAt: row.updated_at,
@@ -770,32 +777,61 @@ export async function listPendingLabels(
   return { ok: true, items }
 }
 
+const DISCARD_UNAVAILABLE: Outcome<never> = {
+  ok: false,
+  status: 503,
+  message: "Labels could not be discarded right now. Try again.",
+}
+
 /**
  * DELETE /api/upload-labels?assetId=: discards the caller's own stored draft
  * of that asset (pending or needs_attention). The upload itself carries on.
- * Idempotent: no draft is still a success.
+ * Idempotent. When nothing was deleted, says whether finalise applied the
+ * labels first (`already_applied`, with what the photo has now) so a discard
+ * that lost that race is never reported as one that worked.
  */
 export async function discardPendingLabels(
   actor: MediaActor,
   assetId: string
-): Promise<Outcome<Record<never, never>>> {
+): Promise<Outcome<UploadLabelDiscardResult>> {
   const refused = refuseManager(actor)
   if (refused) return refused
   if (!isUuid(assetId)) return notFound
-  const { error } = await actor.db
+  // A finalise applying this draft holds its row lock: the delete waits for
+  // it, then matches nothing.
+  const removed = await actor.db
     .from("media_pending_labels")
     .delete()
     .eq("asset_id", assetId)
     .eq("uploader_id", actor.profile.id)
-  if (error) {
-    logFailure("pending labels delete", error)
-    return {
-      ok: false,
-      status: 503,
-      message: "Labels could not be discarded right now. Try again.",
-    }
+    .select("asset_id")
+  if (removed.error) {
+    logFailure("pending labels delete", removed.error)
+    return DISCARD_UNAVAILABLE
   }
-  return { ok: true }
+  if (removed.data.length > 0) return { ok: true, state: "discarded" }
+
+  // RLS: active staff read only their own, non-deleted assets.
+  const asset = await actor.db
+    .from("media_assets")
+    .select("upload_state")
+    .eq("id", assetId)
+    .eq("uploader_id", actor.profile.id)
+    .is("deleted_at", null)
+    .maybeSingle()
+  if (asset.error) {
+    logFailure("pending labels discard asset read", asset.error)
+    return DISCARD_UNAVAILABLE
+  }
+  if (asset.data?.upload_state !== "ready") return { ok: true, state: "none" }
+  // Never answer "none" without knowing: a failed read is a retry.
+  const labels = await currentSummary(actor, assetId)
+  if (!labels) return DISCARD_UNAVAILABLE
+  const applied =
+    labels.hasLabels || labels.note !== null || labels.missingItem !== null
+  return applied
+    ? { ok: true, state: "already_applied", labels }
+    : { ok: true, state: "none" }
 }
 
 // ---------------------------------------------------------------------------

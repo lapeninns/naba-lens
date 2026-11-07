@@ -3,12 +3,18 @@
 // stores a draft for an uploading/processing asset, finalise applies it as
 // the uploader in the same transaction that makes the asset ready, a problem
 // becomes `needs_attention` without blocking the photo, and drafts follow the
-// asset's removal and the 24 h abandoned-upload cleanup.
+// asset's removal and the 24 h abandoned-upload cleanup. Contract C6: a
+// temporarily failed upload keeps (and accepts) its labels and lists them as
+// `retryable`; DELETE says whether it discarded anything or finalise applied
+// the labels first; only the uploader's own save settles their stored labels;
+// a lock wait during the apply never fails the finalise.
 //
 // The route handlers run in-process. getMediaActor is replaced by the same
 // MediaActor the app builds (tests/slice/media-actor.ts) because it reads
 // cookies in Next; every read and write still goes through the caller's RLS
 // client. The service role only arranges state and reads rows back.
+import { execFileSync, spawn } from "node:child_process"
+
 import { createClient } from "@supabase/supabase-js"
 import { beforeAll, describe, expect, it, vi } from "vitest"
 
@@ -17,6 +23,7 @@ import type { Database } from "../../lib/db/types"
 import type {
   PendingLabelItem,
   SaveLabelsInput,
+  UploadLabelDiscardResult,
   UploadLabelPostResult,
 } from "../../lib/menus/types"
 import { runMediaCleanup } from "../../lib/server/lifecycle/cleanup"
@@ -136,7 +143,11 @@ async function discard(actor: MediaActor, assetId: string) {
       method: "DELETE",
     })
   )
-  return { status: res.status, body: (await res.json()) as { ok: boolean } }
+  return {
+    status: res.status,
+    body: (await res.json()) as
+      UploadLabelDiscardResult | { ok: false; message: string },
+  }
 }
 
 /** Reserves (and, unless `transfer` is false, stores) a fresh JPEG. */
@@ -179,6 +190,25 @@ async function draftRow(assetId: string) {
     .maybeSingle()
   if (error) throw error
   return data
+}
+
+async function uploadState(assetId: string) {
+  const { data, error } = await service
+    .from("media_assets")
+    .select("upload_state")
+    .eq("id", assetId)
+    .single()
+  if (error) throw error
+  return data.upload_state
+}
+
+/** Marks an asset failed, as finalise does on a temporary failure (bytes kept). */
+async function failTemporarily(assetId: string) {
+  const { error } = await service
+    .from("media_assets")
+    .update({ upload_state: "failed" })
+    .eq("id", assetId)
+  if (error) throw error
 }
 
 async function savedItems(assetId: string) {
@@ -256,6 +286,7 @@ describe("POST /api/upload-labels before the photo is ready", () => {
       code: null,
       message: null,
       uploadState: "uploading",
+      retryable: false,
       mediaType: "image",
       thumbnailUrl: null,
     })
@@ -365,6 +396,7 @@ describe("POST /api/upload-labels before the photo is ready", () => {
       status: "needs_attention",
       code: "catalogue_changed",
       uploadState: "ready",
+      retryable: false,
     })
     expect(listed!.thumbnailUrl).toBe(`/api/media/${a.assetId}/thumb`)
     // An already-ready finalise reports the open problem again.
@@ -414,24 +446,75 @@ describe("POST /api/upload-labels before the photo is ready", () => {
     await post(actorA, venueA, input(a.assetId))
     expect(await discard(actorA, a.assetId)).toEqual({
       status: 200,
-      body: { ok: true },
+      body: { ok: true, state: "discarded" },
     })
     expect(await discard(actorA, a.assetId)).toEqual({
       status: 200,
-      body: { ok: true },
+      body: { ok: true, state: "none" },
     })
     expect(await draftRow(a.assetId)).toBeNull()
     expect(await finalise(actorA, a)).toEqual({ ok: true, state: "ready" })
     expect(await savedItems(a.assetId)).toEqual([])
+    // Ready, nothing stored, no labels: still nothing discarded or applied.
+    expect((await discard(actorA, a.assetId)).body).toEqual({
+      ok: true,
+      state: "none",
+    })
     expect((await discard(actorA, "not-a-uuid")).status).toBe(400)
   })
 
-  it("refuses failed, deleted, unknown and other-venue assets as not_found", async () => {
-    const failed = await upload(actorA, staffA)
-    await service
-      .from("media_assets")
-      .update({ upload_state: "failed" })
-      .eq("id", failed.assetId)
+  it("a discard that lost the race with finalise says the labels were already applied (m2)", async () => {
+    const a = await upload(actorA, staffA)
+    expect((await post(actorA, venueA, input(a.assetId))).body).toMatchObject({
+      state: "pending",
+    })
+    // The Retry's finalise applies the labels before Me's Discard arrives.
+    expect(readyLabels(await finalise(actorA, a))?.state).toBe("saved")
+    const late = await discard(actorA, a.assetId)
+    expect(late.status).toBe(200)
+    expect(late.body).toMatchObject({
+      ok: true,
+      state: "already_applied",
+      labels: {
+        revision: 1,
+        hasLabels: true,
+        items: [{ itemId: rows.bhaji.itemId, variantId: null }],
+      },
+    })
+    // Nothing was discarded: the labels stay on the photo.
+    expect(await savedItems(a.assetId)).toHaveLength(1)
+  })
+
+  it("stores labels for a temporarily failed upload, lists them as retryable, and the Retry applies them (m1, M3)", async () => {
+    const a = await upload(actorA, staffA)
+    // Storage, archive or decoder trouble: failed, bytes kept, retryable.
+    await failTemporarily(a.assetId)
+    const posted = await post(actorA, venueA, input(a.assetId))
+    expect(posted).toEqual({
+      status: 200,
+      body: { ok: true, assetId: a.assetId, state: "pending" },
+    })
+    expect(await draftRow(a.assetId)).toMatchObject({ status: "pending" })
+    expect(
+      (await attention(actorA)).find((i) => i.assetId === a.assetId)
+    ).toMatchObject({
+      status: "pending",
+      uploadState: "failed",
+      retryable: true,
+    })
+
+    // Retry: finalise runs again, makes the photo ready and applies them.
+    expect(readyLabels(await finalise(actorA, a))?.state).toBe("saved")
+    expect(await savedItems(a.assetId)).toEqual([
+      { item_id: rows.bhaji.itemId, variant_id: null, added_by: staffA.id },
+    ])
+    expect(await draftRow(a.assetId)).toBeNull()
+  })
+
+  it("refuses failed-for-good, unknown and other-venue assets as not_found", async () => {
+    // Failed with no original stored: finalise can never make it ready.
+    const failed = await upload(actorA, staffA, false)
+    await failTemporarily(failed.assetId)
     const other = await createVenue(service, "pending-labels-other")
     for (const [assetId, venueId] of [
       [failed.assetId, venueA],
@@ -468,6 +551,11 @@ describe("POST /api/upload-labels before the photo is ready", () => {
     const done = await finalise(actorA, { assetId: reserved.assetId, key })
     expect(done).toMatchObject({ ok: true, state: "failed" })
     expect(await draftRow(reserved.assetId)).toBeNull()
+    // Its original is gone: later labels are refused, never kept for a Retry.
+    const late = await post(actorA, venueA, input(reserved.assetId))
+    expect(late.status).toBe(404)
+    expect(late.body).toMatchObject({ ok: false, code: "not_found" })
+    expect(await draftRow(reserved.assetId)).toBeNull()
   })
 })
 
@@ -485,7 +573,10 @@ describe("row 9: staff own-only stored drafts (server layer)", () => {
     expect(forged.status).toBe(404)
     expect(forged.body).toMatchObject({ code: "not_found" })
     // A2's DELETE succeeds (idempotent) but A's draft stays.
-    expect((await discard(actorA2, a.assetId)).body).toEqual({ ok: true })
+    expect((await discard(actorA2, a.assetId)).body).toEqual({
+      ok: true,
+      state: "none",
+    })
     expect(await draftRow(a.assetId)).toMatchObject({
       status: "pending",
       uploader_id: staffA.id,
@@ -604,6 +695,143 @@ describe("POST racing finalise", () => {
           expect(readyLabels(done)?.state, `round ${round}`).toBe("saved")
         }
       }
+    }
+  )
+})
+
+describe("who settles stored labels (m17)", () => {
+  it("an admin's save leaves the uploader's needs_attention labels; the uploader's own save settles them", async () => {
+    const a = await upload(actorA, staffA)
+    await post(actorA, venueA, input(a.assetId))
+    // A stored input the database refuses: needs_attention once ready.
+    await service
+      .from("media_pending_labels")
+      .update({
+        input: { ...input(a.assetId), expectedRevision: -1 } as never,
+      })
+      .eq("asset_id", a.assetId)
+    expect(readyLabels(await finalise(actorA, a))).toMatchObject({
+      state: "needs_attention",
+    })
+
+    // An admin labels the photo for an unrelated reason.
+    const byAdmin = await admin.client.rpc("save_media_labels", {
+      p_asset_id: a.assetId,
+      p_expected_revision: 0,
+      p_content_types: ["venue"],
+      p_note: "",
+      p_items: [],
+      p_catalogue_version_id: v1,
+    })
+    expect(byAdmin.error).toBeNull()
+    // The uploader's dish is still on their Me list, not silently gone.
+    expect(await draftRow(a.assetId)).toMatchObject({
+      status: "needs_attention",
+      uploader_id: staffA.id,
+    })
+    expect(
+      (await attention(actorA)).find((i) => i.assetId === a.assetId)
+    ).toMatchObject({ status: "needs_attention", uploadState: "ready" })
+
+    // "Fix labels" by the uploader saves and settles them.
+    const fixed = await post(
+      actorA,
+      venueA,
+      input(a.assetId, { expectedRevision: 1 })
+    )
+    expect(fixed.body).toMatchObject({ ok: true, state: "saved" })
+    expect(await draftRow(a.assetId)).toBeNull()
+  })
+})
+
+/**
+ * The venue menu lock (private.lock_venue_menu's key) held exclusively by a
+ * separate session, as a menu activation holds it, until `release()`.
+ */
+function holdVenueMenuLock(venueId: string) {
+  const dbUrl = process.env.SUPABASE_DB_URL
+  if (!dbUrl)
+    throw new Error("Set SUPABASE_DB_URL for the local stack (stack.mjs env)")
+  const host = new URL(dbUrl).hostname
+  if (host !== "127.0.0.1" && host !== "localhost")
+    throw new Error(`Refusing to touch non-local database host ${host}`)
+  if (!/^[0-9a-f-]{36}$/.test(venueId)) throw new Error("unexpected venue id")
+  const key = `hashtextextended('nabalens_menu:${venueId}', 0)`
+  const holder = spawn(
+    "psql",
+    [
+      dbUrl,
+      "-X",
+      "-q",
+      "-c",
+      `select pg_advisory_lock(${key}); select pg_sleep(30)`,
+    ],
+    { stdio: "ignore" }
+  )
+  const exited = new Promise((resolve) => holder.once("exit", resolve))
+  const locked = async () => {
+    const deadline = Date.now() + 10_000
+    for (;;) {
+      const free = execFileSync(
+        "psql",
+        [
+          dbUrl,
+          "-X",
+          "-At",
+          "-c",
+          `select pg_try_advisory_xact_lock_shared(${key})`,
+        ],
+        { encoding: "utf8" }
+      ).trim()
+      if (free === "f") return
+      if (Date.now() > deadline) throw new Error("menu lock not taken")
+      await new Promise((r) => setTimeout(r, 100))
+    }
+  }
+  return {
+    locked,
+    release: async () => {
+      holder.kill()
+      await exited
+    },
+  }
+}
+
+describe("a lock wait during the label apply (n1)", () => {
+  it(
+    "never fails or stalls the finalise: the photo is ready and its labels need attention (unavailable)",
+    { timeout: 60_000 },
+    async () => {
+      const a = await upload(actorA, staffA)
+      await post(actorA, venueA, input(a.assetId))
+      const lock = holdVenueMenuLock(venueA)
+      let done: Outcome<FinaliseResponse>
+      let elapsed: number
+      try {
+        await lock.locked()
+        const started = Date.now()
+        done = await finalise(actorA, a)
+        elapsed = Date.now() - started
+      } finally {
+        await lock.release()
+      }
+      // Bounded by the apply's lock_timeout, not by the lock holder.
+      expect(elapsed).toBeLessThan(15_000)
+      expect(readyLabels(done)).toMatchObject({
+        state: "needs_attention",
+        code: "unavailable",
+      })
+      expect(await uploadState(a.assetId)).toBe("ready")
+      expect(await savedItems(a.assetId)).toEqual([])
+      expect(await draftRow(a.assetId)).toMatchObject({
+        status: "needs_attention",
+        code: "unavailable",
+      })
+
+      // Once the lock is free, "Fix labels" saves them.
+      const fixed = await post(actorA, venueA, input(a.assetId))
+      expect(fixed.body).toMatchObject({ ok: true, state: "saved" })
+      expect(await draftRow(a.assetId)).toBeNull()
     }
   )
 })

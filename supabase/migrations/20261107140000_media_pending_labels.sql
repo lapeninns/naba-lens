@@ -13,9 +13,11 @@
 --   only their own rows. Nobody else reads them, admins and managers
 --   included. Every write goes through the SECURITY DEFINER functions below.
 -- * stage_media_labels (caller: the uploader) locks the asset row, then stores
---   the draft while the asset is uploading or processing, or answers 'ready'
---   so the caller saves through save_media_labels at once. Failed, deleted,
---   amenity, other venues' and other people's assets are not found.
+--   the draft while the asset is uploading or processing, or failed with its
+--   original still stored (a temporary failure: a Retry finalises it again),
+--   or answers 'ready' so the caller saves through save_media_labels at once.
+--   Deleted, amenity, other venues' and other people's assets, and failed
+--   ones whose original is gone (can never be used), are not found.
 -- * complete_media_finalise (service role, called by finalise) makes the
 --   asset ready AND applies a stored draft in one transaction, attributed to
 --   the uploader through the same validation and audit trail as
@@ -23,14 +25,31 @@
 --   needs_attention. Ordering: both functions take the asset row lock, so a
 --   draft stored before the asset is ready is applied by finalise, and one
 --   arriving after it is saved directly. No draft can be dropped in between.
+--   The apply waits at most 3 s for a lock (the venue menu lock, held by a
+--   menu activation): longer, and the draft becomes needs_attention
+--   'unavailable' instead of the whole finalise failing.
 -- * save_media_labels now runs private.save_media_labels_as(actor, ...): the
 --   same body (20261107100200_manager_staff_denials.sql) with the actor as an
---   argument, plus one rule: a successful save deletes the asset's stored
---   draft (pending or needs_attention), whoever saved it.
+--   argument, plus one rule: a successful save by the uploader deletes their
+--   stored draft of the asset (pending or needs_attention): the direct POST,
+--   "Fix labels" and finalise's apply all save as the uploader. An admin's
+--   save leaves it, so the uploader's labels never vanish from their Me list
+--   unseen; they fix or discard it themselves.
 -- * A draft goes with its asset: on delete cascade, and the tombstone trigger
 --   below for user removals and the 24 h abandoned-upload cleanup, which
 --   tombstone rows rather than deleting them. finalise deletes the draft of a
---   file that can never be used (validation failure).
+--   file that can never be used (validation failure; its original is removed,
+--   so stage_media_labels refuses it from then on). A temporary failure keeps
+--   the draft for the Retry.
+-- * Accepted risk: a stored draft has no version of its own. A POST the
+--   browser gave up on (network error) that still reaches the server after a
+--   newer POST replaces the newer draft. The browser sends one POST per photo
+--   at a time, so this needs a request that failed on the phone yet arrived
+--   late. finalise then applies the older labels and reports exactly what it
+--   applied, so the phone shows what the photo really has, but the newer
+--   choice is lost. Closing it needs a per-photo sequence sent by the browser
+--   (a contract change), not worth it for a request that must fail and still
+--   land.
 -- * public.upload_label_metrics: admin-only measurement, see the view.
 
 -- ---------------------------------------------------------------------------
@@ -95,8 +114,9 @@ create policy media_pending_labels_delete_own on public.media_pending_labels
 -- ---------------------------------------------------------------------------
 
 -- Body as public.save_media_labels in 20261107100200_manager_staff_denials.sql,
--- with v_uid taken from p_actor instead of auth.uid(), plus the stored-draft
--- delete before the result. Not callable by API roles: the actor is trusted.
+-- with v_uid taken from p_actor instead of auth.uid(), plus the delete of the
+-- actor's own stored draft before the result. Not callable by API roles: the
+-- actor is trusted.
 create function private.save_media_labels_as(
   p_actor uuid,
   p_asset_id uuid,
@@ -372,8 +392,10 @@ begin
   insert into public.media_label_events (asset_id, venue_id, actor_id, actor_role, action, before, after)
   values (p_asset_id, v_asset.venue_id, v_uid, v_role, 'labels_saved', v_before, v_after);
 
-  -- Any successful save settles the asset's stored upload draft.
-  delete from public.media_pending_labels pl where pl.asset_id = p_asset_id;
+  -- The uploader's successful save settles their stored upload draft. Anyone
+  -- else's (an admin's) leaves it for the uploader to fix or discard.
+  delete from public.media_pending_labels pl
+  where pl.asset_id = p_asset_id and pl.uploader_id = v_uid;
 
   return query select v_revision + 1, v_has;
 end;
@@ -438,8 +460,10 @@ revoke all on function private.label_save_error_code(text, text) from public, an
 -- ---------------------------------------------------------------------------
 
 -- The caller's own general-purpose asset at p_venue_id (its upload-time
--- venue), not deleted and not failed; anything else is media_asset_not_found,
--- like an unknown id. 'pending': the draft is stored (a repeat replaces it and
+-- venue), not deleted, and if failed then only temporarily: its original is
+-- still in storage, so finalise can run again (it removes the original of a
+-- file that can never be used). Anything else is media_asset_not_found, like
+-- an unknown id. 'pending': the draft is stored (a repeat replaces it and
 -- clears any earlier problem). 'ready': nothing is stored; save through
 -- save_media_labels now. The asset row lock orders this with
 -- complete_media_finalise (see the top of this file).
@@ -485,7 +509,10 @@ begin
      or v_asset.uploader_id <> v_uid
      or v_asset.purpose <> 'general'
      or v_asset.venue_id <> p_venue_id
-     or v_asset.upload_state = 'failed' then
+     or (v_asset.upload_state = 'failed' and not exists (
+       select 1 from storage.objects o
+       where o.bucket_id = 'media' and o.name = v_asset.original_path
+     )) then
     raise exception 'media_asset_not_found' using errcode = 'P0002';
   end if;
 
@@ -526,6 +553,11 @@ grant execute on function public.stage_media_labels(uuid, uuid, jsonb) to authen
 --                                   returns them;
 --   labels_state 'needs_attention': not applied, draft kept with labels_code.
 -- The apply runs in a subtransaction, so its failure never undoes `ready`.
+-- It waits at most 3 s for any lock (lock_timeout, this transaction only): a
+-- longer wait, e.g. behind a menu activation holding the venue lock, is
+-- 55P03, caught like any failed apply ('unavailable'), rather than running
+-- into a statement timeout or cancel (57014), which `when others` does not
+-- catch and which would roll back `ready` too.
 create function public.complete_media_finalise(
   p_asset_id uuid,
   p_validated_mime_type text,
@@ -559,6 +591,7 @@ declare
   v_state text;
   v_revision integer;
   v_has boolean;
+  v_lock_timeout text := current_setting('lock_timeout');
 begin
   update public.media_assets a
   set upload_state = 'ready',
@@ -588,6 +621,8 @@ begin
   end if;
 
   begin
+    -- Undone with the subtransaction on failure; restored below on success.
+    perform set_config('lock_timeout', '3s', true);
     v_input := v_pending.input;
     select coalesce(array_agg(t.value), '{}') into v_types
     from jsonb_array_elements_text(coalesce(v_input -> 'contentTypes', '[]'::jsonb)) as t(value);
@@ -612,6 +647,7 @@ begin
     where pl.asset_id = p_asset_id;
     v_state := 'needs_attention';
   end;
+  perform set_config('lock_timeout', v_lock_timeout, true);
 
   return query select true, v_state, v_code, v_revision, v_has;
 end;

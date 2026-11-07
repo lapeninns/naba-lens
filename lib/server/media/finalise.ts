@@ -336,7 +336,9 @@ export async function finaliseAsset(
     // Terminal: the bytes can never become ready, so don't keep them for the
     // 24 h cleanup. Best effort; cleanup still removes a failed row's objects.
     await removeObjects(actor, [row.original_path])
-    // Nor its stored labels: they can never apply ("photo not saved").
+    // Nor its stored labels: they can never apply ("photo not saved"). With
+    // the original gone, stage_media_labels stores no new ones either. A
+    // temporary failure (above and below) keeps them for the Retry.
     if (failedHere) await discardStoredLabels(actor, row.id)
     return {
       ok: true,
