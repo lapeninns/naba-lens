@@ -396,26 +396,6 @@ export function draftItemsFromRefs(
   return out
 }
 
-/**
- * How stored items read in one line ("Onion Bhaji, Momo (Not specified)"),
- * named from the current catalogue. Empty when there are none.
- */
-export function labelItemsText(
-  catalogue: LabelCatalogue | null,
-  refs: readonly LabelItemRef[],
-  known: readonly DraftItem[] = []
-): string {
-  return draftItemsFromRefs(catalogue, refs, known)
-    .map((item) =>
-      item.variantName
-        ? `${item.name}, ${item.variantName}`
-        : isUnspecifiedVariant(catalogue, item)
-          ? `${item.name} (Not specified)`
-          : item.name
-    )
-    .join(", ")
-}
-
 export type FileStatus =
   | { kind: "idle" }
   | { kind: "saved" }
