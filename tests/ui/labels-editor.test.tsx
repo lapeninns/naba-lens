@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
   LabelEditorDialog,
+  PENDING_CHOICE_TEXT,
   type CatalogueProp,
   type LabelEditorDialogProps,
 } from "@/components/nabalens/labels"
@@ -20,7 +21,14 @@ import type {
   SaveLabelsResult,
 } from "@/lib/menus/types"
 
-import { CATALOGUE, NO_MENU, asset, summary, view } from "./labels-fixtures"
+import {
+  CATALOGUE,
+  MOMO_CATALOGUE,
+  NO_MENU,
+  asset,
+  summary,
+  view,
+} from "./labels-fixtures"
 
 afterEach(cleanup)
 
@@ -580,7 +588,9 @@ describe("LabelEditorDialog: batch", () => {
       name: "Selected menu items for photo 2",
     })
     await user.click(
-      within(fileChips).getByRole("button", { name: "Remove Mango Lassi" })
+      within(fileChips).getByRole("button", {
+        name: "Remove Mango Lassi for photo 2",
+      })
     )
     expect(
       within(panel).getByRole("button", {
@@ -664,7 +674,9 @@ describe("LabelEditorDialog: batch", () => {
     expect(onOpenChange).not.toHaveBeenCalled()
     // a2's edits are still there.
     expect(
-      within(panel).getByRole("button", { name: "Remove Onion Bhaji" })
+      within(panel).getByRole("button", {
+        name: "Remove Onion Bhaji for photo 2",
+      })
     ).toBeTruthy()
     expect(
       (
@@ -862,5 +874,182 @@ describe("LabelEditorDialog: staff and admin", () => {
     expect(
       screen.queryByRole("textbox", { name: "Missing menu item" })
     ).toBeNull()
+  })
+})
+
+describe("LabelEditorDialog: variant default and unfinished choices (audit J4b)", () => {
+  const MOMO: CatalogueProp = { state: "ready", catalogue: MOMO_CATALOGUE }
+  const MOMO_OPTION = /Momo.*choose a variant/
+
+  async function expectPendingNotice() {
+    const text = await screen.findByText(PENDING_CHOICE_TEXT)
+    const notice = text.closest("[tabindex]") as HTMLElement
+    expect(notice).toBeTruthy()
+    await waitFor(() => expect(document.activeElement).toBe(notice))
+    return notice
+  }
+
+  it("saves a dish with variants as Not specified when the question is left unanswered", async () => {
+    const { user, onSave, onOpenChange } = await setup({ catalogue: MOMO })
+    await pick(user, "momo", MOMO_OPTION)
+    const group = screen.getByRole("group", { name: /Which Momo\?/ })
+    expect(
+      within(group)
+        .getByRole("button", { name: "Not specified" })
+        .getAttribute("aria-pressed")
+    ).toBe("true")
+    expect(
+      within(group)
+        .getByRole("button", { name: "Veg" })
+        .getAttribute("aria-pressed")
+    ).toBe("false")
+    const chips = screen.getByRole("list", { name: "Selected menu items" })
+    expect(
+      within(chips).getByRole("button", { name: "Remove Momo (Not specified)" })
+    ).toBeTruthy()
+
+    await user.click(screen.getByRole("button", { name: "Save labels" }))
+    expect(onSave).toHaveBeenCalledTimes(1)
+    expect(onSave.mock.calls[0][0]).toEqual([
+      expect.objectContaining({
+        assetId: "a1",
+        catalogueVersionId: "version-1",
+        items: [{ itemId: "item-momo", variantId: null }],
+      }),
+    ])
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+    expect(screen.queryByText(PENDING_CHOICE_TEXT)).toBeNull()
+  })
+
+  it("replaces the Not specified entry when a variant is chosen", async () => {
+    const { user, onSave, onOpenChange } = await setup({ catalogue: MOMO })
+    await pick(user, "momo", MOMO_OPTION)
+    const group = screen.getByRole("group", { name: /Which Momo\?/ })
+    await user.click(within(group).getByRole("button", { name: "Veg" }))
+    expect(screen.queryByRole("group", { name: /Which Momo\?/ })).toBeNull()
+    const chips = screen.getByRole("list", { name: "Selected menu items" })
+    expect(
+      within(chips).getByRole("button", { name: "Remove Momo, Veg" })
+    ).toBeTruthy()
+    expect(
+      within(chips).queryByRole("button", {
+        name: "Remove Momo (Not specified)",
+      })
+    ).toBeNull()
+
+    await user.click(screen.getByRole("button", { name: "Save labels" }))
+    expect(onSave).toHaveBeenCalledTimes(1)
+    expect(onSave.mock.calls[0][0][0].items).toEqual([
+      { itemId: "item-momo", variantId: "var-veg" },
+    ])
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+  })
+
+  it("will not save over unchosen search text; clearing the search lets Save work", async () => {
+    const { user, onSave, onOpenChange } = await setup({ catalogue: MOMO })
+    const box = screen.getByRole("combobox")
+    await user.type(box, "bhaji")
+    expect(screen.getByRole("option", { name: /Onion Bhaji/ })).toBeTruthy()
+
+    await user.click(screen.getByRole("button", { name: "Save labels" }))
+    await expectPendingNotice()
+    expect(onSave).not.toHaveBeenCalled()
+    expect(onOpenChange).not.toHaveBeenCalled()
+    expect(screen.getByRole("dialog")).toBeTruthy()
+
+    await user.clear(box)
+    await waitFor(() =>
+      expect(screen.queryByText(PENDING_CHOICE_TEXT)).toBeNull()
+    )
+    await user.click(screen.getByRole("button", { name: "Drinks" }))
+    await user.click(screen.getByRole("button", { name: "Save labels" }))
+    expect(onSave).toHaveBeenCalledTimes(1)
+    expect(onSave.mock.calls[0][0][0]).toMatchObject({
+      items: [],
+      contentTypes: ["drinks"],
+    })
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+  })
+
+  it("treats an open additive variant question as pending until cancelled", async () => {
+    const { user, onSave, onOpenChange } = await setup({ catalogue: MOMO })
+    await pick(user, "momo", MOMO_OPTION)
+    await user.click(
+      within(screen.getByRole("group", { name: /Which Momo\?/ })).getByRole(
+        "button",
+        { name: "Not specified" }
+      )
+    )
+    expect(screen.queryByRole("group", { name: /Which Momo\?/ })).toBeNull()
+
+    await pick(user, "momo", MOMO_OPTION)
+    const again = screen.getByRole("group", { name: /Which Momo\?/ })
+    const cancel = within(again).getByRole("button", { name: "Cancel" })
+    expect(
+      (
+        within(again).getByRole("button", {
+          name: "Not specified (added)",
+        }) as HTMLButtonElement
+      ).disabled
+    ).toBe(true)
+    // Nothing is added until a variant is chosen.
+    expect(
+      within(
+        screen.getByRole("list", { name: "Selected menu items" })
+      ).getAllByRole("button", { name: /^Remove Momo/ })
+    ).toHaveLength(1)
+
+    await user.click(screen.getByRole("button", { name: "Save labels" }))
+    await expectPendingNotice()
+    expect(onSave).not.toHaveBeenCalled()
+    expect(onOpenChange).not.toHaveBeenCalled()
+    expect(screen.getByRole("dialog")).toBeTruthy()
+
+    await user.click(cancel)
+    expect(screen.queryByRole("group", { name: /Which Momo\?/ })).toBeNull()
+    await waitFor(() =>
+      expect(screen.queryByText(PENDING_CHOICE_TEXT)).toBeNull()
+    )
+    await user.click(screen.getByRole("button", { name: "Save labels" }))
+    expect(onSave).toHaveBeenCalledTimes(1)
+    expect(onSave.mock.calls[0][0][0].items).toEqual([
+      { itemId: "item-momo", variantId: null },
+    ])
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+  })
+
+  it("blocks a batch save while the common picker has an unfinished choice", async () => {
+    const { user, onSave, onOpenChange } = await setup({
+      catalogue: MOMO,
+      assets: [asset("a1"), asset("a2")],
+    })
+    const common = screen.getByRole("region", {
+      name: "Common to all 2 photos",
+    })
+    const box = within(common).getByRole("combobox")
+    await user.type(box, "bhaji")
+    expect(
+      within(common).getByRole("option", { name: /Onion Bhaji/ })
+    ).toBeTruthy()
+
+    await user.click(screen.getByRole("button", { name: "Save labels" }))
+    await expectPendingNotice()
+    expect(onSave).not.toHaveBeenCalled()
+    expect(onOpenChange).not.toHaveBeenCalled()
+
+    await user.click(
+      within(common).getByRole("option", { name: /Onion Bhaji/ })
+    )
+    await waitFor(() =>
+      expect(screen.queryByText(PENDING_CHOICE_TEXT)).toBeNull()
+    )
+    await user.click(screen.getByRole("button", { name: "Save labels" }))
+    expect(onSave).toHaveBeenCalledTimes(1)
+    expect(
+      onSave.mock.calls[0][0].map((i: SaveLabelsInput) => [i.assetId, i.items])
+    ).toEqual([
+      ["a1", [{ itemId: "item-bhaji", variantId: null }]],
+      ["a2", [{ itemId: "item-bhaji", variantId: null }]],
+    ])
   })
 })

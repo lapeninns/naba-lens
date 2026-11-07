@@ -82,7 +82,7 @@ type FileState = {
 
 /** Shown when Save is pressed while a menu item choice is unfinished. */
 export const PENDING_CHOICE_TEXT =
-  "Finish choosing the menu item first: choose it from the list, or clear the search."
+  "Finish choosing the menu item first: choose it from the list or clear the search, or answer or cancel the variant question."
 
 /**
  * FixLabelsDialog's mode: reopen a stored draft (labels that could not be
@@ -94,6 +94,18 @@ export type FixDraft = {
 }
 
 type LabelEditorProps = LabelEditorDialogProps & { fix?: FixDraft }
+
+/** Same labels in every file (save status ignored). */
+function sameDraft(a: Record<string, FileState>, b: Record<string, FileState>) {
+  return Object.keys(b).every((id) => {
+    const x = effectiveLabels(a[id].base, EMPTY_COMMON, a[id].adj)
+    const y = effectiveLabels(b[id].base, EMPTY_COMMON, b[id].adj)
+    return (
+      JSON.stringify(buildSaveInput(id, a[id].base, x, null)) ===
+      JSON.stringify(buildSaveInput(id, b[id].base, y, null))
+    )
+  })
+}
 
 /**
  * Optional labels for 1..10 files of one venue. Presentational: the host
@@ -450,7 +462,9 @@ function LabelEditor({
       status?.kind === "error" ? (status.unavailableItemIds ?? []) : []
     for (const item of items) {
       if (serverIds.includes(item.itemId)) keys.add(item.key)
-      else if (ready && !item.saved && !isPickable(ready, item))
+      // A fix reviews the whole stored draft against the current menu, so
+      // saved items it no longer offers are flagged too.
+      else if (ready && (!item.saved || fix) && !isPickable(ready, item))
         keys.add(item.key)
     }
     return keys
@@ -679,7 +693,9 @@ function LabelEditor({
   function requestClose() {
     if (pending) return
     // A fix only asks when the stored draft was edited: closing keeps it.
-    const unsaved = fix ? !fixPending && files !== seeded : dirtyIds.length > 0
+    const unsaved = fix
+      ? !fixPending && !!seeded && !sameDraft(files, seeded)
+      : dirtyIds.length > 0
     if (unsaved) setConfirmOpen(true)
     else onOpenChange(false)
   }
@@ -910,6 +926,7 @@ function LabelEditor({
                 tone="negative"
                 id={ids.choice}
                 tabIndex={-1}
+                role="none"
                 title="Nothing saved yet"
               >
                 {PENDING_CHOICE_TEXT}

@@ -127,6 +127,10 @@ export function MenuItemPicker({
   const open = searching || suggesting
   const options = searching ? hits : suggesting ? suggestions : []
   const optionId = (i: number) => `${id}-opt-${i}`
+  // The "Not specified" entry was removed while the question was open: keep
+  // asking, but a tap now adds the dish again instead of changing nothing.
+  if (choosing?.entryKey && !selectedKeys.has(choosing.entryKey))
+    setChoosing({ ...choosing, entryKey: null })
   // Text with nothing to choose from is not a choice (the no-match message
   // offers the missing-item route instead).
   const pending =
@@ -158,12 +162,26 @@ export function MenuItemPicker({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active])
 
+  // Focus returns to the search box after the next render: a pick that
+  // reaches the item limit disables the box, so focus goes to the limit
+  // message instead of being lost.
+  const [refocus, setRefocus] = React.useState(0)
+  React.useEffect(() => {
+    if (!refocus) return
+    const input = inputRef.current
+    if (input && !input.disabled) input.focus()
+    else document.getElementById(descId)?.focus()
+    // descId only depends on the stable id.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refocus])
+
   function finish(item: DraftItem | null) {
     if (item) onPick(item)
     setChoosing(null)
     if (item) setQuery("")
     setActive(-1)
     inputRef.current?.focus()
+    setRefocus((n) => n + 1)
   }
 
   function choose(hit: CatalogueHit) {
@@ -281,7 +299,7 @@ export function MenuItemPicker({
         />
       </div>
       {description ? (
-        <p id={descId} className={FIELD_HINT}>
+        <p id={descId} tabIndex={-1} className={cn(FIELD_HINT, "outline-none")}>
           {description}
         </p>
       ) : null}

@@ -84,6 +84,7 @@ function SelectedItems({
   unavailableKeys,
   unspecifiedKeys,
   onRemove,
+  nameSuffix,
   onEmptied,
   disabled,
 }: {
@@ -93,6 +94,8 @@ function SelectedItems({
   /** Keys of dishes with variants saved without one ("Not specified"). */
   unspecifiedKeys: ReadonlySet<string>
   onRemove: (item: EffectiveItem) => void
+  /** File scope: "for photo 2", so remove buttons stay unique per file. */
+  nameSuffix?: string
   /** Where focus goes after the last chip is removed. */
   onEmptied: () => void
   disabled?: boolean
@@ -105,15 +108,23 @@ function SelectedItems({
     <ul aria-label={label} className="flex flex-wrap gap-2">
       {items.map((item, i) => {
         const name = names[i]
-        // Same name twice (e.g. "Chicken" in two curry sections): add the section.
-        const clash = names.filter((n) => n === name).length > 1
+        // Same name twice (e.g. "Chicken" in two curry sections): add the
+        // section, else (two dishes the menu dropped) a position.
+        const same = names.filter((n) => n === name)
+        const nth = names.slice(0, i + 1).filter((n) => n === name).length
         const accessibleName =
-          clash && item.sectionName ? `${name} (${item.sectionName})` : name
+          same.length < 2
+            ? name
+            : item.sectionName
+              ? `${name} (${item.sectionName})`
+              : `${name}, ${nth} of ${same.length}`
         const unavailable = unavailableKeys.has(item.key)
         const meta = [
           item.sectionName,
           unavailable ? OFF_MENU_TEXT : null,
-          item.state !== "current" ? ITEM_STATE_TEXT[item.state] : null,
+          item.state !== "current" && !unavailable
+            ? ITEM_STATE_TEXT[item.state]
+            : null,
           item.labelledAs ? `labelled as ${item.labelledAs}` : null,
         ]
           .filter(Boolean)
@@ -139,7 +150,7 @@ function SelectedItems({
               variant="quiet"
               size="icon-sm"
               className="shrink-0 text-current"
-              aria-label={`Remove ${accessibleName}`}
+              aria-label={`Remove ${accessibleName}${nameSuffix ? ` ${nameSuffix}` : ""}`}
               disabled={disabled}
               onClick={(e) => {
                 const li = e.currentTarget.closest("li")
@@ -582,6 +593,7 @@ export function LabelFields({
             unavailableKeys={unavailableKeys}
             unspecifiedKeys={unspecifiedKeys}
             onRemove={onRemoveItem}
+            nameSuffix={scope === "file" ? suffix : undefined}
             onEmptied={focusSearch}
             disabled={disabled}
           />
