@@ -1,10 +1,12 @@
 import "server-only"
 
-import { notFound } from "next/navigation"
+import { notFound, redirect } from "next/navigation"
 import { cache } from "react"
 
 import type { CoverageVenue } from "@/components/nabalens/coverage"
 import { requireActiveAdmin, requireActiveStaff } from "@/lib/auth"
+import { requireManagerVenue } from "@/lib/auth/manager"
+import { ROUTES } from "@/lib/auth/routes"
 import {
   getCoverageActor,
   getCoverageScope,
@@ -15,6 +17,7 @@ import type {
 } from "@/lib/server/coverage/types"
 import { isUuid } from "@/lib/server/coverage/validate"
 import { getVenueCoverage } from "@/lib/server/coverage/venue"
+import { getMediaActor } from "@/lib/server/media/context"
 import type { MediaActor } from "@/lib/server/media/types"
 
 /**
@@ -22,14 +25,18 @@ import type { MediaActor } from "@/lib/server/media/types"
  * every service call re-checks the grant (or admin role) in the database.
  */
 export type ManageContext = {
-  mode: "manager" | "admin"
+  /**
+   * `manager`: a staff-held grant in /staff/manage. `workspace`: a manager
+   * account in /manager (its own shell, no coverage tabs). `admin`: any venue.
+   */
+  mode: "manager" | "workspace" | "admin"
   actor: MediaActor
   viewerId: string
   viewerName: string
   venue: CoverageVenue
   /** Venue for every service call: the manager's own venue, or the admin's choice. */
   venueId: string
-  /** `/staff/manage` or `/admin/coverage/<venueId>`. */
+  /** `/staff/manage`, `/manager` or `/admin/coverage/<venueId>`. */
   basePath: string
   /** Admin pages read the venue's coverage to resolve its name; reuse it. */
   coverage: VenueCoverageView | null
@@ -70,6 +77,32 @@ export async function managerAccess(): Promise<ManageAccess> {
       basePath: "/staff/manage",
       coverage: null,
     },
+  }
+}
+
+/**
+ * `/manager/amenities`: a manager account with an effective grant, acting on
+ * its workspace venue. Without one it goes to `/manager`, whose layout shows
+ * Venue access unavailable (see `requireManagerVenue`). The amenity services
+ * re-check the grant in the database on every call.
+ */
+export async function workspaceManagerContext(): Promise<ManageContext> {
+  const { profile, venue } = await requireManagerVenue()
+  const auth = await getMediaActor("manager")
+  if (!auth.ok) {
+    if (auth.status === 401) redirect(ROUTES.login)
+    if (auth.status === 403) redirect(ROUTES.managerHome)
+    throw new Error(auth.message)
+  }
+  return {
+    mode: "workspace",
+    actor: auth.actor,
+    viewerId: profile.id,
+    viewerName: profile.displayName,
+    venue: { id: venue.id, name: venue.name },
+    venueId: venue.id,
+    basePath: "/manager",
+    coverage: null,
   }
 }
 

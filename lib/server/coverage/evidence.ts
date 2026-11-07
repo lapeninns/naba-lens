@@ -12,9 +12,11 @@ const notFound = { ok: false, status: 404, message: "Not found." } as const
  * The caller-scoped check run before any storage key is read. Both return the
  * same shape: `task_evidence_asset` for task evidence, `menu_item_photo_asset`
  * for Our menu photos (labelled photos for the venue's manager or an admin, an
- * item's primary photo for staff at the venue, and the uploader's own).
+ * item's primary photo for staff at the venue, and the uploader's own), and
+ * `amenity_evidence_asset` for amenity check evidence.
  */
-export type EvidenceCheck = "task_evidence_asset" | "menu_item_photo_asset"
+export type EvidenceCheck =
+  "task_evidence_asset" | "menu_item_photo_asset" | "amenity_evidence_asset"
 
 /**
  * Signed (at most 60 s) URL for a task-evidence derivative. The caller-scoped

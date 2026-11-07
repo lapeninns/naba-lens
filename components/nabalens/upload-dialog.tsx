@@ -47,6 +47,7 @@ import {
   type RejectedFile,
   SessionExpiredError,
   type Uploader,
+  type UploadPurpose,
 } from "./upload-queue"
 import { useObjectUrl, useUploadQueue } from "./use-upload-queue"
 
@@ -97,6 +98,11 @@ type UploadDialogProps = {
   initialFiles?: File[]
   /** Called when files are picked, here or as `initialFiles` (not on cancel). */
   onPick?: (files: File[]) => void
+  /**
+   * Why these files are uploaded. "amenity" keeps them out of the
+   * organisation community (amenity evidence). Default "general".
+   */
+  purpose?: UploadPurpose
 }
 
 export type UploadBusy = { active: number; failed: number; stopped: number }
@@ -288,6 +294,7 @@ export function UploadDialog({
   imagesOnly = false,
   initialFiles,
   onPick,
+  purpose = "general",
 }: UploadDialogProps) {
   const guard = useSessionGuard()
   const isSignedIn = guard?.isSignedIn
@@ -295,11 +302,15 @@ export function UploadDialog({
   // session stops the file (and pauses the rest) instead of failing it with a
   // transport error.
   const upload = React.useMemo<Uploader>(() => {
-    if (!isSignedIn) return uploader
+    const send: Uploader =
+      purpose === "general"
+        ? uploader
+        : (file, context) => uploader(file, { ...context, purpose })
+    if (!isSignedIn) return send
     return async (file, context) => {
       if (!(await isSignedIn())) throw new SessionExpiredError()
       try {
-        return await uploader(file, context)
+        return await send(file, context)
       } catch (error) {
         if (
           !context.signal.aborted &&
@@ -310,7 +321,7 @@ export function UploadDialog({
         throw error
       }
     }
-  }, [uploader, isSignedIn])
+  }, [uploader, isSignedIn, purpose])
   const queue = useUploadQueue({ upload, limits })
   const { items, summary, isActive, pause } = queue
   useLeaveGuard(summary.active, queue.cancelAll)

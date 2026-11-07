@@ -15,9 +15,10 @@ const FOCUS =
 
 /**
  * Page frame of the venue manager workspace: the wordmark, the venue's name,
- * Overview · Review · Menu at every width (a row under the header from md, a
- * bottom tab bar on phones), Account and Log out. It has no Add, upload,
- * Photos, People or Me: a manager account reviews and does not contribute.
+ * Overview · Review · Menu · Amenities at every width (a row under the
+ * header from md, a bottom tab bar on phones), Account and Log out. It has no
+ * Add, upload, Photos, People or Me: a manager account reviews and does not
+ * contribute (amenity evidence goes through the check's Capture myself page).
  * The Review badge count lives in a ReviewCountProvider, so Review can move
  * it as decisions land.
  */

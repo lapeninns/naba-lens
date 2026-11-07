@@ -12,6 +12,17 @@ export function rpcFailure(error: DbError): Outcome<never> {
   if (message.includes("media_asset_not_found")) {
     return { ok: false, status: 404, message: "This file could not be found." }
   }
+  if (message.includes("reservation_purpose_mismatch")) {
+    // reserve_media_asset: the saved key belongs to an upload started for the
+    // other purpose (portfolio vs amenity evidence). 404 like a removed
+    // reservation, so the browser discards the key and reserves a new asset.
+    return {
+      ok: false,
+      status: 404,
+      message:
+        "This unfinished upload was started somewhere else. Retry to upload the file again.",
+    }
+  }
   if (message.includes("not_active_staff")) {
     return {
       ok: false,
@@ -42,7 +53,8 @@ export function rpcFailure(error: DbError): Outcome<never> {
   if (
     message.includes("invalid_extension") ||
     message.includes("invalid_size") ||
-    message.includes("invalid_upload_key")
+    message.includes("invalid_upload_key") ||
+    message.includes("invalid_purpose")
   ) {
     return {
       ok: false,

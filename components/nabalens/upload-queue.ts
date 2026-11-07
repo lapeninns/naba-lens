@@ -55,7 +55,15 @@ export type UploadContext = {
   resumeToken: unknown
   setResumeToken: (token: unknown) => void
   attempt: number
+  /**
+   * Why the files are uploaded, fixed on the server at reservation. Amenity
+   * evidence never appears in the organisation community. Omitted: general.
+   */
+  purpose?: UploadPurpose
 }
+
+/** Mirrors `media_assets.purpose`. */
+export type UploadPurpose = "general" | "amenity"
 
 /**
  * Injected upload function. Resolve when the asset is ready (optionally with

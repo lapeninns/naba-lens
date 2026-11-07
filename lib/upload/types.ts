@@ -3,6 +3,12 @@
 
 export type MediaKind = "image" | "video"
 
+/**
+ * Why a file is uploaded (matches `media_assets.purpose`). Amenity evidence is
+ * never shown in the organisation community. Omitted means general.
+ */
+export type UploadPurpose = "general" | "amenity"
+
 /** Server-side states an asset moves through (matches the `upload_state` enum). */
 export type UploadState = "uploading" | "processing" | "ready" | "failed"
 
@@ -31,6 +37,8 @@ export type ReserveInput = {
   mediaType: MediaKind
   /** True when the client would prefer a TUS resumable transfer. */
   preferResumable: boolean
+  /** Fixed by the first reservation for this key. Omitted: general. */
+  purpose?: UploadPurpose
 }
 
 export type ReserveResult = {
@@ -66,7 +74,10 @@ export type UploadErrorCode =
   | "too_large"
   | "aborted"
   | "reserve_failed"
-  /** The reservation for this key was removed; a retry starts a new one. */
+  /**
+   * The reservation for this key was removed, or reserved for another purpose;
+   * a retry starts a new one.
+   */
   | "reservation_gone"
   | "transfer_failed"
   | "finalise_failed"
@@ -89,6 +100,8 @@ export type UploadOptions = {
   /** Called once the server has reserved the asset, before the transfer. */
   onReserved?: (reservation: { assetId: string; resumable: boolean }) => void
   signal?: AbortSignal
+  /** Omitted: general. */
+  purpose?: UploadPurpose
 }
 
 export type UploadResult = {
@@ -116,6 +129,11 @@ export type UploadContext = {
   resumeToken: unknown
   setResumeToken: (token: unknown) => void
   attempt: number
+  /**
+   * Why the files are uploaded, fixed on the server at reservation. Amenity
+   * evidence never appears in the organisation community. Omitted: general.
+   */
+  purpose?: UploadPurpose
 }
 
 /** Injected upload function. Resolve when the asset is ready; reject on failure. */
