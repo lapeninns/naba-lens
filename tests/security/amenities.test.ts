@@ -3,6 +3,10 @@
 // lib/amenities/contract.ts). Every assertion runs as a real signed-in
 // identity through the RPCs; the service role only builds fixtures (assets,
 // legacy Coverage evidence, transfers) and reads state back.
+//
+// Managers are venue manager accounts (role 'manager', converted by an admin
+// with convert_account_to_manager, docs/plans/venue-manager-workspace.md).
+// One staff account with a pre-existing grant covers the transitional rule.
 import { randomUUID } from "node:crypto"
 
 import { beforeAll, describe, expect, it } from "vitest"
@@ -17,11 +21,13 @@ import {
 } from "../support/identities"
 import {
   fails,
-  grantManager,
   insertAsset,
   insertSubmittedItem,
+  legacyStaffGrant,
+  makeManager,
   ok,
   psql,
+  requestKey,
 } from "./coverage-fixtures"
 
 const service = serviceClient()
@@ -119,6 +125,9 @@ async function reopen(
   })
 }
 
+// Service-role rows with a chosen uploader. For a manager account they stand
+// for media it uploaded while still staff: a manager account cannot reserve
+// uploads (reserve_media_asset requires active staff).
 async function photo(uploader: string, venueId = venue) {
   return (await insertAsset(service, { uploader, venue: venueId })).id
 }
@@ -170,8 +179,8 @@ beforeAll(async () => {
     role: "staff",
     venueId: otherVenue,
   })
-  await grantManager(admin, manager.id, venue)
-  await grantManager(admin, otherManager.id, otherVenue)
+  await makeManager(admin, manager, venue)
+  await makeManager(admin, otherManager, otherVenue)
 })
 
 describe("catalogue", () => {
@@ -463,7 +472,14 @@ describe("assignment", () => {
       venueId: venue,
       active: false,
     })
-    for (const who of [otherStaff.id, inactive.id, admin.id, randomUUID()]) {
+    for (const who of [
+      otherStaff.id,
+      inactive.id,
+      admin.id,
+      manager.id,
+      otherManager.id,
+      randomUUID(),
+    ]) {
       await fails(assign(manager, check, who), "staff_not_eligible")
     }
     await fails(
@@ -478,9 +494,9 @@ describe("assignment", () => {
       manager.client.rpc("amenity_assignee_options", { p_check_id: check })
     )
     const ids = options.map((o: { id: string }) => o.id)
-    expect(ids).toEqual(
-      expect.arrayContaining([manager.id, staffA.id, staffB.id])
-    )
+    expect(ids).toEqual(expect.arrayContaining([staffA.id, staffB.id]))
+    // Manager accounts are never assignees.
+    expect(ids).not.toContain(manager.id)
     expect(ids).not.toContain(otherStaff.id)
     expect(ids).not.toContain(inactive.id)
     await fails(
@@ -808,7 +824,7 @@ describe("submitting findings", () => {
       role: "staff",
       venueId: venue,
     })
-    await grantManager(admin, attacher.id, venue)
+    await makeManager(admin, attacher, venue)
     const mall = await addCheck(attacher, venue, "dogs_outside")
     const { data: dogReq, error: dogError } = await service
       .from("coverage_requirements")
@@ -1141,7 +1157,7 @@ describe("access", () => {
       role: "staff",
       venueId: venue,
     })
-    const grant = await grantManager(admin, temp.id, venue)
+    const grant = await makeManager(admin, temp, venue)
     const check = await addCheck(temp, venue, "takeaway_pickup")
     await ok(temp.client.rpc("amenity_check", { p_check_id: check }))
     // Another person's submitted evidence, visible to the manager.
@@ -1184,6 +1200,12 @@ describe("access", () => {
       "not_venue_manager"
     )
     expect(await gate()).toEqual([])
+    expect(
+      await ok(temp.client.from("venue_amenity_checks").select("id"))
+    ).toEqual([])
+    expect(
+      await ok(temp.client.from("venue_amenity_settings").select("venue_id"))
+    ).toEqual([])
     // The submitter still reaches their own evidence.
     expect(
       await ok(
@@ -1351,6 +1373,265 @@ describe("access", () => {
     await ok(solo.client.rpc("delete_media_asset", { p_asset_id: mine }))
     expect(await gate(manager, mine)).toEqual([])
     expect(await gate(solo, mine)).toEqual([])
+  })
+})
+
+describe("manager accounts", () => {
+  it("manage, submit, reopen and attach legacy media at their venue, nothing at another", async () => {
+    const acct = await createIdentity(service, {
+      label: "amen-acct",
+      role: "staff",
+      venueId: venue,
+    })
+    const staffEra = await photo(acct.id)
+    await makeManager(admin, acct, venue)
+
+    // Capture myself: a manager account cannot reserve an upload, so it
+    // submits media it already has (staff-era uploads, legacy Coverage media).
+    await fails(
+      acct.client.rpc("reserve_media_asset", {
+        p_client_upload_key: randomUUID(),
+        p_size_bytes: 4,
+        p_media_type: "image",
+        p_extension: "jpg",
+        p_original_filename: "TEST amenity.jpg",
+        p_purpose: "amenity",
+      }),
+      "not_active_staff",
+      "42501"
+    )
+
+    const [bar, room] = await ok(
+      acct.client.rpc("amenity_add_checks", {
+        p_venue_id: venue,
+        p_keys: ["onsite_bar", "private_room"],
+      })
+    )
+    const [state] = await ok(
+      acct.client.rpc("amenity_venue_state", { p_venue_id: venue })
+    )
+    expect(state).toMatchObject({ enabled: true, can_enable: false })
+    expect(
+      await ok(acct.client.from("venue_amenity_settings").select("venue_id"))
+    ).toEqual([{ venue_id: venue }])
+    const visible = await ok(
+      acct.client.from("venue_amenity_checks").select("id, venue_id")
+    )
+    expect(visible.map((c: { id: string }) => c.id)).toEqual(
+      expect.arrayContaining([bar!, room!])
+    )
+    expect(
+      visible.every((c: { venue_id: string }) => c.venue_id === venue)
+    ).toBe(true)
+
+    await ok(assign(acct, bar!, staffA.id))
+    await fails(assign(acct, room!, acct.id), "staff_not_eligible")
+    await ok(
+      acct.client.rpc("amenity_set_check_notes", {
+        p_check_id: room!,
+        p_notes: "Function room upstairs",
+        p_revision: await revisionOf(room!),
+      })
+    )
+
+    // Legacy Coverage media for the bar, from a colleague.
+    const { data: req, error } = await service
+      .from("coverage_requirements")
+      .insert({
+        venue_id: venue,
+        kind: "amenity",
+        title: "TEST Bar",
+        amenity_key: "bar_area",
+        status: "active",
+      })
+      .select("id")
+      .single()
+    if (error) throw error
+    const legacy = await insertAsset(service, { uploader: staffB.id, venue })
+    await insertSubmittedItem(service, {
+      asset: legacy,
+      venue,
+      author: staffB.id,
+      submittedAt: new Date().toISOString(),
+      requirement: req!.id,
+    })
+    const listed = await ok(
+      acct.client.rpc("amenity_submittable_assets", { p_check_id: bar! })
+    )
+    expect(
+      listed.find((a: { asset_id: string }) => a.asset_id === legacy.id)
+    ).toMatchObject({ source: "legacy_coverage" })
+    expect(
+      listed.find((a: { asset_id: string }) => a.asset_id === staffEra)
+    ).toMatchObject({ source: "own" })
+
+    const [done] = await ok(submit(acct, bar!, { assets: [legacy.id] }))
+    expect(await checkRow(acct, bar!)).toMatchObject({
+      answer: "yes",
+      progress: "complete",
+      answered_by: acct.id,
+      current_submission_id: done!.submission_id,
+    })
+    expect(
+      await ok(
+        acct.client.rpc("amenity_evidence_asset", { p_asset_id: legacy.id })
+      )
+    ).toHaveLength(1)
+    await ok(reopen(acct, bar!, "evidence_unclear"))
+    expect((await checkRow(acct, bar!)).progress).toBe("needs_recheck")
+    await ok(submit(acct, room!, { assets: [staffEra] }))
+    await ok(
+      acct.client.rpc("amenity_archive_check", {
+        p_check_id: room!,
+        p_revision: await revisionOf(room!),
+      })
+    )
+    await ok(
+      acct.client.rpc("amenity_restore_check", {
+        p_check_id: room!,
+        p_revision: await revisionOf(room!),
+      })
+    )
+    // Staff tasks only.
+    expect(await ok(acct.client.rpc("amenity_my_checks"))).toEqual([])
+
+    // Another venue: nothing.
+    await ok(
+      admin.client.rpc("amenity_enable_venue", { p_venue_id: otherVenue })
+    )
+    const there = await addCheck(otherManager, otherVenue, "pub_quiz")
+    const therePhoto = await photo(otherStaff.id, otherVenue)
+    for (const call of [
+      acct.client.rpc("amenity_venue_state", { p_venue_id: otherVenue }),
+      acct.client.rpc("amenity_checks_for_venue", {
+        p_venue_id: otherVenue,
+        p_include_archived: true,
+      }),
+      acct.client.rpc("amenity_catalogue_for_venue", {
+        p_venue_id: otherVenue,
+      }),
+      acct.client.rpc("amenity_add_checks", {
+        p_venue_id: otherVenue,
+        p_keys: ["darts"],
+      }),
+    ]) {
+      await fails(call, "not_venue_manager", "42501")
+    }
+    for (const call of [
+      acct.client.rpc("amenity_check", { p_check_id: there }),
+      acct.client.rpc("amenity_check_submissions", { p_check_id: there }),
+      acct.client.rpc("amenity_assignee_options", { p_check_id: there }),
+      acct.client.rpc("amenity_submittable_assets", { p_check_id: there }),
+      submit(acct, there, { answer: "no", reason: "None" }),
+      reopen(acct, there, "wrong_area"),
+      assign(acct, there, null),
+    ]) {
+      await fails(call, "amenity_check_not_found", "P0002")
+    }
+    const elsewhere = await fails(
+      submit(acct, bar!, { assets: [therePhoto] }),
+      "evidence_not_eligible"
+    )
+    expect(JSON.parse(elsewhere.details!)).toEqual({
+      assetId: therePhoto,
+      reason: "not_found",
+    })
+    expect(
+      await ok(
+        acct.client.rpc("amenity_evidence_asset", { p_asset_id: therePhoto })
+      )
+    ).toEqual([])
+    expect(
+      (
+        await ok(
+          otherManager.client.from("venue_amenity_settings").select("venue_id")
+        )
+      ).map((r: { venue_id: string }) => r.venue_id)
+    ).toEqual([otherVenue])
+  })
+
+  it("keeps a staff account with a pre-existing grant managing (transitional rule)", async () => {
+    const legacyManager = await createIdentity(service, {
+      label: "amen-legacy-mgr",
+      role: "staff",
+      venueId: venue,
+    })
+    const grant = await legacyStaffGrant(
+      service,
+      admin,
+      legacyManager.id,
+      venue
+    )
+    const check = await addCheck(legacyManager, venue, "gender_neutral_toilet")
+    await ok(assign(legacyManager, check, staffA.id))
+    await ok(submit(legacyManager, check, { answer: "no", reason: "None" }))
+    await ok(reopen(legacyManager, check, "conditions_changed"))
+    expect(await checkRow(legacyManager, check)).toMatchObject({
+      progress: "needs_recheck",
+      answered_by: legacyManager.id,
+    })
+    // Still a staff account, so still assignable.
+    const options = await ok(
+      legacyManager.client.rpc("amenity_assignee_options", {
+        p_check_id: check,
+      })
+    )
+    expect(options.map((o: { id: string }) => o.id)).toContain(legacyManager.id)
+
+    await ok(
+      admin.client.rpc("revoke_venue_manager", {
+        p_grant_id: grant,
+        p_reason: "TEST revoke",
+      })
+    )
+    await fails(
+      legacyManager.client.rpc("amenity_checks_for_venue", {
+        p_venue_id: venue,
+        p_include_archived: false,
+      }),
+      "not_venue_manager"
+    )
+    await fails(
+      reopen(legacyManager, check, "wrong_area"),
+      "amenity_check_not_found"
+    )
+  })
+
+  it("clears the assignment of an assignee converted to a manager account", async () => {
+    const converted = await createIdentity(service, {
+      label: "amen-converted",
+      role: "staff",
+      venueId: venue,
+    })
+    const check = await addCheck(manager, venue, "play_area")
+    await ok(assign(manager, check, converted.id))
+    const revision = await revisionOf(check)
+
+    await ok(
+      admin.client.rpc("convert_account_to_manager", {
+        p_profile_id: converted.id,
+        p_venue_id: venue,
+        p_reason: "TEST conversion",
+        p_client_request_key: requestKey(),
+      })
+    )
+
+    expect(await checkRow(manager, check)).toMatchObject({
+      assignee_user_id: null,
+      revision: revision + 1,
+    })
+    expect((await events(manager, check)).at(-1)).toMatchObject({
+      kind: "unassigned",
+      actor_id: admin.id,
+      detail: { cause: "assignee_left", previousAssigneeId: converted.id },
+    })
+    // Now a manager of the venue, not an assignee.
+    expect(await checkRow(converted, check)).toMatchObject({ id: check })
+    await fails(assign(manager, check, converted.id), "staff_not_eligible")
+    const options = await ok(
+      manager.client.rpc("amenity_assignee_options", { p_check_id: check })
+    )
+    expect(options.map((o: { id: string }) => o.id)).not.toContain(converted.id)
   })
 })
 

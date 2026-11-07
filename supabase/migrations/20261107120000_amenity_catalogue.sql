@@ -361,7 +361,10 @@ end;
 $$;
 
 -- The current assignee (active staff currently at the check's venue), the
--- venue's effective manager, or an admin.
+-- venue's effective manager (a manager account with its grant, or a staff
+-- account with a transitional pre-existing grant: private.can_manage_venue),
+-- or an admin. Assignees are staff only, so a manager account submits as the
+-- manager and loses every amenity path the moment its grant goes.
 create function private.amenity_can_submit(p_check public.venue_amenity_checks)
 returns boolean
 language sql
@@ -378,7 +381,9 @@ as $$
   ), false);
 $$;
 
--- Submitters and their earlier submissions, plus everyone who may submit.
+-- Submitters and their earlier submissions while still staff at the venue,
+-- plus everyone who may submit. A manager account reads only while it
+-- manages the venue.
 create function private.amenity_can_read(p_check public.venue_amenity_checks)
 returns boolean
 language sql
@@ -651,7 +656,8 @@ create trigger media_assets_amenity_evidence_lost
   when (old.deleted_at is null and new.deleted_at is not null)
   execute function private.media_assets_amenity_evidence_lost();
 
--- Transfer, deactivation or a role change clears the person's assignments
+-- Transfer, deactivation or a role change (including conversion to a manager
+-- account by convert_account_to_manager) clears the person's assignments
 -- (pattern: private.profiles_revoke_manager_grants). Submissions stay.
 create function private.profiles_end_amenity_assignments()
 returns trigger
@@ -718,9 +724,15 @@ alter table public.amenity_check_events enable row level security;
 
 create policy amenity_catalogue_select on public.amenity_catalogue
   for select to authenticated using ((select private.is_active_user()));
+-- The venue's staff and its effective manager (a manager account has no
+-- active_staff_venue_id).
 create policy venue_amenity_settings_select on public.venue_amenity_settings
   for select to authenticated
-  using ((select private.is_active_admin()) or venue_id = (select private.active_staff_venue_id()));
+  using (
+    (select private.is_active_admin())
+    or venue_id = (select private.active_staff_venue_id())
+    or venue_id = (select private.my_manager_venue_id())
+  );
 create policy venue_amenity_checks_select on public.venue_amenity_checks
   for select to authenticated
   using (
@@ -797,7 +809,7 @@ end;
 $$;
 
 -- The caller's open tasks: active checks assigned to them at their current
--- venue that are not complete.
+-- venue that are not complete. Staff only (a manager account has none).
 create function public.amenity_my_checks()
 returns table (
   id uuid, venue_id uuid, template_key text, category text, question text, capture_brief text,
@@ -918,6 +930,7 @@ end;
 $$;
 
 -- Active staff currently at the check's venue (manager or admin only).
+-- Manager accounts are never assignees.
 create function public.amenity_assignee_options(p_check_id uuid)
 returns table (id uuid, display_name text, job_title text)
 language plpgsql
