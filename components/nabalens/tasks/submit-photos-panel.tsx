@@ -161,6 +161,8 @@ export function SubmitPhotosPanel({
   const queuedReload = React.useRef<Set<string> | null>(null)
   const selectedRef = React.useRef(selected)
   const mounted = React.useRef(false)
+  // The current pick's photos selected here, and those listed but not ready.
+  const arrivals = React.useRef(newArrivals())
 
   React.useLayoutEffect(() => {
     selectedRef.current = selected
@@ -227,19 +229,16 @@ export function SubmitPhotosPanel({
           }
           return next
         })
-        const waiting = select.length - picked.length
-        setUploadNote(
-          [
-            picked.length
-              ? `${plural(picked.length, "new photo", "new photos")} selected.`
-              : null,
-            waiting
-              ? `${plural(waiting, "new photo isn't", "new photos aren't")} ready to send yet.`
-              : null,
-          ]
-            .filter(Boolean)
-            .join(" ")
-        )
+        // Add hands over each photo as soon as it is ready, so one pick
+        // arrives over several calls: the note counts the whole pick.
+        const tally = arrivals.current
+        for (const id of select) {
+          if (picked.includes(id)) {
+            tally.selected.add(id)
+            tally.waiting.delete(id)
+          } else if (!tally.selected.has(id)) tally.waiting.add(id)
+        }
+        setUploadNote(arrivalNote(tally))
       } catch {
         if (mounted.current)
           setList((l) => ({
@@ -272,6 +271,7 @@ export function SubmitPhotosPanel({
   const ownPicker = usePhotoSource({
     imagesOnly: true,
     onFiles: (files) => {
+      arrivals.current = newArrivals()
       setPickedFiles(files)
       setUploadOpen(true)
     },
@@ -283,6 +283,12 @@ export function SubmitPhotosPanel({
       addQueue.openAdd({
         source,
         imagesOnly: true,
+        // Once per photo, as soon as that photo is ready (not when the whole
+        // pick settles): each one is added to the selection, never replacing
+        // it. False after unmount, so Add keeps the photo instead.
+        onPicked: () => {
+          if (mounted.current) arrivals.current = newArrivals()
+        },
         onReady: (ids) => {
           if (!mounted.current) return false
           void reloadRef.current(ids)
@@ -368,6 +374,7 @@ export function SubmitPhotosPanel({
     setSending(true)
     setOutcome(null)
     setUploadNote(null)
+    arrivals.current = newArrivals()
     let result: SubmitPhotosResult
     try {
       result = await submit({
@@ -580,6 +587,28 @@ export function SubmitPhotosPanel({
         />
       )}
     </div>
+  )
+}
+
+type Arrivals = { selected: Set<string>; waiting: Set<string> }
+
+function newArrivals(): Arrivals {
+  return { selected: new Set(), waiting: new Set() }
+}
+
+/** "2 new photos selected. 1 new photo isn't ready to send yet." */
+function arrivalNote({ selected, waiting }: Arrivals): string | null {
+  return (
+    [
+      selected.size
+        ? `${plural(selected.size, "new photo", "new photos")} selected.`
+        : null,
+      waiting.size
+        ? `${plural(waiting.size, "new photo isn't", "new photos aren't")} ready to send yet.`
+        : null,
+    ]
+      .filter(Boolean)
+      .join(" ") || null
   )
 }
 

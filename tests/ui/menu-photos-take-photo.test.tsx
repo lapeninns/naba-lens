@@ -3,7 +3,10 @@ import { cleanup, render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { OUR_MENU_COPY, OurMenuItemRow } from "@/components/nabalens/menu-photos"
+import {
+  OUR_MENU_COPY,
+  OurMenuItemRow,
+} from "@/components/nabalens/menu-photos"
 import {
   AddProvider,
   type OpenAddOptions,

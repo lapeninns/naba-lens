@@ -251,6 +251,7 @@ export function CaptureForm({
     mounted.current = true
     return () => {
       mounted.current = false
+      queuedReload.current = null
     }
   }, [])
 
@@ -353,48 +354,67 @@ export function CaptureForm({
     if (errors.assetIds) setErrors((e) => ({ ...e, assetIds: undefined }))
   }
 
+  // One read at a time: Add hands over each upload as soon as it is ready,
+  // so several reads can be asked for at once. A later request waits and
+  // then reads once for every upload it carries; an older answer landing
+  // after a newer one would otherwise drop an upload just selected.
+  const loadingAssets = React.useRef(false)
+  const queuedReload = React.useRef<Set<string> | null>(null)
+  // The current pick's uploads selected here, and those not listed yet.
+  const arrivals = React.useRef(newArrivals())
+
   const reloadAssets = React.useCallback(
-    async (select: string[] = []) => {
-      let result: AssetsResult
+    async function reloadAssets(select: string[] = []) {
+      if (loadingAssets.current) {
+        queuedReload.current ??= new Set()
+        for (const id of select) queuedReload.current.add(id)
+        return
+      }
+      queuedReload.current = null
+      loadingAssets.current = true
       try {
-        result = await loadAssets({ checkId: check.id })
-      } catch {
-        if (mounted.current)
-          setListError("We couldn't load your photos and videos.")
-        return
+        let result: AssetsResult
+        try {
+          result = await loadAssets({ checkId: check.id })
+        } catch {
+          if (mounted.current)
+            setListError("We couldn't load your photos and videos.")
+          return
+        }
+        if (!mounted.current) return
+        if (!result.ok) {
+          setListError(result.message)
+          return
+        }
+        setAssets(result.assets)
+        setListError(null)
+        if (select.length === 0) return
+        const ready = new Set(result.assets.map((a) => a.assetId))
+        const picked = select.filter((id) => ready.has(id))
+        if (picked.length > 0)
+          edit((d) => {
+            const next = d.assetIds.filter((id) => ready.has(id))
+            for (const id of picked) {
+              if (next.length >= maxSelected) break
+              if (!next.includes(id)) next.push(id)
+            }
+            return { ...d, assetIds: next }
+          })
+        const tally = arrivals.current
+        for (const id of select) {
+          if (ready.has(id)) {
+            tally.selected.add(id)
+            tally.waiting.delete(id)
+          } else if (!tally.selected.has(id)) tally.waiting.add(id)
+        }
+        setUploadNote(arrivalNote(tally))
+      } finally {
+        loadingAssets.current = false
+        const queued = queuedReload.current
+        queuedReload.current = null
+        if (queued !== null && mounted.current)
+          void reloadAssets(Array.from(queued))
       }
-      if (!mounted.current) return
-      if (!result.ok) {
-        setListError(result.message)
-        return
-      }
-      setAssets(result.assets)
-      setListError(null)
-      if (select.length === 0) return
-      const ready = new Set(result.assets.map((a) => a.assetId))
-      const picked = select.filter((id) => ready.has(id))
-      if (picked.length > 0)
-        edit((d) => {
-          const next = d.assetIds.filter((id) => ready.has(id))
-          for (const id of picked) {
-            if (next.length >= maxSelected) break
-            if (!next.includes(id)) next.push(id)
-          }
-          return { ...d, assetIds: next }
-        })
-      const waiting = select.length - picked.length
-      setUploadNote(
-        [
-          picked.length
-            ? `${picked.length} new ${picked.length === 1 ? "upload" : "uploads"} selected.`
-            : null,
-          waiting
-            ? `${waiting} new ${waiting === 1 ? "upload isn't" : "uploads aren't"} ready yet.`
-            : null,
-        ]
-          .filter(Boolean)
-          .join(" ")
-      )
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps -- edit only touches state setters and newKey
     [loadAssets, check.id, maxSelected]
@@ -414,6 +434,7 @@ export function CaptureForm({
 
   const ownPicker = usePhotoSource({
     onFiles: (files) => {
+      arrivals.current = newArrivals()
       setPickedFiles(files)
       setUploadOpen(true)
     },
@@ -426,6 +447,12 @@ export function CaptureForm({
         source,
         // Amenity evidence, never in the organisation community.
         purpose: "amenity",
+        onPicked: () => {
+          if (mounted.current) arrivals.current = newArrivals()
+        },
+        // Once per upload, as soon as that upload is ready (not when the
+        // whole pick settles): each is added to the evidence, never
+        // replacing it. False after unmount, so Add keeps the upload.
         onReady: (assetIds) => {
           if (!mounted.current) return false
           void reloadRef.current(assetIds)
@@ -904,6 +931,28 @@ export function CaptureForm({
         />
       ) : null}
     </form>
+  )
+}
+
+type Arrivals = { selected: Set<string>; waiting: Set<string> }
+
+function newArrivals(): Arrivals {
+  return { selected: new Set(), waiting: new Set() }
+}
+
+/** "2 new uploads selected. 1 new upload isn't ready yet." */
+function arrivalNote({ selected, waiting }: Arrivals): string | null {
+  return (
+    [
+      selected.size
+        ? `${selected.size} new ${selected.size === 1 ? "upload" : "uploads"} selected.`
+        : null,
+      waiting.size
+        ? `${waiting.size} new ${waiting.size === 1 ? "upload isn't" : "uploads aren't"} ready yet.`
+        : null,
+    ]
+      .filter(Boolean)
+      .join(" ") || null
   )
 }
 
