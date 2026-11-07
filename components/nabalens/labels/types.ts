@@ -31,6 +31,17 @@ export type LabelPreset = {
   variantName: string | null
 }
 
+/**
+ * The upload sheet's dish per file (UploadLabelPanel's `presetFor`): files
+ * picked from different dishes each keep their own. Asked once per file, when
+ * the panel first names the file's labels from the menu (it may mount again,
+ * e.g. when the sheet reopens); null when the file has no dish. Each dish is a
+ * removable chip naming its photos, and in the common field only when every
+ * photo has the same dish. Removing it takes it off the photos the chip names
+ * only; a file asked later still gets its own dish.
+ */
+export type PresetFor = (fileId: string) => LabelPreset | null
+
 export type LabelEditorDialogProps = {
   open: boolean
   /** Default "staff" (the safer one: shows no admin-only details). */

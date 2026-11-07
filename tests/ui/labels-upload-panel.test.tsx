@@ -233,6 +233,133 @@ describe("UploadLabelPanel", () => {
     })
   })
 
+  describe("presetFor (each file's own dish)", () => {
+    const LASSI = {
+      itemId: "item-lassi",
+      variantId: null,
+      itemName: "Mango Lassi",
+      variantName: null,
+    }
+    const BHAJI_ITEM = [{ itemId: "item-bhaji", variantId: null }]
+    const LASSI_ITEM = [{ itemId: "item-lassi", variantId: null }]
+    const own = (id: string) =>
+      id === "f1" ? BHAJI : id === "f2" ? LASSI : null
+
+    /** Each dish as its own chip, naming its photos. */
+    function chip(name: string) {
+      const list = screen.getByRole("list", { name: "From the dish" })
+      return within(list)
+        .getAllByRole("listitem")
+        .find((li) =>
+          within(li).queryByRole("button", { name: `Remove ${name}` })
+        )!
+    }
+
+    async function keepsBothAfterAnEdit(
+      user: ReturnType<typeof userEvent.setup>,
+      last: () => SaveLabelsInput[]
+    ) {
+      await user.click(screen.getByRole("button", { name: /^More details/ }))
+      const group = screen.getByRole("group", { name: /^What's in the photo/ })
+      await user.click(
+        within(group).getByRole("button", { name: CONTENT_TYPE_LABELS.dish })
+      )
+      expect(last().map((i) => [i.items, i.contentTypes])).toEqual([
+        [BHAJI_ITEM, ["dish"]],
+        [LASSI_ITEM, ["dish"]],
+      ])
+    }
+
+    it("puts each file's own dish on it after the menu loads, and an edit keeps both", async () => {
+      const { user, last, onPendingChange, rerender } = setup({
+        catalogue: LOADING,
+        presetFor: own,
+      })
+      expect(lastPending(onPendingChange)).toBe(true)
+      rerender({ catalogue: READY })
+      await waitFor(() =>
+        expect(last().map((i) => i.items)).toEqual([BHAJI_ITEM, LASSI_ITEM])
+      )
+      expect(lastPending(onPendingChange)).toBe(false)
+      expect(chip("Onion Bhaji").textContent).toContain("On photo 1 only")
+      expect(chip("Mango Lassi").textContent).toContain("On photo 2 only")
+      expect(within(rows()[0]).getByText("Onion Bhaji")).toBeTruthy()
+      expect(within(rows()[1]).getByText("Mango Lassi")).toBeTruthy()
+      await keepsBothAfterAnEdit(user, last)
+    })
+
+    it("does the same after the menu failed to load and is retried", async () => {
+      const { user, last, onPendingChange, rerender } = setup({
+        catalogue: { state: "error", message: "Couldn't load." },
+        presetFor: own,
+      })
+      expect(lastPending(onPendingChange)).toBe(false)
+      expect(last().map((i) => i.items)).toEqual([[], []])
+      rerender({ catalogue: LOADING })
+      rerender({ catalogue: READY })
+      await waitFor(() =>
+        expect(last().map((i) => i.items)).toEqual([BHAJI_ITEM, LASSI_ITEM])
+      )
+      await keepsBothAfterAnEdit(user, last)
+    })
+
+    it("gives a file added later its own dish, and removing one dish leaves the other", async () => {
+      const { user, last, rerender } = setup({
+        files: files("f1"),
+        presetFor: own,
+      })
+      // One photo, one dish: in the common field.
+      expect(screen.queryByRole("list", { name: "From the dish" })).toBeNull()
+      expect(
+        screen.getByRole("button", { name: "Remove Onion Bhaji" })
+      ).toBeTruthy()
+      rerender({ files: files("f1", "f2", "f3") })
+      await waitFor(() =>
+        expect(last().map((i) => i.items)).toEqual([BHAJI_ITEM, LASSI_ITEM, []])
+      )
+
+      await user.click(
+        screen.getByRole("button", { name: "Remove Onion Bhaji" })
+      )
+      expect(last().map((i) => i.items)).toEqual([[], LASSI_ITEM, []])
+      expect(chip("Mango Lassi").textContent).toContain("On photo 2 only")
+      expect(screen.queryByRole("button", { name: "Remove Onion Bhaji" })).toBe(
+        null
+      )
+    })
+
+    it("shows one dish in the common field when every photo has it", () => {
+      const { last } = setup({ presetFor: () => BHAJI })
+      expect(last().map((i) => i.items)).toEqual([BHAJI_ITEM, BHAJI_ITEM])
+      expect(screen.queryByRole("list", { name: "From the dish" })).toBeNull()
+      expect(
+        screen.getAllByRole("button", { name: "Remove Onion Bhaji" })
+      ).toHaveLength(1)
+    })
+
+    it("names each dish that isn't on the menu", () => {
+      const { last } = setup({
+        presetFor: (id) => ({
+          itemId: `gone-${id}`,
+          variantId: null,
+          itemName: `Gone ${id}`,
+          variantName: null,
+        }),
+      })
+      expect(last().map((i) => i.items)).toEqual([[], []])
+      expect(
+        screen.getByText(
+          "Gone f1 isn't on the current menu, so it wasn't added."
+        )
+      ).toBeTruthy()
+      expect(
+        screen.getByText(
+          "Gone f2 isn't on the current menu, so it wasn't added."
+        )
+      ).toBeTruthy()
+    })
+  })
+
   it("adds a dish with variants as Not specified, and a variant replaces it", async () => {
     const { user, last } = setup({ catalogue: MOMO })
     await pick(user, commonBox(), "momo", /^Momo/)
