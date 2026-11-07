@@ -9,6 +9,189 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      amenity_catalogue: {
+        Row: {
+          capture_brief: string
+          catalogue_version: number
+          category: string
+          evidence_rule: string
+          is_core: boolean
+          key: string
+          position: number
+          question: string
+        }
+        Insert: {
+          capture_brief: string
+          catalogue_version: number
+          category: string
+          evidence_rule: string
+          is_core?: boolean
+          key: string
+          position: number
+          question: string
+        }
+        Update: {
+          capture_brief?: string
+          catalogue_version?: number
+          category?: string
+          evidence_rule?: string
+          is_core?: boolean
+          key?: string
+          position?: number
+          question?: string
+        }
+        Relationships: []
+      }
+      amenity_check_events: {
+        Row: {
+          actor_id: string | null
+          check_id: string
+          created_at: string
+          detail: Json
+          id: number
+          kind: string
+          reason: string | null
+          venue_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          check_id: string
+          created_at?: string
+          detail?: Json
+          id?: never
+          kind: string
+          reason?: string | null
+          venue_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          check_id?: string
+          created_at?: string
+          detail?: Json
+          id?: never
+          kind?: string
+          reason?: string | null
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "amenity_check_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "amenity_check_events_check_fkey"
+            columns: ["check_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "venue_amenity_checks"
+            referencedColumns: ["id", "venue_id"]
+          },
+        ]
+      }
+      amenity_submission_assets: {
+        Row: {
+          asset_id: string
+          evidence_kind: string
+          submission_id: string
+          venue_id: string
+        }
+        Insert: {
+          asset_id: string
+          evidence_kind: string
+          submission_id: string
+          venue_id: string
+        }
+        Update: {
+          asset_id?: string
+          evidence_kind?: string
+          submission_id?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "amenity_submission_assets_asset_fkey"
+            columns: ["asset_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["id", "venue_id"]
+          },
+          {
+            foreignKeyName: "amenity_submission_assets_submission_fkey"
+            columns: ["submission_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "amenity_submissions"
+            referencedColumns: ["id", "venue_id"]
+          },
+        ]
+      }
+      amenity_submissions: {
+        Row: {
+          answer: string
+          check_id: string
+          created_at: string
+          evidence_rule: string
+          finding: string | null
+          id: string
+          idempotency_key: string
+          internal_metadata: Json | null
+          limitations: string | null
+          reason: string | null
+          result_revision: number
+          submitted_by: string
+          template_version: number
+          venue_id: string
+        }
+        Insert: {
+          answer: string
+          check_id: string
+          created_at?: string
+          evidence_rule: string
+          finding?: string | null
+          id?: string
+          idempotency_key: string
+          internal_metadata?: Json | null
+          limitations?: string | null
+          reason?: string | null
+          result_revision: number
+          submitted_by: string
+          template_version: number
+          venue_id: string
+        }
+        Update: {
+          answer?: string
+          check_id?: string
+          created_at?: string
+          evidence_rule?: string
+          finding?: string | null
+          id?: string
+          idempotency_key?: string
+          internal_metadata?: Json | null
+          limitations?: string | null
+          reason?: string | null
+          result_revision?: number
+          submitted_by?: string
+          template_version?: number
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "amenity_submissions_check_fkey"
+            columns: ["check_id", "venue_id"]
+            isOneToOne: false
+            referencedRelation: "venue_amenity_checks"
+            referencedColumns: ["id", "venue_id"]
+          },
+          {
+            foreignKeyName: "amenity_submissions_submitted_by_fkey"
+            columns: ["submitted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       coverage_amenity_templates: {
         Row: {
           active: boolean
@@ -2091,6 +2274,106 @@ export type Database = {
           },
         ]
       }
+      venue_amenity_checks: {
+        Row: {
+          answer: string
+          answered_at: string | null
+          answered_by: string | null
+          assignee_user_id: string | null
+          created_at: string
+          created_by: string | null
+          current_submission_id: string | null
+          id: string
+          notes: string | null
+          progress: string
+          recheck_reason: string | null
+          revision: number
+          status: string
+          template_key: string
+          updated_at: string
+          venue_id: string
+        }
+        Insert: {
+          answer?: string
+          answered_at?: string | null
+          answered_by?: string | null
+          assignee_user_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          current_submission_id?: string | null
+          id?: string
+          notes?: string | null
+          progress?: string
+          recheck_reason?: string | null
+          revision?: number
+          status?: string
+          template_key: string
+          updated_at?: string
+          venue_id: string
+        }
+        Update: {
+          answer?: string
+          answered_at?: string | null
+          answered_by?: string | null
+          assignee_user_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          current_submission_id?: string | null
+          id?: string
+          notes?: string | null
+          progress?: string
+          recheck_reason?: string | null
+          revision?: number
+          status?: string
+          template_key?: string
+          updated_at?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "venue_amenity_checks_answered_by_fkey"
+            columns: ["answered_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_amenity_checks_assignee_user_id_fkey"
+            columns: ["assignee_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_amenity_checks_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_amenity_checks_current_submission_fkey"
+            columns: ["current_submission_id", "id"]
+            isOneToOne: false
+            referencedRelation: "amenity_submissions"
+            referencedColumns: ["id", "check_id"]
+          },
+          {
+            foreignKeyName: "venue_amenity_checks_template_key_fkey"
+            columns: ["template_key"]
+            isOneToOne: false
+            referencedRelation: "amenity_catalogue"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "venue_amenity_checks_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       venue_amenity_fact_media: {
         Row: {
           added_at: string
@@ -2211,6 +2494,39 @@ export type Database = {
           },
         ]
       }
+      venue_amenity_settings: {
+        Row: {
+          enabled_at: string
+          enabled_by: string | null
+          venue_id: string
+        }
+        Insert: {
+          enabled_at?: string
+          enabled_by?: string | null
+          venue_id: string
+        }
+        Update: {
+          enabled_at?: string
+          enabled_by?: string | null
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "venue_amenity_settings_enabled_by_fkey"
+            columns: ["enabled_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_amenity_settings_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: true
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       venue_manager_grants: {
         Row: {
           grant_reason: string | null
@@ -2315,6 +2631,234 @@ export type Database = {
       activate_menu_version: {
         Args: { p_expected_revision: number; p_version_id: string }
         Returns: undefined
+      }
+      amenity_add_checks: {
+        Args: { p_keys: string[]; p_venue_id: string }
+        Returns: string[]
+      }
+      amenity_archive_check: {
+        Args: { p_check_id: string; p_revision: number }
+        Returns: number
+      }
+      amenity_assign_check: {
+        Args: { p_assignee_id: string; p_check_id: string; p_revision: number }
+        Returns: number
+      }
+      amenity_assignee_options: {
+        Args: { p_check_id: string }
+        Returns: {
+          display_name: string
+          id: string
+          job_title: string | null
+        }[]
+      }
+      amenity_catalogue_for_venue: {
+        Args: { p_venue_id: string }
+        Returns: {
+          capture_brief: string
+          catalogue_version: number
+          category: string
+          check_id: string | null
+          check_status: string | null
+          evidence_rule: string
+          is_core: boolean
+          key: string
+          position: number
+          question: string
+        }[]
+      }
+      amenity_check: {
+        Args: { p_check_id: string }
+        Returns: {
+          answer: string
+          answered_at: string | null
+          answered_by: string | null
+          answered_by_name: string | null
+          assignee_name: string | null
+          assignee_user_id: string | null
+          capture_brief: string
+          catalogue_version: number
+          category: string
+          current_submission_id: string | null
+          evidence_rule: string
+          id: string
+          is_core: boolean
+          notes: string | null
+          position: number
+          progress: string
+          question: string
+          recheck_reason: string | null
+          revision: number
+          status: string
+          template_key: string
+          updated_at: string
+          venue_id: string
+        }[]
+      }
+      amenity_check_events: {
+        Args: { p_check_id: string }
+        Returns: {
+          actor_id: string | null
+          actor_name: string | null
+          check_id: string
+          created_at: string
+          detail: Json
+          id: string
+          kind: string
+          reason: string | null
+        }[]
+      }
+      amenity_check_submission_assets: {
+        Args: { p_check_id: string }
+        Returns: {
+          asset_id: string
+          available: boolean
+          evidence_kind: string
+          has_preview: boolean
+          has_thumbnail: boolean
+          submission_id: string
+        }[]
+      }
+      amenity_check_submissions: {
+        Args: { p_check_id: string }
+        Returns: {
+          answer: string
+          check_id: string
+          created_at: string
+          evidence_rule: string
+          finding: string | null
+          id: string
+          internal_metadata: Json | null
+          limitations: string | null
+          reason: string | null
+          submitted_by: string
+          submitted_by_name: string | null
+          template_version: number
+        }[]
+      }
+      amenity_checks_for_venue: {
+        Args: { p_include_archived: boolean; p_venue_id: string }
+        Returns: {
+          answer: string
+          answered_at: string | null
+          answered_by: string | null
+          answered_by_name: string | null
+          assignee_name: string | null
+          assignee_user_id: string | null
+          capture_brief: string
+          catalogue_version: number
+          category: string
+          current_submission_id: string | null
+          evidence_rule: string
+          id: string
+          is_core: boolean
+          notes: string | null
+          position: number
+          progress: string
+          question: string
+          recheck_reason: string | null
+          revision: number
+          status: string
+          template_key: string
+          updated_at: string
+          venue_id: string
+        }[]
+      }
+      amenity_enable_venue: {
+        Args: { p_venue_id: string }
+        Returns: number
+      }
+      amenity_evidence_asset: {
+        Args: { p_asset_id: string }
+        Returns: {
+          asset_id: string
+          has_preview: boolean
+          has_thumbnail: boolean
+          media_type: Database["public"]["Enums"]["media_type"]
+        }[]
+      }
+      amenity_my_checks: {
+        Args: never
+        Returns: {
+          answer: string
+          answered_at: string | null
+          answered_by: string | null
+          answered_by_name: string | null
+          assignee_name: string | null
+          assignee_user_id: string | null
+          capture_brief: string
+          catalogue_version: number
+          category: string
+          current_submission_id: string | null
+          evidence_rule: string
+          id: string
+          is_core: boolean
+          notes: string | null
+          position: number
+          progress: string
+          question: string
+          recheck_reason: string | null
+          revision: number
+          status: string
+          template_key: string
+          updated_at: string
+          venue_id: string
+        }[]
+      }
+      amenity_reopen_check: {
+        Args: {
+          p_check_id: string
+          p_preset: string
+          p_reason: string
+          p_revision: number
+        }
+        Returns: number
+      }
+      amenity_restore_check: {
+        Args: { p_check_id: string; p_revision: number }
+        Returns: number
+      }
+      amenity_set_check_notes: {
+        Args: { p_check_id: string; p_notes: string; p_revision: number }
+        Returns: number
+      }
+      amenity_submit_finding: {
+        Args: {
+          p_answer: string
+          p_asset_ids: string[]
+          p_check_id: string
+          p_finding: string
+          p_idempotency_key: string
+          p_internal_metadata: Json
+          p_limitations: string
+          p_reason: string
+          p_redaction_confirmed: boolean
+          p_revision: number
+        }
+        Returns: {
+          replayed: boolean
+          revision: number
+          submission_id: string
+        }[]
+      }
+      amenity_submittable_assets: {
+        Args: { p_check_id: string }
+        Returns: {
+          asset_id: string
+          created_at: string
+          has_thumbnail: boolean
+          media_type: Database["public"]["Enums"]["media_type"]
+          source: string
+        }[]
+      }
+      amenity_venue_state: {
+        Args: { p_venue_id: string }
+        Returns: {
+          can_enable: boolean
+          enabled: boolean
+          venue_id: string
+          venue_name: string
+        }[]
       }
       attach_coverage_evidence: {
         Args: {
