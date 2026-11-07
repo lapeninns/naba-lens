@@ -1,0 +1,19 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "photo-guide-prototype",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "4517",
+        "--bind",
+        "127.0.0.1",
+        "--directory",
+        "/private/tmp/claude-501/-Users-amankumarshrestha-LapenInns-Project-platform-nabalens/08284a79-9946-4254-8d76-a78989e06e26/scratchpad/prototype"
+      ],
+      "port": 4517
+    }
+  ]
+}
