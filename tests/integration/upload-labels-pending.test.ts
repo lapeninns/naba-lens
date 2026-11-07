@@ -744,58 +744,72 @@ describe("who settles stored labels (m17)", () => {
   })
 })
 
-/**
- * The venue menu lock (private.lock_venue_menu's key) held exclusively by a
- * separate session, as a menu activation holds it, until `release()`.
- */
-function holdVenueMenuLock(venueId: string) {
-  const dbUrl = process.env.SUPABASE_DB_URL
-  if (!dbUrl)
-    throw new Error("Set SUPABASE_DB_URL for the local stack (stack.mjs env)")
-  const host = new URL(dbUrl).hostname
+/** The LOCAL stack's database URL: stack.mjs env, else `supabase status`. */
+function localDbUrl() {
+  let url = process.env.SUPABASE_DB_URL
+  if (!url) {
+    const raw = execFileSync("supabase", ["status", "-o", "json"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    })
+    const status = JSON.parse(
+      raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1)
+    ) as { API_URL?: string; DB_URL?: string }
+    // Never the database of another stack than the API under test.
+    if (status.API_URL !== getLocalSupabaseEnv().url)
+      throw new Error("Set SUPABASE_DB_URL for the stack under test")
+    url = status.DB_URL
+  }
+  if (!url) throw new Error("Set SUPABASE_DB_URL for the local stack")
+  const host = new URL(url).hostname
   if (host !== "127.0.0.1" && host !== "localhost")
     throw new Error(`Refusing to touch non-local database host ${host}`)
-  if (!/^[0-9a-f-]{36}$/.test(venueId)) throw new Error("unexpected venue id")
-  const key = `hashtextextended('nabalens_menu:${venueId}', 0)`
-  const holder = spawn(
+  return url
+}
+
+/** One statement as the database owner (psql). Values: test-made ids only. */
+function sql(query: string) {
+  return execFileSync(
     "psql",
-    [
-      dbUrl,
-      "-X",
-      "-q",
-      "-c",
-      `select pg_advisory_lock(${key}); select pg_sleep(30)`,
-    ],
-    { stdio: "ignore" }
+    [localDbUrl(), "-X", "-At", "-v", "ON_ERROR_STOP=1", "-c", query],
+    { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }
+  ).trim()
+}
+
+/**
+ * `query` in a session of its own, in the background, as a concurrent
+ * request would run it. `stop()` ends that session: killing psql alone would
+ * leave its backend (and its locks) running until the query ends.
+ */
+function background(query: string) {
+  const name = `labels-test-${crypto.randomUUID()}`
+  const child = spawn("psql", [localDbUrl(), "-X", "-q", "-c", query], {
+    stdio: "ignore",
+    env: { ...process.env, PGAPPNAME: name },
+  })
+  const exited = new Promise<number | null>((resolve) =>
+    child.once("exit", resolve)
   )
-  const exited = new Promise((resolve) => holder.once("exit", resolve))
-  const locked = async () => {
-    const deadline = Date.now() + 10_000
-    for (;;) {
-      const free = execFileSync(
-        "psql",
-        [
-          dbUrl,
-          "-X",
-          "-At",
-          "-c",
-          `select pg_try_advisory_xact_lock_shared(${key})`,
-        ],
-        { encoding: "utf8" }
-      ).trim()
-      if (free === "f") return
-      if (Date.now() > deadline) throw new Error("menu lock not taken")
-      await new Promise((r) => setTimeout(r, 100))
-    }
-  }
   return {
-    locked,
-    release: async () => {
-      holder.kill()
+    exited,
+    stop: async () => {
+      sql(
+        `select pg_terminate_backend(pid) from pg_stat_activity where application_name = '${name}'`
+      )
       await exited
     },
   }
 }
+
+async function until(check: () => boolean, what: string) {
+  const deadline = Date.now() + 10_000
+  while (!check()) {
+    if (Date.now() > deadline) throw new Error(`Timed out: ${what}`)
+    await new Promise((r) => setTimeout(r, 100))
+  }
+}
+
+const UUID_ONLY = /^[0-9a-f-]{36}$/
 
 describe("a lock wait during the label apply (n1)", () => {
   it(
@@ -804,17 +818,27 @@ describe("a lock wait during the label apply (n1)", () => {
     async () => {
       const a = await upload(actorA, staffA)
       await post(actorA, venueA, input(a.assetId))
-      const lock = holdVenueMenuLock(venueA)
+      // The venue menu lock (private.lock_venue_menu), held exclusively as a
+      // menu activation holds it.
+      expect(venueA).toMatch(UUID_ONLY)
+      const key = `hashtextextended('nabalens_menu:${venueA}', 0)`
+      const free = () =>
+        sql(`select pg_try_advisory_xact_lock_shared(${key})`) === "t"
+      const holder = background(
+        `select pg_advisory_lock(${key}); select pg_sleep(60)`
+      )
       let done: Outcome<FinaliseResponse>
       let elapsed: number
       try {
-        await lock.locked()
+        await until(() => !free(), "menu lock taken")
         const started = Date.now()
         done = await finalise(actorA, a)
         elapsed = Date.now() - started
       } finally {
-        await lock.release()
+        await holder.stop()
       }
+      await until(free, "menu lock released")
+
       // Bounded by the apply's lock_timeout, not by the lock holder.
       expect(elapsed).toBeLessThan(15_000)
       expect(readyLabels(done)).toMatchObject({
@@ -832,6 +856,71 @@ describe("a lock wait during the label apply (n1)", () => {
       const fixed = await post(actorA, venueA, input(a.assetId))
       expect(fixed.body).toMatchObject({ ok: true, state: "saved" })
       expect(await draftRow(a.assetId)).toBeNull()
+    }
+  )
+})
+
+describe("a file that can never be used, racing a label POST", () => {
+  it(
+    "labels being stored as finalise gives up on the file are discarded with it",
+    { timeout: 60_000 },
+    async () => {
+      const key = newKey()
+      const reserved = await reserveAsset(actorA, {
+        idempotencyKey: key,
+        filename: "dish.jpg",
+        sizeBytes: 64,
+        contentType: "image/jpeg",
+        mediaType: "image",
+        preferResumable: false,
+      })
+      if (!reserved.ok) throw new Error(reserved.message)
+      const { error } = await staffA.client.storage
+        .from("media")
+        .uploadToSignedUrl(
+          reserved.objectKey,
+          reserved.token!,
+          new Uint8Array(64).fill(7)
+        )
+      expect(error).toBeNull()
+      const id = reserved.assetId
+      for (const value of [id, staffA.id, venueA])
+        expect(value).toMatch(UUID_ONLY)
+      const locked = () =>
+        sql(
+          `select count(*) from (select 1 from public.media_assets where id = '${id}' for update skip locked) s`
+        ) === "0"
+
+      // A stage_media_labels that saw the original just before finalise
+      // removed it: it holds the asset row lock and its labels are not
+      // committed yet when finalise discards the file's labels.
+      let stage: ReturnType<typeof background> | null = null
+      const actor = {
+        ...actorA,
+        service: interceptedService(async (url) => {
+          if (
+            !stage &&
+            (url.includes("/rpc/discard_unusable_media_labels") ||
+              url.includes("/media_pending_labels"))
+          ) {
+            stage = background(
+              `begin;
+               select 1 from public.media_assets where id = '${id}' for update;
+               insert into public.media_pending_labels (asset_id, uploader_id, venue_id, input)
+               values ('${id}', '${staffA.id}', '${venueA}', '${JSON.stringify(input(id))}'::jsonb);
+               select pg_sleep(2);
+               commit;`
+            )
+            await until(locked, "asset row locked")
+          }
+        }),
+      }
+      const done = await finalise(actor, { assetId: id, key })
+      expect(done).toMatchObject({ ok: true, state: "failed" })
+      expect(stage).not.toBeNull()
+      expect(await stage!.exited).toBe(0)
+      // Not left behind for a file whose Retry can never apply it.
+      expect(await draftRow(id)).toBeNull()
     }
   )
 })

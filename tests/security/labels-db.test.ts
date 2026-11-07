@@ -1512,13 +1512,13 @@ describe("row 9: stored upload drafts are the uploader's alone", () => {
     expectDbError(await stage(staffA, failed), "media_asset_not_found", "P0002")
     expect(await drafts(staffA, failed.id)).toEqual([])
 
-    // Failed temporarily (original still stored): kept for the Retry.
+    // Failed temporarily (original still stored): kept for the Retry. The
+    // original is written while the reservation is open, as in an upload.
     const retrying = await reserve(staffA)
     const { data: path } = await service
       .from("media_assets")
-      .update({ upload_state: "failed" })
-      .eq("id", retrying.id)
       .select("original_path")
+      .eq("id", retrying.id)
       .single()
     const stored = await service.storage
       .from("media")
@@ -1526,6 +1526,10 @@ describe("row 9: stored upload drafts are the uploader's alone", () => {
         contentType: "application/octet-stream",
       })
     expect(stored.error).toBeNull()
+    await service
+      .from("media_assets")
+      .update({ upload_state: "failed" })
+      .eq("id", retrying.id)
     const kept = await stage(staffA, retrying)
     expect(kept.error).toBeNull()
     expect(kept.data).toBe("pending")

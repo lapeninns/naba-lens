@@ -403,9 +403,9 @@ export type PendingLabelItem = {
 
 /**
  * DELETE /api/upload-labels?assetId=. "discarded": the stored labels were
- * removed. "already_applied": finalise applied them first, nothing was
- * discarded and the photo has `labels`. "none": nothing was stored and
- * nothing was applied.
+ * removed. "already_applied": nothing was stored any more and the ready photo
+ * has `labels` (typically finalise applied them first); nothing was
+ * discarded. "none": nothing was stored and the photo has no labels.
  */
 export type UploadLabelDiscardResult =
   | { ok: true; state: "discarded" }

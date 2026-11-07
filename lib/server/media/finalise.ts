@@ -487,16 +487,17 @@ async function readyWithAttention(
 }
 
 /**
- * A file that can never become ready takes its stored labels with it. Best
- * effort: if this fails, the 24 h cleanup tombstones the failed asset and the
- * tombstone trigger removes them.
+ * A file that can never become ready takes its stored labels with it, after
+ * its original is gone (the RPC waits for a label POST storing labels at this
+ * moment and deletes those too). Best effort: if this fails, the 24 h cleanup
+ * tombstones the failed asset and the tombstone trigger removes them.
  */
 async function discardStoredLabels(actor: MediaActor, assetId: string) {
   try {
-    await actor.service
-      .from("media_pending_labels")
-      .delete()
-      .eq("asset_id", assetId)
+    const { error } = await actor.service.rpc("discard_unusable_media_labels", {
+      p_asset_id: assetId,
+    })
+    if (error) throw new Error(`labels_discard_${error.code ?? "unknown"}`)
   } catch {
     // Left for the cleanup.
   }

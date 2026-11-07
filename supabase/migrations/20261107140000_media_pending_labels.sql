@@ -38,9 +38,10 @@
 -- * A draft goes with its asset: on delete cascade, and the tombstone trigger
 --   below for user removals and the 24 h abandoned-upload cleanup, which
 --   tombstone rows rather than deleting them. finalise deletes the draft of a
---   file that can never be used (validation failure; its original is removed,
---   so stage_media_labels refuses it from then on). A temporary failure keeps
---   the draft for the Retry.
+--   file that can never be used (validation failure) through
+--   discard_unusable_media_labels, after removing its original, so
+--   stage_media_labels refuses it from then on. A temporary failure keeps the
+--   draft for the Retry.
 -- * Accepted risk: a stored draft has no version of its own. A POST the
 --   browser gave up on (network error) that still reaches the server after a
 --   newer POST replaces the newer draft. The browser sends one POST per photo
@@ -683,6 +684,31 @@ create trigger media_assets_discard_pending_labels
   execute function private.media_assets_discard_pending_labels();
 
 revoke all on function private.media_assets_discard_pending_labels() from public, anon, authenticated;
+
+-- finalise (service role), for a file that can never be used: called after
+-- its original was removed. The asset row lock waits for a stage_media_labels
+-- that saw the original just before it went and is storing a draft right now,
+-- so that draft is deleted too instead of outliving this delete unseen.
+-- Only while the asset is still failed: a reopened reservation keeps new labels.
+create function public.discard_unusable_media_labels(p_asset_id uuid)
+returns void
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+begin
+  perform 1 from public.media_assets a where a.id = p_asset_id for update;
+  delete from public.media_pending_labels pl
+  using public.media_assets a
+  where pl.asset_id = p_asset_id
+    and a.id = pl.asset_id
+    and a.upload_state = 'failed';
+end;
+$$;
+
+revoke all on function public.discard_unusable_media_labels(uuid) from public, anon, authenticated;
+grant execute on function public.discard_unusable_media_labels(uuid) to service_role;
 
 -- ---------------------------------------------------------------------------
 -- Measurement (Phase 3): public.upload_label_metrics
