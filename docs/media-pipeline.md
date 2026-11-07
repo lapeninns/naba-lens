@@ -104,12 +104,12 @@ worker startup, one HEIC decode, both derivatives, result delivery and terminati
 RSS is sampled every 5 ms; peaks can miss shorter spikes. These replace the earlier
 in-process decoder measurements and the unsupported 1 GiB sizing claim.
 
-| Scenario | Input bytes | Count | Total ms | Starting RSS bytes | Sampled peak RSS bytes | Ending RSS bytes |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| 12 MP (4000×3000) | 337286 | 1 | 336 | 86294528 | 359251968 | 281690112 |
-| 39 MP (7500×5200) | 1083818 | 1 | 757 | 281706496 | 690929664 | 461307904 |
-| Sequential 12 MP | 337286 | 30 | 11077 | 461307904 | 599752704 | 512851968 |
-| Malformed HEIC-branded garbage | 19922944 | 100 | 8215 | 512851968 | 649904128 | 524730368 |
+| Scenario                       | Input bytes | Count | Total ms | Starting RSS bytes | Sampled peak RSS bytes | Ending RSS bytes |
+| ------------------------------ | ----------: | ----: | -------: | -----------------: | ---------------------: | ---------------: |
+| 12 MP (4000×3000)              |      337286 |     1 |      336 |           86294528 |              359251968 |        281690112 |
+| 39 MP (7500×5200)              |     1083818 |     1 |      757 |          281706496 |              690929664 |        461307904 |
+| Sequential 12 MP               |      337286 |    30 |    11077 |          461307904 |              599752704 |        512851968 |
+| Malformed HEIC-branded garbage |    19922944 |   100 |     8215 |          512851968 |              649904128 |        524730368 |
 
 The memory regression bounds peak growth for a single 12 MP operation below 512 MiB,
 39 MP below 1 GiB, and ending RSS growth for each repeated/failure series below
@@ -240,12 +240,12 @@ Physical phones and hosted Supabase were **not** tested.
 broken player. Admin download of the HEVC original was byte-identical (SHA-256) in
 every run.
 
-| File (validated type, codec)        | Chromium 156 (Playwright) | WebKit 27.2 (Playwright) | Firefox                  |
-| ----------------------------------- | ------------------------- | ------------------------ | ------------------------ |
-| `clip-h264.mp4` (video/mp4, avc1)   | plays                     | plays                    | not run (see below)      |
-| `clip-hevc.mp4` (video/mp4, hvc1)   | fallback (MediaError 4)   | plays                    | not run                  |
-| `clip.mov` (video/quicktime, avc1)  | fallback (see defect)     | plays                    | not run                  |
-| `clip.webm` (video/webm, VP9)       | plays                     | plays                    | not run                  |
+| File (validated type, codec)       | Chromium 156 (Playwright) | WebKit 27.2 (Playwright) | Firefox             |
+| ---------------------------------- | ------------------------- | ------------------------ | ------------------- |
+| `clip-h264.mp4` (video/mp4, avc1)  | plays                     | plays                    | not run (see below) |
+| `clip-hevc.mp4` (video/mp4, hvc1)  | fallback (MediaError 4)   | plays                    | not run             |
+| `clip.mov` (video/quicktime, avc1) | fallback (see defect)     | plays                    | not run             |
+| `clip.webm` (video/webm, VP9)      | plays                     | plays                    | not run             |
 
 - **Chromium and MOV.** `canPlayType("video/quicktime")` is `""` in Chromium, so the
   viewer shows the fallback without trying. A raw `<video>` given the same H.264 MOV
@@ -264,13 +264,13 @@ every run.
 
 ### Storage and bucket limits (local stack)
 
-| Limit                                   | Value                                    | How verified                                            |
-| --------------------------------------- | ---------------------------------------- | ------------------------------------------------------- |
-| `media` bucket                          | private, `file_size_limit` 209,715,200 B, no MIME allow-list | `storage.getBucket` in `upload-limits.test.ts`          |
-| `avatars` bucket                        | private, 5,242,880 B, `image/webp` only  | same                                                    |
-| Storage server global limit             | `FILE_SIZE_LIMIT=209715200` (from `[storage] file_size_limit = "200MiB"`) | container env; TUS create at 200 MiB + 1 B returns **413** "Maximum size exceeded", at exactly 200 MiB returns 201 |
-| 200 MiB video via TUS                   | 34 × 6 MiB PATCH requests, 7–8 s locally, finalised `ready` | real upload of an exactly 209,715,200 B H.264 MP4       |
-| App limits                              | `reserve` refuses declared sizes over 20 MiB (photo) / 200 MiB (video); `finalise` measures the stored object and fails anything over the limit, whatever was declared | `upload-recovery.test.ts` (21 MiB photo with a 1,000 B declared size → `failed`, "larger than the upload limit") |
+| Limit                       | Value                                                                                                                                                                  | How verified                                                                                                       |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `media` bucket              | private, `file_size_limit` 209,715,200 B, no MIME allow-list                                                                                                           | `storage.getBucket` in `upload-limits.test.ts`                                                                     |
+| `avatars` bucket            | private, 5,242,880 B, `image/webp` only                                                                                                                                | same                                                                                                               |
+| Storage server global limit | `FILE_SIZE_LIMIT=209715200` (from `[storage] file_size_limit = "200MiB"`)                                                                                              | container env; TUS create at 200 MiB + 1 B returns **413** "Maximum size exceeded", at exactly 200 MiB returns 201 |
+| 200 MiB video via TUS       | 34 × 6 MiB PATCH requests, 7–8 s locally, finalised `ready`                                                                                                            | real upload of an exactly 209,715,200 B H.264 MP4                                                                  |
+| App limits                  | `reserve` refuses declared sizes over 20 MiB (photo) / 200 MiB (video); `finalise` measures the stored object and fails anything over the limit, whatever was declared | `upload-recovery.test.ts` (21 MiB photo with a 1,000 B declared size → `failed`, "larger than the upload limit")   |
 
 The product limit (200 MiB) equals both the bucket and the global limit, and the
 boundary is inclusive. **Hosted Supabase is different**: the global upload limit is
@@ -312,3 +312,94 @@ is larger than the storage limit."
   (its key is remembered in `localStorage` for 20 h, under a SHA-256 of name, size,
   type and modification time) and TUS resumes from the stored offset. In another
   browser it becomes a new upload, and the unfinished one is cleaned up after 24 h.
+  Labels already sent are kept on the server and applied when the upload finishes;
+  a cleaned-up upload takes them with it (see below).
+
+## Labels chosen while uploading (pending labels)
+
+Staff can label a photo as soon as they pick it. The browser no longer holds those
+labels until the photo is ready: they go to the server as soon as the asset is
+reserved, so closing the tab, logging out or losing the connection does not drop
+them. Schema: `supabase/migrations/20261107140000_media_pending_labels.sql`.
+
+### Storage and ordering
+
+- `public.media_pending_labels` holds one row per asset: the uploader's complete
+  `SaveLabelsInput` (`input`, at most 16 KiB), `status` `pending` (waiting for the
+  asset) or `needs_attention` (applying it failed), and `code`, the
+  SaveLabelsErrorCode of that failure (for example `catalogue_changed`). RLS: the
+  uploader (active staff) reads and deletes only their own rows; nobody else reads
+  them, admins and managers included. Every write goes through SECURITY DEFINER
+  functions.
+- `stage_media_labels` (caller: the uploader) locks the asset row, then stores the
+  draft while the asset is `uploading` or `processing` (a repeat replaces it and
+  clears any earlier problem), or answers `ready` so the caller saves through
+  `save_media_labels` at once. Failed, deleted, amenity, other venues' and other
+  people's assets are not found, like an unknown id.
+- `complete_media_finalise` (service role, finalise's last step) makes the asset
+  `ready` AND applies a stored draft in one transaction, as the uploader, through
+  the same validation and audit trail as `save_media_labels`. The apply runs in a
+  subtransaction: a failed apply never blocks the photo, the row becomes
+  `needs_attention` with its code.
+- **Ordering.** Both functions take the asset row lock, so a draft stored before
+  the asset is ready is applied by finalise, and one arriving after it is saved
+  directly. No draft can be dropped in between.
+- A successful `save_media_labels` deletes the asset's stored draft (pending or
+  needs_attention), whoever saved it.
+- A draft goes with its asset: `on delete cascade`, plus a trigger when the asset
+  is tombstoned (user removal and the 24 h abandoned-upload cleanup). finalise
+  deletes the draft of a file that fails validation, since it can never apply.
+
+### API: `/api/upload-labels`
+
+A Route Handler (`app/api/upload-labels/route.ts`, `lib/server/labels/index.ts`),
+so label requests do not queue behind the Server Actions processing uploads. Types
+are in `lib/menus/types.ts`.
+
+- `GET` (no query): the labelling catalogue and work focus, unchanged.
+- `POST {venueId, input}` (`stageAssetLabels`, result `UploadLabelPostResult`):
+  - `{ok:true, assetId, state:"saved", labels}`: the asset was ready, saved now;
+  - `{ok:true, assetId, state:"pending"}`: the draft is stored for finalise;
+  - `{ok:false, assetId, code, message}`: refused. A failed, deleted or unknown
+    asset is `not_found` (404); a rejected direct save answers 200 with its
+    code, as before.
+- `GET ?attention=1`: `{ok:true, items}`, the caller's own drafts
+  (`PendingLabelItem[]`), newest first, each with the photo's `uploadState`; at
+  most 200.
+- `DELETE ?assetId=<uuid>`: discards the caller's own draft and answers
+  `{ok:true}`. Idempotent: no draft is still a success. The upload carries on.
+
+### finalise and the browser
+
+`finaliseAsset` (`lib/server/media/finalise.ts`) adds an optional `labels` field
+to the ready result (`FinaliseLabels` in `lib/upload/types.ts`):
+`{state:"saved", labels}` or `{state:"needs_attention", code, message}`. It is
+present only when a stored draft existed: applied in this finalise, or an existing
+needs_attention draft on an already-ready asset (the early return). If the label
+read after a save fails, finalise still reports `saved` with the database's
+revision, never a failure. `finaliseUpload` in `app/staff/actions.ts` passes it
+through to the browser.
+
+Ready events are per file. In `components/nabalens/shell/add-context.tsx` and
+`app/staff/_shell/add-host.tsx`, `onReady` fires once per file as soon as that
+file is ready, with an array of exactly one asset id per call, so a task screen
+can select a photo while a slow video is still uploading.
+
+The upload sheet (`components/nabalens/upload-label-drafts.ts`,
+`upload-dialog.tsx`) sends a file's labels as soon as its asset is reserved, sends
+a change again, and discards the stored draft when the labels are cleared. A file
+shows "Saved" only when it is processed and its labels are stored on it. Me's
+"Needs attention" list (`app/staff/needs-attention.tsx`) shows the caller's
+needs_attention drafts and drafts whose upload can never finish, each with its
+reason, plus **Fix labels** (the stored labels against the current menu, saved
+now) and **Discard labels**. Drafts still waiting for their photo are not listed.
+
+### Measurement: `public.upload_label_metrics`
+
+An admin-only view (everyone else, managers included, reads no rows), read-only
+and in the database only. Per venue and upload day (Europe/London): `uploads`
+(ready, non-deleted portfolio uploads reserved that day), `uploads_labelled` (of
+those, how many have labels now), `share_labelled`, `median_seconds_to_label` and
+`p90_seconds_to_label` (from reservation, the closest stored proxy for "photo
+picked", to the first save that gave the asset any item or content type), and
+`needs_attention` (current needs_attention drafts).

@@ -1,40 +1,14 @@
 import {
   EMPTY_LABEL_SUMMARY,
-  type MediaLabelSummary,
-  type SaveLabelsErrorCode,
+  type PendingLabelItem,
   type SaveLabelsInput,
   type SaveLabelsResult,
+  type UploadLabelPostResult,
 } from "@/lib/menus/types"
 
 // Me's "Needs attention": labels kept on the server for the caller's own
 // uploads (GET /api/upload-labels?attention=1), fixed by saving a corrected
 // input (POST, the photo is ready so it saves now) or discarded (DELETE).
-
-/**
- * One stored label input for an own upload.
- * TODO(integration): import PendingLabelItem from "@/lib/menus/types" (S1).
- */
-export type PendingLabelItem = {
-  assetId: string
-  venueId: string
-  status: "pending" | "needs_attention"
-  code: SaveLabelsErrorCode | null
-  message: string | null
-  input: SaveLabelsInput
-  uploadState: string
-  mediaType: "image" | "video"
-  thumbnailUrl: string | null
-  updatedAt: string
-}
-
-/**
- * POST /api/upload-labels.
- * TODO(integration): import UploadLabelPostResult from "@/lib/menus/types" (S1).
- */
-type UploadLabelPostResult =
-  | { ok: true; assetId: string; state: "saved"; labels: MediaLabelSummary }
-  | { ok: true; assetId: string; state: "pending" }
-  | { ok: false; assetId: string; code: SaveLabelsErrorCode; message: string }
 
 export type AttentionResult =
   { ok: true; items: PendingLabelItem[] } | { ok: false; message: string }

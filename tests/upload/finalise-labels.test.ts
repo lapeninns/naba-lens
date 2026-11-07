@@ -134,3 +134,58 @@ describe("toQueueUploader", () => {
     })
   })
 })
+
+describe("resume keys of callers that do not name the account", () => {
+  const SCOPED = { purpose: undefined, account: "user-2" }
+  function store(): UploadKeyStore {
+    return {
+      get: vi.fn(async () => null),
+      set: vi.fn(async () => {}),
+      delete: vi.fn(async () => {}),
+    }
+  }
+  const upload: UploadFn = async () => ({ assetId: "a", state: "ready" })
+
+  it("keeps them for whoever is signed in", async () => {
+    const keys = store()
+    await toQueueUploader(upload, {
+      newKey: () => "key-1",
+      keys,
+      account: async () => "user-2",
+    })(photo(), context())
+    expect(keys.get).toHaveBeenCalledWith(expect.any(File), SCOPED)
+    expect(keys.set).toHaveBeenCalledWith(expect.any(File), "key-1", SCOPED)
+    expect(keys.delete).toHaveBeenCalledWith(expect.any(File), SCOPED)
+  })
+
+  it("uses the account the caller names, without asking", async () => {
+    const keys = store()
+    const signedIn = vi.fn(async () => "user-2")
+    await toQueueUploader(upload, { keys, account: signedIn })(
+      photo(),
+      context({ account: "user-1" })
+    )
+    expect(signedIn).not.toHaveBeenCalled()
+    expect(keys.get).toHaveBeenCalledWith(expect.any(File), {
+      purpose: undefined,
+      account: "user-1",
+    })
+  })
+
+  it("is unscoped when nobody is known to be signed in", async () => {
+    for (const signedIn of [
+      async () => null,
+      async () => Promise.reject(new Error("offline")),
+    ]) {
+      const keys = store()
+      await toQueueUploader(upload, { keys, account: signedIn })(
+        photo(),
+        context()
+      )
+      expect(keys.get).toHaveBeenCalledWith(expect.any(File), {
+        purpose: undefined,
+        account: undefined,
+      })
+    }
+  })
+})

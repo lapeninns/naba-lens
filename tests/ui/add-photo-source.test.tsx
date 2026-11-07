@@ -442,6 +442,59 @@ describe("Our menu: the dish is applied by default", () => {
     expect(api.posted).toHaveLength(1)
   })
 
+  it("puts the dish on once: the sheet hands it back with the dish, and it stays single", async () => {
+    const user = userEvent.setup()
+    holdUploads()
+    host(<Opener opts={{ source: "library", preset }} />)
+    await user.click(screen.getByRole("button", { name: "Open" }))
+    await user.upload(input("library"), [jpeg("dish.jpg")])
+    await waitFor(() => expect(api.posted).toHaveLength(1))
+    expect(
+      await screen.findAllByRole("button", { name: "Remove Onion Bhaji" })
+    ).toHaveLength(1)
+
+    // Reopened: the label field mounts again with `initial` already holding
+    // the dish, as well as the dish as the preset. Neither adds a second one.
+    await hideSheet(user)
+    await user.click(
+      screen.getByRole("button", { name: "Add photos, 1 in progress" })
+    )
+    const dialog = await screen.findByRole("dialog", { name: "Saving 1 photo" })
+    expect(
+      await within(dialog).findAllByRole("button", {
+        name: "Remove Onion Bhaji",
+      })
+    ).toHaveLength(1)
+    expect(api.posted).toHaveLength(1)
+    expect(api.posted[0].input.items).toEqual([
+      { itemId: "item-bhaji", variantId: null },
+    ])
+  })
+
+  it("a removed dish stays removed when the sheet opens again", async () => {
+    const user = userEvent.setup()
+    holdUploads()
+    host(<Opener opts={{ source: "library", preset }} />)
+    await user.click(screen.getByRole("button", { name: "Open" }))
+    await user.upload(input("library"), [jpeg("dish.jpg")])
+    await waitFor(() => expect(api.posted).toHaveLength(1))
+    await user.click(
+      await screen.findByRole("button", { name: "Remove Onion Bhaji" })
+    )
+    await waitFor(() => expect(api.deleted).toEqual(["asset-dish.jpg"]))
+
+    await hideSheet(user)
+    await user.click(
+      screen.getByRole("button", { name: "Add photos, 1 in progress" })
+    )
+    const dialog = await screen.findByRole("dialog", { name: "Saving 1 photo" })
+    expect(await within(dialog).findByText("No labels")).toBeTruthy()
+    expect(
+      within(dialog).queryByRole("button", { name: "Remove Onion Bhaji" })
+    ).toBeNull()
+    expect(api.posted).toHaveLength(1)
+  })
+
   it("applies the dish only to the files picked from it, not earlier or later ones", async () => {
     const user = userEvent.setup()
     const { find } = holdUploads()

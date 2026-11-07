@@ -59,17 +59,6 @@ export type LabelEditorDialogProps = {
    * Omitted: every file. Other files of the batch never get it.
    */
   presetAssetIds?: readonly string[]
-} & (
-  | {
-      /** Resolve with one result per input, matched by assetId. */
-      onSave: (inputs: SaveLabelsInput[]) => Promise<SaveLabelsResult[]>
-      uploadDraft?: never
-    }
-  | {
-      onSave?: never
-      uploadDraft: {
-        files: ReadonlyMap<string, File>
-        onQueue: (inputs: SaveLabelsInput[]) => void
-      }
-    }
-)
+  /** Resolve with one result per input, matched by assetId. */
+  onSave: (inputs: SaveLabelsInput[]) => Promise<SaveLabelsResult[]>
+}

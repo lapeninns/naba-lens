@@ -34,6 +34,11 @@ export type QueueUploaderOptions = {
    * same asset and a TUS transfer resumes. Omit to always start fresh.
    */
   keys?: UploadKeyStore
+  /**
+   * Who is signed in, for a file whose context does not say (`account`): its
+   * resume key is kept for that account only. Null: not scoped.
+   */
+  account?: () => Promise<string | null>
 }
 
 /** Rejection reason of a queue upload; `error` carries the code. */
@@ -46,7 +51,11 @@ export class QueueUploadError extends Error {
 
 export function toQueueUploader(
   upload: UploadFn,
-  { newKey = () => crypto.randomUUID(), keys }: QueueUploaderOptions = {}
+  {
+    newKey = () => crypto.randomUUID(),
+    keys,
+    account: signedIn,
+  }: QueueUploaderOptions = {}
 ): Uploader {
   // Keys of files in flight in this tab: the same file added twice must not
   // share one reservation.
@@ -58,7 +67,12 @@ export function toQueueUploader(
   ): Promise<void | { assetId: string; labels?: FinaliseLabels }> => {
     // Keys are kept per account: another person signed in on this device never
     // resumes (or even finds) this person's reservation.
-    const scope = { purpose: context.purpose, account: context.account }
+    const account =
+      context.account ??
+      (keys && signedIn
+        ? ((await signedIn().catch(() => null)) ?? undefined)
+        : undefined)
+    const scope = { purpose: context.purpose, account }
     let token = readToken(context.resumeToken)
     if (!token) {
       const stored = keys ? await keys.get(file, scope).catch(() => null) : null

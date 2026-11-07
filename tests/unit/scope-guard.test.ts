@@ -158,6 +158,10 @@ const ALLOWED_HANDLERS = new Set([
   // v0.4 §3 rule 9: hourly idempotent monthly preparation, cron-only bearer auth
   // like the other /api/internal routes; it sends nothing to staff.
   "/api/internal/coverage/monthly-preparation",
+  // Upload labels (November 2026), own uploads only: GET the label menu or,
+  // with ?attention=1, the caller's stored labels; POST labels (stored until
+  // the photo is ready); DELETE ?assetId= discards stored labels.
+  "/api/upload-labels",
 ])
 
 /** The dev-only preview must stay inside the `(dev)` route group. */

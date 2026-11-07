@@ -5,7 +5,11 @@ import { useRouter } from "next/navigation"
 
 import { useMediaUploader } from "@/app/_media/use-media-uploader"
 import { UploadDialog } from "@/components/nabalens"
-import type { CatalogueProp } from "@/components/nabalens/labels"
+import {
+  FixLabelsDialog,
+  UploadLabelPanel,
+  type CatalogueProp,
+} from "@/components/nabalens/labels"
 import type { UploadBusy } from "@/components/nabalens/upload-dialog"
 import type {
   UploadLabelFixProps,
@@ -38,7 +42,11 @@ import { CAPTCHA_RETRY_MESSAGE } from "@/lib/auth/captcha"
 import { sendSignInLink, signInWithCode } from "@/lib/auth/magic-link"
 import { MEDIA_LIMITS } from "@/lib/config/media"
 import type { WorkFocus } from "@/lib/config/work-roles"
-import { EMPTY_LABEL_SUMMARY, type LabelCatalogue } from "@/lib/menus/types"
+import {
+  EMPTY_LABEL_SUMMARY,
+  type LabelCatalogue,
+  type SaveLabelsInput,
+} from "@/lib/menus/types"
 import { createClient } from "@/lib/supabase/browser"
 import { getSiteUrl } from "@/lib/supabase/env"
 
@@ -49,9 +57,6 @@ import {
   saveUploadLabels,
   type UploadLabelContext,
 } from "./upload-label-api"
-// TODO(integration): import both from "@/components/nabalens/labels" (S2, C3)
-// and delete the stub.
-import { FixLabelsDialog, UploadLabelPanel } from "./upload-label-panel-stub"
 
 /** What one Add call brings for the files it picks. */
 type PickOwner = {
@@ -174,6 +179,9 @@ export function AddHost({
   // the next picked files, kept per File.
   const pendingOwner = React.useRef<PickOwner | null>(null)
   const fileOwners = React.useRef(new WeakMap<File, PickOwner>())
+  // Queue files whose dish has been on their labels. Once removed it stays
+  // removed: the label field mounts again whenever the sheet reopens.
+  const dishShown = React.useRef(new Set<string>())
   const readyListeners = React.useRef(new Set<AddReadyListener>())
 
   const waiting =
@@ -389,6 +397,8 @@ export function AddHost({
           focus={focus}
           onRetryCatalogue={reloadCatalogue}
           presetOf={(file) => fileOwners.current.get(file)?.preset ?? null}
+          dishShown={(id) => dishShown.current.has(id)}
+          onDishShown={(id) => dishShown.current.add(id)}
         />
       ),
       renderFix: (props) => (
@@ -443,7 +453,15 @@ export function AddHost({
   )
 }
 
-/** The sheet's label field for the files that can carry labels. */
+const hasDish = (input: SaveLabelsInput, preset: AddLabelPreset) =>
+  input.items.some((ref) => ref.itemId === preset.itemId)
+
+/**
+ * The sheet's label field for the files that can carry labels. Our menu's
+ * dish goes on its files once: `initial` already holding it wins (the panel
+ * restores it as it is), and a file whose dish the person removed never gets
+ * it back when the field mounts again.
+ */
 function PanelHost({
   items,
   initial,
@@ -455,16 +473,26 @@ function PanelHost({
   focus,
   onRetryCatalogue,
   presetOf,
+  dishShown,
+  onDishShown,
 }: UploadLabelPanelHostProps & {
   catalogue: CatalogueProp
   venueId: string | null
   focus: WorkFocus | null
   onRetryCatalogue: () => void
   presetOf: (file: File) => AddLabelPreset | null
+  dishShown: (id: string) => boolean
+  onDishShown: (id: string) => void
 }) {
   // The dish of the latest files that came with one, on those files only.
   const last = [...items].reverse().find((item) => presetOf(item.file))
   const preset = last ? presetOf(last.file) : null
+  const restored = (id: string) => initial.find((i) => i.assetId === id)
+  const presetTarget = (item: (typeof items)[number]) => {
+    if (!preset || !samePreset(presetOf(item.file), preset)) return false
+    const now = restored(item.id)
+    return !dishShown(item.id) || (!!now && hasDish(now, preset))
+  }
   return (
     <UploadLabelPanel
       catalogue={catalogue}
@@ -476,16 +504,15 @@ function PanelHost({
         kind: item.kind,
       }))}
       preset={preset}
-      presetAssetIds={
-        preset
-          ? items
-              .filter((item) => samePreset(presetOf(item.file), preset))
-              .map((item) => item.id)
-          : []
-      }
+      presetAssetIds={items.filter(presetTarget).map((item) => item.id)}
       initial={initial}
       disabledIds={disabledIds}
       onChange={(inputs) => {
+        for (const input of inputs) {
+          const item = items.find((i) => i.id === input.assetId)
+          const dish = item ? presetOf(item.file) : null
+          if (dish && hasDish(input, dish)) onDishShown(input.assetId)
+        }
         if (venueId) onChange(venueId, inputs)
       }}
       onPendingChange={onPendingChange}

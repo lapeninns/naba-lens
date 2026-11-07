@@ -53,9 +53,14 @@ export async function finaliseUpload(
     return { ok: false, message: result.message, status: result.status }
   return {
     ok: true,
+    // `labels`: what finalise did with labels stored while the file was
+    // uploading, so the sheet shows "Saved" without asking again.
     result:
       result.state === "ready"
-        ? { state: "ready" }
+        ? {
+            state: "ready",
+            ...(result.labels ? { labels: result.labels } : {}),
+          }
         : { state: "failed", error: result.error },
   }
 }

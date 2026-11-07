@@ -67,9 +67,7 @@ function okFor(inputs: SaveLabelsInput[]): SaveLabelsResult[] {
   }))
 }
 
-async function open(
-  props: Partial<Extract<LabelEditorDialogProps, { uploadDraft?: never }>> = {}
-) {
+async function open(props: Partial<LabelEditorDialogProps> = {}) {
   const onSave = vi.fn(async (inputs: SaveLabelsInput[]) => okFor(inputs))
   const onOpenChange = vi.fn()
   const all = {
@@ -91,9 +89,8 @@ async function open(
     onSave,
     onOpenChange,
     dialog,
-    rerender: (
-      next: Partial<Extract<LabelEditorDialogProps, { uploadDraft?: never }>>
-    ) => view.rerender(<LabelEditorDialog {...all} {...next} />),
+    rerender: (next: Partial<LabelEditorDialogProps>) =>
+      view.rerender(<LabelEditorDialog {...all} {...next} />),
   }
 }
 
