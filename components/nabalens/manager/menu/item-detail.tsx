@@ -145,7 +145,15 @@ export function ItemDetail({
   ) => (
     <PhotoCard
       photo={photo}
-      actions={photo.isSelf ? <OwnPhotoNote /> : actions}
+      actions={
+        photo.isSelf ? (
+          <OwnPhotoNote />
+        ) : contributorLeft(photo) ? (
+          <LeaverNote />
+        ) : (
+          actions
+        )
+      }
       extra={extra}
     />
   )
@@ -334,6 +342,8 @@ export function ItemDetail({
       </section>
 
       <ItemHistory
+        // A refresh brings a new first page: start again from it.
+        key={historyKey(history, item.itemRevision)}
         itemId={item.itemId}
         initial={history}
         loadEvents={loadEvents}
@@ -365,6 +375,29 @@ function PhotoSection({
       </h2>
       <ul className="grid gap-4">{children}</ul>
     </section>
+  )
+}
+
+/**
+ * The history seed: changes when a refresh brings new events (or the read
+ * recovers), so the list restarts from the newest page.
+ */
+function historyKey(history: Page<ItemEvent> | null, revision: number) {
+  if (!history) return `failed:${revision}`
+  return `${history.items[0]?.id ?? "none"}:${revision}`
+}
+
+/**
+ * A leaver's photo: managers' decisions on it are refused (only an admin may
+ * act), so none is offered. The photo itself still shows.
+ */
+const contributorLeft = (photo: ItemPhoto) => photo.author.status === "left"
+
+function LeaverNote() {
+  return (
+    <p className="text-body-touch text-ink-muted md:text-body-sm">
+      {MANAGER_COPY.item.contributorLeft}
+    </p>
   )
 }
 

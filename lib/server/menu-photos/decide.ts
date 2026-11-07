@@ -168,12 +168,16 @@ async function freshCards(
   status: QueueStatus,
   itemId: string,
   assetId: string
-): Promise<QueueCard[]> {
+): Promise<{ cards: QueueCard[]; complete: boolean }> {
   const page = await listReviewQueue(ctx, { status, itemId })
-  if (!page.ok) return []
-  return ITEMLESS.includes(status)
-    ? page.items.filter((c) => c.asset.assetId === assetId)
-    : page.items
+  if (!page.ok) return { cards: [], complete: false }
+  return {
+    cards: ITEMLESS.includes(status)
+      ? page.items.filter((c) => c.asset.assetId === assetId)
+      : page.items,
+    // Only a full read says a loaded card missing from it is no longer current.
+    complete: page.nextCursor === null,
+  }
 }
 
 async function itemState(
@@ -219,14 +223,12 @@ export async function decideMenuPhoto(
       [i.assetId]
     )
     if (failed.code !== "revision_conflict") return failed
-    return {
-      ...failed,
-      current: await freshCards(ctx, status, i.itemId, i.assetId),
-    }
+    const fresh = await freshCards(ctx, status, i.itemId, i.assetId)
+    return { ...failed, current: fresh.cards, currentComplete: fresh.complete }
   }
 
   const { written } = result
-  const [cards, state] = await Promise.all([
+  const [fresh, state] = await Promise.all([
     freshCards(ctx, status, written.itemId, i.assetId),
     itemState(ctx, written.itemId),
   ])
@@ -240,7 +242,7 @@ export async function decideMenuPhoto(
       itemCovered: state.covered,
       preferredAssetId: state.preferredAssetId,
       correctsItem: written.correctsItem ?? null,
-      cards,
+      cards: fresh.cards,
     },
   }
 }

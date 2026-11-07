@@ -29,6 +29,7 @@ vi.mock("@/app/manager/actions", () => actions)
 
 import { ItemWaitingReview } from "@/components/nabalens/manager/menu/item-waiting-review"
 import {
+  applyCurrent,
   availableActions,
   mergeOutcome,
   ownPhotoBlocked,
@@ -271,6 +272,83 @@ describe("mergeOutcome: the corrected item's head", () => {
       decision({ correctsItem: null })
     )
     expect(next[1]).toBe(pie)
+  })
+})
+
+describe("applyCurrent: a revision conflict's re-read", () => {
+  // 48 loaded cards of Soup; the re-read's first page holds 24 of them.
+  const loaded = Array.from({ length: 48 }, (_, n) =>
+    card({
+      key: id(0x1000 + n),
+      labelId: id(0x1000 + n),
+      asset: { ...card().asset, assetId: id(0x2000 + n) },
+    })
+  )
+  const firstPage = loaded.slice(0, 24).map((c) => ({ ...c, itemRevision: 7 }))
+
+  it("keeps the cards beyond a partial page, at the item's new revision", () => {
+    const next = applyCurrent(loaded, SOUP, firstPage, () => true, false)
+    expect(next.map((c) => c.key)).toEqual(loaded.map((c) => c.key))
+    expect(next.some((c) => c.settled)).toBe(false)
+    expect(next.slice(0, 24)).toEqual(firstPage)
+    for (const c of next.slice(24)) expect(c.itemRevision).toBe(7)
+  })
+
+  it("a complete re-read settles the loaded cards it no longer holds", () => {
+    const next = applyCurrent(loaded, SOUP, firstPage, () => true, true)
+    expect(next.map((c) => c.key)).toEqual(loaded.map((c) => c.key))
+    expect(next.slice(0, 24).every((c) => !c.settled)).toBe(true)
+    expect(next.slice(24).every((c) => c.settled)).toBe(true)
+  })
+
+  it("a failed re-read (nothing back, not complete) leaves the cards as they were", () => {
+    const next = applyCurrent(loaded, SOUP, [], () => true, false)
+    expect(next).toEqual(loaded)
+  })
+})
+
+describe("ReviewList: a conflict with more cards than one page", () => {
+  it("leaves the cards beyond the returned page undecided", async () => {
+    const user = userEvent.setup()
+    const loaded = Array.from({ length: 48 }, (_, n) =>
+      card({
+        key: id(0x1000 + n),
+        labelId: id(0x1000 + n),
+        asset: { ...card().asset, assetId: id(0x2000 + n) },
+      })
+    )
+    actions.decideMenuPhotoAction.mockResolvedValue({
+      ok: false,
+      code: "revision_conflict",
+      message: "stale",
+      current: loaded.slice(0, 24).map((c) => ({ ...c, itemRevision: 7 })),
+      currentComplete: false,
+    })
+    renderList(loaded)
+    await user.click(
+      within(cardEl(loaded[0].key)).getByRole("button", {
+        name: REVIEW_COPY.accept,
+      })
+    )
+    expect(await screen.findByText(REVIEW_COPY.conflict("Soup"))).toBeTruthy()
+    const last = cardEl(loaded[47].key)
+    expect(
+      within(last).getByRole("button", { name: REVIEW_COPY.accept })
+    ).toBeTruthy()
+    actions.decideMenuPhotoAction.mockResolvedValue({
+      ok: false,
+      code: "state_conflict",
+      message: "stale",
+    })
+    await user.click(
+      within(last).getByRole("button", { name: REVIEW_COPY.accept })
+    )
+    await waitFor(() =>
+      expect(actions.decideMenuPhotoAction).toHaveBeenCalledTimes(2)
+    )
+    expect(
+      actions.decideMenuPhotoAction.mock.calls[1][0].expectedRevision
+    ).toBe(7)
   })
 })
 

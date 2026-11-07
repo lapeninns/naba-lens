@@ -282,7 +282,13 @@ export function ReviewList({
         }
         if (result.code === "revision_conflict") {
           setCards((list) =>
-            applyCurrent(list, itemId, result.current ?? [], keep)
+            applyCurrent(
+              list,
+              itemId,
+              result.current ?? [],
+              keep,
+              result.currentComplete === true
+            )
           )
           focusTargetRef.current = "notice"
           setNotice({

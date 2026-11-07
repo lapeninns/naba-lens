@@ -278,6 +278,12 @@ export type Page<T> = { items: T[]; nextCursor: string | null }
 export type MenuPhotoFailure = CoverageFailure & {
   /** revision_conflict: the item's latest cards for the current status. */
   current?: QueueCard[]
+  /**
+   * revision_conflict: `current` holds every current card of the item. False
+   * when more pages exist or the re-read failed: a loaded card missing from
+   * `current` may still be current.
+   */
+  currentComplete?: boolean
   /** state_conflict: the screen is out of date; offer Refresh. */
   needsRefresh?: boolean
 }

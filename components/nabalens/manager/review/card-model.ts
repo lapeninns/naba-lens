@@ -245,13 +245,21 @@ export function mergeOutcome(
   return next
 }
 
-/** After a revision conflict: the item's latest cards replace the loaded ones. */
+/**
+ * After a revision conflict: the item's latest cards replace the loaded ones.
+ * A loaded card of the item missing from `current` is shown settled only when
+ * `complete` (the server read every current card of the item); otherwise it
+ * may sit beyond the re-read's first page, so it stays, at the item's new
+ * revision when one came back.
+ */
 export function applyCurrent(
   list: ListCard[],
   itemId: string,
   current: QueueCard[],
-  keep: (card: QueueCard) => boolean = () => true
+  keep: (card: QueueCard) => boolean = () => true,
+  complete = false
 ): ListCard[] {
+  const head = current.find((c) => c.item?.itemId === itemId)?.itemRevision
   const fresh = current.filter(keep)
   const byKey = new Map(fresh.map((c) => [c.key, c]))
   const used = new Set<string>()
@@ -267,8 +275,13 @@ export function applyCurrent(
     }
     if (card.item?.itemId === itemId && !card.settled) {
       if (firstOfItem < 0) firstOfItem = next.length
-      // Gone from the item's current set: shown collapsed until the filter changes.
-      next.push({ ...card, settled: true })
+      if (complete) {
+        // Gone from the item's current set: shown collapsed until the filter changes.
+        next.push({ ...card, settled: true })
+      } else {
+        // Not in the partial re-read: unknown, so kept for its next decision.
+        next.push(head === undefined ? card : { ...card, itemRevision: head })
+      }
       continue
     }
     next.push(card)

@@ -127,6 +127,8 @@ export const MANAGER_COPY = {
     noneWaiting: "No photos of this item are waiting for a decision.",
     othersWaiting: "Waiting for an admin",
     ownPhoto: "This is your photo. Another reviewer decides on it.",
+    contributorLeft:
+      "This contributor has left. An admin handles their photos.",
     withdrawTitle: "Withdraw acceptance",
     withdrawLabel: "Why is this photo no longer right?",
     withdrawPending: "Withdrawing…",

@@ -29,6 +29,7 @@ import {
 } from "@/components/nabalens/manager/menu/menu-query"
 import { MenuScreen } from "@/components/nabalens/manager/menu/menu-screen"
 import type {
+  ItemEvent,
   ItemPhoto,
   ManagerItemDetail,
   ManagerMenuItem,
@@ -689,6 +690,178 @@ describe("Item detail", () => {
     expect(
       alternatives.queryByRole("button", { name: "Set as menu photo" })
     ).toBeNull()
+  })
+
+  it("a leaver's photos stay on show with the note and no actions", () => {
+    const left = {
+      id: "00000000-0000-4000-8000-000000000309",
+      name: "Former Staff",
+      status: "left" as const,
+      canFollowUp: false,
+    }
+    showItem(
+      detail({
+        preferred: { ...photo({ author: left }), fallback: true },
+        alternatives: [
+          photo({
+            photoId: "00000000-0000-4000-8000-000000000107",
+            isPrimary: false,
+            isEffective: false,
+            author: left,
+          }),
+        ],
+        askedForAnother: [
+          photo({
+            photoId: "00000000-0000-4000-8000-000000000108",
+            state: "better_photo_requested",
+            isPrimary: false,
+            isEffective: false,
+            author: left,
+          }),
+        ],
+        recheck: [
+          photo({
+            photoId: "00000000-0000-4000-8000-000000000109",
+            state: "needs_recheck",
+            isPrimary: false,
+            isEffective: false,
+            recheckKind: "name_changed",
+            author: left,
+          }),
+        ],
+      })
+    )
+    for (const name of [
+      "Menu photo",
+      "Accepted alternatives",
+      "Asked for another photo",
+      "Needs a recheck",
+    ]) {
+      const section = within(region(name))
+      expect(section.getByText(MANAGER_COPY.item.contributorLeft)).toBeTruthy()
+      expect(
+        section.getByText("Photo by Former Staff", { selector: "p" })
+      ).toBeTruthy()
+      // Only the photo's own preview button is left.
+      expect(
+        section
+          .getAllByRole("button")
+          .filter((b) => !b.getAttribute("aria-label")?.startsWith("Open "))
+      ).toEqual([])
+    }
+  })
+
+  it("a contributor who moved venue keeps the manager's actions", () => {
+    showItem(
+      detail({
+        alternatives: [
+          photo({
+            photoId: "00000000-0000-4000-8000-000000000110",
+            isPrimary: false,
+            isEffective: false,
+            author: {
+              id: "00000000-0000-4000-8000-000000000310",
+              name: "Moved On",
+              status: "moved",
+              canFollowUp: false,
+            },
+          }),
+        ],
+      })
+    )
+    const alternatives = within(region("Accepted alternatives"))
+    expect(
+      alternatives.queryByText(MANAGER_COPY.item.contributorLeft)
+    ).toBeNull()
+    expect(
+      alternatives.getByRole("button", { name: "Set as menu photo" })
+    ).toBeTruthy()
+  })
+
+  it("history shows the newest events after a refresh", async () => {
+    const user = userEvent.setup()
+    const event = (id: string, actorName: string, createdAt: string) => ({
+      id,
+      action: "accepted" as const,
+      photoId: "00000000-0000-4000-8000-000000000101",
+      actorName,
+      actorRole: "manager" as const,
+      reason: null,
+      basis: "staff_label" as const,
+      correctsItemName: null,
+      recheckKind: null,
+      createdAt,
+    })
+    const loadEvents = vi.fn<LoadItemEvents>(async () => ({
+      ok: true,
+      items: [event("7", "Old Hand", "2026-10-30T09:00:00.000Z")],
+      nextCursor: null,
+    }))
+    const props = (
+      d: ManagerItemDetail,
+      history: Page<ItemEvent> | null
+    ): React.ComponentProps<typeof ItemDetail> => ({
+      detail: d,
+      backHref: "/manager/menu",
+      decide: vi.fn(),
+      history,
+      loadEvents,
+      waiting: <ItemWaiting item={d.item} waiting={d.waiting} />,
+    })
+    const first = detail()
+    const view = render(
+      <ItemDetail
+        {...props(first, {
+          items: [event("8", "Mina Patel", "2026-11-01T09:00:00.000Z")],
+          nextCursor: "8",
+        })}
+      />
+    )
+    await user.click(
+      within(region("History")).getByRole("button", { name: "Show more" })
+    )
+    expect(await within(region("History")).findByText(/^Old Hand/)).toBeTruthy()
+    // router.refresh(): the server sends the item's new head and history.
+    const refreshed = detail({
+      item: { ...first.item, itemRevision: first.item.itemRevision + 1 },
+    })
+    view.rerender(
+      <ItemDetail
+        {...props(refreshed, {
+          items: [
+            event("9", "Ana Cruz", "2026-11-03T09:00:00.000Z"),
+            event("8", "Mina Patel", "2026-11-01T09:00:00.000Z"),
+          ],
+          nextCursor: "8",
+        })}
+      />
+    )
+    const history = within(region("History"))
+    expect(history.getByText(/^Ana Cruz accepted/)).toBeTruthy()
+    expect(history.getByText(/^Mina Patel accepted/)).toBeTruthy()
+    expect(history.queryByText(/^Old Hand/)).toBeNull()
+    expect(history.getByRole("button", { name: "Show more" })).toBeTruthy()
+  })
+
+  it("history recovers when a refresh reads it after a failure", () => {
+    const d = detail()
+    const base = {
+      detail: d,
+      backHref: "/manager/menu",
+      decide: vi.fn<DecideMenuPhoto>(),
+      loadEvents: vi.fn<LoadItemEvents>(),
+      waiting: <ItemWaiting item={d.item} waiting={d.waiting} />,
+    }
+    const view = render(<ItemDetail {...base} history={null} />)
+    expect(
+      within(region("History")).getByText(MANAGER_COPY.item.historyFailed)
+    ).toBeTruthy()
+    view.rerender(
+      <ItemDetail {...base} history={{ items: [], nextCursor: null }} />
+    )
+    const history = within(region("History"))
+    expect(history.queryByText(MANAGER_COPY.item.historyFailed)).toBeNull()
+    expect(history.getByText(MANAGER_COPY.item.historyEmpty)).toBeTruthy()
   })
 
   it("waiting photos link to Review for the item; others' photos wait for an admin", () => {
