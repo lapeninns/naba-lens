@@ -305,7 +305,10 @@ test.describe("amenity checks", () => {
     const manager = await signedInPage(browser, w.managerA)
     await manager.goto(MANAGE.check(id))
     await expectAnswered(manager, "yes", w.staffA)
-    await expect(manager.getByText(wifi.testSpot)).toBeVisible()
+    // Scoped by role: a hidden streamed copy of the page can briefly match text.
+    await expect(
+      manager.getByRole("article").getByText(wifi.testSpot)
+    ).toBeVisible()
   })
 
   test("No needs a reason: refused without one, Complete with one", async ({
@@ -335,7 +338,7 @@ test.describe("amenity checks", () => {
     const manager = await signedInPage(browser, w.managerA)
     await manager.goto(MANAGE.check(id))
     await expectAnswered(manager, "no", w.staffA)
-    await expect(manager.getByText(reason)).toBeVisible()
+    await expect(manager.getByRole("article").getByText(reason)).toBeVisible()
   })
 
   test("a manager uses Capture myself on an unassigned check", async ({
@@ -487,7 +490,7 @@ test.describe("amenity checks", () => {
     )
     await manager.reload()
     await expectAnswered(manager, "yes", w.staffA)
-    await expect(manager.getByText(finding)).toBeVisible()
+    await expect(manager.getByRole("article").getByText(finding)).toBeVisible()
   })
 
   test("amenity checks never appear in monthly Coverage targets or tasks", async ({
