@@ -85,6 +85,11 @@ const ALLOWED_PAGES = new Set([
   "/manager/menu",
   "/manager/menu/[itemId]",
   "/manager/account",
+  // Amenities in the workspace: the /staff/manage amenity screens for the
+  // manager account's own venue (docs/plans/amenity-catalogue.md).
+  "/manager/amenities",
+  "/manager/amenities/[checkId]",
+  "/manager/amenities/[checkId]/capture",
   // v0.4 admin coverage oversight: the same tools for any venue, plus grants.
   "/admin/coverage",
   "/admin/coverage/[venueId]",
