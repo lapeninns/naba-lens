@@ -91,6 +91,15 @@ assets); only then does the service role read storage paths. Responses are
 `private, no-store` with `nosniff`. There is no original download and no
 filename in the stream response. Unknown and forbidden assets are the same 404.
 
+Amenity evidence stays out of the organisation community feed. Uploads from the
+capture form (its own dialog or the shared Add button) are reserved with
+`media_assets.purpose = 'amenity'`, which never changes after reservation.
+`community_readable_assets`, `community_media_page` and the community member
+counts skip those assets, and also any asset attached to an amenity submission
+unless it is Coverage media (`coverage_submission_items` or
+`venue_amenity_fact_media`), so Coverage screens are unchanged. The uploader and
+admins keep access (migration `20261107130000_amenity_media_purpose.sql`).
+
 ## Operations
 
 - Enabling a venue: an admin opens Admin -> Coverage -> venue -> Amenities and

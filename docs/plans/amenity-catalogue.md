@@ -77,7 +77,10 @@ restores the same row.
   `needs_recheck`; answer stays visible.
 - Evidence access (thumb/preview/stream): the submitter, the venue's effective
   manager, admins; plus a caller's own submittable assets. No original
-  downloads. Unknown and forbidden are the same 404.
+  downloads. Unknown and forbidden are the same 404. Amenity uploads
+  (`purpose = 'amenity'`) and non-Coverage assets attached to submissions are
+  excluded from the community feed.
+- Writes at a deactivated venue raise `venue_inactive`; reads still work.
 - Every read, write and media request re-checks the current role in the
   database: a revoked manager loses access at once.
 - Asset deleted: if the current Yes no longer meets its rule -> `needs_recheck`
