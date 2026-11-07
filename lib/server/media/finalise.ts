@@ -294,8 +294,8 @@ export async function finaliseAsset(
     if (size === null && row.upload_state === "failed") {
       // Failed validation earlier and its bytes were removed: still failed.
       // (A retry through reserve reopens the reservation for a new transfer.)
-      await setState(actor, row.id, ["processing"], "failed")
-      await discardStoredLabels(actor, row.id)
+      if (await setState(actor, row.id, ["processing"], "failed"))
+        await discardStoredLabels(actor, row.id)
       return {
         ok: true,
         state: "failed",
@@ -323,7 +323,9 @@ export async function finaliseAsset(
   }
 
   if (!validation.ok) {
-    await setState(actor, row.id, ["processing"], "failed")
+    // false: this claim was lost (another finalise took it over and may have
+    // made the asset ready), so its stored labels are not ours to discard.
+    const failedHere = await setState(actor, row.id, ["processing"], "failed")
     if (validation.error === "decoder_busy") {
       return {
         ok: false,
@@ -335,7 +337,7 @@ export async function finaliseAsset(
     // 24 h cleanup. Best effort; cleanup still removes a failed row's objects.
     await removeObjects(actor, [row.original_path])
     // Nor its stored labels: they can never apply ("photo not saved").
-    await discardStoredLabels(actor, row.id)
+    if (failedHere) await discardStoredLabels(actor, row.id)
     return {
       ok: true,
       state: "failed",
