@@ -52,6 +52,7 @@ export function TasksOverview({
   reviewCount = 0,
   contribute = null,
   ourMenu = null,
+  amenityChecks = null,
 }: {
   tasks: MyTasksView
   profile: {
@@ -77,6 +78,8 @@ export function TasksOverview({
   contribute?: { prompt: string; blocked: string | null } | null
   /** The venue's menu photo progress; null to hide the card (no venue). */
   ourMenu?: OurMenuProgress | null
+  /** Amenity checks assigned to me (UI_TEXT.staffSection), shown after To do. */
+  amenityChecks?: React.ReactNode
 }) {
   const { scope, period, monthly, assignments, needsAnotherPhoto } = tasks
   const blocked = submitBlockedCopy(scope)
@@ -117,6 +120,8 @@ export function TasksOverview({
         tasksPath={tasksPath}
         portfolioPath={portfolioPath}
       />
+
+      {amenityChecks}
 
       <MonthlyProgressCard
         monthly={monthly}

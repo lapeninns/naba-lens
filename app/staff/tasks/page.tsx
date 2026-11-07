@@ -1,6 +1,7 @@
 import { cookies } from "next/headers"
 
 import { logout } from "@/app/_media/actions"
+import { AmenityTaskList } from "@/components/nabalens/amenities/capture"
 import { AppShell } from "@/components/nabalens/app-shell"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
 import type { OurMenuProgress } from "@/components/nabalens/home/our-menu-card"
@@ -12,8 +13,10 @@ import {
   todoItems,
   type JustSent,
 } from "@/components/nabalens/tasks"
+import type { MyAmenityTask } from "@/lib/amenities/contract"
 import { requireActiveStaff, uploadBlockReason } from "@/lib/auth"
 import { homePrompt } from "@/lib/config/work-roles"
+import { getMyAmenityTasks } from "@/lib/server/amenities"
 import {
   getCoverageActor,
   getManagerReviewCount,
@@ -93,6 +96,16 @@ async function ourMenuProgress(
   }
 }
 
+/** Amenity checks assigned to me; a failed read hides the section, never Home. */
+async function myAmenityTasks(actor: MediaActor): Promise<MyAmenityTask[]> {
+  try {
+    const result = await getMyAmenityTasks(actor, {})
+    return result.ok ? result.tasks : []
+  } catch {
+    return []
+  }
+}
+
 const UPLOAD_BLOCKED = {
   not_staff: "Only staff accounts can add photos.",
   no_venue: "You can't add photos until an admin assigns your venue.",
@@ -110,19 +123,28 @@ export default async function TasksPage({
   const { actor } = unwrap(await getCoverageActor())
   const myTasks = getMyTasks(actor).then(unwrap)
   const dismissedAt = profile.work?.welcomeDismissedAt ?? null
-  const [{ tasks }, colleagues, params, review, ownMedia, ourMenu, jar] =
-    await Promise.all([
-      myTasks,
-      recentColleaguePhotos(),
-      searchParams,
-      myTasks.then(({ tasks }) =>
-        tasks.scope.canManageVenue ? getManagerReviewCount(actor) : null
-      ),
-      // Once dismissed, Start here never shows, so skip the read.
-      dismissedAt ? true : hasOwnMedia(actor),
-      ourMenuProgress(actor, Boolean(profile.venueId)),
-      cookies(),
-    ])
+  const [
+    { tasks },
+    colleagues,
+    params,
+    review,
+    ownMedia,
+    ourMenu,
+    jar,
+    amenityTasks,
+  ] = await Promise.all([
+    myTasks,
+    recentColleaguePhotos(),
+    searchParams,
+    myTasks.then(({ tasks }) =>
+      tasks.scope.canManageVenue ? getManagerReviewCount(actor) : null
+    ),
+    // Once dismissed, Start here never shows, so skip the read.
+    dismissedAt ? true : hasOwnMedia(actor),
+    ourMenuProgress(actor, Boolean(profile.venueId)),
+    cookies(),
+    myAmenityTasks(actor),
+  ])
   const reviewCount = review?.ok ? review.count : undefined
   const blockedReason = uploadBlockReason(profile)
 
@@ -172,6 +194,7 @@ export default async function TasksPage({
           blocked: blockedReason ? UPLOAD_BLOCKED[blockedReason] : null,
         }}
         ourMenu={ourMenu}
+        amenityChecks={<AmenityTaskList tasks={amenityTasks} />}
       />
     </AppShell>
   )
