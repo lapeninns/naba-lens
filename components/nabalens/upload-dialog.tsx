@@ -60,6 +60,7 @@ import {
   type QueueSummary,
   type RejectedFile,
   SessionExpiredError,
+  SIGNED_OUT_MESSAGE,
   type Uploader,
   type UploadPurpose,
 } from "./upload-queue"
@@ -77,9 +78,11 @@ type UploadDialogProps = {
   /**
    * Called once per file as soon as THAT file is ready (only files whose
    * uploader reported an asset ID): one asset ID and its picked File, so an
-   * owner can tell its own. A slow file never holds back the others.
+   * owner can tell its own. A slow file never holds back the others. Return
+   * false when the screen that picked it is gone: the file stays listed as
+   * saved but not added there, until the person has seen it.
    */
-  onReady?: (assetIds: string[], files: File[]) => void
+  onReady?: (assetIds: string[], files: File[]) => boolean | void
   /**
    * Optional labels in the sheet ("What's in these photos?"): sent by asset
    * ID as soon as each file is reserved, and on the photo once it is ready.
@@ -181,6 +184,10 @@ function legacyStatus(summary: QueueSummary, pause: QueuePause) {
     .join(" · ")
 }
 
+/** A file saved after the screen that picked it closed (C4 onReady false). */
+export const NOT_ADDED_TO_TASK =
+  "Saved to your portfolio. Not added to the task: its screen was closed."
+
 /** "This file can't be used: {reason}." */
 function cannotUse(reason: string | null) {
   const why = (reason ?? "it could not be processed").replace(/[.\s]+$/, "")
@@ -197,7 +204,8 @@ type RowState = {
 function rowState(
   item: QueueItem,
   labels: LabelView,
-  pause: QueuePause
+  pause: QueuePause,
+  unattached = false
 ): RowState {
   const percent = Math.round(item.progress * 100)
   switch (item.status) {
@@ -230,7 +238,11 @@ function rowState(
   }
   switch (labels.kind) {
     case "none":
-      return { word: "Saved", suffix: null, detail: null }
+      return {
+        word: "Saved",
+        suffix: null,
+        detail: unattached ? NOT_ADDED_TO_TASK : null,
+      }
     case "saved":
       return {
         word: "Saved",
@@ -241,7 +253,11 @@ function rowState(
         detail: null,
       }
     case "retry":
-      return { word: "Needs attention", suffix: null, detail: LABELS_NOT_SAVED }
+      return {
+        word: "Needs attention",
+        suffix: null,
+        detail: labels.signedOut ? SIGNED_OUT_MESSAGE : LABELS_NOT_SAVED,
+      }
     case "attention":
       return { word: "Needs attention", suffix: null, detail: labels.message }
     default:
@@ -462,7 +478,7 @@ export function UploadDialog({
   }, [uploader, isSignedIn, purpose])
   const queue = useUploadQueue({ upload, limits })
   const { items, summary, isActive, pause } = queue
-  const labels = useUploadLabels(items, labelsConfig, pause !== null)
+  const labels = useUploadLabels(items, labelsConfig, pause !== null, open)
   const views = new Map(items.map((item) => [item.id, labels.view(item)]))
   const viewOf = (item: QueueItem) => views.get(item.id) ?? { kind: "none" }
   const unstoredLabels = items.filter((item) => labels.unstored(item)).length
@@ -482,39 +498,65 @@ export function UploadDialog({
   // Reload or tab close would lose labels the server does not have yet.
   React.useEffect(() => guardBeforeUnload(() => unstoredRef.current > 0), [])
 
+  // Files saved after the screen that picked them closed: id -> seen.
+  const [unattached, setUnattached] = React.useState<
+    ReadonlyMap<string, boolean>
+  >(new Map())
+  const unseen = [...unattached.values()].filter((seen) => !seen).length
+  // Set as soon as a file is found unattached, before `unseen` catches up a
+  // render later: the hidden queue must not clear it in between.
+  const unseenComing = React.useRef(false)
+  React.useEffect(() => {
+    if (unseen > 0) unseenComing.current = false
+  }, [unseen])
+  React.useEffect(() => {
+    if (!open || unseen === 0) return
+    // Shown now: once seen, Done may clear them.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setUnattached(
+      (current) => new Map([...current.keys()].map((id) => [id, true]))
+    )
+  }, [open, unseen])
+
   const { active, failed, stopped } = summary
   const busyLabels = items.filter(
     (item) => item.status === "done" && viewOf(item).kind === "saving"
   ).length
+  const needsPerson = labelTrouble + unseen
   React.useEffect(() => {
     onBusyChange?.({
       active,
       failed,
       stopped,
       ...(busyLabels ? { labels: busyLabels } : {}),
-      ...(labelTrouble ? { attention: labelTrouble } : {}),
+      ...(needsPerson ? { attention: needsPerson } : {}),
     })
-  }, [active, failed, stopped, busyLabels, labelTrouble, onBusyChange])
+  }, [active, failed, stopped, busyLabels, needsPerson, onBusyChange])
   const signedOut = pause === "signed-out"
+  // A label save refused because the session ended, even with every upload
+  // finished (so the queue itself is not paused).
+  const needsSignIn = signedOut || labels.signedOut
   const [signInOpen, setSignInOpen] = React.useState(false)
 
   // Show E7 over the queue when the session ends; it stays reachable from
   // "Sign in again" after "Not now".
   const wasSignedOut = React.useRef(false)
   React.useEffect(() => {
-    if (signedOut && !wasSignedOut.current && guard) {
+    if (needsSignIn && !wasSignedOut.current && guard) {
       // Opening the sheet follows the queue's external state.
       setSignInOpen(true)
       if (!open) onOpenChange(true)
     }
-    wasSignedOut.current = signedOut
-  }, [signedOut, guard, open, onOpenChange])
+    wasSignedOut.current = needsSignIn
+  }, [needsSignIn, guard, open, onOpenChange])
 
   const { resume } = queue
-  useSignedInAgain(signedOut, isSignedIn, () => {
+  function signedInAgain() {
     setSignInOpen(false)
-    resume()
-  })
+    if (signedOut) resume()
+    labels.retrySignedOut()
+  }
+  useSignedInAgain(needsSignIn, isSignedIn, signedInAgain)
   const [rejected, setRejected] = React.useState<RejectedFile[]>([])
   const [closeBlocked, setCloseBlocked] = React.useState(false)
   const [fixing, setFixing] = React.useState<string | null>(null)
@@ -538,8 +580,17 @@ export function UploadDialog({
     for (const item of fresh) reported.current.add(item.id)
     onUploaded?.(fresh.length)
     if (!onReady) return
-    for (const item of fresh)
-      if (item.assetId) onReady([item.assetId], [item.file])
+    const gone = fresh.filter(
+      (item) => item.assetId && onReady([item.assetId], [item.file]) === false
+    )
+    if (gone.length === 0) return
+    // The screen that picked them closed: keep them listed until seen.
+    unseenComing.current = true
+    setUnattached((current) => {
+      const next = new Map(current)
+      for (const item of gone) next.set(item.id, false)
+      return next
+    })
   }, [signedOut, items, onUploaded, onReady])
 
   const queuedInitial = React.useRef<File[] | null>(null)
@@ -586,6 +637,13 @@ export function UploadDialog({
     queue.remove(item.id)
   }
 
+  const forget = (ids: Iterable<string>) =>
+    setUnattached((current) => {
+      const next = new Map(current)
+      for (const id of ids) next.delete(id)
+      return next
+    })
+
   /** Nothing left for anyone to do: every file is saved with its labels. */
   const finished = items.every(
     (item) =>
@@ -596,6 +654,7 @@ export function UploadDialog({
     queue.reset()
     labels.reset()
     reported.current.clear()
+    forget([...unattached.keys()])
     setRejected([])
     setCloseBlocked(false)
     setPanelPending(false)
@@ -624,13 +683,13 @@ export function UploadDialog({
   const settledHidden =
     !open && startOnPick && keepRunningWhenClosed && items.length > 0
   React.useEffect(() => {
-    if (!settledHidden || !finished) return
+    if (!settledHidden || !finished || unseen > 0 || unseenComing.current)
+      return
     // The queue (an external store) finished while hidden.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     clearQueue()
     // clearQueue only touches the queue and this component's state.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settledHidden, finished])
+  }, [settledHidden, finished, unseen])
 
   const started = items.some((i) => i.status !== "selected")
   const settled = started && !isActive && summary.selected === 0
@@ -806,9 +865,12 @@ export function UploadDialog({
                 <QueueRow
                   key={item.id}
                   item={item}
-                  state={rowState(item, view, pause)}
+                  state={rowState(item, view, pause, unattached.has(item.id))}
                   labels={view}
-                  onRemove={() => remove(item)}
+                  onRemove={() => {
+                    forget([item.id])
+                    remove(item)
+                  }}
                   onCancel={() => {
                     queue.cancel(item.id)
                     // Started on pick: a cancelled file just leaves the list.
@@ -824,11 +886,12 @@ export function UploadDialog({
         ) : null}
 
         {labelsConfig && labelItems.length > 0 ? (
-          <React.Fragment key={panelKey}>
+          <React.Fragment key={`${panelKey}-${labels.version}`}>
             {labelsConfig.renderPanel({
               items: labelItems,
               initial: labels.initial,
               disabledIds,
+              settledIds: labels.settledIds,
               onChange: labels.change,
               onPendingChange: setPanelPending,
             })}
@@ -863,7 +926,7 @@ export function UploadDialog({
               {status}
             </p>
           ) : null}
-          {signedOut ? (
+          {needsSignIn ? (
             guard ? (
               <Button
                 variant="secondary"
@@ -982,10 +1045,7 @@ export function UploadDialog({
             guard={guard}
             done={summary.done}
             stopped={summary.stopped}
-            onSignedIn={() => {
-              setSignInOpen(false)
-              resume()
-            }}
+            onSignedIn={signedInAgain}
           />
         ) : null}
       </DialogContent>
@@ -1000,6 +1060,7 @@ export function UploadDialog({
             item: fixItem,
             assetId: fixItem.assetId,
             draft: fix.draft,
+            labels: fix.labels,
             problem: fix.problem,
             onClose: () => setFixing(null),
             onSave: async (input) => {

@@ -21,7 +21,7 @@
 // duplicate. The asset ID is on the item as soon as the server reserves it, so
 // labels can be sent while the bytes are still on their way.
 
-import type { MediaLabelSummary, SaveLabelsErrorCode } from "@/lib/menus/types"
+import type { FinaliseLabels } from "@/lib/upload/types"
 
 import type { MediaType, UploadLimits } from "./types"
 
@@ -56,13 +56,8 @@ export type QueueItem = {
    */
   assetId?: string
   /** What finalise did with labels that waited for this asset, if any. */
-  labels?: UploadLabelOutcome
+  labels?: FinaliseLabels
 }
-
-/** Mirrors lib/upload's FinaliseLabels (lib/ never imports components/). */
-export type UploadLabelOutcome =
-  | { state: "saved"; labels: MediaLabelSummary }
-  | { state: "needs_attention"; code: SaveLabelsErrorCode; message: string }
 
 export type UploadContext = {
   signal: AbortSignal
@@ -96,7 +91,7 @@ export type UploadPurpose = "general" | "amenity"
 export type Uploader = (
   file: File,
   context: UploadContext
-) => Promise<void | { assetId: string; labels?: UploadLabelOutcome }>
+) => Promise<void | { assetId: string; labels?: FinaliseLabels }>
 
 export type RejectedFile = { name: string; reason: string }
 

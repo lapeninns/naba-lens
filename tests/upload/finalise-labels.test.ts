@@ -3,7 +3,10 @@
 // can be sent by asset ID, C1), and resume keys are kept per account (audit
 // finding 15). No storage server: the bytes are already stored ("processing")
 // or the transport is faked.
-import { describe, expect, it, vi } from "vitest"
+import { describe, expect, expectTypeOf, it, vi } from "vitest"
+
+import type { QueueItem } from "../../components/nabalens/upload-queue"
+import type { FinaliseLabels as ServerFinaliseLabels } from "../../lib/server/media/finalise"
 
 import {
   createUploader,
@@ -187,5 +190,16 @@ describe("resume keys of callers that do not name the account", () => {
         account: undefined,
       })
     }
+  })
+})
+
+describe("one FinaliseLabels shape (n3)", () => {
+  it("the server's answer, the transport and the queue use the same type", () => {
+    // lib/upload is client-only and cannot import the server module, so the
+    // two declarations are held equal here; the queue uses lib/upload's.
+    expectTypeOf<ServerFinaliseLabels>().toEqualTypeOf<FinaliseLabels>()
+    expectTypeOf<
+      NonNullable<QueueItem["labels"]>
+    >().toEqualTypeOf<FinaliseLabels>()
   })
 })

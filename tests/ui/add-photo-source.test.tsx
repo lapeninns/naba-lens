@@ -35,9 +35,9 @@ import { AddSheet } from "@/components/nabalens/shell/add-sheet"
 import type {
   UploadContext,
   Uploader,
-  UploadLabelOutcome,
 } from "@/components/nabalens/upload-queue"
 import { EMPTY_LABEL_SUMMARY } from "@/lib/menus/types"
+import type { FinaliseLabels } from "@/lib/upload/types"
 
 import { CATALOGUE } from "./labels-fixtures"
 
@@ -333,7 +333,7 @@ const preset = {
 type Held = {
   name: string
   ctx: UploadContext
-  finish: (labels?: UploadLabelOutcome) => void
+  finish: (labels?: FinaliseLabels) => void
   fail: (error: Error) => void
 }
 
@@ -780,5 +780,188 @@ describe("Add while work remains", () => {
     expect(
       within(dialog).getByRole("button", { name: "Fix labels for dish.jpg" })
     ).toBeTruthy()
+  })
+})
+
+describe("Review 1 regressions: Add host", () => {
+  it("n2: a dish picker cancelled behind the open sheet leaves its dish off Add more", async () => {
+    const user = userEvent.setup()
+    holdUploads()
+    host(
+      <>
+        <Opener label="Me" opts={{ dialog: true }} />
+        <Opener label="Dish" opts={{ source: "library", preset }} />
+      </>
+    )
+    await user.click(screen.getByRole("button", { name: "Me" }))
+    const choose = () =>
+      within(screen.getByRole("dialog")).getByLabelText(/^Choose photos/)
+    await user.upload(choose(), [jpeg("first.jpg")])
+    await screen.findByRole("dialog", { name: "Saving 1 photo" })
+    // The dish's picker opens and closes with nothing picked (browsers send
+    // no event at all). fireEvent: the open sheet makes the page inert.
+    fireEvent.click(screen.getByRole("button", { name: "Dish", hidden: true }))
+    // "Add more" in the sheet picks another file.
+    await user.click(screen.getByRole("button", { name: "Add more" }))
+    await user.upload(choose(), [jpeg("other.jpg")])
+    await screen.findByRole("dialog", { name: "Saving 2 photos" })
+    await act(async () => {})
+    expect(api.posted).toEqual([])
+    expect(
+      screen.queryByRole("button", { name: "Remove Onion Bhaji" })
+    ).toBeNull()
+  })
+
+  it("m9: Done while the dish waits for the menu asks nothing; the dish is sent once it loads", async () => {
+    const user = userEvent.setup()
+    holdUploads()
+    let load!: () => void
+    api.menu = () =>
+      new Promise((resolve) => {
+        load = () => resolve({ ok: true, catalogue: CATALOGUE, focus: null })
+      })
+    host(<Opener opts={{ source: "library", preset }} />)
+    await user.click(screen.getByRole("button", { name: "Open" }))
+    await user.upload(input("library"), [jpeg("dish.jpg")])
+    const dialog = await screen.findByRole("dialog", { name: "Saving 1 photo" })
+    await user.click(within(dialog).getByRole("button", { name: "Done" }))
+    expect(
+      screen.queryByRole("alertdialog", { name: "Discard these labels?" })
+    ).toBeNull()
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+    await act(async () => load())
+    await waitFor(() => expect(api.posted).toHaveLength(1))
+    expect(api.posted[0].input.items).toEqual([
+      { itemId: "item-bhaji", variantId: null },
+    ])
+  })
+
+  it("m10: a dish whose menu failed to load says Labels not saved yet, and is sent when the signal returns", async () => {
+    const user = userEvent.setup()
+    const { find } = holdUploads()
+    api.menu = () => ({ ok: false, message: "The menu is unavailable." })
+    host(<Opener opts={{ source: "library", preset }} />)
+    await user.click(screen.getByRole("button", { name: "Open" }))
+    await user.upload(input("library"), [jpeg("dish.jpg")])
+    const dialog = await screen.findByRole("dialog", { name: "Saving 1 photo" })
+    await act(async () => find("dish.jpg").finish())
+    await waitFor(() =>
+      expect(fileRow("dish.jpg").textContent).toContain("Labels not saved yet.")
+    )
+    expect(fileRow("dish.jpg").textContent).not.toContain("Saving…")
+    expect(
+      within(dialog).getByRole("button", { name: "Retry labels for dish.jpg" })
+    ).toBeTruthy()
+    expect(api.posted).toEqual([])
+
+    // Tried again when the signal returns; while that try is out the row
+    // keeps saying what is true, not "Saving…".
+    let load!: () => void
+    api.menu = () =>
+      new Promise((resolve) => {
+        load = () => resolve({ ok: true, catalogue: CATALOGUE, focus: null })
+      })
+    await act(async () => {
+      window.dispatchEvent(new Event("online"))
+    })
+    expect(load).toBeTypeOf("function")
+    expect(fileRow("dish.jpg").textContent).toContain("Labels not saved yet.")
+    expect(fileRow("dish.jpg").textContent).not.toContain("Saving…")
+    await act(async () => load())
+    await waitFor(() => expect(api.posted).toHaveLength(1))
+    expect(api.posted[0].input.items).toEqual([
+      { itemId: "item-bhaji", variantId: null },
+    ])
+  })
+
+  it("m16: a photo ready after its task screen closed is listed as not added to the task", async () => {
+    const user = userEvent.setup()
+    const { find } = holdUploads()
+    // The screen is gone: its listener says so.
+    const gone = vi.fn(() => false)
+    host(
+      <Opener
+        label="Task"
+        opts={{ source: "library", imagesOnly: true, onReady: gone }}
+      />
+    )
+    await user.click(screen.getByRole("button", { name: "Task" }))
+    await user.upload(input("library"), [jpeg("task.jpg")])
+    await screen.findByRole("dialog", { name: "Saving 1 photo" })
+    await hideSheet(user)
+    await act(async () => find("task.jpg").finish())
+    expect(gone).toHaveBeenCalledWith(["asset-task.jpg"])
+    // Not cleared unseen: Add points at it.
+    const add = await screen.findByRole("button", {
+      name: "Add photos, 1 need attention",
+    })
+    await user.click(add)
+    await screen.findByRole("dialog", { name: "Saving 1 photo" })
+    expect(fileRow("task.jpg").textContent).toContain(
+      "Saved to your portfolio. Not added to the task: its screen was closed."
+    )
+  })
+})
+
+describe("Review 1 regressions: Fix labels in the Add sheet", () => {
+  it("m4: saves at the photo's revision, not revision 0", async () => {
+    const user = userEvent.setup()
+    const { find } = holdUploads()
+    host(<Opener opts={{ source: "library", preset }} />)
+    await user.click(screen.getByRole("button", { name: "Open" }))
+    await user.upload(input("library"), [jpeg("dish.jpg")])
+    const dialog = await screen.findByRole("dialog", { name: "Saving 1 photo" })
+    await waitFor(() => expect(api.posted).toHaveLength(1))
+    // Finalise put the dish on the photo: revision 1.
+    await act(async () =>
+      find("dish.jpg").finish({
+        state: "saved",
+        labels: {
+          ...EMPTY_LABEL_SUMMARY,
+          revision: 1,
+          hasLabels: true,
+          items: [
+            {
+              itemId: "item-bhaji",
+              variantId: null,
+              name: "Onion Bhaji",
+              variantName: null,
+              sectionName: "Starters",
+              labelledAs: null,
+              state: "current",
+            },
+          ],
+        },
+      })
+    )
+    await waitFor(() =>
+      expect(fileRow("dish.jpg").textContent).toContain("Saved · Onion Bhaji")
+    )
+    // A change the server refuses.
+    api.post = (sent) => ({
+      ok: false,
+      assetId: (sent as { input: { assetId: string } }).input.assetId,
+      code: "unavailable_items",
+      message: "One of these items is no longer on the menu.",
+    })
+    await user.click(
+      within(dialog).getByRole("button", { name: /^More details/ })
+    )
+    await user.click(
+      within(dialog).getByRole("button", { name: "Finished dish" })
+    )
+    await waitFor(() => expect(api.posted).toHaveLength(2))
+    expect(api.posted[1].input).toMatchObject({ expectedRevision: 1 })
+    await user.click(
+      await screen.findByRole("button", { name: "Fix labels for dish.jpg" })
+    )
+    api.post = null
+    const fix = await screen.findByRole("dialog", { name: /labels/i })
+    await user.click(within(fix).getByRole("button", { name: "Save labels" }))
+    await waitFor(() => expect(api.posted).toHaveLength(3))
+    expect(api.posted[2].input).toMatchObject({
+      assetId: "asset-dish.jpg",
+      expectedRevision: 1,
+    })
   })
 })

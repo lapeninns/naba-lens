@@ -35,6 +35,7 @@ import { GUIDE_PATH } from "@/components/nabalens/guide"
 import { CountBadge, StatusChip } from "@/components/nabalens/status-chip"
 import {
   useAdd,
+  useAddDiscarded,
   useAddLabelled,
   useAddRefreshSignal,
 } from "@/components/nabalens/shell/add-context"
@@ -313,6 +314,7 @@ export function StaffPortfolio({
   const openAdd = useAdd()
   const addRefreshSignal = useAddRefreshSignal()
   const addLabelled = useAddLabelled()
+  const addDiscarded = useAddDiscarded()
   // Labels saved from "Needs labels": hide those photos here and refresh the
   // gallery so its badges catch up.
   const [labelled, setLabelled] = React.useState<ReadonlySet<string>>(
@@ -436,6 +438,8 @@ export function StaffPortfolio({
           setLabelled((current) => new Set([...current, ...saved]))
           setLabelSaves((n) => n + 1)
         }}
+        // The Add sheet's row for that photo reads Saved with no labels.
+        onDiscarded={addDiscarded}
       />
       {needsLabels.length > 0 ? (
         // One listing only: these photos are already in the portfolio grid

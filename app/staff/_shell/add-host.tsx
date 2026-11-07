@@ -15,6 +15,7 @@ import type {
   UploadLabelFixProps,
   UploadLabelPanelHostProps,
   UploadLabels,
+  UploadLabelSettle,
 } from "@/components/nabalens/upload-label-drafts"
 import type {
   QueueItem,
@@ -42,10 +43,10 @@ import { CAPTCHA_RETRY_MESSAGE } from "@/lib/auth/captcha"
 import { sendSignInLink, signInWithCode } from "@/lib/auth/magic-link"
 import { MEDIA_LIMITS } from "@/lib/config/media"
 import type { WorkFocus } from "@/lib/config/work-roles"
-import {
-  EMPTY_LABEL_SUMMARY,
-  type LabelCatalogue,
-  type SaveLabelsInput,
+import type {
+  LabelCatalogue,
+  MediaLabelSummary,
+  SaveLabelsInput,
 } from "@/lib/menus/types"
 import { createClient } from "@/lib/supabase/browser"
 import { getSiteUrl } from "@/lib/supabase/env"
@@ -53,6 +54,7 @@ import { getSiteUrl } from "@/lib/supabase/env"
 import {
   discardUploadLabels,
   loadLabelAttention,
+  loadPhotoLabels,
   loadUploadLabelContext,
   saveUploadLabels,
   type UploadLabelContext,
@@ -61,6 +63,8 @@ import {
 /** What one Add call brings for the files it picks. */
 type PickOwner = {
   onReady: ((assetIds: string[]) => boolean | void) | null
+  /** Told once files are actually picked. */
+  onPicked: (() => void) | null
   preset: AddLabelPreset | null
   /** Fixed at reservation; "amenity" keeps the files out of the community. */
   purpose: UploadPurpose
@@ -166,14 +170,16 @@ export function AddHost({
     failed: 0,
     stopped: 0,
   })
-  // Per Add call: photos only for task screens, Our menu's dish, and who to
-  // tell once files are actually picked.
+  // Per Add call: photos only for task screens.
   const [imagesOnly, setImagesOnly] = React.useState(false)
-  const onPicked = React.useRef<(() => void) | null>(null)
   // What an Add call brings for the files it picks (and only those): a task
-  // screen's ready listener and Our menu's dish. Set by each openAdd, given to
-  // the next picked files, kept per File.
-  const pendingOwner = React.useRef<PickOwner | null>(null)
+  // screen's ready listener, Our menu's dish, and who to tell once files are
+  // picked. Kept per File. `pickerOwner` goes only with files from Add's own
+  // picker (openAdd({ source })); `sheetOwner` with the next pick from the Add
+  // sheet or the upload dialog, and is dropped when they close without one.
+  // A cancelled picker leaves nothing for a later pick ("Add more").
+  const pickerOwner = React.useRef<PickOwner | null>(null)
+  const sheetOwner = React.useRef<PickOwner | null>(null)
   const fileOwners = React.useRef(new WeakMap<File, PickOwner>())
   // Queue files whose dish has been on their labels. Once removed it stays
   // removed: the label field mounts again whenever the sheet reopens.
@@ -202,6 +208,8 @@ export function AddHost({
     React.useState<UploadLabelContext | null>(null)
   const [catalogueWanted, setCatalogueWanted] = React.useState(false)
   const [catalogueAttempt, setCatalogueAttempt] = React.useState(0)
+  // Loads that failed in a row: the next try waits longer.
+  const catalogueFailures = React.useRef(0)
   React.useEffect(() => {
     if (!catalogueWanted) return
     const controller = new AbortController()
@@ -211,7 +219,11 @@ export function AddHost({
         message: "The menu could not be loaded. Try again.",
       }))
       .then((result) => {
-        if (!controller.signal.aborted) setLabelContext(result)
+        if (controller.signal.aborted) return
+        catalogueFailures.current = result.ok
+          ? 0
+          : catalogueFailures.current + 1
+        setLabelContext(result)
       })
     return () => controller.abort()
   }, [catalogueWanted, catalogueAttempt])
@@ -219,24 +231,51 @@ export function AddHost({
     setLabelContext(null)
     setCatalogueAttempt((attempt) => attempt + 1)
   }, [])
+  // A failed menu is tried again when the signal returns, and after a wait
+  // (5 s, doubling to a minute), so a dish never waits for it for good. These
+  // tries keep the failed answer until a new one arrives: the dish row stays
+  // on "Labels not saved yet." rather than flipping to "Saving…" each time.
+  const catalogueFailed = catalogueWanted && labelContext?.ok === false
+  const retryCatalogue = React.useCallback(
+    () => setCatalogueAttempt((attempt) => attempt + 1),
+    []
+  )
+  React.useEffect(() => {
+    if (!catalogueFailed) return
+    const wait = Math.min(60_000, 5_000 * 2 ** (catalogueFailures.current - 1))
+    const timer = window.setTimeout(retryCatalogue, wait)
+    window.addEventListener("online", retryCatalogue)
+    return () => {
+      window.clearTimeout(timer)
+      window.removeEventListener("online", retryCatalogue)
+    }
+    // Each failed answer (a new labelContext) waits again, longer.
+  }, [catalogueFailed, labelContext, retryCatalogue])
   const catalogueProp: CatalogueProp = !labelContext
     ? { state: "loading" }
     : labelContext.ok
       ? { state: "ready", catalogue: labelContext.catalogue }
       : { state: "error", message: labelContext.message }
 
-  const picked = React.useCallback((files: File[]) => {
-    const notify = onPicked.current
-    onPicked.current = null
-    const owner = pendingOwner.current
-    pendingOwner.current = null
-    if (owner && (owner.onReady || owner.preset || owner.purpose !== "general"))
+  /** These files were picked for `owner`'s Add call. */
+  const claim = React.useCallback((files: File[], owner: PickOwner | null) => {
+    if (!owner || files.length === 0) return
+    if (owner.onReady || owner.preset || owner.purpose !== "general")
       for (const file of files) fileOwners.current.set(file, owner)
-    if (files.length > 0) {
-      setCatalogueWanted(true)
-      notify?.()
-    }
+    owner.onPicked?.()
   }, [])
+
+  /** Every pick (the dialog's own, or files handed to it). */
+  const picked = React.useCallback(
+    (files: File[]) => {
+      if (files.length === 0) return
+      setCatalogueWanted(true)
+      const owner = sheetOwner.current
+      sheetOwner.current = null
+      claim(files, owner)
+    },
+    [claim]
+  )
 
   /** Files from Add's own picker or the sheet go to the queue, shown. */
   const queueFiles = React.useCallback((files: File[]) => {
@@ -247,8 +286,24 @@ export function AddHost({
 
   // Add's own pickers, for openAdd({ source }). Outside any dialog, so a
   // click on them never lands on content a modal has made inert.
-  const picker = usePhotoSource({ imagesOnly, onFiles: queueFiles })
+  const picker = usePhotoSource({
+    imagesOnly,
+    onFiles: (files) => {
+      const owner = pickerOwner.current
+      pickerOwner.current = null
+      claim(files, owner)
+      queueFiles(files)
+    },
+  })
   const openPicker = picker.open
+  const closeSheet = React.useCallback((open: boolean) => {
+    if (!open) sheetOwner.current = null
+    setSheetOpen(open)
+  }, [])
+  const closeUpload = React.useCallback((open: boolean) => {
+    if (!open) sheetOwner.current = null
+    setUploadOpen(open)
+  }, [])
 
   const onReady = React.useCallback((listener: AddReadyListener) => {
     readyListeners.current.add(listener)
@@ -258,16 +313,34 @@ export function AddHost({
   }, [])
 
   // Each file as soon as it is ready: its own Add call hears it (a task
-  // screen selects it), then every subscriber.
+  // screen selects it), then every subscriber. False: the screen that picked
+  // it is gone, so the sheet keeps it listed as not added there.
   const handleReady = React.useCallback((ids: string[], files: File[]) => {
+    let kept = true
     ids.forEach((id, i) => {
       const owner = fileOwners.current.get(files[i])
-      owner?.onReady?.([id])
+      if (owner?.onReady?.([id]) === false) kept = false
     })
     for (const listener of readyListeners.current) listener(ids)
+    return kept
   }, [])
 
-  const labelled = React.useCallback(() => {}, [])
+  // Me's Fix labels and Discard labels reach the sheet's rows (C6).
+  const settleListeners = React.useRef(new Set<UploadLabelSettle>())
+  const settled = React.useCallback((listener: UploadLabelSettle) => {
+    settleListeners.current.add(listener)
+    return () => {
+      settleListeners.current.delete(listener)
+    }
+  }, [])
+  const labelled = React.useCallback((assetIds: string[]) => {
+    for (const listener of settleListeners.current)
+      listener(assetIds, "labelled")
+  }, [])
+  const discarded = React.useCallback((assetIds: string[]) => {
+    for (const listener of settleListeners.current)
+      listener(assetIds, "discarded")
+  }, [])
 
   const value = React.useMemo(
     () => ({
@@ -277,12 +350,15 @@ export function AddHost({
         // source still opens its picker straight away. A dish and a ready
         // listener belong to the files this call picks, never to the queue
         // (see picked and handleReady).
-        pendingOwner.current = {
+        const owner: PickOwner = {
           onReady: opts.onReady ?? null,
+          onPicked: opts.onPicked ?? null,
           preset: opts.preset ?? null,
           purpose: opts.purpose ?? "general",
         }
-        onPicked.current = opts.onPicked ?? null
+        const toPicker = !!opts.source && !blocked
+        pickerOwner.current = toPicker ? owner : null
+        sheetOwner.current = toPicker ? null : owner
         const only = opts.imagesOnly ?? false
         setImagesOnly(only)
         if (opts.source && !blocked) {
@@ -301,10 +377,20 @@ export function AddHost({
       },
       onReady,
       labelled,
+      discarded,
       busy: waiting > 0 ? { count: waiting, words: busyWords } : null,
       refreshSignal,
     }),
-    [blocked, waiting, busyWords, refreshSignal, onReady, labelled, openPicker]
+    [
+      blocked,
+      waiting,
+      busyWords,
+      refreshSignal,
+      onReady,
+      labelled,
+      discarded,
+      openPicker,
+    ]
   )
 
   // Resume keys belong to the signed-in account (audit finding 15).
@@ -352,6 +438,7 @@ export function AddHost({
       seed: (item) => {
         const preset = fileOwners.current.get(item.file)?.preset
         if (!preset) return null
+        if (labelContext && !labelContext.ok) return "unavailable"
         if (!catalogue) return undefined
         if (!onMenu(catalogue, preset)) return null
         return {
@@ -368,9 +455,12 @@ export function AddHost({
           },
         }
       },
+      retrySeed: reloadCatalogue,
       save: saveUploadLabels,
       discard: discardUploadLabels,
       attention: loadLabelAttention,
+      summary: loadPhotoLabels,
+      settled,
       itemNames: (input) =>
         input.items.flatMap((ref) => {
           if (catalogue?.status !== "active") return []
@@ -408,7 +498,14 @@ export function AddHost({
     }),
     // catalogueProp is derived from labelContext.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [catalogue, focus, labelContext, refreshAfterLabels, reloadCatalogue]
+    [
+      catalogue,
+      focus,
+      labelContext,
+      refreshAfterLabels,
+      reloadCatalogue,
+      settled,
+    ]
   )
 
   return (
@@ -419,7 +516,7 @@ export function AddHost({
           {picker.inputs}
           <AddSheet
             open={sheetOpen}
-            onOpenChange={setSheetOpen}
+            onOpenChange={closeSheet}
             blocked={blocked}
             maxFiles={MEDIA_LIMITS.maxBatchFiles}
             imagesOnly={imagesOnly}
@@ -427,7 +524,7 @@ export function AddHost({
           />
           <UploadDialog
             open={uploadOpen}
-            onOpenChange={setUploadOpen}
+            onOpenChange={closeUpload}
             uploader={upload}
             limits={MEDIA_LIMITS}
             imagesOnly={imagesOnly}
@@ -467,6 +564,7 @@ function PanelHost({
   items,
   initial,
   disabledIds,
+  settledIds,
   onChange,
   onPendingChange,
   catalogue,
@@ -490,10 +588,11 @@ function PanelHost({
     const item = items.find((i) => i.id === id)
     return item ? presetOf(item.file) : null
   }
-  // Each file's own dish, unless the person removed it earlier.
+  // Each file's own dish, unless the person removed it earlier (or its labels
+  // were settled on Me: `initial` is what the photo has).
   const presetFor = (id: string) => {
     const dish = dishOf(id)
-    if (!dish) return null
+    if (!dish || settledIds.includes(id)) return null
     const now = restored(id)
     return !dishShown(id) || (!!now && hasDish(now, dish)) ? dish : null
   }
@@ -543,6 +642,7 @@ function FixHost({
   item,
   assetId,
   draft,
+  labels,
   problem,
   onClose,
   onSave,
@@ -565,7 +665,7 @@ function FixHost({
       onOpenChange={(open) => {
         if (!open) onClose()
       }}
-      asset={assetOf(item, assetId, ready, preview)}
+      asset={assetOf(item, assetId, labels, ready, preview)}
       draft={draft}
       problem={problem}
       catalogue={catalogue}
@@ -579,6 +679,7 @@ function FixHost({
 function assetOf(
   item: QueueItem,
   assetId: string,
+  labels: MediaLabelSummary,
   catalogue: LabelCatalogue | null,
   preview: string | null
 ) {
@@ -589,6 +690,7 @@ function assetOf(
     originalFilename: item.file.name,
     mediaType: item.kind,
     thumbnailUrl: preview,
-    labels: EMPTY_LABEL_SUMMARY,
+    // The photo's labels as last known: Fix labels saves at their revision.
+    labels,
   }
 }
