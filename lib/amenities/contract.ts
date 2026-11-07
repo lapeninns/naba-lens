@@ -359,7 +359,7 @@ export type SubmitInput = {
   assetIds: string[]
   /** Required for guest_wifi + yes. */
   wifi?: WifiMetadata
-  /** Required true for REDACTION_CONFIRM_KEYS when any photo is attached. */
+  /** Required true for REDACTION_CONFIRM_KEYS when the answer is Yes or any photo is attached. */
   redactionConfirmed?: boolean
 }
 
@@ -477,6 +477,7 @@ export const RPC_ERRORS = [
   "redaction_not_confirmed",
   "evidence_rule_unmet", // details: the rule
   "evidence_not_eligible", // details: {"assetId": "...", "reason": AmenityFailure["assetReason"]}
+  "invalid_idempotency_key",
 ] as const
 export type RpcError = (typeof RPC_ERRORS)[number]
 
