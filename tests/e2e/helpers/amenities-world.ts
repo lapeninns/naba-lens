@@ -20,14 +20,18 @@ import {
   type SubmitAnswer,
 } from "../../../lib/amenities/contract"
 import { signIn, type Db } from "../../support/identities"
-import { seedImages } from "./coverage-world"
+import { legacyStaffGrant, seedImages } from "./coverage-world"
+import { convertToManager } from "./manager-world"
 import { provisioner, psql } from "./stack"
 import { createPeople, createVenues, type Person, type Venue } from "./world"
 
 /**
  * DEV FIXTURE world for the amenity specs, on the isolated stack only: venue A
- * with a manager (granted through the admin's own session) and two staff;
- * venue B with its own manager and staff, for isolation.
+ * with a manager and two staff; venue B with its own manager and staff, for
+ * isolation. managerA and managerB are real venue manager ACCOUNTS (role
+ * 'manager'), converted from staff by the admin's own session through
+ * convert_account_to_manager (helpers/manager-world), so each holds an
+ * effective grant for its venue and works in the /manager workspace.
  * Everyone has a team, so staff Home is past first-run setup. The service
  * client only creates rows and media and reads state for assertions; every
  * amenity action runs as a real user, in the UI or the user's own session.
@@ -88,17 +92,10 @@ export async function provisionAmenitiesWorld(): Promise<AmenitiesWorld> {
     .join(", ")
   psql(`update public.profiles set department = 'foh' where id in (${ids});`)
 
+  // grant_venue_manager refuses staff accounts: managers are converted.
   const adminDb = await signIn(provisioner(), admin.email)
-  for (const [manager, venue] of [
-    [managerA, venueA],
-    [managerB, venueB],
-  ] as const) {
-    const { error } = await adminDb.rpc("grant_venue_manager", {
-      p_staff_id: manager.id,
-      p_venue_id: venue.id,
-    })
-    if (error) throw new Error(`grant_venue_manager: ${error.message}`)
-  }
+  await convertToManager(adminDb, managerA, venueA)
+  await convertToManager(adminDb, managerB, venueB)
   return {
     tag,
     venueA,
@@ -110,6 +107,19 @@ export async function provisionAmenitiesWorld(): Promise<AmenitiesWorld> {
     managerB,
     staffB,
   }
+}
+
+/**
+ * Makes `staff` a transitional venue manager: a grant held by a STAFF account,
+ * as made before manager accounts existed (helpers/coverage-world). It stays
+ * effective for the legacy /staff/manage tools.
+ */
+export function legacyManagerGrant(
+  w: Pick<AmenitiesWorld, "admin">,
+  staff: Pick<Person, "id">,
+  venue: Pick<Venue, "id">
+): Promise<string> {
+  return legacyStaffGrant(w.admin, staff, venue)
 }
 
 // ---- The shared catalogue, read from the seed CSV ------------------------------
@@ -499,7 +509,7 @@ function evidenceCheckbox(page: Page, assetId: string): Locator {
 
 /**
  * The capture form (staff task page, or a manager/admin "Capture myself"
- * page), components/nabalens/amenities/capture/capture-form.tsx. Choices are
+ * page; /manager and /staff/manage share the screen), components/nabalens/amenities/capture/capture-form.tsx. Choices are
  * radios named by ANSWER_LABEL. "What you found" and "Limitations" are
  * optional, so their labels end in " (optional)"; Reason shows only for No and
  * Not applicable, and the Wi-Fi test fields only for a Wi-Fi Yes.

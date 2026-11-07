@@ -24,6 +24,7 @@ import {
   eventKinds,
   expectRefused,
   expectSubmitRefused,
+  legacyManagerGrant,
   londonToday,
   provisionAmenitiesWorld,
   question,
@@ -41,13 +42,17 @@ import { signedInPage, type Person } from "./helpers/world"
 /**
  * Amenity checks in the built app (plan release criteria 3 and 4): admin
  * enable, manager add/assign/reopen/archive/restore and Capture myself, staff
- * capture against each evidence rule. People act through the pages. Setup
- * that a test does not assert runs in the actor's own database session; the
- * service role only seeds people and media and reads state to confirm what
- * the pages did.
+ * capture against each evidence rule. Managers are venue manager accounts
+ * working in the /manager workspace (the same screens as /staff/manage); one
+ * journey covers a staff account with a pre-existing (transitional) grant,
+ * which keeps /staff/manage. People act through the pages. Setup that a test
+ * does not assert runs in the actor's own database session; the service role
+ * only seeds people, grants made before manager accounts and media, and reads
+ * state to confirm what the pages did.
  */
 
-const MANAGE = amenityHrefs("/staff/manage")
+const MANAGER = amenityHrefs("/manager")
+const LEGACY_MANAGE = amenityHrefs("/staff/manage")
 const adminHrefs = (w: AmenitiesWorld) =>
   amenityHrefs(`/admin/coverage/${w.venueA.id}`)
 
@@ -121,7 +126,7 @@ test.describe("amenity checks", () => {
 
     // The manager sees the same four and cannot enable a venue.
     const manager = await signedInPage(browser, w.managerA)
-    await manager.goto(MANAGE.list)
+    await manager.goto(MANAGER.list)
     for (const q of CORE_QUESTIONS) {
       await expect(manager.getByRole("link", { name: q })).toBeVisible()
     }
@@ -139,7 +144,7 @@ test.describe("amenity checks", () => {
     })
 
     const manager = await signedInPage(browser, w.managerA)
-    await manager.goto(MANAGE.list)
+    await manager.goto(MANAGER.list)
     await manager
       .getByRole("button", { name: UI_TEXT.addFromCatalogue })
       .click()
@@ -155,7 +160,22 @@ test.describe("amenity checks", () => {
     const id = checkId(w.venueA, "darts")
 
     await manager.getByRole("link", { name: question("darts") }).click()
-    await expect(manager).toHaveURL(new RegExp(`${escape(MANAGE.check(id))}$`))
+    await expect(manager).toHaveURL(new RegExp(`${escape(MANAGER.check(id))}$`))
+    // Assignees are active staff at the venue; a manager account is not one.
+    await manager.getByRole("combobox", { name: "Assignee" }).click()
+    await expect(
+      manager.getByRole("option", {
+        name: assigneeOption(w.staffA),
+        exact: true,
+      })
+    ).toBeVisible()
+    await expect(
+      manager.getByRole("option", {
+        name: assigneeOption(w.managerA),
+        exact: true,
+      })
+    ).toHaveCount(0)
+    await manager.keyboard.press("Escape")
     await chooseOption(manager, manager, "Assignee", assigneeOption(w.staffA))
     await manager.getByRole("button", { name: UI_TEXT.assign }).click()
     await expect.poll(() => checkState(id).assignee).toBe(w.staffA.id)
@@ -223,7 +243,7 @@ test.describe("amenity checks", () => {
     expect(currentSubmission(id).assets).toEqual([video])
 
     const manager = await signedInPage(browser, w.managerA)
-    await manager.goto(MANAGE.check(id))
+    await manager.goto(MANAGER.check(id))
     await expectAnswered(manager, "yes", w.staffA)
     const stream = await manager.request.get(evidenceHref(video, "stream"), {
       maxRedirects: 0,
@@ -303,7 +323,7 @@ test.describe("amenity checks", () => {
 
     // Internal notes: the venue manager sees them on the check page.
     const manager = await signedInPage(browser, w.managerA)
-    await manager.goto(MANAGE.check(id))
+    await manager.goto(MANAGER.check(id))
     await expectAnswered(manager, "yes", w.staffA)
     // Scoped by role: a hidden streamed copy of the page can briefly match text.
     await expect(
@@ -336,7 +356,7 @@ test.describe("amenity checks", () => {
     expect(currentSubmission(id)).toMatchObject({ answer: "no", reason })
 
     const manager = await signedInPage(browser, w.managerA)
-    await manager.goto(MANAGE.check(id))
+    await manager.goto(MANAGER.check(id))
     await expectAnswered(manager, "no", w.staffA)
     await expect(manager.getByRole("article").getByText(reason)).toBeVisible()
   })
@@ -346,16 +366,18 @@ test.describe("amenity checks", () => {
   }) => {
     const w = await provisionAmenitiesWorld()
     const id = await readyCheck(w, w.venueA, "guest_toilets", null)
+    // The manager's own photo, as if uploaded while still a staff account
+    // (manager accounts do not upload); the fixture seeds it as theirs.
     const photo = await seedPhoto(w.managerA, w.venueA, `toilets-${w.tag}`)
 
     const manager = await signedInPage(browser, w.managerA)
-    await manager.goto(MANAGE.check(id))
+    await manager.goto(MANAGER.check(id))
     await manager
       .getByRole("link", { name: UI_TEXT.captureMyself })
       .or(manager.getByRole("button", { name: UI_TEXT.captureMyself }))
       .click()
     await expect(manager).toHaveURL(
-      new RegExp(`${escape(MANAGE.capture(id))}$`)
+      new RegExp(`${escape(MANAGER.capture(id))}$`)
     )
     const form = captureForm(manager)
     await form.answer("yes")
@@ -366,7 +388,7 @@ test.describe("amenity checks", () => {
       answeredBy: w.managerA.id,
       assignee: null,
     })
-    await manager.goto(MANAGE.check(id))
+    await manager.goto(MANAGER.check(id))
     await expectAnswered(manager, "yes", w.managerA)
   })
 
@@ -397,7 +419,7 @@ test.describe("amenity checks", () => {
 
     const extra = `The oche is out of shot ${w.tag}`
     const manager = await signedInPage(browser, w.managerA)
-    await manager.goto(MANAGE.check(id))
+    await manager.goto(MANAGER.check(id))
     await manager.getByRole("button", { name: UI_TEXT.reopen }).click()
     const dialog = manager.getByRole("dialog", { name: "Reopen this check" })
     await dialog
@@ -460,21 +482,21 @@ test.describe("amenity checks", () => {
     )
 
     const manager = await signedInPage(browser, w.managerA)
-    await manager.goto(MANAGE.check(id))
+    await manager.goto(MANAGER.check(id))
     // Archive and Restore act at once; there is no confirmation dialog.
     await manager
       .getByRole("button", { name: UI_TEXT.archive, exact: true })
       .click()
     await expect.poll(() => checkState(id).status).toBe("archived")
 
-    await manager.goto(MANAGE.list)
+    await manager.goto(MANAGER.list)
     const archived = manager.getByRole("region", { name: UI_TEXT.archived })
     await expect(checkItem(archived, "darts")).toBeVisible()
     // Listed once: under Archived, not among the active checks.
     await expect(checkItem(manager, "darts")).toHaveCount(1)
 
     await archived.getByRole("link", { name: question("darts") }).click()
-    await expect(manager).toHaveURL(new RegExp(`${escape(MANAGE.check(id))}$`))
+    await expect(manager).toHaveURL(new RegExp(`${escape(MANAGER.check(id))}$`))
     await manager
       .getByRole("button", { name: UI_TEXT.restore, exact: true })
       .click()
@@ -497,8 +519,11 @@ test.describe("amenity checks", () => {
     browser,
   }) => {
     const w = await provisionAmenitiesWorld()
-    const managerDb = await sessionOf(w.managerA)
-    const { error } = await managerDb.rpc("prepare_coverage_month", {
+    // Manager accounts do not write the Coverage tables; the admin prepares
+    // the month.
+    const { error } = await (
+      await sessionOf(w.admin)
+    ).rpc("prepare_coverage_month", {
       p_venue_id: w.venueA.id,
     })
     if (error) throw new Error(`prepare_coverage_month: ${error.message}`)
@@ -508,6 +533,7 @@ test.describe("amenity checks", () => {
     await readyCheck(w, w.venueA, "guest_toilets", w.staffA)
     const photo = await seedPhoto(w.staffA, w.venueA, `darts-${w.tag}`)
     const staffDb = await sessionOf(w.staffA)
+    const managerDb = await sessionOf(w.managerA)
     await amenityOk(
       staffDb,
       "amenity_submit_finding",
@@ -544,11 +570,42 @@ test.describe("amenity checks", () => {
       await expect(staff.getByText(question(key))).toHaveCount(0)
     }
 
-    const manager = await signedInPage(browser, w.managerA)
-    await manager.goto("/staff/manage/checklist")
-    await expect(manager.getByRole("main")).toBeVisible()
+    const admin = await signedInPage(browser, w.admin)
+    await admin.goto(`/admin/coverage/${w.venueA.id}/checklist`)
+    await expect(admin.getByRole("main")).toBeVisible()
     for (const key of ["darts", ...CORE_CHECK_KEYS]) {
-      await expect(manager.getByText(question(key))).toHaveCount(0)
+      await expect(admin.getByText(question(key))).toHaveCount(0)
     }
+  })
+
+  test("transitional: a staff account with a pre-existing grant still manages Amenities at /staff/manage", async ({
+    browser,
+  }) => {
+    const w = await provisionAmenitiesWorld()
+    await amenityOk(await sessionOf(w.admin), "amenity_enable_venue", {
+      p_venue_id: w.venueA.id,
+    })
+    // A grant made before manager accounts existed, held by a staff account.
+    await legacyManagerGrant(w, w.staffA2, w.venueA)
+
+    const legacy = await signedInPage(browser, w.staffA2)
+    await legacy.goto(LEGACY_MANAGE.list)
+    await expect(legacy).toHaveURL(new RegExp(`${escape(LEGACY_MANAGE.list)}$`))
+    for (const q of CORE_QUESTIONS) {
+      await expect(legacy.getByRole("link", { name: q })).toBeVisible()
+    }
+    await expect(
+      legacy.getByRole("button", { name: UI_TEXT.enable })
+    ).toHaveCount(0)
+
+    const id = checkId(w.venueA, "guest_toilets")
+    await legacy.getByRole("link", { name: question("guest_toilets") }).click()
+    await expect(legacy).toHaveURL(
+      new RegExp(`${escape(LEGACY_MANAGE.check(id))}$`)
+    )
+    await chooseOption(legacy, legacy, "Assignee", assigneeOption(w.staffA))
+    await legacy.getByRole("button", { name: UI_TEXT.assign }).click()
+    await expect.poll(() => checkState(id).assignee).toBe(w.staffA.id)
+    expect(eventKinds(id)).toEqual(expect.arrayContaining(["assigned"]))
   })
 })
