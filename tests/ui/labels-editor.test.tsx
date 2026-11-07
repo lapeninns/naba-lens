@@ -43,7 +43,7 @@ function okFor(inputs: SaveLabelsInput[]): SaveLabelsResult[] {
 }
 
 async function setup(
-  props: Partial<Extract<LabelEditorDialogProps, { uploadDraft?: never }>> & {
+  props: Partial<LabelEditorDialogProps> & {
     assets?: LabelEditorAsset[]
   } = {}
 ) {
@@ -78,9 +78,8 @@ async function setup(
     onOpenChange,
     onSaved,
     onRetryCatalogue,
-    rerender: (
-      next: Partial<Extract<LabelEditorDialogProps, { uploadDraft?: never }>>
-    ) => view.rerender(<LabelEditorDialog {...all} {...next} />),
+    rerender: (next: Partial<LabelEditorDialogProps>) =>
+      view.rerender(<LabelEditorDialog {...all} {...next} />),
   }
 }
 
