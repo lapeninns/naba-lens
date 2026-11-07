@@ -1,7 +1,7 @@
 import "server-only"
 
 import { isDepartment } from "@/lib/config/departments"
-import { getMediaActor } from "@/lib/server/media/context"
+import { getMediaActor, ROLE_NOT_ALLOWED } from "@/lib/server/media/context"
 import type { MediaActor } from "@/lib/server/media/types"
 
 import {
@@ -23,8 +23,10 @@ import { isUuid } from "./validate"
 export type Access = {
   userId: string
   isAdmin: boolean
-  /** Active staff (managers included). */
+  /** Active staff account (a legacy staff-held manager grant included). */
   isStaff: boolean
+  /** Venue manager account: no coverage tools here (its workspace is /manager). */
+  isManager: boolean
   venueId: string | null
   venueActive: boolean
   department: string | null
@@ -34,7 +36,9 @@ export type Access = {
 
 /**
  * Authorises the request with a fresh profile read (deactivation applies to
- * existing sessions) and builds the caller-scoped and service clients.
+ * existing sessions) and builds the caller-scoped and service clients. Staff
+ * and admins only: manager accounts get no coverage surface (the database
+ * also refuses them every coverage write).
  */
 export async function getCoverageActor(): Promise<
   CoverageResult<{ actor: MediaActor }>
@@ -42,6 +46,8 @@ export async function getCoverageActor(): Promise<
   const auth = await getMediaActor()
   if (auth.ok) return { ok: true, actor: auth.actor }
   if (auth.status === 401) return failure("unauthenticated", auth.message)
+  if (auth.message === ROLE_NOT_ALLOWED.message)
+    return failure("not_permitted", auth.message)
   if (auth.status === 403) return failure("account_inactive", auth.message)
   return failure("unavailable", auth.message)
 }
@@ -61,6 +67,7 @@ export async function readAccess(
       userId: row.user_id,
       isAdmin: row.is_admin,
       isStaff: row.role === "staff",
+      isManager: row.role === "manager",
       venueId: row.venue_id,
       venueActive: row.venue_active,
       department: row.department,
@@ -78,24 +85,35 @@ export function scopeOf(actor: MediaActor, access: Access): CoverageScope {
           active: access.venueActive,
         }
       : null
+  // Only a staff-held grant opens the legacy manage tools; a manager account's
+  // grant is for /manager (the database still reports it as effective).
+  const managedVenue =
+    access.isStaff &&
+    access.managerVenueId &&
+    venue?.id === access.managerVenueId
+      ? { id: venue.id, name: venue.name }
+      : null
   const missing: ProfileSetupGap[] = []
   if (access.isStaff) {
     if (!access.venueId) missing.push("venue")
     if (!isDepartment(access.department)) missing.push("team")
   }
   return {
-    role: access.isAdmin ? "admin" : "staff",
+    role: roleOf(access),
     setup: { complete: missing.length === 0, missing },
     venue,
-    managedVenue:
-      access.managerVenueId && venue?.id === access.managerVenueId
-        ? { id: venue.id, name: venue.name }
-        : null,
+    managedVenue,
     canSubmit: access.isStaff && !!access.venueId && access.venueActive,
-    canManageVenue: access.isAdmin || !!access.managerVenueId,
+    canManageVenue: access.isAdmin || managedVenue !== null,
     canManageGrants: access.isAdmin,
     canViewGroupOverview: access.isAdmin,
   }
+}
+
+function roleOf(access: Access): CoverageScope["role"] {
+  if (access.isAdmin) return "admin"
+  if (access.isManager) return "manager"
+  return "staff"
 }
 
 /** Which coverage features the caller can use now; for navigation and page gating. */
@@ -125,7 +143,7 @@ export async function resolveVenue(
     if (!venueId) return invalid({ venueId: "Choose a venue." })
     return { ok: true, venueId, access }
   }
-  if (access.managerVenueId) {
+  if (access.isStaff && access.managerVenueId) {
     if (venueId && venueId !== access.managerVenueId) return WRONG_VENUE
     return { ok: true, venueId: access.managerVenueId, access }
   }

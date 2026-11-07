@@ -50,7 +50,9 @@ export async function replaceProfileAvatar(
   if (error) return dbFailed()
   if (!target) return notFound()
   const isSelf = target.id === who.profile.id
-  const isAdminOfStaff = who.profile.role === "admin" && target.role === "staff"
+  const isAdminOfStaff =
+    who.profile.role === "admin" &&
+    (target.role === "staff" || target.role === "manager")
   if (!isSelf && !isAdminOfStaff) return fail("forbidden", FORBIDDEN_MESSAGE)
 
   if (

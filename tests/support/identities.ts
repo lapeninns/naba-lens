@@ -57,7 +57,12 @@ export async function createIdentity(
   admin: Db,
   opts: {
     label: string
-    role: "staff" | "admin"
+    /**
+     * A real manager account is created as staff and converted with
+     * `makeManager` (tests/security/coverage-fixtures.ts); "manager" here
+     * inserts the role directly, for negative tests.
+     */
+    role: "staff" | "admin" | "manager"
     venueId?: string | null
     active?: boolean
     profile?: boolean

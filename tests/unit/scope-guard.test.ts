@@ -75,6 +75,16 @@ const ALLOWED_PAGES = new Set([
   // or undo an acceptance, with a reason. Decides what counts, never visibility.
   "/staff/manage/menu/items",
   "/staff/manage/team",
+  // Venue manager workspace (docs/plans/venue-manager-workspace.md): a manager
+  // account's own venue only. Overview, Review (decides menu-photo use, never
+  // visibility), a contributor's venue-scoped contributions, Menu and Account.
+  // The legacy /staff/manage screens stay for staff-held grants until cut-over.
+  "/manager",
+  "/manager/review",
+  "/manager/review/contributors/[staffId]",
+  "/manager/menu",
+  "/manager/menu/[itemId]",
+  "/manager/account",
   // v0.4 admin coverage oversight: the same tools for any venue, plus grants.
   "/admin/coverage",
   "/admin/coverage/[venueId]",

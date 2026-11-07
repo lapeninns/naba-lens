@@ -70,6 +70,16 @@ export async function requireActiveStaff(): Promise<CurrentProfile> {
   return redirectFor(await getAuthState(), "staff")
 }
 
+/**
+ * For pages and Server Functions: returns the active venue manager account or
+ * redirects (login, blocked page, or the account's own home). This checks the
+ * account only; whether the manager has an effective venue grant is
+ * `getManagerWorkspace()` in `@/lib/auth/manager`.
+ */
+export async function requireActiveManager(): Promise<CurrentProfile> {
+  return redirectFor(await getAuthState(), "manager")
+}
+
 /** For pages and Server Functions: returns the active admin profile or redirects. */
 export async function requireActiveAdmin(): Promise<CurrentProfile> {
   return redirectFor(await getAuthState(), "admin")
@@ -85,7 +95,9 @@ export type Authorization =
 
 /**
  * For Route Handlers that must answer with a status code instead of redirecting.
- * Use the result's `status` for the HTTP response.
+ * Use the result's `status` for the HTTP response. The role must match exactly:
+ * `authorize("manager")` admits manager accounts only (never staff or admins),
+ * whether or not their venue grant is effective.
  */
 export async function authorize(role: AppRole): Promise<Authorization> {
   const state = await getAuthState()

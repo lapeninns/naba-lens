@@ -3,7 +3,10 @@
 -- rollback runs this script (in one transaction) against the target database.
 -- Tables, rows, media, archive and monitoring objects are untouched; re-grant
 -- by re-running the grant statements of migrations 20261102130000..150000 and
--- 20261106130000 (Our menu item photos).
+-- 20261106130000 (Our menu item photos) and 20261107100100. The venue
+-- manager security fixes (effective grant, revoke
+-- trigger, denials, audit policy) and the 'manager' enum value stay in place:
+-- convert any manager accounts back to staff first.
 -- tests/migrations/withdraw.test.ts proves it covers every coverage RPC and
 -- table and changes nothing else.
 
@@ -39,7 +42,11 @@ revoke execute on function
   public.menu_item_photo_summary(uuid),
   public.menu_item_photo_items(uuid, uuid, boolean, text, integer, integer, uuid, integer),
   public.menu_item_photo_candidates(uuid, uuid, boolean, timestamptz, uuid, integer),
-  public.menu_item_photo_asset(uuid)
+  public.menu_item_photo_asset(uuid),
+  public.manager_grant_candidates(uuid),
+  public.manager_workspace_scope(),
+  public.convert_account_to_manager(uuid, uuid, text, text),
+  public.convert_manager_to_staff(uuid, uuid, text, text)
 from authenticated;
 
 -- Stops the hourly preparation even if the scheduler keeps calling it.

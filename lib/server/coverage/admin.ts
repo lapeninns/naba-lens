@@ -5,6 +5,7 @@ import type { MediaActor } from "@/lib/server/media/types"
 import { adminOnly } from "./context"
 import {
   coverageRpcFailure,
+  failure,
   invalid,
   NOT_FOUND,
   unavailableFailure,
@@ -37,13 +38,7 @@ import {
   optionalText,
   optionalUuid,
 } from "./validate"
-import {
-  decodeKey,
-  encodeKey,
-  evidenceAsset,
-  personFromProgress,
-  runView,
-} from "./views"
+import { decodeKey, encodeKey, evidenceAsset, runView } from "./views"
 
 const objectOrEmpty = (input: unknown) =>
   isObject(input) ? input : input == null ? {} : null
@@ -65,9 +60,25 @@ export async function listManagerGrants(
     p_include_revoked: args.includeRevoked === true,
   })
   if (error) return coverageRpcFailure(error, "manager grants")
+  const rows = data ?? []
+
+  // Which grants are still held by a staff account: made before venue manager
+  // accounts existed. They stay in effect until an admin converts the person.
+  const holders = [...new Set(rows.map((g) => g.staff_id))]
+  const staffHolders = new Set<string>()
+  if (holders.length > 0) {
+    const { data: people, error: peopleError } = await actor.db
+      .from("profiles")
+      .select("id, role")
+      .in("id", holders)
+    if (peopleError)
+      return unavailableFailure("manager grant holders", peopleError)
+    for (const p of people ?? []) if (p.role === "staff") staffHolders.add(p.id)
+  }
+
   return {
     ok: true,
-    grants: (data ?? []).map((g) => ({
+    grants: rows.map((g) => ({
       id: g.grant_id,
       staff: {
         id: g.staff_id,
@@ -84,30 +95,38 @@ export async function listManagerGrants(
       revokeKind: g.revoke_kind as GrantRevokeKind | null,
       revokeReason: g.revoke_reason,
       effective: g.effective,
+      legacyStaffGrant: staffHolders.has(g.staff_id),
     })),
   }
 }
 
-/** Active staff currently at the venue: the only people who can be granted manager rights there. */
+/**
+ * Active venue manager accounts at the venue without an open grant there:
+ * the only people who can be given venue access. Staff accounts become
+ * managers through account conversion on their staff page.
+ */
 export async function listGrantCandidates(
   actor: MediaActor,
   input: unknown
-): Promise<
-  CoverageResult<{ people: (CoveragePerson & { isManager: boolean })[] }>
-> {
+): Promise<CoverageResult<{ people: CoveragePerson[] }>> {
   if (!isObject(input) || !isUuid(input.venueId))
     return invalid({ venueId: "Choose a venue." })
   const admin = await adminOnly(actor)
   if (!admin.ok) return admin
-  const { data, error } = await actor.db.rpc("coverage_staff_progress", {
+  const { data, error } = await actor.db.rpc("manager_grant_candidates", {
     p_venue_id: input.venueId,
   })
   if (error) return coverageRpcFailure(error, "grant candidates")
   return {
     ok: true,
-    people: (data ?? [])
-      .filter((r) => r.is_current_member)
-      .map((r) => ({ ...personFromProgress(r), isManager: r.is_manager })),
+    people: (data ?? []).map((r) => ({
+      id: r.id,
+      displayName: r.display_name,
+      avatarUrl: null,
+      department: null,
+      jobTitle: null,
+      active: true,
+    })),
   }
 }
 
@@ -129,6 +148,11 @@ export async function grantVenueManager(
     p_venue_id: input.venueId,
     ...(reason ? { p_reason: reason } : {}),
   })
+  if (error?.message === "staff_not_eligible")
+    return failure(
+      "state_conflict",
+      "Only an active venue manager account at this venue can be given access. Convert a staff account from its staff page first."
+    )
   if (error) return coverageRpcFailure(error, "grant manager")
   return { ok: true, grantId: data }
 }

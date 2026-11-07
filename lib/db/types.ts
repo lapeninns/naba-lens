@@ -2409,6 +2409,35 @@ export type Database = {
           reconciliation_required: boolean
         }[]
       }
+      convert_account_to_manager: {
+        Args: {
+          p_client_request_key: string
+          p_profile_id: string
+          p_reason: string
+          p_venue_id: string
+        }
+        Returns: {
+          grant_id: string
+          profile_id: string
+          replayed: boolean
+          role: Database["public"]["Enums"]["app_role"]
+          venue_id: string
+        }[]
+      }
+      convert_manager_to_staff: {
+        Args: {
+          p_client_request_key: string
+          p_profile_id: string
+          p_reason: string
+          p_venue_id: string
+        }
+        Returns: {
+          profile_id: string
+          replayed: boolean
+          role: Database["public"]["Enums"]["app_role"]
+          venue_id: string
+        }[]
+      }
       coverage_access_scope: {
         Args: never
         Returns: {
@@ -2702,6 +2731,29 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      manager_grant_candidates: {
+        Args: { p_venue_id: string }
+        Returns: {
+          display_name: string
+          id: string
+          venue_id: string
+        }[]
+      }
+      manager_workspace_scope: {
+        Args: never
+        Returns: {
+          active: boolean
+          display_name: string
+          effective: boolean
+          grant_id: string | null
+          grant_venue_id: string | null
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+          venue_active: boolean
+          venue_id: string | null
+          venue_name: string | null
+        }[]
       }
       media_archive_backfill_candidates: {
         Args: { p_limit?: number }
@@ -3257,7 +3309,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "staff" | "admin"
+      app_role: "staff" | "admin" | "manager"
       media_type: "image" | "video"
       upload_state: "uploading" | "processing" | "ready" | "failed"
     }
@@ -3384,7 +3436,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["staff", "admin"],
+      app_role: ["staff", "admin", "manager"],
       media_type: ["image", "video"],
       upload_state: ["uploading", "processing", "ready", "failed"],
     },

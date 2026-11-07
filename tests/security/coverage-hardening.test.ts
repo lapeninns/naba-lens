@@ -18,7 +18,7 @@ import {
   createRequirement,
   currentMonth,
   fails,
-  grantManager,
+  legacyStaffGrant,
   insertAsset,
   midMonth,
   monthOffset,
@@ -44,7 +44,7 @@ function staff(label: string, venueId: string) {
 async function managedVenue(label: string) {
   const venueId = (await createVenue(service, label)).id
   const m = await staff(`${label}-mgr`, venueId)
-  const grantId = await grantManager(admin, m.id, venueId)
+  const grantId = await legacyStaffGrant(service, admin, m.id, venueId)
   return { venueId, manager: m, grantId }
 }
 

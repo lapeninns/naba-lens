@@ -19,6 +19,8 @@ import {
   currentMonth,
   fails,
   grantManager,
+  legacyStaffGrant,
+  makeManager,
   insertAsset,
   ok,
   requestKey,
@@ -64,8 +66,10 @@ beforeAll(async () => {
   staffA1 = await staff("cov-acc-a1", venueA)
   staffA2 = await staff("cov-acc-a2", venueA)
   staffB1 = await staff("cov-acc-b1", venueB)
-  await grantManager(admin, managerA.id, venueA)
-  await grantManager(admin, managerB.id, venueB)
+  // Staff-held grants made before manager accounts existed: still effective
+  // (transitional rule), and the only managers allowed to write coverage.
+  await legacyStaffGrant(service, admin, managerA.id, venueA)
+  await legacyStaffGrant(service, admin, managerB.id, venueB)
 })
 
 describe("manager grants", () => {
@@ -80,18 +84,27 @@ describe("manager grants", () => {
         "42501"
       )
     }
-    const first = await grantManager(admin, managerA.id, venueA)
-    const again = await grantManager(admin, managerA.id, venueA)
+    const converted = await staff("cov-acc-idem", venueA)
+    const first = await makeManager(admin, converted, venueA)
+    const again = await grantManager(admin, converted.id, venueA)
     expect(again).toBe(first)
     const { count } = await service
       .from("venue_manager_grants")
       .select("id", { count: "exact", head: true })
-      .eq("staff_id", managerA.id)
+      .eq("staff_id", converted.id)
       .is("revoked_at", null)
     expect(count).toBe(1)
   })
 
-  it("only go to active staff currently assigned to the venue", async () => {
+  it("only go to active manager accounts currently assigned to the venue", async () => {
+    await fails(
+      admin.client.rpc("grant_venue_manager", {
+        p_staff_id: staffA1.id,
+        p_venue_id: venueA,
+      }),
+      "staff_not_eligible",
+      "P0001"
+    )
     await fails(
       admin.client.rpc("grant_venue_manager", {
         p_staff_id: staffB1.id,
@@ -189,7 +202,7 @@ describe("manager grants", () => {
 
   it("revocation applies to an existing manager session immediately", async () => {
     const m = await staff("cov-acc-revoke", venueA)
-    const grantId = await grantManager(admin, m.id, venueA)
+    const grantId = await makeManager(admin, m, venueA)
     await ok(m.client.rpc("coverage_items_page", { p_venue_id: venueA }))
     await fails(
       admin.client.rpc("revoke_venue_manager", {
@@ -226,7 +239,7 @@ describe("manager grants", () => {
 
   it("a transfer revokes the grant and moving back does not restore it", async () => {
     const m = await staff("cov-acc-transfer", venueA)
-    const grantId = await grantManager(admin, m.id, venueA)
+    const grantId = await makeManager(admin, m, venueA)
     await setProfile(m.id, { venue_id: venueC })
     await fails(
       m.client.rpc("coverage_items_page", { p_venue_id: venueA }),
@@ -253,7 +266,7 @@ describe("manager grants", () => {
 
   it("deactivation revokes the grant and ends the existing session's access", async () => {
     const m = await staff("cov-acc-deactivate", venueA)
-    const grantId = await grantManager(admin, m.id, venueA)
+    const grantId = await makeManager(admin, m, venueA)
     await setProfile(m.id, { active: false })
     await fails(
       m.client.rpc("coverage_items_page", { p_venue_id: venueA }),
@@ -271,7 +284,7 @@ describe("manager grants", () => {
   it("is ineffective while the venue is inactive", async () => {
     const venueD = (await createVenue(service, "cov-acc-d")).id
     const m = await staff("cov-acc-inactive-venue", venueD)
-    await grantManager(admin, m.id, venueD)
+    await makeManager(admin, m, venueD)
     await ok(m.client.rpc("coverage_items_page", { p_venue_id: venueD }))
     await service.from("venues").update({ active: false }).eq("id", venueD)
     await fails(

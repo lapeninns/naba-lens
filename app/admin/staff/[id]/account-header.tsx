@@ -58,9 +58,11 @@ function grantDates(from: string, to: string) {
 function GrantDetail({
   grant,
   inactive,
+  managerAccount,
 }: {
   grant: GrantRecord | null
   inactive: boolean
+  managerAccount: boolean
 }) {
   if (grant?.effective && !grant.revokedAt && !inactive) {
     return (
@@ -87,9 +89,11 @@ function GrantDetail({
       </span>
     )
   }
+  // A staff account becomes a manager under Account type, not with a grant.
+  if (!managerAccount) return <span>None</span>
   return (
     <span>
-      None. Make someone a venue manager on{" "}
+      None. Give venue access on{" "}
       <Link
         href="/admin/coverage/managers"
         className="font-semibold text-ink underline underline-offset-3"
@@ -116,6 +120,8 @@ export function AccountHeader({
   notices,
   photos,
   month,
+  accountType,
+  role = "staff",
 }: {
   member: StaffMember
   venueActive: boolean | null
@@ -131,6 +137,10 @@ export function AccountHeader({
   photos?: React.ReactNode
   /** The person's month section, rendered on the server, under Account. */
   month?: React.ReactNode
+  /** The Account type section, under Account. */
+  accountType?: React.ReactNode
+  /** "manager": a venue manager account (converted from staff). */
+  role?: "staff" | "manager"
 }) {
   const effective: ManagerGrant[] =
     grant?.effective && !grant.revokedAt
@@ -153,7 +163,8 @@ export function AccountHeader({
   const member = controls.withConfirmedStatus(fromProps)
   const first = firstName(member.displayName)
   const inactive = member.status === "inactive"
-  const isManager = effective.length > 0 && !inactive
+  const managerAccount = role === "manager"
+  const isManager = (managerAccount || effective.length > 0) && !inactive
   const venueName =
     member.venueName && venueActive === false
       ? `${member.venueName} (inactive venue)`
@@ -190,11 +201,6 @@ export function AccountHeader({
             <StaffActionsMenu
               member={member}
               className="flex-none!"
-              makeManagerHref={
-                !isManager && member.venueId
-                  ? `/admin/coverage/managers?venue=${encodeURIComponent(member.venueId)}`
-                  : undefined
-              }
               onEdit={controls.edit}
               onResendInvite={(m) => void controls.resend(m)}
               onSetActive={controls.setActive}
@@ -286,11 +292,16 @@ export function AccountHeader({
                   Venue manager grant
                 </dt>
                 <dd>
-                  <GrantDetail grant={grant} inactive={inactive} />
+                  <GrantDetail
+                    grant={grant}
+                    inactive={inactive}
+                    managerAccount={managerAccount}
+                  />
                 </dd>
               </div>
             </dl>
           </section>
+          {accountType}
           {month}
         </div>
       </div>

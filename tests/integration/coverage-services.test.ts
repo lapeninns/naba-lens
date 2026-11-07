@@ -45,8 +45,9 @@ import type { MediaActor } from "@/lib/server/media/types"
 
 import { seedAsset } from "../library/seed"
 import {
-  grantManager,
   insertAsset,
+  legacyStaffGrant,
+  makeManager,
   monthOffset,
 } from "../security/coverage-fixtures"
 import { item, menu, publishMenu, section } from "../security/menus-fixtures"
@@ -117,7 +118,8 @@ describe("coverage services", () => {
       .update({ department: "foh" })
       .in("id", [manager.id, staff1.id, staff2.id, other.id])
     if (team.error) throw team.error
-    await grantManager(admin, manager.id, venueA)
+    // A staff-held grant (pre-manager-account): the legacy coverage tools.
+    await legacyStaffGrant(service, admin, manager.id, venueA)
     actors.admin = await actorFor(admin)
     actors.manager = await actorFor(manager)
     actors.staff1 = await actorFor(staff1)
@@ -731,11 +733,26 @@ describe("coverage services", () => {
   })
 
   it("grants and revokes manager rights; revocation applies on the next call", async () => {
+    // New grants go to venue manager accounts only; staff become managers by
+    // conversion. A manager account without an open grant is a candidate.
+    const cand = await createIdentity(service, {
+      label: "cov-cand",
+      role: "staff",
+      venueId: venueA,
+    })
+    const converted = await makeManager(admin, cand, venueA)
+    okOf(
+      await revokeVenueManager(actors.admin, {
+        grantId: converted,
+        reason: "TEST pause",
+      })
+    )
     const candidates = okOf(
       await listGrantCandidates(actors.admin, { venueId: venueA })
-    ).people
-    expect(candidates.find((p) => p.id === manager.id)?.isManager).toBe(true)
-    expect(candidates.map((p) => p.id)).toContain(staff2.id)
+    ).people.map((p) => p.id)
+    expect(candidates).toContain(cand.id)
+    expect(candidates).not.toContain(staff2.id)
+    expect(candidates).not.toContain(manager.id)
     expect(
       await grantVenueManager(actors.admin, {
         staffId: other.id,
@@ -743,17 +760,26 @@ describe("coverage services", () => {
       })
     ).toMatchObject({ code: "state_conflict" })
     expect(
-      await grantVenueManager(actors.manager, {
-        staffId: staff2.id,
-        venueId: venueA,
-      })
-    ).toMatchObject({ code: "not_permitted" })
-    const { grantId } = okOf(
       await grantVenueManager(actors.admin, {
         staffId: staff2.id,
         venueId: venueA,
       })
+    ).toMatchObject({ code: "state_conflict" })
+    expect(
+      await grantVenueManager(actors.manager, {
+        staffId: cand.id,
+        venueId: venueA,
+      })
+    ).toMatchObject({ code: "not_permitted" })
+    okOf(
+      await grantVenueManager(actors.admin, {
+        staffId: cand.id,
+        venueId: venueA,
+      })
     )
+
+    // A staff-held (legacy) grant still opens the legacy tools until revoked.
+    const grantId = await legacyStaffGrant(service, admin, staff2.id, venueA)
     expect(
       okOf(await getVenueCoverage(actors.staff2, {})).coverage.summary.venue.id
     ).toBe(venueA)
@@ -764,6 +790,29 @@ describe("coverage services", () => {
       })
     )
     expect(await getVenueCoverage(actors.staff2, {})).toMatchObject({
+      code: "not_permitted",
+    })
+  })
+
+  it("gives a manager account no legacy coverage tools", async () => {
+    const acct = await createIdentity(service, {
+      label: "cov-mgr-account",
+      role: "staff",
+      venueId: venueA,
+    })
+    await makeManager(admin, acct, venueA)
+    const actor = await actorFor(acct)
+    const scope = okOf(await getCoverageScope(actor)).scope
+    expect(scope).toMatchObject({
+      role: "manager",
+      managedVenue: null,
+      canManageVenue: false,
+      canSubmit: false,
+    })
+    expect(await getVenueCoverage(actor, {})).toMatchObject({
+      code: "not_permitted",
+    })
+    expect(await getManagerReviewCount(actor)).toMatchObject({
       code: "not_permitted",
     })
   })
@@ -863,7 +912,7 @@ describe("menu coverage plan", () => {
       role: "staff",
       venueId,
     })
-    await grantManager(admin, mgr.id, venueId)
+    await legacyStaffGrant(service, admin, mgr.id, venueId)
     const actor = await actorFor(mgr)
 
     expect(okOf(await getMenuCoverage(actor, {})).menu.menuState).toBe(
@@ -979,7 +1028,7 @@ describe("moving a replacement photo to another task", () => {
       .update({ department: "boh" })
       .eq("id", cook.id)
     if (team.error) throw team.error
-    await grantManager(admin, mgr.id, venueId)
+    await legacyStaffGrant(service, admin, mgr.id, venueId)
     const manager = await actorFor(mgr)
     const staff = await actorFor(cook)
 

@@ -16,6 +16,8 @@ const MIGRATIONS = [
   "20261102140000_coverage_domain.sql",
   "20261102150000_coverage_procedures.sql",
   "20261106130000_menu_item_photos.sql",
+  "20261107100100_manager_account_access.sql",
+  "20261107100200_manager_staff_denials.sql",
 ]
 const script = readFileSync(
   join(import.meta.dirname, "coverage-withdraw-access.sql"),
@@ -66,7 +68,7 @@ function privilegesAfterScript(): { fn: string; role: string; ok: boolean }[] {
 
 describe("coverage access withdrawal", () => {
   it("names every coverage RPC and table", () => {
-    expect(publicFunctions.length).toBe(33)
+    expect(publicFunctions.length).toBe(37)
     expect(publicTables.length).toBe(16)
     for (const fn of publicFunctions)
       expect(script, fn).toContain(`public.${fn}(`)
@@ -89,6 +91,38 @@ describe("coverage access withdrawal", () => {
           r.fn === "prepare_coverage_month_scheduled")
     )
     expect(stillGranted).toEqual([])
+  })
+
+  it("adds the manager role in a file of its own", () => {
+    // A new enum value cannot be used in the transaction that adds it.
+    const enumFile = readFileSync(
+      join("supabase", "migrations", "20261107100000_manager_account_role.sql"),
+      "utf8"
+    )
+    expect(
+      enumFile
+        .replace(/--[^\n]*/g, "")
+        .split(";")
+        .map((statement) => statement.trim())
+        .filter(Boolean)
+    ).toEqual(["alter type public.app_role add value if not exists 'manager'"])
+  })
+
+  it("keeps the manager role and every security fix in place", () => {
+    // Enum values cannot be dropped: withdrawal removes capabilities only.
+    const out = execFileSync(
+      "psql",
+      [env.dbUrl, "-X", "-q", "-A", "-t", "-v", "ON_ERROR_STOP=1"],
+      {
+        encoding: "utf8",
+        input: `begin;\n${script}\nselect 'manager' = any(enum_range(null::public.app_role))
+          and position('v_role not in (''staff'', ''admin'')' in
+            pg_get_functiondef('public.save_media_labels'::regproc)) > 0
+          and exists (select 1 from pg_trigger
+            where tgname = 'coverage_review_events_deny_manager_writes');\nrollback;\n`,
+      }
+    )
+    expect(out.trim().split("\n").pop()).toBe("t")
   })
 
   it("keeps every grant in place outside the transaction", () => {

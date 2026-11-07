@@ -146,6 +146,23 @@ describe("Staff directory", () => {
     expect(within(row).getByText("Venue manager")).toBeTruthy()
   })
 
+  it("marks venue manager accounts even without an effective grant", () => {
+    const manager = person("Mia Rai", { status: "active" })
+    render(
+      <StaffDirectory
+        staff={[...staff, { ...manager, role: "manager" }]}
+        venues={[RAILWAY, BELL]}
+        grants={[]}
+        maxAvatarBytes={5 << 20}
+      />
+    )
+    const table = within(screen.getByRole("table", { name: "Staff" }))
+    const row = table.getByRole("link", { name: "Mia Rai" }).closest("tr")!
+    expect(within(row).getByText("Venue manager")).toBeTruthy()
+    const other = table.getByRole("link", { name: "Ben Clarke" }).closest("tr")!
+    expect(within(other).queryByText("Venue manager")).toBeNull()
+  })
+
   it("filters only when applied, explains an empty result and clears", async () => {
     const user = userEvent.setup()
     render(directory())

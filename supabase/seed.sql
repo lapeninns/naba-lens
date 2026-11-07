@@ -17,7 +17,8 @@ with fixture_users (id, email) as (
     ('00000000-0000-4000-8000-0000000000a1'::uuid, 'dev-admin@nabalens.test'),
     ('00000000-0000-4000-8000-0000000000b1'::uuid, 'dev-staff-a@nabalens.test'),
     ('00000000-0000-4000-8000-0000000000b2'::uuid, 'dev-staff-b@nabalens.test'),
-    ('00000000-0000-4000-8000-0000000000b3'::uuid, 'dev-staff-inactive@nabalens.test')
+    ('00000000-0000-4000-8000-0000000000b3'::uuid, 'dev-staff-inactive@nabalens.test'),
+    ('00000000-0000-4000-8000-0000000000b4'::uuid, 'dev-manager-a@nabalens.test')
 )
 insert into auth.users (
   instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -41,4 +42,18 @@ insert into public.profiles (id, display_name, job_title, role, venue_id, active
   ('00000000-0000-4000-8000-0000000000a1', 'DEV FIXTURE Admin', null, 'admin', null, true),
   ('00000000-0000-4000-8000-0000000000b1', 'DEV FIXTURE Staff A', 'DEV FIXTURE Chef', 'staff', '00000000-0000-4000-8000-00000000a001', true),
   ('00000000-0000-4000-8000-0000000000b2', 'DEV FIXTURE Staff B', 'DEV FIXTURE Bartender', 'staff', '00000000-0000-4000-8000-00000000a001', true),
-  ('00000000-0000-4000-8000-0000000000b3', 'DEV FIXTURE Inactive Staff', null, 'staff', '00000000-0000-4000-8000-00000000a002', false);
+  ('00000000-0000-4000-8000-0000000000b3', 'DEV FIXTURE Inactive Staff', null, 'staff', '00000000-0000-4000-8000-00000000a002', false),
+  ('00000000-0000-4000-8000-0000000000b4', 'DEV FIXTURE Manager A', 'DEV FIXTURE General Manager', 'staff', '00000000-0000-4000-8000-00000000a001', true);
+
+-- The manager fixture is invited as staff and converted by the admin, exactly as
+-- in the app, so its account_role and manager_grant audit rows are real.
+-- assert_active_admin() reads auth.uid(), so act as the admin for this call.
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-4000-8000-0000000000a1","role":"authenticated"}', false);
+select public.convert_account_to_manager(
+  '00000000-0000-4000-8000-0000000000b4',
+  '00000000-0000-4000-8000-00000000a001',
+  'DEV FIXTURE venue manager',
+  'dev-fixture-manager-a'
+);
+select set_config('request.jwt.claims', '', false);
