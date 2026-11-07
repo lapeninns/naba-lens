@@ -397,7 +397,7 @@ are in `lib/menus/types.ts`.
     the ready photo has these labels (typically finalise applied them first);
     nothing was discarded;
   - `{ok:true, state:"none"}`: nothing was stored and the photo has no labels.
-  A failed read answers 503 (try again), never `none` without knowing.
+    A failed read answers 503 (try again), never `none` without knowing.
 
 ### finalise and the browser
 
