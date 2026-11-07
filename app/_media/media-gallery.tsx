@@ -68,6 +68,11 @@ type MediaGalleryProps = {
   getDeleteImpact?: (item: MediaItem) => DeleteImpact | undefined
   /** Admin views only: tile names include the original file name. */
   showFileName?: boolean
+  /**
+   * Called after a delete or label save succeeds, so a page that shows other
+   * views of the same files (the staff portfolio's sections) can catch up.
+   */
+  onChanged?: () => void
 }
 
 /**
@@ -132,6 +137,7 @@ export function MediaGallery({
   showLabelBadge = false,
   getDeleteImpact,
   showFileName = false,
+  onChanged,
 }: MediaGalleryProps) {
   const [labelIds, setLabelIds] = React.useState<string[] | null>(null)
   const [page, setPage] = React.useState(initialPage)
@@ -434,6 +440,7 @@ export function MediaGallery({
                 return labels === undefined ? i : { ...i, labels }
               }),
             }))
+            if (saved.size > 0) onChanged?.()
           }}
         />
       ) : null}
@@ -459,6 +466,7 @@ export function MediaGallery({
           }))
           setViewerOpen(false)
           setOpenId(null)
+          onChanged?.()
           return { ok: true }
         }}
       />
