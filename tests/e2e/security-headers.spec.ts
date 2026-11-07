@@ -7,7 +7,12 @@ import { expect, test, type Browser, type Page } from "@playwright/test"
 import sharp from "sharp"
 
 import { openEmailLink } from "./helpers/email-link"
-import { openPortfolio, STAFF_LANDING, staffTile } from "./helpers/ui"
+import {
+  openPortfolio,
+  STAFF_LANDING,
+  staffTile,
+  uploadSheet,
+} from "./helpers/ui"
 
 import {
   createIdentity,
@@ -119,13 +124,18 @@ test("security headers are sent and the CSP allows upload, thumbnails, preview a
     .getByRole("button", { name: "Upload photos or videos" })
     .first()
     .click()
-  const dialog = page.getByRole("dialog")
+  const dialog = uploadSheet(page)
+  await expect(dialog).toBeVisible()
+  // Both start saving as soon as they are picked.
   await dialog
     .getByLabel("Choose photos or videos")
     .setInputFiles([jpegPath, video])
-  await dialog.getByRole("button", { name: /^Upload 2/ }).click()
-  await expect(dialog.getByText("2 uploaded")).toBeVisible({ timeout: 60_000 })
+  await expect(dialog).toHaveAccessibleName("Saving 2 files")
+  await expect(dialog.getByRole("status")).toHaveText("2 saved", {
+    timeout: 60_000,
+  })
   await dialog.getByRole("button", { name: "Done" }).click()
+  await expect(dialog).toBeHidden()
 
   // Thumbnail (302 to a 60 s signed Storage URL on the Supabase origin).
   const portfolio = page.getByRole("list", { name: "Your portfolio" })

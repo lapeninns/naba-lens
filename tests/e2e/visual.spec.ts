@@ -29,6 +29,7 @@ import {
   openPortfolio as gotoPortfolio,
   STAFF_LANDING,
   staffTile,
+  uploadSheet,
 } from "./helpers/ui"
 
 /**
@@ -597,8 +598,8 @@ test("staff: upload dialog states and focus return", async ({
     .first()
   await uploadButton.focus()
   await page.keyboard.press("Enter")
-  const dialog = page.getByRole("dialog", { name: "Upload photos or videos" })
-  await expect(dialog).toBeVisible()
+  const dialog = uploadSheet(page)
+  await expect(dialog).toHaveAccessibleName("Upload photos or videos")
   await capture(page, testInfo, "upload-dialog")
 
   // A valid photo plus a rejected file.
@@ -617,28 +618,31 @@ test("staff: upload dialog states and focus return", async ({
   )
   const txt = join(dir, "notes.txt")
   await writeFile(txt, "not media")
-  await dialog.locator("input[type=file][multiple]").setInputFiles([jpg, txt])
-  await expect(dialog.getByText("1 file was not added")).toBeVisible()
-  await capture(page, testInfo, "upload-selected")
-
   // Hold the storage transfer so the uploading state is visible, then fail
   // it (and every retry). One handler: unroute() would let held requests through.
+  // Installed before the pick: the photo starts saving as soon as it is picked.
   let release: () => void = () => {}
   const held = new Promise<void>((r) => (release = r))
   await page.route("**/storage/v1/**", async (route) => {
     await held
     await route.abort("failed")
   })
-  await dialog.getByRole("button", { name: /^Upload 1 file$/ }).click()
-  await expect(dialog.getByText(/Uploading \d+%/)).toBeVisible({
+  await dialog.getByLabel("Choose photos or videos").setInputFiles([jpg, txt])
+  await expect(dialog).toHaveAccessibleName("Saving 1 photo")
+  await expect(dialog.getByText("1 file was not added")).toBeVisible()
+  await expect(dialog.getByText(/^Uploading \d+%$/)).toBeVisible({
     timeout: 30_000,
   })
+  await expect(dialog.getByRole("status")).toHaveText("0 saved · 1 saving")
   await capture(page, testInfo, "upload-uploading")
 
   release()
   await expect(
     dialog.getByRole("button", { name: /^Retry staff-meal/ })
   ).toBeVisible({ timeout: 90_000 })
+  await expect(dialog.getByRole("status")).toHaveText(
+    "0 saved · 1 need attention"
+  )
   await capture(page, testInfo, "upload-failed")
 
   await page.keyboard.press("Escape")
@@ -1278,10 +1282,11 @@ test("coverage: staff Home, a task, its send dialog and the month", async ({
       .getByText("The photos you send now replace this one.", { exact: true })
   ).toBeVisible()
   await capture(page, testInfo, "coverage-staff-task-replacement")
-  // "Take a photo" opens the camera (a file input); the send dialog opens
-  // once a photo is picked, and nothing uploads until "Upload N files".
+  // "Take a photo" opens the camera (a file input); the Add sheet opens once
+  // a photo is picked and saves it at once. Sending it to the task stays a
+  // separate step ("Send photos"), not taken here.
   const send = page.getByRole("button", { name: "Take a photo" })
-  const dialog = page.getByRole("dialog")
+  const dialog = uploadSheet(page)
   const photo = {
     name: "task-photo.jpg",
     mimeType: "image/jpeg",
@@ -1296,7 +1301,12 @@ test("coverage: staff Home, a task, its send dialog and the month", async ({
     const chooser = page.waitForEvent("filechooser")
     await send.click()
     await (await chooser).setFiles(photo)
-    await expect(dialog).toBeVisible()
+    await expect(dialog).toHaveAccessibleName(/^Saving \d+ photos?$/)
+    // Settled before the capture, and before leaving the page (an upload
+    // still running would hold navigation at the leave guard).
+    await expect(dialog.getByRole("status")).toHaveText(/^\d+ saved$/, {
+      timeout: 60_000,
+    })
   }
   await openSend()
   await capture(page, testInfo, "coverage-staff-send-dialog", {

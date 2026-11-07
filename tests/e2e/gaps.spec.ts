@@ -18,7 +18,12 @@ import {
   uploadAs,
 } from "../integration/gaps-support"
 import { actorFor, syntheticJpeg } from "../slice/media-actor"
-import { openPortfolio, STAFF_LANDING, staffTile } from "./helpers/ui"
+import {
+  openPortfolio,
+  STAFF_LANDING,
+  staffTile,
+  uploadSheet,
+} from "./helpers/ui"
 import {
   createVenue,
   serviceClient,
@@ -143,9 +148,11 @@ test.describe("GAP-19: leave warning during an active upload", () => {
       .getByRole("button", { name: "Upload photos or videos" })
       .first()
       .click()
-    const dialog = page.getByRole("dialog")
+    const dialog = uploadSheet(page)
+    // The upload starts as soon as the file is picked (the hold is already in
+    // place, so the transfer stays in flight).
     await dialog.getByLabel("Choose photos or videos").setInputFiles([photo])
-    await dialog.getByRole("button", { name: /^Upload 1/ }).click()
+    await expect(dialog).toHaveAccessibleName("Saving 1 photo")
     await expect.poll(() => held, { timeout: 30_000 }).toBeGreaterThan(0)
 
     // Navigate away while the transfer is in flight.
@@ -161,12 +168,13 @@ test.describe("GAP-19: leave warning during an active upload", () => {
 
     // Let it finish; then leaving is silent.
     release()
-    await expect(dialog.getByText("1 uploaded")).toBeVisible({
+    await expect(dialog.getByRole("status")).toHaveText("1 saved", {
       timeout: 60_000,
     })
     await page.unroute(/\/storage\/v1\//)
     dialogs.length = 0
     await dialog.getByRole("button", { name: "Done" }).click()
+    await expect(dialog).toBeHidden()
     // Leave the app entirely: /login would send a signed-in staff member back.
     await page.evaluate(() => {
       window.location.href = "about:blank"
