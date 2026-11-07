@@ -557,11 +557,14 @@ describe("CaptureForm: whose draft, and which revision", () => {
     expect(Object.keys(window.localStorage)).toEqual(["nabalens.other"])
   })
 
-  it("keeps the words of a draft from an older revision but sends it with a new key", async () => {
-    // Sent at revision 4 (its answer lost), then recorded and reopened: now 6.
+  it("replays the key of a sent draft after the check moved on, never sending twice", async () => {
+    // Sent at revision 4 and recorded (the check moved to 5), but the answer
+    // was lost: the reload must replay the same key, not record it again.
     saveDraft(OWNER, stored({ attempted: true }))
-    const { user, submit } = setup({
-      summary: check({ revision: 6, progress: "needs_recheck" }),
+    const submit = vi.fn<SubmitHandler>(async () => sentOk(true))
+    const { user, onDone } = setup({
+      summary: check({ revision: 5 }),
+      submit,
       newKey: () => "fresh-key",
     })
     await waitFor(() =>
@@ -573,6 +576,81 @@ describe("CaptureForm: whose draft, and which revision", () => {
         ).value
       ).toBe("Board by the bar")
     )
+    await waitFor(() => expect(loadDraft()?.revision).toBe(5))
+    expect(loadDraft()).toMatchObject({
+      attempted: true,
+      idempotencyKey: "old-key",
+    })
+    await user.click(submitButton())
+    expect(submit).toHaveBeenCalledTimes(1)
+    expect(lastInput(submit)).toMatchObject({
+      revision: 5,
+      idempotencyKey: "old-key",
+      assetIds: [PHOTO.assetId],
+    })
+    await waitFor(() => expect(onDone).toHaveBeenCalled())
+    expect(loadDraft()).toBeNull()
+  })
+
+  it("asks to send again with a new key when the replayed finding is older than the check", async () => {
+    // Sent at 4 and recorded (5), the answer lost, then reopened: now 6.
+    saveDraft(OWNER, stored({ attempted: true }))
+    const submit = vi
+      .fn<SubmitHandler>()
+      .mockResolvedValueOnce(sentOk(true))
+      .mockResolvedValue({
+        ok: true,
+        submissionId: "5b000000-0000-4000-8000-000000000002",
+        revision: 7,
+        replayed: false,
+      })
+    const { user, onDone } = setup({
+      summary: check({ revision: 6, progress: "needs_recheck" }),
+      submit,
+      newKey: () => "fresh-key",
+    })
+    await waitFor(() =>
+      expect((photoBox() as HTMLInputElement).checked).toBe(true)
+    )
+    await user.click(submitButton())
+    expect(lastInput(submit).idempotencyKey).toBe("old-key")
+    const notice = await screen.findByRole("alert")
+    expect(notice.textContent).toContain(
+      "Your earlier finding was recorded. This check has changed since, so review your answer and send it again."
+    )
+    expect(onDone).not.toHaveBeenCalled()
+    // The words and evidence stay; the key is new.
+    expect(
+      (
+        screen.getByRole("textbox", {
+          name: /What you found/,
+        }) as HTMLTextAreaElement
+      ).value
+    ).toBe("Board by the bar")
+    expect((photoBox() as HTMLInputElement).checked).toBe(true)
+    await waitFor(() =>
+      expect(loadDraft()).toMatchObject({
+        attempted: false,
+        idempotencyKey: "fresh-key",
+        revision: 6,
+      })
+    )
+    await user.click(submitButton())
+    expect(submit.mock.calls.map(([i]) => i.idempotencyKey)).toEqual([
+      "old-key",
+      "fresh-key",
+    ])
+    expect(lastInput(submit).revision).toBe(6)
+    await waitFor(() => expect(onDone).toHaveBeenCalled())
+    expect(loadDraft()).toBeNull()
+  })
+
+  it("sends a never-sent draft from an older revision with a new key", async () => {
+    saveDraft(OWNER, stored())
+    const { user, submit } = setup({
+      summary: check({ revision: 6, progress: "needs_recheck" }),
+      newKey: () => "fresh-key",
+    })
     await waitFor(() => expect(loadDraft()?.idempotencyKey).toBe("fresh-key"))
     expect(loadDraft()).toMatchObject({ attempted: false, revision: 6 })
     await user.click(submitButton())
@@ -667,5 +745,33 @@ describe("CaptureForm: Wi-Fi redaction tick follows the evidence", () => {
       expect((photoBox() as HTMLInputElement).checked).toBe(true)
     )
     expect(tick().checked).toBe(false)
+  })
+
+  it("asks for the tick again on a sent draft from an older revision, and still replays its key", async () => {
+    saveDraft(OWNER, {
+      ...emptyDraft(() => "old-key", 4),
+      attempted: true,
+      answer: "no",
+      reason: "None",
+      assetIds: [PHOTO.assetId],
+      redactionConfirmed: true,
+      redactionAssetIds: [PHOTO.assetId],
+    })
+    const submit = vi.fn<SubmitHandler>(async () => sentOk(true))
+    const { user } = setup({
+      summary: { ...wifi(), revision: 5 },
+      submit,
+      newKey: () => "fresh-key",
+    })
+    await waitFor(() =>
+      expect((photoBox() as HTMLInputElement).checked).toBe(true)
+    )
+    expect(tick().checked).toBe(false)
+    await user.click(tick())
+    await user.click(submitButton())
+    expect(lastInput(submit)).toMatchObject({
+      idempotencyKey: "old-key",
+      redactionConfirmed: true,
+    })
   })
 })
