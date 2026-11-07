@@ -393,16 +393,22 @@ Each row ends in exactly one of three words:
     connection). Choose **Retry labels**.
 
 The footer counts what is left, for example **1 photo still saving labels**.
-Labels you choose are kept on the server with the photo as soon as you choose
-them, so they are added once the photo is ready even if you close the tab,
-reload or log out. If you discard a photo's labels, the confirmation says
+Labels you choose are kept on the server from the moment the photo starts
+saving (or from when you choose them, if that is later), and are added as soon
+as the photo is ready. If you discard a photo's labels, the confirmation says
 **Uploads carry on; only these labels are discarded.**
 
-While files are still uploading, or labels haven't reached the server yet,
-**Log out** and links that leave the staff pages ask first, for example
-**Leave now? Labels for 1 photo haven't saved yet.** Closing or reloading the
-tab gets your browser's own warning. Do not rely on uploads continuing after
-the browser closes; check **Me** before choosing files again.
+The photo itself needs this page open until it is saved. While files are still
+uploading, or labels haven't reached the server yet, **Log out** and links that
+leave the staff pages ask first, for example **Leave now? Labels for 1 photo
+haven't saved yet.** Closing or reloading the tab gets your browser's own
+warning. If the tab is closed, reloaded or killed while a photo is still
+uploading, that photo only finishes if you pick the same file again on the
+same device, signed in as you, within about 20 hours: it carries on where it
+stopped and its kept labels are added. After that, pick it again as a new
+photo and choose its labels again. **Me** doesn't show uploads that are still
+in progress: its **Needs attention** list shows only problems, and a photo
+that finished appears in your portfolio.
 
 On task screens and amenity checks the sheet does not ask for labels. Each
 photo is handed to the screen as soon as it is ready, and you still choose
@@ -421,20 +427,33 @@ menu** rows.
 ### Needs attention
 
 When labels were kept for a photo but couldn't be added to it (most often
-because the menu changed before the photo finished saving), **Me** lists the
-photo under **Needs attention**, with its thumbnail and the reason. This list
-stays until you deal with it, even after you leave Add or sign in on another
-day.
+because the menu changed before the photo finished saving, or the photo's
+upload failed), **Me** lists the photo under **Needs attention**, with its
+thumbnail and the reason. This list stays until you deal with it, even after
+you leave Add or sign in on another day. It lists only problems: photos still
+uploading are not on it.
 
 - **Fix labels** opens the labels you chose against the current menu. Dishes
   still on the menu are kept; any that are gone say **No longer on the menu**
   and can be removed. Choose the right dish and save. The photo is never
   uploaded again.
-- **Discard labels** drops those labels. The photo stays saved either way; you
-  can label it later.
-- If the file itself couldn't be used, the row says **This file can't be
-  used.** and its labels **Not saved (photo not saved)**. The only action is
-  **Discard labels**; to add that photo, pick it again from **Add**.
+- **Discard labels** asks first: **Discard these labels?** with **The photo
+  isn't changed; only these labels are discarded.** Choose **Discard labels**
+  to drop them, or **Keep labels**. The photo stays saved either way; you can
+  label it later.
+- **Labels not saved yet.** with **The photo didn't finish saving. These
+  labels are kept and go on it when it does.** means the upload stopped for a
+  reason that can pass (for example the server was busy). Choose **Retry** on
+  that photo in **Add** if it is still there. **Fix labels** changes the kept
+  labels; they still wait for the photo.
+- If the photo's upload added the labels before your discard reached the
+  server, nothing is discarded: the row turns **Saved**, says **These labels
+  were already saved on the photo.** and shows them. Choose **Fix labels** to
+  change them, or **Keep labels** to close the row.
+- If the file itself can't be used, the row says **This file can't be used:
+  {reason}.** (or **no reason was given** when the server didn't say why) and
+  its labels **Not saved (photo not saved)**. The only action is **Discard
+  labels**; to add that photo, pick it again from **Add**.
 
 ## Add labels (optional)
 
