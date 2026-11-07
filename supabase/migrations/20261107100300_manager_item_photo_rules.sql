@@ -446,7 +446,7 @@ begin
   v_active := private.active_menu_version_id(v_venue);
   return query
   select li.id, a.id, a.venue_id, li.item_id, li.variant_id, e.name, ev.name, s.name,
-    a.uploader_id, up.display_name, up.active and up.role = 'staff', a.uploader_id = v_uid,
+    a.uploader_id, up.display_name, up.active and up.role in ('staff', 'manager'), a.uploader_id = v_uid,
     lp.id, lp.state, coalesce(lp.is_primary, false), coalesce(h.revision, 1),
     a.thumbnail_path is not null, a.preview_path is not null, a.width, a.height,
     a.created_at, li.added_at

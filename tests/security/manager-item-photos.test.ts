@@ -1623,3 +1623,129 @@ describe("revoked or inactive scope", () => {
     )
   })
 })
+
+describe("candidates, accepted rows and unlabelled reviewer rows", () => {
+  let w: World
+  let gA: TestIdentity
+
+  beforeAll(async () => {
+    w = await world("mgrph-guards", { naan: ["mains--naan", 0] })
+    gA = await staff("mgrph-guards-ga", w.venue)
+    await legacyStaffGrant(service, admin, gA.id, w.venue)
+  })
+
+  it("candidates report an active manager-account uploader as active", async () => {
+    const naan = t(w.items["mains--naan"]!, 0)
+    const staffPhoto = await labelled(w.staff1, w.version, [naan])
+    const rows = await ok(
+      admin.client.rpc("menu_item_photo_candidates", {
+        p_venue_id: w.venue,
+        p_item_id: naan.itemId,
+      })
+    )
+    const byAsset = (asset: string) => rows.find((r) => r.asset_id === asset)!
+    expect(byAsset(w.history.naan!)).toMatchObject({
+      uploader_id: w.mgr.id,
+      uploader_active: true,
+    })
+    expect(byAsset(staffPhoto.id)).toMatchObject({
+      uploader_id: w.staff1.id,
+      uploader_active: true,
+    })
+  })
+
+  it("assign on an accepted row: staff-label and different corrections refused, the same one is a no-op", async () => {
+    const tikka = t(w.items["mains--tikka"]!)
+    const dal = t(w.items["mains--dal"]!)
+    const korma = t(w.items["mains--korma"]!, 0)
+
+    // An accepted staff-label row is decided through review only.
+    const p = await labelled(w.staff1, w.version, [tikka])
+    const staffRow = await accept(w.mgr, p.id, tikka)
+    const staffEvents = await eventCount(staffRow.photo_id)
+    for (const corrects of [dal, null])
+      await fails(
+        assign(w.mgr, p.id, tikka, corrects, await head(tikka.itemId), {
+          reason: "x",
+        }),
+        "menu_item_labelled",
+        "P0001"
+      )
+    expect(await eventCount(staffRow.photo_id)).toBe(staffEvents)
+
+    // An accepted reviewer row: only its own correction replays.
+    const q = await labelled(w.staff2, w.version, [tikka])
+    const moved = await assignOk(w.mgr, q.id, dal, tikka, "It is dal")
+    const events = await eventCount(moved.photo_id)
+    for (const corrects of [null, korma])
+      await fails(
+        assign(w.mgr, q.id, dal, corrects, await head(dal.itemId), {
+          reason: "x",
+        }),
+        "corrects_mismatch",
+        "22023"
+      )
+    const same = await assignOk(w.mgr, q.id, dal, tikka, "It is dal")
+    expect(same).toMatchObject({
+      photo_id: moved.photo_id,
+      state: "accepted",
+      replayed: true,
+    })
+    expect(await eventCount(moved.photo_id)).toBe(events)
+    expect(await photo(moved.photo_id)).toMatchObject({
+      corrects_item_id: tikka.itemId,
+      reason: "It is dal",
+    })
+  })
+
+  it("unlabelled reviewer rows: a legacy staff grantee cannot reaccept or withdraw; a manager can", async () => {
+    const bhaji = t(w.items["mains--bhaji"]!)
+    const u = await unlabelled(w.staff1, ["dish"])
+    const row = await assignOk(w.mgr, u, bhaji, null)
+    // Accepted: the no-op replay is refused too, and so is withdrawal.
+    await fails(
+      assign(gA, u, bhaji, null, await head(bhaji.itemId)),
+      "not_venue_manager",
+      "42501"
+    )
+    await fails(
+      withdraw(gA, row.photo_id, await head(bhaji.itemId), "No"),
+      "not_venue_manager",
+      "42501"
+    )
+    // Sent for a recheck (as activation does).
+    const before = await photo(row.photo_id)
+    const { error } = await service
+      .from("menu_item_photos")
+      .update({
+        state: "needs_recheck",
+        recheck_kind: "name_changed",
+        is_primary: false,
+        revision: before.revision + 1,
+      })
+      .eq("id", row.photo_id)
+    if (error) throw error
+    const events = await eventCount(row.photo_id)
+    await fails(
+      assign(gA, u, bhaji, null, await head(bhaji.itemId)),
+      "not_venue_manager",
+      "42501"
+    )
+    await fails(
+      withdraw(gA, row.photo_id, await head(bhaji.itemId), "No"),
+      "not_venue_manager",
+      "42501"
+    )
+    expect(await eventCount(row.photo_id)).toBe(events)
+    expect((await photo(row.photo_id)).state).toBe("needs_recheck")
+
+    const back = await assignOk(w.mgr, u, bhaji, null)
+    expect(back).toMatchObject({
+      photo_id: row.photo_id,
+      state: "accepted",
+      replayed: false,
+    })
+    await ok(withdraw(w.mgr, row.photo_id, await head(bhaji.itemId), "Blurry"))
+    expect((await photo(row.photo_id)).state).toBe("withdrawn")
+  })
+})

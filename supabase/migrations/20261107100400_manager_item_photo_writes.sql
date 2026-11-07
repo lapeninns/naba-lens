@@ -234,8 +234,9 @@ $$;
 -- withdraw_menu_item_photo
 -- ---------------------------------------------------------------------------
 
--- Body as in 20261106130000, plus the self-review block and the
--- reviewable-uploader rule after the scope check.
+-- Body as in 20261106130000, plus the self-review block, the
+-- reviewable-uploader rule after the scope check, and unlabelled reviewer rows
+-- for manager accounts and admins only.
 create or replace function public.withdraw_menu_item_photo(
   p_photo_id uuid,
   p_expected_revision integer,
@@ -298,6 +299,11 @@ begin
   end if;
   if not private.menu_photo_reviewable_uploader(v_photo.author_id, private.is_active_admin()) then
     raise exception 'menu_item_photo_not_found' using errcode = 'P0002';
+  end if;
+  -- An unlabelled association: manager accounts and admins only.
+  if v_photo.basis = 'reviewer' and v_photo.corrects_item_id is null
+     and not private.menu_photo_can_review_unlabelled() then
+    raise exception 'not_venue_manager' using errcode = '42501';
   end if;
   v_reason := private.require_reason(p_reason);
 
@@ -450,7 +456,10 @@ $$;
 --   * p_corrects_item_id null: an unlabelled photo tagged as food or drink
 --     (manager accounts and admins only; reason optional);
 --   * a live reviewer row of the same tuple that needs a recheck (or asked for
---     another photo) is accepted again; p_corrects_* must equal its stored ones.
+--     another photo) is accepted again; p_corrects_* must equal its stored ones
+--     (an accepted one with the same p_corrects_* is a no-op, replayed=true; an
+--     unlabelled one, manager accounts and admins only). A live staff-label row
+--     of the tuple is refused (menu_item_labelled): use review.
 -- Locks: asset row, shared venue menu lock, item heads in item_id order.
 -- p_expected_revision is the target item's revision.
 create function public.assign_menu_item_photo(
@@ -578,18 +587,6 @@ begin
     and p.variant_id is not distinct from p_variant_id
     and p.state in ('accepted', 'better_photo_requested', 'needs_recheck')
   for update;
-  if found and v_live.state = 'accepted' then
-    photo_id := v_live.id;
-    item_id := v_live.item_id;
-    state := v_live.state;
-    is_primary := v_live.is_primary;
-    item_revision := coalesce(
-      (select h.revision from public.menu_item_photo_heads h where h.item_id = p_item_id), 1);
-    corrects_item_revision := null;
-    replayed := true;
-    return next;
-    return;
-  end if;
   if found and v_live.basis = 'staff_label' then
     raise exception 'menu_item_labelled' using errcode = 'P0001';
   end if;
@@ -599,6 +596,23 @@ begin
     if p_corrects_item_id is distinct from v_live.corrects_item_id
        or p_corrects_variant_id is distinct from v_live.corrects_variant_id then
       raise exception 'corrects_mismatch' using errcode = '22023';
+    end if;
+    -- An unlabelled association: manager accounts and admins only.
+    if v_live.corrects_item_id is null and not private.menu_photo_can_review_unlabelled() then
+      raise exception 'not_venue_manager' using errcode = '42501';
+    end if;
+    -- Already accepted with the same correction: a no-op.
+    if v_live.state = 'accepted' then
+      photo_id := v_live.id;
+      item_id := v_live.item_id;
+      state := v_live.state;
+      is_primary := v_live.is_primary;
+      item_revision := coalesce(
+        (select h.revision from public.menu_item_photo_heads h where h.item_id = p_item_id), 1);
+      corrects_item_revision := null;
+      replayed := true;
+      return next;
+      return;
     end if;
     v_reason := private.clean_text(p_reason, 500, 'invalid_reason');
     v_kind := 'reaccept';
