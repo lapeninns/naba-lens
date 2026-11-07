@@ -499,6 +499,8 @@ describe("CaptureForm", () => {
     const opts = openAdd.mock.lastCall?.[0]
     expect(opts.source).toBe("library")
     expect(opts.imagesOnly).toBeUndefined()
+    // Reserved as amenity evidence, never community-visible.
+    expect(opts.purpose).toBe("amenity")
     loadAssets.mockResolvedValue(assetsOk([VIDEO, PHOTO]))
     opts.onReady([VIDEO.assetId])
     await waitFor(() =>

@@ -8,6 +8,7 @@ import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 import type { PhotoSource } from "../photo-source"
+import type { UploadPurpose } from "../upload-queue"
 
 /**
  * A menu item to suggest as a label for the next files (from Our menu's "Add
@@ -48,6 +49,12 @@ export type OpenAddOptions = {
    * own "Upload photos or videos").
    */
   dialog?: boolean
+  /**
+   * Why the files picked from this call are uploaded, fixed at reservation.
+   * "amenity" (the amenity capture form) keeps them out of the organisation
+   * community. Default "general".
+   */
+  purpose?: UploadPurpose
 }
 
 export type AddReadyListener = (assetIds: string[]) => void

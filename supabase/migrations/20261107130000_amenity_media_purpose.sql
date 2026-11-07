@@ -9,10 +9,13 @@
 --   chosen at reservation and fixed afterwards.
 -- * reserve_media_asset takes p_purpose (default 'general'); every earlier
 --   check, the grants and the result are unchanged.
--- * The community reads skip amenity-purpose assets and any asset attached to
---   an amenity submission (a general upload or legacy Coverage photo chosen as
---   evidence). The uploader and admins keep their access, and the amenity
---   routes read through amenity_evidence_asset, which is unchanged.
+-- * The community reads skip amenity-purpose assets, and a general upload
+--   attached to an amenity submission unless it is also Coverage media (a
+--   Coverage submission item or venue amenity fact photo): legacy Coverage
+--   photos chosen as evidence stay exactly as visible as before, so Coverage
+--   review and configuration screens still find them. The uploader and admins
+--   keep their access, and the amenity routes read through
+--   amenity_evidence_asset, which is unchanged.
 
 alter table public.media_assets
   add column purpose text not null default 'general'
@@ -184,9 +187,11 @@ grant execute on function public.reserve_media_asset(public.media_type, text, te
 -- Community reads
 -- ---------------------------------------------------------------------------
 
--- Same as 20261102160000, but a colleague no longer reads amenity evidence.
--- The uploader and active admins still do (menus and Coverage screens check
--- their photos through this function).
+-- Same as 20261102160000, but a colleague no longer reads amenity evidence:
+-- amenity-purpose uploads, and general uploads attached to an amenity
+-- submission that are not also Coverage media. Coverage media reads as before
+-- (manager Coverage review and configuration screens check photos through this
+-- function). The uploader and active admins still read everything.
 create or replace function public.community_readable_assets(p_asset_ids uuid[])
 returns table (
   id uuid, uploader_id uuid, venue_id uuid, media_type public.media_type,
@@ -219,8 +224,16 @@ begin
       or (
         private.is_community_member(a.uploader_id)
         and a.purpose = 'general'
-        and not exists (
-          select 1 from public.amenity_submission_assets sa where sa.asset_id = a.id
+        and (
+          not exists (
+            select 1 from public.amenity_submission_assets sa where sa.asset_id = a.id
+          )
+          or exists (
+            select 1 from public.coverage_submission_items ci where ci.asset_id = a.id
+          )
+          or exists (
+            select 1 from public.venue_amenity_fact_media fm where fm.asset_id = a.id
+          )
         )
       )
     )
@@ -228,8 +241,8 @@ begin
 end;
 $$;
 
--- Same as 20261102160000, without amenity evidence (for every viewer: the
--- uploader finds theirs in their own portfolio).
+-- Same as 20261102160000, without amenity evidence (the rule above, for every
+-- viewer: the uploader finds theirs in their own portfolio).
 create or replace function public.community_media_page(
   p_venue uuid default null,
   p_uploader uuid default null,
@@ -258,8 +271,16 @@ as $$
   where (select private.is_active_user())
     and a.upload_state = 'ready' and a.deleted_at is null
     and a.purpose = 'general'
-    and not exists (
-      select 1 from public.amenity_submission_assets sa where sa.asset_id = a.id
+    and (
+      not exists (
+        select 1 from public.amenity_submission_assets sa where sa.asset_id = a.id
+      )
+      or exists (
+        select 1 from public.coverage_submission_items ci where ci.asset_id = a.id
+      )
+      or exists (
+        select 1 from public.venue_amenity_fact_media fm where fm.asset_id = a.id
+      )
     )
     and (p_venue is null or a.venue_id = p_venue)
     and (p_uploader is null or a.uploader_id = p_uploader)
@@ -292,8 +313,16 @@ as $$
     (select count(*) from public.media_assets a
       where a.uploader_id = p.id and a.upload_state = 'ready' and a.deleted_at is null
         and a.purpose = 'general'
-        and not exists (
-          select 1 from public.amenity_submission_assets sa where sa.asset_id = a.id
+        and (
+          not exists (
+            select 1 from public.amenity_submission_assets sa where sa.asset_id = a.id
+          )
+          or exists (
+            select 1 from public.coverage_submission_items ci where ci.asset_id = a.id
+          )
+          or exists (
+            select 1 from public.venue_amenity_fact_media fm where fm.asset_id = a.id
+          )
         ))
   from public.profiles p
   left join public.venues v on v.id = p.venue_id
