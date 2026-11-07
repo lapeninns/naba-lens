@@ -3,16 +3,31 @@
 // asset (no duplicate row) and its TUS transfer resumes from the server offset.
 // Upload continuation after the tab closes is still not promised (spec §5): the
 // person has to choose the file again. Keys are kept per purpose: the same file
-// chosen for the portfolio and as amenity evidence are separate uploads.
+// chosen for the portfolio and as amenity evidence are separate uploads. They
+// are also kept per signed-in account, so a colleague signed in on the same
+// phone never reuses them (the server would refuse them anyway).
 
 import type { UploadPurpose } from "./types"
 
+/**
+ * Which uploads a key belongs to. `purpose` omitted: general. `account`
+ * omitted: not scoped (callers that do not know who is signed in).
+ */
+export type UploadKeyScope = { purpose?: UploadPurpose; account?: string }
+
 /** Where unfinished uploads' keys are kept. All methods are best effort. */
 export type UploadKeyStore = {
-  /** `purpose` omitted: general. */
-  get(file: File, purpose?: UploadPurpose): Promise<string | null>
-  set(file: File, key: string, purpose?: UploadPurpose): Promise<void>
-  delete(file: File, purpose?: UploadPurpose): Promise<void>
+  /** A purpose on its own is the same as `{ purpose }`. */
+  get(
+    file: File,
+    scope?: UploadKeyScope | UploadPurpose
+  ): Promise<string | null>
+  set(
+    file: File,
+    key: string,
+    scope?: UploadKeyScope | UploadPurpose
+  ): Promise<void>
+  delete(file: File, scope?: UploadKeyScope | UploadPurpose): Promise<void>
 }
 
 export type LocalUploadKeyStoreOptions = {
@@ -90,19 +105,19 @@ export function localUploadKeyStore(
   }
 
   return {
-    async get(file, purpose) {
-      const id = await fileIdentity(file, purpose)
+    async get(file, scope) {
+      const id = await fileIdentity(file, scope)
       return id ? (read()[id]?.key ?? null) : null
     },
-    async set(file, key, purpose) {
-      const id = await fileIdentity(file, purpose)
+    async set(file, key, scope) {
+      const id = await fileIdentity(file, scope)
       if (!id) return
       const entries = read()
       entries[id] = { key, at: now() }
       write(entries)
     },
-    async delete(file, purpose) {
-      const id = await fileIdentity(file, purpose)
+    async delete(file, scope) {
+      const id = await fileIdentity(file, scope)
       if (!id) return
       const entries = read()
       if (!(id in entries)) return
@@ -114,17 +129,22 @@ export function localUploadKeyStore(
 
 /**
  * SHA-256 of what identifies a local file without reading its bytes, per
- * upload purpose. General keeps the original identity, so keys saved before
- * purposes existed still resume.
+ * upload purpose and account. General keeps the original identity, so keys
+ * saved before purposes existed still resume; an account always changes it.
  */
 export async function fileIdentity(
   file: File,
-  purpose?: UploadPurpose
+  scope?: UploadKeyScope | UploadPurpose
 ): Promise<string | null> {
   const subtle = globalThis.crypto?.subtle
   if (!subtle) return null
+  const { purpose, account } =
+    typeof scope === "string"
+      ? { purpose: scope, account: undefined }
+      : (scope ?? {})
   const parts: unknown[] = [file.name, file.size, file.type, file.lastModified]
   if (purpose && purpose !== "general") parts.push(purpose)
+  if (account) parts.push(`account:${account}`)
   const text = parts.join("\0")
   const digest = await subtle.digest("SHA-256", new TextEncoder().encode(text))
   return Array.from(new Uint8Array(digest), (b) =>

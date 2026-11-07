@@ -24,5 +24,9 @@ export {
   localUploadKeyStore,
   UPLOAD_KEYS_STORAGE_KEY,
 } from "./upload-keys"
-export type { LocalUploadKeyStoreOptions, UploadKeyStore } from "./upload-keys"
+export type {
+  LocalUploadKeyStoreOptions,
+  UploadKeyScope,
+  UploadKeyStore,
+} from "./upload-keys"
 export type * from "./types"

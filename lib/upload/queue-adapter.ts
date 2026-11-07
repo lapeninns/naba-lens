@@ -3,7 +3,13 @@
 // lib/ never imports from components/.
 
 import { tusFingerprint } from "./tus"
-import type { UploadContext, Uploader, UploadError, UploadFn } from "./types"
+import type {
+  FinaliseLabels,
+  UploadContext,
+  Uploader,
+  UploadError,
+  UploadFn,
+} from "./types"
 import type { UploadKeyStore } from "./upload-keys"
 
 /**
@@ -49,12 +55,13 @@ export function toQueueUploader(
   return async (
     file: File,
     context: UploadContext
-  ): Promise<void | { assetId: string }> => {
+  ): Promise<void | { assetId: string; labels?: FinaliseLabels }> => {
+    // Keys are kept per account: another person signed in on this device never
+    // resumes (or even finds) this person's reservation.
+    const scope = { purpose: context.purpose, account: context.account }
     let token = readToken(context.resumeToken)
     if (!token) {
-      const stored = keys
-        ? await keys.get(file, context.purpose).catch(() => null)
-        : null
+      const stored = keys ? await keys.get(file, scope).catch(() => null) : null
       token = {
         idempotencyKey: stored && !inUse.has(stored) ? stored : newKey(),
       }
@@ -69,7 +76,7 @@ export function toQueueUploader(
       })
     }
     inUse.add(idempotencyKey)
-    await keys?.set(file, idempotencyKey, context.purpose).catch(() => {})
+    await keys?.set(file, idempotencyKey, scope).catch(() => {})
 
     let result: Awaited<ReturnType<UploadFn>>
     try {
@@ -87,6 +94,8 @@ export function toQueueUploader(
             assetId,
             tusFingerprint: resumable ? tusFingerprint(assetId) : undefined,
           } satisfies QueueResumeToken)
+          // Labels can be sent for the asset from now on.
+          context.onReserved?.(assetId)
         },
       })
     } finally {
@@ -98,12 +107,12 @@ export function toQueueUploader(
       result.state === "ready" ||
       result.error?.code === "processing_failed"
     ) {
-      await keys?.delete(file, context.purpose).catch(() => {})
+      await keys?.delete(file, scope).catch(() => {})
     } else if (result.error?.code === "reservation_gone") {
       // The reservation was removed or cleaned up, or its key was reserved for
       // the other purpose (the server refuses to resume it as this one): forget
       // the key, so the retry reserves a new asset with this purpose.
-      await keys?.delete(file, context.purpose).catch(() => {})
+      await keys?.delete(file, scope).catch(() => {})
       context.setResumeToken(null)
     }
 
@@ -116,8 +125,12 @@ export function toQueueUploader(
         }
       )
     }
-    // Ready: report the asset so the dialog can offer optional labelling.
-    return result.assetId ? { assetId: result.assetId } : undefined
+    // Ready: report the asset (and what finalise did with labels waiting for
+    // it) so the queue can tell when the photo and its labels are saved.
+    if (!result.assetId) return undefined
+    return result.labels
+      ? { assetId: result.assetId, labels: result.labels }
+      : { assetId: result.assetId }
   }
 }
 

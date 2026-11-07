@@ -175,7 +175,9 @@ export function createUploader(options: CreateUploaderOptions): MediaUploader {
         })
         if (result.state === "ready") {
           onStateChange("ready")
-          return { assetId, state: "ready" }
+          return result.labels
+            ? { assetId, state: "ready", labels: result.labels }
+            : { assetId, state: "ready" }
         }
         return fail({
           code: "processing_failed",
