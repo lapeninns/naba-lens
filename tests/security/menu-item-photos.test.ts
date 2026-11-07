@@ -610,7 +610,7 @@ describe("scope", () => {
         "menu_item_photo_items",
       ] as const) {
         await fails(
-          g.staff2.client.rpc(fn, { p_venue_id: venue }),
+          g.staff2.client.rpc(fn, { p_venue_id: venue ?? undefined }),
           "venue_not_found",
           "P0002"
         )
