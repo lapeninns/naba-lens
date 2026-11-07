@@ -84,9 +84,11 @@ export type UploadLabelPanelProps = {
    */
   onChange: (inputs: SaveLabelsInput[]) => void
   /**
-   * True while the labels are not ready to store: a menu choice is unfinished
-   * or a file has too many labels. Not while the menu loads: restored labels
-   * are emitted as they are, and the host stores each file's dish itself.
+   * True while the labels are not ready to store: a menu choice is unfinished,
+   * a file has too many labels, or labels changed while the menu was not ready
+   * (they are sent again once it is). A menu merely loading is not pending:
+   * restored labels are emitted as they are, and the host stores each file's
+   * dish itself.
    */
   onPendingChange?: (pending: boolean) => void
 }
@@ -271,20 +273,28 @@ export function UploadLabelPanel({
       .map((f) => [f.id, limitProblem(effective[f.id])])
       .filter(([, p]) => p)
   ) as Record<string, string>
-  // A menu still loading is not pending: restored labels are kept as they
+  // The host stores labels only while it knows the menu. Inputs that changed
+  // while the menu was not ready are pending until it is (then they are sent
+  // again); a menu merely loading is not: restored labels are kept as they
   // are, and the host stores each file's own dish itself.
+  const inputsKey = JSON.stringify(inputs)
+  const [readyInputsKey, setReadyInputsKey] = React.useState(inputsKey)
+  if (ready && readyInputsKey !== inputsKey) setReadyInputsKey(inputsKey)
+  const unstored = !ready && readyInputsKey !== inputsKey
   const pending =
+    unstored ||
     Object.values(pendingScopes).some(Boolean) ||
     Object.keys(problems).length > 0
 
-  const inputsKey = JSON.stringify(inputs)
   const latest = React.useRef({ onChange, onPendingChange, inputs })
   React.useEffect(() => {
     latest.current = { onChange, onPendingChange, inputs }
   })
+  // Sent again when the menu becomes ready, even if nothing changed.
+  const emitKey = `${ready ? "ready" : "waiting"}:${inputsKey}`
   React.useEffect(() => {
     latest.current.onChange(latest.current.inputs)
-  }, [inputsKey])
+  }, [emitKey])
   React.useEffect(() => {
     latest.current.onPendingChange?.(pending)
   }, [pending])

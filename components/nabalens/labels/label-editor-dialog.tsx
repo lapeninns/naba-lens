@@ -552,7 +552,15 @@ function LabelEditor({
       Object.fromEntries(
         Object.entries(prev).map(([id, f]) => [
           id,
-          { ...f, adj: renameRemoved(f.adj, fromKey, toKey) },
+          {
+            ...f,
+            adj: renameRemoved(
+              f.adj,
+              fromKey,
+              toKey,
+              f.base.items.map(itemKey)
+            ),
+          },
         ])
       )
     )

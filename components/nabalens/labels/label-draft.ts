@@ -220,17 +220,25 @@ export function removeItem(
 
 /**
  * A common item was replaced (its variant question answered): a file that left
- * it off leaves the new one off too, unless the file added that one itself.
+ * it off leaves the new one off too, unless the file has that one itself
+ * (added, or among `saved`, its saved item keys). A saved item the file left
+ * off stays off.
  */
 export function renameRemoved(
   adj: FileAdjust,
   fromKey: string,
-  toKey: string
+  toKey: string,
+  saved: readonly string[] = []
 ): FileAdjust {
   if (!adj.remove.includes(fromKey)) return adj
-  const keep = adj.remove.filter((k) => k !== fromKey && k !== toKey)
-  const own = adj.add.some((i) => itemKey(i) === toKey)
-  return { ...adj, remove: own ? keep : [...keep, toKey] }
+  const remove = saved.includes(fromKey)
+    ? adj.remove
+    : adj.remove.filter((k) => k !== fromKey)
+  const own = saved.includes(toKey) || adj.add.some((i) => itemKey(i) === toKey)
+  return {
+    ...adj,
+    remove: own || remove.includes(toKey) ? remove : [...remove, toKey],
+  }
 }
 
 export function setContentType(

@@ -22,7 +22,13 @@ import {
 } from "@/components/nabalens/labels"
 import type { SaveLabelsInput, SaveLabelsResult } from "@/lib/menus/types"
 
-import { CATALOGUE, MOMO_CATALOGUE, asset, summary } from "./labels-fixtures"
+import {
+  CATALOGUE,
+  MOMO_CATALOGUE,
+  asset,
+  summary,
+  view,
+} from "./labels-fixtures"
 
 afterEach(cleanup)
 
@@ -382,5 +388,111 @@ describe("m14: Fix labels after its menu reload lands", () => {
       catalogueVersionId: "version-2",
       items: draft.items,
     })
+  })
+})
+
+describe("review of these fixes", () => {
+  it("m13: answering the variant keeps a file's saved label of that variant (batch editor)", async () => {
+    const onSave = vi.fn(async (inputs: SaveLabelsInput[]) =>
+      inputs.map((i): SaveLabelsResult => ({
+        ok: true,
+        assetId: i.assetId,
+        labels: summary({ revision: 2 }),
+      }))
+    )
+    const saved = summary({
+      revision: 1,
+      items: [
+        view("item-momo", "Momo", "Momo", {
+          variantId: "var-momo-chicken",
+          variantName: "Chicken",
+        }),
+      ],
+    })
+    render(
+      <LabelEditorDialog
+        open
+        assets={[asset("a1", saved), asset("a2")]}
+        catalogue={MOMO}
+        onRetryCatalogue={() => {}}
+        onOpenChange={() => {}}
+        onSave={onSave}
+      />
+    )
+    const dialog = screen.getByRole("dialog")
+    await waitFor(() =>
+      expect(dialog.contains(document.activeElement)).toBe(true)
+    )
+    const user = userEvent.setup()
+    await pickIn(
+      user,
+      within(dialog).getAllByRole("combobox")[0],
+      "momo",
+      /^Momo/
+    )
+    await user.click(
+      screen.getByRole("button", { name: "Adjust labels for photo 1" })
+    )
+    await user.click(
+      screen.getByRole("button", {
+        name: "Remove Momo (Not specified) for photo 1",
+      })
+    )
+    await user.click(screen.getByRole("button", { name: "Chicken" }))
+    await user.click(screen.getByRole("button", { name: "Save labels" }))
+
+    await waitFor(() => expect(onSave).toHaveBeenCalled())
+    const inputs = onSave.mock.calls[0][0]
+    // Photo 1 keeps its saved Momo (Chicken): nothing to change there.
+    expect(inputs.map((i) => [i.assetId, i.items])).toEqual([
+      ["a2", [{ itemId: "item-momo", variantId: "var-momo-chicken" }]],
+    ])
+  })
+
+  it("m11: edits made while the menu reloads are sent again when it is back", async () => {
+    const { user, onChange, last, pending, rerender } = panel({
+      catalogue: READY,
+    })
+    await pickIn(
+      user,
+      screen.getByRole("combobox", { name: /What's in these photos\?/ }),
+      "bhaji",
+      /Onion Bhaji/
+    )
+    await user.click(
+      screen.getByRole("button", { name: "More details for all photos" })
+    )
+    rerender({ catalogue: LOADING })
+    await user.click(screen.getByRole("button", { name: "Finished dish" }))
+    // The host cannot store this yet (it waits for the menu): pending.
+    expect(pending()).toBe(true)
+    const calls = onChange.mock.calls.length
+
+    // The same menu comes back: the same inputs are sent again.
+    rerender({ catalogue: READY })
+    await waitFor(() =>
+      expect(onChange.mock.calls.length).toBeGreaterThan(calls)
+    )
+    expect(last()[0]).toMatchObject({
+      items: [BHAJI_REF],
+      contentTypes: ["dish"],
+      catalogueVersionId: "version-1",
+    })
+    expect(pending()).toBe(false)
+  })
+
+  it("m9: details chosen while the menu loads are pending until it is ready", async () => {
+    const { user, pending, rerender } = panel({
+      catalogue: LOADING,
+      presetFor: (id) => (id === "f1" ? BHAJI : null),
+    })
+    expect(pending()).toBe(false)
+    await user.click(
+      screen.getByRole("button", { name: "More details for all photos" })
+    )
+    await user.click(screen.getByRole("button", { name: "Finished dish" }))
+    expect(pending()).toBe(true)
+    rerender({ catalogue: READY })
+    await waitFor(() => expect(pending()).toBe(false))
   })
 })
