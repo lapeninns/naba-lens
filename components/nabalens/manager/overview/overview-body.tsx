@@ -1,6 +1,16 @@
 import Link from "next/link"
-import { ArrowRightIcon } from "@phosphor-icons/react/dist/ssr"
+import {
+  ArrowsClockwiseIcon,
+  CameraIcon,
+  ClockIcon,
+  ForkKnifeIcon,
+  HourglassIcon,
+  ImageSquareIcon,
+  ImagesIcon,
+  UserIcon,
+} from "@phosphor-icons/react/dist/ssr"
 
+import { Card, Row, SectionHeader } from "@/components/nabalens/common-room"
 import { EmptyState } from "@/components/nabalens/empty-state"
 import { waitingFor } from "@/components/nabalens/menu-photos/copy"
 import { PageHeader } from "@/components/nabalens/page-header"
@@ -14,8 +24,19 @@ import { managerHrefs } from "../hrefs"
 import { WorkspacePending } from "../workspace-pending"
 import { ActivationBanner, menuMeta } from "./activation-banner"
 
-const TALLY_LINK =
-  "inline-flex min-h-11 items-center gap-1.5 text-body-touch text-ink underline-offset-4 outline-none hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid md:min-h-8 md:text-body"
+/** Rows grouped in one white card with hairlines (RowList, keeping each li). */
+const ROW_LIST =
+  "grid min-w-0 divide-y divide-line overflow-hidden rounded-card bg-surface shadow-card [&_[data-slot=cr-row]]:rounded-none [&_[data-slot=cr-row]]:shadow-none [&_[data-slot=cr-row]]:focus-visible:-outline-offset-3"
+
+const TALLY_ICON: Record<string, React.ReactNode> = {
+  photos: <ImagesIcon />,
+  awaiting: <ClockIcon />,
+  "needs-photo": <CameraIcon />,
+  oldest: <HourglassIcon />,
+  replacement: <ImageSquareIcon />,
+  recheck: <ArrowsClockwiseIcon />,
+  own: <UserIcon />,
+}
 
 /**
  * Overview of the venue manager workspace: how many active-menu items have a
@@ -56,7 +77,7 @@ export function OverviewBody({
 
   if (overview.menuState === "empty") {
     return (
-      <div className="grid gap-6">
+      <div className="grid gap-(--gutter)">
         {header}
         <EmptyState
           title={copy.emptyTitle}
@@ -131,14 +152,17 @@ export function OverviewBody({
   ]
 
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-(--gutter)">
       {header}
       <ActivationBanner overview={overview} now={now} />
-      <section aria-labelledby="overview-photos" className="grid gap-4">
-        <div className="grid gap-2">
+      <section
+        aria-labelledby="overview-photos"
+        className="grid gap-(--gutter)"
+      >
+        <Card>
           <h2
             id="overview-photos"
-            className="text-section-title-touch break-words text-ink md:text-section-title"
+            className="font-display text-card-title [overflow-wrap:anywhere] text-ink"
           >
             {heading}
           </h2>
@@ -146,39 +170,33 @@ export function OverviewBody({
             value={eligible > 0 ? (covered / eligible) * 100 : 0}
             aria-label={heading}
             aria-valuetext={heading}
-            className="max-w-sm"
           />
-          {meta ? (
-            <p className="text-meta-touch text-ink-muted md:text-meta">
-              {meta}
-            </p>
+          {meta ? <p className="text-meta text-ink-muted">{meta}</p> : null}
+          {pendingPhotos > 0 ? (
+            <Link
+              href={managerHrefs.review()}
+              className={buttonVariants({
+                variant: "primary",
+                size: "touch",
+                className: "mt-1 justify-self-start max-md:w-full",
+              })}
+            >
+              {copy.reviewPhotos}
+            </Link>
           ) : null}
-        </div>
-        <ul className="grid gap-0.5">
+        </Card>
+        <ul className={ROW_LIST}>
           {tallies.map((tally) => (
             <li key={tally.key} data-tally={tally.key}>
-              <Link href={tally.href} className={TALLY_LINK}>
-                {tally.text}
-                <ArrowRightIcon
-                  aria-hidden
-                  className="size-4 shrink-0 text-ink-muted"
-                />
-              </Link>
+              <Row
+                href={tally.href}
+                icon={TALLY_ICON[tally.key]}
+                title={tally.text}
+              />
             </li>
           ))}
         </ul>
-        {pendingPhotos > 0 ? (
-          <Link
-            href={managerHrefs.review()}
-            className={buttonVariants({
-              variant: "primary",
-              size: "touch",
-              className: "justify-self-start max-md:w-full",
-            })}
-          >
-            {copy.reviewPhotos}
-          </Link>
-        ) : allCovered ? (
+        {pendingPhotos > 0 ? null : allCovered ? (
           <EmptyState
             variant="done"
             title={copy.doneTitle}
@@ -207,28 +225,23 @@ export function OverviewBody({
         )}
       </section>
       {overview.sections.length > 0 ? (
-        <section aria-labelledby="overview-sections" className="grid gap-2">
-          <h2
-            id="overview-sections"
-            className="text-section-title-touch text-ink md:text-section-title"
-          >
-            {copy.sectionsTitle}
-          </h2>
-          <ul className="grid gap-0.5">
+        <section
+          aria-labelledby="overview-sections"
+          className="grid gap-(--gutter)"
+        >
+          <SectionHeader id="overview-sections" title={copy.sectionsTitle} />
+          <ul className={ROW_LIST}>
             {overview.sections.map((section) => (
               <li key={section.sectionId}>
-                <Link
+                <Row
                   href={managerHrefs.menu({ section: section.sectionId })}
-                  className={TALLY_LINK}
-                >
-                  <span className="break-words">
-                    {copy.section(
-                      section.name,
-                      section.covered,
-                      section.eligible
-                    )}
-                  </span>
-                </Link>
+                  icon={<ForkKnifeIcon />}
+                  title={copy.section(
+                    section.name,
+                    section.covered,
+                    section.eligible
+                  )}
+                />
               </li>
             ))}
           </ul>

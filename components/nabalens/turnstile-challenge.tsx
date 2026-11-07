@@ -134,7 +134,7 @@ export function TurnstileChallenge({
         }}
       />
       <div ref={container} />
-      <p className="text-meta-touch text-ink-muted md:text-meta" role="status">
+      <p className="text-meta text-ink-muted" role="status">
         {status === "loading" ? "Loading sign-in verification…" : null}
         {status === "checking"
           ? "Complete the verification to continue."

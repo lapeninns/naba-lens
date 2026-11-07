@@ -105,18 +105,15 @@ function SelectedItems({
             key={item.key}
             data-unavailable={unavailable || undefined}
             className={cn(
-              "flex max-w-full min-w-0 items-center gap-1 rounded-control border border-accent bg-accent-soft py-1 ps-3 text-accent-text",
-              unavailable && "border-negative bg-negative-soft text-ink"
+              "flex max-w-full min-w-0 items-center gap-1 rounded-card bg-accent-soft py-1 ps-3.5 text-ink shadow-[inset_0_0_0_1.5px_var(--accent-text)]",
+              unavailable &&
+                "bg-warn-bg shadow-[inset_0_0_0_2px_var(--warn-fg)]"
             )}
           >
             <span className="min-w-0 py-0.5">
-              <span className="block text-label-touch break-words md:text-label">
-                {name}
-              </span>
+              <span className="block text-label break-words">{name}</span>
               {meta ? (
-                <span className="block text-meta-touch text-ink-muted md:text-meta">
-                  {meta}
-                </span>
+                <span className="block text-meta text-ink-muted">{meta}</span>
               ) : null}
             </span>
             <Button
@@ -201,15 +198,19 @@ function ContentTypeChips({
                 if (!blocked) onToggle(type)
               }}
               className={cn(
-                "inline-flex min-h-11 items-center gap-1.5 rounded-control border border-line-control bg-panel px-3.5 text-body-touch text-ink transition-colors duration-(--duration-quick) outline-none hover:bg-fill-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid disabled:cursor-not-allowed md:min-h-8 md:px-3 md:text-body-sm",
+                "inline-flex min-h-11 items-center gap-1.5 rounded-round bg-surface-2 px-4 text-label text-ink transition-colors duration-(--duration-quick) outline-none hover:bg-raised focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid disabled:cursor-not-allowed",
                 pressed &&
-                  "border-accent bg-accent-soft font-semibold text-accent-text hover:bg-accent-soft",
+                  "bg-accent-soft shadow-[inset_0_0_0_1.5px_var(--accent-text)] hover:bg-accent-soft",
                 blocked &&
-                  "cursor-not-allowed border-line bg-transparent text-ink-subtle hover:bg-transparent"
+                  "cursor-not-allowed bg-transparent text-ink-muted shadow-[inset_0_0_0_1px_var(--line)] hover:bg-transparent"
               )}
             >
               {pressed ? (
-                <CheckIcon aria-hidden className="-ms-0.5 size-4" />
+                <CheckIcon
+                  aria-hidden
+                  weight="bold"
+                  className="-ms-0.5 size-5"
+                />
               ) : null}
               {CONTENT_TYPE_LABELS[type]}
             </button>
@@ -261,10 +262,7 @@ function NoteField({
         aria-describedby={`${id}-count${help ? ` ${id}-help` : ""}`}
         disabled={disabled}
         rows={2}
-        className={cn(
-          "w-full min-w-0 resize-y border outline-none",
-          FIELD_CONTROL
-        )}
+        className={cn("w-full min-w-0 resize-y outline-none", FIELD_CONTROL)}
       />
       <div className="flex items-start gap-3">
         {help ? (
@@ -272,7 +270,7 @@ function NoteField({
             {help}
           </p>
         ) : null}
-        <p className="ms-auto shrink-0 text-meta-touch whitespace-nowrap text-ink-muted tabular-nums md:text-caption">
+        <p className="ms-auto shrink-0 font-mono text-meta whitespace-nowrap text-ink-muted tabular-nums">
           <span aria-hidden="true">
             {`${value.length} / ${LABEL_LIMITS.maxNoteLength}`}
           </span>
@@ -468,7 +466,7 @@ export function LabelFields({
     <Button
       type="button"
       variant="link"
-      className="text-meta-touch md:text-meta"
+      className="text-meta"
       aria-expanded={missingOpen}
       aria-controls={`${missingToggleId}-panel`}
       onClick={() => setMissingOpen((o) => !o)}
@@ -488,7 +486,7 @@ export function LabelFields({
     picker = (
       <div className="grid gap-1.5" aria-busy="true">
         <span className={FIELD_LABEL}>{named(itemLabel, itemOpt, suffix)}</span>
-        <Skeleton className="h-13 rounded-touch md:h-9 md:rounded-control" />
+        <Skeleton className="h-14 rounded-control" />
         <span className="sr-only">Loading the menu…</span>
       </div>
     )

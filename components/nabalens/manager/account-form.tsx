@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Field, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 
+import { Card } from "../common-room/card"
 import { Notice } from "../notice"
 import type { ActionResult } from "../types"
 import { MANAGER_COPY } from "./copy"
@@ -58,8 +59,12 @@ export function ManagerAccountForm({
   }
 
   return (
-    <div className="grid max-w-(--size-reading) gap-6">
-      <form onSubmit={submit} noValidate className="grid gap-4">
+    <div className="grid max-w-(--size-reading) gap-(--gutter)">
+      <form
+        onSubmit={submit}
+        noValidate
+        className="grid min-w-0 gap-4 rounded-card bg-surface p-4 shadow-card"
+      >
         <Field className="gap-1.5" data-invalid={!!fieldError || undefined}>
           <FieldLabel htmlFor={nameId}>{COPY.displayName}</FieldLabel>
           <Input
@@ -72,7 +77,6 @@ export function ManagerAccountForm({
             autoComplete="name"
             aria-invalid={!!fieldError || undefined}
             aria-describedby={fieldError ? errorId : undefined}
-            className="h-11 sm:h-9"
           />
           {fieldError ? (
             <FieldError id={errorId}>{fieldError}</FieldError>
@@ -89,32 +93,36 @@ export function ManagerAccountForm({
             size="touch"
             disabled={pending}
             aria-busy={pending || undefined}
+            className="max-md:w-full"
           >
             {pending ? COPY.saving : COPY.save}
           </Button>
         </div>
       </form>
 
-      <dl className="grid gap-4 text-body-touch md:text-body">
-        <div className="grid gap-0.5">
-          <dt className="text-meta-touch font-semibold text-ink-muted md:text-meta-strong">
-            {COPY.email}
-          </dt>
-          <dd className="break-words text-ink">{email ?? COPY.noEmail}</dd>
-        </div>
-        <div className="grid gap-0.5">
-          <dt className="text-meta-touch font-semibold text-ink-muted md:text-meta-strong">
-            {COPY.venue}
-          </dt>
-          <dd className="text-ink">{venueName}</dd>
-          <dd className="text-meta-touch text-ink-muted md:text-meta">
-            {COPY.venueNote}
-          </dd>
-        </div>
-      </dl>
+      <Card>
+        <dl className="grid gap-3 text-body">
+          <div className="grid gap-0.5">
+            <dt className="text-meta-strong text-ink-muted">{COPY.email}</dt>
+            <dd className="font-mono [overflow-wrap:anywhere] text-ink">
+              {email ?? COPY.noEmail}
+            </dd>
+          </div>
+          <div className="grid gap-0.5 border-t border-line pt-3">
+            <dt className="text-meta-strong text-ink-muted">{COPY.venue}</dt>
+            <dd className="font-bold text-ink">{venueName}</dd>
+            <dd className="text-meta text-ink-muted">{COPY.venueNote}</dd>
+          </div>
+        </dl>
+      </Card>
 
       <form action="/auth/logout" method="post">
-        <Button type="submit" variant="outline" size="touch">
+        <Button
+          type="submit"
+          variant="secondary"
+          size="touch"
+          className="max-md:w-full"
+        >
           {COPY.signOut}
         </Button>
       </form>

@@ -40,9 +40,9 @@ import { SectionHead } from "../coverage-sections"
 import { MANAGERS_COPY, compareBySurname } from "./managers-copy"
 
 const TH =
-  "px-3 py-2 text-left text-meta-strong text-ink-muted first:pl-4 last:pr-4"
+  "px-3 py-2.5 text-left text-meta-strong text-ink-muted first:pl-4 last:pr-4"
 const TD =
-  "px-3 py-2.5 align-middle text-body-touch text-ink first:pl-4 last:pr-4 md:text-body-sm max-md:flex max-md:gap-2 max-md:px-4 max-md:py-1 max-md:before:min-w-28 max-md:before:text-ink-muted max-md:before:content-[attr(data-label)]"
+  "px-3 py-2.5 align-middle text-body text-ink first:pl-4 last:pr-4 max-md:flex max-md:gap-2 max-md:px-4 max-md:py-1 max-md:before:min-w-28 max-md:before:text-ink-muted max-md:before:content-[attr(data-label)]"
 const TABLE =
   "w-full border-collapse max-md:block max-md:[&_tbody]:block max-md:[&_thead]:sr-only max-md:[&_tr]:block max-md:[&_tr]:py-2"
 
@@ -60,7 +60,7 @@ function PersonCell({ name }: { name: string }) {
   return (
     <span className="flex items-center gap-3">
       <ProfileAvatar name={name} size="md" />
-      <span className="font-semibold break-words">{name}</span>
+      <span className="font-bold break-words">{name}</span>
     </span>
   )
 }
@@ -153,22 +153,22 @@ export function ManagersView({
     selectedVenue && candidates.length === 0 ? selectedVenue.name : null
 
   return (
-    <div className="grid gap-8">
+    <div className="grid gap-6">
       <CoverageNotice
         ref={noticeRef}
         notice={action.notice}
         onDismiss={action.dismiss}
       />
 
-      <section aria-labelledby={`${ids}-grant`} className="grid gap-3">
+      <section
+        aria-labelledby={`${ids}-grant`}
+        className="grid min-w-0 gap-3 rounded-card bg-surface p-4 shadow-card"
+      >
         <SectionHead id={`${ids}-grant`} title={MANAGERS_COPY.grantHeading} />
         <form onSubmit={grant} className="grid gap-4" noValidate>
           <div className="grid gap-4 md:grid-cols-[1fr_1fr_1fr_auto] md:items-start">
             <div className="grid gap-1.5">
-              <label
-                htmlFor={`${ids}-venue`}
-                className="text-label font-semibold"
-              >
+              <label htmlFor={`${ids}-venue`} className="text-label text-ink">
                 {MANAGERS_COPY.fields.venue}
               </label>
               <OptionSelect
@@ -179,17 +179,13 @@ export function ManagersView({
                 placeholder={MANAGERS_COPY.fields.venuePlaceholder}
                 invalid={!!errors.venueId}
                 disabled={action.pending}
-                className="max-md:min-h-11"
               />
               {errors.venueId ? (
                 <FieldError>{errors.venueId}</FieldError>
               ) : null}
             </div>
             <div className="grid gap-1.5">
-              <label
-                htmlFor={`${ids}-staff`}
-                className="text-label font-semibold"
-              >
+              <label htmlFor={`${ids}-staff`} className="text-label text-ink">
                 {MANAGERS_COPY.fields.person}
               </label>
               <OptionSelect
@@ -203,23 +199,16 @@ export function ManagersView({
                   action.pending || !selectedVenueId || options.length === 0
                 }
                 aria-describedby={`${ids}-staff-hint`}
-                className="max-md:min-h-11"
               />
               {errors.staffId ? (
                 <FieldError>{errors.staffId}</FieldError>
               ) : null}
-              <p
-                id={`${ids}-staff-hint`}
-                className="text-meta-touch text-ink-muted md:text-meta"
-              >
+              <p id={`${ids}-staff-hint`} className="text-meta text-ink-muted">
                 {MANAGERS_COPY.fields.personHint}
               </p>
             </div>
             <div className="grid gap-1.5">
-              <label
-                htmlFor={`${ids}-note`}
-                className="text-label font-semibold"
-              >
+              <label htmlFor={`${ids}-note`} className="text-label text-ink">
                 {MANAGERS_COPY.fields.note}{" "}
                 <span className="font-normal text-ink-muted">
                   {MANAGERS_COPY.fields.optional}
@@ -233,7 +222,6 @@ export function ManagersView({
                 onChange={(e) => setNote(e.currentTarget.value)}
                 disabled={action.pending}
                 aria-invalid={errors.reason ? true : undefined}
-                className="h-11 md:h-8"
               />
               {errors.reason ? <FieldError>{errors.reason}</FieldError> : null}
             </div>
@@ -241,7 +229,7 @@ export function ManagersView({
               type="submit"
               variant="primary"
               size="touch"
-              className="md:mt-6.5"
+              className="md:mt-8"
               disabled={action.pending}
               aria-busy={action.pending || undefined}
             >
@@ -255,7 +243,7 @@ export function ManagersView({
             </Notice>
           ) : null}
         </form>
-        <p className="max-w-prose text-meta-touch text-ink-muted md:text-meta">
+        <p className="max-w-prose text-meta text-ink-muted">
           {MANAGERS_COPY.powers}
         </p>
       </section>
@@ -278,7 +266,7 @@ export function ManagersView({
           />
         ) : (
           <>
-            <div className="overflow-x-auto rounded-panel border border-line">
+            <div className="overflow-x-auto rounded-card bg-surface shadow-card">
               <table
                 aria-label={MANAGERS_COPY.currentHeading}
                 className={TABLE}
@@ -375,11 +363,11 @@ export function ManagersView({
               </table>
             </div>
             {anyLegacy ? (
-              <p className="max-w-prose text-meta-touch text-ink-muted md:text-meta">
+              <p className="max-w-prose px-1 text-meta text-ink-muted">
                 {MANAGERS_COPY.legacyStaffGrantNote}
               </p>
             ) : null}
-            <p className="text-meta-touch text-ink-muted md:text-meta">
+            <p className="px-1 text-meta text-ink-muted">
               {MANAGERS_COPY.sortNote}
             </p>
           </>
@@ -387,15 +375,15 @@ export function ManagersView({
       </section>
 
       <section aria-labelledby={`${ids}-ended`} className="grid gap-3">
-        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-1">
           <div className="flex flex-wrap items-baseline gap-x-4">
             <h2
               id={`${ids}-ended`}
-              className="text-section-title-touch text-ink md:text-section-title"
+              className="font-display text-section-title text-ink"
             >
               {MANAGERS_COPY.endedHeading}
             </h2>
-            <span className="text-meta-touch text-ink-muted md:text-meta">
+            <span className="text-meta text-ink-muted">
               {includeRevoked
                 ? `${ended.length} · ${MANAGERS_COPY.endedNote.toLowerCase()}`
                 : MANAGERS_COPY.endedNote}
@@ -405,7 +393,7 @@ export function ManagersView({
             href={toggleHref}
             className={buttonVariants({
               variant: "link",
-              className: "min-h-11 md:min-h-0",
+              className: "min-h-11",
             })}
           >
             {includeRevoked ? MANAGERS_COPY.hideEnded : MANAGERS_COPY.showEnded}
@@ -413,7 +401,7 @@ export function ManagersView({
         </div>
         {includeRevoked && ended.length > 0 ? (
           <>
-            <div className="overflow-x-auto rounded-panel border border-line">
+            <div className="overflow-x-auto rounded-card bg-surface shadow-card">
               <table aria-label={MANAGERS_COPY.endedHeading} className={TABLE}>
                 <thead className="border-b border-line">
                   <tr>
@@ -464,7 +452,7 @@ export function ManagersView({
                           <span className="grid gap-1.5">
                             {chip ? <StatusChip state={chip} /> : null}
                             {g.revokeReason ? (
-                              <span className="text-meta-touch text-ink-muted md:text-meta">
+                              <span className="text-meta text-ink-muted">
                                 {g.revokeReason}
                                 {g.revokedByName
                                   ? ` · ${g.revokedByName}`
@@ -479,7 +467,7 @@ export function ManagersView({
                 </tbody>
               </table>
             </div>
-            <p className="text-meta-touch text-ink-muted md:text-meta">
+            <p className="px-1 text-meta text-ink-muted">
               {MANAGERS_COPY.sortNote}
             </p>
           </>
@@ -528,7 +516,7 @@ export function ManagersView({
         {revoking ? (
           <div className="flex items-center gap-3">
             <ProfileAvatar name={revoking.staff.displayName} size="md" />
-            <p className="text-body-sm">
+            <p className="text-body">
               <strong>{revoking.staff.displayName}</strong>
               <br />
               <span className="text-ink-muted">

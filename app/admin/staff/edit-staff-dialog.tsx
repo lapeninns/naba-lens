@@ -267,7 +267,7 @@ function EditStaffForm({
                   aria-invalid={
                     !!avatarError || !!fieldErrors.avatar || undefined
                   }
-                  className="h-11 cursor-pointer py-1.5 file:mr-3 file:h-full file:cursor-pointer file:rounded-chip file:bg-well file:px-3 md:h-9 md:py-1"
+                  className="cursor-pointer py-2 file:mr-3 file:h-full file:cursor-pointer file:rounded-control file:bg-surface file:px-3"
                 />
                 <FieldDescription id={`${id}-photo-hint`}>
                   JPEG, PNG, WebP or HEIC, up to {formatBytes(maxAvatarBytes)}.
@@ -289,7 +289,6 @@ function EditStaffForm({
                   maxLength={80}
                   autoComplete="off"
                   aria-invalid={!!fieldErrors.displayName || undefined}
-                  className="h-11 md:h-9"
                 />
                 {fieldErrors.displayName ? (
                   <FieldError>{fieldErrors.displayName}</FieldError>
@@ -306,7 +305,6 @@ function EditStaffForm({
                   onChange={(e) => setJobTitle(e.currentTarget.value)}
                   maxLength={80}
                   aria-invalid={!!fieldErrors.jobTitle || undefined}
-                  className="h-11 md:h-9"
                 />
                 {fieldErrors.jobTitle ? (
                   <FieldError>{fieldErrors.jobTitle}</FieldError>
@@ -316,9 +314,11 @@ function EditStaffForm({
 
             {member.email ? (
               <div className="grid gap-1.5">
-                <p className="text-label-touch md:text-label">Email</p>
-                <p className="break-all text-ink-muted">{member.email}</p>
-                <p className="text-meta-touch text-ink-muted md:text-meta">
+                <p className="text-label">Email</p>
+                <p className="font-mono break-all text-ink-muted">
+                  {member.email}
+                </p>
+                <p className="text-meta text-ink-muted">
                   Email and role can&apos;t be changed here.
                 </p>
               </div>
@@ -384,7 +384,7 @@ function EditStaffForm({
 
             <Field
               orientation="horizontal"
-              className="justify-between gap-4 rounded-control border border-line px-3 py-3"
+              className="justify-between gap-4 rounded-card bg-surface-2 px-4 py-3"
             >
               <div className="grid gap-0.5">
                 <FieldLabel htmlFor={`${id}-active`}>Account active</FieldLabel>

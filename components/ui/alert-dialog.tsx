@@ -53,7 +53,7 @@ function AlertDialogContent({
         data-size={size}
         className={cn(
           // Phones: a bottom sheet with a grip. From md: centred, 440px.
-          "group/alert-dialog-content fixed inset-x-0 bottom-0 z-50 mx-auto grid max-h-[92dvh] w-full grid-cols-[minmax(0,1fr)] gap-4 overflow-y-auto overscroll-contain rounded-t-sheet bg-panel p-4 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] text-body-touch text-ink shadow-(--shadow-sheet) duration-(--duration-sheet) ease-(--ease-out) outline-none before:-mb-1 before:h-1 before:w-9 before:justify-self-center before:rounded-full before:bg-line-control before:content-[''] data-open:animate-in data-open:fade-in-0 data-open:slide-in-from-bottom-8 data-closed:animate-out data-closed:fade-out-0 data-closed:slide-out-to-bottom-8 md:top-1/2 md:right-auto md:bottom-auto md:left-1/2 md:max-w-110 md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-panel md:p-5 md:text-body md:before:hidden md:data-[size=sm]:max-w-xs md:data-open:slide-in-from-bottom-0 md:data-open:zoom-in-95 md:data-closed:slide-out-to-bottom-0 md:data-closed:zoom-out-95",
+          "group/alert-dialog-content fixed inset-x-0 bottom-0 z-50 mx-auto grid max-h-[92dvh] w-full grid-cols-[minmax(0,1fr)] gap-4 overflow-y-auto overscroll-contain rounded-t-sheet bg-surface px-4 pt-2 pb-[calc(1.75rem+env(safe-area-inset-bottom,0px))] text-body text-ink shadow-float duration-(--duration-sheet) ease-(--ease-out) outline-none before:-mb-1 before:h-[5px] before:w-11 before:justify-self-center before:rounded-[3px] before:bg-border-strong before:content-[''] md:top-1/2 md:right-auto md:bottom-auto md:left-1/2 md:max-w-110 md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-sheet md:p-6 md:text-body md:before:hidden md:data-[size=sm]:max-w-xs data-open:animate-in data-open:fade-in-0 data-open:slide-in-from-bottom-8 md:data-open:slide-in-from-bottom-0 md:data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:slide-out-to-bottom-8 md:data-closed:slide-out-to-bottom-0 md:data-closed:zoom-out-95",
           className
         )}
         {...props}
@@ -87,7 +87,7 @@ function AlertDialogFooter({
       data-slot="alert-dialog-footer"
       className={cn(
         // Phones stack full width with the primary (last) nearest the thumb.
-        "-mx-4 -mb-4 flex flex-col gap-2 border-t border-line bg-panel p-4 max-md:*:w-full md:-mx-5 md:-mb-5 md:flex-row md:justify-end md:px-5",
+        "flex flex-col gap-2 bg-surface pt-2 max-md:*:w-full md:flex-row md:justify-end md:*:min-w-35",
         className
       )}
       {...props}
@@ -103,7 +103,7 @@ function AlertDialogMedia({
     <div
       data-slot="alert-dialog-media"
       className={cn(
-        "mb-2 inline-flex size-10 items-center justify-center rounded-md bg-muted sm:group-data-[size=default]/alert-dialog-content:row-span-2 *:[svg:not([class*='size-'])]:size-6",
+        "mb-2 inline-flex size-13 items-center justify-center rounded-round bg-surface-2 text-ink sm:group-data-[size=default]/alert-dialog-content:row-span-2 *:[svg:not([class*='size-'])]:size-6",
         className
       )}
       {...props}
@@ -119,7 +119,7 @@ function AlertDialogTitle({
     <AlertDialogPrimitive.Title
       data-slot="alert-dialog-title"
       className={cn(
-        "text-section-title-touch text-balance text-ink md:text-section-title sm:group-data-[size=default]/alert-dialog-content:group-has-data-[slot=alert-dialog-media]/alert-dialog-content:col-start-2",
+        "font-display text-section-title text-balance text-ink sm:group-data-[size=default]/alert-dialog-content:group-has-data-[slot=alert-dialog-media]/alert-dialog-content:col-start-2",
         className
       )}
       {...props}
@@ -135,7 +135,7 @@ function AlertDialogDescription({
     <AlertDialogPrimitive.Description
       data-slot="alert-dialog-description"
       className={cn(
-        "text-body-touch text-pretty text-ink-muted md:text-body *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-ink",
+        "text-body text-pretty text-ink-muted *:[a]:font-bold *:[a]:text-ink *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-ink",
         className
       )}
       {...props}

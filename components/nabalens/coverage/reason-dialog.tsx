@@ -17,7 +17,7 @@ import { COVERAGE_LIMITS } from "./copy"
 import type { Reported } from "./use-coverage-action"
 
 export const textareaClass =
-  "block min-h-24 w-full min-w-0 resize-y rounded-control border border-line-control bg-panel px-3 py-2 text-body-touch text-ink outline-none placeholder:text-ink-subtle focus-visible:border-focus focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-1 focus-visible:outline-focus disabled:cursor-not-allowed disabled:bg-well disabled:text-ink-muted aria-invalid:border-negative md:text-body"
+  "block min-h-28 w-full min-w-0 resize-y rounded-control bg-surface-2 px-3.5 py-3 text-body text-ink shadow-[inset_0_0_0_1.5px_var(--border-strong)] outline-none placeholder:text-ink-muted focus-visible:outline-3 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-focus disabled:cursor-not-allowed disabled:text-ink-muted aria-invalid:shadow-[inset_0_0_0_2px_var(--warn-fg)]"
 
 /**
  * Dialog `finalFocus` that sends focus to `reportFocus` after a `REPORTED`
@@ -70,7 +70,7 @@ export function ReasonField({
     .join(" ")
   return (
     <div className="grid gap-1.5">
-      <label htmlFor={id} className="text-label-touch text-ink md:text-label">
+      <label htmlFor={id} className="text-label text-ink">
         {label}
         {required ? null : (
           <span className="font-normal text-ink-muted"> (optional)</span>
@@ -93,22 +93,19 @@ export function ReasonField({
           <p
             id={`${id}-error`}
             role="alert"
-            className="flex items-start gap-1.5 text-meta-touch font-semibold text-negative md:text-meta-strong"
+            className="flex items-start gap-1.5 text-meta font-bold text-warn-fg"
           >
             <WarningCircleIcon aria-hidden className="mt-px size-4 shrink-0" />
             {error}
           </p>
         ) : help ? (
-          <p
-            id={`${id}-help`}
-            className="text-meta-touch text-ink-muted md:text-meta"
-          >
+          <p id={`${id}-help`} className="text-meta text-ink-muted">
             {help}
           </p>
         ) : null}
         <p
           id={`${id}-count`}
-          className="ms-auto text-meta-touch whitespace-nowrap text-ink-muted tabular-nums md:text-caption"
+          className="ms-auto font-mono text-meta whitespace-nowrap text-ink-muted tabular-nums"
         >
           {value.length} / {maxLength}
         </p>
@@ -209,7 +206,9 @@ export function ReasonDialog({
       <DialogContent finalFocus={finalFocus}>
         <form onSubmit={submit} className="grid gap-4" noValidate>
           <DialogHeader>
-            <DialogTitle className="break-words">{title}</DialogTitle>
+            <DialogTitle className="[overflow-wrap:anywhere]">
+              {title}
+            </DialogTitle>
             {description ? (
               <DialogDescription>{description}</DialogDescription>
             ) : null}
@@ -224,16 +223,9 @@ export function ReasonDialog({
             error={fieldError}
             disabled={pending}
           />
-          {note ? (
-            <p className="text-body-touch text-ink-muted md:text-body-sm">
-              {note}
-            </p>
-          ) : null}
+          {note ? <p className="text-body text-ink-muted">{note}</p> : null}
           {error ? (
-            <p
-              role="alert"
-              className="text-body-touch text-negative md:text-body-sm"
-            >
+            <p role="alert" className="text-body font-semibold text-warn-fg">
               {error}
             </p>
           ) : null}

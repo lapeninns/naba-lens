@@ -2,9 +2,10 @@ import Link from "next/link"
 import { PlusIcon } from "@phosphor-icons/react/dist/ssr"
 
 import { buttonVariants } from "@/components/ui/button"
-import { Progress } from "@/components/ui/progress"
 
+import { CardFoot, CardHead } from "../common-room"
 import { plural } from "./copy"
+import { PhotoSegments } from "./month-card"
 import { DueLine, StatusChip } from "./status-badges"
 import type { MonthlyProgress } from "./types"
 
@@ -41,12 +42,15 @@ export function MonthlyProgressCard({
     return (
       <section
         aria-labelledby={headingId}
-        className="flex flex-col gap-2 rounded-xl border bg-card p-4"
+        className="grid min-w-0 gap-2 rounded-card bg-surface p-4 shadow-card"
       >
-        <Heading id={headingId} className="text-item-title-touch text-ink md:text-item-title">
+        <Heading
+          id={headingId}
+          className="font-display text-section-title [overflow-wrap:anywhere] text-ink"
+        >
           Your photos for {label}
         </Heading>
-        <p className="text-meta-touch text-ink-muted md:text-meta">
+        <p className="text-body text-ink-muted">
           There&apos;s no photo target for you this month.
         </p>
       </section>
@@ -55,17 +59,18 @@ export function MonthlyProgressCard({
 
   const needsSetup = monthly.status === "needs_setup"
   const target = monthly.targetCount
-  const percent =
-    !needsSetup && target ? Math.min(100, (monthly.accepted / target) * 100) : 0
   const remaining = target ? Math.max(0, target - monthly.accepted) : null
 
   return (
     <section
       aria-labelledby={headingId}
-      className="flex flex-col gap-3 rounded-xl border bg-card p-4"
+      className="grid min-w-0 gap-3 rounded-card bg-surface p-4 shadow-card"
     >
-      <div className="flex flex-wrap items-center gap-2">
-        <Heading id={headingId} className="text-item-title-touch text-ink md:text-item-title">
+      <CardHead>
+        <Heading
+          id={headingId}
+          className="font-display text-section-title [overflow-wrap:anywhere] text-ink"
+        >
           Your photos for {label}
         </Heading>
         {needsSetup ? (
@@ -73,10 +78,10 @@ export function MonthlyProgressCard({
         ) : monthly.complete ? (
           <StatusChip tone="positive">Target met</StatusChip>
         ) : null}
-      </div>
+      </CardHead>
 
       {needsSetup ? (
-        <div className="flex flex-col gap-1 text-body-touch md:text-body-sm">
+        <div className="grid gap-1 text-body text-ink">
           {monthly.setupMissing.includes("target") ? (
             <p>Your target appears here once your manager sets it.</p>
           ) : null}
@@ -86,35 +91,46 @@ export function MonthlyProgressCard({
               can&apos;t be completed. Ask an admin to set it.
             </p>
           ) : null}
-          <p className="text-muted-foreground">
+          <p className="text-meta text-ink-muted">
             {plural(monthly.accepted, "photo", "photos")} accepted so far.
           </p>
         </div>
       ) : (
-        <div className="flex flex-col gap-2">
-          <p className="text-2xl font-semibold tabular-nums">
-            {monthly.accepted}
-            <span className="text-base font-normal text-muted-foreground">
+        <div className="grid gap-3">
+          <p className="flex flex-wrap items-baseline gap-x-2">
+            <span className="font-display text-count text-ink tabular-nums">
+              {monthly.accepted}
+            </span>
+            <span className="font-display text-section-title text-ink-muted">
               {" "}
               of {target} accepted
             </span>
           </p>
-          <Progress
-            value={percent}
+          <div
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={target ?? 0}
+            aria-valuenow={Math.min(monthly.accepted, target ?? 0)}
             aria-label={`${monthly.accepted} of ${target} photos accepted`}
-          />
+          >
+            <PhotoSegments
+              accepted={monthly.accepted}
+              pending={monthly.pending}
+              target={target ?? 0}
+            />
+          </div>
           {remaining ? (
-            <p className="text-meta-touch text-ink-muted md:text-meta">
+            <p className="text-body text-ink">
               {plural(remaining, "more photo", "more photos")} to go.
             </p>
           ) : null}
         </div>
       )}
 
-      <ul className="flex flex-wrap gap-x-4 gap-y-1 text-meta-touch text-ink-muted md:text-meta">
+      <ul className="flex flex-wrap gap-x-4 gap-y-1 text-meta text-ink-muted">
         <li>{monthly.pending} waiting for review</li>
         {monthly.needsAnotherPhoto > 0 ? (
-          <li className="text-foreground">
+          <li className="font-semibold text-ink">
             {plural(monthly.needsAnotherPhoto, "photo needs", "photos need")}{" "}
             replacing
           </li>
@@ -142,10 +158,10 @@ export function MonthlyProgressCard({
       </ul>
 
       {monthly.due ? (
-        <div className="flex flex-col gap-1">
+        <div className="grid gap-1">
           <DueLine due={monthly.due} done={monthly.complete} />
           {monthly.due.overdue && !monthly.complete ? (
-            <p className="text-meta-touch text-ink-muted md:text-meta">
+            <p className="text-meta text-ink-muted">
               You can still send photos.
             </p>
           ) : null}
@@ -153,23 +169,25 @@ export function MonthlyProgressCard({
       ) : null}
 
       {addHref ? (
-        <Link
-          href={addHref}
-          className={buttonVariants({
-            variant: "outline",
-            size: "touch",
-            className: "self-start",
-          })}
-        >
-          {canSubmit ? (
-            <>
-              <PlusIcon data-icon="inline-start" aria-hidden />
-              Add photos for this month
-            </>
-          ) : (
-            "See this month's photos"
-          )}
-        </Link>
+        <CardFoot>
+          <Link
+            href={addHref}
+            className={buttonVariants({
+              variant: "secondary",
+              size: "touch",
+              className: "w-full sm:w-auto",
+            })}
+          >
+            {canSubmit ? (
+              <>
+                <PlusIcon data-icon="inline-start" aria-hidden />
+                Add photos for this month
+              </>
+            ) : (
+              "See this month's photos"
+            )}
+          </Link>
+        </CardFoot>
       ) : null}
     </section>
   )

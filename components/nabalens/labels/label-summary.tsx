@@ -34,23 +34,11 @@ export function LabelSummary({
 }) {
   if (!labels || isEmptyLabelSummary(labels)) {
     return (
-      <p
-        className={cn(
-          "text-body-touch text-ink-muted md:text-body-sm",
-          className
-        )}
-      >
-        No labels yet
-      </p>
+      <p className={cn("text-body text-ink-muted", className)}>No labels yet</p>
     )
   }
   return (
-    <div
-      className={cn(
-        "grid min-w-0 gap-2 text-body-touch text-ink md:text-body-sm",
-        className
-      )}
-    >
+    <div className={cn("grid min-w-0 gap-2 text-body text-ink", className)}>
       {labels.items.length > 0 ? (
         <ul aria-label="Menu items" className="grid gap-1">
           {labels.items.map((item) => (
@@ -58,18 +46,18 @@ export function LabelSummary({
               key={`${item.itemId}:${item.variantId ?? ""}`}
               className="min-w-0 break-words"
             >
-              <span className="font-semibold">{item.name}</span>
+              <span className="font-bold">{item.name}</span>
               {item.variantName ? <span>, {item.variantName}</span> : null}
               {item.sectionName ? (
                 <span className="text-ink-muted"> · {item.sectionName}</span>
               ) : null}
               {item.state !== "current" ? (
-                <span className="ms-1.5 inline-flex min-h-5 items-center rounded-chip bg-well px-1.5 align-middle text-chip-touch text-ink-muted md:text-chip">
+                <span className="ms-1.5 inline-flex min-h-6 items-center rounded-square bg-surface-2 px-2 align-middle text-chip text-ink-muted">
                   {ITEM_STATE_TEXT[item.state]}
                 </span>
               ) : null}
               {item.labelledAs ? (
-                <span className="block text-meta-touch text-ink-muted md:text-meta">
+                <span className="block text-meta text-ink-muted">
                   labelled as {item.labelledAs}
                 </span>
               ) : null}
@@ -82,7 +70,7 @@ export function LabelSummary({
           {labels.contentTypes.map((type) => (
             <li
               key={type}
-              className="inline-flex min-h-7 items-center rounded-control border border-line-control px-2 text-chip-touch md:min-h-6 md:text-chip"
+              className="inline-flex min-h-8 items-center rounded-round bg-surface-2 px-3 text-chip text-ink"
             >
               {CONTENT_TYPE_LABELS[type]}
             </li>
@@ -133,7 +121,7 @@ export function LabelBadge({
     <span
       data-labelled={labels?.hasLabels || undefined}
       className={cn(
-        "inline-flex min-h-5.5 items-center gap-1 rounded-chip bg-tile-badge px-1.75 text-chip-touch whitespace-nowrap text-on-tile-badge tabular-nums md:text-chip",
+        "inline-flex min-h-6 items-center gap-1 rounded-square bg-plate px-2 text-chip whitespace-nowrap text-on-tile-badge tabular-nums",
         className
       )}
     >

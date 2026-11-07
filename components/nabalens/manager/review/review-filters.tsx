@@ -14,11 +14,14 @@ import {
   REVIEW_STATUS_ORDER,
 } from "./review-copy"
 
+// Select pills (DESIGN.md §4 filters): grey, the current one accent-soft
+// with an accent-text edge.
 const SEGMENT =
-  "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-chip px-3 text-center text-meta-touch font-semibold text-ink-muted outline-none hover:text-ink focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-0 focus-visible:outline-focus aria-pressed:bg-panel aria-pressed:text-ink aria-pressed:shadow-[0_0_0_1px_var(--color-line-control)] md:min-h-8 md:text-label md:whitespace-nowrap"
+  "inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-round bg-surface-2 px-3.5 py-1.5 text-center text-label leading-tight font-bold whitespace-nowrap text-ink transition-[background-color,box-shadow] duration-(--duration-quick) outline-none hover:bg-raised focus-visible:outline-3 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-focus aria-pressed:bg-accent-soft aria-pressed:shadow-[inset_0_0_0_1.5px_var(--accent-text)]"
 
+// The one-item filter is on, so it reads as a current pill with a remove mark.
 const CHIP =
-  "inline-flex min-h-11 items-center gap-1.5 rounded-chip border border-ink bg-ink px-3 text-meta-touch text-paper outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-focus md:min-h-8 md:text-meta"
+  "inline-flex min-h-11 items-center gap-2 rounded-round bg-accent-soft px-3.5 py-1.5 text-label leading-tight font-bold [overflow-wrap:anywhere] text-ink shadow-[inset_0_0_0_1.5px_var(--accent-text)] transition-colors duration-(--duration-quick) outline-none hover:bg-raised focus-visible:outline-3 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-focus"
 
 /**
  * Review filters: status, section and contributor, plus a removable chip
@@ -70,9 +73,9 @@ export function ReviewFilters({
       <div
         role="group"
         aria-label={REVIEW_COPY.statusLabel}
-        className="[scrollbar-width:none] overflow-x-auto contain-inline-size [&::-webkit-scrollbar]:hidden"
+        className="-mx-(--page-gutter) [scrollbar-width:none] overflow-x-auto px-(--page-gutter) py-1 contain-inline-size md:mx-0 md:px-0 [&::-webkit-scrollbar]:hidden"
       >
-        <div className="inline-flex gap-0.5 rounded-control bg-well p-0.5">
+        <div className="inline-flex gap-2">
           {statuses.map((status) => (
             <button
               key={status}
@@ -89,10 +92,7 @@ export function ReviewFilters({
       <div className="grid gap-3 md:grid-cols-2 md:items-end">
         {sections.length > 0 ? (
           <div className="grid gap-1.5">
-            <span
-              id="review-filter-section"
-              className="text-label-touch text-ink md:text-label"
-            >
+            <span id="review-filter-section" className="text-label text-ink">
               {REVIEW_COPY.sectionLabel}
             </span>
             <OptionSelect
@@ -106,7 +106,7 @@ export function ReviewFilters({
         ) : null}
         {contributors && contributors.length > 0 ? (
           <div className="grid gap-1.5">
-            <span className="text-label-touch text-ink md:text-label">
+            <span className="text-label text-ink">
               {REVIEW_COPY.contributorLabel}
             </span>
             <OptionSelect
@@ -130,7 +130,7 @@ export function ReviewFilters({
             {itemName
               ? REVIEW_COPY.showingItem(itemName)
               : REVIEW_COPY.showingThisItem}
-            <XIcon aria-hidden className="size-3.5" />
+            <XIcon aria-hidden className="size-[18px] shrink-0" />
           </button>
         </div>
       ) : null}

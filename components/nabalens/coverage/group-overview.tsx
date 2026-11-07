@@ -28,16 +28,19 @@ export function GroupCoverageTable({ rows }: { rows: GroupOverviewRow[] }) {
   return (
     <section aria-labelledby="group-coverage-title" className="grid gap-3">
       <div className="grid gap-1">
-        <h2 id="group-coverage-title" className="text-lg font-medium">
+        <h2
+          id="group-coverage-title"
+          className="font-display text-section-title text-ink"
+        >
           Venue coverage
         </h2>
-        <p className="max-w-prose text-sm text-muted-foreground">
+        <p className="max-w-prose text-meta text-ink-muted">
           Checklist items with enough accepted photos. A venue is complete only
           when every applicable item is satisfied, nothing needs setup and its
           menu coverage is current.
         </p>
       </div>
-      <div className="overflow-x-auto rounded-lg border bg-card">
+      <div className="overflow-x-auto rounded-card bg-surface shadow-card">
         <Table>
           <TableHeader>
             <TableRow>
@@ -53,7 +56,7 @@ export function GroupCoverageTable({ rows }: { rows: GroupOverviewRow[] }) {
           <TableBody>
             {rows.map((row) => (
               <TableRow key={row.venue.id}>
-                <TableCell className="font-medium">
+                <TableCell className="font-bold">
                   <Link
                     href={venueHref(row.venue.id)}
                     className="inline-flex min-h-11 items-center underline-offset-3 hover:underline focus-visible:underline sm:inline sm:min-h-0"
@@ -87,7 +90,7 @@ export function GroupCoverageTable({ rows }: { rows: GroupOverviewRow[] }) {
                 <TableCell>
                   {labelFor(MENU_STATE_LABEL, row.coverage.menuState)}
                 </TableCell>
-                <TableCell className="text-muted-foreground">
+                <TableCell className="text-ink-muted">
                   {managerNames(row)}
                 </TableCell>
               </TableRow>
@@ -110,15 +113,18 @@ export function GroupParticipationTable({
   return (
     <section aria-labelledby="group-participation-title" className="grid gap-3">
       <div className="grid gap-1">
-        <h2 id="group-participation-title" className="text-lg font-medium">
+        <h2
+          id="group-participation-title"
+          className="font-display text-section-title text-ink"
+        >
           Staff participation, {periodLabel}
         </h2>
-        <p className="max-w-prose text-sm text-muted-foreground">
+        <p className="max-w-prose text-meta text-ink-muted">
           Monthly targets met with new photos accepted this month. A person
           without a target or team needs setup and is never counted complete.
         </p>
       </div>
-      <div className="overflow-x-auto rounded-lg border bg-card">
+      <div className="overflow-x-auto rounded-card bg-surface shadow-card">
         <Table>
           <TableHeader>
             <TableRow>
@@ -136,7 +142,7 @@ export function GroupParticipationTable({
           <TableBody>
             {rows.map((row) => (
               <TableRow key={row.venue.id}>
-                <TableCell className="font-medium">
+                <TableCell className="font-bold">
                   <Link
                     href={`${venueHref(row.venue.id)}/team`}
                     className="inline-flex min-h-11 items-center underline-offset-3 hover:underline focus-visible:underline sm:inline sm:min-h-0"
@@ -176,7 +182,7 @@ export function GroupParticipationTable({
                       ) : null}
                     </>
                   ) : (
-                    <span className="text-muted-foreground">Never</span>
+                    <span className="text-ink-muted">Never</span>
                   )}
                 </TableCell>
               </TableRow>
@@ -192,18 +198,21 @@ export function GroupParticipationTable({
 export function MissingPeriodList({ missing }: { missing: MissingPeriod[] }) {
   if (missing.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground">
+      <p className="text-meta text-ink-muted">
         Every active person at an active venue has a target row for the month.
       </p>
     )
   }
   return (
-    <ul aria-label="Missing periods" className="grid gap-1 text-sm">
+    <ul aria-label="Missing periods" className="grid gap-1 text-meta">
       {missing.map((m) => (
-        <li key={`${m.venue.id}:${m.period}`} className="text-warning">
+        <li
+          key={`${m.venue.id}:${m.period}`}
+          className="font-semibold text-warn-fg"
+        >
           <Link
             href={`${venueHref(m.venue.id)}/team`}
-            className="font-medium underline underline-offset-3"
+            className="font-bold underline underline-offset-3"
           >
             {m.venue.name}
           </Link>

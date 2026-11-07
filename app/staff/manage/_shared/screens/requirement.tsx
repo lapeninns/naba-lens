@@ -98,12 +98,15 @@ export async function RequirementScreen({
   const applicable =
     requirement.status === "active" || requirement.status === "needs_setup"
   const { progress } = requirement
-  const toTake = Math.max(0, progress.target - progress.accepted - progress.pending)
+  const toTake = Math.max(
+    0,
+    progress.target - progress.accepted - progress.pending
+  )
 
   const photos = (
     <CoverageSection title="Photos" id="item-photos">
       {applicable && !historyOnly ? (
-        <div className="grid gap-2">
+        <div className="grid gap-2 rounded-card bg-surface p-4 shadow-card">
           <Frames
             accepted={progress.accepted}
             target={progress.target}
@@ -112,17 +115,17 @@ export async function RequirementScreen({
           {progress.pending > 0 || toTake > 0 ? (
             <p
               aria-hidden
-              className="flex flex-wrap gap-x-4 gap-y-1 text-meta-touch text-ink-muted md:text-meta"
+              className="flex flex-wrap gap-x-4 gap-y-1 text-meta text-ink-muted"
             >
               {progress.pending > 0 ? (
                 <span className="inline-flex items-center gap-1.5">
-                  <i className="inline-block h-2 w-4 rounded-print border-[1.5px] border-dashed border-ink-muted" />
+                  <i className="block h-2.5 w-[22px] rounded-round bg-stripe" />
                   {progress.pending} waiting for review
                 </span>
               ) : null}
               {toTake > 0 ? (
                 <span className="inline-flex items-center gap-1.5">
-                  <i className="inline-block h-2 w-4 rounded-print border border-line-control" />
+                  <i className="block h-2.5 w-[22px] rounded-round bg-surface-2 shadow-[inset_0_0_0_1px_var(--border-strong)]" />
                   {toTake} to take
                 </span>
               ) : null}
@@ -179,7 +182,10 @@ export async function RequirementScreen({
             <Notice>
               This section belongs to the previous menu. Carry its photos over
               on the{" "}
-              <Link href={hrefs.menu} className="underline underline-offset-3">
+              <Link
+                href={hrefs.menu}
+                className="font-bold text-ink underline underline-offset-3"
+              >
                 Menu
               </Link>{" "}
               page.

@@ -11,10 +11,7 @@ import {
 import { periodKeyLabel } from "@/components/nabalens/coverage/copy"
 import { StatusChip } from "@/components/nabalens/status-chip"
 import { buttonVariants } from "@/components/ui/button"
-import type {
-  GroupOverviewRow,
-  PeriodKey,
-} from "@/lib/server/coverage/types"
+import type { GroupOverviewRow, PeriodKey } from "@/lib/server/coverage/types"
 import { shiftPeriod } from "@/lib/server/coverage/time"
 import { cn } from "@/lib/utils"
 
@@ -35,14 +32,11 @@ export function SectionHead({
 }) {
   return (
     <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-      <h2
-        id={id}
-        className="text-section-title-touch text-ink md:text-section-title"
-      >
+      <h2 id={id} className="font-display text-section-title text-ink">
         {title}
       </h2>
       {note ? (
-        <span className="text-meta-touch text-ink-muted md:text-meta">
+        <span className="font-mono text-meta text-ink-muted tabular-nums">
           {note}
         </span>
       ) : null}
@@ -78,7 +72,7 @@ export function MonthNav({
       </Link>
       <span
         aria-current={isCurrent ? "date" : undefined}
-        className="min-w-36 text-center text-label-touch text-ink tabular-nums md:text-label"
+        className="min-w-36 text-center font-display text-label text-ink tabular-nums"
       >
         {label}
       </span>
@@ -123,27 +117,22 @@ function TallyItem({
   const active = tone !== "plain" && tone !== "positive" && value > 0
   const Icon = tone === "negative" ? ClockCountdownIcon : WarningIcon
   return (
-    <div className="grid content-start gap-1 rounded-control bg-well px-3 py-2.5">
-      <dt className="text-meta-touch text-ink-muted md:text-meta">{label}</dt>
+    <div className="grid content-start gap-1 rounded-card bg-surface px-4 py-3 shadow-[inset_0_0_0_1px_var(--line)]">
+      <dt className="text-meta text-ink-muted">{label}</dt>
       <dd
         className={cn(
-          "flex items-baseline gap-1 text-count-touch tabular-nums md:text-count",
-          active && tone === "attention" && "text-attention",
-          active && tone === "negative" && "text-negative",
-          tone === "positive" && "text-positive"
+          "flex items-baseline gap-1.5 font-display text-count text-ink tabular-nums",
+          active && "text-warn-fg",
+          tone === "positive" && "text-ok-fg"
         )}
       >
-        {active ? <Icon aria-hidden className="size-4 self-center" /> : null}
+        {active ? <Icon aria-hidden className="size-6 self-center" /> : null}
         {value}
         {of !== undefined ? (
-          <small className="text-meta-touch text-ink-muted md:text-meta">
-            of {of}
-          </small>
+          <small className="text-lead font-bold text-ink-muted">of {of}</small>
         ) : null}
       </dd>
-      {note ? (
-        <dd className="text-meta-touch text-ink-muted md:text-meta">{note}</dd>
-      ) : null}
+      {note ? <dd className="text-meta text-ink-muted">{note}</dd> : null}
     </div>
   )
 }
@@ -166,14 +155,17 @@ export function Tallies({
   const setupVenues = rows.filter((r) => r.coverage.needsSetup > 0).length
   const withoutTarget = sum(rows, (r) => r.participation.staffWithoutTarget)
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
-      <section aria-labelledby="venue-coverage-title" className="grid gap-3">
+    <div className="grid items-start gap-(--gutter) lg:grid-cols-2">
+      <section
+        aria-labelledby="venue-coverage-title"
+        className="grid min-w-0 gap-3 rounded-card bg-surface p-4 shadow-card"
+      >
         <SectionHead
           id="venue-coverage-title"
           title={COVERAGE_COPY.venueCoverage}
           note={periodLabel}
         />
-        <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
+        <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           <TallyItem
             label={COVERAGE_COPY.tally.venuesComplete}
             value={rows.filter((r) => r.coverage.complete).length}
@@ -207,7 +199,7 @@ export function Tallies({
       </section>
       <section
         aria-labelledby="staff-participation-title"
-        className="grid gap-3"
+        className="grid min-w-0 gap-3 rounded-card bg-surface p-4 shadow-card"
       >
         <SectionHead
           id="staff-participation-title"
@@ -260,14 +252,17 @@ function Frames({
   const width = total > 0 ? Math.min(100, (count / total) * 100) : 0
   return (
     <div className="grid content-start gap-1">
-      <p className="text-meta-touch text-ink-muted md:text-meta">{label}</p>
+      <p className="text-meta text-ink-muted">{label}</p>
       <p className="flex items-baseline gap-1 tabular-nums">
-        <span className="text-label-touch text-ink md:text-label">{count}</span>
-        <span className="text-meta-touch text-ink-muted md:text-meta">{of}</span>
+        <span className="text-label text-ink">{count}</span>
+        <span className="text-meta text-ink-muted">{of}</span>
       </p>
-      <div aria-hidden className="h-1 overflow-hidden rounded-round bg-well">
+      <div
+        aria-hidden
+        className="h-2 overflow-hidden rounded-round bg-surface-2 shadow-[inset_0_0_0_1px_var(--border-strong)]"
+      >
         <span
-          className="block h-full rounded-round bg-positive"
+          className="block h-full rounded-round bg-ok-fg"
           style={{ width: `${width.toFixed(1)}%` }}
         />
       </div>
@@ -286,17 +281,17 @@ export function VenueList({ rows }: { rows: GroupOverviewRow[] }) {
       />
       <ul
         aria-labelledby="venues-title"
-        className="divide-y divide-line rounded-panel border border-line"
+        className="divide-y divide-line overflow-hidden rounded-card bg-surface shadow-card"
       >
         {rows.map((row) => (
           <li key={row.venue.id}>
             <Link
               href={venueHref(row.venue.id)}
-              className="grid gap-3 px-4 py-3.5 outline-none hover:bg-fill-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_auto] md:items-center md:gap-6"
+              className="grid min-h-16 gap-3 px-4 py-3.5 outline-none hover:bg-surface-2 focus-visible:outline-3 focus-visible:-outline-offset-3 focus-visible:outline-focus focus-visible:outline-solid md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_auto] md:items-center md:gap-6"
             >
               <div className="grid min-w-0 gap-1.5">
-                <p className="flex items-center gap-1.5 text-item-title-touch text-ink md:text-item-title">
-                  <StorefrontIcon aria-hidden className="size-4 shrink-0" />
+                <p className="flex items-center gap-2 text-item-title text-ink">
+                  <StorefrontIcon aria-hidden className="size-5 shrink-0" />
                   <span className="break-words">{row.venue.name}</span>
                 </p>
                 <VenueFlags row={row} />
@@ -315,7 +310,7 @@ export function VenueList({ rows }: { rows: GroupOverviewRow[] }) {
               />
               <CaretRightIcon
                 aria-hidden
-                className="hidden size-4 text-ink-muted md:block"
+                className="hidden size-5 text-ink-muted md:block"
               />
             </Link>
           </li>
@@ -368,12 +363,12 @@ export function SummaryLine({
 }) {
   const Icon = icon === "check" ? CheckIcon : WarningIcon
   return (
-    <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-body-touch text-ink md:text-body-sm">
+    <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-body text-ink">
       <Icon
         aria-hidden
         className={cn(
-          "size-4 shrink-0",
-          icon === "check" ? "text-positive" : "text-attention"
+          "size-5 shrink-0",
+          icon === "check" ? "text-ok-fg" : "text-warn-fg"
         )}
       />
       {children}

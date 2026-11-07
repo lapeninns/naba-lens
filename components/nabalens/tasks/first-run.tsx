@@ -5,8 +5,9 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
   CaretLeftIcon,
-  CheckCircleIcon,
-  CircleIcon,
+  CheckIcon,
+  CircleDashedIcon,
+  MapPinIcon,
 } from "@phosphor-icons/react"
 
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -15,6 +16,7 @@ import { cn } from "@/lib/utils"
 import { Notice } from "../notice"
 import { PhotoSourceActions, type PhotoSource } from "../photo-source"
 import { useAdd } from "../shell/add-context"
+import { PhotoSegments } from "./month-card"
 import { StatusChip } from "./status-badges"
 import type { MyTasksView } from "./types"
 
@@ -121,131 +123,161 @@ export function FirstRun({
       router.push(homeHref)
     })
 
-  return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-xl flex-col gap-6 px-4 py-6 md:py-10">
-      <header className="grid gap-1">
-        {back ? (
-          <Link
-            href={back.href}
-            className="mb-2 inline-flex w-fit items-center gap-1 text-meta-touch font-semibold text-ink-muted underline-offset-3 hover:underline md:text-meta-strong"
+  const card = "grid min-w-0 gap-3 rounded-card bg-surface p-4 shadow-card"
+  const sectionTitle =
+    "font-display text-section-title [overflow-wrap:anywhere] text-ink"
+
+  const milestones = (
+    <ol
+      aria-label="What happens to a photo"
+      className="grid divide-y divide-line overflow-hidden rounded-card bg-surface shadow-card"
+    >
+      {MILESTONES.map((step, index) => (
+        <li
+          key={step.word}
+          className="grid min-h-16 grid-cols-[auto_minmax(0,1fr)] items-start gap-3 p-3 text-body"
+        >
+          <span
+            aria-hidden
+            className="grid size-11 place-items-center rounded-round bg-surface-2 font-mono text-label text-ink tabular-nums"
           >
-            <CaretLeftIcon aria-hidden className="size-4" />
-            {back.label}
-          </Link>
+            {index + 1}
+          </span>
+          <span className="grid min-w-0 gap-0.5 [overflow-wrap:anywhere]">
+            <span className="text-item-title text-ink">{step.word}</span>
+            <span className="block text-ink-muted">{step.text}</span>
+          </span>
+        </li>
+      ))}
+    </ol>
+  )
+
+  const middle = uploadBlocked ? (
+    <section aria-labelledby="blocked-heading" className="grid gap-(--gutter)">
+      <h2 id="blocked-heading" className={cn(sectionTitle, "px-1 pt-2")}>
+        Photos can&apos;t be added yet
+      </h2>
+      <Notice tone="attention" role="status">
+        {uploadBlocked}
+      </Notice>
+    </section>
+  ) : gaps.length > 0 ? (
+    <section aria-labelledby="setup-heading" className={card}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 id="setup-heading" className={sectionTitle}>
+          Still being set up
+        </h2>
+        <StatusChip tone="warning">Needs setup</StatusChip>
+      </div>
+      <ul className="grid divide-y divide-line overflow-hidden rounded-control bg-surface-2">
+        {gaps.map((gap) => (
+          <li
+            key={gap}
+            className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3 p-3 text-body [overflow-wrap:anywhere]"
+          >
+            <span
+              aria-hidden
+              className="grid size-8 place-items-center rounded-round bg-surface text-ink-muted [&_svg]:size-5"
+            >
+              <CircleDashedIcon weight="bold" />
+            </span>
+            {gap}
+          </li>
+        ))}
+      </ul>
+      <Notice tone="positive" role="status">
+        You can add photos now. They are saved to your portfolio.
+      </Notice>
+    </section>
+  ) : monthly ? (
+    <section aria-labelledby="month-heading" className={card}>
+      <h2 id="month-heading" className={sectionTitle}>
+        Your photos for {periodLabel}
+      </h2>
+      <p className="flex flex-wrap gap-x-3 gap-y-1 text-body text-ink">
+        <span className="font-mono font-bold tabular-nums">
+          {monthly.accepted} of {monthly.target} accepted
+        </span>
+        {monthly.dueLabel ? (
+          <span className="text-ink-muted">{monthly.dueLabel}</span>
         ) : null}
-        <p className="font-display text-count-sm text-ink">Naba-Lens</p>
-        <p className="text-meta-touch font-semibold text-ink-muted md:text-meta-strong">
-          {[venueName, periodLabel].filter(Boolean).join(" · ")}
-        </p>
+      </p>
+      <PhotoSegments accepted={monthly.accepted} target={monthly.target} />
+    </section>
+  ) : null
+
+  // Gaps and blocks come straight after the hello, so they are seen first.
+  const gapsFirst = Boolean(uploadBlocked) || gaps.length > 0
+
+  return (
+    <div className="flex min-h-dvh w-full flex-col">
+      <header className="border-b border-line bg-surface">
+        <div className="mx-auto grid w-full max-w-xl gap-1 px-4 py-3">
+          {back ? (
+            <Link
+              href={back.href}
+              className="-ml-1 inline-flex min-h-11 w-fit items-center gap-1 rounded-control px-1 text-meta font-bold text-ink outline-none hover:underline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+            >
+              <CaretLeftIcon aria-hidden weight="bold" className="size-5" />
+              {back.label}
+            </Link>
+          ) : null}
+          <p className="font-display text-page-title-compact text-ink">
+            Naba-Lens
+          </p>
+          <p className="flex flex-wrap items-center gap-x-1.5 text-meta text-ink-muted">
+            {venueName ? (
+              <MapPinIcon aria-hidden className="size-[18px] shrink-0" />
+            ) : null}
+            <span>
+              {venueName ? (
+                <b className="font-bold text-ink">{venueName}</b>
+              ) : null}
+              {venueName ? " · " : null}
+              {periodLabel}
+            </span>
+          </p>
+        </div>
       </header>
 
-      <main className="flex flex-col gap-6">
-        <section aria-labelledby="welcome-heading" className="grid gap-2">
+      <main className="mx-auto grid w-full max-w-xl gap-(--gutter) px-(--page-gutter) py-4 md:py-8">
+        <section aria-labelledby="welcome-heading" className={card}>
           <h1
             id="welcome-heading"
-            className="font-display text-page-title-compact md:text-page-title"
+            className="font-display text-display [overflow-wrap:anywhere] text-ink"
           >
             Welcome, {firstName}
           </h1>
-          <p className="text-body-touch text-ink md:text-body">
+          <p className="text-lead text-ink">
             Your portfolio keeps the photos you take at work: dishes, the bar,
             the venue.
           </p>
-          <p className="text-body-touch text-ink-muted md:text-body">
+          <p className="text-body text-ink-muted">
             They help {venue} show its food and drink, and show colleagues what
             you make.
           </p>
-          <ol aria-label="What happens to a photo" className="mt-2 grid gap-2">
-            {MILESTONES.map((step, index) => (
-              <li
-                key={step.word}
-                className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-2 text-body-touch md:text-body-sm"
-              >
-                <span
-                  aria-hidden
-                  className="grid size-6 place-items-center rounded-round bg-well text-chip text-ink tabular-nums"
-                >
-                  {index + 1}
-                </span>
-                <span className="min-w-0">
-                  <span className="font-semibold text-ink">{step.word}</span>
-                  <span className="block text-ink-muted">{step.text}</span>
-                </span>
-              </li>
-            ))}
-          </ol>
         </section>
 
-        {uploadBlocked ? (
-          <section aria-labelledby="blocked-heading" className="grid gap-2">
-            <h2 id="blocked-heading" className="font-display text-2xl text-ink">
-              Photos can&apos;t be added yet
-            </h2>
-            <Notice tone="attention" role="status">
-              {uploadBlocked}
-            </Notice>
-          </section>
-        ) : gaps.length > 0 ? (
-          <section aria-labelledby="setup-heading" className="grid gap-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 id="setup-heading" className="font-display text-2xl text-ink">
-                Still being set up
-              </h2>
-              <StatusChip tone="warning">Needs setup</StatusChip>
-            </div>
-            <ul className="grid gap-2">
-              {gaps.map((gap) => (
-                <li
-                  key={gap}
-                  className="flex items-start gap-2 text-body-touch md:text-body-sm"
-                >
-                  <CircleIcon
-                    className="mt-0.5 size-4 shrink-0 text-warning"
-                    aria-hidden
-                  />
-                  {gap}
-                </li>
-              ))}
-            </ul>
-            <Notice tone="positive" role="status">
-              You can add photos now. They are saved to your portfolio.
-            </Notice>
-          </section>
-        ) : monthly ? (
-          <section aria-labelledby="month-heading" className="grid gap-2">
-            <h2 id="month-heading" className="font-display text-2xl text-ink">
-              Your photos for {periodLabel}
-            </h2>
-            <p className="flex flex-wrap gap-x-3 text-body-touch text-ink md:text-body">
-              <span>
-                {monthly.accepted} of {monthly.target} accepted
-              </span>
-              {monthly.dueLabel ? <span>{monthly.dueLabel}</span> : null}
-            </p>
-          </section>
-        ) : null}
+        {gapsFirst ? middle : null}
+        {milestones}
+        {gapsFirst ? null : middle}
 
-        <section
-          aria-labelledby="work-heading"
-          className="grid gap-3 rounded-xl border border-line p-4"
-        >
-          <h2
-            id="work-heading"
-            className="text-item-title-touch text-ink md:text-item-title"
-          >
+        <section aria-labelledby="work-heading" className={card}>
+          <h2 id="work-heading" className={sectionTitle}>
             What do you do at {venue}?
           </h2>
           {workRole ? (
-            <p className="flex items-center gap-2 text-body-touch md:text-body-sm">
-              <CheckCircleIcon
-                weight="fill"
-                className="size-4 text-positive"
+            <p className="flex items-center gap-2 text-body font-bold text-ink">
+              <span
                 aria-hidden
-              />
+                className="grid size-8 place-items-center rounded-round bg-ok-bg text-ok-fg [&_svg]:size-5"
+              >
+                <CheckIcon weight="bold" />
+              </span>
               {workRole}
             </p>
           ) : (
-            <p className="text-body-touch text-ink-muted md:text-body-sm">
+            <p className="text-body text-ink-muted">
               Your main job sets the question Home asks you and which dishes
               come first when you label. It never changes what you can see or
               do.
@@ -260,7 +292,7 @@ export function FirstRun({
             </Link>
             <Link
               href={profileHref}
-              className="text-meta-touch text-ink-muted underline underline-offset-3 md:text-meta"
+              className="inline-flex min-h-11 items-center rounded-control text-body font-bold text-ink underline underline-offset-3 outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
             >
               {hasAvatar ? "Change profile photo" : "Add a profile photo"}{" "}
               (optional)
@@ -268,7 +300,7 @@ export function FirstRun({
           </div>
         </section>
 
-        <div className="flex flex-col gap-3">
+        <div className="mt-1 grid gap-2 rounded-card bg-surface p-3 shadow-card">
           {uploadBlocked ? (
             <PhotoSourceActions onChoose={() => undefined} disabled />
           ) : openAdd ? (
@@ -276,7 +308,7 @@ export function FirstRun({
           ) : (
             <Link
               href={photoHref}
-              className={cn(buttonVariants({ size: "touch" }), "w-full")}
+              className={cn(buttonVariants({ size: "lg" }), "w-full")}
             >
               Add your first photo
             </Link>

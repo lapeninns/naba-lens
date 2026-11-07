@@ -484,7 +484,7 @@ export function ReviewList({
         <div
           ref={listRef}
           tabIndex={-1}
-          className="@container grid gap-4 outline-none"
+          className="@container grid gap-(--gutter) outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
         >
           <ul aria-label={REVIEW_COPY.listLabel} className="grid gap-6">
             {groupCards(cards).map((group, index) => {
@@ -516,13 +516,13 @@ export function ReviewList({
                   <section aria-labelledby={headingId} className="grid gap-3">
                     <h2
                       id={headingId}
-                      className="text-section-title-touch break-words text-ink md:text-section-title"
+                      className="font-display text-section-title break-words text-ink"
                     >
                       {REVIEW_COPY.groupHeading(group.name ?? "", total)}
                     </h2>
                     <ul
                       aria-label={`Photos of ${group.name ?? ""}`}
-                      className="grid gap-4"
+                      className="grid gap-(--gutter)"
                     >
                       {group.cards.map((card) => (
                         <li key={card.key}>
@@ -642,9 +642,9 @@ export function ReviewList({
           <div className="flex items-center gap-3">
             <EvidenceThumb
               src={subject.asset.thumbnailUrl}
-              className="aspect-square w-16 shrink-0"
+              className="aspect-square w-16 shrink-0 rounded-control"
             />
-            <p className="min-w-0 text-body-touch break-words md:text-body-sm">
+            <p className="min-w-0 text-body break-words">
               {REVIEW_COPY.photoBy(subject.contributor.name)}
             </p>
           </div>

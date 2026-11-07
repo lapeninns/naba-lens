@@ -1,13 +1,15 @@
 import type { Metadata } from "next"
 import { redirect } from "next/navigation"
 
+import { LockSimpleIcon } from "@phosphor-icons/react/dist/ssr"
+
 import {
   SIGN_IN_CARD,
   SIGN_IN_TEXT,
   SIGN_IN_TITLE,
   SignInPage,
-  SignInWordmark,
 } from "@/app/login/sign-in-frame"
+import { IconDisc } from "@/components/nabalens/common-room/icon-disc"
 import { ConfirmSignInButton } from "@/components/nabalens/login-card"
 import { parseEmailLink } from "@/lib/auth/email-link"
 
@@ -50,16 +52,20 @@ export default async function ConfirmPage({
         aria-labelledby="confirm-title"
         className={SIGN_IN_CARD}
       >
-        <SignInWordmark />
-        <div className="grid gap-1">
-          <h1 id="confirm-title" className={SIGN_IN_TITLE}>
-            {invite ? "Accept your invitation" : "Continue signing in"}
-          </h1>
-          <p className={SIGN_IN_TEXT}>
-            {invite
-              ? "An admin at Lapen Inns invited you to Naba-Lens, where staff keep the photos they take at work."
-              : "You're signing in to Naba-Lens."}
-          </p>
+        <div className="grid gap-4">
+          <IconDisc>
+            <LockSimpleIcon />
+          </IconDisc>
+          <div className="grid gap-1.5">
+            <h1 id="confirm-title" className={SIGN_IN_TITLE}>
+              {invite ? "Accept your invitation" : "Continue signing in"}
+            </h1>
+            <p className={SIGN_IN_TEXT}>
+              {invite
+                ? "An admin at Lapen Inns invited you to Naba-Lens, where staff keep the photos they take at work."
+                : "You're signing in to Naba-Lens."}
+            </p>
+          </div>
         </div>
         <input type="hidden" name="token_hash" value={link.tokenHash} />
         <input type="hidden" name="type" value={link.type} />

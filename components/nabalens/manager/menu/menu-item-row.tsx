@@ -1,7 +1,7 @@
 import Link from "next/link"
 import {
   CameraIcon,
-  CheckCircleIcon,
+  ImageIcon,
   WarningIcon,
 } from "@phosphor-icons/react/dist/ssr"
 
@@ -30,7 +30,9 @@ export function MenuStatusChip({ status }: { status: MenuItemStatus }) {
   return (
     <StatusChip tone={tone}>
       {status === "covered" ? (
-        <CheckCircleIcon aria-hidden className="size-3.5" />
+        // An ok outline square with a photo icon: never the filled tick
+        // square, which is Accepted's alone (DESIGN.md §3).
+        <ImageIcon aria-hidden className="size-4" />
       ) : null}
       {word}
     </StatusChip>
@@ -72,33 +74,31 @@ export function MenuItemRow({
 }) {
   const variants = item.variants.map((v) => v.name).join(", ")
   return (
-    <article className="relative grid grid-cols-[4rem_minmax(0,1fr)] gap-3 py-3">
+    <article className="relative grid min-h-16 grid-cols-[3.5rem_minmax(0,1fr)] gap-3 py-3">
       {item.preferred ? (
         <EvidenceThumb
           src={item.preferred.thumbnailUrl}
-          className="aspect-square w-16"
+          className="aspect-square w-14 rounded-control"
         />
       ) : (
         <span
           aria-hidden
-          className="grid aspect-square w-16 place-items-center rounded-print border border-dashed border-line-control text-ink-subtle"
+          className="grid aspect-square w-14 place-items-center rounded-control border-2 border-dashed border-border-strong text-ink-muted"
         >
           <CameraIcon className="size-6" />
         </span>
       )}
       <div className="grid min-w-0 content-start gap-1">
-        <h3 className="text-item-title-touch break-words text-ink md:text-item-title">
+        <h3 className="text-item-title break-words text-ink">
           <Link
             href={href}
-            className="rounded-control outline-none after:absolute after:inset-0 after:content-[''] hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+            className="rounded-control outline-none after:absolute after:inset-0 after:content-[''] hover:underline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
           >
             {item.name}
           </Link>
         </h3>
         {variants ? (
-          <p className="text-meta-touch break-words text-ink-muted md:text-meta">
-            {variants}
-          </p>
+          <p className="text-meta break-words text-ink-muted">{variants}</p>
         ) : null}
         <p className="flex flex-wrap items-center gap-1.5">
           <MenuStatusChip status={item.status} />
@@ -109,6 +109,5 @@ export function MenuItemRow({
   )
 }
 
-/** Shared list class: one bordered panel, rows split by lines. */
-export const MENU_LIST_CLASS =
-  "divide-y divide-line rounded-panel border border-line bg-panel px-3 sm:px-4"
+/** Shared list class: rows split by hairlines inside the section's card. */
+export const MENU_LIST_CLASS = "divide-y divide-line px-3 sm:px-4"

@@ -1,4 +1,4 @@
-import { MagnifyingGlassIcon } from "@phosphor-icons/react/dist/ssr"
+import { ImageIcon, MagnifyingGlassIcon } from "@phosphor-icons/react/dist/ssr"
 
 import { cn } from "@/lib/utils"
 
@@ -10,7 +10,7 @@ type EmptyStateProps = {
   description?: React.ReactNode
   action?: React.ReactNode
   /**
-   * `first-use`: three empty frames and the action that fills the list.
+   * `first-use`: a photo icon disc and the action that fills the list.
    * `filtered`: nothing matches; say the filters and offer "Clear filters".
    * `done`: a plain line in the list's place, nothing waiting.
    */
@@ -33,7 +33,7 @@ export function EmptyState({
     return (
       <div
         data-slot="empty-state"
-        className={cn("py-4 text-body-touch text-ink-muted md:text-body", className)}
+        className={cn("px-1 py-4 text-body text-ink-muted", className)}
       >
         <p>{title}</p>
         {description ? <p>{description}</p> : null}
@@ -44,30 +44,28 @@ export function EmptyState({
     <div
       data-slot="empty-state"
       className={cn(
-        "grid justify-items-center gap-3 text-center",
-        inline
-          ? "py-8"
-          : "rounded-panel border border-line px-6 py-12",
+        // Common Room empty state (DESIGN.md §5): icon, what appears here,
+        // how it gets there, one action at most. A white card on the canvas.
+        "grid justify-items-center gap-2.5 text-center",
+        inline ? "px-4 py-8" : "rounded-card bg-surface px-5 py-8 shadow-card",
         className
       )}
     >
-      {variant === "filtered" ? (
-        <MagnifyingGlassIcon aria-hidden className="size-7 text-ink-muted" />
-      ) : (
-        <span aria-hidden className="mb-1 flex gap-1.5">
-          {[0, 1, 2].map((frame) => (
-            <span
-              key={frame}
-              className="size-10 rounded-print border border-line-control"
-            />
-          ))}
-        </span>
-      )}
-      <p className="max-w-[32ch] text-item-title-touch text-ink md:text-item-title">
+      <span
+        aria-hidden
+        className="mb-1 grid size-18 place-items-center rounded-round bg-surface-2 text-ink-muted"
+      >
+        {variant === "filtered" ? (
+          <MagnifyingGlassIcon className="size-9" />
+        ) : (
+          <ImageIcon className="size-9" />
+        )}
+      </span>
+      <p className="max-w-[32ch] font-display text-section-title text-ink">
         {title}
       </p>
       {description ? (
-        <div className="max-w-[46ch] text-body-touch text-ink-muted md:text-body-sm">
+        <div className="max-w-[40ch] text-body text-ink-muted">
           {description}
         </div>
       ) : null}

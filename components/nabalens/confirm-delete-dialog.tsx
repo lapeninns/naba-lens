@@ -1,7 +1,11 @@
 "use client"
 
 import * as React from "react"
-import { SpinnerGapIcon, TrashIcon } from "@phosphor-icons/react"
+import {
+  SpinnerGapIcon,
+  TrashIcon,
+  WarningCircleIcon,
+} from "@phosphor-icons/react"
 
 import {
   AlertDialog,
@@ -136,9 +140,10 @@ export function ConfirmDeleteDialog({
         {error ? (
           <p
             role="alert"
-            className="text-body-touch text-negative md:text-body-sm"
+            className="flex items-start gap-2 text-body font-semibold text-warn-fg"
           >
-            {error}
+            <WarningCircleIcon aria-hidden className="mt-0.5 size-5 shrink-0" />
+            <span className="min-w-0">{error}</span>
           </p>
         ) : null}
         <AlertDialogFooter>

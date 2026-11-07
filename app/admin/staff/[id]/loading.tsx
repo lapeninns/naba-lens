@@ -8,9 +8,10 @@ const LINES = [
   [48, 28],
 ]
 
+/** One account in its real layout: the Photos card beside the Account card. */
 export default function StaffMemberLoading() {
   return (
-    <div className="mx-auto grid w-full max-w-(--size-page) gap-5 px-4 py-6 md:px-6 md:py-8">
+    <div className="mx-auto grid w-full max-w-(--size-page) gap-4 px-(--page-gutter) pt-4 pb-8 md:px-6 md:py-8">
       <PageHeader
         venueScope
         scope="All venues"
@@ -19,14 +20,18 @@ export default function StaffMemberLoading() {
       />
       <SkeletonRegion
         label="Loading account…"
-        className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,20rem)]"
+        className="grid items-start gap-(--gutter) lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]"
       >
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
-          {Array.from({ length: 6 }, (_, index) => (
-            <Skeleton key={index} shape="tile" />
-          ))}
+        <div className="grid gap-3 rounded-card bg-surface p-4 shadow-card">
+          <Skeleton shape="title" className="w-32" />
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+            {Array.from({ length: 6 }, (_, index) => (
+              <Skeleton key={index} shape="tile" />
+            ))}
+          </div>
         </div>
-        <div className="grid gap-5">
+        <div className="grid gap-4 rounded-card bg-surface p-4 shadow-card">
+          <Skeleton shape="title" className="w-32" />
           {LINES.map(([label, value], index) => (
             <div key={index} className="grid gap-2">
               <Skeleton shape="line" style={{ width: `${label}%` }} />

@@ -1,5 +1,9 @@
 import Link from "next/link"
-import { CaretRightIcon, WarningIcon } from "@phosphor-icons/react/dist/ssr"
+import {
+  CaretRightIcon,
+  ForkKnifeIcon,
+  WarningIcon,
+} from "@phosphor-icons/react/dist/ssr"
 
 import type { MenuVenueSummary } from "@/lib/menus/types"
 import { cn } from "@/lib/utils"
@@ -43,7 +47,7 @@ export function MenuVenueTally({
       value: (
         <>
           {active}
-          <small className="ml-1 text-meta-touch font-normal text-ink-muted md:text-meta">
+          <small className="ml-1 font-sans text-lead font-bold text-ink-muted">
             of {venues.length}
           </small>
         </>
@@ -66,26 +70,27 @@ export function MenuVenueTally({
   return (
     <dl
       className={cn(
-        "grid grid-cols-2 gap-px overflow-hidden rounded-panel border border-line bg-line md:grid-cols-4",
+        "grid grid-cols-2 gap-2 rounded-card bg-surface p-3 shadow-card md:grid-cols-4",
         className
       )}
     >
       {cells.map((cell) => (
         <div
           key={cell.label}
-          className="grid content-start gap-1 bg-panel px-4 py-3"
+          className="grid content-start gap-1 rounded-card px-3 py-2.5 shadow-[inset_0_0_0_1px_var(--line)]"
         >
-          <dt className="text-meta-touch font-semibold text-ink-muted md:text-meta-strong">
-            {cell.label}
-          </dt>
+          <dt className="text-meta text-ink-muted">{cell.label}</dt>
           <dd
             className={cn(
-              "flex items-center gap-1.5 text-count-sm text-ink tabular-nums",
-              cell.attention && "text-attention"
+              "flex items-baseline gap-1.5 font-display text-count text-ink tabular-nums",
+              cell.attention && "text-warn-fg"
             )}
           >
             {cell.attention ? (
-              <WarningIcon aria-hidden className="size-5 shrink-0" />
+              <WarningIcon
+                aria-hidden
+                className="size-6 shrink-0 self-center"
+              />
             ) : null}
             {cell.value}
           </dd>
@@ -130,6 +135,12 @@ export function MenuVenueList({
                 href={getVenueHref(venue.venueId)}
                 className={menuRowLinkClassName}
               >
+                <span
+                  aria-hidden
+                  className="flex size-11 shrink-0 items-center justify-center rounded-round bg-surface-2 text-ink-muted"
+                >
+                  <ForkKnifeIcon className="size-5" />
+                </span>
                 <span className="grid min-w-0 flex-1 gap-1">
                   <span className="flex min-w-0 flex-wrap items-center gap-2">
                     <span className={cn("break-words", menuItemTitleClassName)}>
@@ -167,7 +178,7 @@ export function MenuVenueList({
                   </span>
                 </span>
                 <CaretRightIcon
-                  className="size-4 shrink-0 text-ink-muted"
+                  className="size-5 shrink-0 text-ink-muted"
                   aria-hidden
                 />
               </Link>

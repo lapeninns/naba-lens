@@ -64,19 +64,17 @@ export default async function VenueManagersPage({
       userName={profile.displayName}
       logoutAction={logout}
     >
-      <div className="flex flex-col gap-8">
+      <div className="flex flex-col gap-6">
         <div className="flex flex-col gap-4">
           <PageHeader
+            venueScope
             scope={MANAGERS_COPY.scope}
             title={MANAGERS_COPY.title}
             summary={MANAGERS_COPY.summary}
             actions={
               <Link
                 href="/admin/coverage"
-                className={buttonVariants({
-                  variant: "secondary",
-                  className: "max-md:min-h-11",
-                })}
+                className={buttonVariants({ variant: "secondary" })}
               >
                 <ArrowLeftIcon aria-hidden />
                 Coverage

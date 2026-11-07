@@ -71,14 +71,14 @@ export function EvidenceImage({
   )
 
   const frame = cn(
-    "relative flex items-center justify-center overflow-hidden bg-media-placeholder text-muted-foreground",
+    "relative flex items-center justify-center overflow-hidden bg-media-placeholder text-ink-muted",
     className
   )
 
   if (!src) {
     return (
       <span className={frame}>
-        <ImageIcon className="size-5" aria-hidden />
+        <ImageIcon className="size-6" aria-hidden />
         {alt ? <span className="sr-only">{alt}</span> : null}
       </span>
     )
@@ -87,11 +87,11 @@ export function EvidenceImage({
   if (current.broken) {
     return (
       <span className={cn(frame, "flex-col gap-1 p-1 text-center")}>
-        <ImageBrokenIcon className="size-5" aria-hidden />
+        <ImageBrokenIcon className="size-6" aria-hidden />
         {/* z-20: stays above a selectable tile's overlay button (z-10). */}
         <button
           type="button"
-          className="relative z-20 inline-flex min-h-8 items-center gap-1 rounded-md px-2 text-xs font-medium text-foreground underline-offset-2 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+          className="relative z-20 inline-flex min-h-11 max-w-full flex-wrap items-center justify-center gap-x-1.5 rounded-control bg-surface px-2 text-label leading-tight text-ink outline-none hover:bg-surface-2 focus-visible:outline-3 focus-visible:-outline-offset-3 focus-visible:outline-focus focus-visible:outline-solid"
           onClick={() =>
             setState((s) => ({
               ...s,
@@ -101,7 +101,7 @@ export function EvidenceImage({
             }))
           }
         >
-          <ArrowClockwiseIcon className="size-3.5" aria-hidden />
+          <ArrowClockwiseIcon className="size-[18px]" aria-hidden />
           Try again
           {alt ? <span className="sr-only">: {alt}</span> : null}
         </button>

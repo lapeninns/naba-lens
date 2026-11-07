@@ -12,7 +12,7 @@ import type { CommunitySearch } from "./search"
 
 function showingCount(shown: number) {
   return (
-    <p className="text-meta-touch text-ink-muted tabular-nums md:text-meta">
+    <p className="px-1 text-meta text-ink-muted tabular-nums">
       Showing {shown}, newest first
     </p>
   )
@@ -45,6 +45,8 @@ export function CommunityGallery({
       loadPage={loadPage}
       refreshSignal={uploaderId ? undefined : refreshSignal}
       showAttribution
+      // Photos is a feed of posts; a colleague's own shared photos stay a grid.
+      layout={uploaderId ? "grid" : "feed"}
       getPortfolioHref={(item) => `/staff/people/${item.contributorId}`}
       summary={showCount ? showingCount : undefined}
       empty={

@@ -56,7 +56,13 @@ export function RequirementStatusBadge({
     return <StatusChip state="complete" className={className} />
   }
   return (
-    <StatusChip state={status} className={className}>
+    <StatusChip
+      state={status}
+      // An active item that is not yet complete reads as in progress (round
+      // neutral pill), not as an account's Active.
+      shape={status === "active" ? "progress" : undefined}
+      className={className}
+    >
       {labelFor(REQUIREMENT_STATUS_LABEL, status)}
     </StatusChip>
   )

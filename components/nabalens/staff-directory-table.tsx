@@ -65,7 +65,7 @@ export function TeamLabel({
   if (!department) return <span className="text-ink-muted">Unassigned</span>
   const team = TEAM_SHORT[department]
   return (
-    <abbr title={team.long} className="font-semibold no-underline">
+    <abbr title={team.long} className="font-bold no-underline">
       {team.short}
     </abbr>
   )
@@ -198,7 +198,7 @@ export function StaffDirectoryTable({
       href={getPortfolioHref(member)}
       // On phones the padding makes a 44px+ hit area; the negative margin keeps
       // the text where it was, and `relative` keeps it above the meta line.
-      className="relative block truncate rounded-chip font-semibold text-ink underline-offset-3 outline-none hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid max-md:-my-3.5 max-md:py-3.5"
+      className="relative block truncate rounded-chip text-item-title text-ink underline decoration-1 underline-offset-4 outline-none hover:decoration-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid max-md:-my-3.5 max-md:py-3.5"
     >
       {member.displayName}
     </Link>
@@ -208,13 +208,13 @@ export function StaffDirectoryTable({
     <div className={cn("min-w-0", className)}>
       <ul
         aria-label="Staff"
-        className="divide-y divide-line rounded-panel border border-line bg-panel md:hidden"
+        className="divide-y divide-line overflow-hidden rounded-card bg-surface shadow-card md:hidden"
       >
         {staff.map((member) => (
           <li
             key={member.id}
             className={cn(
-              "flex items-center gap-3 py-2 pr-1 pl-3",
+              "flex min-h-16 items-center gap-3 py-2 pr-1 pl-3",
               member.status === "inactive" && "text-ink-muted"
             )}
           >
@@ -223,9 +223,9 @@ export function StaffDirectoryTable({
               src={member.avatarUrl}
               size="md"
             />
-            <div className="grid min-w-0 flex-1 gap-1 py-1 text-body-touch">
+            <div className="grid min-w-0 flex-1 gap-1 py-1 text-body">
               {nameLink(member)}
-              <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-meta-touch text-ink-muted">
+              <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-meta text-ink-muted">
                 <StatusCell member={member} manager={isManager(member)} />
                 <span className="truncate">
                   {member.venueName ?? "No venue"} ·{" "}
@@ -238,7 +238,7 @@ export function StaffDirectoryTable({
         ))}
       </ul>
 
-      <div className="hidden overflow-hidden rounded-panel border border-line bg-panel md:block">
+      <div className="hidden overflow-hidden rounded-card bg-surface px-2 shadow-card md:block">
         <Table aria-label="Staff">
           <TableHeader>
             <TableRow className="hover:bg-transparent">
@@ -260,7 +260,7 @@ export function StaffDirectoryTable({
               <TableRow
                 key={member.id}
                 className={cn(
-                  "text-body-sm",
+                  "text-body",
                   member.status === "inactive" && "text-ink-muted"
                 )}
               >
@@ -274,7 +274,7 @@ export function StaffDirectoryTable({
                     <div className="grid min-w-0">
                       {nameLink(member)}
                       {member.email ? (
-                        <span className="truncate text-meta text-ink-muted">
+                        <span className="truncate font-mono text-meta text-ink-muted">
                           {member.email}
                         </span>
                       ) : null}

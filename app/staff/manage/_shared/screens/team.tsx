@@ -58,6 +58,12 @@ function firstName(name: string) {
   return name.trim().split(/\s+/)[0] ?? name
 }
 
+/** A white card on the canvas (DESIGN.md §4). */
+const CARD = "grid min-w-0 gap-3 rounded-card bg-surface p-4 shadow-card"
+/** A titled block of the feed: heading on the canvas, cards under it. */
+const SECTION =
+  "grid min-w-0 gap-(--gutter) [&>h2]:px-1 [&>h2]:pt-2 [&>div:first-child]:px-1 [&>div:first-child]:pt-2"
+
 /** Previous and next month, with Read-only on a past month (`nl-month`). */
 function MonthStepper({
   basePath,
@@ -90,7 +96,7 @@ function MonthStepper({
       </Link>
       <span
         aria-current={period.key === current ? "date" : undefined}
-        className="min-w-[9.5em] text-center text-label-touch text-ink tabular-nums md:text-label"
+        className="min-w-[9.5em] text-center font-display text-label text-ink tabular-nums"
       >
         {period.label}
       </span>
@@ -217,9 +223,8 @@ export async function TeamScreen({
       <OfflineNotice />
       {unprepared ? (
         <Notice tone="attention" title={`${name} isn't prepared yet`}>
-          {monthName(shiftPeriod(period, -1))}&apos;s targets haven&apos;t
-          been copied yet. Preparing copies them; new starters show Needs
-          setup.
+          {monthName(shiftPeriod(period, -1))}&apos;s targets haven&apos;t been
+          copied yet. Preparing copies them; new starters show Needs setup.
         </Notice>
       ) : null}
       <MonthStepper
@@ -230,8 +235,8 @@ export async function TeamScreen({
       />
       {past && isAdmin ? (
         <Notice>
-          {name} is read-only for managers. Admins can correct a target, with
-          a reason; the row then shows Corrected by an admin.
+          {name} is read-only for managers. Admins can correct a target, with a
+          reason; the row then shows Corrected by an admin.
         </Notice>
       ) : null}
       <TeamRosterControl
@@ -281,7 +286,7 @@ function PersonMonth({
     (s) => s.state === "accepted" && s.decision?.lateAcceptance
   )
   const hasTarget = row?.targetCount != null
-  const muted = "text-body-touch text-ink-muted md:text-body-sm"
+  const muted = "px-1 text-body text-ink-muted"
 
   let targetBody: React.ReactNode
   if (row && row.targetCount != null) {
@@ -302,7 +307,7 @@ function PersonMonth({
         <StatusChip state="overdue" />
       ) : null
     targetBody = (
-      <div className="grid gap-3">
+      <div className={cn(CARD)}>
         <div className="grid gap-2">
           <Frames
             accepted={row.accepted}
@@ -311,12 +316,12 @@ function PersonMonth({
             chip={chip}
           />
           {!past && (row.pending > 0 || toTake > 0) ? (
-            <p className="flex flex-wrap gap-x-3 gap-y-0.5 text-meta-touch text-ink-muted tabular-nums md:text-meta">
+            <p className="flex flex-wrap gap-x-4 gap-y-1 text-meta text-ink-muted tabular-nums">
               {row.pending > 0 ? (
                 <span className="inline-flex items-center gap-1.5">
                   <i
                     aria-hidden
-                    className="inline-block h-2 w-3.5 rounded-print border-[1.5px] border-dashed border-ink-muted"
+                    className="block h-2.5 w-[22px] rounded-round bg-stripe"
                   />
                   {row.complete
                     ? `${row.pending} more waiting for review`
@@ -327,7 +332,7 @@ function PersonMonth({
                 <span className="inline-flex items-center gap-1.5">
                   <i
                     aria-hidden
-                    className="inline-block h-2 w-3.5 rounded-print border border-line-control"
+                    className="block h-2.5 w-[22px] rounded-round bg-surface-2 shadow-[inset_0_0_0_1px_var(--border-strong)]"
                   />
                   {toTake} to take
                 </span>
@@ -336,7 +341,7 @@ function PersonMonth({
           ) : null}
         </div>
         {dueText || source ? (
-          <p className="text-meta-touch text-ink-muted md:text-meta">
+          <p className="border-t border-line pt-3 text-meta text-ink-muted">
             {[
               dueText,
               source
@@ -354,11 +359,11 @@ function PersonMonth({
   } else {
     const missingTeam = !row || row.setupMissing.includes("team")
     targetBody = (
-      <div className="grid gap-3">
+      <div className={cn(CARD)}>
         <p>
           <StatusChip state="needs_setup" />
         </p>
-        <p className="text-body-touch text-ink md:text-body">
+        <p className="text-body text-ink">
           {past
             ? `No target for ${name}.`
             : `No target for ${name} yet. You set it on Team${
@@ -369,7 +374,10 @@ function PersonMonth({
           <div>
             <Link
               href={teamHref(ctx.basePath, period.key, current)}
-              className={buttonVariants({ variant: "secondary", size: "touch" })}
+              className={buttonVariants({
+                variant: "secondary",
+                size: "touch",
+              })}
             >
               <PencilSimpleIcon aria-hidden />
               Set {first}&apos;s target
@@ -383,65 +391,70 @@ function PersonMonth({
   return (
     <>
       {row ? (
-        <TeamPerson person={row.person} meta={row.person.jobTitle} />
+        <TeamPerson
+          person={row.person}
+          meta={row.person.jobTitle}
+          className={cn(CARD, "flex")}
+        />
       ) : (
         <p className={muted}>
           Nothing recorded for this person at this venue in {period.label}.
         </p>
       )}
-      <section aria-labelledby="person-target" className="grid gap-3">
+      <section aria-labelledby="person-target" className={SECTION}>
         <h2
           id="person-target"
-          className="text-section-title-touch text-ink md:text-section-title"
+          className="font-display text-section-title text-ink"
         >
           {name} target
         </h2>
         {targetBody}
       </section>
-      <section aria-labelledby="person-photos" className="grid gap-3">
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-2">
+      <section aria-labelledby="person-photos" className={SECTION}>
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <h2
             id="person-photos"
-            className="text-section-title-touch text-ink md:text-section-title"
+            className="font-display text-section-title text-ink"
           >
             {period.key === current
               ? "Photos sent this month"
               : `Photos sent in ${name}`}
           </h2>
           {submissions.length > 0 ? (
-            <span className="text-meta-touch text-ink-muted tabular-nums md:text-meta">
+            <span className="text-meta text-ink-muted tabular-nums">
               {submissions.length} sent
             </span>
           ) : null}
         </div>
         {submissions.length === 0 ? (
-          <p role="status" className="text-body-touch text-ink-muted md:text-body">
+          <p role="status" className={cn(CARD, "text-body text-ink-muted")}>
             {first} hasn&apos;t sent any photos for {name} yet.
             {hasTarget
               ? " Photos count for the month their upload started."
               : null}
           </p>
         ) : (
-          <ul className="grid grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3 lg:grid-cols-4">
+          <ul className="grid grid-cols-2 gap-(--gutter) sm:grid-cols-3 lg:grid-cols-4">
             {submissions.map((s) => {
               const title = s.requirement?.title ?? "Photo"
-              const isLate = s.state === "accepted" && s.decision?.lateAcceptance
+              const isLate =
+                s.state === "accepted" && s.decision?.lateAcceptance
               const word = isLate
                 ? `Accepted late, counts for ${periodView(s.period).label}`
                 : stateWord(s.state)
               return (
                 <li key={s.id}>
-                  <figure className="grid min-w-0 content-start gap-1.5">
+                  <figure className="grid h-full min-w-0 content-start overflow-hidden rounded-card bg-surface shadow-card">
                     <EvidencePreviewButton
                       thumbnailUrl={s.asset.thumbnailUrl}
                       previewUrl={s.asset.previewUrl}
                       label={`${title}, ${word}`}
                     />
-                    <figcaption className="grid min-w-0 gap-1">
-                      <span className="truncate text-meta-touch font-semibold text-ink md:text-meta-strong">
+                    <figcaption className="grid min-w-0 gap-1.5 p-3">
+                      <span className="text-meta font-bold [overflow-wrap:anywhere] text-ink">
                         {title}
                       </span>
-                      <span className="text-meta-touch text-ink-muted md:text-meta">
+                      <span className="text-meta text-ink-muted">
                         {isLate ? (
                           `Sent ${formatDate(s.submittedAt)}`
                         ) : (
@@ -456,7 +469,7 @@ function PersonMonth({
           </ul>
         )}
         {late.map((s) => (
-          <div key={s.id} className="grid gap-1">
+          <div key={s.id} className={cn(CARD, "gap-2")}>
             <p>
               <StatusChip tone="closed">
                 Accepted late · counts for {periodView(s.period).label}

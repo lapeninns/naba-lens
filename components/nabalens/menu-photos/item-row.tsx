@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { CameraPlusIcon, CheckCircleIcon } from "@phosphor-icons/react"
+import { CameraIcon, CameraPlusIcon, ImageIcon } from "@phosphor-icons/react"
 
 import { EvidenceThumb } from "@/components/nabalens/coverage/evidence-image"
 import { plural } from "@/components/nabalens/coverage/copy"
@@ -42,37 +42,39 @@ export function OurMenuItemRow({
   return (
     <article
       aria-labelledby={nameId}
-      className="grid grid-cols-[4rem_minmax(0,1fr)] gap-3 py-3 @min-[36rem]:grid-cols-[4rem_minmax(0,1fr)_auto] @min-[36rem]:items-center"
+      className="grid min-h-16 grid-cols-[3.5rem_minmax(0,1fr)] gap-x-3 gap-y-2 py-3 @min-[36rem]:grid-cols-[3.5rem_minmax(0,1fr)_auto] @min-[36rem]:items-center"
     >
       {item.primary ? (
         <EvidenceThumb
           src={item.primary.asset.thumbnailUrl}
-          className="aspect-square w-16"
+          className="aspect-square w-14 rounded-control"
         />
       ) : (
         <span
           aria-hidden
-          className="grid aspect-square w-16 place-items-center rounded-print border border-dashed border-line-control text-ink-subtle"
+          className="grid aspect-square w-14 place-items-center rounded-control border-2 border-dashed border-border-strong text-ink-muted"
         >
-          <CameraPlusIcon className="size-6" />
+          <CameraIcon className="size-6" />
         </span>
       )}
       <div className="grid min-w-0 content-start gap-1">
         <h3
           id={nameId}
-          className="text-item-title-touch break-words text-ink md:text-item-title"
+          className="text-item-title [overflow-wrap:anywhere] text-ink"
         >
           {item.name}
         </h3>
         {variants ? (
-          <p className="text-meta-touch break-words text-ink-muted md:text-meta">
+          <p className="text-meta [overflow-wrap:anywhere] text-ink-muted">
             {variants}
           </p>
         ) : null}
         <p className="flex flex-wrap items-center gap-1.5">
           {item.covered ? (
+            // An ok outline square with a photo icon: never the filled tick
+            // square, which is Accepted's alone (DESIGN.md §3).
             <StatusChip tone="positive">
-              <CheckCircleIcon aria-hidden className="size-3.5" />
+              <ImageIcon aria-hidden className="size-4" />
               {OUR_MENU_COPY.hasPhoto}
             </StatusChip>
           ) : (
@@ -82,12 +84,12 @@ export function OurMenuItemRow({
             <StatusChip tone="pending">{OUR_MENU_COPY.recheck}</StatusChip>
           ) : null}
           {item.acceptedCount > 1 ? (
-            <span className="text-meta-touch text-ink-muted md:text-meta">
+            <span className="text-meta text-ink-muted">
               {plural(item.acceptedCount, "accepted photo")}
             </span>
           ) : null}
           {item.review && waiting > 0 ? (
-            <span className="text-meta-touch text-ink-muted md:text-meta">
+            <span className="text-meta text-ink-muted">
               {plural(waiting, "photo")} to review
             </span>
           ) : null}
@@ -138,5 +140,5 @@ export function OurMenuItemRow({
 
 /** Shared list class: one bordered panel, rows split by lines. */
 export const OUR_MENU_LIST_CLASS = cn(
-  "@container divide-y divide-line rounded-panel border border-line bg-panel px-3 sm:px-4"
+  "@container divide-y divide-line px-3 sm:px-4"
 )

@@ -23,18 +23,17 @@ function Frames({
       <div
         aria-hidden
         className={cn(
-          "flex overflow-hidden rounded-print border border-line-control",
+          "flex overflow-hidden rounded-round bg-surface-2 shadow-[inset_0_0_0_1px_var(--border-strong)]",
           compact ? "h-2" : "h-3"
         )}
       >
         <span
-          className="bg-positive-fill"
+          className="bg-ok-fg"
           style={{ width: `${(filled / target) * 100}%` }}
         />
-        {/* A 2px border-box edge still draws at width 0. */}
         {pending > 0 ? (
           <span
-            className="border-2 border-dashed border-ink-muted"
+            className="bg-stripe"
             style={{ width: `${(pending / target) * 100}%` }}
           />
         ) : null}
@@ -47,12 +46,13 @@ function Frames({
         <li
           key={index}
           className={cn(
-            "flex-1 rounded-print border border-line-control",
+            "flex-1 rounded-round",
             compact ? "h-2 max-w-5.5" : "h-3 max-w-14",
-            index < filled && "border-positive-fill bg-positive-fill",
-            index >= filled &&
-              index < filled + pending &&
-              "border-2 border-dashed border-ink-muted"
+            index < filled
+              ? "bg-ok-fg"
+              : index < filled + pending
+                ? "bg-stripe"
+                : "bg-surface-2 shadow-[inset_0_0_0_1px_var(--border-strong)]"
           )}
         />
       ))}
@@ -82,18 +82,18 @@ export function StaffMonth({
   const headingId = `month-${monthly.period.key}`
 
   return (
-    <section aria-labelledby={headingId} className="grid gap-3">
+    <section
+      aria-labelledby={headingId}
+      className="grid min-w-0 gap-3 rounded-card bg-surface p-4 shadow-card"
+    >
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h2
-          id={headingId}
-          className="text-section-title-touch text-ink md:text-section-title"
-        >
+        <h2 id={headingId} className="font-display text-section-title text-ink">
           {inactive
             ? `${monthly.period.label} at ${monthly.venue.name}`
             : `${firstName}'s month`}
         </h2>
         {inactive ? null : (
-          <span className="text-meta-touch text-ink-muted md:text-meta">
+          <span className="font-mono text-meta text-ink-muted">
             {monthly.period.label}
           </span>
         )}
@@ -103,14 +103,12 @@ export function StaffMonth({
           <span
             className={cn(
               "tabular-nums",
-              inactive
-                ? "text-label-touch md:text-label"
-                : "font-display text-count-touch md:text-count"
+              inactive ? "text-label" : "font-display text-count"
             )}
           >
             {monthly.accepted}
           </span>
-          <span className="text-body-touch text-ink-muted md:text-body">
+          <span className="text-lead font-bold text-ink-muted">
             {needsSetup ? "accepted" : `of ${target} accepted`}
           </span>
           {needsSetup ? (
@@ -126,11 +124,11 @@ export function StaffMonth({
           />
         ) : null}
         {inactive ? null : (
-          <p className="flex flex-wrap gap-x-3 gap-y-0.5 text-meta-touch text-ink-muted tabular-nums md:text-meta">
+          <p className="flex flex-wrap gap-x-4 gap-y-1 text-meta text-ink-muted tabular-nums">
             <span className="inline-flex items-center gap-1.5">
               <i
                 aria-hidden
-                className="inline-block h-2 w-3.5 rounded-print border-2 border-dashed border-ink-muted"
+                className="inline-block h-2.5 w-[22px] rounded-round bg-stripe"
               />
               {monthly.pending} waiting for review
             </span>
@@ -138,7 +136,7 @@ export function StaffMonth({
               <span className="inline-flex items-center gap-1.5">
                 <i
                   aria-hidden
-                  className="inline-block h-2 w-3.5 rounded-print border border-line-control"
+                  className="inline-block h-2.5 w-[22px] rounded-round bg-surface-2 shadow-[inset_0_0_0_1px_var(--border-strong)]"
                 />
                 {toTake} to take
               </span>
@@ -146,7 +144,7 @@ export function StaffMonth({
           </p>
         )}
       </div>
-      <p className="text-body-touch text-ink-muted md:text-body-sm">
+      <p className="text-body text-ink-muted">
         {inactive
           ? `${firstName}'s open assignments closed on deactivation; those items show Needs reassignment.`
           : `Counts only ${firstName}'s photos at ${monthly.venue.name} this UK month. It's never added to the venue's checklist.`}

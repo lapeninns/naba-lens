@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { CaretRightIcon } from "@phosphor-icons/react/dist/ssr"
+import { CaretRightIcon, ForkKnifeIcon } from "@phosphor-icons/react/dist/ssr"
 
 import { Progress } from "@/components/ui/progress"
 
@@ -34,33 +34,41 @@ export function OurMenuCard({
   const browse = (
     <Link
       href={menuHref}
-      className="inline-flex w-fit items-center gap-1 text-body-touch font-semibold text-ink underline underline-offset-3 md:text-body-sm"
+      className="inline-flex min-h-11 w-fit items-center gap-1 rounded-control text-body font-bold text-ink underline underline-offset-3 outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
     >
       Browse our menu
-      <CaretRightIcon aria-hidden className="size-4" />
+      <CaretRightIcon aria-hidden weight="bold" className="size-5" />
     </Link>
   )
   return (
     <section
       aria-labelledby="our-menu-heading"
-      className="flex flex-col gap-3 rounded-xl border bg-card p-4"
+      className="grid min-w-0 gap-3 rounded-card bg-surface p-4 shadow-card"
     >
-      <div className="grid gap-0.5">
-        <h2
-          id="our-menu-heading"
-          className="text-item-title-touch text-ink md:text-item-title"
+      <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3">
+        <span
+          aria-hidden
+          className="grid size-11 place-items-center rounded-round bg-surface-2 text-ink [&_svg]:size-6"
         >
-          Our menu
-        </h2>
-        <p className="text-meta-touch text-ink-muted md:text-meta">
-          Menu items with an accepted photo
-          {venueName ? ` at ${venueName}` : ""}
-        </p>
+          <ForkKnifeIcon />
+        </span>
+        <div className="grid min-w-0 gap-0.5">
+          <h2
+            id="our-menu-heading"
+            className="font-display text-section-title text-ink"
+          >
+            Our menu
+          </h2>
+          <p className="text-meta [overflow-wrap:anywhere] text-ink-muted">
+            Menu items with an accepted photo
+            {venueName ? ` at ${venueName}` : ""}
+          </p>
+        </div>
       </div>
       {progress.state === "ready" ? (
         <>
-          <p className="text-body-touch text-ink md:text-body">
-            <span className="font-semibold tabular-nums">
+          <p className="text-body text-ink">
+            <span className="font-mono font-bold tabular-nums">
               {progress.covered} of {progress.total}
             </span>{" "}
             menu items have an accepted photo
@@ -76,12 +84,10 @@ export function OurMenuCard({
           {browse}
         </>
       ) : progress.state === "no_menu" ? (
-        <p className="text-body-touch text-ink-muted md:text-body-sm">
-          {NO_MENU_COPY}
-        </p>
+        <p className="text-body text-ink-muted">{NO_MENU_COPY}</p>
       ) : progress.state === "empty" ? (
         <>
-          <p className="text-body-touch text-ink-muted md:text-body-sm">
+          <p className="text-body text-ink-muted">
             The active menu has no dishes or drinks yet.
           </p>
           {browse}

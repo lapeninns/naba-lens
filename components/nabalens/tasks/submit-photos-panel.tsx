@@ -11,6 +11,8 @@ import {
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton"
 
+import { ActionDock } from "../common-room/action-dock"
+import { Card } from "../common-room/card"
 import { LoadMoreButton } from "../load-more-button"
 import { EmptyState } from "../empty-state"
 import { Notice } from "../notice"
@@ -423,143 +425,148 @@ export function SubmitPhotosPanel({
     list.photos.length > 0 && !list.photos.some((p) => p.eligible)
 
   return (
-    <div className="flex flex-col gap-4">
-      <h2 className="font-display text-section-title-touch text-ink md:text-section-title">
-        {monthly || !taskTitle ? "Send photos" : `Send photos to ${taskTitle}`}
-      </h2>
+    <div className="flex flex-col gap-(--gutter)">
+      <Card className="gap-4">
+        <h2 className="font-display text-section-title [overflow-wrap:anywhere] text-ink">
+          {monthly || !taskTitle
+            ? "Send photos"
+            : `Send photos to ${taskTitle}`}
+        </h2>
 
-      {nothingEligible ? (
-        <Notice tone="plain">
-          None of your photos can be sent for this task.
-          {venueName ? ` Take a new one at ${venueName}.` : ""}
-        </Notice>
-      ) : null}
-
-      {full ? (
-        <Notice tone="attention">
-          You can send up to {maxSelected} at a time.
-        </Notice>
-      ) : null}
-
-      <div className="flex flex-col gap-2">
-        <PhotoSourceActions
-          layout="row"
-          className="sm:max-w-xl"
-          libraryVariant={
-            nothingEligible || list.photos.length === 0
-              ? "primary"
-              : "secondary"
-          }
-          onChoose={choose}
-        />
-        <p className="text-meta-touch text-ink-muted md:text-meta">
-          New photos are selected for you once they&apos;re ready.
-        </p>
-        {addQueue ? null : ownPicker.inputs}
-      </div>
-
-      <div
-        aria-live="polite"
-        className="text-body-touch empty:hidden md:text-body-sm"
-      >
-        {uploadNote ? <p>{uploadNote}</p> : null}
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <h3 className="text-item-title-touch text-ink md:text-item-title">
-          Or send photos you&apos;ve already added
-        </h3>
-        <p className="text-meta-touch text-ink-muted md:text-meta">
-          {monthly
-            ? "Photos you upload and send this month count toward your target once accepted."
-            : "Photos from earlier months can still count for this task."}{" "}
-          Only ready photos can be sent; photos still processing or that failed
-          to upload don&apos;t count.
-        </p>
-      </div>
-
-      {list.photos.length > 0 ? (
-        <PhotoPicker
-          photos={list.photos}
-          selected={selected}
-          onToggle={toggle}
-          maxSelected={maxSelected}
-          flagged={flagged}
-          monthly={monthly}
-        />
-      ) : list.error ? null : (
-        <EmptyState
-          inline
-          title={monthly ? "No photos from this month yet." : "No photos yet."}
-          description="Choose from your photos or take one to get started."
-        />
-      )}
-
-      {loadingMore ? (
-        <SkeletonRegion
-          label="Loading photos…"
-          className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6"
-        >
-          {[0, 1, 2].map((n) => (
-            <Skeleton key={n} shape="tile" />
-          ))}
-        </SkeletonRegion>
-      ) : null}
-
-      <LoadMoreButton
-        hasMore={list.nextCursor !== null}
-        loading={loadingMore}
-        error={list.error}
-        onLoadMore={() =>
-          list.errorSource === "first"
-            ? void reloadFirstPage()
-            : void loadMore()
-        }
-      />
-
-      <div className="sticky bottom-0 z-20 -mx-4 flex flex-col gap-3 border-t border-line bg-paper/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
-        <OutcomeMessage
-          outcome={outcome}
-          onRetry={() => void send()}
-          onReload={onReload}
-          signInHref={signInHref}
-          retrying={sending || !online}
-          replacing={replacesSubmissionId !== null}
-        />
-        {!sending ? (
-          <p className="text-meta-touch text-ink-muted md:text-meta">
-            {replacesSubmissionId
-              ? count > 0
-                ? `${count} selected · it replaces the earlier photo`
-                : null
-              : `${count} selected · up to ${maxSelected}`}
-          </p>
+        {nothingEligible ? (
+          <Notice tone="plain" className="bg-surface-2 shadow-none">
+            None of your photos can be sent for this task.
+            {venueName ? ` Take a new one at ${venueName}.` : ""}
+          </Notice>
         ) : null}
-        <Button
-          size="touch"
-          onClick={() => void send()}
-          disabled={count === 0 || sending || !online}
-          aria-busy={sending}
-          className="sm:self-start"
-        >
-          {sending ? (
-            <SpinnerGapIcon
-              data-icon="inline-start"
-              className="motion-safe:animate-spin"
-              aria-hidden
-            />
-          ) : (
-            <PaperPlaneTiltIcon data-icon="inline-start" aria-hidden />
-          )}
-          {sending
-            ? "Sending…"
-            : replacesSubmissionId
-              ? "Send another photo"
-              : count === 0
-                ? "Select photos to send"
-                : `Send ${plural(count, "photo", "photos")}`}
-        </Button>
-      </div>
+
+        {full ? (
+          <Notice tone="attention">
+            You can send up to {maxSelected} at a time.
+          </Notice>
+        ) : null}
+
+        <div className="flex flex-col gap-2">
+          <PhotoSourceActions
+            layout="row"
+            className="md:max-w-xl"
+            libraryVariant={
+              nothingEligible || list.photos.length === 0
+                ? "primary"
+                : "secondary"
+            }
+            onChoose={choose}
+          />
+          <p className="text-meta text-ink-muted">
+            New photos are selected for you once they&apos;re ready.
+          </p>
+          {addQueue ? null : ownPicker.inputs}
+        </div>
+
+        <div aria-live="polite" className="text-body font-bold empty:hidden">
+          {uploadNote ? <p>{uploadNote}</p> : null}
+        </div>
+
+        <div className="flex flex-col gap-1 border-t border-line pt-4">
+          <h3 className="font-display text-item-title text-ink">
+            Or send photos you&apos;ve already added
+          </h3>
+          <p className="text-meta text-ink-muted">
+            {monthly
+              ? "Photos you upload and send this month count toward your target once accepted."
+              : "Photos from earlier months can still count for this task."}{" "}
+            Only ready photos can be sent; photos still processing or that
+            failed to upload don&apos;t count.
+          </p>
+        </div>
+
+        {list.photos.length > 0 ? (
+          <PhotoPicker
+            photos={list.photos}
+            selected={selected}
+            onToggle={toggle}
+            maxSelected={maxSelected}
+            flagged={flagged}
+            monthly={monthly}
+          />
+        ) : list.error ? null : (
+          <EmptyState
+            inline
+            title={
+              monthly ? "No photos from this month yet." : "No photos yet."
+            }
+            description="Choose from your photos or take one to get started."
+          />
+        )}
+
+        {loadingMore ? (
+          <SkeletonRegion
+            label="Loading photos…"
+            className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6"
+          >
+            {[0, 1, 2].map((n) => (
+              <Skeleton key={n} shape="tile" />
+            ))}
+          </SkeletonRegion>
+        ) : null}
+
+        <LoadMoreButton
+          hasMore={list.nextCursor !== null}
+          loading={loadingMore}
+          error={list.error}
+          onLoadMore={() =>
+            list.errorSource === "first"
+              ? void reloadFirstPage()
+              : void loadMore()
+          }
+        />
+      </Card>
+
+      <ActionDock>
+        <div className="grid gap-2.5">
+          <OutcomeMessage
+            outcome={outcome}
+            onRetry={() => void send()}
+            onReload={onReload}
+            signInHref={signInHref}
+            retrying={sending || !online}
+            replacing={replacesSubmissionId !== null}
+          />
+          {!sending ? (
+            <p className="text-center font-mono text-meta text-ink-muted tabular-nums empty:hidden md:text-left">
+              {replacesSubmissionId
+                ? count > 0
+                  ? `${count} selected · it replaces the earlier photo`
+                  : null
+                : `${count} selected · up to ${maxSelected}`}
+            </p>
+          ) : null}
+          <Button
+            size="lg"
+            onClick={() => void send()}
+            disabled={count === 0 || sending || !online}
+            aria-busy={sending}
+            className="w-full md:w-auto md:justify-self-start"
+          >
+            {sending ? (
+              <SpinnerGapIcon
+                data-icon="inline-start"
+                className="motion-safe:animate-spin"
+                aria-hidden
+              />
+            ) : (
+              <PaperPlaneTiltIcon data-icon="inline-start" aria-hidden />
+            )}
+            {sending
+              ? "Sending…"
+              : replacesSubmissionId
+                ? "Send another photo"
+                : count === 0
+                  ? "Select photos to send"
+                  : `Send ${plural(count, "photo", "photos")}`}
+          </Button>
+        </div>
+      </ActionDock>
 
       {addQueue ? null : (
         <UploadDialog
@@ -594,44 +601,47 @@ function OutcomeMessage({
   if (!outcome) return null
   if (outcome.kind === "sent" && outcome.replaced && !outcome.alreadySent) {
     return (
-      <div
+      <Notice
+        tone="positive"
         role="status"
-        className="flex flex-col gap-1 text-body-touch md:text-body-sm"
+        title="Your new photo is waiting for review"
       >
-        <p className="font-medium text-positive">
-          Your new photo is waiting for review
-        </p>
         <p>
           Sent. {outcome.reviewerName ?? "Your reviewer"} reviews it next. Your
           earlier photo stays in Photos and on your profile.
         </p>
-      </div>
+      </Notice>
     )
   }
   if (outcome.kind === "sent") {
+    const more = outcome.skipped > 0 || !outcome.alreadySent
     return (
-      <div
+      <Notice
+        tone="positive"
         role="status"
-        className="flex flex-col gap-1 text-body-touch md:text-body-sm"
-      >
-        <p className="font-medium text-positive">
-          {outcome.alreadySent
+        title={
+          outcome.alreadySent
             ? "These photos were already sent. Nothing was sent twice."
-            : `Sent ${plural(outcome.sent, "photo", "photos")} for review.`}
-        </p>
-        {outcome.skipped > 0 ? (
-          <p>
-            {plural(outcome.skipped, "photo wasn't", "photos weren't")} sent.
-            See the reason under each one.
-          </p>
+            : `Sent ${plural(outcome.sent, "photo", "photos")} for review.`
+        }
+      >
+        {more ? (
+          <div className="grid gap-0.5">
+            {outcome.skipped > 0 ? (
+              <p>
+                {plural(outcome.skipped, "photo wasn't", "photos weren't")}{" "}
+                sent. See the reason under each one.
+              </p>
+            ) : null}
+            {!outcome.alreadySent ? (
+              <p className="text-ink-muted">
+                They&apos;re already in your portfolio and Explore. Review only
+                decides whether they count.
+              </p>
+            ) : null}
+          </div>
         ) : null}
-        {!outcome.alreadySent ? (
-          <p className="text-muted-foreground">
-            They&apos;re already in your portfolio and Explore. Review only
-            decides whether they count.
-          </p>
-        ) : null}
-      </div>
+      </Notice>
     )
   }
   const { copy } = outcome

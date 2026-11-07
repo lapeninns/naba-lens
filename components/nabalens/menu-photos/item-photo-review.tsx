@@ -426,7 +426,7 @@ export function ItemPhotoReview({
         <div
           ref={listRef}
           tabIndex={-1}
-          className="@container grid gap-6 outline-none"
+          className="@container grid gap-6 outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
         >
           {groupByItem(items).map((group) => {
             const headingId = `item-photos-${group.item.id}`
@@ -440,11 +440,11 @@ export function ItemPhotoReview({
                   <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
                     <h2
                       id={headingId}
-                      className="text-section-title-touch break-words text-ink md:text-section-title"
+                      className="font-display text-section-title [overflow-wrap:anywhere] text-ink"
                     >
                       {group.item.name}
                     </h2>
-                    <p className="text-meta-touch text-ink-muted md:text-meta">
+                    <p className="text-meta text-ink-muted">
                       {group.item.sectionName}
                     </p>
                   </div>
@@ -463,7 +463,7 @@ export function ItemPhotoReview({
                 </div>
                 <ul
                   aria-label={`Photos of ${group.item.name}`}
-                  className="grid gap-4"
+                  className="grid gap-(--gutter)"
                 >
                   {group.candidates.map((candidate) => (
                     <li key={candidate.labelId}>
@@ -575,10 +575,10 @@ export function ItemPhotoReview({
           <div className="flex items-center gap-3">
             <EvidenceThumb
               src={subject.asset.thumbnailUrl}
-              className="aspect-square w-16 shrink-0"
+              className="aspect-square w-16 shrink-0 rounded-control"
             />
-            <p className="min-w-0 text-body-touch md:text-body-sm">
-              <strong className="font-semibold break-words text-ink">
+            <p className="min-w-0 text-body">
+              <strong className="font-bold [overflow-wrap:anywhere] text-ink">
                 {subject.item.name}
                 {subject.variant ? ` · ${subject.variant.name}` : null}
               </strong>
@@ -627,7 +627,7 @@ function CandidateCard({
   return (
     <article
       aria-label={`${candidate.item.name}: photo by ${uploader.displayName}`}
-      className="grid gap-5 rounded-panel border border-line bg-panel p-4 @min-[40rem]:grid-cols-[minmax(0,280px)_minmax(0,1fr)]"
+      className="grid gap-4 rounded-card bg-surface p-4 shadow-card @min-[40rem]:grid-cols-[minmax(0,280px)_minmax(0,1fr)]"
     >
       <EvidencePreviewButton
         thumbnailUrl={candidate.asset.thumbnailUrl}
@@ -638,36 +638,44 @@ function CandidateCard({
       <div className="grid min-w-0 content-start gap-3">
         <div className="flex flex-wrap items-center gap-1.5">
           {photo ? (
-            <StatusChip
-              tone={
-                photo.state === "accepted"
-                  ? "positive"
-                  : photo.state === "needs_recheck"
-                    ? "pending"
-                    : "neutral"
-              }
-            >
-              {ITEM_PHOTO_STATE_LABEL[photo.state]}
-            </StatusChip>
+            // §3 shapes: accepted is the filled tick square; a better photo
+            // asked for is the warn pill; a recheck is the dashed pill.
+            photo.state === "accepted" ? (
+              <StatusChip state="accepted">
+                {ITEM_PHOTO_STATE_LABEL[photo.state]}
+              </StatusChip>
+            ) : photo.state === "better_photo_requested" ? (
+              <StatusChip state="needs_another_photo">
+                {ITEM_PHOTO_STATE_LABEL[photo.state]}
+              </StatusChip>
+            ) : (
+              <StatusChip tone="pending">
+                {ITEM_PHOTO_STATE_LABEL[photo.state]}
+              </StatusChip>
+            )
           ) : (
-            <StatusChip tone="pending">{ITEM_REVIEW_COPY.waiting}</StatusChip>
+            <StatusChip state="submitted">
+              {ITEM_REVIEW_COPY.waiting}
+            </StatusChip>
           )}
           {photo?.isPrimary ? (
             <StatusChip tone="neutral">
-              <StarIcon aria-hidden className="size-3.5" />
+              <StarIcon aria-hidden />
               {ITEM_REVIEW_COPY.primary}
             </StatusChip>
           ) : null}
           {candidate.self ? <SelfReviewBadge /> : null}
         </div>
-        <dl className="grid gap-1 text-body-touch md:text-body-sm">
+        <dl className="grid gap-1.5 text-body">
           <div className="flex flex-wrap gap-x-2">
             <dt className="text-ink-muted">Dish</dt>
-            <dd className="break-words text-ink">{candidate.item.name}</dd>
+            <dd className="font-bold [overflow-wrap:anywhere] text-ink">
+              {candidate.item.name}
+            </dd>
           </div>
           <div className="flex flex-wrap gap-x-2">
             <dt className="text-ink-muted">Variant</dt>
-            <dd className="break-words text-ink">
+            <dd className="font-bold [overflow-wrap:anywhere] text-ink">
               {candidate.variant?.name ??
                 (candidate.variantRemoved
                   ? ITEM_REVIEW_COPY.variantGone
@@ -676,13 +684,15 @@ function CandidateCard({
           </div>
           <div className="flex flex-wrap gap-x-2">
             <dt className="text-ink-muted">Uploaded at</dt>
-            <dd className="break-words text-ink">{venueName}</dd>
+            <dd className="font-bold [overflow-wrap:anywhere] text-ink">
+              {venueName}
+            </dd>
           </div>
         </dl>
         <div className="flex min-w-0 items-center gap-3">
           <ProfileAvatar name={uploader.displayName} />
           <span className="grid min-w-0">
-            <span className="text-item-title-touch break-words text-ink md:text-label">
+            <span className="text-label [overflow-wrap:anywhere] text-ink">
               {candidate.self ? "You" : uploader.displayName}
               {!uploader.active ? (
                 <span className="font-normal text-ink-muted">
@@ -691,7 +701,7 @@ function CandidateCard({
                 </span>
               ) : null}
             </span>
-            <span className="text-meta-touch text-ink-muted md:text-meta">
+            <span className="text-meta text-ink-muted tabular-nums">
               Uploaded {formatDateTime(candidate.uploadedAt)}
               {waited ? ` · waiting ${waited}` : null}
             </span>
@@ -704,7 +714,7 @@ function CandidateCard({
         {error ? (
           <p
             role="alert"
-            className="text-body-touch text-negative md:text-body-sm"
+            className="text-body font-semibold [overflow-wrap:anywhere] text-warn-fg"
           >
             {error}
           </p>
@@ -746,14 +756,14 @@ function CandidateActions({
   return (
     <div className="grid gap-3">
       {variantGone ? (
-        <p className="text-body-touch text-ink-muted md:text-body-sm">
+        <p className="text-body text-ink-muted">
           {ITEM_REVIEW_COPY.variantRemoved}
         </p>
       ) : null}
       {acceptable ? (
         <label
           htmlFor={`${id}-primary`}
-          className="flex min-h-11 cursor-pointer items-center gap-3 text-body-touch md:min-h-0 md:text-body-sm"
+          className="flex min-h-11 cursor-pointer items-center gap-3 text-body"
         >
           <input
             id={`${id}-primary`}
@@ -761,7 +771,7 @@ function CandidateActions({
             checked={makePrimary}
             disabled={busy}
             onChange={(e) => onMakePrimaryChange(e.currentTarget.checked)}
-            className="size-4 shrink-0 accent-primary"
+            className="size-6 shrink-0 accent-select focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
           />
           {ITEM_REVIEW_COPY.makePrimaryOnAccept}
         </label>

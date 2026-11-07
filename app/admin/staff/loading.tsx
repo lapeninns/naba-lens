@@ -12,9 +12,10 @@ const ROWS = [
   [60, 35],
 ]
 
+/** The directory in its real layout: filter fields, then one card of rows. */
 export default function StaffLoading() {
   return (
-    <div className="mx-auto grid w-full max-w-(--size-page) gap-5 px-4 py-6 md:px-6 md:py-8">
+    <div className="mx-auto grid w-full max-w-(--size-page) gap-4 px-(--page-gutter) pt-4 pb-8 md:px-6 md:py-8">
       <PageHeader
         venueScope
         scope="All venues"
@@ -22,16 +23,31 @@ export default function StaffLoading() {
         summary={STAFF_SUMMARY}
         className="pb-0 md:pb-0"
       />
-      <SkeletonRegion label="Loading staff…" className="grid gap-5">
-        {ROWS.map(([name, meta], index) => (
-          <div key={index} className="flex items-center gap-3">
-            <Skeleton shape="av" />
-            <div className="grid flex-1 gap-2">
-              <Skeleton shape="line" style={{ width: `${name}%` }} />
-              <Skeleton shape="line" style={{ width: `${meta}%` }} />
+      <SkeletonRegion label="Loading staff…" className="grid gap-4">
+        <div className="flex flex-wrap items-end gap-3">
+          {["sm:w-44", "sm:w-44", "sm:w-44", "min-w-48 flex-1"].map(
+            (width, index) => (
+              <div key={index} className={`grid w-full gap-1.5 ${width}`}>
+                <Skeleton shape="line" className="w-20" />
+                <Skeleton className="h-14" />
+              </div>
+            )
+          )}
+        </div>
+        <div className="divide-y divide-line overflow-hidden rounded-card bg-surface shadow-card">
+          {ROWS.map(([name, meta], index) => (
+            <div
+              key={index}
+              className="flex min-h-16 items-center gap-3 px-4 py-3"
+            >
+              <Skeleton shape="av" />
+              <div className="grid flex-1 gap-2">
+                <Skeleton shape="line" style={{ width: `${name}%` }} />
+                <Skeleton shape="line" style={{ width: `${meta}%` }} />
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </SkeletonRegion>
     </div>
   )

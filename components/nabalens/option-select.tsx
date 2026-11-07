@@ -57,24 +57,26 @@ export function OptionSelect({
       <SelectTrigger
         id={id}
         aria-invalid={invalid || undefined}
-        // The trigger sizes itself with data-[size=default]:h-8, which beats a
-        // plain h-* class; override at the same specificity (44px on phones).
+        // The trigger is the 56px Common Room field (data-[size=default]).
         className={cn(
           // The kit shows the value as display:flex, which cuts a long name
           // mid-character; block + truncate ends it with an ellipsis.
-          "w-full min-w-0 data-[size=default]:h-11 sm:data-[size=default]:h-9 *:data-[slot=select-value]:block *:data-[slot=select-value]:truncate",
+          "w-full min-w-0 *:data-[slot=select-value]:block *:data-[slot=select-value]:truncate",
           className
         )}
         {...aria}
       >
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
-      <SelectContent>
+      {/* Always drop below the taller 56px field. Base UI's item-aligned mode
+          lays the list over the trigger and closes on any window resize; the
+          old 36-44px trigger near the top fell back to this placement. */}
+      <SelectContent alignItemWithTrigger={false}>
         {items.map((item) => (
           <SelectItem
             key={item.value}
             value={item.value}
-            className="min-h-11 py-2 sm:min-h-0 sm:py-1"
+            className="min-h-11 py-2"
           >
             {item.label}
           </SelectItem>

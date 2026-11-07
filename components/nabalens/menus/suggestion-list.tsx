@@ -121,8 +121,8 @@ function SuggestionRow({
   ].join(" ")
 
   return (
-    <li className="grid grid-cols-[3rem_minmax(0,1fr)] gap-3 px-4 py-3">
-      <div className="size-12 overflow-hidden rounded-print bg-media-placeholder">
+    <li className="grid grid-cols-[3.5rem_minmax(0,1fr)] gap-3 px-4 py-3">
+      <div className="size-14 overflow-hidden rounded-control bg-surface-2">
         {s.assetThumbnailUrl && !thumbFailed ? (
           // Signed private URL: not routed through next/image (see MediaTile).
           // eslint-disable-next-line @next/next/no-img-element
@@ -155,7 +155,7 @@ function SuggestionRow({
             {s.assetId ? null : " · the file is no longer available"}
           </p>
           {s.status === "resolved" && s.resolvedItemName ? (
-            <p className="text-body-sm text-ink">
+            <p className="text-body text-ink">
               Linked to “{s.resolvedItemName}”
             </p>
           ) : null}
@@ -230,7 +230,7 @@ function SuggestionRow({
               )}
             </div>
             {error ? (
-              <p role="alert" className="text-body-sm text-negative">
+              <p role="alert" className="text-body font-bold text-warn-fg">
                 {error}
               </p>
             ) : null}

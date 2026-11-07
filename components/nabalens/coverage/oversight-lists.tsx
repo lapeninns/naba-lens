@@ -80,7 +80,7 @@ export function SelfReviewList({
   const list = usePagedList(initial, (i) => i.eventId, onLoadMore)
   if (list.items.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground">
+      <p className="text-meta text-ink-muted">
         No self-reviews in this period.
       </p>
     )
@@ -89,7 +89,7 @@ export function SelfReviewList({
     <div className="grid gap-2">
       <ul
         aria-label="Self-reviews"
-        className="divide-y rounded-lg border bg-card"
+        className="grid divide-y divide-line overflow-hidden rounded-card bg-surface shadow-card"
       >
         {list.items.map((item) => (
           <li
@@ -106,7 +106,7 @@ export function SelfReviewList({
             />
             <div className="grid min-w-0 gap-1">
               <p className="flex flex-wrap items-center gap-1.5">
-                <span className="font-medium break-words">
+                <span className="font-bold [overflow-wrap:anywhere]">
                   {item.author.displayName ?? "A manager"}
                 </span>
                 <SelfReviewBadge />
@@ -114,12 +114,12 @@ export function SelfReviewList({
                   <CoverageBadge tone="negative">Photo removed</CoverageBadge>
                 ) : null}
               </p>
-              <p className="text-sm">
+              <p className="text-meta">
                 {labelFor(DECISION_TEXT, item.decision)} their own photo at{" "}
                 {item.venue.name}, {formatDateTime(item.decidedAt)}
               </p>
               {item.reason ? (
-                <p className="text-sm text-muted-foreground">
+                <p className="text-meta text-ink-muted">
                   Reason: {item.reason}
                 </p>
               ) : null}
@@ -155,21 +155,19 @@ export function PreparationRunList({
   const list = usePagedList(initial, (i) => i.id, onLoadMore)
   if (list.items.length === 0) {
     return (
-      <p className="text-body-touch text-ink-muted md:text-body">
-        No preparation has run yet.
-      </p>
+      <p className="text-body text-ink-muted">No preparation has run yet.</p>
     )
   }
   return (
     <div className="grid gap-2">
       <ul
         aria-label="Preparation runs"
-        className="divide-y divide-line rounded-panel border border-line bg-panel"
+        className="grid divide-y divide-line overflow-hidden rounded-card bg-surface shadow-card"
       >
         {list.items.map((run) => (
           <li key={run.id} className="grid gap-1 px-3 py-3 sm:px-4">
             <p className="flex flex-wrap items-center gap-1.5">
-              <span className="text-item-title-touch text-ink md:text-item-title">
+              <span className="text-item-title text-ink">
                 {periodKeyLabel(run.period)},{" "}
                 {run.venueId
                   ? (venueNames[run.venueId] ?? "One venue")
@@ -184,7 +182,7 @@ export function PreparationRunList({
                 {run.trigger === "scheduled" ? "Scheduled" : "Manual"}
               </CoverageBadge>
             </p>
-            <p className="text-meta-touch text-ink-muted md:text-meta">
+            <p className="text-meta text-ink-muted">
               {formatDateTime(run.startedAt)} ·{" "}
               {run.status === "failed"
                 ? `Error code ${run.errorCode ? failureCode(run.errorCode) : "unknown"}. Nothing was half-done.`

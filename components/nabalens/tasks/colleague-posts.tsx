@@ -1,5 +1,9 @@
 import Link from "next/link"
+import { ImagesIcon } from "@phosphor-icons/react/dist/ssr"
 
+import { buttonVariants } from "@/components/ui/button"
+
+import { Post } from "../common-room"
 import { formatDate } from "../format"
 import { ProfileAvatar } from "../profile-avatar"
 import type { MediaItem } from "../types"
@@ -8,7 +12,8 @@ import type { MediaItem } from "../types"
 export const COLLEAGUE_POST_LIMIT = 3
 
 /**
- * Newest photos from colleagues, below To do. Read-only: each post links to
+ * Newest photos from colleagues, below To do, as posts (DESIGN.md §4): the
+ * person, the venue, the photo edge to edge. Read-only: each post links to
  * the Photos page, which owns the viewer. Renders nothing without posts.
  */
 export function ColleaguePosts({
@@ -30,51 +35,52 @@ export function ColleaguePosts({
   return (
     <section
       aria-labelledby="colleagues-heading"
-      className="flex flex-col gap-4"
+      className="grid gap-(--gutter)"
     >
-      <h2
-        id="colleagues-heading"
-        className="font-display text-section-title-touch break-words text-ink md:text-section-title"
-      >
-        From your colleagues
-      </h2>
-      <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="px-1 pt-2">
+        <h2
+          id="colleagues-heading"
+          className="font-display text-section-title [overflow-wrap:anywhere] text-ink"
+        >
+          From your colleagues
+        </h2>
+      </div>
+      <ul className="grid gap-(--gutter)">
         {posts.map((item) => (
-          <li key={item.id} className="flex min-w-0 flex-col gap-2">
-            <Link
-              href={`${peopleHref}/${item.contributorId}`}
-              className="flex min-w-0 items-center gap-2 text-body-touch font-medium text-ink max-md:min-h-11 md:text-body"
-            >
-              <ProfileAvatar name={item.contributorName} size="sm" />
-              <span className="relative min-w-0 truncate">
-                {item.contributorName}
-                <span className="sr-only">&apos;s profile</span>
-              </span>
-            </Link>
-            <Link
-              href={photosHref}
-              className="block aspect-square overflow-hidden rounded-print bg-media-placeholder outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
-            >
-              {/* Signed private URLs: not routed through next/image. */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={item.thumbnailUrl!}
-                alt={`Photo by ${item.contributorName}, ${item.venueName}, uploaded ${formatDate(item.createdAt)}`}
-                loading="lazy"
-                decoding="async"
-                className="size-full object-cover"
-              />
-            </Link>
-            <p className="text-meta-touch text-ink-muted md:text-meta">
-              {item.venueName}
-            </p>
+          <li key={item.id} className="min-w-0">
+            <Post
+              avatar={<ProfileAvatar name={item.contributorName} />}
+              name={
+                <>
+                  {item.contributorName}
+                  <span className="sr-only">&apos;s profile</span>
+                </>
+              }
+              nameHref={`${peopleHref}/${item.contributorId}`}
+              meta={item.venueName}
+              mediaHref={photosHref}
+              media={
+                // Signed private URLs: not routed through next/image.
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={item.thumbnailUrl!}
+                  alt={`Photo by ${item.contributorName}, ${item.venueName}, uploaded ${formatDate(item.createdAt)}`}
+                  loading="lazy"
+                  decoding="async"
+                />
+              }
+            />
           </li>
         ))}
       </ul>
       <Link
         href={photosHref}
-        className="w-fit text-body-touch font-medium text-ink underline underline-offset-3 max-md:flex max-md:min-h-11 max-md:items-center md:text-body"
+        className={buttonVariants({
+          variant: "secondary",
+          className: "w-full",
+        })}
       >
+        <ImagesIcon data-icon="inline-start" aria-hidden />
         See more photos
       </Link>
     </section>

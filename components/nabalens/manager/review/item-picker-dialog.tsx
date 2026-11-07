@@ -195,20 +195,17 @@ export function ItemPickerDialog({
           {card ? (
             <EvidenceThumb
               src={card.asset.thumbnailUrl}
-              className="aspect-square w-20"
+              className="aspect-square w-20 rounded-control"
             />
           ) : null}
           <div className="grid gap-1.5">
-            <label
-              htmlFor={`${id}-search`}
-              className="text-label-touch text-ink md:text-label"
-            >
+            <label htmlFor={`${id}-search`} className="text-label text-ink">
               {REVIEW_COPY.pickerSearch}
             </label>
             <span className="relative block">
               <MagnifyingGlassIcon
                 aria-hidden
-                className="pointer-events-none absolute top-1/2 left-3 size-[18px] -translate-y-1/2 text-ink-muted"
+                className="pointer-events-none absolute top-1/2 left-4 z-10 size-5 -translate-y-1/2 text-ink-muted"
               />
               <Input
                 id={`${id}-search`}
@@ -219,7 +216,7 @@ export function ItemPickerDialog({
                 aria-controls={listId}
                 onChange={(e) => setQuery(e.currentTarget.value)}
                 disabled={pending}
-                className="h-11 pl-9 md:h-9"
+                className="pl-11"
               />
             </span>
           </div>
@@ -227,30 +224,33 @@ export function ItemPickerDialog({
             id={listId}
             aria-describedby={pickError ? `${id}-pick-error` : undefined}
             aria-busy={loading || undefined}
-            className="grid max-h-64 gap-1 overflow-y-auto"
+            className="grid max-h-72 gap-1 overflow-y-auto rounded-card bg-surface-2 p-1"
           >
             <legend className="sr-only">{REVIEW_COPY.pickerItems}</legend>
             {loading && items.length === 0 ? (
-              <p className="flex items-center gap-2 text-body-touch text-ink-muted md:text-body-sm">
+              <p className="flex items-center gap-2 p-3 text-body text-ink-muted">
                 <SpinnerGapIcon
                   aria-hidden
-                  className="size-4 motion-safe:animate-spin"
+                  className="size-5 motion-safe:animate-spin"
                 />
                 {REVIEW_COPY.pickerLoading}
               </p>
             ) : loadError ? (
-              <p role="alert" className="text-body-touch text-negative">
+              <p
+                role="alert"
+                className="p-3 text-body font-semibold text-warn-fg"
+              >
                 {loadError}
               </p>
             ) : items.length === 0 ? (
-              <p className="text-body-touch text-ink-muted md:text-body-sm">
+              <p className="p-3 text-body text-ink-muted">
                 {REVIEW_COPY.pickerEmpty}
               </p>
             ) : (
               items.map((item) => (
                 <label
                   key={item.itemId}
-                  className="flex min-h-11 cursor-pointer items-center gap-3 rounded-control px-2 py-1.5 hover:bg-fill-hover has-checked:bg-well has-focus-visible:outline-2 has-focus-visible:outline-focus has-focus-visible:outline-solid"
+                  className="flex min-h-14 cursor-pointer items-center gap-3 rounded-control px-3 py-2 transition-colors duration-(--duration-quick) hover:bg-raised has-checked:bg-accent-soft has-focus-visible:outline-3 has-focus-visible:-outline-offset-3 has-focus-visible:outline-focus has-focus-visible:outline-solid"
                 >
                   <input
                     type="radio"
@@ -263,11 +263,13 @@ export function ItemPickerDialog({
                       setVariantId(null)
                       setPickError(null)
                     }}
-                    className="size-4 shrink-0 accent-primary"
+                    className="size-6 shrink-0 accent-select"
                   />
                   <span className="grid min-w-0">
-                    <span className="break-words text-ink">{item.name}</span>
-                    <span className="text-meta-touch text-ink-muted md:text-meta">
+                    <span className="text-label break-words text-ink">
+                      {item.name}
+                    </span>
+                    <span className="text-meta text-ink-muted">
                       {item.section.name}
                     </span>
                   </span>
@@ -279,17 +281,14 @@ export function ItemPickerDialog({
             <p
               id={`${id}-pick-error`}
               role="alert"
-              className="text-meta-touch font-semibold text-negative md:text-meta-strong"
+              className="text-body font-semibold text-warn-fg"
             >
               {pickError}
             </p>
           ) : null}
           {picked && picked.variants.length > 0 ? (
             <div className="grid gap-1.5">
-              <label
-                htmlFor={`${id}-variant`}
-                className="text-label-touch text-ink md:text-label"
-              >
+              <label htmlFor={`${id}-variant`} className="text-label text-ink">
                 {REVIEW_COPY.pickerVariant}
               </label>
               <OptionSelect
@@ -315,10 +314,7 @@ export function ItemPickerDialog({
             required={reasonRequired}
           />
           {error ? (
-            <p
-              role="alert"
-              className="text-body-touch text-negative md:text-body-sm"
-            >
+            <p role="alert" className="text-body font-semibold text-warn-fg">
               {error}
             </p>
           ) : null}

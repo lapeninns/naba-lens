@@ -236,10 +236,13 @@ export function AccountTypePanel({
     !(grant && !grant.revokedAt && grant.venueId === member.venueId)
 
   return (
-    <section aria-labelledby={`${ids}-heading`} className="grid gap-3">
+    <section
+      aria-labelledby={`${ids}-heading`}
+      className="grid min-w-0 gap-3 rounded-card bg-surface p-4 shadow-card"
+    >
       <h2
         id={`${ids}-heading`}
-        className="text-section-title-touch text-ink md:text-section-title"
+        className="font-display text-section-title text-ink"
       >
         {ACCOUNT_TYPE_COPY.heading}
       </h2>
@@ -248,8 +251,8 @@ export function AccountTypePanel({
         notice={action.notice}
         onDismiss={action.dismiss}
       />
-      <div className="grid gap-1 text-body-touch md:text-body-sm">
-        <p className="flex flex-wrap items-center gap-2 font-semibold">
+      <div className="grid gap-1 text-body">
+        <p className="flex flex-wrap items-center gap-2 font-bold">
           {role === "manager" ? (
             <>
               <StatusChip state="venue_manager" />
@@ -297,30 +300,27 @@ export function AccountTypePanel({
         </Button>
       </div>
       {inactive ? (
-        <p
-          id={`${ids}-inactive`}
-          className="text-meta-touch text-ink-muted md:text-meta"
-        >
+        <p id={`${ids}-inactive`} className="text-meta text-ink-muted">
           {ACCOUNT_TYPE_COPY.inactive}
         </p>
       ) : null}
 
-      <div className="grid gap-1.5">
+      <div className="grid gap-1.5 border-t border-line pt-3">
         <h3 className="text-meta-strong text-ink-muted">
           {ACCOUNT_TYPE_COPY.historyHeading}
         </h3>
         {history === null ? (
-          <p className="text-meta-touch text-ink-muted md:text-meta">
+          <p className="text-meta text-ink-muted">
             {ACCOUNT_TYPE_COPY.historyUnavailable}
           </p>
         ) : history.length === 0 ? (
-          <p className="text-meta-touch text-ink-muted md:text-meta">
+          <p className="text-meta text-ink-muted">
             {ACCOUNT_TYPE_COPY.historyEmpty}
           </p>
         ) : (
           <ul
             aria-label={ACCOUNT_TYPE_COPY.historyHeading}
-            className="grid gap-1 text-meta-touch break-words md:text-meta"
+            className="grid gap-1 text-meta [overflow-wrap:anywhere]"
           >
             {history.map((change) => (
               <li key={change.id}>{historyLine(change)}</li>
@@ -354,10 +354,7 @@ export function AccountTypePanel({
         reportFocus={() => noticeRef.current}
       >
         <div className="grid gap-1.5">
-          <label
-            htmlFor={`${ids}-venue`}
-            className="text-label-touch text-ink md:text-label"
-          >
+          <label htmlFor={`${ids}-venue`} className="text-label text-ink">
             {ACCOUNT_TYPE_COPY.venue}
           </label>
           <OptionSelect
@@ -370,11 +367,10 @@ export function AccountTypePanel({
             }}
             placeholder={ACCOUNT_TYPE_COPY.chooseVenue}
             invalid={!!venueError}
-            className="max-md:min-h-11"
           />
           {venueError ? <FieldError>{venueError}</FieldError> : null}
         </div>
-        <ul className="grid list-disc gap-1 ps-5 text-body-touch text-ink md:text-body-sm">
+        <ul className="grid list-disc gap-1 ps-5 text-body text-ink">
           {(toRole === "manager"
             ? ACCOUNT_TYPE_COPY.toManager.bullets(
                 chosenVenue?.name ?? "the chosen venue"

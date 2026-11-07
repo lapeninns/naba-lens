@@ -68,13 +68,13 @@ function VersionsTable({
 }) {
   const cell = "px-3 py-3 align-middle first:pl-4 last:pr-2"
   return (
-    <div className="overflow-x-auto rounded-panel border border-line bg-panel">
+    <div className="overflow-x-auto rounded-card bg-surface shadow-card">
       <table
         aria-label="Menu versions"
-        className="w-full border-collapse text-body-touch md:text-body-sm"
+        className="w-full border-collapse text-body"
       >
         <thead>
-          <tr className="border-b border-line text-left text-meta-touch font-semibold text-ink-muted md:text-meta-strong">
+          <tr className="border-b border-line text-left text-meta-strong text-ink-muted">
             <th scope="col" className={cell}>
               Version
             </th>
@@ -104,7 +104,7 @@ function VersionsTable({
                   <Link
                     href={versionHref(v.id)}
                     className={cn(
-                      "rounded-chip font-semibold break-words underline-offset-3 outline-none hover:underline focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-solid",
+                      "rounded-chip font-bold break-words underline decoration-1 underline-offset-4 outline-none hover:decoration-2 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid",
                       closed ? "text-ink-muted" : "text-ink"
                     )}
                   >
@@ -170,11 +170,11 @@ function ImportHistory({ versions }: { versions: MenuVersionSummary[] }) {
     <ul aria-label="Imported files" className={menuListClassName}>
       {imports.map((v) => (
         <li key={v.id} className="flex items-start gap-3 px-4 py-3">
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-control bg-well text-ink-muted">
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-round bg-surface-2 text-ink-muted">
             <FileTextIcon aria-hidden className="size-5" />
           </span>
           <span className="grid min-w-0 gap-0.5">
-            <span className="font-mono text-mono break-all text-ink">
+            <span className="font-mono text-body break-all text-ink">
               {v.source.label ?? SOURCE_KIND_LABEL[v.source.kind]}
             </span>
             <span className={cn("break-words", menuMetaClassName)}>
@@ -276,7 +276,7 @@ export default async function VenueMenusPage({
             />
             <VersionsTable versions={versions} venueId={venue.id} />
           </section>
-          <div className="grid items-start gap-6 md:gap-8 lg:grid-cols-2">
+          <div className="grid items-start gap-6 lg:grid-cols-2">
             <section aria-labelledby="suggestions-title" className="min-w-0">
               <MenuSectionHead
                 id="suggestions-title"

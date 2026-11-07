@@ -108,18 +108,18 @@ export function TeamField({
       aria-describedby={`${id}-hint`}
       aria-invalid={!!error || undefined}
     >
-      <legend className="mb-1.5 text-label-touch md:text-label">Team</legend>
-      <div className="grid grid-cols-3 gap-0.5 rounded-control border border-line-control bg-panel p-0.5">
+      <legend className="mb-1.5 text-label">Team</legend>
+      <div className="grid grid-cols-3 gap-1 rounded-round bg-surface-2 p-1">
         {TEAMS.map((team) => {
           const checked = (value ?? "") === team.id
           return (
             <label
               key={team.name}
               className={cn(
-                "flex min-h-11 cursor-pointer items-center justify-center rounded-chip px-2 text-center text-meta-touch font-semibold has-focus-visible:outline-2 has-focus-visible:outline-offset-1 has-focus-visible:outline-focus md:min-h-8 md:text-meta-strong",
+                "flex min-h-11 cursor-pointer items-center justify-center rounded-round px-2 py-1.5 text-center text-label leading-tight font-bold has-focus-visible:outline-3 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus has-focus-visible:outline-solid",
                 checked
-                  ? "bg-well text-ink"
-                  : "text-ink-muted hover:bg-fill-hover"
+                  ? "bg-surface text-ink shadow-[0_1px_2px_oklch(0.2_0.01_250/0.16),0_0_0_1.5px_var(--border-strong)]"
+                  : "text-ink-muted hover:bg-raised hover:text-ink"
               )}
             >
               <input
@@ -137,10 +137,7 @@ export function TeamField({
           )
         })}
       </div>
-      <p
-        id={`${id}-hint`}
-        className="text-meta-touch text-ink-muted md:text-meta"
-      >
+      <p id={`${id}-hint`} className="text-meta text-ink-muted">
         {hint}
       </p>
       {error ? <FieldError>{error}</FieldError> : null}
@@ -252,7 +249,7 @@ function InviteForm({
       {taken.venueName ? `, ${taken.venueName}` : ""}.{" "}
       <Link
         href={taken.href}
-        className="font-semibold text-ink underline underline-offset-3"
+        className="font-bold text-ink underline underline-offset-4"
       >
         Open {firstWord(taken.displayName)}&apos;s profile
       </Link>{" "}
@@ -284,7 +281,6 @@ function InviteForm({
           onChange={(e) => set(key)(e.currentTarget.value)}
           aria-invalid={!!error || undefined}
           aria-describedby={describedBy || undefined}
-          className="h-11 md:h-9"
           {...extra}
         />
         {error ? (

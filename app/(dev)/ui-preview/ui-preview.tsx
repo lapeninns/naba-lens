@@ -37,6 +37,7 @@ import { OptionSelect } from "@/components/nabalens/option-select"
 import { TaskPhotoGuide } from "@/components/nabalens/guide"
 import { suggestedAngles } from "@/lib/guide/dish-guide"
 
+import { CommonRoomPreview } from "./common-room-preview"
 import {
   FAKE_MEDIA,
   FAKE_STAFF,
@@ -90,10 +91,10 @@ function Section({
   return (
     <section aria-labelledby={id} className="grid gap-3">
       <div>
-        <h2 id={id} className="text-lg font-semibold tracking-tight">
+        <h2 id={id} className="font-display text-page-title">
           {title}
         </h2>
-        {note ? <p className="text-sm text-muted-foreground">{note}</p> : null}
+        {note ? <p className="text-body text-ink-muted">{note}</p> : null}
       </div>
       {children}
     </section>
@@ -101,7 +102,9 @@ function Section({
 }
 
 function Frame({ children }: { children: React.ReactNode }) {
-  return <div className="overflow-hidden rounded-xl border">{children}</div>
+  return (
+    <div className="overflow-hidden rounded-card shadow-card">{children}</div>
+  )
 }
 
 function ThemeToggle() {
@@ -174,6 +177,13 @@ export function UiPreview() {
           </p>
         </div>
       </header>
+
+      <Section
+        title="Common Room"
+        note="DESIGN.md v0.3: tokens, primitives, state shapes and the feed building blocks."
+      >
+        <CommonRoomPreview />
+      </Section>
 
       <Section
         title="Login card"

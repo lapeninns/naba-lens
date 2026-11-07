@@ -85,7 +85,7 @@ export default async function TaskPage({
       avatarUrl={avatarUrl(profile.id, profile.avatarPath)}
       logoutAction={logout}
     >
-      <div className="flex flex-col gap-6 pb-4">
+      <div className="mx-auto flex w-full max-w-(--size-feed) flex-col gap-(--gutter) pb-4">
         <BackToTasks href={TASKS_PATH} />
         <OfflineNotice />
         {replacing || closedRequest ? (
@@ -122,7 +122,7 @@ export default async function TaskPage({
           <section
             id="send"
             aria-label="Send photos"
-            className="flex scroll-mt-4 flex-col gap-4"
+            className="flex scroll-mt-4 flex-col gap-(--gutter)"
           >
             {assignment.canSubmit ? (
               <>
@@ -147,14 +147,18 @@ export default async function TaskPage({
           </section>
         )}
 
-        <section aria-labelledby="mine-heading" className="flex flex-col gap-3">
+        <section
+          aria-labelledby="mine-heading"
+          className="flex flex-col gap-(--gutter)"
+        >
           <h2
             id="mine-heading"
-            className="text-section-title-touch md:text-section-title"
+            className="px-1 pt-2 font-display text-section-title text-ink"
           >
             Your photos for this task
           </h2>
           <SubmissionList
+            variant="post"
             label="Your photos for this task"
             submissions={assignment.mySubmissions}
             empty="You haven't sent photos for this task yet."

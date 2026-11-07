@@ -30,12 +30,12 @@ export function ItemWaiting({
   return (
     <div className="grid gap-3">
       {cards.length === 0 ? (
-        <p className="text-body-touch text-ink-muted md:text-body-sm">
+        <p className="text-body text-ink-muted">
           {item.othersWaiting > 0 ? copy.othersWaiting : copy.noneWaiting}
         </p>
       ) : (
         <>
-          <p className="text-body-touch text-ink md:text-body-sm">
+          <p className="text-body text-ink">
             {copy.waitingCount(
               waiting.nextCursor
                 ? Math.max(item.candidateCount, cards.length)
@@ -44,18 +44,19 @@ export function ItemWaiting({
           </p>
           <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
             {cards.map((card) => (
-              <li key={card.key} className="grid content-start gap-1">
+              <li
+                key={card.key}
+                className="grid min-w-0 content-start gap-1 rounded-card bg-surface p-2 shadow-card"
+              >
                 <EvidenceThumb src={card.asset.thumbnailUrl} />
-                <p className="text-meta-touch break-words text-ink md:text-meta">
+                <p className="text-meta break-words text-ink">
                   {copy.photoBy(card.contributor.name)}
                 </p>
-                <p className="text-meta-touch text-ink-muted md:text-meta">
+                <p className="text-meta text-ink-muted">
                   {formatDate(card.uploadedAt)}
                 </p>
                 {card.isSelf ? (
-                  <p className="text-meta-touch text-ink-muted md:text-meta">
-                    {copy.ownPhoto}
-                  </p>
+                  <p className="text-meta text-ink-muted">{copy.ownPhoto}</p>
                 ) : null}
               </li>
             ))}
@@ -73,7 +74,7 @@ export function ItemWaiting({
         </>
       )}
       {item.ownWaiting > 0 ? (
-        <p className="text-body-touch text-ink-muted md:text-body-sm">
+        <p className="text-body text-ink-muted">
           {MANAGER_COPY.menu.ownWaiting}
         </p>
       ) : null}

@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { WarningCircleIcon } from "@phosphor-icons/react"
 
 import { LabelEditorHost } from "@/app/_labels/label-editor-host"
 import {
@@ -68,6 +69,8 @@ type MediaGalleryProps = {
   getDeleteImpact?: (item: MediaItem) => DeleteImpact | undefined
   /** Admin views only: tile names include the original file name. */
   showFileName?: boolean
+  /** `feed`: posts on the grey canvas (Photos); default square tiles. */
+  layout?: "grid" | "feed"
   /**
    * Called after a delete or label save succeeds, so a page that shows other
    * views of the same files (the staff portfolio's sections) can catch up.
@@ -137,6 +140,7 @@ export function MediaGallery({
   showLabelBadge = false,
   getDeleteImpact,
   showFileName = false,
+  layout = "grid",
   onChanged,
 }: MediaGalleryProps) {
   const [labelIds, setLabelIds] = React.useState<string[] | null>(null)
@@ -353,21 +357,25 @@ export function MediaGallery({
     // tree) reach this handler; see preview-recovery.ts.
     <div ref={attach} className="flex flex-col gap-4" onError={onError}>
       {refreshError ? (
-        <p role="status" className="text-sm text-muted-foreground">
+        <p role="status" className="text-meta text-ink-muted">
           {refreshError}
         </p>
       ) : null}
       {brokenCount > 0 ? (
         <div
           role="alert"
-          className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-negative/40 px-4 py-2 text-sm"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-card bg-warn-bg p-3 ps-4 text-body text-ink shadow-[inset_4px_0_0_var(--warn-fg)]"
         >
-          <span>
+          <span className="flex min-w-0 items-start gap-2">
+            <WarningCircleIcon
+              aria-hidden
+              className="mt-0.5 size-5 shrink-0 text-warn-fg"
+            />
             {brokenCount === 1
               ? "1 preview could not load."
               : `${brokenCount} previews could not load.`}
           </span>
-          <Button variant="outline" size="touch" onClick={retryBroken}>
+          <Button variant="secondary" size="sm" onClick={retryBroken}>
             Try again
           </Button>
         </div>
@@ -382,6 +390,7 @@ export function MediaGallery({
           showAttribution={showAttribution}
           showLabelBadge={showLabelBadge}
           showFileName={showFileName}
+          layout={layout}
           onOpen={(item) => {
             setDownloadError(null)
             setOpenId(item.id)

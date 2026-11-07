@@ -165,12 +165,13 @@ export function PrepareMonthButton({
       <Dialog open={open} onOpenChange={change}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="break-words">{title}</DialogTitle>
+            <DialogTitle className="[overflow-wrap:anywhere]">
+              {title}
+            </DialogTitle>
           </DialogHeader>
           {outcome?.kind === "done" ? (
             <Notice tone="positive" title={`${month} is prepared`}>
-              Targets copied for{" "}
-              {plural(outcome.copied, "person", "people")}
+              Targets copied for {plural(outcome.copied, "person", "people")}
               {outcome.placeholders > 0
                 ? `; ${plural(outcome.placeholders, "person", "people")} need setup on Team.`
                 : "."}
@@ -180,10 +181,7 @@ export function PrepareMonthButton({
               {month} was already prepared. Nothing was copied twice.
             </Notice>
           ) : outcome?.kind === "failed" ? (
-            <Notice
-              tone="negative"
-              title={`Preparing ${month} didn't finish`}
-            >
+            <Notice tone="negative" title={`Preparing ${month} didn't finish`}>
               {outcome.considered > 0
                 ? `Targets were copied for ${outcome.copied} of ${outcome.considered} people. ${outcome.placeholders} need you to set them on Team. Nothing was copied twice.`
                 : "Nothing was copied, and nothing was copied twice. Try again."}
@@ -213,24 +211,20 @@ export function PrepareMonthButton({
             <div className="grid gap-4">
               <dl className="grid gap-3">
                 <div className="grid gap-0.5">
-                  <dt className="text-meta-touch text-ink-muted md:text-meta">
-                    Targets
-                  </dt>
-                  <dd className="text-body-touch md:text-body-sm">
+                  <dt className="text-meta text-ink-muted">Targets</dt>
+                  <dd className="text-body">
                     Copies {previous}&apos;s targets{where}.
                   </dd>
                 </div>
                 <div className="grid gap-0.5">
-                  <dt className="text-meta-touch text-ink-muted md:text-meta">
-                    New starters
-                  </dt>
-                  <dd className="text-body-touch md:text-body-sm">
-                    Anyone with no {previous} target shows Needs setup until
-                    you set one.
+                  <dt className="text-meta text-ink-muted">New starters</dt>
+                  <dd className="text-body">
+                    Anyone with no {previous} target shows Needs setup until you
+                    set one.
                   </dd>
                 </div>
               </dl>
-              <p className="text-body-touch text-ink-muted md:text-body-sm">
+              <p className="text-body text-ink-muted">
                 You can change any target afterwards; changing a set target
                 needs a reason. This also runs by itself every hour.
               </p>

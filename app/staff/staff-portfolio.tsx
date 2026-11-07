@@ -12,6 +12,7 @@ import {
   ForkKnifeIcon,
   PencilSimpleIcon,
   SignOutIcon,
+  TagIcon,
   UploadSimpleIcon,
 } from "@phosphor-icons/react"
 import Link from "next/link"
@@ -24,6 +25,7 @@ import { MediaGallery } from "@/app/_media/media-gallery"
 import {
   EditProfileDialog,
   EmptyState,
+  Notice,
   ProfileHeader,
   type ActionResult,
   type ProfileFormValues,
@@ -126,6 +128,22 @@ async function saveProfile(values: ProfileFormValues): Promise<ActionResult> {
   }
 }
 
+/** A Common Room row inside a white card: icon disc, two lines, chevron. */
+const ROW_LINK =
+  "grid min-h-16 w-full min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 p-3 text-ink transition-colors duration-(--duration-quick) outline-none hover:bg-surface-2 focus-visible:outline-3 focus-visible:-outline-offset-3 focus-visible:outline-focus focus-visible:outline-solid"
+
+/** The row's 44px grey disc around a decorative icon. */
+function RowIcon({ children }: { children: React.ReactNode }) {
+  return (
+    <span
+      aria-hidden
+      className="grid size-11 shrink-0 place-items-center rounded-round bg-surface-2 text-ink [&_svg]:size-6"
+    >
+      {children}
+    </span>
+  )
+}
+
 /** The Manage row at the top of Me, with the photos waiting for review. */
 function ManageRow({
   venueName,
@@ -138,30 +156,32 @@ function ManageRow({
   const title = venueName ? `Manage ${venueName}` : "Manage"
   const toReview = `${reviewCount === 1 ? "photo" : "photos"} to review`
   return (
-    <nav aria-label="Manage" className="grid border-y border-line">
+    <nav
+      aria-label="Manage"
+      className="grid overflow-hidden rounded-card bg-surface shadow-card"
+    >
       <Link
         href="/staff/manage"
         aria-label={
           reviewCount > 0 ? `${title}, ${reviewCount} ${toReview}` : title
         }
         aria-describedby={hintId}
-        className="grid min-h-13 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 py-3 text-ink outline-none hover:bg-fill-hover focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-solid md:min-h-11"
+        className={ROW_LINK}
       >
-        <ClipboardTextIcon aria-hidden className="size-5 text-ink-muted" />
-        <span className="grid min-w-0">
-          <span className="text-body-touch font-semibold break-words md:text-body">
+        <RowIcon>
+          <ClipboardTextIcon />
+        </RowIcon>
+        <span className="grid min-w-0 gap-0.5">
+          <span className="text-item-title [overflow-wrap:anywhere]">
             {title}
           </span>
-          <span
-            id={hintId}
-            className="text-meta-touch text-ink-muted md:text-meta"
-          >
+          <span id={hintId} className="text-body text-ink-muted">
             Review, checklist, menu and team
           </span>
         </span>
         <span className="flex items-center gap-2 text-ink-muted">
           <CountBadge count={reviewCount} label={toReview} />
-          <CaretRightIcon aria-hidden className="size-5" />
+          <CaretRightIcon aria-hidden weight="bold" className="size-5" />
         </span>
       </Link>
     </nav>
@@ -183,21 +203,22 @@ function MeRow({
   // No aria-label: the name is the visible title and hint, so speech input
   // and screen readers match what is on screen (axe label-content-name-mismatch).
   return (
-    <li className="border-b border-line last:border-b-0">
-      <Link
-        href={href}
-        className="grid min-h-13 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 py-3 text-ink outline-none hover:bg-fill-hover focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-solid md:min-h-11"
-      >
-        {icon}
-        <span className="grid min-w-0">
-          <span className="text-body-touch font-semibold break-words md:text-body">
+    <li>
+      <Link href={href} className={ROW_LINK}>
+        <RowIcon>{icon}</RowIcon>
+        <span className="grid min-w-0 gap-0.5">
+          <span className="text-item-title [overflow-wrap:anywhere]">
             {title}
           </span>
-          <span className="text-meta-touch text-ink-muted md:text-meta">
+          <span className="text-body [overflow-wrap:anywhere] text-ink-muted">
             {hint}
           </span>
         </span>
-        <CaretRightIcon aria-hidden className="size-5 text-ink-muted" />
+        <CaretRightIcon
+          aria-hidden
+          weight="bold"
+          className="size-5 text-ink-muted"
+        />
       </Link>
     </li>
   )
@@ -216,7 +237,7 @@ function MilestoneTile({
   const kind = item.mediaType === "video" ? "Video" : "Photo"
   return (
     <li className="grid min-w-0 content-start gap-1.5">
-      <span className="relative block aspect-square w-full overflow-hidden rounded-print bg-media-placeholder">
+      <span className="relative block aspect-square w-full overflow-hidden rounded-control bg-plate">
         {item.thumbnailUrl ? (
           // Signed private URLs never go through next/image (see MediaTile).
           // eslint-disable-next-line @next/next/no-img-element
@@ -230,24 +251,17 @@ function MilestoneTile({
         ) : null}
       </span>
       <span className="sr-only">{kind}: </span>
-      <StatusChip
-        tone={
-          milestone === "accepted"
-            ? "positive"
-            : milestone === "better"
-              ? "pending"
-              : "neutral"
-        }
-        className="w-fit"
-      >
+      {/* Common Room §3 shapes: Accepted is the filled ok square, a better
+          photo request the warn pill, the rest a plain grey pill. */}
+      <StatusChip state={MILESTONE_STATE[milestone]} className="w-fit">
         {MILESTONES[milestone]}
       </StatusChip>
       {detail ? (
         <span
           className={
             milestone === "better"
-              ? "text-meta-touch break-words text-ink-muted md:text-caption"
-              : "truncate text-meta-touch text-ink-muted md:text-caption"
+              ? "text-meta [overflow-wrap:anywhere] text-ink-muted"
+              : "truncate text-meta text-ink-muted"
           }
         >
           {detail}
@@ -255,6 +269,14 @@ function MilestoneTile({
       ) : null}
     </li>
   )
+}
+
+/** Which §3 state shape draws each milestone (the word stays MILESTONES'). */
+const MILESTONE_STATE: Record<Milestone, string> = {
+  saved: "saved",
+  label: "needs_labels",
+  accepted: "accepted",
+  better: "needs_another_photo",
 }
 
 const TILE_GRID =
@@ -327,16 +349,21 @@ export function StaffPortfolio({
     (item) => item.uploadState === "ready" && better.has(item.id)
   )
 
-  const uploadButton =
+  const uploadButton = (variant: "primary" | "secondary" = "primary") =>
     uploadBlocked || !openAdd ? null : (
-      <Button size="touch" onClick={() => openAdd({ dialog: true })}>
+      <Button
+        variant={variant}
+        size="touch"
+        onClick={() => openAdd({ dialog: true })}
+      >
         <UploadSimpleIcon data-icon="inline-start" aria-hidden />
         Upload photos or videos
       </Button>
     )
 
   return (
-    <div className="flex flex-col gap-6">
+    // Common Room Me: a feed of white cards on the grey canvas.
+    <div className="mx-auto flex w-full max-w-(--size-feed) flex-col gap-(--gutter)">
       <ProfileHeader
         displayName={profile.displayName}
         avatarUrl={profile.avatarUrl}
@@ -345,16 +372,9 @@ export function StaffPortfolio({
         venueName={profile.venueName}
         workRole={profile.workRole}
         actions={
+          // Grey first, blue last: on phones the order flips, so Upload sits
+          // on top with Edit profile under it; from md blue is on the right.
           <>
-            {uploadButton}
-            <Button
-              variant="outline"
-              size="touch"
-              onClick={() => setEditOpen(true)}
-            >
-              <PencilSimpleIcon data-icon="inline-start" aria-hidden />
-              Edit profile
-            </Button>
             {/* From md, Log out is in the AppBar; on phones it lives on Me. */}
             <form action={logout} className="md:hidden" data-logout>
               <Button type="submit" variant="quiet" size="touch">
@@ -362,6 +382,15 @@ export function StaffPortfolio({
                 Log out
               </Button>
             </form>
+            <Button
+              variant="secondary"
+              size="touch"
+              onClick={() => setEditOpen(true)}
+            >
+              <PencilSimpleIcon data-icon="inline-start" aria-hidden />
+              Edit profile
+            </Button>
+            {uploadButton()}
           </>
         }
       />
@@ -372,20 +401,16 @@ export function StaffPortfolio({
         />
       ) : null}
       <nav aria-label="Your work">
-        <ul className="grid border-y border-line">
+        <ul className="grid divide-y divide-line overflow-hidden rounded-card bg-surface shadow-card">
           <MeRow
             href="/staff/profile?next=/staff"
-            icon={
-              <BriefcaseIcon aria-hidden className="size-5 text-ink-muted" />
-            }
+            icon={<BriefcaseIcon />}
             title="Edit work details"
             hint={profile.workRole ?? "Your main job and the areas you work in"}
           />
           <MeRow
             href="/staff/tasks/welcome?from=me"
-            icon={
-              <BookOpenTextIcon aria-hidden className="size-5 text-ink-muted" />
-            }
+            icon={<BookOpenTextIcon />}
             title="How Naba-Lens works"
             hint="What your photos are for and how to add them"
           />
@@ -397,21 +422,22 @@ export function StaffPortfolio({
           />
           <MeRow
             href="/staff/menu"
-            icon={
-              <ForkKnifeIcon aria-hidden className="size-5 text-ink-muted" />
-            }
+            icon={<ForkKnifeIcon />}
             title="Our menu"
             hint="See which dishes and drinks still need a photo"
           />
         </ul>
       </nav>
       {needsLabels.length > 0 ? (
-        <section aria-labelledby="needs-labels-heading" className="grid gap-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="grid gap-0.5">
+        <section
+          aria-labelledby="needs-labels-heading"
+          className="grid gap-3 pt-2"
+        >
+          <div className="grid gap-3">
+            <div className="grid gap-1 px-1">
               <h2
                 id="needs-labels-heading"
-                className="flex items-center gap-2 text-item-title-touch text-ink md:text-item-title"
+                className="flex items-center gap-2 font-display text-section-title text-ink"
               >
                 Needs labels
                 <CountBadge
@@ -419,33 +445,35 @@ export function StaffPortfolio({
                   label={needsLabels.length === 1 ? "photo" : "photos"}
                 />
               </h2>
-              <p className="text-meta-touch text-ink-muted md:text-meta">
+              <p className="text-body text-ink-muted">
                 Say which dish or drink each one shows, so it can be found and
                 chosen for the menu.
               </p>
             </div>
-            <Button
-              size="touch"
-              variant="secondary"
-              onClick={() => setLabelIds(needsLabels.map((item) => item.id))}
-            >
-              {needsLabels.length === 1
-                ? "Label this photo"
-                : `Label these ${needsLabels.length} photos`}
-            </Button>
           </div>
           <ul aria-label="Photos that need labels" className={TILE_GRID}>
             {needsLabels.map((item) => (
               <MilestoneTile key={item.id} item={item} milestone="label" />
             ))}
           </ul>
+          <Button
+            size="touch"
+            variant="secondary"
+            className="w-full md:w-fit"
+            onClick={() => setLabelIds(needsLabels.map((item) => item.id))}
+          >
+            <TagIcon data-icon="inline-start" aria-hidden />
+            {needsLabels.length === 1
+              ? "Label this photo"
+              : `Label these ${needsLabels.length} photos`}
+          </Button>
         </section>
       ) : null}
       {acceptedItems.length > 0 ? (
-        <section aria-labelledby="accepted-heading" className="grid gap-3">
+        <section aria-labelledby="accepted-heading" className="grid gap-3 pt-2">
           <h2
             id="accepted-heading"
-            className="text-item-title-touch text-ink md:text-item-title"
+            className="px-1 font-display text-section-title text-ink"
           >
             {MILESTONES.accepted}
           </h2>
@@ -462,15 +490,15 @@ export function StaffPortfolio({
         </section>
       ) : null}
       {betterItems.length > 0 ? (
-        <section aria-labelledby="better-heading" className="grid gap-3">
-          <div className="grid gap-0.5">
+        <section aria-labelledby="better-heading" className="grid gap-3 pt-2">
+          <div className="grid gap-1 px-1">
             <h2
               id="better-heading"
-              className="text-item-title-touch text-ink md:text-item-title"
+              className="font-display text-section-title text-ink"
             >
               {MILESTONES.better}
             </h2>
-            <p className="text-meta-touch text-ink-muted md:text-meta">
+            <p className="text-body text-ink-muted">
               A manager would like a better photo of these dishes. Their note is
               under each photo.
             </p>
@@ -491,12 +519,9 @@ export function StaffPortfolio({
         </section>
       ) : null}
       {uploadBlocked ? (
-        <p
-          role="status"
-          className="rounded-md border bg-muted/40 px-4 py-3 text-sm"
-        >
+        <Notice tone="attention" role="status">
           {uploadBlocked}
-        </p>
+        </Notice>
       ) : null}
       <MediaGallery
         label="Your portfolio"
@@ -510,7 +535,9 @@ export function StaffPortfolio({
         // Needs labels, menu decisions and better-photo requests are read on
         // the server; a delete or label change in the gallery can move them.
         onChanged={() => router.refresh()}
-        empty={<EmptyState action={uploadButton} />}
+        // The profile card holds the screen's one blue Upload; the empty
+        // state repeats it in grey.
+        empty={<EmptyState action={uploadButton("secondary")} />}
       />
       <LabelEditorHost
         assetIds={labelIds ?? []}

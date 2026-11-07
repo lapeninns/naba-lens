@@ -1,5 +1,9 @@
 import Link from "next/link"
-import { CheckCircleIcon, CircleIcon } from "@phosphor-icons/react/dist/ssr"
+import {
+  CheckIcon,
+  CircleDashedIcon,
+  MinusCircleIcon,
+} from "@phosphor-icons/react/dist/ssr"
 
 import { departmentLabel, type Department } from "@/lib/config/departments"
 import { cn } from "@/lib/utils"
@@ -45,7 +49,7 @@ export function SetupChecklist({
   const editLink = (
     <Link
       href={editProfileHref}
-      className="font-medium text-foreground underline underline-offset-3"
+      className="font-bold text-ink underline underline-offset-3 outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
     >
       Edit profile
     </Link>
@@ -84,7 +88,7 @@ export function SetupChecklist({
   if (setup.complete && hasName) {
     if (profile.hasAvatar) return null
     return (
-      <p className="text-meta-touch text-ink-muted md:text-meta">
+      <p className="px-1 text-meta text-ink-muted">
         Optional: add a profile photo in {editLink}.
       </p>
     )
@@ -93,47 +97,53 @@ export function SetupChecklist({
   return (
     <section
       aria-labelledby="setup-heading"
-      className="flex flex-col gap-3 rounded-xl border border-warning/40 bg-warning-surface p-4"
+      className="grid min-w-0 gap-3 rounded-card bg-surface p-4 shadow-card"
     >
-      <div className="flex flex-wrap items-center gap-2">
-        <h2 id="setup-heading" className="text-base font-semibold">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <h2
+          id="setup-heading"
+          className="min-w-0 font-display text-card-title [overflow-wrap:anywhere] text-ink"
+        >
           Your setup isn&apos;t finished
         </h2>
         <StatusChip tone="warning">Needs setup</StatusChip>
       </div>
-      <p className="text-body-touch md:text-body-sm">
+      <p className="text-body text-ink">
         You can still add photos to your profile in the meantime.
       </p>
-      <ul className="flex flex-col gap-2" aria-label="Profile setup">
+      <ul
+        className="grid divide-y divide-line overflow-hidden rounded-control bg-surface-2"
+        aria-label="Profile setup"
+      >
         {steps.map((step) => (
           <li
             key={step.id}
-            className="flex items-start gap-2 text-body-touch md:text-body-sm"
+            className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3 p-3 text-body"
           >
-            {step.done ? (
-              <CheckCircleIcon
-                weight="fill"
-                className="mt-0.5 size-4 shrink-0 text-positive"
-                aria-hidden
-              />
-            ) : (
-              <CircleIcon
-                className={cn(
-                  "mt-0.5 size-4 shrink-0",
-                  step.optional ? "text-muted-foreground" : "text-warning"
-                )}
-                aria-hidden
-              />
-            )}
-            <span className="min-w-0">
-              <span className="font-medium">
+            <span
+              aria-hidden
+              className={cn(
+                "grid size-8 place-items-center rounded-round [&_svg]:size-5",
+                step.done ? "bg-ok-bg text-ok-fg" : "bg-surface text-ink-muted"
+              )}
+            >
+              {step.done ? (
+                <CheckIcon weight="bold" />
+              ) : step.optional ? (
+                <MinusCircleIcon />
+              ) : (
+                <CircleDashedIcon weight="bold" />
+              )}
+            </span>
+            <span className="grid min-w-0 gap-0.5 [overflow-wrap:anywhere]">
+              <span className="font-bold text-ink">
                 {step.label}
                 {step.optional ? " (optional)" : null}
               </span>
               <span className="sr-only">
                 {step.done ? ": done" : step.optional ? "" : ": missing"}
               </span>
-              <span className="block text-muted-foreground">
+              <span className="block text-ink-muted">
                 {step.done ? (step.value ?? "Added") : step.todo}
               </span>
             </span>

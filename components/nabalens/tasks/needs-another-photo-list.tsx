@@ -77,45 +77,47 @@ export function ReplacementNote({
   return (
     <section
       aria-label="What your reviewer asked for"
-      className="bg-surface flex flex-col gap-3 rounded-panel border border-line p-4"
+      className="grid min-w-0 gap-3 rounded-card bg-surface p-4 shadow-card"
     >
-      <div className="flex flex-wrap items-center gap-2">
-        <ProfileAvatar name={name} size="sm" />
-        <div className="flex min-w-0 flex-1 flex-col">
-          <p className="font-medium break-words">{name}</p>
+      <div className="flex flex-wrap items-center gap-2.5">
+        <ProfileAvatar name={name} />
+        {/* A 12rem basis wraps the chip under the name on phones instead of
+            squeezing the name into a one-word column. */}
+        <div className="grid min-w-0 flex-[1_1_12rem] leading-snug">
+          <p className="font-bold [overflow-wrap:anywhere] text-ink">{name}</p>
           {decision ? (
-            <p className="text-meta-touch text-ink-muted md:text-meta">
+            <p className="text-meta text-ink-muted">
               Asked for another photo · {formatDate(decision.decidedAt)}
             </p>
           ) : null}
         </div>
         <StatusChip tone="warning">Needs another photo</StatusChip>
       </div>
-      <div className="flex gap-3">
+      <div className="grid grid-cols-[4.5rem_minmax(0,1fr)] items-start gap-3">
         <EvidenceThumb
           thumbnailUrl={submission.asset.thumbnailUrl}
           previewUrl={submission.asset.previewUrl}
           label={`Photo that needs another, sent ${formatDate(submission.submittedAt)}`}
-          className="size-20"
+          className="size-18 rounded-control bg-media-placeholder"
         />
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <p className="text-meta-touch text-ink-muted md:text-meta">
-            Your photo · sent {formatDate(submission.submittedAt)}
-          </p>
-          <p className="text-body-touch font-medium md:text-body-sm">
-            <span className="sr-only">Reason: </span>
-            <span className="break-words whitespace-pre-line">{reason}</span>
-          </p>
-        </div>
+        <p className="font-mono text-meta text-ink-muted tabular-nums">
+          Your photo · sent {formatDate(submission.submittedAt)}
+        </p>
+      </div>
+      <div className="grid gap-1.5 rounded-control bg-warn-bg p-3 shadow-[inset_4px_0_0_var(--warn-fg)]">
+        <p className="text-lead font-bold text-ink">
+          <span className="sr-only">Reason: </span>
+          <span className="break-words whitespace-pre-line">{reason}</span>
+        </p>
       </div>
       {earlier ? (
-        <p className="text-meta-touch text-ink-muted md:text-meta">
+        <p className="text-meta text-ink-muted">
           {name.split(" ")[0]} asked in {earlier.asked}. A new photo counts for{" "}
           {earlier.current}, the month you send it.
         </p>
       ) : null}
       {closed ? null : (
-        <p className="text-body-touch font-medium md:text-body-sm">
+        <p className="text-body font-bold text-ink">
           The photos you send now replace this one.
         </p>
       )}
@@ -154,14 +156,18 @@ export function ReplacementClosed({
   homeHref: string
 }) {
   return (
-    <div className="flex flex-col gap-4">
+    <div className="grid gap-(--gutter)">
       <Notice
         tone="attention"
         title="This task has closed"
         action={
           <Link
             href={homeHref}
-            className={buttonVariants({ variant: "secondary", size: "touch" })}
+            className={buttonVariants({
+              variant: "secondary",
+              size: "touch",
+              className: "w-full sm:w-auto",
+            })}
           >
             Back to Home
           </Link>
@@ -206,14 +212,16 @@ export function NeedsAnotherPhotoList({
 }) {
   if (submissions.length === 0) return null
   return (
-    <section aria-labelledby="replace-heading" className="flex flex-col gap-3">
-      <h2
-        id="replace-heading"
-        className="text-section-title-touch md:text-section-title"
-      >
-        Needs another photo
-      </h2>
-      <ul className="flex flex-col gap-3">
+    <section aria-labelledby="replace-heading" className="grid gap-(--gutter)">
+      <div className="px-1 pt-2">
+        <h2
+          id="replace-heading"
+          className="font-display text-section-title text-ink"
+        >
+          Needs another photo
+        </h2>
+      </div>
+      <ul className="grid gap-(--gutter)">
         {submissions.map((submission) => {
           const title = submissionTitle(submission)
           const closed =
@@ -222,24 +230,26 @@ export function NeedsAnotherPhotoList({
           return (
             <li
               key={submission.id}
-              className="flex gap-3 rounded-xl border border-warning/40 bg-card p-3"
+              className="grid min-w-0 grid-cols-[4.5rem_minmax(0,1fr)] items-start gap-3 rounded-card bg-surface p-3 shadow-[var(--elevation-card),inset_4px_0_0_var(--warn-fg)]"
             >
               <EvidenceThumb
                 thumbnailUrl={submission.asset.thumbnailUrl}
                 previewUrl={submission.asset.previewUrl}
                 label={`${title}: photo sent ${formatDate(submission.submittedAt)}`}
-                className="size-20"
+                className="size-18 rounded-control bg-media-placeholder"
               />
-              <div className="flex min-w-0 flex-1 flex-col gap-2">
-                <p className="font-medium break-words">{title}</p>
+              <div className="grid min-w-0 gap-2">
+                <p className="text-item-title [overflow-wrap:anywhere] text-ink">
+                  {title}
+                </p>
                 <ReviewReason reason={submission.decision?.reason ?? null} />
                 {submission.decision ? (
-                  <p className="text-meta-touch text-ink-muted md:text-meta">
+                  <p className="text-meta text-ink-muted">
                     {decisionText(submission.decision)}
                   </p>
                 ) : null}
                 {closed ? (
-                  <p className="text-meta-touch text-ink-muted md:text-meta">
+                  <p className="text-meta text-ink-muted">
                     This task is no longer open to you, so no replacement is
                     needed.
                   </p>
@@ -249,7 +259,7 @@ export function NeedsAnotherPhotoList({
                     aria-label={`Send another photo for ${title}`}
                     className={buttonVariants({
                       size: "touch",
-                      className: "self-start",
+                      className: "w-full sm:w-auto sm:justify-self-start",
                     })}
                   >
                     <CameraIcon data-icon="inline-start" aria-hidden />

@@ -192,7 +192,7 @@ function EditProfileForm({
         <ProfileAvatar
           name={displayName || initial.displayName}
           src={avatarPreview ?? initial.avatarUrl}
-          className="size-16 text-lg"
+          size="lg"
         />
         <Field className="min-w-0 flex-1 gap-1.5">
           <FieldLabel htmlFor={ids.photo}>Profile photo</FieldLabel>
@@ -203,7 +203,9 @@ function EditProfileForm({
             onChange={pickAvatar}
             aria-describedby={ids.photoHelp}
             aria-invalid={!!avatarError || !!fieldErrors.avatar || undefined}
-            className="h-11 cursor-pointer py-1.5 file:mr-3 file:h-full file:cursor-pointer file:rounded-md file:bg-muted file:px-3 sm:h-9 sm:py-1"
+            // The picker's own button is drawn as a grey Common Room button;
+            // the field around it has no box, so it reads as one control.
+            className="h-auto min-h-13 cursor-pointer border-0 bg-transparent p-0 text-body text-ink-muted shadow-none file:mr-3 file:min-h-13 file:cursor-pointer file:items-center file:rounded-control file:border-0 file:bg-surface-2 file:px-4 file:text-button file:text-ink hover:file:bg-raised dark:bg-transparent"
           />
           <FieldDescription id={ids.photoHelp}>
             JPEG, PNG, WebP or HEIC, up to {formatBytes(maxAvatarBytes)}.
@@ -224,7 +226,6 @@ function EditProfileForm({
           maxLength={80}
           autoComplete="name"
           aria-invalid={!!fieldErrors.displayName || undefined}
-          className="h-11 sm:h-9"
         />
         {fieldErrors.displayName ? (
           <FieldError>{fieldErrors.displayName}</FieldError>
@@ -241,7 +242,6 @@ function EditProfileForm({
               onChange={(e) => setJobTitle(e.currentTarget.value)}
               maxLength={80}
               aria-invalid={!!fieldErrors.jobTitle || undefined}
-              className="h-11 sm:h-9"
             />
             {fieldErrors.jobTitle ? (
               <FieldError>{fieldErrors.jobTitle}</FieldError>
@@ -282,7 +282,7 @@ function EditProfileForm({
           </Field>
           <Field
             orientation="horizontal"
-            className="justify-between gap-4 rounded-lg border px-3 py-3"
+            className="justify-between gap-4 rounded-card bg-surface-2 px-4 py-3"
           >
             <div className="grid gap-0.5">
               <FieldLabel htmlFor={ids.active}>Account active</FieldLabel>
@@ -303,7 +303,7 @@ function EditProfileForm({
       <DialogFooter>
         <Button
           type="button"
-          variant="outline"
+          variant="secondary"
           size="touch"
           onClick={() => onOpenChange(false)}
           disabled={pending}

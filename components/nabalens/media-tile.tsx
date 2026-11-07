@@ -11,8 +11,10 @@ import {
 
 import { cn } from "@/lib/utils"
 
+import { Post } from "./common-room/post"
 import { formatDate, formatDuration, UPLOAD_STATE_LABEL } from "./format"
 import { labelBadgeText } from "./labels"
+import { ProfileAvatar } from "./profile-avatar"
 import type { MediaItem } from "./types"
 
 /** A small badge over a photo: the photo, not the theme, is behind it. */
@@ -27,7 +29,9 @@ export function TileBadge({
     <span
       data-slot="tile-badge"
       className={cn(
-        "inline-flex min-h-[22px] items-center gap-1 rounded-chip bg-tile-badge px-[7px] text-chip-touch whitespace-nowrap text-on-tile-badge tabular-nums backdrop-blur-[6px] wdth-92 md:text-chip [&_svg]:size-[13px]",
+        // A chip on a photo sits on the solid plate (DESIGN.md §4), so it
+        // reads on any photo in both themes.
+        "inline-flex min-h-7 items-center gap-1 rounded-square bg-plate px-2 text-chip whitespace-nowrap text-on-tile-badge tabular-nums [&_svg]:size-4",
         className
       )}
     >
@@ -78,6 +82,71 @@ function describe(
 }
 
 /**
+ * What sits inside a tile or post's media button: the thumbnail (or a quiet
+ * icon while there is none) and the chips laid on it, each on the plate.
+ */
+function TileMedia({ item }: { item: MediaItem }) {
+  // Track the URL that failed so a refreshed signed URL gets a fresh attempt.
+  const [failedUrl, setFailedUrl] = React.useState<string | null>(null)
+  const showThumb = item.thumbnailUrl && item.thumbnailUrl !== failedUrl
+  return (
+    <>
+      {showThumb ? (
+        // Signed private URLs: deliberately not routed through next/image so
+        // private media never passes through a shared optimisation cache.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={item.thumbnailUrl!}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          onError={() => setFailedUrl(item.thumbnailUrl)}
+          className="absolute inset-0 size-full object-cover"
+        />
+      ) : (
+        <span className="absolute inset-0 grid place-items-center text-ink-muted">
+          {item.uploadState === "uploading" ||
+          item.uploadState === "processing" ? (
+            <SpinnerGapIcon
+              className="size-7 motion-safe:animate-spin"
+              aria-hidden
+            />
+          ) : item.uploadState === "failed" ? (
+            <WarningCircleIcon className="size-7 text-warn-fg" aria-hidden />
+          ) : // No video poster frames (no transcoding); a neutral video tile.
+          item.mediaType === "video" ? (
+            <FilmStripIcon className="size-7" aria-hidden />
+          ) : (
+            <ImageIcon className="size-7" aria-hidden />
+          )}
+        </span>
+      )}
+      {item.mediaType === "video" ? (
+        <TileBadge className="pointer-events-none absolute right-1.5 bottom-1.5">
+          <PlayIcon aria-hidden />
+          {item.durationSeconds
+            ? formatDuration(item.durationSeconds)
+            : "Video"}
+        </TileBadge>
+      ) : null}
+      {item.uploadState !== "ready" ? (
+        <TileBadge className="pointer-events-none absolute top-1.5 left-1.5">
+          {item.uploadState === "processing" ? (
+            <SpinnerGapIcon aria-hidden className="motion-safe:animate-spin" />
+          ) : item.uploadState === "failed" ? (
+            <WarningCircleIcon aria-hidden />
+          ) : null}
+          {UPLOAD_STATE_LABEL[item.uploadState]}
+        </TileBadge>
+      ) : null}
+    </>
+  )
+}
+
+const MEDIA_BUTTON =
+  "relative block w-full overflow-hidden bg-media-placeholder outline-none focus-visible:outline-3 focus-visible:outline-focus focus-visible:outline-solid"
+
+/**
  * One square, cropped thumbnail. The whole tile is a button so it is reachable
  * by keyboard and touch; there are no hover-only actions.
  */
@@ -93,9 +162,6 @@ export function MediaTile({
     showLabelBadge && item.uploadState === "ready"
       ? labelBadgeText(item.labels)
       : null
-  // Track the URL that failed so a refreshed signed URL gets a fresh attempt.
-  const [failedUrl, setFailedUrl] = React.useState<string | null>(null)
-  const showThumb = item.thumbnailUrl && item.thumbnailUrl !== failedUrl
 
   return (
     <figure
@@ -112,65 +178,13 @@ export function MediaTile({
           data-media-id={item.id}
           aria-label={describe(item, showAttribution, showFileName, labelText)}
           className={cn(
-            "relative block aspect-square w-full overflow-hidden rounded-print bg-media-placeholder outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid",
+            MEDIA_BUTTON,
+            "aspect-square rounded-control focus-visible:outline-offset-2",
             item.uploadState === "failed" &&
-              "shadow-[inset_0_0_0_2px_var(--negative)]"
+              "shadow-[inset_0_0_0_2px_var(--warn-fg)]"
           )}
         >
-          {showThumb ? (
-            // Signed private URLs: deliberately not routed through next/image so
-            // private media never passes through a shared optimisation cache.
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={item.thumbnailUrl!}
-              alt=""
-              loading="lazy"
-              decoding="async"
-              onError={() => setFailedUrl(item.thumbnailUrl)}
-              className="absolute inset-0 size-full object-cover"
-            />
-          ) : (
-            <span className="absolute inset-0 grid place-items-center text-ink-muted">
-              {item.uploadState === "uploading" ||
-              item.uploadState === "processing" ? (
-                <SpinnerGapIcon
-                  className="size-7 motion-safe:animate-spin"
-                  aria-hidden
-                />
-              ) : item.uploadState === "failed" ? (
-                <WarningCircleIcon
-                  className="size-7 text-negative"
-                  aria-hidden
-                />
-              ) : // No video poster frames (no transcoding); a neutral video tile.
-              item.mediaType === "video" ? (
-                <FilmStripIcon className="size-7" aria-hidden />
-              ) : (
-                <ImageIcon className="size-7" aria-hidden />
-              )}
-            </span>
-          )}
-          {item.mediaType === "video" ? (
-            <TileBadge className="pointer-events-none absolute right-1.5 bottom-1.5">
-              <PlayIcon aria-hidden />
-              {item.durationSeconds
-                ? formatDuration(item.durationSeconds)
-                : "Video"}
-            </TileBadge>
-          ) : null}
-          {item.uploadState !== "ready" ? (
-            <TileBadge className="pointer-events-none absolute top-1.5 left-1.5">
-              {item.uploadState === "processing" ? (
-                <SpinnerGapIcon
-                  aria-hidden
-                  className="motion-safe:animate-spin"
-                />
-              ) : item.uploadState === "failed" ? (
-                <WarningCircleIcon aria-hidden />
-              ) : null}
-              {UPLOAD_STATE_LABEL[item.uploadState]}
-            </TileBadge>
-          ) : null}
+          <TileMedia item={item} />
         </button>
         {item.uploadState === "ready" && labelText ? (
           <span
@@ -183,14 +197,61 @@ export function MediaTile({
       </div>
       {showAttribution ? (
         <figcaption className="grid min-w-0 px-px">
-          <span className="truncate text-meta-touch font-semibold text-ink md:text-meta-strong">
+          <span className="truncate text-label text-ink">
             {item.contributorName}
           </span>
-          <span className="truncate text-meta-touch text-ink-muted md:text-caption">
+          <span className="truncate text-meta text-ink-muted">
             {item.venueName} · {formatDate(item.createdAt)}
           </span>
         </figcaption>
       ) : null}
     </figure>
+  )
+}
+
+/**
+ * A colleague's photo as a post (Common Room feed, DESIGN.md §4): their face,
+ * name, the venue and date, then the photo edge to edge. The photo is the
+ * same button a tile is (same name, same viewer). No likes, comments or
+ * counts.
+ */
+export function MediaPost({
+  item,
+  onOpen,
+  className,
+}: {
+  item: MediaItem
+  onOpen: (item: MediaItem) => void
+  className?: string
+}) {
+  return (
+    <Post
+      data-state={item.uploadState}
+      className={className}
+      avatar={<ProfileAvatar name={item.contributorName} />}
+      name={item.contributorName}
+      meta={
+        <>
+          {item.venueName} ·{" "}
+          <span className="tabular-nums">{formatDate(item.createdAt)}</span>
+        </>
+      }
+      media={
+        <button
+          type="button"
+          onClick={() => onOpen(item)}
+          data-media-id={item.id}
+          aria-label={describe(item, true, false, null)}
+          className={cn(
+            MEDIA_BUTTON,
+            "absolute inset-0 h-full -outline-offset-3",
+            item.uploadState === "failed" &&
+              "shadow-[inset_0_0_0_2px_var(--warn-fg)]"
+          )}
+        >
+          <TileMedia item={item} />
+        </button>
+      }
+    />
   )
 }

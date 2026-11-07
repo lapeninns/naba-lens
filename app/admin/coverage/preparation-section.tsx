@@ -30,9 +30,9 @@ import {
 import { PrepareButton, PrepareRetryButton } from "./prepare-control"
 
 const TH =
-  "px-3 py-2 text-left text-meta-strong text-ink-muted first:pl-4 last:pr-4"
+  "px-3 py-2.5 text-left text-meta-strong text-ink-muted first:pl-4 last:pr-4"
 const TD =
-  "px-3 py-2.5 align-top text-body-touch text-ink first:pl-4 last:pr-4 md:text-body-sm max-md:flex max-md:gap-2 max-md:px-4 max-md:py-1 max-md:before:min-w-32 max-md:before:text-ink-muted max-md:before:content-[attr(data-label)]"
+  "px-3 py-2.5 align-top text-body text-ink first:pl-4 last:pr-4 max-md:flex max-md:gap-2 max-md:px-4 max-md:py-1 max-md:before:min-w-32 max-md:before:text-ink-muted max-md:before:content-[attr(data-label)]"
 const TABLE =
   "w-full border-collapse max-md:block max-md:[&_tbody]:block max-md:[&_thead]:sr-only max-md:[&_tr]:block max-md:[&_tr]:py-2"
 
@@ -82,7 +82,7 @@ function MonthState({ venue }: { venue: VenuePreparation }) {
   const at = venue.preparedAt ? formatDateTime(venue.preparedAt) : null
   return (
     <span className="inline-flex items-center gap-1.5">
-      <CheckIcon aria-hidden className="size-4 shrink-0 text-positive" />
+      <CheckIcon aria-hidden className="size-5 shrink-0 text-ok-fg" />
       {PREPARATION_COPY.prepared(at)}
     </span>
   )
@@ -122,17 +122,17 @@ export function PreparationSection({
     <section
       id="preparation"
       aria-labelledby="preparation-title"
-      className="grid scroll-mt-20 gap-5"
+      className="grid scroll-mt-20 gap-4"
     >
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="grid gap-1">
           <h2
             id="preparation-title"
-            className="text-section-title-touch text-ink md:text-section-title"
+            className="font-display text-section-title text-ink"
           >
             {PREPARATION_COPY.title}
           </h2>
-          <p className="max-w-(--size-reading) text-body-touch text-ink-muted md:text-body-sm">
+          <p className="max-w-(--size-reading) text-body text-ink-muted">
             {PREPARATION_COPY.summary}
           </p>
         </div>
@@ -155,7 +155,7 @@ export function PreparationSection({
                     {PREPARATION_COPY.safeToRepeat}
                   </p>
                   {run?.errorCode ? (
-                    <p className="font-mono text-mono text-ink-muted">
+                    <p className="font-mono text-meta text-ink-muted">
                       {failureCode(run.errorCode)}
                     </p>
                   ) : null}
@@ -192,7 +192,7 @@ export function PreparationSection({
           title={PREPARATION_COPY.venues}
           note={PREPARATION_COPY.venuesNote}
         />
-        <div className="overflow-x-auto rounded-panel border border-line">
+        <div className="overflow-x-auto rounded-card bg-surface shadow-card">
           <table aria-label={PREPARATION_COPY.venuesTable} className={TABLE}>
             <thead className="border-b border-line">
               <tr>
@@ -215,7 +215,7 @@ export function PreparationSection({
                 <tr key={venue.venue.id}>
                   <th
                     scope="row"
-                    className={`${TD} text-left font-semibold max-md:before:content-none`}
+                    className={`${TD} text-left font-bold max-md:before:content-none`}
                   >
                     {venue.venue.name}
                   </th>
@@ -248,11 +248,11 @@ export function PreparationSection({
           note={PREPARATION_COPY.recentRunsNote}
         />
         {model.recent.length === 0 ? (
-          <p className="text-body-touch text-ink-muted md:text-body-sm">
+          <p className="px-1 text-body text-ink-muted">
             {PREPARATION_COPY.noRecentRuns(formatDate(model.recentSince))}
           </p>
         ) : (
-          <div className="overflow-x-auto rounded-panel border border-line">
+          <div className="overflow-x-auto rounded-card bg-surface shadow-card">
             <table aria-label={PREPARATION_COPY.recentRuns} className={TABLE}>
               <thead className="border-b border-line">
                 <tr>
@@ -271,7 +271,7 @@ export function PreparationSection({
                 {model.recent.map((entry) => (
                   <tr key={entry.run.id}>
                     <td
-                      className={`${TD} whitespace-nowrap tabular-nums max-md:font-semibold max-md:before:content-none`}
+                      className={`${TD} whitespace-nowrap tabular-nums max-md:font-bold max-md:before:content-none`}
                     >
                       {formatDateTime(entry.run.finishedAt)}
                     </td>
@@ -291,7 +291,7 @@ export function PreparationSection({
                       {entry.run.errorCode ? (
                         <>
                           {" "}
-                          <span className="font-mono text-mono text-ink-muted">
+                          <span className="font-mono text-meta text-ink-muted">
                             {failureCode(entry.run.errorCode)}
                           </span>
                         </>
@@ -304,10 +304,10 @@ export function PreparationSection({
           </div>
         )}
         <details id="all-runs" className="group">
-          <summary className="flex min-h-11 w-fit cursor-pointer list-none items-center gap-1.5 text-body-touch text-ink underline underline-offset-3 outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid md:min-h-0 md:text-body-sm [&::-webkit-details-marker]:hidden">
+          <summary className="flex min-h-11 w-fit cursor-pointer list-none items-center gap-1.5 px-1 text-body font-bold text-ink underline underline-offset-4 outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid [&::-webkit-details-marker]:hidden">
             <CaretRightIcon
               aria-hidden
-              className="size-4 shrink-0 transition-transform group-open:rotate-90 motion-reduce:transition-none"
+              className="size-5 shrink-0 transition-transform group-open:rotate-90 motion-reduce:transition-none"
             />
             {PREPARATION_COPY.seeAllRuns}
           </summary>

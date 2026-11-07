@@ -455,7 +455,7 @@ export function VersionEditor({
         actions={actions}
       />
 
-      <div className="grid gap-6 md:gap-8">
+      <div className="grid gap-6">
         <OfflineNotice />
         {conflict ? (
           <Notice
@@ -475,22 +475,19 @@ export function VersionEditor({
         ) : null}
         {message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
 
-        <div className="grid items-start gap-6 md:gap-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
-          <div className="grid min-w-0 gap-8">
+        <div className="grid items-start gap-(--gutter) lg:grid-cols-[minmax(0,1fr)_22rem]">
+          <div className="grid min-w-0 gap-6">
             <section
               id={editorId}
               tabIndex={-1}
               aria-labelledby={`${editorId}-title`}
-              className="grid min-w-0 gap-3 rounded-panel outline-none"
+              className="grid min-w-0 gap-3 rounded-card outline-none"
             >
               <h2 id={`${editorId}-title`} className="sr-only">
                 {isDraft ? "Edit draft" : "Menu items"}
               </h2>
               {isDraft ? (
-                <p
-                  aria-live="polite"
-                  className="text-meta-touch text-ink-muted md:text-meta"
-                >
+                <p aria-live="polite" className="px-1 text-meta text-ink-muted">
                   {saving
                     ? "Saving…"
                     : refreshing
@@ -518,7 +515,7 @@ export function VersionEditor({
             {diff ? (
               <div className="grid gap-2">
                 {isDraft && dirty ? (
-                  <p className="text-meta-touch text-ink-muted md:text-meta">
+                  <p className="px-1 text-meta text-ink-muted">
                     Shows the last saved draft. Save to update it.
                   </p>
                 ) : null}
@@ -544,7 +541,7 @@ export function VersionEditor({
                 />
               </div>
             ) : isDraft ? (
-              <p className="text-body-touch text-ink-muted md:text-body-sm">
+              <p className="px-1 text-body text-ink-muted">
                 This venue has no active menu, so there is nothing to compare
                 with.
               </p>
@@ -553,16 +550,16 @@ export function VersionEditor({
 
           <aside
             aria-label="About this version"
-            className="grid min-w-0 gap-4 lg:sticky lg:top-6"
+            className="grid min-w-0 gap-(--gutter) lg:sticky lg:top-6"
           >
             {isDraft ? (
               <section
                 aria-labelledby={`${editorId}-before`}
-                className="grid gap-3 rounded-panel border border-line bg-panel p-4 md:p-5"
+                className="grid gap-3 rounded-card bg-surface p-4 shadow-card"
               >
                 <h2
                   id={`${editorId}-before`}
-                  className="text-section-title-touch text-ink md:text-section-title"
+                  className="font-display text-section-title text-ink"
                 >
                   {unresolved === 0 && blockers.length === 0
                     ? "Ready to activate"
@@ -581,13 +578,13 @@ export function VersionEditor({
                   </Notice>
                 ) : null}
                 {blockers.length > 0 ? (
-                  <ul className="grid list-disc gap-0.5 pl-5 text-body-touch text-ink md:text-body-sm">
+                  <ul className="grid list-disc gap-1 pl-5 text-body text-ink">
                     {blockers.map((reason) => (
                       <li key={reason}>{reason}</li>
                     ))}
                   </ul>
                 ) : null}
-                <p className="text-body-touch text-ink-muted md:text-body-sm">
+                <p className="text-body text-ink-muted">
                   {unresolved === 0 && blockers.length === 0
                     ? "Every item is decided. "
                     : null}
@@ -595,7 +592,7 @@ export function VersionEditor({
                     ? `Activating retires ${active.title}. ${LABELS_KEPT_COPY}`
                     : `This becomes ${possessive(venue)} first active menu.`}
                 </p>
-                <p className="text-body-touch text-ink-muted md:text-body-sm">
+                <p className="text-body text-ink-muted">
                   {active
                     ? coverageCopy
                     : "Nothing carries over automatically."}

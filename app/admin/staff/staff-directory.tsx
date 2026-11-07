@@ -12,6 +12,7 @@ import {
   type Option,
   type StaffMember,
 } from "@/components/nabalens"
+import { SectionHeader } from "@/components/nabalens/common-room"
 import { Notice } from "@/components/nabalens/notice"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
 import { PageHeader } from "@/components/nabalens/page-header"
@@ -174,7 +175,7 @@ export function StaffDirectory({
   }
 
   return (
-    <div className="grid gap-5">
+    <div className="grid gap-4">
       <PageHeader
         venueScope
         scope="All venues"
@@ -259,7 +260,7 @@ export function StaffDirectory({
               <div className="relative">
                 <MagnifyingGlassIcon
                   aria-hidden
-                  className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-muted"
+                  className="pointer-events-none absolute top-1/2 left-4 size-5 -translate-y-1/2 text-ink-muted"
                 />
                 <Input
                   id={`${id}-search`}
@@ -271,7 +272,7 @@ export function StaffDirectory({
                   }}
                   placeholder="Name or email"
                   autoComplete="off"
-                  className="h-11 pl-9 md:h-9"
+                  className="pl-11"
                 />
               </div>
             </Field>
@@ -318,17 +319,16 @@ export function StaffDirectory({
             />
           ) : (
             <section aria-labelledby={`${id}-accounts`} className="grid gap-3">
-              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <h2
-                  id={`${id}-accounts`}
-                  className="text-section-title-touch text-ink md:text-section-title"
-                >
-                  Accounts
-                </h2>
-                <span className="text-meta-touch text-ink-muted md:text-meta">
-                  {countLine(shown, filtered)}
-                </span>
-              </div>
+              <SectionHeader
+                id={`${id}-accounts`}
+                title="Accounts"
+                className="pt-0"
+                action={
+                  <span className="text-meta text-ink-muted">
+                    {countLine(shown, filtered)}
+                  </span>
+                }
+              />
               <StaffDirectoryTable
                 staff={shown}
                 managerIds={managers}
@@ -339,7 +339,7 @@ export function StaffDirectory({
                 onResendInvite={(member) => void controls.resend(member)}
                 onSetActive={controls.setActive}
               />
-              <p className="text-body-sm text-ink-muted">
+              <p className="px-1 text-body text-ink-muted">
                 Needs setup and Invited first, then A to Z by surname.
               </p>
             </section>

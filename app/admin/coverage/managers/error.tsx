@@ -21,6 +21,7 @@ export default function ManagersError({
     <AppShell variant="admin" active="coverage" logoutAction={logout}>
       <div className="flex flex-col gap-6">
         <PageHeader
+          venueScope
           scope={MANAGERS_COPY.scope}
           title={MANAGERS_COPY.title}
           summary={MANAGERS_COPY.summary}
@@ -29,12 +30,7 @@ export default function ManagersError({
         <ErrorState
           title={MANAGERS_COPY.couldNotLoad}
           action={
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={() => retry()}
-            >
+            <Button type="button" variant="primary" onClick={() => retry()}>
               <ArrowClockwiseIcon aria-hidden />
               {ERROR_COPY.tryAgain}
             </Button>

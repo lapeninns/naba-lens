@@ -77,7 +77,7 @@ export function TeamTag({
 }) {
   if (!department) return <StatusChip state="needs_setup">No team</StatusChip>
   return (
-    <span className="inline-flex min-h-5 items-center rounded-chip border border-line-control px-1.5 text-chip-touch tracking-[0.04em] whitespace-nowrap text-ink-muted wdth-92 md:text-chip">
+    <span className="inline-flex min-h-7 items-center rounded-square px-2 font-mono text-meta-strong tracking-[0.04em] whitespace-nowrap text-ink-muted shadow-[inset_0_0_0_1.5px_var(--border-strong)]">
       {department.toUpperCase()}
     </span>
   )
@@ -99,23 +99,23 @@ export function TeamPerson({
     <div className={cn("flex min-w-0 items-center gap-3", className)}>
       <ProfileAvatar name={person.displayName} src={person.avatarUrl} />
       <span className="grid min-w-0">
-        <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-item-title-touch text-ink md:text-item-title">
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-item-title text-ink">
           {href ? (
             <Link
               href={href}
-              className="rounded-chip break-words underline-offset-3 outline-none hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+              className="-my-2.5 inline-flex min-h-11 items-center rounded-control [overflow-wrap:anywhere] underline-offset-3 outline-none hover:underline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
             >
               {person.displayName}
             </Link>
           ) : (
-            <span className="break-words">{person.displayName}</span>
+            <span className="[overflow-wrap:anywhere]">
+              {person.displayName}
+            </span>
           )}
           <TeamTag department={person.department} />
         </span>
         {meta ? (
-          <span className="truncate text-meta-touch text-ink-muted md:text-meta">
-            {meta}
-          </span>
+          <span className="truncate text-meta text-ink-muted">{meta}</span>
         ) : null}
       </span>
     </div>
@@ -148,18 +148,9 @@ export function Stepper({
   const n = Number(value)
   const set = value !== "" && Number.isInteger(n)
   const step =
-    "grid min-h-11 w-11 place-items-center text-ink-muted hover:bg-fill-hover hover:text-ink disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent md:min-h-9 md:w-9"
+    "grid min-h-12 w-12 place-items-center rounded-control bg-surface-2 text-ink transition-colors duration-(--duration-quick) outline-none hover:bg-raised focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-surface-2"
   return (
-    <div
-      className={cn(
-        "inline-flex items-stretch justify-self-start overflow-hidden rounded-control border bg-panel",
-        invalid
-          ? "border-negative"
-          : changed
-            ? "border-accent"
-            : "border-line-control"
-      )}
-    >
+    <div className={cn("inline-flex items-stretch gap-2 justify-self-start")}>
       <button
         type="button"
         aria-label={`Decrease ${name}`}
@@ -167,7 +158,7 @@ export function Stepper({
         disabled={disabled || !set || n <= 1}
         onClick={() => onChange(String(Math.max(1, n - 1)))}
       >
-        <MinusIcon aria-hidden className="size-4" />
+        <MinusIcon aria-hidden weight="bold" className="size-5" />
       </button>
       <input
         id={id}
@@ -180,7 +171,14 @@ export function Stepper({
         aria-invalid={invalid || undefined}
         aria-describedby={describedBy}
         disabled={disabled}
-        className="w-[3em] border-x border-line bg-transparent text-center text-body font-semibold text-ink tabular-nums outline-none placeholder:text-ink-subtle focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid disabled:opacity-60"
+        className={cn(
+          "min-h-12 w-[3.75em] rounded-control bg-surface-2 text-center text-lead font-bold text-ink tabular-nums outline-none placeholder:text-ink-muted focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid disabled:opacity-60",
+          invalid
+            ? "shadow-[inset_0_0_0_2px_var(--warn-fg)]"
+            : changed
+              ? "shadow-[inset_0_0_0_2px_var(--accent-text)]"
+              : "shadow-[inset_0_0_0_1.5px_var(--border-strong)]"
+        )}
       />
       <button
         type="button"
@@ -189,7 +187,7 @@ export function Stepper({
         disabled={disabled || (set && n >= max)}
         onClick={() => onChange(String(set ? Math.min(max, n + 1) : 1))}
       >
-        <PlusIcon aria-hidden className="size-4" />
+        <PlusIcon aria-hidden weight="bold" className="size-5" />
       </button>
     </div>
   )
@@ -199,26 +197,25 @@ function FieldError({ id, children }: { id?: string; children: string }) {
   return (
     <p
       id={id}
-      className="flex items-start gap-1.5 text-meta-touch font-semibold text-negative md:text-meta"
+      className="flex items-start gap-1.5 text-meta font-bold text-warn-fg"
     >
-      <WarningCircleIcon aria-hidden className="mt-px size-4 shrink-0" />
+      <WarningCircleIcon aria-hidden className="mt-0.5 size-[18px] shrink-0" />
       {children}
     </p>
   )
 }
 
-const fieldLabel = "text-label-touch text-ink md:text-label"
-const fieldHint = "text-meta-touch text-ink-muted md:text-meta"
-const fieldInput =
-  "h-11 rounded-control border-line-control bg-panel px-3 text-body-touch text-ink md:h-9 md:text-body dark:bg-panel"
+const fieldLabel = "text-label text-ink"
+const fieldHint = "text-meta text-ink-muted"
+const fieldInput = "text-body text-ink"
 
 function Counter({ value }: { value: string }) {
   return (
     <span
       className={cn(
-        "ms-auto shrink-0 text-meta-touch whitespace-nowrap tabular-nums md:text-caption",
+        "ms-auto shrink-0 font-mono text-meta whitespace-nowrap tabular-nums",
         value.length > COVERAGE_LIMITS.reasonMax
-          ? "font-semibold text-negative"
+          ? "font-bold text-warn-fg"
           : "text-ink-muted"
       )}
     >
@@ -577,7 +574,7 @@ function TeamRosterMonth({
       <li
         key={`${id}:${row.venue.id}`}
         data-target-row={id}
-        className="grid grid-cols-[minmax(0,1.3fr)_auto_minmax(0,1fr)_minmax(0,0.8fr)] items-center gap-x-5 gap-y-3 p-3 @max-[640px]:grid-cols-[minmax(0,1fr)_auto]"
+        className="grid grid-cols-[minmax(0,1.3fr)_auto_minmax(0,1fr)_minmax(0,0.8fr)] items-center gap-x-5 gap-y-3 p-4 @max-[640px]:grid-cols-1"
       >
         <TeamPerson
           person={row.person}
@@ -608,20 +605,18 @@ function TeamRosterMonth({
         ) : movedAway ? (
           <span aria-hidden />
         ) : (
-          <p className="text-item-title-touch text-ink tabular-nums md:text-item-title">
+          <p className="font-mono text-item-title text-ink tabular-nums">
             {row.targetCount != null ? plural(row.targetCount, "photo") : "–"}
           </p>
         )}
         {progress}
         <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 @max-[640px]:col-span-full">
-          {due ? (
-            <p className="text-meta-touch text-ink-muted md:text-meta">{due}</p>
-          ) : null}
+          {due ? <p className="text-meta text-ink-muted">{due}</p> : null}
           {editable && !draft?.dueOpen ? (
             <Button
               variant="link"
               size="sm"
-              className="text-meta-touch md:text-meta"
+              className="text-meta"
               onClick={() => update(row, { dueOpen: true })}
               disabled={saving}
               aria-label={`Change due date for ${name}`}
@@ -712,7 +707,7 @@ function TeamRosterMonth({
   }
 
   return (
-    <div className="grid gap-6 md:gap-8">
+    <div className="grid min-w-0 gap-(--gutter) md:gap-4">
       <CoverageNotice
         ref={noticeRef}
         notice={notice}
@@ -730,22 +725,22 @@ function TeamRosterMonth({
       ) : (
         <section
           aria-labelledby={`${ids}-people`}
-          className="grid min-w-0 gap-3"
+          className="grid min-w-0 gap-(--gutter)"
         >
-          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-2">
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-1 pt-2">
             <h2
               id={`${ids}-people`}
-              className="text-section-title-touch text-ink md:text-section-title"
+              className="font-display text-section-title text-ink"
             >
               People
             </h2>
-            <span className="text-meta-touch text-ink-muted tabular-nums md:text-meta">
+            <span className="text-meta text-ink-muted tabular-nums">
               {unprepared
                 ? plural(team.length, "person", "people")
                 : `${met} of ${team.length} met their target`}
             </span>
           </div>
-          <p className="text-body-touch text-ink-muted md:text-body-sm">
+          <p className="-mt-1 px-1 text-body text-ink-muted">
             Needs setup first, then A to Z by surname.
           </p>
           {team.length > 0 ? (
@@ -758,11 +753,11 @@ function TeamRosterMonth({
       {moved.length > 0 ? (
         <section
           aria-labelledby={`${ids}-moved`}
-          className="grid min-w-0 gap-3"
+          className="grid min-w-0 gap-(--gutter)"
         >
           <h2
             id={`${ids}-moved`}
-            className="text-section-title-touch text-ink md:text-section-title"
+            className="px-1 pt-2 font-display text-section-title text-ink"
           >
             Moved away this month
           </h2>
@@ -772,16 +767,13 @@ function TeamRosterMonth({
         </section>
       ) : null}
       {changes.length > 0 ? (
-        <div className="sticky bottom-[calc(var(--size-tabbar)+env(safe-area-inset-bottom,0px))] z-30 -mx-4 flex flex-wrap items-center justify-between gap-3 bg-panel px-4 py-3 shadow-(--shadow-bar) md:bottom-0 md:mx-0 md:rounded-panel">
-          <p
-            role="status"
-            className="text-meta-touch text-ink-muted tabular-nums md:text-meta"
-          >
+        <div className="sticky bottom-[calc(var(--size-tabbar)+env(safe-area-inset-bottom,0px))] z-30 -mx-(--page-gutter) flex flex-wrap items-center justify-between gap-3 border-t border-line bg-surface px-(--page-gutter) py-3 shadow-float md:bottom-0 md:mx-0 md:rounded-card md:border-t-0 md:px-4 md:shadow-card">
+          <p role="status" className="text-meta text-ink-muted tabular-nums">
             {plural(changes.length, "change")} not saved
           </p>
           <Button
             onClick={() => void save()}
-            className="max-md:min-h-11"
+            className="max-md:flex-auto"
             aria-disabled={saving || undefined}
             aria-busy={saving || undefined}
           >
@@ -938,7 +930,7 @@ function CorrectTargetDialog({
       <DialogContent finalFocus={finalFocus}>
         <form onSubmit={submit} className="grid gap-4" noValidate>
           <DialogHeader>
-            <DialogTitle className="break-words">
+            <DialogTitle className="[overflow-wrap:anywhere]">
               Correct {name}&apos;s {month} target
             </DialogTitle>
           </DialogHeader>
@@ -951,8 +943,8 @@ function CorrectTargetDialog({
           ) : null}
           <div className="flex items-center gap-3">
             <ProfileAvatar name={name} src={row.person.avatarUrl} size="md" />
-            <p className="min-w-0 text-body-touch md:text-body-sm">
-              <strong className="font-semibold">{name}</strong>{" "}
+            <p className="min-w-0 text-body">
+              <strong className="font-bold">{name}</strong>{" "}
               <TeamTag department={row.person.department} />
               <br />
               <span className="text-ink-muted">
@@ -1010,7 +1002,7 @@ function CorrectTargetDialog({
               aria-invalid={!!errors.reason || undefined}
               aria-describedby={`${ids}-reason-hint`}
               disabled={pending}
-              className="min-h-24 w-full resize-y rounded-control border border-line-control bg-panel px-3 py-2 text-body-touch text-ink outline-none placeholder:text-ink-subtle focus-visible:border-focus focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus focus-visible:outline-solid aria-invalid:border-negative md:text-body"
+              className="min-h-28 w-full resize-y rounded-control bg-surface-2 px-3.5 py-3 text-body text-ink shadow-[inset_0_0_0_1.5px_var(--border-strong)] outline-none placeholder:text-ink-muted focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid aria-invalid:shadow-[inset_0_0_0_2px_var(--warn-fg)]"
             />
             <div className="flex items-start gap-3">
               {errors.reason ? (

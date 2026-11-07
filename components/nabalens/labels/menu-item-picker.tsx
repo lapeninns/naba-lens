@@ -179,7 +179,7 @@ export function MenuItemPicker({
       </label>
       <div className="relative">
         <MagnifyingGlassIcon
-          className="pointer-events-none absolute top-1/2 left-3 size-[18px] -translate-y-1/2 text-ink-muted"
+          className="pointer-events-none absolute top-1/2 left-4 size-5 -translate-y-1/2 text-ink-muted"
           aria-hidden
         />
         <Input
@@ -212,7 +212,7 @@ export function MenuItemPicker({
             if (!query.trim()) setActive(-1)
           }}
           onKeyDown={onKeyDown}
-          className={cn(FIELD_CONTROL, "ps-9.5")}
+          className={cn(FIELD_CONTROL, "ps-11")}
         />
       </div>
       {description ? (
@@ -242,12 +242,12 @@ export function MenuItemPicker({
         aria-label={suggesting ? undefined : "Matching menu items"}
         aria-labelledby={suggesting ? suggestId : undefined}
         hidden={!open}
-        className="max-h-72 overflow-y-auto rounded-control border border-line bg-panel"
+        className="max-h-72 overflow-y-auto rounded-card bg-surface p-1 shadow-float"
       >
         {searching && hits.length === 0 ? (
           <li
             role="presentation"
-            className="px-3 py-2.5 text-body-touch text-ink-muted md:text-body-sm"
+            className="px-3 py-2.5 text-body text-ink-muted"
           >
             {`Nothing on ${venueName}'s menu matches "${query.trim()}".`}
           </li>
@@ -267,11 +267,11 @@ export function MenuItemPicker({
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => choose(hit)}
                   className={cn(
-                    "flex min-h-11 cursor-pointer flex-col justify-center border-t border-line px-3 py-2 text-ink first:border-t-0 hover:bg-fill-hover data-active:bg-accent-soft",
+                    "flex min-h-12 cursor-pointer flex-col justify-center rounded-control px-3 py-2 text-ink hover:bg-surface-2 data-active:bg-accent-soft",
                     chosen && "cursor-default text-ink-muted"
                   )}
                 >
-                  <span className="text-label-touch md:text-label">
+                  <span className="text-label">
                     {hit.item.name}
                     {chosen ? (
                       <span className="font-normal text-ink-muted">
@@ -280,7 +280,7 @@ export function MenuItemPicker({
                       </span>
                     ) : null}
                   </span>
-                  <span className="text-meta-touch text-ink-muted md:text-meta">
+                  <span className="text-meta text-ink-muted">
                     {hit.section.name}
                     {hit.item.variants.length > 0
                       ? " · choose a variant"
@@ -300,7 +300,7 @@ export function MenuItemPicker({
           <Button
             type="button"
             variant="link"
-            className="text-meta-touch md:text-meta"
+            className="text-meta"
             disabled={disabled}
             onClick={() => {
               const text = query.trim()
@@ -320,7 +320,7 @@ export function MenuItemPicker({
           ref={variantGroupRef}
           role="group"
           aria-labelledby={variantHeadingId}
-          className="grid gap-2 rounded-control bg-well p-3"
+          className="grid gap-2 rounded-card p-3 shadow-[inset_0_0_0_1px_var(--border-strong)]"
           onKeyDown={(e) => {
             if (e.key === "Escape") {
               e.preventDefault()
@@ -329,8 +329,8 @@ export function MenuItemPicker({
             }
           }}
         >
-          <p id={variantHeadingId} className="text-body-touch md:text-body-sm">
-            <span className="font-semibold">Which {choosing.item.name}?</span>{" "}
+          <p id={variantHeadingId} className="text-body">
+            <span className="font-bold">Which {choosing.item.name}?</span>{" "}
             <span className="text-ink-muted">(in {choosing.section.name})</span>
           </p>
           <div className="flex flex-wrap gap-2">

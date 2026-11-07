@@ -127,7 +127,7 @@ export function PreviewDialog({
                 src={large}
                 alt={REVIEW_COPY.photoBy(card.contributor.name)}
                 fit="contain"
-                className="h-[60svh] w-full rounded-print"
+                className="h-[60svh] w-full rounded-card bg-stage"
               />
             ) : null}
             <div className="flex items-center justify-between gap-2">

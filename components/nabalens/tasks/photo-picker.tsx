@@ -1,6 +1,6 @@
 "use client"
 
-import { CheckCircleIcon, ProhibitIcon } from "@phosphor-icons/react"
+import { CheckIcon, InfoIcon, ProhibitIcon } from "@phosphor-icons/react"
 
 import { cn } from "@/lib/utils"
 
@@ -35,7 +35,7 @@ export function PhotoPicker({
     <div className="flex flex-col gap-2">
       <ul
         aria-label="Your photos"
-        className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6"
+        className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6"
       >
         {photos.map((photo) => {
           const reason = flagged.get(photo.assetId) ?? photo.reason
@@ -59,22 +59,30 @@ export function PhotoPicker({
                 ? "Task only (from an earlier month)"
                 : null
           return (
-            <li key={photo.assetId} className="flex min-w-0 flex-col gap-1">
+            <li key={photo.assetId} className="flex min-w-0 flex-col gap-1.5">
               <div
                 className={cn(
-                  "relative aspect-square overflow-hidden rounded-md ring-offset-2 ring-offset-background",
-                  isSelected && "ring-3 ring-primary",
-                  !eligible && "opacity-60"
+                  "relative aspect-square overflow-hidden rounded-control bg-media-placeholder",
+                  isSelected && "shadow-[0_0_0_3px_var(--select)]",
+                  !eligible && "[&_img]:opacity-70 [&_img]:saturate-[.3]",
+                  blocked && eligible && "[&_img]:opacity-55"
                 )}
               >
                 <EvidenceImage src={photo.thumbnailUrl} className="size-full" />
-                {isSelected ? (
-                  <span className="absolute top-1 right-1 rounded-full bg-background text-primary">
-                    <CheckCircleIcon
-                      weight="fill"
-                      className="size-6"
-                      aria-hidden
-                    />
+                {eligible ? (
+                  // The tick box (drawn only; the button below carries the state).
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "absolute top-2 right-2 grid size-7 place-items-center rounded-[6px] border-2",
+                      isSelected
+                        ? "border-select bg-select text-on-select"
+                        : "border-border-strong bg-surface"
+                    )}
+                  >
+                    {isSelected ? (
+                      <CheckIcon weight="bold" className="size-5" />
+                    ) : null}
                   </span>
                 ) : null}
                 <button
@@ -87,7 +95,7 @@ export function PhotoPicker({
                     if (!blocked) onToggle(photo.assetId)
                   }}
                   className={cn(
-                    "absolute inset-0 z-10 rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                    "absolute inset-0 z-10 rounded-[inherit] outline-none focus-visible:outline-3 focus-visible:-outline-offset-3 focus-visible:outline-focus focus-visible:outline-solid",
                     blocked ? "cursor-not-allowed" : "cursor-pointer"
                   )}
                 />
@@ -95,11 +103,16 @@ export function PhotoPicker({
               {note ? (
                 <p
                   id={noteId}
-                  className="flex items-start gap-1 text-meta-touch break-words text-ink-muted md:text-meta"
+                  className="flex items-start gap-1.5 text-meta break-words text-ink-muted"
                 >
-                  {eligible ? null : (
+                  {eligible ? (
+                    <InfoIcon
+                      className="mt-0.5 size-[18px] shrink-0"
+                      aria-hidden
+                    />
+                  ) : (
                     <ProhibitIcon
-                      className="mt-0.5 size-3.5 shrink-0"
+                      className="mt-0.5 size-[18px] shrink-0"
                       aria-hidden
                     />
                   )}

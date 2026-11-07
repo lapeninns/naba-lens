@@ -91,7 +91,7 @@ function Thumb({ asset }: { asset: LabelEditorAsset }) {
   const [failed, setFailed] = React.useState(false)
   const Icon = asset.mediaType === "video" ? FilmStripIcon : ImageIcon
   return (
-    <span className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-print bg-media-placeholder text-ink-muted">
+    <span className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-control bg-surface-2 text-ink-muted">
       {asset.thumbnailUrl && !failed ? (
         // Signed private URL; not routed through next/image (see MediaTile).
         // eslint-disable-next-line @next/next/no-img-element
@@ -180,7 +180,7 @@ function FileProblem({
           <p>{conflictText(audience, status.current)}</p>
           {status.current ? (
             <>
-              <div className="rounded-control bg-panel p-3">
+              <div className="rounded-card bg-surface p-3 shadow-card">
                 <p className="mb-1 text-meta-strong text-ink-muted">
                   Saved now
                 </p>
@@ -815,7 +815,7 @@ function LabelEditor({
                     ))}
                   </ul>
                   <div className="grid gap-1">
-                    <p className="text-body-touch text-ink-muted md:text-body-sm">
+                    <p className="text-body text-ink-muted">
                       {`These labels go on all ${assets.length} ${nouns}. You can change one ${noun}'s labels later from the ${noun} itself.`}
                     </p>
                     <p className={FIELD_HINT}>{BATCH_MERGE_RULE}</p>
@@ -848,7 +848,7 @@ function LabelEditor({
                   <div className="grid gap-1">
                     <h3
                       id={`${uid}-files`}
-                      className="text-label-touch text-ink md:text-label"
+                      className="font-display text-item-title text-ink"
                     >
                       {`Each ${noun}`}
                     </h3>
@@ -858,7 +858,7 @@ function LabelEditor({
                   </div>
                   <ul
                     aria-label={`${noun[0].toUpperCase()}${nouns.slice(1)}`}
-                    className="divide-y divide-line rounded-control border border-line"
+                    className="divide-y divide-line overflow-hidden rounded-card shadow-[inset_0_0_0_1px_var(--line)]"
                   >
                     {assets.map((asset) => {
                       const f = files[asset.id]
@@ -873,16 +873,16 @@ function LabelEditor({
                           <div className="flex min-w-0 items-center gap-3">
                             <Thumb asset={asset} />
                             <div className="min-w-0 flex-1">
-                              <p className="truncate text-label-touch text-ink md:text-label">
+                              <p className="truncate text-label text-ink">
                                 {fileLabel(asset)}
                               </p>
                               <p
                                 className={cn(
-                                  "text-meta-touch text-ink-muted md:text-meta",
-                                  hasProblem && "text-negative",
+                                  "text-meta text-ink-muted",
+                                  hasProblem && "font-bold text-warn-fg",
                                   f.status.kind === "saved" &&
                                     !dirty &&
-                                    "text-positive"
+                                    "font-bold text-ok-fg"
                                 )}
                               >
                                 {countText(eff)}
@@ -941,8 +941,8 @@ function LabelEditor({
                 {problemBlock(single)}
                 <div className="flex min-w-0 items-center gap-3">
                   <Thumb asset={single} />
-                  <p className="min-w-0 text-body-touch md:text-body-sm">
-                    <span className="block font-semibold text-ink">
+                  <p className="min-w-0 text-body">
+                    <span className="block font-bold text-ink">
                       {singleTitle}
                     </span>
                     <span className="block truncate text-ink-muted">
@@ -958,7 +958,7 @@ function LabelEditor({
               id={ids.status}
               role="status"
               aria-live="polite"
-              className="text-body-touch font-semibold text-ink empty:hidden md:text-body-sm"
+              className="text-body font-bold text-ink empty:hidden"
             >
               {announcement}
             </p>

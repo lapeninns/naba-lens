@@ -1,4 +1,7 @@
 import Link from "next/link"
+import { CaretRightIcon } from "@phosphor-icons/react/dist/ssr"
+
+import { Card } from "../common-room/card"
 
 import { GUIDE_ANGLES, type GuideAngle } from "@/lib/guide/dish-guide"
 
@@ -30,33 +33,31 @@ export function TaskPhotoGuide({
 }) {
   const lede = guideLede(photoTarget)
   return (
-    <section
-      aria-labelledby="photo-guide-heading"
-      className="grid gap-4 rounded-panel border border-line bg-panel p-4 md:p-5"
-    >
+    <Card as="section" aria-labelledby="photo-guide-heading">
       <div className="grid gap-1">
         <h2
           id="photo-guide-heading"
-          className="text-section-title-touch md:text-section-title"
+          className="font-display text-section-title text-ink"
         >
           How to photograph it
         </h2>
         {lede ? (
-          <p className="max-w-(--size-reading) text-body-touch text-ink-muted md:text-body">
+          <p className="max-w-(--size-reading) text-body text-ink-muted">
             {lede}
           </p>
         ) : null}
       </div>
       <DishGuide suggested={suggested} />
-      <p className="max-w-(--size-reading) text-body-touch text-ink-muted md:text-body-sm">
+      <p className="max-w-(--size-reading) text-body text-ink-muted">
         Examples, not your menu. Same plain dark background every time.
       </p>
       <Link
         href={GUIDE_PATH}
-        className="inline-flex min-h-11 items-center self-start text-body-touch font-semibold text-accent-text underline underline-offset-3 outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid md:min-h-0 md:text-body"
+        className="-my-1 inline-flex min-h-11 items-center gap-1 justify-self-start rounded-control text-label text-ink underline underline-offset-3 outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
       >
         See the full photo guide
+        <CaretRightIcon aria-hidden weight="bold" className="size-4" />
       </Link>
-    </section>
+    </Card>
   )
 }

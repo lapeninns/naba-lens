@@ -18,6 +18,8 @@ export default function AdminError({
     <AppShell variant="admin" active="content" logoutAction={logout}>
       <div className="flex flex-col gap-6">
         <PageHeader
+          venueScope
+          scope={[LIBRARY_COPY.allVenues, LIBRARY_COPY.order]}
           title={LIBRARY_COPY.title}
           summary={<p>{LIBRARY_COPY.summary}</p>}
           className="pb-0 md:pb-0"
