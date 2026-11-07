@@ -111,7 +111,8 @@ test.describe("amenity two-venue isolation", () => {
     await expect(managerA.getByText(reasonB)).toHaveCount(0)
     const managerB = await signedInPage(browser, w.managerB)
     await managerB.goto(MANAGE.check(checkB))
-    await expect(managerB.getByText(reasonB)).toBeVisible()
+    // Scoped by role: a hidden streamed copy of the page can briefly match text.
+    await expect(managerB.getByRole("article").getByText(reasonB)).toBeVisible()
 
     // Venue B's people get the not-found screen for venue A's pages and a 404
     // for its evidence.
