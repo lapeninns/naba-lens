@@ -208,6 +208,11 @@ export function amenityRpcFailure(
       "needs_setup",
       "Amenities are not enabled for this venue yet. Ask an admin to enable them."
     )
+  if (message === "venue_inactive")
+    return failure(
+      "needs_setup",
+      "This venue is not active, so amenity checks can't be changed."
+    )
   if (message in STATE_CONFLICT_MESSAGES)
     return failure("state_conflict", STATE_CONFLICT_MESSAGES[message])
   if (message in FIELD_ERRORS) {

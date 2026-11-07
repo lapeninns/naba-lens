@@ -74,6 +74,9 @@ create table public.venue_amenity_checks (
 
 create index venue_amenity_checks_assignee_idx
   on public.venue_amenity_checks (assignee_user_id) where assignee_user_id is not null;
+-- The evidence-lost trigger finds checks by their current submission.
+create index venue_amenity_checks_current_submission_idx
+  on public.venue_amenity_checks (current_submission_id) where current_submission_id is not null;
 
 comment on table public.venue_amenity_checks is
   'One amenity question per venue: current answer, progress, assignee and notes. Archived rows keep their history and are restored in place.';
@@ -196,7 +199,15 @@ values
   ('private_room', 'Facilities', 'Is there a private room for hire?', 'Show the room and layout. Record booking conditions and available setup.', 'either', false, 36, 1),
   ('takeaway_pickup', 'Service', 'Is there a takeaway collection point?', 'Show the collection point and signs. Record how guests collect.', 'photo', false, 37, 1),
   ('curbside_pickup', 'Service', 'Can guests collect an order at their car?', 'Film a staff demonstration and record the exact collection point and process.', 'video', false, 38, 1),
-  ('swimming_pool', 'Lodging and leisure', 'Is there a swimming pool guests can use?', 'Show the pool and guest access area. Record access rules and availability.', 'photo', false, 39, 1);
+  ('swimming_pool', 'Lodging and leisure', 'Is there a swimming pool guests can use?', 'Show the pool and guest access area. Record access rules and availability.', 'photo', false, 39, 1)
+on conflict (key) do update set
+  category = excluded.category,
+  question = excluded.question,
+  capture_brief = excluded.capture_brief,
+  evidence_rule = excluded.evidence_rule,
+  is_core = excluded.is_core,
+  position = excluded.position,
+  catalogue_version = excluded.catalogue_version;
 -- END generated
 
 -- ---------------------------------------------------------------------------
@@ -334,6 +345,21 @@ begin
 end;
 $$;
 
+-- Every write needs an active venue; reads stay possible at an inactive one.
+create function private.amenity_assert_venue_active(p_venue_id uuid)
+returns void
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not exists (select 1 from public.venues v where v.id = p_venue_id and v.active) then
+    raise exception 'venue_inactive' using errcode = 'P0001';
+  end if;
+end;
+$$;
+
 -- The current assignee (active staff currently at the check's venue), the
 -- venue's effective manager, or an admin.
 create function private.amenity_can_submit(p_check public.venue_amenity_checks)
@@ -405,6 +431,7 @@ declare
 begin
   v_check := private.amenity_readable_check(p_check_id);
   perform private.assert_can_manage_venue(v_check.venue_id);
+  perform private.amenity_assert_venue_active(v_check.venue_id);
   select c.* into v_check from public.venue_amenity_checks c where c.id = p_check_id for update;
   if p_revision is distinct from v_check.revision then
     raise exception 'amenity_conflict' using errcode = 'P0001',
@@ -513,8 +540,9 @@ as $$
 $$;
 
 -- Why the caller may not attach an asset to the check (contract
--- AmenityFailure["assetReason"]), or NULL when it may. Venue and ownership
--- come first so another person's or venue's asset state is never revealed.
+-- AmenityFailure["assetReason"]), or NULL when it may. Another venue's asset
+-- is not_found, like an unknown id, so its existence is never revealed;
+-- ownership comes next so another person's asset state is not either.
 create function private.amenity_asset_ineligibility(p_check public.venue_amenity_checks, p_asset_id uuid)
 returns text
 language plpgsql
@@ -526,11 +554,8 @@ declare
   v_asset public.media_assets;
 begin
   select a.* into v_asset from public.media_assets a where a.id = p_asset_id;
-  if not found then
+  if not found or v_asset.venue_id <> p_check.venue_id then
     return 'not_found';
-  end if;
-  if v_asset.venue_id <> p_check.venue_id then
-    return 'other_venue';
   end if;
   if v_asset.uploader_id is distinct from auth.uid()
      and not (private.can_manage_venue(p_check.venue_id) and private.amenity_is_legacy_media(p_check, p_asset_id)) then
@@ -578,7 +603,9 @@ $$;
 -- ---------------------------------------------------------------------------
 
 -- A complete Yes whose current submission no longer meets its evidence rule
--- needs a recheck. The submission and its asset rows are kept.
+-- needs a recheck. The submission and its asset rows are kept. Only deletion
+-- can remove evidence: only ready assets are attached, and
+-- private.media_assets_guard keeps a ready asset ready.
 create function private.media_assets_amenity_evidence_lost()
 returns trigger
 language plpgsql
@@ -588,13 +615,7 @@ as $$
 declare
   v_check record;
 begin
-  if not (
-    (old.deleted_at is null and new.deleted_at is not null)
-    or (old.upload_state = 'ready' and new.upload_state <> 'ready')
-  ) then
-    return null;
-  end if;
-
+  -- Checks in id order, so concurrent deletions lock them in the same order.
   for v_check in
     select c.id, c.venue_id, c.current_submission_id, s.evidence_rule
     from public.amenity_submission_assets sa
@@ -603,6 +624,7 @@ begin
     where sa.asset_id = new.id
       and c.progress = 'complete'
       and c.answer = 'yes'
+    order by c.id
     for update of c
   loop
     if not private.amenity_rule_met(v_check.evidence_rule, array(
@@ -624,8 +646,10 @@ end;
 $$;
 
 create trigger media_assets_amenity_evidence_lost
-  after update of deleted_at, upload_state on public.media_assets
-  for each row execute function private.media_assets_amenity_evidence_lost();
+  after update of deleted_at on public.media_assets
+  for each row
+  when (old.deleted_at is null and new.deleted_at is not null)
+  execute function private.media_assets_amenity_evidence_lost();
 
 -- Transfer, deactivation or a role change clears the person's assignments
 -- (pattern: private.profiles_revoke_manager_grants). Submissions stay.
@@ -741,7 +765,8 @@ begin
   return query
     select v.id, v.name,
       exists (select 1 from public.venue_amenity_settings s where s.venue_id = v.id),
-      private.is_active_admin()
+      -- amenity_enable_venue refuses an inactive venue.
+      private.is_active_admin() and v.active
     from public.venues v
     where v.id = p_venue_id;
 end;
@@ -1074,6 +1099,7 @@ begin
     raise exception 'not_venue_manager' using errcode = '42501';
   end if;
   perform private.assert_can_manage_venue(p_venue_id);
+  perform private.amenity_assert_venue_active(p_venue_id);
   if not exists (select 1 from public.venue_amenity_settings s where s.venue_id = p_venue_id) then
     raise exception 'amenities_not_enabled' using errcode = 'P0001';
   end if;
@@ -1352,15 +1378,26 @@ begin
     raise exception 'amenity_not_permitted' using errcode = 'P0001';
   end if;
 
+  if cardinality(v_assets) > 10
+     or array_position(v_assets, null) is not null
+     or (select count(distinct a) from unnest(v_assets) a) <> cardinality(v_assets) then
+    raise exception 'invalid_asset_list' using errcode = 'P0001';
+  end if;
+
   -- Asset rows before the check row, the same order as the evidence-lost
   -- trigger: a concurrent deletion either waits for this submission (and then
-  -- sees it) or commits first (and the asset is then rejected below).
-  perform 1 from public.media_assets a where a.id = any(v_assets) order by a.id for share;
+  -- sees it) or commits first (and the asset is then rejected below). Only the
+  -- check venue's assets are locked; any other id is rejected as not_found.
+  perform 1 from public.media_assets a
+  where a.id = any(v_assets) and a.venue_id = v_check.venue_id
+  order by a.id
+  for share;
   select c.* into v_check from public.venue_amenity_checks c where c.id = p_check_id for update;
   -- The assignee may have changed while waiting for the lock.
   if not private.amenity_can_submit(v_check) then
     raise exception 'amenity_not_permitted' using errcode = 'P0001';
   end if;
+  perform private.amenity_assert_venue_active(v_check.venue_id);
 
   if v_check.status = 'archived' then
     raise exception 'amenity_check_archived' using errcode = 'P0001';
@@ -1377,11 +1414,6 @@ begin
     raise exception 'reason_required' using errcode = 'P0001';
   end if;
 
-  if cardinality(v_assets) > 10
-     or array_position(v_assets, null) is not null
-     or (select count(distinct a) from unnest(v_assets) a) <> cardinality(v_assets) then
-    raise exception 'invalid_asset_list' using errcode = 'P0001';
-  end if;
   foreach v_asset in array v_assets loop
     v_why := private.amenity_asset_ineligibility(v_check, v_asset);
     if v_why is not null then
@@ -1442,43 +1474,54 @@ $$;
 -- Function privileges
 -- ---------------------------------------------------------------------------
 
+-- Read-only checks.
 revoke all on function
-  private.venue_amenity_checks_guard(),
   private.amenity_legacy_coverage_keys(text),
   private.amenity_rule_met(text, text[]),
-  private.lock_amenity_venue(uuid),
   private.amenity_assert_active_user(),
   private.amenity_can_submit(public.venue_amenity_checks),
   private.amenity_can_read(public.venue_amenity_checks),
   private.amenity_readable_check(uuid),
-  private.amenity_lock_managed_check(uuid, integer),
-  private.amenity_event(uuid, uuid, text, text, jsonb),
   private.amenity_wifi_metadata(jsonb),
   private.amenity_is_legacy_media(public.venue_amenity_checks, uuid),
   private.amenity_asset_ineligibility(public.venue_amenity_checks, uuid),
-  private.amenity_submittable(public.venue_amenity_checks),
-  private.media_assets_amenity_evidence_lost(),
-  private.profiles_end_amenity_assignments()
+  private.amenity_submittable(public.venue_amenity_checks)
 from public, anon;
 
 grant execute on function
-  private.venue_amenity_checks_guard(),
   private.amenity_legacy_coverage_keys(text),
   private.amenity_rule_met(text, text[]),
-  private.lock_amenity_venue(uuid),
   private.amenity_assert_active_user(),
   private.amenity_can_submit(public.venue_amenity_checks),
   private.amenity_can_read(public.venue_amenity_checks),
   private.amenity_readable_check(uuid),
-  private.amenity_lock_managed_check(uuid, integer),
-  private.amenity_event(uuid, uuid, text, text, jsonb),
   private.amenity_wifi_metadata(jsonb),
   private.amenity_is_legacy_media(public.venue_amenity_checks, uuid),
   private.amenity_asset_ineligibility(public.venue_amenity_checks, uuid),
-  private.amenity_submittable(public.venue_amenity_checks),
+  private.amenity_submittable(public.venue_amenity_checks)
+to authenticated, service_role;
+
+-- Locks, writes and triggers: only the SECURITY DEFINER RPCs above call them,
+-- running as the function owner (pattern: coverage_procedures.sql).
+revoke all on function
+  private.venue_amenity_checks_guard(),
+  private.lock_amenity_venue(uuid),
+  private.amenity_assert_venue_active(uuid),
+  private.amenity_lock_managed_check(uuid, integer),
+  private.amenity_event(uuid, uuid, text, text, jsonb),
   private.media_assets_amenity_evidence_lost(),
   private.profiles_end_amenity_assignments()
-to authenticated, service_role;
+from public, anon, authenticated;
+
+grant execute on function
+  private.venue_amenity_checks_guard(),
+  private.lock_amenity_venue(uuid),
+  private.amenity_assert_venue_active(uuid),
+  private.amenity_lock_managed_check(uuid, integer),
+  private.amenity_event(uuid, uuid, text, text, jsonb),
+  private.media_assets_amenity_evidence_lost(),
+  private.profiles_end_amenity_assignments()
+to service_role;
 
 revoke all on function
   public.amenity_venue_state(uuid),

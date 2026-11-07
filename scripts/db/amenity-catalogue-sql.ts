@@ -1,7 +1,9 @@
-// Turns supabase/seed/amenity_catalogue.csv into the catalogue INSERT block
-// embedded in supabase/migrations/20261107120000_amenity_catalogue.sql.
+// Turns supabase/seed/amenity_catalogue.csv into the catalogue upsert block
+// first embedded in supabase/migrations/20261107120000_amenity_catalogue.sql.
 // The catalogue only changes through a new migration: edit the CSV, bump
-// CATALOGUE_VERSION, run this and paste the output into that migration.
+// CATALOGUE_VERSION, run this and paste the output into a new migration. The
+// block updates existing keys in place, so it re-runs over an earlier version;
+// it never deletes a key (checks reference them).
 //
 //   pnpm exec tsx scripts/db/amenity-catalogue-sql.ts [csv]
 import { readFileSync } from "node:fs"
@@ -123,7 +125,18 @@ export function parseCatalogueCsv(text: string): CatalogueCsvRow[] {
 
 const literal = (value: string) => `'${value.replaceAll("'", "''")}'`
 
-/** The exact block the migration embeds, markers included. */
+const COLUMNS = [
+  "key",
+  "category",
+  "question",
+  "capture_brief",
+  "evidence_rule",
+  "is_core",
+  "position",
+  "catalogue_version",
+] as const
+
+/** The exact block a catalogue migration embeds, markers included. */
 export function catalogueInsertSql(
   rows: readonly CatalogueCsvRow[],
   version = CATALOGUE_VERSION
@@ -144,9 +157,13 @@ export function catalogueInsertSql(
   return [
     BEGIN_MARKER,
     "insert into public.amenity_catalogue",
-    "  (key, category, question, capture_brief, evidence_rule, is_core, position, catalogue_version)",
+    `  (${COLUMNS.join(", ")})`,
     "values",
-    `${values.join(",\n")};`,
+    values.join(",\n"),
+    "on conflict (key) do update set",
+    `${COLUMNS.filter((c) => c !== "key")
+      .map((c) => `  ${c} = excluded.${c}`)
+      .join(",\n")};`,
     END_MARKER,
   ].join("\n")
 }
