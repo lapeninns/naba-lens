@@ -478,6 +478,7 @@ export const RPC_ERRORS = [
   "evidence_rule_unmet", // details: the rule
   "evidence_not_eligible", // details: {"assetId": "...", "reason": AmenityFailure["assetReason"]}
   "invalid_idempotency_key",
+  "venue_inactive", // writes at a deactivated venue (maps to needs_setup)
 ] as const
 export type RpcError = (typeof RPC_ERRORS)[number]
 
