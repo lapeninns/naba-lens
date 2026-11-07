@@ -5,9 +5,11 @@ import { fileURLToPath } from "node:url"
 import { expect, type Locator, type Page } from "@playwright/test"
 import sharp from "sharp"
 
+import { formatDateTime } from "../../../components/nabalens/tasks/copy"
 import {
   ANSWER_LABEL,
   CORE_CHECK_KEYS,
+  evidenceHref,
   UI_TEXT,
   type AmenityRpcName,
   type AmenityRpcs,
@@ -455,14 +457,55 @@ export function checkItem(scope: Page | Locator, key: string): Locator {
 }
 
 /**
+ * A person as the check page's Assignee select lists them: display name, then
+ * job title in brackets (components/nabalens/amenities/manage/check-detail.tsx).
+ */
+export function assigneeOption(person: Pick<Person, "id" | "name">): string {
+  const jobTitle = psql(
+    `select coalesce(job_title, '') from public.profiles where id = ${uuid(person.id)}`
+  )
+  return jobTitle ? `${person.name} (${jobTitle})` : person.name
+}
+
+/**
+ * The evidence picker's checkbox for one asset
+ * (components/nabalens/amenities/capture/evidence-picker.tsx). Its accessible
+ * name is "Photo added 7 Nov 2026, 10:00", not an id: a photo is found by its
+ * tile's thumbnail route, which carries the asset id; a video tile has no
+ * thumbnail, so it is found by that name, from the asset's own upload time.
+ */
+function evidenceCheckbox(page: Page, assetId: string): Locator {
+  const row = psql(
+    `select json_build_object('kind', media_type, 'createdAt', (extract(epoch from created_at) * 1000)::bigint) from public.media_assets where id = ${uuid(assetId)}`
+  )
+  const asset = JSON.parse(row) as {
+    kind: "image" | "video"
+    createdAt: number
+  }
+  if (asset.kind === "image") {
+    return page
+      .getByRole("listitem")
+      .filter({
+        has: page.locator(`img[src^="${evidenceHref(assetId, "thumb")}"]`),
+      })
+      .getByRole("checkbox")
+  }
+  const added = formatDateTime(new Date(asset.createdAt).toISOString())
+  return page.getByRole("checkbox", {
+    name: `Video added ${added}`,
+    exact: true,
+  })
+}
+
+/**
  * The capture form (staff task page, or a manager/admin "Capture myself"
- * page). Choices are radios named by ANSWER_LABEL; each attachable asset is a
- * checkbox carrying `data-asset-id`, since its accessible name is a
- * description, not an id.
+ * page), components/nabalens/amenities/capture/capture-form.tsx. Choices are
+ * radios named by ANSWER_LABEL. "What you found" and "Limitations" are
+ * optional, so their labels end in " (optional)"; Reason shows only for No and
+ * Not applicable, and the Wi-Fi test fields only for a Wi-Fi Yes.
  */
 export function captureForm(page: Page) {
-  const evidence = (assetId: string) =>
-    page.getByRole("checkbox").and(page.locator(`[data-asset-id="${assetId}"]`))
+  const evidence = (assetId: string) => evidenceCheckbox(page, assetId)
   return {
     answer: (answer: SubmitAnswer) =>
       page
@@ -471,14 +514,15 @@ export function captureForm(page: Page) {
     attach: (assetId: string) => evidence(assetId).check(),
     detach: (assetId: string) => evidence(assetId).uncheck(),
     evidence,
-    finding: page.getByLabel("Finding", { exact: true }),
+    finding: page.getByLabel(/^What you found/),
+    limitations: page.getByLabel(/^Limitations/),
     reason: page.getByLabel("Reason", { exact: true }),
     redaction: page.getByRole("checkbox", { name: UI_TEXT.redactionConfirm }),
     wifi: {
-      testSpot: page.getByLabel("Test spot"),
-      testedOn: page.getByLabel("Tested on"),
-      download: page.getByLabel("Download (Mbps)"),
-      upload: page.getByLabel("Upload (Mbps)"),
+      testSpot: page.getByLabel("Where you tested", { exact: true }),
+      testedOn: page.getByLabel("Test date", { exact: true }),
+      download: page.getByLabel("Download (Mbps)", { exact: true }),
+      upload: page.getByLabel("Upload (Mbps)", { exact: true }),
     },
     submit: page.getByRole("button", { name: UI_TEXT.submit }),
   }
