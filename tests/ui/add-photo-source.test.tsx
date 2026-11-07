@@ -122,10 +122,12 @@ const input = (source: "library" | "camera") =>
 const api = vi.hoisted(() => ({
   posted: [] as {
     venueId: string
-    input: { assetId: string; items: unknown[] }
+    input: { assetId: string; items: unknown[]; contentTypes: string[] }
   }[],
   deleted: [] as string[],
   post: null as null | ((body: unknown) => unknown),
+  /** The menu's answer; default: CATALOGUE at once. */
+  menu: null as null | (() => unknown),
 }))
 function labelApi(url: string, init?: RequestInit) {
   const method = init?.method ?? "GET"
@@ -142,8 +144,12 @@ function labelApi(url: string, init?: RequestInit) {
     api.deleted.push(new URL(url, "http://x").searchParams.get("assetId")!)
     body = { ok: true }
   } else if (url.includes("attention=1")) body = { ok: true, items: [] }
+  else if (api.menu) return Promise.resolve(api.menu()).then(answer)
   else body = { ok: true, catalogue: CATALOGUE, focus: null }
-  return Promise.resolve({ json: async () => body } as Response)
+  return Promise.resolve(answer(body))
+}
+function answer(body: unknown) {
+  return { json: async () => body } as Response
 }
 
 let phone = false
@@ -155,6 +161,7 @@ beforeEach(() => {
   api.posted = []
   api.deleted = []
   api.post = null
+  api.menu = null
   vi.stubGlobal("matchMedia", () => ({ matches: !phone }))
   vi.stubGlobal("fetch", vi.fn(labelApi))
 })
@@ -327,13 +334,14 @@ type Held = {
   name: string
   ctx: UploadContext
   finish: (labels?: UploadLabelOutcome) => void
+  fail: (error: Error) => void
 }
 
 /** Each upload reserves `asset-<name>` and waits for the test to finish it. */
 function holdUploads() {
   const held: Held[] = []
   uploads.current = (file, ctx) =>
-    new Promise((resolve) => {
+    new Promise((resolve, reject) => {
       ctx.onReserved?.(`asset-${file.name}`)
       held.push({
         name: file.name,
@@ -343,6 +351,7 @@ function holdUploads() {
             assetId: `asset-${file.name}`,
             ...(labels ? { labels } : {}),
           }),
+        fail: reject,
       })
     })
   const find = (name: string) => held.find((h) => h.name === name)!
@@ -536,6 +545,144 @@ describe("Our menu: the dish is applied by default", () => {
       expect(fileRow("cocktail.jpg").textContent).toContain("Saved")
     )
     expect(api.posted.map((p) => p.input.assetId)).toEqual(["asset-dish.jpg"])
+  })
+
+  it("a dish photo that can't be used keeps its dish as not saved", async () => {
+    const user = userEvent.setup()
+    const { find } = holdUploads()
+    host(<Opener opts={{ source: "library", preset }} />)
+    await user.click(screen.getByRole("button", { name: "Open" }))
+    await user.upload(input("library"), [jpeg("dish.jpg")])
+    await waitFor(() => expect(api.posted).toHaveLength(1))
+    await act(async () =>
+      find("dish.jpg").fail(
+        Object.assign(new Error("The photo could not be decoded."), {
+          error: { code: "processing_failed", retryable: false },
+        })
+      )
+    )
+    await waitFor(() =>
+      expect(fileRow("dish.jpg").textContent).toContain(
+        "This file can't be used: The photo could not be decoded."
+      )
+    )
+    expect(fileRow("dish.jpg").textContent).toContain(
+      "Not saved (photo not saved)"
+    )
+  })
+
+  describe("two dishes picked before the menu is known", () => {
+    const lassi = {
+      itemId: "item-lassi",
+      variantId: null,
+      itemName: "Mango Lassi",
+      variantName: null,
+    }
+    const BHAJI_ITEM = [{ itemId: "item-bhaji", variantId: null }]
+    const LASSI_ITEM = [{ itemId: "item-lassi", variantId: null }]
+
+    /** The last labels sent for each photo. */
+    const lastPosted = () =>
+      Object.fromEntries(api.posted.map((p) => [p.input.assetId, p.input]))
+
+    /**
+     * Onion Bhaji's photo, then Mango Lassi's. `hide`: the sheet is closed in
+     * between (the label field mounts again); otherwise the second pick joins
+     * the open sheet (the same field gets a second dish).
+     */
+    async function pickBoth(
+      user: ReturnType<typeof userEvent.setup>,
+      hide: boolean
+    ) {
+      host(
+        <>
+          <Opener label="Bhaji" opts={{ source: "library", preset }} />
+          <Opener label="Lassi" opts={{ source: "library", preset: lassi }} />
+        </>
+      )
+      await user.click(screen.getByRole("button", { name: "Bhaji" }))
+      await user.upload(input("library"), [jpeg("bhaji.jpg")])
+      await screen.findByRole("dialog", { name: "Saving 1 photo" })
+      if (hide) await hideSheet(user)
+      // fireEvent: the open sheet makes the page behind it inert to user.click.
+      fireEvent.click(
+        screen.getByRole("button", { name: "Lassi", hidden: true })
+      )
+      await user.upload(input("library"), [jpeg("lassi.jpg")])
+      return screen.findByRole("dialog", { name: "Saving 2 photos" })
+    }
+
+    /** Both photos keep their own dish, also after an edit in the field. */
+    async function keepsBoth(
+      user: ReturnType<typeof userEvent.setup>,
+      dialog: HTMLElement
+    ) {
+      await waitFor(() =>
+        expect(lastPosted()).toEqual({
+          "asset-bhaji.jpg": expect.objectContaining({ items: BHAJI_ITEM }),
+          "asset-lassi.jpg": expect.objectContaining({ items: LASSI_ITEM }),
+        })
+      )
+      await user.click(
+        within(dialog).getByRole("button", { name: /^More details/ })
+      )
+      await user.click(
+        within(dialog).getByRole("button", { name: "Finished dish" })
+      )
+      await waitFor(() =>
+        expect(lastPosted()).toEqual({
+          "asset-bhaji.jpg": expect.objectContaining({
+            items: BHAJI_ITEM,
+            contentTypes: ["dish"],
+          }),
+          "asset-lassi.jpg": expect.objectContaining({
+            items: LASSI_ITEM,
+            contentTypes: ["dish"],
+          }),
+        })
+      )
+      // Nothing was ever sent without its dish, and each shows on its photo.
+      for (const p of api.posted)
+        expect(p.input.items).toEqual(
+          p.input.assetId === "asset-bhaji.jpg" ? BHAJI_ITEM : LASSI_ITEM
+        )
+      expect(
+        within(dialog).getByRole("button", { name: "Remove Onion Bhaji" })
+      ).toBeTruthy()
+      expect(
+        within(dialog).getByRole("button", { name: "Remove Mango Lassi" })
+      ).toBeTruthy()
+    }
+
+    it("while it is loading: each photo keeps its own dish", async () => {
+      const user = userEvent.setup()
+      holdUploads()
+      let load!: () => void
+      api.menu = () =>
+        new Promise((resolve) => {
+          load = () => resolve({ ok: true, catalogue: CATALOGUE, focus: null })
+        })
+      const dialog = await pickBoth(user, false)
+      expect(api.posted).toEqual([])
+      await act(async () => load())
+      await keepsBoth(user, dialog)
+    })
+
+    it("after it failed to load: each photo keeps its own dish once retried", async () => {
+      const user = userEvent.setup()
+      holdUploads()
+      api.menu = () => ({ ok: false, message: "The menu is unavailable." })
+      const dialog = await pickBoth(user, true)
+      expect(
+        await within(dialog).findByText("The menu couldn't be loaded")
+      ).toBeTruthy()
+      expect(api.posted).toEqual([])
+      api.menu = null
+      await user.click(
+        within(dialog).getByRole("button", { name: "Retry loading the menu" })
+      )
+      await keepsBoth(user, dialog)
+    })
   })
 })
 

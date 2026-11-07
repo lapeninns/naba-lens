@@ -66,10 +66,6 @@ type PickOwner = {
   purpose: UploadPurpose
 }
 
-function samePreset(a: AddLabelPreset | null | undefined, b: AddLabelPreset) {
-  return !!a && a.itemId === b.itemId && a.variantId === b.variantId
-}
-
 /** The catalogue item for a preset, when this menu still offers it. */
 function onMenu(catalogue: LabelCatalogue, preset: AddLabelPreset) {
   if (catalogue.status !== "active") return false
@@ -457,10 +453,15 @@ const hasDish = (input: SaveLabelsInput, preset: AddLabelPreset) =>
   input.items.some((ref) => ref.itemId === preset.itemId)
 
 /**
- * The sheet's label field for the files that can carry labels. Our menu's
- * dish goes on its files once: `initial` already holding it wins (the panel
- * restores it as it is), and a file whose dish the person removed never gets
- * it back when the field mounts again.
+ * The sheet's label field for the files that can carry labels. Each file
+ * gets the dish it was picked for, once: `initial` already holding it wins
+ * (the panel restores it as it is), and a file whose dish the person removed
+ * never gets it back when the field mounts again.
+ *
+ * The host stores a file's dish on its own (UploadLabels.seed), so the field
+ * may not drop it unless the person did: a dish the field has never shown
+ * stays in what is stored, and a file that failed for good keeps its stored
+ * labels (they read "Not saved (photo not saved)").
  */
 function PanelHost({
   items,
@@ -484,14 +485,17 @@ function PanelHost({
   dishShown: (id: string) => boolean
   onDishShown: (id: string) => void
 }) {
-  // The dish of the latest files that came with one, on those files only.
-  const last = [...items].reverse().find((item) => presetOf(item.file))
-  const preset = last ? presetOf(last.file) : null
   const restored = (id: string) => initial.find((i) => i.assetId === id)
-  const presetTarget = (item: (typeof items)[number]) => {
-    if (!preset || !samePreset(presetOf(item.file), preset)) return false
-    const now = restored(item.id)
-    return !dishShown(item.id) || (!!now && hasDish(now, preset))
+  const dishOf = (id: string) => {
+    const item = items.find((i) => i.id === id)
+    return item ? presetOf(item.file) : null
+  }
+  // Each file's own dish, unless the person removed it earlier.
+  const presetFor = (id: string) => {
+    const dish = dishOf(id)
+    if (!dish) return null
+    const now = restored(id)
+    return !dishShown(id) || (!!now && hasDish(now, dish)) ? dish : null
   }
   return (
     <UploadLabelPanel
@@ -503,17 +507,31 @@ function PanelHost({
         name: item.file.name,
         kind: item.kind,
       }))}
-      preset={preset}
-      presetAssetIds={items.filter(presetTarget).map((item) => item.id)}
+      presetFor={presetFor}
       initial={initial}
       disabledIds={disabledIds}
       onChange={(inputs) => {
-        for (const input of inputs) {
-          const item = items.find((i) => i.id === input.assetId)
-          const dish = item ? presetOf(item.file) : null
-          if (dish && hasDish(input, dish)) onDishShown(input.assetId)
-        }
-        if (venueId) onChange(venueId, inputs)
+        const kept = inputs.map((input) => {
+          const stored = restored(input.assetId)
+          if (stored && disabledIds.includes(input.assetId)) return stored
+          const dish = dishOf(input.assetId)
+          if (!dish) return input
+          if (hasDish(input, dish)) {
+            onDishShown(input.assetId)
+            return input
+          }
+          // Removed by the person only once it was shown to them.
+          if (!stored || !hasDish(stored, dish) || dishShown(input.assetId))
+            return input
+          return {
+            ...input,
+            items: [
+              ...input.items,
+              ...stored.items.filter((ref) => ref.itemId === dish.itemId),
+            ],
+          }
+        })
+        if (venueId) onChange(venueId, kept)
       }}
       onPendingChange={onPendingChange}
     />
