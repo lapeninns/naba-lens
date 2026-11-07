@@ -2,11 +2,19 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { CameraIcon, CameraPlusIcon, ImageIcon } from "@phosphor-icons/react"
+import {
+  CameraIcon,
+  CameraPlusIcon,
+  ImageIcon,
+  ImagesIcon,
+} from "@phosphor-icons/react"
 
 import { EvidenceThumb } from "@/components/nabalens/coverage/evidence-image"
 import { plural } from "@/components/nabalens/coverage/copy"
-import { useAdd } from "@/components/nabalens/shell/add-context"
+import {
+  useAdd,
+  type AddLabelPreset,
+} from "@/components/nabalens/shell/add-context"
 import { StatusChip } from "@/components/nabalens/status-chip"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -18,9 +26,9 @@ import { ITEM_REVIEW_COPY, OUR_MENU_COPY } from "./copy"
 /**
  * One dish or drink on Our menu: its name and variants, whether it has an
  * accepted photo (with the main photo's thumbnail), and for staff who can
- * upload an explicit "Add a photo of this dish", which opens the photo
- * library with the dish suggested as the label. The suggestion is only a
- * draft in the label editor; nothing is labelled until the person saves.
+ * upload "Take a photo of this dish" (the camera, primary) and "Choose from
+ * photos" (the library). Either way Add applies the dish as a label the
+ * person can remove, and the upload starts at once: Take a photo, then Done.
  */
 export function OurMenuItemRow({
   item,
@@ -110,32 +118,56 @@ export function OurMenuItemRow({
             </Link>
           ) : null}
           {canAdd && openAdd ? (
-            <Button
-              variant="secondary"
-              size="sm"
-              aria-describedby={nameId}
-              // openAdd clicks the library input inside this click handler.
-              onClick={() =>
-                openAdd({
-                  source: "library",
-                  imagesOnly: true,
-                  preset: {
-                    itemId: item.itemId,
-                    variantId: null,
-                    itemName: item.name,
-                    variantName: null,
-                  },
-                })
-              }
-            >
-              <CameraPlusIcon data-icon="inline-start" aria-hidden />
-              {OUR_MENU_COPY.addPhoto}
-            </Button>
+            <>
+              {/* The row's lead action, grey: a list of dishes must not
+                  turn every row blue (one blue action per screen). */}
+              <Button
+                variant="secondary"
+                size="sm"
+                aria-describedby={nameId}
+                // openAdd clicks the camera input inside this click handler.
+                onClick={() =>
+                  openAdd({
+                    source: "camera",
+                    imagesOnly: true,
+                    preset: dishPreset(item),
+                  })
+                }
+              >
+                <CameraPlusIcon data-icon="inline-start" aria-hidden />
+                {OUR_MENU_COPY.takePhoto}
+              </Button>
+              <Button
+                variant="quiet"
+                size="sm"
+                aria-describedby={nameId}
+                onClick={() =>
+                  openAdd({
+                    source: "library",
+                    imagesOnly: true,
+                    preset: dishPreset(item),
+                  })
+                }
+              >
+                <ImagesIcon data-icon="inline-start" aria-hidden />
+                {OUR_MENU_COPY.choosePhoto}
+              </Button>
+            </>
           ) : null}
         </div>
       ) : null}
     </article>
   )
+}
+
+/** The dish as Add's label preset: the dish itself, no variant chosen. */
+function dishPreset(item: OurMenuItem): AddLabelPreset {
+  return {
+    itemId: item.itemId,
+    variantId: null,
+    itemName: item.name,
+    variantName: null,
+  }
 }
 
 /** Shared list class: one bordered panel, rows split by lines. */

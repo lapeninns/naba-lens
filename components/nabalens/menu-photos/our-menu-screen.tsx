@@ -46,8 +46,8 @@ export type LoadOurMenuItems = (
 /**
  * Staff "Our menu": the active venue menu grouped by section, how many items
  * have an accepted photo, search and "Still needs a photo". Each dish offers
- * "Add a photo of this dish" to people who can upload; tapping it is the
- * explicit choice to contribute there.
+ * "Take a photo of this dish" (and "Choose from photos") to people who can
+ * upload; tapping it is the explicit choice to contribute there.
  */
 export function OurMenuScreen({
   load,

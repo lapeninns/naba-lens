@@ -121,11 +121,14 @@ test.describe("Our menu: menu items with an accepted photo", () => {
     await expect(staff.getByRole("region", { name: "Starters" })).toBeVisible()
     await expect(staff.getByRole("region", { name: "Mains" })).toBeVisible()
     await expect(dishes(staff)).toHaveText(["Soup", "Salad", "Pie"])
-    // Each dish offers an explicit "Add a photo of this dish" to uploaders.
+    // Each dish offers "Take a photo of this dish" (camera) first and
+    // "Choose from photos" to uploaders.
+    const soupRow = staff.getByRole("article", { name: "Soup" })
     await expect(
-      staff
-        .getByRole("article", { name: "Soup" })
-        .getByRole("button", { name: "Add a photo of this dish" })
+      soupRow.getByRole("button", { name: "Take a photo of this dish" })
+    ).toBeVisible()
+    await expect(
+      soupRow.getByRole("button", { name: "Choose from photos" })
     ).toBeVisible()
 
     await staff.getByRole("link", { name: "Still needs a photo" }).click()
