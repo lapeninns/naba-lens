@@ -397,7 +397,7 @@ describe("UploadLabelPanel", () => {
       [{ itemId: "item-momo", variantId: "var-veg" }],
       [{ itemId: "item-momo", variantId: "var-veg" }],
     ])
-    expect(within(rows()[1]).getByText("Momo, Veg")).toBeTruthy()
+    expect(within(rows()[1]).getByText("Momo (Veg)")).toBeTruthy()
   })
 
   describe("onPendingChange", () => {

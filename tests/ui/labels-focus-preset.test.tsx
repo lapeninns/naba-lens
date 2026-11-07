@@ -259,11 +259,11 @@ describe("Our menu preset", () => {
 
   it("is applied as a removable chip and saved with the labels", async () => {
     const { user, dialog, onSave } = await open({ preset })
-    expect(within(dialog).getByText("Tikka Masala, Lamb added")).toBeTruthy()
+    expect(within(dialog).getByText("Tikka Masala (Lamb) added")).toBeTruthy()
     const chips = within(dialog).getByRole("list", {
       name: "Selected menu items",
     })
-    expect(within(chips).getByText("Tikka Masala, Lamb")).toBeTruthy()
+    expect(within(chips).getByText("Tikka Masala (Lamb)")).toBeTruthy()
     expect(onSave).not.toHaveBeenCalled()
 
     await user.click(
@@ -281,9 +281,9 @@ describe("Our menu preset", () => {
     expect(screen.getByRole("alertdialog")).toBeTruthy()
     await user.click(screen.getByRole("button", { name: "Keep editing" }))
     await user.click(
-      within(dialog).getByRole("button", { name: "Remove Tikka Masala, Lamb" })
+      within(dialog).getByRole("button", { name: "Remove Tikka Masala (Lamb)" })
     )
-    expect(within(dialog).queryByText("Tikka Masala, Lamb added")).toBeNull()
+    expect(within(dialog).queryByText("Tikka Masala (Lamb) added")).toBeNull()
     await user.click(
       within(dialog).getByRole("button", { name: "Save labels" })
     )
@@ -301,7 +301,7 @@ describe("Our menu preset", () => {
         within(dialog).getByRole("list", {
           name: "Selected menu items for all files",
         })
-      ).getByText("Tikka Masala, Lamb")
+      ).getByText("Tikka Masala (Lamb)")
     ).toBeTruthy()
   })
 

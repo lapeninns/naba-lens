@@ -45,7 +45,7 @@ describe("LabelSummary", () => {
     )
     const items = screen.getByRole("list", { name: "Menu items" })
     const rows = within(items).getAllByRole("listitem")
-    expect(rows[0].textContent).toBe("Tikka Masala, Lamb · House Specials")
+    expect(rows[0].textContent).toBe("Tikka Masala (Lamb) · House Specials")
     expect(rows[1].textContent).toBe(
       "Lamb Bhuna · CurriesNot on the current menulabelled as Lamb Bhoona"
     )
