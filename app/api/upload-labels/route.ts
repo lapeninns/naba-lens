@@ -96,7 +96,10 @@ export async function POST(request: Request) {
   return Response.json(result, { status, headers })
 }
 
-/** Discards the caller's stored draft of `?assetId=` (idempotent). */
+/**
+ * Discards the caller's stored draft of `?assetId=` (idempotent):
+ * UploadLabelDiscardResult, `already_applied` when finalise applied it first.
+ */
 export async function DELETE(request: Request) {
   const auth = await getMediaActor("staff")
   if (!auth.ok)
@@ -116,5 +119,5 @@ export async function DELETE(request: Request) {
       { ok: false, message: discarded.message },
       { status: discarded.status, headers }
     )
-  return Response.json({ ok: true }, { headers })
+  return Response.json(discarded, { headers })
 }

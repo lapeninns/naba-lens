@@ -3314,6 +3314,10 @@ export type Database = {
         Returns: undefined
       }
       discard_menu_draft: { Args: { p_version_id: string }; Returns: undefined }
+      discard_unusable_media_labels: {
+        Args: { p_asset_id: string }
+        Returns: undefined
+      }
       fail_stale_media_processing: {
         Args: { p_limit?: number; p_stale_after: string }
         Returns: {

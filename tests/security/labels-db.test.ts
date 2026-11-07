@@ -1351,8 +1351,8 @@ describe("direct writes are denied for authenticated users", () => {
 // Labels stored while a photo uploads (20261107140000_media_pending_labels):
 // matrix row 9 at the database layer. Only the uploader (active staff) reads
 // or discards their own drafts; every write goes through stage_media_labels
-// (own, general, not failed/deleted, at the asset's venue) or the service-role
-// complete_media_finalise.
+// (own, general, not deleted, not failed for good, at the asset's venue) or
+// the service-role complete_media_finalise.
 describe("row 9: stored upload drafts are the uploader's alone", () => {
   const draft = (assetId: string, patch: Record<string, unknown> = {}) =>
     asJson({
@@ -1497,18 +1497,45 @@ describe("row 9: stored upload drafts are the uploader's alone", () => {
     expect(own.data).toEqual([{ asset_id: asset.id }])
   })
 
-  it("refuses ready-asset storage, failed, amenity and other-venue assets", async () => {
+  it("refuses ready-asset storage, failed-for-good, amenity and other-venue assets", async () => {
     const ready = await reserveReady(service, staffA)
     const staged = await stage(staffA, ready)
     expect(staged.data).toBe("ready")
     expect(await drafts(staffA, ready.id)).toEqual([])
 
+    // Failed with no original stored: it can never become ready.
     const failed = await reserve(staffA)
     await service
       .from("media_assets")
       .update({ upload_state: "failed" })
       .eq("id", failed.id)
     expectDbError(await stage(staffA, failed), "media_asset_not_found", "P0002")
+    expect(await drafts(staffA, failed.id)).toEqual([])
+
+    // Failed temporarily (original still stored): kept for the Retry. The
+    // original is written while the reservation is open, as in an upload.
+    const retrying = await reserve(staffA)
+    const { data: path } = await service
+      .from("media_assets")
+      .select("original_path")
+      .eq("id", retrying.id)
+      .single()
+    const stored = await service.storage
+      .from("media")
+      .upload(path!.original_path, new Uint8Array([1, 2, 3, 4]), {
+        contentType: "application/octet-stream",
+      })
+    expect(stored.error).toBeNull()
+    await service
+      .from("media_assets")
+      .update({ upload_state: "failed" })
+      .eq("id", retrying.id)
+    const kept = await stage(staffA, retrying)
+    expect(kept.error).toBeNull()
+    expect(kept.data).toBe("pending")
+    expect(await drafts(staffA, retrying.id)).toEqual([
+      { asset_id: retrying.id, status: "pending" },
+    ])
 
     const amenity = await staffA.client.rpc("reserve_media_asset", {
       p_client_upload_key: crypto.randomUUID(),
