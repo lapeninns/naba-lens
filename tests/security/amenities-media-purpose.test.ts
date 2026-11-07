@@ -7,7 +7,10 @@
 // it; the venue manager reads it through amenity_evidence_asset. A general
 // upload is unchanged, and so is legacy Coverage media (a Coverage submission
 // item or amenity fact photo) a manager attached as evidence: Coverage review
-// and configuration screens still read it. Real signed-in identities; the
+// and configuration screens still read it. Coverage media is never hidden,
+// whatever its purpose, but the Coverage pickers (coverage_candidate_assets) do
+// not offer amenity-purpose uploads. A saved upload key never resumes under the
+// other purpose (reservation_purpose_mismatch). Real signed-in identities; the
 // service role only builds fixtures and reads state back.
 import { randomUUID } from "node:crypto"
 
@@ -39,11 +42,14 @@ let sameVenue: TestIdentity
 let otherVenue: TestIdentity
 /** A colleague whose Coverage photos the manager attaches as evidence. */
 let coverageAuthor: TestIdentity
+/** A colleague whose amenity-purpose photo ends up in Coverage. */
+let amenityCoverageAuthor: TestIdentity
 
 /** Amenity upload attached to a submission. */
 let amenitySubmitted: string
 /** Amenity upload never attached. */
 let amenityLoose: string
+let amenityLooseKey: string
 /** General upload attached to the same submission. */
 let generalSubmitted: string
 /** General upload, not evidence. */
@@ -53,6 +59,9 @@ let generalKey: string
 let legacyItem: string
 /** Legacy amenity fact photo, attached by the manager. */
 let legacyFact: string
+/** Amenity-purpose upload submitted to Coverage. */
+let amenityInCoverage: string
+let venue: string
 
 function reserve(
   who: TestIdentity,
@@ -113,7 +122,7 @@ const evidenceGate = async (who: TestIdentity, assetId: string) =>
   ok(who.client.rpc("amenity_evidence_asset", { p_asset_id: assetId }))
 
 beforeAll(async () => {
-  const venue = (await createVenue(service, "amen-purpose")).id
+  venue = (await createVenue(service, "amen-purpose")).id
   const elsewhere = (await createVenue(service, "amen-purpose-other")).id
   admin = await createIdentity(service, {
     label: "amen-purpose-admin",
@@ -126,6 +135,7 @@ beforeAll(async () => {
   sameVenue = await staff("amen-purpose-same", venue)
   otherVenue = await staff("amen-purpose-other", elsewhere)
   coverageAuthor = await staff("amen-purpose-coverage", venue)
+  amenityCoverageAuthor = await staff("amen-purpose-cov-amenity", venue)
   await grantManager(admin, manager.id, venue)
 
   await ok(admin.client.rpc("amenity_enable_venue", { p_venue_id: venue }))
@@ -144,7 +154,8 @@ beforeAll(async () => {
   )
 
   amenitySubmitted = await readyAsset(uploader, "amenity")
-  amenityLoose = await readyAsset(uploader, "amenity")
+  amenityLooseKey = randomUUID()
+  amenityLoose = await readyAsset(uploader, "amenity", amenityLooseKey)
   generalSubmitted = await readyAsset(uploader, "general")
   generalKey = randomUUID()
   // Called as before this change: no p_purpose.
@@ -231,6 +242,22 @@ beforeAll(async () => {
     .select("asset_id", { count: "exact", head: true })
     .in("asset_id", [legacyItem, legacyFact])
   if (count !== 2) throw new Error("legacy evidence was not attached")
+
+  // An amenity-purpose photo that is also a Coverage submission item.
+  amenityInCoverage = await readyAsset(amenityCoverageAuthor, "amenity")
+  const { data: inCoverage, error: inCoverageError } = await service
+    .from("media_assets")
+    .select("id, created_at")
+    .eq("id", amenityInCoverage)
+    .single()
+  if (inCoverageError) throw inCoverageError
+  await insertSubmittedItem(service, {
+    asset: inCoverage!,
+    venue,
+    author: amenityCoverageAuthor.id,
+    submittedAt: new Date().toISOString(),
+    requirement: req!.id,
+  })
 })
 
 describe("media_assets.purpose", () => {
@@ -257,15 +284,44 @@ describe("media_assets.purpose", () => {
     await fails(reserve(uploader, null as never), "invalid_purpose", "22023")
   })
 
-  it("keeps the first reservation's purpose on a retry of the same key", async () => {
-    const [retry] = await ok(reserve(uploader, "amenity", generalKey))
-    expect(retry).toMatchObject({ id: general, reused: true })
-    const { data } = await service
+  it("refuses a retry of the same key with the other purpose and changes nothing", async () => {
+    const before = await service
       .from("media_assets")
-      .select("purpose")
-      .eq("id", general)
-      .single()
-    expect(data!.purpose).toBe("general")
+      .select("*")
+      .in("id", [general, amenityLoose])
+      .order("id")
+    expect(before.error).toBeNull()
+    await fails(
+      reserve(uploader, "amenity", generalKey),
+      "reservation_purpose_mismatch",
+      "22023"
+    )
+    // No p_purpose is general: refused for an amenity key too.
+    await fails(
+      reserve(uploader, undefined, amenityLooseKey),
+      "reservation_purpose_mismatch",
+      "22023"
+    )
+    await fails(
+      reserve(uploader, "general", amenityLooseKey),
+      "reservation_purpose_mismatch",
+      "22023"
+    )
+    const after = await service
+      .from("media_assets")
+      .select("*")
+      .in("id", [general, amenityLoose])
+      .order("id")
+    expect(after.data).toEqual(before.data)
+  })
+
+  it("replays a retry of the same key with the same purpose", async () => {
+    for (const purpose of [undefined, "general"]) {
+      const [retry] = await ok(reserve(uploader, purpose, generalKey))
+      expect(retry).toMatchObject({ id: general, reused: true })
+    }
+    const [retry] = await ok(reserve(uploader, "amenity", amenityLooseKey))
+    expect(retry).toMatchObject({ id: amenityLoose, reused: true })
   })
 
   it("cannot be changed after insert, even by the service role", async () => {
@@ -381,6 +437,52 @@ describe("legacy Coverage media attached as amenity evidence", () => {
     for (const who of [sameVenue, otherVenue]) {
       for (const id of legacy()) expect(await mediaGate(who, id)).toBe(200)
     }
+  })
+})
+
+describe("amenity-purpose photo used as Coverage media", () => {
+  it("community_readable_assets: stays readable to the venue manager and colleagues", async () => {
+    for (const who of [manager, sameVenue, admin, amenityCoverageAuthor]) {
+      expect(await readable(who, [amenityInCoverage])).toEqual([
+        amenityInCoverage,
+      ])
+    }
+  })
+
+  it("is served by the /api/media gate to the venue manager", async () => {
+    expect(await mediaGate(manager, amenityInCoverage)).toBe(200)
+  })
+})
+
+describe("coverage_candidate_assets", () => {
+  const candidates = async (who: TestIdentity) =>
+    (
+      await ok(
+        who.client.rpc("coverage_candidate_assets", {
+          p_venue_id: venue,
+          p_limit: 101,
+        })
+      )
+    ).map((r: { asset_id: string }) => r.asset_id)
+
+  it("lists general uploads but never amenity-purpose ones", async () => {
+    for (const who of [manager, admin]) {
+      const ids = await candidates(who)
+      expect(ids).toContain(general)
+      expect(ids).toContain(legacyItem)
+      for (const id of [amenitySubmitted, amenityLoose, amenityInCoverage]) {
+        expect(ids).not.toContain(id)
+      }
+    }
+  })
+
+  it("leaves amenity-purpose uploads out of the uploader's own picker", async () => {
+    const ids = (
+      await ok(uploader.client.rpc("coverage_candidate_assets", {}))
+    ).map((r: { asset_id: string }) => r.asset_id)
+    expect(ids).toContain(general)
+    expect(ids).not.toContain(amenitySubmitted)
+    expect(ids).not.toContain(amenityLoose)
   })
 })
 

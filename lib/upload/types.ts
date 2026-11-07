@@ -74,7 +74,10 @@ export type UploadErrorCode =
   | "too_large"
   | "aborted"
   | "reserve_failed"
-  /** The reservation for this key was removed; a retry starts a new one. */
+  /**
+   * The reservation for this key was removed, or reserved for another purpose;
+   * a retry starts a new one.
+   */
   | "reservation_gone"
   | "transfer_failed"
   | "finalise_failed"

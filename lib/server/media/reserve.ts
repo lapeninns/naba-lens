@@ -16,7 +16,11 @@ export type ReserveRequest = {
   contentType: string
   mediaType: MediaKind
   preferResumable: boolean
-  /** Omitted: general. Fixed by the first reservation for this key. */
+  /**
+   * Omitted: general. Fixed by the first reservation for this key; a retry with
+   * the other purpose is refused (404, see rpcFailure) so the client starts a
+   * new reservation.
+   */
   purpose?: MediaPurpose
 }
 
