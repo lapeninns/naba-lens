@@ -74,6 +74,22 @@ describe("reserveAsset purpose", () => {
     expect(rpc).not.toHaveBeenCalled()
   })
 
+  it("maps reservation_purpose_mismatch to a 404, like a removed reservation", async () => {
+    // The browser's reserve turns 404 into ReservationGoneError: the saved key
+    // is discarded and the retry reserves a new asset with the new purpose.
+    expect(
+      rpcFailure({ message: "reservation_purpose_mismatch", code: "22023" })
+    ).toMatchObject({ ok: false, status: 404 })
+    const { actor: a, rpc } = actor()
+    rpc.mockResolvedValueOnce({
+      data: null,
+      error: { message: "reservation_purpose_mismatch", code: "22023" },
+    })
+    expect(
+      await reserveAsset(a, request({ purpose: "amenity" }))
+    ).toMatchObject({ ok: false, status: 404 })
+  })
+
   it("maps the database's invalid_purpose to a 400", () => {
     expect(rpcFailure({ message: "invalid_purpose" })).toMatchObject({
       ok: false,

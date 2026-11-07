@@ -11,7 +11,9 @@ export class AbortedError extends Error {
 /**
  * Thrown by a `reserve` implementation when the reservation for this
  * idempotency key no longer exists (removed by its owner, or cleaned up after
- * the abandoned-upload window). Retrying needs a new key.
+ * the abandoned-upload window), or was reserved for another purpose
+ * (`reservation_purpose_mismatch`, also a 404 from the server). Retrying needs a
+ * new key.
  */
 export class ReservationGoneError extends Error {
   constructor(message = "This upload was removed.") {

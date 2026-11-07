@@ -9,13 +9,18 @@
 --   chosen at reservation and fixed afterwards.
 -- * reserve_media_asset takes p_purpose (default 'general'); every earlier
 --   check, the grants and the result are unchanged.
--- * The community reads skip amenity-purpose assets, and a general upload
---   attached to an amenity submission unless it is also Coverage media (a
---   Coverage submission item or venue amenity fact photo): legacy Coverage
---   photos chosen as evidence stay exactly as visible as before, so Coverage
---   review and configuration screens still find them. The uploader and admins
---   keep their access, and the amenity routes read through
---   amenity_evidence_asset, which is unchanged.
+-- * reserve_media_asset refuses an existing key reserved for the other
+--   purpose (reservation_purpose_mismatch), so a saved upload key never
+--   resumes a portfolio upload as amenity evidence or the other way round.
+-- * The community reads skip amenity evidence: amenity-purpose assets and any
+--   upload attached to an amenity submission, unless it is Coverage media (a
+--   Coverage submission item or venue amenity fact photo). Coverage media is
+--   never hidden, whatever its purpose, so Coverage review and configuration
+--   screens (which check photos through community_readable_assets) still find
+--   it. The uploader and admins keep their access, and the amenity routes read
+--   through amenity_evidence_asset, which is unchanged.
+-- * coverage_candidate_assets no longer offers amenity-purpose uploads to the
+--   Coverage pickers.
 
 alter table public.media_assets
   add column purpose text not null default 'general'
@@ -42,13 +47,17 @@ create trigger media_assets_purpose_guard
   before update of purpose on public.media_assets
   for each row execute function private.media_assets_purpose_guard();
 
+revoke all on function private.media_assets_purpose_guard() from public, anon, authenticated;
+
 -- ---------------------------------------------------------------------------
 -- reserve_media_asset: + p_purpose
 -- ---------------------------------------------------------------------------
 -- Same checks and result as 20261030100000_security_hardening.sql. A retry of
--- an existing key returns the original reservation with its original purpose,
--- as it does with the venue snapshot. Callers that omit p_purpose (named
--- arguments) reserve a general upload as before.
+-- an existing key returns the original reservation, as it does with the venue
+-- snapshot, but only for the same purpose: a key reserved for the other
+-- purpose raises reservation_purpose_mismatch (22023) and changes nothing, so
+-- the client discards that key and reserves a new one. Callers that omit
+-- p_purpose (named arguments) reserve a general upload as before.
 
 drop function public.reserve_media_asset(public.media_type, text, text, bigint, text);
 
@@ -107,6 +116,10 @@ begin
     if v_existing.deleted_at is not null then
       raise exception 'media_asset_not_found' using errcode = 'P0002',
         detail = 'This upload was removed.';
+    end if;
+    if v_existing.purpose <> p_purpose then
+      raise exception 'reservation_purpose_mismatch' using errcode = '22023',
+        detail = 'This upload key was reserved for another purpose.';
     end if;
     return query select v_existing.id, v_existing.original_path, v_existing.venue_id,
       v_existing.upload_state, true;
@@ -171,6 +184,9 @@ begin
     if v_existing.deleted_at is not null then
       raise exception 'media_asset_not_found' using errcode = 'P0002';
     end if;
+    if v_existing.purpose <> p_purpose then
+      raise exception 'reservation_purpose_mismatch' using errcode = '22023';
+    end if;
     return query select v_existing.id, v_existing.original_path, v_existing.venue_id,
       v_existing.upload_state, true;
     return;
@@ -188,8 +204,8 @@ grant execute on function public.reserve_media_asset(public.media_type, text, te
 -- ---------------------------------------------------------------------------
 
 -- Same as 20261102160000, but a colleague no longer reads amenity evidence:
--- amenity-purpose uploads, and general uploads attached to an amenity
--- submission that are not also Coverage media. Coverage media reads as before
+-- amenity-purpose uploads and uploads attached to an amenity submission, unless
+-- they are Coverage media. Coverage media reads as before, whatever its purpose
 -- (manager Coverage review and configuration screens check photos through this
 -- function). The uploader and active admins still read everything.
 create or replace function public.community_readable_assets(p_asset_ids uuid[])
@@ -223,10 +239,12 @@ begin
       or (select private.is_active_admin())
       or (
         private.is_community_member(a.uploader_id)
-        and a.purpose = 'general'
         and (
-          not exists (
-            select 1 from public.amenity_submission_assets sa where sa.asset_id = a.id
+          (
+            a.purpose = 'general'
+            and not exists (
+              select 1 from public.amenity_submission_assets sa where sa.asset_id = a.id
+            )
           )
           or exists (
             select 1 from public.coverage_submission_items ci where ci.asset_id = a.id
@@ -270,10 +288,12 @@ as $$
   join public.venues v on v.id = a.venue_id
   where (select private.is_active_user())
     and a.upload_state = 'ready' and a.deleted_at is null
-    and a.purpose = 'general'
     and (
-      not exists (
-        select 1 from public.amenity_submission_assets sa where sa.asset_id = a.id
+      (
+        a.purpose = 'general'
+        and not exists (
+          select 1 from public.amenity_submission_assets sa where sa.asset_id = a.id
+        )
       )
       or exists (
         select 1 from public.coverage_submission_items ci where ci.asset_id = a.id
@@ -312,10 +332,12 @@ as $$
     p.venue_id, v.name, p.avatar_path,
     (select count(*) from public.media_assets a
       where a.uploader_id = p.id and a.upload_state = 'ready' and a.deleted_at is null
-        and a.purpose = 'general'
         and (
-          not exists (
-            select 1 from public.amenity_submission_assets sa where sa.asset_id = a.id
+          (
+            a.purpose = 'general'
+            and not exists (
+              select 1 from public.amenity_submission_assets sa where sa.asset_id = a.id
+            )
           )
           or exists (
             select 1 from public.coverage_submission_items ci where ci.asset_id = a.id
@@ -336,3 +358,91 @@ as $$
   limit least(greatest(coalesce(p_limit, 25), 1), 101)
   offset least(greatest(coalesce(p_offset, 0), 0), 100000);
 $$;
+
+-- ---------------------------------------------------------------------------
+-- Coverage pickers
+-- ---------------------------------------------------------------------------
+
+-- Same as 20261102150000, without amenity-purpose uploads: amenity evidence is
+-- not offered for Coverage submissions or attachments.
+-- Photos that can be submitted or attached, newest first, with any live item.
+-- Managers (p_venue_id they manage) and admins: ready images of that venue,
+-- active uploaders only for managers. Everyone else: their own ready images at
+-- their current venue.
+create or replace function public.coverage_candidate_assets(
+  p_venue_id uuid default null,
+  p_uploader_id uuid default null,
+  p_after_created_at timestamptz default null,
+  p_after_id uuid default null,
+  p_limit integer default 25
+)
+returns table (
+  asset_id uuid,
+  venue_id uuid,
+  uploader_id uuid,
+  uploader_name text,
+  uploader_active boolean,
+  created_at timestamptz,
+  uploaded_month date,
+  monthly_eligible_now boolean,
+  has_preview boolean,
+  has_thumbnail boolean,
+  width integer,
+  height integer,
+  live_item_id uuid,
+  live_item_state text,
+  live_requirement_id uuid
+)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_uid uuid := auth.uid();
+  v_limit integer := least(greatest(coalesce(p_limit, 25), 1), 101);
+  v_month date := private.current_london_month();
+  v_venue uuid := p_venue_id;
+  v_uploader uuid := p_uploader_id;
+  v_admin boolean := private.is_active_admin();
+begin
+  if v_uid is null or not private.is_active_user() then
+    raise exception 'not_active_user' using errcode = '42501';
+  end if;
+  if not (p_venue_id is not null and private.can_manage_venue(p_venue_id)) then
+    v_venue := private.uploadable_venue_id();
+    v_uploader := v_uid;
+    v_admin := false;
+    if v_venue is null or (p_venue_id is not null and p_venue_id <> v_venue)
+       or (p_uploader_id is not null and p_uploader_id <> v_uid) then
+      raise exception 'not_venue_manager' using errcode = '42501';
+    end if;
+  end if;
+
+  return query
+  select a.id, a.venue_id, a.uploader_id, p.display_name, p.active and p.role = 'staff',
+    a.created_at, private.london_month(a.created_at),
+    private.london_month(a.created_at) = v_month,
+    a.preview_path is not null, a.thumbnail_path is not null, a.width, a.height,
+    li.id, li.state, li.requirement_id
+  from public.media_assets a
+  join public.profiles p on p.id = a.uploader_id
+  left join public.coverage_submission_items li
+    on li.asset_id = a.id and li.state in ('submitted', 'accepted') and li.archived_at is null
+  where a.venue_id = v_venue
+    and (v_uploader is null or a.uploader_id = v_uploader)
+    and a.media_type = 'image'
+    and a.upload_state = 'ready'
+    and a.deleted_at is null
+    and a.purpose <> 'amenity'
+    and (v_admin or a.uploader_id = v_uid or (p.active and p.role = 'staff'))
+    and (p_after_created_at is null or p_after_id is null
+      or (a.created_at, a.id) < (p_after_created_at, p_after_id))
+  order by a.created_at desc, a.id desc
+  limit v_limit;
+end;
+$$;
+
+revoke all on function public.coverage_candidate_assets(uuid, uuid, timestamptz, uuid, integer) from public, anon;
+grant execute on function public.coverage_candidate_assets(uuid, uuid, timestamptz, uuid, integer) to authenticated, service_role;
