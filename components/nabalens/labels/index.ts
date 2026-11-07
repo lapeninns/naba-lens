@@ -22,6 +22,7 @@ export type {
   LabelAudience,
   LabelEditorDialogProps,
   LabelPreset,
+  PresetFor,
 } from "./types"
 export {
   UploadLabelPanel,

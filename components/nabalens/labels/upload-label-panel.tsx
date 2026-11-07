@@ -45,7 +45,7 @@ import {
 } from "./label-draft"
 import { FIELD_HINT } from "./field-styles"
 import { itemDisplayName, LabelFields } from "./label-fields"
-import type { CatalogueProp, LabelPreset } from "./types"
+import type { CatalogueProp, LabelPreset, PresetFor } from "./types"
 
 /** The common field's visible label (C5). */
 export const UPLOAD_ITEMS_LABEL = "What's in these photos?"
@@ -67,6 +67,11 @@ export type UploadLabelPanelProps = {
   preset?: LabelPreset | null
   /** The files the preset belongs to. Omitted: every file. */
   presetAssetIds?: readonly string[]
+  /**
+   * Each file's own dish (see PresetFor). When given, `preset` and
+   * `presetAssetIds` are ignored.
+   */
+  presetFor?: PresetFor
   /** Inputs emitted earlier (e.g. the sheet was reopened): restored per file. */
   initial?: readonly SaveLabelsInput[]
   /** Files that can no longer be labelled (failed). They emit empty labels. */
@@ -118,7 +123,8 @@ function Thumb({ file }: { file: UploadLabelFile }) {
  * Optional labels inside the upload sheet (no dialog, no Save button): one
  * common "What's in these photos?" field for every file, "More details" for
  * content types and a note, and "Adjust" per file for exceptions. The preset
- * is already applied as a removable chip. Every change is reported through
+ * (one for the batch, or each file's own with `presetFor`) is already applied
+ * as a removable chip. Every change is reported through
  * `onChange`; the host stores the inputs and saves each when its file is
  * ready. Staff never see original file names: files are "Photo 1", "Video 2".
  */
@@ -129,6 +135,7 @@ export function UploadLabelPanel({
   files,
   preset = null,
   presetAssetIds,
+  presetFor,
   initial,
   disabledIds = [],
   onChange,
@@ -144,9 +151,13 @@ export function UploadLabelPanel({
   >({})
   // Files whose restored labels and preset have been applied (needs the menu).
   const [seeded, setSeeded] = React.useState<ReadonlySet<string>>(new Set())
+  // The shared `preset` was removed: files added later don't get it either.
   const [presetRemoved, setPresetRemoved] = React.useState(false)
-  const [presetItem, setPresetItem] = React.useState<DraftItem | null>(null)
-  const [presetMissing, setPresetMissing] = React.useState(false)
+  // Each file's dish as the menu names it (set when the file is seeded).
+  const [presetItems, setPresetItems] = React.useState<
+    Readonly<Record<string, DraftItem>>
+  >({})
+  const [presetsMissing, setPresetsMissing] = React.useState<LabelPreset[]>([])
 
   const ready = catalogue.state === "ready" ? catalogue.catalogue : null
   const catalogueVersionId = ready?.status === "active" ? ready.versionId : null
@@ -156,8 +167,13 @@ export function UploadLabelPanel({
   )
   const venueName = ready?.venueName ?? "this venue"
   const disabled = new Set(disabledIds)
-  const isPresetTarget = (id: string) =>
-    !!preset && (!presetAssetIds || presetAssetIds.includes(id))
+  const presetOf = (id: string): LabelPreset | null =>
+    presetFor
+      ? presetFor(id)
+      : preset && (!presetAssetIds || presetAssetIds.includes(id))
+        ? preset
+        : null
+  const presetBlocked = !presetFor && presetRemoved
   // Read once: inputs echoed back later must not count as restored labels.
   const [restoredInputs] = React.useState(initial)
   const initialFor = (id: string) =>
@@ -169,16 +185,20 @@ export function UploadLabelPanel({
     !i.missingItem
 
   // Restored labels and the preset go in once the menu is loaded (they are
-  // named from it): restored labels as they were, else the preset on its
-  // files unless the person already removed it. An empty restored input (e.g.
+  // named from it): restored labels as they were, else each file's own dish
+  // unless the person already removed it. An empty restored input (e.g.
   // stored before the menu loaded) still gets the preset.
   const unseeded = files.filter((f) => !seeded.has(f.id))
   if (ready && unseeded.length > 0) {
-    const draft = presetDraft(ready, preset)
-    if (preset && !draft && !presetMissing) setPresetMissing(true)
-    if (draft && !presetItem) setPresetItem(draft)
     const next = { ...adjs }
+    const items = { ...presetItems }
+    const missing = [...presetsMissing]
     for (const f of unseeded) {
+      const own = presetOf(f.id)
+      const draft = presetDraft(ready, own)
+      if (draft) items[f.id] = draft
+      else if (own && !missing.some((m) => itemKey(m) === itemKey(own)))
+        missing.push(own)
       const restored = initialFor(f.id)
       if (restored && !isEmptyInput(restored)) {
         next[f.id] = adjustFromInput(
@@ -186,11 +206,13 @@ export function UploadLabelPanel({
           restored,
           draftItemsFromRefs(ready, restored.items)
         )
-      } else if (draft && !presetRemoved && isPresetTarget(f.id)) {
+      } else if (draft && !presetBlocked) {
         next[f.id] = addItem(next[f.id] ?? NO_ADJUST, draft)
       }
     }
     setAdjs(next)
+    setPresetItems(items)
+    if (missing.length > presetsMissing.length) setPresetsMissing(missing)
     setSeeded(new Set([...seeded, ...unseeded.map((f) => f.id)]))
   }
 
@@ -232,7 +254,7 @@ export function UploadLabelPanel({
         !seeded.has(f.id) &&
         !disabled.has(f.id) &&
         ((initialFor(f.id)?.items.length ?? 0) > 0 ||
-          (isPresetTarget(f.id) && !presetRemoved))
+          (!!presetOf(f.id) && !presetBlocked))
     )
   const problems = Object.fromEntries(
     files
@@ -273,31 +295,42 @@ export function UploadLabelPanel({
     setAdjs((prev) => ({ ...prev, [id]: fn(prev[id] ?? NO_ADJUST) }))
   }
 
-  const presetKey = presetItem ? itemKey(presetItem) : null
-  const presetTargets = files.filter(
-    (f) => isPresetTarget(f.id) && !disabled.has(f.id)
-  )
-  const presetOn = presetTargets.filter((f) =>
-    effective[f.id].items.some((i) => i.key === presetKey)
-  )
-  const presetShown =
-    presetKey !== null &&
-    !common.items.some((i) => itemKey(i) === presetKey) &&
-    presetOn.length > 0
+  const presetKeyOf = (f: UploadLabelFile) =>
+    presetItems[f.id] && !disabled.has(f.id) ? itemKey(presetItems[f.id]) : null
+  // One chip per dish, on the photos that still have it as their own dish.
+  const presetChips: { key: string; item: DraftItem; on: UploadLabelFile[] }[] =
+    []
+  for (const f of files) {
+    const key = presetKeyOf(f)
+    if (
+      !key ||
+      common.items.some((i) => itemKey(i) === key) ||
+      !effective[f.id].items.some((i) => i.key === key)
+    )
+      continue
+    const chip = presetChips.find((c) => c.key === key)
+    if (chip) chip.on.push(f)
+    else presetChips.push({ key, item: presetItems[f.id], on: [f] })
+  }
   // In the common field only when it is on every photo; otherwise it is shown
   // on its own, naming its photos, and the dish can still be picked for all.
   const presetCommon =
-    presetShown &&
-    files.every((f) => disabled.has(f.id) || presetOn.includes(f))
+    presetChips.length === 1 &&
+    files.every((f) => disabled.has(f.id) || presetChips[0].on.includes(f))
+      ? presetChips[0]
+      : null
 
-  /** The preset chip comes off every preset file, and later ones too. */
-  function removePreset() {
-    if (!presetKey) return
-    setPresetRemoved(true)
+  /**
+   * The dish comes off every file it is the dish of. A shared `preset` stays
+   * off files added later too; with `presetFor` each later file has its own.
+   */
+  function removePreset(key: string) {
+    if (!presetFor) setPresetRemoved(true)
     setAdjs((prev) => {
       const next = { ...prev }
-      for (const f of presetTargets)
-        next[f.id] = removeItem(next[f.id] ?? NO_ADJUST, presetKey, false)
+      for (const f of files)
+        if (presetKeyOf(f) === key)
+          next[f.id] = removeItem(next[f.id] ?? NO_ADJUST, key, false)
       return next
     })
   }
@@ -343,8 +376,15 @@ export function UploadLabelPanel({
       saved: false,
       fromCommon: true,
     })),
-    ...(presetCommon && presetItem
-      ? [{ ...presetItem, key: presetKey!, saved: false, fromCommon: false }]
+    ...(presetCommon
+      ? [
+          {
+            ...presetCommon.item,
+            key: presetCommon.key,
+            saved: false,
+            fromCommon: false,
+          },
+        ]
       : []),
   ]
 
@@ -410,37 +450,43 @@ export function UploadLabelPanel({
         </Notice>
       ) : null}
 
-      {presetMissing && preset ? (
-        <Notice tone="plain" role="none">
-          {`${itemDisplayName({ name: preset.itemName, variantName: preset.variantName })} isn't on the current menu, so it wasn't added.`}
+      {presetsMissing.map((missing) => (
+        <Notice key={itemKey(missing)} tone="plain" role="none">
+          {`${itemDisplayName({ name: missing.itemName, variantName: missing.variantName })} isn't on the current menu, so it wasn't added.`}
         </Notice>
-      ) : null}
+      ))}
 
-      {presetShown && !presetCommon && presetItem ? (
+      {presetChips.length > 0 && !presetCommon ? (
         <ul aria-label="From the dish" className="flex flex-wrap gap-2">
-          <li className="flex max-w-full min-w-0 items-center gap-1 rounded-card bg-accent-soft py-1 ps-3.5 text-ink shadow-[inset_0_0_0_1.5px_var(--accent-text)]">
-            <span className="min-w-0 py-0.5">
-              <span className="block text-label break-words">
-                {itemDisplayName(
-                  presetItem,
-                  isUnspecifiedVariant(ready, presetItem)
-                )}
-              </span>
-              <span className="block text-meta text-ink-muted">
-                {`On ${presetOn.map(fileRef).join(", ")} only`}
-              </span>
-            </span>
-            <Button
-              type="button"
-              variant="quiet"
-              size="icon-sm"
-              className="shrink-0 text-current"
-              aria-label={`Remove ${itemDisplayName(presetItem, isUnspecifiedVariant(ready, presetItem))}`}
-              onClick={removePreset}
-            >
-              <XIcon aria-hidden />
-            </Button>
-          </li>
+          {presetChips.map((chip) => {
+            const name = itemDisplayName(
+              chip.item,
+              isUnspecifiedVariant(ready, chip.item)
+            )
+            return (
+              <li
+                key={chip.key}
+                className="flex max-w-full min-w-0 items-center gap-1 rounded-card bg-accent-soft py-1 ps-3.5 text-ink shadow-[inset_0_0_0_1.5px_var(--accent-text)]"
+              >
+                <span className="min-w-0 py-0.5">
+                  <span className="block text-label break-words">{name}</span>
+                  <span className="block text-meta text-ink-muted">
+                    {`On ${chip.on.map(fileRef).join(", ")} only`}
+                  </span>
+                </span>
+                <Button
+                  type="button"
+                  variant="quiet"
+                  size="icon-sm"
+                  className="shrink-0 text-current"
+                  aria-label={`Remove ${name}`}
+                  onClick={() => removePreset(chip.key)}
+                >
+                  <XIcon aria-hidden />
+                </Button>
+              </li>
+            )
+          })}
         </ul>
       ) : null}
 
@@ -463,7 +509,8 @@ export function UploadLabelPanel({
           }))
         }}
         onRemoveItem={(item) => {
-          if (item.key === presetKey) removePreset()
+          if (files.some((f) => presetKeyOf(f) === item.key))
+            removePreset(item.key)
           setCommon((c) => ({
             ...c,
             items: c.items.filter((i) => itemKey(i) !== item.key),
