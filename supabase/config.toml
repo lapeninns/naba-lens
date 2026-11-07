@@ -253,7 +253,7 @@ subject = "You have been invited to Naba-Lens"
 content_path = "./supabase/templates/invite.html"
 
 [auth.email.template.magic_link]
-subject = "Your Naba-Lens sign-in link"
+subject = "Your Naba-Lens sign-in link and code"
 content_path = "./supabase/templates/magic_link.html"
 
 # Uncomment to customize notification email template

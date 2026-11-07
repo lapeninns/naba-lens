@@ -1,7 +1,7 @@
 // Phase `withdraw`: tests/migrations/coverage-withdraw-access.sql removes every
-// end-user capability the coverage migrations added (and the scheduled
-// preparation from the service role), keeps every row, and touches nothing
-// else. Runs inside one transaction that is rolled back.
+// end-user capability the coverage and Our menu item-photo migrations added
+// (and the scheduled preparation from the service role), keeps every row, and
+// touches nothing else. Runs inside one transaction that is rolled back.
 import { execFileSync } from "node:child_process"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
@@ -15,6 +15,7 @@ const MIGRATIONS = [
   "20261102130000_venue_manager_grants.sql",
   "20261102140000_coverage_domain.sql",
   "20261102150000_coverage_procedures.sql",
+  "20261106130000_menu_item_photos.sql",
 ]
 const script = readFileSync(
   join(import.meta.dirname, "coverage-withdraw-access.sql"),
@@ -65,8 +66,8 @@ function privilegesAfterScript(): { fn: string; role: string; ok: boolean }[] {
 
 describe("coverage access withdrawal", () => {
   it("names every coverage RPC and table", () => {
-    expect(publicFunctions.length).toBe(26)
-    expect(publicTables.length).toBe(13)
+    expect(publicFunctions.length).toBe(33)
+    expect(publicTables.length).toBe(16)
     for (const fn of publicFunctions)
       expect(script, fn).toContain(`public.${fn}(`)
     for (const t of publicTables) expect(script, t).toContain(`public.${t}`)

@@ -7,7 +7,10 @@ import {
   submitPhotosAction,
 } from "@/app/_coverage/actions"
 import { useMediaUploader } from "@/app/_media/use-media-uploader"
-import { useAddRefreshSignal } from "@/components/nabalens/shell/add-context"
+import {
+  useAddQueue,
+  useAddRefreshSignal,
+} from "@/components/nabalens/shell/add-context"
 import {
   SubmitPhotosPanel,
   type SubmittablePhotosResult,
@@ -16,7 +19,8 @@ import { ROUTES } from "@/lib/auth/routes"
 import { MEDIA_LIMITS } from "@/lib/config/media"
 
 /**
- * Wires the send panel to the real upload pipeline and coverage actions. A
+ * Wires the send panel to the staff layout's one Add queue (its pickers and
+ * ready uploads) and the coverage actions. A
  * successful send revalidates /staff in the action itself, so only conflicts
  * need an explicit refresh.
  */
@@ -38,6 +42,7 @@ export function TaskSubmit({
   const router = useRouter()
   const uploader = useMediaUploader()
   const refreshSignal = useAddRefreshSignal()
+  const addQueue = useAddQueue()
   return (
     <SubmitPhotosPanel
       requirementId={requirementId}
@@ -49,6 +54,7 @@ export function TaskSubmit({
       refreshSignal={refreshSignal}
       loadPhotos={loadSubmittablePhotosAction}
       submit={submitPhotosAction}
+      addQueue={addQueue}
       uploader={uploader}
       limits={MEDIA_LIMITS}
       onReload={() => router.refresh()}

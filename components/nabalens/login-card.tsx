@@ -20,8 +20,16 @@ import {
   CAPTCHA_RETRY_MESSAGE,
   CAPTCHA_UNAVAILABLE_MESSAGE,
 } from "@/lib/auth/captcha"
+import {
+  clearPendingSignIn,
+  forgetSignIns,
+  lastSignInSent,
+  pendingSignIn,
+  recordSignInSent,
+} from "@/lib/auth/pending-sign-in"
 import { cn } from "@/lib/utils"
 import { Notice } from "./notice"
+import { RESEND_COOLDOWN_SECONDS, SignInCodeStep } from "./sign-in-code-step"
 import { TurnstileChallenge } from "./turnstile-challenge"
 
 function BusyIcon() {
@@ -43,6 +51,14 @@ type LoginCardProps = {
     email: string,
     captchaToken?: string
   ) => Promise<{ error?: string } | void>
+  /**
+   * Sign in with the code from the email. Return `{ ok: true }` once signed in
+   * (the card then loads "/" so role routing runs), or `{ error }`.
+   */
+  onVerifyCode?: (
+    email: string,
+    code: string
+  ) => Promise<{ error?: string; ok?: true }>
   captchaRequired?: boolean
   captchaSiteKey?: string | null
   /** The previous link was expired or already used. */
@@ -54,9 +70,13 @@ type LoginCardProps = {
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const EMAIL_ERROR = "Enter a full email address, like name@example.com."
+const CODE_FALLBACK_ERROR = "That code didn't work. Try again."
+/** How long a waiting code step survives a reload (the local otp_expiry). */
+export const PENDING_SIGN_IN_MS = 60 * 60 * 1000
 
 export function LoginCard({
   onSubmit,
+  onVerifyCode,
   linkExpired = false,
   signedOut = false,
   captchaRequired = false,
@@ -65,6 +85,7 @@ export function LoginCard({
 }: LoginCardProps) {
   const [email, setEmail] = React.useState("")
   const [state, setState] = React.useState<"idle" | "sending" | "sent">("idle")
+  const [sentAt, setSentAt] = React.useState(0)
   // Once a new link is on its way, "Use a different email" returns to Sign in.
   const [expired, setExpired] = React.useState(linkExpired)
   const [error, setError] = React.useState<string | null>(null)
@@ -87,6 +108,21 @@ export function LoginCard({
   const sentHeading = React.useRef<HTMLHeadingElement>(null)
   const emailInput = React.useRef<HTMLInputElement>(null)
   const returning = React.useRef(false)
+
+  // A phone may reload /login while the person reads their email: come back
+  // to the code step for that request instead of sending another. After
+  // mount only, so the server render and hydration match.
+  React.useEffect(() => {
+    // Arriving from an expired link or a log out starts from the email form.
+    if (!onVerifyCode || linkExpired || signedOut) return
+    const pending = pendingSignIn(PENDING_SIGN_IN_MS)
+    if (!pending) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setEmail(pending.email)
+    setSentAt(pending.sentAt)
+    setExpired(false)
+    setState("sent")
+  }, [onVerifyCode, linkExpired, signedOut])
 
   React.useEffect(() => {
     if (state === "sent") sentHeading.current?.focus()
@@ -113,6 +149,17 @@ export function LoginCard({
     }
     setError(null)
     setUnreachable(false)
+    // Within the resend wait for this address (after "Use a different email"),
+    // nothing new would arrive: return to that request's step instead. After an
+    // expired or used link the earlier email is spent, so always ask again.
+    const last = expired ? null : lastSignInSent(value)
+    if (last !== null && Date.now() - last < RESEND_COOLDOWN_SECONDS * 1000) {
+      if (onVerifyCode) recordSignInSent(value, last, { pending: true })
+      setExpired(false)
+      setSentAt(last)
+      setState("sent")
+      return
+    }
     setState("sending")
     try {
       const result = requiresCaptcha
@@ -123,7 +170,10 @@ export function LoginCard({
         setState("idle")
         return
       }
+      const at = Date.now()
+      recordSignInSent(value, at, { pending: !!onVerifyCode })
       setExpired(false)
+      setSentAt(at)
       setState("sent")
     } catch {
       setUnreachable(true)
@@ -137,7 +187,15 @@ export function LoginCard({
     }
   }
 
+  function changeEmail() {
+    clearPendingSignIn()
+    returning.current = true
+    setState("idle")
+    setError(null)
+  }
+
   if (state === "sent") {
+    const sentTo = email.trim()
     return (
       <SignInCard aria-labelledby={titleId} className={className}>
         <div role="status" className="grid gap-5">
@@ -147,23 +205,49 @@ export function LoginCard({
             title="Check your email"
             headingRef={sentHeading}
           >
-            If <strong>{email.trim()}</strong> has an account, a sign-in link is
-            on its way. It works once. Open it on this phone to stay signed in
-            here.
+            If <strong>{sentTo}</strong> has an account, a sign-in link is on
+            its way.{" "}
+            {onVerifyCode
+              ? "Open the link on this phone, or enter the code from the same email here. Each works once."
+              : "It works once. Open it on this phone to stay signed in here."}
           </SignInHeading>
         </div>
-        <Button
-          variant="secondary"
-          size="touch"
-          className="w-full"
-          onClick={() => {
-            returning.current = true
-            setState("idle")
-            setError(null)
-          }}
-        >
-          Use a different email
-        </Button>
+        {onVerifyCode ? (
+          <SignInCodeStep
+            sentAt={sentAt}
+            captchaRequired={captchaRequired}
+            captchaSiteKey={captchaSiteKey}
+            onVerify={async (code) => {
+              const result = await onVerifyCode(sentTo, code)
+              if (result.error || !result.ok) {
+                return { error: result.error ?? CODE_FALLBACK_ERROR }
+              }
+              forgetSignIns()
+              // A full load, so "/" routes by role with the new session cookies
+              // (the Server Function cannot redirect() inside the step's catch).
+              // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+              window.location.assign("/")
+            }}
+            onResend={async (token) => {
+              const result = requiresCaptcha
+                ? await onSubmit(sentTo, token)
+                : await onSubmit(sentTo)
+              if (!result?.error)
+                recordSignInSent(sentTo, Date.now(), { pending: true })
+              return result ?? undefined
+            }}
+            onChangeEmail={changeEmail}
+          />
+        ) : (
+          <Button
+            variant="secondary"
+            size="touch"
+            className="w-full"
+            onClick={changeEmail}
+          >
+            Use a different email
+          </Button>
+        )}
       </SignInCard>
     )
   }
@@ -192,7 +276,7 @@ export function LoginCard({
         </SignInHeading>
       ) : (
         <SignInHeading id={titleId} title="Sign in">
-          We&apos;ll email you a link. There&apos;s no password.
+          We&apos;ll email you a link and a code. There&apos;s no password.
         </SignInHeading>
       )}
       <Field className="gap-1.5">

@@ -126,6 +126,12 @@ export const ACCEPT_ATTRIBUTE = [
   ...VIDEO_EXTENSIONS.map((e) => `.${e}`),
 ].join(",")
 
+/** `accept` attribute value for photo-only inputs (task screens). */
+export const IMAGE_ACCEPT_ATTRIBUTE = [
+  ...ACCEPTED_IMAGE_TYPES,
+  ...IMAGE_EXTENSIONS.map((e) => `.${e}`),
+].join(",")
+
 /**
  * Early client-side type guess for useful feedback only. The server validates
  * the real content; never treat this as a security check.

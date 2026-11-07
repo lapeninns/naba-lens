@@ -37,7 +37,7 @@ export function SetupChecklist({
 }: {
   setup: CoverageScope["setup"]
   profile: SetupProfile
-  /** Where "Edit profile" lives (the portfolio). */
+  /** Me with its Edit profile dialog open (`/staff?edit=profile`). */
   editProfileHref: string
 }) {
   const missing = new Set(setup.missing)

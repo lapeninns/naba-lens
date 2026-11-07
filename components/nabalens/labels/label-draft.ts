@@ -266,6 +266,35 @@ export function isPickable(catalogue: LabelCatalogue, ref: LabelItemRef) {
   return false
 }
 
+/**
+ * A suggested item (Our menu's photo request) as a draft item, when the
+ * catalogue still offers it. Names come from the catalogue, so a renamed dish
+ * shows its current name.
+ */
+export function presetDraft(
+  catalogue: LabelCatalogue | null,
+  preset: LabelItemRef | null | undefined
+): DraftItem | null {
+  if (!catalogue || !preset || !isPickable(catalogue, preset)) return null
+  if (catalogue.status !== "active") return null
+  for (const section of catalogue.sections) {
+    const item = section.items.find((i) => i.itemId === preset.itemId)
+    if (!item) continue
+    return {
+      itemId: item.itemId,
+      variantId: preset.variantId,
+      name: item.name,
+      variantName:
+        item.variants.find((v) => v.variantId === preset.variantId)?.name ??
+        null,
+      sectionName: section.name,
+      labelledAs: null,
+      state: "current",
+    }
+  }
+  return null
+}
+
 export type FileStatus =
   | { kind: "idle" }
   | { kind: "saved" }

@@ -4,10 +4,12 @@ import { ShieldCheckIcon } from "@phosphor-icons/react/dist/ssr"
 
 import { logout } from "@/app/_media/actions"
 import { SelfReviewsControl } from "@/app/staff/manage/_shared/controls"
+import { ItemPhotoSelfReviewsControl } from "@/app/staff/manage/_shared/menu-items-controls"
 import { unexpected } from "@/app/staff/manage/_shared/context"
 import type { ManageSearch } from "@/app/staff/manage/_shared/screens"
 import { AppShell } from "@/components/nabalens/app-shell"
 import { EmptyState } from "@/components/nabalens/empty-state"
+import { ITEM_SELF_REVIEWS_COPY } from "@/components/nabalens/menu-photos/item-photo-self-reviews"
 import { formatDateTime } from "@/components/nabalens/menus/copy"
 import { Notice } from "@/components/nabalens/notice"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
@@ -18,6 +20,7 @@ import { requireActiveAdmin } from "@/lib/auth"
 import {
   getCoverageActor,
   getGroupOverview,
+  listItemPhotoSelfReviews,
   listPreparationRuns,
   listSelfReviews,
 } from "@/lib/server/coverage"
@@ -74,9 +77,12 @@ export default async function CoverageOverviewPage({
   const now = new Date()
   const view = periodView(period)
   const since = runsSince(view, now)
-  const [overview, selfReviews, runs] = await Promise.all([
+  const [overview, selfReviews, itemSelfReviews, runs] = await Promise.all([
     getGroupOverview(actor, { period }),
     listSelfReviews(actor, { period }),
+    // Our menu decisions on a manager's own photos, kept apart from the
+    // monthly self-reviews (a separate measure).
+    listItemPhotoSelfReviews(actor, { period }),
     // Past months hide Monthly preparation, so only this month reads runs.
     isCurrent
       ? loadPeriodRuns(
@@ -92,6 +98,7 @@ export default async function CoverageOverviewPage({
   ])
   if (!overview.ok) unexpected(overview)
   if (!selfReviews.ok) unexpected(selfReviews)
+  if (!itemSelfReviews.ok) unexpected(itemSelfReviews)
   if (!runs.ok) unexpected(runs)
   const { venues, preparation } = overview
   const month = monthName(overview.period.label)
@@ -267,6 +274,18 @@ export default async function CoverageOverviewPage({
                 ) : (
                   <SelfReviewsControl initial={selfReviews} period={period} />
                 )}
+                <div className="mt-3 grid gap-1">
+                  <h3 className="text-item-title-touch text-ink md:text-item-title">
+                    {ITEM_SELF_REVIEWS_COPY.title}
+                  </h3>
+                  <p className="max-w-(--size-reading) text-body-touch text-ink-muted md:text-body-sm">
+                    {ITEM_SELF_REVIEWS_COPY.body}
+                  </p>
+                </div>
+                <ItemPhotoSelfReviewsControl
+                  initial={itemSelfReviews}
+                  period={period}
+                />
               </section>
             </>
           )}

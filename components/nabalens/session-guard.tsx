@@ -13,8 +13,10 @@ import {
 } from "@/components/ui/dialog"
 
 import { CAPTCHA_UNAVAILABLE_MESSAGE } from "@/lib/auth/captcha"
+import { lastSignInSent, recordSignInSent } from "@/lib/auth/pending-sign-in"
 
 import { Notice } from "./notice"
+import { RESEND_COOLDOWN_SECONDS, SignInCodeStep } from "./sign-in-code-step"
 import { TurnstileChallenge } from "./turnstile-challenge"
 
 /**
@@ -24,6 +26,11 @@ import { TurnstileChallenge } from "./turnstile-challenge"
  */
 export type SessionGuard = {
   email: string | null
+  /**
+   * Who the page's work belongs to (the first signed-in user seen). A code that
+   * signs in anyone else does not resume it.
+   */
+  userId?: string | null
   captchaRequired: boolean
   captchaSiteKey: string | null
   sendLink: (
@@ -35,7 +42,19 @@ export type SessionGuard = {
    * unsure resolves true, so a lost signal is never mistaken for a sign-out.
    */
   isSignedIn: () => Promise<boolean>
+  /**
+   * Signs this browser in with the code from the sign-in email and resolves the
+   * signed-in user's id, or `{ error }`. Without it the sheet offers the link
+   * only.
+   */
+  verifyCode?: (
+    email: string,
+    code: string
+  ) => Promise<{ error?: string; userId?: string }>
 }
+
+export const DIFFERENT_ACCOUNT_MESSAGE =
+  "That code signed in a different account, so the stopped files were not resumed. Reload the page to continue as that account."
 
 const SessionGuardContext = React.createContext<SessionGuard | null>(null)
 
@@ -108,10 +127,16 @@ export function SignInAgainSheet({
   guard,
   done,
   stopped,
+  onSignedIn,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   guard: SessionGuard
+  /**
+   * The same person signed in again with a code: resume what was waiting. The
+   * sheet closes itself when this is not given.
+   */
+  onSignedIn?: () => void
   /** Files that finished before the session ended. */
   done: number
   /** Files that stopped because of it. */
@@ -119,6 +144,7 @@ export function SignInAgainSheet({
 }) {
   const [sending, setSending] = React.useState(false)
   const [sent, setSent] = React.useState(false)
+  const [sentAt, setSentAt] = React.useState(0)
   const [error, setError] = React.useState<string | null>(null)
   const [captchaToken, setCaptchaToken] = React.useState<string | null>(null)
   const [challengeAttempt, setChallengeAttempt] = React.useState(0)
@@ -135,15 +161,28 @@ export function SignInAgainSheet({
 
   async function send() {
     if (!guard.email) return
-    setSending(true)
     setError(null)
+    // Reopened within the resend wait: nothing new would arrive, so go back to
+    // the email already sent instead of claiming another.
+    const last = lastSignInSent(guard.email)
+    if (last !== null && Date.now() - last < RESEND_COOLDOWN_SECONDS * 1000) {
+      setSentAt(last)
+      setSent(true)
+      return
+    }
+    setSending(true)
     try {
       const result = await guard.sendLink(
         guard.email,
         needsCaptcha ? (captchaToken ?? undefined) : undefined
       )
       if (result.error) setError(result.error)
-      else setSent(true)
+      else {
+        const at = Date.now()
+        recordSignInSent(guard.email, at)
+        setSentAt(at)
+        setSent(true)
+      }
     } catch {
       setError("Check your connection and try again. Nothing is sent twice.")
     } finally {
@@ -154,6 +193,20 @@ export function SignInAgainSheet({
         setChallengeAttempt((attempt) => attempt + 1)
       }
     }
+  }
+
+  const { email, userId, verifyCode } = guard
+  const withCode = sent && !!email && !!verifyCode
+
+  async function checkCode(code: string) {
+    if (!email || !verifyCode) return
+    const result = await verifyCode(email, code)
+    if (result.error) return { error: result.error }
+    if (userId && result.userId && result.userId !== userId) {
+      return { error: DIFFERENT_ACCOUNT_MESSAGE }
+    }
+    if (onSignedIn) onSignedIn()
+    else onOpenChange(false)
   }
 
   const summary = [
@@ -173,7 +226,13 @@ export function SignInAgainSheet({
           <DialogTitle>
             {sent ? "Check your email" : "Sign in again"}
           </DialogTitle>
-          {sent ? (
+          {withCode ? (
+            <DialogDescription>
+              If {guard.email} has an account, a sign-in link is on its way.
+              Enter the code from the same email here to carry on, or open the
+              link on this phone.
+            </DialogDescription>
+          ) : sent ? (
             <DialogDescription>
               If {guard.email} has an account, a sign-in link is on its way. It
               works once. Open it on this phone to stay signed in here.
@@ -201,6 +260,19 @@ export function SignInAgainSheet({
           </Notice>
         )}
         {error ? <Notice tone="negative">{error}</Notice> : null}
+        {withCode ? (
+          <SignInCodeStep
+            sentAt={sentAt}
+            captchaRequired={guard.captchaRequired}
+            captchaSiteKey={guard.captchaSiteKey}
+            onVerify={checkCode}
+            onResend={async (token) => {
+              const result = await guard.sendLink(email!, token)
+              if (!result.error) recordSignInSent(email!, Date.now())
+              return result
+            }}
+          />
+        ) : null}
         {!sent && guard.email && needsCaptcha ? (
           guard.captchaSiteKey ? (
             <TurnstileChallenge

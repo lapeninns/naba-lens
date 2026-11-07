@@ -3,20 +3,24 @@ import { cookies } from "next/headers"
 import { logout } from "@/app/_media/actions"
 import { AppShell } from "@/components/nabalens/app-shell"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
+import type { OurMenuProgress } from "@/components/nabalens/home/our-menu-card"
 import {
   TasksOverview,
   todoCount,
   FIRST_RUN_COOKIE,
-  isNewStarter,
+  showWelcomeEntry,
   todoItems,
   type JustSent,
 } from "@/components/nabalens/tasks"
-import { requireActiveStaff } from "@/lib/auth"
+import { requireActiveStaff, uploadBlockReason } from "@/lib/auth"
+import { homePrompt } from "@/lib/config/work-roles"
 import {
   getCoverageActor,
   getManagerReviewCount,
   getMyTasks,
+  getOurMenu,
 } from "@/lib/server/coverage"
+import type { MediaActor } from "@/lib/server/media/types"
 import { listCommunityMedia } from "@/lib/server/community"
 import { avatarUrl } from "@/lib/server/media/library"
 import { getMediaActor } from "@/lib/server/media/context"
@@ -53,6 +57,49 @@ async function recentColleaguePhotos() {
   }
 }
 
+/**
+ * Whether the person has any photo or video of their own (one id, no URLs).
+ * A failed read counts as yes, so Start here stays away rather than nag.
+ */
+async function hasOwnMedia(actor: MediaActor): Promise<boolean> {
+  try {
+    const { data, error } = await actor.db
+      .from("media_assets")
+      .select("id")
+      .eq("uploader_id", actor.profile.id)
+      .limit(1)
+    return error ? true : (data?.length ?? 0) > 0
+  } catch {
+    return true
+  }
+}
+
+/** Our menu for the person's venue; a failed read never breaks Home. */
+async function ourMenuProgress(
+  actor: MediaActor,
+  hasVenue: boolean
+): Promise<OurMenuProgress | null> {
+  if (!hasVenue) return null
+  try {
+    const result = await getOurMenu(actor, {})
+    if (!result.ok)
+      return result.code === "needs_setup" ? null : { state: "unavailable" }
+    const { menuState, totals } = result.menu
+    return menuState === "ready"
+      ? { state: "ready", covered: totals.covered, total: totals.eligible }
+      : { state: menuState }
+  } catch {
+    return { state: "unavailable" }
+  }
+}
+
+const UPLOAD_BLOCKED = {
+  not_staff: "Only staff accounts can add photos.",
+  no_venue: "You can't add photos until an admin assigns your venue.",
+  venue_inactive:
+    "Your venue isn't taking photos right now, so you can't add any. Ask an admin to check your venue.",
+} as const
+
 /** Staff Home: the next thing to do, this month's photos and all tasks. */
 export default async function TasksPage({
   searchParams,
@@ -62,17 +109,30 @@ export default async function TasksPage({
   const profile = await requireActiveStaff()
   const { actor } = unwrap(await getCoverageActor())
   const myTasks = getMyTasks(actor).then(unwrap)
-  const [{ tasks }, colleagues, params, review] = await Promise.all([
-    myTasks,
-    recentColleaguePhotos(),
-    searchParams,
-    myTasks.then(({ tasks }) =>
-      tasks.scope.canManageVenue ? getManagerReviewCount(actor) : null
-    ),
-  ])
+  const dismissedAt = profile.work?.welcomeDismissedAt ?? null
+  const [{ tasks }, colleagues, params, review, ownMedia, ourMenu, jar] =
+    await Promise.all([
+      myTasks,
+      recentColleaguePhotos(),
+      searchParams,
+      myTasks.then(({ tasks }) =>
+        tasks.scope.canManageVenue ? getManagerReviewCount(actor) : null
+      ),
+      // Once dismissed, Start here never shows, so skip the read.
+      dismissedAt ? true : hasOwnMedia(actor),
+      ourMenuProgress(actor, Boolean(profile.venueId)),
+      cookies(),
+    ])
   const reviewCount = review?.ok ? review.count : undefined
+  const blockedReason = uploadBlockReason(profile)
 
-  const seenWelcome = (await cookies()).has(FIRST_RUN_COOKIE)
+  // The legacy cookie is still read (people who saw the old welcome keep it
+  // dismissed) but no longer written: dismissal lives in the database.
+  const showWelcome = showWelcomeEntry({
+    dismissedAt,
+    legacyCookie: jar.has(FIRST_RUN_COOKIE),
+    hasOwnMedia: ownMedia,
+  })
 
   const justSent = parseJustSent(
     params,
@@ -106,7 +166,12 @@ export default async function TasksPage({
         reviewCount={reviewCount}
         justSent={justSent}
         colleagues={colleagues}
-        welcomeHref={!seenWelcome && isNewStarter(tasks) ? WELCOME_PATH : null}
+        welcomeHref={showWelcome ? WELCOME_PATH : null}
+        contribute={{
+          prompt: homePrompt(profile.work?.roleKey),
+          blocked: blockedReason ? UPLOAD_BLOCKED[blockedReason] : null,
+        }}
+        ourMenu={ourMenu}
       />
     </AppShell>
   )

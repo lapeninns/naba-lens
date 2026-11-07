@@ -51,12 +51,18 @@ describe("UploadDialog onReady", () => {
     await user.click(screen.getByRole("button", { name: "Upload 2 files" }))
     expect(await screen.findByText("1 uploaded · 1 failed")).toBeTruthy()
     expect(onReady).toHaveBeenCalledTimes(1)
-    expect(onReady).toHaveBeenLastCalledWith(["asset-a.jpg"])
+    expect(onReady).toHaveBeenLastCalledWith(
+      ["asset-a.jpg"],
+      [expect.objectContaining({ name: "a.jpg" })]
+    )
 
     await user.click(screen.getByRole("button", { name: "Retry fail.jpg" }))
     expect(await screen.findByText("2 uploaded")).toBeTruthy()
     expect(onReady).toHaveBeenCalledTimes(2)
-    expect(onReady).toHaveBeenLastCalledWith(["asset-fail.jpg"])
+    expect(onReady).toHaveBeenLastCalledWith(
+      ["asset-fail.jpg"],
+      [expect.objectContaining({ name: "fail.jpg" })]
+    )
     // Existing callback unchanged.
     expect(onUploaded).toHaveBeenNthCalledWith(1, 1)
     expect(onUploaded).toHaveBeenNthCalledWith(2, 1)

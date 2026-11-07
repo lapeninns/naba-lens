@@ -14,34 +14,36 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 
+import { CAMERA_LABEL, LIBRARY_LABEL, usePhotoSource } from "../photo-source"
+
 export type AddBlocked =
-  | { reason: "no_venue" }
-  | { reason: "venue_inactive"; venueName: string }
+  { reason: "no_venue" } | { reason: "venue_inactive"; venueName: string }
 
 /**
- * What Add opens: take a photo or choose from the phone's photos. Nothing
- * uploads until a choice is made; the chosen files go to the upload dialog.
+ * What Add opens on phones: choose from the phone's photos (first, several at
+ * a time) or take a photo. Nothing uploads until a choice is made; the chosen
+ * files go to the upload queue, which waits for "Upload N files".
  */
 export function AddSheet({
   open,
   onOpenChange,
   blocked,
   onFiles,
+  maxFiles,
+  imagesOnly = false,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   blocked: AddBlocked | null
   onFiles: (files: File[]) => void
+  /** MEDIA_LIMITS.maxBatchFiles. */
+  maxFiles: number
+  /** Photos only (task screens): the pickers offer no videos. */
+  imagesOnly?: boolean
 }) {
-  const cameraInput = React.useRef<HTMLInputElement>(null)
-  const libraryInput = React.useRef<HTMLInputElement>(null)
-
-  function pick(input: HTMLInputElement) {
-    const files = Array.from(input.files ?? [])
-    // Allow picking the same file again later.
-    input.value = ""
-    if (files.length > 0) onFiles(files)
-  }
+  // The inputs live inside the sheet, so the click that opens a picker is on
+  // the open dialog's own content.
+  const picker = usePhotoSource({ imagesOnly, onFiles })
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -66,40 +68,23 @@ export function AddSheet({
             </DialogHeader>
             <div className="grid gap-3">
               <AddOption
-                icon={<CameraIcon aria-hidden className="size-7" />}
-                title="Take a photo"
-                hint="Opens your phone's camera. It starts uploading straight away."
-                onClick={() => cameraInput.current?.click()}
+                icon={<ImageIcon aria-hidden className="size-7" />}
+                title={LIBRARY_LABEL}
+                hint={`Up to ${maxFiles} at a time`}
+                onClick={() => picker.open("library")}
               />
               <AddOption
-                icon={<ImageIcon aria-hidden className="size-7" />}
-                title="Choose from your photos"
-                hint="Up to 10 at a time"
-                onClick={() => libraryInput.current?.click()}
+                icon={<CameraIcon aria-hidden className="size-7" />}
+                title={CAMERA_LABEL}
+                hint="Opens your phone's camera for one photo."
+                onClick={() => picker.open("camera")}
               />
-              <input
-                ref={cameraInput}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                hidden
-                tabIndex={-1}
-                onChange={(e) => pick(e.currentTarget)}
-              />
-              <input
-                ref={libraryInput}
-                type="file"
-                accept="image/*,video/*"
-                multiple
-                hidden
-                tabIndex={-1}
-                onChange={(e) => pick(e.currentTarget)}
-              />
+              {picker.inputs}
             </div>
             <p className="flex gap-2 text-meta-touch text-ink-muted md:text-meta">
               <InfoIcon aria-hidden className="mt-0.5 size-4 flex-none" />
-              Your colleagues will see them in Photos. Next, you can choose a
-              task they&apos;re for.
+              Nothing uploads until you choose Upload. Your colleagues will see
+              them in Photos, and you can label them after.
             </p>
           </>
         )}
@@ -128,7 +113,7 @@ function AddOption({
     <button
       type="button"
       onClick={onClick}
-      className="flex min-h-19 items-center gap-4 rounded-touch border border-line-control px-4 py-3 text-left transition-colors outline-none hover:bg-fill-hover focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-focus"
+      className="flex min-h-19 items-center gap-4 rounded-touch border border-line-control px-4 py-3 text-left transition-colors outline-none hover:bg-fill-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
     >
       <span className="grid size-13 flex-none place-items-center rounded-round bg-accent-soft text-accent-text">
         {icon}

@@ -537,6 +537,164 @@ export type SelfReviewView = {
   asset: EvidenceAsset
 }
 
+// ---- Our menu: menu items with an accepted photo ----------------------------------
+// A separate measure from monthly targets and section coverage. Eligible items
+// are the active menu's food and drinks items that are not archived; an item is
+// covered when a reviewer accepted at least one ready, undeleted still image
+// labelled with it.
+
+/**
+ * `no_menu`: the venue has no active menu. `empty`: an active menu without
+ * food or drinks items. `ready`: totals and sections are filled. (The app adds
+ * its own `unavailable` state for a load failure.)
+ */
+export type OurMenuState = "no_menu" | "empty" | "ready"
+
+/** Review state of one photo for one item. `withdrawn` and `invalidated` are final. */
+export type ItemPhotoState =
+  | "accepted"
+  | "better_photo_requested"
+  | "needs_recheck"
+  | "withdrawn"
+  | "invalidated"
+
+export type ItemPhotoDecision = "accept" | "better_photo"
+
+export type OurMenuTotals = {
+  /** Distinct eligible items on the active menu. */
+  eligible: number
+  /** Items with at least one accepted photo. */
+  covered: number
+  /** eligible - covered. */
+  gaps: number
+  /** Items with a photo waiting for a recheck after a menu change. */
+  needsRecheck: number
+}
+
+/** Reviewer-only figures (managers of the venue and admins); null for everyone else. */
+export type OurMenuReviewFigures = {
+  /** Labelled photos waiting for a decision (or a recheck). */
+  pendingCandidates: number
+  /** Upload time of the oldest waiting photo, or null when none wait. */
+  oldestCandidateAt: Instant | null
+}
+
+export type OurMenuSection = {
+  sectionId: string
+  name: string
+  kind: "food" | "drinks"
+  position: number
+  eligible: number
+  covered: number
+  needsRecheck: number
+  review: OurMenuReviewFigures | null
+}
+
+export type OurMenuView = {
+  venue: CoverageVenue
+  menuState: OurMenuState
+  /** The active menu version, or null with `no_menu`. */
+  menuVersionId: string | null
+  totals: OurMenuTotals
+  /** Food and drinks sections with eligible items, in menu order. */
+  sections: OurMenuSection[]
+  review: OurMenuReviewFigures | null
+  /** True for the venue's manager and admins. */
+  canReview: boolean
+}
+
+export type MenuItemVariant = { variantId: string; name: string }
+
+export type OurMenuItem = {
+  itemId: string
+  sectionId: string
+  sectionName: string
+  sectionKind: "food" | "drinks"
+  name: string
+  description: string | null
+  variants: MenuItemVariant[]
+  covered: boolean
+  /** Distinct accepted photos with an available image. */
+  acceptedCount: number
+  needsRecheck: boolean
+  /** The primary accepted photo (scoped item-photo routes), or null for a gap. */
+  primary: { photoId: string; asset: EvidenceAsset } | null
+  /** Pass as `expectedRevision` to review, withdraw or set a primary for this item. */
+  itemRevision: number
+  review: { candidates: number; oldestCandidateAt: Instant | null } | null
+}
+
+/** A labelled photo a reviewer can decide for one item (and variant). */
+export type ItemPhotoCandidate = {
+  /** The label row (asset, item, variant): the paging key. */
+  labelId: string
+  asset: EvidenceAsset
+  uploadedAt: Instant
+  labelledAt: Instant
+  item: { id: string; name: string; sectionName: string }
+  variant: MenuItemVariant | null
+  /**
+   * The label names a variant the active menu no longer offers: its recheck
+   * can only be withdrawn (review refuses an unavailable variant).
+   */
+  variantRemoved: boolean
+  uploader: { id: string; displayName: string; active: boolean }
+  /** The caller's own photo: a decision is recorded as self-review. */
+  self: boolean
+  /** The live decision, or null when not decided yet. */
+  photo: {
+    id: string
+    state: Exclude<ItemPhotoState, "withdrawn" | "invalidated">
+    isPrimary: boolean
+  } | null
+  itemRevision: number
+}
+
+export type ReviewedItemPhoto = {
+  photoId: string
+  itemId: string
+  state: ItemPhotoState
+  isPrimary: boolean
+  itemRevision: number
+  selfReview: boolean
+}
+
+export type WithdrawnItemPhoto = {
+  photoId: string
+  state: ItemPhotoState
+  itemRevision: number
+  /** The item's primary photo now, or null when the item reopened as a gap. */
+  newPrimaryPhotoId: string | null
+}
+
+export type PrimaryItemPhoto = { photoId: string; itemRevision: number }
+
+/** The uploader's own live item decisions (for "Accepted for menu use"). */
+export type MyMenuPhotoState = {
+  photoId: string
+  assetId: string
+  itemId: string
+  itemName: string
+  variantId: string | null
+  variantName: string | null
+  state: Exclude<ItemPhotoState, "withdrawn" | "invalidated">
+  isPrimary: boolean
+  /** The reviewer's note: what a better photo needs (or an accept note). */
+  reason: string | null
+}
+
+export type ItemPhotoSelfReviewView = {
+  eventId: string
+  photoId: string
+  venue: CoverageVenue
+  author: PersonRef
+  item: { id: string; name: string; variantName: string | null }
+  decision: ItemPhotoDecision
+  reason: string | null
+  decidedAt: Instant
+  asset: EvidenceAsset
+}
+
 // ---- Results ---------------------------------------------------------------------
 
 export type CoverageErrorCode =
@@ -733,3 +891,49 @@ export type PreparationRunsInput = {
   venueId?: string | null
   cursor?: string | null
 }
+
+/**
+ * Our menu reads. Staff (managers included) read their current venue and may
+ * omit `venueId` or pass exactly that venue; admins must pass it.
+ */
+export type OurMenuInput = VenueScoped
+export type OurMenuItemsInput = VenueScoped & {
+  sectionId?: string | null
+  /** Only items still needing a photo. */
+  gapsOnly?: boolean
+  /** Name or alias search, up to 80 characters. */
+  query?: string | null
+  cursor?: string | null
+}
+export type ItemPhotoCandidatesInput = VenueScoped & {
+  itemId?: string | null
+  /** Also list accepted and better-photo decisions (an item's review screen). */
+  includeReviewed?: boolean
+  cursor?: string | null
+}
+export type ReviewItemPhotoInput = RequestKeyed & {
+  assetId: string
+  itemId: string
+  /** The label's variant, or null for the item itself. */
+  variantId?: string | null
+  decision: ItemPhotoDecision
+  /** The item's `itemRevision`. */
+  expectedRevision: number
+  /** 1..500 characters; required for better_photo. */
+  reason?: string | null
+  /** Accept as the item's primary photo (the first accepted photo always is). */
+  makePrimary?: boolean
+}
+export type WithdrawItemPhotoInput = RequestKeyed & {
+  photoId: string
+  expectedRevision: number
+  /** 1..500 characters. */
+  reason: string
+}
+export type SetPrimaryItemPhotoInput = RequestKeyed & {
+  photoId: string
+  expectedRevision: number
+}
+/** 1..100 distinct asset ids. */
+export type MyMenuPhotoStatesInput = { assetIds: string[] }
+export type ItemPhotoSelfReviewsInput = SelfReviewsInput

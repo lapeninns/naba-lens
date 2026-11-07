@@ -1,3 +1,4 @@
+import type { WorkFocus } from "@/lib/config/work-roles"
 import type {
   LabelCatalogue,
   LabelEditorAsset,
@@ -17,6 +18,18 @@ export type CatalogueProp =
  * Menus for open missing-item suggestions.
  */
 export type LabelAudience = "staff" | "admin"
+
+/**
+ * A menu item suggested for the files (Our menu's "Add a photo of this dish";
+ * the same shape as AddLabelPreset). The editor shows it as an unsaved draft
+ * for the person to keep or remove; it is never saved without them.
+ */
+export type LabelPreset = {
+  itemId: string
+  variantId: string | null
+  itemName: string
+  variantName: string | null
+}
 
 export type LabelEditorDialogProps = {
   open: boolean
@@ -39,4 +52,16 @@ export type LabelEditorDialogProps = {
   title?: string
   /** Default: "Cancel". */
   cancelLabel?: string
+  /**
+   * The person's work focus: their sections and content types come first.
+   * Order only; search still covers the whole menu.
+   */
+  focus?: WorkFocus | null
+  /** Pre-filled as a draft label when it is on this venue's menu. */
+  preset?: LabelPreset | null
+  /**
+   * The files the preset belongs to (the ones picked from Our menu's dish).
+   * Omitted: every file. Other files of the batch never get it.
+   */
+  presetAssetIds?: readonly string[]
 }

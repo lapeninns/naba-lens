@@ -3,7 +3,6 @@
 import * as React from "react"
 import {
   ArrowClockwiseIcon,
-  CameraIcon,
   FilmStripIcon,
   ImageIcon,
   TagIcon,
@@ -26,6 +25,7 @@ import { cn } from "@/lib/utils"
 
 import { formatBytes } from "./format"
 import { Notice } from "./notice"
+import { PhotoSourceActions, photoInputProps } from "./photo-source"
 import { useLeaveGuard } from "./shell/leave-guard"
 import {
   SignInAgainSheet,
@@ -34,8 +34,6 @@ import {
 } from "./session-guard"
 import type { UploadLimits } from "./types"
 import {
-  ACCEPT_ATTRIBUTE,
-  ACCEPTED_IMAGE_TYPES,
   guessMediaKind,
   type QueueItem,
   type QueuePause,
@@ -62,9 +60,10 @@ type UploadDialogProps = {
   onLabel?: (assetIds: string[]) => void
   /**
    * Called once per settled run with the asset IDs of files that became ready
-   * in that run (only files whose uploader reported an asset ID).
+   * in that run (only files whose uploader reported an asset ID), and the
+   * picked File of each, in the same order (so an owner can tell its own).
    */
-  onReady?: (assetIds: string[]) => void
+  onReady?: (assetIds: string[], files: File[]) => void
   /**
    * Closing while files upload hides the queue and lets them carry on (the
    * owner stays mounted; Add shows the queue again). Default false: closing
@@ -79,26 +78,22 @@ type UploadDialogProps = {
   onBusyChange?: (busy: UploadBusy) => void
   /** Offer the camera-capture input as an enhancement. Default true. */
   allowCamera?: boolean
-  /** Accept photos only; videos are rejected with a reason. Default false. */
+  /**
+   * Accept photos only; videos are rejected with a reason. Default false. It
+   * applies to files added while it is set, so a shared queue can take photos
+   * for a task screen and videos from Me.
+   */
   imagesOnly?: boolean
   /**
-   * Files already picked elsewhere (the Add sheet). Each new array is queued
-   * once while the dialog is open.
+   * Files already picked elsewhere (the Add sheet or Add's own picker). Each
+   * new array is queued once while the dialog is open.
    */
   initialFiles?: File[]
+  /** Called when files are picked, here or as `initialFiles` (not on cancel). */
+  onPick?: (files: File[]) => void
 }
 
 export type UploadBusy = { active: number; failed: number; stopped: number }
-
-const IMAGE_ACCEPT_ATTRIBUTE = [
-  ...ACCEPTED_IMAGE_TYPES,
-  ".jpg",
-  ".jpeg",
-  ".png",
-  ".webp",
-  ".heic",
-  ".heif",
-].join(",")
 
 const STATUS_TEXT: Record<QueueItem["status"], string> = {
   selected: "Ready to upload",
@@ -253,6 +248,7 @@ export function UploadDialog({
   allowCamera = true,
   imagesOnly = false,
   initialFiles,
+  onPick,
 }: UploadDialogProps) {
   const guard = useSessionGuard()
   const isSignedIn = guard?.isSignedIn
@@ -326,12 +322,15 @@ export function UploadDialog({
     if (isActive || !onReady) return
     const fresh = items.flatMap((i) =>
       i.status === "done" && i.assetId && !reportedReady.current.has(i.assetId)
-        ? [i.assetId]
+        ? [{ id: i.assetId, file: i.file }]
         : []
     )
     if (fresh.length === 0) return
-    for (const id of fresh) reportedReady.current.add(id)
-    onReady(fresh)
+    for (const { id } of fresh) reportedReady.current.add(id)
+    onReady(
+      fresh.map((f) => f.id),
+      fresh.map((f) => f.file)
+    )
   }, [isActive, items, onReady])
 
   const queuedInitial = React.useRef<File[] | null>(null)
@@ -348,6 +347,7 @@ export function UploadDialog({
   ) {
     if (!list || list.length === 0) return
     const files = Array.from(list)
+    onPick?.(files)
     const notPhotos: RejectedFile[] = []
     const accepted = imagesOnly
       ? files.filter((file) => {
@@ -421,32 +421,18 @@ export function UploadDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <Button
-            size="touch"
-            className="sm:flex-1"
-            onClick={() => fileInput.current?.click()}
-            aria-describedby={limitsId}
-          >
-            <UploadSimpleIcon data-icon="inline-start" aria-hidden />
-            Choose files
-          </Button>
-          {allowCamera ? (
-            <Button
-              variant="outline"
-              size="touch"
-              className="sm:flex-1"
-              onClick={() => cameraInput.current?.click()}
-            >
-              <CameraIcon data-icon="inline-start" aria-hidden />
-              Use camera
-            </Button>
-          ) : null}
+        <div>
+          <PhotoSourceActions
+            layout="row"
+            describedBy={limitsId}
+            onChoose={(source) =>
+              (source === "library" ? fileInput : cameraInput).current?.click()
+            }
+            cameraHidden={!allowCamera}
+          />
           <input
             ref={fileInput}
-            type="file"
-            multiple
-            accept={imagesOnly ? IMAGE_ACCEPT_ATTRIBUTE : ACCEPT_ATTRIBUTE}
+            {...photoInputProps("library", { imagesOnly })}
             className="sr-only"
             tabIndex={-1}
             aria-label={
@@ -457,9 +443,7 @@ export function UploadDialog({
           {allowCamera ? (
             <input
               ref={cameraInput}
-              type="file"
-              accept={imagesOnly ? "image/*" : "image/*,video/*"}
-              capture="environment"
+              {...photoInputProps("camera", { imagesOnly })}
               className="sr-only"
               tabIndex={-1}
               aria-label={imagesOnly ? "Take a photo" : "Take a photo or video"}
@@ -489,8 +473,8 @@ export function UploadDialog({
 
         {signedOut ? (
           <Notice tone="negative" title="You were signed out">
-            Nothing is sent twice. We&apos;ll email you a sign-in link and keep
-            this page.
+            Nothing is sent twice. We&apos;ll email you a sign-in link and code
+            and keep this page.
           </Notice>
         ) : pause === "offline" && isActive ? (
           <Notice tone="attention" role="status">
@@ -557,7 +541,10 @@ export function UploadDialog({
               size="touch"
               onClick={() => {
                 const ids = labelIds
-                handleOpenChange(false)
+                // Failed or stopped files stay in the queue (hidden, not
+                // cleared) so they can still be retried afterwards.
+                if (summary.failed + summary.stopped > 0) onOpenChange(false)
+                else handleOpenChange(false)
                 onLabel(ids)
               }}
             >
@@ -613,6 +600,10 @@ export function UploadDialog({
             guard={guard}
             done={summary.done}
             stopped={summary.stopped}
+            onSignedIn={() => {
+              setSignInOpen(false)
+              resume()
+            }}
           />
         ) : null}
       </DialogContent>

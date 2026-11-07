@@ -5,6 +5,7 @@ import { ArrowClockwiseIcon } from "@phosphor-icons/react"
 
 import { LabelEditorDialog, type CatalogueProp } from "@/components/nabalens"
 import { Notice } from "@/components/nabalens/notice"
+import type { AddLabelPreset } from "@/components/nabalens/shell/add-context"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -14,6 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import type { WorkFocus } from "@/lib/config/work-roles"
 import type {
   LabelEditorAsset,
   SaveLabelsInput,
@@ -38,6 +40,15 @@ export type LabelEditorHostProps = {
   onSaved?: (results: SaveLabelsResult[]) => void
   /** Overrides the editor's default heading. */
   title?: string
+  /**
+   * Picker order. Omitted: the caller's own work focus from the editor
+   * context. Null: the normal menu order.
+   */
+  focus?: WorkFocus | null
+  /** A menu item offered as an unsaved draft label (Our menu's photo request). */
+  preset?: AddLabelPreset | null
+  /** The files the preset belongs to; omitted: every file. */
+  presetAssetIds?: readonly string[]
 }
 
 type Phase =
@@ -49,6 +60,7 @@ type Phase =
       assets: LabelEditorAsset[]
       missing: string[]
       catalogue: CatalogueProp
+      focus: WorkFocus | null
     }
 
 const NETWORK =
@@ -95,6 +107,7 @@ async function fetchContext(
       catalogue: result.catalogue
         ? { state: "ready", catalogue: result.catalogue }
         : { state: "error", message: result.catalogueError ?? MENU_FAILED },
+      focus: result.focus ?? null,
     },
   }
 }
@@ -121,6 +134,9 @@ function HostSession({
   onOpenChange,
   onSaved,
   title,
+  focus,
+  preset = null,
+  presetAssetIds,
 }: LabelEditorHostProps) {
   const [groups, setGroups] = React.useState<string[][]>([assetIds])
   const [index, setIndex] = React.useState(0)
@@ -213,6 +229,9 @@ function HostSession({
         onSave={save}
         onSaved={onSaved}
         title={heading}
+        focus={focus === undefined ? phase.focus : focus}
+        preset={preset}
+        presetAssetIds={presetAssetIds}
       />
     )
   }

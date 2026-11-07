@@ -57,7 +57,11 @@ function jpeg(name: string) {
   return new File([new Uint8Array(64)], name, { type: "image/jpeg" })
 }
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  // Sent-email memory (resend cooldowns) is per tab.
+  window.sessionStorage.clear()
+})
 
 function heldUploader() {
   const held: {

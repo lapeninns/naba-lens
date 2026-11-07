@@ -366,6 +366,33 @@ export function listOwnMedia(
   )
 }
 
+/**
+ * These of the staff member's own ready photos (for Me sections fed by menu
+ * decisions rather than the newest page), in the order of `ids`.
+ */
+export async function listOwnMediaByIds(
+  actor: MediaActor,
+  ids: readonly string[]
+): Promise<Outcome<{ items: MediaItemView[] }>> {
+  if (actor.profile.role !== "staff") {
+    return { ok: false, status: 403, message: "Staff only." }
+  }
+  if (ids.length === 0) return { ok: true, items: [] }
+  const { data, error } = await base(actor.db)
+    .eq("uploader_id", actor.profile.id)
+    .eq("upload_state", "ready")
+    .in("id", ids.slice(0, MEDIA_LIMITS.pageSize * 2))
+  if (error) {
+    return { ok: false, status: 503, message: "Could not load media." }
+  }
+  const byId = new Map(((data ?? []) as Row[]).map((r) => [r.id, toView(r)]))
+  const items = ids.flatMap((id) => {
+    const view = byId.get(id)
+    return view ? [view] : []
+  })
+  return { ok: true, items: await withLabels(actor, items) }
+}
+
 /** True when a filter needs the `library_assets` label predicates. */
 export function hasLabelPredicates(filters: Partial<LibraryLabelFilters>) {
   return Boolean(

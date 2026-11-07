@@ -106,6 +106,8 @@ const NOT_FOUND_MESSAGES: Record<string, string> = {
   menu_coverage_plan_not_found: "This menu plan could not be found.",
   menu_version_not_found: "This menu could not be found.",
   amenity_not_found: "This amenity could not be found.",
+  menu_item_photo_not_found:
+    "This menu photo could not be found. Reload the page.",
 }
 
 const FIELD_ERRORS: Record<string, [field: string, message: string]> = {
@@ -142,6 +144,10 @@ const STATE_CONFLICT_MESSAGES: Record<string, string> = {
   plan_not_superseded: "This menu section was already reconciled.",
   invalid_transition:
     "This photo was already reviewed. Reload to see the decision.",
+  menu_item_not_labelled:
+    "This photo is not labelled with this menu item. Label it first, then review it.",
+  menu_item_unavailable:
+    "This dish or drink is not on the venue's current menu. Reload to see the current menu.",
 }
 
 const NEEDS_SETUP_MESSAGES: Record<string, string> = {

@@ -481,6 +481,12 @@ export const COVERAGE_TABLES = [
   "coverage_submission_items",
   "coverage_review_events",
   "coverage_preparation_runs",
+  // Our menu: item-photo acceptance, its per-item heads and audit trail.
+  "menu_item_photos",
+  "menu_item_photo_heads",
+  "menu_item_photo_events",
+  // Self-described work details (role, areas, welcome dismissal).
+  "staff_work_profiles",
 ] as const
 
 export function coverageCounts(env: StackEnv): Record<string, number> {
@@ -518,11 +524,22 @@ export const KEY_GRANTS = [
     "public.review_coverage_item(uuid, integer, text, text, text)",
     true,
   ],
+  [
+    "authenticated",
+    "public.review_menu_item_photo(uuid, uuid, uuid, text, integer, text, boolean, text)",
+    true,
+  ],
+  ["authenticated", "public.save_work_profile(text, text, text[])", true],
   ["authenticated", "public.task_evidence_asset(uuid)", true],
   ["authenticated", "public.community_readable_assets(uuid[])", true],
   ["service_role", "public.prepare_coverage_month_scheduled()", true],
   ["anon", "public.submit_coverage_photos(uuid[], uuid, text, uuid)", false],
   ["anon", "public.community_readable_assets(uuid[])", false],
+  [
+    "anon",
+    "public.review_menu_item_photo(uuid, uuid, uuid, text, integer, text, boolean, text)",
+    false,
+  ],
 ] as const
 
 /** Every KEY_GRANTS entry that does not hold (a missing function counts). */

@@ -195,6 +195,68 @@ export async function nextConfirmLink(
 }
 
 /**
+ * Waits for a new email to `email` (more than `seen` messages) and returns both
+ * ways in from it: the /auth/confirm path and the one-time sign-in code.
+ */
+export async function nextSignInEmail(
+  email: string,
+  seen: number
+): Promise<{ link: string; code: string }> {
+  for (let attempt = 0; attempt < 60; attempt++) {
+    const messages = await messagesTo(email)
+    if (messages.length > seen) {
+      const message = await fetch(
+        `${mailpit()}/api/v1/message/${messages[0].ID}`
+      ).then((r) => r.json())
+      const link = String(message.HTML).match(
+        /href="[^"]*(\/auth\/confirm\?[^"]+)"/
+      )?.[1]
+      // Links carry a hex token hash; only the code is a bare run of digits.
+      const text = String(message.Text).replace(/https?:\/\/\S+/g, "")
+      const code = text.match(/\b(\d{6,10})\b/)?.[1]
+      if (!link) throw new Error("Email has no /auth/confirm link")
+      if (!code) throw new Error("Email has no sign-in code")
+      return { link: link.replace(/&amp;/g, "&"), code }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 200))
+  }
+  throw new Error(`No new email arrived for ${email}`)
+}
+
+/** The newest email's subject for `email`, for template checks. */
+export async function latestSubject(email: string): Promise<string | null> {
+  return (await messagesTo(email))[0]?.Subject ?? null
+}
+
+/**
+ * What one sign-in email would contain for `email` (link and code from the same
+ * request), issued with the admin API so it does not count against the stack's
+ * hourly /otp email quota.
+ */
+export async function issueSignInEmail(
+  service: Db,
+  email: string
+): Promise<{ link: string; code: string }> {
+  const { data, error } = await service.auth.admin.generateLink({
+    type: "magiclink",
+    email,
+  })
+  if (error || !data?.properties) throw error ?? new Error("No link issued")
+  return {
+    link: `/auth/confirm?token_hash=${data.properties.hashed_token}&type=email`,
+    code: data.properties.email_otp,
+  }
+}
+
+/** The one-time code the sign-in email would contain for `email` (admin API). */
+export async function issueSignInCode(
+  service: Db,
+  email: string
+): Promise<string> {
+  return (await issueSignInEmail(service, email)).code
+}
+
+/**
  * The /auth/confirm link the magic-link email would contain for `email`, issued
  * with the admin API. Same token_hash and expiry rules as the emailed link, but
  * it does not count against the stack's hourly /otp email quota (2 by default).

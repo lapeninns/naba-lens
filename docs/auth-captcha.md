@@ -38,6 +38,35 @@ When enabled, CSP permits `https://challenges.cloudflare.com` in `script-src` an
 `frame-src` only. It does not add a wildcard or alter the existing Auth/Storage
 connection allowances.
 
+## Sign-in email with link and code: rollout
+
+The return sign-in email (`supabase/templates/magic_link.html`, subject
+**Your Naba-Lens sign-in link and code**) carries both the link and the
+one-time code (`{{ .Token }}`). The login page and the upload **Sign in again**
+sheet accept the code. The invitation template stays link-only. CAPTCHA
+applies to each email request, including **Send a new code**, which needs a
+fresh challenge after its 60-second cooldown.
+
+Per environment (local, staging, production), before shipping:
+
+1. **Template before UI.** Deploy the combined template and subject to the
+   hosted Supabase project first. Both sign-in methods then work with the
+   previous app revision (it ignores the code), so staff never see a code
+   field without a code in the email.
+2. **Check hosted settings.** Confirm the hosted project's email OTP length
+   (`otp_length`, 6 locally) and expiry (`otp_expiry`, 3600 s locally) match
+   the copy and the code input, and that the hosted magic-link subject matches.
+   `supabase/config.toml` only configures the local stack; hosted values are
+   set separately in each project and can differ.
+3. Deploy the app, then verify with a controlled account: link sign-in, code
+   sign-in, a used or wrong code, **Send a new code** after the cooldown, and
+   code entry in **Sign in again** during an interrupted upload.
+
+**Rollback.** Rolling back the app alone is safe: the template still contains
+the link. Roll the template back to link-only only together with, or after,
+rolling the app back to the link-only sign-in screens (no code field); never
+leave a code-entry screen live with a link-only email.
+
 ## Local fixtures and evidence
 
 Leave both settings empty for isolated fixture suites; no challenge is loaded or

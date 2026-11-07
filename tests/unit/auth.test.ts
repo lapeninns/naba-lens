@@ -22,6 +22,7 @@ const base: CurrentProfile = {
   venueId: "v1",
   venue: { id: "v1", name: "V", slug: "v", active: true },
   active: true,
+  work: null,
 }
 
 describe("role routing", () => {

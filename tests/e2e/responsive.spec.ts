@@ -376,7 +376,7 @@ test("keyboard only: upload, open the viewer, download", async () => {
   await expect
     .poll(() => dialog.evaluate((el) => el.contains(document.activeElement)))
     .toBe(true)
-  await tabTo(staff, /^Choose files$/)
+  await tabTo(staff, /^Choose from your photos$/)
   const [chooser] = await Promise.all([
     staff.waitForEvent("filechooser"),
     staff.keyboard.press("Enter"),

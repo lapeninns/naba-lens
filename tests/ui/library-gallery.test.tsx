@@ -839,6 +839,32 @@ describe("foreground refresh", () => {
     }
   )
 
+  it("tells the page after a delete so its other sections can catch up", async () => {
+    const onChanged = vi.fn()
+    render(
+      <MediaGallery
+        label="Your portfolio"
+        initialPage={{ items: [item(ID_A), item(ID_B)], nextCursor: null }}
+        loadPage={vi.fn<LoadPage>()}
+        canDelete
+        onChanged={onChanged}
+        empty={<p>Empty</p>}
+      />
+    )
+    fireEvent.click(tileFor(ID_A)!)
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }))
+    expect(onChanged).not.toHaveBeenCalled()
+    await act(async () => {
+      fireEvent.click(
+        within(screen.getByRole("alertdialog")).getByRole("button", {
+          name: "Delete",
+        })
+      )
+    })
+    expect(tileFor(ID_A)).toBeNull()
+    expect(onChanged).toHaveBeenCalledTimes(1)
+  })
+
   it("ignores an older load-more result that arrives after a refresh reset", async () => {
     const all = feed(78)
     let settle: (result: Awaited<ReturnType<LoadPage>>) => void = () => {}
