@@ -51,18 +51,43 @@ export function PreviewDialog({
     if (next >= 0 && next < cards.length) onIndexChange(next)
   }
 
-  function onKeyDown(event: React.KeyboardEvent) {
-    // Arrow keys inside a field or a button group keep their own meaning.
-    const target = event.target as HTMLElement
-    if (target.closest("input, textarea, select, [role='listbox']")) return
-    if (event.key === "ArrowLeft") {
-      event.preventDefault()
-      move(-1)
-    } else if (event.key === "ArrowRight") {
-      event.preventDefault()
-      move(1)
-    }
+  const popupRef = React.useRef<HTMLDivElement | null>(null)
+
+  function onArrowKey(event: KeyboardEvent | React.KeyboardEvent) {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
+    if (event.defaultPrevented) return
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
+    const target = event.target instanceof Element ? event.target : null
+    // Arrow keys inside a field or a listbox keep their own meaning.
+    if (
+      target?.closest(
+        "input, textarea, select, [contenteditable='true'], [role='listbox']"
+      )
+    )
+      return
+    // Another dialog opened over the preview (the item picker) owns its keys.
+    const owner = target?.closest("[role='dialog'], [role='alertdialog']")
+    if (owner && owner !== popupRef.current) return
+    event.preventDefault()
+    move(event.key === "ArrowLeft" ? -1 : 1)
   }
+
+  // Base UI moves focus into the popup only after it has opened, so a key
+  // pressed straight away still lands on the thumbnail that opened it, outside
+  // the popup. Catch those on the document. Keys inside the popup never get
+  // there (the popup stops arrow keys propagating), so the popup's own
+  // onKeyDown handles them below.
+  const onOutsideKey = React.useEffectEvent((event: KeyboardEvent) => {
+    const target = event.target instanceof Node ? event.target : null
+    if (target && popupRef.current?.contains(target)) return
+    onArrowKey(event)
+  })
+  React.useEffect(() => {
+    if (!open) return
+    const listener = (event: KeyboardEvent) => onOutsideKey(event)
+    document.addEventListener("keydown", listener)
+    return () => document.removeEventListener("keydown", listener)
+  }, [open])
 
   return (
     <Dialog
@@ -73,7 +98,8 @@ export function PreviewDialog({
     >
       <DialogContent
         className="md:max-w-4xl"
-        onKeyDown={onKeyDown}
+        ref={popupRef}
+        onKeyDown={onArrowKey}
         finalFocus={() => {
           const target = returnFocus()
           if (!target) return true

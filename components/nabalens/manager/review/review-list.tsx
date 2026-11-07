@@ -153,14 +153,17 @@ export function ReviewList({
   const [seed, setSeed] = React.useState(initial)
   const [cards, setCards] = React.useState<ListCard[]>(initial.items)
   const [cursor, setCursor] = React.useState(initial.nextCursor)
+  const [loading, setLoading] = React.useState(false)
+  const [loadError, setLoadError] = React.useState<string | null>(null)
   if (seed !== initial) {
-    // A new filter (or a refresh): start over from the server's page.
+    // A new filter (or a refresh): start over from the server's page. A
+    // Show more still in flight belongs to the old view (see `seedRef`).
     setSeed(initial)
     setCards(initial.items)
     setCursor(initial.nextCursor)
+    setLoading(false)
+    setLoadError(null)
   }
-  const [loading, setLoading] = React.useState(false)
-  const [loadError, setLoadError] = React.useState<string | null>(null)
   const [notice, setNotice] = React.useState<Announcement | null>(null)
   const [errors, setErrors] = React.useState<Record<string, CardError>>({})
   const [pending, setPending] = React.useState<{
@@ -174,6 +177,17 @@ export function ReviewList({
   React.useEffect(() => {
     cardsRef.current = cards
   }, [cards])
+  /**
+   * The page the list was last reset from. The list survives a filter change
+   * (the screen keeps this instance), so a request started under one seed
+   * compares against this on return and drops its result if the view moved
+   * on: the old view's cards and cursor never reach the new list. Synced in a
+   * layout effect, so it is current before any later response can land.
+   */
+  const seedRef = React.useRef(seed)
+  React.useLayoutEffect(() => {
+    seedRef.current = seed
+  }, [seed])
   const noticeRef = React.useRef<HTMLDivElement>(null)
   const listRef = React.useRef<HTMLDivElement>(null)
   const previewTriggerRef = React.useRef<HTMLElement | null>(null)
@@ -271,10 +285,33 @@ export function ReviewList({
     }
     const targetName = target?.name ?? item?.name ?? ""
 
+    const from = seed
     setPending({ key: card.key, action })
     setCardError(card.key, null)
     try {
       const result = await decide(payload)
+      if (seedRef.current !== from) {
+        // The view changed while this was saving: its cards (and `keep`) are
+        // the old view's, so nothing merges into the new list. A saved
+        // decision still counts and is announced, and the new view reloads
+        // so it reflects it.
+        if (!result.ok) {
+          const text =
+            result.code === "network"
+              ? REVIEW_COPY.network
+              : failureText(result)
+          return { ok: false, error: text }
+        }
+        reviewCount.settle(pendingDelta(card, act))
+        focusTargetRef.current = "notice"
+        setNotice({
+          tone: "success",
+          text: announcement(act, card, targetName, result.outcome),
+        })
+        onDecided?.(result.outcome)
+        router.refresh()
+        return { ok: true }
+      }
       if (!result.ok) {
         if (result.code === "network") {
           setCardError(card.key, { text: REVIEW_COPY.network })
@@ -365,6 +402,8 @@ export function ReviewList({
 
   async function loadMore() {
     if (!cursor) return
+    const from = seed
+    const current = () => seedRef.current === from
     setLoading(true)
     setLoadError(null)
     try {
@@ -376,6 +415,9 @@ export function ReviewList({
         cursor,
         ...(venueId ? { venueId } : {}),
       })
+      // The filter changed (or the page refreshed) while this loaded: the
+      // result and its cursor belong to the old view.
+      if (!current()) return
       if (!result.ok) {
         setLoadError(failureText(result))
         return
@@ -390,9 +432,9 @@ export function ReviewList({
         text: REVIEW_COPY.moreLoaded(result.items.length),
       })
     } catch {
-      setLoadError(REVIEW_COPY.loadMoreFailed)
+      if (current()) setLoadError(REVIEW_COPY.loadMoreFailed)
     } finally {
-      setLoading(false)
+      if (current()) setLoading(false)
     }
   }
 

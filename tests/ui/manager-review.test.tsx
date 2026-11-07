@@ -2,6 +2,7 @@
 import {
   act,
   cleanup,
+  fireEvent,
   render,
   screen,
   waitFor,
@@ -759,6 +760,48 @@ describe("ReviewScreen", () => {
     await user.keyboard("{Escape}")
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
     await waitFor(() => expect(document.activeElement).toBe(trigger))
+  })
+
+  it("the preview takes arrow keys before focus has moved into it", async () => {
+    const user = userEvent.setup()
+    const second = card({
+      key: id(0x12),
+      labelId: id(0x12),
+      asset: { ...card().asset, assetId: id(0xa2) },
+      contributor: { ...card().contributor, name: "TEST Ana Diaz" },
+    })
+    renderScreen([card(), second])
+    await user.click(
+      screen.getByRole("button", {
+        name: REVIEW_COPY.openPreview("TEST Sam Lee"),
+      })
+    )
+    const dialog = await screen.findByRole("dialog")
+    // A key pressed outside the popup (focus still on the opening thumbnail,
+    // or on the page) moves the preview all the same.
+    fireEvent.keyDown(document.body, { key: "ArrowRight" })
+    expect(
+      within(dialog).getByRole("heading", { name: "Photo by TEST Ana Diaz" })
+    ).toBeTruthy()
+    // A field keeps its own arrow keys.
+    const field = document.createElement("input")
+    document.body.append(field)
+    fireEvent.keyDown(field, { key: "ArrowLeft" })
+    field.remove()
+    expect(
+      within(dialog).getByRole("heading", { name: "Photo by TEST Ana Diaz" })
+    ).toBeTruthy()
+    // Another dialog over the preview owns its keys.
+    const other = document.createElement("div")
+    other.setAttribute("role", "dialog")
+    const inner = document.createElement("button")
+    other.append(inner)
+    document.body.append(other)
+    fireEvent.keyDown(inner, { key: "ArrowLeft" })
+    other.remove()
+    expect(
+      within(dialog).getByRole("heading", { name: "Photo by TEST Ana Diaz" })
+    ).toBeTruthy()
   })
 
   it("filters replace the URL without scrolling", async () => {
