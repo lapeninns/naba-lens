@@ -35,9 +35,9 @@ import { AddSheet } from "@/components/nabalens/shell/add-sheet"
 import type {
   UploadContext,
   Uploader,
-  UploadLabelOutcome,
 } from "@/components/nabalens/upload-queue"
 import { EMPTY_LABEL_SUMMARY } from "@/lib/menus/types"
+import type { FinaliseLabels } from "@/lib/upload/types"
 
 import { CATALOGUE } from "./labels-fixtures"
 
@@ -333,7 +333,7 @@ const preset = {
 type Held = {
   name: string
   ctx: UploadContext
-  finish: (labels?: UploadLabelOutcome) => void
+  finish: (labels?: FinaliseLabels) => void
   fail: (error: Error) => void
 }
 

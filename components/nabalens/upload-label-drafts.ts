@@ -5,7 +5,9 @@
 // file is still uploading the server keeps them and finalise puts them on the
 // photo; once it is ready they are saved straight away. A change is sent
 // again, and clearing them discards what the server kept. A file shows
-// "Saved" only when it is processed and its labels are on it.
+// "Saved" only when it is processed and its labels are on it: an answer that
+// says so (a save, finalise, or the photo's own labels), never the absence of
+// a kept row.
 //
 // Per file:
 //   draft --asset reserved--> (POST) --> pending --finalise--> saved
@@ -13,19 +15,27 @@
 //                                    \--> retry (no answer; Retry labels)
 //                                    \--> attention (refused; Fix labels)
 //   pending --finalise said needs attention--> attention (kept on the server)
+//   attention --Fix labels or Discard on Me--> saved (as the photo is now)
 
 import * as React from "react"
 
-import type {
-  MediaLabelSummary,
-  PendingLabelItem,
-  SaveLabelsErrorCode,
-  SaveLabelsInput,
-  SaveLabelsResult,
-  UploadLabelPostResult,
+import {
+  EMPTY_LABEL_SUMMARY,
+  type MediaLabelSummary,
+  type PendingLabelItem,
+  type SaveLabelsErrorCode,
+  type SaveLabelsInput,
+  type SaveLabelsResult,
+  type UploadLabelDiscardResult,
+  type UploadLabelPostResult,
 } from "@/lib/menus/types"
+import type { FinaliseLabels } from "@/lib/upload/types"
 
-import type { QueueItem, UploadLabelOutcome } from "./upload-queue"
+import {
+  SessionExpiredError,
+  SIGNED_OUT_MESSAGE,
+  type QueueItem,
+} from "./upload-queue"
 
 /** What the sheet hands the label panel (the host adds the catalogue). */
 export type UploadLabelPanelHostProps = {
@@ -35,6 +45,11 @@ export type UploadLabelPanelHostProps = {
   initial: SaveLabelsInput[]
   /** Files that can no longer be labelled (failed for good). */
   disabledIds: string[]
+  /**
+   * Files whose labels were settled elsewhere (Fix labels or Discard on Me):
+   * `initial` is what the photo has, and their dish is not put back.
+   */
+  settledIds: string[]
   /** One input per file; assetId is the queue item id. */
   onChange: (venueId: string, inputs: SaveLabelsInput[]) => void
   /** True while a choice in the panel is incomplete. */
@@ -47,11 +62,19 @@ export type UploadLabelFixProps = {
   assetId: string
   /** The stored labels, addressed to the asset. */
   draft: SaveLabelsInput
+  /** The photo's labels as last known (revision included). */
+  labels: MediaLabelSummary
   problem: { code: SaveLabelsErrorCode; message: string } | null
   onClose: () => void
   /** Saves now (the asset is ready); the dialog closes only on success. */
   onSave: (input: SaveLabelsInput) => Promise<SaveLabelsResult>
 }
+
+/** Me fixed ("labelled") or discarded the kept labels of these photos. */
+export type UploadLabelSettle = (
+  assetIds: string[],
+  how: "labelled" | "discarded"
+) => void
 
 export type UploadLabels = {
   /** Which files may carry labels (Add's general uploads, not task screens'). */
@@ -59,18 +82,30 @@ export type UploadLabels = {
   /**
    * Labels a file starts with (Our menu's dish, applied by default). Undefined
    * while that cannot be told yet (the menu is loading): asked again later.
+   * "unavailable" while the menu failed to load (Retry labels: `retrySeed`).
    */
   seed?: (
     item: QueueItem
-  ) => { venueId: string; input: SaveLabelsInput } | null | undefined
+  ) =>
+    | { venueId: string; input: SaveLabelsInput }
+    | null
+    | undefined
+    | "unavailable"
+  /** Loads the menu again for a dish that waits for it. */
+  retrySeed?: () => void
+  /** Rejects with SessionExpiredError when the person is signed out. */
   save: (
     venueId: string,
     input: SaveLabelsInput
   ) => Promise<UploadLabelPostResult>
-  /** Discard what the server keeps for the asset; resolves false on failure. */
-  discard: (assetId: string) => Promise<boolean>
+  /** Discard what the server keeps for the asset; null on failure. */
+  discard: (assetId: string) => Promise<UploadLabelDiscardResult | null>
   /** The person's kept labels (pending or needing attention); null on failure. */
   attention: () => Promise<PendingLabelItem[] | null>
+  /** The photo's labels as they are now; null when they cannot be read. */
+  summary?: (assetId: string) => Promise<MediaLabelSummary | null>
+  /** Hear Me's Fix labels and Discard; returns the unsubscribe function. */
+  settled?: (listener: UploadLabelSettle) => () => void
   /** Names of the menu items in an input, for the "Saved · …" line. */
   itemNames?: (input: SaveLabelsInput) => string[]
   onSaved?: (assetId: string) => void
@@ -102,17 +137,24 @@ type LabelRecord = {
   sentTo: string | null
   /** The server keeps them (a pending or needs-attention row). */
   held: boolean
-  /** A send got no answer: the server may keep them (DELETE to be sure). */
+  /**
+   * A send got no clear answer: the server may keep them, or (the photo was
+   * ready) have put them on it. Clearing then sends the empty choice.
+   */
   maybeHeld: boolean
-  /** Sent again once because the server still kept them for a ready asset. */
+  /** Sent again once because the server no longer had them as expected. */
   resent: boolean
   /** Retry re-asks whether finalise applied them, instead of sending. */
   recheck: boolean
+  /** The last request was refused because the session ended. */
+  signedOut: boolean
+  /** Settled on Me (Fix labels or Discard): the dish is not put back. */
+  settled: boolean
   code: SaveLabelsErrorCode | null
   message: string | null
   summary: MediaLabelSummary | null
   /** The finalise outcome already taken into account. */
-  outcome: UploadLabelOutcome | null
+  outcome: FinaliseLabels | null
   conflictRetried: boolean
 }
 
@@ -121,7 +163,8 @@ export type LabelView =
   | { kind: "none" }
   | { kind: "saving" }
   | { kind: "saved"; names: string[] }
-  | { kind: "retry" }
+  /** Not saved yet: "Retry labels" (after signing in again, if signed out). */
+  | { kind: "retry"; signedOut?: boolean }
   | { kind: "attention"; code: SaveLabelsErrorCode | null; message: string }
   /** The file failed for good, so its labels can never be saved. */
   | { kind: "lost" }
@@ -134,6 +177,12 @@ const MENU_CODES: ReadonlySet<SaveLabelsErrorCode> = new Set([
   "catalogue_changed",
   "unavailable_items",
 ])
+
+const SIGNED_OUT = "signed-out" as const
+/** A failed request: the session ended, or no answer to read. */
+function failure(error: unknown) {
+  return error instanceof SessionExpiredError ? SIGNED_OUT : null
+}
 
 export function isEmptyInput(input: SaveLabelsInput) {
   return (
@@ -151,12 +200,16 @@ function problemText(code: SaveLabelsErrorCode | null, message: string | null) {
     : (message ?? MENU_CHANGED)
 }
 
-/** The key of labels as the server applied them. */
-function summaryKey(summary: MediaLabelSummary) {
-  return keyOf({
-    assetId: "",
-    expectedRevision: 0,
-    catalogueVersionId: null,
+/** The labels on a photo, as the input that would put them there. */
+function inputOf(
+  summary: MediaLabelSummary,
+  id: string,
+  catalogueVersionId: string | null
+): SaveLabelsInput {
+  return {
+    assetId: id,
+    expectedRevision: summary.revision,
+    catalogueVersionId,
     contentTypes: summary.contentTypes,
     note: summary.note,
     items: summary.items.map((i) => ({
@@ -164,7 +217,12 @@ function summaryKey(summary: MediaLabelSummary) {
       variantId: i.variantId,
     })),
     missingItem: null,
-  })
+  }
+}
+
+/** The key of labels as the server applied them. */
+function summaryKey(summary: MediaLabelSummary) {
+  return keyOf(inputOf(summary, "", null))
 }
 
 /** What is chosen, independent of asset, revision and menu version. */
@@ -177,15 +235,26 @@ function keyOf(input: SaveLabelsInput) {
   ])
 }
 
-const EMPTY_KEY = keyOf({
-  assetId: "",
-  expectedRevision: 0,
-  catalogueVersionId: null,
-  contentTypes: [],
-  note: null,
-  items: [],
-  missingItem: null,
-})
+/** The labels themselves (a missing-item suggestion is not on the photo). */
+function labelsKey(input: SaveLabelsInput) {
+  return keyOf({ ...input, missingItem: null })
+}
+
+function emptyInput(id: string, catalogueVersionId: string | null) {
+  return {
+    assetId: id,
+    expectedRevision: 0,
+    catalogueVersionId,
+    contentTypes: [],
+    note: null,
+    items: [],
+    missingItem: null,
+  } satisfies SaveLabelsInput
+}
+
+const EMPTY_KEY = keyOf(emptyInput("", null))
+/** Held by the server, but what exactly is still being read. */
+const UNKNOWN_KEY = "unknown"
 
 function newRecord(venueId: string, input: SaveLabelsInput): LabelRecord {
   return {
@@ -199,11 +268,35 @@ function newRecord(venueId: string, input: SaveLabelsInput): LabelRecord {
     maybeHeld: false,
     resent: false,
     recheck: false,
+    signedOut: false,
+    settled: false,
     code: null,
     message: null,
     summary: null,
     outcome: null,
     conflictRetried: false,
+  }
+}
+
+/** On the photo as `summary` says: nothing left to send or keep. */
+function onPhoto(
+  r: LabelRecord,
+  assetId: string,
+  summary: MediaLabelSummary
+): LabelRecord {
+  return {
+    ...r,
+    phase: "saved",
+    sent: summaryKey(summary),
+    sentTo: assetId,
+    held: false,
+    maybeHeld: false,
+    recheck: false,
+    signedOut: false,
+    revision: summary.revision,
+    summary,
+    code: null,
+    message: null,
   }
 }
 
@@ -213,15 +306,24 @@ const lostFile = (item: QueueItem) =>
 export function useUploadLabels(
   items: readonly QueueItem[],
   config: UploadLabels | undefined,
-  paused: boolean
+  paused: boolean,
+  /** The sheet is showing: labels needing attention are checked again. */
+  open = true
 ) {
   const [records, setRecords] = React.useState<Record<string, LabelRecord>>({})
+  // Changes when records change other than through the panel (finalise's
+  // labels for a file with none here, Me settling them): the panel, which
+  // reads `initial` once, mounts again.
+  const [version, setVersion] = React.useState(0)
   // Per file: the request in flight, and the last asset+input attempted (so a
   // render never sends the same thing twice).
   const inFlight = React.useRef(new Set<string>())
   const attempted = React.useRef(new Map<string, string>())
   const seedAsked = React.useRef(new Set<string>())
-  // Files removed while a send was in flight: discard what it leaves kept.
+  // Files whose finalise labels made a record here.
+  const adopted = React.useRef(new Set<string>())
+  // Files removed (or the queue cleared) while a send was in flight: what it
+  // leaves kept or on the photo is undone.
   const removed = React.useRef(new Set<string>())
 
   const labelable = React.useMemo(
@@ -240,6 +342,100 @@ export function useUploadLabels(
     []
   )
 
+  /** The photo is as `summary` says (settled elsewhere): take it as it is. */
+  const adopt = React.useCallback(
+    (id: string, assetId: string, summary: MediaLabelSummary) => {
+      attempted.current.delete(id)
+      setRecords((current) => {
+        const r = current[id]
+        if (!r) return current
+        const input = inputOf(summary, id, r.input.catalogueVersionId)
+        return {
+          ...current,
+          [id]: {
+            ...onPhoto(r, assetId, summary),
+            input,
+            sent: keyOf(input),
+            settled: true,
+            resent: false,
+            conflictRetried: false,
+          },
+        }
+      })
+      setVersion((v) => v + 1)
+    },
+    []
+  )
+
+  /** Clears labels on a ready photo: the empty choice at its revision. */
+  const clearPhoto = React.useCallback(
+    (
+      venueId: string,
+      assetId: string,
+      revision: number,
+      catalogueVersionId: string | null,
+      again = true
+    ) => {
+      if (!config) return
+      void config
+        .save(venueId, {
+          ...emptyInput(assetId, catalogueVersionId),
+          expectedRevision: revision,
+        })
+        .then((result) => {
+          if (
+            again &&
+            !result.ok &&
+            result.code === "conflict" &&
+            result.current
+          )
+            clearPhoto(
+              venueId,
+              assetId,
+              result.current.revision,
+              catalogueVersionId,
+              false
+            )
+        })
+        .catch(() => {})
+    },
+    [config]
+  )
+
+  /** Undo what a send left for a file that left the sheet meanwhile. */
+  const scrub = React.useCallback(
+    (
+      venueId: string,
+      input: SaveLabelsInput,
+      result: UploadLabelPostResult | typeof SIGNED_OUT | null,
+      ready: boolean
+    ) => {
+      if (!config) return
+      const assetId = input.assetId
+      const version = input.catalogueVersionId
+      if (result && result !== SIGNED_OUT && result.ok) {
+        // On the photo now: only the empty choice takes them off.
+        if (result.state === "saved")
+          return clearPhoto(venueId, assetId, result.labels.revision, version)
+      } else if (
+        ready &&
+        result !== SIGNED_OUT &&
+        (!result || result.code === "unavailable")
+      ) {
+        // No clear answer from a ready photo: they may be on it.
+        return clearPhoto(venueId, assetId, input.expectedRevision, version)
+      }
+      void config
+        .discard(assetId)
+        .then((done) => {
+          if (done?.state === "already_applied")
+            clearPhoto(venueId, assetId, done.labels.revision, version)
+        })
+        .catch(() => {})
+    },
+    [config, clearPhoto]
+  )
+
   // Labels a file starts with (the dish it was picked for).
   React.useEffect(() => {
     if (!config?.seed) return
@@ -247,7 +443,7 @@ export function useUploadLabels(
     for (const item of labelable) {
       if (records[item.id] || seedAsked.current.has(item.id)) continue
       const seed = config.seed(item)
-      if (seed === undefined) continue
+      if (seed === undefined || seed === "unavailable") continue
       seedAsked.current.add(item.id)
       if (seed) seeds[item.id] = newRecord(seed.venueId, seed.input)
     }
@@ -262,7 +458,67 @@ export function useUploadLabels(
     for (const item of labelable) {
       const record = records[item.id]
       const assetId = item.assetId
-      if (!record || inFlight.current.has(item.id)) continue
+      if (inFlight.current.has(item.id)) continue
+
+      if (!record) {
+        // Finalise applied (or could not apply) labels this sheet has no
+        // record of: the page was reloaded and the same file picked again.
+        if (item.labels && assetId && !adopted.current.has(item.id)) {
+          adopted.current.add(item.id)
+          const outcome = item.labels
+          const fresh: LabelRecord =
+            outcome.state === "saved"
+              ? (() => {
+                  const input = inputOf(outcome.labels, item.id, null)
+                  return {
+                    ...onPhoto(newRecord("", input), assetId, outcome.labels),
+                    sent: keyOf(input),
+                    outcome,
+                  }
+                })()
+              : {
+                  ...newRecord("", emptyInput(item.id, null)),
+                  phase: "attention" as const,
+                  held: true,
+                  sent: UNKNOWN_KEY,
+                  sentTo: assetId,
+                  code: outcome.code,
+                  message: problemText(outcome.code, outcome.message),
+                  outcome,
+                }
+          attempted.current.set(item.id, `${assetId}|${keyOf(fresh.input)}`)
+          if (outcome.state === "needs_attention") inFlight.current.add(item.id)
+          void Promise.resolve().then(() => {
+            if (outcome.state === "saved") config.onSaved?.(assetId)
+            setRecords((current) =>
+              current[item.id] ? current : { ...current, [item.id]: fresh }
+            )
+            setVersion((v) => v + 1)
+            if (outcome.state !== "needs_attention") return
+            // What is kept, for Fix labels.
+            void config
+              .attention()
+              .catch(() => null)
+              .then((rows) => {
+                inFlight.current.delete(item.id)
+                const row = rows?.find((r) => r.assetId === assetId)
+                patch(item.id, (r) => {
+                  if (!row || r.sent !== UNKNOWN_KEY) return { ...r }
+                  const input = { ...row.input, assetId: item.id }
+                  attempted.current.set(item.id, `${assetId}|${keyOf(input)}`)
+                  return {
+                    ...r,
+                    venueId: row.venueId,
+                    input,
+                    sent: keyOf(input),
+                  }
+                })
+                if (row) setVersion((v) => v + 1)
+              })
+          })
+        }
+        continue
+      }
 
       // Finalise reported what it did with the labels the server kept.
       if (item.labels && record.outcome !== item.labels) {
@@ -274,23 +530,22 @@ export function useUploadLabels(
             config.onSaved?.(item.assetId)
           attempted.current.delete(item.id)
           patch(item.id, (r) => {
+            // A later save already answered with a newer revision: finalise's
+            // older labels are not what the photo has now.
+            if (
+              outcome.state === "saved" &&
+              r.revision > 0 &&
+              r.revision >= outcome.labels.revision
+            )
+              return { ...r, outcome }
             if (r.phase !== "pending") {
               // Finalise applied what the server kept, after the person
               // changed or cleared them (or a send got no answer): note what
               // is on the photo, so the current choice is sent over it.
               if (outcome.state === "saved" && item.assetId)
                 return {
-                  ...r,
+                  ...onPhoto(r, item.assetId, outcome.labels),
                   outcome,
-                  phase: "saved",
-                  sent: summaryKey(outcome.labels),
-                  sentTo: item.assetId,
-                  held: false,
-                  maybeHeld: false,
-                  revision: outcome.labels.revision,
-                  summary: outcome.labels,
-                  code: null,
-                  message: null,
                 }
               if (outcome.state === "needs_attention" && r.maybeHeld)
                 return {
@@ -339,6 +594,8 @@ export function useUploadLabels(
 
       // Done, but finalise said nothing about the kept labels (it ran before
       // they arrived, or the file was already processed): ask the server.
+      // No kept row is not proof they were applied: the photo's own labels
+      // are.
       if (
         item.status === "done" &&
         record.phase === "pending" &&
@@ -349,99 +606,177 @@ export function useUploadLabels(
         if (attempted.current.get(item.id) === `check|${assetId}`) continue
         attempted.current.set(item.id, `check|${assetId}`)
         inFlight.current.add(item.id)
-        void config
-          .attention()
-          .catch(() => null)
-          .then((rows) => {
-            inFlight.current.delete(item.id)
-            const row = rows?.find((r) => r.assetId === assetId)
-            if (rows && !row) config.onSaved?.(assetId)
-            patch(item.id, (r) => {
-              if (!rows) return { ...r, phase: "retry", recheck: true }
-              // Applied by finalise (it is no longer kept).
-              if (!row)
-                return { ...r, phase: "saved", held: false, recheck: false }
-              if (row.status === "needs_attention")
+        const sentLabels = labelsKey(record.input)
+        void (async () => {
+          const rows = await config.attention().catch(failure)
+          const row =
+            rows !== SIGNED_OUT
+              ? rows?.find((r) => r.assetId === assetId)
+              : undefined
+          const photo =
+            rows && rows !== SIGNED_OUT && !row && config.summary
+              ? await config.summary(assetId).catch(failure)
+              : null
+          inFlight.current.delete(item.id)
+          const applied =
+            photo && photo !== SIGNED_OUT && summaryKey(photo) === sentLabels
+          if (applied) config.onSaved?.(assetId)
+          patch(item.id, (r) => {
+            if (rows === SIGNED_OUT || photo === SIGNED_OUT)
+              return { ...r, phase: "retry", recheck: true, signedOut: true }
+            if (!rows) return { ...r, phase: "retry", recheck: true }
+            if (!row) {
+              if (!photo) return { ...r, phase: "retry", recheck: true }
+              if (applied)
+                return {
+                  ...onPhoto(r, assetId, photo),
+                  sent: r.sent,
+                  conflictRetried: false,
+                }
+              // Not kept and not on the photo: send them again, once.
+              if (r.resent)
                 return {
                   ...r,
-                  phase: "attention",
-                  held: true,
-                  recheck: false,
-                  code: row.code,
-                  message: problemText(row.code, row.message),
+                  phase: "retry",
+                  recheck: true,
+                  revision: photo.revision,
                 }
-              // Still kept although the asset is ready: send it again, once.
-              if (r.resent) return { ...r, phase: "retry", recheck: true }
               attempted.current.delete(item.id)
               return {
                 ...r,
                 sent: null,
+                held: false,
                 phase: "draft",
                 recheck: false,
                 resent: true,
+                revision: photo.revision,
               }
-            })
+            }
+            if (row.status === "needs_attention")
+              return {
+                ...r,
+                phase: "attention",
+                held: true,
+                recheck: false,
+                code: row.code,
+                message: problemText(row.code, row.message),
+              }
+            // Still kept although the asset is ready: send it again, once.
+            if (r.resent) return { ...r, phase: "retry", recheck: true }
+            attempted.current.delete(item.id)
+            return {
+              ...r,
+              sent: null,
+              phase: "draft",
+              recheck: false,
+              resent: true,
+            }
           })
+        })()
         continue
       }
 
       const key = keyOf(record.input)
-      const attempt = `${assetId}|${key}`
+      const ready = item.status === "done"
+      // A send with no clear answer to a ready photo may have put them on it:
+      // only the empty choice clears that (a DELETE removes kept labels only).
+      const unsure = key === EMPTY_KEY && record.maybeHeld && ready
+      const attempt = `${assetId}|${key}${unsure ? "|ready" : ""}`
       if (attempted.current.get(item.id) === attempt) continue
       if (record.sent === key && record.sentTo === assetId) continue
 
       if (key === EMPTY_KEY) {
         if (record.sent === null && !record.maybeHeld) continue
-        if (record.phase !== "saved" || record.sentTo !== assetId) {
+        if (
+          !unsure &&
+          (record.phase !== "saved" || record.sentTo !== assetId)
+        ) {
           // Cleared before they reached the photo: discard what is kept.
           attempted.current.set(item.id, attempt)
           const keptFor = record.sentTo ?? assetId
           inFlight.current.add(item.id)
-          void (keptFor ? config.discard(keptFor) : Promise.resolve(true))
-            .catch(() => false)
-            .then((ok) => {
+          void config
+            .discard(keptFor)
+            .catch(failure)
+            .then((result) => {
               inFlight.current.delete(item.id)
-              patch(item.id, (r) =>
-                ok
-                  ? {
-                      ...r,
-                      phase: "draft",
-                      sent: null,
-                      sentTo: null,
-                      held: false,
-                      maybeHeld: false,
-                      code: null,
-                      message: null,
-                    }
-                  : { ...r, phase: "retry" }
-              )
+              const applied =
+                result &&
+                result !== SIGNED_OUT &&
+                result.state === "already_applied"
+                  ? result.labels
+                  : null
+              if (removed.current.delete(item.id)) {
+                // Gone from the sheet meanwhile, and finalise applied them.
+                if (applied)
+                  clearPhoto(
+                    record.venueId,
+                    keptFor,
+                    applied.revision,
+                    record.input.catalogueVersionId
+                  )
+                return
+              }
+              // Finalise applied them first: clear them on the photo.
+              if (applied) attempted.current.delete(item.id)
+              patch(item.id, (r) => {
+                if (result === SIGNED_OUT)
+                  return { ...r, phase: "retry", signedOut: true }
+                if (!result) return { ...r, phase: "retry" }
+                if (result.state === "already_applied")
+                  return onPhoto(r, keptFor, result.labels)
+                return {
+                  ...r,
+                  phase: "draft",
+                  sent: null,
+                  // Nothing kept, but a direct save may still have landed:
+                  // stay unsure until the photo is ready.
+                  sentTo:
+                    result.state === "none" && r.maybeHeld ? keptFor : null,
+                  held: false,
+                  maybeHeld: result.state === "none" && r.maybeHeld,
+                  signedOut: false,
+                  code: null,
+                  message: null,
+                }
+              })
             })
           continue
         }
-        // Already on the photo: saving the empty set clears them.
+        // On the photo (or maybe): saving the empty set clears them.
       }
 
       attempted.current.set(item.id, attempt)
       inFlight.current.add(item.id)
+      const venueId = record.venueId
       const input = {
         ...record.input,
         assetId,
         expectedRevision: record.revision,
       }
       void Promise.resolve()
-        .then(() => config.save(record.venueId, input))
-        .catch(() => null)
+        .then(() => config.save(venueId, input))
+        .catch(failure)
         .then((result) => {
           inFlight.current.delete(item.id)
           if (removed.current.has(item.id)) {
-            // The file left the sheet meanwhile: nothing may stay kept.
-            if (!result?.ok || result.state === "pending")
-              void config.discard(assetId).catch(() => false)
+            // The file left the sheet meanwhile: nothing may stay kept, and
+            // nothing it put on the photo may stay there.
+            removed.current.delete(item.id)
+            scrub(venueId, input, result, ready)
             return
           }
-          if (result?.ok && result.state === "saved") config.onSaved?.(assetId)
+          if (
+            result &&
+            result !== SIGNED_OUT &&
+            result.ok &&
+            result.state === "saved"
+          )
+            config.onSaved?.(assetId)
           patch(item.id, (r) => {
-            if (!result)
+            if (result === SIGNED_OUT)
+              return { ...r, phase: "retry", recheck: false, signedOut: true }
+            if (!result || (!result.ok && result.code === "unavailable"))
               return {
                 ...r,
                 phase: "retry",
@@ -449,8 +784,6 @@ export function useUploadLabels(
                 sentTo: assetId,
                 maybeHeld: true,
               }
-            if (!result.ok && result.code === "unavailable")
-              return { ...r, phase: "retry", recheck: false }
             if (result.ok && result.state === "saved") {
               return {
                 ...r,
@@ -459,10 +792,12 @@ export function useUploadLabels(
                 sentTo: assetId,
                 held: false,
                 maybeHeld: false,
+                signedOut: false,
                 revision: result.labels.revision,
                 summary: result.labels,
                 code: null,
                 message: null,
+                conflictRetried: false,
               }
             }
             if (result.ok)
@@ -473,8 +808,10 @@ export function useUploadLabels(
                 sentTo: assetId,
                 held: true,
                 maybeHeld: false,
+                signedOut: false,
                 code: null,
                 message: null,
+                conflictRetried: false,
               }
             if (
               result.code === "conflict" &&
@@ -500,26 +837,149 @@ export function useUploadLabels(
           })
         })
     }
-  }, [labelable, records, config, paused, patch])
+  }, [labelable, records, config, paused, patch, scrub, clearPhoto])
 
-  /** Its dish (Our menu) cannot be told yet: the menu is still loading. */
-  function undecided(item: QueueItem) {
-    return (
-      !!config?.seed &&
-      !lostFile(item) &&
-      labelable.includes(item) &&
-      config.seed(item) === undefined
-    )
+  // Me's Fix labels or Discard for photos in this sheet.
+  const latest = React.useRef({ labelable, records, config })
+  React.useEffect(() => {
+    latest.current = { labelable, records, config }
+  })
+  const settle = React.useCallback<UploadLabelSettle>(
+    (assetIds, how) => {
+      const { labelable, records, config } = latest.current
+      const hits = labelable.filter(
+        (item) =>
+          item.assetId && assetIds.includes(item.assetId) && records[item.id]
+      )
+      for (const item of hits) {
+        const assetId = item.assetId!
+        attempted.current.delete(item.id)
+        patch(item.id, (r) => {
+          const settledNow = {
+            ...r,
+            held: false,
+            maybeHeld: false,
+            recheck: false,
+            signedOut: false,
+            settled: true,
+            code: null,
+            message: null,
+          }
+          if (how === "discarded") {
+            // No labels from this sheet on the photo.
+            const input = emptyInput(item.id, r.input.catalogueVersionId)
+            return {
+              ...settledNow,
+              input,
+              phase: "draft",
+              sent: EMPTY_KEY,
+              sentTo: assetId,
+            }
+          }
+          // On the photo as Me saved them; what exactly is read next.
+          return {
+            ...settledNow,
+            phase: "saved",
+            sent: keyOf(r.input),
+            sentTo: assetId,
+            summary: null,
+          }
+        })
+        if (how === "labelled" && config?.summary)
+          void config
+            .summary(assetId)
+            .catch(() => null)
+            .then((photo) => {
+              if (photo) adopt(item.id, assetId, photo)
+            })
+      }
+      if (hits.length > 0) setVersion((v) => v + 1)
+    },
+    [patch, adopt]
+  )
+  React.useEffect(() => config?.settled?.(settle), [config, settle])
+
+  // Opened again: labels that needed attention may have been dealt with on
+  // Me meanwhile. Not kept any more: the photo's labels say how.
+  React.useEffect(() => {
+    if (!open) return
+    const { labelable, records, config } = latest.current
+    if (!config?.summary) return
+    const waiting = labelable.filter((item) => {
+      const r = records[item.id]
+      return (
+        item.assetId &&
+        item.status === "done" &&
+        r?.phase === "attention" &&
+        r.held &&
+        !inFlight.current.has(item.id)
+      )
+    })
+    if (waiting.length === 0) return
+    void config
+      .attention()
+      .catch(() => null)
+      .then((rows) => {
+        if (!rows) return
+        for (const item of waiting) {
+          const assetId = item.assetId!
+          if (rows.some((row) => row.assetId === assetId)) continue
+          void config
+            .summary?.(assetId)
+            .catch(() => null)
+            .then((photo) => {
+              if (
+                photo &&
+                latest.current.records[item.id]?.phase === "attention"
+              )
+                adopt(item.id, assetId, photo)
+            })
+        }
+      })
+  }, [open, adopt])
+
+  /**
+   * Its dish (Our menu) cannot be told yet: "loading" while the menu loads,
+   * "failed" while it could not be loaded.
+   */
+  function undecided(item: QueueItem): "loading" | "failed" | null {
+    if (!config?.seed || lostFile(item) || !labelable.includes(item))
+      return null
+    const seed = config.seed(item)
+    return seed === undefined
+      ? "loading"
+      : seed === "unavailable"
+        ? "failed"
+        : null
   }
 
   function view(item: QueueItem): LabelView {
     const record = records[item.id]
-    if (!record) return undecided(item) ? { kind: "saving" } : { kind: "none" }
+    if (!record) {
+      const waiting = undecided(item)
+      return waiting === "failed"
+        ? { kind: "retry" }
+        : waiting
+          ? { kind: "saving" }
+          : { kind: "none" }
+    }
     const empty = isEmptyInput(record.input)
-    if (empty && (record.sent === null || record.sent === EMPTY_KEY))
+    // A request in flight may still put labels on the photo (or take them
+    // off): never "Saved" until it answers.
+    const busy = inFlight.current.has(item.id)
+    if (
+      empty &&
+      !busy &&
+      !record.maybeHeld &&
+      (record.sent === null || record.sent === EMPTY_KEY)
+    )
       return { kind: "none" }
     if (lostFile(item)) return empty ? { kind: "none" } : { kind: "lost" }
-    if (record.phase === "retry") return { kind: "retry" }
+    if (busy) return { kind: "saving" }
+    if (record.phase === "retry")
+      return record.signedOut
+        ? { kind: "retry", signedOut: true }
+        : { kind: "retry" }
     if (record.phase === "attention")
       return {
         kind: "attention",
@@ -536,7 +996,9 @@ export function useUploadLabels(
         ? record.summary.items.map((i) =>
             i.variantName ? `${i.name} (${i.variantName})` : i.name
           )
-        : (config?.itemNames?.(record.input) ?? [])
+        : record.settled
+          ? []
+          : (config?.itemNames?.(record.input) ?? [])
       return { kind: "saved", names }
     }
     return { kind: "saving" }
@@ -552,14 +1014,37 @@ export function useUploadLabels(
     return !record.held || record.sent !== keyOf(record.input)
   }
 
+  function retry(id: string) {
+    attempted.current.delete(id)
+    // A dish waiting for a menu that failed to load: load it again.
+    if (!records[id]) return config?.retrySeed?.()
+    patch(id, (r) =>
+      r.phase !== "retry"
+        ? r
+        : r.recheck
+          ? { ...r, phase: "pending", recheck: false, signedOut: false }
+          : { ...r, phase: "draft", signedOut: false }
+    )
+  }
+
   return {
     labelable,
     view,
     unstored,
+    /** Changes when the panel must mount again (see `version` above). */
+    version,
+    /** A label request was refused because the session ended. */
+    signedOut: labelable.some(
+      (item) =>
+        records[item.id]?.signedOut && records[item.id].phase === "retry"
+    ),
     /** Each file's labels now (assetId = queue item id), for the panel. */
     initial: labelable.flatMap((item) =>
       records[item.id] ? [records[item.id].input] : []
     ),
+    settledIds: labelable
+      .filter((item) => records[item.id]?.settled)
+      .map((item) => item.id),
     /** Panel changes: one input per file, by queue item id. */
     change(venueId: string, inputs: SaveLabelsInput[]) {
       setRecords((current) => {
@@ -582,15 +1067,11 @@ export function useUploadLabels(
       })
     },
     /** "Retry labels": send them again, or ask again whether they were applied. */
-    retry(id: string) {
-      attempted.current.delete(id)
-      patch(id, (r) =>
-        r.phase !== "retry"
-          ? r
-          : r.recheck
-            ? { ...r, phase: "pending", recheck: false }
-            : { ...r, phase: "draft" }
-      )
+    retry,
+    /** Signed in again: retry every label request the sign-out stopped. */
+    retrySignedOut() {
+      for (const item of labelable)
+        if (records[item.id]?.signedOut) retry(item.id)
     },
     /** The labels to fix, addressed to the asset, and the problem. */
     fixDraft(item: QueueItem) {
@@ -601,6 +1082,10 @@ export function useUploadLabels(
           ...record.input,
           assetId: item.assetId,
           expectedRevision: record.revision,
+        },
+        labels: record.summary ?? {
+          ...EMPTY_LABEL_SUMMARY,
+          revision: record.revision,
         },
         problem:
           record.phase === "attention" && record.code
@@ -624,13 +1109,14 @@ export function useUploadLabels(
         }
       const result = await config
         .save(record.venueId, { ...input, assetId })
-        .catch(() => null)
-      if (!result)
+        .catch(failure)
+      if (!result || result === SIGNED_OUT)
         return {
           ok: false,
           assetId,
           code: "unavailable",
-          message: LABELS_NOT_SAVED,
+          message:
+            result === SIGNED_OUT ? SIGNED_OUT_MESSAGE : LABELS_NOT_SAVED,
         }
       if (!result.ok) return result
       const key = keyOf(input)
@@ -642,6 +1128,9 @@ export function useUploadLabels(
         sent: key,
         sentTo: assetId,
         held: result.state !== "saved",
+        maybeHeld: false,
+        signedOut: false,
+        conflictRetried: false,
         revision:
           result.state === "saved" ? result.labels.revision : r.revision,
         summary: result.state === "saved" ? result.labels : r.summary,
@@ -651,7 +1140,14 @@ export function useUploadLabels(
       if (result.state === "saved") config.onSaved?.(assetId)
       return result.state === "saved"
         ? { ok: true, assetId, labels: result.labels }
-        : { ok: true, assetId, labels: record.summary ?? emptySummary() }
+        : {
+            ok: true,
+            assetId,
+            labels: record.summary ?? {
+              ...EMPTY_LABEL_SUMMARY,
+              revision: record.revision,
+            },
+          }
     },
     /** The file left the queue: discard what the server keeps for it. */
     discard(item: QueueItem) {
@@ -663,7 +1159,19 @@ export function useUploadLabels(
         record &&
         (record.held || record.maybeHeld) &&
         (record.sentTo ?? item.assetId)
-      if (kept) void config?.discard(kept).catch(() => false)
+      if (kept && config)
+        void config
+          .discard(kept)
+          .then((done) => {
+            if (done?.state === "already_applied")
+              clearPhoto(
+                record.venueId,
+                kept,
+                done.labels.revision,
+                record.input.catalogueVersionId
+              )
+          })
+          .catch(() => {})
       setRecords((current) => {
         if (!current[item.id]) return current
         const next = { ...current }
@@ -671,22 +1179,13 @@ export function useUploadLabels(
         return next
       })
     },
+    /** The queue is cleared: a send still in flight is undone when it answers. */
     reset() {
+      for (const id of inFlight.current) removed.current.add(id)
       attempted.current.clear()
       seedAsked.current.clear()
+      adopted.current.clear()
       setRecords({})
     },
-  }
-}
-
-function emptySummary(): MediaLabelSummary {
-  return {
-    revision: 0,
-    contentTypes: [],
-    note: null,
-    items: [],
-    missingItem: null,
-    hasLabels: false,
-    updatedAt: null,
   }
 }

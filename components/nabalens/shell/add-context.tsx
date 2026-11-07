@@ -44,7 +44,9 @@ export type OpenAddOptions = {
    * Hears only the files picked from this call, each one as soon as THAT file
    * is ready (one asset ID per call, many calls per pick), so a task screen
    * selects a photo while a slow video is still uploading. Return false when
-   * the screen is gone.
+   * the screen is gone: the photo is still saved (to the person's portfolio),
+   * and Add keeps it listed as "Saved" but not added to the task until the
+   * person has seen it.
    */
   onReady?: (assetIds: string[]) => boolean | void
   /**
@@ -74,10 +76,15 @@ type AddContextValue = {
   /** Files in the Add queue that are not finished, in the queue's words. */
   busy?: { count: number; words: string } | null
   /**
-   * Labels were saved for these photos elsewhere (Me's "Needs labels"). Kept
-   * for callers; Add no longer counts photos as "ready to label".
+   * Labels were saved on these photos elsewhere (Me's Fix labels): Add's
+   * rows for them read "Saved" with the labels the photo has now.
    */
   labelled?: (assetIds: string[]) => void
+  /**
+   * The labels kept for these photos were discarded elsewhere (Me's Discard
+   * labels): Add's rows for them read "Saved" with no labels.
+   */
+  discarded?: (assetIds: string[]) => void
 }
 
 const AddContext = React.createContext<AddContextValue | null>(null)
@@ -120,6 +127,14 @@ export function useAddQueue(): {
 /** Tell Add that these photos were labelled elsewhere (no-op outside the staff layout). */
 export function useAddLabelled(): (assetIds: string[]) => void {
   return React.useContext(AddContext)?.labelled ?? noop
+}
+
+/**
+ * Tell Add that the kept labels of these photos were discarded elsewhere
+ * (no-op outside the staff layout).
+ */
+export function useAddDiscarded(): (assetIds: string[]) => void {
+  return React.useContext(AddContext)?.discarded ?? noop
 }
 
 function noop() {}

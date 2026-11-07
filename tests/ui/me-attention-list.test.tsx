@@ -72,10 +72,9 @@ function draft(assetId: string): SaveLabelsInput {
   }
 }
 
-// `retryable` is contract C6 (lib/menus/types.ts gains it from the server).
 function row(
   n: number,
-  over: Partial<PendingLabelItem & { retryable: boolean }> = {}
+  over: Partial<PendingLabelItem> = {}
 ): PendingLabelItem {
   const assetId = `7d000000-0000-4000-8000-00000000000${n}`
   return {
@@ -86,6 +85,7 @@ function row(
     message: "Check your menu items against the updated menu.",
     input: draft(assetId),
     uploadState: "ready",
+    retryable: false,
     mediaType: "image",
     thumbnailUrl: `/api/media/${assetId}/thumb`,
     updatedAt: "2026-11-07T10:00:00.000Z",
