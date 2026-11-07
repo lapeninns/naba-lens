@@ -332,23 +332,45 @@ them. Schema: `supabase/migrations/20261107140000_media_pending_labels.sql`.
   them, admins and managers included. Every write goes through SECURITY DEFINER
   functions.
 - `stage_media_labels` (caller: the uploader) locks the asset row, then stores the
-  draft while the asset is `uploading` or `processing` (a repeat replaces it and
-  clears any earlier problem), or answers `ready` so the caller saves through
-  `save_media_labels` at once. Failed, deleted, amenity, other venues' and other
-  people's assets are not found, like an unknown id.
+  draft while the asset is `uploading` or `processing`, or `failed` with its
+  original still in storage (a temporary failure: a Retry finalises it again and
+  applies the draft). A repeat replaces the draft and clears any earlier problem.
+  For a `ready` asset it stores nothing and answers `ready`, so the caller saves
+  through `save_media_labels` at once. Deleted, amenity, other venues' and other
+  people's assets, and failed ones whose original is gone (a permanent failure:
+  they can never be used), are not found, like an unknown id.
 - `complete_media_finalise` (service role, finalise's last step) makes the asset
   `ready` AND applies a stored draft in one transaction, as the uploader, through
   the same validation and audit trail as `save_media_labels`. The apply runs in a
   subtransaction: a failed apply never blocks the photo, the row becomes
-  `needs_attention` with its code.
+  `needs_attention` with its code. The apply waits at most 3 s for any lock
+  (`lock_timeout`, this transaction only), for example behind a menu activation
+  holding the venue menu lock. A longer wait fails the apply like any other
+  (`needs_attention`, code `unavailable`) instead of running into a statement
+  timeout that would roll back `ready` as well.
 - **Ordering.** Both functions take the asset row lock, so a draft stored before
   the asset is ready is applied by finalise, and one arriving after it is saved
   directly. No draft can be dropped in between.
-- A successful `save_media_labels` deletes the asset's stored draft (pending or
-  needs_attention), whoever saved it.
+- Only the uploader's own successful save settles their stored draft (pending or
+  needs_attention): the direct POST, **Fix labels** and finalise's apply all save
+  as the uploader and delete it. An admin's save of the same photo leaves the
+  draft, so the uploader's labels never vanish from their Me list unseen; they fix
+  or discard it themselves.
 - A draft goes with its asset: `on delete cascade`, plus a trigger when the asset
-  is tombstoned (user removal and the 24 h abandoned-upload cleanup). finalise
-  deletes the draft of a file that fails validation, since it can never apply.
+  is tombstoned (user removal and the 24 h abandoned-upload cleanup). When a file
+  fails validation (it can never be used), finalise removes its original and then
+  deletes its draft through `discard_unusable_media_labels`, which takes the asset
+  row lock, so a `stage_media_labels` storing a draft at that moment is deleted
+  too and later POSTs are not found. A temporary failure (storage or decoder
+  trouble, a busy decoder) keeps the draft for the Retry.
+- **Accepted risk (m18).** A stored draft has no version of its own. A POST the
+  browser gave up on (network error) that still reaches the server after a newer
+  POST overwrites the newer pending draft. The browser sends one POST per photo at
+  a time, so this needs a request that failed on the phone yet arrived late.
+  finalise then applies the older labels and reports exactly what it applied, so
+  the phone shows what the photo really has, but the newer choice is lost.
+  Closing it needs a per-photo sequence sent by the browser (a contract change);
+  not done.
 
 ### API: `/api/upload-labels`
 
@@ -360,14 +382,22 @@ are in `lib/menus/types.ts`.
 - `POST {venueId, input}` (`stageAssetLabels`, result `UploadLabelPostResult`):
   - `{ok:true, assetId, state:"saved", labels}`: the asset was ready, saved now;
   - `{ok:true, assetId, state:"pending"}`: the draft is stored for finalise;
-  - `{ok:false, assetId, code, message}`: refused. A failed, deleted or unknown
-    asset is `not_found` (404); a rejected direct save answers 200 with its
-    code, as before.
+  - `{ok:false, assetId, code, message}`: refused. A permanently failed (its
+    original removed), deleted or unknown asset is `not_found` (404); a rejected
+    direct save answers 200 with its code, as before. A temporarily failed
+    asset is not refused: its labels are stored (`pending`).
 - `GET ?attention=1`: `{ok:true, items}`, the caller's own drafts
-  (`PendingLabelItem[]`), newest first, each with the photo's `uploadState`; at
-  most 200.
-- `DELETE ?assetId=<uuid>`: discards the caller's own draft and answers
-  `{ok:true}`. Idempotent: no draft is still a success. The upload carries on.
+  (`PendingLabelItem[]`), newest first, each with the photo's `uploadState` and
+  `retryable` (`true` when the upload failed temporarily and its labels are kept:
+  a successful Retry applies them); at most 200.
+- `DELETE ?assetId=<uuid>` (`UploadLabelDiscardResult`): discards the caller's own
+  draft; the upload carries on. Idempotent, and says what happened:
+  - `{ok:true, state:"discarded"}`: the stored draft was removed;
+  - `{ok:true, state:"already_applied", labels}`: nothing was stored any more and
+    the ready photo has these labels (typically finalise applied them first);
+    nothing was discarded;
+  - `{ok:true, state:"none"}`: nothing was stored and the photo has no labels.
+  A failed read answers 503 (try again), never `none` without knowing.
 
 ### finalise and the browser
 
@@ -390,8 +420,8 @@ The upload sheet (`components/nabalens/upload-label-drafts.ts`,
 a change again, and discards the stored draft when the labels are cleared. A file
 shows "Saved" only when it is processed and its labels are stored on it. Me's
 "Needs attention" list (`app/staff/needs-attention.tsx`) shows the caller's
-needs_attention drafts and drafts whose upload can never finish, each with its
-reason, plus **Fix labels** (the stored labels against the current menu, saved
+needs_attention drafts and drafts whose upload failed (`retryable` ones can still
+finish with a Retry), each with its reason, plus **Fix labels** (the stored labels against the current menu, saved
 now) and **Discard labels**. Drafts still waiting for their photo are not listed.
 
 ### Measurement: `public.upload_label_metrics`
