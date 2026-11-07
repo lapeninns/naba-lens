@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test"
 
 import { signIn } from "../support/identities"
 import {
+  legacyStaffGrant,
   provisionCoverageWorld,
   type CoverageWorld,
 } from "./helpers/coverage-world"
@@ -35,14 +36,8 @@ type Item = { id: string; title: string }
 async function preparedVenue(browser: Parameters<typeof signedInPage>[0]) {
   const w = await provisionCoverageWorld()
   const service = provisioner()
-  const admin = await signIn(service, w.admin.email)
   const manager = await signIn(service, w.manager.email)
-  await ok(
-    admin.rpc("grant_venue_manager", {
-      p_staff_id: w.manager.id,
-      p_venue_id: w.venue1.id,
-    })
-  )
+  await legacyStaffGrant(w.admin, w.manager, w.venue1)
   await ok(manager.rpc("prepare_coverage_month", { p_venue_id: w.venue1.id }))
   const page = await signedInPage(browser, w.manager)
   return { w, page }

@@ -159,26 +159,39 @@ Photos and on profiles before review.
 
 ### Venue managers
 
-Open **Venue managers** from Coverage (`/admin/coverage/managers`), or choose
-**Make venue manager** in a person's three-dot menu in **Staff**. Under **Make
-someone a venue manager**, choose a venue, then an active staff member
-currently at that venue, add an optional note and choose **Make venue
-manager**. **Current grants** lists every manager, A to Z by surname. A person can
-manage one venue at a time. A manager stays a `staff` user; the grant is not a
-role.
+A venue manager is a separate account type with its own workspace
+(`/manager`; see the [manager guide](usage-manager.md)). To make one, open the
+person in **Staff** and, under **Account type**, choose **Make venue manager**
+(also in their three-dot menu in the directory). Choose the venue, give a
+**Reason** and confirm: the account becomes a venue manager at that venue with
+venue access there, in one audited change. Their photos, credit and review
+history stay with them; they can no longer add or label photos, or use staff
+Photos and People, and their open photo tasks end. **Return to staff account**
+reverses it and ends their venue access. Both changes take effect on the
+person's next page load and are listed under **History**.
 
-The grant works only while the person is active staff at that venue and the
-venue is active. Moving them to another venue, deactivating them or changing
-their role ends it, and it never moves with them; grant it again if needed.
-**Revoke grant**, in the grant's **More actions for** menu, needs a
-**Reason**. **Show ended grants** lists how each one ended.
-A manager who is already signed in is affected on their next page load or
-action.
+**Venue managers** in Coverage (`/admin/coverage/managers`) lists every grant,
+A to Z by surname. **Give a venue manager access** gives access to a manager
+account at its own venue that has none (for example after a revoke). A grant
+works only while the manager is active at that venue and the venue is active.
+Moving them, deactivating them or changing their account type ends it, and it
+never moves with them. **Revoke grant**, in the grant's **More actions for**
+menu, needs a **Reason**; the manager then sees **Venue access unavailable**
+on their next page load. **Show ended grants** lists how each one ended.
 
-Being a manager does not let anyone invite or deactivate people, change roles,
-venues or teams, publish menus, download originals or delete colleagues'
-photos. Manager screens show names, photos, teams and progress, never email
-or account details.
+Grants made before manager accounts existed are held by staff accounts and
+show **Legacy staff grant**. They stay in effect, with the older **Manage**
+tools in the staff area (see the
+[staff guide](usage-staff.md#manage-venue-managers-only)), until you convert
+the person to a venue manager account.
+
+Managers never decide on their own photos or on photos by people who have
+left. Review those, and any venue's menu photos, on the admin Review page at
+`/admin/coverage/{venue}/menu-photos`: the same lists and decisions as the
+manager's **Review**. Being a manager does not let anyone invite or deactivate
+people, change roles, venues or teams, publish menus, download originals or
+delete colleagues' photos. Manager screens show names, photos and progress,
+never email or account details.
 
 ## Invite staff and recover email failures
 

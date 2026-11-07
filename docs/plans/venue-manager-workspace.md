@@ -1,6 +1,6 @@
 # NabaLens venue manager workspace
 
-**Status** · Implementation plan for a manager-only workspace. The product rules below distinguish agreed scope from proposed first-release defaults.
+**Status** · Phase 1 (manager accounts, admin conversion, the `/manager` shell) and Phase 2 (item photo review: Overview, Review, Menu, contributor view and the admin Review page) are built on branch `claude/nabalens-manager-workspace-455c31` and verified on local isolated stacks ([evidence](../release/2026-11-07-manager-workspace-evidence.md)). Not merged or released; hosted checks follow an authorised release. The cut-over migration that retires legacy staff-held grants is not part of Phase 2. The product rules below distinguish agreed scope from proposed first-release defaults.
 
 ## Outcome and scope
 
@@ -112,3 +112,10 @@ Enforce the boundary in the login destination, route guards, server actions, dat
 For the pilot venue, record the active menu item count, covered count, pending review age, and how often photos need a label correction or replacement. Observe a manager finding the next gap and approving a suitable photo from the existing staff library. Verify that the manager can complete that workflow without ever entering a staff screen and that the staff portfolio remains independent.
 
 The initial product choices to validate are one photo per listed item, a venue-scoped contributor view inside Review, and using the existing follow-up area for replacement requests. The manager-only access decision is fixed.
+
+## Phase 2 decisions
+
+- **Unlabelled photos** ships, limited to ready images at the upload venue with no item label that staff tagged as food or drink, for manager accounts and admins only.
+- **Admin self-review** stays allowed. Manager accounts never decide their own photos.
+- **Leavers' photos** stay admin-only, consistently for review, withdraw and choosing the menu photo.
+- **Hosted migration order:** the staff portfolio branch's `20261106130000_menu_item_photos` must be on the target before `20261107100300`–`20261107100500`.

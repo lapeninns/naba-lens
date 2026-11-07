@@ -27,6 +27,7 @@ certification or proof of publishing permission. See the
 | ------------------------------------------------------------------------- | ----------------------------------------------------------- |
 | Run locally, configure env or prepare staging/production                  | [Setup runbook](docs/setup.md)                              |
 | Sign in, edit your profile, upload or remove your own media               | [Staff guide](docs/usage-staff.md)                          |
+| Review a venue's menu photos as a venue manager                           | [Venue manager guide](docs/usage-manager.md)                |
 | Browse colleagues across venues or prepare the community migrations       | [Community feature and deployment notes](docs/community.md) |
 | Filter/download originals, invite/manage/deactivate staff                 | [Admin guide](docs/usage-admin.md)                          |
 | Handle capture safety, failed uploads, cleanup, retention or a lost phone | [Operations](docs/operations.md)                            |

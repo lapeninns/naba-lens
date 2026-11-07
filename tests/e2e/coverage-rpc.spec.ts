@@ -5,6 +5,7 @@ import { expect, test } from "@playwright/test"
 import { signIn, type Db } from "../support/identities"
 import { getLocalSupabaseEnv } from "../support/local-supabase"
 import {
+  legacyStaffGrant,
   londonInstant,
   provisionCoverageWorld,
   seedImages,
@@ -127,13 +128,8 @@ test.describe("coverage database acceptance (WS5)", () => {
     return clients
   }
 
-  async function grantManager(admin: Db) {
-    await ok(
-      admin.rpc("grant_venue_manager", {
-        p_staff_id: w.manager.id,
-        p_venue_id: w.venue1.id,
-      })
-    )
+  async function grantManager() {
+    await legacyStaffGrant(w.admin, w.manager, w.venue1)
   }
 
   async function createRequirement(manager: Db, title: string, target = 2) {
@@ -224,13 +220,12 @@ test.describe("coverage database acceptance (WS5)", () => {
   })
 
   test("only assignees submit to a requirement; monthly-only submissions count for the month only (AC-31, AC-34, D2, D3)", async () => {
-    const [admin, manager, staffA, staffB] = await signedIn(
-      w.admin,
+    const [manager, staffA, staffB] = await signedIn(
       w.manager,
       w.staffA,
       w.staffB
     )
-    await grantManager(admin)
+    await grantManager()
     const req = await createRequirement(manager, "WS5 back bar shelf")
     await ok(
       manager.rpc("set_coverage_requirement_assignees", {
@@ -315,7 +310,7 @@ test.describe("coverage database acceptance (WS5)", () => {
       w.manager,
       w.staffA
     )
-    await grantManager(admin)
+    await grantManager()
     const [asset] = await seedImages(w.staffA, w.venue1, 1)
     const [item] = await ok(
       staffA.rpc("submit_coverage_photos", {
@@ -417,7 +412,7 @@ test.describe("coverage database acceptance (WS5)", () => {
       w.manager,
       w.staffB
     )
-    await grantManager(admin)
+    await grantManager()
     const [own] = await seedImages(w.manager, w.venue1, 1)
     const [colleague] = await seedImages(w.staffB, w.venue1, 1)
     const [ownItem] = await ok(
@@ -502,7 +497,7 @@ test.describe("coverage database acceptance (WS5)", () => {
 
   test("concurrent monthly preparation makes one target each, copies same-venue targets only and adds template candidates once (AC-03, D9)", async () => {
     const [admin, manager] = await signedIn(w.admin, w.manager)
-    await grantManager(admin)
+    await grantManager()
     const previous = monthBefore(month)
     const reason = "WS5 fixture: last month's target"
     await ok(
@@ -655,12 +650,8 @@ test.describe("coverage database acceptance (WS5)", () => {
   })
 
   test("a venue manager has no reach into another venue (AC-06, AC-07)", async () => {
-    const [admin, manager, staffC] = await signedIn(
-      w.admin,
-      w.manager,
-      w.staffC
-    )
-    await grantManager(admin)
+    const [manager, staffC] = await signedIn(w.manager, w.staffC)
+    await grantManager()
     const [cPhoto, cOther] = await seedImages(w.staffC, w.venue2, 2)
     const [cItem] = await ok(
       staffC.rpc("submit_coverage_photos", {
@@ -750,12 +741,8 @@ test.describe("coverage database acceptance (WS5)", () => {
   })
 
   test("duplicate submits and reviews never inflate credit; distinct photos meet the target (AC-01, AC-18)", async () => {
-    const [admin, manager, staffA] = await signedIn(
-      w.admin,
-      w.manager,
-      w.staffA
-    )
-    await grantManager(admin)
+    const [manager, staffA] = await signedIn(w.manager, w.staffA)
+    await grantManager()
     await ok(
       manager.rpc("set_monthly_target", {
         p_staff_id: w.staffA.id,
@@ -850,12 +837,8 @@ test.describe("coverage database acceptance (WS5)", () => {
   })
 
   test("upload and submission must share the London month; a late review credits the submission month (AC-02, AC-05)", async () => {
-    const [admin, manager, staffA] = await signedIn(
-      w.admin,
-      w.manager,
-      w.staffA
-    )
-    await grantManager(admin)
+    const [manager, staffA] = await signedIn(w.manager, w.staffA)
+    await grantManager()
     const req = await createRequirement(manager, "WS5 month edge", 3)
     await ok(
       manager.rpc("set_coverage_requirement_assignees", {
@@ -926,12 +909,8 @@ test.describe("coverage database acceptance (WS5)", () => {
   })
 
   test("deleted evidence reopens coverage and drops current credit; past credit and history stay (AC-10)", async () => {
-    const [admin, manager, staffA] = await signedIn(
-      w.admin,
-      w.manager,
-      w.staffA
-    )
-    await grantManager(admin)
+    const [manager, staffA] = await signedIn(w.manager, w.staffA)
+    await grantManager()
     const req = await createRequirement(manager, "WS5 deleted evidence", 2)
     await ok(
       manager.rpc("set_coverage_requirement_assignees", {
@@ -1028,13 +1007,7 @@ test.describe("coverage database acceptance (WS5)", () => {
         p_client_request_key: key(),
       })
     )
-    const grant = () =>
-      ok(
-        admin.rpc("grant_venue_manager", {
-          p_staff_id: w.manager.id,
-          p_venue_id: w.venue1.id,
-        })
-      )
+    const grant = () => legacyStaffGrant(w.admin, w.manager, w.venue1)
     const prepare = (venueId = w.venue1.id) =>
       manager.rpc("prepare_coverage_month", { p_venue_id: venueId })
     const review = () =>
@@ -1100,12 +1073,8 @@ test.describe("coverage database acceptance (WS5)", () => {
   })
 
   test("staff and managers cannot use operations they do not hold (R-S5, AC-28)", async () => {
-    const [admin, manager, staffA] = await signedIn(
-      w.admin,
-      w.manager,
-      w.staffA
-    )
-    await grantManager(admin)
+    const [manager, staffA] = await signedIn(w.manager, w.staffA)
+    await grantManager()
     const [asset] = await seedImages(w.staffA, w.venue1, 1)
     const [item] = await ok(
       staffA.rpc("submit_coverage_photos", {
@@ -1177,12 +1146,8 @@ test.describe("coverage database acceptance (WS5)", () => {
   })
 
   test("removed capabilities stay removed: no withdraw, relink or candidate RPC, no withdrawn state; candidates only through preparation (schema v5)", async () => {
-    const [admin, manager, staffA] = await signedIn(
-      w.admin,
-      w.manager,
-      w.staffA
-    )
-    await grantManager(admin)
+    const [manager, staffA] = await signedIn(w.manager, w.staffA)
+    await grantManager()
     const [asset] = await seedImages(w.staffA, w.venue1, 1)
     const [item] = await ok(
       staffA.rpc("submit_coverage_photos", {
@@ -1294,7 +1259,7 @@ test.describe("coverage database acceptance (WS5)", () => {
 
   test("keyed create: same key and arguments replay the original, also after an edit; other payloads, bad keys, races and other users are handled (schema v5.1)", async () => {
     const [admin, manager] = await signedIn(w.admin, w.manager)
-    await grantManager(admin)
+    await grantManager()
     const create = (db: Db, title: string, requestKey: string, target = 2) =>
       db.rpc("save_coverage_requirement", {
         p_venue_id: w.venue1.id,
@@ -1386,12 +1351,8 @@ test.describe("coverage database acceptance (WS5)", () => {
   })
 
   test("D-003: moving a replacement to another requirement drops its link, so the old request stays open (schema v5.1)", async () => {
-    const [admin, manager, staffA] = await signedIn(
-      w.admin,
-      w.manager,
-      w.staffA
-    )
-    await grantManager(admin)
+    const [manager, staffA] = await signedIn(w.manager, w.staffA)
+    await grantManager()
     const r1 = await createRequirement(manager, "WS5 move from", 3)
     const r2 = await createRequirement(manager, "WS5 move to", 3)
     for (const req of [r1, r2]) {

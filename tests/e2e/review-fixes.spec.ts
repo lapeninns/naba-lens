@@ -5,6 +5,7 @@ import { expect, test } from "@playwright/test"
 import { signIn, type Db } from "../support/identities"
 import { getLocalSupabaseEnv } from "../support/local-supabase"
 import {
+  legacyStaffGrant,
   londonInstant,
   provisionCoverageWorld,
   seedImages,
@@ -77,14 +78,8 @@ async function assignedTask(
   w: Awaited<ReturnType<typeof provisionCoverageWorld>>
 ) {
   const service = provisioner()
-  const admin = await signIn(service, w.admin.email)
   const manager = await signIn(service, w.manager.email)
-  await ok(
-    admin.rpc("grant_venue_manager", {
-      p_staff_id: w.manager.id,
-      p_venue_id: w.venue1.id,
-    })
-  )
+  await legacyStaffGrant(w.admin, w.manager, w.venue1)
   const [row] = await ok(
     manager.rpc("save_coverage_requirement", {
       p_venue_id: w.venue1.id,
@@ -278,14 +273,8 @@ test.describe("review fixes (schema v6, services v1.3)", () => {
   }) => {
     const w = await provisionCoverageWorld()
     const service = provisioner()
-    const admin = await signIn(service, w.admin.email)
     const manager = await signIn(service, w.manager.email)
-    await ok(
-      admin.rpc("grant_venue_manager", {
-        p_staff_id: w.manager.id,
-        p_venue_id: w.venue1.id,
-      })
-    )
+    await legacyStaffGrant(w.admin, w.manager, w.venue1)
     await ok(manager.rpc("prepare_coverage_month", { p_venue_id: w.venue1.id }))
     const [activePhoto] = await seedImages(w.staffA, w.venue1, 1)
     const [departedPhoto] = await seedImages(w.staffB, w.venue1, 1)
@@ -355,15 +344,9 @@ test.describe("review fixes (schema v6, services v1.3)", () => {
   test("R-03 follow-up: photos already linked to an amenity are not re-checked; only new ones are", async () => {
     const w = await provisionCoverageWorld()
     const service = provisioner()
-    const admin = await signIn(service, w.admin.email)
     const manager = await signIn(service, w.manager.email)
     const staffA = await signIn(service, w.staffA.email)
-    await ok(
-      admin.rpc("grant_venue_manager", {
-        p_staff_id: w.manager.id,
-        p_venue_id: w.venue1.id,
-      })
-    )
+    await legacyStaffGrant(w.admin, w.manager, w.venue1)
     const [deletedLater, extra, deletedNew] = await seedImages(
       w.staffA,
       w.venue1,
@@ -433,12 +416,7 @@ test.describe("review fixes (schema v6, services v1.3)", () => {
     const admin = await signIn(service, w.admin.email)
     const manager = await signIn(service, w.manager.email)
     const staffA = await signIn(service, w.staffA.email)
-    const grant = await ok(
-      admin.rpc("grant_venue_manager", {
-        p_staff_id: w.manager.id,
-        p_venue_id: w.venue1.id,
-      })
-    )
+    const grant = await legacyStaffGrant(w.admin, w.manager, w.venue1)
     const [asset] = await seedImages(w.staffA, w.venue1, 1)
     const [item] = await ok(
       staffA.rpc("submit_coverage_photos", {
@@ -607,14 +585,8 @@ test.describe("review fixes (schema v6, services v1.3)", () => {
   test("R-09: a blank reason on an assignee change is not a database check failure", async () => {
     const w = await provisionCoverageWorld()
     const service = provisioner()
-    const admin = await signIn(service, w.admin.email)
     const manager = await signIn(service, w.manager.email)
-    await ok(
-      admin.rpc("grant_venue_manager", {
-        p_staff_id: w.manager.id,
-        p_venue_id: w.venue1.id,
-      })
-    )
+    await legacyStaffGrant(w.admin, w.manager, w.venue1)
     const [row] = await ok(
       manager.rpc("save_coverage_requirement", {
         p_venue_id: w.venue1.id,
