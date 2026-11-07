@@ -40,7 +40,7 @@ const VIDEO = "66666666-6666-4666-8666-666666666666"
 
 type Scope = {
   isAdmin?: boolean
-  role?: "staff" | "admin"
+  role?: "staff" | "manager" | "admin"
   venueId?: string | null
   managerVenueId?: string | null
 }
@@ -79,7 +79,11 @@ function actorWith(
     return { data: out.data ?? null, error: out.error ?? null }
   })
   const actor = {
-    profile: { id: USER, active: true, role: "staff" },
+    profile: {
+      id: USER,
+      active: true,
+      role: scope.role ?? (scope.isAdmin ? "admin" : "staff"),
+    },
     db: { rpc },
     service: {},
     storage: {},
@@ -87,7 +91,10 @@ function actorWith(
   return { actor, rpc }
 }
 
+/** A transitional staff account holding a grant. */
 const manager = { managerVenueId: VENUE }
+/** A venue manager account: its venue is the managed one. */
+const managerAccount = { role: "manager", managerVenueId: VENUE } as const
 const admin = { isAdmin: true, venueId: null }
 
 function checkRow(over: Partial<CheckRow> = {}): CheckRow {
@@ -124,6 +131,7 @@ function access(over: Partial<Access> = {}): Access {
     userId: USER,
     isAdmin: false,
     isStaff: true,
+    isManager: false,
     venueId: VENUE,
     venueActive: true,
     department: "foh",
@@ -589,6 +597,46 @@ describe("amenity views", () => {
     })
     expect(checkPermissions(checkRow(), access()).canSubmit).toBe(false)
   })
+
+  it("gives a manager account the full manager flags at its venue only", () => {
+    const account = access({
+      isStaff: false,
+      isManager: true,
+      managerVenueId: VENUE,
+    })
+    expect(
+      checkPermissions(
+        checkRow({ template_key: "onsite_parking", progress: "complete" }),
+        account
+      )
+    ).toEqual({
+      canAssign: true,
+      canArchive: true,
+      canRestore: false,
+      canReopen: true,
+      canSubmit: true,
+      canAttachLegacy: true,
+    })
+    expect(
+      checkPermissions(checkRow({ status: "archived" }), account)
+    ).toMatchObject({ canRestore: true, canSubmit: false })
+    // Without an effective grant (or at another venue) it gets nothing, even
+    // when named as the assignee.
+    for (const other of [
+      access({ isStaff: false, isManager: true, managerVenueId: null }),
+      access({
+        isStaff: false,
+        isManager: true,
+        venueId: OTHER_VENUE,
+        managerVenueId: OTHER_VENUE,
+      }),
+    ])
+      expect(
+        Object.values(
+          checkPermissions(checkRow({ assignee_user_id: USER }), other)
+        ).some(Boolean)
+      ).toBe(false)
+  })
 })
 
 describe("amenity services", () => {
@@ -609,6 +657,59 @@ describe("amenity services", () => {
     expect(
       await amenities.getVenueAmenities(adm, { venueId: "nope" })
     ).toMatchObject({ code: "invalid_input" })
+  })
+
+  it("resolves a manager account to its managed venue", async () => {
+    const venueState = (args: Record<string, unknown>) => ({
+      data: [
+        {
+          venue_id: args.p_venue_id,
+          venue_name: "Crown",
+          enabled: false,
+          can_enable: false,
+        },
+      ],
+    })
+    const { actor: mgr, rpc } = actorWith(
+      { amenity_venue_state: venueState },
+      managerAccount
+    )
+    expect(await amenities.getVenueAmenities(mgr, {})).toMatchObject({
+      ok: true,
+      view: { venue: { id: VENUE } },
+    })
+    expect(
+      await amenities.getVenueAmenities(mgr, { venueId: VENUE })
+    ).toMatchObject({ ok: true })
+    expect(rpc).toHaveBeenCalledWith("amenity_venue_state", {
+      p_venue_id: VENUE,
+    })
+    expect(
+      await amenities.getVenueAmenities(mgr, { venueId: OTHER_VENUE })
+    ).toMatchObject({ code: "wrong_venue" })
+    expect(
+      await amenities.listCatalogue(mgr, { venueId: OTHER_VENUE })
+    ).toMatchObject({ code: "wrong_venue" })
+    // A manager account whose grant is no longer effective manages nothing.
+    const { actor: lapsed } = actorWith(
+      { amenity_venue_state: venueState },
+      { role: "manager", managerVenueId: null }
+    )
+    expect(await amenities.getVenueAmenities(lapsed, {})).toMatchObject({
+      code: "not_permitted",
+    })
+    expect(
+      await amenities.addChecks(lapsed, { keys: ["darts"] })
+    ).toMatchObject({ code: "not_permitted" })
+  })
+
+  it("gives a manager account no tasks without asking the database", async () => {
+    const { actor, rpc } = actorWith({}, managerAccount)
+    expect(await amenities.getMyAmenityTasks(actor, {})).toEqual({
+      ok: true,
+      tasks: [],
+    })
+    expect(rpc).not.toHaveBeenCalled()
   })
 
   it("shows a not-enabled venue without reading its checks", async () => {

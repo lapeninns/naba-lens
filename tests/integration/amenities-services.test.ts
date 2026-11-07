@@ -2,7 +2,9 @@
 // (supabase/migrations/20261107120000_amenity_catalogue.sql) applied, as real
 // signed-in identities: every call goes through the caller's RLS and the
 // amenity RPCs exactly as the Server Actions make it. The service role only
-// builds fixtures (identities, venues, assets).
+// builds fixtures (identities, venues, assets). Managers are venue manager
+// accounts (converted as an admin does), plus one staff account still holding
+// a pre-manager-account grant (the transitional /staff/manage case).
 import { beforeAll, describe, expect, it } from "vitest"
 
 import type { AmenityResult } from "@/lib/amenities/contract"
@@ -26,7 +28,7 @@ import { signEvidence } from "@/lib/server/coverage/evidence"
 import type { MediaActor } from "@/lib/server/media/types"
 
 import { seedAsset } from "../library/seed"
-import { grantManager } from "../security/coverage-fixtures"
+import { legacyStaffGrant, makeManager } from "../security/coverage-fixtures"
 import { actorFor } from "../slice/media-actor"
 import {
   createIdentity,
@@ -49,61 +51,84 @@ describe("amenity services", () => {
   const service = serviceClient()
   let venueA: string
   let venueB: string
+  let venueC: string
   let admin: TestIdentity
   let manager: TestIdentity
   let staff1: TestIdentity
   let staff2: TestIdentity
   let otherManager: TestIdentity
+  let legacyManager: TestIdentity
   const actors = {} as Record<
-    "admin" | "manager" | "staff1" | "staff2" | "otherManager",
+    | "admin"
+    | "manager"
+    | "staff1"
+    | "staff2"
+    | "otherManager"
+    | "legacyManager",
     MediaActor
   >
   let photo1: string
   let video1: string
+  let managerPhoto: string
   let wifiCheck: { id: string; revision: number }
+  let dartsId: string
 
   beforeAll(async () => {
-    const [a, b] = await Promise.all([
+    const [a, b, c] = await Promise.all([
       createVenue(service, "amenity-svc-a"),
       createVenue(service, "amenity-svc-b"),
+      createVenue(service, "amenity-svc-c"),
     ])
     venueA = a.id
     venueB = b.id
-    ;[admin, manager, staff1, staff2, otherManager] = await Promise.all([
-      createIdentity(service, { label: "amen-admin", role: "admin" }),
-      createIdentity(service, {
-        label: "amen-manager",
-        role: "staff",
-        venueId: venueA,
-      }),
-      createIdentity(service, {
-        label: "amen-staff1",
-        role: "staff",
-        venueId: venueA,
-      }),
-      createIdentity(service, {
-        label: "amen-staff2",
-        role: "staff",
-        venueId: venueA,
-      }),
-      createIdentity(service, {
-        label: "amen-other-mgr",
-        role: "staff",
-        venueId: venueB,
-      }),
-    ])
+    venueC = c.id
+    ;[admin, manager, staff1, staff2, otherManager, legacyManager] =
+      await Promise.all([
+        createIdentity(service, { label: "amen-admin", role: "admin" }),
+        createIdentity(service, {
+          label: "amen-manager",
+          role: "staff",
+          venueId: venueA,
+        }),
+        createIdentity(service, {
+          label: "amen-staff1",
+          role: "staff",
+          venueId: venueA,
+        }),
+        createIdentity(service, {
+          label: "amen-staff2",
+          role: "staff",
+          venueId: venueA,
+        }),
+        createIdentity(service, {
+          label: "amen-other-mgr",
+          role: "staff",
+          venueId: venueB,
+        }),
+        createIdentity(service, {
+          label: "amen-legacy-mgr",
+          role: "staff",
+          venueId: venueC,
+        }),
+      ])
     const team = await service
       .from("profiles")
       .update({ department: "foh" })
-      .in("id", [manager.id, staff1.id, staff2.id, otherManager.id])
+      .in("id", [staff1.id, staff2.id, legacyManager.id])
     if (team.error) throw team.error
-    await grantManager(admin, manager.id, venueA)
-    await grantManager(admin, otherManager.id, venueB)
+    // Venue manager accounts, converted as an admin does in the app.
+    await makeManager(admin, manager, venueA)
+    await makeManager(admin, otherManager, venueB)
+    // A staff account still holding a grant from before manager accounts.
+    await legacyStaffGrant(service, admin, legacyManager.id, venueC)
     actors.admin = await actorFor(admin)
     actors.manager = await actorFor(manager)
     actors.staff1 = await actorFor(staff1)
     actors.staff2 = await actorFor(staff2)
     actors.otherManager = await actorFor(otherManager)
+    actors.legacyManager = await actorFor(legacyManager)
+    expect(actors.manager.profile.role).toBe("manager")
+    expect(actors.legacyManager.profile.role).toBe("staff")
     photo1 = (
       await seedAsset(service, {
         uploaderId: staff1.id,
@@ -116,6 +141,13 @@ describe("amenity services", () => {
         uploaderId: staff1.id,
         venueId: venueA,
         type: "video",
+      })
+    ).id
+    managerPhoto = (
+      await seedAsset(service, {
+        uploaderId: manager.id,
+        venueId: venueA,
+        derivatives: true,
       })
     ).id
   })
@@ -134,9 +166,9 @@ describe("amenity services", () => {
     ).toBe(true)
     // The catalogue can be previewed before enabling; adding needs it enabled.
     expect(await listCatalogue(actors.manager, {})).toMatchObject({ ok: true })
-    expect(
-      await addChecks(actors.manager, { keys: ["darts"] })
-    ).toMatchObject({ code: "needs_setup" })
+    expect(await addChecks(actors.manager, { keys: ["darts"] })).toMatchObject({
+      code: "needs_setup",
+    })
     expect(
       await enableAmenities(actors.manager, { venueId: venueA })
     ).toMatchObject({ code: "not_permitted" })
@@ -174,6 +206,48 @@ describe("amenity services", () => {
     expect(
       await getCheck(actors.otherManager, { checkId: wifiCheck.id })
     ).toMatchObject({ code: "not_found" })
+    expect(
+      await addChecks(actors.otherManager, {
+        venueId: venueA,
+        keys: ["darts"],
+      })
+    ).toMatchObject({ code: "wrong_venue" })
+    expect(
+      await archiveCheck(actors.otherManager, {
+        checkId: wifiCheck.id,
+        revision: wifiCheck.revision,
+      })
+    ).toMatchObject({ code: "not_found" })
+    expect(
+      await enableAmenities(actors.otherManager, { venueId: venueB })
+    ).toMatchObject({ code: "not_permitted" })
+    // A manager account is never assigned work, so it has no tasks.
+    expect(okOf(await getMyAmenityTasks(actors.manager, {})).tasks).toEqual([])
+  })
+
+  it("keeps a staff account's transitional grant working at its venue", async () => {
+    expect(
+      okOf(await getVenueAmenities(actors.legacyManager, {})).view
+    ).toMatchObject({ venue: { id: venueC }, enabled: false })
+    expect(
+      await getVenueAmenities(actors.legacyManager, { venueId: venueA })
+    ).toMatchObject({ code: "wrong_venue" })
+    expect(
+      await getCheck(actors.legacyManager, { checkId: wifiCheck.id })
+    ).toMatchObject({ code: "not_found" })
+    okOf(await enableAmenities(actors.admin, { venueId: venueC }))
+    const [check] = okOf(
+      await addChecks(actors.legacyManager, { keys: ["darts"] })
+    ).checkIds
+    const detail = okOf(
+      await getCheck(actors.legacyManager, { checkId: check })
+    ).detail
+    expect(detail.check.venueId).toBe(venueC)
+    expect(detail.permissions).toMatchObject({
+      canAssign: true,
+      canArchive: true,
+      canSubmit: true,
+    })
   })
 
   it("adds catalogue entries once, restores archived ones and marks them in the catalogue", async () => {
@@ -183,6 +257,7 @@ describe("amenity services", () => {
     const [darts] = okOf(
       await addChecks(actors.manager, { keys: ["darts"] })
     ).checkIds
+    dartsId = darts
     expect(
       okOf(await addChecks(actors.manager, { keys: ["darts"] })).checkIds
     ).toEqual([darts])
@@ -213,6 +288,28 @@ describe("amenity services", () => {
         assigneeId: otherManager.id,
       })
     ).toMatchObject({ code: "state_conflict" })
+    // Manager accounts are not assignable, not even at their own venue.
+    expect(
+      await assignCheck(actors.manager, {
+        checkId: wifiCheck.id,
+        revision: wifiCheck.revision,
+        assigneeId: manager.id,
+      })
+    ).toMatchObject({ code: "state_conflict" })
+    const managed = okOf(
+      await getCheck(actors.manager, { checkId: wifiCheck.id })
+    ).detail
+    expect(managed.permissions).toEqual({
+      canAssign: true,
+      canArchive: true,
+      canRestore: false,
+      canReopen: false,
+      canSubmit: true,
+      canAttachLegacy: false,
+    })
+    expect(managed.assigneeOptions.map((o) => o.id).sort()).toEqual(
+      [staff1.id, staff2.id].sort()
+    )
     const assigned = okOf(
       await assignCheck(actors.manager, {
         checkId: wifiCheck.id,
@@ -374,6 +471,67 @@ describe("amenity services", () => {
       ok: false,
       status: 404,
     })
+  })
+
+  it("lets a manager account capture a check itself, with its own evidence", async () => {
+    const before = okOf(await getCheck(actors.manager, { checkId: dartsId }))
+      .detail.check
+    const own = okOf(
+      await listSubmittableAssets(actors.manager, { checkId: dartsId })
+    ).assets
+    expect(own.find((a) => a.assetId === managerPhoto)).toMatchObject({
+      kind: "photo",
+      source: "own",
+    })
+    // Another person's upload is not the manager's to attach.
+    expect(own.map((a) => a.assetId)).not.toContain(photo1)
+    const input = {
+      checkId: dartsId,
+      revision: before.revision,
+      idempotencyKey: crypto.randomUUID(),
+      answer: "yes",
+      finding: "Board by the back bar",
+      assetIds: [managerPhoto],
+    }
+    expect(
+      await submitFinding(actors.otherManager, {
+        ...input,
+        idempotencyKey: crypto.randomUUID(),
+      })
+    ).toMatchObject({ code: "not_found" })
+    const done = okOf(await submitFinding(actors.manager, input))
+    expect(done).toMatchObject({
+      replayed: false,
+      revision: before.revision + 1,
+    })
+    const detail = okOf(
+      await getCheck(actors.manager, { checkId: dartsId })
+    ).detail
+    expect(detail.check).toMatchObject({
+      progress: "complete",
+      answer: "yes",
+      answeredBy: { id: manager.id },
+    })
+    expect(detail.submissions[0].evidence.map((e) => e.assetId)).toEqual([
+      managerPhoto,
+    ])
+    // The evidence routes' gate: the venue's manager account, not another venue.
+    expect(
+      await signEvidence(
+        actors.manager,
+        managerPhoto,
+        "preview",
+        "amenity_evidence_asset"
+      )
+    ).toMatchObject({ ok: true })
+    expect(
+      await signEvidence(
+        actors.otherManager,
+        managerPhoto,
+        "preview",
+        "amenity_evidence_asset"
+      )
+    ).toMatchObject({ ok: false, status: 404 })
   })
 
   it("reopens with a reason, then records notes, archive and restore", async () => {

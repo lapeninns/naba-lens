@@ -193,14 +193,17 @@ export function eventViews(rows: EventRow[]): CheckEventView[] {
 
 /**
  * What the UI should offer. The database re-checks every action; these flags
- * only decide which controls are shown. Managers act on their effective
- * managed venue, admins on any venue; staff may submit only while assigned.
+ * only decide which controls are shown. Managers (manager accounts, and staff
+ * still holding a grant) act on their effective managed venue, admins on any
+ * venue; other staff may submit only while assigned.
  */
 export function checkPermissions(
   row: CheckRow,
   access: Access
 ): CheckPermissions {
-  const manages = access.isAdmin || access.managerVenueId === row.venue_id
+  const manages =
+    access.isAdmin ||
+    (access.managerVenueId !== null && access.managerVenueId === row.venue_id)
   const active = row.status === "active"
   const assigned =
     access.isStaff &&
