@@ -45,6 +45,7 @@ import type { MediaPage } from "@/lib/server/media/types"
 import { LABEL_LIMITS } from "@/lib/menus/types"
 
 import { loadMyMedia } from "./actions"
+import { NeedsAttention } from "./needs-attention"
 
 type StaffPortfolioProps = {
   profile: {
@@ -428,34 +429,39 @@ export function StaffPortfolio({
           />
         </ul>
       </nav>
+      <NeedsAttention
+        refreshSignal={addRefreshSignal}
+        onFixed={(saved) => {
+          addLabelled(saved)
+          setLabelled((current) => new Set([...current, ...saved]))
+          setLabelSaves((n) => n + 1)
+        }}
+      />
       {needsLabels.length > 0 ? (
+        // One listing only: these photos are already in the portfolio grid
+        // below with a "Needs labels" badge, so this is the batch action
+        // and its count, not a second row of the same tiles.
         <section
           aria-labelledby="needs-labels-heading"
           className="grid gap-3 pt-2"
         >
-          <div className="grid gap-3">
-            <div className="grid gap-1 px-1">
-              <h2
-                id="needs-labels-heading"
-                className="flex items-center gap-2 font-display text-section-title text-ink"
-              >
-                Needs labels
-                <CountBadge
-                  count={needsLabels.length}
-                  label={needsLabels.length === 1 ? "photo" : "photos"}
-                />
-              </h2>
-              <p className="text-body text-ink-muted">
-                Say which dish or drink each one shows, so it can be found and
-                chosen for the menu.
-              </p>
-            </div>
+          <div className="grid gap-1 px-1">
+            <h2
+              id="needs-labels-heading"
+              className="flex items-center gap-2 font-display text-section-title text-ink"
+            >
+              Needs labels
+              <CountBadge
+                count={needsLabels.length}
+                label={needsLabels.length === 1 ? "photo" : "photos"}
+              />
+            </h2>
+            <p className="text-body text-ink-muted">
+              Say which dish or drink each one shows, so it can be found and
+              chosen for the menu. They&apos;re marked &ldquo;Needs
+              labels&rdquo; in your portfolio below.
+            </p>
           </div>
-          <ul aria-label="Photos that need labels" className={TILE_GRID}>
-            {needsLabels.map((item) => (
-              <MilestoneTile key={item.id} item={item} milestone="label" />
-            ))}
-          </ul>
           <Button
             size="touch"
             variant="secondary"

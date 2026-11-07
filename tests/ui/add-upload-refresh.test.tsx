@@ -43,6 +43,8 @@ vi.mock("@/app/_labels/actions", () => ({
   saveLabelBatch: vi.fn(),
 }))
 vi.mock("@/app/staff/actions", () => ({ loadMyMedia: vi.fn() }))
+// Me's "Needs attention" reads its own API; these tests count gallery fetches.
+vi.mock("@/app/staff/needs-attention", () => ({ NeedsAttention: () => null }))
 vi.mock("@/app/staff/community/actions", () => ({
   loadCommunityPage: vi.fn(),
 }))
