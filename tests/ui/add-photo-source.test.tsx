@@ -965,3 +965,113 @@ describe("Review 1 regressions: Fix labels in the Add sheet", () => {
     })
   })
 })
+
+describe("Review 2 regressions: Add host", () => {
+  const SAVED_BHAJI: FinaliseLabels = {
+    state: "saved",
+    labels: {
+      ...EMPTY_LABEL_SUMMARY,
+      revision: 1,
+      hasLabels: true,
+      items: [
+        {
+          itemId: "item-bhaji",
+          variantId: null,
+          name: "Onion Bhaji",
+          variantName: null,
+          sectionName: "Starters",
+          labelledAs: null,
+          state: "current",
+        },
+      ],
+    },
+  }
+
+  /**
+   * Two photos; "Finished dish" chosen for both while the menu loads, then
+   * finalise puts labels on b.jpg, so the label field mounts again.
+   */
+  async function editWhileMenuLoads(user: ReturnType<typeof userEvent.setup>) {
+    const { find } = holdUploads()
+    let load!: () => void
+    api.menu = () =>
+      new Promise((resolve) => {
+        load = () => resolve({ ok: true, catalogue: CATALOGUE, focus: null })
+      })
+    host(<Opener opts={{ source: "library" }} />)
+    await user.click(screen.getByRole("button", { name: "Open" }))
+    await user.upload(input("library"), [jpeg("a.jpg"), jpeg("b.jpg")])
+    const dialog = await screen.findByRole("dialog", {
+      name: "Saving 2 photos",
+    })
+    await user.click(
+      within(dialog).getByRole("button", { name: /^More details/ })
+    )
+    await user.click(
+      within(dialog).getByRole("button", { name: "Finished dish" })
+    )
+    await act(async () => find("b.jpg").finish(SAVED_BHAJI))
+    // Mounted again: More details is closed.
+    await waitFor(() =>
+      expect(
+        within(dialog).queryByRole("button", { name: "Finished dish" })
+      ).toBeNull()
+    )
+    return { dialog, load: () => load() }
+  }
+
+  it("N3: a label chosen while the menu loads survives the field mounting again and is sent once it loads", async () => {
+    const user = userEvent.setup()
+    const { dialog, load } = await editWhileMenuLoads(user)
+    expect(api.posted).toEqual([])
+    // Not stored yet: Done asks before dropping it.
+    await user.click(within(dialog).getByRole("button", { name: "Done" }))
+    expect(
+      await screen.findByRole("alertdialog", { name: "Discard these labels?" })
+    ).toBeTruthy()
+    await user.click(screen.getByRole("button", { name: "Keep labelling" }))
+
+    await act(async () => load())
+    await waitFor(() =>
+      expect(
+        api.posted.find((p) => p.input.assetId === "asset-a.jpg")?.input
+          .contentTypes
+      ).toEqual(["dish"])
+    )
+    // b.jpg keeps the labels finalise put on it.
+    expect(
+      api.posted.filter(
+        (p) =>
+          p.input.assetId === "asset-b.jpg" &&
+          p.input.contentTypes.includes("dish")
+      )
+    ).toEqual([])
+  })
+
+  it("N3: labels discarded while the menu loads stay discarded", async () => {
+    const user = userEvent.setup()
+    const { dialog, load } = await editWhileMenuLoads(user)
+    await user.click(within(dialog).getByRole("button", { name: "Done" }))
+    await user.click(
+      await screen.findByRole("button", { name: "Discard labels" })
+    )
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Saving 2 photos" })
+      ).toBeNull()
+    )
+    await act(async () => load())
+    await user.click(screen.getByRole("button", { name: /^Add photos/ }))
+    const again = await screen.findByRole("dialog", {
+      name: "Saving 2 photos",
+    })
+    await act(async () => {})
+    expect(
+      api.posted.filter((p) => p.input.contentTypes.includes("dish"))
+    ).toEqual([])
+    await user.click(within(again).getByRole("button", { name: "Done" }))
+    expect(
+      screen.queryByRole("alertdialog", { name: "Discard these labels?" })
+    ).toBeNull()
+  })
+})

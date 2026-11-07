@@ -564,6 +564,7 @@ export function UploadDialog({
   const [confirmDiscard, setConfirmDiscard] = React.useState(false)
   // A new panel (fresh from each file's labels) after "Fix labels" saved.
   const [panelKey, setPanelKey] = React.useState(0)
+  const [discards, setDiscards] = React.useState(0)
   const fileInput = React.useRef<HTMLInputElement>(null)
   const cameraInput = React.useRef<HTMLInputElement>(null)
   const limitsId = React.useId()
@@ -894,6 +895,7 @@ export function UploadDialog({
               settledIds: labels.settledIds,
               onChange: labels.change,
               onPendingChange: setPanelPending,
+              discards,
             })}
           </React.Fragment>
         ) : null}
@@ -1023,6 +1025,7 @@ export function UploadDialog({
                   setPanelPending(false)
                   setConfirmDiscard(false)
                   setPanelKey((key) => key + 1)
+                  setDiscards((n) => n + 1)
                   if (keepRunningWhenClosed && !finished) onOpenChange(false)
                   else if (!isActive) {
                     clearQueue()

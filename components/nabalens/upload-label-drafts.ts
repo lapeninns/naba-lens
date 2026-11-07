@@ -54,6 +54,8 @@ export type UploadLabelPanelHostProps = {
   onChange: (venueId: string, inputs: SaveLabelsInput[]) => void
   /** True while a choice in the panel is incomplete. */
   onPendingChange: (pending: boolean) => void
+  /** Changes when the person discards the labels not stored yet. */
+  discards: number
 }
 
 /** What the sheet hands the "Fix labels" dialog. */
@@ -253,6 +255,14 @@ function emptyInput(id: string, catalogueVersionId: string | null) {
 }
 
 const EMPTY_KEY = keyOf(emptyInput("", null))
+
+/** Whether two inputs choose the same labels (no input: no labels). */
+export function sameLabelChoice(
+  a: SaveLabelsInput | undefined,
+  b: SaveLabelsInput | undefined
+) {
+  return (a ? keyOf(a) : EMPTY_KEY) === (b ? keyOf(b) : EMPTY_KEY)
+}
 /** Held by the server, but what exactly is still being read. */
 const UNKNOWN_KEY = "unknown"
 

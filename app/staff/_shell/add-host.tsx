@@ -11,11 +11,12 @@ import {
   type CatalogueProp,
 } from "@/components/nabalens/labels"
 import type { UploadBusy } from "@/components/nabalens/upload-dialog"
-import type {
-  UploadLabelFixProps,
-  UploadLabelPanelHostProps,
-  UploadLabels,
-  UploadLabelSettle,
+import {
+  sameLabelChoice,
+  type UploadLabelFixProps,
+  type UploadLabelPanelHostProps,
+  type UploadLabels,
+  type UploadLabelSettle,
 } from "@/components/nabalens/upload-label-drafts"
 import type {
   QueueItem,
@@ -184,6 +185,8 @@ export function AddHost({
   // Queue files whose dish has been on their labels. Once removed it stays
   // removed: the label field mounts again whenever the sheet reopens.
   const dishShown = React.useRef(new Set<string>())
+  // Labels changed while the venue is unknown (see PanelHost), by queue file.
+  const heldLabels = React.useRef(new Map<string, HeldLabels>())
   const readyListeners = React.useRef(new Set<AddReadyListener>())
 
   const waiting =
@@ -485,6 +488,7 @@ export function AddHost({
           presetOf={(file) => fileOwners.current.get(file)?.preset ?? null}
           dishShown={(id) => dishShown.current.has(id)}
           onDishShown={(id) => dishShown.current.add(id)}
+          held={heldLabels.current}
         />
       ),
       renderFix: (props) => (
@@ -546,6 +550,13 @@ export function AddHost({
   )
 }
 
+/** A file's labels changed in the field, and what the sheet had then. */
+type HeldLabels = {
+  base: SaveLabelsInput | undefined
+  input: SaveLabelsInput
+  discards: number
+}
+
 const hasDish = (input: SaveLabelsInput, preset: AddLabelPreset) =>
   input.items.some((ref) => ref.itemId === preset.itemId)
 
@@ -559,6 +570,13 @@ const hasDish = (input: SaveLabelsInput, preset: AddLabelPreset) =>
  * may not drop it unless the person did: a dish the field has never shown
  * stays in what is stored, and a file that failed for good keeps its stored
  * labels (they read "Not saved (photo not saved)").
+ *
+ * Labels can only be stored once the venue is known (the menu loaded).
+ * Changes made before that are `held` here, outside the field: a field that
+ * mounts again meanwhile (the sheet's labels changed elsewhere) restores
+ * them, they keep the sheet pending, and they are sent once the venue is
+ * known (or dropped when the person discards them). A file whose labels the
+ * sheet changed elsewhere meanwhile (finalise, Me) keeps those instead.
  */
 function PanelHost({
   items,
@@ -574,6 +592,8 @@ function PanelHost({
   presetOf,
   dishShown,
   onDishShown,
+  held,
+  discards,
 }: UploadLabelPanelHostProps & {
   catalogue: CatalogueProp
   venueId: string | null
@@ -582,8 +602,25 @@ function PanelHost({
   presetOf: (file: File) => AddLabelPreset | null
   dishShown: (id: string) => boolean
   onDishShown: (id: string) => void
+  held: Map<string, HeldLabels>
 }) {
-  const restored = (id: string) => initial.find((i) => i.assetId === id)
+  const recorded = (id: string) => initial.find((i) => i.assetId === id)
+  const heldFor = (id: string) => {
+    const h = held.get(id)
+    return h && h.discards === discards && sameLabelChoice(recorded(id), h.base)
+      ? h
+      : undefined
+  }
+  const restored = (id: string) => heldFor(id)?.input ?? recorded(id)
+  const holding = items.some((item) => {
+    const h = heldFor(item.id)
+    return !!h && !sameLabelChoice(h.input, recorded(item.id))
+  })
+  const [, heldChanged] = React.useReducer((n: number) => n + 1, 0)
+  const [panelPending, setPanelPending] = React.useState(false)
+  const pending = panelPending || holding
+  React.useEffect(() => onPendingChange(pending), [onPendingChange, pending])
+  React.useEffect(() => () => onPendingChange(false), [onPendingChange])
   const dishOf = (id: string) => {
     const item = items.find((i) => i.id === id)
     return item ? presetOf(item.file) : null
@@ -607,12 +644,16 @@ function PanelHost({
         kind: item.kind,
       }))}
       presetFor={presetFor}
-      initial={initial}
+      initial={items.flatMap((item) => {
+        const input = restored(item.id)
+        return input ? [input] : []
+      })}
       disabledIds={disabledIds}
       onChange={(inputs) => {
         const kept = inputs.map((input) => {
+          const saved = recorded(input.assetId)
+          if (saved && disabledIds.includes(input.assetId)) return saved
           const stored = restored(input.assetId)
-          if (stored && disabledIds.includes(input.assetId)) return stored
           const dish = dishOf(input.assetId)
           if (!dish) return input
           if (hasDish(input, dish)) {
@@ -630,9 +671,23 @@ function PanelHost({
             ],
           }
         })
-        if (venueId) onChange(venueId, kept)
+        if (venueId) {
+          onChange(venueId, kept)
+          if (held.size > 0) {
+            held.clear()
+            heldChanged()
+          }
+          return
+        }
+        for (const input of kept) {
+          const id = input.assetId
+          const base = heldFor(id)?.base ?? recorded(id)
+          if (heldFor(id) || !sameLabelChoice(input, base))
+            held.set(id, { base, input, discards })
+        }
+        heldChanged()
       }}
-      onPendingChange={onPendingChange}
+      onPendingChange={setPanelPending}
     />
   )
 }
