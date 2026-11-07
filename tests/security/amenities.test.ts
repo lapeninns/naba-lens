@@ -21,6 +21,7 @@ import {
   insertAsset,
   insertSubmittedItem,
   ok,
+  psql,
 } from "./coverage-fixtures"
 
 const service = serviceClient()
@@ -679,8 +680,15 @@ describe("submitting findings", () => {
       return JSON.parse(err.details!)
     }
     expect(await reason(randomUUID())).toMatchObject({ reason: "not_found" })
-    expect(await reason(await photo(otherStaff.id, otherVenue))).toMatchObject({
-      reason: "other_venue",
+    // Another venue's asset looks exactly like an unknown id.
+    const elsewhere = await photo(otherStaff.id, otherVenue)
+    expect(await reason(elsewhere)).toEqual({
+      assetId: elsewhere,
+      reason: "not_found",
+    })
+    expect(await reason(elsewhere, manager)).toEqual({
+      assetId: elsewhere,
+      reason: "not_found",
     })
     // Another person's media at the same venue, also for a manager unless it is legacy Coverage evidence.
     const staffBPhoto = await photo(staffB.id)
@@ -1097,6 +1105,33 @@ describe("evidence removed and assignee left", () => {
     )
     expect(await ok(mover.client.rpc("amenity_my_checks"))).toEqual([])
   })
+
+  it("clears the assignee whose role changes away from staff", async () => {
+    const promoted = await createIdentity(service, {
+      label: "amen-promoted",
+      role: "staff",
+      venueId: venue,
+    })
+    const check = await addCheck(manager, venue, "hearing_loop")
+    await ok(assign(manager, check, promoted.id))
+    const revision = await revisionOf(check)
+
+    const changed = await service
+      .from("profiles")
+      .update({ role: "admin" })
+      .eq("id", promoted.id)
+    if (changed.error) throw changed.error
+
+    expect(await checkRow(manager, check)).toMatchObject({
+      assignee_user_id: null,
+      revision: revision + 1,
+    })
+    expect((await events(manager, check)).at(-1)).toMatchObject({
+      kind: "unassigned",
+      actor_id: null,
+      detail: { cause: "assignee_left", previousAssigneeId: promoted.id },
+    })
+  })
 })
 
 describe("access", () => {
@@ -1109,6 +1144,13 @@ describe("access", () => {
     const grant = await grantManager(admin, temp.id, venue)
     const check = await addCheck(temp, venue, "takeaway_pickup")
     await ok(temp.client.rpc("amenity_check", { p_check_id: check }))
+    // Another person's submitted evidence, visible to the manager.
+    await ok(assign(temp, check, staffA.id))
+    const evidence = await photo(staffA.id)
+    await ok(submit(staffA, check, { assets: [evidence] }))
+    const gate = () =>
+      ok(temp.client.rpc("amenity_evidence_asset", { p_asset_id: evidence }))
+    expect(await gate()).toHaveLength(1)
     await ok(
       admin.client.rpc("revoke_venue_manager", {
         p_grant_id: grant,
@@ -1141,6 +1183,13 @@ describe("access", () => {
       temp.client.rpc("amenity_venue_state", { p_venue_id: venue }),
       "not_venue_manager"
     )
+    expect(await gate()).toEqual([])
+    // The submitter still reaches their own evidence.
+    expect(
+      await ok(
+        staffA.client.rpc("amenity_evidence_asset", { p_asset_id: evidence })
+      )
+    ).toHaveLength(1)
   })
 
   it("rejects inactive accounts", async () => {
@@ -1204,10 +1253,14 @@ describe("access", () => {
       }),
       "amenity_check_not_found"
     )
-    await fails(
+    const crossVenue = await fails(
       submit(otherManager, there, { assets: [herePhoto] }),
       "evidence_not_eligible"
     )
+    expect(JSON.parse(crossVenue.details!)).toEqual({
+      assetId: herePhoto,
+      reason: "not_found",
+    })
 
     // Media gate: the venue's manager and admins, not the other venue.
     expect(
@@ -1283,7 +1336,10 @@ describe("access", () => {
     // Still the submitter of `mine`; `unused` is no longer submittable anywhere.
     expect(await gate(solo, mine)).toHaveLength(1)
     expect(await gate(solo, unused)).toEqual([])
-    // Staff B, the new assignee, reads the history but not the other person's media.
+    // Staff B, the new assignee, reads the history, but this amenity media gate
+    // does not open the other person's media to them. The gate is not the only
+    // route to an asset: keeping amenity evidence out of the venue's community
+    // library is 20261107130000_amenity_media_purpose.sql's job, not this one's.
     expect(
       await ok(
         staffB.client.rpc("amenity_check_submissions", { p_check_id: check })
@@ -1295,6 +1351,137 @@ describe("access", () => {
     await ok(solo.client.rpc("delete_media_asset", { p_asset_id: mine }))
     expect(await gate(manager, mine)).toEqual([])
     expect(await gate(solo, mine)).toEqual([])
+  })
+})
+
+describe("inactive venue", () => {
+  it("refuses every write and the enable offer, keeping reads", async () => {
+    const sleepy = (await createVenue(service, "amen-sleepy")).id
+    const sleepyStaff = await createIdentity(service, {
+      label: "amen-sleepy-staff",
+      role: "staff",
+      venueId: sleepy,
+    })
+    await ok(admin.client.rpc("amenity_enable_venue", { p_venue_id: sleepy }))
+    const [open, answered, archived] = await ok(
+      admin.client.rpc("amenity_add_checks", {
+        p_venue_id: sleepy,
+        p_keys: ["darts", "arcade", "snooker"],
+      })
+    )
+    await ok(assign(admin, open!, sleepyStaff.id))
+    await ok(submit(admin, answered!, { answer: "no", reason: "None" }))
+    await ok(
+      admin.client.rpc("amenity_archive_check", {
+        p_check_id: archived!,
+        p_revision: await revisionOf(archived!),
+      })
+    )
+    const evidence = await photo(sleepyStaff.id, sleepy)
+
+    const off = await service
+      .from("venues")
+      .update({ active: false })
+      .eq("id", sleepy)
+    if (off.error) throw off.error
+    const revisions = await Promise.all(
+      [open!, answered!, archived!].map(revisionOf)
+    )
+
+    const [state] = await ok(
+      admin.client.rpc("amenity_venue_state", { p_venue_id: sleepy })
+    )
+    expect(state).toMatchObject({ enabled: true, can_enable: false })
+    await fails(
+      admin.client.rpc("amenity_enable_venue", { p_venue_id: sleepy }),
+      "venue_not_found",
+      "P0002"
+    )
+
+    for (const call of [
+      () => submit(sleepyStaff, open!, { assets: [evidence] }),
+      () => submit(admin, open!, { answer: "no", reason: "Closed" }),
+      () =>
+        admin.client.rpc("amenity_add_checks", {
+          p_venue_id: sleepy,
+          p_keys: ["pool_table"],
+        }),
+      () =>
+        admin.client.rpc("amenity_archive_check", {
+          p_check_id: open!,
+          p_revision: revisions[0]!,
+        }),
+      () =>
+        admin.client.rpc("amenity_restore_check", {
+          p_check_id: archived!,
+          p_revision: revisions[2]!,
+        }),
+      () =>
+        admin.client.rpc("amenity_assign_check", {
+          p_check_id: open!,
+          p_assignee_id: null as unknown as string,
+          p_revision: revisions[0]!,
+        }),
+      () =>
+        admin.client.rpc("amenity_set_check_notes", {
+          p_check_id: open!,
+          p_notes: "Closed for refit",
+          p_revision: revisions[0]!,
+        }),
+      () =>
+        admin.client.rpc("amenity_reopen_check", {
+          p_check_id: answered!,
+          p_revision: revisions[1]!,
+          p_preset: "conditions_changed",
+          p_reason: null as unknown as string,
+        }),
+    ]) {
+      await fails(call(), "venue_inactive", "P0001")
+    }
+
+    // Nothing changed, and the venue's checks stay readable.
+    expect(
+      await Promise.all([open!, answered!, archived!].map(revisionOf))
+    ).toEqual(revisions)
+    expect(await checkRow(admin, open!)).toMatchObject({
+      assignee_user_id: sleepyStaff.id,
+      progress: "needs_capture",
+    })
+    expect(await checkRow(sleepyStaff, open!)).toMatchObject({ id: open! })
+    expect(
+      await ok(
+        admin.client.rpc("amenity_checks_for_venue", {
+          p_venue_id: sleepy,
+          p_include_archived: true,
+        })
+      )
+    ).toHaveLength(3 + CORE_CHECK_KEYS.length)
+  })
+})
+
+describe("function privileges", () => {
+  it("keeps the private locking, writing and trigger helpers from signed-in users", () => {
+    const helpers = [
+      "private.venue_amenity_checks_guard()",
+      "private.lock_amenity_venue(uuid)",
+      "private.amenity_assert_venue_active(uuid)",
+      "private.amenity_lock_managed_check(uuid, integer)",
+      "private.amenity_event(uuid, uuid, text, text, jsonb)",
+      "private.media_assets_amenity_evidence_lost()",
+      "private.profiles_end_amenity_assignments()",
+    ]
+    for (const fn of helpers) {
+      expect(
+        psql(`select string_agg(r || '=' || has_function_privilege(r, '${fn}', 'execute'), ',' order by r)
+          from unnest(array['anon', 'authenticated', 'public', 'service_role']) r`),
+        fn
+      ).toBe("anon=false,authenticated=false,public=false,service_role=true")
+    }
+    // A direct call as a signed-in role is refused even with a valid-looking request.
+    expect(() =>
+      psql(`begin; set local role authenticated;
+        select private.amenity_event(gen_random_uuid(), gen_random_uuid(), 'added', null, '{}'); rollback;`)
+    ).toThrow(/permission denied/)
   })
 })
 

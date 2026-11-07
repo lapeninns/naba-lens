@@ -372,6 +372,17 @@ describe("amenity RPC error mapping", () => {
       ).toMatchObject({ code, ...(fieldErrors ? { fieldErrors } : {}) })
   })
 
+  it("maps a write at an inactive venue to needs_setup", () => {
+    expect(
+      amenityRpcFailure({ message: "venue_inactive", code: "P0001" }, "t")
+    ).toEqual({
+      ok: false,
+      code: "needs_setup",
+      status: 409,
+      message: "This venue is not active, so amenity checks can't be changed.",
+    })
+  })
+
   it("logs unexpected failures redacted and answers unavailable", () => {
     const log = vi.spyOn(console, "error").mockImplementation(() => {})
     const result = amenityRpcFailure(
