@@ -1056,7 +1056,8 @@ describe("evidence removed and assignee left", () => {
     await ok(
       submit(manager, other, { answer: "no", reason: "None", assets: [extra] })
     )
-    await ok(manager.client.rpc("delete_media_asset", { p_asset_id: extra }))
+    // Manager accounts cannot delete media (#18), so the admin removes it.
+    await ok(admin.client.rpc("delete_media_asset", { p_asset_id: extra }))
     expect(await checkRow(manager, other)).toMatchObject({
       progress: "complete",
       answer: "no",
@@ -1591,10 +1592,9 @@ describe("manager accounts", () => {
       }),
       "not_venue_manager"
     )
-    await fails(
-      reopen(legacyManager, check, "wrong_area"),
-      "amenity_check_not_found"
-    )
+    // Still staff at the venue and an earlier submitter, so the check stays
+    // readable, but managing it is refused.
+    await fails(reopen(legacyManager, check, "wrong_area"), "not_venue_manager")
   })
 
   it("clears the assignment of an assignee converted to a manager account", async () => {
