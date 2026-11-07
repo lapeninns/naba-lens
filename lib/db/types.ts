@@ -1255,6 +1255,60 @@ export type Database = {
           },
         ]
       }
+      media_pending_labels: {
+        Row: {
+          asset_id: string
+          catalogue_version_id: string | null
+          code: string | null
+          created_at: string
+          input: Json
+          message: string | null
+          status: string
+          updated_at: string
+          uploader_id: string
+          venue_id: string
+        }
+        Insert: {
+          asset_id: string
+          catalogue_version_id?: string | null
+          code?: string | null
+          created_at?: string
+          input: Json
+          message?: string | null
+          status?: string
+          updated_at?: string
+          uploader_id: string
+          venue_id: string
+        }
+        Update: {
+          asset_id?: string
+          catalogue_version_id?: string | null
+          code?: string | null
+          created_at?: string
+          input?: Json
+          message?: string | null
+          status?: string
+          updated_at?: string
+          uploader_id?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_pending_labels_asset_fkey"
+            columns: ["asset_id", "venue_id"]
+            isOneToOne: true
+            referencedRelation: "media_assets"
+            referencedColumns: ["id", "venue_id"]
+          },
+          {
+            foreignKeyName: "media_pending_labels_uploader_id_fkey"
+            columns: ["uploader_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       menu_coverage_plans: {
         Row: {
           confirmed_at: string | null
@@ -2647,7 +2701,20 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      upload_label_metrics: {
+        Row: {
+          day: string | null
+          median_seconds_to_label: number | null
+          needs_attention: number | null
+          p90_seconds_to_label: number | null
+          share_labelled: number | null
+          uploads: number | null
+          uploads_labelled: number | null
+          venue_id: string | null
+          venue_name: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       acquire_maintenance_lease: {
@@ -2989,6 +3056,25 @@ export type Database = {
       complete_archive_monitor_alert: {
         Args: { p_claim_id: string; p_event_id: string }
         Returns: boolean
+      }
+      complete_media_finalise: {
+        Args: {
+          p_asset_id: string
+          p_duration_seconds?: number
+          p_height?: number
+          p_preview_path?: string
+          p_size_bytes: number
+          p_thumbnail_path?: string
+          p_validated_mime_type: string
+          p_width?: number
+        }
+        Returns: {
+          became_ready: boolean
+          labels_code: string
+          labels_has_labels: boolean
+          labels_revision: number
+          labels_state: string
+        }[]
       }
       confirm_menu_coverage_plan: {
         Args: { p_expected_revision: number; p_plan_id: string }
@@ -3976,6 +4062,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      stage_media_labels: {
+        Args: { p_asset_id: string; p_input: Json; p_venue_id: string }
+        Returns: string
       }
       start_menu_coverage_plan: {
         Args: { p_menu_version_id: string; p_venue_id: string }
