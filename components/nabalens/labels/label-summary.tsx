@@ -47,7 +47,7 @@ export function LabelSummary({
               className="min-w-0 break-words"
             >
               <span className="font-bold">{item.name}</span>
-              {item.variantName ? <span>, {item.variantName}</span> : null}
+              {item.variantName ? <span> ({item.variantName})</span> : null}
               {item.sectionName ? (
                 <span className="text-ink-muted"> · {item.sectionName}</span>
               ) : null}

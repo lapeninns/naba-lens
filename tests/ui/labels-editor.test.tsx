@@ -145,7 +145,7 @@ describe("LabelEditorDialog: search and selection", () => {
     )
     await user.click(within(group).getByRole("button", { name: "Lamb" }))
     expect(
-      screen.getByRole("button", { name: "Remove Tikka Masala, Lamb" })
+      screen.getByRole("button", { name: "Remove Tikka Masala (Lamb)" })
     ).toBeTruthy()
 
     await pick(user, "tikka", /Tikka Masala/)
@@ -199,13 +199,13 @@ describe("LabelEditorDialog: search and selection", () => {
     expect(document.activeElement?.textContent).toBe("Chicken")
     await user.keyboard("{Enter}")
     expect(
-      screen.getByRole("button", { name: "Remove Tikka Masala, Chicken" })
+      screen.getByRole("button", { name: "Remove Tikka Masala (Chicken)" })
     ).toBeTruthy()
 
     // Shift+Tab reaches the chips; Enter removes and focus moves on.
     await user.tab({ shift: true })
     expect(document.activeElement).toBe(
-      screen.getByRole("button", { name: "Remove Tikka Masala, Chicken" })
+      screen.getByRole("button", { name: "Remove Tikka Masala (Chicken)" })
     )
     await user.keyboard("{Enter}")
     expect(document.activeElement).toBe(remove)
@@ -928,7 +928,7 @@ describe("LabelEditorDialog: variant default and unfinished choices (audit J4b)"
     expect(screen.queryByRole("group", { name: /Which Momo\?/ })).toBeNull()
     const chips = screen.getByRole("list", { name: "Selected menu items" })
     expect(
-      within(chips).getByRole("button", { name: "Remove Momo, Veg" })
+      within(chips).getByRole("button", { name: "Remove Momo (Veg)" })
     ).toBeTruthy()
     expect(
       within(chips).queryByRole("button", {

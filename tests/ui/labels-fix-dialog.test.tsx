@@ -102,12 +102,12 @@ describe("FixLabelsDialog: reopening a stored draft", () => {
     expect(screen.getByRole("dialog", { name: "Fix labels" })).toBeTruthy()
     const list = chips()
     expect(within(list).getByText("Onion Bhaji")).toBeTruthy()
-    expect(within(list).getByText("Tikka Masala, Lamb")).toBeTruthy()
+    expect(within(list).getByText("Tikka Masala (Lamb)")).toBeTruthy()
     expect(
       within(list).getByRole("button", { name: "Remove Onion Bhaji" })
     ).toBeTruthy()
     expect(
-      within(list).getByRole("button", { name: "Remove Tikka Masala, Lamb" })
+      within(list).getByRole("button", { name: "Remove Tikka Masala (Lamb)" })
     ).toBeTruthy()
     expect(
       screen
@@ -309,11 +309,11 @@ describe("FixLabelsDialog: problem and loading", () => {
     const { rerender } = render(<FixLabelsDialog {...props} />)
     await waitForDialogFocus()
     expect((saveButton() as HTMLButtonElement).disabled).toBe(true)
-    expect(screen.queryByText("Tikka Masala, Lamb")).toBeNull()
+    expect(screen.queryByText("Tikka Masala (Lamb)")).toBeNull()
 
     rerender(<FixLabelsDialog {...props} catalogue={READY} />)
     await waitFor(() =>
-      expect(within(chips()).getByText("Tikka Masala, Lamb")).toBeTruthy()
+      expect(within(chips()).getByText("Tikka Masala (Lamb)")).toBeTruthy()
     )
     expect(within(chips()).getByText("Onion Bhaji")).toBeTruthy()
     expect((saveButton() as HTMLButtonElement).disabled).toBe(false)

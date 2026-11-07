@@ -218,6 +218,29 @@ export function removeItem(
   }
 }
 
+/**
+ * A common item was replaced (its variant question answered): a file that left
+ * it off leaves the new one off too, unless the file has that one itself
+ * (added, or among `saved`, its saved item keys). A saved item the file left
+ * off stays off.
+ */
+export function renameRemoved(
+  adj: FileAdjust,
+  fromKey: string,
+  toKey: string,
+  saved: readonly string[] = []
+): FileAdjust {
+  if (!adj.remove.includes(fromKey)) return adj
+  const remove = saved.includes(fromKey)
+    ? adj.remove
+    : adj.remove.filter((k) => k !== fromKey)
+  const own = saved.includes(toKey) || adj.add.some((i) => itemKey(i) === toKey)
+  return {
+    ...adj,
+    remove: own || remove.includes(toKey) ? remove : [...remove, toKey],
+  }
+}
+
 export function setContentType(
   adj: FileAdjust,
   type: ContentType,
@@ -267,7 +290,7 @@ export function isPickable(catalogue: LabelCatalogue, ref: LabelItemRef) {
 }
 
 /**
- * A suggested item (Our menu's photo request) as a draft item, when the
+ * A preset (the dish the files were picked for) as a draft item, when the
  * catalogue still offers it. Names come from the catalogue, so a renamed dish
  * shows its current name.
  */
@@ -394,26 +417,6 @@ export function draftItemsFromRefs(
     )
   }
   return out
-}
-
-/**
- * How stored items read in one line ("Onion Bhaji, Momo (Not specified)"),
- * named from the current catalogue. Empty when there are none.
- */
-export function labelItemsText(
-  catalogue: LabelCatalogue | null,
-  refs: readonly LabelItemRef[],
-  known: readonly DraftItem[] = []
-): string {
-  return draftItemsFromRefs(catalogue, refs, known)
-    .map((item) =>
-      item.variantName
-        ? `${item.name}, ${item.variantName}`
-        : isUnspecifiedVariant(catalogue, item)
-          ? `${item.name} (Not specified)`
-          : item.name
-    )
-    .join(", ")
 }
 
 export type FileStatus =

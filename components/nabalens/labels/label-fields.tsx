@@ -44,7 +44,8 @@ export function itemDisplayName(
   /** The dish has variants and none was chosen. */
   unspecified = false
 ) {
-  if (item.variantName) return `${item.name}, ${item.variantName}`
+  // The same style as cards and the portfolio: "Momo (Veg)".
+  if (item.variantName) return `${item.name} (${item.variantName})`
   return unspecified ? `${item.name} (Not specified)` : item.name
 }
 
