@@ -784,26 +784,27 @@ describe("Add while work remains", () => {
 })
 
 describe("Review 1 regressions: Add host", () => {
-  it("n2: a cancelled dish pick leaves its dish off the next pick from the sheet", async () => {
+  it("n2: a dish picker cancelled behind the open sheet leaves its dish off Add more", async () => {
     const user = userEvent.setup()
     holdUploads()
     host(
       <>
-        <Opener label="Dish" opts={{ source: "library", preset }} />
         <Opener label="Me" opts={{ dialog: true }} />
+        <Opener label="Dish" opts={{ source: "library", preset }} />
       </>
     )
-    // The picker closes with nothing picked (browsers send no event at all).
-    await user.click(screen.getByRole("button", { name: "Dish" }))
     await user.click(screen.getByRole("button", { name: "Me" }))
-    await user.upload(
-      within(screen.getByRole("dialog")).getByLabelText(/^Choose photos/),
-      [jpeg("other.jpg")]
-    )
+    const choose = () =>
+      within(screen.getByRole("dialog")).getByLabelText(/^Choose photos/)
+    await user.upload(choose(), [jpeg("first.jpg")])
     await screen.findByRole("dialog", { name: "Saving 1 photo" })
-    await waitFor(() =>
-      expect(fileRow("other.jpg").textContent).toContain("Uploading")
-    )
+    // The dish's picker opens and closes with nothing picked (browsers send
+    // no event at all). fireEvent: the open sheet makes the page inert.
+    fireEvent.click(screen.getByRole("button", { name: "Dish", hidden: true }))
+    // "Add more" in the sheet picks another file.
+    await user.click(screen.getByRole("button", { name: "Add more" }))
+    await user.upload(choose(), [jpeg("other.jpg")])
+    await screen.findByRole("dialog", { name: "Saving 2 photos" })
     await act(async () => {})
     expect(api.posted).toEqual([])
     expect(
