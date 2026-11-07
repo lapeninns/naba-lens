@@ -13,7 +13,6 @@ import { Notice } from "@/components/nabalens/notice"
 import { Button } from "@/components/ui/button"
 import type { WorkFocus } from "@/lib/config/work-roles"
 import {
-  CONTENT_TYPES,
   EMPTY_LABEL_SUMMARY,
   LABEL_LIMITS,
   type ContentType,
@@ -79,13 +78,15 @@ export type UploadLabelPanelProps = {
   disabledIds?: readonly string[]
   /**
    * Every change: one input per file in `files`, assetId = the file's id,
-   * expectedRevision 0, catalogueVersionId = the shown catalogue version.
+   * expectedRevision 0, catalogueVersionId = the shown catalogue version (the
+   * last one shown while the menu reloads or failed; restored items not yet
+   * named from the menu keep the version they were stored with).
    */
   onChange: (inputs: SaveLabelsInput[]) => void
   /**
-   * True while the labels are not ready to store: a menu choice is unfinished,
-   * a file has too many labels, or the menu is still loading while a preset or
-   * restored labels wait for it.
+   * True while the labels are not ready to store: a menu choice is unfinished
+   * or a file has too many labels. Not while the menu loads: restored labels
+   * are emitted as they are, and the host stores each file's dish itself.
    */
   onPendingChange?: (pending: boolean) => void
 }
@@ -161,7 +162,13 @@ export function UploadLabelPanel({
   const [presetsMissing, setPresetsMissing] = React.useState<LabelPreset[]>([])
 
   const ready = catalogue.state === "ready" ? catalogue.catalogue : null
-  const catalogueVersionId = ready?.status === "active" ? ready.versionId : null
+  const readyVersionId = ready?.status === "active" ? ready.versionId : null
+  // While the menu reloads or failed, the items on screen are still the ones
+  // picked from the version last shown, so that is the one they are sent with.
+  const [shownVersionId, setShownVersionId] = React.useState(readyVersionId)
+  if (ready && readyVersionId !== shownVersionId)
+    setShownVersionId(readyVersionId)
+  const catalogueVersionId = ready ? readyVersionId : shownVersionId
   const index = React.useMemo(
     () => buildCatalogueIndex(ready, focus),
     [ready, focus]
@@ -217,54 +224,54 @@ export function UploadLabelPanel({
     setSeeded(new Set([...seeded, ...unseeded.map((f) => f.id)]))
   }
 
+  // Not named yet (menu loading or failed): the restored labels already count
+  // as the file's own, exactly as they will once the menu names them, under
+  // the common details chosen meanwhile ("These go on every photo").
+  const restoredUnseeded = (id: string) => {
+    const restored = initialFor(id)
+    return !seeded.has(id) && restored && !isEmptyInput(restored)
+      ? restored
+      : null
+  }
+  const adjOf = (id: string) => {
+    const restored = restoredUnseeded(id)
+    return restored
+      ? adjustFromInput(
+          EMPTY_LABEL_SUMMARY,
+          restored,
+          draftItemsFromRefs(null, restored.items)
+        )
+      : (adjs[id] ?? NO_ADJUST)
+  }
   const effective: Record<string, EffectiveLabels> = {}
   for (const f of files)
-    effective[f.id] = effectiveLabels(
-      EMPTY_LABEL_SUMMARY,
-      common,
-      adjs[f.id] ?? NO_ADJUST
-    )
+    effective[f.id] = effectiveLabels(EMPTY_LABEL_SUMMARY, common, adjOf(f.id))
 
-  const inputs = files.map((f) => {
-    if (disabled.has(f.id)) return emptyInput(f.id, catalogueVersionId)
-    const restored = initialFor(f.id)
-    // Not named yet (menu loading or failed): keep the stored items, plus the
-    // common details chosen meanwhile ("These go on every photo").
-    if (!seeded.has(f.id) && restored)
-      return {
-        ...restored,
-        contentTypes: CONTENT_TYPES.filter(
-          (t) =>
-            restored.contentTypes.includes(t) || common.contentTypes.includes(t)
-        ).slice(0, LABEL_LIMITS.maxContentTypes),
-        note: common.note.trim() || restored.note,
-      }
-    return buildSaveInput(
-      f.id,
-      EMPTY_LABEL_SUMMARY,
-      effective[f.id],
+  // Restored items not named yet were picked from the menu as it was then.
+  const versionFor = (id: string) => {
+    const restored = restoredUnseeded(id)
+    return (restored?.items.length ? restored.catalogueVersionId : null) ??
       catalogueVersionId
-    )
-  })
-  // Only while loading: a failed menu must not block the host for good (the
-  // preset then simply isn't applied; restored inputs are kept as they are).
-  const waitingForMenu =
-    catalogue.state === "loading" &&
-    files.some(
-      (f) =>
-        !seeded.has(f.id) &&
-        !disabled.has(f.id) &&
-        ((initialFor(f.id)?.items.length ?? 0) > 0 ||
-          (!!presetOf(f.id) && !presetBlocked))
-    )
+  }
+  const inputs = files.map((f) =>
+    disabled.has(f.id)
+      ? emptyInput(f.id, catalogueVersionId)
+      : buildSaveInput(
+          f.id,
+          EMPTY_LABEL_SUMMARY,
+          effective[f.id],
+          versionFor(f.id)
+        )
+  )
   const problems = Object.fromEntries(
     files
       .filter((f) => !disabled.has(f.id))
       .map((f) => [f.id, limitProblem(effective[f.id])])
       .filter(([, p]) => p)
   ) as Record<string, string>
+  // A menu still loading is not pending: restored labels are kept as they
+  // are, and the host stores each file's own dish itself.
   const pending =
-    waitingForMenu ||
     Object.values(pendingScopes).some(Boolean) ||
     Object.keys(problems).length > 0
 

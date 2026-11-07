@@ -141,3 +141,162 @@ describe("m13: answering the variant question in the common field", () => {
     ])
   })
 })
+
+const LOADING: CatalogueProp = { state: "loading" }
+const BHAJI = {
+  itemId: "item-bhaji",
+  variantId: null,
+  itemName: "Onion Bhaji",
+  variantName: null,
+}
+const BHAJI_REF = { itemId: "item-bhaji", variantId: null }
+
+function stored(assetId: string, extra: Partial<SaveLabelsInput> = {}) {
+  return {
+    assetId,
+    expectedRevision: 0,
+    catalogueVersionId: "version-1",
+    contentTypes: [],
+    note: null,
+    items: [],
+    missingItem: null,
+    ...extra,
+  } satisfies SaveLabelsInput
+}
+
+describe("m9: a menu still loading does not hold the host", () => {
+  it("is not pending with a file's own dish waiting for the menu", async () => {
+    const { pending, last, rerender } = panel({
+      catalogue: LOADING,
+      presetFor: (id) => (id === "f1" ? BHAJI : null),
+    })
+    expect(pending()).toBe(false)
+    rerender({ catalogue: READY })
+    await waitFor(() => expect(last()[0].items).toEqual([BHAJI_REF]))
+    expect(pending()).toBe(false)
+  })
+
+  it("is not pending with restored labels waiting for the menu, and keeps them", () => {
+    const { pending, last } = panel({
+      catalogue: LOADING,
+      initial: [stored("f1", { items: [BHAJI_REF] })],
+    })
+    expect(pending()).toBe(false)
+    expect(last()[0].items).toEqual([BHAJI_REF])
+  })
+
+  it("is still pending while a menu choice is unfinished", async () => {
+    const { user, pending } = panel({ catalogue: READY })
+    await user.type(
+      screen.getByRole("combobox", { name: /What's in these photos\?/ }),
+      "bhaji"
+    )
+    expect(pending()).toBe(true)
+  })
+})
+
+describe("m11: the menu reloads or fails after items were picked", () => {
+  it("keeps sending the version last shown, then the new one", async () => {
+    const { user, last, rerender } = panel({ catalogue: READY })
+    await pickIn(
+      user,
+      screen.getByRole("combobox", { name: /What's in these photos\?/ }),
+      "bhaji",
+      /Onion Bhaji/
+    )
+    expect(last()[0]).toMatchObject({
+      items: [BHAJI_REF],
+      catalogueVersionId: "version-1",
+    })
+
+    rerender({ catalogue: LOADING })
+    expect(last().map((i) => i.catalogueVersionId)).toEqual([
+      "version-1",
+      "version-1",
+    ])
+    rerender({ catalogue: { state: "error", message: "Menu down" } })
+    expect(last().map((i) => i.catalogueVersionId)).toEqual([
+      "version-1",
+      "version-1",
+    ])
+    // A disabled file (failed) emits the same version too.
+    rerender({ catalogue: LOADING, disabledIds: ["f2"] })
+    expect(last()[1].catalogueVersionId).toBe("version-1")
+
+    const next =
+      CATALOGUE.status === "active"
+        ? { ...CATALOGUE, versionId: "version-2" }
+        : CATALOGUE
+    rerender({ catalogue: { state: "ready", catalogue: next } })
+    await waitFor(() =>
+      expect(last()[0].catalogueVersionId).toBe("version-2")
+    )
+    expect(last()[0].items).toEqual([BHAJI_REF])
+  })
+
+  it("sends null while nothing has been shown yet", () => {
+    const { last } = panel({ catalogue: LOADING })
+    expect(last().map((i) => i.catalogueVersionId)).toEqual([null, null])
+  })
+})
+
+describe("m12: photos restored before the menu loads", () => {
+  it("shows Too many labels instead of dropping a content type", async () => {
+    const { user, last, pending } = panel({
+      catalogue: LOADING,
+      initial: [
+        stored("f1", {
+          items: [BHAJI_REF],
+          contentTypes: ["preparation", "plating", "kitchen", "team"],
+        }),
+      ],
+    })
+    await user.click(
+      screen.getByRole("button", { name: "More details for all photos" })
+    )
+    await user.click(screen.getByRole("button", { name: "Finished dish" }))
+
+    expect(last()[0].contentTypes).toEqual([
+      "dish",
+      "preparation",
+      "plating",
+      "kitchen",
+      "team",
+    ])
+    expect(screen.getByText("Too many labels for this photo")).toBeTruthy()
+    expect(pending()).toBe(true)
+
+    // Taking the common one off again fixes it.
+    await user.click(screen.getByRole("button", { name: "Finished dish" }))
+    expect(last()[0].contentTypes).toEqual([
+      "preparation",
+      "plating",
+      "kitchen",
+      "team",
+    ])
+    expect(screen.queryByText("Too many labels for this photo")).toBeNull()
+    expect(pending()).toBe(false)
+  })
+
+  it("keeps the photo's own note over the common note before and after the menu loads", async () => {
+    const { user, last, rerender } = panel({
+      catalogue: LOADING,
+      initial: [
+        stored("f1", { items: [BHAJI_REF], note: "Own note" }),
+        stored("f2"),
+      ],
+    })
+    await user.click(
+      screen.getByRole("button", { name: "More details for all photos" })
+    )
+    await user.type(screen.getByRole("textbox", { name: /^Note/ }), "Common")
+    expect(last().map((i) => i.note)).toEqual(["Own note", "Common"])
+
+    rerender({ catalogue: READY })
+    await waitFor(() =>
+      expect(screen.getByText(/^Onion Bhaji/)).toBeTruthy()
+    )
+    expect(last().map((i) => i.note)).toEqual(["Own note", "Common"])
+    expect(last()[0].items).toEqual([BHAJI_REF])
+  })
+})

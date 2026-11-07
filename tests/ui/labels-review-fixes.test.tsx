@@ -68,12 +68,13 @@ async function waitForDialogFocus() {
 }
 
 describe("UploadLabelPanel review fixes", () => {
-  it("does not stay pending when the menu fails to load with a preset waiting", () => {
+  it("is not pending while the menu loads or fails with a preset waiting", () => {
+    // The host stores the dish itself (review-1 m9).
     const { onPendingChange, rerender } = panel({
       catalogue: { state: "loading" },
       preset: BHAJI,
     })
-    expect(onPendingChange).toHaveBeenLastCalledWith(true)
+    expect(onPendingChange).toHaveBeenLastCalledWith(false)
     rerender({ catalogue: { state: "error", message: "Menu down" } })
     expect(onPendingChange).toHaveBeenLastCalledWith(false)
     expect(screen.getByText("Menu down")).toBeTruthy()

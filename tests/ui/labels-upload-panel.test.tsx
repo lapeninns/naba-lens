@@ -275,7 +275,7 @@ describe("UploadLabelPanel", () => {
         catalogue: LOADING,
         presetFor: own,
       })
-      expect(lastPending(onPendingChange)).toBe(true)
+      expect(lastPending(onPendingChange)).toBe(false)
       rerender({ catalogue: READY })
       await waitFor(() =>
         expect(last().map((i) => i.items)).toEqual([BHAJI_ITEM, LASSI_ITEM])
@@ -410,17 +410,23 @@ describe("UploadLabelPanel", () => {
       expect(lastPending(onPendingChange)).toBe(false)
     })
 
-    it("is true while the menu loads with a preset waiting", async () => {
+    it("is false while the menu loads with a preset waiting (the host stores it)", async () => {
       const { onPendingChange, last, rerender } = setup({
         catalogue: LOADING,
         preset: BHAJI,
       })
-      expect(lastPending(onPendingChange)).toBe(true)
+      expect(lastPending(onPendingChange)).toBe(false)
       expect(last().map((i) => i.items)).toEqual([[], []])
       expect(last()[0].catalogueVersionId).toBeNull()
 
       rerender({ catalogue: READY })
-      await waitFor(() => expect(lastPending(onPendingChange)).toBe(false))
+      await waitFor(() =>
+        expect(last().map((i) => i.items)).toEqual([
+          [{ itemId: "item-bhaji", variantId: null }],
+          [{ itemId: "item-bhaji", variantId: null }],
+        ])
+      )
+      expect(lastPending(onPendingChange)).toBe(false)
       expect(last().map((i) => i.items)).toEqual([
         [{ itemId: "item-bhaji", variantId: null }],
         [{ itemId: "item-bhaji", variantId: null }],
