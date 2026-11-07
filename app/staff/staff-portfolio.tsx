@@ -499,6 +499,9 @@ export function StaffPortfolio({
         refreshSignal={addRefreshSignal + labelSaves}
         canLabel
         showLabelBadge
+        // Needs labels, menu decisions and better-photo requests are read on
+        // the server; a delete or label change in the gallery can move them.
+        onChanged={() => router.refresh()}
         empty={<EmptyState action={uploadButton} />}
       />
       <LabelEditorHost

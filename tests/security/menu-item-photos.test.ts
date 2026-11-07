@@ -1145,6 +1145,41 @@ describe("menu activation", () => {
     })
   })
 
+  it("makes an open review stale when activation renames an item with no accepted photo", async () => {
+    const g = await venueWithMenu("mip-stale-review")
+    const tikka = t(g.items["mains--tikka"]!)
+    const asset = await labelled(g.staff, g.version, [tikka])
+    const [shown] = await ok(
+      g.manager.client.rpc("menu_item_photo_candidates", {
+        p_venue_id: g.venue,
+        p_item_id: tikka.itemId,
+      })
+    )
+    expect(shown).toMatchObject({ item_name: "Tikka" })
+    await publishMenu(
+      admin,
+      g.venue,
+      menu("TEST stale review v2", [
+        section("mains", "Mains", [
+          item("mains--tikka", "Paneer tikka", { itemId: tikka.itemId }),
+        ]),
+      ]),
+      g.version
+    )
+    await fails(
+      review(g.manager, asset.id, tikka, "accepted", shown!.item_revision),
+      "coverage_conflict",
+      "40001"
+    )
+    const [row] = await ok(
+      review(g.manager, asset.id, tikka, "accepted", await head(tikka.itemId))
+    )
+    expect(await photo(row!.photo_id)).toMatchObject({
+      state: "accepted",
+      item_name: "Paneer tikka",
+    })
+  })
+
   it("counts a departed uploader's recheck only for admins", async () => {
     const g = await venueWithMenu("mip-departed")
     const dal = g.items["mains--dal"]!
