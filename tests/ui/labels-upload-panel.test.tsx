@@ -328,6 +328,24 @@ describe("UploadLabelPanel", () => {
       )
     })
 
+    it("still gives a file added after a dish was removed its own dish", async () => {
+      const { user, last, rerender } = setup({
+        files: files("f1"),
+        presetFor: own,
+      })
+      await user.click(
+        screen.getByRole("button", { name: "Remove Onion Bhaji" })
+      )
+      expect(last().map((i) => i.items)).toEqual([[]])
+      rerender({ files: files("f1", "f2") })
+      await waitFor(() =>
+        expect(last().map((i) => i.items)).toEqual([[], LASSI_ITEM])
+      )
+      expect(
+        screen.getByRole("button", { name: "Remove Mango Lassi" })
+      ).toBeTruthy()
+    })
+
     it("shows one dish in the common field when every photo has it", () => {
       const { last } = setup({ presetFor: () => BHAJI })
       expect(last().map((i) => i.items)).toEqual([BHAJI_ITEM, BHAJI_ITEM])
