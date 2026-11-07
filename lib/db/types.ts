@@ -2649,7 +2649,7 @@ export type Database = {
         Returns: {
           display_name: string
           id: string
-          job_title: string | null
+          job_title: string
         }[]
       }
       amenity_catalogue_for_venue: {
@@ -2658,8 +2658,8 @@ export type Database = {
           capture_brief: string
           catalogue_version: number
           category: string
-          check_id: string | null
-          check_status: string | null
+          check_id: string
+          check_status: string
           evidence_rule: string
           is_core: boolean
           key: string
@@ -2671,23 +2671,23 @@ export type Database = {
         Args: { p_check_id: string }
         Returns: {
           answer: string
-          answered_at: string | null
-          answered_by: string | null
-          answered_by_name: string | null
-          assignee_name: string | null
-          assignee_user_id: string | null
+          answered_at: string
+          answered_by: string
+          answered_by_name: string
+          assignee_name: string
+          assignee_user_id: string
           capture_brief: string
           catalogue_version: number
           category: string
-          current_submission_id: string | null
+          current_submission_id: string
           evidence_rule: string
           id: string
           is_core: boolean
-          notes: string | null
+          notes: string
           position: number
           progress: string
           question: string
-          recheck_reason: string | null
+          recheck_reason: string
           revision: number
           status: string
           template_key: string
@@ -2698,14 +2698,14 @@ export type Database = {
       amenity_check_events: {
         Args: { p_check_id: string }
         Returns: {
-          actor_id: string | null
-          actor_name: string | null
+          actor_id: string
+          actor_name: string
           check_id: string
           created_at: string
           detail: Json
           id: string
           kind: string
-          reason: string | null
+          reason: string
         }[]
       }
       amenity_check_submission_assets: {
@@ -2726,13 +2726,13 @@ export type Database = {
           check_id: string
           created_at: string
           evidence_rule: string
-          finding: string | null
+          finding: string
           id: string
-          internal_metadata: Json | null
-          limitations: string | null
-          reason: string | null
+          internal_metadata: Json
+          limitations: string
+          reason: string
           submitted_by: string
-          submitted_by_name: string | null
+          submitted_by_name: string
           template_version: number
         }[]
       }
@@ -2740,23 +2740,23 @@ export type Database = {
         Args: { p_include_archived: boolean; p_venue_id: string }
         Returns: {
           answer: string
-          answered_at: string | null
-          answered_by: string | null
-          answered_by_name: string | null
-          assignee_name: string | null
-          assignee_user_id: string | null
+          answered_at: string
+          answered_by: string
+          answered_by_name: string
+          assignee_name: string
+          assignee_user_id: string
           capture_brief: string
           catalogue_version: number
           category: string
-          current_submission_id: string | null
+          current_submission_id: string
           evidence_rule: string
           id: string
           is_core: boolean
-          notes: string | null
+          notes: string
           position: number
           progress: string
           question: string
-          recheck_reason: string | null
+          recheck_reason: string
           revision: number
           status: string
           template_key: string
@@ -2764,10 +2764,7 @@ export type Database = {
           venue_id: string
         }[]
       }
-      amenity_enable_venue: {
-        Args: { p_venue_id: string }
-        Returns: number
-      }
+      amenity_enable_venue: { Args: { p_venue_id: string }; Returns: number }
       amenity_evidence_asset: {
         Args: { p_asset_id: string }
         Returns: {
@@ -2781,23 +2778,23 @@ export type Database = {
         Args: never
         Returns: {
           answer: string
-          answered_at: string | null
-          answered_by: string | null
-          answered_by_name: string | null
-          assignee_name: string | null
-          assignee_user_id: string | null
+          answered_at: string
+          answered_by: string
+          answered_by_name: string
+          assignee_name: string
+          assignee_user_id: string
           capture_brief: string
           catalogue_version: number
           category: string
-          current_submission_id: string | null
+          current_submission_id: string
           evidence_rule: string
           id: string
           is_core: boolean
-          notes: string | null
+          notes: string
           position: number
           progress: string
           question: string
-          recheck_reason: string | null
+          recheck_reason: string
           revision: number
           status: string
           template_key: string
@@ -2890,18 +2887,18 @@ export type Database = {
         Returns: {
           contributor_name: string
           created_at: string
-          duration_seconds: number | null
+          duration_seconds: number
           has_preview: boolean
           has_thumbnail: boolean
-          height: number | null
+          height: number
           id: string
           media_type: Database["public"]["Enums"]["media_type"]
-          original_filename: string | null
-          size_bytes: number | null
+          original_filename: string
+          size_bytes: number
           uploader_id: string
-          validated_mime_type: string | null
+          validated_mime_type: string
           venue_name: string
-          width: number | null
+          width: number
         }[]
       }
       community_members: {
@@ -2914,31 +2911,31 @@ export type Database = {
           p_venue?: string
         }
         Returns: {
-          avatar_path: string | null
-          department: string | null
+          avatar_path: string
+          department: string
           display_name: string
           id: string
-          job_title: string | null
+          job_title: string
           media_count: number
-          venue_id: string | null
-          venue_name: string | null
+          venue_id: string
+          venue_name: string
         }[]
       }
       community_readable_assets: {
         Args: { p_asset_ids: string[] }
         Returns: {
           created_at: string
-          duration_seconds: number | null
+          duration_seconds: number
           has_preview: boolean
           has_thumbnail: boolean
-          height: number | null
+          height: number
           id: string
           media_type: Database["public"]["Enums"]["media_type"]
-          size_bytes: number | null
+          size_bytes: number
           uploader_id: string
-          validated_mime_type: string | null
+          validated_mime_type: string
           venue_id: string
-          width: number | null
+          width: number
         }[]
       }
       complete_archive_monitor_alert: {
@@ -2957,14 +2954,14 @@ export type Database = {
         Args: never
         Returns: {
           active: boolean
-          department: string | null
+          department: string
           is_admin: boolean
-          manager_grant_id: string | null
-          manager_venue_id: string | null
+          manager_grant_id: string
+          manager_venue_id: string
           role: Database["public"]["Enums"]["app_role"]
           user_id: string
           venue_active: boolean
-          venue_id: string | null
+          venue_id: string
         }[]
       }
       coverage_candidate_assets: {
@@ -2980,17 +2977,17 @@ export type Database = {
           created_at: string
           has_preview: boolean
           has_thumbnail: boolean
-          height: number | null
-          live_item_id: string | null
-          live_item_state: string | null
-          live_requirement_id: string | null
+          height: number
+          live_item_id: string
+          live_item_state: string
+          live_requirement_id: string
           monthly_eligible_now: boolean
           uploaded_month: string
           uploader_active: boolean
           uploader_id: string
           uploader_name: string
           venue_id: string
-          width: number | null
+          width: number
         }[]
       }
       coverage_group_overview: {
@@ -3000,8 +2997,8 @@ export type Database = {
           amenity_unknown_count: number
           applicable_count: number
           coverage_complete: boolean
-          last_preparation_at: string | null
-          last_preparation_status: string | null
+          last_preparation_at: string
+          last_preparation_status: string
           menu_state: string
           needs_reassignment_count: number
           needs_setup_count: number
@@ -3036,39 +3033,39 @@ export type Database = {
           author_active: boolean
           author_id: string
           author_name: string
-          decided_at: string | null
-          decided_by: string | null
-          decision_reason: string | null
+          decided_at: string
+          decided_by: string
+          decision_reason: string
           evidence_available: boolean
           has_preview: boolean
           has_thumbnail: boolean
-          height: number | null
+          height: number
           item_id: string
           media_type: Database["public"]["Enums"]["media_type"]
           monthly_eligible: boolean
           origin: string
-          replaces_item_id: string | null
-          requirement_id: string | null
-          requirement_title: string | null
+          replaces_item_id: string
+          requirement_id: string
+          requirement_title: string
           revision: number
-          self_review: boolean | null
+          self_review: boolean
           state: string
           submitted_at: string
           submitted_by: string
           submitted_month: string
           uploaded_month: string
           venue_id: string
-          width: number | null
+          width: number
         }[]
       }
       coverage_preparation_status: {
         Args: { p_venue_id?: string }
         Returns: {
-          last_error_code: string | null
-          last_failure_at: string | null
-          last_run_at: string | null
-          last_status: string | null
-          last_success_at: string | null
+          last_error_code: string
+          last_failure_at: string
+          last_run_at: string
+          last_status: string
+          last_success_at: string
           period_month: string
           staff_without_target: number
           targets_needing_setup: number
@@ -3079,17 +3076,17 @@ export type Database = {
         Returns: {
           accepted_count: number
           amenity_confirmed: boolean
-          amenity_key: string | null
-          amenity_presence: string | null
+          amenity_key: string
+          amenity_presence: string
           assignee_ids: string[]
-          due_on: string | null
+          due_on: string
           evidence_removed_count: number
-          guidance: string | null
+          guidance: string
           is_current: boolean
           kind: string
-          menu_plan_id: string | null
-          menu_plan_status: string | null
-          menu_version_id: string | null
+          menu_plan_id: string
+          menu_plan_status: string
+          menu_version_id: string
           needs_another_photo_count: number
           needs_reassignment: boolean
           overdue: boolean
@@ -3098,9 +3095,9 @@ export type Database = {
           requirement_id: string
           revision: number
           satisfied: boolean
-          section_snapshot: Json | null
+          section_snapshot: Json
           status: string
-          status_reason: string | null
+          status_reason: string
           title: string
           venue_id: string
         }[]
@@ -3113,15 +3110,15 @@ export type Database = {
         }
         Returns: {
           accepted_count: number
-          avatar_path: string | null
+          avatar_path: string
           complete: boolean
-          department: string | null
+          department: string
           display_name: string
-          due_on: string | null
+          due_on: string
           evidence_removed_count: number
           is_current_member: boolean
           is_manager: boolean
-          job_title: string | null
+          job_title: string
           late_accepted_count: number
           needs_another_photo_count: number
           needs_setup: boolean
@@ -3130,10 +3127,10 @@ export type Database = {
           period_month: string
           setup_missing: string[]
           staff_id: string
-          target_count: number | null
-          target_id: string | null
-          target_revision: number | null
-          target_source: string | null
+          target_count: number
+          target_id: string
+          target_revision: number
+          target_source: string
           venue_id: string
           venue_name: string
         }[]
@@ -3733,23 +3730,23 @@ export type Database = {
           asset_id: string
           has_preview: boolean
           has_thumbnail: boolean
-          height: number | null
+          height: number
           media_type: Database["public"]["Enums"]["media_type"]
           uploader_id: string
-          validated_mime_type: string | null
+          validated_mime_type: string
           venue_id: string
-          width: number | null
+          width: number
         }[]
       }
       venue_coverage_summary: {
         Args: { p_venue_id?: string }
         Returns: {
-          active_menu_version_id: string | null
+          active_menu_version_id: string
           amenity_unknown_count: number
           applicable_count: number
           complete: boolean
-          current_plan_id: string | null
-          draft_plan_id: string | null
+          current_plan_id: string
+          draft_plan_id: string
           menu_state: string
           needs_reassignment_count: number
           needs_setup_count: number
@@ -3768,18 +3765,18 @@ export type Database = {
         Returns: {
           effective: boolean
           grant_id: string
-          grant_reason: string | null
+          grant_reason: string
           granted_at: string
           granted_by: string
           granted_by_name: string
-          revoke_kind: string | null
-          revoke_reason: string | null
-          revoked_at: string | null
-          revoked_by_name: string | null
+          revoke_kind: string
+          revoke_reason: string
+          revoked_at: string
+          revoked_by_name: string
           staff_active: boolean
           staff_id: string
           staff_name: string
-          staff_venue_id: string | null
+          staff_venue_id: string
           venue_id: string
           venue_name: string
         }[]

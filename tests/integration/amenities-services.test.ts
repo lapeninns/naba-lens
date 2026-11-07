@@ -132,9 +132,11 @@ describe("amenity services", () => {
       okOf(await getVenueAmenities(actors.admin, { venueId: venueA })).view
         .canEnable
     ).toBe(true)
-    expect(await listCatalogue(actors.manager, {})).toMatchObject({
-      code: "needs_setup",
-    })
+    // The catalogue can be previewed before enabling; adding needs it enabled.
+    expect(await listCatalogue(actors.manager, {})).toMatchObject({ ok: true })
+    expect(
+      await addChecks(actors.manager, { keys: ["darts"] })
+    ).toMatchObject({ code: "needs_setup" })
     expect(
       await enableAmenities(actors.manager, { venueId: venueA })
     ).toMatchObject({ code: "not_permitted" })
@@ -294,7 +296,8 @@ describe("amenity services", () => {
         answer: "no",
         reason: "Not assigned",
       })
-    ).toMatchObject({ code: "not_permitted" })
+      // A check the caller cannot see is reported as missing, not forbidden.
+    ).toMatchObject({ code: "not_found" })
 
     const input = {
       ...base,
