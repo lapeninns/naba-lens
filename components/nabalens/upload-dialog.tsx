@@ -586,7 +586,6 @@ export function UploadDialog({
     if (gone.length === 0) return
     // The screen that picked them closed: keep them listed until seen.
     unseenComing.current = true
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setUnattached((current) => {
       const next = new Map(current)
       for (const item of gone) next.set(item.id, false)
@@ -687,7 +686,6 @@ export function UploadDialog({
     if (!settledHidden || !finished || unseen > 0 || unseenComing.current)
       return
     // The queue (an external store) finished while hidden.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     clearQueue()
     // clearQueue only touches the queue and this component's state.
     // eslint-disable-next-line react-hooks/exhaustive-deps

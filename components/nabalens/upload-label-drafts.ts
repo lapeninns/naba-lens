@@ -367,36 +367,29 @@ export function useUploadLabels(
     []
   )
 
-  /** Clears labels on a ready photo: the empty choice at its revision. */
+  /**
+   * Clears labels on a ready photo: the empty choice at its revision, sent
+   * once more at the newer revision if the photo changed meanwhile.
+   */
   const clearPhoto = React.useCallback(
     (
       venueId: string,
       assetId: string,
       revision: number,
-      catalogueVersionId: string | null,
-      again = true
+      catalogueVersionId: string | null
     ) => {
       if (!config) return
-      void config
-        .save(venueId, {
+      const send = (expectedRevision: number) =>
+        config.save(venueId, {
           ...emptyInput(assetId, catalogueVersionId),
-          expectedRevision: revision,
+          expectedRevision,
         })
-        .then((result) => {
-          if (
-            again &&
-            !result.ok &&
-            result.code === "conflict" &&
-            result.current
-          )
-            clearPhoto(
-              venueId,
-              assetId,
-              result.current.revision,
-              catalogueVersionId,
-              false
-            )
-        })
+      void send(revision)
+        .then((result) =>
+          !result.ok && result.code === "conflict" && result.current
+            ? send(result.current.revision)
+            : result
+        )
         .catch(() => {})
     },
     [config]
@@ -531,9 +524,12 @@ export function useUploadLabels(
           attempted.current.delete(item.id)
           patch(item.id, (r) => {
             // A later save already answered with a newer revision: finalise's
-            // older labels are not what the photo has now.
+            // older labels are not what the photo has now. (Still pending: no
+            // save answered "saved", only a conflict at finalise's revision,
+            // so finalise's answer is what the photo has.)
             if (
               outcome.state === "saved" &&
+              r.phase !== "pending" &&
               r.revision > 0 &&
               r.revision >= outcome.labels.revision
             )

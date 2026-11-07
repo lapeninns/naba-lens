@@ -232,18 +232,25 @@ export function AddHost({
     setCatalogueAttempt((attempt) => attempt + 1)
   }, [])
   // A failed menu is tried again when the signal returns, and after a wait
-  // (5 s, doubling to a minute), so a dish never waits for it for good.
+  // (5 s, doubling to a minute), so a dish never waits for it for good. These
+  // tries keep the failed answer until a new one arrives: the dish row stays
+  // on "Labels not saved yet." rather than flipping to "Saving…" each time.
   const catalogueFailed = catalogueWanted && labelContext?.ok === false
+  const retryCatalogue = React.useCallback(
+    () => setCatalogueAttempt((attempt) => attempt + 1),
+    []
+  )
   React.useEffect(() => {
     if (!catalogueFailed) return
     const wait = Math.min(60_000, 5_000 * 2 ** (catalogueFailures.current - 1))
-    const timer = window.setTimeout(reloadCatalogue, wait)
-    window.addEventListener("online", reloadCatalogue)
+    const timer = window.setTimeout(retryCatalogue, wait)
+    window.addEventListener("online", retryCatalogue)
     return () => {
       window.clearTimeout(timer)
-      window.removeEventListener("online", reloadCatalogue)
+      window.removeEventListener("online", retryCatalogue)
     }
-  }, [catalogueFailed, reloadCatalogue])
+    // Each failed answer (a new labelContext) waits again, longer.
+  }, [catalogueFailed, labelContext, retryCatalogue])
   const catalogueProp: CatalogueProp = !labelContext
     ? { state: "loading" }
     : labelContext.ok

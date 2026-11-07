@@ -160,12 +160,10 @@ function labelsConfig(overrides: Partial<UploadLabels> = {}) {
       state: "pending",
     })
   )
-  const discard = vi.fn(
-    async (_assetId: string): Promise<UploadLabelDiscardResult | null> => ({
-      ok: true,
-      state: "discarded",
-    })
-  )
+  const discard = vi.fn(async (): Promise<UploadLabelDiscardResult | null> => ({
+    ok: true,
+    state: "discarded",
+  }))
   const attention = vi.fn(async (): Promise<PendingLabelItem[] | null> => [])
   // The photo's labels: what the last save sent to it.
   const photo = vi.fn(
@@ -1217,6 +1215,44 @@ describe("Review 1 regressions: a row never says Saved before the photo has its 
     await act(async () => {})
     expect(row("dish.jpg").textContent).toContain("Saved · Korma")
     expect(labels.save).toHaveBeenCalledTimes(3)
+  })
+
+  it("m3: changed and changed back while finalise applied the kept choice: Saved, not Saving… for good", async () => {
+    const { upload, find } = heldUploader()
+    const labels = labelsConfig()
+    sheet({ uploader: upload, labels: labels.config })
+    const user = userEvent.setup()
+    await user.upload(screen.getByLabelText("Choose photos or videos"), [
+      jpeg("dish.jpg"),
+    ])
+    act(() => find("dish.jpg").reserve("asset-1"))
+    await labels.choose((id) => input(id))
+    await waitFor(() => expect(labels.save).toHaveBeenCalledTimes(1))
+    // Korma goes out; Bhaji is chosen again before it answers.
+    const answer = heldSave(labels)
+    await labels.choose((id) => input(id, [KORMA]))
+    await waitFor(() => expect(labels.save).toHaveBeenCalledTimes(2))
+    await labels.choose((id) => input(id))
+    // Finalise applied the kept Bhaji first, so Korma conflicts.
+    await answer({
+      ok: false,
+      assetId: "asset-1",
+      code: "conflict",
+      message: "These labels changed.",
+      current: summary(["Onion Bhaji"], 1),
+    })
+    await act(async () =>
+      find("dish.jpg").resolve({
+        state: "saved",
+        labels: summary(["Onion Bhaji"], 1),
+      })
+    )
+    await waitFor(() =>
+      expect(row("dish.jpg").textContent).toContain(
+        "Saved · Onion Bhaji · waiting for manager review"
+      )
+    )
+    expect(labels.save).toHaveBeenCalledTimes(2)
   })
 
   it("m3: a successful save allows the next automatic conflict retry", async () => {

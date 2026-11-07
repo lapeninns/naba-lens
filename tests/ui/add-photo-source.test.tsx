@@ -854,10 +854,20 @@ describe("Review 1 regressions: Add host", () => {
     ).toBeTruthy()
     expect(api.posted).toEqual([])
 
-    api.menu = null
+    // Tried again when the signal returns; while that try is out the row
+    // keeps saying what is true, not "Saving…".
+    let load!: () => void
+    api.menu = () =>
+      new Promise((resolve) => {
+        load = () => resolve({ ok: true, catalogue: CATALOGUE, focus: null })
+      })
     await act(async () => {
       window.dispatchEvent(new Event("online"))
     })
+    expect(load).toBeTypeOf("function")
+    expect(fileRow("dish.jpg").textContent).toContain("Labels not saved yet.")
+    expect(fileRow("dish.jpg").textContent).not.toContain("Saving…")
+    await act(async () => load())
     await waitFor(() => expect(api.posted).toHaveLength(1))
     expect(api.posted[0].input.items).toEqual([
       { itemId: "item-bhaji", variantId: null },
