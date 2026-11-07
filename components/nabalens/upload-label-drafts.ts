@@ -129,6 +129,10 @@ type LabelRecord = {
   sentTo: string | null
   /** The server keeps them (a pending or needs-attention row). */
   held: boolean
+  /** A send got no answer: the server may keep them (DELETE to be sure). */
+  maybeHeld: boolean
+  /** Sent again once because the server still kept them for a ready asset. */
+  resent: boolean
   /** Retry re-asks whether finalise applied them, instead of sending. */
   recheck: boolean
   code: SaveLabelsErrorCode | null
@@ -167,6 +171,29 @@ export function isEmptyInput(input: SaveLabelsInput) {
   )
 }
 
+/** The copy for a refusal: menu changes always read the same (C5). */
+function problemText(code: SaveLabelsErrorCode | null, message: string | null) {
+  return !code || MENU_CODES.has(code)
+    ? MENU_CHANGED
+    : (message ?? MENU_CHANGED)
+}
+
+/** The key of labels as the server applied them. */
+function summaryKey(summary: MediaLabelSummary) {
+  return keyOf({
+    assetId: "",
+    expectedRevision: 0,
+    catalogueVersionId: null,
+    contentTypes: summary.contentTypes,
+    note: summary.note,
+    items: summary.items.map((i) => ({
+      itemId: i.itemId,
+      variantId: i.variantId,
+    })),
+    missingItem: null,
+  })
+}
+
 /** What is chosen, independent of asset, revision and menu version. */
 function keyOf(input: SaveLabelsInput) {
   return JSON.stringify([
@@ -196,6 +223,8 @@ function newRecord(venueId: string, input: SaveLabelsInput): LabelRecord {
     sent: null,
     sentTo: null,
     held: false,
+    maybeHeld: false,
+    resent: false,
     recheck: false,
     code: null,
     message: null,
@@ -219,6 +248,8 @@ export function useUploadLabels(
   const inFlight = React.useRef(new Set<string>())
   const attempted = React.useRef(new Map<string, string>())
   const seedAsked = React.useRef(new Set<string>())
+  // Files removed while a send was in flight: discard what it leaves kept.
+  const removed = React.useRef(new Set<string>())
 
   const labelable = React.useMemo(
     () =>
@@ -268,8 +299,38 @@ export function useUploadLabels(
           inFlight.current.delete(item.id)
           if (outcome.state === "saved" && item.assetId)
             config.onSaved?.(item.assetId)
+          attempted.current.delete(item.id)
           patch(item.id, (r) => {
-            if (r.phase !== "pending") return { ...r, outcome }
+            if (r.phase !== "pending") {
+              // Finalise applied what the server kept, after the person
+              // changed or cleared them (or a send got no answer): note what
+              // is on the photo, so the current choice is sent over it.
+              if (outcome.state === "saved" && item.assetId)
+                return {
+                  ...r,
+                  outcome,
+                  phase: "saved",
+                  sent: summaryKey(outcome.labels),
+                  sentTo: item.assetId,
+                  held: false,
+                  maybeHeld: false,
+                  revision: outcome.labels.revision,
+                  summary: outcome.labels,
+                  code: null,
+                  message: null,
+                }
+              if (outcome.state === "needs_attention" && r.maybeHeld)
+                return {
+                  ...r,
+                  outcome,
+                  phase: "attention",
+                  held: true,
+                  maybeHeld: false,
+                  code: outcome.code,
+                  message: problemText(outcome.code, outcome.message),
+                }
+              return { ...r, outcome }
+            }
             if (outcome.state === "saved") {
               return {
                 ...r,
@@ -286,7 +347,7 @@ export function useUploadLabels(
               phase: "attention",
               held: true,
               code: outcome.code,
-              message: outcome.message,
+              message: problemText(outcome.code, outcome.message),
             }
           })
         })
@@ -334,11 +395,18 @@ export function useUploadLabels(
                   held: true,
                   recheck: false,
                   code: row.code,
-                  message: row.message ?? MENU_CHANGED,
+                  message: problemText(row.code, row.message),
                 }
-              // Still kept although the asset is ready: send it again.
+              // Still kept although the asset is ready: send it again, once.
+              if (r.resent) return { ...r, phase: "retry", recheck: true }
               attempted.current.delete(item.id)
-              return { ...r, sent: null, phase: "draft", recheck: false }
+              return {
+                ...r,
+                sent: null,
+                phase: "draft",
+                recheck: false,
+                resent: true,
+              }
             })
           })
         continue
@@ -350,11 +418,11 @@ export function useUploadLabels(
       if (record.sent === key && record.sentTo === assetId) continue
 
       if (key === EMPTY_KEY) {
-        if (record.sent === null) continue
+        if (record.sent === null && !record.maybeHeld) continue
         if (record.phase !== "saved" || record.sentTo !== assetId) {
           // Cleared before they reached the photo: discard what is kept.
           attempted.current.set(item.id, attempt)
-          const keptFor = record.sentTo
+          const keptFor = record.sentTo ?? assetId
           inFlight.current.add(item.id)
           void (keptFor ? config.discard(keptFor) : Promise.resolve(true))
             .catch(() => false)
@@ -368,6 +436,7 @@ export function useUploadLabels(
                       sent: null,
                       sentTo: null,
                       held: false,
+                      maybeHeld: false,
                       code: null,
                       message: null,
                     }
@@ -391,9 +460,23 @@ export function useUploadLabels(
         .catch(() => null)
         .then((result) => {
           inFlight.current.delete(item.id)
+          if (removed.current.has(item.id)) {
+            // The file left the sheet meanwhile: nothing may stay kept.
+            if (!result?.ok || result.state === "pending")
+              void config.discard(assetId).catch(() => false)
+            return
+          }
           if (result?.ok && result.state === "saved") config.onSaved?.(assetId)
           patch(item.id, (r) => {
-            if (!result || (!result.ok && result.code === "unavailable"))
+            if (!result)
+              return {
+                ...r,
+                phase: "retry",
+                recheck: false,
+                sentTo: assetId,
+                maybeHeld: true,
+              }
+            if (!result.ok && result.code === "unavailable")
               return { ...r, phase: "retry", recheck: false }
             if (result.ok && result.state === "saved") {
               return {
@@ -402,6 +485,7 @@ export function useUploadLabels(
                 sent: key,
                 sentTo: assetId,
                 held: false,
+                maybeHeld: false,
                 revision: result.labels.revision,
                 summary: result.labels,
                 code: null,
@@ -415,6 +499,7 @@ export function useUploadLabels(
                 sent: key,
                 sentTo: assetId,
                 held: true,
+                maybeHeld: false,
                 code: null,
                 message: null,
               }
@@ -437,18 +522,26 @@ export function useUploadLabels(
               phase: "attention",
               held: false,
               code: result.code,
-              message: MENU_CODES.has(result.code)
-                ? MENU_CHANGED
-                : result.message,
+              message: problemText(result.code, result.message),
             }
           })
         })
     }
   }, [labelable, records, config, paused, patch])
 
+  /** Its dish (Our menu) cannot be told yet: the menu is still loading. */
+  function undecided(item: QueueItem) {
+    return (
+      !!config?.seed &&
+      !lostFile(item) &&
+      labelable.includes(item) &&
+      config.seed(item) === undefined
+    )
+  }
+
   function view(item: QueueItem): LabelView {
     const record = records[item.id]
-    if (!record) return { kind: "none" }
+    if (!record) return undecided(item) ? { kind: "saving" } : { kind: "none" }
     const empty = isEmptyInput(record.input)
     if (empty && (record.sent === null || record.sent === EMPTY_KEY))
       return { kind: "none" }
@@ -480,8 +573,9 @@ export function useUploadLabels(
   function unstored(item: QueueItem) {
     const record = records[item.id]
     const kind = view(item).kind
-    if (!record || kind === "none" || kind === "saved" || kind === "lost")
-      return false
+    if (kind === "none" || kind === "saved" || kind === "lost") return false
+    // No record yet but a dish waiting for the menu: nothing is sent yet.
+    if (!record) return true
     return !record.held || record.sent !== keyOf(record.input)
   }
 
@@ -591,7 +685,12 @@ export function useUploadLabels(
       const record = records[item.id]
       attempted.current.delete(item.id)
       seedAsked.current.delete(item.id)
-      if (record?.held && record.sentTo) void config?.discard(record.sentTo)
+      if (inFlight.current.has(item.id)) removed.current.add(item.id)
+      const kept =
+        record &&
+        (record.held || record.maybeHeld) &&
+        (record.sentTo ?? item.assetId)
+      if (kept) void config?.discard(kept).catch(() => false)
       setRecords((current) => {
         if (!current[item.id]) return current
         const next = { ...current }

@@ -88,6 +88,7 @@ type Held = {
   resolve: (labels?: UploadLabelOutcome) => void
   reject: (error: unknown) => void
   progress: (fraction: number) => void
+  signal: AbortSignal
 }
 
 /** Each attempt waits for the test; reserve() reports the asset ID. */
@@ -106,6 +107,7 @@ function heldUploader() {
           resolve(labels ? { assetId, labels } : { assetId }),
         reject,
         progress: (f) => ctx.onProgress(f),
+        signal: ctx.signal,
       })
       ctx.signal.addEventListener("abort", () => reject(new Error("aborted")))
     })
@@ -203,7 +205,7 @@ const row = (name: string) =>
 describe("Saving sheet: uploads start on pick", () => {
   it("starts every picked file at once, titled by count, with Done always available", async () => {
     const { upload, held } = heldUploader()
-    const { user, onOpenChange } = sheet({ uploader: upload })
+    const { user, onOpenChange, rerender } = sheet({ uploader: upload })
     await user.upload(screen.getByLabelText("Choose photos or videos"), [
       jpeg("a.jpg"),
       jpeg("b.jpg"),
@@ -224,8 +226,12 @@ describe("Saving sheet: uploads start on pick", () => {
     await user.click(done)
     // Hidden, not cancelled: the uploads carry on.
     expect(onOpenChange).toHaveBeenCalledWith(false)
+    rerender(false)
+    expect(held.some((h) => h.signal.aborted)).toBe(false)
     await act(async () => held[0].resolve())
+    rerender(true)
     expect(row("a.jpg").textContent).toContain("Saved")
+    expect(row("b.jpg").textContent).toContain("Saving…")
   })
 
   it("uses the singular title and Remove/Cancel per file", async () => {
@@ -471,7 +477,12 @@ describe("Saving sheet: labels by asset ID", () => {
     expect(
       screen.getByRole("button", { name: "Fix labels for dish.jpg" })
     ).toBeTruthy()
-    expect(screen.queryByText(/Discard label draft/)).toBeNull()
+    // One action: Fix labels (the photo itself is safe, so no Remove).
+    expect(
+      within(row("dish.jpg"))
+        .getAllByRole("button")
+        .map((b) => b.textContent)
+    ).toEqual(["Fix labels"])
   })
 
   it("no answer: Labels not saved yet, and Retry labels sends them again", async () => {
@@ -619,7 +630,7 @@ describe("Saving sheet: leaving", () => {
   it("Done with an incomplete choice asks first; uploads carry on either way", async () => {
     const { upload, held } = heldUploader()
     const labels = labelsConfig()
-    const { user, onOpenChange } = sheet({
+    const { user, onOpenChange, rerender } = sheet({
       uploader: upload,
       labels: labels.config,
     })
@@ -641,7 +652,13 @@ describe("Saving sheet: leaving", () => {
     await user.click(screen.getByRole("button", { name: "Done" }))
     await user.click(screen.getByRole("button", { name: "Discard labels" }))
     expect(onOpenChange).toHaveBeenCalledWith(false)
-    expect(held[0].name).toBe("a.jpg")
+    rerender(false)
+    expect(held[0].signal.aborted).toBe(false)
+    await act(async () => held[0].resolve())
+    rerender(true)
+    // Finished while hidden, so the queue cleared; a cancelled file would
+    // still be listed as needing attention.
+    expect(screen.queryByRole("list", { name: "Files" })).toBeNull()
   })
 
   it("the leave guard counts labels the server does not have yet, not kept ones", async () => {
@@ -690,7 +707,9 @@ describe("Saving sheet: leaving", () => {
     expect(loggedOut).not.toHaveBeenCalled()
     await user.click(within(ask).getByRole("button", { name: "Stay" }))
 
-    // Retried: kept by the server now, so leaving loses nothing.
+    // Retried: kept by the server now (finalise has not said otherwise), so
+    // leaving loses nothing.
+    labels.attention.mockReturnValue(new Promise(() => {}))
     await user.click(
       screen.getByRole("button", {
         name: "Retry labels for a.jpg",
@@ -703,6 +722,8 @@ describe("Saving sheet: leaving", () => {
       window.dispatchEvent(again)
       expect(again.defaultPrevented).toBe(false)
     })
+    expect(labels.attention).toHaveBeenCalled()
+    expect(row("a.jpg").textContent).toContain("Saving…")
   })
 
   it("reports files saving labels and needing attention to the host", async () => {
@@ -739,5 +760,234 @@ describe("Saving sheet: leaving", () => {
       })
     )
     expect(labels.save).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe("Saving sheet: label edge cases", () => {
+  it("cleared while finalise applied them: the empty choice is sent over the photo's labels", async () => {
+    const { upload, find } = heldUploader()
+    const labels = labelsConfig()
+    sheet({ uploader: upload, labels: labels.config })
+    const user = userEvent.setup()
+    await user.upload(screen.getByLabelText("Choose photos or videos"), [
+      jpeg("a.jpg"),
+    ])
+    act(() => find("a.jpg").reserve("asset-a"))
+    await labels.choose((id) => input(id))
+    await waitFor(() => expect(labels.save).toHaveBeenCalledTimes(1))
+    await labels.choose((id) => input(id, []))
+    await waitFor(() => expect(labels.discard).toHaveBeenCalledWith("asset-a"))
+    // Finalise got there first and put the dish on the photo.
+    labels.save.mockResolvedValueOnce({
+      ok: true,
+      assetId: "asset-a",
+      state: "saved",
+      labels: summary([], 2),
+    })
+    await act(async () =>
+      find("a.jpg").resolve({
+        state: "saved",
+        labels: summary(["Onion Bhaji"]),
+      })
+    )
+    await waitFor(() => expect(labels.save).toHaveBeenCalledTimes(2))
+    expect(labels.save).toHaveBeenLastCalledWith(
+      "venue-1",
+      expect.objectContaining({
+        assetId: "asset-a",
+        items: [],
+        expectedRevision: 1,
+      })
+    )
+    await waitFor(() =>
+      expect(row("a.jpg").textContent?.trim()).toMatch(/Saved$/)
+    )
+  })
+
+  it("a send with no answer is discarded when the person clears the labels", async () => {
+    const { upload, find } = heldUploader()
+    const labels = labelsConfig()
+    labels.save.mockRejectedValueOnce(new TypeError("Failed to fetch"))
+    sheet({ uploader: upload, labels: labels.config })
+    const user = userEvent.setup()
+    await user.upload(screen.getByLabelText("Choose photos or videos"), [
+      jpeg("a.jpg"),
+    ])
+    act(() => find("a.jpg").reserve("asset-a"))
+    await labels.choose((id) => input(id))
+    await waitFor(() => expect(row("a.jpg").textContent).toContain("Saving…"))
+    await waitFor(() => expect(labels.save).toHaveBeenCalledTimes(1))
+    await labels.choose((id) => input(id, []))
+    await waitFor(() => expect(labels.discard).toHaveBeenCalledWith("asset-a"))
+  })
+
+  it("removing a file while its labels are being sent discards what the send left", async () => {
+    const { upload, find } = heldUploader()
+    const labels = labelsConfig()
+    let answer = (_: UploadLabelPostResult) => {}
+    labels.save.mockImplementationOnce(
+      () => new Promise((resolve) => (answer = resolve))
+    )
+    sheet({ uploader: upload, labels: labels.config })
+    const user = userEvent.setup()
+    await user.upload(screen.getByLabelText("Choose photos or videos"), [
+      jpeg("a.jpg"),
+    ])
+    act(() => find("a.jpg").reserve("asset-a"))
+    await labels.choose((id) => input(id))
+    await waitFor(() => expect(labels.save).toHaveBeenCalledTimes(1))
+    await user.click(screen.getByRole("button", { name: "Cancel a.jpg" }))
+    expect(labels.discard).not.toHaveBeenCalled()
+    await act(async () =>
+      answer({ ok: true, assetId: "asset-a", state: "pending" })
+    )
+    expect(labels.discard).toHaveBeenCalledWith("asset-a")
+  })
+
+  it("finalise's own wording for a menu change still reads as C5 copy", async () => {
+    const { upload, find } = heldUploader()
+    const labels = labelsConfig()
+    sheet({ uploader: upload, labels: labels.config })
+    const user = userEvent.setup()
+    await user.upload(screen.getByLabelText("Choose photos or videos"), [
+      jpeg("a.jpg"),
+    ])
+    act(() => find("a.jpg").reserve("asset-a"))
+    await labels.choose((id) => input(id))
+    await waitFor(() => expect(labels.save).toHaveBeenCalled())
+    await act(async () =>
+      find("a.jpg").resolve({
+        state: "needs_attention",
+        code: "catalogue_changed",
+        message: "The menu changed while you were labelling.",
+      })
+    )
+    await waitFor(() =>
+      expect(row("a.jpg").textContent).toContain(
+        "The menu changed. Check the dish."
+      )
+    )
+  })
+
+  it("a dish waiting for the menu is not Saved and counts as unsaved until it is sent", async () => {
+    const { upload, find } = heldUploader()
+    const labels = labelsConfig()
+    let menu = false
+    const seed = (item: { id: string }) =>
+      menu ? { venueId: "venue-1", input: input(item.id) } : undefined
+    const { rerender } = render(
+      <UploadDialog
+        open
+        onOpenChange={vi.fn()}
+        uploader={upload}
+        limits={LIMITS}
+        startOnPick
+        keepRunningWhenClosed
+        labels={{ ...labels.config, seed }}
+      />
+    )
+    const user = userEvent.setup()
+    await user.upload(screen.getByLabelText("Choose photos or videos"), [
+      jpeg("dish.jpg"),
+    ])
+    act(() => find("dish.jpg").reserve("asset-d"))
+    await act(async () => find("dish.jpg").resolve())
+    expect(row("dish.jpg").textContent).toContain("Saving…")
+    expect(row("dish.jpg").textContent).not.toContain("Saved")
+    const unload = new Event("beforeunload", { cancelable: true })
+    window.dispatchEvent(unload)
+    expect(unload.defaultPrevented).toBe(true)
+
+    // The menu arrives: the dish is applied and sent.
+    menu = true
+    labels.save.mockResolvedValueOnce({
+      ok: true,
+      assetId: "asset-d",
+      state: "saved",
+      labels: summary(["Onion Bhaji"]),
+    })
+    rerender(
+      <UploadDialog
+        open
+        onOpenChange={vi.fn()}
+        uploader={upload}
+        limits={LIMITS}
+        startOnPick
+        keepRunningWhenClosed
+        labels={{ ...labels.config, seed }}
+      />
+    )
+    await waitFor(() =>
+      expect(row("dish.jpg").textContent).toContain(
+        "Saved · Onion Bhaji · waiting for manager review"
+      )
+    )
+  })
+
+  it("still kept for a ready photo: sent again once, then asks for Retry", async () => {
+    const { upload, find } = heldUploader()
+    const labels = labelsConfig()
+    const kept: PendingLabelItem = {
+      assetId: "asset-a",
+      venueId: "venue-1",
+      status: "pending",
+      code: null,
+      message: null,
+      input: input("asset-a"),
+      uploadState: "ready",
+      mediaType: "image",
+      thumbnailUrl: null,
+      updatedAt: "2026-11-07T10:00:00Z",
+    }
+    labels.attention.mockResolvedValue([kept])
+    sheet({ uploader: upload, labels: labels.config })
+    const user = userEvent.setup()
+    await user.upload(screen.getByLabelText("Choose photos or videos"), [
+      jpeg("a.jpg"),
+    ])
+    act(() => find("a.jpg").reserve("asset-a"))
+    await labels.choose((id) => input(id))
+    await waitFor(() => expect(labels.save).toHaveBeenCalledTimes(1))
+    await act(async () => find("a.jpg").resolve())
+    await waitFor(() =>
+      expect(row("a.jpg").textContent).toContain("Labels not saved yet.")
+    )
+    expect(labels.save).toHaveBeenCalledTimes(2)
+    expect(labels.attention).toHaveBeenCalledTimes(2)
+  })
+
+  it("a conflict is sent again once at the photo's revision", async () => {
+    const { upload, find } = heldUploader()
+    const labels = labelsConfig()
+    labels.save
+      .mockResolvedValueOnce({
+        ok: false,
+        assetId: "asset-a",
+        code: "conflict",
+        message: "These labels changed.",
+        current: summary(["Korma"], 3),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        assetId: "asset-a",
+        state: "saved",
+        labels: summary(["Onion Bhaji"], 4),
+      })
+    sheet({ uploader: upload, labels: labels.config })
+    const user = userEvent.setup()
+    await user.upload(screen.getByLabelText("Choose photos or videos"), [
+      jpeg("a.jpg"),
+    ])
+    act(() => find("a.jpg").reserve("asset-a"))
+    await act(async () => find("a.jpg").resolve())
+    await labels.choose((id) => input(id))
+    await waitFor(() => expect(labels.save).toHaveBeenCalledTimes(2))
+    expect(labels.save).toHaveBeenLastCalledWith(
+      "venue-1",
+      expect.objectContaining({ expectedRevision: 3 })
+    )
+    await waitFor(() =>
+      expect(row("a.jpg").textContent).toContain("Saved · Onion Bhaji")
+    )
   })
 })

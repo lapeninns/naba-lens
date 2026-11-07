@@ -444,7 +444,7 @@ describe("Our menu: the dish is applied by default", () => {
 
   it("applies the dish only to the files picked from it, not earlier or later ones", async () => {
     const user = userEvent.setup()
-    holdUploads()
+    const { find } = holdUploads()
     host(
       <>
         <Opener label="Me" opts={{ dialog: true }} />
@@ -472,6 +472,16 @@ describe("Our menu: the dish is applied by default", () => {
     await user.click(screen.getByRole("button", { name: "Home" }))
     await user.upload(input("library"), [jpeg("cocktail.jpg")])
     await screen.findByRole("dialog", { name: "Saving 3 photos" })
+    // Let every file reserve, then make sure only the dish photo got it.
+    await act(async () => {
+      find("early.jpg").finish()
+      find("dish.jpg").finish()
+    })
+    await waitFor(() => expect(find("cocktail.jpg")).toBeTruthy())
+    await act(async () => find("cocktail.jpg").finish())
+    await waitFor(() =>
+      expect(fileRow("cocktail.jpg").textContent).toContain("Saved")
+    )
     expect(api.posted.map((p) => p.input.assetId)).toEqual(["asset-dish.jpg"])
   })
 })
