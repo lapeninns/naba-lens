@@ -5,8 +5,10 @@
 // community_readable_assets, community_media_page, the community_members count
 // or the /api/media/[id]/* gate (getReadableAsset). The uploader and admins keep
 // it; the venue manager reads it through amenity_evidence_asset. A general
-// upload is unchanged. Real signed-in identities; the service role only builds
-// fixtures and reads state back.
+// upload is unchanged, and so is legacy Coverage media (a Coverage submission
+// item or amenity fact photo) a manager attached as evidence: Coverage review
+// and configuration screens still read it. Real signed-in identities; the
+// service role only builds fixtures and reads state back.
 import { randomUUID } from "node:crypto"
 
 import { beforeAll, describe, expect, it } from "vitest"
@@ -20,7 +22,13 @@ import {
   serviceClient,
   type TestIdentity,
 } from "../support/identities"
-import { fails, grantManager, ok } from "./coverage-fixtures"
+import {
+  fails,
+  grantManager,
+  insertAsset,
+  insertSubmittedItem,
+  ok,
+} from "./coverage-fixtures"
 
 const service = serviceClient()
 
@@ -29,6 +37,8 @@ let manager: TestIdentity
 let uploader: TestIdentity
 let sameVenue: TestIdentity
 let otherVenue: TestIdentity
+/** A colleague whose Coverage photos the manager attaches as evidence. */
+let coverageAuthor: TestIdentity
 
 /** Amenity upload attached to a submission. */
 let amenitySubmitted: string
@@ -39,6 +49,10 @@ let generalSubmitted: string
 /** General upload, not evidence. */
 let general: string
 let generalKey: string
+/** Legacy Coverage submission photo, attached by the manager. */
+let legacyItem: string
+/** Legacy amenity fact photo, attached by the manager. */
+let legacyFact: string
 
 function reserve(
   who: TestIdentity,
@@ -111,6 +125,7 @@ beforeAll(async () => {
   uploader = await staff("amen-purpose-uploader", venue)
   sameVenue = await staff("amen-purpose-same", venue)
   otherVenue = await staff("amen-purpose-other", elsewhere)
+  coverageAuthor = await staff("amen-purpose-coverage", venue)
   await grantManager(admin, manager.id, venue)
 
   await ok(admin.client.rpc("amenity_enable_venue", { p_venue_id: venue }))
@@ -149,6 +164,73 @@ beforeAll(async () => {
       p_redaction_confirmed: false,
     })
   )
+
+  // Legacy Coverage media for "outdoor_seating": one photo submitted to the
+  // venue's Coverage requirement, one on its amenity fact. The manager attaches
+  // both to a "covered_seating" check (same legacy key).
+  const { data: req, error: reqError } = await service
+    .from("coverage_requirements")
+    .insert({
+      venue_id: venue,
+      kind: "amenity",
+      title: "TEST Outdoor seating",
+      amenity_key: "outdoor_seating",
+      status: "active",
+    })
+    .select("id")
+    .single()
+  if (reqError) throw reqError
+  const itemAsset = await insertAsset(service, {
+    uploader: coverageAuthor.id,
+    venue,
+  })
+  await insertSubmittedItem(service, {
+    asset: itemAsset,
+    venue,
+    author: coverageAuthor.id,
+    submittedAt: new Date().toISOString(),
+    requirement: req!.id,
+  })
+  legacyItem = itemAsset.id
+  const { data: fact, error: factError } = await service
+    .from("venue_amenity_facts")
+    .insert({ venue_id: venue, amenity_key: "outdoor_seating" })
+    .select("id")
+    .single()
+  if (factError) throw factError
+  legacyFact = (
+    await insertAsset(service, { uploader: coverageAuthor.id, venue })
+  ).id
+  const factMedia = await service
+    .from("venue_amenity_fact_media")
+    .insert({ fact_id: fact!.id, venue_id: venue, asset_id: legacyFact })
+  if (factMedia.error) throw factMedia.error
+
+  const [coveredId] = await ok(
+    manager.client.rpc("amenity_add_checks", {
+      p_venue_id: venue,
+      p_keys: ["covered_seating"],
+    })
+  )
+  await ok(
+    manager.client.rpc("amenity_submit_finding", {
+      p_check_id: coveredId!,
+      p_revision: await revisionOf(coveredId!),
+      p_idempotency_key: randomUUID(),
+      p_answer: "yes",
+      p_finding: null as unknown as string,
+      p_limitations: null as unknown as string,
+      p_reason: null as unknown as string,
+      p_asset_ids: [legacyItem, legacyFact],
+      p_internal_metadata: null as never,
+      p_redaction_confirmed: false,
+    })
+  )
+  const { count } = await service
+    .from("amenity_submission_assets")
+    .select("asset_id", { count: "exact", head: true })
+    .in("asset_id", [legacyItem, legacyFact])
+  if (count !== 2) throw new Error("legacy evidence was not attached")
 })
 
 describe("media_assets.purpose", () => {
@@ -240,6 +322,18 @@ describe("community reads", () => {
     }
   })
 
+  it("community_readable_assets: a general own upload is hidden once attached to a submission", async () => {
+    for (const who of [sameVenue, otherVenue, manager]) {
+      expect(await readable(who, [generalSubmitted])).toEqual([])
+    }
+  })
+
+  it("community_readable_assets: an amenity upload is hidden before it is submitted", async () => {
+    for (const who of [sameVenue, otherVenue, manager]) {
+      expect(await readable(who, [amenityLoose])).toEqual([])
+    }
+  })
+
   it("community_members counts only community-visible media", async () => {
     for (const who of [sameVenue, otherVenue]) {
       const [member] = await ok(
@@ -249,6 +343,43 @@ describe("community reads", () => {
         })
       )
       expect(Number(member!.media_count)).toBe(1)
+    }
+  })
+})
+
+describe("legacy Coverage media attached as amenity evidence", () => {
+  const legacy = () => [legacyFact, legacyItem].sort()
+
+  it("community_readable_assets: still readable by same-org colleagues, as before", async () => {
+    for (const who of [sameVenue, otherVenue, manager, uploader]) {
+      expect(await readable(who, legacy())).toEqual(legacy())
+    }
+  })
+
+  it("stays in the community feed and the author's media count", async () => {
+    for (const who of [sameVenue, otherVenue]) {
+      const page = (
+        await ok(
+          who.client.rpc("community_media_page", {
+            p_uploader: coverageAuthor.id,
+            p_limit: 100,
+          })
+        )
+      ).map((r: { id: string }) => r.id)
+      expect([...page].sort()).toEqual(legacy())
+      const [member] = await ok(
+        who.client.rpc("community_members", {
+          p_member: coverageAuthor.id,
+          p_limit: 1,
+        })
+      )
+      expect(Number(member!.media_count)).toBe(2)
+    }
+  })
+
+  it("is served by the /api/media gate to colleagues", async () => {
+    for (const who of [sameVenue, otherVenue]) {
+      for (const id of legacy()) expect(await mediaGate(who, id)).toBe(200)
     }
   })
 })

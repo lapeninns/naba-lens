@@ -413,6 +413,8 @@ export function CaptureForm({
     if (upload?.addQueue)
       upload.addQueue.openAdd({
         source,
+        // Amenity evidence, never in the organisation community.
+        purpose: "amenity",
         onReady: (assetIds) => {
           if (!mounted.current) return false
           void reloadRef.current(assetIds)
