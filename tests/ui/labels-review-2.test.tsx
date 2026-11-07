@@ -98,13 +98,11 @@ describe("m13: answering the variant question in the common field", () => {
 
   it("keeps the dish off a file where it was removed (batch editor)", async () => {
     const onSave = vi.fn(async (inputs: SaveLabelsInput[]) =>
-      inputs.map(
-        (i): SaveLabelsResult => ({
-          ok: true,
-          assetId: i.assetId,
-          labels: summary({ revision: 1 }),
-        })
-      )
+      inputs.map((i): SaveLabelsResult => ({
+        ok: true,
+        assetId: i.assetId,
+        labels: summary({ revision: 1 }),
+      }))
     )
     render(
       <LabelEditorDialog
@@ -229,9 +227,7 @@ describe("m11: the menu reloads or fails after items were picked", () => {
         ? { ...CATALOGUE, versionId: "version-2" }
         : CATALOGUE
     rerender({ catalogue: { state: "ready", catalogue: next } })
-    await waitFor(() =>
-      expect(last()[0].catalogueVersionId).toBe("version-2")
-    )
+    await waitFor(() => expect(last()[0].catalogueVersionId).toBe("version-2"))
     expect(last()[0].items).toEqual([BHAJI_REF])
   })
 
@@ -294,9 +290,7 @@ describe("m12: photos restored before the menu loads", () => {
     expect(last().map((i) => i.note)).toEqual(["Own note", "Common"])
 
     rerender({ catalogue: READY })
-    await waitFor(() =>
-      expect(screen.getByText(/^Onion Bhaji/)).toBeTruthy()
-    )
+    await waitFor(() => expect(screen.getByText(/^Onion Bhaji/)).toBeTruthy())
     expect(last().map((i) => i.note)).toEqual(["Own note", "Common"])
     expect(last()[0].items).toEqual([BHAJI_REF])
   })
@@ -359,7 +353,9 @@ describe("m14: Fix labels after its menu reload lands", () => {
     const chips = () =>
       screen.getByRole("list", { name: "Selected menu items" })
     expect(within(chips()).getByText("Onion Bhaji")).toBeTruthy()
-    view.rerender(<FixLabelsDialog {...props} catalogue={{ state: "loading" }} />)
+    view.rerender(
+      <FixLabelsDialog {...props} catalogue={{ state: "loading" }} />
+    )
     view.rerender(
       <FixLabelsDialog
         {...props}

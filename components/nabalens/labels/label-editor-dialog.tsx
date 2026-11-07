@@ -542,7 +542,9 @@ function LabelEditor({
     setCommon((c) => ({
       ...c,
       items: [
-        ...c.items.filter((i) => itemKey(i) !== fromKey && itemKey(i) !== toKey),
+        ...c.items.filter(
+          (i) => itemKey(i) !== fromKey && itemKey(i) !== toKey
+        ),
         item,
       ],
     }))

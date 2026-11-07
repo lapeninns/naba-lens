@@ -250,8 +250,10 @@ export function UploadLabelPanel({
   // Restored items not named yet were picked from the menu as it was then.
   const versionFor = (id: string) => {
     const restored = restoredUnseeded(id)
-    return (restored?.items.length ? restored.catalogueVersionId : null) ??
+    return (
+      (restored?.items.length ? restored.catalogueVersionId : null) ??
       catalogueVersionId
+    )
   }
   const inputs = files.map((f) =>
     disabled.has(f.id)
