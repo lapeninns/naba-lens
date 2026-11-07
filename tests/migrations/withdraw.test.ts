@@ -21,6 +21,7 @@ const MIGRATIONS = [
   "20261107100300_manager_item_photo_rules.sql",
   "20261107100400_manager_item_photo_writes.sql",
   "20261107100500_manager_item_photo_reads.sql",
+  "20261107100700_manager_review_queue_dedupe.sql",
 ]
 const script = readFileSync(
   join(import.meta.dirname, "coverage-withdraw-access.sql"),

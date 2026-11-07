@@ -1067,6 +1067,168 @@ describe("rechecks, old-menu labels and reviewer rows after a menu change", () =
   })
 })
 
+describe("a reviewer recheck the uploader also labelled", () => {
+  let w: World
+  /** Unlabelled, assigned to korma/Small, then labelled korma/Small by staff. */
+  let both: string
+  let bothRow: string
+  /** Labelled tikka, corrected to dal by the manager; never labelled dal. */
+  let corrected: string
+  let correctedRow: string
+
+  beforeAll(async () => {
+    w = await world("mgrph-dedupe")
+    const kormaSmall = t(w.items["mains--korma"]!, 0)
+    const tikka = t(w.items["mains--tikka"]!)
+    both = await reserveReady(service, w.staff1).then((a) => a.id)
+    const first = await saveOk(w.staff1, {
+      asset: both,
+      revision: 0,
+      types: ["dish"],
+    })
+    bothRow = (await assignOk(w.mgr, both, kormaSmall, null)).photo_id
+    await saveOk(w.staff1, {
+      asset: both,
+      revision: first!.revision as number,
+      types: ["dish"],
+      items: [kormaSmall],
+      catalogue: w.version,
+    })
+    corrected = (await labelled(w.staff2, w.version, [tikka])).id
+    correctedRow = (
+      await assignOk(
+        w.mgr,
+        corrected,
+        t(w.items["mains--dal"]!),
+        tikka,
+        "It is dal"
+      )
+    ).photo_id
+    // V2: korma and dal renamed; both reviewer rows need a recheck.
+    await activateNext(
+      w,
+      "TEST manager photos dedupe v2",
+      [
+        ["mains--korma", "Chicken korma", "food"],
+        ["mains--tikka", "Tikka", "food"],
+        ["mains--dal", "Tarka dal", "food"],
+        ["mains--bhaji", "Bhaji", "food"],
+        ["mains--naan", "Naan", "food"],
+        ["drinks--lassi", "Lassi", "drinks"],
+      ],
+      w.version
+    )
+  })
+
+  it("review_queue_dedupe: one card per recheck in every set, page and count", async () => {
+    expect(await photo(bothRow)).toMatchObject({
+      state: "needs_recheck",
+      basis: "reviewer",
+      corrects_item_id: null,
+    })
+    expect(await photo(correctedRow)).toMatchObject({
+      state: "needs_recheck",
+      basis: "reviewer",
+      corrects_item_id: w.items["mains--tikka"]!.itemId,
+    })
+    const korma = w.items["mains--korma"]!.itemId
+    const dal = w.items["mains--dal"]!.itemId
+    const cards = (rows: { photo_id: string | null }[], id: string) =>
+      rows.filter((c) => c.photo_id === id)
+
+    for (const status of ["recheck", "all"] as const) {
+      const rows = await queue(w.mgr, null, status)
+      expect(cards(rows, bothRow), status).toHaveLength(1)
+      expect(cards(rows, correctedRow), status).toHaveLength(1)
+      expect(cards(rows, bothRow)[0], status).toMatchObject({
+        kind: "labelled",
+        item_id: korma,
+        photo_state: "needs_recheck",
+        basis: "reviewer",
+        group_count: 0,
+      })
+      expect(cards(rows, correctedRow)[0], status).toMatchObject({
+        kind: "decided",
+        item_id: dal,
+        corrects_item_id: w.items["mains--tikka"]!.itemId,
+        group_count: 0,
+      })
+      expect(
+        rows.filter((c) => c.item_id === korma),
+        status
+      ).toHaveLength(1)
+      expect(
+        rows.filter((c) => c.item_id === dal),
+        status
+      ).toHaveLength(1)
+      // The item filter: the same single card.
+      expect(
+        (await queue(w.mgr, null, status, { itemId: korma })).map(
+          (c) => c.photo_id
+        ),
+        status
+      ).toEqual([bothRow])
+    }
+    // Pending holds the staff-labelled tuple only, once.
+    const pending = await queue(w.mgr, null, "pending")
+    expect(cards(pending, bothRow)).toHaveLength(1)
+    expect(cards(pending, correctedRow)).toHaveLength(0)
+
+    // Keyset pages of one: every card once.
+    const keys: string[] = []
+    const photos: (string | null)[] = []
+    let after: { created_at: string; sort_key: string } | null = null
+    for (let i = 0; i < 20; i++) {
+      const [card]: {
+        created_at: string
+        sort_key: string
+        photo_id: string | null
+      }[] = await ok(
+        w.mgr.client.rpc("manager_menu_photo_queue", {
+          p_status: "all",
+          p_limit: 1,
+          ...(after
+            ? {
+                p_after_created_at: after.created_at,
+                p_after_key: after.sort_key,
+              }
+            : {}),
+        })
+      )
+      if (!card) break
+      keys.push(card.sort_key)
+      photos.push(card.photo_id)
+      after = card
+    }
+    expect(new Set(keys).size).toBe(keys.length)
+    expect(photos.filter((id) => id === bothRow)).toHaveLength(1)
+    expect(keys.length).toBe((await queue(w.mgr, null, "all")).length)
+
+    const ov = await overview(w.mgr, null)
+    expect(ov.needs_recheck_items).toBe(2)
+    expect(ov.needs_recheck_items).toBe(
+      new Set((await queue(w.mgr, null, "recheck")).map((c) => c.item_id)).size
+    )
+    expect(ov.pending_photos).toBe(pending.length)
+    const list = await items(w.mgr, null)
+    expect(byItem(list, korma)).toMatchObject({
+      needs_recheck_count: 1,
+      candidate_count: 1,
+    })
+    expect(byItem(list, dal)).toMatchObject({
+      needs_recheck_count: 1,
+      candidate_count: 0,
+    })
+    const [detail] = await ok(
+      w.mgr.client.rpc("manager_menu_photo_item", {
+        p_venue_id: w.venue,
+        p_item_id: korma,
+      })
+    )
+    expect((detail!.photos as unknown[]).length).toBe(1)
+  })
+})
+
 describe("unlabelled photos", () => {
   let w: World
   let gA: TestIdentity
