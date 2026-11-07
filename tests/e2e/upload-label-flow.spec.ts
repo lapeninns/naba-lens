@@ -589,6 +589,9 @@ test("h another staff account cannot read, apply or delete someone else's kept l
       `/api/upload-labels?assetId=${assetId}`
     )
     expect(discard.status()).toBe(200)
+    // Exactly "none": not their draft and not their photo, so never
+    // already_applied and never the owner's labels.
+    expect(await discard.json()).toEqual({ ok: true, state: "none" })
     expect(keptLabels(assetId)).toBe("pending")
     expect(keptInput(assetId)).toBe(before)
     await page.context().close()
@@ -603,7 +606,8 @@ test("h another staff account cannot read, apply or delete someone else's kept l
   const own = await owner.request.delete(
     `/api/upload-labels?assetId=${assetId}`
   )
-  expect(await own.json()).toEqual({ ok: true })
+  expect(own.status()).toBe(200)
+  expect(await own.json()).toEqual({ ok: true, state: "discarded" })
   expect(keptLabels(assetId)).toBe("")
   expect(labelsOn(assetId)).toBe("")
 })
