@@ -496,3 +496,38 @@ describe("review of these fixes", () => {
     await waitFor(() => expect(pending()).toBe(false))
   })
 })
+
+describe("N1: files changing while the menu is not ready", () => {
+  const ONE = [{ id: "f1", name: "a.jpg", kind: "image" as const }]
+  const TWO = [...ONE, { id: "f2", name: "b.jpg", kind: "image" as const }]
+
+  it("is not pending when a file is added, fails or is removed", () => {
+    const { pending, rerender } = panel({ catalogue: LOADING, files: ONE })
+    expect(pending()).toBe(false)
+    rerender({ catalogue: LOADING, files: TWO })
+    expect(pending()).toBe(false)
+    rerender({ catalogue: LOADING, files: TWO, disabledIds: ["f2"] })
+    expect(pending()).toBe(false)
+    rerender({
+      catalogue: { state: "error", message: "Menu down" },
+      files: ONE,
+    })
+    expect(pending()).toBe(false)
+  })
+
+  it("is still pending after a real edit, until the menu is ready", async () => {
+    const { user, pending, rerender } = panel({
+      catalogue: LOADING,
+      files: ONE,
+    })
+    rerender({ catalogue: LOADING, files: TWO })
+    await user.click(
+      screen.getByRole("button", { name: "More details for all photos" })
+    )
+    expect(pending()).toBe(false)
+    await user.click(screen.getByRole("button", { name: "Finished dish" }))
+    expect(pending()).toBe(true)
+    rerender({ catalogue: READY, files: TWO })
+    await waitFor(() => expect(pending()).toBe(false))
+  })
+})

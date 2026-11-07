@@ -273,14 +273,17 @@ export function UploadLabelPanel({
       .map((f) => [f.id, limitProblem(effective[f.id])])
       .filter(([, p]) => p)
   ) as Record<string, string>
-  // The host stores labels only while it knows the menu. Inputs that changed
-  // while the menu was not ready are pending until it is (then they are sent
-  // again); a menu merely loading is not: restored labels are kept as they
-  // are, and the host stores each file's own dish itself.
+  // The host stores labels only while it knows the menu. Labels the person
+  // changed while the menu was not ready are pending until it is (then they
+  // are sent again); a menu merely loading is not: restored labels are kept as
+  // they are, and the host stores each file's own dish itself. Only the
+  // person's choices are compared, so files added, removed or failed meanwhile
+  // never make it pending.
   const inputsKey = JSON.stringify(inputs)
-  const [readyInputsKey, setReadyInputsKey] = React.useState(inputsKey)
-  if (ready && readyInputsKey !== inputsKey) setReadyInputsKey(inputsKey)
-  const unstored = !ready && readyInputsKey !== inputsKey
+  const choicesKey = JSON.stringify([common, adjs])
+  const [readyChoicesKey, setReadyChoicesKey] = React.useState(choicesKey)
+  if (ready && readyChoicesKey !== choicesKey) setReadyChoicesKey(choicesKey)
+  const unstored = !ready && readyChoicesKey !== choicesKey
   const pending =
     unstored ||
     Object.values(pendingScopes).some(Boolean) ||
