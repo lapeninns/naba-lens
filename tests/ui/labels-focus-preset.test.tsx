@@ -2,7 +2,7 @@
 // Label picker focus and the Our menu preset. A work focus only orders: its
 // sections win ties and feed an empty-box "Suggested" list, its content types
 // show first, and search still covers the whole menu. A preset is an unsaved
-// draft label that the person saves (or removes) themselves.
+// applied label: a removable chip saved with the other labels unless removed.
 import {
   cleanup,
   render,
@@ -72,22 +72,29 @@ async function open(
 ) {
   const onSave = vi.fn(async (inputs: SaveLabelsInput[]) => okFor(inputs))
   const onOpenChange = vi.fn()
-  render(
-    <LabelEditorDialog
-      open
-      assets={[asset("a1")]}
-      catalogue={READY}
-      onRetryCatalogue={() => {}}
-      onOpenChange={onOpenChange}
-      onSave={onSave}
-      {...props}
-    />
-  )
+  const all = {
+    open: true,
+    assets: [asset("a1")],
+    catalogue: READY,
+    onRetryCatalogue: () => {},
+    onOpenChange,
+    onSave,
+    ...props,
+  }
+  const view = render(<LabelEditorDialog {...all} />)
   const dialog = screen.getByRole("dialog")
   await waitFor(() =>
     expect(dialog.contains(document.activeElement)).toBe(true)
   )
-  return { user: userEvent.setup(), onSave, onOpenChange, dialog }
+  return {
+    user: userEvent.setup(),
+    onSave,
+    onOpenChange,
+    dialog,
+    rerender: (
+      next: Partial<Extract<LabelEditorDialogProps, { uploadDraft?: never }>>
+    ) => view.rerender(<LabelEditorDialog {...all} {...next} />),
+  }
 }
 
 describe("catalogue focus", () => {
@@ -253,9 +260,9 @@ describe("Our menu preset", () => {
     expect(presetDraft(null, preset)).toBeNull()
   })
 
-  it("appears as an unsaved draft that the person saves", async () => {
+  it("is applied as a removable chip and saved with the labels", async () => {
     const { user, dialog, onSave } = await open({ preset })
-    expect(within(dialog).getByText("Suggested from Our menu")).toBeTruthy()
+    expect(within(dialog).getByText("Tikka Masala, Lamb added")).toBeTruthy()
     const chips = within(dialog).getByRole("list", {
       name: "Selected menu items",
     })
@@ -279,7 +286,7 @@ describe("Our menu preset", () => {
     await user.click(
       within(dialog).getByRole("button", { name: "Remove Tikka Masala, Lamb" })
     )
-    expect(within(dialog).queryByText("Suggested from Our menu")).toBeNull()
+    expect(within(dialog).queryByText("Tikka Masala, Lamb added")).toBeNull()
     await user.click(
       within(dialog).getByRole("button", { name: "Save labels" })
     )
@@ -313,7 +320,7 @@ describe("Our menu preset", () => {
       })
     ).toBeNull()
     expect(
-      within(dialog).getByText(/added as a label for the photo picked for it/)
+      within(dialog).getByText(/on the photo picked for it, not the others/)
     ).toBeTruthy()
     await user.click(
       within(dialog).getByRole("button", { name: /^Save labels/ })
@@ -323,6 +330,127 @@ describe("Our menu preset", () => {
     expect(saved.map((i) => i.assetId)).toEqual(["a4"])
     expect(saved[0].items).toEqual([
       expect.objectContaining({ itemId: preset.itemId }),
+    ])
+  })
+})
+
+describe("Our menu preset: catalogue, variants and removal", () => {
+  const bhaji = {
+    itemId: "item-bhaji",
+    variantId: null,
+    itemName: "Onion Bhaji",
+    variantName: null,
+  }
+
+  function selected(dialog: HTMLElement) {
+    return within(dialog).getByRole("list", { name: "Selected menu items" })
+  }
+
+  it("waits for a loading menu, then applies the preset once and saves it", async () => {
+    const { user, dialog, onSave, rerender } = await open({
+      preset: bhaji,
+      catalogue: { state: "loading" },
+    })
+    expect(within(dialog).queryByText("Onion Bhaji added")).toBeNull()
+    expect(
+      within(dialog).queryByRole("button", { name: "Remove Onion Bhaji" })
+    ).toBeNull()
+
+    rerender({ catalogue: READY })
+    expect(within(dialog).getByText("Onion Bhaji added")).toBeTruthy()
+    expect(
+      within(dialog).getAllByRole("button", { name: "Remove Onion Bhaji" })
+    ).toHaveLength(1)
+
+    // A later catalogue refresh does not apply it a second time.
+    rerender({ catalogue: { state: "ready", catalogue: { ...CATALOGUE } } })
+    expect(
+      within(dialog).getAllByRole("button", { name: "Remove Onion Bhaji" })
+    ).toHaveLength(1)
+
+    await user.click(
+      within(dialog).getByRole("button", { name: "Save labels" })
+    )
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1))
+    expect(onSave.mock.calls[0][0][0].items).toEqual([
+      { itemId: "item-bhaji", variantId: null },
+    ])
+  })
+
+  it("keeps a dish with variants as Not specified when the preset names none", async () => {
+    const { user, dialog, onSave } = await open({
+      preset: {
+        itemId: "item-tikka",
+        variantId: null,
+        itemName: "Tikka Masala",
+        variantName: null,
+      },
+    })
+    expect(
+      within(dialog).getByRole("button", {
+        name: "Remove Tikka Masala (Not specified)",
+      })
+    ).toBeTruthy()
+    expect(
+      within(selected(dialog)).getByText(/Tikka Masala \(Not specified\)/)
+    ).toBeTruthy()
+
+    await user.click(
+      within(dialog).getByRole("button", { name: "Save labels" })
+    )
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1))
+    expect(onSave.mock.calls[0][0][0].items).toEqual([
+      { itemId: "item-tikka", variantId: null },
+    ])
+  })
+
+  it("adds nothing for a preset no longer on the menu, so Save just closes", async () => {
+    const { user, dialog, onSave, onOpenChange } = await open({
+      preset: {
+        itemId: "item-gone",
+        variantId: null,
+        itemName: "Old Special",
+        variantName: null,
+      },
+    })
+    expect(within(dialog).queryByText(/added$/)).toBeNull()
+    expect(
+      within(dialog).queryByRole("button", { name: /^Remove / })
+    ).toBeNull()
+    expect(
+      within(dialog).queryByRole("list", { name: "Selected menu items" })
+    ).toBeNull()
+
+    await user.click(
+      within(dialog).getByRole("button", { name: "Save labels" })
+    )
+    expect(onSave).not.toHaveBeenCalled()
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it("saves only the other item after the preset chip is removed", async () => {
+    const { user, dialog, onSave } = await open({ preset: bhaji })
+    await user.click(
+      within(dialog).getByRole("button", { name: "Remove Onion Bhaji" })
+    )
+    expect(
+      within(dialog).queryByRole("button", { name: "Remove Onion Bhaji" })
+    ).toBeNull()
+
+    const box = within(dialog).getByRole("combobox", { name: /^Menu item at/ })
+    await user.type(box, "lassi")
+    await user.click(
+      within(dialog).getByRole("option", { name: /Mango Lassi/ })
+    )
+    expect(within(selected(dialog)).getByText("Mango Lassi")).toBeTruthy()
+    expect(within(selected(dialog)).queryByText("Onion Bhaji")).toBeNull()
+
+    await user.click(
+      within(dialog).getByRole("button", { name: "Save labels" })
+    )
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1))
+    expect(onSave.mock.calls[0][0][0].items).toEqual([
+      { itemId: "item-lassi", variantId: null },
     ])
   })
 })
