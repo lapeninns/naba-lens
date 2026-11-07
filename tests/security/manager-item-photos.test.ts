@@ -1,4 +1,4 @@
-// Venue manager item-photo rules (20261107100300..100500): manager accounts
+// Venue manager item-photo rules (20261107100300..100600): manager accounts
 // read Our menu through definer functions only, never decide on their own
 // photos, decide on active colleagues' photos (moved staff, converted
 // managers' history) but not leavers' (admin-only), correct staff labels,
@@ -1136,6 +1136,100 @@ describe("unlabelled photos", () => {
       "asset_has_labels",
       "P0001"
     )
+  })
+})
+
+describe("contributors with only unlabelled photos", () => {
+  let w: World
+  let gA: TestIdentity
+  let onlyDish: TestIdentity
+  let onlyTeam: TestIdentity
+  let dishPhoto: string
+
+  beforeAll(async () => {
+    w = await world("mgrph-unl-people")
+    ;[gA, onlyDish, onlyTeam] = await Promise.all([
+      staff("mgrph-unl-people-ga", w.venue),
+      staff("mgrph-unl-people-dish", w.venue),
+      staff("mgrph-unl-people-team", w.venue),
+    ])
+    await legacyStaffGrant(service, admin, gA.id, w.venue)
+    await labelled(w.staff1, w.version, [t(w.items["mains--tikka"]!)])
+    dishPhoto = await unlabelled(onlyDish, ["dish"])
+    await unlabelled(onlyTeam, ["team"])
+  })
+
+  const ids = (rows: { contributor_id: string }[]) =>
+    rows.map((r) => r.contributor_id)
+
+  it("unlabelled-only contributors: listed and found for managers and admins, as the queue shows them", async () => {
+    const contributors = await ok(
+      w.mgr.client.rpc("manager_menu_photo_contributors", {})
+    )
+    expect(ids(contributors)).toContain(onlyDish.id)
+    expect(ids(contributors)).toContain(w.staff1.id)
+    expect(ids(contributors)).not.toContain(onlyTeam.id)
+    const [one, ...rest] = await ok(
+      w.mgr.client.rpc("manager_menu_photo_contributor", {
+        p_venue_id: w.venue,
+        p_contributor_id: onlyDish.id,
+      })
+    )
+    expect(rest).toEqual([])
+    expect(one).toMatchObject({
+      contributor_id: onlyDish.id,
+      status: "here",
+      labelled_photos: 0,
+      accepted_items: 0,
+      open_follow_ups: 0,
+    })
+    expect(one!.last_upload_at).not.toBeNull()
+    // The Review queue's contributor filter shows the same photo.
+    expect(
+      (
+        await queue(w.mgr, null, "unlabelled", { contributorId: onlyDish.id })
+      ).map((c) => c.asset_id)
+    ).toEqual([dishPhoto])
+
+    const adminContributors = await ok(
+      admin.client.rpc("manager_menu_photo_contributors", {
+        p_venue_id: w.venue,
+      })
+    )
+    expect(ids(adminContributors)).toContain(onlyDish.id)
+    expect(ids(adminContributors)).not.toContain(onlyTeam.id)
+    expect(
+      await ok(
+        admin.client.rpc("manager_menu_photo_contributor", {
+          p_venue_id: w.venue,
+          p_contributor_id: onlyDish.id,
+        })
+      )
+    ).toHaveLength(1)
+  })
+
+  it("unlabelled-only contributors: hidden from legacy staff grantees; team-only uploaders hidden from everyone", async () => {
+    const grantee = await ok(
+      gA.client.rpc("manager_menu_photo_contributors", { p_venue_id: w.venue })
+    )
+    expect(ids(grantee)).toEqual([w.staff1.id])
+    expect(
+      await ok(
+        gA.client.rpc("manager_menu_photo_contributor", {
+          p_venue_id: w.venue,
+          p_contributor_id: onlyDish.id,
+        })
+      )
+    ).toEqual([])
+    for (const who of [w.mgr, admin])
+      expect(
+        await ok(
+          who.client.rpc("manager_menu_photo_contributor", {
+            p_venue_id: w.venue,
+            p_contributor_id: onlyTeam.id,
+          })
+        )
+      ).toEqual([])
   })
 })
 
