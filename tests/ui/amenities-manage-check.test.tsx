@@ -3,6 +3,7 @@ import { cleanup, render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { AmenityCheckControl } from "@/app/staff/manage/_shared/screens/amenities-controls"
 import { EvidenceTile } from "@/components/nabalens/amenities/evidence-tile"
 import {
   AmenityCheckDetail,
@@ -29,6 +30,17 @@ const refresh = vi.fn()
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh }),
 }))
+
+const actions = vi.hoisted(() => ({
+  addChecksAction: vi.fn(),
+  archiveCheckAction: vi.fn(),
+  assignCheckAction: vi.fn(),
+  enableAmenitiesAction: vi.fn(),
+  reopenCheckAction: vi.fn(),
+  restoreCheckAction: vi.fn(),
+  setCheckNotesAction: vi.fn(),
+}))
+vi.mock("@/app/_amenities/actions", () => actions)
 
 afterEach(cleanup)
 beforeEach(() => refresh.mockReset())
@@ -225,6 +237,78 @@ describe("AmenityCheckDetail: assigning and notes", () => {
     })
     expect(await screen.findByText("Notes are too long.")).toBeTruthy()
     expect(refresh).not.toHaveBeenCalled()
+  })
+})
+
+describe("AmenityCheckControl: a re-read after a write", () => {
+  const NOTES = () =>
+    screen.getByLabelText(/Notes for this venue/) as HTMLTextAreaElement
+  const at = (revision: number, notes: string | null = null) =>
+    detail({ check: { ...WIFI_CHECK, revision, notes } })
+
+  it("keeps the success notice when the saved notes come back at a new revision", async () => {
+    const user = userEvent.setup()
+    actions.setCheckNotesAction.mockResolvedValueOnce({ ok: true, revision: 8 })
+    const { rerender } = render(
+      <AmenityCheckControl detail={at(7)} basePath={BASE} />
+    )
+    await user.type(NOTES(), "Key is behind the bar ")
+    await user.click(screen.getByRole("button", { name: "Save notes" }))
+    expect(await screen.findByText("Notes saved.")).toBeTruthy()
+    expect(refresh).toHaveBeenCalledTimes(1)
+
+    // router.refresh() brings the page back at the new revision.
+    rerender(
+      <AmenityCheckControl
+        detail={at(8, "Key is behind the bar")}
+        basePath={BASE}
+      />
+    )
+    expect(screen.getByText("Notes saved.")).toBeTruthy()
+    expect(NOTES().value).toBe("Key is behind the bar")
+    expect(
+      (screen.getByRole("button", { name: "Save notes" }) as HTMLButtonElement)
+        .disabled
+    ).toBe(true)
+  })
+
+  it("keeps the conflict notice and the typed notes after the re-read", async () => {
+    const user = userEvent.setup()
+    actions.setCheckNotesAction.mockResolvedValueOnce(conflict)
+    const { rerender } = render(
+      <AmenityCheckControl detail={at(7)} basePath={BASE} />
+    )
+    await user.type(NOTES(), "My unsaved note")
+    await user.click(screen.getByRole("button", { name: "Save notes" }))
+    expect(
+      await screen.findByText(/Someone else changed this check/)
+    ).toBeTruthy()
+
+    // Someone else saved other notes meanwhile.
+    rerender(
+      <AmenityCheckControl detail={at(9, "Their note")} basePath={BASE} />
+    )
+    expect(screen.getByText(/Someone else changed this check/)).toBeTruthy()
+    expect(NOTES().value).toBe("My unsaved note")
+
+    actions.setCheckNotesAction.mockResolvedValueOnce({
+      ok: true,
+      revision: 10,
+    })
+    await user.click(screen.getByRole("button", { name: "Save notes" }))
+    expect(actions.setCheckNotesAction).toHaveBeenLastCalledWith({
+      checkId: WIFI_CHECK.id,
+      notes: "My unsaved note",
+      revision: 9,
+    })
+  })
+
+  it("shows the latest saved notes after a re-read when nothing was typed", () => {
+    const { rerender } = render(
+      <AmenityCheckControl detail={at(7, "Old")} basePath={BASE} />
+    )
+    rerender(<AmenityCheckControl detail={at(8, "New")} basePath={BASE} />)
+    expect(NOTES().value).toBe("New")
   })
 })
 

@@ -26,12 +26,15 @@ import { MEDIA_LIMITS } from "@/lib/config/media"
  */
 export function CaptureClient({
   check,
+  viewerId,
   initialAssets,
   canUpload,
   canAttachLegacy,
   doneHref,
 }: {
   check: CheckSummary
+  /** The signed-in person; their drafts are kept apart on a shared device. */
+  viewerId: string
   initialAssets: AssetsResult
   canUpload: boolean
   canAttachLegacy: boolean
@@ -45,6 +48,7 @@ export function CaptureClient({
   return (
     <CaptureForm
       check={check}
+      viewerId={viewerId}
       initialAssets={initialAssets}
       loadAssets={listSubmittableAssetsAction}
       submit={submitFindingAction}

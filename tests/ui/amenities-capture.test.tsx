@@ -14,8 +14,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
   CaptureForm,
-  loadDraft,
+  clearAllDrafts,
+  emptyDraft,
+  loadDraft as loadStoredDraft,
+  saveDraft,
   type AssetsResult,
+  type CaptureDraft,
   type SubmitHandler,
 } from "@/components/nabalens/amenities/capture"
 import {
@@ -32,6 +36,10 @@ import {
 import type { Uploader } from "@/components/nabalens/upload-queue"
 
 const CHECK_ID = "8a000000-0000-4000-8000-000000000001"
+const VIEWER_ID = "1a2b3c4d-0000-4aaa-8bbb-00000000000a"
+const OWNER = { userId: VIEWER_ID, checkId: CHECK_ID }
+const loadDraft = (checkId = CHECK_ID, userId = VIEWER_ID) =>
+  loadStoredDraft({ userId, checkId })
 
 function entry(overrides: Partial<CatalogueEntry> = {}): CatalogueEntry {
   return {
@@ -133,7 +141,9 @@ function setup({
     typeof CaptureForm
   >[0]["upload"],
   newKey = keys(),
+  viewerId = VIEWER_ID,
 }: {
+  viewerId?: string
   summary?: CheckSummary
   assets?: SubmittableAsset[]
   submit?: ReturnType<typeof vi.fn<SubmitHandler>>
@@ -146,6 +156,7 @@ function setup({
   const ui = () => (
     <CaptureForm
       check={summary}
+      viewerId={viewerId}
       initialAssets={assetsOk(assets)}
       loadAssets={loadAssets}
       submit={submit}
@@ -496,13 +507,163 @@ describe("CaptureForm", () => {
     expect(screen.getByText("1 new upload selected.")).toBeTruthy()
   })
 
-  it("shows the manager's recheck reason", () => {
+  it("shows the manager's recheck reason, wrapping a long unbroken one", () => {
+    const long = "x".repeat(400)
     setup({
-      summary: check({
-        progress: "needs_recheck",
-        recheckReason: "Password visible in the photo",
-      }),
+      summary: check({ progress: "needs_recheck", recheckReason: long }),
     })
-    expect(screen.getByText("Password visible in the photo")).toBeTruthy()
+    expect(screen.getByText(long).className).toContain("break-words")
+  })
+})
+
+describe("CaptureForm: whose draft, and which revision", () => {
+  const stored = (overrides: Partial<CaptureDraft> = {}): CaptureDraft => ({
+    ...emptyDraft(() => "old-key", 4),
+    answer: "yes",
+    finding: "Board by the bar",
+    assetIds: [PHOTO.assetId],
+    ...overrides,
+  })
+
+  it("keeps each person's draft under their own user id", async () => {
+    const { user, unmount } = setup()
+    await user.click(screen.getByRole("radio", { name: "Yes" }))
+    await waitFor(() => expect(loadDraft()?.answer).toBe("yes"))
+    expect(
+      Object.keys(window.localStorage).filter((k) => k.includes(CHECK_ID))
+    ).toEqual([`nabalens.amenity-draft.v2:${VIEWER_ID}:${CHECK_ID}`])
+    unmount()
+
+    setup({ viewerId: "someone-else" })
+    await waitFor(() =>
+      expect(
+        Object.keys(window.localStorage).filter((k) => k.includes(CHECK_ID))
+      ).toHaveLength(1)
+    )
+    expect(
+      (screen.getByRole("radio", { name: "Yes" }) as HTMLInputElement).checked
+    ).toBe(false)
+    expect(loadDraft(CHECK_ID, "someone-else")).toBeNull()
+  })
+
+  it("removes every amenity draft on this device at sign-out", () => {
+    saveDraft(OWNER, stored())
+    saveDraft({ userId: "other", checkId: "c2" }, stored())
+    window.localStorage.setItem("nabalens.amenity-draft.v1:legacy", "{}")
+    window.localStorage.setItem("nabalens.other", "kept")
+    clearAllDrafts()
+    expect(Object.keys(window.localStorage)).toEqual(["nabalens.other"])
+  })
+
+  it("keeps the words of a draft from an older revision but sends it with a new key", async () => {
+    // Sent at revision 4 (its answer lost), then recorded and reopened: now 6.
+    saveDraft(OWNER, stored({ attempted: true }))
+    const { user, submit } = setup({
+      summary: check({ revision: 6, progress: "needs_recheck" }),
+      newKey: () => "fresh-key",
+    })
+    await waitFor(() =>
+      expect(
+        (
+          screen.getByRole("textbox", {
+            name: /What you found/,
+          }) as HTMLTextAreaElement
+        ).value
+      ).toBe("Board by the bar")
+    )
+    await waitFor(() => expect(loadDraft()?.idempotencyKey).toBe("fresh-key"))
+    expect(loadDraft()).toMatchObject({ attempted: false, revision: 6 })
+    await user.click(submitButton())
+    expect(lastInput(submit)).toMatchObject({
+      revision: 6,
+      idempotencyKey: "fresh-key",
+      assetIds: [PHOTO.assetId],
+    })
+  })
+
+  it("replays the same key for a draft from the same revision", async () => {
+    saveDraft(OWNER, stored({ attempted: true }))
+    const { user, submit } = setup({ newKey: () => "fresh-key" })
+    await waitFor(() =>
+      expect((photoBox() as HTMLInputElement).checked).toBe(true)
+    )
+    await user.click(submitButton())
+    expect(lastInput(submit).idempotencyKey).toBe("old-key")
+  })
+
+  it("drops the stored draft on success even when the form was left first", async () => {
+    let answer!: (result: AmenityResult<SubmitResult>) => void
+    const submit = vi.fn<SubmitHandler>(
+      () => new Promise((resolve) => (answer = resolve))
+    )
+    const { user, unmount, onDone } = setup({ submit })
+    await user.click(screen.getByRole("radio", { name: "Yes" }))
+    await user.click(photoBox())
+    await user.click(submitButton())
+    await waitFor(() => expect(loadDraft()?.attempted).toBe(true))
+    unmount()
+    answer(sentOk())
+    await waitFor(() => expect(loadDraft()).toBeNull())
+    expect(onDone).not.toHaveBeenCalled()
+  })
+})
+
+describe("CaptureForm: Wi-Fi redaction tick follows the evidence", () => {
+  const wifi = () => withRule("both", "guest_wifi")
+  const tick = () =>
+    screen.getByRole("checkbox", {
+      name: UI_TEXT.redactionConfirm,
+    }) as HTMLInputElement
+
+  it("clears the tick when a photo or video is added or removed", async () => {
+    const { user } = setup({ summary: wifi() })
+    await user.click(photoBox())
+    await user.click(tick())
+    expect(tick().checked).toBe(true)
+    await user.click(videoBox())
+    expect(tick().checked).toBe(false)
+    await user.click(tick())
+    expect(tick().checked).toBe(true)
+    await user.click(videoBox())
+    expect(tick().checked).toBe(false)
+    // Putting the same evidence back doesn't bring an old tick back.
+    await user.click(videoBox())
+    expect(tick().checked).toBe(false)
+  })
+
+  it("keeps the tick across a reload only while the evidence is unchanged", async () => {
+    const first = setup({ summary: wifi() })
+    await first.user.click(photoBox())
+    await first.user.click(tick())
+    await waitFor(() => expect(loadDraft()?.redactionConfirmed).toBe(true))
+    first.unmount()
+
+    const same = setup({ summary: wifi() })
+    await waitFor(() =>
+      expect((photoBox() as HTMLInputElement).checked).toBe(true)
+    )
+    expect(tick().checked).toBe(true)
+    same.unmount()
+
+    // The ticked photo is gone (deleted) and another is listed instead.
+    setup({ summary: wifi(), assets: [VIDEO] })
+    await waitFor(() => expect(loadDraft()?.assetIds).toEqual([PHOTO.assetId]))
+    expect(tick().checked).toBe(false)
+  })
+
+  it("asks for the tick again when the check was reopened since", async () => {
+    saveDraft(OWNER, {
+      ...emptyDraft(() => "old-key", 4),
+      answer: "no",
+      reason: "None",
+      assetIds: [PHOTO.assetId],
+      redactionConfirmed: true,
+      redactionAssetIds: [PHOTO.assetId],
+    })
+    setup({ summary: { ...wifi(), revision: 6 } })
+    await waitFor(() =>
+      expect((photoBox() as HTMLInputElement).checked).toBe(true)
+    )
+    expect(tick().checked).toBe(false)
   })
 })

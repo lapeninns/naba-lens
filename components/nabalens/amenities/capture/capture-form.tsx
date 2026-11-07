@@ -47,6 +47,8 @@ import {
   emptyDraft,
   loadDraft,
   newIdempotencyKey,
+  reconcileDraft,
+  redactionHolds,
   saveDraft,
   type CaptureDraft,
 } from "./draft"
@@ -101,6 +103,10 @@ function isDirty(draft: CaptureDraft): boolean {
     draft.redactionConfirmed ||
     Object.values(draft.wifi).some(Boolean)
   )
+}
+
+function sameIds(a: string[], b: string[]) {
+  return a.length === b.length && a.every((id, i) => id === b[i])
 }
 
 function FieldMessage({ id, error }: { id: string; error?: string }) {
@@ -158,12 +164,13 @@ function TextInput({
 /**
  * Capture one amenity check: answer, what was found, evidence and (Wi-Fi) the
  * redaction tick and internal test notes. The whole draft, including its
- * idempotency key, is kept per check until a submit succeeds, so "Try again"
- * after a failed upload, a dropped connection or a reload sends the same
- * finding with the same key and is never recorded twice.
+ * idempotency key, is kept per person and check until a submit succeeds, so
+ * "Try again" after a failed upload, a dropped connection or a reload sends
+ * the same finding with the same key and is never recorded twice.
  */
 export function CaptureForm({
   check,
+  viewerId,
   initialAssets,
   loadAssets,
   submit,
@@ -176,6 +183,8 @@ export function CaptureForm({
   newKey = newIdempotencyKey,
 }: {
   check: CheckSummary
+  /** The signed-in person: drafts are kept per person on a shared device. */
+  viewerId: string
   initialAssets: AssetsResult
   loadAssets: (input: { checkId: string }) => Promise<AssetsResult>
   submit: SubmitHandler
@@ -209,8 +218,12 @@ export function CaptureForm({
   const redaction = needsRedactionConfirm(entry.key)
   const maxSelected = LIMITS.maxAssets
 
+  const owner = React.useMemo(
+    () => ({ userId: viewerId, checkId: check.id }),
+    [viewerId, check.id]
+  )
   const [draft, setDraft] = React.useState<CaptureDraft>(() =>
-    emptyDraft(newKey)
+    emptyDraft(newKey, check.revision)
   )
   const [restored, setRestored] = React.useState(false)
   const [assets, setAssets] = React.useState<SubmittableAsset[]>(() =>
@@ -239,19 +252,23 @@ export function CaptureForm({
     }
   }, [])
 
-  // Read the stored draft after hydration (the server has no storage).
+  // Read the stored draft after hydration (the server has no storage). A
+  // draft from another revision of the check is a new intent with a new key;
+  // a re-read after a conflict brings a new revision too.
+  const revision = check.revision
   React.useEffect(() => {
-    const stored = loadDraft(check.id)
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time restore from storage
-    if (stored) setDraft(stored)
+    const stored = loadDraft(owner)
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- restore from storage
+    setDraft((current) => reconcileDraft(stored ?? current, revision, newKey))
     setRestored(true)
-  }, [check.id])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- newKey is a stable factory
+  }, [owner, revision])
 
   React.useEffect(() => {
     if (!restored) return
-    if (isDirty(draft)) saveDraft(check.id, draft)
-    else clearDraft(check.id)
-  }, [check.id, draft, restored])
+    if (isDirty(draft)) saveDraft(owner, draft)
+    else clearDraft(owner)
+  }, [owner, draft, restored])
 
   const listed = React.useMemo(
     () => new Map(assets.map((a) => [a.assetId, a])),
@@ -266,12 +283,20 @@ export function CaptureForm({
     [selected, listed]
   )
   const ruleMet = evidenceSatisfies(rule, kinds)
+  // The tick vouches for the evidence it was given for: adding or removing a
+  // photo or video (here or before a reload) asks for it again.
+  const redactionConfirmed = redactionHolds(draft, selected)
 
-  /** Every edit after an attempt is a new intent with a new key. */
+  /**
+   * Every edit after an attempt is a new intent with a new key. Changing the
+   * evidence clears the redaction tick: it was given for other photos.
+   */
   function edit(change: (d: CaptureDraft) => CaptureDraft) {
     setOutcome((o) => (o?.kind === "sent" ? o : null))
     setDraft((current) => {
-      const next = change(current)
+      let next = change(current)
+      if (!sameIds(next.assetIds, current.assetIds))
+        next = { ...next, redactionConfirmed: false, redactionAssetIds: [] }
       return current.attempted
         ? { ...next, attempted: false, idempotencyKey: newKey() }
         : next
@@ -284,6 +309,16 @@ export function CaptureForm({
   ) {
     edit((d) => ({ ...d, [key]: value }))
     if (key in errors) setErrors((e) => ({ ...e, [key]: undefined }))
+  }
+
+  function confirmRedaction(confirmed: boolean) {
+    edit((d) => ({
+      ...d,
+      redactionConfirmed: confirmed,
+      redactionAssetIds: confirmed ? selected : [],
+    }))
+    if (errors.redactionConfirmed)
+      setErrors((e) => ({ ...e, redactionConfirmed: undefined }))
   }
 
   function setWifi(key: keyof CaptureDraft["wifi"], value: string) {
@@ -390,7 +425,7 @@ export function CaptureForm({
     if (inFlight.current) return
     // Only evidence still listed is sent (a deleted upload drops out).
     const checked = validateDraft({
-      draft: { ...draft, assetIds: selected },
+      draft: { ...draft, assetIds: selected, redactionConfirmed },
       templateKey: entry.key,
       rule,
       kinds,
@@ -410,10 +445,13 @@ export function CaptureForm({
     setOutcome(null)
     const sentDraft: CaptureDraft = {
       ...draft,
+      revision: check.revision,
       assetIds: checked.input.assetIds,
       attempted: true,
     }
     setDraft(sentDraft)
+    // Who and what was sent, even if the page is left before the answer.
+    const sentFor = owner
     let result: AmenityResult<SubmitResult>
     try {
       result = await submit(checked.input)
@@ -425,11 +463,13 @@ export function CaptureForm({
       inFlight.current = false
       if (mounted.current) setSending(false)
     }
+    // Recorded: drop the stored draft even when the form is gone, or a later
+    // visit would replay this key after a reopen.
+    if (result.ok) clearDraft(sentFor)
     if (!mounted.current) return
 
     if (result.ok) {
-      clearDraft(check.id)
-      setDraft(emptyDraft(newKey))
+      setDraft(emptyDraft(newKey, check.revision))
       setOutcome({ kind: "sent", replayed: result.replayed })
       onDone()
       return
@@ -544,7 +584,7 @@ export function CaptureForm({
           role="note"
           title="Your manager asked for a recheck"
         >
-          {check.recheckReason}
+          <span className="break-words">{check.recheckReason}</span>
         </Notice>
       ) : null}
 
@@ -731,11 +771,9 @@ export function CaptureForm({
           <label className="flex min-h-13 cursor-pointer items-start gap-3 rounded-control border border-line-control bg-panel px-4 py-3 text-body-touch has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus md:min-h-11 md:text-body-sm">
             <input
               type="checkbox"
-              checked={draft.redactionConfirmed}
+              checked={redactionConfirmed}
               disabled={sending}
-              onChange={(e) =>
-                setField("redactionConfirmed", e.currentTarget.checked)
-              }
+              onChange={(e) => confirmRedaction(e.currentTarget.checked)}
               aria-invalid={errors.redactionConfirmed ? true : undefined}
               aria-describedby={errorId("redactionConfirmed")}
               className="mt-0.5 size-5 shrink-0 accent-primary"

@@ -56,7 +56,7 @@ export function AmenityCheckControl({
 }) {
   return (
     <AmenityCheckDetail
-      key={detail.check.revision}
+      key={detail.check.id}
       detail={detail}
       basePath={basePath}
       handlers={{
