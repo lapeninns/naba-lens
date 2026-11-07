@@ -902,3 +902,66 @@ describe("Review 1 regressions: Add host", () => {
     )
   })
 })
+
+describe("Review 1 regressions: Fix labels in the Add sheet", () => {
+  it("m4: saves at the photo's revision, not revision 0", async () => {
+    const user = userEvent.setup()
+    const { find } = holdUploads()
+    host(<Opener opts={{ source: "library", preset }} />)
+    await user.click(screen.getByRole("button", { name: "Open" }))
+    await user.upload(input("library"), [jpeg("dish.jpg")])
+    const dialog = await screen.findByRole("dialog", { name: "Saving 1 photo" })
+    await waitFor(() => expect(api.posted).toHaveLength(1))
+    // Finalise put the dish on the photo: revision 1.
+    await act(async () =>
+      find("dish.jpg").finish({
+        state: "saved",
+        labels: {
+          ...EMPTY_LABEL_SUMMARY,
+          revision: 1,
+          hasLabels: true,
+          items: [
+            {
+              itemId: "item-bhaji",
+              variantId: null,
+              name: "Onion Bhaji",
+              variantName: null,
+              sectionName: "Starters",
+              labelledAs: null,
+              state: "current",
+            },
+          ],
+        },
+      })
+    )
+    await waitFor(() =>
+      expect(fileRow("dish.jpg").textContent).toContain("Saved · Onion Bhaji")
+    )
+    // A change the server refuses.
+    api.post = (sent) => ({
+      ok: false,
+      assetId: (sent as { input: { assetId: string } }).input.assetId,
+      code: "unavailable_items",
+      message: "One of these items is no longer on the menu.",
+    })
+    await user.click(
+      within(dialog).getByRole("button", { name: /^More details/ })
+    )
+    await user.click(
+      within(dialog).getByRole("button", { name: "Finished dish" })
+    )
+    await waitFor(() => expect(api.posted).toHaveLength(2))
+    expect(api.posted[1].input).toMatchObject({ expectedRevision: 1 })
+    await user.click(
+      await screen.findByRole("button", { name: "Fix labels for dish.jpg" })
+    )
+    api.post = null
+    const fix = await screen.findByRole("dialog", { name: /labels/i })
+    await user.click(within(fix).getByRole("button", { name: "Save labels" }))
+    await waitFor(() => expect(api.posted).toHaveLength(3))
+    expect(api.posted[2].input).toMatchObject({
+      assetId: "asset-dish.jpg",
+      expectedRevision: 1,
+    })
+  })
+})
