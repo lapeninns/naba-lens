@@ -2,7 +2,7 @@
 // Label picker focus and the Our menu preset. A work focus only orders: its
 // sections win ties and feed an empty-box "Suggested" list, its content types
 // show first, and search still covers the whole menu. A preset is an unsaved
-// draft label that the person saves (or removes) themselves.
+// applied label: a removable chip saved with the other labels unless removed.
 import {
   cleanup,
   render,
@@ -253,9 +253,9 @@ describe("Our menu preset", () => {
     expect(presetDraft(null, preset)).toBeNull()
   })
 
-  it("appears as an unsaved draft that the person saves", async () => {
+  it("is applied as a removable chip and saved with the labels", async () => {
     const { user, dialog, onSave } = await open({ preset })
-    expect(within(dialog).getByText("Suggested from Our menu")).toBeTruthy()
+    expect(within(dialog).getByText("Tikka Masala, Lamb added")).toBeTruthy()
     const chips = within(dialog).getByRole("list", {
       name: "Selected menu items",
     })
@@ -279,7 +279,7 @@ describe("Our menu preset", () => {
     await user.click(
       within(dialog).getByRole("button", { name: "Remove Tikka Masala, Lamb" })
     )
-    expect(within(dialog).queryByText("Suggested from Our menu")).toBeNull()
+    expect(within(dialog).queryByText("Tikka Masala, Lamb added")).toBeNull()
     await user.click(
       within(dialog).getByRole("button", { name: "Save labels" })
     )
@@ -313,7 +313,7 @@ describe("Our menu preset", () => {
       })
     ).toBeNull()
     expect(
-      within(dialog).getByText(/added as a label for the photo picked for it/)
+      within(dialog).getByText(/on the photo picked for it, not the others/)
     ).toBeTruthy()
     await user.click(
       within(dialog).getByRole("button", { name: /^Save labels/ })

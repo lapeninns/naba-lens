@@ -150,11 +150,24 @@ describe("LabelEditorDialog: search and selection", () => {
         }) as HTMLButtonElement
       ).disabled
     ).toBe(true)
-    await user.click(
-      within(again).getByRole("button", { name: "Not specified" })
-    )
+    // Choosing the dish again adds it as "Not specified" straight away.
+    const notSpecified = within(again).getByRole("button", {
+      name: "Not specified",
+    })
+    expect(notSpecified.getAttribute("aria-pressed")).toBe("true")
     expect(
-      screen.getByRole("button", { name: "Remove Tikka Masala" })
+      screen.getByRole("button", {
+        name: "Remove Tikka Masala (Not specified)",
+      })
+    ).toBeTruthy()
+    await user.click(notSpecified)
+    expect(
+      screen.queryByRole("group", { name: /Which Tikka Masala\?/ })
+    ).toBeNull()
+    expect(
+      screen.getByRole("button", {
+        name: "Remove Tikka Masala (Not specified)",
+      })
     ).toBeTruthy()
   })
 
@@ -483,7 +496,7 @@ describe("LabelEditorDialog: saving one file", () => {
       .getByRole("button", { name: "Remove Onion Bhaji" })
       .closest("li")!
     expect(chip.getAttribute("data-unavailable")).toBe("true")
-    expect(within(chip).getByText(/No longer available/)).toBeTruthy()
+    expect(within(chip).getByText(/No longer on the menu/)).toBeTruthy()
 
     await user.click(
       screen.getByRole("button", { name: "Remove unavailable items" })

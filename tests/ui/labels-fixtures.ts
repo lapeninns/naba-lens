@@ -147,3 +147,32 @@ export function asset(
     ...extra,
   }
 }
+
+/** CATALOGUE plus a dish with variants and no default (audit J4b: Momo). */
+export const MOMO_CATALOGUE: LabelCatalogue =
+  CATALOGUE.status === "active"
+    ? {
+        ...CATALOGUE,
+        sections: [
+          ...CATALOGUE.sections,
+          {
+            id: "sec-momo",
+            slug: "momo",
+            name: "Momo",
+            kind: "food",
+            items: [
+              {
+                itemId: "item-momo",
+                name: "Momo",
+                description: "Steamed dumplings",
+                aliases: [],
+                variants: [
+                  { variantId: "var-veg", name: "Veg" },
+                  { variantId: "var-momo-chicken", name: "Chicken" },
+                ],
+              },
+            ],
+          },
+        ],
+      }
+    : CATALOGUE

@@ -33,6 +33,8 @@ import {
   type ContentType,
   type LabelEditorAsset,
   type MediaLabelSummary,
+  type SaveLabelsErrorCode,
+  type SaveLabelsInput,
   type SaveLabelsResult,
 } from "@/lib/menus/types"
 import { cn } from "@/lib/utils"
@@ -44,8 +46,10 @@ import {
   IDLE,
   NO_ADJUST,
   addItem,
+  adjustFromInput,
   adoptCurrent,
   buildSaveInput,
+  draftItemsFromRefs,
   effectiveLabels,
   isDirty,
   isPickable,
@@ -76,12 +80,32 @@ type FileState = {
   status: FileStatus
 }
 
+/** Shown when Save is pressed while a menu item choice is unfinished. */
+export const PENDING_CHOICE_TEXT =
+  "Finish choosing the menu item first: choose it from the list, or clear the search."
+
+/**
+ * FixLabelsDialog's mode: reopen a stored draft (labels that could not be
+ * saved) against the current menu, and always save it.
+ */
+export type FixDraft = {
+  draft: SaveLabelsInput
+  problem?: { code: SaveLabelsErrorCode; message: string } | null
+}
+
+type LabelEditorProps = LabelEditorDialogProps & { fix?: FixDraft }
+
 /**
  * Optional labels for 1..10 files of one venue. Presentational: the host
  * loads the catalogue and saves through `onSave`. Mounted only while open, so
  * every opening starts from the assets' saved labels.
  */
 export function LabelEditorDialog(props: LabelEditorDialogProps) {
+  return <LabelEditorRoot {...props} />
+}
+
+/** LabelEditorDialog plus the internal fix mode (FixLabelsDialog). */
+export function LabelEditorRoot(props: LabelEditorProps) {
   if (!props.open || props.assets.length === 0) return null
   return (
     <LabelEditor key={props.assets.map((a) => a.id).join(",")} {...props} />
@@ -284,7 +308,8 @@ function LabelEditor({
   focus = null,
   preset = null,
   presetAssetIds,
-}: LabelEditorDialogProps) {
+  fix,
+}: LabelEditorProps) {
   const uid = React.useId()
   const batch = assets.length > 1
   const venueName = assets[0].venueName
@@ -306,11 +331,25 @@ function LabelEditor({
   const [focusTarget, setFocusTarget] = React.useState<{ id: string } | null>(
     null
   )
+  // Menu searches with an unfinished choice, by scope ("common" or asset id).
+  const [pendingScopes, setPendingScopes] = React.useState<
+    Record<string, boolean>
+  >({})
+  const [choiceError, setChoiceError] = React.useState(false)
+  const choicePending = Object.values(pendingScopes).some(Boolean)
+  if (choiceError && !choicePending) setChoiceError(false)
+  function pendingFor(scope: string) {
+    return (pending: boolean) =>
+      setPendingScopes((prev) =>
+        !!prev[scope] === pending ? prev : { ...prev, [scope]: pending }
+      )
+  }
 
   const ids = {
     problem: (assetId: string) => `${uid}-problem-${assetId}`,
     panel: (assetId: string) => `${uid}-panel-${assetId}`,
     network: `${uid}-network`,
+    choice: `${uid}-choice`,
     status: `${uid}-status`,
   }
 
@@ -325,11 +364,36 @@ function LabelEditor({
     [ready, focus]
   )
 
-  // A suggested item (Our menu's photo request) goes in once, as an unsaved
-  // draft, as soon as the menu is loaded, on the files it came with only: a
-  // common item when that is every file of a batch, else on each of those
-  // files. Earlier files in the same batch stay as they were. Saving stays the
-  // person's choice.
+  // Fix mode: the stored draft goes in once the menu is loaded, named from the
+  // current menu; items it no longer offers are flagged for removal. Saving
+  // waits until then, so the draft is never replaced by the saved labels.
+  const [fixPending, setFixPending] = React.useState(!!fix)
+  const [seeded, setSeeded] = React.useState<Record<string, FileState> | null>(
+    null
+  )
+  if (fixPending && ready) {
+    setFixPending(false)
+    const a = assets[0]
+    const items = draftItemsFromRefs(ready, fix!.draft.items, a.labels.items)
+    const next = {
+      ...files,
+      [a.id]: {
+        base: a.labels,
+        adj: adjustFromInput(a.labels, fix!.draft, items),
+        status: fix!.problem
+          ? ({ kind: "error", ...fix!.problem } as FileStatus)
+          : IDLE,
+      },
+    }
+    setSeeded(next)
+    setFiles(next)
+  }
+
+  // A preset (Our menu's dish, a task's dish) is applied as soon as the menu
+  // is loaded, as a removable chip, on the files it came with only: a common
+  // item when that is every file of a batch, else on each of those files.
+  // Earlier files in the same batch stay as they were. It is saved with the
+  // other labels unless the person removes it.
   const presetTargets = assets
     .filter((a) => !presetAssetIds || presetAssetIds.includes(a.id))
     .map((a) => a.id)
@@ -488,8 +552,15 @@ function LabelEditor({
   // -------------------------------------------------------------------------
 
   async function save() {
-    if (pending) return
+    if (pending || fixPending) return
     setNetworkError(false)
+    if (choicePending) {
+      // Never close (or save) over a half-made choice (audit J4b).
+      setChoiceError(true)
+      setAnnouncement("")
+      setFocusTarget({ id: ids.choice })
+      return
+    }
 
     const nextProblems: Record<string, string> = {}
     for (const id of dirtyIds) {
@@ -505,7 +576,8 @@ function LabelEditor({
       return
     }
 
-    const targets = assets.filter((a) => dirtyIds.includes(a.id))
+    // A fix always saves: that is what clears the stored draft.
+    const targets = fix ? assets : assets.filter((a) => dirtyIds.includes(a.id))
     if (targets.length === 0) {
       onOpenChange(false)
       return
@@ -606,7 +678,9 @@ function LabelEditor({
 
   function requestClose() {
     if (pending) return
-    if (dirtyIds.length > 0) setConfirmOpen(true)
+    // A fix only asks when the stored draft was edited: closing keeps it.
+    const unsaved = fix ? !fixPending && files !== seeded : dirtyIds.length > 0
+    if (unsaved) setConfirmOpen(true)
     else onOpenChange(false)
   }
 
@@ -665,6 +739,20 @@ function LabelEditor({
             removeItem(adj, item.key, item.saved || item.fromCommon)
           )
         }
+        onReplaceItem={(fromKey, item) =>
+          adjust(asset.id, (adj) =>
+            addItem(
+              removeItem(
+                adj,
+                fromKey,
+                f.base.items.some((i) => itemKey(i) === fromKey) ||
+                  common.items.some((i) => itemKey(i) === fromKey)
+              ),
+              item
+            )
+          )
+        }
+        onPendingChange={pendingFor(asset.id)}
         onRestoreItem={(item) => adjust(asset.id, (adj) => addItem(adj, item))}
         contentTypes={eff.contentTypes}
         onToggleType={(type) => toggleFileType(asset.id, type)}
@@ -763,11 +851,13 @@ function LabelEditor({
             <DialogHeader>
               <DialogTitle>{heading}</DialogTitle>
               <DialogDescription>
-                {uploadDraft
-                  ? "Uploads continue while you label. Each file gets its labels once it finishes processing."
-                  : audience === "staff"
-                    ? "Your uploads stay in your portfolio. Saved dish and content type labels also group them in the admin library."
-                    : "Saved dish and content type labels determine which folders show these files in the library."}
+                {fix
+                  ? `These labels haven't been saved on the ${assets[0].mediaType === "video" ? "video" : "photo"} yet. Check them against the current menu, then save.`
+                  : uploadDraft
+                    ? "Uploads continue while you label. Each file gets its labels once it finishes processing."
+                    : audience === "staff"
+                      ? "Your uploads stay in your portfolio. Saved dish and content type labels also group them in the admin library."
+                      : "Saved dish and content type labels determine which folders show these files in the library."}
               </DialogDescription>
             </DialogHeader>
 
@@ -805,10 +895,24 @@ function LabelEditor({
             ) : null}
 
             {suggested && suggestedShown ? (
-              <Notice tone="plain" title="Suggested from Our menu">
+              <Notice
+                tone="plain"
+                title={`${itemDisplayName(suggested)} added`}
+              >
                 {presetTargets.length < assets.length
-                  ? `${itemDisplayName(suggested)} is added as a label for the ${presetTargets.length === 1 ? `${noun} picked` : `${presetTargets.length} ${nouns} picked`} for it, not the others. It's saved only when you choose Save labels; remove it if it isn't in the ${presetTargets.length === 1 ? noun : nouns}.`
-                  : `${itemDisplayName(suggested)} is added as a label for ${batch ? `these ${nouns}` : `this ${noun}`}. It's saved only when you choose Save labels; remove it if it isn't in the ${batch ? nouns : noun}.`}
+                  ? `It's on the ${presetTargets.length === 1 ? `${noun} picked` : `${presetTargets.length} ${nouns} picked`} for it, not the others, and is saved with the other labels. Remove it if it isn't in the ${presetTargets.length === 1 ? noun : nouns}.`
+                  : `It's on ${batch ? `these ${nouns}` : `this ${noun}`} and is saved with the other labels. Remove it if it isn't in the ${batch ? nouns : noun}.`}
+              </Notice>
+            ) : null}
+
+            {choiceError ? (
+              <Notice
+                tone="negative"
+                id={ids.choice}
+                tabIndex={-1}
+                title="Nothing saved yet"
+              >
+                {PENDING_CHOICE_TEXT}
               </Notice>
             ) : null}
 
@@ -849,6 +953,20 @@ function LabelEditor({
                     unavailableKeys={unavailableKeysFor(commonEff.items)}
                     onAddItem={addCommonItem}
                     onRemoveItem={removeCommonItem}
+                    onReplaceItem={(fromKey, item) =>
+                      setCommon((c) => ({
+                        ...c,
+                        items: [
+                          ...c.items.filter(
+                            (i) =>
+                              itemKey(i) !== fromKey &&
+                              itemKey(i) !== itemKey(item)
+                          ),
+                          item,
+                        ],
+                      }))
+                    }
+                    onPendingChange={pendingFor("common")}
                     contentTypes={common.contentTypes}
                     onToggleType={toggleCommonType}
                     note={common.note}
@@ -1001,8 +1119,8 @@ function LabelEditor({
               id={`${uid}-save`}
               type="submit"
               size="touch"
-              disabled={pending || catalogue.state === "loading"}
-              aria-busy={pending || catalogue.state === "loading"}
+              disabled={pending || catalogue.state === "loading" || fixPending}
+              aria-busy={pending || catalogue.state === "loading" || fixPending}
             >
               {pending
                 ? "Saving…"
