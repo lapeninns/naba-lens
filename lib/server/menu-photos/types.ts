@@ -277,8 +277,27 @@ export type DecisionOutcome = {
    * its other loaded cards need this revision for the next decision.
    */
   correctsItem?: { itemId: string; itemRevision: number } | null
-  /** Fresh cards of this item for the current status (the asset's own cards on stale and unlabelled views). */
+  /**
+   * Fresh cards of this item for the current status (the asset's own cards on
+   * stale and unlabelled views): the first page, plus the decided photo's own
+   * cards when they sit on a later page.
+   */
   cards: QueueCard[]
+  /** The view status the cards were read for. */
+  status?: QueueStatus
+  /**
+   * `cards` hold every card of the item in the status set. False when more
+   * pages exist or the re-read failed: a loaded card missing from `cards` may
+   * still be current.
+   */
+  cardsComplete?: boolean
+  /**
+   * `cards` say for certain whether the decided photo is still in the view:
+   * its card is in them, or the re-read went through every page without it.
+   * False (or absent) when a read failed or stopped early: its absence then
+   * says nothing, and the client falls back to what the action itself implies.
+   */
+  decidedKnown?: boolean
 }
 
 export type Page<T> = { items: T[]; nextCursor: string | null }
@@ -292,6 +311,12 @@ export type MenuPhotoFailure = CoverageFailure & {
    * `current` may still be current.
    */
   currentComplete?: boolean
+  /**
+   * revision_conflict: `current` says for certain whether the decided photo's
+   * card for the conflicting item is still in the view (it is in `current`,
+   * or every page was read without it).
+   */
+  currentDecidedKnown?: boolean
   /** state_conflict: the screen is out of date; offer Refresh. */
   needsRefresh?: boolean
 }

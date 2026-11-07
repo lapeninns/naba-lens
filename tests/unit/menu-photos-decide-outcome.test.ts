@@ -71,7 +71,13 @@ describe("decideMenuPhoto: the item's menu photo in the outcome", () => {
     const ctx = ctxWith({ data: null, error: { message: "boom" } })
     read.listReviewQueue.mockResolvedValue({
       ok: true,
-      items: [{ key: "k", item: { itemId: ITEM, covered: true } }],
+      items: [
+        {
+          key: "k",
+          asset: { assetId: id(0xa1) },
+          item: { itemId: ITEM, covered: true },
+        },
+      ],
       nextCursor: null,
     })
     const result = await decideMenuPhoto(ctx, input, { status: "accepted" })

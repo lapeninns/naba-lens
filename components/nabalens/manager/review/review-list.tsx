@@ -324,7 +324,18 @@ export function ReviewList({
               itemId,
               result.current ?? [],
               keep,
-              result.currentComplete === true
+              result.currentComplete === true,
+              {
+                key: card.key,
+                // An itemless card's own row is in the re-read only on the
+                // stale and unlabelled views (read for its photo); elsewhere
+                // the re-read is of the picked item and says nothing of it.
+                known:
+                  result.currentDecidedKnown === true &&
+                  (card.item !== null ||
+                    view.status === "stale_label" ||
+                    view.status === "unlabelled"),
+              }
             )
           )
           focusTargetRef.current = "notice"
@@ -365,7 +376,8 @@ export function ReviewList({
         cardsRef.current,
         card,
         act,
-        outcome,
+        // The view this list shows, should the server not echo it.
+        { ...outcome, status: outcome.status ?? view.status },
         keep,
         targetName
       )

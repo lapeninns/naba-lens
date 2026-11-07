@@ -14,6 +14,7 @@ import type {
   QueueStatus,
 } from "./types"
 import { isQueueStatus, parseDecideInput } from "./validate"
+import { staysInView } from "./view-rules"
 
 // Item-photo decisions from the manager workspace (and the admin Review page).
 // Thin local wrappers call the four RPCs directly and map errors through
@@ -158,26 +159,62 @@ function callFor(i: DecideInput) {
 
 const ITEMLESS: readonly QueueStatus[] = ["stale_label", "unlabelled"]
 
+/** Later pages read, at most, looking for the decided photo's card. */
+export const DECIDED_SCAN_PAGES = 10
+
+type Fresh = {
+  cards: QueueCard[]
+  /** Every card of the item in the status set is in `cards`. */
+  complete: boolean
+  /** `cards` say for certain whether the decided photo's card is in the view. */
+  decidedKnown: boolean
+}
+
 /**
  * The cards to show after a decision: the item's cards for the current
  * status (on the stale and unlabelled views, which have no item, the asset's
- * own cards). Empty when the re-read fails: the decision itself stands.
+ * own cards). The first page only, except the decided photo: when it is not
+ * on that page, later pages are read for its card, so the client always has
+ * its row and never reads absence from a partial page as "left the view".
+ * Empty and unknown when the re-read fails: the decision itself stands.
  */
 async function freshCards(
   ctx: ManagerPhotoCtx,
   status: QueueStatus,
   itemId: string,
-  assetId: string
-): Promise<{ cards: QueueCard[]; complete: boolean }> {
-  const page = await listReviewQueue(ctx, { status, itemId })
-  if (!page.ok) return { cards: [], complete: false }
-  return {
-    cards: ITEMLESS.includes(status)
-      ? page.items.filter((c) => c.asset.assetId === assetId)
-      : page.items,
-    // Only a full read says a loaded card missing from it is no longer current.
-    complete: page.nextCursor === null,
+  variantId: string | null,
+  assetId: string,
+  /** False when the decision is known to have taken the photo out of the view. */
+  scanForDecided = true
+): Promise<Fresh> {
+  const itemless = ITEMLESS.includes(status)
+  // One photo may have a card per variant of the item: only the decided
+  // variant's card is the decided card.
+  const isDecided = (c: QueueCard) =>
+    c.asset.assetId === assetId &&
+    (itemless ||
+      (c.item?.itemId === itemId && (c.item.variantId ?? null) === variantId))
+  const first = await listReviewQueue(ctx, { status, itemId })
+  if (!first.ok) return { cards: [], complete: false, decidedKnown: false }
+  const cards = itemless ? first.items.filter(isDecided) : [...first.items]
+  // Only a full read says a loaded card missing from it is no longer current.
+  const complete = first.nextCursor === null
+  let found = cards.some(isDecided)
+  let cursor = first.nextCursor
+  for (
+    let n = 0;
+    scanForDecided && !found && cursor && n < DECIDED_SCAN_PAGES;
+    n++
+  ) {
+    const page = await listReviewQueue(ctx, { status, itemId, cursor })
+    if (!page.ok) break
+    const seen = new Set(cards.map((c) => c.key))
+    const hits = page.items.filter((c) => isDecided(c) && !seen.has(c.key))
+    cards.push(...hits)
+    found = hits.length > 0
+    cursor = page.nextCursor
   }
+  return { cards, complete, decidedKnown: found || cursor === null }
 }
 
 type ItemState = {
@@ -234,13 +271,33 @@ export async function decideMenuPhoto(
       [i.assetId]
     )
     if (failed.code !== "revision_conflict") return failed
-    const fresh = await freshCards(ctx, status, i.itemId, i.assetId)
-    return { ...failed, current: fresh.cards, currentComplete: fresh.complete }
+    const fresh = await freshCards(
+      ctx,
+      status,
+      i.itemId,
+      i.variantId ?? null,
+      i.assetId
+    )
+    return {
+      ...failed,
+      current: fresh.cards,
+      currentComplete: fresh.complete,
+      currentDecidedKnown: fresh.decidedKnown,
+    }
   }
 
   const { written } = result
   const [fresh, state] = await Promise.all([
-    freshCards(ctx, status, written.itemId, i.assetId),
+    // A decision that takes the photo out of this view needs no search for
+    // its card past the first page: the client settles it from the action.
+    freshCards(
+      ctx,
+      status,
+      written.itemId,
+      i.variantId ?? null,
+      i.assetId,
+      staysInView(status, i.action) !== false
+    ),
     itemState(ctx, written.itemId),
   ])
   // Without the item read, the fresh cards still carry its coverage; the menu
@@ -265,6 +322,9 @@ export async function decideMenuPhoto(
         : {}),
       correctsItem: written.correctsItem ?? null,
       cards: fresh.cards,
+      status,
+      cardsComplete: fresh.complete,
+      decidedKnown: fresh.decidedKnown,
     },
   }
 }

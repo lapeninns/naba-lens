@@ -33,6 +33,8 @@ import {
   availableActions,
   mergeOutcome,
   ownPhotoBlocked,
+  staysInView,
+  type CardAction,
   type ListCard,
 } from "@/components/nabalens/manager/review/card-model"
 import type {
@@ -42,9 +44,12 @@ import type {
 import { REVIEW_COPY } from "@/components/nabalens/manager/review/review-copy"
 import { ReviewList } from "@/components/nabalens/manager/review/review-list"
 import type {
+  DecisionAction,
   DecisionOutcome,
   ManagerMenuItem,
+  PhotoState,
   QueueCard,
+  QueueStatus,
 } from "@/lib/server/menu-photos/types"
 
 afterEach(cleanup)
@@ -740,5 +745,566 @@ describe("Item page waiting list", () => {
     expect(screen.queryByRole("link", { name: "Soup" })).toBeNull()
     await user.click(screen.getByRole("button", { name: REVIEW_COPY.accept }))
     await waitFor(() => expect(nav.refresh).toHaveBeenCalledTimes(1))
+  })
+})
+
+describe("the decided card and the retained cards: decision x view x page", () => {
+  // Every decision a card offers, on every view, with the item's cards on one
+  // page (complete) or more (the decided card beyond the first 24). The server
+  // returns the decided photo's row wherever it sits ("known"), or could not
+  // read past the first page ("unknown"): then the action alone decides, and
+  // absence from the page never means the card left.
+  type Variant = { status: QueueStatus; name: string; make: CardFor }
+  type CardFor = (n: number) => QueueCard
+  const base = (n: number, over: Partial<QueueCard> = {}): QueueCard =>
+    card({
+      key: id(0x6000 + n),
+      labelId: id(0x6000 + n),
+      asset: { ...card().asset, assetId: id(0x7000 + n) },
+      item: { ...card().item!, covered: true },
+      groupCount: 0,
+      ...over,
+    })
+  const decidedRow = (n: number, state: PhotoState): Partial<QueueCard> => ({
+    kind: "decided",
+    key: id(0x8000 + n),
+    labelId: null,
+    photoId: id(0x8000 + n),
+    basis: "staff_label",
+    state,
+  })
+  const variants: Variant[] = [
+    { status: "pending", name: "waiting", make: (n) => base(n) },
+    {
+      status: "mine",
+      name: "own (admin)",
+      make: (n) => base(n, { isSelf: true }),
+    },
+    {
+      status: "recheck",
+      name: "staff-label recheck",
+      make: (n) =>
+        base(n, {
+          ...decidedRow(n, "needs_recheck"),
+          kind: "labelled",
+          labelId: id(0x6000 + n),
+          recheckKind: "name_changed",
+        }),
+    },
+    {
+      status: "needs_another_photo",
+      name: "asked for another",
+      make: (n) => base(n, decidedRow(n, "better_photo_requested")),
+    },
+    {
+      status: "accepted",
+      name: "reviewer-matched accepted",
+      make: (n) =>
+        base(n, {
+          ...decidedRow(n, "accepted"),
+          basis: "reviewer",
+          staffLabels: [],
+        }),
+    },
+    {
+      status: "stale_label",
+      name: "stale label",
+      make: (n) =>
+        base(n, {
+          kind: "stale",
+          item: null,
+          itemRevision: 0,
+          staffLabels: [{ ...card().staffLabels[0], onMenu: false }],
+        }),
+    },
+    {
+      status: "unlabelled",
+      name: "unlabelled",
+      make: (n) =>
+        base(n, {
+          kind: "unlabelled",
+          labelId: null,
+          item: null,
+          staffLabels: [],
+          itemRevision: 0,
+        }),
+    },
+    { status: "all", name: "waiting", make: (n) => base(n) },
+    {
+      status: "all",
+      name: "accepted",
+      make: (n) => base(n, decidedRow(n, "accepted")),
+    },
+  ]
+  const after = (action: DecisionAction): PhotoState | null =>
+    action === "ask_another"
+      ? "better_photo_requested"
+      : action === "withdraw"
+        ? null
+        : "accepted"
+  const moves = (a: DecisionAction) =>
+    a === "relink" || a === "assign_stale" || a === "assign_unlabelled"
+
+  /** What the database does: is the decided photo's card, as shown, still in the view? */
+  function truth(status: QueueStatus, action: CardAction): boolean {
+    if (action === "also_assign") return true
+    // A withdrawn photo is in no decided set, and its label no longer waits.
+    if (action === "withdraw") return false
+    const state = after(action)
+    switch (status) {
+      case "accepted":
+        return state === "accepted"
+      case "needs_another_photo":
+        return state === "better_photo_requested"
+      case "all":
+        return true
+      default:
+        return false
+    }
+  }
+
+  type Row = {
+    view: string
+    status: QueueStatus
+    action: CardAction
+    complete: boolean
+    known: boolean
+    make: CardFor
+  }
+  const rows: Row[] = []
+  for (const v of variants)
+    for (const action of availableActions(v.make(0), "admin"))
+      for (const complete of [true, false])
+        for (const known of [true, false])
+          rows.push({
+            view: `${v.status} (${v.name})`,
+            status: v.status,
+            action,
+            complete,
+            known,
+            make: v.make,
+          })
+
+  it("covers every decision kind and every view", () => {
+    const kinds = new Set(rows.map((r) => r.action))
+    for (const a of [
+      "accept",
+      "accept_preferred",
+      "set_preferred",
+      "ask_another",
+      "withdraw",
+      "reaccept",
+      "relink",
+      "assign_stale",
+      "assign_unlabelled",
+      "also_assign",
+    ] as CardAction[])
+      expect(kinds).toContain(a)
+    expect(new Set(rows.map((r) => r.status)).size).toBe(8)
+  })
+
+  it.each(rows)(
+    "$view, $action, complete=$complete, decided row known=$known",
+    ({ status, action, complete, known, make }) => {
+      const total = complete ? 10 : 30
+      const at = complete ? 6 : 26 // beyond the 24-card page when incomplete
+      const list: ListCard[] = Array.from({ length: total }, (_, n) => make(n))
+      const decided = list[at]
+      const act = action === "also_assign" ? "assign_unlabelled" : action
+      const target = moves(act) || action === "also_assign" ? PIE : SOUP
+      const itemless = decided.item === null
+      const stays = truth(status, action)
+      // The decided photo's row after the decision, as the server reads it.
+      const row: QueueCard = {
+        ...decided,
+        key: id(0x9000 + at),
+        kind: "decided",
+        photoId: id(0x9000 + at),
+        state: after(act),
+        isPrimary: act === "set_preferred" || act === "accept_preferred",
+        isEffectivePrimary:
+          act === "set_preferred" || act === "accept_preferred",
+        item: target === PIE ? pieCard(0x21).item : decided.item,
+        itemRevision: 8,
+      }
+      const others = list.filter((c) => c.key !== decided.key)
+      const pageOf = itemless || target === PIE ? [] : others
+      const firstPage = pageOf
+        .slice(0, 24)
+        .map((c) => ({ ...c, itemRevision: 8 }))
+      const cards = [...firstPage, ...(stays && known ? [row] : [])]
+      const next = mergeOutcome(
+        list,
+        decided,
+        act,
+        decision({
+          action: act,
+          itemId: target,
+          itemRevision: 8,
+          status,
+          cards,
+          cardsComplete: complete,
+          decidedKnown: known,
+        }),
+        () => true,
+        target === PIE ? "Pie" : "Soup"
+      )
+
+      // The decided card.
+      const mine = next[at]
+      if (action === "also_assign") {
+        // Its own row (for Soup) is unchanged; Pie's card is another card.
+        expect(mine).toBe(decided)
+        expect(availableActions(mine, "admin").length).toBeGreaterThan(0)
+      } else if (known) {
+        expect(mine.settled ?? false).toBe(!stays)
+        if (stays) expect(mine).toBe(row)
+      } else {
+        const predicted = staysInView(status, act)
+        // Where the action alone says, it agrees with the database. (A move
+        // is the exception: the card shown is for its old item, and its new
+        // item's card, when the view lists it, is another row.)
+        if (predicted !== undefined && !moves(act))
+          expect(predicted).toBe(stays)
+        expect(mine.settled ?? false).toBe(predicted === false)
+        expect(mine.key).toBe(decided.key)
+        if (!mine.settled) {
+          expect(mine.state).toBe(after(act))
+          expect(mine.itemRevision).toBe(8)
+        }
+      }
+      if (act === "set_preferred" && !mine.settled) {
+        expect(mine.isEffectivePrimary).toBe(true)
+        expect(availableActions(mine, "admin")).toContain("withdraw")
+      }
+
+      // The retained cards: all still there, none settled, all actionable.
+      for (const c of others) {
+        const kept = next.find(
+          (k) =>
+            k.key === c.key ||
+            (k.asset.assetId === c.asset.assetId && k !== mine)
+        )!
+        expect(kept, c.key).toBeTruthy()
+        expect(kept.settled ?? false).toBe(false)
+        expect(availableActions(kept, "admin").length).toBeGreaterThan(0)
+        if (!itemless && target === SOUP) expect(kept.itemRevision).toBe(8)
+      }
+      expect(next.filter((c) => c.settled).length).toBe(mine.settled ? 1 : 0)
+    }
+  )
+})
+
+describe("set as menu photo on a card beyond the fresh page (Codex P2)", () => {
+  // 30 accepted Soup photos on the Accepted view; the decision is on card 26,
+  // past the 24 cards the decision re-reads on its first page.
+  const loaded = Array.from({ length: 30 }, (_, n) =>
+    card({
+      key: id(0x3000 + n),
+      labelId: id(0x3000 + n),
+      photoId: id(0x4000 + n),
+      asset: { ...card().asset, assetId: id(0x5000 + n) },
+      kind: "decided",
+      basis: "staff_label",
+      state: "accepted",
+      item: { ...card().item!, covered: true },
+      isPrimary: n === 0,
+      isEffectivePrimary: n === 0,
+      groupCount: 29,
+    })
+  )
+  const page = loaded.slice(0, 24).map((c) => ({
+    ...c,
+    itemRevision: 8,
+    isPrimary: false,
+    isEffectivePrimary: false,
+  }))
+  const outcome = (over: Partial<DecisionOutcome> = {}) =>
+    decision({
+      action: "set_preferred",
+      itemRevision: 8,
+      preferredAssetId: loaded[26].asset.assetId,
+      preferredPhotoId: loaded[26].photoId,
+      preferredIsFallback: false,
+      status: "accepted",
+      cardsComplete: false,
+      cards: page,
+      ...over,
+    })
+
+  it("the server's row for the decided card replaces it, still actionable", () => {
+    const row = {
+      ...loaded[26],
+      itemRevision: 8,
+      isPrimary: true,
+      isEffectivePrimary: true,
+    }
+    const next = mergeOutcome(
+      loaded,
+      loaded[26],
+      "set_preferred",
+      outcome({ cards: [...page, row], decidedKnown: true })
+    )
+    expect(next[26]).toBe(row)
+    expect(availableActions(next[26])).toEqual(["withdraw"])
+    expect(next.filter((c) => c.isEffectivePrimary)).toEqual([row])
+  })
+
+  it("without its row (the later pages could not be read) it stays in the Accepted view", () => {
+    const next = mergeOutcome(
+      loaded,
+      loaded[26],
+      "set_preferred",
+      outcome({ decidedKnown: false })
+    )
+    expect(next[26].settled).toBeFalsy()
+    expect(next[26].isEffectivePrimary).toBe(true)
+    expect(next[26].isPrimary).toBe(true)
+    expect(next[26].itemRevision).toBe(8)
+    expect(availableActions(next[26])).toEqual(["withdraw"])
+    expect(next.filter((c) => c.isEffectivePrimary)).toHaveLength(1)
+  })
+
+  it("ReviewList: the decided card keeps Withdraw", async () => {
+    const user = userEvent.setup()
+    actions.decideMenuPhotoAction.mockResolvedValue({
+      ok: true,
+      // The view's status is not echoed: the list supplies its own.
+      outcome: outcome({ status: undefined, decidedKnown: false }),
+    })
+    renderList(loaded, { view: { ...VIEW, status: "accepted" } })
+    await user.click(
+      within(cardEl(loaded[26].key)).getByRole("button", {
+        name: REVIEW_COPY.setPreferred,
+      })
+    )
+    await waitFor(() =>
+      expect(
+        within(cardEl(loaded[26].key)).getByText(REVIEW_COPY.state.menuPhoto)
+      ).toBeTruthy()
+    )
+    const decided = cardEl(loaded[26].key)
+    expect(within(decided).queryByText(REVIEW_COPY.settled)).toBeNull()
+    expect(
+      within(decided).getByRole("button", { name: REVIEW_COPY.withdraw })
+    ).toBeTruthy()
+  })
+})
+
+describe("applyCurrent: the conflicting card's own row", () => {
+  const loaded = Array.from({ length: 30 }, (_, n) =>
+    card({
+      key: id(0x1000 + n),
+      labelId: id(0x1000 + n),
+      asset: { ...card().asset, assetId: id(0x2000 + n) },
+    })
+  )
+  const firstPage = loaded.slice(0, 24).map((c) => ({ ...c, itemRevision: 7 }))
+
+  it("someone else decided it (new key, found past the page): their row replaces it", () => {
+    const row: QueueCard = {
+      ...loaded[26],
+      key: id(0x9926),
+      kind: "decided",
+      photoId: id(0x9926),
+      state: "better_photo_requested",
+      basis: "staff_label",
+      itemRevision: 7,
+    }
+    const next = applyCurrent(
+      loaded,
+      SOUP,
+      [...firstPage, row],
+      () => true,
+      false,
+      {
+        key: loaded[26].key,
+        known: true,
+      }
+    )
+    expect(next[26]).toBe(row)
+    expect(next).toHaveLength(30)
+  })
+
+  it("read everywhere and not there: settled; the rest of the partial page's item stays", () => {
+    const next = applyCurrent(loaded, SOUP, firstPage, () => true, false, {
+      key: loaded[26].key,
+      known: true,
+    })
+    expect(next[26].settled).toBe(true)
+    expect(next.filter((c) => c.settled)).toHaveLength(1)
+    expect(next[27].itemRevision).toBe(7)
+  })
+
+  it("not read everywhere: it stays actionable", () => {
+    const next = applyCurrent(loaded, SOUP, firstPage, () => true, false, {
+      key: loaded[26].key,
+      known: false,
+    })
+    expect(next.some((c) => c.settled)).toBe(false)
+    expect(availableActions(next[26])).toContain("accept")
+  })
+
+  it("a relink's re-read (another item) says nothing of the card", () => {
+    const next = applyCurrent(loaded, PIE, [pieCard(0x21)], () => true, true, {
+      key: loaded[26].key,
+      known: true,
+    })
+    expect(next[26]).toBe(loaded[26])
+  })
+})
+
+describe("one photo, a card per variant of the item", () => {
+  const V1 = id(0xb1)
+  const V2 = id(0xb2)
+  const variant = (variantId: string) => ({
+    ...card().item!,
+    variantId,
+    variantName: variantId === V1 ? "Small" : "Large",
+    covered: true,
+  })
+  const accepted = (key: number, variantId: string): QueueCard =>
+    card({
+      key: id(key),
+      kind: "decided",
+      labelId: null,
+      photoId: id(key),
+      state: "accepted",
+      basis: "staff_label",
+      item: variant(variantId),
+    })
+
+  it("mergeOutcome: the decided card takes its own variant's row, never a loaded sibling's", () => {
+    // All view: V2's pending label card sorts first; V1's accepted card is loaded.
+    const pendingV2 = card({ key: id(0xa2), item: variant(V2) })
+    const p1 = accepted(0xb1, V1)
+    const freshP1 = { ...p1, itemRevision: 4 }
+    const freshP2 = { ...accepted(0xc2, V2), itemRevision: 4 }
+    const next = mergeOutcome(
+      [pendingV2, p1],
+      pendingV2,
+      "accept",
+      decision({
+        status: "all",
+        cards: [freshP1, freshP2],
+        cardsComplete: true,
+        decidedKnown: true,
+      })
+    )
+    expect(next.map((c) => c.key)).toEqual([freshP2.key, freshP1.key])
+    expect(next[0]).toBe(freshP2)
+    expect(next[1]).toBe(freshP1)
+  })
+
+  it("applyCurrent: the conflicting card is not matched to a loaded sibling's row", () => {
+    const pendingV2 = card({ key: id(0xa2), item: variant(V2) })
+    const p1 = accepted(0xb1, V1)
+    const freshP1 = { ...p1, itemRevision: 4 }
+    // Someone else accepted V2 (new key), and V1's row is in the re-read.
+    const freshP2 = { ...accepted(0xc2, V2), itemRevision: 4 }
+    const next = applyCurrent(
+      [pendingV2, p1],
+      SOUP,
+      [freshP1, freshP2],
+      () => true,
+      true,
+      { key: pendingV2.key, known: true }
+    )
+    expect(next.map((c) => c.key)).toEqual([freshP2.key, freshP1.key])
+  })
+
+  it("applyCurrent: another variant's row is not the conflicting card's", () => {
+    const pendingV2 = card({ key: id(0xa2), item: variant(V2) })
+    // Only V1's (new) row of the photo is in the complete re-read.
+    const freshV1 = { ...accepted(0xc1, V1), itemRevision: 4 }
+    const next = applyCurrent([pendingV2], SOUP, [freshV1], () => true, true, {
+      key: pendingV2.key,
+      known: true,
+    })
+    // V1's row is another card; V2's card was read everywhere and is gone.
+    expect(next.find((c) => c.key === pendingV2.key)?.settled).toBe(true)
+    expect(next.find((c) => c.key === freshV1.key)).toBe(freshV1)
+    expect(next).toHaveLength(2)
+  })
+})
+
+describe("withdrawing leaves every view", () => {
+  it.each(["recheck", "all", "accepted"] as QueueStatus[])(
+    "%s: settled even when the server could not read every page",
+    (status) => {
+      const decided = card({
+        key: id(0x31),
+        kind: "decided",
+        labelId: null,
+        photoId: id(0x31),
+        state: status === "recheck" ? "needs_recheck" : "accepted",
+        recheckKind: status === "recheck" ? "name_changed" : null,
+        basis: "staff_label",
+        item: { ...card().item!, covered: true },
+      })
+      expect(staysInView(status, "withdraw")).toBe(false)
+      const next = mergeOutcome(
+        [decided],
+        decided,
+        "withdraw",
+        decision({
+          action: "withdraw",
+          itemCovered: false,
+          status,
+          cards: [],
+          cardsComplete: false,
+          decidedKnown: false,
+        })
+      )
+      expect(next[0].settled).toBe(true)
+      expect(availableActions(next[0], "admin")).toEqual([])
+    }
+  )
+})
+
+describe("ReviewList: a conflict on a stale card in the All view", () => {
+  it("the picked item's re-read says nothing of the stale card: it stays", async () => {
+    const user = userEvent.setup()
+    const stale = card({
+      key: id(0xa1),
+      kind: "stale",
+      labelId: null,
+      item: null,
+      itemRevision: 0,
+      staffLabels: [
+        {
+          itemId: id(0xd1),
+          variantId: null,
+          itemName: "Old pie",
+          variantName: null,
+          onMenu: false,
+        },
+      ],
+    })
+    actions.decideMenuPhotoAction.mockResolvedValue({
+      ok: false,
+      code: "revision_conflict",
+      message: "stale",
+      current: [pieCard(0x21)],
+      currentComplete: true,
+      currentDecidedKnown: true,
+    })
+    renderList([stale], { view: { ...VIEW, status: "all" } })
+    await user.click(
+      screen.getByRole("button", { name: REVIEW_COPY.chooseItem })
+    )
+    const dialog = screen.getByRole("dialog")
+    await user.click(await within(dialog).findByRole("radio", { name: /Pie/ }))
+    await user.click(
+      within(dialog).getByRole("button", {
+        name: REVIEW_COPY.confirmFor("Pie"),
+      })
+    )
+    expect(await screen.findByText(REVIEW_COPY.conflict("Pie"))).toBeTruthy()
+    const el = cardEl(stale.key)
+    expect(within(el).queryByText(REVIEW_COPY.settled)).toBeNull()
+    expect(
+      within(el).getByRole("button", { name: REVIEW_COPY.chooseItem })
+    ).toBeTruthy()
   })
 })

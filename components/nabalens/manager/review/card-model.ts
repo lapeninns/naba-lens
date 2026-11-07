@@ -12,6 +12,13 @@ import type {
 
 import type { ReviewScope } from "./links"
 import { REVIEW_COPY } from "./review-copy"
+import {
+  MOVES,
+  stateAfter,
+  staysInView,
+} from "@/lib/server/menu-photos/view-rules"
+
+export { staysInView }
 
 /** A card in the list, plus the client-only "decided, left this view" flag. */
 export type ListCard = QueueCard & {
@@ -192,6 +199,38 @@ function reconcileItem(
   }
 }
 
+/**
+ * "Also assign": an accepted card matched to one more item. Its own row (for
+ * its item) is unchanged; the new item's card is another card.
+ */
+function alsoAssigned(
+  card: QueueCard,
+  action: DecisionAction,
+  outcome: DecisionOutcome
+): boolean {
+  return (
+    action === "assign_unlabelled" &&
+    card.item !== null &&
+    card.item.itemId !== outcome.itemId
+  )
+}
+
+/** The decided card with the decision's state, flags guessed from the action. */
+function projected(
+  card: ListCard,
+  action: DecisionAction,
+  outcome: DecisionOutcome
+): ListCard {
+  const state = stateAfter(action)
+  const primary =
+    action === "set_preferred" ||
+    action === "accept_preferred" ||
+    (state === "accepted" &&
+      outcome.preferredAssetId === card.asset.assetId &&
+      card.item?.itemId === outcome.itemId)
+  return { ...card, state, isPrimary: primary, isEffectivePrimary: primary }
+}
+
 /** The decided card as it is now when it has left the current view. */
 function settledCard(
   card: ListCard,
@@ -199,26 +238,37 @@ function settledCard(
   outcome: DecisionOutcome,
   targetName?: string
 ): ListCard {
-  const state =
-    action === "ask_another"
-      ? "better_photo_requested"
-      : action === "withdraw"
-        ? null
-        : "accepted"
-  const primary =
-    action === "set_preferred" ||
-    action === "accept_preferred" ||
-    (state === "accepted" &&
-      outcome.preferredAssetId === card.asset.assetId &&
-      card.item?.itemId === outcome.itemId)
   return {
-    ...card,
-    state,
-    isPrimary: primary,
-    isEffectivePrimary: primary,
+    ...projected(card, action, outcome),
     settled: true,
     settledItemName: targetName ?? card.item?.name,
   }
+}
+
+/**
+ * The decided card when the fresh cards hold no row for it. Its absence means
+ * it left the view only when the server read every page (`decidedKnown`);
+ * otherwise the action decides, and a card it does not settle stays
+ * actionable with its new state and the item's new head.
+ */
+function decidedWithoutRow(
+  card: ListCard,
+  action: DecisionAction,
+  outcome: DecisionOutcome,
+  primary: ItemPrimary | null,
+  groupCount: number | undefined,
+  targetName?: string
+): ListCard {
+  if (alsoAssigned(card, action, outcome)) return card
+  if (
+    outcome.decidedKnown === true ||
+    staysInView(outcome.status, action) === false
+  )
+    return settledCard(card, action, outcome, targetName)
+  return reconcileItem(projected(card, action, outcome), primary, {
+    itemRevision: outcome.itemRevision,
+    ...(groupCount === undefined ? {} : { groupCount }),
+  })
 }
 
 /**
@@ -227,6 +277,13 @@ function settledCard(
  * changes once it has a decision). A decided card that left the view stays,
  * collapsed with its new state, until the next filter change, so the list
  * never jumps. Fresh cards new to the list go right after the decided card.
+ *
+ * Absence from the fresh cards never settles a card on its own: the server
+ * returns the decided photo's row wherever it sits, and says when it looked
+ * everywhere (`decidedKnown`). The item's other loaded cards are never
+ * settled here (a decision on one photo moves no other photo out of a view);
+ * missing from the fresh cards, they keep their place with the item's new
+ * head.
  * `keep` filters the fresh cards to the view (the fixed contributor);
  * `targetName` names the item the decision was for.
  */
@@ -253,18 +310,28 @@ export function mergeOutcome(
     (c) => c.item?.itemId === outcome.itemId
   )?.groupCount
   const used = new Set<string>()
+  // A fresh row keyed as another loaded card is that card's row, never the
+  // decided card's (one photo may have a card per variant of the item).
+  const others = new Set(
+    list.filter((c) => c.key !== decided.key).map((c) => c.key)
+  )
+  const sameVariant = (f: QueueCard, card: QueueCard) =>
+    MOVES.includes(action) ||
+    (f.item?.variantId ?? null) === (card.item?.variantId ?? null)
   const take = (card: ListCard): ListCard | null => {
     const byKey = fresh.find((f) => !used.has(f.key) && sameCard(f, card))
     if (byKey) {
       used.add(byKey.key)
       return byKey
     }
-    if (card.key === decided.key) {
+    if (card.key === decided.key && !alsoAssigned(card, action, outcome)) {
       const byAsset = fresh.find(
         (f) =>
           !used.has(f.key) &&
+          !others.has(f.key) &&
           f.asset.assetId === card.asset.assetId &&
-          (f.item?.itemId ?? null) === outcome.itemId
+          (f.item?.itemId ?? null) === outcome.itemId &&
+          sameVariant(f, card)
       )
       if (byAsset) {
         used.add(byAsset.key)
@@ -279,7 +346,17 @@ export function mergeOutcome(
   for (const card of list) {
     const replaced = take(card)
     if (card.key === decided.key) {
-      next.push(replaced ?? settledCard(card, action, outcome, targetName))
+      next.push(
+        replaced ??
+          decidedWithoutRow(
+            card,
+            action,
+            outcome,
+            primary,
+            groupCount,
+            targetName
+          )
+      )
       insertAt = next.length
       continue
     }
@@ -325,13 +402,20 @@ export function mergeOutcome(
  * `complete` (the server read every current card of the item); otherwise it
  * may sit beyond the re-read's first page, so it stays, at the item's new
  * revision when one came back.
+ *
+ * `decided` is the card whose decision conflicted. The server looks for its
+ * row past the first page, so it is matched by key or by photo (its key
+ * changes once someone else decided it), and settled when missing only if
+ * the server read every page (`known`) for the card's own item: a relink's
+ * re-read is of the target item and says nothing of the card.
  */
 export function applyCurrent(
   list: ListCard[],
   itemId: string,
   current: QueueCard[],
   keep: (card: QueueCard) => boolean = () => true,
-  complete = false
+  complete = false,
+  decided?: { key: string; known: boolean }
 ): ListCard[] {
   const headCard = current.find((c) => c.item?.itemId === itemId)
   // The menu photo, when the re-read shows it: its card is in `current`, or
@@ -353,14 +437,40 @@ export function applyCurrent(
   const fresh = current.filter(keep)
   const byKey = new Map(fresh.map((c) => [c.key, c]))
   const used = new Set<string>()
+  const others = new Set(
+    list.filter((c) => c.key !== decided?.key).map((c) => c.key)
+  )
   const next: ListCard[] = []
   let firstOfItem = -1
   for (const card of list) {
-    const hit = byKey.get(card.key)
-    if (hit) {
+    // The conflicting card's own row, when the re-read is of its item (or of
+    // its photo, on the stale and unlabelled views).
+    const ownRead =
+      decided?.key === card.key &&
+      !card.settled &&
+      (card.item === null || card.item.itemId === itemId)
+    const hit =
+      byKey.get(card.key) ??
+      (ownRead
+        ? fresh.find(
+            (c) =>
+              !used.has(c.key) &&
+              !others.has(c.key) &&
+              c.asset.assetId === card.asset.assetId &&
+              (c.item?.itemId ?? null) === (card.item?.itemId ?? null) &&
+              (c.item?.variantId ?? null) === (card.item?.variantId ?? null)
+          )
+        : undefined)
+    if (hit && !used.has(hit.key)) {
       used.add(hit.key)
       if (firstOfItem < 0) firstOfItem = next.length
       next.push(hit)
+      continue
+    }
+    if (ownRead && decided?.known) {
+      // Read everywhere and not there: someone else decided it.
+      if (firstOfItem < 0) firstOfItem = next.length
+      next.push({ ...card, settled: true })
       continue
     }
     if (card.item?.itemId === itemId && !card.settled) {
