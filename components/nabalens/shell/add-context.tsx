@@ -8,6 +8,7 @@ import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 import type { PhotoSource } from "../photo-source"
+import { TAB_ITEM } from "./tab-item"
 
 /**
  * A menu item to suggest as a label for the next files (from Our menu's "Add
@@ -187,7 +188,3 @@ export function AddTrigger({ kind }: { kind: "tab" | "bar" }) {
     </Link>
   )
 }
-
-/** One TabBar item: icon over an always-visible label, full bar height. */
-export const TAB_ITEM =
-  "relative grid min-h-(--size-tabbar) content-center justify-items-center gap-0.5 px-0.5 pt-2.5 pb-1 text-center font-display text-tab-label [overflow-wrap:anywhere] transition-colors duration-(--duration-quick) outline-none focus-visible:outline-3 focus-visible:outline-solid focus-visible:outline-focus focus-visible:-outline-offset-3"

@@ -1,9 +1,12 @@
 "use client"
 
 import * as React from "react"
+import { LockSimpleIcon } from "@phosphor-icons/react"
 
 import { Button } from "@/components/ui/button"
 
+import { Card } from "../common-room/card"
+import { IconDisc } from "../common-room/icon-disc"
 import { MANAGER_COPY } from "./copy"
 
 export type VenueAccessUnavailableReason =
@@ -27,29 +30,36 @@ export function VenueAccessUnavailable({
     heading.current?.focus()
   }, [])
   return (
-    <section
+    <Card
+      as="section"
       aria-labelledby="venue-access-unavailable"
       data-slot="venue-access-unavailable"
-      className="grid max-w-(--size-reading) gap-3"
+      className="max-w-(--size-reading)"
     >
+      <IconDisc tone="warn">
+        <LockSimpleIcon />
+      </IconDisc>
       <h1
         id="venue-access-unavailable"
         ref={heading}
         tabIndex={-1}
-        className="font-display text-page-title text-ink outline-none"
+        className="font-display text-page-title [overflow-wrap:anywhere] text-ink outline-none"
       >
         {COPY.title}
       </h1>
-      <p className="text-body-touch text-ink md:text-body">{COPY.body}</p>
-      <p className="text-body-touch text-ink-muted md:text-body">
-        {COPY.reason[reason]}
-      </p>
-      <form action="/auth/logout" method="post" className="mt-3">
-        <Button type="submit" variant="primary" size="touch">
+      <p className="text-body text-ink">{COPY.body}</p>
+      <p className="text-body text-ink-muted">{COPY.reason[reason]}</p>
+      <form action="/auth/logout" method="post" className="mt-1">
+        <Button
+          type="submit"
+          variant="primary"
+          size="touch"
+          className="max-md:w-full"
+        >
           {COPY.signOut}
         </Button>
       </form>
-    </section>
+    </Card>
   )
 }
 
@@ -60,17 +70,17 @@ export function VenueAccessUnavailablePage({
   reason: VenueAccessUnavailableReason
 }) {
   return (
-    <div className="flex min-h-svh flex-col bg-paper">
-      <header className="border-b border-line bg-paper">
-        <div className="mx-auto flex h-14 w-full max-w-(--size-page) items-center px-4 md:px-6">
-          <span className="font-display text-xl leading-6 font-bold tracking-[-0.01em] text-ink">
+    <div className="flex min-h-svh flex-col bg-bg text-ink">
+      <header className="relative z-10 bg-surface shadow-[0_1px_0_var(--line)]">
+        <div className="mx-auto flex min-h-15 w-full max-w-(--size-page) items-center px-3 md:px-6">
+          <span className="font-display text-[1.5rem] leading-none font-extrabold tracking-[-0.02em] text-ink">
             Naba-Lens
           </span>
         </div>
       </header>
       <main
         id="main"
-        className="mx-auto w-full max-w-(--size-page) flex-1 px-4 py-8 md:px-6 md:py-12"
+        className="mx-auto w-full max-w-(--size-page) flex-1 overflow-x-clip px-(--page-gutter) py-6 md:px-6 md:py-12"
       >
         <VenueAccessUnavailable reason={reason} />
       </main>

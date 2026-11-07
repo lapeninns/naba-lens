@@ -11,7 +11,7 @@ import {
 import { cn } from "@/lib/utils"
 
 import { SectionTabs } from "../section-tabs"
-import { TAB_ITEM } from "../shell/add-context"
+import { TAB_ITEM } from "../shell/tab-item"
 import { CountBadge } from "../status-chip"
 import { MANAGER_COPY } from "./copy"
 import { managerHrefs, managerSectionFor, type ManagerSection } from "./hrefs"
@@ -78,7 +78,7 @@ export function ManagerNav({
     <nav
       aria-label={MANAGER_COPY.navLabel}
       data-slot="tabbar"
-      className="fixed inset-x-0 bottom-0 z-40 grid auto-cols-fr grid-flow-col border-t border-line bg-panel pb-[env(safe-area-inset-bottom,0px)] md:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 grid auto-cols-fr grid-flow-col bg-surface px-1 pb-[env(safe-area-inset-bottom,0px)] shadow-[0_-1px_0_var(--line)] md:hidden"
     >
       {ITEMS.map((item) => {
         const Icon = item.icon
@@ -92,9 +92,10 @@ export function ManagerNav({
             aria-current={current ? "page" : undefined}
             className={cn(
               TAB_ITEM,
-              "min-h-11 text-ink-muted hover:text-ink",
+              "text-ink-muted hover:bg-surface-2 hover:text-ink",
+              // Active tab: accent-text, 800, a 3px bar along the top.
               current &&
-                "text-accent-text before:absolute before:inset-x-[24%] before:-top-px before:h-0.5 before:rounded-b-[2px] before:bg-accent hover:text-accent-text"
+                "font-extrabold text-accent-text before:absolute before:inset-x-[18%] before:top-0 before:h-[3px] before:rounded-b-[3px] before:bg-accent-text hover:text-accent-text"
             )}
           >
             <Icon aria-hidden className="size-[26px]" />
@@ -103,7 +104,8 @@ export function ManagerNav({
               <CountBadge
                 count={badge}
                 label={MANAGER_COPY.reviewBadge(badge)}
-                className="absolute top-1.5 left-[calc(50%+6px)]"
+                tone="warn"
+                className="absolute top-1 left-[calc(50%+6px)] ring-2 ring-surface"
               />
             ) : null}
           </Link>

@@ -14,7 +14,8 @@ import { cn } from "@/lib/utils"
 
 import { OfflineShell } from "./offline-notice"
 import { ProfileAvatar } from "./profile-avatar"
-import { AddTrigger, TAB_ITEM } from "./shell/add-context"
+import { AddTrigger } from "./shell/add-context"
+import { TAB_ITEM } from "./shell/tab-item"
 import { CountBadge } from "./status-chip"
 
 type AdminSection = "content" | "staff" | "menus" | "coverage"

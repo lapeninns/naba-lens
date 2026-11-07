@@ -78,23 +78,21 @@ export function ItemHistory({
   }
 
   return (
-    <section aria-labelledby="item-history" className="grid gap-2">
+    <section aria-labelledby="item-history" className="grid gap-3">
       <h2
         id="item-history"
-        className="text-section-title-touch text-ink md:text-section-title"
+        className="px-1 font-display text-section-title text-ink"
       >
         {copy.history}
       </h2>
       {events.length === 0 && !error ? (
-        <p className="text-body-touch text-ink-muted md:text-body-sm">
-          {copy.historyEmpty}
-        </p>
+        <p className="text-body text-ink-muted">{copy.historyEmpty}</p>
       ) : (
-        <ol className="grid gap-1.5">
+        <ol className="grid min-w-0 divide-y divide-line overflow-hidden rounded-card bg-surface shadow-card">
           {events.map((event) => (
             <li
               key={event.id}
-              className="text-body-touch break-words text-ink md:text-body-sm"
+              className="px-4 py-3 text-body break-words text-ink"
             >
               {[historyText(event), formatDate(event.createdAt), event.reason]
                 .filter(Boolean)
@@ -104,10 +102,7 @@ export function ItemHistory({
         </ol>
       )}
       {error ? (
-        <p
-          role="alert"
-          className="text-body-touch text-negative md:text-body-sm"
-        >
+        <p role="alert" className="text-body text-warn-fg">
           {error}
         </p>
       ) : null}

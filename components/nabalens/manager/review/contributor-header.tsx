@@ -38,10 +38,10 @@ export function ContributorHeader({
   if (level === "section") {
     return (
       <div className="grid gap-2">
-        <h2 className="text-section-title-touch break-words text-ink md:text-section-title">
+        <h2 className="font-display text-section-title break-words text-ink">
           {contributor.name}
         </h2>
-        <div className="max-w-(--size-reading) text-body-touch text-ink-muted md:text-body">
+        <div className="grid max-w-(--size-reading) gap-2 text-body text-ink-muted">
           {summary}
         </div>
       </div>

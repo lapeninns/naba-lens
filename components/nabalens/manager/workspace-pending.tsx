@@ -25,7 +25,7 @@ export function WorkspacePending({
   back?: { href: string; label: string }
 }) {
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-(--gutter)">
       {back ? (
         <Link
           href={back.href}

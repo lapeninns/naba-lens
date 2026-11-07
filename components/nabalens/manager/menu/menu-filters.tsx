@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { MagnifyingGlassIcon } from "@phosphor-icons/react"
+import { CheckIcon, MagnifyingGlassIcon } from "@phosphor-icons/react"
 
 import { OptionSelect } from "@/components/nabalens/option-select"
 import { Field, FieldLabel } from "@/components/ui/field"
@@ -24,8 +24,13 @@ import {
 
 const SEARCH_DEBOUNCE_MS = 300
 
-const SEGMENT =
-  "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-chip px-3 text-center text-meta-touch font-semibold text-ink-muted outline-none hover:text-ink focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-0 focus-visible:outline-focus aria-[current=page]:bg-panel aria-[current=page]:text-ink aria-[current=page]:shadow-[0_0_0_1px_var(--color-line-control)] md:min-h-8 md:text-label"
+/*
+ * Select pills (DESIGN.md §4 filters): grey; the current one is accent-soft
+ * with an accent-text inset edge and a tick. Pills wrap; nothing scrolls
+ * sideways.
+ */
+const PILL =
+  "group/pill inline-flex min-h-11 items-center justify-center gap-1.5 rounded-round bg-surface-2 px-4 text-center text-label text-ink transition-colors duration-(--duration-quick) outline-none hover:bg-raised focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid aria-[current=page]:bg-accent-soft aria-[current=page]:shadow-[inset_0_0_0_1.5px_var(--accent-text)]"
 
 /** The overview count for each status choice ("All" is every eligible item). */
 function statusCount(
@@ -122,7 +127,7 @@ export function MenuFilters({
           <span className="relative block">
             <MagnifyingGlassIcon
               aria-hidden
-              className="pointer-events-none absolute top-1/2 left-3 size-[18px] -translate-y-1/2 text-ink-muted"
+              className="pointer-events-none absolute top-1/2 left-4 size-5 -translate-y-1/2 text-ink-muted"
             />
             <Input
               id="manager-menu-q"
@@ -133,7 +138,7 @@ export function MenuFilters({
               onChange={(event) => onSearch(event.currentTarget.value)}
               placeholder={copy.searchPlaceholder}
               maxLength={MENU_QUERY_MAX}
-              className="h-11 pl-9 md:h-9"
+              className="pl-11"
             />
           </span>
         </Field>
@@ -168,25 +173,29 @@ export function MenuFilters({
           </Field>
         ) : null}
       </form>
-      <nav
-        aria-label={copy.statusLabel}
-        className="[scrollbar-width:none] overflow-x-auto contain-inline-size [&::-webkit-scrollbar]:hidden"
-      >
-        <ul className="inline-flex gap-0.5 rounded-control bg-well p-0.5">
+      <nav aria-label={copy.statusLabel}>
+        <ul className="flex flex-wrap gap-2">
           {choices.map((status) => {
             const label = status ? copy.status[status] : copy.status.all
             const count = statusCount(overview, status)
             return (
-              <li key={status ?? "all"} className="flex-none">
+              <li key={status ?? "all"} className="min-w-0">
                 <Link
                   href={menuHref({ ...filter, status })}
                   replace
                   scroll={false}
                   aria-current={filter.status === status ? "page" : undefined}
-                  className={SEGMENT}
+                  className={PILL}
                 >
-                  <span className="whitespace-nowrap">{label}</span>
-                  <span className="tabular-nums opacity-75">{count}</span>
+                  <CheckIcon
+                    aria-hidden
+                    weight="bold"
+                    className="hidden size-4 shrink-0 group-aria-[current=page]/pill:inline"
+                  />
+                  <span className="[overflow-wrap:anywhere]">{label}</span>
+                  <span className="font-mono font-semibold text-ink-muted tabular-nums">
+                    {count}
+                  </span>
                 </Link>
               </li>
             )

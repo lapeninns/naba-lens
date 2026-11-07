@@ -48,7 +48,8 @@ type Decide = (
   reason?: string
 ) => Promise<ReasonOutcome>
 
-const SECTION_TITLE = "text-section-title-touch text-ink md:text-section-title"
+/** A section heading on the grey canvas (Common Room SectionHeader). */
+const SECTION_TITLE = "px-1 font-display text-section-title text-ink"
 
 /**
  * One active-menu item for a manager: its menu photo (or the fallback),
@@ -200,9 +201,7 @@ export function ItemDetail({
         {preferred ? (
           <>
             {preferred.fallback ? (
-              <p className="text-body-touch text-ink-muted md:text-body-sm">
-                {copy.fallback}
-              </p>
+              <p className="text-body text-ink-muted">{copy.fallback}</p>
             ) : null}
             {photoCard(
               preferred,
@@ -233,9 +232,7 @@ export function ItemDetail({
             )}
           </>
         ) : (
-          <p className="text-body-touch text-ink-muted md:text-body-sm">
-            {copy.noMenuPhoto}
-          </p>
+          <p className="text-body text-ink-muted">{copy.noMenuPhoto}</p>
         )}
       </section>
 
@@ -299,7 +296,7 @@ export function ItemDetail({
                   <>
                     {removed ? null : (
                       <Button
-                        variant="primary"
+                        variant="secondary"
                         size="sm"
                         disabled={busy !== null}
                         onClick={() => void run("reaccept", photo)}
@@ -322,7 +319,7 @@ export function ItemDetail({
                       </StatusChip>
                     ) : null}
                     {removed ? (
-                      <p className="text-meta-touch text-ink-muted md:text-meta">
+                      <p className="text-meta text-ink-muted">
                         {copy.variantRemoved}
                       </p>
                     ) : null}
@@ -373,7 +370,7 @@ function PhotoSection({
       <h2 id={id} className={SECTION_TITLE}>
         {title}
       </h2>
-      <ul className="grid gap-4">{children}</ul>
+      <ul className="grid gap-(--gutter)">{children}</ul>
     </section>
   )
 }
@@ -395,7 +392,7 @@ const contributorLeft = (photo: ItemPhoto) => photo.author.status === "left"
 
 function LeaverNote() {
   return (
-    <p className="text-body-touch text-ink-muted md:text-body-sm">
+    <p className="text-body text-ink-muted">
       {MANAGER_COPY.item.contributorLeft}
     </p>
   )
@@ -403,9 +400,7 @@ function LeaverNote() {
 
 function OwnPhotoNote() {
   return (
-    <p className="text-body-touch text-ink-muted md:text-body-sm">
-      {MANAGER_COPY.item.ownPhoto}
-    </p>
+    <p className="text-body text-ink-muted">{MANAGER_COPY.item.ownPhoto}</p>
   )
 }
 
@@ -424,7 +419,7 @@ function PhotoCard({
   return (
     <article
       aria-label={label}
-      className="grid gap-3 rounded-panel border border-line bg-panel p-3 sm:grid-cols-[minmax(0,16rem)_minmax(0,1fr)] sm:p-4"
+      className="grid min-w-0 gap-3 rounded-card bg-surface p-3 shadow-card sm:grid-cols-[minmax(0,16rem)_minmax(0,1fr)] sm:p-4"
     >
       <EvidencePreviewButton
         thumbnailUrl={photo.asset.thumbnailUrl}
@@ -432,28 +427,24 @@ function PhotoCard({
         label={label}
       />
       <div className="grid min-w-0 content-start gap-2">
-        <p className="text-body-touch break-words text-ink md:text-body-sm">
-          {label}
-        </p>
-        <p className="text-meta-touch text-ink-muted md:text-meta">
+        <p className="text-item-title break-words text-ink">{label}</p>
+        <p className="text-meta text-ink-muted">
           {photo.state === "accepted"
             ? copy.acceptedBy(photo.decidedByName, formatDate(photo.decidedAt))
             : formatDate(photo.decidedAt)}
         </p>
         {photo.variantName ? (
-          <p className="text-meta-touch break-words text-ink-muted md:text-meta">
+          <p className="text-meta break-words text-ink-muted">
             {photo.variantName}
           </p>
         ) : null}
         {photo.basis === "reviewer" && photo.correctsItemName ? (
-          <p className="text-meta-touch break-words text-ink-muted md:text-meta">
+          <p className="text-meta break-words text-ink-muted">
             {copy.movedFrom(photo.correctsItemName)}
           </p>
         ) : null}
         {photo.reason ? (
-          <p className="text-body-touch break-words text-ink md:text-body-sm">
-            {photo.reason}
-          </p>
+          <p className="text-body break-words text-ink">{photo.reason}</p>
         ) : null}
         {extra ? (
           <div className="flex flex-wrap items-center gap-1.5">{extra}</div>

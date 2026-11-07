@@ -11,7 +11,7 @@ export default async function ManagerAccountPage() {
   const { profile, venue } = await requireManagerVenue()
   const copy = MANAGER_COPY.accountPage
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-(--gutter)">
       <PageHeader
         title={copy.title}
         summary={copy.summary}
