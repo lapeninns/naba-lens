@@ -439,13 +439,15 @@ uploading are not on it.
   uploaded again.
 - **Discard labels** asks first: **Discard these labels?** with **The photo
   isn't changed; only these labels are discarded.** Choose **Discard labels**
-  to drop them, or **Keep labels**. The photo stays saved either way; you can
-  label it later.
+  to drop them, or **Keep labels**. Discarding never changes the photo; if it
+  finished saving, you can label it later.
 - **Labels not saved yet.** with **The photo didn't finish saving. These
   labels are kept and go on it when it does.** means the upload stopped for a
   reason that can pass (for example the server was busy). Choose **Retry** on
-  that photo in **Add** if it is still there. **Fix labels** changes the kept
-  labels; they still wait for the photo.
+  that photo in **Add** if it is still there. If it isn't, or Retry doesn't
+  help, discard these labels, then pick the photo again from **Add** and
+  choose its labels again. **Fix labels** changes the kept labels; they still
+  wait for the photo.
 - If the photo's upload added the labels before your discard reached the
   server, nothing is discarded: the row turns **Saved**, says **These labels
   were already saved on the photo.** and shows them. Choose **Fix labels** to
