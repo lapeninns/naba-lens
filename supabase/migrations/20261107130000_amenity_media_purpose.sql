@@ -18,7 +18,11 @@
 --   never hidden, whatever its purpose, so Coverage review and configuration
 --   screens (which check photos through community_readable_assets) still find
 --   it. The uploader and admins keep their access, and the amenity routes read
---   through amenity_evidence_asset, which is unchanged.
+--   through amenity_evidence_asset, which is unchanged. The three functions
+--   are rebuilt from 20261107100200_manager_staff_denials.sql, so a manager
+--   account (role 'manager') still reads nothing from them.
+-- * reserve_media_asset still requires active staff: a manager account cannot
+--   reserve amenity evidence either, and attaches existing media only.
 -- * coverage_candidate_assets no longer offers amenity-purpose uploads to the
 --   Coverage pickers.
 
@@ -203,11 +207,14 @@ grant execute on function public.reserve_media_asset(public.media_type, text, te
 -- Community reads
 -- ---------------------------------------------------------------------------
 
--- Same as 20261102160000, but a colleague no longer reads amenity evidence:
--- amenity-purpose uploads and uploads attached to an amenity submission, unless
--- they are Coverage media. Coverage media reads as before, whatever its purpose
--- (manager Coverage review and configuration screens check photos through this
--- function). The uploader and active admins still read everything.
+-- Bodies as in 20261107100200_manager_staff_denials.sql (active staff or
+-- admins only: a manager account reads nothing), plus one rule: a colleague no
+-- longer reads amenity evidence, that is amenity-purpose uploads and uploads
+-- attached to an amenity submission, unless they are Coverage media. Coverage
+-- media reads as before, whatever its purpose (the transitional staff-held
+-- manager's Coverage review and configuration screens check photos through
+-- this function). The uploader (while staff) and active admins still read
+-- everything.
 create or replace function public.community_readable_assets(p_asset_ids uuid[])
 returns table (
   id uuid, uploader_id uuid, venue_id uuid, media_type public.media_type,
@@ -233,7 +240,7 @@ begin
   from public.media_assets a
   where a.id = any(p_asset_ids)
     and a.upload_state = 'ready' and a.deleted_at is null
-    and (select private.is_active_user())
+    and (select private.is_active_staff() or private.is_active_admin())
     and (
       a.uploader_id = (select auth.uid())
       or (select private.is_active_admin())
@@ -259,8 +266,9 @@ begin
 end;
 $$;
 
--- Same as 20261102160000, without amenity evidence (the rule above, for every
--- viewer: the uploader finds theirs in their own portfolio).
+-- Body as in 20261107100200_manager_staff_denials.sql, without amenity
+-- evidence (the rule above, for every viewer: the uploader finds theirs in
+-- their own portfolio).
 create or replace function public.community_media_page(
   p_venue uuid default null,
   p_uploader uuid default null,
@@ -286,7 +294,7 @@ as $$
   from public.media_assets a
   join public.profiles p on p.id = a.uploader_id and p.active and p.role = 'staff'
   join public.venues v on v.id = a.venue_id
-  where (select private.is_active_user())
+  where (select private.is_active_staff() or private.is_active_admin())
     and a.upload_state = 'ready' and a.deleted_at is null
     and (
       (
@@ -312,8 +320,8 @@ as $$
   limit least(greatest(coalesce(p_limit, 25), 1), 101);
 $$;
 
--- Same as 20261102120000; media_count counts only community-visible media, so
--- it matches the member's community page.
+-- Body as in 20261107100200_manager_staff_denials.sql; media_count counts only
+-- community-visible media, so it matches the member's community page.
 create or replace function public.community_members(
   p_venue uuid default null,
   p_member uuid default null,
@@ -348,7 +356,7 @@ as $$
         ))
   from public.profiles p
   left join public.venues v on v.id = p.venue_id
-  where (select private.is_active_user())
+  where (select private.is_active_staff() or private.is_active_admin())
     and p.active and p.role = 'staff'
     and (p_venue is null or p.venue_id = p_venue)
     and (p_member is null or p.id = p_member)

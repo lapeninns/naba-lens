@@ -10,8 +10,13 @@
 // and configuration screens still read it. Coverage media is never hidden,
 // whatever its purpose, but the Coverage pickers (coverage_candidate_assets) do
 // not offer amenity-purpose uploads. A saved upload key never resumes under the
-// other purpose (reservation_purpose_mismatch). Real signed-in identities; the
-// service role only builds fixtures and reads state back.
+// other purpose (reservation_purpose_mismatch). A venue manager account
+// (role 'manager') reads nothing from the community functions or the
+// /api/media colleague path at all (20261107100200_manager_staff_denials.sql),
+// so amenity evidence stays out of community for it too; the staff account
+// with a pre-existing grant (transitional rule) reads like a colleague. Real
+// signed-in identities; the service role only builds fixtures and reads state
+// back.
 import { randomUUID } from "node:crypto"
 
 import { beforeAll, describe, expect, it } from "vitest"
@@ -27,16 +32,20 @@ import {
 } from "../support/identities"
 import {
   fails,
-  grantManager,
   insertAsset,
   insertSubmittedItem,
+  legacyStaffGrant,
+  makeManager,
   ok,
 } from "./coverage-fixtures"
 
 const service = serviceClient()
 
 let admin: TestIdentity
+/** Venue manager account (role 'manager'). */
 let manager: TestIdentity
+/** Staff account with a pre-existing grant (transitional rule). */
+let legacyManager: TestIdentity
 let uploader: TestIdentity
 let sameVenue: TestIdentity
 let otherVenue: TestIdentity
@@ -131,12 +140,14 @@ beforeAll(async () => {
   const staff = (label: string, venueId: string) =>
     createIdentity(service, { label, role: "staff", venueId })
   manager = await staff("amen-purpose-mgr", venue)
+  legacyManager = await staff("amen-purpose-legacy-mgr", venue)
   uploader = await staff("amen-purpose-uploader", venue)
   sameVenue = await staff("amen-purpose-same", venue)
   otherVenue = await staff("amen-purpose-other", elsewhere)
   coverageAuthor = await staff("amen-purpose-coverage", venue)
   amenityCoverageAuthor = await staff("amen-purpose-cov-amenity", venue)
-  await grantManager(admin, manager.id, venue)
+  await makeManager(admin, manager, venue)
+  await legacyStaffGrant(service, admin, legacyManager.id, venue)
 
   await ok(admin.client.rpc("amenity_enable_venue", { p_venue_id: venue }))
   const [checkId] = await ok(
@@ -361,7 +372,7 @@ describe("community reads", () => {
   const all = () => [amenitySubmitted, amenityLoose, generalSubmitted, general]
 
   it("community_readable_assets: colleagues at the same and another venue get only the general asset", async () => {
-    for (const who of [sameVenue, otherVenue, manager]) {
+    for (const who of [sameVenue, otherVenue, legacyManager]) {
       expect(await readable(who, all())).toEqual([general])
     }
   })
@@ -379,15 +390,27 @@ describe("community reads", () => {
   })
 
   it("community_readable_assets: a general own upload is hidden once attached to a submission", async () => {
-    for (const who of [sameVenue, otherVenue, manager]) {
+    for (const who of [sameVenue, otherVenue, legacyManager]) {
       expect(await readable(who, [generalSubmitted])).toEqual([])
     }
   })
 
   it("community_readable_assets: an amenity upload is hidden before it is submitted", async () => {
-    for (const who of [sameVenue, otherVenue, manager]) {
+    for (const who of [sameVenue, otherVenue, legacyManager]) {
       expect(await readable(who, [amenityLoose])).toEqual([])
     }
+  })
+
+  it("a manager account reads nothing: no amenity evidence, no general or Coverage media", async () => {
+    const everything = [...all(), legacyItem, legacyFact, amenityInCoverage]
+    expect(await readable(manager, everything)).toEqual([])
+    expect(await feed(manager)).toEqual([])
+    expect(
+      await ok(
+        manager.client.rpc("community_members", { p_member: uploader.id })
+      )
+    ).toEqual([])
+    for (const id of everything) expect(await mediaGate(manager, id)).toBe(404)
   })
 
   it("community_members counts only community-visible media", async () => {
@@ -407,7 +430,7 @@ describe("legacy Coverage media attached as amenity evidence", () => {
   const legacy = () => [legacyFact, legacyItem].sort()
 
   it("community_readable_assets: still readable by same-org colleagues, as before", async () => {
-    for (const who of [sameVenue, otherVenue, manager, uploader]) {
+    for (const who of [sameVenue, otherVenue, legacyManager, uploader]) {
       expect(await readable(who, legacy())).toEqual(legacy())
     }
   })
@@ -441,16 +464,21 @@ describe("legacy Coverage media attached as amenity evidence", () => {
 })
 
 describe("amenity-purpose photo used as Coverage media", () => {
-  it("community_readable_assets: stays readable to the venue manager and colleagues", async () => {
-    for (const who of [manager, sameVenue, admin, amenityCoverageAuthor]) {
+  it("community_readable_assets: stays readable to the transitional staff manager and colleagues", async () => {
+    for (const who of [
+      legacyManager,
+      sameVenue,
+      admin,
+      amenityCoverageAuthor,
+    ]) {
       expect(await readable(who, [amenityInCoverage])).toEqual([
         amenityInCoverage,
       ])
     }
   })
 
-  it("is served by the /api/media gate to the venue manager", async () => {
-    expect(await mediaGate(manager, amenityInCoverage)).toBe(200)
+  it("is served by the /api/media gate to the transitional staff manager", async () => {
+    expect(await mediaGate(legacyManager, amenityInCoverage)).toBe(200)
   })
 })
 
@@ -511,8 +539,8 @@ describe("/api/media/[id]/* gate (getReadableAsset)", () => {
 })
 
 describe("amenity routes", () => {
-  it("the venue manager and admins read submitted evidence through amenity_evidence_asset", async () => {
-    for (const who of [manager, admin]) {
+  it("the venue managers and admins read submitted evidence through amenity_evidence_asset", async () => {
+    for (const who of [manager, legacyManager, admin]) {
       for (const id of [amenitySubmitted, generalSubmitted]) {
         expect(await evidenceGate(who, id)).toHaveLength(1)
       }
