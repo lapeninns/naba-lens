@@ -603,8 +603,11 @@ describe("scope", () => {
       .update({ active: false })
       .eq("id", g.staff2.id)
     if (error) throw error
-    for (const venue of [f.venue, g.venue, null]) {
-      for (const fn of ["menu_item_photo_summary", "menu_item_photo_items"]) {
+    for (const venue of [f.venue, g.venue, undefined]) {
+      for (const fn of [
+        "menu_item_photo_summary",
+        "menu_item_photo_items",
+      ] as const) {
         await fails(
           g.staff2.client.rpc(fn, { p_venue_id: venue }),
           "venue_not_found",
