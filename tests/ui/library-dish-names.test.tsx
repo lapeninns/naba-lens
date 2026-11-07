@@ -124,6 +124,7 @@ describe("library cards show dish names", () => {
   it("names the dishes on every card of a grid", () => {
     render(
       <MediaGrid
+        label="Library"
         items={[
           item(),
           item({

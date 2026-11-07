@@ -246,6 +246,14 @@ export function CaptureForm({
   const [pickedFiles, setPickedFiles] = React.useState<File[] | undefined>()
   const inFlight = React.useRef(false)
   const mounted = React.useRef(false)
+  // One read at a time: Add hands over each upload as soon as it is ready,
+  // so several reads can be asked for at once. A later request waits and
+  // then reads once for every upload it carries; an older answer landing
+  // after a newer one would otherwise drop an upload just selected.
+  const loadingAssets = React.useRef(false)
+  const queuedReload = React.useRef<Set<string> | null>(null)
+  // The current pick's uploads selected here, and those not listed yet.
+  const arrivals = React.useRef(newArrivals())
 
   React.useEffect(() => {
     mounted.current = true
@@ -353,15 +361,6 @@ export function CaptureForm({
     })
     if (errors.assetIds) setErrors((e) => ({ ...e, assetIds: undefined }))
   }
-
-  // One read at a time: Add hands over each upload as soon as it is ready,
-  // so several reads can be asked for at once. A later request waits and
-  // then reads once for every upload it carries; an older answer landing
-  // after a newer one would otherwise drop an upload just selected.
-  const loadingAssets = React.useRef(false)
-  const queuedReload = React.useRef<Set<string> | null>(null)
-  // The current pick's uploads selected here, and those not listed yet.
-  const arrivals = React.useRef(newArrivals())
 
   const reloadAssets = React.useCallback(
     async function reloadAssets(select: string[] = []) {

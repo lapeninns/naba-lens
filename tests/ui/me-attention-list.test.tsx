@@ -240,7 +240,9 @@ describe("NeedsAttention on Me", () => {
   it("discards a row's labels, and keeps the row when that fails", async () => {
     const user = userEvent.setup()
     const calls = api([row(1), row(2)])
-    calls.discard.mockResolvedValueOnce(true).mockResolvedValueOnce(false)
+    vi.mocked(calls.discard)
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false)
     render(<NeedsAttention api={calls} />)
     await screen.findByRole("list", { name: "Photos that need attention" })
 
@@ -341,7 +343,7 @@ describe("NeedsAttention on Me", () => {
   it("re-reads after an upload finishes, and offers Try again when the read fails", async () => {
     const user = userEvent.setup()
     const calls = api([])
-    calls.load
+    vi.mocked(calls.load)
       .mockResolvedValueOnce({ ok: true, items: [] })
       .mockResolvedValueOnce({ ok: false, message: "down" })
       .mockResolvedValue({ ok: true, items: [row(1)] })
