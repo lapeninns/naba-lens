@@ -182,8 +182,9 @@ export const REVIEW_COPY = {
   },
   conflict: (item: string) =>
     `Someone else changed ${item} first. Here is the latest.`,
+  // The reply was lost: the decision may be saved. The request id is kept.
   network:
-    "Could not reach the server. Try again; the photo will not be decided twice.",
+    "We couldn't confirm the decision was saved. Check your connection, then try again or refresh to see if it was. The photo won't be decided twice.",
   refresh: "Refresh",
 
   // Empty states

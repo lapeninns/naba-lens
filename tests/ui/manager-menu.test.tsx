@@ -660,7 +660,12 @@ describe("Item detail", () => {
         name: "Set as menu photo",
       })
     await user.click(set())
-    expect(screen.getByText(MANAGER_COPY.item.network)).toBeTruthy()
+    // A lost reply: the decision may be saved, so it can't say it failed.
+    expect(
+      screen.getByText(
+        "We couldn't confirm the decision was saved. Check your connection, then try again or refresh to see if it was. The photo won't be decided twice."
+      )
+    ).toBeTruthy()
     await user.click(set())
     const ids = decide.mock.calls.map(
       ([i]) => (i as { requestId: string }).requestId

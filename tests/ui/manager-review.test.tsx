@@ -718,7 +718,12 @@ describe("ReviewScreen", () => {
     actions.decideMenuPhotoAction.mockRejectedValueOnce(new Error("offline"))
     renderScreen([card()])
     await user.click(screen.getByRole("button", { name: REVIEW_COPY.accept }))
-    expect(await screen.findByText(REVIEW_COPY.network)).toBeTruthy()
+    // A lost reply: the decision may be saved, so it can't say it failed.
+    expect(
+      await screen.findByText(
+        "We couldn't confirm the decision was saved. Check your connection, then try again or refresh to see if it was. The photo won't be decided twice."
+      )
+    ).toBeTruthy()
     actions.decideMenuPhotoAction.mockResolvedValueOnce(outcome())
     await user.click(screen.getByRole("button", { name: REVIEW_COPY.accept }))
     await waitFor(() =>
