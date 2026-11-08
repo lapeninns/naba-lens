@@ -1190,11 +1190,19 @@ export function useUploadLabels(
             result === SIGNED_OUT ? SIGNED_OUT_MESSAGE : LABELS_NOT_SAVED,
         }
       if (!result.ok) return result
-      const key = keyOf(input)
+      // The dialog's missingItem is a change against the photo (null: kept
+      // as it was), not the photo's state: once saved, the record holds what
+      // the photo has, own suggestion included, so the sheet shows it and a
+      // later clear withdraws it.
+      const now =
+        result.state === "saved"
+          ? inputOf(result.labels, item.id, input.catalogueVersionId)
+          : { ...input, assetId: item.id }
+      const key = keyOf(now)
       attempted.current.set(item.id, `${assetId}|${key}`)
       patch(item.id, (r) => ({
         ...r,
-        input: { ...input, assetId: item.id },
+        input: now,
         phase: result.state === "saved" ? "saved" : "pending",
         sent: key,
         sentTo: assetId,

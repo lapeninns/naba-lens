@@ -537,6 +537,61 @@ describe("Saving sheet: labels by asset ID", () => {
     )
   })
 
+  it("after Fix labels saves, the photo's own suggestion stays in the sheet's labels, so clearing them withdraws it", async () => {
+    const { upload, find } = heldUploader()
+    // Like the real editor: a suggestion the person left alone is sent as
+    // null (unchanged against the photo).
+    const labels = labelsConfig({
+      renderFix: ({ draft, onSave }) => (
+        <div role="dialog" aria-label="Fix labels">
+          <button
+            onClick={() =>
+              void onSave({ ...draft, items: [KORMA], missingItem: null })
+            }
+          >
+            Save corrected
+          </button>
+        </div>
+      ),
+    })
+    sheet({ uploader: upload, labels: labels.config })
+    const user = userEvent.setup()
+    await user.upload(screen.getByLabelText("Choose photos or videos"), [
+      jpeg("dish.jpg"),
+    ])
+    act(() => find("dish.jpg").reserve("asset-1"))
+    await labels.choose((id) => ({ ...input(id), missingItem: "Lamb shank" }))
+    await waitFor(() => expect(labels.save).toHaveBeenCalledTimes(1))
+    await act(async () =>
+      find("dish.jpg").resolve({
+        state: "needs_attention",
+        code: "catalogue_changed",
+        message: "The menu changed. Check the dish.",
+      })
+    )
+    // Fix labels: the dialog leaves the suggestion as it is (null), and the
+    // photo now has it.
+    labels.save.mockResolvedValueOnce({
+      ok: true,
+      assetId: "asset-1",
+      state: "saved",
+      labels: { ...summary(["Korma"], 2), missingItem: "Lamb shank" },
+    })
+    await user.click(
+      await screen.findByRole("button", { name: "Fix labels for dish.jpg" })
+    )
+    const fix = screen.getByRole("dialog", { name: "Fix labels" })
+    await user.click(
+      within(fix).getByRole("button", { name: "Save corrected" })
+    )
+    await waitFor(() =>
+      expect(row("dish.jpg").textContent).toContain("Saved · Korma")
+    )
+    expect(labels.panel.current?.initial[0]?.missingItem).toBe("Lamb shank")
+    // Nothing more is sent: the sheet's labels are what the photo has.
+    expect(labels.save).toHaveBeenCalledTimes(2)
+  })
+
   it("a refused direct save asks for Fix labels, never only Discard", async () => {
     const { upload, find } = heldUploader()
     const labels = labelsConfig()
