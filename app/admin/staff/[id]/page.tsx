@@ -15,7 +15,6 @@ import { getVenueRoster } from "@/lib/server/coverage"
 import { getMediaActor } from "@/lib/server/media/context"
 import { listLibrary } from "@/lib/server/media/library"
 
-import { signOutAction } from "../actions"
 import { AuthDetailsNotice } from "../auth-details-notice"
 import { effectiveGrants, loadManagerGrants } from "../manager-grants"
 import { RetryButton } from "../retry-button"
@@ -91,12 +90,7 @@ export default async function StaffPortfolioPage({
     : null
 
   return (
-    <AppShell
-      variant="admin"
-      active="staff"
-      userName={admin.displayName}
-      logoutAction={signOutAction}
-    >
+    <AppShell variant="admin" active="staff" userName={admin.displayName}>
       <AccountHeader
         member={member}
         venueActive={member.venueActive}

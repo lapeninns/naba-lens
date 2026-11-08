@@ -1,4 +1,3 @@
-import { logout } from "@/app/_media/actions"
 import { AppShell } from "@/components/nabalens/app-shell"
 import { requireActiveStaff } from "@/lib/auth"
 import { getCoverageActor } from "@/lib/server/coverage"
@@ -42,7 +41,6 @@ export default async function AmenityCapturePage({
       active="tasks"
       {...shell}
       userName={profile.displayName}
-      logoutAction={logout}
     >
       {screen}
     </AppShell>

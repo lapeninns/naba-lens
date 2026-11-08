@@ -1,6 +1,5 @@
 import { CheckIcon } from "@phosphor-icons/react/dist/ssr"
 
-import { logout } from "@/app/_media/actions"
 import { AppShell } from "@/components/nabalens/app-shell"
 import { Card } from "@/components/nabalens/common-room/card"
 import { DishGuide } from "@/components/nabalens/guide"
@@ -32,7 +31,6 @@ export default async function PhotoGuidePage() {
       active="tasks"
       {...shell}
       userName={profile.displayName}
-      logoutAction={logout}
     >
       <div className="mx-auto flex w-full max-w-(--size-feed) flex-col gap-(--gutter) pb-4">
         <BackToTasks href={TASKS_PATH} />

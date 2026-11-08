@@ -3,7 +3,6 @@
 import Link from "next/link"
 import { ArrowClockwiseIcon, ArrowLeftIcon } from "@phosphor-icons/react"
 
-import { logout } from "@/app/_media/actions"
 import { AppShell } from "@/components/nabalens/app-shell"
 import { ERROR_COPY, ErrorState } from "@/components/nabalens/error-state"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
@@ -20,7 +19,7 @@ export default function VenueCoverageError({
   retry: () => void
 }) {
   return (
-    <AppShell variant="admin" active="coverage" logoutAction={logout}>
+    <AppShell variant="admin" active="coverage">
       <div className="flex flex-col gap-6">
         <PageHeader
           title={VENUE_COVERAGE_COPY.title}

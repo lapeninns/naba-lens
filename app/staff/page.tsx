@@ -1,4 +1,3 @@
-import { logout } from "@/app/_media/actions"
 import { AppShell } from "@/components/nabalens"
 import { requireActiveStaff, uploadBlockReason } from "@/lib/auth"
 import { workRoleLabel } from "@/lib/config/work-roles"
@@ -83,7 +82,6 @@ export default async function StaffPage({
       active="portfolio"
       {...shell}
       userName={profile.displayName}
-      logoutAction={logout}
     >
       <StaffPortfolio
         profile={{

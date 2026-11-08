@@ -1,6 +1,5 @@
 import Link from "next/link"
 
-import { logout } from "@/app/_media/actions"
 import { AppShell } from "@/components/nabalens/app-shell"
 import { EmptyState } from "@/components/nabalens/empty-state"
 import { Notice } from "@/components/nabalens/notice"
@@ -63,7 +62,6 @@ export default async function CommunityPage({
       active="community"
       {...shell}
       userName={profile.displayName}
-      logoutAction={logout}
     >
       {/* Common Room: one feed column of posts on the grey canvas. */}
       <div className="mx-auto flex w-full max-w-(--size-feed) flex-col gap-(--gutter)">

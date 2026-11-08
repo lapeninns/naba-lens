@@ -1,4 +1,3 @@
-import { logout } from "@/app/_media/actions"
 import { AppShell } from "@/components/nabalens/app-shell"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton"
@@ -14,7 +13,7 @@ const ROWS = [
 
 export default function VenueCoverageLoading() {
   return (
-    <AppShell variant="admin" active="coverage" logoutAction={logout}>
+    <AppShell variant="admin" active="coverage">
       <div className="flex flex-col gap-6">
         <PageHeader
           title={VENUE_COVERAGE_COPY.title}

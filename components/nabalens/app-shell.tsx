@@ -28,12 +28,6 @@ type AppShellProps = {
   userName?: string
   /** Previews only: Log out calls this instead of posting /auth/logout. */
   onLogout?: () => void
-  /**
-   * @deprecated Ignored. Log out is a plain POST to /auth/logout, which works
-   * after the session has ended; a Server Action posted to the page would be
-   * refused by the proxy then.
-   */
-  logoutAction?: (formData: FormData) => void | Promise<void>
   className?: string
 } & (
   | {

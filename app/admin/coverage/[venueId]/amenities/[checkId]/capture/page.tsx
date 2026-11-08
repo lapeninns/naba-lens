@@ -1,6 +1,5 @@
 import type { Metadata } from "next"
 
-import { logout } from "@/app/_media/actions"
 import { adminVenueContext } from "@/app/staff/manage/_shared/context"
 import { CaptureScreen } from "@/app/staff/tasks/amenities/_capture/screen"
 import { AppShell } from "@/components/nabalens/app-shell"
@@ -23,12 +22,7 @@ export default async function AdminAmenityCapturePage({
   const ctx = await adminVenueContext(venueId)
   const checkHref = amenityHrefs(ctx.basePath).check(checkId)
   return (
-    <AppShell
-      variant="admin"
-      active="coverage"
-      userName={ctx.viewerName}
-      logoutAction={logout}
-    >
+    <AppShell variant="admin" active="coverage" userName={ctx.viewerName}>
       <CaptureScreen
         actor={ctx.actor}
         checkId={checkId}

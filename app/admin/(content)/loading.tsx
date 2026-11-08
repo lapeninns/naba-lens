@@ -1,4 +1,3 @@
-import { logout } from "@/app/_media/actions"
 import { AppShell } from "@/components/nabalens"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -8,7 +7,7 @@ import { LibraryGridSkeleton } from "../library-states"
 
 export default function AdminLoading() {
   return (
-    <AppShell variant="admin" active="content" logoutAction={logout}>
+    <AppShell variant="admin" active="content">
       <div className="flex flex-col gap-6">
         <PageHeader
           venueScope

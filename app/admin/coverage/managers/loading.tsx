@@ -1,4 +1,3 @@
-import { logout } from "@/app/_media/actions"
 import { AppShell } from "@/components/nabalens/app-shell"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton"
@@ -14,7 +13,7 @@ const ROWS = [
 /** The grant form card, then the current grants card, as they will load. */
 export default function ManagersLoading() {
   return (
-    <AppShell variant="admin" active="coverage" logoutAction={logout}>
+    <AppShell variant="admin" active="coverage">
       <div className="flex flex-col gap-6">
         <PageHeader
           venueScope

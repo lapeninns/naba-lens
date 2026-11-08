@@ -5,17 +5,10 @@ import { PageHeader } from "@/components/nabalens/page-header"
 import { buttonVariants } from "@/components/ui/button"
 import { requireActiveAdmin } from "@/lib/auth"
 
-import { signOutAction } from "../actions"
-
 export default async function StaffMemberNotFound() {
   const admin = await requireActiveAdmin()
   return (
-    <AppShell
-      variant="admin"
-      active="staff"
-      userName={admin.displayName}
-      logoutAction={signOutAction}
-    >
+    <AppShell variant="admin" active="staff" userName={admin.displayName}>
       <div className="grid gap-5">
         <PageHeader
           venueScope

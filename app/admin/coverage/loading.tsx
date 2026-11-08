@@ -1,4 +1,3 @@
-import { logout } from "@/app/_media/actions"
 import { AppShell } from "@/components/nabalens/app-shell"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton"
@@ -16,7 +15,7 @@ const ROWS = [
 /** The two tally cards, counted apart, then the venue rows in one card. */
 export default function CoverageLoading() {
   return (
-    <AppShell variant="admin" active="coverage" logoutAction={logout}>
+    <AppShell variant="admin" active="coverage">
       <div className="flex flex-col gap-6">
         {/* Also the boundary for /admin/coverage/[venueId] and /managers. */}
         <PageHeader title={COVERAGE_COPY.title} className="pb-0 md:pb-0" />

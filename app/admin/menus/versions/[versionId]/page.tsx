@@ -1,7 +1,6 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 
-import { logout } from "@/app/_media/actions"
 import { AppShell } from "@/components/nabalens"
 import { requireActiveAdmin } from "@/lib/auth"
 import { getMediaActor } from "@/lib/server/media/context"
@@ -29,12 +28,7 @@ export default async function MenuVersionPage({
   const { version, diff, active, reviewBase } = result
 
   return (
-    <AppShell
-      variant="admin"
-      active="menus"
-      userName={profile.displayName}
-      logoutAction={logout}
-    >
+    <AppShell variant="admin" active="menus" userName={profile.displayName}>
       <VersionEditor
         version={version}
         diff={diff}

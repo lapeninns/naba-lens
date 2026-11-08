@@ -1,6 +1,5 @@
 import { cookies } from "next/headers"
 
-import { logout } from "@/app/_media/actions"
 import { AppShell } from "@/components/nabalens/app-shell"
 import { FINDING_SENT_PARAM } from "@/components/nabalens/amenities/capture/finding-sent"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
@@ -178,7 +177,6 @@ export default async function TasksPage({
       active="tasks"
       {...shell}
       userName={profile.displayName}
-      logoutAction={logout}
     >
       <OfflineNotice className="mb-3" />
       <TasksOverview

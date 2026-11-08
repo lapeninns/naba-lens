@@ -249,7 +249,7 @@ describe("AppShell offline notice", () => {
 describe("AppShell Log out", () => {
   it("marks the logout form for the leave guard", () => {
     const { container } = render(
-      <AppShell variant="admin" active="content" logoutAction={async () => {}}>
+      <AppShell variant="admin" active="content">
         x
       </AppShell>
     )

@@ -5,7 +5,6 @@ import {
   CaretRightIcon,
 } from "@phosphor-icons/react/dist/ssr"
 
-import { logout } from "@/app/_media/actions"
 import { AppShell } from "@/components/nabalens/app-shell"
 import { Row, RowList } from "@/components/nabalens/common-room/row"
 import { SectionHeader } from "@/components/nabalens/common-room/section"
@@ -181,7 +180,6 @@ export default async function MonthPage({
       active="tasks"
       {...shellStatus}
       userName={profile.displayName}
-      logoutAction={logout}
     >
       <OfflineNotice className="mb-4" />
       <div className="mx-auto flex w-full max-w-(--size-feed) flex-col gap-(--gutter)">

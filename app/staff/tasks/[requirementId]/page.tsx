@@ -1,4 +1,3 @@
-import { logout } from "@/app/_media/actions"
 import { AppShell } from "@/components/nabalens/app-shell"
 import { TaskPhotoGuide } from "@/components/nabalens/guide"
 import { Notice } from "@/components/nabalens/notice"
@@ -83,7 +82,6 @@ export default async function TaskPage({
       active="tasks"
       {...shell}
       userName={profile.displayName}
-      logoutAction={logout}
     >
       <div className="mx-auto flex w-full max-w-(--size-feed) flex-col gap-(--gutter) pb-4">
         <BackToTasks href={TASKS_PATH} />

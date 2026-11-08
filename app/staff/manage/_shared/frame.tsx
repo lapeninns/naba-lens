@@ -1,6 +1,5 @@
 import Link from "next/link"
 
-import { logout } from "@/app/_media/actions"
 import { AppShell } from "@/components/nabalens/app-shell"
 import { Card } from "@/components/nabalens/common-room"
 import { ManageNav, type ManageSection } from "@/components/nabalens/coverage"
@@ -77,12 +76,7 @@ export async function ManageFrame({
   )
 
   return ctx.mode === "admin" ? (
-    <AppShell
-      variant="admin"
-      active="coverage"
-      userName={ctx.viewerName}
-      logoutAction={logout}
-    >
+    <AppShell variant="admin" active="coverage" userName={ctx.viewerName}>
       {body}
     </AppShell>
   ) : (
@@ -92,7 +86,6 @@ export async function ManageFrame({
       canManage
       reviewCount={reviewCount}
       userName={ctx.viewerName}
-      logoutAction={logout}
     >
       {body}
     </AppShell>
@@ -107,12 +100,7 @@ export async function ManageFrame({
  */
 export function NotManagerPage({ viewerName }: { viewerName: string }) {
   return (
-    <AppShell
-      variant="staff"
-      active="manage"
-      userName={viewerName}
-      logoutAction={logout}
-    >
+    <AppShell variant="staff" active="manage" userName={viewerName}>
       <PageHeader scope={currentMonthLabel()} title="Manage isn't available" />
       <Card className="max-w-(--size-reading) text-body">
         <p>

@@ -35,10 +35,10 @@ describe("AppShell Log out works after the session has ended", () => {
     }
   )
 
-  it("ignores a Server Action passed by an existing page", () => {
-    const action = vi.fn(async () => {})
+  it("takes no Server Action for Log out any more", () => {
     const { container } = render(
-      <AppShell variant="admin" active="staff" logoutAction={action}>
+      // @ts-expect-error Log out always posts /auth/logout.
+      <AppShell variant="admin" active="staff" logoutAction={async () => {}}>
         x
       </AppShell>
     )

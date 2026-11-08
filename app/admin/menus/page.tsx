@@ -1,6 +1,5 @@
 import type { Metadata } from "next"
 
-import { logout } from "@/app/_media/actions"
 import { AppShell, MenuVenueList, MenuVenueTally } from "@/components/nabalens"
 import { ErrorState, ERROR_COPY } from "@/components/nabalens/error-state"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
@@ -24,12 +23,7 @@ export default async function MenusPage() {
   const result = await listMenuVenues(auth.actor)
 
   return (
-    <AppShell
-      variant="admin"
-      active="menus"
-      userName={profile.displayName}
-      logoutAction={logout}
-    >
+    <AppShell variant="admin" active="menus" userName={profile.displayName}>
       <MenusHeader />
       <div className="grid gap-6">
         <OfflineNotice />

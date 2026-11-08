@@ -1,4 +1,3 @@
-import { logout } from "@/app/_media/actions"
 import {
   saveWorkProfileAction,
   skipWorkProfileAction,
@@ -40,7 +39,6 @@ export default async function WorkProfilePage({
       active="portfolio"
       {...shell}
       userName={profile.displayName}
-      logoutAction={logout}
     >
       <div className="mx-auto flex w-full max-w-(--size-feed) flex-col gap-(--gutter)">
         <PageHeader

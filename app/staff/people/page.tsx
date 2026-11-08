@@ -1,7 +1,6 @@
 import Link from "next/link"
 import { CaretDownIcon, UsersIcon } from "@phosphor-icons/react/dist/ssr"
 
-import { logout } from "@/app/_media/actions"
 import { AppShell } from "@/components/nabalens/app-shell"
 import { IconDisc } from "@/components/nabalens/common-room"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
@@ -79,7 +78,6 @@ export default async function PeoplePage({
       active="people"
       {...shell}
       userName={profile.displayName}
-      logoutAction={logout}
     >
       {/* Common Room feed: white cards on the grey canvas, one column. */}
       <div className="mx-auto flex w-full max-w-(--size-feed) flex-col gap-(--gutter)">

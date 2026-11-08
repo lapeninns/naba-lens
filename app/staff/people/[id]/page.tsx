@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation"
 import { MapPinIcon } from "@phosphor-icons/react/dist/ssr"
 
-import { logout } from "@/app/_media/actions"
 import { AppShell } from "@/components/nabalens/app-shell"
 import { SectionHeader } from "@/components/nabalens/common-room"
 import { EmptyState } from "@/components/nabalens/empty-state"
@@ -50,7 +49,6 @@ export default async function ColleaguePage({
       active="people"
       {...shell}
       userName={profile.displayName}
-      logoutAction={logout}
     >
       <div className="mx-auto flex w-full max-w-(--size-feed) flex-col gap-(--gutter)">
         <OfflineNotice />

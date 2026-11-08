@@ -1,7 +1,6 @@
 import type { Metadata } from "next"
 
 import { loadOurMenuItemsAction } from "@/app/_coverage/actions"
-import { logout } from "@/app/_media/actions"
 import { AppShell } from "@/components/nabalens/app-shell"
 import {
   OUR_MENU_QUERY_MAX,
@@ -94,7 +93,6 @@ export default async function OurMenuPage({
       active="menu"
       {...shell}
       userName={profile.displayName}
-      logoutAction={logout}
     >
       <div className="flex flex-col gap-(--gutter)">
         <OfflineNotice />

@@ -1,9 +1,7 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { redirect } from "next/navigation"
 
-import { ROUTES } from "@/lib/auth"
 import {
   convertToManager,
   convertToStaff,
@@ -15,7 +13,6 @@ import {
   type StaffAccountStatus,
 } from "@/lib/server/accounts"
 import { accountsContext } from "@/lib/server/accounts/request"
-import { createClient } from "@/lib/supabase/server"
 
 // Server Functions are reachable by direct POST. Each one below hands the
 // request's own session to lib/server/accounts, which re-reads the caller's
@@ -144,11 +141,4 @@ export async function convertToStaffAction(input: unknown) {
   const result = await convertToStaff(await accountsContext(), input)
   if (result.ok) refreshConvertedPages()
   return result
-}
-
-/** Log out from the admin shell (same behaviour as POST /auth/logout). */
-export async function signOutAction() {
-  const supabase = await createClient()
-  await supabase.auth.signOut({ scope: "local" })
-  redirect(`${ROUTES.login}?signed_out=1`)
 }
