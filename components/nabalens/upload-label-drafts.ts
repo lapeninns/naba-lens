@@ -205,7 +205,10 @@ function problemText(code: SaveLabelsErrorCode | null, message: string | null) {
     : (message ?? MENU_CHANGED)
 }
 
-/** The labels on a photo, as the input that would put them there. */
+/**
+ * The labels on a photo, as the input that would put them there, with the
+ * person's own open suggestion (so the sheet shows it and can withdraw it).
+ */
 function inputOf(
   summary: MediaLabelSummary,
   id: string,
@@ -221,7 +224,7 @@ function inputOf(
       itemId: i.itemId,
       variantId: i.variantId,
     })),
-    missingItem: null,
+    missingItem: summary.missingItem,
   }
 }
 
@@ -243,6 +246,17 @@ function keyOf(input: SaveLabelsInput) {
 /** The labels themselves (a missing-item suggestion is not on the photo). */
 function labelsKey(input: SaveLabelsInput) {
   return keyOf({ ...input, missingItem: null })
+}
+
+/**
+ * Whether a send with this key carried a missing-item suggestion (or its
+ * withdrawal): undoing it must then withdraw the person's own suggestion,
+ * since null leaves it open. Unknown or nothing sent: leave it alone.
+ */
+function sentSuggestion(key: string | null) {
+  if (!key || key === UNKNOWN_KEY) return false
+  const sent = JSON.parse(key) as unknown[]
+  return sent[3] !== null
 }
 
 function emptyInput(id: string, catalogueVersionId: string | null) {
@@ -389,13 +403,16 @@ export function useUploadLabels(
       venueId: string,
       assetId: string,
       revision: number,
-      catalogueVersionId: string | null
+      catalogueVersionId: string | null,
+      withdraw: boolean
     ) => {
       if (!config) return
       const send = (expectedRevision: number) =>
         config.save(venueId, {
           ...emptyInput(assetId, catalogueVersionId),
           expectedRevision,
+          // A suggestion this sheet sent goes with the labels it put there.
+          missingItem: withdraw ? "" : null,
         })
       void send(revision)
         .then((result) =>
@@ -419,23 +436,42 @@ export function useUploadLabels(
       if (!config) return
       const assetId = input.assetId
       const version = input.catalogueVersionId
+      const withdraw = input.missingItem !== null
       if (result && result !== SIGNED_OUT && result.ok) {
         // On the photo now: only the empty choice takes them off.
         if (result.state === "saved")
-          return clearPhoto(venueId, assetId, result.labels.revision, version)
+          return clearPhoto(
+            venueId,
+            assetId,
+            result.labels.revision,
+            version,
+            withdraw
+          )
       } else if (
         ready &&
         result !== SIGNED_OUT &&
         (!result || result.code === "unavailable")
       ) {
         // No clear answer from a ready photo: they may be on it.
-        return clearPhoto(venueId, assetId, input.expectedRevision, version)
+        return clearPhoto(
+          venueId,
+          assetId,
+          input.expectedRevision,
+          version,
+          withdraw
+        )
       }
       void config
         .discard(assetId)
         .then((done) => {
           if (done?.state === "already_applied")
-            clearPhoto(venueId, assetId, done.labels.revision, version)
+            clearPhoto(
+              venueId,
+              assetId,
+              done.labels.revision,
+              version,
+              withdraw
+            )
         })
         .catch(() => {})
     },
@@ -628,7 +664,9 @@ export function useUploadLabels(
               : null
           inFlight.current.delete(item.id)
           const applied =
-            photo && photo !== SIGNED_OUT && summaryKey(photo) === sentLabels
+            photo &&
+            photo !== SIGNED_OUT &&
+            labelsKey(inputOf(photo, "", null)) === sentLabels
           if (applied) config.onSaved?.(assetId)
           patch(item.id, (r) => {
             if (rows === SIGNED_OUT || photo === SIGNED_OUT)
@@ -722,7 +760,8 @@ export function useUploadLabels(
                     record.venueId,
                     keptFor,
                     applied.revision,
-                    record.input.catalogueVersionId
+                    record.input.catalogueVersionId,
+                    sentSuggestion(record.sent)
                   )
                 return
               }
@@ -1184,7 +1223,8 @@ export function useUploadLabels(
                 record.venueId,
                 kept,
                 done.labels.revision,
-                record.input.catalogueVersionId
+                record.input.catalogueVersionId,
+                sentSuggestion(record.sent)
               )
           })
           .catch(() => {})

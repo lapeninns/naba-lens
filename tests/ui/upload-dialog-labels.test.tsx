@@ -1662,3 +1662,102 @@ describe("Review 1 regressions: Me settles the sheet's rows (C6)", () => {
     expect(labels.save).toHaveBeenCalledTimes(1)
   })
 })
+
+describe("Saving sheet: a missing-item suggestion undone with its file", () => {
+  const LAMB = "Lamb shank special"
+  const suggesting = (id: string) => ({ ...input(id), missingItem: LAMB })
+
+  /** a.jpg's labels are being sent when the person cancels the file. */
+  async function cancelWhileSending(sent: (id: string) => SaveLabelsInput) {
+    const { upload, find } = heldUploader()
+    const labels = labelsConfig()
+    let answer: (result: UploadLabelPostResult) => void = () => {}
+    labels.save.mockImplementationOnce(
+      () => new Promise((resolve) => (answer = resolve))
+    )
+    sheet({ uploader: upload, labels: labels.config })
+    const user = userEvent.setup()
+    await user.upload(screen.getByLabelText("Choose photos or videos"), [
+      jpeg("a.jpg"),
+    ])
+    act(() => find("a.jpg").reserve("asset-a"))
+    await labels.choose(sent)
+    await waitFor(() => expect(labels.save).toHaveBeenCalledTimes(1))
+    await user.click(screen.getByRole("button", { name: "Cancel a.jpg" }))
+    // The late answer: the labels (and the suggestion) are on the photo.
+    await act(async () =>
+      answer({
+        ok: true,
+        assetId: "asset-a",
+        state: "saved",
+        labels: { ...summary(["Onion Bhaji"], 3), missingItem: LAMB },
+      })
+    )
+    await waitFor(() => expect(labels.save).toHaveBeenCalledTimes(2))
+    return labels.save.mock.calls[1][1]
+  }
+
+  it('a late save that put a suggestion on the photo is undone with "" (withdraw), not null', async () => {
+    const undo = await cancelWhileSending(suggesting)
+    expect(undo).toMatchObject({
+      assetId: "asset-a",
+      expectedRevision: 3,
+      items: [],
+      contentTypes: [],
+      note: null,
+      missingItem: "",
+    })
+  })
+
+  it("a late save without a suggestion is undone with null: no other suggestion is touched", async () => {
+    const undo = await cancelWhileSending((id) => input(id))
+    expect(undo).toMatchObject({ items: [], missingItem: null })
+  })
+
+  it("a kept suggestion finalise already applied is withdrawn when the file is cancelled", async () => {
+    const { upload, find } = heldUploader()
+    const labels = labelsConfig()
+    labels.discard.mockResolvedValue({
+      ok: true,
+      state: "already_applied",
+      labels: { ...summary(["Onion Bhaji"], 2), missingItem: LAMB },
+    })
+    sheet({ uploader: upload, labels: labels.config })
+    const user = userEvent.setup()
+    await user.upload(screen.getByLabelText("Choose photos or videos"), [
+      jpeg("a.jpg"),
+    ])
+    act(() => find("a.jpg").reserve("asset-a"))
+    await labels.choose(suggesting)
+    await waitFor(() => expect(labels.save).toHaveBeenCalledTimes(1))
+    await user.click(screen.getByRole("button", { name: "Cancel a.jpg" }))
+    await waitFor(() => expect(labels.discard).toHaveBeenCalledWith("asset-a"))
+    await waitFor(() => expect(labels.save).toHaveBeenCalledTimes(2))
+    expect(labels.save.mock.calls[1][1]).toMatchObject({
+      assetId: "asset-a",
+      expectedRevision: 2,
+      items: [],
+      missingItem: "",
+    })
+  })
+
+  it("a photo's own suggestion reaches the label field when its labels are adopted, so it can be withdrawn there", async () => {
+    const { upload, find } = heldUploader()
+    const labels = labelsConfig()
+    sheet({ uploader: upload, labels: labels.config })
+    const user = userEvent.setup()
+    // Picked again after a reload: finalise's labels, nothing chosen here.
+    await user.upload(screen.getByLabelText("Choose photos or videos"), [
+      jpeg("dish.jpg"),
+    ])
+    await act(async () =>
+      find("dish.jpg").resolve({
+        state: "saved",
+        labels: { ...summary(["Onion Bhaji"], 2), missingItem: LAMB },
+      })
+    )
+    await waitFor(() =>
+      expect(labels.panel.current?.initial[0]?.missingItem).toBe(LAMB)
+    )
+  })
+})
