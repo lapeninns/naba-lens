@@ -172,6 +172,34 @@ describe("proxy: a Server Action posted without a session", () => {
   })
 })
 
+describe("proxy: Log out with an ended session", () => {
+  it("lets the shell's Log out form, posted from an app page, reach /auth/logout", async () => {
+    const res = await proxy(
+      request("/auth/logout", {
+        method: "POST",
+        headers: {
+          "content-type": "application/x-www-form-urlencoded",
+          origin: ORIGIN,
+          referer: `${ORIGIN}/staff/tasks`,
+        },
+      })
+    )
+    expect(res.status).toBe(200)
+    expect(res.headers.get("x-middleware-next")).toBe("1")
+    expect(res.headers.get("location")).toBeNull()
+  })
+
+  it("would refuse the old Server Action logout posted to the page itself", async () => {
+    const res = await proxy(
+      request("/staff/tasks", {
+        method: "POST",
+        headers: { "next-action": "logout-action-id" },
+      })
+    )
+    expect(res.status).toBe(401)
+  })
+})
+
 describe("proxy: signed in", () => {
   beforeEach(() => {
     session.userId = "user-1"

@@ -247,4 +247,35 @@ test.describe("an ended session mid-task (AUTH-2, charter C-2)", () => {
       .toBe("TEST e2e-return renamed")
     await context.close()
   })
+
+  for (const who of ["staff", "admin"] as const) {
+    test(`${who}: Log out still works after the session ended`, async ({
+      browser,
+    }) => {
+      const person = who === "staff" ? staff : admin
+      const context = await browser.newContext({
+        viewport: { width: 1280, height: 800 },
+      })
+      const page = await context.newPage()
+      await page.goto("/login")
+      const { code } = await requestSignIn(page, person.email)
+      await enterCode(page, code)
+      await expect(page).toHaveURL(who === "staff" ? STAFF_LANDING : /\/admin$/)
+
+      await context.clearCookies()
+      const refused: string[] = []
+      page.on("response", (r) => {
+        if (r.status() === 401) refused.push(r.url())
+      })
+      await page
+        .getByRole("banner")
+        .getByRole("button", { name: "Log out" })
+        .click()
+      await expect(page).toHaveURL(/\/login\?signed_out=1$/)
+      await expect(page.getByText("You have signed out.")).toBeVisible()
+      // A plain POST to /auth/logout, not a Server Action the proxy refuses.
+      expect(refused).toEqual([])
+      await context.close()
+    })
+  }
 })

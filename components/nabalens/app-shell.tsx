@@ -26,8 +26,13 @@ type AppShellProps = {
   children: React.ReactNode
   /** Signed-in person, shown next to Log out from md up. */
   userName?: string
-  /** Log out handler, or a server action used as the form action. */
+  /** Previews only: Log out calls this instead of posting /auth/logout. */
   onLogout?: () => void
+  /**
+   * @deprecated Ignored. Log out is a plain POST to /auth/logout, which works
+   * after the session has ended; a Server Action posted to the page would be
+   * refused by the proxy then.
+   */
   logoutAction?: (formData: FormData) => void | Promise<void>
   className?: string
 } & (
@@ -127,7 +132,7 @@ const BAR_LINK =
  * and a link to Me for staff) and the TabBar pinned to the bottom.
  */
 export function AppShell(props: AppShellProps) {
-  const { children, userName, onLogout, logoutAction, className } = props
+  const { children, userName, onLogout, className } = props
   const staff = props.variant === "staff" ? props : null
   const admin = props.variant === "admin" ? props : null
 
@@ -156,8 +161,8 @@ export function AppShell(props: AppShellProps) {
     <Button
       variant="quiet"
       className="max-md:min-h-11 lg:whitespace-nowrap"
-      type={logoutAction ? "submit" : "button"}
-      onClick={logoutAction ? undefined : onLogout}
+      type={onLogout ? "button" : "submit"}
+      onClick={onLogout}
     >
       <SignOutIcon data-icon="inline-start" aria-hidden />
       {/* Icon only from md to lg, so a manager's five sections still fit at 768px. */}
@@ -235,12 +240,12 @@ export function AppShell(props: AppShellProps) {
               </span>
             ) : null}
             <div className={cn(staff && "hidden md:block")}>
-              {logoutAction ? (
-                <form action={logoutAction} data-logout>
+              {onLogout ? (
+                logoutButton
+              ) : (
+                <form action="/auth/logout" method="post" data-logout>
                   {logoutButton}
                 </form>
-              ) : (
-                logoutButton
               )}
             </div>
             {staff ? (
