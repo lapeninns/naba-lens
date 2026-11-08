@@ -33,21 +33,28 @@ export default async function ManagerMenuItemPage({
   const { venue } = await requireManagerVenue()
   const { itemId } = await params
   if (!isUuid(itemId)) notFound()
+  const search = await searchParams
+  const back = backHref(search.from)
+  // Signing in again returns here, with the Menu list's filters for Back.
+  const query = back.indexOf("?")
+  const here =
+    query < 0
+      ? managerHrefs.item(itemId)
+      : `${managerHrefs.item(itemId)}?${new URLSearchParams({ from: back.slice(query + 1) })}`
   const scope = await getManagerPhotoCtx()
-  if (!scope.ok) failedRead(scope.code, undefined, managerHrefs.item(itemId))
-  const [read, history, search] = await Promise.all([
+  if (!scope.ok) failedRead(scope.code, undefined, here)
+  const [read, history] = await Promise.all([
     getManagerItem(scope.ctx, itemId),
     listItemEvents(scope.ctx, { itemId }),
-    searchParams,
   ])
-  if (!read.ok) failedRead(read.code, undefined, managerHrefs.item(itemId))
+  if (!read.ok) failedRead(read.code, undefined, here)
   const { detail } = read
   if (!detail) notFound()
 
   return (
     <ItemDetail
       detail={detail}
-      backHref={backHref(search.from)}
+      backHref={back}
       decide={decideMenuPhotoAction}
       history={
         history.ok
