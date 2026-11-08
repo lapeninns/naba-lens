@@ -1,9 +1,6 @@
 "use server"
 
-import { redirect } from "next/navigation"
-
 import { removeMediaAsset } from "@/lib/server/lifecycle/remove"
-import { createClient } from "@/lib/supabase/server"
 
 export type DeleteMediaResult = { ok: true } | { ok: false; error: string }
 
@@ -31,11 +28,4 @@ export async function deleteMedia(assetId: string): Promise<DeleteMediaResult> {
     default:
       return { ok: false, error: "Could not remove the file. Try again." }
   }
-}
-
-/** Log out from the app shell (same as POST /auth/logout). */
-export async function logout() {
-  const supabase = await createClient()
-  await supabase.auth.signOut({ scope: "local" })
-  redirect("/login?signed_out=1")
 }

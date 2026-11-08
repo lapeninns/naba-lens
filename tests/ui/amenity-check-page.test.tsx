@@ -10,7 +10,6 @@ vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
   notFound: vi.fn(),
 }))
-vi.mock("@/app/_media/actions", () => ({ logout: vi.fn() }))
 vi.mock("@/app/_amenities/actions", () => ({
   listSubmittableAssetsAction: vi.fn(),
   submitFindingAction: vi.fn(),

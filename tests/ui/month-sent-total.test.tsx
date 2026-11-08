@@ -12,7 +12,6 @@ vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
   notFound: vi.fn(),
 }))
-vi.mock("@/app/_media/actions", () => ({ logout: vi.fn() }))
 vi.mock("@/app/staff/tasks/task-submit", () => ({ TaskSubmit: () => null }))
 vi.mock("@/components/nabalens/app-shell", () => ({
   AppShell: ({ children }: { children: React.ReactNode }) => (

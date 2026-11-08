@@ -3,7 +3,6 @@ import { cleanup, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("server-only", () => ({}))
-vi.mock("@/app/_media/actions", () => ({ logout: async () => {} }))
 vi.mock("@/lib/auth", () => ({
   requireActiveStaff: async () => ({ displayName: "Asha", role: "staff" }),
   requireActiveAdmin: async () => ({ displayName: "Ravi", role: "admin" }),

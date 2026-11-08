@@ -25,7 +25,6 @@ const jar = vi.hoisted(() => ({
   has: vi.fn<(name: string) => boolean>(() => false),
 }))
 vi.mock("next/headers", () => ({ cookies: async () => jar }))
-vi.mock("@/app/_media/actions", () => ({ logout: vi.fn() }))
 vi.mock("@/components/nabalens/app-shell", () => ({
   AppShell: ({
     children,

@@ -36,7 +36,6 @@ vi.mock("@/app/_media/use-media-uploader", () => ({
   useMediaUploader: () => vi.fn(),
 }))
 vi.mock("@/app/_media/actions", () => ({
-  logout: vi.fn(),
   deleteMedia: vi.fn(),
 }))
 vi.mock("@/app/_labels/actions", () => ({

@@ -27,7 +27,6 @@ vi.mock("@/app/staff/manage/_shared/context", () => access)
 vi.mock("@/app/staff/manage/_shared/frame", () => ({
   NotManagerPage: () => null,
 }))
-vi.mock("@/app/_media/actions", () => ({ logout: vi.fn() }))
 vi.mock("@/components/nabalens/app-shell", () => ({
   AppShell: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }))

@@ -19,7 +19,6 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
 }))
 vi.mock("@/app/_media/actions", () => ({
-  logout: vi.fn(),
   deleteMedia: vi.fn(),
 }))
 vi.mock("@/app/staff/actions", () => ({ loadMyMedia: vi.fn() }))
