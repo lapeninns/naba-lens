@@ -109,6 +109,19 @@ const FAILURE_COPY: Record<CoverageErrorCode, FailureCopy> = {
   },
 }
 
+/**
+ * A send threw before its answer arrived: it may or may not have been
+ * recorded. Try again reuses the request ID, so the server replays it.
+ */
+export function sendUnconfirmed(replacing: boolean): FailureCopy {
+  return {
+    message: replacing
+      ? "We couldn't confirm your photo was sent. Check your connection and try again. Nothing is sent twice."
+      : "We couldn't confirm your photos were sent. Check your connection and try again. Nothing is sent twice.",
+    action: "retry",
+  }
+}
+
 /** The action threw (dropped connection, timeout, server crash). */
 export const NETWORK_FAILURE: FailureCopy = {
   message:

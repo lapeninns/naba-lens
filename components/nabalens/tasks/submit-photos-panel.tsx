@@ -27,7 +27,13 @@ import type { OpenAddOptions } from "../shell/add-context"
 import type { UploadLimits } from "../types"
 import { UploadDialog } from "../upload-dialog"
 import type { Uploader } from "../upload-queue"
-import { failureCopy, NETWORK_FAILURE, plural, type FailureCopy } from "./copy"
+import {
+  failureCopy,
+  NETWORK_FAILURE,
+  plural,
+  sendUnconfirmed,
+  type FailureCopy,
+} from "./copy"
 import { PhotoPicker } from "./photo-picker"
 import { intentKey, useRequestIntent } from "./request-intent"
 import type {
@@ -392,7 +398,9 @@ export function SubmitPhotosPanel({
       const ended = sessionEnded(cause)
       setOutcome({
         kind: "failed",
-        copy: ended ? { message: ended, action: "retry" } : NETWORK_FAILURE,
+        copy: ended
+          ? { message: ended, action: "sign_in" }
+          : sendUnconfirmed(replaced),
       })
       return
     } finally {
@@ -547,7 +555,6 @@ export function SubmitPhotosPanel({
             onReload={onReload}
             signInHref={signInHref}
             retrying={sending || !online}
-            replacing={replacesSubmissionId !== null}
           />
           {!sending ? (
             <p className="text-center font-mono text-meta text-ink-muted tabular-nums empty:hidden md:text-left">
@@ -628,14 +635,12 @@ function OutcomeMessage({
   onReload,
   signInHref,
   retrying,
-  replacing,
 }: {
   outcome: Outcome | null
   onRetry: () => void
   onReload: () => void
   signInHref: string
   retrying: boolean
-  replacing: boolean
 }) {
   if (!outcome) return null
   if (outcome.kind === "sent" && outcome.replaced && !outcome.alreadySent) {
@@ -684,7 +689,6 @@ function OutcomeMessage({
     )
   }
   const { copy } = outcome
-  const retry = copy.action === "retry"
   const action =
     copy.action === "retry" ? (
       <Button
@@ -710,21 +714,8 @@ function OutcomeMessage({
       </Link>
     ) : undefined
   return (
-    <Notice
-      tone="negative"
-      role="alert"
-      title={
-        retry
-          ? replacing
-            ? "We couldn't send your photo"
-            : "We couldn't send your photos"
-          : undefined
-      }
-      action={action}
-    >
-      {retry
-        ? "Check your connection and try again. Nothing is sent twice."
-        : copy.message}
+    <Notice tone="negative" role="alert" action={action}>
+      {copy.message}
     </Notice>
   )
 }
