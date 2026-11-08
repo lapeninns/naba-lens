@@ -140,6 +140,20 @@ test.describe("Better photo requested: retake from Me", () => {
       .poll(() => labelItems(id), { timeout: 90_000 })
       .toBe(`Momo|${veg}|Veg`)
 
+    // Me reads requests on the server: once the retake is labelled, the
+    // request says it was sent and offers only a quiet Take another.
+    await page.reload()
+    await settled(page)
+    await expect(request).toContainText(
+      "New photo sent · waiting for manager review"
+    )
+    await expect(
+      request.getByRole("button", { name: "Take a new photo" })
+    ).toHaveCount(0)
+    const again = request.getByRole("button", { name: "Take another" })
+    await expect(again).toBeVisible()
+    expect((await again.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44)
+
     // No page scrolls sideways at 390 px.
     expect(
       await page.evaluate(

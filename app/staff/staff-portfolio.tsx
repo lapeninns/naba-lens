@@ -9,6 +9,7 @@ import {
   CameraIcon,
   CameraPlusIcon,
   CaretRightIcon,
+  CheckCircleIcon,
   ClipboardTextIcon,
   ForkKnifeIcon,
   ImagesIcon,
@@ -315,6 +316,8 @@ export type BetterPhotoRequest = {
   dish: string
   reason: string | null
   preset: AddLabelPreset
+  /** A newer own photo of this dish is labelled and waiting for a decision. */
+  sent: boolean
 }
 
 export const BETTER_PHOTO_COPY = {
@@ -322,24 +325,57 @@ export const BETTER_PHOTO_COPY = {
     "A manager would like a better photo of these dishes. Take a new one and it goes to them for review, already labelled with the dish.",
   take: "Take a new photo",
   choose: "Choose from photos",
+  sent: "New photo sent · waiting for manager review",
+  again: "Take another",
 } as const
+
+const sameDish = (
+  a: { itemId: string; variantId: string | null },
+  b: { itemId: string; variantId: string | null }
+) => a.itemId === b.itemId && a.variantId === b.variantId
 
 /**
  * Open better-photo requests on photos that are ready, newest decision first.
  * The dish and its variant become Add's label preset, as on Our menu.
+ *
+ * A retake only labels a new photo, so the request itself stays open until a
+ * manager decides on the old photo. Among the person's loaded own photos
+ * (`own`), a newer one labelled with the same dish and variant marks the
+ * request sent while it has no decision, and drops it once it is accepted.
  */
 export function betterPhotoRequests(
   states: readonly MyMenuPhotoState[],
-  items: readonly MediaItem[]
+  items: readonly MediaItem[],
+  own: readonly MediaItem[] = items
 ): BetterPhotoRequest[] {
   const ready = new Map(
     items
       .filter((item) => item.uploadState === "ready")
       .map((item) => [item.id, item])
   )
+  const photos = new Map(own.map((photo) => [photo.id, photo]))
+  for (const item of items) photos.set(item.id, item)
   return states.flatMap((state) => {
     const item = ready.get(state.assetId)
     if (state.state !== "better_photo_requested" || !item) return []
+    const requestedAt = Date.parse(item.createdAt)
+    const newer = [...photos.values()].filter(
+      (photo) =>
+        photo.id !== item.id && Date.parse(photo.createdAt) > requestedAt
+    )
+    const decided = (photo: MediaItem) =>
+      states.filter((s) => s.assetId === photo.id && sameDish(s, state))
+    if (
+      newer.some((photo) =>
+        decided(photo).some((decision) => decision.state === "accepted")
+      )
+    )
+      return []
+    const sent = newer.some(
+      (photo) =>
+        decided(photo).length === 0 &&
+        (photo.labels?.items ?? []).some((label) => sameDish(label, state))
+    )
     return [
       {
         key: state.photoId,
@@ -354,6 +390,7 @@ export function betterPhotoRequests(
           itemName: state.itemName,
           variantName: state.variantName,
         },
+        sent,
       },
     ]
   })
@@ -372,7 +409,7 @@ function BetterPhotoRow({
   openAdd: ((opts?: OpenAddOptions) => void) | null
 }) {
   const nameId = React.useId()
-  const { item, dish, reason, preset } = request
+  const { item, dish, reason, preset, sent } = request
   return (
     <li>
       <article
@@ -407,8 +444,28 @@ function BetterPhotoRow({
               {reason}
             </p>
           ) : null}
+          {sent ? (
+            <p className="flex items-center gap-1.5 text-body text-ink">
+              <CheckCircleIcon aria-hidden className="size-5 text-ok-fg" />
+              {BETTER_PHOTO_COPY.sent}
+            </p>
+          ) : null}
         </div>
-        {openAdd ? (
+        {openAdd && sent ? (
+          <div className="col-span-2 flex flex-wrap gap-2 *:flex-auto sm:*:flex-none">
+            <Button
+              variant="quiet"
+              size="touch"
+              aria-describedby={nameId}
+              onClick={() =>
+                openAdd({ source: "camera", imagesOnly: true, preset })
+              }
+            >
+              <CameraPlusIcon data-icon="inline-start" aria-hidden />
+              {BETTER_PHOTO_COPY.again}
+            </Button>
+          </div>
+        ) : openAdd ? (
           <div className="col-span-2 flex flex-wrap gap-2 *:flex-auto sm:*:flex-none">
             <Button
               variant="secondary"
@@ -512,7 +569,11 @@ export function StaffPortfolio({
   const acceptedItems = menuPhotoItems.filter(
     (item) => photoMilestone(item, acceptedIds) === "accepted"
   )
-  const betterRequests = betterPhotoRequests(menuPhotos, menuPhotoItems)
+  const betterRequests = betterPhotoRequests(menuPhotos, menuPhotoItems, [
+    ...initialPage.items,
+    ...menuPhotoItems,
+  ])
+  const betterWaiting = betterRequests.filter((request) => !request.sent)
   // A blocked account sees why in the notice below, not a camera that fails.
   const openRetake = uploadBlocked ? null : openAdd
 
@@ -678,8 +739,8 @@ export function StaffPortfolio({
             >
               {MILESTONES.better}
               <CountBadge
-                count={betterRequests.length}
-                label={betterRequests.length === 1 ? "request" : "requests"}
+                count={betterWaiting.length}
+                label={betterWaiting.length === 1 ? "request" : "requests"}
               />
             </h2>
             <p className="text-body text-ink-muted">

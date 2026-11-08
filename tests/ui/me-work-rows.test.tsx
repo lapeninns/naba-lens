@@ -424,6 +424,119 @@ describe("Me: Needs labels and milestones", () => {
     expect(openAdd).toHaveBeenCalledTimes(2)
   })
 
+  it("says a retake was sent, and drops the request once the retake is accepted", async () => {
+    const labelled = (itemId: string, name: string, variant?: string) => ({
+      ...LABELLED,
+      items: [
+        {
+          itemId,
+          variantId: variant ? `v-${variant}` : null,
+          name,
+          variantName: variant ?? null,
+          sectionName: "Starters",
+          labelledAs: null,
+          state: "current" as const,
+        },
+      ],
+    })
+    const later = "2026-11-07T09:00:00.000Z"
+    const request = (
+      photoId: string,
+      assetId: string,
+      itemId: string,
+      itemName: string,
+      variant: string | null
+    ) => ({
+      photoId,
+      assetId,
+      itemId,
+      itemName,
+      variantId: variant ? `v-${variant}` : null,
+      variantName: variant,
+      state: "better_photo_requested" as const,
+      isPrimary: false,
+      reason: "Brighter",
+    })
+    // n1: a newer Momo (Veg) retake on the newest page, no decision yet.
+    // n2: a newer Chicken curry retake, accepted.
+    // n3: a newer Momo (Chicken): another variant, so not a retake of Veg.
+    library.items = [
+      item("n1", { createdAt: later, labels: labelled("i3", "Momo", "Veg") }),
+      item("n3", {
+        createdAt: later,
+        labels: labelled("i3", "Momo", "Chicken"),
+      }),
+    ]
+    library.byId = [
+      item("b1", { labels: labelled("i3", "Momo", "Veg") }),
+      item("b2", { labels: labelled("i2", "Chicken curry") }),
+      item("n2", {
+        createdAt: later,
+        labels: labelled("i2", "Chicken curry"),
+      }),
+      item("b4", { labels: labelled("i4", "Soup") }),
+    ]
+    coverage.listMyMenuPhotoDecisions.mockResolvedValueOnce({
+      ok: true,
+      states: [
+        request("p1", "b1", "i3", "Momo", "Veg"),
+        request("p2", "b2", "i2", "Chicken curry", null),
+        {
+          ...request("p3", "n2", "i2", "Chicken curry", null),
+          state: "accepted" as const,
+          reason: null,
+        },
+        request("p4", "b4", "i4", "Soup", null),
+      ],
+    })
+    const openAdd = vi.fn()
+    render(<AddProvider value={{ openAdd }}>{await StaffPage()}</AddProvider>)
+
+    const list = screen.getByRole("list", {
+      name: "Photos with a better photo requested",
+    })
+    expect(
+      within(list)
+        .getAllByRole("article")
+        .map((a) => a.querySelector("h3")?.textContent)
+    ).toEqual(["Momo (Veg)", "Soup"])
+    // Only Soup still needs a photo.
+    const heading = screen.getByRole("heading", {
+      level: 2,
+      name: /Better photo requested/,
+    })
+    expect(within(heading).getByText("1")).toBeTruthy()
+
+    const momo = within(list).getByRole("article", { name: "Momo (Veg)" })
+    expect(momo.textContent).toContain(
+      "New photo sent · waiting for manager review"
+    )
+    expect(
+      within(momo).queryByRole("button", { name: "Take a new photo" })
+    ).toBeNull()
+    expect(
+      within(momo).queryByRole("button", { name: "Choose from photos" })
+    ).toBeNull()
+    const again = within(momo).getByRole("button", { name: "Take another" })
+    expect(again.className).toContain("min-h-13")
+    fireEvent.click(again)
+    expect(openAdd).toHaveBeenLastCalledWith({
+      source: "camera",
+      imagesOnly: true,
+      preset: {
+        itemId: "i3",
+        variantId: "v-Veg",
+        itemName: "Momo",
+        variantName: "Veg",
+      },
+    })
+
+    const soup = within(list).getByRole("article", { name: "Soup" })
+    expect(soup.textContent).not.toContain("New photo sent")
+    expect(
+      within(soup).getByRole("button", { name: "Take a new photo" })
+    ).toBeTruthy()
+  })
   it("offers no camera on a better-photo request while uploads are paused", () => {
     const openAdd = vi.fn()
     render(
