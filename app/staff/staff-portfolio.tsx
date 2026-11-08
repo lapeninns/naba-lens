@@ -328,6 +328,11 @@ export type BetterPhotoRequest = {
   preset: AddLabelPreset
   /** A newer own photo of this dish is labelled and waiting for a decision. */
   sent: boolean
+  /**
+   * The dish is on the person's current venue's active menu, so a retake can
+   * be labelled with it (see listMyMenuPhotoDecisions).
+   */
+  canRetake: boolean
 }
 
 export const BETTER_PHOTO_COPY = {
@@ -337,6 +342,8 @@ export const BETTER_PHOTO_COPY = {
   choose: "Choose from photos",
   sent: "New photo sent · waiting for manager review",
   again: "Take another",
+  offMenu:
+    "This dish isn't on your venue's menu now, so a new photo can't be sent for it.",
 } as const
 
 const sameDish = (
@@ -405,6 +412,7 @@ export function betterPhotoRequests(
           variantName: state.variantName,
         },
         sent,
+        canRetake: state.canRetake !== false,
       },
     ]
   })
@@ -423,7 +431,8 @@ function BetterPhotoRow({
   openAdd: ((opts?: OpenAddOptions) => void) | null
 }) {
   const nameId = React.useId()
-  const { item, dish, reason, preset, sent } = request
+  const { item, dish, reason, preset, sent, canRetake } = request
+  const retake = canRetake ? openAdd : null
   return (
     <li>
       <article
@@ -458,6 +467,11 @@ function BetterPhotoRow({
               {reason}
             </p>
           ) : null}
+          {!canRetake ? (
+            <p className="text-body [overflow-wrap:anywhere] text-ink">
+              {BETTER_PHOTO_COPY.offMenu}
+            </p>
+          ) : null}
           {sent ? (
             <p className="flex items-center gap-1.5 text-body text-ink">
               <CheckCircleIcon aria-hidden className="size-5 text-ok-fg" />
@@ -465,21 +479,21 @@ function BetterPhotoRow({
             </p>
           ) : null}
         </div>
-        {openAdd && sent ? (
+        {retake && sent ? (
           <div className="col-span-2 flex flex-wrap gap-2 *:flex-auto sm:*:flex-none">
             <Button
               variant="quiet"
               size="touch"
               aria-describedby={nameId}
               onClick={() =>
-                openAdd({ source: "camera", imagesOnly: true, preset })
+                retake({ source: "camera", imagesOnly: true, preset })
               }
             >
               <CameraPlusIcon data-icon="inline-start" aria-hidden />
               {BETTER_PHOTO_COPY.again}
             </Button>
           </div>
-        ) : openAdd ? (
+        ) : retake ? (
           <div className="col-span-2 flex flex-wrap gap-2 *:flex-auto sm:*:flex-none">
             <Button
               variant="secondary"
@@ -487,7 +501,7 @@ function BetterPhotoRow({
               aria-describedby={nameId}
               // openAdd clicks the camera input inside this click handler.
               onClick={() =>
-                openAdd({ source: "camera", imagesOnly: true, preset })
+                retake({ source: "camera", imagesOnly: true, preset })
               }
             >
               <CameraPlusIcon data-icon="inline-start" aria-hidden />
@@ -498,7 +512,7 @@ function BetterPhotoRow({
               size="touch"
               aria-describedby={nameId}
               onClick={() =>
-                openAdd({ source: "library", imagesOnly: true, preset })
+                retake({ source: "library", imagesOnly: true, preset })
               }
             >
               <ImagesIcon data-icon="inline-start" aria-hidden />
@@ -588,7 +602,9 @@ export function StaffPortfolio({
     ...initialPage.items,
     ...menuPhotoItems,
   ])
-  const betterWaiting = betterRequests.filter((request) => !request.sent)
+  const betterWaiting = betterRequests.filter(
+    (request) => !request.sent && request.canRetake
+  )
   // A blocked account sees why in the notice below, not a camera that fails.
   const openRetake = uploadBlocked ? null : openAdd
 
