@@ -11,6 +11,7 @@ import type * as React from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { MediaItem } from "@/components/nabalens/types"
+import { AddProvider } from "@/components/nabalens/shell/add-context"
 import { EMPTY_LABEL_SUMMARY } from "@/lib/menus/types"
 
 vi.mock("server-only", () => ({}))
@@ -22,16 +23,22 @@ vi.mock("@/app/_media/actions", () => ({
   deleteMedia: vi.fn(),
 }))
 vi.mock("@/app/staff/actions", () => ({ loadMyMedia: vi.fn() }))
-const gallery = vi.hoisted(() => ({ signals: [] as number[] }))
+const gallery = vi.hoisted(() => ({
+  signals: [] as number[],
+  impact: undefined as ((item: MediaItem) => unknown) | undefined,
+}))
 vi.mock("@/app/_media/media-gallery", () => ({
   MediaGallery: ({
     label,
     refreshSignal,
+    getDeleteImpact,
   }: {
     label: string
     refreshSignal?: number
+    getDeleteImpact?: (item: MediaItem) => unknown
   }) => {
     gallery.signals.push(refreshSignal ?? 0)
+    gallery.impact = getDeleteImpact
     return <section aria-label={label} />
   },
 }))
@@ -135,8 +142,12 @@ vi.mock("@/lib/server/amenities", () => ({
 }))
 
 import {
+  betterPhotoRequests,
   photoMilestone,
   photosNeedingLabels,
+  PROFILE_SAVE_COPY,
+  saveProfile,
+  StaffPortfolio,
 } from "@/app/staff/staff-portfolio"
 import StaffPage from "@/app/staff/page"
 
@@ -203,6 +214,18 @@ describe("Me: work details and the guide", () => {
     ).toBeTruthy()
   })
 
+  it("logs out on phones with a form POST to /auth/logout, which works after the session ended", async () => {
+    library.items = []
+    const { container } = render(await StaffPage())
+    const form = container.querySelector("form[data-logout]")
+    expect(form?.getAttribute("action")).toBe("/auth/logout")
+    expect(form?.getAttribute("method")).toBe("post")
+    expect(
+      within(form as HTMLElement)
+        .getByRole("button", { name: "Log out" })
+        .getAttribute("type")
+    ).toBe("submit")
+  })
   it("opens Edit profile straight away from ?edit=profile", async () => {
     library.items = []
     render(
@@ -297,6 +320,12 @@ describe("Me: Needs labels and milestones", () => {
     expect(accepted).toHaveLength(1)
     expect(accepted[0].textContent).toContain("Accepted for menu use")
     expect(accepted[0].textContent).toContain("Lamb rogan josh")
+    // Deleting it from the portfolio says the dish may need a new photo.
+    expect(gallery.impact?.(item("a1"))).toEqual({
+      kind: "menu",
+      dishes: ["Lamb rogan josh"],
+    })
+    expect(gallery.impact?.(item("a2"))).toBeUndefined()
   })
 
   it("shows a better photo request with the reviewer's reason", async () => {
@@ -326,12 +355,258 @@ describe("Me: Needs labels and milestones", () => {
     ).getAllByRole("listitem")
     expect(tiles).toHaveLength(1)
     expect(tiles[0].textContent).toContain("Better photo requested")
-    expect(tiles[0].textContent).toContain(
-      "Chicken curry: Too dark, shoot near the pass"
-    )
+    const row = screen.getByRole("article", { name: "Chicken curry" })
+    expect(row.textContent).toContain("Too dark, shoot near the pass")
     expect(
       screen.queryByRole("list", { name: "Photos accepted for menu use" })
     ).toBeNull()
+  })
+
+  it("takes the replacement photo of a better-photo request in one tap, labelled with that dish", async () => {
+    library.items = []
+    library.byId = [
+      item("b1", { labels: LABELLED }),
+      item("b2", { labels: LABELLED }),
+    ]
+    coverage.listMyMenuPhotoDecisions.mockResolvedValueOnce({
+      ok: true,
+      states: [
+        {
+          photoId: "p2",
+          assetId: "b1",
+          itemId: "i2",
+          itemName: "Chicken curry",
+          variantId: null,
+          variantName: null,
+          state: "better_photo_requested",
+          isPrimary: false,
+          reason: "Too dark, shoot near the pass",
+        },
+        {
+          photoId: "p3",
+          assetId: "b2",
+          itemId: "i3",
+          itemName: "Momo",
+          variantId: "v-veg",
+          variantName: "Veg",
+          state: "better_photo_requested",
+          isPrimary: false,
+          reason: "Show all ten",
+        },
+      ],
+    })
+    const openAdd = vi.fn()
+    render(<AddProvider value={{ openAdd }}>{await StaffPage()}</AddProvider>)
+    const heading = screen.getByRole("heading", {
+      level: 2,
+      name: /Better photo requested/,
+    })
+    expect(within(heading).getByText("2")).toBeTruthy()
+
+    const momo = screen.getByRole("article", { name: "Momo (Veg)" })
+    expect(momo.textContent).toContain("Show all ten")
+    fireEvent.click(
+      within(momo).getByRole("button", { name: "Take a new photo" })
+    )
+    expect(openAdd).toHaveBeenLastCalledWith({
+      source: "camera",
+      imagesOnly: true,
+      preset: {
+        itemId: "i3",
+        variantId: "v-veg",
+        itemName: "Momo",
+        variantName: "Veg",
+      },
+    })
+
+    const curry = screen.getByRole("article", { name: "Chicken curry" })
+    fireEvent.click(
+      within(curry).getByRole("button", { name: "Choose from photos" })
+    )
+    expect(openAdd).toHaveBeenLastCalledWith({
+      source: "library",
+      imagesOnly: true,
+      preset: {
+        itemId: "i2",
+        variantId: null,
+        itemName: "Chicken curry",
+        variantName: null,
+      },
+    })
+    expect(openAdd).toHaveBeenCalledTimes(2)
+  })
+
+  it("says a retake was sent, and drops the request once the retake is accepted", async () => {
+    const labelled = (itemId: string, name: string, variant?: string) => ({
+      ...LABELLED,
+      items: [
+        {
+          itemId,
+          variantId: variant ? `v-${variant}` : null,
+          name,
+          variantName: variant ?? null,
+          sectionName: "Starters",
+          labelledAs: null,
+          state: "current" as const,
+        },
+      ],
+    })
+    const later = "2026-11-07T09:00:00.000Z"
+    const request = (
+      photoId: string,
+      assetId: string,
+      itemId: string,
+      itemName: string,
+      variant: string | null
+    ) => ({
+      photoId,
+      assetId,
+      itemId,
+      itemName,
+      variantId: variant ? `v-${variant}` : null,
+      variantName: variant,
+      state: "better_photo_requested" as const,
+      isPrimary: false,
+      reason: "Brighter",
+    })
+    // n1: a newer Momo (Veg) retake on the newest page, no decision yet.
+    // n2: a newer Chicken curry retake, accepted.
+    // n3: a newer Momo (Chicken): another variant, so not a retake of Veg.
+    library.items = [
+      item("n1", { createdAt: later, labels: labelled("i3", "Momo", "Veg") }),
+      item("n3", {
+        createdAt: later,
+        labels: labelled("i3", "Momo", "Chicken"),
+      }),
+    ]
+    library.byId = [
+      item("b1", { labels: labelled("i3", "Momo", "Veg") }),
+      item("b2", { labels: labelled("i2", "Chicken curry") }),
+      item("n2", {
+        createdAt: later,
+        labels: labelled("i2", "Chicken curry"),
+      }),
+      item("b4", { labels: labelled("i4", "Soup") }),
+    ]
+    coverage.listMyMenuPhotoDecisions.mockResolvedValueOnce({
+      ok: true,
+      states: [
+        request("p1", "b1", "i3", "Momo", "Veg"),
+        request("p2", "b2", "i2", "Chicken curry", null),
+        {
+          ...request("p3", "n2", "i2", "Chicken curry", null),
+          state: "accepted" as const,
+          reason: null,
+        },
+        request("p4", "b4", "i4", "Soup", null),
+      ],
+    })
+    const openAdd = vi.fn()
+    render(<AddProvider value={{ openAdd }}>{await StaffPage()}</AddProvider>)
+
+    const list = screen.getByRole("list", {
+      name: "Photos with a better photo requested",
+    })
+    expect(
+      within(list)
+        .getAllByRole("article")
+        .map((a) => a.querySelector("h3")?.textContent)
+    ).toEqual(["Momo (Veg)", "Soup"])
+    // Only Soup still needs a photo.
+    const heading = screen.getByRole("heading", {
+      level: 2,
+      name: /Better photo requested/,
+    })
+    expect(within(heading).getByText("1")).toBeTruthy()
+
+    const momo = within(list).getByRole("article", { name: "Momo (Veg)" })
+    expect(momo.textContent).toContain(
+      "New photo sent · waiting for manager review"
+    )
+    expect(
+      within(momo).queryByRole("button", { name: "Take a new photo" })
+    ).toBeNull()
+    expect(
+      within(momo).queryByRole("button", { name: "Choose from photos" })
+    ).toBeNull()
+    const again = within(momo).getByRole("button", { name: "Take another" })
+    expect(again.className).toContain("min-h-13")
+    fireEvent.click(again)
+    expect(openAdd).toHaveBeenLastCalledWith({
+      source: "camera",
+      imagesOnly: true,
+      preset: {
+        itemId: "i3",
+        variantId: "v-Veg",
+        itemName: "Momo",
+        variantName: "Veg",
+      },
+    })
+
+    const soup = within(list).getByRole("article", { name: "Soup" })
+    expect(soup.textContent).not.toContain("New photo sent")
+    expect(
+      within(soup).getByRole("button", { name: "Take a new photo" })
+    ).toBeTruthy()
+  })
+  it("offers no camera on a better-photo request while uploads are paused", () => {
+    const openAdd = vi.fn()
+    render(
+      <AddProvider value={{ openAdd }}>
+        <StaffPortfolio
+          profile={{
+            displayName: "Anil Thapa",
+            jobTitle: null,
+            venueName: null,
+            avatarUrl: null,
+          }}
+          uploadBlocked="Uploads are paused until you have a venue."
+          initialPage={{ items: [], nextCursor: null }}
+          menuPhotos={[
+            {
+              photoId: "p2",
+              assetId: "b1",
+              itemId: "i2",
+              itemName: "Chicken curry",
+              variantId: null,
+              variantName: null,
+              state: "better_photo_requested",
+              isPrimary: false,
+              reason: "Too dark",
+            },
+          ]}
+          menuPhotoItems={[item("b1", { labels: LABELLED })]}
+        />
+      </AddProvider>
+    )
+    const row = screen.getByRole("article", { name: "Chicken curry" })
+    expect(within(row).queryByRole("button")).toBeNull()
+    expect(
+      screen.getByText("Uploads are paused until you have a venue.")
+    ).toBeTruthy()
+  })
+
+  it("lists a better-photo request only once its photo is ready", () => {
+    const state = {
+      photoId: "p1",
+      assetId: "a1",
+      itemId: "i1",
+      itemName: "Soup",
+      variantId: null,
+      variantName: null,
+      state: "better_photo_requested" as const,
+      isPrimary: false,
+      reason: "Brighter",
+    }
+    expect(
+      betterPhotoRequests(
+        [state, { ...state, photoId: "p0", state: "accepted" as const }],
+        [item("a1", { labels: LABELLED })]
+      ).map((r) => [r.key, r.dish, r.reason])
+    ).toEqual([["p1", "Soup", "Brighter"]])
+    expect(
+      betterPhotoRequests([state], [item("a1", { uploadState: "processing" })])
+    ).toEqual([])
   })
 
   it("words each photo's milestone", () => {
@@ -350,5 +625,95 @@ describe("Me: Needs labels and milestones", () => {
     expect(
       photosNeedingLabels(Array.from({ length: 14 }, (_, i) => item(`x${i}`)))
     ).toHaveLength(10)
+  })
+})
+
+describe("Me: saving the profile", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  const values = { displayName: "Anil Thapa", avatarFile: null }
+  const html = (status: number) =>
+    new Response("<html><body>Error</body></html>", {
+      status,
+      headers: { "content-type": "text/html" },
+    })
+
+  it("says what an HTML error page means, not a connection problem", async () => {
+    const fetch = vi.fn()
+    vi.stubGlobal("fetch", fetch)
+
+    fetch.mockResolvedValueOnce(html(413))
+    expect(await saveProfile(values)).toEqual({
+      ok: false,
+      error: PROFILE_SAVE_COPY.tooLarge,
+      fieldErrors: { avatar: PROFILE_SAVE_COPY.tooLarge },
+    })
+    expect(PROFILE_SAVE_COPY.tooLarge).toBe(
+      "This photo is too large. Profile photos can be up to 4.0 MB."
+    )
+
+    fetch.mockResolvedValueOnce(html(504))
+    expect(await saveProfile(values)).toEqual({
+      ok: false,
+      error: "Saving took too long, so it may not have finished. Try again.",
+    })
+
+    fetch.mockResolvedValueOnce(html(401))
+    expect(await saveProfile(values)).toEqual({
+      ok: false,
+      error: "Sign in again, then try again.",
+    })
+
+    fetch.mockResolvedValueOnce(html(500))
+    expect(await saveProfile(values)).toEqual({
+      ok: false,
+      error: "Your changes could not be saved. Try again.",
+    })
+
+    fetch.mockRejectedValueOnce(new TypeError("Failed to fetch"))
+    expect(await saveProfile(values)).toEqual({
+      ok: false,
+      error: "Could not save. Check your connection.",
+    })
+  })
+
+  it("passes on the route's own JSON answer", async () => {
+    const answer = {
+      ok: false,
+      error: "Enter a display name.",
+      fieldErrors: { displayName: "Enter a display name." },
+    }
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Response.json(answer, { status: 400 }))
+    )
+    expect(await saveProfile(values)).toEqual(answer)
+  })
+
+  it("confirms a saved profile on Me until Edit profile opens again", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Response.json({ ok: true }))
+    )
+    library.items = []
+    render(
+      await StaffPage({ searchParams: Promise.resolve({ edit: "profile" }) })
+    )
+    expect(screen.queryByText("Profile saved.")).toBeNull()
+    const dialog = screen.getByRole("dialog", { name: "Edit profile" })
+    await act(async () => {
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Save changes" })
+      )
+    })
+    expect(screen.queryByRole("dialog", { name: "Edit profile" })).toBeNull()
+    expect(
+      screen.getByText("Profile saved.").closest("[role=status]")
+    ).toBeTruthy()
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit profile" }))
+    expect(screen.queryByText("Profile saved.")).toBeNull()
   })
 })

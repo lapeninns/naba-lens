@@ -47,7 +47,10 @@ export function CommunityGallery({
       showAttribution
       // Photos is a feed of posts; a colleague's own shared photos stay a grid.
       layout={uploaderId ? "grid" : "feed"}
-      getPortfolioHref={(item) => `/staff/people/${item.contributorId}`}
+      // On a person's page every photo is theirs: Open profile would reload it.
+      getPortfolioHref={
+        uploaderId ? undefined : (item) => `/staff/people/${item.contributorId}`
+      }
       summary={showCount ? showingCount : undefined}
       empty={
         empty ?? (

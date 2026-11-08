@@ -7,9 +7,12 @@ import {
   BookOpenTextIcon,
   BriefcaseIcon,
   CameraIcon,
+  CameraPlusIcon,
   CaretRightIcon,
+  CheckCircleIcon,
   ClipboardTextIcon,
   ForkKnifeIcon,
+  ImagesIcon,
   PencilSimpleIcon,
   SignOutIcon,
   TagIcon,
@@ -19,7 +22,6 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 
 import { LabelEditorHost } from "@/app/_labels/label-editor-host"
-import { logout } from "@/app/_media/actions"
 import { fetchMediaPage } from "@/app/_media/fetch-page"
 import { MediaGallery } from "@/app/_media/media-gallery"
 import {
@@ -31,6 +33,7 @@ import {
   type ProfileFormValues,
 } from "@/components/nabalens"
 import type { MediaItem } from "@/components/nabalens/types"
+import { formatBytes } from "@/components/nabalens/format"
 import { GUIDE_PATH } from "@/components/nabalens/guide"
 import { CountBadge, StatusChip } from "@/components/nabalens/status-chip"
 import {
@@ -38,6 +41,8 @@ import {
   useAddDiscarded,
   useAddLabelled,
   useAddRefreshSignal,
+  type AddLabelPreset,
+  type OpenAddOptions,
 } from "@/components/nabalens/shell/add-context"
 import { Button } from "@/components/ui/button"
 import { MEDIA_LIMITS } from "@/lib/config/media"
@@ -47,6 +52,7 @@ import { LABEL_LIMITS } from "@/lib/menus/types"
 
 import { loadMyMedia } from "./actions"
 import { NeedsAttention } from "./needs-attention"
+import { SIGNED_OUT_MESSAGE } from "./needs-attention-api"
 
 type StaffPortfolioProps = {
   profile: {
@@ -117,16 +123,53 @@ function refreshMyMedia(signal: AbortSignal, cursor?: string | null) {
   return fetchMediaPage("/api/portfolio", { cursor }, signal)
 }
 
-async function saveProfile(values: ProfileFormValues): Promise<ActionResult> {
+export const PROFILE_SAVE_COPY = {
+  saved: "Profile saved.",
+  offline: "Could not save. Check your connection.",
+  tooLarge: `This photo is too large. Profile photos can be up to ${formatBytes(MEDIA_LIMITS.maxAvatarBytes)}.`,
+  timeout: "Saving took too long, so it may not have finished. Try again.",
+  failed: "Your changes could not be saved. Try again.",
+} as const
+
+/**
+ * Saves name and photo through /api/profile. The route answers in JSON; an
+ * HTML page instead comes from the platform in front of it (a body over its
+ * size limit, a timeout), so the status says what happened, not the network.
+ */
+export async function saveProfile(
+  values: ProfileFormValues
+): Promise<ActionResult> {
   const body = new FormData()
   body.set("displayName", values.displayName)
   if (values.avatarFile) body.set("avatar", values.avatarFile)
+  let response: Response
   try {
-    const response = await fetch("/api/profile", { method: "POST", body })
-    const result = (await response.json()) as ActionResult
-    return result
+    response = await fetch("/api/profile", { method: "POST", body })
   } catch {
-    return { ok: false, error: "Could not save. Check your connection." }
+    return { ok: false, error: PROFILE_SAVE_COPY.offline }
+  }
+  const result: unknown = await response.json().catch(() => null)
+  if (
+    result &&
+    typeof result === "object" &&
+    "ok" in result &&
+    typeof result.ok === "boolean"
+  )
+    return result as ActionResult
+  switch (response.status) {
+    case 401:
+      return { ok: false, error: SIGNED_OUT_MESSAGE }
+    case 413:
+      return {
+        ok: false,
+        error: PROFILE_SAVE_COPY.tooLarge,
+        fieldErrors: { avatar: PROFILE_SAVE_COPY.tooLarge },
+      }
+    case 408:
+    case 504:
+      return { ok: false, error: PROFILE_SAVE_COPY.timeout }
+    default:
+      return { ok: false, error: PROFILE_SAVE_COPY.failed }
   }
 }
 
@@ -259,16 +302,196 @@ function MilestoneTile({
         {MILESTONES[milestone]}
       </StatusChip>
       {detail ? (
-        <span
-          className={
-            milestone === "better"
-              ? "text-meta [overflow-wrap:anywhere] text-ink-muted"
-              : "truncate text-meta text-ink-muted"
-          }
-        >
-          {detail}
-        </span>
+        <span className="truncate text-meta text-ink-muted">{detail}</span>
       ) : null}
+    </li>
+  )
+}
+
+/** One manager request for a better photo of one dish on one own photo. */
+export type BetterPhotoRequest = {
+  key: string
+  item: MediaItem
+  dish: string
+  reason: string | null
+  preset: AddLabelPreset
+  /** A newer own photo of this dish is labelled and waiting for a decision. */
+  sent: boolean
+}
+
+export const BETTER_PHOTO_COPY = {
+  intro:
+    "A manager would like a better photo of these dishes. Take a new one and it goes to them for review, already labelled with the dish.",
+  take: "Take a new photo",
+  choose: "Choose from photos",
+  sent: "New photo sent · waiting for manager review",
+  again: "Take another",
+} as const
+
+const sameDish = (
+  a: { itemId: string; variantId: string | null },
+  b: { itemId: string; variantId: string | null }
+) => a.itemId === b.itemId && a.variantId === b.variantId
+
+/**
+ * Open better-photo requests on photos that are ready, newest decision first.
+ * The dish and its variant become Add's label preset, as on Our menu.
+ *
+ * A retake only labels a new photo, so the request itself stays open until a
+ * manager decides on the old photo. Among the person's loaded own photos
+ * (`own`), a newer one labelled with the same dish and variant marks the
+ * request sent while it has no decision, and drops it once it is accepted.
+ */
+export function betterPhotoRequests(
+  states: readonly MyMenuPhotoState[],
+  items: readonly MediaItem[],
+  own: readonly MediaItem[] = items
+): BetterPhotoRequest[] {
+  const ready = new Map(
+    items
+      .filter((item) => item.uploadState === "ready")
+      .map((item) => [item.id, item])
+  )
+  const photos = new Map(own.map((photo) => [photo.id, photo]))
+  for (const item of items) photos.set(item.id, item)
+  return states.flatMap((state) => {
+    const item = ready.get(state.assetId)
+    if (state.state !== "better_photo_requested" || !item) return []
+    const requestedAt = Date.parse(item.createdAt)
+    const newer = [...photos.values()].filter(
+      (photo) =>
+        photo.id !== item.id && Date.parse(photo.createdAt) > requestedAt
+    )
+    const decided = (photo: MediaItem) =>
+      states.filter((s) => s.assetId === photo.id && sameDish(s, state))
+    if (
+      newer.some((photo) =>
+        decided(photo).some((decision) => decision.state === "accepted")
+      )
+    )
+      return []
+    const sent = newer.some(
+      (photo) =>
+        decided(photo).length === 0 &&
+        (photo.labels?.items ?? []).some((label) => sameDish(label, state))
+    )
+    return [
+      {
+        key: state.photoId,
+        item,
+        dish: state.variantName
+          ? `${state.itemName} (${state.variantName})`
+          : state.itemName,
+        reason: state.reason,
+        preset: {
+          itemId: state.itemId,
+          variantId: state.variantId,
+          itemName: state.itemName,
+          variantName: state.variantName,
+        },
+        sent,
+      },
+    ]
+  })
+}
+
+/**
+ * A better-photo request: the photo, the dish, the manager's note, and the
+ * camera (or library) straight away with the dish preset. Grey buttons: the
+ * profile card keeps the screen's one blue action.
+ */
+function BetterPhotoRow({
+  request,
+  openAdd,
+}: {
+  request: BetterPhotoRequest
+  openAdd: ((opts?: OpenAddOptions) => void) | null
+}) {
+  const nameId = React.useId()
+  const { item, dish, reason, preset, sent } = request
+  return (
+    <li>
+      <article
+        aria-labelledby={nameId}
+        className="grid grid-cols-[auto_minmax(0,1fr)] gap-3 p-3"
+      >
+        <span className="relative block size-16 shrink-0 overflow-hidden rounded-control bg-plate">
+          {item.thumbnailUrl ? (
+            // Signed private URLs never go through next/image (see MediaTile).
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={item.thumbnailUrl}
+              alt=""
+              loading="lazy"
+              decoding="async"
+              className="absolute inset-0 size-full object-cover"
+            />
+          ) : null}
+        </span>
+        <div className="grid min-w-0 content-start gap-1">
+          <StatusChip state={MILESTONE_STATE.better} className="w-fit">
+            {MILESTONES.better}
+          </StatusChip>
+          <h3
+            id={nameId}
+            className="text-item-title [overflow-wrap:anywhere] text-ink"
+          >
+            {dish}
+          </h3>
+          {reason ? (
+            <p className="text-body [overflow-wrap:anywhere] text-ink-muted">
+              {reason}
+            </p>
+          ) : null}
+          {sent ? (
+            <p className="flex items-center gap-1.5 text-body text-ink">
+              <CheckCircleIcon aria-hidden className="size-5 text-ok-fg" />
+              {BETTER_PHOTO_COPY.sent}
+            </p>
+          ) : null}
+        </div>
+        {openAdd && sent ? (
+          <div className="col-span-2 flex flex-wrap gap-2 *:flex-auto sm:*:flex-none">
+            <Button
+              variant="quiet"
+              size="touch"
+              aria-describedby={nameId}
+              onClick={() =>
+                openAdd({ source: "camera", imagesOnly: true, preset })
+              }
+            >
+              <CameraPlusIcon data-icon="inline-start" aria-hidden />
+              {BETTER_PHOTO_COPY.again}
+            </Button>
+          </div>
+        ) : openAdd ? (
+          <div className="col-span-2 flex flex-wrap gap-2 *:flex-auto sm:*:flex-none">
+            <Button
+              variant="secondary"
+              size="touch"
+              aria-describedby={nameId}
+              // openAdd clicks the camera input inside this click handler.
+              onClick={() =>
+                openAdd({ source: "camera", imagesOnly: true, preset })
+              }
+            >
+              <CameraPlusIcon data-icon="inline-start" aria-hidden />
+              {BETTER_PHOTO_COPY.take}
+            </Button>
+            <Button
+              variant="quiet"
+              size="touch"
+              aria-describedby={nameId}
+              onClick={() =>
+                openAdd({ source: "library", imagesOnly: true, preset })
+              }
+            >
+              <ImagesIcon data-icon="inline-start" aria-hidden />
+              {BETTER_PHOTO_COPY.choose}
+            </Button>
+          </div>
+        ) : null}
+      </article>
     </li>
   )
 }
@@ -297,6 +520,8 @@ export function StaffPortfolio({
   const [editOpen, setEditOpen] = React.useState(initialEditOpen)
   // Closing drops `?edit=profile`, so Back, Forward or a reload to this entry
   // does not open Edit profile again.
+  // Shown after a save until Edit profile opens again.
+  const [profileSaved, setProfileSaved] = React.useState(false)
   const onEditOpenChange = React.useCallback((open: boolean) => {
     setEditOpen(open)
     if (open) return
@@ -323,24 +548,19 @@ export function StaffPortfolio({
   const [labelSaves, setLabelSaves] = React.useState(0)
   const [labelIds, setLabelIds] = React.useState<string[] | null>(null)
   const needsLabels = photosNeedingLabels(initialPage.items, labelled)
-  const { accepted, better } = React.useMemo(() => {
+  const accepted = React.useMemo(() => {
     const accepted = new Map<string, string[]>()
-    const better = new Map<string, string[]>()
     for (const state of menuPhotos) {
+      if (state.state !== "accepted") continue
       const name = state.variantName
         ? `${state.itemName} (${state.variantName})`
         : state.itemName
-      if (state.state === "accepted") {
-        accepted.set(state.assetId, [
-          ...(accepted.get(state.assetId) ?? []),
-          name,
-        ])
-      } else if (state.state === "better_photo_requested") {
-        const note = state.reason ? `${name}: ${state.reason}` : name
-        better.set(state.assetId, [...(better.get(state.assetId) ?? []), note])
-      }
+      accepted.set(state.assetId, [
+        ...(accepted.get(state.assetId) ?? []),
+        name,
+      ])
     }
-    return { accepted, better }
+    return accepted
   }, [menuPhotos])
   const acceptedIds = React.useMemo(() => new Set(accepted.keys()), [accepted])
   // From the decisions themselves, not the newest gallery page, so an older
@@ -348,9 +568,13 @@ export function StaffPortfolio({
   const acceptedItems = menuPhotoItems.filter(
     (item) => photoMilestone(item, acceptedIds) === "accepted"
   )
-  const betterItems = menuPhotoItems.filter(
-    (item) => item.uploadState === "ready" && better.has(item.id)
-  )
+  const betterRequests = betterPhotoRequests(menuPhotos, menuPhotoItems, [
+    ...initialPage.items,
+    ...menuPhotoItems,
+  ])
+  const betterWaiting = betterRequests.filter((request) => !request.sent)
+  // A blocked account sees why in the notice below, not a camera that fails.
+  const openRetake = uploadBlocked ? null : openAdd
 
   const uploadButton = (variant: "primary" | "secondary" = "primary") =>
     uploadBlocked || !openAdd ? null : (
@@ -379,7 +603,14 @@ export function StaffPortfolio({
           // on top with Edit profile under it; from md blue is on the right.
           <>
             {/* From md, Log out is in the AppBar; on phones it lives on Me. */}
-            <form action={logout} className="md:hidden" data-logout>
+            {/* A plain POST, not a Server Action: it still signs out after the
+                session has ended, when the proxy refuses an action. */}
+            <form
+              action="/auth/logout"
+              method="post"
+              className="md:hidden"
+              data-logout
+            >
               <Button type="submit" variant="quiet" size="touch">
                 <SignOutIcon data-icon="inline-start" aria-hidden />
                 Log out
@@ -388,7 +619,10 @@ export function StaffPortfolio({
             <Button
               variant="secondary"
               size="touch"
-              onClick={() => setEditOpen(true)}
+              onClick={() => {
+                setProfileSaved(false)
+                setEditOpen(true)
+              }}
             >
               <PencilSimpleIcon data-icon="inline-start" aria-hidden />
               Edit profile
@@ -397,6 +631,9 @@ export function StaffPortfolio({
           </>
         }
       />
+      {profileSaved ? (
+        <Notice tone="positive">{PROFILE_SAVE_COPY.saved}</Notice>
+      ) : null}
       {manage ? (
         <ManageRow
           venueName={manage.venueName}
@@ -499,30 +736,32 @@ export function StaffPortfolio({
           </ul>
         </section>
       ) : null}
-      {betterItems.length > 0 ? (
+      {betterRequests.length > 0 ? (
         <section aria-labelledby="better-heading" className="grid gap-3 pt-2">
           <div className="grid gap-1 px-1">
             <h2
               id="better-heading"
-              className="font-display text-section-title text-ink"
+              className="flex items-center gap-2 font-display text-section-title text-ink"
             >
               {MILESTONES.better}
+              <CountBadge
+                count={betterWaiting.length}
+                label={betterWaiting.length === 1 ? "request" : "requests"}
+              />
             </h2>
             <p className="text-body text-ink-muted">
-              A manager would like a better photo of these dishes. Their note is
-              under each photo.
+              {BETTER_PHOTO_COPY.intro}
             </p>
           </div>
           <ul
             aria-label="Photos with a better photo requested"
-            className={TILE_GRID}
+            className="grid divide-y divide-line overflow-hidden rounded-card bg-surface shadow-card"
           >
-            {betterItems.map((item) => (
-              <MilestoneTile
-                key={item.id}
-                item={item}
-                milestone="better"
-                detail={better.get(item.id)?.join("; ")}
+            {betterRequests.map((request) => (
+              <BetterPhotoRow
+                key={request.key}
+                request={request}
+                openAdd={openRetake}
               />
             ))}
           </ul>
@@ -539,6 +778,10 @@ export function StaffPortfolio({
         loadPage={loadMyMedia}
         refreshPage={refreshMyMedia}
         canDelete
+        getDeleteImpact={(item) => {
+          const dishes = accepted.get(item.id)
+          return dishes ? { kind: "menu", dishes } : undefined
+        }}
         refreshSignal={addRefreshSignal + labelSaves}
         canLabel
         showLabelBadge
@@ -575,7 +818,10 @@ export function StaffPortfolio({
         maxAvatarBytes={MEDIA_LIMITS.maxAvatarBytes}
         onSubmit={async (values) => {
           const result = await saveProfile(values)
-          if (result.ok) router.refresh()
+          if (result.ok) {
+            setProfileSaved(true)
+            router.refresh()
+          }
           return result
         }}
       />

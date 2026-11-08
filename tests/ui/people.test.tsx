@@ -60,7 +60,6 @@ import {
   noResults,
   searchSummary,
   shownCount,
-  sortPeople,
 } from "@/app/staff/people/people"
 
 const RAILWAY = "0b9c4d6e-1f2a-4b3c-8d9e-0f1a2b3c4d5e"
@@ -147,9 +146,9 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-describe("People order", () => {
-  it("sorts A to Z by surname, then first name, never by photos", () => {
-    const sorted = sortPeople([
+describe("People order and paging", () => {
+  it("keeps the directory's A to Z by name, never ordered by photos", async () => {
+    serveMembers([
       member("Priya Gurung", { mediaCount: 48 }),
       member("Tom Hughes", { mediaCount: 9 }),
       member("Kiran Lama", { mediaCount: 29 }),
@@ -157,33 +156,73 @@ describe("People order", () => {
       member("Anil Gurung", { mediaCount: 1 }),
       member("Cher"),
     ])
-    expect(sorted.map((m) => m.displayName)).toEqual([
-      "Cher",
-      "Dan Cooper",
-      "Anil Gurung",
-      "Priya Gurung",
-      "Tom Hughes",
-      "Kiran Lama",
+    await renderPeople()
+    const cards = within(screen.getByRole("list", { name: "People" }))
+      .getAllByRole("link")
+      .map((link) => link.getAttribute("href"))
+    expect(cards).toEqual(
+      [
+        "Anil-Gurung",
+        "Cher",
+        "Dan-Cooper",
+        "Kiran-Lama",
+        "Priya-Gurung",
+        "Tom-Hughes",
+      ].map((id) => `/staff/people/id-${id}`)
+    )
+  })
+
+  it("reads only the people it shows, plus one, however large the organisation", async () => {
+    serveMembers(
+      Array.from({ length: 5_000 }, (_, i) =>
+        member(`P${String(i).padStart(4, "0")} Q`)
+      )
+    )
+    const reads = () =>
+      community.listCommunityMembers.mock.calls.map(([, filters]) => {
+        const { offset, limit } = filters as { offset: number; limit: number }
+        return [offset, limit]
+      })
+    await renderPeople()
+    expect(reads()).toEqual([[0, 25]])
+    cleanup()
+    community.listCommunityMembers.mockClear()
+
+    await renderPeople({ shown: "48" })
+    expect(reads()).toEqual([[0, 49]])
+    expect(
+      within(screen.getByRole("list", { name: "People" })).getAllByRole("link")
+    ).toHaveLength(48)
+    cleanup()
+    community.listCommunityMembers.mockClear()
+
+    // A hand-typed ?shown= stops at the furthest Next people reaches.
+    await renderPeople({ shown: "100000" })
+    expect(reads()).toEqual([
+      [0, 100],
+      [100, 100],
+      [200, 100],
+      [300, 100],
+      [400, 81],
     ])
   })
 
-  it("reads every batch before sorting, so the order holds across pages", async () => {
-    const names = Array.from(
-      { length: 130 },
-      (_, i) =>
-        `A${String(i).padStart(3, "0")} Z${String(129 - i).padStart(3, "0")}`
+  it("says when more people match than Next people reaches", async () => {
+    serveMembers(
+      Array.from({ length: 600 }, (_, i) =>
+        member(`P${String(i).padStart(3, "0")} Q`)
+      )
     )
-    serveMembers(names.map((name) => member(name)))
-    await renderPeople()
-    // The first page, then one wave of four; the second page is the last.
-    expect(community.listCommunityMembers).toHaveBeenCalledTimes(5)
-    const cards = within(screen.getByRole("list", { name: "People" }))
-      .getAllByRole("link")
-      .map((link) => link.textContent)
-    expect(cards).toHaveLength(24)
-    // Surname Z000 belongs to the last name the service returns.
-    expect(cards[0]).toContain("A129 Z000")
-    expect(cards[23]).toContain("A106 Z023")
+    await renderPeople({ shown: "480" })
+    expect(
+      within(screen.getByRole("list", { name: "People" })).getAllByRole("link")
+    ).toHaveLength(480)
+    expect(screen.queryByRole("link", { name: "Next people" })).toBeNull()
+    expect(
+      screen.getByText(
+        "Showing the first 480, A to Z by name. Search by name to find anyone else."
+      )
+    ).toBeTruthy()
   })
 })
 
@@ -223,9 +262,7 @@ describe("People page", () => {
     expect(first.textContent).toContain("View profile")
     const next = screen.getByRole("link", { name: "Next people" })
     expect(next.getAttribute("href")).toBe("/staff/people?shown=48")
-    expect(
-      screen.getByText("Showing 1 to 24 of 30, A to Z by surname")
-    ).toBeTruthy()
+    expect(screen.getByText("Showing 1 to 24, A to Z by name")).toBeTruthy()
     expect(container.textContent).not.toMatch(/@|\.jpe?g/i)
   })
 
@@ -236,9 +273,7 @@ describe("People page", () => {
       within(screen.getByRole("list", { name: "People" })).getAllByRole("link")
     ).toHaveLength(30)
     expect(screen.queryByRole("link", { name: "Next people" })).toBeNull()
-    expect(
-      screen.getByText("Showing 1 to 30 of 30, A to Z by surname")
-    ).toBeTruthy()
+    expect(screen.getByText("Showing 1 to 30, A to Z by name")).toBeTruthy()
   })
 
   it("reads one page alone when it is the last", async () => {
@@ -247,24 +282,8 @@ describe("People page", () => {
     expect(community.listCommunityMembers).toHaveBeenCalledTimes(1)
     expect(community.listCommunityMembers).toHaveBeenCalledWith(
       {},
-      expect.objectContaining({ offset: 0, limit: 100 })
+      expect.objectContaining({ offset: 0, limit: 25 })
     )
-  })
-
-  it("reads in parallel waves after the first page until a page is the last", async () => {
-    serveMembers(
-      Array.from({ length: 450 }, (_, i) =>
-        member(`P${String(i).padStart(3, "0")} Q`)
-      )
-    )
-    await renderPeople()
-    const offsets = community.listCommunityMembers.mock.calls.map(
-      ([, filters]) => (filters as { offset: number }).offset
-    )
-    expect(offsets).toEqual([0, 100, 200, 300, 400])
-    expect(
-      within(screen.getByRole("list", { name: "People" })).getAllByRole("link")
-    ).toHaveLength(24)
   })
 
   it("says who the name search found, with Clear search", async () => {
@@ -313,7 +332,7 @@ describe("People page", () => {
     await expect(renderPeople()).rejects.toThrow(/Could not load/)
   })
 
-  it("throws on the first failed page in a wave", async () => {
+  it("throws when any page of a deep read fails", async () => {
     serveMembers(
       Array.from({ length: 450 }, (_, i) =>
         member(`P${String(i).padStart(3, "0")} Q`)
@@ -330,7 +349,9 @@ describe("People page", () => {
             }
           : serve(actor, filters)
     )
-    await expect(renderPeople()).rejects.toThrow(/Could not load/)
+    await expect(renderPeople({ shown: "240" })).rejects.toThrow(
+      /Could not load/
+    )
   })
 
   it("shows the offline notice above what was loaded", async () => {
@@ -377,8 +398,9 @@ describe("search summary copy", () => {
       description:
         "Try all teams, or all venues. New starters appear once they've signed in.",
     })
-    expect(shownCount("junk", 10)).toBe(24)
-    expect(shownCount("1000", 30)).toBe(48)
+    expect(shownCount("junk")).toBe(24)
+    expect(shownCount("30")).toBe(48)
+    expect(shownCount("1000")).toBe(480)
   })
 })
 
