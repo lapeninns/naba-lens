@@ -36,8 +36,17 @@ export function useBrowserSessionGuard({
   captchaSiteKey: string | null
   onSignedOut?: () => void
 }): SessionGuard {
-  const [email, setEmail] = React.useState<string | null>(null)
-  const [userId, setUserId] = React.useState<string | null>(null)
+  // Who is signed in lives in a ref, read through getters, so the guard
+  // itself never changes when the auth client reports the session. A new
+  // context value above a streamed Suspense boundary that is still waiting for
+  // its content makes React render that boundary again in the browser and
+  // leave the server's copy behind (the page shows twice). The state only
+  // re-renders the owner, which then reads the new values.
+  const identity = React.useRef<{
+    email: string | null
+    userId: string | null
+  }>({ email: null, userId: null })
+  const [, identityChanged] = React.useReducer((n: number) => n + 1, 0)
   const supabase = React.useMemo(() => createClient(), [])
   const signedOut = React.useRef(onSignedOut)
   React.useEffect(() => {
@@ -48,18 +57,26 @@ export function useBrowserSessionGuard({
     const { data } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_OUT") signedOut.current?.()
       if (!session) return
-      setEmail(session.user.email ?? null)
-      // Keep the first identity: the page belongs to it, even if another
-      // account signs in later in this browser.
-      setUserId((current) => current ?? session.user.id)
+      identity.current = {
+        email: session.user.email ?? null,
+        // Keep the first identity: the page belongs to it, even if another
+        // account signs in later in this browser.
+        userId: identity.current.userId ?? session.user.id,
+      }
+      identityChanged()
     })
     return () => data.subscription.unsubscribe()
   }, [supabase])
 
-  return React.useMemo<SessionGuard>(
-    () => ({
-      email,
-      userId,
+  return React.useMemo<SessionGuard>(() => {
+    const userId = () => identity.current.userId
+    return {
+      get email() {
+        return identity.current.email
+      },
+      get userId() {
+        return identity.current.userId
+      },
       captchaRequired,
       captchaSiteKey,
       // The same request the login page makes (never creates an account).
@@ -80,16 +97,17 @@ export function useBrowserSessionGuard({
       isSignedIn: async () => {
         if (navigator.onLine === false) return true
         const { data, error } = await supabase.auth.getSession()
-        if (data.session) return !userId || data.session.user.id === userId
+        const id = userId()
+        if (data.session) return !id || data.session.user.id === id
         return error?.name === "AuthRetryableFetchError"
       },
       isSignedInAgain: async () => {
         const { data } = await supabase.auth.getSession()
-        return !!data.session && (!userId || data.session.user.id === userId)
+        const id = userId()
+        return !!data.session && (!id || data.session.user.id === id)
       },
-    }),
-    [email, userId, captchaRequired, captchaSiteKey, supabase]
-  )
+    }
+  }, [captchaRequired, captchaSiteKey, supabase])
 }
 
 const ReportSessionEnded = React.createContext<() => void>(() => {})

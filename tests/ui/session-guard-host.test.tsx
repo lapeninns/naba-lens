@@ -51,6 +51,7 @@ import {
   useClaimSignIn,
   useReportSessionEnded,
 } from "@/components/nabalens/session-guard-host"
+import { useSessionGuard } from "@/components/nabalens/session-guard"
 
 const ME = { user: { id: "manager-1", email: "manager@example.test" } }
 
@@ -375,5 +376,35 @@ describe("SessionGuardHost with a screen that has its own Sign in again", () => 
     await sheet()
     claim(true)
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+  })
+})
+
+describe("SessionGuardHost while a streamed page is still arriving", () => {
+  it("never changes its context value when the session is reported, and renders the page once", async () => {
+    const seen: unknown[] = []
+    let pageRenders = 0
+    function Page() {
+      pageRenders++
+      seen.push(useSessionGuard())
+      return <p>Page</p>
+    }
+    // The page element is created once, as a layout's children are.
+    const page = <Page />
+    render(
+      <SessionGuardHost captchaRequired={false} captchaSiteKey={null}>
+        {page}
+      </SessionGuardHost>
+    )
+    // A context change above a Suspense boundary still waiting for streamed
+    // content makes React render it again in the browser and leave the
+    // server's copy behind, so the value must survive the auth events.
+    await signedInFirst()
+    act(() => auth.listener?.("TOKEN_REFRESHED", ME))
+    expect(new Set(seen).size).toBe(1)
+    expect(pageRenders).toBe(1)
+    expect(screen.getAllByText("Page")).toHaveLength(1)
+    const guard = seen[0] as { email: string | null; userId: string | null }
+    expect(guard.email).toBe("manager@example.test")
+    expect(guard.userId).toBe("manager-1")
   })
 })
