@@ -45,8 +45,8 @@ ignores instructions.
 `verify:release` checks the pushed PR head, records qualification intent before
 calling the real `~/.local/bin/lci run naba-lens --pr N --post --comment`, then
 reads back the exact PR's result. No alternate runner, forced run, partial gate,
-profile bypass, merge or deployment is performed. A dirty/moved candidate or
-unknown result is blocked. A second call against the same frozen candidate is
+profile bypass, merge or deployment is performed. A dirty/moved candidate, a changed installed CI profile, missing required local
+job statuses, or an unknown result is blocked. A second call against the same frozen candidate is
 refused. lci may reuse its existing valid same-tree/profile evidence.
 
 ## Blocking findings and follow-up work

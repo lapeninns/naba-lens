@@ -14,7 +14,7 @@ import {
 } from "node:fs"
 import { createHash, randomUUID } from "node:crypto"
 import { execFileSync, spawnSync } from "node:child_process"
-import { isAbsolute, join, relative, resolve } from "node:path"
+import { dirname, isAbsolute, join, relative, resolve } from "node:path"
 import { homedir } from "node:os"
 import { transition } from "./policy.mjs"
 
@@ -38,6 +38,28 @@ const directory = join(
 mkdirSync(directory, { recursive: true, mode: 0o700 })
 const stateFile = join(directory, "batch.json"),
   ledger = join(directory, "events.jsonl")
+function installedProfileDigest() {
+  const runner = join(homedir(), ".local/bin/lci")
+  if (!existsSync(runner)) return null
+  const path = join(dirname(realpathSync(runner)), "profiles/naba-lens.json")
+  return existsSync(path)
+    ? createHash("sha256").update(readFileSync(path)).digest("hex")
+    : null
+}
+const requiredLocalStatuses = [
+  "fixtures-common",
+  "fixtures-chromium",
+  "fixtures-firefox",
+  "fixtures-webkit",
+  "smoke-production-contract",
+  "result",
+]
+const localGatePassed = (pr) =>
+  requiredLocalStatuses.every((name) =>
+    pr.statusCheckRollup.some(
+      (c) => c.context === "local-ci/" + name && c.state === "SUCCESS"
+    )
+  )
 function context() {
   const head = git("rev-parse", "HEAD"),
     tree = git("rev-parse", "HEAD^{tree}")
@@ -65,6 +87,7 @@ function context() {
     clean: !status,
     workingDigest: digest.digest("hex"),
     node: process.version,
+    profileDigest: installedProfileDigest(),
     environmentDigest: createHash("sha256")
       .update(JSON.stringify(Object.entries(process.env).sort()))
       .digest("hex"),
@@ -227,9 +250,7 @@ function release() {
     passed =
       result.status === 0 &&
       pr.headRefOid === before.head &&
-      pr.statusCheckRollup.some(
-        (c) => c.context === "local-ci/result" && c.state === "SUCCESS"
-      )
+      localGatePassed(pr)
   } catch {
     /* Unknown result is blocked, never automatically retried. */
   }
@@ -361,7 +382,10 @@ function main(args) {
       s,
       {
         type: "result",
-        passed: gate.state === "SUCCESS" && pr.headRefOid === s.candidate.head,
+        passed:
+          gate.state === "SUCCESS" &&
+          pr.headRefOid === s.candidate.head &&
+          localGatePassed(pr),
         at: new Date().toISOString(),
         evidence: `https://github.com/lapeninns/naba-lens/pull/${s.pr}`,
       },

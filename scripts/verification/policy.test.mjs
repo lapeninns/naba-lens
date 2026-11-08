@@ -116,3 +116,23 @@ test("closing requires the unchanged qualified candidate and preserves the input
   assert.equal(transition(s, { type: "close" }, context).phase, "closed")
   assert.equal(s.phase, "qualified")
 })
+
+test("changing the installed CI profile invalidates a frozen candidate and a running result", () => {
+  const frozen = freeze()
+  assert.throws(() =>
+    transition(
+      frozen,
+      { type: "qualify" },
+      { ...context, profileDigest: "changed-profile" }
+    )
+  )
+  const running = transition(frozen, { type: "qualify" }, context)
+  assert.equal(
+    transition(
+      running,
+      { type: "result", passed: true },
+      { ...context, profileDigest: "changed-profile" }
+    ).phase,
+    "blocked"
+  )
+})

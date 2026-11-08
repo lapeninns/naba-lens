@@ -41,13 +41,15 @@ export function transition(previous, action, context) {
       head: context.head,
       tree: context.tree,
       review: action.review,
+      profileDigest: context.profileDigest,
     }
   } else if (action.type === "qualify") {
     if (
       s.phase !== "frozen" ||
       !context.clean ||
       s.candidate.head !== context.head ||
-      s.candidate.tree !== context.tree
+      s.candidate.tree !== context.tree ||
+      s.candidate.profileDigest !== context.profileDigest
     )
       fail(
         "Candidate changed or is not frozen; integrate and review the final head first"
@@ -58,7 +60,8 @@ export function transition(previous, action, context) {
     const unchanged =
       context.clean &&
       s.candidate.head === context.head &&
-      s.candidate.tree === context.tree
+      s.candidate.tree === context.tree &&
+      s.candidate.profileDigest === context.profileDigest
     s.phase = action.passed && unchanged ? "qualified" : "blocked"
     s.attempts.push({
       head: s.candidate.head,
@@ -90,7 +93,8 @@ export function transition(previous, action, context) {
     if (
       s.phase !== "qualified" ||
       !context.clean ||
-      s.candidate.head !== context.head
+      s.candidate.head !== context.head ||
+      s.candidate.profileDigest !== context.profileDigest
     )
       fail("Close only the qualified unchanged candidate")
     s.phase = "closed"
