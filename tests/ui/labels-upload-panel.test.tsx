@@ -532,3 +532,58 @@ describe("UploadLabelPanel", () => {
     }
   })
 })
+
+describe("UploadLabelPanel: a missing-item suggestion", () => {
+  async function missingField(
+    user: ReturnType<typeof userEvent.setup>,
+    n: number
+  ) {
+    await user.click(
+      screen.getByRole("button", { name: `Adjust labels for photo ${n}` })
+    )
+    await user.click(
+      screen.getByRole("button", {
+        name: `Item not on the menu? for photo ${n}`,
+      })
+    )
+    return screen.getByRole("textbox", {
+      name: `Missing menu item for photo ${n}`,
+    })
+  }
+
+  it("is left unchanged (null) while none was ever suggested", async () => {
+    const { user, last } = setup()
+    await pick(user, commonBox(), "bhaji", /Onion Bhaji/)
+    expect(last().map((i) => i.missingItem)).toEqual([null, null])
+  })
+
+  it('withdraws ("") a suggestion once it is cleared, on that photo only', async () => {
+    const { user, last } = setup()
+    const field = await missingField(user, 1)
+    await user.type(field, "Lamb shank")
+    expect(last().map((i) => i.missingItem)).toEqual(["Lamb shank", null])
+    await user.clear(field)
+    expect(last().map((i) => i.missingItem)).toEqual(["", null])
+    await pick(user, commonBox(), "bhaji", /Onion Bhaji/)
+    expect(last().map((i) => i.missingItem)).toEqual(["", null])
+  })
+
+  it("withdraws a restored suggestion once it is cleared", async () => {
+    const { user, last } = setup({
+      initial: [{ ...empty("f1"), missingItem: "Lamb shank" }, empty("f2")],
+    })
+    await waitFor(() =>
+      expect(last().map((i) => i.missingItem)).toEqual(["Lamb shank", null])
+    )
+    // Shown open: the field holds the suggestion.
+    await user.click(
+      screen.getByRole("button", { name: "Adjust labels for photo 1" })
+    )
+    const field = screen.getByRole("textbox", {
+      name: "Missing menu item for photo 1",
+    })
+    expect((field as HTMLInputElement).value).toBe("Lamb shank")
+    await user.clear(field)
+    expect(last().map((i) => i.missingItem)).toEqual(["", null])
+  })
+})

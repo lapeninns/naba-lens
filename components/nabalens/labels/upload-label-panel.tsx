@@ -163,6 +163,17 @@ export function UploadLabelPanel({
     Readonly<Record<string, DraftItem>>
   >({})
   const [presetsMissing, setPresetsMissing] = React.useState<LabelPreset[]>([])
+  // Files whose missing-item suggestion may be on the server: restored with
+  // one, or typed since (the host sends every change). Clearing it then sends
+  // "" (withdraw); null means unchanged and would leave it there.
+  const [suggested, setSuggested] = React.useState<ReadonlySet<string>>(
+    () =>
+      new Set(
+        (initial ?? [])
+          .filter((i) => i.missingItem !== null)
+          .map((i) => i.assetId)
+      )
+  )
 
   const ready = catalogue.state === "ready" ? catalogue.catalogue : null
   const readyVersionId = ready?.status === "active" ? ready.versionId : null
@@ -249,6 +260,18 @@ export function UploadLabelPanel({
   const effective: Record<string, EffectiveLabels> = {}
   for (const f of files)
     effective[f.id] = effectiveLabels(EMPTY_LABEL_SUMMARY, common, adjOf(f.id))
+  const typed = files.filter(
+    (f) =>
+      !disabled.has(f.id) &&
+      !suggested.has(f.id) &&
+      effective[f.id].missingItem.trim() !== ""
+  )
+  if (typed.length > 0)
+    setSuggested(new Set([...suggested, ...typed.map((f) => f.id)]))
+  const withdrawCleared = (input: SaveLabelsInput) =>
+    input.missingItem === null && suggested.has(input.assetId)
+      ? { ...input, missingItem: "" }
+      : input
 
   // Restored items not named yet were picked from the menu as it was then.
   const versionFor = (id: string) => {
@@ -261,11 +284,13 @@ export function UploadLabelPanel({
   const inputs = files.map((f) =>
     disabled.has(f.id)
       ? emptyInput(f.id, catalogueVersionId)
-      : buildSaveInput(
-          f.id,
-          EMPTY_LABEL_SUMMARY,
-          effective[f.id],
-          versionFor(f.id)
+      : withdrawCleared(
+          buildSaveInput(
+            f.id,
+            EMPTY_LABEL_SUMMARY,
+            effective[f.id],
+            versionFor(f.id)
+          )
         )
   )
   const problems = Object.fromEntries(

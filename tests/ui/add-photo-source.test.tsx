@@ -1232,3 +1232,41 @@ describe("Review 2 regressions: Add host", () => {
     ).toBeNull()
   })
 })
+
+describe("Add host: a missing-item suggestion", () => {
+  const lastMissing = () =>
+    (api.posted.at(-1)?.input as { missingItem?: string | null } | undefined)
+      ?.missingItem
+
+  it('sends the suggestion, then withdraws it ("") when it is cleared, keeping the dish', async () => {
+    const user = userEvent.setup()
+    holdUploads()
+    host(<Opener opts={{ source: "library", preset }} />)
+    await user.click(screen.getByRole("button", { name: "Open" }))
+    await user.upload(input("library"), [jpeg("dish.jpg")])
+    await waitFor(() => expect(api.posted).toHaveLength(1))
+    expect(lastMissing()).toBeNull()
+
+    const dialog = await screen.findByRole("dialog", { name: "Saving 1 photo" })
+    await user.click(
+      within(dialog).getByRole("button", { name: "Adjust labels for photo 1" })
+    )
+    await user.click(
+      within(dialog).getByRole("button", {
+        name: "Item not on the menu? for photo 1",
+      })
+    )
+    const field = within(dialog).getByRole("textbox", {
+      name: "Missing menu item for photo 1",
+    })
+    await user.type(field, "Lamb shank")
+    await waitFor(() => expect(lastMissing()).toBe("Lamb shank"))
+
+    await user.clear(field)
+    await waitFor(() => expect(lastMissing()).toBe(""))
+    expect(api.posted.at(-1)!.input.items).toEqual([
+      { itemId: "item-bhaji", variantId: null },
+    ])
+    expect(api.deleted).toEqual([])
+  })
+})
