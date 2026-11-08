@@ -12,7 +12,15 @@ import {
   within,
 } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+  type Mock,
+} from "vitest"
 
 import type { ManagerGrantView } from "@/components/nabalens/coverage/types"
 
@@ -20,9 +28,8 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn() }),
 }))
 
-// A plain stand-in, not vi.fn(): Vitest's spy reports an async rejection as
-// a test error even when the component catches it, which is the case here.
-let revokeVenueManagerAction: (input: unknown) => Promise<unknown>
+// A fresh spy per test (see beforeEach), so each test sees only its own calls.
+let revokeVenueManagerAction: Mock<(input: unknown) => Promise<unknown>>
 vi.mock("@/app/_coverage/actions", () => ({
   grantVenueManagerAction: vi.fn(),
   revokeVenueManagerAction: (input: unknown) => revokeVenueManagerAction(input),
@@ -71,7 +78,7 @@ const lostReply = async () => {
 }
 
 beforeEach(() => {
-  revokeVenueManagerAction = async () => ({ ok: true })
+  revokeVenueManagerAction = vi.fn(async () => ({ ok: true }))
 })
 afterEach(cleanup)
 
@@ -103,27 +110,34 @@ describe("Revoke grant", () => {
   }
 
   it("a lost reply says the revoke couldn't be confirmed, never that nothing changed", async () => {
-    revokeVenueManagerAction = lostReply
+    revokeVenueManagerAction = vi.fn(async () => {
+      throw new TypeError("Failed to fetch")
+    })
     const dialog = await revoke()
     const alert = await within(dialog).findByRole("alert")
     expect(alert.textContent).toBe(
       "We couldn't confirm TEST is no longer TEST Railway's venue manager. Check your connection, then refresh to see."
     )
     expect(dialog.textContent).not.toContain("Nothing changed")
+    expect(revokeVenueManagerAction).toHaveBeenCalledExactlyOnceWith({
+      grantId: "g-1",
+      reason: "Left the venue",
+    })
   })
 
   it("a refusal says nothing changed and gives the server's reason", async () => {
-    revokeVenueManagerAction = async () => ({
+    revokeVenueManagerAction = vi.fn(async () => ({
       ok: false,
       code: "invalid_input",
       status: 400,
       message: "This grant has already ended.",
-    })
+    }))
     const dialog = await revoke()
     const alert = await within(dialog).findByRole("alert")
     expect(alert.textContent).toBe(
       "Nothing changed. TEST is still TEST Railway's venue manager. This grant has already ended."
     )
+    expect(revokeVenueManagerAction).toHaveBeenCalledTimes(1)
   })
 })
 

@@ -66,7 +66,6 @@ export const MANAGERS_COPY = {
     help: "It's kept in the grant history, with your name and the time.",
     confirm: "Revoke grant",
     confirming: "Revoking…",
-    failedTitle: "Couldn't revoke the grant",
     /** The server refused: the grant is unchanged, and it says why. */
     nothingChanged: (name: string, venue: string, reason: string) =>
       `Nothing changed. ${firstName(name)} is still ${venue}'s venue manager. ${reason}`,
