@@ -246,7 +246,7 @@ function isAction(id: string) {
 }
 
 test.describe("admin account actions on a flaky connection (ADM-1, ADM-2)", () => {
-  test("a held resend sends once; a dropped one says nothing changed", async ({
+  test("a held resend sends once; a dropped one can't confirm the send", async ({
     browser,
   }) => {
     const world = await provisionWorld()
@@ -287,7 +287,7 @@ test.describe("admin account actions on a flaky connection (ADM-1, ADM-2)", () =
 
     await expect(
       page.getByText(
-        `Nothing changed. The invitation to ${person.email} wasn't sent. Check your connection and try again.`
+        `We couldn't confirm the invitation to ${person.email} was sent. Check your connection, then try again. A new invitation replaces any earlier link.`
       )
     ).toBeVisible()
     expect(posts).toBe(1)
@@ -297,7 +297,7 @@ test.describe("admin account actions on a flaky connection (ADM-1, ADM-2)", () =
     await page.context().close()
   })
 
-  test("a dropped reactivation keeps the account inactive, and a retry works", async ({
+  test("a dropped reactivation can't confirm, shows Inactive, and a retry works", async ({
     browser,
   }) => {
     const world = await provisionWorld()
@@ -318,7 +318,7 @@ test.describe("admin account actions on a flaky connection (ADM-1, ADM-2)", () =
     await page.getByRole("button", { name: "Reactivate" }).click()
     await expect(
       page.getByText(
-        `Nothing changed. ${person.name} still can't sign in. Check your connection and try again.`
+        `We couldn't confirm ${person.name} was reactivated. Check your connection, then refresh to see their status.`
       )
     ).toBeVisible()
     await expect(

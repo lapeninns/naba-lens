@@ -26,20 +26,20 @@
    - Expect Resend, Reactivate and Deactivate on other rows to be disabled until the request finishes.
    - Edit details stays available.
 3. **Resend, offline.** Go offline and tap **Resend invitation**.
-   - Expect "Nothing changed. The invitation to {email} wasn't sent. Check your connection and try again." in the live region.
+   - Expect "We couldn't confirm the invitation to {email} was sent. Check your connection, then try again. A new invitation replaces any earlier link." in the live region. The copy never says nothing changed: a dropped reply does not prove the server did nothing.
    - Expect the button to be enabled again.
-   - Expect no email in Mailpit.
+   - Fully offline, expect no email in Mailpit.
 4. **Reactivate, offline then online.** On the Inactive person's page, go offline and tap **Reactivate**.
-   - Expect **Reactivating…** (disabled), then "Nothing changed. {name} still can't sign in. Check your connection and try again."
-   - Expect the status to still read Inactive.
+   - Expect **Reactivating…** (disabled), then "We couldn't confirm {name} was reactivated. Check your connection, then refresh to see their status."
+   - Expect the status to still read Inactive until a refresh shows what the server holds.
    - Go back online and tap **Reactivate** again. Expect "{name} can sign in again." and the status to change straight away.
 5. **Photo plus job title, details dropped.** On the Active person's page, open **Edit details**, choose a new photo, change the job title, then abort only the Server Action POST (let `/avatar` through) and tap **Save changes**.
    - Expect the alert "Some changes didn't save: The profile photo was saved. The changes to {first}'s job title weren't saved. Check your connection and try again."
    - Expect the new photo to stay in the preview, and the file input to be empty.
    - Go back online and tap **Save changes**. Expect no second `/avatar` request, the dialog to close, "Saved {name}.", and the new job title and photo on the page.
 6. **Fully offline edit.** Go offline before **Save changes** with a photo chosen.
-   - Expect "The photo could not be uploaded. Try again." and nothing saved.
-   - With only a job title changed, expect "Nothing changed. Check your connection and try again."
+   - Expect "We couldn't confirm the photo uploaded. Check your connection and try again."; after a refresh, nothing saved.
+   - With only a job title changed, expect "We couldn't confirm your changes saved. Check your connection and try again."
 7. **Keyboard and focus.** Repeat steps 1 and 4 with the keyboard only.
    - Expect focus to stay visible.
    - Expect a disabled pending button to keep its place in the layout.
@@ -51,7 +51,7 @@
 
 ## Pass when
 
-- Every message names exactly what saved and what didn't.
+- Every message names exactly what saved and what didn't, and says "couldn't confirm" when a reply was lost. "Nothing changed." appears only after a server refusal.
 - No action ever runs twice from one intent.
 - Every outcome reaches the live region.
 - There is one blue primary per screen.

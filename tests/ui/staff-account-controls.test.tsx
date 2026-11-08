@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 // Admin account actions tell the truth (ADM-1, ADM-2). Resend and Reactivate
-// run one at a time with a pending label, and a rejected call (offline, server
-// unreachable) says nothing changed instead of clearing the notice. A second
-// tap must never resend: each resend invalidates the link sent before it. An
-// edit whose photo saved before the details failed says exactly that, and a
-// retry does not upload the photo again.
+// run one at a time with a pending label. A rejected call (offline, reply lost)
+// says the outcome couldn't be confirmed instead of clearing the notice; it
+// never claims nothing changed, since the server may have acted. A second tap
+// must never resend: each resend invalidates the link sent before it. An edit
+// whose photo saved before the details failed says exactly that, and a retry
+// does not upload the photo again.
 import * as React from "react"
 import {
   act,
@@ -147,14 +148,14 @@ describe("Resend invitation (ADM-1)", () => {
     ).toHaveProperty("disabled", false)
   })
 
-  it("a rejected call says nothing changed, and the button works again", async () => {
+  it("a rejected call can't confirm the send, and the button works again", async () => {
     resendInvitationAction.mockRejectedValue(new TypeError("Failed to fetch"))
     render(header("invited"))
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Resend invitation" }))
     })
     expect(announced()).toContain(
-      "Nothing changed. The invitation to sam@nabalens.test wasn't sent. Check your connection and try again."
+      "We couldn't confirm the invitation to sam@nabalens.test was sent. Check your connection, then try again. A new invitation replaces any earlier link."
     )
     expect(
       screen.getByRole("button", { name: "Resend invitation" })
@@ -197,14 +198,14 @@ describe("Reactivate (ADM-1)", () => {
     expect(refresh).toHaveBeenCalledTimes(1)
   })
 
-  it("a rejected call says nothing changed and keeps Inactive", async () => {
+  it("a rejected call can't confirm the reactivation and keeps Inactive", async () => {
     setStaffActiveAction.mockRejectedValue(new TypeError("Failed to fetch"))
     render(header("inactive"))
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Reactivate" }))
     })
     expect(announced()).toContain(
-      "Nothing changed. TEST Sam still can't sign in. Check your connection and try again."
+      "We couldn't confirm TEST Sam was reactivated. Check your connection, then refresh to see their status."
     )
     expect(screen.getByRole("button", { name: "Reactivate" })).toHaveProperty(
       "disabled",
@@ -364,7 +365,7 @@ describe("Edit details after the photo saved (ADM-2)", () => {
     expect(await screen.findByText("Saved TEST Sam.")).toBeTruthy()
   })
 
-  it("a rejected save with no photo says nothing changed", async () => {
+  it("a rejected save with no photo can't confirm the changes", async () => {
     updateStaffAccountAction.mockRejectedValueOnce(
       new TypeError("Failed to fetch")
     )
@@ -380,7 +381,7 @@ describe("Edit details after the photo saved (ADM-2)", () => {
     )
     const alert = await within(dialog).findByRole("alert")
     expect(alert.textContent).toBe(
-      "Nothing changed. Check your connection and try again."
+      "We couldn't confirm your changes saved. Check your connection and try again."
     )
   })
 })

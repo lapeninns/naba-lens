@@ -242,7 +242,7 @@ describe("Deactivate?", () => {
     ).toBeTruthy()
   })
 
-  it("keeps the dialog open and says nothing changed when the request fails", async () => {
+  it("keeps the dialog open and can't confirm when the request fails", async () => {
     setStaffActiveAction.mockRejectedValue(new Error("offline"))
     render(directory())
     const menu = await openRowMenu("Ben Clarke")
@@ -256,10 +256,10 @@ describe("Deactivate?", () => {
         .setup()
         .click(dialog.getByRole("button", { name: "Deactivate" }))
     })
-    expect(dialog.getByText("Couldn't deactivate")).toBeTruthy()
+    expect(dialog.getByText("Couldn't confirm")).toBeTruthy()
     expect(
       dialog.getByText(
-        "Nothing changed. Ben still has access. Check your connection and try again."
+        "We couldn't confirm Ben was deactivated. Check your connection, then try again."
       )
     ).toBeTruthy()
   })

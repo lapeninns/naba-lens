@@ -105,7 +105,11 @@ async function uploadAvatar(
       fieldErrors: json?.fieldErrors,
     }
   } catch {
-    return { ok: false, error: "The photo could not be uploaded. Try again." }
+    return {
+      ok: false,
+      error:
+        "We couldn't confirm the photo uploaded. Check your connection and try again.",
+    }
   }
 }
 
@@ -136,9 +140,10 @@ export function useAccountControls({
   // link sent before it.
   const [busy, setBusy] = React.useState<StaffActionPending | null>(null)
   const busyRef = React.useRef(false)
-  const [deactivateError, setDeactivateError] = React.useState<string | null>(
-    null
-  )
+  const [deactivateError, setDeactivateError] = React.useState<{
+    title: string
+    text: string
+  } | null>(null)
   // Statuses the server has confirmed, keyed by account, with the server props
   // object they apply to. The action's own re-render of the page can arrive long
   // after its result (it re-reads Auth, media and venues: over 30 s on a loaded
@@ -174,7 +179,10 @@ export function useAccountControls({
     return shown
   }
 
-  /** Runs one resend or reactivate at a time; a rejected call changes nothing. */
+  /**
+   * Runs one resend or reactivate at a time. A rejected call proves nothing:
+   * the server may have acted before the reply was lost.
+   */
   async function runAction(
     action: StaffActionPending,
     pendingText: string,
@@ -200,7 +208,7 @@ export function useAccountControls({
     return runAction(
       { action: "resend", memberId: member.id },
       `Sending the invitation to ${to}…`,
-      `Nothing changed. The invitation to ${to} wasn't sent. Check your connection and try again.`,
+      `We couldn't confirm the invitation to ${to} was sent. Check your connection, then try again. A new invitation replaces any earlier link.`,
       async () => {
         const result = await resendInvitationAction(member.id)
         return result.ok
@@ -217,7 +225,7 @@ export function useAccountControls({
     return runAction(
       { action: "reactivate", memberId: member.id },
       `Reactivating ${member.displayName}…`,
-      `Nothing changed. ${member.displayName} still can't sign in. Check your connection and try again.`,
+      `We couldn't confirm ${member.displayName} was reactivated. Check your connection, then refresh to see their status.`,
       async () => {
         const result = await setStaffActiveAction(member.id, true)
         if (!result.ok) return { tone: "error", text: result.error }
@@ -248,7 +256,7 @@ export function useAccountControls({
     try {
       const result = await setStaffActiveAction(deactivating.id, false)
       if (!result.ok) {
-        setDeactivateError(result.error)
+        setDeactivateError({ title: "Couldn't deactivate", text: result.error })
         return
       }
       confirmStatus(deactivating, result.status)
@@ -261,9 +269,10 @@ export function useAccountControls({
       })
       setDeactivating(null)
     } catch {
-      setDeactivateError(
-        `Nothing changed. ${first} still has access. Check your connection and try again.`
-      )
+      setDeactivateError({
+        title: "Couldn't confirm",
+        text: `We couldn't confirm ${first} was deactivated. Check your connection, then try again.`,
+      })
     } finally {
       setPending(false)
     }
@@ -296,7 +305,7 @@ export function useAccountControls({
           ok: false,
           error: photoSaved
             ? "Check your connection and try again."
-            : "Nothing changed. Check your connection and try again.",
+            : "We couldn't confirm your changes saved. Check your connection and try again.",
           photoSaved,
         }
       }
@@ -365,8 +374,8 @@ export function useAccountControls({
             </AlertDialogTitle>
           </AlertDialogHeader>
           {deactivateError ? (
-            <Notice tone="negative" title="Couldn't deactivate">
-              {deactivateError}
+            <Notice tone="negative" title={deactivateError.title}>
+              {deactivateError.text}
             </Notice>
           ) : null}
           <AlertDialogDescription
