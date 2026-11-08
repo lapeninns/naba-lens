@@ -469,7 +469,11 @@ describe("session expiry", () => {
     await signedIn(a, admin.email)
     await signedIn(b, admin.email)
 
-    const res = await a.run(() => logout())
+    const res = await a.run(() =>
+      logout(
+        new Request("http://127.0.0.1:3000/auth/logout", { method: "POST" })
+      )
+    )
     expect(res.status).toBe(303)
     expect(res.headers.get("location")).toBe("/login?signed_out=1")
     expect(a.authCookies().filter((c) => !c.name.includes("verifier"))).toEqual(
