@@ -26,8 +26,8 @@ import {
   listMySubmittablePhotos,
 } from "@/lib/server/coverage"
 import { periodKeyOf } from "@/lib/server/coverage/time"
-import { avatarUrl } from "@/lib/server/media/library"
 
+import { staffShellStatus } from "../../_shell/shell-status"
 import { TASKS_PATH, unwrap } from "../result"
 import { TaskSubmit } from "../task-submit"
 
@@ -60,10 +60,11 @@ export default async function TaskPage({
   const profile = await requireActiveStaff()
   const [{ requirementId }, search] = await Promise.all([params, searchParams])
   const { actor } = unwrap(await getCoverageActor())
-  const [assignmentResult, scopeResult, photos] = await Promise.all([
+  const [assignmentResult, scopeResult, photos, shell] = await Promise.all([
     getMyAssignment(actor, { requirementId }),
     getCoverageScope(actor),
     listMySubmittablePhotos(actor, { requirementId, cursor: null }),
+    staffShellStatus(actor, profile),
   ])
   const { assignment } = unwrap(assignmentResult)
   const { scope } = unwrap(scopeResult)
@@ -80,9 +81,8 @@ export default async function TaskPage({
     <AppShell
       variant="staff"
       active="tasks"
-      canManage={scope.canManageVenue}
+      {...shell}
       userName={profile.displayName}
-      avatarUrl={avatarUrl(profile.id, profile.avatarPath)}
       logoutAction={logout}
     >
       <div className="mx-auto flex w-full max-w-(--size-feed) flex-col gap-(--gutter) pb-4">

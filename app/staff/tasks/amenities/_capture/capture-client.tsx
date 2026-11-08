@@ -12,6 +12,10 @@ import {
   type AssetsResult,
 } from "@/components/nabalens/amenities/capture"
 import {
+  findingSentHref,
+  STAFF_HOME_PATH,
+} from "@/components/nabalens/amenities/capture/finding-sent"
+import {
   useAddQueue,
   useAddRefreshSignal,
 } from "@/components/nabalens/shell/add-context"
@@ -57,7 +61,14 @@ export function CaptureClient({
       canAttachLegacy={canAttachLegacy}
       refreshSignal={refreshSignal}
       onReload={() => router.refresh()}
-      onDone={() => router.push(doneHref)}
+      onDone={() =>
+        router.push(
+          // Home says which check was sent; check pages show it themselves.
+          doneHref === STAFF_HOME_PATH
+            ? findingSentHref(doneHref, check.id)
+            : doneHref
+        )
+      }
       signInHref={ROUTES.login}
     />
   )

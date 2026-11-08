@@ -26,7 +26,10 @@ import {
   TaskSummary,
   periodLabel,
   shiftPeriod,
+  todoCount,
+  todoItems,
 } from "@/components/nabalens/tasks"
+import type { MyAmenityTask } from "@/lib/amenities/contract"
 
 import {
   assignment,
@@ -765,5 +768,109 @@ describe("MonthCard", () => {
     )
     expect(screen.getByText("Read-only")).toBeTruthy()
     expect(screen.queryByRole("link")).toBeNull()
+  })
+})
+
+function amenityCheck(
+  id: string,
+  question: string,
+  overrides: Partial<MyAmenityTask> = {}
+): MyAmenityTask {
+  return {
+    id,
+    venueId: "v1",
+    entry: {
+      key: id,
+      category: "Access",
+      question,
+      captureBrief: "Film the route in.",
+      evidenceRule: "photo",
+      isCore: true,
+      position: 1,
+      version: 1,
+    },
+    status: "active",
+    progress: "needs_capture",
+    answer: "to_check",
+    assignee: { id: "me", displayName: "TEST Sam" },
+    answeredBy: null,
+    answeredAt: null,
+    recheckReason: null,
+    notes: null,
+    revision: 1,
+    updatedAt: "2026-11-05T10:00:00.000Z",
+    ...overrides,
+  }
+}
+
+describe("To do: amenity checks", () => {
+  const checks = [
+    amenityCheck("c1", "Is there step-free access?"),
+    amenityCheck("c2", "Is there guest Wi-Fi?", {
+      progress: "needs_recheck",
+      recheckReason: "Password or QR visible",
+    }),
+  ]
+
+  it("counts every assigned check in To do and the badge", () => {
+    const items = todoItems(base, new Date("2026-11-05T10:00:00Z"), 0, checks)
+    expect(items.map((i) => i.kind)).toEqual(["amenity"])
+    expect(todoCount(items)).toBe(2)
+    expect(todoCount(todoItems(base, new Date(), 2, checks))).toBe(3)
+  })
+
+  it("never says nothing to do while a check waits, and leads with the recheck", () => {
+    render(
+      <TasksOverview
+        tasks={base}
+        profile={PROFILE}
+        tasksPath="/staff/tasks"
+        portfolioPath="/staff"
+        amenityTasks={checks}
+      />
+    )
+    expect(screen.queryByText("Nothing to do right now.")).toBeNull()
+    const todo = screen.getByRole("region", { name: /^To do/ })
+    expect(within(todo).getByText("2")).toBeTruthy()
+    expect(
+      within(todo).getByRole("heading", { name: "Is there guest Wi-Fi?" })
+    ).toBeTruthy()
+    expect(within(todo).getByText("Password or QR visible")).toBeTruthy()
+    expect(within(todo).getByText(/1 more check below/)).toBeTruthy()
+    const start = within(todo).getByRole("link", {
+      name: "Start check: Is there guest Wi-Fi?",
+    })
+    expect(start.getAttribute("href")).toBe("/staff/tasks/amenities/c2")
+    // The lead card's action is the page's one primary button.
+    expect(start.className).toContain("w-full")
+    // The full list still follows To do.
+    expect(
+      screen.getByRole("list", { name: "Amenity checks" }).children
+    ).toHaveLength(2)
+  })
+
+  it("puts overdue photo tasks before amenity checks and due-soon tasks after", () => {
+    const view = tasksView({
+      assignments: [
+        assignment({
+          id: "r-overdue",
+          title: "Bar",
+          progress: { ...requirement().progress, overdue: true },
+          due: due({ overdue: true }),
+        }),
+        assignment({
+          id: "r-soon",
+          title: "Terrace",
+          due: due({ dueAt: "2026-11-07T00:00:00.000Z" }),
+        }),
+      ],
+    })
+    const kinds = todoItems(
+      view,
+      new Date("2026-11-05T10:00:00Z"),
+      0,
+      checks
+    ).map((i) => i.kind)
+    expect(kinds).toEqual(["overdue", "amenity", "due-soon"])
   })
 })

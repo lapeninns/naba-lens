@@ -11,7 +11,7 @@ import { requireActiveStaff } from "@/lib/auth"
 import { listCommunityVenues } from "@/lib/server/community"
 import { getMediaActor } from "@/lib/server/media/context"
 
-import { canManageVenue } from "../can-manage"
+import { staffShellStatus } from "../_shell/shell-status"
 import {
   communityFilters,
   searchValue,
@@ -43,10 +43,10 @@ export default async function PeoplePage({
   const search = await searchParams
   const { venueId, department } = communityFilters(search)
   const query = searchValue(search.q).trim().slice(0, 80)
-  const [people, options, canManage] = await Promise.all([
+  const [people, options, shell] = await Promise.all([
     listPeople(auth.actor, { venueId, department, search: query }),
     listCommunityVenues(auth.actor),
-    canManageVenue(auth.actor),
+    staffShellStatus(auth.actor, profile),
   ])
   if (!people.ok) throw new Error(people.message)
   if (!options.ok) throw new Error(options.message)
@@ -77,7 +77,7 @@ export default async function PeoplePage({
     <AppShell
       variant="staff"
       active="people"
-      canManage={canManage}
+      {...shell}
       userName={profile.displayName}
       logoutAction={logout}
     >

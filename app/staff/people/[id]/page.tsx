@@ -13,7 +13,7 @@ import { requireActiveStaff } from "@/lib/auth"
 import { getCommunityMember, listCommunityMedia } from "@/lib/server/community"
 import { getMediaActor } from "@/lib/server/media/context"
 
-import { canManageVenue } from "../../can-manage"
+import { staffShellStatus } from "../../_shell/shell-status"
 import { CommunityGallery } from "../../community/community-gallery"
 import { firstName, movedNotice, photoCount, PROFILE_COPY } from "../people"
 import { RoleLine } from "../person-card"
@@ -29,9 +29,9 @@ export default async function ColleaguePage({
   const auth = await getMediaActor("staff")
   if (!auth.ok) throw new Error(auth.message)
   const { id } = await params
-  const [person, canManage] = await Promise.all([
+  const [person, shell] = await Promise.all([
     getCommunityMember(auth.actor, id),
-    canManageVenue(auth.actor),
+    staffShellStatus(auth.actor, profile),
   ])
   if (!person.ok) {
     if (person.status === 404 || person.status === 400) notFound()
@@ -48,7 +48,7 @@ export default async function ColleaguePage({
     <AppShell
       variant="staff"
       active="people"
-      canManage={canManage}
+      {...shell}
       userName={profile.displayName}
       logoutAction={logout}
     >
