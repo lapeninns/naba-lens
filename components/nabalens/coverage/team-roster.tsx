@@ -553,14 +553,17 @@ function TeamRosterMonth({
         .join(" · ")
     }
 
-    const chip =
-      row.status === "needs_setup" && !changed ? (
-        <StatusChip state="needs_setup" />
-      ) : met ? (
-        <StatusChip state="target_met" />
-      ) : row.due?.overdue && timing !== "past" ? (
-        <StatusChip state="overdue" />
-      ) : null
+    // An unsaved target previews progress; it isn't a state yet, so no chip
+    // (Target met, Overdue) is drawn from it.
+    const chip = changed ? (
+      <span className="text-meta text-ink-muted">· not saved yet</span>
+    ) : row.status === "needs_setup" ? (
+      <StatusChip state="needs_setup" />
+    ) : met ? (
+      <StatusChip state="target_met" />
+    ) : row.due?.overdue && timing !== "past" ? (
+      <StatusChip state="overdue" />
+    ) : null
 
     let progress: React.ReactNode
     if ((movedAway && !editable) || (changed && shownTarget == null)) {

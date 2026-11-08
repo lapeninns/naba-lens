@@ -383,6 +383,37 @@ describe("TeamRoster", () => {
     expect(screen.queryByText(/You can set targets now/)).toBeNull()
   })
 
+  it("marks an unsaved target's progress as not saved, without a state chip", async () => {
+    const user = userEvent.setup()
+    render(
+      <TeamRoster
+        period={PERIOD}
+        currentPeriod="2026-11"
+        rows={[
+          monthly({
+            status: "needs_setup",
+            setupMissing: ["target"],
+            targetCount: null,
+            source: "placeholder",
+            accepted: 2,
+          }),
+        ]}
+        canEdit
+        isAdmin={false}
+        basePath="/staff/manage"
+        onSetTarget={vi.fn<SetTargetHandler>(ok)}
+        unprepared={false}
+      />
+    )
+    await user.type(screen.getByLabelText("TEST Sam's photo target"), "2")
+    expect(screen.getByText("1 change not saved")).toBeTruthy()
+    const row = screen.getByLabelText("TEST Sam's photo target").closest("li")!
+    expect(within(row).getByText("· not saved yet")).toBeTruthy()
+    expect(within(row).getByText("of 2 accepted")).toBeTruthy()
+    // 2 of 2 would meet the target, but nothing is saved yet.
+    expect(within(row).queryByText("Target met")).toBeNull()
+  })
+
   it("re-reads the page on a conflict and moves focus to the page notice", async () => {
     const user = userEvent.setup()
     const onStale = vi.fn()
