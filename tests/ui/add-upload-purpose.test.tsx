@@ -54,6 +54,7 @@ const { refresh, supabase, uploads, amenityActions } = vi.hoisted(() => ({
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh, push: vi.fn() }),
+  usePathname: () => "/staff/tasks/amenities/check/capture",
 }))
 vi.mock("@/lib/supabase/browser", () => ({ createClient: () => supabase }))
 vi.mock("@/app/_media/use-media-uploader", () => ({
