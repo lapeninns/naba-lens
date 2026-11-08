@@ -49,7 +49,11 @@ const NOTICE_TONE: Record<Notice["tone"], NoticeTone> = {
   pending: "info",
 }
 
-/** Polite live region for the outcome of the last account action. */
+/**
+ * Polite live region for the outcome of the last account action. The region
+ * stays mounted; the notice inside has no role of its own, so a nested status
+ * region doesn't announce each message twice.
+ */
 export function AccountNotice({
   notice,
   onDismiss,
@@ -62,7 +66,7 @@ export function AccountNotice({
       {notice ? (
         <Notice
           tone={NOTICE_TONE[notice.tone]}
-          role="status"
+          role="none"
           action={
             notice.tone === "pending" ? undefined : (
               <Button

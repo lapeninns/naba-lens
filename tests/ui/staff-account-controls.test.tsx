@@ -223,6 +223,49 @@ describe("pending buttons keep focus (review 2, D1)", () => {
   })
 })
 
+describe("account notice live region (review 2, D3)", () => {
+  /** Live regions from `element` up to the document. */
+  const liveRegionsAround = (element: Element) => {
+    const regions: Element[] = []
+    for (let node: Element | null = element; node; node = node.parentElement) {
+      const role = node.getAttribute("role")
+      if (
+        node.hasAttribute("aria-live") ||
+        role === "status" ||
+        role === "alert" ||
+        role === "log"
+      )
+        regions.push(node)
+    }
+    return regions
+  }
+
+  it.each([
+    ["success", { ok: true }, "Invitation sent again to sam@nabalens.test."],
+    [
+      "refusal",
+      { ok: false, error: "TEST Sam has already signed in." },
+      "TEST Sam has already signed in.",
+    ],
+  ] as const)(
+    "a %s sits in exactly one polite live region",
+    async (_kind, reply, message) => {
+      resendInvitationAction.mockResolvedValue(reply)
+      render(header("invited"))
+      await act(async () => {
+        fireEvent.click(
+          screen.getByRole("button", { name: "Resend invitation" })
+        )
+      })
+      const regions = liveRegionsAround(
+        screen.getByText(message, { exact: false })
+      )
+      expect(regions).toHaveLength(1)
+      expect(regions[0].getAttribute("aria-live")).toBe("polite")
+    }
+  )
+})
+
 describe("Reactivate (ADM-1)", () => {
   it("is disabled with a pending label until the server answers", async () => {
     const call = deferred<{ ok: true; status: "active" }>()
