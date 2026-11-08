@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import type { MediaItem } from "@/components/nabalens/types"
+import type { MediaItemView } from "@/lib/server/media/types"
 
 vi.mock("server-only", () => ({}))
 vi.mock("next/navigation", () => ({
@@ -24,7 +24,7 @@ afterEach(cleanup)
 
 const SAM = "5a1d2c3b-4e5f-4a6b-8c7d-9e0f1a2b3c4d"
 
-const photo: MediaItem = {
+const photo: MediaItemView = {
   id: "m1",
   mediaType: "image",
   uploadState: "ready",
@@ -36,6 +36,11 @@ const photo: MediaItem = {
   contributorId: SAM,
   contributorName: "Sam Lee",
   venueName: "The Railway",
+  width: 64,
+  height: 48,
+  durationSeconds: null,
+  sizeBytes: 4,
+  labels: null,
 }
 
 function openViewer() {
