@@ -172,6 +172,37 @@ describe("TasksOverview", () => {
     expect(card.textContent).toContain("Ask an admin to set your team.")
   })
 
+  it("gives the primary action to the first card that has one", () => {
+    const view = tasksView({
+      scope: { ...base.scope, setup: { complete: false, missing: ["team"] } },
+    })
+    render(
+      <TasksOverview
+        tasks={view}
+        profile={{ ...PROFILE, department: null, hasAvatar: true }}
+        tasksPath="/staff/tasks"
+        portfolioPath="/staff"
+        reviewCount={2}
+      />
+    )
+    const todo = screen.getByRole("region", { name: /^To do/ })
+    // Setup leads but only an admin can finish it, so it has no button.
+    expect(
+      within(
+        screen.getByRole("region", { name: "Your setup isn't finished" })
+      ).queryByRole("link")
+    ).toBeNull()
+    const review = within(todo).getByRole("link", { name: "Review photos" })
+    expect(review.className).toContain("bg-accent")
+    expect(review.className).toContain("w-full")
+    // Still one blue action on the screen.
+    expect(
+      within(todo)
+        .getAllByRole("link")
+        .filter((link) => link.className.includes("bg-accent"))
+    ).toEqual([review])
+  })
+
   it("explains a missing venue and offers no send action", () => {
     const view = tasksView({
       scope: {

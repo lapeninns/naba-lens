@@ -15,7 +15,7 @@ import { Notice } from "../notice"
 import { CountBadge } from "../status-chip"
 import { EvidenceThumb } from "./evidence-thumb"
 import { replacementHref } from "./needs-another-photo-list"
-import { SetupChecklist } from "./setup-checklist"
+import { SetupChecklist, setupHasAction } from "./setup-checklist"
 import { StatusChip } from "./status-badges"
 import { ReviewReason, submissionTitle } from "./submission-list"
 import type {
@@ -356,9 +356,25 @@ function AmenityCard({
   )
 }
 
+/** Whether the card ends in an action button. */
+function hasAction(
+  item: TodoItem,
+  scope: CoverageScope,
+  profile: Parameters<typeof setupHasAction>[0]
+): boolean {
+  switch (item.kind) {
+    case "setup":
+      return setupHasAction(profile)
+    case "replace":
+      return !item.closed && scope.canSubmit
+    default:
+      return true
+  }
+}
+
 /**
- * The one thing to do next, first. The first card's button is the page's
- * primary action; the rest are secondary.
+ * The one thing to do next, first. The first card with an action leads: its
+ * button is the page's primary action; the rest are secondary.
  */
 export function TodoSection({
   items,
@@ -377,6 +393,7 @@ export function TodoSection({
   amenityError?: boolean
 }) {
   const count = todoCount(items)
+  const lead = items.findIndex((item) => hasAction(item, scope, profile))
   return (
     <section aria-labelledby={TODO_HEADING_ID} className="grid gap-(--gutter)">
       <div className="px-1 pt-2">
@@ -423,7 +440,7 @@ export function TodoSection({
       ) : (
         <ul className="grid gap-(--gutter)">
           {items.map((item, index) => {
-            const primary = index === 0
+            const primary = index === lead
             switch (item.kind) {
               case "setup":
                 return (
