@@ -5,7 +5,11 @@ import { cache } from "react"
 import { todoCount, todoItems } from "@/components/nabalens/tasks"
 import type { MyAmenityTask } from "@/lib/amenities/contract"
 import { getMyAmenityTasks } from "@/lib/server/amenities"
-import { getManagerReviewCount, getMyTasks } from "@/lib/server/coverage"
+import {
+  getCoverageActor,
+  getManagerReviewCount,
+  getMyTasks,
+} from "@/lib/server/coverage"
 import { avatarUrl } from "@/lib/server/media/library"
 import type { MediaActor } from "@/lib/server/media/types"
 
@@ -92,3 +96,26 @@ export async function staffShellStatus(
     avatarUrl: avatarUrl(profile.id, profile.avatarPath),
   }
 }
+
+const NO_STATUS: StaffShellStatus = {
+  canManage: false,
+  todoCount: undefined,
+  reviewCount: undefined,
+  avatarUrl: null,
+}
+
+/**
+ * The signed-in staff member's shell status for frames that hold no actor of
+ * their own (legacy Manage, not-found). Never throws: a failed read leaves the
+ * counts out. Cached per request, so starting it early (`void
+ * currentStaffShell()`) lets it run alongside the page's own reads.
+ */
+export const currentStaffShell = cache(async (): Promise<StaffShellStatus> => {
+  try {
+    const auth = await getCoverageActor()
+    if (!auth.ok) return NO_STATUS
+    return await staffShellStatus(auth.actor, auth.actor.profile)
+  } catch {
+    return NO_STATUS
+  }
+})

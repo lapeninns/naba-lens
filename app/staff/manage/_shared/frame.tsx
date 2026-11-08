@@ -8,6 +8,7 @@ import { buttonVariants } from "@/components/ui/button"
 import type { CoverageFailure } from "@/lib/server/coverage/types"
 import { periodKeyOf, periodView } from "@/lib/server/coverage/time"
 
+import { currentStaffShell } from "../../_shell/shell-status"
 import { readVenueCoverage, unexpected, type ManageContext } from "./context"
 
 /** "November 2026" in UK time, for the scope line. */
@@ -44,9 +45,12 @@ export async function ManageFrame({
   pendingReview?: number
   children: React.ReactNode
 }) {
+  const [shell, read] = await Promise.all([
+    ctx.mode === "manager" ? currentStaffShell() : null,
+    pendingReview === undefined ? readVenueCoverage(ctx) : null,
+  ])
   let reviewCount = pendingReview
-  if (reviewCount === undefined) {
-    const read = await readVenueCoverage(ctx)
+  if (read) {
     if (!read.ok) return <RefusedPage ctx={ctx} failure={read} />
     reviewCount = read.coverage.summary.pendingReview
   }
@@ -80,9 +84,12 @@ export async function ManageFrame({
       {body}
     </AppShell>
   ) : (
+    // This page has just proved the grant and read the venue's count, so they
+    // win over the shared status (same source, possibly a later read).
     <AppShell
       variant="staff"
       active="manage"
+      {...shell}
       canManage
       reviewCount={reviewCount}
       userName={ctx.viewerName}
@@ -98,9 +105,10 @@ export async function ManageFrame({
  * one version covers every case. New grants go to venue manager accounts
  * only, so the way in is an account change, never a grant to this account.
  */
-export function NotManagerPage({ viewerName }: { viewerName: string }) {
+export async function NotManagerPage({ viewerName }: { viewerName: string }) {
+  const shell = await currentStaffShell()
   return (
-    <AppShell variant="staff" active="manage" userName={viewerName}>
+    <AppShell variant="staff" active="manage" {...shell} userName={viewerName}>
       <PageHeader scope={currentMonthLabel()} title="Manage isn't available" />
       <Card className="max-w-(--size-reading) text-body">
         <p>

@@ -6,8 +6,25 @@ import { cleanup, render, screen } from "@testing-library/react"
 import type { ReactNode } from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
+const shell = vi.hoisted(() => ({
+  props: null as Record<string, unknown> | null,
+}))
 vi.mock("@/components/nabalens/app-shell", () => ({
-  AppShell: ({ children }: { children: ReactNode }) => <main>{children}</main>,
+  AppShell: ({
+    children,
+    ...props
+  }: { children: ReactNode } & Record<string, unknown>) => {
+    shell.props = props
+    return <main>{children}</main>
+  },
+}))
+vi.mock("@/app/staff/_shell/shell-status", () => ({
+  currentStaffShell: vi.fn(async () => ({
+    canManage: false,
+    todoCount: 2,
+    reviewCount: undefined,
+    avatarUrl: "/api/avatars/me",
+  })),
 }))
 
 import { NotManagerPage } from "@/app/staff/manage/_shared/frame"
@@ -15,8 +32,8 @@ import { NotManagerPage } from "@/app/staff/manage/_shared/frame"
 afterEach(cleanup)
 
 describe("NotManagerPage", () => {
-  it("names the real way in: a venue manager account", () => {
-    render(<NotManagerPage viewerName="TEST Sam" />)
+  it("names the real way in: a venue manager account", async () => {
+    render(await NotManagerPage({ viewerName: "TEST Sam" }))
     expect(
       screen.getByRole("heading", { name: "Manage isn't available" })
     ).toBeTruthy()
@@ -28,5 +45,14 @@ describe("NotManagerPage", () => {
     expect(
       screen.getByRole("link", { name: "Go to Home" }).getAttribute("href")
     ).toBe("/staff/tasks")
+  })
+
+  it("keeps Home's badge and the avatar in the shell", async () => {
+    render(await NotManagerPage({ viewerName: "TEST Sam" }))
+    expect(shell.props).toMatchObject({
+      variant: "staff",
+      todoCount: 2,
+      avatarUrl: "/api/avatars/me",
+    })
   })
 })
