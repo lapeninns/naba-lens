@@ -14,9 +14,26 @@ async function search(to: string, subject?: string): Promise<Summary[]> {
   return body.messages ?? []
 }
 
-/** IDs already in the inbox for `to`, so a later wait only accepts a new message. */
+/**
+ * The auth server sends one email per address per second
+ * (supabase/config.toml [auth.email] max_frequency) and refuses a quicker one
+ * with a 429 the app does not show (it answers "Check your email" either way).
+ * Sign-ins of one address in quick succession (one per browser project, or a
+ * second sign-in in the same test) wait out that window, with some margin.
+ */
+const SEND_GAP_MS = 1_500
+
+/**
+ * IDs already in the inbox for `to`, so a later wait only accepts a new
+ * message. Called just before asking for one, so it also waits until the
+ * address may be sent another email.
+ */
 export async function mailboxIds(to: string): Promise<Set<string>> {
-  return new Set((await search(to)).map((m) => m.ID))
+  const messages = await search(to)
+  const newest = Math.max(0, ...messages.map((m) => Date.parse(m.Created) || 0))
+  const wait = newest + SEND_GAP_MS - Date.now()
+  if (wait > 0) await new Promise((r) => setTimeout(r, wait))
+  return new Set(messages.map((m) => m.ID))
 }
 
 export const SUBJECTS = {
