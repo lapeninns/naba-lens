@@ -13,6 +13,7 @@ import {
   useLeaveGuard,
 } from "@/components/nabalens/shell/leave-guard"
 import { useUploadQueue } from "@/components/nabalens/use-upload-queue"
+import { UploadQueue } from "@/components/nabalens/upload-queue"
 import {
   guardBeforeUnload,
   isLeavingDeliberately,
@@ -95,5 +96,29 @@ describe("leaveDeliberately", () => {
     } finally {
       remove()
     }
+  })
+})
+
+describe("a deliberate leave that does not leave (I2)", () => {
+  it("ends when a new upload starts", async () => {
+    leaveDeliberately()
+    expect(isLeavingDeliberately()).toBe(true)
+    const queue = new UploadQueue(() => new Promise(() => {}), LIMITS)
+    queue.add([new File([new Uint8Array(8)], "b.jpg", { type: "image/jpeg" })])
+    queue.start()
+    await vi.waitFor(() => expect(isLeavingDeliberately()).toBe(false))
+    queue.cancelAll()
+  })
+
+  it("ends when the page comes back from the back-forward cache", () => {
+    leaveDeliberately()
+    window.dispatchEvent(
+      Object.assign(new Event("pageshow"), { persisted: false })
+    )
+    expect(isLeavingDeliberately()).toBe(true)
+    window.dispatchEvent(
+      Object.assign(new Event("pageshow"), { persisted: true })
+    )
+    expect(isLeavingDeliberately()).toBe(false)
   })
 })

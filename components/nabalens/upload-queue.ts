@@ -21,6 +21,7 @@
 // duplicate. The asset ID is on the item as soon as the server reserves it, so
 // labels can be sent while the bytes are still on their way.
 
+import { cancelDeliberateLeave } from "@/lib/upload/before-unload"
 import type { FinaliseLabels } from "@/lib/upload/types"
 
 import type { MediaType, UploadLimits } from "./types"
@@ -426,6 +427,7 @@ export class UploadQueue {
     if (!item) return
     const runId = (this.runIds.get(id) ?? 0) + 1
     this.runIds.set(id, runId)
+    cancelDeliberateLeave()
     const controller = new AbortController()
     this.controllers.set(id, controller)
     const attempt = item.attempts + 1

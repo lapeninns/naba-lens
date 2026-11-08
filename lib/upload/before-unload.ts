@@ -15,6 +15,24 @@ let deliberateUntil = 0
  */
 export function leaveDeliberately(now = Date.now()) {
   deliberateUntil = now + DELIBERATE_LEAVE_MS
+  watchPageShow()
+}
+
+/**
+ * The person is uploading again (a new upload started), or the page came back
+ * from the back-forward cache: leaving would lose work, so ask again.
+ */
+export function cancelDeliberateLeave() {
+  deliberateUntil = 0
+}
+
+let watchingPageShow = false
+function watchPageShow() {
+  if (watchingPageShow || typeof window === "undefined") return
+  watchingPageShow = true
+  window.addEventListener("pageshow", (event) => {
+    if ((event as PageTransitionEvent).persisted) cancelDeliberateLeave()
+  })
 }
 
 export function isLeavingDeliberately(now = Date.now()) {
