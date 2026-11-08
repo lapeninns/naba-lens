@@ -84,6 +84,14 @@ const announced = () =>
     .map((region) => region.textContent ?? "")
     .join(" ")
 
+/** Pending: refuses activation but keeps focus (aria-disabled, not native). */
+function expectFocusableBlocked(button: HTMLElement) {
+  expect(button.getAttribute("aria-disabled")).toBe("true")
+  expect(button.hasAttribute("disabled")).toBe(false)
+  act(() => button.focus())
+  expect(document.activeElement).toBe(button)
+}
+
 async function openMenu(name = "TEST Sam") {
   await userEvent
     .setup()
@@ -113,7 +121,7 @@ describe("Resend invitation (ADM-1)", () => {
       fireEvent.click(button)
     })
     const pending = screen.getByRole("button", { name: "Sending invitation…" })
-    expect(pending).toHaveProperty("disabled", true)
+    expectFocusableBlocked(pending)
     expect(pending.getAttribute("aria-busy")).toBe("true")
     expect(announced()).toContain(
       "Sending the invitation to sam@nabalens.test…"
@@ -175,6 +183,46 @@ describe("Resend invitation (ADM-1)", () => {
   })
 })
 
+describe("pending buttons keep focus (review 2, D1)", () => {
+  it("Resend invitation keeps keyboard focus while sending, and Enter again sends nothing", async () => {
+    const call = deferred<{ ok: true }>()
+    resendInvitationAction.mockReturnValue(call.promise)
+    render(header("invited"))
+    const user = userEvent.setup()
+    const button = screen.getByRole("button", { name: "Resend invitation" })
+    act(() => button.focus())
+    await user.keyboard("{Enter}")
+    const pending = screen.getByRole("button", { name: "Sending invitation…" })
+    expect(document.activeElement).toBe(pending)
+    await user.keyboard("{Enter}")
+    expect(resendInvitationAction).toHaveBeenCalledTimes(1)
+    await act(async () => {
+      call.resolve({ ok: true })
+    })
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "Resend invitation" })
+    )
+  })
+
+  it("Reactivate keeps keyboard focus while pending and after a failure", async () => {
+    const call = deferred<never>()
+    setStaffActiveAction.mockReturnValue(call.promise)
+    render(header("inactive"))
+    const user = userEvent.setup()
+    act(() => screen.getByRole("button", { name: "Reactivate" }).focus())
+    await user.keyboard("{Enter}")
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "Reactivating…" })
+    )
+    await act(async () => {
+      call.reject(new TypeError("Failed to fetch"))
+    })
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "Reactivate" })
+    )
+  })
+})
+
 describe("Reactivate (ADM-1)", () => {
   it("is disabled with a pending label until the server answers", async () => {
     const call = deferred<{ ok: true; status: "active" }>()
@@ -184,7 +232,7 @@ describe("Reactivate (ADM-1)", () => {
       fireEvent.click(screen.getByRole("button", { name: "Reactivate" }))
     })
     const pending = screen.getByRole("button", { name: "Reactivating…" })
-    expect(pending).toHaveProperty("disabled", true)
+    expectFocusableBlocked(pending)
     expect(announced()).toContain("Reactivating TEST Sam…")
     await act(async () => {
       fireEvent.click(pending)

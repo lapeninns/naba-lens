@@ -227,7 +227,9 @@ export function AccountHeader({
               variant="primary"
               size="sm"
               onClick={() => void controls.resend(member)}
+              // Keeps keyboard and screen-reader focus while pending.
               disabled={!!controls.busy}
+              focusableWhenDisabled
               aria-busy={busy === "resend"}
             >
               <EnvelopeSimpleIcon aria-hidden />
@@ -247,6 +249,7 @@ export function AccountHeader({
               size="sm"
               onClick={() => controls.setActive(member, true)}
               disabled={!!controls.busy}
+              focusableWhenDisabled
               aria-busy={busy === "reactivate"}
             >
               <ArrowCounterClockwiseIcon aria-hidden />
