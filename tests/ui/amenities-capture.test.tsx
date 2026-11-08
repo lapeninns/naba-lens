@@ -11,6 +11,7 @@ import {
   within,
 } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import { cloneElement } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
@@ -36,6 +37,7 @@ import {
 } from "@/lib/amenities/contract"
 import type { OpenAddOptions } from "@/components/nabalens/shell/add-context"
 import type { Uploader } from "@/components/nabalens/upload-queue"
+import { SESSION_ENDED_MESSAGE } from "@/lib/auth/session-ended"
 
 const CHECK_ID = "8a000000-0000-4000-8000-000000000001"
 const VIEWER_ID = "1a2b3c4d-0000-4aaa-8bbb-00000000000a"
@@ -973,5 +975,76 @@ describe("CaptureForm: Try again while offline (S-H1)", () => {
     await user.click(photoBox())
     await user.click(submitButton())
     expect(submit).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe("CaptureForm: uploads after a refused or resent answer (B5)", () => {
+  const LATER: SubmittableAsset = {
+    ...PHOTO,
+    assetId: "7d000000-0000-4000-8000-00000000000d",
+    createdAt: "2026-11-04T10:00:00.000Z",
+  }
+  const laterBox = () =>
+    screen.getByRole("checkbox", { name: "Photo added 4 Nov 2026, 10:00" })
+
+  async function withAddQueue(submit: ReturnType<typeof vi.fn<SubmitHandler>>) {
+    const openAdd = vi.fn()
+    const utils = setup({
+      assets: [PHOTO],
+      submit,
+      upload: { addQueue: { openAdd }, uploader: noUpload, limits: LIMITS },
+    })
+    await utils.user.click(
+      screen.getByRole("button", { name: "Choose from your photos" })
+    )
+    const opts = openAdd.mock.lastCall?.[0] as OpenAddOptions
+    await utils.user.click(screen.getByRole("radio", { name: "Yes" }))
+    await utils.user.click(photoBox())
+    utils.loadAssets.mockResolvedValue(assetsOk([LATER, VIDEO, PHOTO]))
+    return { ...utils, opts }
+  }
+
+  it("selects new uploads again once a send is refused for an ended session", async () => {
+    let refuse!: (error: Error) => void
+    const submit = vi
+      .fn<SubmitHandler>()
+      .mockImplementationOnce(
+        () => new Promise((_, reject) => (refuse = reject))
+      )
+    const { user, opts } = await withAddQueue(submit)
+    await user.click(submitButton())
+    // Ready while the answer was sending, then refused: nothing was recorded.
+    opts.onReady?.([VIDEO.assetId])
+    await act(async () => refuse(new Error(SESSION_ENDED_MESSAGE)))
+    await waitFor(() =>
+      expect((videoBox() as HTMLInputElement).checked).toBe(true)
+    )
+    // Later uploads are selected for the person as the form promises.
+    opts.onReady?.([LATER.assetId])
+    await waitFor(() =>
+      expect((laterBox() as HTMLInputElement).checked).toBe(true)
+    )
+  })
+
+  it("never calls an upload the person ticked and sent a missed one", async () => {
+    const submit = vi
+      .fn<SubmitHandler>()
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValue(sentOk())
+    const { user, opts, onDone, rerender, ui } = await withAddQueue(submit)
+    await user.click(submitButton())
+    await screen.findByRole("button", { name: UI_TEXT.retry })
+    // Unresolved: the new upload waits. A list refresh (another Add) shows
+    // it unticked, and the person ticks it by hand.
+    opts.onReady?.([LATER.assetId])
+    await act(async () => {})
+    rerender(cloneElement(ui(), { refreshSignal: 1 }))
+    await waitFor(() => expect(laterBox()).toBeTruthy())
+    expect((laterBox() as HTMLInputElement).checked).toBe(false)
+    await user.click(laterBox())
+    await user.click(submitButton())
+    expect(lastInput(submit).assetIds).toEqual([PHOTO.assetId, LATER.assetId])
+    await waitFor(() => expect(onDone).toHaveBeenCalled())
+    expect(screen.queryByText(/wasn't added to this check/)).toBeNull()
   })
 })

@@ -90,7 +90,10 @@ const managerStatus = (actor: MediaActor) => managerStatusOf(sharedActor(actor))
 /** The staff AppShell's props that come from the database. */
 export type StaffShellStatus = {
   canManage: boolean
-  /** Home's To do count; none when the tasks or checks can't be read. */
+  /**
+   * Home's To do count; none when the tasks, the checks or (for a manager)
+   * the photos to review can't be read: unknown, never a smaller number.
+   */
   todoCount: number | undefined
   /** Only for a venue manager; none when the read fails. */
   reviewCount: number | undefined
@@ -113,10 +116,11 @@ export async function staffShellStatus(
     managerStatus(actor),
   ])
   const view = tasks?.ok ? tasks.tasks : null
+  const reviewKnown = !canManage || reviewCount !== undefined
   return {
     canManage,
     todoCount:
-      view && amenityTasks
+      view && amenityTasks && reviewKnown
         ? todoCount(todoItems(view, new Date(), reviewCount, amenityTasks))
         : undefined,
     reviewCount,

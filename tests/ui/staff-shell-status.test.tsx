@@ -147,6 +147,27 @@ describe("staffShellStatus", () => {
     }
   )
 
+  it.each([
+    ["fails", () => ({ ok: false, code: "unavailable", status: 503 })],
+    [
+      "throws",
+      () => {
+        throw new Error("down")
+      },
+    ],
+  ])(
+    "gives a manager no To do count, rather than one without reviews, when the review count %s",
+    async (_, impl) => {
+      coverage.getCoverageScope.mockResolvedValue(scope(true))
+      coverage.getManagerReviewCount.mockImplementation(async () => impl())
+      expect(await staffShellStatus(ACTOR as never, PROFILE)).toMatchObject({
+        canManage: true,
+        reviewCount: undefined,
+        todoCount: undefined,
+      })
+    }
+  )
+
   it("keeps Manage and the avatar when the task read fails, without a To do count", async () => {
     coverage.getCoverageScope.mockResolvedValue(scope(true))
     coverage.getMyTasks.mockRejectedValue(new Error("down"))

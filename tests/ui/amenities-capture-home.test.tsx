@@ -336,3 +336,30 @@ describe("Home: Finding sent", () => {
     expect(screen.queryByText("Finding sent")).toBeNull()
   })
 })
+
+describe("Home: a manager's photos to review can't be counted", () => {
+  it("says so with Try again instead of nothing to do, and shows no Home badge", async () => {
+    setup()
+    amenities.getMyAmenityTasks.mockResolvedValue({ ok: true, tasks: [] })
+    coverage.getCoverageScope.mockResolvedValue({
+      ok: true,
+      scope: { ...tasksView().scope, canManageVenue: true },
+    })
+    coverage.getManagerReviewCount.mockResolvedValue({
+      ok: false,
+      code: "unavailable",
+      status: 503,
+      message: "x",
+    })
+    const { container } = await home()
+    expect(screen.queryByText("Nothing to do right now.")).toBeNull()
+    const todo = screen.getByRole("region", { name: /^To do/ })
+    expect(within(todo).getByRole("alert").textContent).toContain(
+      "We couldn't check photos to review."
+    )
+    expect(
+      within(todo).getByRole("link", { name: "Try again" }).getAttribute("href")
+    ).toBe("/staff/tasks")
+    expect((container.firstElementChild as HTMLElement).dataset.todo).toBe("")
+  })
+})

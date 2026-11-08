@@ -21,6 +21,7 @@ import type {
 } from "@/components/nabalens/tasks"
 import { SubmitPhotosPanel } from "@/components/nabalens/tasks"
 import type { Uploader } from "@/components/nabalens/upload-queue"
+import { SESSION_ENDED_MESSAGE } from "@/lib/auth/session-ended"
 
 import { photo } from "./tasks-fixtures"
 
@@ -637,6 +638,56 @@ describe("SubmitPhotosPanel", () => {
     expect(
       within(alert).getByRole("link", { name: "Sign in" }).getAttribute("href")
     ).toBe("/login")
+  })
+
+  it("says a session that ended mid-send needs a sign-in, not a better connection", async () => {
+    const { user, submit } = setup()
+    submit.mockRejectedValueOnce(new Error(SESSION_ENDED_MESSAGE))
+    await user.click(tile("2 Nov 2026"))
+    await user.click(screen.getByRole("button", { name: "Send 1 photo" }))
+    const alert = await screen.findByRole("alert")
+    expect(alert.textContent).toContain(SESSION_ENDED_MESSAGE)
+    expect(alert.textContent).not.toContain("Check your connection")
+    expect(
+      within(alert).getByRole("link", { name: "Sign in" }).getAttribute("href")
+    ).toBe("/login")
+    expect(
+      within(alert).queryByRole("button", { name: "Try again" })
+    ).toBeNull()
+  })
+
+  it("says a lost reply couldn't be confirmed, and Try again keeps the request ID", async () => {
+    const { user, submit } = setup()
+    submit
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce(sent(1))
+    await user.click(tile("2 Nov 2026"))
+    await user.click(screen.getByRole("button", { name: "Send 1 photo" }))
+    const alert = await screen.findByRole("alert")
+    expect(alert.textContent).toBe(
+      "We couldn't confirm your photos were sent. Check your connection and try again. Nothing is sent twice.Try again"
+    )
+    await user.click(within(alert).getByRole("button", { name: "Try again" }))
+    expect(submit.mock.calls[1][0].requestId).toBe(
+      submit.mock.calls[0][0].requestId
+    )
+  })
+
+  it("shows the server's 'unavailable' message as it is", async () => {
+    const { user, submit } = setup()
+    submit.mockResolvedValueOnce({
+      ok: false,
+      code: "unavailable",
+      status: 503,
+      message: "x",
+    })
+    await user.click(tile("2 Nov 2026"))
+    await user.click(screen.getByRole("button", { name: "Send 1 photo" }))
+    const alert = await screen.findByRole("alert")
+    expect(alert.textContent).toContain(
+      "We couldn't send that just now. Your photos are safe. Try again in a moment."
+    )
+    expect(alert.textContent).not.toContain("Check your connection")
   })
 
   it("recovers from a failed first load with Try again", async () => {

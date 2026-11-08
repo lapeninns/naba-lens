@@ -358,6 +358,8 @@ export function CaptureForm({
   }
 
   function toggle(assetId: string) {
+    // The person decided about this upload: it no longer waits to be selected.
+    late.current.delete(assetId)
     edit((d) => {
       const current = d.assetIds.filter((id) => listed.has(id))
       return {
@@ -533,8 +535,13 @@ export function CaptureForm({
       // Try again replays the same answer, never sends twice. Refused for
       // the ended session, it waits for Sign in again instead.
       const ended = sessionEnded(cause)
-      if (mounted.current)
+      // Refused for the ended session: definitely not recorded, so uploads
+      // stop waiting for an answer and are selected as usual.
+      if (ended) unresolved.current = false
+      if (mounted.current) {
         setOutcome(ended ? { kind: "sign_in" } : { kind: "retry" })
+        if (ended) selectLate()
+      }
       return
     } finally {
       inFlight.current = false
@@ -565,7 +572,8 @@ export function CaptureForm({
     if (result.ok) {
       setDraft(emptyDraft(newKey, check.revision))
       setOutcome({ kind: "sent", replayed: result.replayed })
-      const missed = late.current.size
+      const sentIds = new Set(checked.input.assetIds)
+      const missed = [...late.current].filter((id) => !sentIds.has(id)).length
       late.current.clear()
       // Stay, so the person learns those uploads are not in the answer.
       if (missed > 0) {

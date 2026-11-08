@@ -190,6 +190,7 @@ export default async function TasksPage({
         tasksPath={TASKS_PATH}
         portfolioPath={PORTFOLIO_PATH}
         reviewCount={reviewCount}
+        reviewError={shell.canManage && reviewCount === undefined}
         justSent={justSent}
         colleagues={colleagues}
         welcomeHref={showWelcome ? WELCOME_PATH : null}

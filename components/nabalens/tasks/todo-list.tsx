@@ -356,6 +356,31 @@ function AmenityCard({
   )
 }
 
+/** Part of To do couldn't be read: say so, never claim there is nothing. */
+function ReadFailed({
+  retryHref,
+  children,
+}: {
+  retryHref: string
+  children: React.ReactNode
+}) {
+  return (
+    <Notice
+      tone="negative"
+      action={
+        <Link
+          href={retryHref}
+          className={buttonVariants({ variant: "secondary", size: "touch" })}
+        >
+          Try again
+        </Link>
+      }
+    >
+      {children}
+    </Notice>
+  )
+}
+
 /** Whether the card ends in an action button. */
 function hasAction(
   item: TodoItem,
@@ -383,6 +408,7 @@ export function TodoSection({
   tasksPath,
   portfolioPath,
   amenityError = false,
+  reviewError = false,
 }: {
   items: TodoItem[]
   scope: CoverageScope
@@ -391,6 +417,8 @@ export function TodoSection({
   portfolioPath: string
   /** The amenity checks couldn't be read, so To do may be incomplete. */
   amenityError?: boolean
+  /** A manager's photos to review couldn't be counted: To do may be incomplete. */
+  reviewError?: boolean
 }) {
   const count = todoCount(items)
   const lead = items.findIndex((item) => hasAction(item, scope, profile))
@@ -411,26 +439,18 @@ export function TodoSection({
           <CountBadge count={count} label={thingsToDo(count)} />
         </h2>
       </div>
+      {reviewError ? (
+        <ReadFailed retryHref={tasksPath}>
+          {"We couldn't check photos to review."}
+        </ReadFailed>
+      ) : null}
       {amenityError ? (
-        <Notice
-          tone="negative"
-          action={
-            <Link
-              href={tasksPath}
-              className={buttonVariants({
-                variant: "secondary",
-                size: "touch",
-              })}
-            >
-              Try again
-            </Link>
-          }
-        >
+        <ReadFailed retryHref={tasksPath}>
           {"We couldn't check your amenity checks."}
-        </Notice>
+        </ReadFailed>
       ) : null}
       {items.length === 0 ? (
-        amenityError ? null : (
+        amenityError || reviewError ? null : (
           <div className="rounded-card bg-surface p-4 shadow-card">
             <p className="font-display text-section-title text-ink">
               Nothing to do right now.
