@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
 import { LockSimpleIcon } from "@phosphor-icons/react"
 
 import { Button } from "@/components/ui/button"
@@ -19,11 +20,17 @@ const COPY = MANAGER_COPY.unavailable
  * venue moved, or the venue is inactive). It offers nothing but Sign out and
  * the way forward: ask an admin. The heading takes focus so screen readers
  * hear why the workspace is not there.
+ *
+ * `refreshShell`: rendered by a page inside the workspace shell, which a
+ * client navigation keeps after access ended. One refresh re-renders the
+ * layout, which then shows the page without nav (and never this flag).
  */
 export function VenueAccessUnavailable({
   reason,
+  refreshShell = false,
 }: {
   reason: VenueAccessUnavailableReason
+  refreshShell?: boolean
 }) {
   const heading = React.useRef<HTMLHeadingElement>(null)
   React.useEffect(() => {
@@ -49,6 +56,7 @@ export function VenueAccessUnavailable({
       </h1>
       <p className="text-body text-ink">{COPY.body}</p>
       <p className="text-body text-ink-muted">{COPY.reason[reason]}</p>
+      {refreshShell ? <RefreshShellOnce /> : null}
       <form action="/auth/logout" method="post" className="mt-1">
         <Button
           type="submit"
@@ -61,6 +69,14 @@ export function VenueAccessUnavailable({
       </form>
     </Card>
   )
+}
+
+function RefreshShellOnce() {
+  const router = useRouter()
+  React.useEffect(() => {
+    router.refresh()
+  }, [router])
+  return null
 }
 
 /** The whole page for the unavailable state: the wordmark only, no nav. */

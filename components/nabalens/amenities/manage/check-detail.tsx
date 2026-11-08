@@ -71,15 +71,21 @@ export type CheckDetailHandlers = {
  * (after any write) keeps the notice; the assignee and notes drafts follow
  * what is saved unless the manager has unsaved changes in them, so typed
  * notes survive a revision conflict.
+ *
+ * `canUpload` is false for viewers who can only attach media already on
+ * Naba-Lens (manager accounts, admins): Capture myself is then a secondary
+ * action and the page says new evidence comes from assigned staff.
  */
 export function AmenityCheckDetail({
   detail,
   basePath,
   handlers,
+  canUpload = true,
 }: {
   detail: CheckDetail
   basePath: string
   handlers: CheckDetailHandlers
+  canUpload?: boolean
 }) {
   const { check, permissions } = detail
   const id = React.useId()
@@ -229,7 +235,10 @@ export function AmenityCheckDetail({
           {permissions.canSubmit && active ? (
             <Link
               href={hrefs.capture(check.id)}
-              className={buttonVariants({ variant: "primary", size: "touch" })}
+              className={buttonVariants({
+                variant: canUpload ? "primary" : "secondary",
+                size: "touch",
+              })}
             >
               <CameraIcon aria-hidden />
               {UI_TEXT.captureMyself}
@@ -279,6 +288,12 @@ export function AmenityCheckDetail({
             </Button>
           ) : null}
         </div>
+        {permissions.canSubmit && active && !canUpload ? (
+          <p className={muted}>
+            {UI_TEXT.captureMyself} attaches photos and videos already on
+            Naba-Lens. For new ones, assign this check to staff.
+          </p>
+        ) : null}
       </CoverageSection>
 
       <CoverageSection id="amenity-brief" title="Capture brief">

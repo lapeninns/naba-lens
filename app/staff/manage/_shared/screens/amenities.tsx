@@ -163,7 +163,11 @@ export async function AmenityCheckScreen({
           All amenities
         </Link>
       </div>
-      <AmenityCheckControl detail={detail} basePath={ctx.basePath} />
+      <AmenityCheckControl
+        detail={detail}
+        basePath={ctx.basePath}
+        canUpload={ctx.mode === "manager"}
+      />
     </AmenitiesFrame>
   )
 }
