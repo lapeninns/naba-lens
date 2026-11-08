@@ -118,7 +118,15 @@ export async function getMyTasks(
   const venueId = access.venueId
   const now = new Date()
 
-  const [progress, assigned, requirements, items, people] = await Promise.all([
+  const [
+    progress,
+    assigned,
+    requirements,
+    items,
+    declined,
+    replacements,
+    people,
+  ] = await Promise.all([
     actor.db.rpc("coverage_staff_progress", {}),
     openAssignmentIds(actor),
     venueId
@@ -130,6 +138,20 @@ export async function getMyTasks(
       p_newest_first: true,
       p_limit: 101,
     }),
+    // Requests for another photo are read on their own: the newest photos
+    // above can push an older open request out of the window.
+    actor.db.rpc("coverage_items_page", {
+      p_author_id: actor.profile.id,
+      ...(venueId ? { p_venue_id: venueId } : {}),
+      p_states: ["needs_another_photo"],
+      p_newest_first: true,
+      p_limit: 101,
+    }),
+    actor.db
+      .from("coverage_submission_items")
+      .select("replaces_item_id")
+      .eq("author_id", actor.profile.id)
+      .not("replaces_item_id", "is", null),
     venueId
       ? venuePeople(actor, venueId, access.managerVenueId === venueId)
       : Promise.resolve(new Map()),
@@ -139,12 +161,17 @@ export async function getMyTasks(
   if (requirements.error)
     return coverageRpcFailure(requirements.error, "my requirements")
   if (items.error) return coverageRpcFailure(items.error, "my photos")
+  if (declined.error)
+    return coverageRpcFailure(declined.error, "my photo requests")
+  if (replacements.error)
+    return unavailableFailure("read replacements", replacements.error)
 
   const rows = items.data ?? []
+  const declinedRows = declined.data ?? []
   const names = await nameMap(
     actor,
     people,
-    rows.map((r) => r.decided_by)
+    [...rows, ...declinedRows].map((r) => r.decided_by)
   )
   const progressRows = progress.data ?? []
   const current = progressRows.find((r) => r.venue_id === venueId) ?? null
@@ -152,6 +179,8 @@ export async function getMyTasks(
     ? periodOfDate(current.period_month)
     : periodKeyOf(now)
   const replaced = replacedIds(rows)
+  for (const r of replacements.data ?? [])
+    if (r.replaces_item_id) replaced.add(r.replaces_item_id)
 
   const assignments = (requirements.data ?? [])
     .filter((r) => assigned.ids.has(r.requirement_id) && r.status !== "retired")
@@ -173,7 +202,7 @@ export async function getMyTasks(
       period: periodView(periodKey, now),
       monthly: current ? monthlyView(current, now) : null,
       assignments,
-      needsAnotherPhoto: rows
+      needsAnotherPhoto: declinedRows
         .filter(
           (r) =>
             r.state === "needs_another_photo" &&
@@ -239,11 +268,14 @@ export async function getMyAssignment(
   }
 }
 
-/** A past or current month: progress per venue (a transfer can give two) and own photos. */
+/**
+ * A past or current month: progress per venue (a transfer can give two) and
+ * own photos, newest first. `more` says photos past the first 100 were sent.
+ */
 export async function getMyMonth(
   actor: MediaActor,
   input: unknown
-): Promise<CoverageResult<{ month: MyMonthView }>> {
+): Promise<CoverageResult<{ month: MyMonthView; more: boolean }>> {
   if (!isObject(input) || !isPeriodKey(input.period))
     return invalid({ period: "Choose a month." })
   const period = input.period
@@ -269,7 +301,8 @@ export async function getMyMonth(
   ])
   if (progress.error) return coverageRpcFailure(progress.error, "my month")
   if (items.error) return coverageRpcFailure(items.error, "my month photos")
-  const rows = (items.data ?? []).slice(0, 100)
+  const all = items.data ?? []
+  const rows = all.slice(0, 100)
   const names = await nameMap(
     actor,
     people,
@@ -283,6 +316,7 @@ export async function getMyMonth(
       monthly: (progress.data ?? []).map((r) => monthlyView(r, now)),
       submissions: rows.map((r) => submissionView(r, names)),
     },
+    more: all.length > rows.length,
   }
 }
 
