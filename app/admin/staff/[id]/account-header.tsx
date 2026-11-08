@@ -201,6 +201,8 @@ export function AccountHeader({
               }
               size="touch"
               onClick={() => controls.edit(member)}
+              disabled={!!controls.busy}
+              focusableWhenDisabled
             >
               <PencilSimpleIcon aria-hidden />
               Edit details

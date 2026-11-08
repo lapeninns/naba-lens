@@ -24,7 +24,7 @@
 2. **Resend from the directory.** On **Staff**, use the row's **More actions → Resend invitation**, then reopen the same menu while the request is pending.
    - Expect the item to read **Sending invitation…** and be disabled.
    - Expect Resend, Reactivate and Deactivate on other rows to be disabled until the request finishes.
-   - Edit details stays available.
+   - Edit details also waits (header button and menu item), so an edit can't race the action.
 3. **Resend, offline.** Go offline and tap **Resend invitation**.
    - Expect "We couldn't confirm the invitation to {email} was sent. Check your connection, then try again. A new invitation replaces any earlier link." in the live region. The copy never says nothing changed: a dropped reply does not prove the server did nothing.
    - Expect the button to be enabled again.

@@ -39,6 +39,7 @@ vi.mock("@/app/admin/staff/actions", () => ({
 
 import { AccountHeader } from "@/app/admin/staff/[id]/account-header"
 import { useAccountControls } from "@/app/admin/staff/account-controls"
+import { EditStaffDialog } from "@/app/admin/staff/edit-staff-dialog"
 import { StaffDirectory } from "@/app/admin/staff/staff-directory"
 
 const member = (
@@ -264,6 +265,67 @@ describe("account notice live region (review 2, D3)", () => {
       expect(regions[0].getAttribute("aria-live")).toBe("polite")
     }
   )
+})
+
+describe("an edit waits for a pending resend or reactivate (review 2, D4)", () => {
+  it("Edit details is unavailable from the header and the menu while reactivating", async () => {
+    const call = deferred<{ ok: true; status: "active" }>()
+    setStaffActiveAction.mockReturnValue(call.promise)
+    render(header("inactive"))
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Reactivate" }))
+    })
+    const edit = screen.getByRole("button", { name: "Edit details" })
+    expectFocusableBlocked(edit)
+    await act(async () => {
+      fireEvent.click(edit)
+    })
+    expect(screen.queryByRole("dialog")).toBeNull()
+    const menu = await openMenu()
+    const item = within(menu).getByRole("menuitem", { name: "Edit details" })
+    expect(item.getAttribute("aria-disabled")).toBe("true")
+    await act(async () => {
+      fireEvent.click(item)
+    })
+    expect(screen.queryByRole("dialog")).toBeNull()
+
+    await act(async () => {
+      call.resolve({ ok: true, status: "active" })
+    })
+    expect(
+      screen
+        .getByRole("button", { name: "Edit details" })
+        .getAttribute("aria-disabled")
+    ).not.toBe("true")
+  })
+
+  it("an open dialog's Save waits and sends nothing while an action is pending", async () => {
+    const onSubmit = vi.fn(async () => ({ ok: true as const }))
+    render(
+      <EditStaffDialog
+        member={member("active")}
+        onClose={() => {}}
+        venues={[]}
+        grant={null}
+        maxAvatarBytes={5 << 20}
+        actionPending
+        onSubmit={onSubmit}
+      />
+    )
+    const user = userEvent.setup()
+    const dialog = await screen.findByRole("dialog")
+    await user.click(within(dialog).getByRole("switch"))
+    const save = within(dialog).getByRole("button", { name: "Save changes" })
+    expect(save).toHaveProperty("disabled", true)
+    expect(save.getAttribute("aria-describedby")).toBeTruthy()
+    expect(
+      within(dialog).getByText(
+        "Waiting for the last account action to finish before saving."
+      )
+    ).toBeTruthy()
+    fireEvent.submit(save.closest("form")!)
+    expect(onSubmit).not.toHaveBeenCalled()
+  })
 })
 
 describe("Reactivate (ADM-1)", () => {

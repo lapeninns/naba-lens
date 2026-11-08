@@ -359,6 +359,7 @@ export function useAccountControls({
           )
         }
         maxAvatarBytes={maxAvatarBytes}
+        actionPending={!!busy}
         onSubmit={(values) =>
           editing
             ? saveEdit(editing, values)
@@ -437,7 +438,10 @@ export function useAccountControls({
     notice,
     setNotice,
     dismissNotice: () => setNotice(null),
-    edit: (member: StaffMember) => setEditing(member),
+    edit: (member: StaffMember) => {
+      // An edit can change activation too; it waits for a resend or reactivate.
+      if (!busyRef.current) setEditing(member)
+    },
     resend,
     setActive,
     /** The resend or reactivate in flight; every such action waits for it. */

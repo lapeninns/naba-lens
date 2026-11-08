@@ -47,7 +47,7 @@ type StaffActions = {
   onEdit: (member: StaffMember) => void
   onResendInvite: (member: StaffMember) => void
   onSetActive: (member: StaffMember, active: boolean) => void
-  /** While set, resend and (de)activate wait for it on every account. */
+  /** While set, edit, resend and (de)activate wait for it on every account. */
   pending?: StaffActionPending | null
 }
 
@@ -124,7 +124,7 @@ export function StaffActionsMenu({
           <DropdownMenuLabel className="text-meta-strong break-words text-ink-muted">
             {member.displayName}
           </DropdownMenuLabel>
-          <DropdownMenuItem onClick={() => onEdit(member)}>
+          <DropdownMenuItem disabled={!!pending} onClick={() => onEdit(member)}>
             <PencilSimpleIcon aria-hidden />
             Edit details
           </DropdownMenuItem>

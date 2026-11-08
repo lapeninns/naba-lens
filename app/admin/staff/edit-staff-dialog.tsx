@@ -123,6 +123,8 @@ export function EditStaffDialog({
   managedVenueIds?: ReadonlySet<string>
   /** Pass MEDIA_LIMITS.maxAvatarBytes. */
   maxAvatarBytes: number
+  /** A resend or reactivate is in flight: saving waits so they can't race. */
+  actionPending?: boolean
   onSubmit: (
     values: EditStaffValues
   ) => Promise<EditStaffResult> | EditStaffResult
@@ -160,6 +162,7 @@ function EditStaffForm({
   grant,
   managedVenueIds,
   maxAvatarBytes,
+  actionPending = false,
   onSubmit,
 }: {
   open: boolean
@@ -169,6 +172,7 @@ function EditStaffForm({
   grant: ManagerGrant | null
   managedVenueIds?: ReadonlySet<string>
   maxAvatarBytes: number
+  actionPending?: boolean
   onSubmit: (
     values: EditStaffValues
   ) => Promise<EditStaffResult> | EditStaffResult
@@ -230,7 +234,7 @@ function EditStaffForm({
 
   async function submit(event: React.FormEvent) {
     event.preventDefault()
-    if (avatarError || pending) return
+    if (avatarError || pending || actionPending) return
     setPending(true)
     setResult(null)
     setUnsaved(changed.filter((word) => word !== "profile photo"))
@@ -443,6 +447,12 @@ function EditStaffForm({
               />
             </Field>
 
+            {actionPending ? (
+              <p id={`${id}-waiting`} className="text-meta text-ink-muted">
+                Waiting for the last account action to finish before saving.
+              </p>
+            ) : null}
+
             <DialogFooter>
               <Button
                 type="button"
@@ -456,8 +466,9 @@ function EditStaffForm({
               <Button
                 type="submit"
                 size="touch"
-                disabled={pending || !displayName.trim()}
+                disabled={pending || !displayName.trim() || actionPending}
                 aria-busy={pending}
+                aria-describedby={actionPending ? `${id}-waiting` : undefined}
               >
                 {pending ? "Saving…" : "Save changes"}
               </Button>
