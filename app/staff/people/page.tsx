@@ -22,6 +22,7 @@ import {
   isSearching,
   noResults,
   PEOPLE_COPY,
+  PEOPLE_MAX_SHOWN,
   PEOPLE_PAGE_SIZE,
   searchSummary,
   showingRange,
@@ -43,8 +44,9 @@ export default async function PeoplePage({
   const search = await searchParams
   const { venueId, department } = communityFilters(search)
   const query = searchValue(search.q).trim().slice(0, 80)
+  const shown = shownCount(searchValue(search.shown))
   const [people, options, shell] = await Promise.all([
-    listPeople(auth.actor, { venueId, department, search: query }),
+    listPeople(auth.actor, { venueId, department, search: query }, shown),
     listCommunityVenues(auth.actor),
     staffShellStatus(auth.actor, profile),
   ])
@@ -54,9 +56,8 @@ export default async function PeoplePage({
     options.venues.find((venue) => venue.id === venueId)?.name ?? null
   const described = { query, venueName, department }
   const summary = searchSummary(described)
-  const total = people.members.length
-  const shown = shownCount(searchValue(search.shown), total)
-  const members = people.members.slice(0, shown)
+  const { members, more } = people
+  const canShowMore = more && shown < PEOPLE_MAX_SHOWN
   const params = new URLSearchParams()
   if (venueId) params.set("venue", venueId)
   if (department) params.set("department", department)
@@ -97,7 +98,7 @@ export default async function PeoplePage({
           department={department}
           query={query}
         />
-        {total === 0 ? (
+        {members.length === 0 ? (
           <PeopleEmpty
             title={empty.title}
             description={empty.description}
@@ -131,9 +132,9 @@ export default async function PeoplePage({
                 </li>
               ))}
             </ul>
-            {total > PEOPLE_PAGE_SIZE ? (
+            {more || members.length > PEOPLE_PAGE_SIZE ? (
               <div className="grid justify-items-center gap-2">
-                {shown < total ? (
+                {canShowMore ? (
                   <Link
                     href={`/staff/people?${nextParams.toString()}`}
                     scroll={false}
@@ -148,7 +149,7 @@ export default async function PeoplePage({
                   </Link>
                 ) : null}
                 <p className="font-mono text-meta text-ink-muted tabular-nums">
-                  {showingRange(shown, total)}
+                  {showingRange(members.length, more && !canShowMore)}
                 </p>
               </div>
             ) : null}
