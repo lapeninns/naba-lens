@@ -64,6 +64,11 @@ const TEAM_SHORT: Record<Department, { short: string; long: string }> = {
   boh: { short: "BOH", long: "Back of house" },
 }
 
+// The shared item marks focus with surface-2 on a white menu (about 1.2:1),
+// which keyboard users can't see; the focus outline is the visible cue.
+const ITEM_FOCUS =
+  "focus-visible:outline-3 focus-visible:-outline-offset-3 focus-visible:outline-focus focus-visible:outline-solid"
+
 /** FOH, BOH or Unassigned, in the quiet weight of a fact. */
 export function TeamLabel({
   department,
@@ -124,12 +129,17 @@ export function StaffActionsMenu({
           <DropdownMenuLabel className="text-meta-strong break-words text-ink-muted">
             {member.displayName}
           </DropdownMenuLabel>
-          <DropdownMenuItem disabled={!!pending} onClick={() => onEdit(member)}>
+          <DropdownMenuItem
+            className={ITEM_FOCUS}
+            disabled={!!pending}
+            onClick={() => onEdit(member)}
+          >
             <PencilSimpleIcon aria-hidden />
             Edit details
           </DropdownMenuItem>
           {member.status === "invited" ? (
             <DropdownMenuItem
+              className={ITEM_FOCUS}
               disabled={!!pending}
               onClick={() => onResendInvite(member)}
             >
@@ -140,13 +150,19 @@ export function StaffActionsMenu({
             </DropdownMenuItem>
           ) : null}
           {profileHref ? (
-            <DropdownMenuItem render={<Link href={profileHref} />}>
+            <DropdownMenuItem
+              className={ITEM_FOCUS}
+              render={<Link href={profileHref} />}
+            >
               <IdentificationCardIcon aria-hidden />
               Open profile
             </DropdownMenuItem>
           ) : null}
           {makeManagerHref && member.status !== "inactive" ? (
-            <DropdownMenuItem render={<Link href={makeManagerHref} />}>
+            <DropdownMenuItem
+              className={ITEM_FOCUS}
+              render={<Link href={makeManagerHref} />}
+            >
               <UserGearIcon aria-hidden />
               Make venue manager
             </DropdownMenuItem>
@@ -155,6 +171,7 @@ export function StaffActionsMenu({
         <DropdownMenuSeparator />
         {member.status === "inactive" ? (
           <DropdownMenuItem
+            className={ITEM_FOCUS}
             disabled={!!pending}
             onClick={() => onSetActive(member, true)}
           >
@@ -163,6 +180,7 @@ export function StaffActionsMenu({
           </DropdownMenuItem>
         ) : (
           <DropdownMenuItem
+            className={ITEM_FOCUS}
             variant="destructive"
             disabled={!!pending}
             onClick={() => onSetActive(member, false)}
