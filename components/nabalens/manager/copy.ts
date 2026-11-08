@@ -32,7 +32,7 @@ export const MANAGER_COPY = {
   },
   overview: {
     title: "Overview",
-    loading: "Loading menu photos",
+    loading: "Loading the overview",
     noMenuTitle: "Menu photos will appear once your venue's menu is set up",
     noMenuBody:
       "An admin activates the menu. Staff can keep adding photos to their portfolios meanwhile.",
@@ -67,12 +67,14 @@ export const MANAGER_COPY = {
   },
   review: {
     title: "Review",
+    loading: "Loading photos for review",
     pendingTitle: "Photo review is being set up",
     pendingBody:
       "Photos waiting for a decision will appear here once item review is switched on for your venue.",
   },
   contributor: {
     title: "Contributor",
+    loading: "Loading this contributor's photos",
     pendingBody:
       "A contributor's photos will appear here once item review is switched on for your venue.",
   },
@@ -108,6 +110,7 @@ export const MANAGER_COPY = {
   },
   item: {
     title: "Menu item",
+    loading: "Loading this menu item",
     back: "Menu",
     menuPhoto: "Menu photo",
     noMenuPhoto: "No menu photo yet",
@@ -176,6 +179,7 @@ export const MANAGER_COPY = {
   },
   accountPage: {
     title: "Account",
+    loading: "Loading your account",
     summary: "Your name as staff and admins see it.",
     displayName: "Display name",
     displayNameError: "Enter a name of up to 80 characters.",
