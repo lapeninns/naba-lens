@@ -105,6 +105,20 @@ function jsonBody(response, body) {
 }
 
 /** fetchImpl is injectable for fixture-server tests; target validation is always on. */
+/**
+ * A login redirect may say where to return (AUTH-1): no query, or exactly
+ * one `next` naming the page that was asked for. Anything else (another
+ * parameter, a second `next`, another page, a protocol-relative or
+ * double-encoded value) is not this app's sign-in.
+ */
+function returnsTo(target, path) {
+  if (!target.search) return true
+  const entries = [...target.searchParams]
+  return (
+    entries.length === 1 && entries[0][0] === "next" && entries[0][1] === path
+  )
+}
+
 export async function runProductionSmoke(
   rawOrigin,
   { fetchImpl = fetch } = {}
@@ -178,11 +192,11 @@ export async function runProductionSmoke(
       assert(
         target.origin === origin &&
           target.pathname === "/login" &&
-          !target.search &&
+          returnsTo(target, path) &&
           !target.hash &&
           !target.username &&
           !target.password,
-        "Expected a direct same-origin /login redirect; external authentication is not app success."
+        "Expected a direct same-origin /login redirect (at most returning to this page); external authentication is not app success."
       )
     })
   }

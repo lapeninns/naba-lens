@@ -184,6 +184,47 @@ test("protected pages require a direct same-origin login redirect", async (t) =>
   assert.ok(!JSON.stringify(result).includes("token=private"))
 })
 
+test("a login redirect may return to the page that was asked for", async (t) => {
+  const { result } = await fixture(t, (path, response) =>
+    ["/admin", "/admin/menus", "/staff"].includes(path)
+      ? {
+          ...response,
+          headers: {
+            location: `${ORIGIN}/login?next=${encodeURIComponent(path)}`,
+          },
+        }
+      : response
+  )
+  assert.equal(result.ok, true, JSON.stringify(result.results))
+})
+
+test("a login redirect's return path must be only this page, on this origin", async (t) => {
+  const login = `${ORIGIN}/login`
+  for (const location of [
+    "https://identity.example.test/login?next=%2Fadmin",
+    "//evil.example/login?next=%2Fadmin",
+    `${login}?next=%2F%2Fevil.example`,
+    `${login}?next=${encodeURIComponent("https://evil.example/admin")}`,
+    `${login}?next=%2Fstaff`,
+    `${login}?next=%252Fadmin`,
+    `${login}?next=%2Fadmin&extra=1`,
+    `${login}?next=%2Fadmin&next=%2Fadmin`,
+    `${login}?other=%2Fadmin`,
+    `${login}?next=%2Fadmin#frag`,
+    `https://user:secret@nabalens.example.test/login?next=%2Fadmin`,
+  ]) {
+    const { result } = await fixture(t, (path, response) =>
+      path === "/admin" ? { ...response, headers: { location } } : response
+    )
+    assert.equal(
+      result.results.find((entry) => entry.path === "/admin").ok,
+      false,
+      location
+    )
+    assert.equal(result.ok, false, location)
+  }
+})
+
 test("private API cache regression fails even when access is denied", async (t) => {
   const { result } = await fixture(t, (path, response) =>
     path === "/api/library"
