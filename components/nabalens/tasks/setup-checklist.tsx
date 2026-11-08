@@ -30,6 +30,13 @@ type Step = {
   optional?: boolean
 }
 
+/** Whether the person can fix a setup step themselves (name, or the photo). */
+export function setupHasAction(
+  profile: Pick<SetupProfile, "displayName" | "hasAvatar">
+): boolean {
+  return profile.displayName.trim() === "" || !profile.hasAvatar
+}
+
 /**
  * Profile setup: name, venue and team (FOH/BOH) are required; a profile photo
  * is optional. Staff edit their name and photo themselves; an admin assigns
@@ -155,7 +162,7 @@ export function SetupChecklist({
           </li>
         ))}
       </ul>
-      {!hasName || !profile.hasAvatar ? (
+      {setupHasAction(profile) ? (
         <Link href={editProfileHref} className={actionClassName}>
           Edit profile
         </Link>
