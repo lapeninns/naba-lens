@@ -147,6 +147,7 @@ import {
   PROFILE_SAVE_COPY,
   saveProfile,
   StaffPortfolio,
+  uploadsNoun,
 } from "@/app/staff/staff-portfolio"
 import StaffPage from "@/app/staff/page"
 
@@ -291,6 +292,30 @@ describe("Me: Needs labels and milestones", () => {
     expect(gallery.signals.at(-1)).toBe((before ?? 0) + 1)
   })
 
+  it("says files, not photos, when videos need labels too", async () => {
+    const video = (id: string) =>
+      item(id, { mediaType: "video", mimeType: "video/mp4" })
+    library.items = [item("a1"), video("v1")]
+    coverage.listMyMenuPhotoDecisions.mockResolvedValueOnce({
+      ok: true,
+      states: [],
+    })
+    render(await StaffPage())
+    const section = screen.getByRole("region", { name: /Needs labels/ })
+    expect(section.textContent).toMatch(/2\s*files/)
+    expect(section.textContent).not.toMatch(/photos/)
+    fireEvent.click(
+      within(section).getByRole("button", { name: "Label these 2 files" })
+    )
+    expect(screen.getByRole("dialog", { name: "Labels" }).textContent).toBe(
+      "a1,v1"
+    )
+
+    expect(uploadsNoun([video("v2")])).toBe("video")
+    expect(uploadsNoun([item("a2")])).toBe("photo")
+    expect(uploadsNoun([item("a2"), item("a3")])).toBe("photos")
+    expect(uploadsNoun([video("v2"), video("v3")])).toBe("files")
+  })
   it("shows Accepted for menu use with the dish, even beyond the newest page", async () => {
     // a1 is older than the newest gallery page (not in library.items).
     library.items = [item("a2")]
