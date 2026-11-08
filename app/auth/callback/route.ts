@@ -6,7 +6,8 @@ import { createClient } from "@/lib/supabase/server"
 /**
  * PKCE callback for links built from Supabase's default templates
  * (?code=...). Requires the same browser that requested the link; the NabaLens
- * templates use /auth/confirm instead. Errors (e.g. otp_expired) go back to login.
+ * templates use /auth/confirm instead. Success goes to "/" (role routing and the
+ * remembered return path); errors (e.g. otp_expired) go back to login.
  */
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code")

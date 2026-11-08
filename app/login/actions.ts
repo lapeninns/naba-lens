@@ -1,5 +1,7 @@
 "use server"
 
+import { cookies } from "next/headers"
+
 import {
   normaliseEmail,
   normaliseSignInCode,
@@ -14,16 +16,25 @@ import {
   getLoginCaptchaConfig,
   normaliseCaptchaToken,
 } from "@/lib/auth/captcha"
+import {
+  RETURN_TO_COOKIE,
+  returnToCookieOptions,
+  safeReturnPath,
+} from "@/lib/auth/routes"
 import { getSiteUrl } from "@/lib/supabase/env"
 import { createClient } from "@/lib/supabase/server"
 
 /**
  * Sends a sign-in link. The result is the same for known and unknown emails;
  * only invalid input or a failed CAPTCHA returns an actionable error.
+ * `rawReturnTo` is the page to come back to: kept for whichever way this
+ * browser finishes signing in (link, code), or forgotten when it is absent or
+ * unsafe, so a plain sign-in lands on the role's home.
  */
 export async function requestSignInLink(
   rawEmail: string,
-  rawCaptchaToken?: string
+  rawCaptchaToken?: string,
+  rawReturnTo?: string
 ): Promise<{ error?: string }> {
   const email = normaliseEmail(rawEmail)
   if (!email) {
@@ -38,6 +49,11 @@ export async function requestSignInLink(
   if (captcha.enabled && !captchaToken) {
     return { error: CAPTCHA_RETRY_MESSAGE }
   }
+
+  const store = await cookies()
+  const returnTo = safeReturnPath(rawReturnTo)
+  if (returnTo) store.set(RETURN_TO_COOKIE, returnTo, returnToCookieOptions())
+  else store.delete(RETURN_TO_COOKIE)
 
   const supabase = await createClient()
   const result = await sendSignInLink(

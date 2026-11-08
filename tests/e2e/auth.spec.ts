@@ -57,9 +57,9 @@ test.describe("authentication and role routing", () => {
 
   test("signed-out visitors are sent to /login", async ({ page }) => {
     await page.goto("/staff")
-    await expect(page).toHaveURL(/\/login$/)
+    await expect(page).toHaveURL(/\/login\?next=%2Fstaff$/)
     await page.goto("/admin")
-    await expect(page).toHaveURL(/\/login$/)
+    await expect(page).toHaveURL(/\/login\?next=%2Fadmin$/)
   })
 
   test("an uninvited email gets the same neutral response and no account", async ({
@@ -104,7 +104,7 @@ test.describe("authentication and role routing", () => {
     await expect(page).toHaveURL(/\/login\?signed_out=1$/)
     await expect(page.getByText("You have signed out.")).toBeVisible()
     await page.goto("/staff")
-    await expect(page).toHaveURL(/\/login$/)
+    await expect(page).toHaveURL(/\/login\?next=%2Fstaff$/)
   })
 
   test("an admin lands on /admin", async ({ page, baseURL }) => {
