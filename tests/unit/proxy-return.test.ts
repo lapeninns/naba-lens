@@ -139,15 +139,99 @@ describe("proxy: signed out on an app page", () => {
     }
   })
 
-  it("answers a form posted without JavaScript with 303, not a re-POST", async () => {
+  it("still sends a HEAD read to /login and remembers the page", async () => {
+    const res = await proxy(request("/staff/tasks/t1", { method: "HEAD" }))
+    expect(res.status).toBe(307)
+    expect(new URL(res.headers.get("location")!).searchParams.get("next")).toBe(
+      "/staff/tasks/t1"
+    )
+    expect(res.cookies.get("nl-return-to")?.value).toBe("/staff/tasks/t1")
+  })
+})
+
+describe("proxy: any other request to an app path without a session", () => {
+  async function expectSessionEnded(res: Response, label: string) {
+    expect(res.status, label).toBe(401)
+    expect(res.headers.get("content-type"), label).toBe("text/plain")
+    expect(await res.text(), label).toBe(SESSION_ENDED_MESSAGE)
+    expect(res.headers.get("location"), label).toBeNull()
+    expect(res.headers.get("cache-control"), label).toBe("private, no-store")
+    // The lapsed session's cookies still go with it...
+    expect(
+      (res as NextResponse).cookies.get("sb-x-auth-token")?.value,
+      label
+    ).toBe("")
+    // ...but no return path: a POST-only route is not a page to land on.
+    expect(returnCookie(res), label).toEqual([])
+  }
+
+  it("refuses an upload to a POST-only route handler instead of redirecting and remembering it", async () => {
+    const res = await proxy(
+      request("/admin/staff/4f1c2d3e-0000-4000-8000-000000000001/avatar", {
+        method: "POST",
+        headers: {
+          "content-type": "multipart/form-data; boundary=x",
+          origin: ORIGIN,
+        },
+      })
+    )
+    await expectSessionEnded(res, "avatar POST")
+  })
+
+  it("refuses a form posted without JavaScript the same way", async () => {
     const res = await proxy(
       request("/admin/staff", {
         method: "POST",
         headers: { "content-type": "application/x-www-form-urlencoded" },
       })
     )
-    expect(res.status).toBe(303)
-    expect(new URL(res.headers.get("location")!).pathname).toBe("/login")
+    await expectSessionEnded(res, "form POST")
+  })
+
+  it("refuses every other method on every app area", async () => {
+    for (const method of ["POST", "PUT", "PATCH", "DELETE", "OPTIONS"]) {
+      for (const path of ["/staff/tasks", "/manager/review", "/admin/menus"]) {
+        await expectSessionEnded(
+          await proxy(request(path, { method })),
+          `${method} ${path}`
+        )
+      }
+    }
+  })
+
+  it("is uncached even when the session refresh set no cache headers", async () => {
+    session.cacheHeaders = false
+    const res = await proxy(
+      request("/admin/staff/x/avatar", { method: "POST" })
+    )
+    expect(res.status).toBe(401)
+    expect(res.headers.get("cache-control")).toBe("private, no-store")
+  })
+
+  it("leaves /auth/logout, sign-in, APIs and other public paths alone", async () => {
+    for (const [method, path] of [
+      ["POST", "/auth/logout"],
+      ["POST", "/auth/confirm/verify"],
+      ["POST", "/login"],
+      ["POST", "/api/upload-labels"],
+      ["DELETE", "/api/upload-labels?assetId=a"],
+      ["POST", "/staffroom"],
+      ["POST", "/no-such-page"],
+    ] as const) {
+      const res = await proxy(request(path, { method }))
+      expect(res.status, `${method} ${path}`).toBe(200)
+      expect(res.headers.get("x-middleware-next"), path).toBe("1")
+      expect(returnCookie(res), path).toEqual([])
+    }
+  })
+
+  it("lets a signed-in upload through", async () => {
+    session.userId = "admin-1"
+    const res = await proxy(
+      request("/admin/staff/x/avatar", { method: "POST" })
+    )
+    expect(res.status).toBe(200)
+    expect(res.headers.get("x-middleware-next")).toBe("1")
   })
 })
 

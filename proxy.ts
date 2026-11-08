@@ -33,11 +33,13 @@ export async function proxy(request: NextRequest) {
 
   // Only reached on a protected path: actions used signed out (/login's) post
   // to their own public page and pass above.
-  // A Server Action's fetch follows redirects, and Next then forwards the
-  // action from /login back to this page, so a redirect reaches the caller as
-  // an unexplained failure. A plain-text 401 reaches it as this message, and
-  // the action never runs.
-  if (request.method === "POST" && request.headers.has("next-action")) {
+  // Only a page read is sent to sign in and remembered. Anything else (a
+  // Server Action, an upload to a route handler, a form) is not a page to
+  // return to: a fetch would follow a redirect to the login HTML, and a
+  // Server Action forwarded from /login back here fails without a reason.
+  // A plain-text 401 reaches the caller as this message (Next shows it as a
+  // Server Action's error), and nothing runs.
+  if (request.method !== "GET" && request.method !== "HEAD") {
     return withSessionHeaders(
       response,
       new NextResponse(SESSION_ENDED_MESSAGE, {
@@ -53,11 +55,9 @@ export async function proxy(request: NextRequest) {
   loginUrl.search = returnTo
     ? `?${RETURN_TO_PARAM}=${encodeURIComponent(returnTo)}`
     : ""
-  // A form posted without JavaScript must not be re-posted to /login.
-  const read = request.method === "GET" || request.method === "HEAD"
   const redirect = withSessionHeaders(
     response,
-    NextResponse.redirect(loginUrl, read ? 307 : 303)
+    NextResponse.redirect(loginUrl, 307)
   )
   // A prefetch is not a page the person asked for.
   if (returnTo && !isPrefetch(request)) {
