@@ -281,6 +281,12 @@ type TeamRosterProps = {
   venueName?: string
   onSetTarget?: SetTargetHandler
   onStale?: () => void
+  /**
+   * The current month hasn't been prepared, from the preparation status.
+   * Missing targets don't decide it: they can be set before preparing, and a
+   * new starter can lack one after it. Omitted: inferred from missing targets.
+   */
+  unprepared?: boolean
 }
 
 /**
@@ -305,6 +311,7 @@ function TeamRosterMonth({
   venueName,
   onSetTarget,
   onStale,
+  unprepared: monthUnprepared,
 }: TeamRosterProps) {
   const ids = React.useId()
   const staffHref = (id: string) =>
@@ -336,8 +343,12 @@ function TeamRosterMonth({
     timing === "past" ? sorted : sorted.filter((r) => r.isCurrentMember)
   const moved =
     timing === "past" ? [] : sorted.filter((r) => !r.isCurrentMember)
+  const missingTarget = team.filter((r) => r.targetId == null).length
   const unprepared =
-    timing === "current" && team.some((r) => r.targetId == null)
+    timing === "current" && (monthUnprepared ?? missingTarget > 0)
+  // Before preparing, or for someone with no target after it.
+  const targetHint =
+    inPlace && timing === "current" && (unprepared || missingTarget > 0)
   const met = team.filter((r) => r.complete).length
 
   const draftFor = (row: MonthlyProgress) => {
@@ -606,7 +617,7 @@ function TeamRosterMonth({
             describedBy={
               [
                 rowErrors.count ? countErrorId : null,
-                unprepared && row.targetId == null ? `${ids}-unprepared` : null,
+                targetHint && row.targetId == null ? `${ids}-unprepared` : null,
               ]
                 .filter(Boolean)
                 .join(" ") || undefined
@@ -754,13 +765,14 @@ function TeamRosterMonth({
             Needs setup first, then A to Z by surname.
           </p>
           {/* Preparing inserts only missing targets, so one set now stays. */}
-          {unprepared && inPlace ? (
+          {targetHint ? (
             <p
               id={`${ids}-unprepared`}
               className="-mt-1 px-1 text-body text-ink"
             >
-              You can set targets now. Preparing {month} keeps the ones you set
-              and copies last month&apos;s targets for everyone else.
+              {unprepared
+                ? `You can set targets now. Preparing ${month} keeps the ones you set and copies last month's targets for everyone else.`
+                : `${plural(missingTarget, "person", "people")} ${missingTarget === 1 ? "has" : "have"} no target yet. Set one below.`}
             </p>
           ) : null}
           {team.length > 0 ? (

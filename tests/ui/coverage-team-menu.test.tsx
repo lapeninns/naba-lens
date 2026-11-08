@@ -310,6 +310,64 @@ describe("TeamRoster", () => {
     )
   })
 
+  it("unprepared with every target already set still says preparing keeps them", () => {
+    render(
+      <TeamRoster
+        period={PERIOD}
+        currentPeriod="2026-11"
+        rows={[monthly()]}
+        canEdit
+        isAdmin
+        basePath="/admin/coverage/v-1"
+        onSetTarget={vi.fn<SetTargetHandler>(ok)}
+        unprepared
+      />
+    )
+    expect(
+      screen.getByText(
+        "You can set targets now. Preparing November keeps the ones you set and copies last month's targets for everyone else."
+      )
+    ).toBeTruthy()
+  })
+
+  it("prepared, a new starter without a target is asked for one, not to prepare", () => {
+    render(
+      <TeamRoster
+        period={PERIOD}
+        currentPeriod="2026-11"
+        rows={[
+          monthly(),
+          monthly({
+            targetId: null,
+            revision: null,
+            status: "needs_setup",
+            setupMissing: ["target"],
+            targetCount: null,
+            source: null,
+            due: null,
+            person: person({
+              id: "eeeeeeee-0000-4000-8000-0000000000b1",
+              displayName: "TEST Nova",
+            }),
+          }),
+        ]}
+        canEdit
+        isAdmin
+        basePath="/admin/coverage/v-1"
+        onSetTarget={vi.fn<SetTargetHandler>(ok)}
+        unprepared={false}
+      />
+    )
+    const hint = screen.getByText("1 person has no target yet. Set one below.")
+    expect(screen.queryByText(/Preparing November/)).toBeNull()
+    expect(
+      screen
+        .getByLabelText("TEST Nova's photo target")
+        .getAttribute("aria-describedby")
+        ?.split(" ")
+    ).toContain(hint.id)
+  })
+
   it("once the month is prepared, has no before-preparing hint", () => {
     render(
       <TeamRoster
