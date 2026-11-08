@@ -17,6 +17,8 @@ type EmptyStateProps = {
   variant?: "first-use" | "filtered" | "done"
   /** Drop the frame inside a panel. */
   inline?: boolean
+  /** The title's element: a heading when the empty state is the whole page. */
+  titleAs?: "p" | "h1" | "h2"
   className?: string
 }
 
@@ -27,6 +29,7 @@ export function EmptyState({
   action,
   variant = "first-use",
   inline = false,
+  titleAs: Title = "p",
   className,
 }: EmptyStateProps) {
   if (variant === "done") {
@@ -35,7 +38,7 @@ export function EmptyState({
         data-slot="empty-state"
         className={cn("px-1 py-4 text-body text-ink-muted", className)}
       >
-        <p>{title}</p>
+        <Title>{title}</Title>
         {description ? <p>{description}</p> : null}
       </div>
     )
@@ -61,9 +64,9 @@ export function EmptyState({
           <ImageIcon className="size-9" />
         )}
       </span>
-      <p className="max-w-[32ch] font-display text-section-title text-ink">
+      <Title className="max-w-[32ch] font-display text-section-title text-ink">
         {title}
-      </p>
+      </Title>
       {description ? (
         <div className="max-w-[40ch] text-body text-ink-muted">
           {description}
