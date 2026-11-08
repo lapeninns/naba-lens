@@ -72,3 +72,34 @@ export async function horizontalOverflow(
     return { overflowPx: Math.max(0, worst), culprit }
   })
 }
+
+/**
+ * Whether the md-up AppBar's section links fit beside its right-hand group
+ * (Add, name, Log out): the nav must not be squeezed narrower than its links,
+ * and the last link must end before the group starts. Null when the bar's
+ * nav is not shown (phones).
+ */
+export async function appBarFit(
+  page: Page
+): Promise<{ fits: boolean; detail: string } | null> {
+  // Streamed copies sit in hidden S: divs until React swaps them in.
+  await page.waitForFunction(
+    () => !document.querySelector('div[hidden][id^="S:"]')
+  )
+  return page.evaluate(() => {
+    const shown = (el: Element) => el.getClientRects().length > 0
+    const nav = Array.from(
+      document.querySelectorAll('[data-slot="app-nav"]')
+    ).find(shown)
+    const group = nav?.nextElementSibling
+    if (!nav || !group) return null
+    const links = Array.from(nav.querySelectorAll("a")).filter(shown)
+    const last = links.at(-1)?.getBoundingClientRect().right ?? 0
+    const start = group.getBoundingClientRect().left
+    const squeezed = nav.scrollWidth - nav.clientWidth
+    return {
+      fits: squeezed <= 0 && last <= start + 0.5,
+      detail: `links [${links.map((a) => a.textContent).join(", ")}] squeezed by ${squeezed}px; last ends at ${Math.round(last)}, right-hand group starts at ${Math.round(start)}`,
+    }
+  })
+}

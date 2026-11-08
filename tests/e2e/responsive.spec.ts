@@ -5,7 +5,7 @@ import AxeBuilder from "@axe-core/playwright"
 import { expect, test, type Locator, type Page } from "@playwright/test"
 
 import { supportedMp4, syntheticJpeg, type SourceFile } from "./helpers/media"
-import { horizontalOverflow } from "./helpers/overflow"
+import { appBarFit, horizontalOverflow } from "./helpers/overflow"
 import {
   libraryList,
   portfolioList,
@@ -102,6 +102,7 @@ async function check(
     { timeout: 20_000 }
   )
   const { overflowPx, culprit } = await horizontalOverflow(page)
+  const bar = await appBarFit(page)
   const box = await primary.boundingBox()
   const primaryVisible =
     !!box && box.x >= 0 && box.x + box.width <= width + 0.5 && box.width > 0
@@ -136,6 +137,9 @@ async function check(
     .soft(overflowPx, `${state}@${width}: horizontal overflow (${culprit})`)
     .toBe(0)
   expect.soft(primaryVisible, `${state}@${width}: primary action`).toBe(true)
+  // A squeezed nav slides its last links under Add/Log out (axe only sees
+  // it once less than 24px of a link is left, which depends on the fonts).
+  expect.soft(bar?.fits ?? true, `${state}@${width}: ${bar?.detail}`).toBe(true)
   expect
     .soft(
       serious.map((v) => v.id),

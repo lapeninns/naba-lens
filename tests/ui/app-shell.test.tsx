@@ -67,7 +67,7 @@ describe("AppShell staff navigation", () => {
     expect(current("Staff")).toEqual(["Manage, 3 to review"])
   })
 
-  it("marks Our menu current; a manager's copy steps aside from md to lg", () => {
+  it("marks Our menu current; a manager's copy steps aside from md to xl", () => {
     render(
       <AppShell variant="staff" active="menu" canManage>
         x
@@ -75,22 +75,25 @@ describe("AppShell staff navigation", () => {
     )
     expect(current("Staff")).toEqual(["Our menu"])
     const link = nav("Staff", "app-nav").getByRole("link", { name: "Our menu" })
-    // Six sections don't fit at 768px; Home's card and Manage link to it.
-    expect(link.className).toContain("md:max-lg:hidden")
+    // Six sections beside Add and Log out don't fit below 1280px; Home's
+    // card and Manage link to it.
+    expect(link.className).toContain("md:max-xl:hidden")
     // The phone TabBar never gains a sixth tab for it.
     expect(
       nav("Staff", "tabbar").queryByRole("link", { name: "Our menu" })
     ).toBeNull()
   })
 
-  it("keeps Our menu in the AppBar at every width for other staff", () => {
+  it("steps Our menu aside from md to lg only for other staff", () => {
     render(
       <AppShell variant="staff" active="menu">
         x
       </AppShell>
     )
     const link = nav("Staff", "app-nav").getByRole("link", { name: "Our menu" })
-    expect(link.className).not.toContain("md:max-lg:hidden")
+    // Five sections beside Add and Log out don't fit below 1024px.
+    expect(link.className).toContain("md:max-lg:hidden")
+    expect(link.className).not.toContain("md:max-xl:hidden")
   })
 
   it("keeps Me current when no section is given", () => {

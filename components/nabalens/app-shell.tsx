@@ -118,7 +118,7 @@ const MANAGE: NavItem<StaffSection> = {
 // AppBar section link (md up). Like the phone tabs: muted Figtree, the
 // current one in accent-text with a 3px bar under it. No other blue.
 const BAR_LINK =
-  "inline-flex items-center gap-2 px-3 font-display text-tab-label text-ink-muted whitespace-nowrap shadow-[inset_0_-3px_0_transparent] transition-colors duration-(--duration-quick) outline-none hover:bg-surface-2 hover:text-ink focus-visible:outline-3 focus-visible:outline-solid focus-visible:-outline-offset-3 focus-visible:outline-focus"
+  "inline-flex items-center gap-2 px-3 md:max-lg:px-2 font-display text-tab-label text-ink-muted whitespace-nowrap shadow-[inset_0_-3px_0_transparent] transition-colors duration-(--duration-quick) outline-none hover:bg-surface-2 hover:text-ink focus-visible:outline-3 focus-visible:outline-solid focus-visible:-outline-offset-3 focus-visible:outline-focus"
 
 /**
  * Page frame for signed-in pages. From md: the AppBar with the role's
@@ -174,7 +174,7 @@ export function AppShell(props: AppShellProps) {
       </a>
       {/* Common Room top bar: white, a hairline under it. */}
       <header className="relative z-10 bg-surface shadow-[0_1px_0_var(--line)]">
-        <div className="mx-auto flex min-h-15 w-full max-w-(--size-page) items-center gap-3 px-3 md:gap-4 md:px-6 lg:gap-6">
+        <div className="mx-auto flex min-h-15 w-full max-w-(--size-page) items-center gap-3 px-3 md:px-6 lg:gap-6">
           <Link
             href={admin ? "/admin" : "/staff/tasks"}
             className="inline-flex flex-none items-baseline gap-2 rounded-control font-display text-[1.5rem] leading-none font-extrabold tracking-[-0.02em] whitespace-nowrap text-ink outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid max-md:py-2.5"
@@ -190,7 +190,7 @@ export function AppShell(props: AppShellProps) {
           <nav
             aria-label={navLabel}
             data-slot="app-nav"
-            className="hidden min-w-0 gap-1 self-stretch md:flex"
+            className="hidden min-w-0 gap-1 self-stretch md:flex md:max-lg:gap-0"
           >
             {barItems.map(({ item, href, count }) => {
               const current = active === item.id
@@ -204,9 +204,13 @@ export function AppShell(props: AppShellProps) {
                     BAR_LINK,
                     current &&
                       "font-extrabold text-accent-text shadow-[inset_0_-3px_0_var(--accent-text)] hover:text-accent-text",
-                    // A manager's six sections don't fit from md to lg; there
-                    // Our menu is reached from Home and Manage instead.
-                    item.id === "menu" && staff?.canManage && "md:max-lg:hidden"
+                    // Staff's five sections beside Add and Log out don't fit
+                    // from md to lg, nor a manager's six below xl; there Our
+                    // menu is reached from Home (and Manage) instead.
+                    item.id === "menu" &&
+                      (staff?.canManage
+                        ? "md:max-xl:hidden"
+                        : "md:max-lg:hidden")
                   )}
                 >
                   {item.label}
@@ -229,7 +233,9 @@ export function AppShell(props: AppShellProps) {
               </div>
             ) : null}
             {userName ? (
-              <span className="hidden max-w-48 truncate text-meta text-ink-muted lg:inline">
+              // From xl only: at lg the name pushes the right-hand group
+              // over the last section.
+              <span className="hidden max-w-40 truncate text-meta text-ink-muted xl:inline">
                 {userName}
               </span>
             ) : null}
