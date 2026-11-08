@@ -11,6 +11,7 @@ import {
 import { cn } from "@/lib/utils"
 
 import { orderAmenityTasks } from "../amenities/capture/amenity-task-list"
+import { Notice } from "../notice"
 import { CountBadge } from "../status-chip"
 import { EvidenceThumb } from "./evidence-thumb"
 import { replacementHref } from "./needs-another-photo-list"
@@ -359,12 +360,15 @@ export function TodoSection({
   profile,
   tasksPath,
   portfolioPath,
+  amenityError = false,
 }: {
   items: TodoItem[]
   scope: CoverageScope
   profile: Parameters<typeof SetupChecklist>[0]["profile"]
   tasksPath: string
   portfolioPath: string
+  /** The amenity checks couldn't be read, so To do may be incomplete. */
+  amenityError?: boolean
 }) {
   const count = todoCount(items)
   return (
@@ -378,12 +382,32 @@ export function TodoSection({
           <CountBadge count={count} label="things to do" />
         </h2>
       </div>
+      {amenityError ? (
+        <Notice
+          tone="negative"
+          action={
+            <Link
+              href={tasksPath}
+              className={buttonVariants({
+                variant: "secondary",
+                size: "touch",
+              })}
+            >
+              Try again
+            </Link>
+          }
+        >
+          {"We couldn't check your amenity checks."}
+        </Notice>
+      ) : null}
       {items.length === 0 ? (
-        <div className="rounded-card bg-surface p-4 shadow-card">
-          <p className="font-display text-section-title text-ink">
-            Nothing to do right now.
-          </p>
-        </div>
+        amenityError ? null : (
+          <div className="rounded-card bg-surface p-4 shadow-card">
+            <p className="font-display text-section-title text-ink">
+              Nothing to do right now.
+            </p>
+          </div>
+        )
       ) : (
         <ul className="grid gap-(--gutter)">
           {items.map((item, index) => {

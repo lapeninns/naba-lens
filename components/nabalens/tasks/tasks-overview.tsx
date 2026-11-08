@@ -82,8 +82,8 @@ export function TasksOverview({
   contribute?: { prompt: string; blocked: string | null } | null
   /** The venue's menu photo progress; null to hide the card (no venue). */
   ourMenu?: OurMenuProgress | null
-  /** Amenity checks assigned to me: counted in To do, listed after it. */
-  amenityTasks?: MyAmenityTask[]
+  /** Amenity checks assigned to me: counted in To do, listed after it. Null when they couldn't be read. */
+  amenityTasks?: MyAmenityTask[] | null
   /** The question of the amenity check whose finding was just sent. */
   findingSent?: string | null
 }) {
@@ -92,7 +92,7 @@ export function TasksOverview({
   const replacing = new Set(
     needsAnotherPhoto.flatMap((s) => (s.requirement ? [s.requirement.id] : []))
   )
-  const items = todoItems(tasks, new Date(), reviewCount, amenityTasks)
+  const items = todoItems(tasks, new Date(), reviewCount, amenityTasks ?? [])
 
   return (
     <div className="mx-auto grid w-full max-w-(--size-feed) min-w-0 gap-(--gutter)">
@@ -129,9 +129,10 @@ export function TasksOverview({
         profile={profile}
         tasksPath={tasksPath}
         portfolioPath={portfolioPath}
+        amenityError={amenityTasks === null}
       />
 
-      <AmenityTaskList tasks={amenityTasks} />
+      <AmenityTaskList tasks={amenityTasks ?? []} />
 
       <div className="mt-3 grid gap-(--gutter)">
         <MonthlyProgressCard
