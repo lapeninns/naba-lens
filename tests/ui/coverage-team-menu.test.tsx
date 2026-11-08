@@ -414,6 +414,67 @@ describe("TeamRoster", () => {
     expect(within(row).queryByText("Target met")).toBeNull()
   })
 
+  describe("a row whose save got no reply", () => {
+    const untargeted = monthly({
+      status: "needs_setup",
+      setupMissing: ["target"],
+      targetCount: null,
+      source: "placeholder",
+      accepted: 1,
+    })
+    async function saveDraft(onSetTarget: SetTargetHandler) {
+      const user = userEvent.setup()
+      render(
+        <TeamRoster
+          period={PERIOD}
+          currentPeriod="2026-11"
+          rows={[untargeted]}
+          canEdit
+          isAdmin={false}
+          basePath="/staff/manage"
+          onSetTarget={onSetTarget}
+          unprepared={false}
+        />
+      )
+      const field = screen.getByLabelText("TEST Sam's photo target")
+      await user.type(field, "3")
+      await user.click(screen.getByRole("button", { name: "Save targets" }))
+      return { user, field, row: () => field.closest("li")! }
+    }
+
+    it("is marked not confirmed, keeps the draft, and clears the mark when edited", async () => {
+      const lost = vi.fn<SetTargetHandler>(async () => {
+        throw new TypeError("Failed to fetch")
+      })
+      const { user, field, row } = await saveDraft(lost)
+      expect(
+        await screen.findByText(
+          /We couldn't confirm TEST Sam's target was saved/
+        )
+      ).toBeTruthy()
+      expect(within(row()).getByText("· not confirmed")).toBeTruthy()
+      expect(within(row()).queryByText("· not saved yet")).toBeNull()
+      expect((field as HTMLInputElement).value).toBe("3")
+      expect(lost).toHaveBeenCalledTimes(1)
+      await user.type(field, "0")
+      expect(within(row()).getByText("· not saved yet")).toBeTruthy()
+    })
+
+    it("a refusal keeps 'not saved yet'", async () => {
+      const { row } = await saveDraft(
+        vi.fn<SetTargetHandler>(async () => ({
+          ok: false,
+          code: "invalid_input",
+          status: 400,
+          message: "Targets go up to 500.",
+        }))
+      )
+      expect(await screen.findByText(/Targets go up to 500\./)).toBeTruthy()
+      expect(within(row()).getByText("· not saved yet")).toBeTruthy()
+      expect(within(row()).queryByText("· not confirmed")).toBeNull()
+    })
+  })
+
   it("re-reads the page on a conflict and moves focus to the page notice", async () => {
     const user = userEvent.setup()
     const onStale = vi.fn()

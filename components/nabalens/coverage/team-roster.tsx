@@ -326,6 +326,11 @@ function TeamRosterMonth({
   const [focusNotice, setFocusNotice] = React.useState(0)
   const [drafts, setDrafts] = React.useState<Record<string, Draft>>({})
   const [errors, setErrors] = React.useState<Record<string, RowErrors>>({})
+  // The draft whose save got no reply, per person: it may have been saved.
+  // Editing the row makes a new draft object, which drops the mark.
+  const [unconfirmed, setUnconfirmed] = React.useState<Record<string, Draft>>(
+    {}
+  )
   const [saving, setSaving] = React.useState(false)
   // The row stays set while the dialog animates closed.
   const [correctingRow, setCorrectingRow] =
@@ -427,6 +432,7 @@ function TeamRosterMonth({
     }
     setSaving(true)
     setNotice(null)
+    setUnconfirmed({})
     const saved: { row: MonthlyProgress; count: number; reason: string }[] = []
     let failure: { tone: "error" | "warning"; text: string } | null = null
     for (const row of changes) {
@@ -444,6 +450,7 @@ function TeamRosterMonth({
           expectedRevision: row.revision,
         })
       } catch {
+        setUnconfirmed({ [row.person.id]: draft })
         failure = {
           tone: "error",
           text: `${saved.length > 0 ? `${plural(saved.length, "target")} saved. ` : ""}We couldn't confirm ${row.person.displayName}'s target was saved. Check your connection, then refresh to see.`,
@@ -556,7 +563,11 @@ function TeamRosterMonth({
     // An unsaved target previews progress; it isn't a state yet, so no chip
     // (Target met, Overdue) is drawn from it.
     const chip = changed ? (
-      <span className="text-meta text-ink-muted">· not saved yet</span>
+      <span className="text-meta text-ink-muted">
+        {draft && unconfirmed[id] === draft
+          ? "· not confirmed"
+          : "· not saved yet"}
+      </span>
     ) : row.status === "needs_setup" ? (
       <StatusChip state="needs_setup" />
     ) : met ? (
