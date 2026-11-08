@@ -907,3 +907,71 @@ describe("CaptureForm: Try again replays the same answer (B1a)", () => {
     expect(onDone).not.toHaveBeenCalled()
   })
 })
+
+describe("CaptureForm: Try again while offline (S-H1)", () => {
+  function goOffline(offline: boolean) {
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(!offline)
+    window.dispatchEvent(new Event(offline ? "offline" : "online"))
+  }
+  afterEach(() => vi.restoreAllMocks())
+
+  it("waits offline and says so, then replays the same answer once back online", async () => {
+    const openAdd = vi.fn()
+    const LATER: SubmittableAsset = {
+      ...PHOTO,
+      assetId: "7d000000-0000-4000-8000-00000000000d",
+      createdAt: "2026-11-04T10:00:00.000Z",
+    }
+    const submit = vi
+      .fn<SubmitHandler>()
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValue(sentOk())
+    const { user, loadAssets, onDone } = setup({
+      assets: [PHOTO],
+      submit,
+      upload: { addQueue: { openAdd }, uploader: noUpload, limits: LIMITS },
+    })
+    await user.click(
+      screen.getByRole("button", { name: "Choose from your photos" })
+    )
+    const opts = openAdd.mock.lastCall?.[0] as OpenAddOptions
+    await user.click(screen.getByRole("radio", { name: "Yes" }))
+    await user.click(photoBox())
+    loadAssets.mockResolvedValue(assetsOk([LATER, PHOTO]))
+
+    await act(async () => goOffline(true))
+    await user.click(submitButton())
+    const retry = await screen.findByRole("button", { name: UI_TEXT.retry })
+    expect((retry as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByRole("alert").textContent).toContain(
+      "You're offline. We'll try when you're back online."
+    )
+    // An upload finishing while the answer is unresolved waits, as before.
+    opts.onReady?.([LATER.assetId])
+    await act(async () => {})
+    expect(submit).toHaveBeenCalledTimes(1)
+
+    await act(async () => goOffline(false))
+    await waitFor(() => expect(submit).toHaveBeenCalledTimes(2))
+    expect(submit.mock.calls[1][0]).toEqual(submit.mock.calls[0][0])
+    expect(lastInput(submit)).toMatchObject({
+      idempotencyKey: "key-1",
+      revision: 4,
+      assetIds: [PHOTO.assetId],
+    })
+    expect(await screen.findByText(/new upload/)).toBeTruthy()
+    expect(onDone).not.toHaveBeenCalled()
+  })
+
+  it("Try again is a live button again once online, and nothing sends by itself without a failed send", async () => {
+    const submit = vi.fn<SubmitHandler>(async () => sentOk())
+    const { user } = setup({ submit })
+    await act(async () => goOffline(true))
+    await act(async () => goOffline(false))
+    expect(submit).not.toHaveBeenCalled()
+    await user.click(screen.getByRole("radio", { name: "Yes" }))
+    await user.click(photoBox())
+    await user.click(submitButton())
+    expect(submit).toHaveBeenCalledTimes(1)
+  })
+})
