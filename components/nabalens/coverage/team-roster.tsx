@@ -433,7 +433,10 @@ function TeamRosterMonth({
           expectedRevision: row.revision,
         })
       } catch {
-        failure = { tone: "error", text: NETWORK_ERROR }
+        failure = {
+          tone: "error",
+          text: `${saved.length > 0 ? `${plural(saved.length, "target")} saved. ` : ""}We couldn't confirm ${row.person.displayName}'s target was saved. Check your connection, then refresh to see.`,
+        }
         break
       }
       if (!result.ok) {

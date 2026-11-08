@@ -6,8 +6,13 @@ import { failureText, needsRefresh } from "./copy"
 import type { Notice } from "./coverage-notice"
 import type { CoverageFailure, CoverageResult } from "./types"
 
+/**
+ * After a write whose reply was lost (offline, or the response never came).
+ * The server may have applied it, so this never says nothing changed. Every
+ * `run` call is a write; reads report their own failures.
+ */
 export const NETWORK_ERROR =
-  "Could not reach the server. Check your connection and try again."
+  "We couldn't confirm your change was saved. Check your connection, then try again or refresh to see if it was."
 
 /**
  * Dialog outcome for a stale or refused change. The page notice already says

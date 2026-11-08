@@ -3,7 +3,14 @@
 // response never arrived) must not say "Nothing changed": the server may have
 // applied the change. A refusal from the server keeps "Nothing changed." and
 // shows the server's reason.
-import { cleanup, render, screen, within } from "@testing-library/react"
+import {
+  act,
+  cleanup,
+  render,
+  renderHook,
+  screen,
+  within,
+} from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -27,7 +34,12 @@ import {
   type SetTargetHandler,
 } from "@/components/nabalens/coverage"
 
-import { PERIOD, monthly } from "./coverage-fixtures"
+import {
+  NETWORK_ERROR,
+  useCoverageAction,
+} from "@/components/nabalens/coverage/use-coverage-action"
+
+import { PERIOD, monthly, person } from "./coverage-fixtures"
 
 const VENUE = {
   id: "5b0d8f43-2a1e-4c5f-8d4b-0e7c9a3f1b11",
@@ -177,5 +189,111 @@ describe("Correct target", () => {
     expect(notice.textContent).toContain(
       "Nothing changed. Corrections need an admin."
     )
+  })
+})
+
+describe("the shared coverage write notice", () => {
+  it("a lost reply admits the change may have happened", async () => {
+    const { result } = renderHook(() => useCoverageAction())
+    let outcome: unknown
+    await act(async () => {
+      outcome = await result.current.run(lostReply, "Saved.")
+    })
+    expect(outcome).toMatchObject({ ok: false, code: "network" })
+    expect(result.current.notice).toEqual({
+      tone: "error",
+      text: "We couldn't confirm your change was saved. Check your connection, then try again or refresh to see if it was.",
+    })
+    expect(NETWORK_ERROR).not.toMatch(/Could not reach|Nothing changed/)
+  })
+
+  it("a refusal shows the server's reason", async () => {
+    const { result } = renderHook(() => useCoverageAction())
+    await act(async () => {
+      await result.current.run(
+        async () => ({
+          ok: false as const,
+          code: "invalid_input" as const,
+          status: 400 as const,
+          message: "Add a reason.",
+        }),
+        "Saved."
+      )
+    })
+    expect(result.current.notice).toEqual({
+      tone: "error",
+      text: "Add a reason.",
+    })
+  })
+})
+
+describe("Save targets", () => {
+  const ana = person({
+    id: "eeeeeeee-0000-4000-8000-0000000000a1",
+    displayName: "TEST Ana",
+  })
+  const rows = [
+    monthly({
+      targetCount: null,
+      status: "needs_setup",
+      setupMissing: ["target"],
+      source: "placeholder",
+    }),
+    monthly({
+      targetId: "dddddddd-0000-4000-8000-0000000000a1",
+      person: ana,
+      targetCount: null,
+      status: "needs_setup",
+      setupMissing: ["target"],
+      source: "placeholder",
+    }),
+  ]
+
+  async function saveBoth(onSetTarget: SetTargetHandler) {
+    render(
+      <TeamRoster
+        period={PERIOD}
+        currentPeriod="2026-11"
+        rows={rows}
+        canEdit
+        isAdmin={false}
+        basePath="/staff/manage"
+        onSetTarget={onSetTarget}
+      />
+    )
+    const user = userEvent.setup()
+    await user.type(screen.getByLabelText("TEST Sam's photo target"), "4")
+    await user.type(screen.getByLabelText("TEST Ana's photo target"), "3")
+    await user.click(screen.getByRole("button", { name: "Save targets" }))
+  }
+
+  it("a lost reply names the row it can't confirm and keeps what saved", async () => {
+    // The first row sent saves; the reply for the next one is lost.
+    const sent: string[] = []
+    await saveBoth(async (input) => {
+      sent.push(input.staffId)
+      if (sent.length === 1) return { ok: true, revision: 3 }
+      throw new TypeError("Failed to fetch")
+    })
+    const lost = [rows[0].person, ana].find((p) => p.id === sent[1])!
+    const text = (await screen.findByText(/couldn't confirm/)).textContent
+    expect(sent).toHaveLength(2)
+    expect(text).toBe(
+      `1 target saved. We couldn't confirm ${lost.displayName}'s target was saved. Check your connection, then refresh to see.`
+    )
+  })
+
+  it("a refusal keeps the server's reason", async () => {
+    await saveBoth(async (input) =>
+      input.staffId === ana.id
+        ? { ok: true, revision: 3 }
+        : {
+            ok: false,
+            code: "invalid_input",
+            status: 400,
+            message: "Targets go up to 50.",
+          }
+    )
+    expect(await screen.findByText(/Targets go up to 50\./)).toBeTruthy()
   })
 })
