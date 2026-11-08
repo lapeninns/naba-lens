@@ -362,7 +362,18 @@ export function ReviewList({
             error: text,
             fieldError: result.fieldErrors.reason,
           }
-        if (result.code === "state_conflict" || result.needsRefresh) {
+        // The manager's access ended mid-session: a refresh re-renders the
+        // workspace layout, which then shows Venue access unavailable.
+        const accessEnded =
+          scope.kind === "manager" &&
+          (result.code === "not_permitted" ||
+            result.code === "wrong_venue" ||
+            result.code === "account_inactive")
+        if (
+          result.code === "state_conflict" ||
+          result.needsRefresh ||
+          accessEnded
+        ) {
           setCardError(card.key, { text, refresh: true })
           return REPORTED
         }
