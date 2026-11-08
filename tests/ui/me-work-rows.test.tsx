@@ -460,6 +460,116 @@ describe("Me: Needs labels and milestones", () => {
     expect(openAdd).toHaveBeenCalledTimes(2)
   })
 
+  it("treats only a newer photo, never a video, as the retake", () => {
+    const momo = {
+      ...LABELLED,
+      items: [
+        {
+          itemId: "i3",
+          variantId: "v-Veg",
+          name: "Momo",
+          variantName: "Veg",
+          sectionName: "Starters",
+          labelledAs: null,
+          state: "current" as const,
+        },
+      ],
+    }
+    const later = "2026-11-07T09:00:00.000Z"
+    const request = {
+      photoId: "p1",
+      assetId: "b1",
+      itemId: "i3",
+      itemName: "Momo",
+      variantId: "v-Veg",
+      variantName: "Veg",
+      state: "better_photo_requested" as const,
+      isPrimary: false,
+      reason: "Brighter",
+    }
+    const old = item("b1", { labels: momo })
+    const video = item("n1", {
+      mediaType: "video",
+      mimeType: "video/mp4",
+      createdAt: later,
+      labels: momo,
+    })
+    const photo = item("n2", { createdAt: later, labels: momo })
+
+    // A labelled video can never be reviewed for the dish: still to retake.
+    expect(
+      betterPhotoRequests([request], [old], [old, video]).map((r) => r.sent)
+    ).toEqual([false])
+    // Nor does an accepted decision on a video close the request.
+    expect(
+      betterPhotoRequests(
+        [
+          request,
+          { ...request, photoId: "p2", assetId: "n1", state: "accepted" },
+        ],
+        [old],
+        [old, video]
+      ).map((r) => r.sent)
+    ).toEqual([false])
+    // A labelled newer photo is the retake, waiting for review.
+    expect(
+      betterPhotoRequests([request], [old], [old, video, photo]).map(
+        (r) => r.sent
+      )
+    ).toEqual([true])
+  })
+
+  it("keeps Take a new photo on Me when the newer upload of the dish is a video", async () => {
+    const momo = {
+      ...LABELLED,
+      items: [
+        {
+          itemId: "i3",
+          variantId: null,
+          name: "Momo",
+          variantName: null,
+          sectionName: "Starters",
+          labelledAs: null,
+          state: "current" as const,
+        },
+      ],
+    }
+    library.items = [
+      item("n1", {
+        mediaType: "video",
+        mimeType: "video/mp4",
+        createdAt: "2026-11-07T09:00:00.000Z",
+        labels: momo,
+      }),
+    ]
+    library.byId = [item("b1", { labels: momo })]
+    coverage.listMyMenuPhotoDecisions.mockResolvedValueOnce({
+      ok: true,
+      states: [
+        {
+          photoId: "p1",
+          assetId: "b1",
+          itemId: "i3",
+          itemName: "Momo",
+          variantId: null,
+          variantName: null,
+          state: "better_photo_requested",
+          isPrimary: false,
+          reason: "Brighter",
+        },
+      ],
+    })
+    render(
+      <AddProvider value={{ openAdd: vi.fn() }}>
+        {await StaffPage()}
+      </AddProvider>
+    )
+    const row = screen.getByRole("article", { name: "Momo" })
+    expect(row.textContent).not.toContain("New photo sent")
+    expect(
+      within(row).getByRole("button", { name: "Take a new photo" })
+    ).toBeTruthy()
+  })
   it("says a retake was sent, and drops the request once the retake is accepted", async () => {
     const labelled = (itemId: string, name: string, variant?: string) => ({
       ...LABELLED,

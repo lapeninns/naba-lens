@@ -369,9 +369,13 @@ export function betterPhotoRequests(
     const item = ready.get(state.assetId)
     if (state.state !== "better_photo_requested" || !item) return []
     const requestedAt = Date.parse(item.createdAt)
+    // Only a photo can answer: videos are never review candidates for a
+    // dish, and a review of one is refused.
     const newer = [...photos.values()].filter(
       (photo) =>
-        photo.id !== item.id && Date.parse(photo.createdAt) > requestedAt
+        photo.id !== item.id &&
+        photo.mediaType === "image" &&
+        Date.parse(photo.createdAt) > requestedAt
     )
     const decided = (photo: MediaItem) =>
       states.filter((s) => s.assetId === photo.id && sameDish(s, state))
