@@ -499,10 +499,15 @@ export function UploadDialog({
     return item.status === "done" && (kind === "retry" || kind === "attention")
   }).length
 
-  useLeaveGuard(summary.active, queue.cancelAll, unstoredLabels)
-  const unstoredRef = React.useRef(unstoredLabels)
+  const [panelPending, setPanelPending] = React.useState(false)
+  // Labels changed in the field that the sheet does not hold yet (chosen
+  // while the menu loads, or a choice not finished) are lost on leaving too.
+  const unsavedLabels = Math.max(unstoredLabels, panelPending ? 1 : 0)
+
+  useLeaveGuard(summary.active, queue.cancelAll, unsavedLabels)
+  const unstoredRef = React.useRef(unsavedLabels)
   React.useEffect(() => {
-    unstoredRef.current = unstoredLabels
+    unstoredRef.current = unsavedLabels
   })
   // Reload or tab close would lose labels the server does not have yet.
   React.useEffect(() => guardBeforeUnload(() => unstoredRef.current > 0), [])
@@ -569,7 +574,6 @@ export function UploadDialog({
   const [rejected, setRejected] = React.useState<RejectedFile[]>([])
   const [closeBlocked, setCloseBlocked] = React.useState(false)
   const [fixing, setFixing] = React.useState<string | null>(null)
-  const [panelPending, setPanelPending] = React.useState(false)
   const [confirmDiscard, setConfirmDiscard] = React.useState(false)
   // A new panel (fresh from each file's labels) after "Fix labels" saved.
   const [panelKey, setPanelKey] = React.useState(0)
