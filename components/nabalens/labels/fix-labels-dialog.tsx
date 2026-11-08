@@ -23,8 +23,11 @@ export type FixLabelsDialogProps = {
   catalogue: CatalogueProp
   onRetryCatalogue: () => void
   focus?: WorkFocus | null
-  /** Save the corrected labels now (the file is ready). */
-  onSave: (input: SaveLabelsInput) => Promise<SaveLabelsResult>
+  /**
+   * Save the corrected labels now (the file is ready). Null: the answer was
+   * lost, so the save may or may not have happened.
+   */
+  onSave: (input: SaveLabelsInput) => Promise<SaveLabelsResult | null>
 }
 
 /**
@@ -56,7 +59,10 @@ export function FixLabelsDialog({
       focus={focus}
       title="Fix labels"
       fix={{ draft, problem }}
-      onSave={async (inputs) => [await onSave(inputs[0])]}
+      onSave={async (inputs) => {
+        const result = await onSave(inputs[0])
+        return result ? [result] : []
+      }}
     />
   )
 }

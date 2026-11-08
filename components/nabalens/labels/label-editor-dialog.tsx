@@ -267,6 +267,8 @@ function FileProblem({
     body = problem
   } else if (status.kind === "error") {
     body = status.message
+    // No answer for this file: it may have been saved.
+    if (status.code === "no_result") title = "Couldn't confirm the save"
     if (status.code === "unavailable_items") {
       title = "Some menu items are no longer available"
       body = (
@@ -742,7 +744,9 @@ function LabelEditor({
     setAnnouncement(
       batch
         ? `${saved.length} of ${targets.length} files saved. ${failed.length} ${failed.length === 1 ? "needs" : "need"} attention.`
-        : "Labels not saved."
+        : outcomes[0]
+          ? "Labels not saved."
+          : "Couldn't confirm the save."
     )
     setFocusTarget({ id: ids.problem(failed[0].id) })
   }

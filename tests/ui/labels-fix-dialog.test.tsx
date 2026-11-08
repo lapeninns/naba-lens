@@ -253,6 +253,22 @@ describe("FixLabelsDialog: saving", () => {
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
   })
 
+  it("says it couldn't confirm the save when the answer was lost, not that nothing saved", async () => {
+    const { user, onOpenChange } = await setup({ onSave: async () => null })
+    await user.click(saveButton())
+    expect(await screen.findByText("Couldn't confirm the save")).toBeTruthy()
+    expect(
+      screen.getByText(
+        "Saving this file was not confirmed. Try again; your changes are kept."
+      )
+    ).toBeTruthy()
+    expect(screen.getByText("Couldn't confirm the save.")).toBeTruthy()
+    expect(screen.queryByText("Labels not saved")).toBeNull()
+    expect(screen.queryByText("Labels not saved.")).toBeNull()
+    expect(onOpenChange).not.toHaveBeenCalledWith(false)
+    expect(within(chips()).getByText("Onion Bhaji")).toBeTruthy()
+  })
+
   it("stays open with a network notice when the save throws", async () => {
     const { user, onSave, onOpenChange } = await setup({
       onSave: async () => {
