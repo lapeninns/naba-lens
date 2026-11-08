@@ -8,7 +8,8 @@ import { createClient } from "@/lib/supabase/server"
 /**
  * POST target of the /auth/confirm page's Continue button. Verifies the email
  * link's token hash server-side (no PKCE verifier needed, so any browser works)
- * and starts the session. Success goes to "/", which routes by the database role;
+ * and starts the session. Success goes to "/", which routes by the database role
+ * (back to the page asked for before sign-in, when that role may open it);
  * an expired, used or malformed link goes back to login's recovery state.
  * Same-origin only: a cross-site form must not sign this browser in with
  * someone else's token (shared CSRF check, as every cookie-taking POST uses).

@@ -161,7 +161,10 @@ test.describe("release negatives", () => {
       `/admin/staff/${world.staffB.id}`,
     ]) {
       await anon.goto(path)
-      await expect(anon, path).toHaveURL(/\/login$/)
+      // Signed out still lands on /login, remembering the page asked for.
+      await expect(anon, path).toHaveURL(
+        new URL(`/login?next=${encodeURIComponent(path)}`, anon.url()).href
+      )
     }
 
     // B still has their file: nothing above changed it.

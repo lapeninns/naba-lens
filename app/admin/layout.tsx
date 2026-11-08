@@ -1,4 +1,6 @@
+import { SessionGuardHost } from "@/components/nabalens/session-guard-host"
 import { requireActiveAdmin } from "@/lib/auth"
+import { getLoginCaptchaConfig } from "@/lib/auth/captcha"
 
 /**
  * Early role gate for every /admin page. It runs outside the segment's
@@ -8,7 +10,8 @@ import { requireActiveAdmin } from "@/lib/auth"
  *
  * Not the authorisation boundary: layouts do not re-render on client
  * navigation, so each page, Server Function and Route Handler still calls
- * lib/auth itself.
+ * lib/auth itself. An ended session is met in place (Sign in again over the
+ * page) rather than by losing the page.
  */
 export default async function AdminLayout({
   children,
@@ -16,5 +19,13 @@ export default async function AdminLayout({
   children: React.ReactNode
 }) {
   await requireActiveAdmin()
-  return children
+  const captcha = getLoginCaptchaConfig()
+  return (
+    <SessionGuardHost
+      captchaRequired={captcha.enabled}
+      captchaSiteKey={captcha.siteKey}
+    >
+      {children}
+    </SessionGuardHost>
+  )
 }
