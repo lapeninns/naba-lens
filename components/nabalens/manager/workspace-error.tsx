@@ -8,6 +8,32 @@ import { ERROR_COPY, ErrorState } from "@/components/nabalens/error-state"
 import { Button, buttonVariants } from "@/components/ui/button"
 
 /**
+ * Try again unmounts this boundary (the page renders, or the error comes
+ * back as a new boundary), taking the focused button with it. Once a heading
+ * is in place, it takes focus, so keyboard and screen reader users are not
+ * dropped on the document body. Focus the user moved meanwhile is left alone.
+ */
+function focusHeadingAfterRetry(button: HTMLElement) {
+  const root = button.closest("main") ?? document.body
+  const stop = () => {
+    observer.disconnect()
+    window.clearTimeout(timer)
+  }
+  const observer = new MutationObserver(() => {
+    if (button.isConnected) return
+    const heading = root.querySelector<HTMLElement>("h1")
+    if (!heading) return
+    stop()
+    const active = document.activeElement
+    if (active && active !== document.body && active.isConnected) return
+    if (!heading.hasAttribute("tabindex")) heading.tabIndex = -1
+    heading.focus()
+  })
+  observer.observe(root, { childList: true, subtree: true })
+  const timer = window.setTimeout(stop, 10_000)
+}
+
+/**
  * Body of a workspace segment's error boundary: the page's title, what failed
  * and Try again, with a way back on detail pages. The layout, and so the
  * shell, stays in place. A refused read (access ended) never lands here: the
@@ -47,7 +73,10 @@ export function ManagerWorkspaceError({
           {back.label}
         </Link>
       ) : null}
-      <h1 className="font-display text-page-title [overflow-wrap:anywhere] text-ink">
+      <h1
+        tabIndex={-1}
+        className="font-display text-page-title [overflow-wrap:anywhere] text-ink outline-none"
+      >
         {title}
       </h1>
       <ErrorState
@@ -57,7 +86,8 @@ export function ManagerWorkspaceError({
             type="button"
             variant="secondary"
             size="sm"
-            onClick={() => {
+            onClick={(event) => {
+              focusHeadingAfterRetry(event.currentTarget)
               retry()
               router.refresh()
             }}
