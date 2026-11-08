@@ -118,6 +118,17 @@ export function photosNeedingLabels(
     .slice(0, LABEL_LIMITS.maxBatchAssets)
 }
 
+/**
+ * What to call a set of own uploads, as the upload sheet does: "photo(s)"
+ * when they are all photos, "video" for one video, else "file(s)".
+ */
+export function uploadsNoun(items: readonly Pick<MediaItem, "mediaType">[]) {
+  if (items.every((item) => item.mediaType === "image"))
+    return items.length === 1 ? "photo" : "photos"
+  if (items.length === 1) return "video"
+  return "files"
+}
+
 /** Abortable foreground refresh of the own portfolio (see MediaGallery). */
 function refreshMyMedia(signal: AbortSignal, cursor?: string | null) {
   return fetchMediaPage("/api/portfolio", { cursor }, signal)
@@ -548,6 +559,7 @@ export function StaffPortfolio({
   const [labelSaves, setLabelSaves] = React.useState(0)
   const [labelIds, setLabelIds] = React.useState<string[] | null>(null)
   const needsLabels = photosNeedingLabels(initialPage.items, labelled)
+  const needsLabelsNoun = uploadsNoun(needsLabels)
   const accepted = React.useMemo(() => {
     const accepted = new Map<string, string[]>()
     for (const state of menuPhotos) {
@@ -692,10 +704,7 @@ export function StaffPortfolio({
               className="flex items-center gap-2 font-display text-section-title text-ink"
             >
               Needs labels
-              <CountBadge
-                count={needsLabels.length}
-                label={needsLabels.length === 1 ? "photo" : "photos"}
-              />
+              <CountBadge count={needsLabels.length} label={needsLabelsNoun} />
             </h2>
             <p className="text-body text-ink-muted">
               Say which dish or drink each one shows, so it can be found and
@@ -711,8 +720,8 @@ export function StaffPortfolio({
           >
             <TagIcon data-icon="inline-start" aria-hidden />
             {needsLabels.length === 1
-              ? "Label this photo"
-              : `Label these ${needsLabels.length} photos`}
+              ? `Label this ${needsLabelsNoun}`
+              : `Label these ${needsLabels.length} ${needsLabelsNoun}`}
           </Button>
         </section>
       ) : null}
