@@ -172,9 +172,13 @@ export function draftOnCurrentLabels(
   }
 }
 
-/** Labels were saved on the photo after the draft was stored. */
+/**
+ * Labels were saved on the photo after the draft was stored. Only the
+ * revision says so: labels the photo already had when the draft was made are
+ * the draft's base, and the draft may remove some of them on purpose.
+ */
 export function savedSince(labels: MediaLabelSummary, draft: SaveLabelsInput) {
-  return labels.hasLabels || labels.revision !== draft.expectedRevision
+  return labels.revision !== draft.expectedRevision
 }
 
 /**

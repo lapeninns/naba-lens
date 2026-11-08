@@ -450,6 +450,8 @@ describe("NeedsAttention on Me", () => {
     // Unchanged labels on the photo still open the stored draft as it is.
     expect(savedSince(EMPTY_LABEL_SUMMARY, stored.input)).toBe(false)
     expect(savedSince(now, stored.input)).toBe(true)
+    // Labels the photo had when the draft was made are its base, not news.
+    expect(savedSince({ ...now, revision: 0 }, stored.input)).toBe(false)
     expect(draftOnCurrentLabels(EMPTY_LABEL_SUMMARY, stored.input)).toEqual(
       stored.input
     )

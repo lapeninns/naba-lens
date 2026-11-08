@@ -217,7 +217,13 @@ function FileProblem({
     return (
       <Notice id={id} tabIndex={-1} tone="attention" role="none">
         <div className="grid gap-3">
-          <p>{conflictText(audience, status.current)}</p>
+          {/* A stored problem (Fix labels) comes without the current labels
+              and says what happened itself. */}
+          <p>
+            {status.current || !status.message
+              ? conflictText(audience, status.current)
+              : status.message}
+          </p>
           {status.current ? (
             <>
               <div className="rounded-card bg-surface p-3 shadow-card">
