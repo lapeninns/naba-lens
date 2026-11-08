@@ -5,20 +5,42 @@ import { cache } from "react"
 import { todoCount, todoItems } from "@/components/nabalens/tasks"
 import type { MyAmenityTask } from "@/lib/amenities/contract"
 import { getMyAmenityTasks } from "@/lib/server/amenities"
-import { getManagerReviewCount, getMyTasks } from "@/lib/server/coverage"
+import {
+  getCoverageActor,
+  getManagerReviewCount,
+  getMyTasks,
+} from "@/lib/server/coverage"
 import { avatarUrl } from "@/lib/server/media/library"
 import type { MediaActor } from "@/lib/server/media/types"
 
 import { canManageVenue } from "../can-manage"
 
-/** My coverage tasks, read once per request however many parts need them. */
-export const myTasks = cache(async (actor: MediaActor) => getMyTasks(actor))
-
 /**
- * Amenity checks assigned to me, or null when they can't be read: unknown,
- * never "none", so To do and the badge don't claim there is nothing to do.
+ * One actor per person per request. React's cache matches arguments by
+ * identity, and a page and its not-found boundary (or a frame) each build
+ * their own actor for the same signed-in person; reusing the first one lets
+ * them share the reads below. Both act as that same person, so nothing can
+ * be read that the later actor couldn't read itself.
  */
-export const myAmenityTasks = cache(
+const requestActors = cache(() => new Map<string, MediaActor>())
+
+function sharedActor(actor: MediaActor): MediaActor {
+  // No person to match by: keep this actor's own reads, unshared.
+  const id = actor.profile?.id
+  if (!id) return actor
+  const actors = requestActors()
+  const first = actors.get(id)
+  if (first) return first
+  actors.set(id, actor)
+  return actor
+}
+
+const tasksOf = cache(async (actor: MediaActor) => getMyTasks(actor))
+
+/** My coverage tasks, read once per request however many parts need them. */
+export const myTasks = (actor: MediaActor) => tasksOf(sharedActor(actor))
+
+const amenityTasksOf = cache(
   async (actor: MediaActor): Promise<MyAmenityTask[] | null> => {
     try {
       const result = await getMyAmenityTasks(actor, {})
@@ -30,10 +52,17 @@ export const myAmenityTasks = cache(
 )
 
 /**
+ * Amenity checks assigned to me, or null when they can't be read: unknown,
+ * never "none", so To do and the badge don't claim there is nothing to do.
+ */
+export const myAmenityTasks = (actor: MediaActor) =>
+  amenityTasksOf(sharedActor(actor))
+
+/**
  * Whether the caller manages their venue and, only then, the photos waiting
  * for their review. Runs alongside the tasks rather than after them.
  */
-const managerStatus = cache(
+const managerStatusOf = cache(
   async (
     actor: MediaActor
   ): Promise<{ canManage: boolean; reviewCount: number | undefined }> => {
@@ -55,6 +84,8 @@ const managerStatus = cache(
     }
   }
 )
+
+const managerStatus = (actor: MediaActor) => managerStatusOf(sharedActor(actor))
 
 /** The staff AppShell's props that come from the database. */
 export type StaffShellStatus = {
@@ -92,3 +123,26 @@ export async function staffShellStatus(
     avatarUrl: avatarUrl(profile.id, profile.avatarPath),
   }
 }
+
+const NO_STATUS: StaffShellStatus = {
+  canManage: false,
+  todoCount: undefined,
+  reviewCount: undefined,
+  avatarUrl: null,
+}
+
+/**
+ * The signed-in staff member's shell status for frames that hold no actor of
+ * their own (legacy Manage, not-found). Never throws: a failed read leaves the
+ * counts out. Cached per request, so starting it early (`void
+ * currentStaffShell()`) lets it run alongside the page's own reads.
+ */
+export const currentStaffShell = cache(async (): Promise<StaffShellStatus> => {
+  try {
+    const auth = await getCoverageActor()
+    if (!auth.ok) return NO_STATUS
+    return await staffShellStatus(auth.actor, auth.actor.profile)
+  } catch {
+    return NO_STATUS
+  }
+})

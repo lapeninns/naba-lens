@@ -20,6 +20,8 @@ import { getVenueCoverage } from "@/lib/server/coverage/venue"
 import { getMediaActor } from "@/lib/server/media/context"
 import type { MediaActor } from "@/lib/server/media/types"
 
+import { currentStaffShell } from "../../_shell/shell-status"
+
 /**
  * Who is using the venue tools and for which venue. Display and routing only:
  * every service call re-checks the grant (or admin role) in the database.
@@ -57,6 +59,8 @@ export function unexpected(failure: CoverageFailure): never {
  */
 export async function managerAccess(): Promise<ManageAccess> {
   const profile = await requireActiveStaff()
+  // The frame's shell status, read alongside the scope and the page's reads.
+  void currentStaffShell()
   const auth = await getCoverageActor()
   if (!auth.ok) unexpected(auth)
   const scope = await getCoverageScope(auth.actor)
@@ -137,9 +141,7 @@ export async function adminVenueContext(
 export const readVenueCoverage = cache(
   async (
     ctx: ManageContext
-  ): Promise<
-    { ok: true; coverage: VenueCoverageView } | CoverageFailure
-  > => {
+  ): Promise<{ ok: true; coverage: VenueCoverageView } | CoverageFailure> => {
     if (ctx.coverage) return { ok: true, coverage: ctx.coverage }
     const result = await getVenueCoverage(ctx.actor, { venueId: ctx.venueId })
     return result.ok ? { ok: true, coverage: result.coverage } : result

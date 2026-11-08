@@ -7,6 +7,14 @@ vi.mock("@/lib/auth", () => ({
   requireActiveStaff: async () => ({ displayName: "Asha", role: "staff" }),
   requireActiveAdmin: async () => ({ displayName: "Ravi", role: "admin" }),
 }))
+vi.mock("@/app/staff/_shell/shell-status", () => ({
+  currentStaffShell: async () => ({
+    canManage: false,
+    todoCount: 1,
+    reviewCount: undefined,
+    avatarUrl: null,
+  }),
+}))
 
 import AdminNotFound from "@/app/admin/not-found"
 import RootNotFound, { metadata } from "@/app/not-found"
@@ -49,7 +57,11 @@ describe("branded not-found pages", () => {
   it("a missing staff page keeps the staff navigation and goes back to Home", async () => {
     const page = (await StaffNotFound()) as unknown as Element
     expect(page.type).toBe(AppShell)
-    expect(page.props).toMatchObject({ variant: "staff", userName: "Asha" })
+    expect(page.props).toMatchObject({
+      variant: "staff",
+      userName: "Asha",
+      todoCount: 1,
+    })
     expect(cardIn(page)).toMatchObject({
       type: NotFoundCard,
       props: { backHref: "/staff/tasks", backLabel: "Go to Home" },

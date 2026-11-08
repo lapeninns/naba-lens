@@ -76,7 +76,11 @@ vi.mock("@/lib/server/coverage", () => coverage)
 const amenities = vi.hoisted(() => ({ getMyAmenityTasks: vi.fn() }))
 vi.mock("@/lib/server/amenities", () => amenities)
 
-import { staffShellStatus } from "@/app/staff/_shell/shell-status"
+import {
+  currentStaffShell,
+  staffShellStatus,
+} from "@/app/staff/_shell/shell-status"
+import StaffNotFound from "@/app/staff/not-found"
 import StaffPage from "@/app/staff/page"
 import PhotoGuidePage from "@/app/staff/tasks/guide/page"
 
@@ -204,6 +208,22 @@ describe("staff pages", () => {
     }
   )
 
+  it.each([
+    ["app/staff/manage/_shared/frame.tsx", 2],
+    ["app/staff/not-found.tsx", 1],
+  ])("%s gives its staff shell the shared status", (path, staffShells) => {
+    const source = readFileSync(join(process.cwd(), path), "utf8")
+    expect(source).toMatch(/import \{[^}]*\bcurrentStaffShell\b/)
+    const tags = (source.match(/<AppShell\b[^>]*>/g) ?? []).filter((tag) =>
+      tag.includes('variant="staff"')
+    )
+    expect(tags).toHaveLength(staffShells)
+    for (const tag of tags) {
+      expect(tag).toMatch(/\{\.\.\.shell\}/)
+      expect(tag).not.toMatch(/\b(todoCount|avatarUrl)=/)
+    }
+  })
+
   it("renders the guide with the Home badge, the Manage badge and the avatar", async () => {
     coverage.getCoverageScope.mockResolvedValue(scope(true))
     render(await PhotoGuidePage())
@@ -232,5 +252,55 @@ describe("Me", () => {
     release({ ok: true, count: 1 })
     render(await page)
     expect(shell.props).toMatchObject({ canManage: true, reviewCount: 1 })
+  })
+})
+
+describe("currentStaffShell", () => {
+  it("is the signed-in person's status", async () => {
+    coverage.getCoverageActor.mockResolvedValueOnce({
+      ok: true,
+      actor: { ...ACTOR, profile: PROFILE },
+    })
+    expect(await currentStaffShell()).toEqual({
+      canManage: false,
+      todoCount: 2,
+      reviewCount: undefined,
+      avatarUrl: `/api/avatars/${PROFILE.id}`,
+    })
+  })
+
+  it.each([
+    ["refused", () => ({ ok: false, code: "unavailable", message: "x" })],
+    [
+      "throws",
+      () => {
+        throw new Error("down")
+      },
+    ],
+  ])("never fails when the account read is %s", async (_, impl) => {
+    coverage.getCoverageActor.mockImplementationOnce(async () => impl())
+    expect(await currentStaffShell()).toEqual({
+      canManage: false,
+      todoCount: undefined,
+      reviewCount: undefined,
+      avatarUrl: null,
+    })
+  })
+
+  it("keeps the staff not-found page up, with the counts when they can be read", async () => {
+    coverage.getCoverageActor.mockResolvedValueOnce({
+      ok: true,
+      actor: { ...ACTOR, profile: PROFILE },
+    })
+    render(await StaffNotFound())
+    expect(shell.props).toMatchObject({ variant: "staff", todoCount: 2 })
+    cleanup()
+    coverage.getCoverageActor.mockRejectedValueOnce(new Error("down"))
+    const { getByRole } = render(await StaffNotFound())
+    expect(getByRole("link", { name: "Go to Home" })).toBeTruthy()
+    expect(shell.props).toMatchObject({
+      variant: "staff",
+      todoCount: undefined,
+    })
   })
 })

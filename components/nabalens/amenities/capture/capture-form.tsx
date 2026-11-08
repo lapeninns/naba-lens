@@ -33,6 +33,7 @@ import { cn } from "@/lib/utils"
 import { ReasonField } from "../../coverage/reason-dialog"
 import { EmptyState } from "../../empty-state"
 import { Notice } from "../../notice"
+import { useOnline } from "../../offline-notice"
 import {
   PhotoSourceActions,
   usePhotoSource,
@@ -638,6 +639,22 @@ export function CaptureForm({
     setOutcome({ kind: "failed", message: result.message })
   }
 
+  // Offline, Try again would only fail again. The unresolved send waits and
+  // goes again by itself once the browser is back online: the same replay
+  // as Try again (same key and revision; late uploads still wait).
+  const online = useOnline()
+  const sendRef = React.useRef(send)
+  React.useLayoutEffect(() => {
+    sendRef.current = send
+  })
+  const wasOnline = React.useRef(online)
+  React.useEffect(() => {
+    const back = online && !wasOnline.current
+    wasOnline.current = online
+    if (back && outcome?.kind === "retry" && !inFlight.current)
+      void sendRef.current()
+  }, [online, outcome])
+
   const errorId = (field: CaptureField) =>
     errors[field] ? `${ids}-${field}-error` : undefined
 
@@ -935,6 +952,7 @@ export function CaptureForm({
           outcome={outcome}
           extra={extraErrors}
           sending={sending}
+          online={online}
           onRetry={() => void send()}
           onReload={onReload}
           signInHref={signInHref}
@@ -1020,6 +1038,7 @@ function OutcomeMessage({
   outcome,
   extra,
   sending,
+  online,
   onRetry,
   onReload,
   signInHref,
@@ -1027,6 +1046,7 @@ function OutcomeMessage({
   outcome: Outcome | null
   extra: string[]
   sending: boolean
+  online: boolean
   onRetry: () => void
   onReload: () => void
   signInHref: string
@@ -1060,15 +1080,16 @@ function OutcomeMessage({
               variant="secondary"
               size="touch"
               onClick={onRetry}
-              disabled={sending}
+              disabled={sending || !online}
             >
               <ArrowClockwiseIcon data-icon="inline-start" aria-hidden />
               {UI_TEXT.retry}
             </Button>
           }
         >
-          Your draft is kept. Check your connection and try again; nothing is
-          recorded twice.
+          {online
+            ? "Your draft is kept. Check your connection and try again; nothing is recorded twice."
+            : "You're offline. We'll try when you're back online. Your draft is kept; nothing is recorded twice."}
         </Notice>
       )
     case "reload":
