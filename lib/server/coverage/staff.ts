@@ -118,44 +118,32 @@ export async function getMyTasks(
   const venueId = access.venueId
   const now = new Date()
 
-  const [
-    progress,
-    assigned,
-    requirements,
-    items,
-    declined,
-    replacements,
-    people,
-  ] = await Promise.all([
-    actor.db.rpc("coverage_staff_progress", {}),
-    openAssignmentIds(actor),
-    venueId
-      ? actor.db.rpc("coverage_requirement_progress", { p_venue_id: venueId })
-      : Promise.resolve({ data: [], error: null }),
-    actor.db.rpc("coverage_items_page", {
-      p_author_id: actor.profile.id,
-      ...(venueId ? { p_venue_id: venueId } : {}),
-      p_newest_first: true,
-      p_limit: 101,
-    }),
-    // Requests for another photo are read on their own: the newest photos
-    // above can push an older open request out of the window.
-    actor.db.rpc("coverage_items_page", {
-      p_author_id: actor.profile.id,
-      ...(venueId ? { p_venue_id: venueId } : {}),
-      p_states: ["needs_another_photo"],
-      p_newest_first: true,
-      p_limit: 101,
-    }),
-    actor.db
-      .from("coverage_submission_items")
-      .select("replaces_item_id")
-      .eq("author_id", actor.profile.id)
-      .not("replaces_item_id", "is", null),
-    venueId
-      ? venuePeople(actor, venueId, access.managerVenueId === venueId)
-      : Promise.resolve(new Map()),
-  ])
+  const [progress, assigned, requirements, items, declined, people] =
+    await Promise.all([
+      actor.db.rpc("coverage_staff_progress", {}),
+      openAssignmentIds(actor),
+      venueId
+        ? actor.db.rpc("coverage_requirement_progress", { p_venue_id: venueId })
+        : Promise.resolve({ data: [], error: null }),
+      actor.db.rpc("coverage_items_page", {
+        p_author_id: actor.profile.id,
+        ...(venueId ? { p_venue_id: venueId } : {}),
+        p_newest_first: true,
+        p_limit: 101,
+      }),
+      // Requests for another photo are read on their own: the newest photos
+      // above can push an older open request out of the window.
+      actor.db.rpc("coverage_items_page", {
+        p_author_id: actor.profile.id,
+        ...(venueId ? { p_venue_id: venueId } : {}),
+        p_states: ["needs_another_photo"],
+        p_newest_first: true,
+        p_limit: 101,
+      }),
+      venueId
+        ? venuePeople(actor, venueId, access.managerVenueId === venueId)
+        : Promise.resolve(new Map()),
+    ])
   if (progress.error) return coverageRpcFailure(progress.error, "my progress")
   if (!assigned.ok) return assigned
   if (requirements.error)
@@ -163,16 +151,30 @@ export async function getMyTasks(
   if (items.error) return coverageRpcFailure(items.error, "my photos")
   if (declined.error)
     return coverageRpcFailure(declined.error, "my photo requests")
-  if (replacements.error)
-    return unavailableFailure("read replacements", replacements.error)
 
   const rows = items.data ?? []
   const declinedRows = declined.data ?? []
-  const names = await nameMap(
-    actor,
-    people,
-    [...rows, ...declinedRows].map((r) => r.decided_by)
-  )
+  const [names, replacements] = await Promise.all([
+    nameMap(
+      actor,
+      people,
+      [...rows, ...declinedRows].map((r) => r.decided_by)
+    ),
+    // Which of those requests a newer photo already answers, wherever that
+    // photo falls; read only for the open requests found.
+    declinedRows.length
+      ? actor.db
+          .from("coverage_submission_items")
+          .select("replaces_item_id")
+          .eq("author_id", actor.profile.id)
+          .in(
+            "replaces_item_id",
+            declinedRows.map((r) => r.item_id)
+          )
+      : Promise.resolve({ data: [], error: null }),
+  ])
+  if (replacements.error)
+    return unavailableFailure("read replacements", replacements.error)
   const progressRows = progress.data ?? []
   const current = progressRows.find((r) => r.venue_id === venueId) ?? null
   const periodKey = current

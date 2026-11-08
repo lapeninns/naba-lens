@@ -583,6 +583,34 @@ describe("own photo windows", () => {
     )
   })
 
+  it("reads replacements only for the open requests it found", async () => {
+    const asked = itemRow("needs_another_photo")
+    const calls: unknown[][] = []
+    const actor = fakeActor({ newest: [], declined: [asked] })
+    const from = actor.db.from.getMockImplementation()!
+    actor.db.from.mockImplementation((table: string) => {
+      const query = from(table) as Record<string, unknown>
+      if (table !== "coverage_submission_items") return query
+      const chain: unknown = new Proxy(query, {
+        get: (target, prop) =>
+          prop === "then"
+            ? (target.then as unknown)
+            : (...args: unknown[]) => {
+                calls.push([prop, ...args])
+                return chain
+              },
+      })
+      return chain
+    })
+    await getMyTasks(actor as never)
+    expect(calls).toContainEqual(["in", "replaces_item_id", [asked.item_id]])
+
+    // No open request, no replacement read.
+    const none = fakeActor({ newest: [], declined: [] })
+    await getMyTasks(none as never)
+    expect(none.db.from).not.toHaveBeenCalledWith("coverage_submission_items")
+  })
+
   it("drops a request answered by a replacement inside the window", async () => {
     const asked = itemRow("needs_another_photo")
     const replacement = itemRow("submitted", {
