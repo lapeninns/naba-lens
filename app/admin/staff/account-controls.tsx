@@ -319,6 +319,20 @@ export function useAccountControls({
       }
       if (!result.ok) return { ...result, photoSaved }
       if (result.status) confirmStatus(member, result.status)
+      // The edit dialog's Account active switch saves without a confirmation,
+      // so the notice says what the saved status means for the person.
+      const first = firstName(values.displayName)
+      const now = result.status ?? member.status
+      const access =
+        now === member.status
+          ? ""
+          : now === "inactive"
+            ? ` ${first} can no longer sign in.`
+            : member.status !== "inactive"
+              ? ""
+              : now === "invited"
+                ? ` ${first} is active again and hasn't accepted the invitation yet.`
+                : ` ${first} can sign in again.`
       const moved =
         values.venueId && member.venueId && values.venueId !== member.venueId
       const grant = grantOf(member)
@@ -333,7 +347,7 @@ export function useAccountControls({
                   ? ` The manager grant at ${grant.venueName} ended: Ended: moved to another venue.`
                   : ""
               }`
-            : `Saved ${values.displayName}.`),
+            : `Saved ${values.displayName}.`) + access,
       })
       return result
     } finally {

@@ -418,6 +418,56 @@ describe("Edit details explains why Save is unavailable", () => {
   })
 })
 
+describe("Edit details: the saved notice says what an access change means", () => {
+  async function editStatus(
+    status: StaffMember["status"],
+    savedStatus: StaffMember["status"]
+  ) {
+    updateStaffAccountAction.mockResolvedValue({
+      ok: true,
+      status: savedStatus,
+    })
+    render(header(status))
+    const user = userEvent.setup()
+    await user.click(screen.getByRole("button", { name: "Edit details" }))
+    const dialog = await screen.findByRole("dialog")
+    await user.click(within(dialog).getByRole("switch"))
+    await user.click(
+      within(dialog).getByRole("button", { name: "Save changes" })
+    )
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+  }
+
+  it("turning Account active off closes the dialog and says they can no longer sign in", async () => {
+    await editStatus("active", "inactive")
+    expect(announced()).toContain("Saved TEST Sam. TEST can no longer sign in.")
+    expect(updateStaffAccountAction).toHaveBeenCalledWith(
+      member("active").id,
+      expect.objectContaining({ active: false })
+    )
+  })
+
+  it("turning it back on says they can sign in again", async () => {
+    await editStatus("inactive", "active")
+    expect(announced()).toContain("Saved TEST Sam. TEST can sign in again.")
+  })
+
+  it("an edit that leaves access alone says only Saved", async () => {
+    updateStaffAccountAction.mockResolvedValue({ ok: true })
+    render(header("active"))
+    const user = userEvent.setup()
+    await user.click(screen.getByRole("button", { name: "Edit details" }))
+    const dialog = await screen.findByRole("dialog")
+    await user.type(within(dialog).getByLabelText(/Job title/), " lead")
+    await user.click(
+      within(dialog).getByRole("button", { name: "Save changes" })
+    )
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+    expect(announced()).toContain("Saved TEST Sam.")
+    expect(announced()).not.toContain("sign in")
+  })
+})
+
 describe("Reactivate (ADM-1)", () => {
   it("is disabled with a pending label until the server answers", async () => {
     const call = deferred<{ ok: true; status: "active" }>()
