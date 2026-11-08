@@ -38,7 +38,7 @@ import {
 import { periodKeyOf } from "@/lib/server/coverage/time"
 
 import { myTasks, staffShellStatus } from "../../_shell/shell-status"
-import { TASKS_PATH, unwrap } from "../result"
+import { PORTFOLIO_PATH, TASKS_PATH, unwrap } from "../result"
 import { TaskSubmit } from "../task-submit"
 
 export const metadata = { title: "Monthly photos · Naba-Lens" }
@@ -219,7 +219,10 @@ export default async function MonthPage({
       />
     )
   }
-  const { month } = monthResult
+  const { month, more } = monthResult
+  const sentCount = more
+    ? `${month.submissions.length}+ photos`
+    : plural(month.submissions.length, "photo", "photos")
 
   const requested = typeof search.replaces === "string" ? search.replaces : null
   const open = isCurrent
@@ -339,19 +342,32 @@ export default async function MonthPage({
           title={`Sent for ${monthName(period)}`}
           action={
             month.submissions.length > 0 ? (
-              <span className="text-body text-ink-muted">
-                {plural(month.submissions.length, "photo", "photos")}
-              </span>
+              <span className="text-body text-ink-muted">{sentCount}</span>
             ) : null
           }
         />
         {month.submissions.length > 0 ? (
-          <SubmissionList
-            label={`Sent for ${monthName(period)}`}
-            submissions={month.submissions}
-            showTask
-            empty={null}
-          />
+          <>
+            <SubmissionList
+              label={`Sent for ${monthName(period)}`}
+              submissions={month.submissions}
+              showTask
+              empty={null}
+            />
+            {more ? (
+              <p className="max-w-(--size-reading) px-1 text-body text-ink-muted">
+                These are your newest {month.submissions.length}. Every photo
+                you sent is on{" "}
+                <Link
+                  href={PORTFOLIO_PATH}
+                  className="inline-flex min-h-11 items-center rounded-control font-semibold text-ink underline underline-offset-3 outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+                >
+                  Me
+                </Link>
+                .
+              </p>
+            ) : null}
+          </>
         ) : (
           <EmptyState variant="done" title="No photos were sent this month." />
         )}
