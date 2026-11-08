@@ -148,11 +148,18 @@ function EditStaffForm({
   const [venueId, setVenueId] = React.useState(member.venueId)
   const [active, setActive] = React.useState(initialActive)
   const [avatarFile, setAvatarFile] = React.useState<File | null>(null)
+  // A photo that saved while the rest of the edit failed. `member` is the
+  // snapshot this dialog opened with, so it still shows the old photo.
+  const [savedAvatar, setSavedAvatar] = React.useState<File | null>(null)
+  const [photoInputKey, setPhotoInputKey] = React.useState(0)
   const [avatarError, setAvatarError] = React.useState<string | null>(null)
   const [pending, setPending] = React.useState(false)
   const [result, setResult] = React.useState<EditStaffResult | null>(null)
+  // What the last failed save asked for besides the photo.
+  const [unsaved, setUnsaved] = React.useState<string[]>([])
   const [confirmingDiscard, setConfirmingDiscard] = React.useState(false)
   const avatarPreview = useObjectUrl(avatarFile)
+  const savedAvatarPreview = useObjectUrl(savedAvatar)
   const id = React.useId()
   const first = firstName(member.displayName)
 
@@ -192,6 +199,7 @@ function EditStaffForm({
     if (avatarError || pending) return
     setPending(true)
     setResult(null)
+    setUnsaved(changed.filter((word) => word !== "profile photo"))
     try {
       const outcome = await onSubmit({
         displayName: displayName.trim(),
@@ -203,7 +211,12 @@ function EditStaffForm({
       })
       setResult(outcome)
       if (outcome.ok) onClose()
-      else if (outcome.photoSaved) setAvatarFile(null)
+      else if (outcome.photoSaved) {
+        // Saved: a retry sends only the details.
+        setSavedAvatar(avatarFile)
+        setAvatarFile(null)
+        setPhotoInputKey((key) => key + 1)
+      }
     } catch {
       setResult({
         ok: false,
@@ -245,7 +258,9 @@ function EditStaffForm({
                 }
               >
                 {result.photoSaved
-                  ? `The profile photo was saved, but the other changes weren't. ${result.error}`
+                  ? unsaved.length > 0
+                    ? `The profile photo was saved. The changes to ${first}'s ${listWords(unsaved)} weren't saved. ${result.error}`
+                    : `The profile photo was saved. Nothing else changed. ${result.error}`
                   : result.error}
               </Notice>
             ) : null}
@@ -253,12 +268,13 @@ function EditStaffForm({
             <div className="flex items-center gap-4">
               <ProfileAvatar
                 name={displayName || member.displayName}
-                src={avatarPreview ?? member.avatarUrl}
+                src={avatarPreview ?? savedAvatarPreview ?? member.avatarUrl}
                 size="lg"
               />
               <Field className="min-w-0 flex-1 gap-1.5">
                 <FieldLabel htmlFor={`${id}-photo`}>Profile photo</FieldLabel>
                 <Input
+                  key={photoInputKey}
                   id={`${id}-photo`}
                   type="file"
                   accept={AVATAR_TYPES}

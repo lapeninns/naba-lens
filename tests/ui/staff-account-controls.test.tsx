@@ -311,3 +311,76 @@ describe("one account action at a time (ADM-1)", () => {
     )
   })
 })
+
+describe("Edit details after the photo saved (ADM-2)", () => {
+  it("says the photo saved and the job title didn't, and a retry sends only the details", async () => {
+    const fetchMock = vi.fn(
+      async () => new Response(JSON.stringify({ ok: true }), { status: 200 })
+    )
+    vi.stubGlobal("fetch", fetchMock)
+    updateStaffAccountAction.mockRejectedValueOnce(
+      new TypeError("Failed to fetch")
+    )
+    render(header("active"))
+    const user = userEvent.setup()
+    await user.click(screen.getByRole("button", { name: "Edit details" }))
+    const dialog = await screen.findByRole("dialog")
+    await user.upload(
+      within(dialog).getByLabelText("Profile photo"),
+      new File(["x"], "sam.jpg", { type: "image/jpeg" })
+    )
+    const job = within(dialog).getByLabelText(/Job title/)
+    await user.clear(job)
+    await user.type(job, "Head bartender")
+    await user.click(
+      within(dialog).getByRole("button", { name: "Save changes" })
+    )
+
+    const alert = await within(dialog).findByRole("alert")
+    expect(alert.textContent).toContain("Some changes didn't save")
+    expect(alert.textContent).toContain(
+      "The profile photo was saved. The changes to TEST's job title weren't saved. Check your connection and try again."
+    )
+    expect(alert.textContent).not.toContain("could not be saved")
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    // The saved photo is cleared from the form, so nothing re-uploads it.
+    expect(
+      (within(dialog).getByLabelText("Profile photo") as HTMLInputElement).files
+        ?.length ?? 0
+    ).toBe(0)
+
+    updateStaffAccountAction.mockResolvedValueOnce({ ok: true })
+    await user.click(
+      within(dialog).getByRole("button", { name: "Save changes" })
+    )
+    await vi.waitFor(() =>
+      expect(updateStaffAccountAction).toHaveBeenCalledTimes(2)
+    )
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(updateStaffAccountAction).toHaveBeenLastCalledWith(
+      member("active").id,
+      expect.objectContaining({ jobTitle: "Head bartender" })
+    )
+    expect(await screen.findByText("Saved TEST Sam.")).toBeTruthy()
+  })
+
+  it("a rejected save with no photo says nothing changed", async () => {
+    updateStaffAccountAction.mockRejectedValueOnce(
+      new TypeError("Failed to fetch")
+    )
+    render(header("active"))
+    const user = userEvent.setup()
+    await user.click(screen.getByRole("button", { name: "Edit details" }))
+    const dialog = await screen.findByRole("dialog")
+    const job = within(dialog).getByLabelText(/Job title/)
+    await user.clear(job)
+    await user.type(job, "Head bartender")
+    await user.click(
+      within(dialog).getByRole("button", { name: "Save changes" })
+    )
+    const alert = await within(dialog).findByRole("alert")
+    expect(alert.textContent).toBe(
+      "Nothing changed. Check your connection and try again."
+    )
+  })
+})

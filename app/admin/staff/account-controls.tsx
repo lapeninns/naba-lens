@@ -280,15 +280,26 @@ export function useAccountControls({
         if (!avatar.ok) return avatar
         photoSaved = true
       }
-      const result = await updateStaffAccountAction(member.id, {
-        displayName: values.displayName,
-        jobTitle: values.jobTitle ?? null,
-        ...(values.department !== undefined
-          ? { department: values.department }
-          : {}),
-        ...(values.venueId ? { venueId: values.venueId } : {}),
-        ...(values.active !== undefined ? { active: values.active } : {}),
-      })
+      let result: Awaited<ReturnType<typeof updateStaffAccountAction>>
+      try {
+        result = await updateStaffAccountAction(member.id, {
+          displayName: values.displayName,
+          jobTitle: values.jobTitle ?? null,
+          ...(values.department !== undefined
+            ? { department: values.department }
+            : {}),
+          ...(values.venueId ? { venueId: values.venueId } : {}),
+          ...(values.active !== undefined ? { active: values.active } : {}),
+        })
+      } catch {
+        return {
+          ok: false,
+          error: photoSaved
+            ? "Check your connection and try again."
+            : "Nothing changed. Check your connection and try again.",
+          photoSaved,
+        }
+      }
       if (!result.ok) return { ...result, photoSaved }
       if (result.status) confirmStatus(member, result.status)
       const moved =
