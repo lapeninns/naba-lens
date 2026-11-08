@@ -268,6 +268,63 @@ describe("TeamRoster", () => {
     )
   })
 
+  it("before the month is prepared, says targets can be set now and saves them", async () => {
+    const user = userEvent.setup()
+    const onSetTarget = vi.fn<SetTargetHandler>(ok)
+    render(
+      <TeamRoster
+        period={PERIOD}
+        currentPeriod="2026-11"
+        rows={[
+          monthly({
+            targetId: null,
+            revision: null,
+            status: "needs_setup",
+            setupMissing: ["target"],
+            targetCount: null,
+            source: null,
+            due: null,
+          }),
+        ]}
+        canEdit
+        isAdmin
+        basePath="/admin/coverage/v-1"
+        onSetTarget={onSetTarget}
+      />
+    )
+    const hint = screen.getByText(
+      "You can set targets now. Preparing November keeps the ones you set and copies last month's targets for everyone else."
+    )
+    const field = screen.getByLabelText("TEST Sam's photo target")
+    expect(field.getAttribute("aria-describedby")?.split(" ")).toContain(
+      hint.id
+    )
+    await user.type(field, "4")
+    await user.click(screen.getByRole("button", { name: "Save targets" }))
+    expect(onSetTarget).toHaveBeenCalledWith(
+      expect.objectContaining({
+        targetCount: 4,
+        reason: null,
+        expectedRevision: null,
+      })
+    )
+  })
+
+  it("once the month is prepared, has no before-preparing hint", () => {
+    render(
+      <TeamRoster
+        period={PERIOD}
+        currentPeriod="2026-11"
+        rows={[monthly()]}
+        canEdit
+        isAdmin
+        basePath="/admin/coverage/v-1"
+        onSetTarget={vi.fn<SetTargetHandler>(ok)}
+      />
+    )
+    expect(screen.queryByText(/You can set targets now/)).toBeNull()
+  })
+
   it("re-reads the page on a conflict and moves focus to the page notice", async () => {
     const user = userEvent.setup()
     const onStale = vi.fn()

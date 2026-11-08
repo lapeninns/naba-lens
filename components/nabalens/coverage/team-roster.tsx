@@ -603,7 +603,14 @@ function TeamRosterMonth({
             changed={changed}
             invalid={!!rowErrors.count}
             disabled={saving}
-            describedBy={rowErrors.count ? countErrorId : undefined}
+            describedBy={
+              [
+                rowErrors.count ? countErrorId : null,
+                unprepared && row.targetId == null ? `${ids}-unprepared` : null,
+              ]
+                .filter(Boolean)
+                .join(" ") || undefined
+            }
           />
         ) : movedAway ? (
           <span aria-hidden />
@@ -746,6 +753,16 @@ function TeamRosterMonth({
           <p className="-mt-1 px-1 text-body text-ink-muted">
             Needs setup first, then A to Z by surname.
           </p>
+          {/* Preparing inserts only missing targets, so one set now stays. */}
+          {unprepared && inPlace ? (
+            <p
+              id={`${ids}-unprepared`}
+              className="-mt-1 px-1 text-body text-ink"
+            >
+              You can set targets now. Preparing {month} keeps the ones you set
+              and copies last month&apos;s targets for everyone else.
+            </p>
+          ) : null}
           {team.length > 0 ? (
             <ItemList label={`Team targets, ${period.label}`}>
               {team.map((row) => renderRow(row, false))}
