@@ -86,8 +86,8 @@ export const REVIEW_COPY = {
   you: "You",
   uploaded: (date: string, age: string | null) =>
     age ? `Uploaded ${date} · waiting ${age}` : `Uploaded ${date}`,
-  labelled: (item: string, variant: string | null) =>
-    `Labelled: ${dishName({ name: item, variantName: variant })}`,
+  labelled: (item: string, variant: string | null, unspecified = false) =>
+    `Labelled: ${dishName({ name: item, variantName: variant }, unspecified)}`,
   noLabel: "No label",
   labelledOld: (item: string) => `Labelled for ${item}, no longer on the menu`,
   menuItem: "Menu item",

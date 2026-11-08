@@ -53,7 +53,7 @@ function labelLines(card: ListCard): string[] {
   if (card.staffLabels.length === 0) return [REVIEW_COPY.noLabel]
   return card.staffLabels.map((l) =>
     l.onMenu
-      ? REVIEW_COPY.labelled(l.itemName, l.variantName)
+      ? REVIEW_COPY.labelled(l.itemName, l.variantName, l.unspecified)
       : REVIEW_COPY.labelledOld(l.itemName)
   )
 }

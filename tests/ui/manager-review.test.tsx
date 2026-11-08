@@ -761,6 +761,24 @@ describe("ReviewScreen", () => {
     expect(within(dialog).getByText(/^Soup \(Chicken\) · /)).toBeTruthy()
   })
 
+  it("A2b: a dish with variants labelled without one reads Name (Not specified)", () => {
+    renderScreen([
+      card({
+        staffLabels: [
+          {
+            itemId: SOUP,
+            variantId: null,
+            itemName: "Soup",
+            variantName: null,
+            onMenu: true,
+            unspecified: true,
+          },
+        ],
+      }),
+    ])
+    expect(screen.getByText("Labelled: Soup (Not specified)")).toBeTruthy()
+  })
+
   it("the preview moves with the arrow keys and Esc returns focus", async () => {
     const user = userEvent.setup()
     const second = card({

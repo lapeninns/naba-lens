@@ -322,6 +322,64 @@ export function queueCardView(r: QueueRow): QueueCard {
   }
 }
 
+const VARIANT_SCAN_PAGES = 5
+
+/**
+ * Items of the venue's active menu that have variants. Managers cannot read
+ * the menu tables themselves, so this goes through their own item list. Only
+ * how a label is named depends on it: a failed read leaves plain names.
+ */
+async function itemsWithVariants(ctx: ManagerPhotoCtx): Promise<Set<string>> {
+  const found = new Set<string>()
+  let after: ItemRow | null = null
+  for (let page = 0; page < VARIANT_SCAN_PAGES; page++) {
+    const { data, error } = await ctx.actor.db.rpc("manager_menu_photo_items", {
+      p_venue_id: ctx.venueId,
+      ...(after
+        ? {
+            p_after_section_position: after.section_position,
+            p_after_entry_position: after.entry_position,
+            p_after_item_id: after.item_id,
+          }
+        : {}),
+      p_limit: 101,
+    })
+    if (error) {
+      console.error("[menu-photos] item variants unavailable", {
+        code: error.code,
+      })
+      return found
+    }
+    const rows: ItemRow[] = data ?? []
+    for (const r of rows)
+      if (variantsOf(r.variants).length > 0) found.add(r.item_id)
+    if (rows.length < 101) break
+    after = rows[rows.length - 1]
+  }
+  return found
+}
+
+/** Staff labels of a dish with variants saved without one say so. */
+async function withUnspecified(
+  ctx: ManagerPhotoCtx,
+  cards: QueueCard[]
+): Promise<QueueCard[]> {
+  const asks = cards.some((c) =>
+    c.staffLabels.some((l) => l.onMenu && l.variantId === null)
+  )
+  if (!asks) return cards
+  const withVariants = await itemsWithVariants(ctx)
+  if (withVariants.size === 0) return cards
+  return cards.map((c) => ({
+    ...c,
+    staffLabels: c.staffLabels.map((l) =>
+      l.onMenu && l.variantId === null && withVariants.has(l.itemId)
+        ? { ...l, unspecified: true }
+        : l
+    ),
+  }))
+}
+
 /**
  * Photos to review, oldest upload first, 24 a page. `status` picks the set
  * (default `pending`); `sectionId`, `contributorId` and `itemId` narrow it
@@ -366,7 +424,7 @@ export async function listReviewQueue(
   const last = rows.length > QUEUE_PAGE ? page[page.length - 1] : null
   return {
     ok: true,
-    items: page.map(queueCardView),
+    items: await withUnspecified(ctx, page.map(queueCardView)),
     nextCursor: last
       ? queueCursor.encode({ createdAt: last.created_at, key: last.sort_key })
       : null,
