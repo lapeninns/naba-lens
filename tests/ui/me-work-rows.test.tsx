@@ -23,16 +23,22 @@ vi.mock("@/app/_media/actions", () => ({
   deleteMedia: vi.fn(),
 }))
 vi.mock("@/app/staff/actions", () => ({ loadMyMedia: vi.fn() }))
-const gallery = vi.hoisted(() => ({ signals: [] as number[] }))
+const gallery = vi.hoisted(() => ({
+  signals: [] as number[],
+  impact: undefined as ((item: MediaItem) => unknown) | undefined,
+}))
 vi.mock("@/app/_media/media-gallery", () => ({
   MediaGallery: ({
     label,
     refreshSignal,
+    getDeleteImpact,
   }: {
     label: string
     refreshSignal?: number
+    getDeleteImpact?: (item: MediaItem) => unknown
   }) => {
     gallery.signals.push(refreshSignal ?? 0)
+    gallery.impact = getDeleteImpact
     return <section aria-label={label} />
   },
 }))
@@ -299,6 +305,12 @@ describe("Me: Needs labels and milestones", () => {
     expect(accepted).toHaveLength(1)
     expect(accepted[0].textContent).toContain("Accepted for menu use")
     expect(accepted[0].textContent).toContain("Lamb rogan josh")
+    // Deleting it from the portfolio says the dish may need a new photo.
+    expect(gallery.impact?.(item("a1"))).toEqual({
+      kind: "menu",
+      dishes: ["Lamb rogan josh"],
+    })
+    expect(gallery.impact?.(item("a2"))).toBeUndefined()
   })
 
   it("shows a better photo request with the reviewer's reason", async () => {

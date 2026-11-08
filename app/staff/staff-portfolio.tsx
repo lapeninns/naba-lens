@@ -711,6 +711,10 @@ export function StaffPortfolio({
         loadPage={loadMyMedia}
         refreshPage={refreshMyMedia}
         canDelete
+        getDeleteImpact={(item) => {
+          const dishes = accepted.get(item.id)
+          return dishes ? { kind: "menu", dishes } : undefined
+        }}
         refreshSignal={addRefreshSignal + labelSaves}
         canLabel
         showLabelBadge
