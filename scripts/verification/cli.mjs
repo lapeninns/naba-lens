@@ -190,8 +190,9 @@ function focused(args) {
       "exec",
       "playwright",
       "test",
-      "--project",
-      project,
+      // One token: Playwright's --project takes several values, so a separate
+      // value would make it read the spec paths as project names too.
+      `--project=${project}`,
       ...args.map((p) => positionalPath(p, /^tests\/e2e\/.+\.spec\.[jt]s$/)),
       ...(grep ? ["--grep", grep] : []),
     ]

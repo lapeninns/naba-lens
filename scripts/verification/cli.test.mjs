@@ -139,8 +139,8 @@ test("browser focus forwards an explicit case filter and rejects incomplete or m
       "exec",
       "playwright",
       "test",
-      "--project",
-      "chromium",
+      // Joined: a separate value would swallow the spec paths as projects.
+      "--project=chromium",
       "tests/e2e/fixture.spec.ts",
       "--grep",
       "only selected case",
