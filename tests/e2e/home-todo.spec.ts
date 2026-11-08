@@ -142,6 +142,9 @@ test.describe("Home: truthful To do and badges", () => {
     await expect(notice).toBeVisible()
     await notice.getByRole("button", { name: "Dismiss" }).tap()
     await expect(notice).toHaveCount(0)
+    await expect(
+      page.getByRole("heading", { level: 2, name: /^To do/ })
+    ).toBeFocused()
     await expect(page).toHaveURL(STAFF_LANDING)
     await page.reload()
     await expect(

@@ -14,7 +14,7 @@ import { AssignmentList } from "./assignment-list"
 import { ColleaguePosts } from "./colleague-posts"
 import { FirstRunEntry } from "./first-run-entry"
 import { MonthlyProgressCard } from "./monthly-progress-card"
-import { todoItems, TodoSection } from "./todo-list"
+import { TODO_HEADING_ID, todoItems, TodoSection } from "./todo-list"
 import type { CoverageScope, MyTasksView } from "./types"
 
 /** Why sending is paused (no venue, or an inactive venue), or null. */
@@ -82,8 +82,8 @@ export function TasksOverview({
   contribute?: { prompt: string; blocked: string | null } | null
   /** The venue's menu photo progress; null to hide the card (no venue). */
   ourMenu?: OurMenuProgress | null
-  /** Amenity checks assigned to me: counted in To do, listed after it. */
-  amenityTasks?: MyAmenityTask[]
+  /** Amenity checks assigned to me: counted in To do, listed after it. Null when they couldn't be read. */
+  amenityTasks?: MyAmenityTask[] | null
   /** The question of the amenity check whose finding was just sent. */
   findingSent?: string | null
 }) {
@@ -92,7 +92,7 @@ export function TasksOverview({
   const replacing = new Set(
     needsAnotherPhoto.flatMap((s) => (s.requirement ? [s.requirement.id] : []))
   )
-  const items = todoItems(tasks, new Date(), reviewCount, amenityTasks)
+  const items = todoItems(tasks, new Date(), reviewCount, amenityTasks ?? [])
 
   return (
     <div className="mx-auto grid w-full max-w-(--size-feed) min-w-0 gap-(--gutter)">
@@ -109,7 +109,12 @@ export function TasksOverview({
         </Notice>
       ) : null}
 
-      {findingSent ? <FindingSentNotice question={findingSent} /> : null}
+      {findingSent ? (
+        <FindingSentNotice
+          question={findingSent}
+          returnFocusId={TODO_HEADING_ID}
+        />
+      ) : null}
 
       {/* The share box comes first; Start here sits between it and To do. */}
       {contribute ? (
@@ -129,9 +134,10 @@ export function TasksOverview({
         profile={profile}
         tasksPath={tasksPath}
         portfolioPath={portfolioPath}
+        amenityError={amenityTasks === null}
       />
 
-      <AmenityTaskList tasks={amenityTasks} />
+      <AmenityTaskList tasks={amenityTasks ?? []} />
 
       <div className="mt-3 grid gap-(--gutter)">
         <MonthlyProgressCard

@@ -204,9 +204,20 @@ describe("Home: amenity checks", () => {
   ])("Home still renders when the amenity read %s", async (_, impl) => {
     setup()
     amenities.getMyAmenityTasks.mockImplementation(async () => impl())
-    await home()
+    const { container } = await home()
     expect(screen.getByRole("heading", { level: 1, name: "Home" })).toBeTruthy()
     expect(screen.queryByText(UI_TEXT.staffSection)).toBeNull()
+    // Unknown is not "nothing": To do says so and offers a retry, and the
+    // Home badge is left out rather than shown as zero.
+    expect(screen.queryByText("Nothing to do right now.")).toBeNull()
+    const todo = screen.getByRole("region", { name: /^To do/ })
+    expect(within(todo).getByRole("alert").textContent).toContain(
+      "We couldn't check your amenity checks."
+    )
+    expect(
+      within(todo).getByRole("link", { name: "Try again" }).getAttribute("href")
+    ).toBe("/staff/tasks")
+    expect((container.firstElementChild as HTMLElement).dataset.todo).toBe("")
   })
 
   it("shows nothing when no check is waiting", async () => {

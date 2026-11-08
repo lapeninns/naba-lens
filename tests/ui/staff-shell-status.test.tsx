@@ -126,6 +126,24 @@ describe("staffShellStatus", () => {
     })
   })
 
+  it.each([
+    ["fails", () => ({ ok: false, code: "unavailable", status: 503 })],
+    [
+      "throws",
+      () => {
+        throw new Error("down")
+      },
+    ],
+  ])(
+    "gives no To do count, rather than none to do, when the amenity read %s",
+    async (_, impl) => {
+      amenities.getMyAmenityTasks.mockImplementation(async () => impl())
+      expect(await staffShellStatus(ACTOR as never, PROFILE)).toMatchObject({
+        todoCount: undefined,
+      })
+    }
+  )
+
   it("keeps Manage and the avatar when the task read fails, without a To do count", async () => {
     coverage.getCoverageScope.mockResolvedValue(scope(true))
     coverage.getMyTasks.mockRejectedValue(new Error("down"))

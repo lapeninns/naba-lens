@@ -137,6 +137,9 @@ const coverage = vi.hoisted(() => ({
   listMyMenuPhotoDecisions: vi.fn(),
 }))
 vi.mock("@/lib/server/coverage", () => coverage)
+vi.mock("@/lib/server/amenities", () => ({
+  getMyAmenityTasks: vi.fn(async () => ({ ok: true, tasks: [] })),
+}))
 
 import {
   betterPhotoRequests,

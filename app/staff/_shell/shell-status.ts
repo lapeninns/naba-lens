@@ -14,14 +14,17 @@ import { canManageVenue } from "../can-manage"
 /** My coverage tasks, read once per request however many parts need them. */
 export const myTasks = cache(async (actor: MediaActor) => getMyTasks(actor))
 
-/** Amenity checks assigned to me; a failed read lists none, on Home too. */
+/**
+ * Amenity checks assigned to me, or null when they can't be read: unknown,
+ * never "none", so To do and the badge don't claim there is nothing to do.
+ */
 export const myAmenityTasks = cache(
-  async (actor: MediaActor): Promise<MyAmenityTask[]> => {
+  async (actor: MediaActor): Promise<MyAmenityTask[] | null> => {
     try {
       const result = await getMyAmenityTasks(actor, {})
-      return result.ok ? result.tasks : []
+      return result.ok ? result.tasks : null
     } catch {
-      return []
+      return null
     }
   }
 )
@@ -56,7 +59,7 @@ const managerStatus = cache(
 /** The staff AppShell's props that come from the database. */
 export type StaffShellStatus = {
   canManage: boolean
-  /** Home's To do count; none when the tasks can't be read. */
+  /** Home's To do count; none when the tasks or checks can't be read. */
   todoCount: number | undefined
   /** Only for a venue manager; none when the read fails. */
   reviewCount: number | undefined
@@ -81,9 +84,10 @@ export async function staffShellStatus(
   const view = tasks?.ok ? tasks.tasks : null
   return {
     canManage,
-    todoCount: view
-      ? todoCount(todoItems(view, new Date(), reviewCount, amenityTasks))
-      : undefined,
+    todoCount:
+      view && amenityTasks
+        ? todoCount(todoItems(view, new Date(), reviewCount, amenityTasks))
+        : undefined,
     reviewCount,
     avatarUrl: avatarUrl(profile.id, profile.avatarPath),
   }

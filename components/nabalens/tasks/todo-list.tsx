@@ -11,6 +11,7 @@ import {
 import { cn } from "@/lib/utils"
 
 import { orderAmenityTasks } from "../amenities/capture/amenity-task-list"
+import { Notice } from "../notice"
 import { CountBadge } from "../status-chip"
 import { EvidenceThumb } from "./evidence-thumb"
 import { replacementHref } from "./needs-another-photo-list"
@@ -25,6 +26,9 @@ import type {
 } from "./types"
 
 const DUE_SOON_MS = 7 * 24 * 60 * 60 * 1000
+
+/** To do's heading: focusable, for a notice above it that goes away. */
+export const TODO_HEADING_ID = "todo-heading"
 
 export type TodoItem =
   | { kind: "setup" }
@@ -359,31 +363,55 @@ export function TodoSection({
   profile,
   tasksPath,
   portfolioPath,
+  amenityError = false,
 }: {
   items: TodoItem[]
   scope: CoverageScope
   profile: Parameters<typeof SetupChecklist>[0]["profile"]
   tasksPath: string
   portfolioPath: string
+  /** The amenity checks couldn't be read, so To do may be incomplete. */
+  amenityError?: boolean
 }) {
   const count = todoCount(items)
   return (
-    <section aria-labelledby="todo-heading" className="grid gap-(--gutter)">
+    <section aria-labelledby={TODO_HEADING_ID} className="grid gap-(--gutter)">
       <div className="px-1 pt-2">
         <h2
-          id="todo-heading"
-          className="flex items-center gap-2 font-display text-section-title text-ink"
+          id={TODO_HEADING_ID}
+          tabIndex={-1}
+          className="flex items-center gap-2 rounded-control font-display text-section-title text-ink outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
         >
           To do
           <CountBadge count={count} label="things to do" />
         </h2>
       </div>
+      {amenityError ? (
+        <Notice
+          tone="negative"
+          action={
+            <Link
+              href={tasksPath}
+              className={buttonVariants({
+                variant: "secondary",
+                size: "touch",
+              })}
+            >
+              Try again
+            </Link>
+          }
+        >
+          {"We couldn't check your amenity checks."}
+        </Notice>
+      ) : null}
       {items.length === 0 ? (
-        <div className="rounded-card bg-surface p-4 shadow-card">
-          <p className="font-display text-section-title text-ink">
-            Nothing to do right now.
-          </p>
-        </div>
+        amenityError ? null : (
+          <div className="rounded-card bg-surface p-4 shadow-card">
+            <p className="font-display text-section-title text-ink">
+              Nothing to do right now.
+            </p>
+          </div>
+        )
       ) : (
         <ul className="grid gap-(--gutter)">
           {items.map((item, index) => {
