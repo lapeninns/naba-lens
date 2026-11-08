@@ -148,8 +148,13 @@ export type UploadContext = {
    * evidence never appears in the organisation community. Omitted: general.
    */
   purpose?: UploadPurpose
-  /** Called once the server has reserved the asset (its ID is known). */
-  onReserved?: (assetId: string) => void
+  /**
+   * Called once the server has reserved the asset (its ID is known).
+   * `resumed`: the reservation is an earlier upload of the same file (picked
+   * again, for example after a reload), so the server may already keep or
+   * show labels for it.
+   */
+  onReserved?: (assetId: string, resumed?: boolean) => void
   /**
    * The signed-in account. Resume keys are kept per account, so another
    * account on the same device never reuses them. Omitted: not scoped.

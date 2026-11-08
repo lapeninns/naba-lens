@@ -156,12 +156,34 @@ describe("toQueueUploader", () => {
       photo(),
       context({ onReserved: reserved })
     )
-    await vi.waitFor(() => expect(reserved).toHaveBeenCalledWith("asset-7"))
+    // A new key (nothing stored for this file): not a resumed upload.
+    await vi.waitFor(() =>
+      expect(reserved).toHaveBeenCalledWith("asset-7", false)
+    )
     finish()
     await expect(running).resolves.toEqual({
       assetId: "asset-7",
       labels: SAVED,
     })
+  })
+
+  it("says the reservation is resumed when the file's stored key was reused (B3)", async () => {
+    const keys: UploadKeyStore = {
+      get: vi.fn(async () => "stored-key"),
+      set: vi.fn(async () => {}),
+      delete: vi.fn(async () => {}),
+    }
+    const reserved = vi.fn()
+    const upload: UploadFn = async (_file, options) => {
+      expect(options.idempotencyKey).toBe("stored-key")
+      options.onReserved?.({ assetId: "asset-9", resumable: false })
+      return { assetId: "asset-9", state: "ready" }
+    }
+    await toQueueUploader(upload, { newKey: () => "key-new", keys })(
+      photo(),
+      context({ onReserved: reserved })
+    )
+    expect(reserved).toHaveBeenCalledWith("asset-9", true)
   })
 
   it("keeps resume keys per account and purpose", async () => {

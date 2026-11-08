@@ -22,6 +22,7 @@ import * as React from "react"
 import { dishName } from "@/lib/menus/dish-name"
 import {
   EMPTY_LABEL_SUMMARY,
+  LABEL_LIMITS,
   type LabelItemRef,
   type MediaLabelSummary,
   type PendingLabelItem,
@@ -167,6 +168,12 @@ type LabelRecord = {
   /** The finalise outcome already taken into account. */
   outcome: FinaliseLabels | null
   conflictRetried: boolean
+  /**
+   * The asset whose labels on the server this sheet has an answer for (a
+   * save's answer, finalise's, or a read). A file picked again is read
+   * before its first send, so a seeded dish never replaces what is kept.
+   */
+  known: string | null
 }
 
 /** How one file's labels look in the sheet. */
@@ -280,6 +287,32 @@ function emptyInput(id: string, catalogueVersionId: string | null) {
 
 const EMPTY_KEY = keyOf(emptyInput("", null))
 
+/**
+ * What the server already has for a file picked again, with this sheet's
+ * choice (its seeded dish) added: nothing kept or applied is dropped.
+ */
+function mergeChoice(
+  base: SaveLabelsInput,
+  ours: SaveLabelsInput
+): SaveLabelsInput {
+  const refKey = (i: LabelItemRef) => `${i.itemId}:${i.variantId ?? ""}`
+  const have = new Set(base.items.map(refKey))
+  return {
+    ...base,
+    catalogueVersionId: ours.catalogueVersionId ?? base.catalogueVersionId,
+    items: [
+      ...base.items,
+      ...ours.items.filter((i) => !have.has(refKey(i))),
+    ].slice(0, LABEL_LIMITS.maxItemsPerAsset),
+    contentTypes: [
+      ...base.contentTypes,
+      ...ours.contentTypes.filter((t) => !base.contentTypes.includes(t)),
+    ].slice(0, LABEL_LIMITS.maxContentTypes),
+    note: base.note ?? ours.note,
+    missingItem: base.missingItem ?? ours.missingItem,
+  }
+}
+
 /** Whether two inputs choose the same labels (no input: no labels). */
 export function sameLabelChoice(
   a: SaveLabelsInput | undefined,
@@ -309,6 +342,7 @@ function newRecord(venueId: string, input: SaveLabelsInput): LabelRecord {
     summary: null,
     outcome: null,
     conflictRetried: false,
+    known: null,
   }
 }
 
@@ -323,6 +357,7 @@ function onPhoto(
     phase: "saved",
     sent: summaryKey(summary),
     sentTo: assetId,
+    known: assetId,
     held: false,
     maybeHeld: false,
     recheck: false,
@@ -485,6 +520,34 @@ export function useUploadLabels(
     [config, clearPhoto]
   )
 
+  /**
+   * Reads what the server keeps for an adopted file whose kept labels could
+   * not be read (needing attention): once read, they are the file's labels.
+   */
+  const readKept = React.useCallback(
+    (id: string, assetId: string) => {
+      if (!config) return
+      attempted.current.set(id, `reread|${assetId}`)
+      inFlight.current.add(id)
+      void config
+        .attention()
+        .catch(() => null)
+        .then((rows) => {
+          inFlight.current.delete(id)
+          const row = rows?.find((r) => r.assetId === assetId)
+          if (!row) return
+          patch(id, (r) => {
+            if (r.sent !== UNKNOWN_KEY) return r
+            const input = { ...row.input, assetId: id }
+            attempted.current.set(id, `${assetId}|${keyOf(input)}`)
+            return { ...r, venueId: row.venueId, input, sent: keyOf(input) }
+          })
+          setVersion((v) => v + 1)
+        })
+    },
+    [config, patch]
+  )
+
   // Labels a file starts with (the dish it was picked for).
   React.useEffect(() => {
     if (!config?.seed) return
@@ -531,6 +594,9 @@ export function useUploadLabels(
                   held: true,
                   sent: UNKNOWN_KEY,
                   sentTo: assetId,
+                  known: assetId,
+                  // What is kept says which dish: the panel puts none back.
+                  settled: true,
                   code: outcome.code,
                   message: problemText(outcome.code, outcome.message),
                   outcome,
@@ -631,6 +697,15 @@ export function useUploadLabels(
             }
           })
         })
+        continue
+      }
+
+      // Finalise said the kept labels need attention, but they could not be
+      // read: an empty choice here would discard them. Nothing is sent until
+      // the person chooses labels; the read is tried again meanwhile.
+      if (record.sent === UNKNOWN_KEY && keyOf(record.input) === EMPTY_KEY) {
+        if (assetId && attempted.current.get(item.id) !== `reread|${assetId}`)
+          readKept(item.id, assetId)
         continue
       }
 
@@ -801,6 +876,66 @@ export function useUploadLabels(
         // On the photo (or maybe): saving the empty set clears them.
       }
 
+      // Picked again (after a reload): the server may keep labels for it, or
+      // have put them on the photo. Read them before the first send and add
+      // this sheet's choice (its dish) to them, instead of replacing them.
+      if (item.resumed && record.known !== assetId && record.sent === null) {
+        if (attempted.current.get(item.id) === `read|${assetId}`) continue
+        attempted.current.set(item.id, `read|${assetId}`)
+        inFlight.current.add(item.id)
+        void (async () => {
+          const rows = await config.attention().catch(failure)
+          const row =
+            rows && rows !== SIGNED_OUT
+              ? rows.find((r) => r.assetId === assetId)
+              : undefined
+          // Not kept: maybe on the photo (ready by now, or not: then null).
+          const photo =
+            rows && rows !== SIGNED_OUT && !row && config.summary
+              ? await config.summary(assetId).catch(failure)
+              : null
+          inFlight.current.delete(item.id)
+          patch(item.id, (r) => {
+            if (rows === SIGNED_OUT || photo === SIGNED_OUT)
+              return { ...r, phase: "retry", signedOut: true }
+            // Could not tell: Retry labels reads again; nothing is replaced.
+            if (!rows || (ready && !row && !photo && config.summary))
+              return { ...r, phase: "retry" }
+            if (row) {
+              const kept = { ...row.input, assetId: item.id }
+              const input = mergeChoice(kept, r.input)
+              const attention = row.status === "needs_attention"
+              // Needing attention waits for Fix labels with all of it.
+              if (attention)
+                attempted.current.set(item.id, `${assetId}|${keyOf(input)}`)
+              return {
+                ...r,
+                venueId: row.venueId,
+                input,
+                known: assetId,
+                sent: keyOf(kept),
+                sentTo: assetId,
+                held: true,
+                phase: attention ? "attention" : "pending",
+                code: attention ? row.code : null,
+                message: attention ? problemText(row.code, row.message) : null,
+              }
+            }
+            if (photo) {
+              const onIt = inputOf(photo, item.id, r.input.catalogueVersionId)
+              return {
+                ...onPhoto(r, assetId, photo),
+                input: mergeChoice(onIt, r.input),
+                sent: keyOf(onIt),
+              }
+            }
+            return { ...r, known: assetId }
+          })
+          setVersion((v) => v + 1)
+        })()
+        continue
+      }
+
       attempted.current.set(item.id, attempt)
       inFlight.current.add(item.id)
       const venueId = record.venueId
@@ -828,7 +963,12 @@ export function useUploadLabels(
             result.state === "saved"
           )
             config.onSaved?.(assetId)
-          patch(item.id, (r) => {
+          patch(item.id, (prev) => {
+            // Any answer from the server is something this sheet now knows.
+            const r =
+              result && result !== SIGNED_OUT
+                ? { ...prev, known: assetId }
+                : prev
             if (result === SIGNED_OUT)
               return { ...r, phase: "retry", recheck: false, signedOut: true }
             if (!result || (!result.ok && result.code === "unavailable"))
@@ -873,9 +1013,25 @@ export function useUploadLabels(
               result.current &&
               !r.conflictRetried
             ) {
+              attempted.current.delete(item.id)
+              // A file picked again, with labels this sheet never had an
+              // answer for: what the photo has is not ours to replace. Keep
+              // it, add this choice, send that.
+              if (item.resumed && prev.known !== assetId) {
+                const onIt = inputOf(
+                  result.current,
+                  item.id,
+                  r.input.catalogueVersionId
+                )
+                return {
+                  ...onPhoto(r, assetId, result.current),
+                  input: mergeChoice(onIt, r.input),
+                  sent: keyOf(onIt),
+                  conflictRetried: true,
+                }
+              }
               // The photo got labels meanwhile (finalise applied an earlier
               // choice): send this choice again over them, once.
-              attempted.current.delete(item.id)
               return {
                 ...r,
                 revision: result.current.revision,
@@ -890,9 +1046,20 @@ export function useUploadLabels(
               message: problemText(result.code, result.message),
             }
           })
+          // A conflict on labels this sheet had no answer for was adopted
+          // above: show the field what the photo has now.
+          if (
+            result &&
+            result !== SIGNED_OUT &&
+            !result.ok &&
+            result.code === "conflict" &&
+            item.resumed &&
+            record.known !== assetId
+          )
+            setVersion((v) => v + 1)
         })
     }
-  }, [labelable, records, config, paused, patch, scrub, clearPhoto])
+  }, [labelable, records, config, paused, patch, scrub, clearPhoto, readKept])
 
   // Me's Fix labels or Discard for photos in this sheet.
   const latest = React.useRef({ labelable, records, config })
@@ -912,6 +1079,7 @@ export function useUploadLabels(
         patch(item.id, (r) => {
           const settledNow = {
             ...r,
+            known: assetId,
             held: false,
             maybeHeld: false,
             recheck: false,
@@ -959,6 +1127,14 @@ export function useUploadLabels(
   React.useEffect(() => {
     if (!open) return
     const { labelable, records, config } = latest.current
+    // Kept labels that could not be read: read them again now.
+    for (const item of labelable)
+      if (
+        item.assetId &&
+        records[item.id]?.sent === UNKNOWN_KEY &&
+        !inFlight.current.has(item.id)
+      )
+        readKept(item.id, item.assetId)
     if (!config?.summary) return
     const waiting = labelable.filter((item) => {
       const r = records[item.id]
@@ -991,7 +1167,7 @@ export function useUploadLabels(
             })
         }
       })
-  }, [open, adopt])
+  }, [open, adopt, readKept])
 
   /**
    * Its dish (Our menu) cannot be told yet: "loading" while the menu loads,
@@ -1202,6 +1378,7 @@ export function useUploadLabels(
       attempted.current.set(item.id, `${assetId}|${key}`)
       patch(item.id, (r) => ({
         ...r,
+        known: assetId,
         input: now,
         phase: result.state === "saved" ? "saved" : "pending",
         sent: key,

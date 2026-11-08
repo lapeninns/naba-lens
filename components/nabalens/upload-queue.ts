@@ -58,6 +58,11 @@ export type QueueItem = {
   assetId?: string
   /** What finalise did with labels that waited for this asset, if any. */
   labels?: FinaliseLabels
+  /**
+   * Reserved as an earlier upload of the same file (picked again, for
+   * example after a reload): the server may already keep or show labels.
+   */
+  resumed?: boolean
 }
 
 export type UploadContext = {
@@ -76,7 +81,7 @@ export type UploadContext = {
    */
   purpose?: UploadPurpose
   /** Call once the server has reserved the asset (its ID is known). */
-  onReserved?: (assetId: string) => void
+  onReserved?: (assetId: string, resumed?: boolean) => void
   /** The signed-in account, when the owner knows it (scopes resume keys). */
   account?: string
 }
@@ -457,10 +462,11 @@ export class UploadQueue {
       onProcessing: () => {
         if (current()) this.update(id, { status: "processing", progress: 1 })
       },
-      onReserved: (assetId) => {
+      onReserved: (assetId, resumed) => {
         if (!current()) return
         const latest = this.items.find((i) => i.id === id)
-        if (latest && latest.assetId !== assetId) this.update(id, { assetId })
+        if (latest && latest.assetId !== assetId)
+          this.update(id, { assetId, ...(resumed ? { resumed: true } : {}) })
       },
     }
 

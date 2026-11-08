@@ -74,10 +74,14 @@ export function toQueueUploader(
         : undefined)
     const scope = { purpose: context.purpose, account }
     let token = readToken(context.resumeToken)
+    // The same file picked again (another visit): its stored key reserves
+    // the earlier upload.
+    let resumed = false
     if (!token) {
       const stored = keys ? await keys.get(file, scope).catch(() => null) : null
+      resumed = !!stored && !inUse.has(stored)
       token = {
-        idempotencyKey: stored && !inUse.has(stored) ? stored : newKey(),
+        idempotencyKey: resumed && stored ? stored : newKey(),
       }
       context.setResumeToken(token)
     }
@@ -109,7 +113,7 @@ export function toQueueUploader(
             tusFingerprint: resumable ? tusFingerprint(assetId) : undefined,
           } satisfies QueueResumeToken)
           // Labels can be sent for the asset from now on.
-          context.onReserved?.(assetId)
+          context.onReserved?.(assetId, resumed)
         },
       })
     } finally {

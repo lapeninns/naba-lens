@@ -117,7 +117,8 @@ function input(assetId: string, items = [BHAJI]): SaveLabelsInput {
 
 type Held = {
   name: string
-  reserve: (assetId: string) => void
+  /** `resumed`: the same file picked again (its stored key reused). */
+  reserve: (assetId: string, resumed?: boolean) => void
   resolve: (labels?: FinaliseLabels) => void
   reject: (error: unknown) => void
   progress: (fraction: number) => void
@@ -132,9 +133,9 @@ function heldUploader() {
       let assetId = `asset-${file.name}`
       held.push({
         name: file.name,
-        reserve: (id) => {
+        reserve: (id, resumed) => {
           assetId = id
-          ctx.onReserved?.(id)
+          ctx.onReserved?.(id, resumed)
         },
         resolve: (labels) =>
           resolve(labels ? { assetId, labels } : { assetId }),
@@ -1857,5 +1858,138 @@ describe("Saving sheet: a missing-item suggestion undone with its file", () => {
     await waitFor(() =>
       expect(labels.panel.current?.initial[0]?.missingItem).toBe(LAMB)
     )
+  })
+})
+
+describe("Saving sheet: a file picked again after a reload (B3)", () => {
+  // Our menu's dish, seeded for the file as it is picked again.
+  const seeded = () =>
+    labelsConfig({
+      seed: (item) => ({ venueId: "venue-1", input: input(item.id, [KORMA]) }),
+    })
+  const kept = (assetId: string) => ({
+    ...input(assetId, [BHAJI]),
+    note: "Crispy",
+    missingItem: "Lamb shank",
+  })
+
+  it("adds the dish to the labels the server still keeps, instead of replacing them", async () => {
+    const { upload, find } = heldUploader()
+    const labels = seeded()
+    labels.attention.mockResolvedValue([
+      {
+        assetId: "asset-1",
+        venueId: "venue-1",
+        status: "pending",
+        code: null,
+        message: null,
+        input: kept("asset-1"),
+        uploadState: "uploading",
+        mediaType: "image",
+        thumbnailUrl: null,
+        retryable: true,
+        updatedAt: "2026-11-08T10:00:00Z",
+      },
+    ])
+    sheet({ uploader: upload, labels: labels.config })
+    const user = userEvent.setup()
+    await user.upload(screen.getByLabelText("Choose photos or videos"), [
+      jpeg("dish.jpg"),
+    ])
+    act(() => find("dish.jpg").reserve("asset-1", true))
+    await waitFor(() => expect(labels.save).toHaveBeenCalledTimes(1))
+    expect(labels.attention).toHaveBeenCalled()
+    expect(labels.save.mock.calls[0][1]).toMatchObject({
+      assetId: "asset-1",
+      items: [BHAJI, KORMA],
+      note: "Crispy",
+      missingItem: "Lamb shank",
+    })
+  })
+
+  it("adds the dish to labels already on the ready photo, at its revision", async () => {
+    const { upload, find } = heldUploader()
+    const labels = seeded()
+    labels.photo.mockResolvedValue({
+      ...summaryOf(kept("asset-1"), 3),
+      note: "Crispy",
+      missingItem: "Lamb shank",
+    })
+    labels.save.mockResolvedValue(
+      savedAs("asset-1", ["Onion Bhaji", "Korma"], 4)
+    )
+    sheet({ uploader: upload, labels: labels.config })
+    const user = userEvent.setup()
+    await user.upload(screen.getByLabelText("Choose photos or videos"), [
+      jpeg("dish.jpg"),
+    ])
+    await act(async () => {
+      find("dish.jpg").reserve("asset-1", true)
+      find("dish.jpg").resolve()
+    })
+    await waitFor(() => expect(labels.save).toHaveBeenCalledTimes(1))
+    expect(labels.save.mock.calls[0][1]).toMatchObject({
+      assetId: "asset-1",
+      expectedRevision: 3,
+      items: [BHAJI, KORMA],
+      note: "Crispy",
+      missingItem: "Lamb shank",
+    })
+  })
+
+  it("needing attention but unread: sends nothing, keeps the dish off, and reads again", async () => {
+    const { upload, find } = heldUploader()
+    const labels = labelsConfig()
+    labels.attention.mockResolvedValue(null)
+    const view = sheet({ uploader: upload, labels: labels.config })
+    const user = userEvent.setup()
+    await user.upload(screen.getByLabelText("Choose photos or videos"), [
+      jpeg("dish.jpg"),
+    ])
+    await act(async () => {
+      find("dish.jpg").reserve("asset-1", true)
+      find("dish.jpg").resolve({
+        state: "needs_attention",
+        code: "catalogue_changed",
+        message: "The menu changed. Check the dish.",
+      })
+    })
+    await waitFor(() =>
+      expect(row("dish.jpg").textContent).toContain("Needs attention")
+    )
+    // Read once, and once more at once; both fail.
+    await waitFor(() => expect(labels.attention).toHaveBeenCalledTimes(2))
+    const id = labels.panel.current!.items[0].id
+    // The host must not put the dish back over labels it could not read.
+    expect(labels.panel.current!.settledIds).toContain(id)
+    expect(labels.save).not.toHaveBeenCalled()
+    expect(labels.discard).not.toHaveBeenCalled()
+
+    // Opened again: read again, and this time the kept labels arrive.
+    labels.attention.mockResolvedValue([
+      {
+        assetId: "asset-1",
+        venueId: "venue-1",
+        status: "needs_attention",
+        code: "catalogue_changed",
+        message: "The menu changed.",
+        input: kept("asset-1"),
+        uploadState: "ready",
+        mediaType: "image",
+        thumbnailUrl: null,
+        retryable: false,
+        updatedAt: "2026-11-08T10:00:00Z",
+      },
+    ])
+    view.rerender(false)
+    view.rerender(true)
+    await waitFor(() =>
+      expect(labels.panel.current?.initial[0]).toMatchObject({
+        items: [BHAJI],
+        note: "Crispy",
+      })
+    )
+    expect(labels.save).not.toHaveBeenCalled()
+    expect(labels.discard).not.toHaveBeenCalled()
   })
 })
