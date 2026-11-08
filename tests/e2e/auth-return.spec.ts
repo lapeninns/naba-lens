@@ -305,8 +305,11 @@ test.describe("an ended session mid-task (AUTH-2, charter C-2)", () => {
 
       await context.clearCookies()
       const refused: string[] = []
+      // A POST the proxy refuses (a Server Action). Images on the page also
+      // answer 401 now that the browser has no session, which is correct.
       page.on("response", (r) => {
-        if (r.status() === 401) refused.push(r.url())
+        if (r.status() === 401 && r.request().method() === "POST")
+          refused.push(r.url())
       })
       await page
         .getByRole("banner")
