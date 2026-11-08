@@ -22,7 +22,6 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 
 import { LabelEditorHost } from "@/app/_labels/label-editor-host"
-import { logout } from "@/app/_media/actions"
 import { fetchMediaPage } from "@/app/_media/fetch-page"
 import { MediaGallery } from "@/app/_media/media-gallery"
 import {
@@ -604,7 +603,14 @@ export function StaffPortfolio({
           // on top with Edit profile under it; from md blue is on the right.
           <>
             {/* From md, Log out is in the AppBar; on phones it lives on Me. */}
-            <form action={logout} className="md:hidden" data-logout>
+            {/* A plain POST, not a Server Action: it still signs out after the
+                session has ended, when the proxy refuses an action. */}
+            <form
+              action="/auth/logout"
+              method="post"
+              className="md:hidden"
+              data-logout
+            >
               <Button type="submit" variant="quiet" size="touch">
                 <SignOutIcon data-icon="inline-start" aria-hidden />
                 Log out

@@ -214,6 +214,18 @@ describe("Me: work details and the guide", () => {
     ).toBeTruthy()
   })
 
+  it("logs out on phones with a form POST to /auth/logout, which works after the session ended", async () => {
+    library.items = []
+    const { container } = render(await StaffPage())
+    const form = container.querySelector("form[data-logout]")
+    expect(form?.getAttribute("action")).toBe("/auth/logout")
+    expect(form?.getAttribute("method")).toBe("post")
+    expect(
+      within(form as HTMLElement)
+        .getByRole("button", { name: "Log out" })
+        .getAttribute("type")
+    ).toBe("submit")
+  })
   it("opens Edit profile straight away from ?edit=profile", async () => {
     library.items = []
     render(
