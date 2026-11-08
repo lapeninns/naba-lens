@@ -74,17 +74,29 @@ export async function POST(request: Request) {
     )
   }
 
-  const auth = await getMediaActor("staff")
-  if (!auth.ok) return fail("", "unavailable", auth.message, auth.status)
-  if (request.headers.get("content-type")?.split(";")[0] !== "application/json")
-    return fail("", "invalid", "Expected a label draft.", 415)
-  const body = (await request.json().catch(() => null)) as {
-    venueId?: unknown
-    input?: SaveLabelsInput
-  } | null
+  const json =
+    request.headers.get("content-type")?.split(";")[0] === "application/json"
+  const body = json
+    ? ((await request.json().catch(() => null)) as {
+        venueId?: unknown
+        input?: SaveLabelsInput
+      } | null)
+    : null
   const input = body?.input
-  if (!isUuid(input?.assetId) || !isUuid(body?.venueId))
-    return fail("", "invalid", "This label draft was invalid.", 400)
+  // Every answer names the asset it was for, so the sheet (and Me's Fix)
+  // can match it to the file.
+  const assetId = isUuid(input?.assetId) ? input.assetId : ""
+
+  const auth = await getMediaActor("staff")
+  if (!auth.ok)
+    // Not allowed (inactive account, not staff) is final: no Retry can work.
+    // Signed out (401) and an unreachable server (503) are worth retrying.
+    return auth.status === 403
+      ? fail(assetId, "forbidden", auth.message, 403)
+      : fail(assetId, "unavailable", auth.message, auth.status)
+  if (!json) return fail(assetId, "invalid", "Expected a label draft.", 415)
+  if (!input || !assetId || !isUuid(body?.venueId))
+    return fail(assetId, "invalid", "This label draft was invalid.", 400)
 
   // The RPCs check ownership, purpose, venue and state under the asset row
   // lock, and validate the complete input before anything is stored or saved.
