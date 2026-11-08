@@ -366,6 +366,39 @@ for (const width of [360, 412]) {
       .toBe("Onion Bhaji")
   })
 
+  test(`d2 @${width}: Choose from photos on a dish opens the photo library, photos only`, async ({
+    browser,
+  }) => {
+    test.setTimeout(180_000)
+    const page = await signedInPage(browser, world.staffA, phone(width))
+    await page.goto("/staff/menu")
+    const dish = page.getByRole("article", { name: "Onion Bhaji", exact: true })
+    await expect(dish).toBeVisible()
+    const photo = await syntheticJpeg(`${unique(`d2-${width}`)}.jpg`)
+
+    // The OS picker is the only feedback the tap gives: it must open.
+    const input = await pickFiles(
+      page,
+      dish.getByRole("button", { name: "Choose from photos" }),
+      [photo.path]
+    )
+    expect(input.capture).toBeNull()
+    expect(input.multiple).toBe(true)
+    expect(input.accept).toContain("image/jpeg")
+    expect(input.accept).not.toMatch(/video/)
+    const sheet = savingSheet(page, "Saving 1 photo")
+    await expect(sheet).toBeVisible()
+    await expect(
+      sheet.getByRole("button", { name: "Remove Onion Bhaji" })
+    ).toBeVisible()
+    await doneButton(sheet).click()
+    await expect(sheet).toBeHidden()
+    const id = await assetIdFor(photo.name)
+    await expect
+      .poll(() => labelsOn(id), { timeout: 90_000 })
+      .toBe("Onion Bhaji")
+  })
+
   test(`e1 @${width}: Add with one dish in at most 5 taps and 2 modals`, async ({
     browser,
   }) => {
