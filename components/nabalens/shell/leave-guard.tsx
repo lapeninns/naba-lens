@@ -13,6 +13,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
+import { leaveDeliberately } from "@/lib/upload/before-unload"
 
 type Entry = { active: number; labels: number; stop: () => void }
 type Register = (id: string, entry: Entry | null) => void
@@ -177,6 +178,7 @@ export function LeaveGuard({ children }: { children: React.ReactNode }) {
     if (!p) return
     returnFocus.current = null
     setPending(null)
+    leaveDeliberately()
     for (const entry of entries.current.values()) entry.stop()
     bypass.current = true
     try {

@@ -2,6 +2,8 @@
 
 import * as React from "react"
 
+import { isLeavingDeliberately } from "@/lib/upload/before-unload"
+
 import type { UploadLimits } from "./types"
 import { summarize, UploadQueue, type Uploader } from "./upload-queue"
 
@@ -56,6 +58,7 @@ export function useUploadQueue({
   React.useEffect(() => {
     if (!warnBeforeUnload || !isActive) return
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (isLeavingDeliberately()) return
       event.preventDefault()
       // Legacy browsers need returnValue set to show the prompt.
       event.returnValue = ""
