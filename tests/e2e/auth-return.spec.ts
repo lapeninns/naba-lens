@@ -320,3 +320,91 @@ test.describe("an ended session mid-task (AUTH-2, charter C-2)", () => {
     })
   }
 })
+
+test.describe("unknown URLs inside an app area", () => {
+  const AREAS = [
+    {
+      who: "admin",
+      path: "/admin/this-page-does-not-exist",
+      heading: "We can't find that page",
+      back: "Go to Content",
+      href: "/admin",
+    },
+    {
+      who: "staff",
+      path: "/staff/this-page-does-not-exist/deeper",
+      heading: "We can't find that page",
+      back: "Go to Home",
+      href: "/staff/tasks",
+    },
+    {
+      who: "manager",
+      path: "/manager/this-page-does-not-exist",
+      heading: "This page isn't available in your workspace",
+      back: "Go to Overview",
+      href: "/manager",
+    },
+  ] as const
+
+  for (const area of AREAS) {
+    test(`${area.who}: shows the area's own not-found, with its navigation and way back`, async ({
+      browser,
+    }) => {
+      const person =
+        area.who === "admin" ? admin : area.who === "staff" ? staff : manager
+      const context = await browser.newContext({
+        viewport: { width: 1280, height: 800 },
+      })
+      const page = await context.newPage()
+      // Signed out: the proxy still sends the visitor to sign in first, and
+      // signing in returns to the unknown URL inside the area.
+      await page.goto(area.path)
+      await expect(page).toHaveURL(loginFor(area.path))
+      const { code } = await requestSignIn(page, person.email)
+      await enterCode(page, code)
+      await expect(page).toHaveURL(new RegExp(`${escapeRegExp(area.path)}$`))
+
+      await expect(
+        page.getByRole("heading", { name: area.heading })
+      ).toBeVisible()
+      // The area's shell, not the root page's "Go to Naba-Lens".
+      await expect(
+        page.getByRole("banner").getByRole("button", { name: "Log out" })
+      ).toBeVisible()
+      await expect(
+        page.getByRole("link", { name: "Go to Naba-Lens" })
+      ).toHaveCount(0)
+      const back = page.getByRole("main").getByRole("link", { name: area.back })
+      await expect(back).toHaveAttribute("href", area.href)
+      await back.click()
+      await expect(page).toHaveURL(new RegExp(`${escapeRegExp(area.href)}$`))
+      await context.close()
+    })
+  }
+
+  test("the role guard still runs first: staff at an unknown /admin URL go Home", async ({
+    browser,
+  }) => {
+    const context = await browser.newContext()
+    const page = await context.newPage()
+    await page.goto("/login")
+    const { code } = await requestSignIn(page, staff.email)
+    await enterCode(page, code)
+    await expect(page).toHaveURL(STAFF_LANDING)
+    await page.goto("/admin/this-page-does-not-exist")
+    await expect(page).toHaveURL(STAFF_LANDING)
+    await context.close()
+  })
+
+  test("outside the areas, the root not-found still answers", async ({
+    page,
+  }) => {
+    await page.goto("/this-page-does-not-exist")
+    await expect(
+      page.getByRole("heading", { name: "We can't find that page" })
+    ).toBeVisible()
+    await expect(
+      page.getByRole("link", { name: "Go to Naba-Lens" })
+    ).toHaveAttribute("href", "/")
+  })
+})
