@@ -309,12 +309,23 @@ test.describe("admin account actions on a flaky connection (ADM-1, ADM-2)", () =
     await page.goto(`/admin/staff/${person.id}`)
     await expect(page.getByRole("heading", { name: person.name })).toBeVisible()
 
-    await page.route(isAction(person.id), (route) =>
-      route.request().method() === "POST" &&
-      route.request().headers()["next-action"]
-        ? route.abort("internetdisconnected")
-        : route.continue()
-    )
+    // Drops the first action POST before it leaves the browser, then lets the
+    // retry through. (No unroute: it matches a function matcher by identity,
+    // so a fresh isAction() would remove nothing.)
+    let dropped = 0
+    let passed = 0
+    await page.route(isAction(person.id), (route) => {
+      const request = route.request()
+      if (request.method() !== "POST" || !request.headers()["next-action"]) {
+        return route.continue()
+      }
+      if (dropped === 0) {
+        dropped++
+        return route.abort("internetdisconnected")
+      }
+      passed++
+      return route.continue()
+    })
     await page.getByRole("button", { name: "Reactivate" }).click()
     await expect(
       page.getByText(
@@ -324,12 +335,19 @@ test.describe("admin account actions on a flaky connection (ADM-1, ADM-2)", () =
     await expect(
       page.getByText("Inactive", { exact: true }).first()
     ).toBeVisible()
+    expect(dropped).toBe(1)
+    const before = await admin
+      .from("profiles")
+      .select("active")
+      .eq("id", person.id)
+      .single()
+    expect(before.data?.active).toBe(false)
 
-    await page.unroute(isAction(person.id))
     await page.getByRole("button", { name: "Reactivate" }).click()
     await expect(
       page.getByText(`${person.name} can sign in again.`)
     ).toBeVisible()
+    expect(passed).toBe(1)
     const { data } = await admin
       .from("profiles")
       .select("active")
