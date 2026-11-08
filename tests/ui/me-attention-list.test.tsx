@@ -450,10 +450,36 @@ describe("NeedsAttention on Me", () => {
     // Unchanged labels on the photo still open the stored draft as it is.
     expect(savedSince(EMPTY_LABEL_SUMMARY, stored.input)).toBe(false)
     expect(savedSince(now, stored.input)).toBe(true)
+    // Labels the photo had when the draft was made are its base, not news.
+    expect(savedSince({ ...now, revision: 0 }, stored.input)).toBe(false)
     expect(draftOnCurrentLabels(EMPTY_LABEL_SUMMARY, stored.input)).toEqual(
       stored.input
     )
   })
+  it("hands an unconfirmed save to the dialog as unconfirmed, and keeps the row (B10)", async () => {
+    const user = userEvent.setup()
+    const onFixed = vi.fn()
+    const calls = api([row(1)], {
+      save: vi.fn(async (_v: string, input: SaveLabelsInput) => ({
+        ok: false as const,
+        assetId: input.assetId,
+        code: "unavailable" as const,
+        message: "We couldn't confirm the labels were saved.",
+        unconfirmed: true,
+      })),
+    })
+    render(<NeedsAttention api={calls} onFixed={onFixed} />)
+    await user.click(await screen.findByRole("button", { name: "Fix labels" }))
+    await screen.findByRole("dialog", { name: "Fix labels" })
+    let result: Awaited<ReturnType<FixLabelsDialogProps["onSave"]>> | undefined
+    await act(async () => {
+      result = await dialog.last!.onSave(row(1).input)
+    })
+    expect(result).toBeNull()
+    expect(within(list()).getAllByRole("listitem")).toHaveLength(1)
+    expect(onFixed).not.toHaveBeenCalled()
+  })
+
   it("keeps the row and hands the problem back when the fix doesn't save", async () => {
     const user = userEvent.setup()
     const onFixed = vi.fn()

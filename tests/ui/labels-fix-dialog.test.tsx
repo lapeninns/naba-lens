@@ -253,6 +253,22 @@ describe("FixLabelsDialog: saving", () => {
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
   })
 
+  it("says it couldn't confirm the save when the answer was lost, not that nothing saved", async () => {
+    const { user, onOpenChange } = await setup({ onSave: async () => null })
+    await user.click(saveButton())
+    expect(await screen.findByText("Couldn't confirm the save")).toBeTruthy()
+    expect(
+      screen.getByText(
+        "Saving this file was not confirmed. Try again; your changes are kept."
+      )
+    ).toBeTruthy()
+    expect(screen.getByText("Couldn't confirm the save.")).toBeTruthy()
+    expect(screen.queryByText("Labels not saved")).toBeNull()
+    expect(screen.queryByText("Labels not saved.")).toBeNull()
+    expect(onOpenChange).not.toHaveBeenCalledWith(false)
+    expect(within(chips()).getByText("Onion Bhaji")).toBeTruthy()
+  })
+
   it("stays open with a network notice when the save throws", async () => {
     const { user, onSave, onOpenChange } = await setup({
       onSave: async () => {
@@ -286,6 +302,34 @@ describe("FixLabelsDialog: problem and loading", () => {
     expect(onSave).not.toHaveBeenCalled()
   })
 
+  it("shows a stored conflict's own message when nothing current came with it", async () => {
+    const savedSince =
+      "Labels were saved on this photo since. Yours are added to them; nothing is removed."
+    await setup({ problem: { code: "conflict", message: savedSince } })
+    expect(screen.getByText(savedSince)).toBeTruthy()
+    expect(screen.queryByText(/An admin changed these labels/)).toBeNull()
+  })
+
+  it("keeps the conflict copy and choices for a save refused as changed meanwhile", async () => {
+    const { user } = await setup({
+      onSave: async (input: SaveLabelsInput) => ({
+        ok: false,
+        assetId: input.assetId,
+        code: "conflict",
+        message: "Changed meanwhile.",
+        current: summary({ revision: 3 }),
+      }),
+    })
+    await user.click(saveButton())
+    expect(
+      await screen.findByText(
+        "An admin changed these labels a moment ago. Their labels are shown; check them, then save."
+      )
+    ).toBeTruthy()
+    expect(
+      screen.getByRole("button", { name: "Use the saved labels" })
+    ).toBeTruthy()
+  })
   it("shows a generic stored problem's message", async () => {
     await setup({
       problem: { code: "invalid", message: "The labels were not accepted." },

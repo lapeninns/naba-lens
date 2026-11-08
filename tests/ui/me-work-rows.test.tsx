@@ -738,6 +738,54 @@ describe("Me: Needs labels and milestones", () => {
       within(soup).getByRole("button", { name: "Take a new photo" })
     ).toBeTruthy()
   })
+  it("doesn't say a retake was sent for a dish that left the menu (A4)", async () => {
+    const soup = {
+      ...LABELLED,
+      items: [
+        {
+          itemId: "i1",
+          variantId: null,
+          name: "Soup",
+          variantName: null,
+          sectionName: "Starters",
+          labelledAs: null,
+          state: "current" as const,
+        },
+      ],
+    }
+    library.items = [
+      item("n1", { createdAt: "2026-11-07T09:00:00.000Z", labels: soup }),
+    ]
+    library.byId = [item("b1", { labels: soup })]
+    coverage.listMyMenuPhotoDecisions.mockResolvedValueOnce({
+      ok: true,
+      states: [
+        {
+          photoId: "p1",
+          assetId: "b1",
+          itemId: "i1",
+          itemName: "Soup",
+          variantId: null,
+          variantName: null,
+          state: "better_photo_requested",
+          isPrimary: false,
+          reason: "Brighter",
+          canRetake: false,
+        },
+      ],
+    })
+    render(
+      <AddProvider value={{ openAdd: vi.fn() }}>
+        {await StaffPage()}
+      </AddProvider>
+    )
+    const row = screen.getByRole("article", { name: "Soup" })
+    expect(row.textContent).toContain(
+      "This dish isn't on your venue's menu now, so a new photo can't be sent for it."
+    )
+    expect(row.textContent).not.toContain("New photo sent")
+    expect(within(row).queryByRole("button")).toBeNull()
+  })
   it("offers no camera on a better-photo request while uploads are paused", () => {
     const openAdd = vi.fn()
     render(

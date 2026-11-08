@@ -163,6 +163,7 @@ describe("needs-attention API client", () => {
       code: "unavailable",
       message:
         "We couldn't confirm the labels were saved. Check your connection and try again.",
+      unconfirmed: true,
     })
   })
 

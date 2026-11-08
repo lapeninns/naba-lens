@@ -119,7 +119,7 @@ export function sameLabels(
 export async function saveFixedLabels(
   venueId: string,
   input: SaveLabelsInput
-): Promise<SaveLabelsResult & { pending?: boolean }> {
+): Promise<SaveLabelsResult & { pending?: boolean; unconfirmed?: boolean }> {
   let result: UploadLabelPostResult
   try {
     const response = await fetch("/api/upload-labels", {
@@ -141,6 +141,7 @@ export async function saveFixedLabels(
       assetId: input.assetId,
       code: "unavailable",
       message: SAVE_UNCONFIRMED,
+      unconfirmed: true,
     }
   }
   // A retry after an unconfirmed save meets the save it is repeating: the

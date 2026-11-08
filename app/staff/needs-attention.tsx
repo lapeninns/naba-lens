@@ -172,9 +172,13 @@ export function draftOnCurrentLabels(
   }
 }
 
-/** Labels were saved on the photo after the draft was stored. */
+/**
+ * Labels were saved on the photo after the draft was stored. Only the
+ * revision says so: labels the photo already had when the draft was made are
+ * the draft's base, and the draft may remove some of them on purpose.
+ */
 export function savedSince(labels: MediaLabelSummary, draft: SaveLabelsInput) {
-  return labels.hasLabels || labels.revision !== draft.expectedRevision
+  return labels.revision !== draft.expectedRevision
 }
 
 /**
@@ -421,7 +425,9 @@ export function NeedsAttention({
 
   async function saveFix(item: Row, input: SaveLabelsInput) {
     const result = await api.save(item.venueId, input)
-    if (!result.ok) return result
+    // The answer was lost, so the save may have happened: the dialog says it
+    // couldn't confirm the save rather than that nothing was saved.
+    if (!result.ok) return result.unconfirmed ? null : result
     if (result.pending) {
       // Kept on the server for a photo that hasn't finished saving: the row
       // stays (not on the photo yet) with the new labels, so re-read.
