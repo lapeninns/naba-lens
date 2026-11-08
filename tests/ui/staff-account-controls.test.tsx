@@ -314,7 +314,7 @@ describe("one account action at a time (ADM-1)", () => {
 })
 
 describe("Edit details after the photo saved (ADM-2)", () => {
-  it("says the photo saved and the job title didn't, and a retry sends only the details", async () => {
+  it("says the photo saved and the job title couldn't be confirmed, and a retry sends only the details", async () => {
     const fetchMock = vi.fn(
       async () => new Response(JSON.stringify({ ok: true }), { status: 200 })
     )
@@ -338,10 +338,11 @@ describe("Edit details after the photo saved (ADM-2)", () => {
     )
 
     const alert = await within(dialog).findByRole("alert")
-    expect(alert.textContent).toContain("Some changes didn't save")
+    expect(alert.textContent).toContain("Some changes may not have saved")
     expect(alert.textContent).toContain(
-      "The profile photo was saved. The changes to TEST's job title weren't saved. Check your connection and try again."
+      "The profile photo was saved. We couldn't confirm the changes to TEST's job title saved. Check your connection and try again."
     )
+    expect(alert.textContent).not.toContain("weren't saved")
     expect(alert.textContent).not.toContain("could not be saved")
     expect(fetchMock).toHaveBeenCalledTimes(1)
     // The saved photo is cleared from the form, so nothing re-uploads it.
@@ -363,6 +364,63 @@ describe("Edit details after the photo saved (ADM-2)", () => {
       expect.objectContaining({ jobTitle: "Head bartender" })
     )
     expect(await screen.findByText("Saved TEST Sam.")).toBeTruthy()
+  })
+
+  it("a refused details save after the photo says they weren't saved, in the server's words", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("{}", { status: 200 }))
+    )
+    updateStaffAccountAction.mockResolvedValueOnce({
+      ok: false,
+      error: "Job titles can be up to 80 characters.",
+    })
+    render(header("active"))
+    const user = userEvent.setup()
+    await user.click(screen.getByRole("button", { name: "Edit details" }))
+    const dialog = await screen.findByRole("dialog")
+    await user.upload(
+      within(dialog).getByLabelText("Profile photo"),
+      new File(["x"], "sam.jpg", { type: "image/jpeg" })
+    )
+    const job = within(dialog).getByLabelText(/Job title/)
+    await user.clear(job)
+    await user.type(job, "Head bartender")
+    await user.click(
+      within(dialog).getByRole("button", { name: "Save changes" })
+    )
+    const alert = await within(dialog).findByRole("alert")
+    expect(alert.textContent).toContain("Some changes didn't save")
+    expect(alert.textContent).toContain(
+      "The profile photo was saved. The changes to TEST's job title weren't saved. Job titles can be up to 80 characters."
+    )
+  })
+
+  it("a photo-only edit whose details reply is lost says only that the photo saved", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("{}", { status: 200 }))
+    )
+    updateStaffAccountAction.mockRejectedValueOnce(
+      new TypeError("Failed to fetch")
+    )
+    render(header("active"))
+    const user = userEvent.setup()
+    await user.click(screen.getByRole("button", { name: "Edit details" }))
+    const dialog = await screen.findByRole("dialog")
+    await user.upload(
+      within(dialog).getByLabelText("Profile photo"),
+      new File(["x"], "sam.jpg", { type: "image/jpeg" })
+    )
+    await user.click(
+      within(dialog).getByRole("button", { name: "Save changes" })
+    )
+    const status = await within(dialog).findByText(
+      "The profile photo was saved."
+    )
+    expect(status.closest('[role="status"]')).toBeTruthy()
+    expect(within(dialog).queryByRole("alert")).toBeNull()
+    expect(within(dialog).queryByText(/try again/i)).toBeNull()
   })
 
   it("a rejected save with no photo can't confirm the changes", async () => {

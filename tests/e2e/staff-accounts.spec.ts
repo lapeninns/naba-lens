@@ -339,7 +339,7 @@ test.describe("admin account actions on a flaky connection (ADM-1, ADM-2)", () =
     await page.context().close()
   })
 
-  test("photo saved, details dropped: says so, and the retry sends only the details", async ({
+  test("photo saved, details reply dropped: says so, and the retry sends only the details", async ({
     browser,
   }) => {
     test.setTimeout(120_000)
@@ -383,9 +383,9 @@ test.describe("admin account actions on a flaky connection (ADM-1, ADM-2)", () =
     await edit.getByRole("button", { name: "Save changes" }).click()
 
     const alert = edit.getByRole("alert")
-    await expect(alert).toContainText("Some changes didn't save")
+    await expect(alert).toContainText("Some changes may not have saved")
     await expect(alert).toContainText(
-      /The profile photo was saved\. The changes to .+'s job title weren't saved\. Check your connection and try again\./
+      /The profile photo was saved\. We couldn't confirm the changes to .+'s job title saved\. Check your connection and try again\./
     )
     expect(avatarPosts).toBe(1)
     expect(dropped).toBe(1)

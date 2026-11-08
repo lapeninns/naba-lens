@@ -34,7 +34,9 @@
    - Expect the status to still read Inactive until a refresh shows what the server holds.
    - Go back online and tap **Reactivate** again. Expect "{name} can sign in again." and the status to change straight away.
 5. **Photo plus job title, details dropped.** On the Active person's page, open **Edit details**, choose a new photo, change the job title, then abort only the Server Action POST (let `/avatar` through) and tap **Save changes**.
-   - Expect the alert "Some changes didn't save: The profile photo was saved. The changes to {first}'s job title weren't saved. Check your connection and try again."
+   - Expect the alert "Some changes may not have saved: The profile photo was saved. We couldn't confirm the changes to {first}'s job title saved. Check your connection and try again."
+   - With only a new photo chosen, expect only "The profile photo was saved." (no alert, no "try again").
+   - If the server refuses the details instead (for example an over-long job title), expect "Some changes didn't save: The profile photo was saved. The changes to {first}'s job title weren't saved." followed by the server's reason.
    - Expect the new photo to stay in the preview, and the file input to be empty.
    - Go back online and tap **Save changes**. Expect no second `/avatar` request, the dialog to close, "Saved {name}.", and the new job title and photo on the page.
 6. **Fully offline edit.** Go offline before **Save changes** with a photo chosen.

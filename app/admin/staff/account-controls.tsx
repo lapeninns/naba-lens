@@ -303,10 +303,10 @@ export function useAccountControls({
       } catch {
         return {
           ok: false,
-          error: photoSaved
-            ? "Check your connection and try again."
-            : "We couldn't confirm your changes saved. Check your connection and try again.",
+          error:
+            "We couldn't confirm your changes saved. Check your connection and try again.",
           photoSaved,
+          unconfirmed: true,
         }
       }
       if (!result.ok) return { ...result, photoSaved }

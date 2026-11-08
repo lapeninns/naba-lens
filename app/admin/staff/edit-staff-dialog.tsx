@@ -53,8 +53,42 @@ export type EditStaffValues = {
   active?: boolean
 }
 
-/** `photoSaved`: the new photo went through before the details failed. */
-export type EditStaffResult = ActionResult & { photoSaved?: boolean }
+/**
+ * `photoSaved`: the new photo went through before the details failed.
+ * `unconfirmed`: the details call was rejected (reply lost), so whether they
+ * saved is unknown; otherwise the server refused them.
+ */
+export type EditStaffResult = ActionResult & {
+  photoSaved?: boolean
+  unconfirmed?: boolean
+}
+
+/** The dialog's message after a save that did not fully succeed. */
+function partialNotice(
+  result: EditStaffResult & { ok: false },
+  first: string,
+  unsaved: string[]
+): { tone: "negative" | "positive"; title?: string; text: string } {
+  if (!result.photoSaved) return { tone: "negative", text: result.error }
+  const fields = `${first}'s ${listWords(unsaved)}`
+  if (result.unconfirmed) {
+    return unsaved.length > 0
+      ? {
+          tone: "negative",
+          title: "Some changes may not have saved",
+          text: `The profile photo was saved. We couldn't confirm the changes to ${fields} saved. Check your connection and try again.`,
+        }
+      : { tone: "positive", text: "The profile photo was saved." }
+  }
+  return {
+    tone: "negative",
+    title: "Some changes didn't save",
+    text:
+      unsaved.length > 0
+        ? `The profile photo was saved. The changes to ${fields} weren't saved. ${result.error}`
+        : `The profile photo was saved. Nothing else changed. ${result.error}`,
+  }
+}
 
 const AVATAR_TYPES =
   "image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"
@@ -228,6 +262,8 @@ function EditStaffForm({
   }
 
   const fieldErrors = result && !result.ok ? (result.fieldErrors ?? {}) : {}
+  const notice =
+    result && !result.ok ? partialNotice(result, first, unsaved) : null
 
   return (
     <>
@@ -250,18 +286,9 @@ function EditStaffForm({
               </DialogTitle>
             </DialogHeader>
 
-            {result && !result.ok ? (
-              <Notice
-                tone="negative"
-                title={
-                  result.photoSaved ? "Some changes didn't save" : undefined
-                }
-              >
-                {result.photoSaved
-                  ? unsaved.length > 0
-                    ? `The profile photo was saved. The changes to ${first}'s ${listWords(unsaved)} weren't saved. ${result.error}`
-                    : `The profile photo was saved. Nothing else changed. ${result.error}`
-                  : result.error}
+            {notice ? (
+              <Notice tone={notice.tone} title={notice.title}>
+                {notice.text}
               </Notice>
             ) : null}
 
