@@ -26,7 +26,9 @@ export type DiscardResult =
 
 export const ATTENTION_LOAD_FAILED =
   "We couldn't check for photos that need attention. Check your connection and try again."
-const SAVE_FAILED = "Labels not saved yet. Check your connection and try again."
+/** The request failed in flight: the server may have saved the labels. */
+export const SAVE_UNCONFIRMED =
+  "We couldn't confirm the labels were saved. Check your connection and try again."
 /** A 401: the session ended. Me's buttons say "Try again", not "Retry". */
 export const SIGNED_OUT_MESSAGE = "Sign in again, then try again."
 
@@ -88,9 +90,29 @@ export async function discardPendingLabels(
   }
 }
 
+/** The photo's labels are exactly what `input` would save. */
+export function sameLabels(
+  labels: MediaLabelSummary,
+  input: SaveLabelsInput
+): boolean {
+  const key = (ref: { itemId: string; variantId: string | null }) =>
+    `${ref.itemId}:${ref.variantId ?? ""}`
+  const saved = new Set(labels.items.map(key))
+  const wanted = new Set(input.items.map(key))
+  const types = new Set(labels.contentTypes)
+  return (
+    saved.size === wanted.size &&
+    [...wanted].every((k) => saved.has(k)) &&
+    types.size === new Set(input.contentTypes).size &&
+    input.contentTypes.every((t) => types.has(t)) &&
+    (labels.note ?? "").trim() === (input.note ?? "").trim() &&
+    (input.missingItem == null ||
+      input.missingItem.trim() === (labels.missingItem ?? "").trim())
+  )
+}
+
 /**
- * "Fix labels": save the corrected input. A ready photo saves it now and
- * drops the stored row. "pending" (the photo hasn't finished saving) keeps
+ * "Fix labels": save the corrected input. A ready photo saves it now and * drops the stored row. "pending" (the photo hasn't finished saving) keeps
  * the input on the server; it counts as stored, not as on the photo.
  */
 export async function saveFixedLabels(
@@ -117,9 +139,19 @@ export async function saveFixedLabels(
       ok: false,
       assetId: input.assetId,
       code: "unavailable",
-      message: SAVE_FAILED,
+      message: SAVE_UNCONFIRMED,
     }
   }
+  // A retry after an unconfirmed save meets the save it is repeating: the
+  // photo moved on to exactly these labels, so they are saved, not changed
+  // somewhere else.
+  if (
+    !result.ok &&
+    result.code === "conflict" &&
+    result.current &&
+    sameLabels(result.current, input)
+  )
+    return { ok: true, assetId: input.assetId, labels: result.current }
   if (!result.ok) return result
   return result.state === "saved"
     ? { ok: true, assetId: result.assetId, labels: result.labels }

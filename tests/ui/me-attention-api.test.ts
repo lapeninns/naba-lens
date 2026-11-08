@@ -5,7 +5,9 @@ import {
   ATTENTION_LOAD_FAILED,
   discardPendingLabels,
   loadNeedsAttention,
+  SAVE_UNCONFIRMED,
   saveFixedLabels,
+  sameLabels,
   SIGNED_OUT_MESSAGE,
 } from "@/app/staff/needs-attention-api"
 import { EMPTY_LABEL_SUMMARY, type SaveLabelsInput } from "@/lib/menus/types"
@@ -159,8 +161,78 @@ describe("needs-attention API client", () => {
     expect(await saveFixedLabels(VENUE, INPUT)).toMatchObject({
       ok: false,
       code: "unavailable",
-      message: "Labels not saved yet. Check your connection and try again.",
+      message:
+        "We couldn't confirm the labels were saved. Check your connection and try again.",
     })
+  })
+
+  it("treats a retry's conflict with exactly these labels as saved (B10)", async () => {
+    const SOUP = {
+      itemId: "00000000-0000-4000-8000-0000000000c1",
+      variantId: null,
+    }
+    const MOMO = {
+      itemId: "00000000-0000-4000-8000-0000000000c2",
+      variantId: "00000000-0000-4000-8000-0000000000d1",
+    }
+    const input: SaveLabelsInput = {
+      ...INPUT,
+      contentTypes: ["dish", "plating"],
+      note: "From the pass",
+      items: [SOUP, MOMO],
+    }
+    const view = (ref: { itemId: string; variantId: string | null }) => ({
+      ...ref,
+      name: "Dish",
+      variantName: null,
+      sectionName: null,
+      labelledAs: null,
+      state: "current" as const,
+    })
+    // The first POST saved, but its answer was lost.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Promise.reject(new TypeError()))
+    )
+    expect(await saveFixedLabels(VENUE, input)).toMatchObject({
+      ok: false,
+      message: SAVE_UNCONFIRMED,
+    })
+    // Try again meets that save: same labels, in another order.
+    const current = {
+      ...EMPTY_LABEL_SUMMARY,
+      revision: 1,
+      hasLabels: true,
+      contentTypes: ["plating", "dish"] as SaveLabelsInput["contentTypes"],
+      note: "From the pass ",
+      items: [view(MOMO), view(SOUP)],
+    }
+    const conflict = {
+      ok: false,
+      assetId: ASSET,
+      code: "conflict",
+      message: "These labels were changed somewhere else.",
+      current,
+    }
+    answer(conflict, 409)
+    expect(await saveFixedLabels(VENUE, input)).toEqual({
+      ok: true,
+      assetId: ASSET,
+      labels: current,
+    })
+    // Labels that really changed elsewhere are still a conflict.
+    for (const other of [
+      { ...current, items: [view(SOUP)] },
+      { ...current, contentTypes: ["dish"] as SaveLabelsInput["contentTypes"] },
+      { ...current, note: "Another note" },
+    ]) {
+      answer({ ...conflict, current: other }, 409)
+      expect(await saveFixedLabels(VENUE, input)).toMatchObject({
+        ok: false,
+        code: "conflict",
+      })
+    }
+    expect(sameLabels(current, input)).toBe(true)
   })
 })
 
