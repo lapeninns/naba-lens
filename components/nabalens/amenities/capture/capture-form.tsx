@@ -257,6 +257,10 @@ export function CaptureForm({
   // Uploads ready while an answer was sending: not in what was sent, so they
   // wait for its result instead of being selected into a draft it replaces.
   const late = React.useRef(new Set<string>())
+  // A send with no definite answer yet (no reply, or a retryable failure) may
+  // have been recorded: Try again replays it unchanged, so uploads arriving
+  // until a definite answer wait in `late` as well.
+  const unresolved = React.useRef(false)
 
   React.useEffect(() => {
     mounted.current = true
@@ -391,7 +395,7 @@ export function CaptureForm({
         setAssets(result.assets)
         setListError(null)
         if (select.length === 0) return
-        if (inFlight.current) {
+        if (inFlight.current || unresolved.current) {
           for (const id of select) late.current.add(id)
           return
         }
@@ -467,7 +471,7 @@ export function CaptureForm({
 
   function onArrived(assetIds: string[]) {
     if (!mounted.current) return false
-    if (inFlight.current) {
+    if (inFlight.current || unresolved.current) {
       for (const id of assetIds) late.current.add(id)
       return
     }
@@ -505,6 +509,7 @@ export function CaptureForm({
     }
     setErrors({})
     inFlight.current = true
+    unresolved.current = true
     setSending(true)
     setOutcome(null)
     const sentDraft: CaptureDraft = {
@@ -520,11 +525,9 @@ export function CaptureForm({
     try {
       result = await submit(checked.input)
     } catch {
-      // The draft and its key stay: Try again replays, never sends twice.
-      if (mounted.current) {
-        setOutcome({ kind: "retry" })
-        selectLate()
-      }
+      // The draft and its key stay, and uploads that arrive meanwhile wait:
+      // Try again replays the same answer, never sends twice.
+      if (mounted.current) setOutcome({ kind: "retry" })
       return
     } finally {
       inFlight.current = false
@@ -533,6 +536,7 @@ export function CaptureForm({
     // A replay older than the revision on screen: the earlier send was
     // recorded, but the check changed since (a manager reopened it). This
     // answer still has to be sent, as a new intent with a new key.
+    if (result.ok || !RETRYABLE.has(result.code)) unresolved.current = false
     const stale =
       result.ok && result.replayed && result.revision < check.revision
     // Recorded: drop the stored draft even when the form is gone, or a later
@@ -565,7 +569,7 @@ export function CaptureForm({
       return
     }
     failed(result)
-    selectLate()
+    if (!unresolved.current) selectLate()
   }
 
   function failed(result: AmenityFailure) {

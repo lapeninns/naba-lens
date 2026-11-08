@@ -838,17 +838,72 @@ describe("CaptureForm: uploads ready while an answer is sending (B1)", () => {
     expect(onDone).not.toHaveBeenCalled()
   })
 
-  it("selects it for the next try when the send fails", async () => {
+  it("selects it for the next try when the send is refused", async () => {
     const { user, loadAssets, onDone, answer, start } = sending()
     const opts = await start()
     await user.click(submitButton())
     loadAssets.mockResolvedValue(assetsOk([VIDEO, PHOTO]))
     opts.onReady?.([VIDEO.assetId])
-    await answer(failure("unavailable", { status: 503 }))
+    await answer(failure("evidence_rule_unmet", { rule: "photo" }))
     await waitFor(() =>
       expect((videoBox() as HTMLInputElement).checked).toBe(true)
     )
     expect((photoBox() as HTMLInputElement).checked).toBe(true)
+    expect(onDone).not.toHaveBeenCalled()
+  })
+})
+
+describe("CaptureForm: Try again replays the same answer (B1a)", () => {
+  it("keeps uploads that arrive before a definite answer out of the replay", async () => {
+    const openAdd = vi.fn()
+    const LATER: SubmittableAsset = {
+      ...PHOTO,
+      assetId: "7d000000-0000-4000-8000-00000000000d",
+      createdAt: "2026-11-04T10:00:00.000Z",
+    }
+    let lose!: (error: Error) => void
+    let reply!: (result: AmenityResult<SubmitResult>) => void
+    const submit = vi
+      .fn<SubmitHandler>()
+      .mockImplementationOnce(() => new Promise((_, reject) => (lose = reject)))
+      .mockImplementationOnce(() => new Promise((resolve) => (reply = resolve)))
+    const { user, loadAssets, onDone } = setup({
+      assets: [PHOTO],
+      submit,
+      upload: { addQueue: { openAdd }, uploader: noUpload, limits: LIMITS },
+    })
+    await user.click(
+      screen.getByRole("button", { name: "Choose from your photos" })
+    )
+    const opts = openAdd.mock.lastCall?.[0] as OpenAddOptions
+    await user.click(screen.getByRole("radio", { name: "Yes" }))
+    await user.click(photoBox())
+    loadAssets.mockResolvedValue(assetsOk([LATER, VIDEO, PHOTO]))
+
+    // An upload is ready mid-send, the reply is lost, another arrives.
+    await user.click(submitButton())
+    opts.onReady?.([VIDEO.assetId])
+    await act(async () => lose(new TypeError("Failed to fetch")))
+    const retry = await screen.findByRole("button", { name: UI_TEXT.retry })
+    opts.onReady?.([LATER.assetId])
+    await act(async () => {})
+    const ticked = screen
+      .queryAllByRole("checkbox")
+      .filter((box) => (box as HTMLInputElement).checked)
+    expect(ticked).toEqual([photoBox()])
+
+    await user.click(retry)
+    expect(submit).toHaveBeenCalledTimes(2)
+    expect(submit.mock.calls[1][0]).toEqual(submit.mock.calls[0][0])
+    expect(lastInput(submit)).toMatchObject({
+      idempotencyKey: "key-1",
+      assetIds: [PHOTO.assetId],
+    })
+
+    await act(async () => reply(sentOk()))
+    expect(
+      await screen.findByText(/2 new uploads finished while your answer/)
+    ).toBeTruthy()
     expect(onDone).not.toHaveBeenCalled()
   })
 })
