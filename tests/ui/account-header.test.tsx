@@ -120,7 +120,12 @@ describe("AccountHeader status after an activation change", () => {
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Reactivate" }))
     })
-    expect(await screen.findByText(/can sign in again/)).toBeTruthy()
+    expect(
+      await screen.findByText(
+        "TEST Sam is reactivated and shows as Invited: TEST hasn't accepted the invitation yet. Resend it if TEST needs a new link."
+      )
+    ).toBeTruthy()
+    expect(screen.queryByText(/can sign in again/)).toBeNull()
     expect(statusText()).toEqual(["Invited"])
     expect(
       screen.getByRole("button", { name: "Resend invitation" })

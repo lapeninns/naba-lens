@@ -33,6 +33,7 @@ export default async function StaffDirectoryPage() {
           venues={venues.venues}
           grants={effectiveGrants(grants)}
           maxAvatarBytes={MEDIA_LIMITS.maxAvatarBytes}
+          authDetails={directory.authDetails}
           notices={
             directory.authDetails === "unavailable" ? (
               <AuthDetailsNotice />

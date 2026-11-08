@@ -328,6 +328,96 @@ describe("an edit waits for a pending resend or reactivate (review 2, D4)", () =
   })
 })
 
+describe("status summary when Auth details are unavailable", () => {
+  const people = [
+    member("active", {
+      id: "00000000-0000-4000-8000-0000000000a1",
+      displayName: "Ana Rai",
+    }),
+    member("active", {
+      id: "00000000-0000-4000-8000-0000000000a2",
+      displayName: "Bo Lama",
+    }),
+    member("inactive", {
+      id: "00000000-0000-4000-8000-0000000000a3",
+      displayName: "Cy Tamang",
+    }),
+  ]
+
+  it("doesn't claim an Active/Invited split it can't know", () => {
+    render(
+      <StaffDirectory
+        staff={people}
+        venues={[]}
+        grants={[]}
+        maxAvatarBytes={5 << 20}
+        authDetails="unavailable"
+      />
+    )
+    expect(
+      screen.getByText("3 shown · 2 active or invited · 1 inactive")
+    ).toBeTruthy()
+  })
+
+  it("splits them once Auth answered", () => {
+    render(
+      <StaffDirectory
+        staff={[
+          ...people,
+          member("invited", {
+            id: "00000000-0000-4000-8000-0000000000a4",
+            displayName: "Di Sherpa",
+          }),
+        ]}
+        venues={[]}
+        grants={[]}
+        maxAvatarBytes={5 << 20}
+        authDetails="ok"
+      />
+    )
+    expect(
+      screen.getByText("4 shown · 2 active · 1 invited · 1 inactive")
+    ).toBeTruthy()
+  })
+})
+
+describe("Edit details explains why Save is unavailable", () => {
+  it("an empty display name shows an inline error tied to the field and to Save", async () => {
+    render(
+      <EditStaffDialog
+        member={member("active")}
+        onClose={() => {}}
+        venues={[]}
+        grant={null}
+        maxAvatarBytes={5 << 20}
+        onSubmit={vi.fn(async () => ({ ok: true as const }))}
+      />
+    )
+    const user = userEvent.setup()
+    const dialog = await screen.findByRole("dialog")
+    const name = within(dialog).getByLabelText("Display name")
+    expect(name.getAttribute("aria-invalid")).toBeNull()
+    expect(within(dialog).queryByText("Enter their name.")).toBeNull()
+
+    await user.clear(name)
+    const error = within(dialog)
+      .getByText("Enter their name.")
+      .closest('[data-slot="field-error"]')!
+    expect(error.id).toBeTruthy()
+    expect(name.getAttribute("aria-invalid")).toBe("true")
+    expect(name.getAttribute("aria-describedby")).toBe(error.id)
+    const save = within(dialog).getByRole("button", { name: "Save changes" })
+    expect(save).toHaveProperty("disabled", true)
+    expect(save.getAttribute("aria-describedby")).toBe(error.id)
+
+    await user.type(name, "TEST Samir")
+    expect(within(dialog).queryByText("Enter their name.")).toBeNull()
+    expect(name.getAttribute("aria-invalid")).toBeNull()
+    expect(save).toHaveProperty("disabled", false)
+    expect(save.getAttribute("aria-describedby")).toBeNull()
+  })
+})
+
 describe("Reactivate (ADM-1)", () => {
   it("is disabled with a pending label until the server answers", async () => {
     const call = deferred<{ ok: true; status: "active" }>()

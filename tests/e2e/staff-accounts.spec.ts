@@ -250,7 +250,12 @@ test.describe("admin account actions on a flaky connection (ADM-1, ADM-2)", () =
     browser,
   }) => {
     const world = await provisionWorld()
-    const person = world.staffA // never signed in: Invited
+    const person = world.staffA
+    // Fixtures are created with a confirmed email (they sign in from the login
+    // page). An open invitation is an unconfirmed address that never signed in.
+    psql(
+      `update auth.users set email_confirmed_at = null where id = '${person.id}'::uuid`
+    )
     const page = await signedInPage(browser, world.adminA)
     await page.goto(`/admin/staff/${person.id}`)
     await expect(page.getByRole("heading", { name: person.name })).toBeVisible()

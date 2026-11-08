@@ -3,6 +3,7 @@ import type { User } from "@supabase/supabase-js"
 import {
   AuthLookupError,
   findAuthUserByEmail,
+  hasPendingInvitation,
   INVITE_METADATA_KEY,
   isOrphanedInvite,
   withAuthDeadline,
@@ -232,7 +233,7 @@ export async function resendInvitation(
     )
   }
   if (!authUser.user?.email) return notFound()
-  if (authUser.user.last_sign_in_at)
+  if (!hasPendingInvitation(authUser.user))
     return alreadySignedIn(profile.display_name)
 
   const mailer = ctx.mailer ?? supabaseInviteMailer(ctx.service)

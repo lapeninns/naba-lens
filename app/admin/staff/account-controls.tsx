@@ -235,9 +235,13 @@ export function useAccountControls({
         if (!result.ok) return { tone: "error", text: result.error }
         confirmStatus(member, result.status)
         router.refresh()
+        const first = firstName(member.displayName)
         return {
           tone: "success",
-          text: `${member.displayName} can sign in again.`,
+          text:
+            result.status === "invited"
+              ? `${member.displayName} is reactivated and shows as Invited: ${first} hasn't accepted the invitation yet. Resend it if ${first} needs a new link.`
+              : `${member.displayName} can sign in again.`,
         }
       }
     )

@@ -32,7 +32,7 @@
 4. **Reactivate, offline then online.** On the Inactive person's page, go offline and tap **Reactivate**.
    - Expect **Reactivating…** (disabled), then "We couldn't confirm {name} was reactivated. Check your connection, then refresh to see their status."
    - Expect the status to still read Inactive until a refresh shows what the server holds.
-   - Go back online and tap **Reactivate** again. Expect "{name} can sign in again." and the status to change straight away.
+   - Go back online and tap **Reactivate** again. Expect "{name} can sign in again." and the status to change straight away. For someone who never accepted their invitation, expect "{name} is reactivated and shows as Invited: …" and the Invited status instead.
 5. **Photo plus job title, details dropped.** On the Active person's page, open **Edit details**, choose a new photo, change the job title, then abort only the Server Action POST (let `/avatar` through) and tap **Save changes**.
    - Expect the alert "Some changes may not have saved: The profile photo was saved. We couldn't confirm the changes to {first}'s job title saved. Check your connection and try again."
    - With only a new photo chosen, expect only "The profile photo was saved." (no alert, no "try again").
