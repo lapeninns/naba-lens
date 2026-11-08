@@ -33,11 +33,11 @@ import { requireActiveStaff } from "@/lib/auth"
 import {
   getCoverageActor,
   getMyMonth,
-  getMyTasks,
   listMySubmittablePhotos,
 } from "@/lib/server/coverage"
 import { periodKeyOf } from "@/lib/server/coverage/time"
 
+import { myTasks, staffShellStatus } from "../../_shell/shell-status"
 import { TASKS_PATH, unwrap } from "../result"
 import { TaskSubmit } from "../task-submit"
 
@@ -162,14 +162,16 @@ export default async function MonthPage({
   const isCurrent = period === current
 
   const { actor } = unwrap(await getCoverageActor())
-  const [tasksResult, monthResult, photos, past] = await Promise.all([
-    getMyTasks(actor),
-    getMyMonth(actor, { period }),
-    isCurrent
-      ? listMySubmittablePhotos(actor, { requirementId: null, cursor: null })
-      : null,
-    isCurrent ? pastMonths(actor, current) : [],
-  ])
+  const [tasksResult, monthResult, photos, past, shellStatus] =
+    await Promise.all([
+      myTasks(actor),
+      getMyMonth(actor, { period }),
+      isCurrent
+        ? listMySubmittablePhotos(actor, { requirementId: null, cursor: null })
+        : null,
+      isCurrent ? pastMonths(actor, current) : [],
+      staffShellStatus(actor, profile),
+    ])
   const { tasks } = unwrap(tasksResult)
   const { scope } = tasks
 
@@ -177,7 +179,7 @@ export default async function MonthPage({
     <AppShell
       variant="staff"
       active="tasks"
-      canManage={scope.canManageVenue}
+      {...shellStatus}
       userName={profile.displayName}
       logoutAction={logout}
     >

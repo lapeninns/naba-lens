@@ -1,5 +1,8 @@
+import type { MyAmenityTask } from "@/lib/amenities/contract"
 import type { Department } from "@/lib/config/departments"
 
+import { AmenityTaskList } from "../amenities/capture/amenity-task-list"
+import { FindingSentNotice } from "../amenities/capture/finding-sent-notice"
 import { EmptyState } from "../empty-state"
 import { ContributeCard } from "../home/contribute-card"
 import { OurMenuCard, type OurMenuProgress } from "../home/our-menu-card"
@@ -52,7 +55,8 @@ export function TasksOverview({
   reviewCount = 0,
   contribute = null,
   ourMenu = null,
-  amenityChecks = null,
+  amenityTasks = [],
+  findingSent = null,
 }: {
   tasks: MyTasksView
   profile: {
@@ -78,15 +82,17 @@ export function TasksOverview({
   contribute?: { prompt: string; blocked: string | null } | null
   /** The venue's menu photo progress; null to hide the card (no venue). */
   ourMenu?: OurMenuProgress | null
-  /** Amenity checks assigned to me (UI_TEXT.staffSection), shown after To do. */
-  amenityChecks?: React.ReactNode
+  /** Amenity checks assigned to me: counted in To do, listed after it. */
+  amenityTasks?: MyAmenityTask[]
+  /** The question of the amenity check whose finding was just sent. */
+  findingSent?: string | null
 }) {
   const { scope, period, monthly, assignments, needsAnotherPhoto } = tasks
   const blocked = submitBlockedCopy(scope)
   const replacing = new Set(
     needsAnotherPhoto.flatMap((s) => (s.requirement ? [s.requirement.id] : []))
   )
-  const items = todoItems(tasks, new Date(), reviewCount)
+  const items = todoItems(tasks, new Date(), reviewCount, amenityTasks)
 
   return (
     <div className="mx-auto grid w-full max-w-(--size-feed) min-w-0 gap-(--gutter)">
@@ -102,6 +108,8 @@ export function TasksOverview({
           {sentNotice(justSent)}
         </Notice>
       ) : null}
+
+      {findingSent ? <FindingSentNotice question={findingSent} /> : null}
 
       {/* The share box comes first; Start here sits between it and To do. */}
       {contribute ? (
@@ -123,7 +131,7 @@ export function TasksOverview({
         portfolioPath={portfolioPath}
       />
 
-      {amenityChecks}
+      <AmenityTaskList tasks={amenityTasks} />
 
       <div className="mt-3 grid gap-(--gutter)">
         <MonthlyProgressCard

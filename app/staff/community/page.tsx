@@ -11,7 +11,7 @@ import { requireActiveStaff } from "@/lib/auth"
 import { listCommunityMedia, listCommunityVenues } from "@/lib/server/community"
 import { getMediaActor } from "@/lib/server/media/context"
 
-import { canManageVenue } from "../can-manage"
+import { staffShellStatus } from "../_shell/shell-status"
 import { CommunityGallery } from "./community-gallery"
 import { PhotoFilters } from "./photo-filters"
 import {
@@ -43,10 +43,10 @@ export default async function CommunityPage({
   const auth = await getMediaActor("staff")
   if (!auth.ok) throw new Error(auth.message)
   const filters = communityFilters(await searchParams)
-  const [media, options, canManage] = await Promise.all([
+  const [media, options, shell] = await Promise.all([
     listCommunityMedia(auth.actor, filters),
     listCommunityVenues(auth.actor),
-    canManageVenue(auth.actor),
+    staffShellStatus(auth.actor, profile),
   ])
   if (!media.ok) throw new Error(media.message)
   if (!options.ok) throw new Error(options.message)
@@ -61,7 +61,7 @@ export default async function CommunityPage({
     <AppShell
       variant="staff"
       active="community"
-      canManage={canManage}
+      {...shell}
       userName={profile.displayName}
       logoutAction={logout}
     >

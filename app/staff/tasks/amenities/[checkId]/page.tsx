@@ -1,9 +1,9 @@
 import { logout } from "@/app/_media/actions"
 import { AppShell } from "@/components/nabalens/app-shell"
 import { requireActiveStaff } from "@/lib/auth"
-import { getCoverageActor, getCoverageScope } from "@/lib/server/coverage"
-import { avatarUrl } from "@/lib/server/media/library"
+import { getCoverageActor } from "@/lib/server/coverage"
 
+import { staffShellStatus } from "../../../_shell/shell-status"
 import { TASKS_PATH, unwrap } from "../../result"
 import { CaptureScreen } from "../_capture/screen"
 
@@ -22,14 +22,13 @@ export default async function AmenityCapturePage({
   const profile = await requireActiveStaff()
   const { checkId } = await params
   const { actor } = unwrap(await getCoverageActor())
-  const { scope } = unwrap(await getCoverageScope(actor))
+  const shell = await staffShellStatus(actor, profile)
   return (
     <AppShell
       variant="staff"
       active="tasks"
-      canManage={scope.canManageVenue}
+      {...shell}
       userName={profile.displayName}
-      avatarUrl={avatarUrl(profile.id, profile.avatarPath)}
       logoutAction={logout}
     >
       <CaptureScreen

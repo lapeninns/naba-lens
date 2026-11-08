@@ -1,23 +1,14 @@
 import { logout } from "@/app/_media/actions"
 import { AppShell } from "@/components/nabalens"
-import { todoCount, todoItems } from "@/components/nabalens/tasks"
 import { requireActiveStaff, uploadBlockReason } from "@/lib/auth"
 import { workRoleLabel } from "@/lib/config/work-roles"
-import {
-  getManagerReviewCount,
-  getMyTasks,
-  listMyMenuPhotoDecisions,
-} from "@/lib/server/coverage"
+import { listMyMenuPhotoDecisions } from "@/lib/server/coverage"
 import type { MyMenuPhotoState } from "@/lib/server/coverage/types"
 import { getMediaActor } from "@/lib/server/media/context"
-import {
-  avatarUrl,
-  listOwnMedia,
-  listOwnMediaByIds,
-} from "@/lib/server/media/library"
+import { listOwnMedia, listOwnMediaByIds } from "@/lib/server/media/library"
 import type { MediaActor, MediaItemView } from "@/lib/server/media/types"
 
-import { canManageVenue } from "./can-manage"
+import { staffShellStatus } from "./_shell/shell-status"
 import { StaffPortfolio } from "./staff-portfolio"
 
 const BLOCKED_COPY = {
@@ -35,21 +26,6 @@ export const metadata = { title: "Your portfolio · Naba-Lens" }
 export const maxDuration = 120
 
 type SearchParams = Record<string, string | string[] | undefined>
-
-/** Home's To do count for the shell badge; none when the read fails. */
-async function homeTodoCount(
-  actor: MediaActor,
-  reviewCount: number | undefined
-): Promise<number | undefined> {
-  try {
-    const result = await getMyTasks(actor)
-    return result.ok
-      ? todoCount(todoItems(result.tasks, new Date(), reviewCount))
-      : undefined
-  } catch {
-    return undefined
-  }
-}
 
 /** Photos shown per Me decision section (accepted, better photo requested). */
 const DECISION_TILES = 24
@@ -89,32 +65,24 @@ export default async function StaffPage({
   const profile = await requireActiveStaff()
   const auth = await getMediaActor("staff")
   if (!auth.ok) throw new Error("Not authorised.")
-  const [page, canManage, params] = await Promise.all([
+  const [page, shell, params, menuPhotos] = await Promise.all([
     listOwnMedia(auth.actor),
-    canManageVenue(auth.actor),
+    staffShellStatus(auth.actor, profile),
     searchParams ?? Promise.resolve({} as SearchParams),
+    menuPhotoDecisions(auth.actor),
   ])
   if (!page.ok) throw new Error(page.message)
   const blocked = uploadBlockReason(profile)
   // A failed count read keeps the row (Manage re-reads it) without a number.
-  const review = canManage ? await getManagerReviewCount(auth.actor) : null
-  const reviewCount = review?.ok ? review.count : undefined
-  const [todo, menuPhotos] = await Promise.all([
-    homeTodoCount(auth.actor, reviewCount),
-    menuPhotoDecisions(auth.actor),
-  ])
+  const { canManage, reviewCount, avatarUrl: avatar } = shell
   const work = profile.work ?? null
-  const avatar = avatarUrl(profile.id, profile.avatarPath)
 
   return (
     <AppShell
       variant="staff"
       active="portfolio"
-      canManage={canManage}
-      reviewCount={reviewCount}
+      {...shell}
       userName={profile.displayName}
-      avatarUrl={avatar}
-      todoCount={todo}
       logoutAction={logout}
     >
       <StaffPortfolio

@@ -27,9 +27,13 @@ const jar = vi.hoisted(() => ({
 vi.mock("next/headers", () => ({ cookies: async () => jar }))
 vi.mock("@/app/_media/actions", () => ({ logout: vi.fn() }))
 vi.mock("@/components/nabalens/app-shell", () => ({
-  AppShell: ({ children }: { children: React.ReactNode }) => (
-    <div>{children}</div>
-  ),
+  AppShell: ({
+    children,
+    todoCount,
+  }: {
+    children: React.ReactNode
+    todoCount?: number
+  }) => <div data-todo={todoCount ?? ""}>{children}</div>,
 }))
 
 const media = vi.hoisted(() => ({ rows: [] as { id: string }[], fail: false }))
@@ -63,6 +67,7 @@ vi.mock("@/lib/auth", () => ({
 }))
 const coverage = vi.hoisted(() => ({
   getCoverageActor: vi.fn(),
+  getCoverageScope: vi.fn(),
   getMyTasks: vi.fn(),
   getManagerReviewCount: vi.fn(),
   getOurMenu: vi.fn(),
@@ -75,7 +80,10 @@ vi.mock("@/lib/server/media/context", () => ({
   getMediaActor: vi.fn(async () => ({ ok: true, actor: ACTOR })),
 }))
 vi.mock("@/lib/server/media/library", () => ({ avatarUrl: () => null }))
-const amenities = vi.hoisted(() => ({ getMyAmenityTasks: vi.fn() }))
+const amenities = vi.hoisted(() => ({
+  getMyAmenityTasks: vi.fn(),
+  getCheck: vi.fn(),
+}))
 vi.mock("@/lib/server/amenities", () => amenities)
 
 import TasksPage from "@/app/staff/tasks/page"
@@ -97,6 +105,10 @@ function setup({
   media.fail = false
   coverage.getCoverageActor.mockResolvedValue({ ok: true, actor: ACTOR })
   coverage.getMyTasks.mockResolvedValue({ ok: true, tasks: tasksView() })
+  coverage.getCoverageScope.mockResolvedValue({
+    ok: true,
+    scope: tasksView().scope,
+  })
   coverage.getOurMenu.mockImplementation(async () => {
     if (menu instanceof Error) throw menu
     return (
@@ -111,8 +123,8 @@ function setup({
   })
 }
 
-const home = async () =>
-  render(await TasksPage({ searchParams: Promise.resolve({}) }))
+const home = async (params: Record<string, string> = {}) =>
+  render(await TasksPage({ searchParams: Promise.resolve(params) }))
 
 function task(
   id: string,
@@ -238,5 +250,79 @@ describe("Home: amenity check cards", () => {
     // The recheck card carries the warn bar, like a replacement request.
     expect(cards[0].className).toContain("inset_4px_0_0_var(--warn-fg)")
     expect(document.body.innerHTML).not.toContain("text-muted-foreground")
+  })
+})
+
+describe("Home: amenity checks in To do", () => {
+  it("counts a staff member's only work, an amenity check, in To do and the Home badge", async () => {
+    setup()
+    amenities.getMyAmenityTasks.mockResolvedValue({
+      ok: true,
+      tasks: [
+        task("c1", "Is there step-free access?"),
+        task("c2", "Is there guest Wi-Fi?", { progress: "needs_recheck" }),
+      ],
+    })
+    const { container } = await home()
+    expect(screen.queryByText("Nothing to do right now.")).toBeNull()
+    const todo = screen.getByRole("region", { name: /^To do/ })
+    expect(
+      within(todo)
+        .getByRole("link", { name: "Start check: Is there guest Wi-Fi?" })
+        .getAttribute("href")
+    ).toBe(staffCaptureHref("c2"))
+    expect((container.firstElementChild as HTMLElement).dataset.todo).toBe("2")
+  })
+})
+
+describe("Home: Finding sent", () => {
+  const sentCheck = (overrides: Partial<MyAmenityTask> = {}) => ({
+    ok: true,
+    detail: {
+      check: task("c1", "Is there step-free access?", {
+        progress: "complete",
+        answer: "yes",
+        answeredBy: { id: "me", displayName: "TEST Sam" },
+        answeredAt: "2026-11-08T09:00:00.000Z",
+        ...overrides,
+      }),
+    },
+  })
+
+  it("names the check once the database shows it complete and answered by me", async () => {
+    setup()
+    amenities.getMyAmenityTasks.mockResolvedValue({ ok: true, tasks: [] })
+    amenities.getCheck.mockResolvedValue(sentCheck())
+    await home({ finding_sent: "c1" })
+    expect(amenities.getCheck).toHaveBeenCalledWith(ACTOR, { checkId: "c1" })
+    const notice = screen
+      .getByText("Finding sent")
+      .closest<HTMLElement>('[role="status"]')!
+    expect(notice).toBeTruthy()
+    expect(notice.textContent).toContain("Is there step-free access?")
+    expect(screen.getByRole("button", { name: "Dismiss" })).toBeTruthy()
+  })
+
+  it.each([
+    ["answered by someone else", { answeredBy: { id: "x", displayName: "X" } }],
+    ["reopened since", { progress: "needs_recheck" as const }],
+  ])("says nothing when the check was %s", async (_, overrides) => {
+    setup()
+    amenities.getMyAmenityTasks.mockResolvedValue({ ok: true, tasks: [] })
+    amenities.getCheck.mockResolvedValue(sentCheck(overrides))
+    await home({ finding_sent: "c1" })
+    expect(screen.queryByText("Finding sent")).toBeNull()
+  })
+
+  it("never reads a check without the parameter, and survives a failed read", async () => {
+    setup()
+    amenities.getMyAmenityTasks.mockResolvedValue({ ok: true, tasks: [] })
+    await home()
+    expect(amenities.getCheck).not.toHaveBeenCalled()
+    amenities.getCheck.mockRejectedValue(new Error("down"))
+    cleanup()
+    await home({ finding_sent: "c1" })
+    expect(screen.getByRole("heading", { level: 1, name: "Home" })).toBeTruthy()
+    expect(screen.queryByText("Finding sent")).toBeNull()
   })
 })

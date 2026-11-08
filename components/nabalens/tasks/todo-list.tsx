@@ -2,8 +2,15 @@ import Link from "next/link"
 import { CameraIcon, ClipboardTextIcon } from "@phosphor-icons/react/dist/ssr"
 
 import { buttonVariants } from "@/components/ui/button"
+import {
+  EVIDENCE_RULE_LABEL,
+  PROGRESS_LABEL,
+  staffCaptureHref,
+  type MyAmenityTask,
+} from "@/lib/amenities/contract"
 import { cn } from "@/lib/utils"
 
+import { orderAmenityTasks } from "../amenities/capture/amenity-task-list"
 import { CountBadge } from "../status-chip"
 import { EvidenceThumb } from "./evidence-thumb"
 import { replacementHref } from "./needs-another-photo-list"
@@ -24,6 +31,8 @@ export type TodoItem =
   | { kind: "replace"; submission: SubmissionView; closed: boolean }
   | { kind: "review"; count: number }
   | { kind: "overdue" | "due-soon"; assignment: MyAssignment }
+  /** Amenity checks assigned to me, recheck first; each one counts. */
+  | { kind: "amenity"; checks: MyAmenityTask[] }
 
 function isOpenAndUnfinished(a: MyAssignment) {
   return a.canSubmit && !a.requirement.progress.satisfied
@@ -31,13 +40,14 @@ function isOpenAndUnfinished(a: MyAssignment) {
 
 /**
  * What the person should do next, in order: finish setup, answer a replacement
- * request, photos waiting for a manager, then tasks that are overdue, then
- * tasks due within a week.
+ * request, photos waiting for a manager, tasks that are overdue, amenity
+ * checks, then tasks due within a week.
  */
 export function todoItems(
   tasks: Pick<MyTasksView, "scope" | "assignments" | "needsAnotherPhoto">,
   now: Date = new Date(),
-  reviewCount = 0
+  reviewCount = 0,
+  amenityChecks: readonly MyAmenityTask[] = []
 ): TodoItem[] {
   const { scope, assignments, needsAnotherPhoto } = tasks
   const openTaskIds = new Set(
@@ -66,6 +76,8 @@ export function todoItems(
       items.push({ kind: "overdue", assignment })
     }
   }
+  if (amenityChecks.length > 0)
+    items.push({ kind: "amenity", checks: orderAmenityTasks(amenityChecks) })
   for (const assignment of pending) {
     const { due, progress } = assignment.requirement
     if (progress.overdue || !due) continue
@@ -76,9 +88,14 @@ export function todoItems(
   return items
 }
 
-/** Items that still ask for something (a closed replacement needs nothing). */
+/** Things that still ask for something (a closed replacement needs nothing). */
 export function todoCount(items: TodoItem[]): number {
-  return items.filter((i) => i.kind !== "replace" || !i.closed).length
+  let count = 0
+  for (const item of items) {
+    if (item.kind === "amenity") count += item.checks.length
+    else if (item.kind !== "replace" || !item.closed) count += 1
+  }
+  return count
 }
 
 type Tone = "warn" | "info"
@@ -285,6 +302,54 @@ function TaskCard({
 }
 
 /**
+ * Amenity checks as one card: the first check (a recheck when there is one)
+ * is a tap away; the full list follows To do.
+ */
+function AmenityCard({
+  checks,
+  primary,
+}: {
+  checks: MyAmenityTask[]
+  primary: boolean
+}) {
+  const [first] = checks
+  const recheck = first.progress === "needs_recheck"
+  const more = checks.length - 1
+  return (
+    <li className={cardClass(primary, recheck ? "warn" : "info")}>
+      <TopRow
+        kicker={<>Amenity check: {first.entry.category}</>}
+        chip={
+          <StatusChip tone={recheck ? "warning" : "info"}>
+            {PROGRESS_LABEL[first.progress]}
+          </StatusChip>
+        }
+      />
+      <h3 className={titleClass(primary)}>{first.entry.question}</h3>
+      {recheck && first.recheckReason ? (
+        <p className="text-body [overflow-wrap:anywhere] text-ink">
+          <span className="font-semibold">Recheck reason:</span>{" "}
+          {first.recheckReason}
+        </p>
+      ) : null}
+      <p className="text-body text-ink-muted">
+        Evidence: {EVIDENCE_RULE_LABEL[first.entry.evidenceRule]}
+        {more > 0
+          ? ` · ${more} more ${more === 1 ? "check" : "checks"} below`
+          : null}
+      </p>
+      <Link
+        href={staffCaptureHref(first.id)}
+        aria-label={`Start check: ${first.entry.question}`}
+        className={action(primary)}
+      >
+        Start check
+      </Link>
+    </li>
+  )
+}
+
+/**
  * The one thing to do next, first. The first card's button is the page's
  * primary action; the rest are secondary.
  */
@@ -342,6 +407,14 @@ export function TodoSection({
                     closed={item.closed}
                     tasksPath={tasksPath}
                     canSubmit={scope.canSubmit}
+                    primary={primary}
+                  />
+                )
+              case "amenity":
+                return (
+                  <AmenityCard
+                    key="amenity"
+                    checks={item.checks}
                     primary={primary}
                   />
                 )
