@@ -102,7 +102,8 @@ export async function ManageFrame({
 /**
  * Staff without an effective manager grant: never granted, revoked, moved
  * venue or deactivated. The services don't tell staff why a grant ended, so
- * one version covers every case.
+ * one version covers every case. New grants go to venue manager accounts
+ * only, so the way in is an account change, never a grant to this account.
  */
 export function NotManagerPage({ viewerName }: { viewerName: string }) {
   return (
@@ -115,8 +116,8 @@ export function NotManagerPage({ viewerName }: { viewerName: string }) {
       <PageHeader scope={currentMonthLabel()} title="Manage isn't available" />
       <Card className="max-w-(--size-reading) text-body">
         <p>
-          Manage is for venue managers. An admin can make you a venue manager
-          for your venue.
+          Manage is for venue managers. To manage your venue, ask an admin to
+          change your account to a venue manager account.
         </p>
         <p className="text-ink-muted">
           You still have Home, Photos, Add, People and Me.
