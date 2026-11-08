@@ -19,6 +19,7 @@ import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { StaffMember } from "@/components/nabalens"
+import { SESSION_ENDED_MESSAGE } from "@/lib/auth/session-ended"
 
 const refresh = vi.fn()
 vi.mock("next/navigation", () => ({
@@ -484,6 +485,117 @@ describe("Edit details: the saved notice says what an access change means", () =
   })
 })
 
+describe("Edit details: a photo upload after the session ended", () => {
+  /** Picks a photo and a new job title, then saves. */
+  async function saveWithPhoto() {
+    render(header("active"))
+    const user = userEvent.setup()
+    await user.click(screen.getByRole("button", { name: "Edit details" }))
+    const dialog = await screen.findByRole("dialog")
+    await user.upload(
+      within(dialog).getByLabelText("Profile photo"),
+      new File(["x"], "sam.jpg", { type: "image/jpeg" })
+    )
+    const job = within(dialog).getByLabelText(/Job title/)
+    await user.clear(job)
+    await user.type(job, "Head bartender")
+    await user.click(
+      within(dialog).getByRole("button", { name: "Save changes" })
+    )
+    return dialog
+  }
+
+  async function expectSignedOutNothingSaved(dialog: HTMLElement) {
+    const alert = await within(dialog).findByRole("alert")
+    expect(alert.textContent).toBe(SESSION_ENDED_MESSAGE)
+    expect(alert.textContent).not.toContain("photo was saved")
+    expect(updateStaffAccountAction).not.toHaveBeenCalled()
+    // The chosen photo is kept for the retry after signing in.
+    expect(
+      (within(dialog).getByLabelText("Profile photo") as HTMLInputElement).files
+        ?.length
+    ).toBe(1)
+  }
+
+  it("a POST redirected to sign-in is a signed-out failure, not a saved photo", async () => {
+    // Before the proxy answers 401: it 303s the POST to /login. Followed, that
+    // ends in a 200 HTML page; with redirect: "manual" it stays a redirect.
+    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
+      if (init?.redirect === "manual") {
+        return new Response(null, {
+          status: 303,
+          headers: { location: "/login" },
+        })
+      }
+      const page = new Response("<!doctype html><title>Sign in</title>", {
+        status: 200,
+        headers: { "content-type": "text/html" },
+      })
+      Object.defineProperty(page, "redirected", { value: true })
+      return page
+    })
+    vi.stubGlobal("fetch", fetchMock)
+    updateStaffAccountAction.mockRejectedValue(new Error(SESSION_ENDED_MESSAGE))
+    await expectSignedOutNothingSaved(await saveWithPhoto())
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it("a 401 from the avatar route is a signed-out failure", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ ok: false, error: "Forbidden." }), {
+            status: 401,
+            headers: { "content-type": "application/json" },
+          })
+      )
+    )
+    updateStaffAccountAction.mockRejectedValue(new Error(SESSION_ENDED_MESSAGE))
+    await expectSignedOutNothingSaved(await saveWithPhoto())
+  })
+
+  it("a 200 that isn't the route's answer doesn't count as saved", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response("<!doctype html><title>Gateway</title>", {
+            status: 200,
+            headers: { "content-type": "text/html" },
+          })
+      )
+    )
+    const dialog = await saveWithPhoto()
+    const alert = await within(dialog).findByRole("alert")
+    expect(alert.textContent).toBe(
+      "We couldn't confirm the photo uploaded. Check your connection and try again."
+    )
+    expect(updateStaffAccountAction).not.toHaveBeenCalled()
+    expect(
+      (within(dialog).getByLabelText("Profile photo") as HTMLInputElement).files
+        ?.length
+    ).toBe(1)
+  })
+
+  it("the route's own { ok: true } still counts as saved", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ ok: true }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          })
+      )
+    )
+    updateStaffAccountAction.mockResolvedValue({ ok: true })
+    await saveWithPhoto()
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+    expect(updateStaffAccountAction).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe("Reactivate (ADM-1)", () => {
   it("is disabled with a pending label until the server answers", async () => {
     const call = deferred<{ ok: true; status: "active" }>()
@@ -678,7 +790,9 @@ describe("Edit details after the photo saved (ADM-2)", () => {
   it("a refused details save after the photo says they weren't saved, in the server's words", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => new Response("{}", { status: 200 }))
+      vi.fn(
+        async () => new Response(JSON.stringify({ ok: true }), { status: 200 })
+      )
     )
     updateStaffAccountAction.mockResolvedValueOnce({
       ok: false,
@@ -708,7 +822,9 @@ describe("Edit details after the photo saved (ADM-2)", () => {
   it("a photo-only edit whose details reply is lost says only that the photo saved", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => new Response("{}", { status: 200 }))
+      vi.fn(
+        async () => new Response(JSON.stringify({ ok: true }), { status: 200 })
+      )
     )
     updateStaffAccountAction.mockRejectedValueOnce(
       new TypeError("Failed to fetch")
