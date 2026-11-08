@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import type { StaffActionPending } from "@/components/nabalens/staff-directory-table"
 import { Button } from "@/components/ui/button"
+import { SESSION_ENDED_MESSAGE } from "@/lib/auth/session-ended"
 
 import {
   resendInvitationAction,
@@ -88,33 +89,52 @@ export function AccountNotice({
   )
 }
 
+const AVATAR_UNCONFIRMED =
+  "We couldn't confirm the photo uploaded. Check your connection and try again."
+
+/**
+ * Uploads a new profile photo. Throws Error(SESSION_ENDED_MESSAGE) when the
+ * session has ended: the route answers 401, or the proxy redirects the POST
+ * to sign-in before the route runs (a followed redirect ends in a 200 HTML
+ * page, so only the route's own `{ ok: true }` counts as saved).
+ */
 async function uploadAvatar(
   staffId: string,
   file: File
 ): Promise<ActionResult> {
   const body = new FormData()
   body.set("file", file)
+  let response: Response
   try {
-    const response = await fetch(
+    response = await fetch(
       `/admin/staff/${encodeURIComponent(staffId)}/avatar`,
-      { method: "POST", body }
+      { method: "POST", body, redirect: "manual" }
     )
-    const json = (await response.json().catch(() => null)) as {
-      error?: string
-      fieldErrors?: Record<string, string>
-    } | null
-    if (response.ok) return { ok: true }
-    return {
-      ok: false,
-      error: json?.error ?? "The photo could not be saved. Try again.",
-      fieldErrors: json?.fieldErrors,
-    }
   } catch {
-    return {
-      ok: false,
-      error:
-        "We couldn't confirm the photo uploaded. Check your connection and try again.",
-    }
+    return { ok: false, error: AVATAR_UNCONFIRMED }
+  }
+  if (
+    response.status === 401 ||
+    response.type === "opaqueredirect" ||
+    response.redirected ||
+    (response.status >= 300 && response.status < 400)
+  ) {
+    throw new Error(SESSION_ENDED_MESSAGE)
+  }
+  const json = (await response.json().catch(() => null)) as {
+    ok?: boolean
+    error?: string
+    fieldErrors?: Record<string, string>
+  } | null
+  if (response.ok) {
+    return json?.ok === true
+      ? { ok: true }
+      : { ok: false, error: AVATAR_UNCONFIRMED }
+  }
+  return {
+    ok: false,
+    error: json?.error ?? "The photo could not be saved. Try again.",
+    fieldErrors: json?.fieldErrors,
   }
 }
 
@@ -300,7 +320,15 @@ export function useAccountControls({
     let photoSaved = false
     try {
       if (values.avatarFile) {
-        const avatar = await uploadAvatar(member.id, values.avatarFile)
+        let avatar: ActionResult
+        try {
+          avatar = await uploadAvatar(member.id, values.avatarFile)
+        } catch (cause) {
+          // Signed out before anything saved: the photo stays chosen.
+          const ended = sessionEnded(cause)
+          if (ended) return { ok: false, error: ended }
+          throw cause
+        }
         if (!avatar.ok) return avatar
         photoSaved = true
       }
