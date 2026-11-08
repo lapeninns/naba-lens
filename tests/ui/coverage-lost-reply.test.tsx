@@ -22,6 +22,12 @@ vi.mock("@/app/_coverage/actions", () => ({
 }))
 
 import { ManagersView } from "@/app/admin/coverage/managers/managers-view"
+import {
+  TeamRoster,
+  type SetTargetHandler,
+} from "@/components/nabalens/coverage"
+
+import { PERIOD, monthly } from "./coverage-fixtures"
 
 const VENUE = {
   id: "5b0d8f43-2a1e-4c5f-8d4b-0e7c9a3f1b11",
@@ -105,6 +111,71 @@ describe("Revoke grant", () => {
     const alert = await within(dialog).findByRole("alert")
     expect(alert.textContent).toBe(
       "Nothing changed. TEST is still TEST Railway's venue manager. This grant has already ended."
+    )
+  })
+})
+
+describe("Correct target", () => {
+  const past = {
+    ...PERIOD,
+    key: "2026-10",
+    label: "October 2026",
+    isCurrent: false,
+  }
+
+  async function correct(onSetTarget: SetTargetHandler) {
+    render(
+      <TeamRoster
+        period={past}
+        currentPeriod="2026-11"
+        rows={[monthly({ period: past })]}
+        canEdit
+        isAdmin
+        basePath="/admin/coverage/v-1"
+        venueName="TEST Venue"
+        onSetTarget={onSetTarget}
+      />
+    )
+    const user = userEvent.setup()
+    await user.click(
+      screen.getByRole("button", {
+        name: "Correct target for TEST Sam, October",
+      })
+    )
+    const dialog = await screen.findByRole("dialog")
+    await user.click(
+      within(dialog).getByRole("button", {
+        name: "Decrease TEST Sam's October target",
+      })
+    )
+    await user.type(within(dialog).getByLabelText("Reason"), "On leave")
+    await user.click(
+      within(dialog).getByRole("button", { name: "Save correction" })
+    )
+    return dialog
+  }
+
+  it("a lost reply says the change couldn't be confirmed", async () => {
+    const dialog = await correct(lostReply)
+    const notice = await within(dialog).findByRole("alert")
+    expect(notice.textContent).toContain("Couldn't confirm the correction")
+    expect(notice.textContent).toContain(
+      "We couldn't confirm the target changed. Check your connection, then refresh to see."
+    )
+    expect(dialog.textContent).not.toContain("Nothing changed")
+  })
+
+  it("a refusal says nothing changed, with the server's reason", async () => {
+    const dialog = await correct(async () => ({
+      ok: false,
+      code: "invalid_input",
+      status: 400,
+      message: "Corrections need an admin.",
+    }))
+    const notice = await within(dialog).findByRole("alert")
+    expect(notice.textContent).toContain("Couldn't save the correction")
+    expect(notice.textContent).toContain(
+      "Nothing changed. Corrections need an admin."
     )
   })
 })
