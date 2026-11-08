@@ -437,6 +437,16 @@ export function AddHost({
               }
           return []
         }),
+      // Review takes dishes in food and drinks sections only.
+      reviewable: (refs) =>
+        catalogue?.status === "active" &&
+        refs.some((ref) =>
+          catalogue.sections.some(
+            (section) =>
+              (section.kind === "food" || section.kind === "drinks") &&
+              section.items.some((item) => item.itemId === ref.itemId)
+          )
+        ),
       onSaved: refreshAfterLabels,
       renderPanel: (props) => (
         <PanelHost

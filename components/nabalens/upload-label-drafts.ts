@@ -22,6 +22,7 @@ import * as React from "react"
 import { dishName } from "@/lib/menus/dish-name"
 import {
   EMPTY_LABEL_SUMMARY,
+  type LabelItemRef,
   type MediaLabelSummary,
   type PendingLabelItem,
   type SaveLabelsErrorCode,
@@ -113,6 +114,11 @@ export type UploadLabels = {
   settled?: (listener: UploadLabelSettle) => () => void
   /** Names of the menu items in an input, for the "Saved · …" line. */
   itemNames?: (input: SaveLabelsInput) => string[]
+  /**
+   * Whether a manager reviews a photo labelled with these items: at least one
+   * is in a food or drinks section of the menu. Omitted: never.
+   */
+  reviewable?: (items: readonly LabelItemRef[]) => boolean
   onSaved?: (assetId: string) => void
   renderPanel: (props: UploadLabelPanelHostProps) => React.ReactNode
   renderFix: (props: UploadLabelFixProps) => React.ReactNode
@@ -167,7 +173,8 @@ type LabelRecord = {
 export type LabelView =
   | { kind: "none" }
   | { kind: "saving" }
-  | { kind: "saved"; names: string[] }
+  /** `review`: a manager reviews the photo for one of these dishes. */
+  | { kind: "saved"; names: string[]; review: boolean }
   /** Not saved yet: "Retry labels" (after signing in again, if signed out). */
   | { kind: "retry"; signedOut?: boolean }
   | { kind: "attention"; code: SaveLabelsErrorCode | null; message: string }
@@ -1054,7 +1061,16 @@ export function useUploadLabels(
         : record.settled
           ? []
           : (config?.itemNames?.(record.input) ?? [])
-      return { kind: "saved", names }
+      const refs: LabelItemRef[] = record.summary
+        ? record.summary.items.map((i) => ({
+            itemId: i.itemId,
+            variantId: i.variantId,
+          }))
+        : record.settled
+          ? []
+          : record.input.items
+      const review = config?.reviewable?.(refs) ?? false
+      return { kind: "saved", names, review }
     }
     return { kind: "saving" }
   }

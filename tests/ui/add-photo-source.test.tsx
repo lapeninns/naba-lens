@@ -39,7 +39,7 @@ import type {
 import { EMPTY_LABEL_SUMMARY } from "@/lib/menus/types"
 import type { FinaliseLabels } from "@/lib/upload/types"
 
-import { CATALOGUE } from "./labels-fixtures"
+import { CATALOGUE, MOMO_CATALOGUE } from "./labels-fixtures"
 
 const { refresh, supabase, uploads, actions } = vi.hoisted(() => ({
   refresh: vi.fn(),
@@ -1073,6 +1073,8 @@ describe("Review 2 regressions: Add host", () => {
   it("A2: the Saved line names a dish with variants saved without one Name (Not specified)", async () => {
     const user = userEvent.setup()
     const { find } = holdUploads()
+    // Momo is on this venue's menu, in a food section.
+    api.menu = () => ({ ok: true, catalogue: MOMO_CATALOGUE, focus: null })
     host(<Opener opts={{ source: "library" }} />)
     await user.click(screen.getByRole("button", { name: "Open" }))
     await user.upload(input("library"), [jpeg("momo.jpg")])
@@ -1268,5 +1270,57 @@ describe("Add host: a missing-item suggestion", () => {
       { itemId: "item-bhaji", variantId: null },
     ])
     expect(api.deleted).toEqual([])
+  })
+})
+
+describe("Add host: manager review is promised for food and drinks dishes", () => {
+  it("a dish photo whose section is neither food nor drinks says Saved with its dish, no review", async () => {
+    const user = userEvent.setup()
+    const { find } = holdUploads()
+    // The same menu, with the bhaji's section marked other (say, sides
+    // sold as retail): review never takes it.
+    if (CATALOGUE.status !== "active") throw new Error("Active fixture")
+    const { sections } = CATALOGUE
+    api.menu = () => ({
+      ok: true,
+      catalogue: {
+        ...CATALOGUE,
+        sections: sections.map((section) =>
+          section.items.some((item) => item.itemId === "item-bhaji")
+            ? { ...section, kind: "other" as const }
+            : section
+        ),
+      },
+      focus: null,
+    })
+    host(<Opener opts={{ source: "library", imagesOnly: true, preset }} />)
+    await user.click(screen.getByRole("button", { name: "Open" }))
+    await user.upload(input("library"), [jpeg("dish.jpg")])
+    await waitFor(() => expect(api.posted).toHaveLength(1))
+    await act(async () =>
+      find("dish.jpg").finish({
+        state: "saved",
+        labels: {
+          ...EMPTY_LABEL_SUMMARY,
+          revision: 1,
+          hasLabels: true,
+          items: [
+            {
+              itemId: "item-bhaji",
+              variantId: null,
+              name: "Onion Bhaji",
+              variantName: null,
+              sectionName: "Starters",
+              labelledAs: null,
+              state: "current",
+            },
+          ],
+        },
+      })
+    )
+    await waitFor(() =>
+      expect(fileRow("dish.jpg").textContent).toContain("Saved · Onion Bhaji")
+    )
+    expect(fileRow("dish.jpg").textContent).not.toContain("review")
   })
 })

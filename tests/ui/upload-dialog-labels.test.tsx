@@ -59,6 +59,8 @@ const mp4 = (name: string) =>
 
 const BHAJI = { itemId: "item-bhaji", variantId: null }
 const KORMA = { itemId: "item-korma", variantId: null }
+/** On the menu, but in a section that is neither food nor drinks. */
+const NAPKINS = { itemId: "item-napkins", variantId: null }
 
 function summary(names: string[], revision = 1): MediaLabelSummary {
   return {
@@ -181,8 +183,14 @@ function labelsConfig(overrides: Partial<UploadLabels> = {}) {
     onSaved,
     itemNames: (i) =>
       i.items.map((r) =>
-        r.itemId === "item-bhaji" ? "Onion Bhaji" : r.itemId
+        r.itemId === "item-bhaji"
+          ? "Onion Bhaji"
+          : r.itemId === NAPKINS.itemId
+            ? "Napkins"
+            : r.itemId
       ),
+    // Every fixture dish is food or drinks, except the napkins.
+    reviewable: (refs) => refs.some((r) => r.itemId !== NAPKINS.itemId),
     renderPanel: (props) => {
       panel.current = props
       return (
@@ -1660,6 +1668,41 @@ describe("Review 1 regressions: Me settles the sheet's rows (C6)", () => {
       expect(row("dish.jpg").textContent).toContain("Saved · Korma")
     )
     expect(labels.save).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe("Saving sheet: manager review is promised for food and drinks", () => {
+  it("a photo labelled only with an item outside food and drinks says Saved with no review", async () => {
+    const { upload, find } = heldUploader()
+    const labels = labelsConfig()
+    sheet({ uploader: upload, labels: labels.config })
+    const user = userEvent.setup()
+    await user.upload(screen.getByLabelText("Choose photos or videos"), [
+      jpeg("napkins.jpg"),
+      jpeg("dish.jpg"),
+    ])
+    await labels.choose((id, index) =>
+      input(id, index === 0 ? [NAPKINS] : [BHAJI])
+    )
+    act(() => {
+      find("napkins.jpg").reserve("asset-n")
+      find("dish.jpg").reserve("asset-d")
+    })
+    await waitFor(() => expect(labels.save).toHaveBeenCalledTimes(2))
+    await act(async () => {
+      find("napkins.jpg").resolve()
+      find("dish.jpg").resolve()
+    })
+    // Kept and then asked: the photos' labels are what was sent.
+    await waitFor(() =>
+      expect(row("napkins.jpg").textContent).toContain("Saved · ")
+    )
+    await waitFor(() =>
+      expect(row("dish.jpg").textContent).toContain(
+        "· waiting for manager review"
+      )
+    )
+    expect(row("napkins.jpg").textContent).not.toContain("review")
   })
 })
 

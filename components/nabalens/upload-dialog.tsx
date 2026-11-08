@@ -255,12 +255,13 @@ function rowState(
     case "saved":
       return {
         word: "Saved",
-        // Only a photo goes to a manager for its dish: videos never enter
-        // review, so a video keeps its dish names without the promise.
+        // Only a photo with a food or drinks dish goes to a manager: videos
+        // and other sections never enter review, so they keep their dish
+        // names without the promise.
         suffix:
           labels.names.length === 0
             ? null
-            : item.kind === "image"
+            : item.kind === "image" && labels.review
               ? `${labels.names.join(", ")} · waiting for manager review`
               : labels.names.join(", "),
         detail: null,
