@@ -27,6 +27,9 @@ import type {
 
 const DUE_SOON_MS = 7 * 24 * 60 * 60 * 1000
 
+const thingsToDo = (count: number) =>
+  count === 1 ? "thing to do" : "things to do"
+
 /** To do's heading: focusable, for a notice above it that goes away. */
 export const TODO_HEADING_ID = "todo-heading"
 
@@ -380,10 +383,15 @@ export function TodoSection({
         <h2
           id={TODO_HEADING_ID}
           tabIndex={-1}
+          // Chrome puts a space before the count badge (an inline-grid) when
+          // it names the heading: "To do , 2 things to do".
+          aria-label={
+            count > 0 ? `To do, ${count} ${thingsToDo(count)}` : "To do"
+          }
           className="flex items-center gap-2 rounded-control font-display text-section-title text-ink outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
         >
           To do
-          <CountBadge count={count} label="things to do" />
+          <CountBadge count={count} label={thingsToDo(count)} />
         </h2>
       </div>
       {amenityError ? (

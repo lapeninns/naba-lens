@@ -832,6 +832,10 @@ describe("To do: amenity checks", () => {
     expect(screen.queryByText("Nothing to do right now.")).toBeNull()
     const todo = screen.getByRole("region", { name: /^To do/ })
     expect(within(todo).getByText("2")).toBeTruthy()
+    // Named exactly, not from the badge's layout (Chrome adds a space there).
+    expect(
+      within(todo).getByRole("heading", { level: 2 }).getAttribute("aria-label")
+    ).toBe("To do, 2 things to do")
     expect(
       within(todo).getByRole("heading", { name: "Is there guest Wi-Fi?" })
     ).toBeTruthy()
