@@ -20,9 +20,11 @@ export type CatalogueProp =
 export type LabelAudience = "staff" | "admin"
 
 /**
- * A menu item suggested for the files (Our menu's "Add a photo of this dish";
- * the same shape as AddLabelPreset). The editor shows it as an unsaved draft
- * for the person to keep or remove; it is never saved without them.
+ * The dish the files were picked for (Our menu's "Add a photo of this dish",
+ * a task's dish; the same shape as AddLabelPreset). It is applied as soon as
+ * the menu names it, as a removable chip, and saved with the other labels
+ * unless the person removes it. A dish the current menu no longer offers is
+ * not added (the upload panel says so).
  */
 export type LabelPreset = {
   itemId: string
@@ -30,6 +32,17 @@ export type LabelPreset = {
   itemName: string
   variantName: string | null
 }
+
+/**
+ * The upload sheet's dish per file (UploadLabelPanel's `presetFor`): files
+ * picked from different dishes each keep their own. Asked once per file, when
+ * the panel first names the file's labels from the menu (it may mount again,
+ * e.g. when the sheet reopens); null when the file has no dish. Each dish is a
+ * removable chip naming its photos, and in the common field only when every
+ * photo has the same dish. Removing it takes it off the photos the chip names
+ * only; a file asked later still gets its own dish.
+ */
+export type PresetFor = (fileId: string) => LabelPreset | null
 
 export type LabelEditorDialogProps = {
   open: boolean
@@ -52,24 +65,16 @@ export type LabelEditorDialogProps = {
    * Order only; search still covers the whole menu.
    */
   focus?: WorkFocus | null
-  /** Pre-filled as a draft label when it is on this venue's menu. */
+  /**
+   * Applied as a removable chip when it is on this venue's menu, and saved
+   * with the other labels unless removed.
+   */
   preset?: LabelPreset | null
   /**
    * The files the preset belongs to (the ones picked from Our menu's dish).
    * Omitted: every file. Other files of the batch never get it.
    */
   presetAssetIds?: readonly string[]
-} & (
-  | {
-      /** Resolve with one result per input, matched by assetId. */
-      onSave: (inputs: SaveLabelsInput[]) => Promise<SaveLabelsResult[]>
-      uploadDraft?: never
-    }
-  | {
-      onSave?: never
-      uploadDraft: {
-        files: ReadonlyMap<string, File>
-        onQueue: (inputs: SaveLabelsInput[]) => void
-      }
-    }
-)
+  /** Resolve with one result per input, matched by assetId. */
+  onSave: (inputs: SaveLabelsInput[]) => Promise<SaveLabelsResult[]>
+}

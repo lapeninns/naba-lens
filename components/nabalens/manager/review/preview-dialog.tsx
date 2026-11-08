@@ -5,6 +5,7 @@ import { CaretLeftIcon, CaretRightIcon } from "@phosphor-icons/react"
 
 import { EvidenceImage } from "@/components/nabalens/tasks/evidence-image"
 import { Button } from "@/components/ui/button"
+import { dishName } from "@/lib/menus/dish-name"
 import {
   Dialog,
   DialogContent,
@@ -114,9 +115,7 @@ export function PreviewDialog({
                 {REVIEW_COPY.photoBy(card.contributor.name)}
               </DialogTitle>
               <DialogDescription>
-                {card.item
-                  ? `${card.item.name}${card.item.variantName ? ` · ${card.item.variantName}` : ""}`
-                  : REVIEW_COPY.noMenuItem}
+                {card.item ? dishName(card.item) : REVIEW_COPY.noMenuItem}
                 {" · "}
                 {position}
               </DialogDescription>

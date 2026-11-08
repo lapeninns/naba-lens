@@ -4,6 +4,7 @@ import * as React from "react"
 import { useRouter } from "next/navigation"
 import { ArrowClockwiseIcon } from "@phosphor-icons/react"
 
+import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import {
   ImportIssueList,
   MenuDiffView,
@@ -68,6 +69,7 @@ export function ImportFlow({
   >({})
   const [creating, setCreating] = React.useState(false)
   const [createError, setCreateError] = React.useState<string | null>(null)
+  const sessionEnded = useSessionEndedCatch()
   const request = React.useRef<AbortController | null>(null)
   const titleId = React.useId()
 
@@ -142,8 +144,8 @@ export function ImportFlow({
         return
       }
       router.push(`/admin/menus/versions/${result.versionId}`)
-    } catch {
-      setCreateError(CREATE_FAILED)
+    } catch (cause) {
+      setCreateError(sessionEnded(cause) ?? CREATE_FAILED)
     } finally {
       setCreating(false)
     }

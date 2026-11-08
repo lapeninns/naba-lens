@@ -89,7 +89,14 @@ export function AdminLibrary({
         menuOptions={menuOptions}
         onChange={navigate}
       />
-      <div aria-busy={pending} className={pending ? "opacity-60" : undefined}>
+      {/* While new filters load, the results on screen are on their way out:
+          inert, so Load more (or a tile) can't act on a list about to be
+          replaced, whose answer would be dropped. */}
+      <div
+        aria-busy={pending}
+        inert={pending}
+        className={pending ? "opacity-60" : undefined}
+      >
         <LibraryErrorBoundary>
           <React.Suspense fallback={<LibraryGridSkeleton />}>
             <LibraryResults
@@ -187,7 +194,8 @@ function LibraryFolders({
         </h2>
         <p className="text-body text-ink-muted">
           Folders show files that match their labels. A file can appear in
-          several folders. Choose a venue above to browse its menu sections.
+          several folders, and each card names its dishes. Choose a venue above
+          to browse its menu sections.
         </p>
       </div>
       <ul className="flex flex-wrap gap-2">

@@ -279,8 +279,8 @@ export function LoginCard({
               <ClockIcon />
             </IconDisc>
             <SignInHeading id={titleId} title="That sign-in link has expired">
-              Links work once and expire after a short time. We&apos;ll send a
-              new one to this email.
+              Links work once and expire after a short time. Enter your email
+              and we&apos;ll send a new one.
             </SignInHeading>
           </div>
         ) : (

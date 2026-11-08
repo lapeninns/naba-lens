@@ -2,7 +2,6 @@ import type { Metadata } from "next"
 import Link from "next/link"
 import { ShieldCheckIcon } from "@phosphor-icons/react/dist/ssr"
 
-import { logout } from "@/app/_media/actions"
 import { SelfReviewsControl } from "@/app/staff/manage/_shared/controls"
 import { ItemPhotoSelfReviewsControl } from "@/app/staff/manage/_shared/menu-items-controls"
 import { unexpected } from "@/app/staff/manage/_shared/context"
@@ -156,12 +155,7 @@ export default async function CoverageOverviewPage({
   )
 
   return (
-    <AppShell
-      variant="admin"
-      active="coverage"
-      userName={profile.displayName}
-      logoutAction={logout}
-    >
+    <AppShell variant="admin" active="coverage" userName={profile.displayName}>
       <PrepareProvider
         month={month}
         venues={[...model.unprepared, ...model.unfinished].map(

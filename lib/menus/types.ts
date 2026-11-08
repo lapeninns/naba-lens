@@ -295,6 +295,11 @@ export type MediaLabelItemView = {
   /** The snapshot name when it differs from `name` (renamed since). */
   labelledAs: string | null
   state: "current" | "not_on_active_menu" | "archived"
+  /**
+   * True when the dish has variants and none was chosen: shown as "Momo (Not
+   * specified)". Absent otherwise (or when the menu could not be read).
+   */
+  unspecified?: boolean
 }
 
 export type MediaLabelSummary = {
@@ -366,6 +371,51 @@ export type SaveLabelsResult =
       /** Present on "unavailable_items". */
       unavailableItemIds?: string[]
     }
+
+/**
+ * POST /api/upload-labels. "saved": the asset was ready and the labels are on
+ * it now. "pending": the asset is still uploading or processing; the labels
+ * are stored on the server and finalise applies them (a repeat POST replaces
+ * them). Failures are SaveLabelsResult failures.
+ */
+export type UploadLabelPostResult =
+  | { ok: true; assetId: string; state: "saved"; labels: MediaLabelSummary }
+  | { ok: true; assetId: string; state: "pending" }
+  | Extract<SaveLabelsResult, { ok: false }>
+
+/** GET /api/upload-labels?attention=1: one of the caller's stored drafts. */
+export type PendingLabelItem = {
+  assetId: string
+  venueId: string
+  /** "pending": waiting for the photo; "needs_attention": could not apply. */
+  status: "pending" | "needs_attention"
+  /** Why it could not apply (needs_attention only). */
+  code: SaveLabelsErrorCode | null
+  message: string | null
+  input: SaveLabelsInput
+  /** The photo's upload_state: uploading, processing, ready or failed. */
+  uploadState: string
+  /**
+   * The upload failed temporarily (uploadState "failed", its bytes still
+   * stored) and the labels are kept: a successful Retry applies them. A file
+   * that can never be used loses its stored labels, so it is not listed.
+   */
+  retryable: boolean
+  mediaType: "image" | "video"
+  thumbnailUrl: string | null
+  updatedAt: string
+}
+
+/**
+ * DELETE /api/upload-labels?assetId=. "discarded": the stored labels were
+ * removed. "already_applied": nothing was stored any more and the ready photo
+ * has `labels` (typically finalise applied them first); nothing was
+ * discarded. "none": nothing was stored and the photo has no labels.
+ */
+export type UploadLabelDiscardResult =
+  | { ok: true; state: "discarded" }
+  | { ok: true; state: "already_applied"; labels: MediaLabelSummary }
+  | { ok: true; state: "none" }
 
 // ---------------------------------------------------------------------------
 // Admin library label filters (H)

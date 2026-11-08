@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from "@testing-library/react"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+
+const nav = vi.hoisted(() => ({ refresh: vi.fn() }))
+vi.mock("next/navigation", () => ({ useRouter: () => nav }))
 
 import {
   VenueAccessUnavailable,
@@ -8,6 +11,7 @@ import {
 } from "@/components/nabalens/manager/venue-access-unavailable"
 
 afterEach(() => cleanup())
+beforeEach(() => nav.refresh.mockReset())
 
 const BODY =
   "Your account doesn't have access to a venue workspace right now. Ask an admin to check your venue access."
@@ -43,6 +47,20 @@ describe("VenueAccessUnavailable", () => {
     expect(button.getAttribute("type")).toBe("submit")
     expect(form?.getAttribute("action")).toBe("/auth/logout")
     expect(form?.getAttribute("method")).toBe("post")
+  })
+
+  it("refreshes once inside the shell so the layout drops the nav", () => {
+    const { rerender } = render(
+      <VenueAccessUnavailable reason="no_grant" refreshShell />
+    )
+    rerender(<VenueAccessUnavailable reason="no_grant" refreshShell />)
+    expect(nav.refresh).toHaveBeenCalledTimes(1)
+  })
+
+  it("never refreshes as the layout's own page", () => {
+    render(<VenueAccessUnavailable reason="no_grant" />)
+    render(<VenueAccessUnavailablePage reason="no_grant" />)
+    expect(nav.refresh).not.toHaveBeenCalled()
   })
 
   it("renders the page with no navigation or workspace links", () => {

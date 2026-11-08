@@ -185,3 +185,19 @@ Details: `tests/archive/README.md`.
 Named local stacks (`scripts/ci/stack.mjs`), the deterministic journey fixture
 world and the journey runner (`pnpm journeys`) are separate from the fixture gate
 above and never replace it. They are documented in `docs/qa/harness.md`.
+
+
+## Common checks once per candidate
+
+The formal workflow now runs typecheck, lint, unit, monitoring, archive and
+verification-tooling checks in one required common job. Browser jobs require its
+exact-source receipt before starting. They retain separate builds, bundle scans,
+Supabase stacks, integration/lifecycle/security suites, assigned browser cases,
+privacy runtime checks and cleanup. The aggregate result requires common and all
+browser lanes. This changes repetition, not required coverage.
+
+`CI_PHASE=full` remains the standalone default. Split jobs use `common` and
+`browser`, an absolute `CI_COMMON_RECEIPT`, and the same
+`CI_VERIFICATION_RUN_ID`. Missing, stale or failed common evidence cannot satisfy
+a browser job. See [the Workstream verification policy](verification-policy.md)
+for focused iteration, the final-candidate guard and evidence accounting.

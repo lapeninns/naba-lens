@@ -148,7 +148,7 @@ export function describeLibraryFilters(
     labelled.push(
       item
         ? variant
-          ? `${item.name}, ${variant.name}`
+          ? `${item.name} (${variant.name})`
           : item.name
         : "the chosen menu item"
     )

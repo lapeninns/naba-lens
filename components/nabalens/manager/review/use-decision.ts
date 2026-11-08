@@ -2,6 +2,7 @@
 
 import * as React from "react"
 
+import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { decideMenuPhotoAction } from "@/app/manager/actions"
 import { useRequestIds } from "@/components/nabalens/coverage/use-request-id"
 import type {
@@ -16,7 +17,7 @@ export type DecisionPayload = Omit<DecideInput, "requestId">
 export type DecisionResult =
   | { ok: true; outcome: DecisionOutcome }
   | MenuPhotoFailure
-  | { ok: false; code: "network" }
+  | { ok: false; code: "network"; message?: string }
 
 /** Failures after which a retry may replay a committed decision: keep the id. */
 const RETRYABLE = new Set(["unavailable"])
@@ -29,6 +30,7 @@ const RETRYABLE = new Set(["unavailable"])
  */
 export function useDecision(status: QueueStatus, venueId?: string) {
   const intents = useRequestIds()
+  const sessionEnded = useSessionEndedCatch()
   return React.useCallback(
     async (payload: DecisionPayload): Promise<DecisionResult> => {
       const subject =
@@ -45,10 +47,14 @@ export function useDecision(status: QueueStatus, venueId?: string) {
         )
         if (result.ok || !RETRYABLE.has(result.code)) intents.settle(scope)
         return result
-      } catch {
-        return { ok: false, code: "network" }
+      } catch (cause) {
+        // Refused for the ended session: its copy; a lost reply: the caller's.
+        const ended = sessionEnded(cause)
+        return ended
+          ? { ok: false, code: "network", message: ended }
+          : { ok: false, code: "network" }
       }
     },
-    [intents, status, venueId]
+    [intents, sessionEnded, status, venueId]
   )
 }

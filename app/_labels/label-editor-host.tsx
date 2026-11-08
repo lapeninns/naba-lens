@@ -3,6 +3,7 @@
 import * as React from "react"
 import { ArrowClockwiseIcon } from "@phosphor-icons/react"
 
+import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { LabelEditorDialog, type CatalogueProp } from "@/components/nabalens"
 import { Notice } from "@/components/nabalens/notice"
 import type { AddLabelPreset } from "@/components/nabalens/shell/add-context"
@@ -45,7 +46,10 @@ export type LabelEditorHostProps = {
    * context. Null: the normal menu order.
    */
   focus?: WorkFocus | null
-  /** A menu item offered as an unsaved draft label (Our menu's photo request). */
+  /**
+   * The dish the files were picked for: applied as a removable chip once the
+   * menu names it, and saved unless the person removes it (see LabelPreset).
+   */
   preset?: AddLabelPreset | null
   /** The files the preset belongs to; omitted: every file. */
   presetAssetIds?: readonly string[]
@@ -114,9 +118,9 @@ async function fetchContext(
 
 /**
  * Loads and saves labels for G's LabelEditorDialog (Server Functions in
- * ./actions). Mount it anywhere that knows asset ids: the staff upload dialog
- * ("Label these files"), and the viewer ("Add/Edit labels") in the portfolio
- * and the admin library.
+ * ./actions). Mount it anywhere that knows asset ids: the viewer's "Add/Edit
+ * labels" in the portfolio and the admin library. (The upload sheet labels
+ * its files itself, see UploadLabelPanel.)
  *
  * Files from several venues are labelled one venue at a time (each against
  * its own venue's menu): when the person finishes or skips one venue's files,
@@ -141,6 +145,7 @@ function HostSession({
   const [groups, setGroups] = React.useState<string[][]>([assetIds])
   const [index, setIndex] = React.useState(0)
   const [phase, setPhase] = React.useState<Phase>({ kind: "loading" })
+  const sessionEnded = useSessionEndedCatch()
   // Only the latest request may update state (stale responses are ignored).
   const contextRequest = React.useRef(0)
   const catalogueRequest = React.useRef(0)
@@ -179,7 +184,8 @@ function HostSession({
       next = result.ok
         ? { state: "ready", catalogue: result.catalogue }
         : { state: "error", message: result.message }
-    } catch {
+    } catch (cause) {
+      sessionEnded(cause)
       next = { state: "error", message: NETWORK }
     }
     if (token === catalogueRequest.current) setCatalogue(next)

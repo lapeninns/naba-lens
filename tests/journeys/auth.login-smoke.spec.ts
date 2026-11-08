@@ -3,12 +3,7 @@ import { expect, test } from "@playwright/test"
 import { openEmailLink } from "../e2e/helpers/email-link"
 import { SUBJECTS, mailboxIds, waitForLink } from "../e2e/helpers/mailpit"
 import { requireIsolatedStack } from "../e2e/helpers/stack"
-import {
-  STAFF_LANDING,
-  openPortfolio,
-  portfolioList,
-  staffTile,
-} from "../e2e/helpers/ui"
+import { openPortfolio, portfolioList, staffTile } from "../e2e/helpers/ui"
 import { JOURNEY_PEOPLE } from "../support/journey-world"
 
 // Proves the journey harness end to end on the fixture world: a real sign-in
@@ -21,7 +16,8 @@ test("auth.login-smoke: staff A signs in and sees only their own photo", async (
   const staff = JOURNEY_PEOPLE.staffA
 
   await page.goto("/staff")
-  await expect(page).toHaveURL(/\/login$/)
+  // Signed out lands on /login, remembering Me as the page to return to.
+  await expect(page).toHaveURL(/\/login\?next=%2Fstaff$/)
 
   const seen = await mailboxIds(staff.email)
   await page.getByLabel("Email").fill(staff.email)
@@ -34,7 +30,8 @@ test("auth.login-smoke: staff A signs in and sees only their own photo", async (
     page,
     await waitForLink(staff.email, SUBJECTS.signIn, seen)
   )
-  await expect(page).toHaveURL(STAFF_LANDING)
+  // Signing in returns to the page asked for (Me), not Home.
+  await expect(page).toHaveURL(/\/staff$/)
   await openPortfolio(page)
   await expect(page.getByRole("heading", { name: staff.name })).toBeVisible()
 

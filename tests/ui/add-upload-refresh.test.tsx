@@ -17,8 +17,10 @@ import { AddTrigger } from "@/components/nabalens/shell/add-context"
 import type { MediaItemView } from "@/lib/server/media/types"
 import { photo } from "./tasks-fixtures"
 
-const { refresh, supabase } = vi.hoisted(() => ({
+const { refresh, settle, supabase } = vi.hoisted(() => ({
   refresh: vi.fn(),
+  // What the Add sheet hears from Me's Fix labels and Discard labels.
+  settle: vi.fn(),
   supabase: {
     auth: {
       onAuthStateChange: vi.fn(() => ({
@@ -34,7 +36,6 @@ vi.mock("@/app/_media/use-media-uploader", () => ({
   useMediaUploader: () => vi.fn(),
 }))
 vi.mock("@/app/_media/actions", () => ({
-  logout: vi.fn(),
   deleteMedia: vi.fn(),
 }))
 vi.mock("@/app/_labels/actions", () => ({
@@ -43,6 +44,24 @@ vi.mock("@/app/_labels/actions", () => ({
   saveLabelBatch: vi.fn(),
 }))
 vi.mock("@/app/staff/actions", () => ({ loadMyMedia: vi.fn() }))
+// Me's "Needs attention" reads its own API; these tests count gallery fetches.
+// Its buttons stand for a Fix labels save and a Discard labels.
+vi.mock("@/app/staff/needs-attention", () => ({
+  NeedsAttention: ({
+    onFixed,
+    onDiscarded,
+  }: {
+    onFixed?: (ids: string[]) => void
+    onDiscarded?: (ids: string[]) => void
+  }) => (
+    <>
+      <button onClick={() => onFixed?.(["asset-fixed"])}>Me fixed</button>
+      <button onClick={() => onDiscarded?.(["asset-discarded"])}>
+        Me discarded
+      </button>
+    </>
+  ),
+}))
 vi.mock("@/app/staff/community/actions", () => ({
   loadCommunityPage: vi.fn(),
 }))
@@ -57,13 +76,18 @@ vi.mock("@/components/nabalens", async (importOriginal) => {
     UploadDialog: ({
       open,
       onUploaded,
+      labels,
     }: {
       open: boolean
       onUploaded?: (count: number) => void
-    }) =>
-      open ? (
+      labels?: { settled?: (listener: typeof settle) => () => void }
+    }) => {
+      // The same listener every render: subscribing again changes nothing.
+      labels?.settled?.(settle)
+      return open ? (
         <button onClick={() => onUploaded?.(1)}>Complete upload</button>
-      ) : null,
+      ) : null
+    },
   }
 })
 
@@ -245,5 +269,23 @@ describe("global Add gallery refresh", () => {
     await user.click(screen.getByRole("button", { name: "Complete upload" }))
     await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2))
     expect(refresh).toHaveBeenCalledTimes(2)
+  })
+
+  it("M2: Me's Fix labels and Discard labels reach the Add sheet's rows", async () => {
+    const user = userEvent.setup()
+    render(
+      host(
+        <StaffPortfolio
+          profile={profile}
+          uploadBlocked={null}
+          initialPage={{ items: [item(OLD_ID)], nextCursor: null }}
+        />
+      )
+    )
+    await user.click(screen.getByRole("button", { name: "Me fixed" }))
+    expect(settle).toHaveBeenLastCalledWith(["asset-fixed"], "labelled")
+    await user.click(screen.getByRole("button", { name: "Me discarded" }))
+    expect(settle).toHaveBeenLastCalledWith(["asset-discarded"], "discarded")
+    expect(settle).toHaveBeenCalledTimes(2)
   })
 })

@@ -56,6 +56,11 @@ const ALLOWED_PAGES = new Set([
   "/admin/staff",
   "/admin/staff/[id]",
   "/auth/blocked",
+  // Unmatched URLs in each area: notFound() only, so the area's own not-found
+  // page (with its navigation) answers instead of the root one.
+  "/staff/[...missing]",
+  "/manager/[...missing]",
+  "/admin/[...missing]",
   // Email-link landing: shows Continue; the token is used only on POST (review #8).
   "/auth/confirm",
   "/ui-preview",
@@ -158,6 +163,10 @@ const ALLOWED_HANDLERS = new Set([
   // v0.4 §3 rule 9: hourly idempotent monthly preparation, cron-only bearer auth
   // like the other /api/internal routes; it sends nothing to staff.
   "/api/internal/coverage/monthly-preparation",
+  // Upload labels (November 2026), own uploads only: GET the label menu or,
+  // with ?attention=1, the caller's stored labels; POST labels (stored until
+  // the photo is ready); DELETE ?assetId= discards stored labels.
+  "/api/upload-labels",
 ])
 
 /** The dev-only preview must stay inside the `(dev)` route group. */

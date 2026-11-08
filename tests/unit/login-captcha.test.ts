@@ -6,6 +6,10 @@ const mocks = vi.hoisted(() => ({
 }))
 vi.mock("@/lib/supabase/server", () => ({ createClient: mocks.createClient }))
 vi.mock("@/lib/supabase/env", () => ({ getSiteUrl: () => "https://app.test" }))
+// The action remembers (or forgets) the sign-in return path in a cookie.
+vi.mock("next/headers", () => ({
+  cookies: async () => ({ set: () => {}, delete: () => {} }),
+}))
 
 import { requestSignInLink } from "@/app/login/actions"
 import {

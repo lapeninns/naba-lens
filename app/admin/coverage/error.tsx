@@ -2,7 +2,6 @@
 
 import { ArrowClockwiseIcon } from "@phosphor-icons/react"
 
-import { logout } from "@/app/_media/actions"
 import { AppShell } from "@/components/nabalens/app-shell"
 import { ERROR_COPY, ErrorState } from "@/components/nabalens/error-state"
 import { PageHeader } from "@/components/nabalens/page-header"
@@ -18,7 +17,7 @@ export default function CoverageError({
   retry: () => void
 }) {
   return (
-    <AppShell variant="admin" active="coverage" logoutAction={logout}>
+    <AppShell variant="admin" active="coverage">
       <div className="flex flex-col gap-6">
         {/* Also the boundary for /admin/coverage/[venueId] and /managers. */}
         <PageHeader title={COVERAGE_COPY.title} className="pb-0 md:pb-0" />

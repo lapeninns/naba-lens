@@ -65,6 +65,10 @@ async function contrast(page: Page, width: number, path: string) {
   expect(res?.status(), `${path} status`).toBeLessThan(400)
   await expect(page.locator("html")).toHaveClass(/\bdark\b/)
   await expect(page.locator("h1").first()).toBeVisible()
+  // A route with loading.tsx shows its skeleton (which has an h1 of its own)
+  // first and streams the page in behind it, in a hidden "S:" container that
+  // React reveals up to ~300 ms after load. Measure the page, not the skeleton.
+  await expect(page.locator('div[hidden][id^="S:"]')).toHaveCount(0)
   await page.waitForFunction(() =>
     document.getAnimations().every((a) => a.playState !== "running")
   )

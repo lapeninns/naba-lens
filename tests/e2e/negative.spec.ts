@@ -19,6 +19,7 @@ import {
   portfolioList,
   staffTile,
   tile,
+  uploadSheet,
   uploadThroughDialog,
   openPortfolio,
   STAFF_LANDING,
@@ -160,7 +161,10 @@ test.describe("release negatives", () => {
       `/admin/staff/${world.staffB.id}`,
     ]) {
       await anon.goto(path)
-      await expect(anon, path).toHaveURL(/\/login$/)
+      // Signed out still lands on /login, remembering the page asked for.
+      await expect(anon, path).toHaveURL(
+        new URL(`/login?next=${encodeURIComponent(path)}`, anon.url()).href
+      )
     }
 
     // B still has their file: nothing above changed it.
@@ -339,17 +343,26 @@ test.describe("release negatives", () => {
     })
     expect(thumb.status()).toBe(403)
 
-    // Upload from the already-open dialog: refused, nothing reserved.
+    // Upload from the already-open page: refused as soon as it is picked,
+    // nothing reserved. The row needs attention and says why.
     await uploadThroughDialog(staff, [late], {
-      expectSettled: "0 uploaded · 1 failed",
+      expectSettled: "0 saved · 1 need attention",
       close: false,
     })
+    const sheet = uploadSheet(staff)
+    const lateRow = sheet
+      .getByRole("list", { name: "Files" })
+      .getByRole("listitem")
+      .filter({ has: staff.getByText(late.name, { exact: true }) })
     await expect(
-      staff.getByRole("dialog").getByText("Your account is not active.", {
-        exact: false,
-      })
+      lateRow.getByText("Needs attention", { exact: true })
     ).toBeVisible()
-    await staff.getByRole("button", { name: "Done" }).click()
+    await expect(
+      lateRow.getByText("Your account is not active.", { exact: false })
+    ).toBeVisible()
+    // Done is always available; the refused file stays in the queue.
+    await sheet.getByRole("button", { name: "Done" }).click()
+    await expect(sheet).toBeHidden()
 
     // Delete own media: refused with a clear message, the file stays.
     await keptTile.click()
@@ -471,9 +484,9 @@ test.describe("release negatives", () => {
     const staff = await signedInPage(browser, world.staffA)
     await openPortfolio(staff)
     await expect(
-      staff.getByRole("main").getByText(
-        "Your profile starts here. Add your first photo or video."
-      )
+      staff
+        .getByRole("main")
+        .getByText("Your profile starts here. Add your first photo or video.")
     ).toBeVisible()
 
     const admin = await signedInPage(browser, world.adminA)

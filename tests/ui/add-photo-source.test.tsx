@@ -2,8 +2,9 @@
 // Photo library first, one global queue: openAdd({ source }) clicks Add's own
 // hidden input inside the click handler, the library input takes several
 // files without capture, the camera input captures, a cancelled picker does
-// nothing, and the queue offers labels for finished files (with the Our menu
-// preset as a draft) while failed ones stay retryable.
+// nothing, picked files start uploading at once in the "Saving N photos"
+// sheet, Our menu's dish is applied (and sent by asset ID) unless removed,
+// and a task screen hears each of its photos as soon as that one is ready.
 import {
   act,
   cleanup,
@@ -17,7 +18,6 @@ import userEvent from "@testing-library/user-event"
 import * as React from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import type { LabelEditorContextResult } from "@/app/_labels/actions"
 import { AddHost } from "@/app/staff/_shell/add-host"
 import {
   CAMERA_LABEL,
@@ -28,14 +28,18 @@ import {
 import {
   AddTrigger,
   useAdd,
-  useAddLabelled,
   useAddQueue,
   type OpenAddOptions,
 } from "@/components/nabalens/shell/add-context"
 import { AddSheet } from "@/components/nabalens/shell/add-sheet"
-import type { Uploader } from "@/components/nabalens/upload-queue"
+import type {
+  UploadContext,
+  Uploader,
+} from "@/components/nabalens/upload-queue"
+import { EMPTY_LABEL_SUMMARY } from "@/lib/menus/types"
+import type { FinaliseLabels } from "@/lib/upload/types"
 
-import { CATALOGUE, asset } from "./labels-fixtures"
+import { CATALOGUE, MOMO_CATALOGUE } from "./labels-fixtures"
 
 const { refresh, supabase, uploads, actions } = vi.hoisted(() => ({
   refresh: vi.fn(),
@@ -114,13 +118,52 @@ const input = (source: "library" | "camera") =>
     `input[data-photo-source="${source}"]`
   )!
 
+/** The label API (C1): the menu, kept labels, discards. */
+const api = vi.hoisted(() => ({
+  posted: [] as {
+    venueId: string
+    input: { assetId: string; items: unknown[]; contentTypes: string[] }
+  }[],
+  deleted: [] as string[],
+  post: null as null | ((body: unknown) => unknown),
+  /** The menu's answer; default: CATALOGUE at once. */
+  menu: null as null | (() => unknown),
+}))
+function labelApi(url: string, init?: RequestInit) {
+  const method = init?.method ?? "GET"
+  let body: unknown
+  if (method === "POST") {
+    const sent = JSON.parse(String(init!.body))
+    api.posted.push(sent)
+    body = api.post?.(sent) ?? {
+      ok: true,
+      assetId: sent.input.assetId,
+      state: "pending",
+    }
+  } else if (method === "DELETE") {
+    api.deleted.push(new URL(url, "http://x").searchParams.get("assetId")!)
+    body = { ok: true }
+  } else if (url.includes("attention=1")) body = { ok: true, items: [] }
+  else if (api.menu) return Promise.resolve(api.menu()).then(answer)
+  else body = { ok: true, catalogue: CATALOGUE, focus: null }
+  return Promise.resolve(answer(body))
+}
+function answer(body: unknown) {
+  return { json: async () => body } as Response
+}
+
 let phone = false
 beforeEach(() => {
   vi.clearAllMocks()
   tried.clear()
   uploads.current = uploader
   phone = false
+  api.posted = []
+  api.deleted = []
+  api.post = null
+  api.menu = null
   vi.stubGlobal("matchMedia", () => ({ matches: !phone }))
+  vi.stubGlobal("fetch", vi.fn(labelApi))
 })
 
 afterEach(() => {
@@ -206,20 +249,28 @@ describe("openAdd({ source })", () => {
     expect(onPicked).not.toHaveBeenCalled()
   })
 
-  it("queues picked files in the one Add queue and tells the caller", async () => {
+  it("starts uploading picked files at once in the one Add queue and tells the caller", async () => {
     const user = userEvent.setup()
     const onPicked = vi.fn()
+    const started: string[] = []
+    uploads.current = async (file) => {
+      started.push(file.name)
+      return { assetId: `asset-${file.name}` }
+    }
     host(<Opener opts={{ source: "library", onPicked }} />)
     await user.click(screen.getByRole("button", { name: "Open" }))
     await user.upload(input("library"), [jpeg("a.jpg"), jpeg("b.jpg")])
     const dialog = await screen.findByRole("dialog", {
-      name: "Upload photos or videos",
+      name: "Saving 2 photos",
     })
-    expect(within(dialog).getByText("a.jpg")).toBeTruthy()
+    expect(fileRow("a.jpg")).toBeTruthy()
     expect(
-      within(dialog).getByRole("button", { name: "Upload 2 files" })
-    ).toBeTruthy()
+      within(dialog).queryByRole("button", { name: /^Upload \d/ })
+    ).toBeNull()
+    await waitFor(() => expect(started).toEqual(["a.jpg", "b.jpg"]))
     expect(onPicked).toHaveBeenCalledTimes(1)
+    expect(within(dialog).getByText("What's in these photos?")).toBeTruthy()
+    expect(within(dialog).getByText("(optional)")).toBeTruthy()
   })
 })
 
@@ -242,6 +293,10 @@ describe("Add sheet (phones)", () => {
     expect(options[0]).toContain("Up to 7 at a time")
     expect(options[1]).toContain(CAMERA_LABEL)
     expect(dialog.textContent).not.toMatch(/straight away|choose a task/)
+    expect(dialog.textContent).toContain(
+      "Photos start saving as soon as you pick them."
+    )
+    expect(dialog.textContent).not.toMatch(/Nothing uploads/)
   })
 
   it("opens from Add on phones and ignores a cancelled picker", async () => {
@@ -268,175 +323,402 @@ describe("Add sheet (phones)", () => {
   })
 })
 
-describe("one queue: label finished files, retry failed ones", () => {
-  const preset = {
-    itemId: "item-bhaji",
-    variantId: null,
-    itemName: "Onion Bhaji",
-    variantName: null,
-  }
+const preset = {
+  itemId: "item-bhaji",
+  variantId: null,
+  itemName: "Onion Bhaji",
+  variantName: null,
+}
 
-  function ready(ids: string[]): LabelEditorContextResult {
-    return {
-      ok: true,
-      viewer: "staff",
-      assets: ids.map((id) => asset(id)),
-      missing: [],
-      catalogue: CATALOGUE,
-    }
-  }
+type Held = {
+  name: string
+  ctx: UploadContext
+  finish: (labels?: FinaliseLabels) => void
+  fail: (error: Error) => void
+}
 
-  it("labels the done files with the preset as a draft, then retries the failed one", async () => {
+/** Each upload reserves `asset-<name>` and waits for the test to finish it. */
+function holdUploads() {
+  const held: Held[] = []
+  uploads.current = (file, ctx) =>
+    new Promise((resolve, reject) => {
+      ctx.onReserved?.(`asset-${file.name}`)
+      held.push({
+        name: file.name,
+        ctx,
+        finish: (labels) =>
+          resolve({
+            assetId: `asset-${file.name}`,
+            ...(labels ? { labels } : {}),
+          }),
+        fail: reject,
+      })
+    })
+  const find = (name: string) => held.find((h) => h.name === name)!
+  return { held, find }
+}
+
+async function hideSheet(user: ReturnType<typeof userEvent.setup>) {
+  await user.keyboard("{Escape}")
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+}
+
+const fileRow = (name: string) =>
+  within(screen.getByRole("list", { name: "Files" }))
+    .getAllByRole("listitem")
+    .find((li) => li.textContent?.includes(name))!
+
+describe("Our menu: the dish is applied by default", () => {
+  it("takes a photo of the dish, sends the dish by asset ID and says Saved once it is on the photo", async () => {
     const user = userEvent.setup()
-    const heard = vi.fn()
-    actions.loadLabelEditorContext.mockImplementation(async (ids: string[]) =>
-      ready(ids)
-    )
+    const { find } = holdUploads()
     host(
-      <>
-        <Opener opts={{ preset }} />
-        <ReadyListener onReady={heard} />
-      </>
+      <Opener
+        label="Take a photo of this dish"
+        opts={{ source: "camera", imagesOnly: true, preset }}
+      />
     )
-    await user.click(screen.getByRole("button", { name: "Open" }))
-    let dialog = screen.getByRole("dialog", { name: "Upload photos or videos" })
-    await user.upload(
-      within(dialog).getByLabelText("Choose photos or videos"),
-      [jpeg("dish.jpg"), jpeg("fail.jpg")]
+    const camera = input("camera")
+    const cameraClick = vi.spyOn(camera, "click")
+    fireEvent.click(
+      screen.getByRole("button", { name: "Take a photo of this dish" })
     )
-    await user.click(
-      within(dialog).getByRole("button", { name: "Upload 2 files" })
-    )
-    expect(
-      await within(dialog).findByText("1 uploaded · 1 failed")
-    ).toBeTruthy()
-    expect(heard).toHaveBeenCalledWith(["asset-dish.jpg"])
+    expect(cameraClick).toHaveBeenCalledTimes(1)
+    expect(camera.getAttribute("capture")).toBe("environment")
+    expect(camera.accept).toBe("image/*")
+    await user.upload(camera, [jpeg("dish.jpg")])
 
-    await user.click(
-      within(dialog).getByRole("button", { name: "Label this file" })
-    )
-    const editor = await screen.findByRole("dialog", { name: "Labels" })
-    expect(actions.loadLabelEditorContext).toHaveBeenCalledWith([
-      "asset-dish.jpg",
-    ])
-    // The preset is an unsaved draft: shown and selected, nothing saved yet.
-    expect(within(editor).getByText("Suggested from Our menu")).toBeTruthy()
+    const dialog = await screen.findByRole("dialog", { name: "Saving 1 photo" })
+    await waitFor(() => expect(api.posted).toHaveLength(1))
+    expect(api.posted[0]).toEqual({
+      venueId: "venue-1",
+      input: expect.objectContaining({
+        assetId: "asset-dish.jpg",
+        catalogueVersionId: "version-1",
+        items: [{ itemId: "item-bhaji", variantId: null }],
+      }),
+    })
+    // Shown as a chip the person can remove.
     expect(
-      within(
-        within(editor).getByRole("list", { name: "Selected menu items" })
-      ).getByText("Onion Bhaji")
+      await within(dialog).findByRole("button", { name: "Remove Onion Bhaji" })
     ).toBeTruthy()
-    expect(actions.saveLabelBatch).not.toHaveBeenCalled()
-    await user.click(within(editor).getByRole("button", { name: "Cancel" }))
-    await user.click(
-      await screen.findByRole("button", { name: "Discard changes" })
+    expect(find("dish.jpg").ctx.account).toBe("u1")
+
+    await act(async () =>
+      find("dish.jpg").finish({
+        state: "saved",
+        labels: {
+          ...EMPTY_LABEL_SUMMARY,
+          revision: 1,
+          hasLabels: true,
+          items: [
+            {
+              itemId: "item-bhaji",
+              variantId: null,
+              name: "Onion Bhaji",
+              variantName: null,
+              sectionName: "Starters",
+              labelledAs: null,
+              state: "current",
+            },
+          ],
+        },
+      })
     )
     await waitFor(() =>
-      expect(screen.queryByRole("dialog", { name: "Labels" })).toBeNull()
+      expect(fileRow("dish.jpg").textContent).toContain(
+        "Saved · Onion Bhaji · waiting for manager review"
+      )
     )
-    expect(actions.saveLabelBatch).not.toHaveBeenCalled()
-
-    // The failed file is still in the queue: Add shows it, and it retries.
-    const add = screen.getByRole("button", { name: /^Add photos, 1 failed/ })
-    await user.click(add)
-    dialog = screen.getByRole("dialog", { name: "Upload photos or videos" })
-    expect(within(dialog).getByText("fail.jpg")).toBeTruthy()
-    await user.click(
-      within(dialog).getByRole("button", { name: "Retry 1 failed" })
-    )
-    expect(await within(dialog).findByText("2 uploaded")).toBeTruthy()
+    expect(refresh).toHaveBeenCalled()
+    // Done right away: nothing is left, so the queue clears.
+    await user.click(within(dialog).getByRole("button", { name: "Done" }))
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+    expect(screen.getByRole("button", { name: "Add photos" })).toBeTruthy()
   })
 
-  it("files that finish out of sight are ready to label from Add", async () => {
+  it("removing the dish discards what the server kept for that photo", async () => {
     const user = userEvent.setup()
-    let release!: () => void
-    uploads.current = (file) =>
-      new Promise((resolve) => {
-        release = () => resolve({ assetId: `asset-${file.name}` })
-      })
-    actions.loadLabelEditorContext.mockImplementation(async (ids: string[]) =>
-      ready(ids)
-    )
-    host(<Opener />)
+    holdUploads()
+    host(<Opener opts={{ source: "library", imagesOnly: true, preset }} />)
     await user.click(screen.getByRole("button", { name: "Open" }))
-    const dialog = screen.getByRole("dialog", {
-      name: "Upload photos or videos",
-    })
-    await user.upload(
-      within(dialog).getByLabelText("Choose photos or videos"),
-      [jpeg("late.jpg")]
-    )
+    await user.upload(input("library"), [jpeg("dish.jpg")])
+    await waitFor(() => expect(api.posted).toHaveLength(1))
     await user.click(
-      within(dialog).getByRole("button", { name: "Upload 1 file" })
+      await screen.findByRole("button", { name: "Remove Onion Bhaji" })
     )
-    // Hide the running queue; it keeps uploading.
-    await user.keyboard("{Escape}")
-    await waitFor(() =>
-      expect(
-        screen.queryByRole("dialog", { name: "Upload photos or videos" })
-      ).toBeNull()
-    )
-    await act(async () => release())
-    const add = await screen.findByRole("button", {
-      name: "Add photos, 1 ready to label",
-    })
-    await user.click(add)
-    const reopened = screen.getByRole("dialog", {
-      name: "Upload photos or videos",
-    })
-    await user.click(
-      within(reopened).getByRole("button", { name: "Label this file" })
-    )
-    expect(await screen.findByRole("dialog", { name: "Labels" })).toBeTruthy()
-    expect(actions.loadLabelEditorContext).toHaveBeenCalledWith([
-      "asset-late.jpg",
-    ])
-    // Labelling took the files off the waiting list.
+    await waitFor(() => expect(api.deleted).toEqual(["asset-dish.jpg"]))
+    expect(api.posted).toHaveLength(1)
+  })
+
+  it("puts the dish on once: the sheet hands it back with the dish, and it stays single", async () => {
+    const user = userEvent.setup()
+    holdUploads()
+    host(<Opener opts={{ source: "library", preset }} />)
+    await user.click(screen.getByRole("button", { name: "Open" }))
+    await user.upload(input("library"), [jpeg("dish.jpg")])
+    await waitFor(() => expect(api.posted).toHaveLength(1))
     expect(
-      screen.getByRole("button", { name: "Add photos", hidden: true })
-    ).toBeTruthy()
+      await screen.findAllByRole("button", { name: "Remove Onion Bhaji" })
+    ).toHaveLength(1)
+
+    // Reopened: the label field mounts again with `initial` already holding
+    // the dish, as well as the dish as the preset. Neither adds a second one.
+    await hideSheet(user)
+    await user.click(
+      screen.getByRole("button", { name: "Add photos, 1 in progress" })
+    )
+    const dialog = await screen.findByRole("dialog", { name: "Saving 1 photo" })
+    expect(
+      await within(dialog).findAllByRole("button", {
+        name: "Remove Onion Bhaji",
+      })
+    ).toHaveLength(1)
+    expect(api.posted).toHaveLength(1)
+    expect(api.posted[0].input.items).toEqual([
+      { itemId: "item-bhaji", variantId: null },
+    ])
+  })
+
+  it("a removed dish stays removed when the sheet opens again", async () => {
+    const user = userEvent.setup()
+    holdUploads()
+    host(<Opener opts={{ source: "library", preset }} />)
+    await user.click(screen.getByRole("button", { name: "Open" }))
+    await user.upload(input("library"), [jpeg("dish.jpg")])
+    await waitFor(() => expect(api.posted).toHaveLength(1))
+    await user.click(
+      await screen.findByRole("button", { name: "Remove Onion Bhaji" })
+    )
+    await waitFor(() => expect(api.deleted).toEqual(["asset-dish.jpg"]))
+
+    await hideSheet(user)
+    await user.click(
+      screen.getByRole("button", { name: "Add photos, 1 in progress" })
+    )
+    const dialog = await screen.findByRole("dialog", { name: "Saving 1 photo" })
+    expect(await within(dialog).findByText("No labels")).toBeTruthy()
+    expect(
+      within(dialog).queryByRole("button", { name: "Remove Onion Bhaji" })
+    ).toBeNull()
+    expect(api.posted).toHaveLength(1)
+  })
+
+  it("applies the dish only to the files picked from it, not earlier or later ones", async () => {
+    const user = userEvent.setup()
+    const { find } = holdUploads()
+    host(
+      <>
+        <Opener label="Me" opts={{ dialog: true }} />
+        <Opener label="Dish" opts={{ source: "library", preset }} />
+        <Opener label="Home" opts={{ source: "library" }} />
+      </>
+    )
+    await user.click(screen.getByRole("button", { name: "Me" }))
+    await user.upload(
+      within(screen.getByRole("dialog")).getByLabelText(
+        "Choose photos or videos"
+      ),
+      [jpeg("early.jpg")]
+    )
+    await hideSheet(user)
+    await user.click(screen.getByRole("button", { name: "Dish" }))
+    await user.upload(input("library"), [jpeg("dish.jpg")])
+    await waitFor(() => expect(api.posted).toHaveLength(1))
+    expect(api.posted[0].input.assetId).toBe("asset-dish.jpg")
+    await hideSheet(user)
+
+    // A cancelled dish pick leaves nothing behind for the next pick.
+    fireEvent.click(screen.getByRole("button", { name: "Dish" }))
+    fireEvent.change(input("library"), { target: { files: [] } })
+    await user.click(screen.getByRole("button", { name: "Home" }))
+    await user.upload(input("library"), [jpeg("cocktail.jpg")])
+    await screen.findByRole("dialog", { name: "Saving 3 photos" })
+    // Let every file reserve, then make sure only the dish photo got it.
+    await act(async () => {
+      find("early.jpg").finish()
+      find("dish.jpg").finish()
+    })
+    await waitFor(() => expect(find("cocktail.jpg")).toBeTruthy())
+    await act(async () => find("cocktail.jpg").finish())
+    await waitFor(() =>
+      expect(fileRow("cocktail.jpg").textContent).toContain("Saved")
+    )
+    expect(api.posted.map((p) => p.input.assetId)).toEqual(["asset-dish.jpg"])
+  })
+
+  it("a dish photo that can't be used keeps its dish as not saved", async () => {
+    const user = userEvent.setup()
+    const { find } = holdUploads()
+    host(<Opener opts={{ source: "library", preset }} />)
+    await user.click(screen.getByRole("button", { name: "Open" }))
+    await user.upload(input("library"), [jpeg("dish.jpg")])
+    await waitFor(() => expect(api.posted).toHaveLength(1))
+    await act(async () =>
+      find("dish.jpg").fail(
+        Object.assign(new Error("The photo could not be decoded."), {
+          error: { code: "processing_failed", retryable: false },
+        })
+      )
+    )
+    await waitFor(() =>
+      expect(fileRow("dish.jpg").textContent).toContain(
+        "This file can't be used: The photo could not be decoded."
+      )
+    )
+    expect(fileRow("dish.jpg").textContent).toContain(
+      "Not saved (photo not saved)"
+    )
+  })
+
+  describe("two dishes picked before the menu is known", () => {
+    const lassi = {
+      itemId: "item-lassi",
+      variantId: null,
+      itemName: "Mango Lassi",
+      variantName: null,
+    }
+    const BHAJI_ITEM = [{ itemId: "item-bhaji", variantId: null }]
+    const LASSI_ITEM = [{ itemId: "item-lassi", variantId: null }]
+
+    /** The last labels sent for each photo. */
+    const lastPosted = () =>
+      Object.fromEntries(api.posted.map((p) => [p.input.assetId, p.input]))
+
+    /**
+     * Onion Bhaji's photo, then Mango Lassi's. `hide`: the sheet is closed in
+     * between (the label field mounts again); otherwise the second pick joins
+     * the open sheet (the same field gets a second dish).
+     */
+    async function pickBoth(
+      user: ReturnType<typeof userEvent.setup>,
+      hide: boolean
+    ) {
+      host(
+        <>
+          <Opener label="Bhaji" opts={{ source: "library", preset }} />
+          <Opener label="Lassi" opts={{ source: "library", preset: lassi }} />
+        </>
+      )
+      await user.click(screen.getByRole("button", { name: "Bhaji" }))
+      await user.upload(input("library"), [jpeg("bhaji.jpg")])
+      await screen.findByRole("dialog", { name: "Saving 1 photo" })
+      if (hide) await hideSheet(user)
+      // fireEvent: the open sheet makes the page behind it inert to user.click.
+      fireEvent.click(
+        screen.getByRole("button", { name: "Lassi", hidden: true })
+      )
+      await user.upload(input("library"), [jpeg("lassi.jpg")])
+      return screen.findByRole("dialog", { name: "Saving 2 photos" })
+    }
+
+    /** Both photos keep their own dish, also after an edit in the field. */
+    async function keepsBoth(
+      user: ReturnType<typeof userEvent.setup>,
+      dialog: HTMLElement
+    ) {
+      await waitFor(() =>
+        expect(lastPosted()).toEqual({
+          "asset-bhaji.jpg": expect.objectContaining({ items: BHAJI_ITEM }),
+          "asset-lassi.jpg": expect.objectContaining({ items: LASSI_ITEM }),
+        })
+      )
+      await user.click(
+        within(dialog).getByRole("button", { name: /^More details/ })
+      )
+      await user.click(
+        within(dialog).getByRole("button", { name: "Finished dish" })
+      )
+      await waitFor(() =>
+        expect(lastPosted()).toEqual({
+          "asset-bhaji.jpg": expect.objectContaining({
+            items: BHAJI_ITEM,
+            contentTypes: ["dish"],
+          }),
+          "asset-lassi.jpg": expect.objectContaining({
+            items: LASSI_ITEM,
+            contentTypes: ["dish"],
+          }),
+        })
+      )
+      // Nothing was ever sent without its dish, and each shows on its photo.
+      for (const p of api.posted)
+        expect(p.input.items).toEqual(
+          p.input.assetId === "asset-bhaji.jpg" ? BHAJI_ITEM : LASSI_ITEM
+        )
+      expect(
+        within(dialog).getByRole("button", { name: "Remove Onion Bhaji" })
+      ).toBeTruthy()
+      expect(
+        within(dialog).getByRole("button", { name: "Remove Mango Lassi" })
+      ).toBeTruthy()
+    }
+
+    it("while it is loading: each photo keeps its own dish", async () => {
+      const user = userEvent.setup()
+      holdUploads()
+      let load!: () => void
+      api.menu = () =>
+        new Promise((resolve) => {
+          load = () => resolve({ ok: true, catalogue: CATALOGUE, focus: null })
+        })
+      const dialog = await pickBoth(user, false)
+      expect(api.posted).toEqual([])
+      await act(async () => load())
+      await keepsBoth(user, dialog)
+    })
+
+    it("after it failed to load: each photo keeps its own dish once retried", async () => {
+      const user = userEvent.setup()
+      holdUploads()
+      api.menu = () => ({ ok: false, message: "The menu is unavailable." })
+      const dialog = await pickBoth(user, true)
+      expect(
+        await within(dialog).findByText("The menu couldn't be loaded")
+      ).toBeTruthy()
+      expect(api.posted).toEqual([])
+      api.menu = null
+      await user.click(
+        within(dialog).getByRole("button", { name: "Retry loading the menu" })
+      )
+      await keepsBoth(user, dialog)
+    })
   })
 })
 
 describe("each Add call owns only the files it picked", () => {
-  const preset = {
-    itemId: "item-bhaji",
-    variantId: null,
-    itemName: "Onion Bhaji",
-    variantName: null,
-  }
-
-  function deferUploads() {
-    const pending: (() => void)[] = []
-    uploads.current = (file) =>
-      new Promise((resolve) => {
-        pending.push(() => resolve({ assetId: `asset-${file.name}` }))
-      })
-    return () => pending.splice(0).forEach((release) => release())
-  }
-
-  async function hideQueue(user: ReturnType<typeof userEvent.setup>) {
-    await user.keyboard("{Escape}")
-    await waitFor(() =>
-      expect(
-        screen.queryByRole("dialog", { name: /^Upload photos/ })
-      ).toBeNull()
-    )
-  }
-
-  function MarkLabelled({ ids }: { ids: string[] }) {
-    const labelled = useAddLabelled()
-    return (
-      <button type="button" onClick={() => labelled(ids)}>
-        Labelled elsewhere
-      </button>
-    )
-  }
-
-  it("tells a task screen only about its own files, which are then not ready to label", async () => {
+  it("hands a task screen each photo as soon as it is ready, before a slow video", async () => {
     const user = userEvent.setup()
     const own = vi.fn()
-    const release = deferUploads()
+    const heard = vi.fn()
+    const { find } = holdUploads()
+    host(
+      <>
+        <Opener label="Task" opts={{ source: "library", onReady: own }} />
+        <ReadyListener onReady={heard} />
+      </>
+    )
+    await user.click(screen.getByRole("button", { name: "Task" }))
+    await user.upload(input("library"), [
+      new File([new Uint8Array(64)], "slow.mp4", { type: "video/mp4" }),
+      jpeg("task.jpg"),
+    ])
+    const dialog = await screen.findByRole("dialog", { name: "Saving 2 files" })
+    // Task photos carry no labels here: the task screen sends them on.
+    expect(within(dialog).queryByText("What's in these photos?")).toBeNull()
+    await waitFor(() => expect(find("task.jpg")).toBeTruthy())
+    await act(async () => find("task.jpg").finish())
+    expect(own).toHaveBeenCalledWith(["asset-task.jpg"])
+    expect(heard).toHaveBeenCalledWith(["asset-task.jpg"])
+    expect(own).toHaveBeenCalledTimes(1)
+    await act(async () => find("slow.mp4").finish())
+    expect(own).toHaveBeenLastCalledWith(["asset-slow.mp4"])
+    expect(api.posted).toEqual([])
+  })
+
+  it("never tells a task screen about uploads picked elsewhere", async () => {
+    const user = userEvent.setup()
+    const own = vi.fn()
     host(
       <>
         <Opener
@@ -448,193 +730,597 @@ describe("each Add call owns only the files it picked", () => {
     )
     await user.click(screen.getByRole("button", { name: "Task" }))
     await user.upload(input("library"), [jpeg("task.jpg")])
-    const dialog = await screen.findByRole("dialog", {
-      name: "Upload photos",
-    })
-    await user.click(
-      within(dialog).getByRole("button", { name: "Upload 1 file" })
-    )
-    await hideQueue(user)
-    await act(async () => release())
     await waitFor(() => expect(own).toHaveBeenCalledWith(["asset-task.jpg"]))
-    // Claimed by the task screen: Add does not also call it ready to label.
-    expect(screen.getByRole("button", { name: "Add photos" })).toBeTruthy()
-
-    // A later upload from elsewhere is not the task screen's.
-    uploads.current = uploader
+    await hideSheet(user)
     await user.click(screen.getByRole("button", { name: "Me" }))
-    const again = screen.getByRole("dialog", {
-      name: "Upload photos or videos",
-    })
-    await user.upload(within(again).getByLabelText("Choose photos or videos"), [
-      jpeg("other.jpg"),
-    ])
-    await user.click(
-      within(again).getByRole("button", { name: "Upload 1 file" })
+    await user.upload(
+      within(screen.getByRole("dialog")).getByLabelText(/^Choose photos/),
+      [jpeg("other.jpg")]
     )
-    expect(await within(again).findByText("2 uploaded")).toBeTruthy()
+    await waitFor(() =>
+      expect(fileRow("other.jpg").textContent).toContain("Saved")
+    )
     expect(own).toHaveBeenCalledOnce()
   })
+})
 
-  it("keeps a gone task screen's files as ready to label", async () => {
+describe("Add while work remains", () => {
+  it("names what is still going on and reopens the queue", async () => {
     const user = userEvent.setup()
-    const release = deferUploads()
-    host(
-      <Opener
-        opts={{ source: "library", imagesOnly: true, onReady: () => false }}
-      />
-    )
+    const { find } = holdUploads()
+    api.post = (sent) => {
+      const body = sent as { input: { assetId: string } }
+      return {
+        ok: false,
+        assetId: body.input.assetId,
+        code: "catalogue_changed",
+        message: "The menu changed.",
+      }
+    }
+    host(<Opener opts={{ source: "library", preset }} />)
     await user.click(screen.getByRole("button", { name: "Open" }))
-    await user.upload(input("library"), [jpeg("left.jpg")])
-    const dialog = await screen.findByRole("dialog", {
-      name: "Upload photos",
-    })
-    await user.click(
-      within(dialog).getByRole("button", { name: "Upload 1 file" })
-    )
-    await hideQueue(user)
-    await act(async () => release())
+    await user.upload(input("library"), [jpeg("dish.jpg")])
+    await hideSheet(user)
+    expect(
+      await screen.findByRole("button", { name: "Add photos, 1 in progress" })
+    ).toBeTruthy()
+    await act(async () => find("dish.jpg").finish())
     expect(
       await screen.findByRole("button", {
-        name: "Add photos, 1 ready to label",
+        name: "Add photos, 1 need attention",
       })
+    ).toBeTruthy()
+    await user.click(
+      screen.getByRole("button", { name: "Add photos, 1 need attention" })
+    )
+    const dialog = await screen.findByRole("dialog", { name: "Saving 1 photo" })
+    expect(fileRow("dish.jpg").textContent).toContain(
+      "The menu changed. Check the dish."
+    )
+    expect(
+      within(dialog).getByRole("button", { name: "Fix labels for dish.jpg" })
+    ).toBeTruthy()
+  })
+})
+
+describe("Review 1 regressions: Add host", () => {
+  it("n2: a dish picker cancelled behind the open sheet leaves its dish off Add more", async () => {
+    const user = userEvent.setup()
+    holdUploads()
+    host(
+      <>
+        <Opener label="Me" opts={{ dialog: true }} />
+        <Opener label="Dish" opts={{ source: "library", preset }} />
+      </>
+    )
+    await user.click(screen.getByRole("button", { name: "Me" }))
+    const choose = () =>
+      within(screen.getByRole("dialog")).getByLabelText(/^Choose photos/)
+    await user.upload(choose(), [jpeg("first.jpg")])
+    await screen.findByRole("dialog", { name: "Saving 1 photo" })
+    // The dish's picker opens and closes with nothing picked (browsers send
+    // no event at all). fireEvent: the open sheet makes the page inert.
+    fireEvent.click(screen.getByRole("button", { name: "Dish", hidden: true }))
+    // "Add more" in the sheet picks another file.
+    await user.click(screen.getByRole("button", { name: "Add more" }))
+    await user.upload(choose(), [jpeg("other.jpg")])
+    await screen.findByRole("dialog", { name: "Saving 2 photos" })
+    await act(async () => {})
+    expect(api.posted).toEqual([])
+    expect(
+      screen.queryByRole("button", { name: "Remove Onion Bhaji" })
+    ).toBeNull()
+  })
+
+  it("m9: Done while the dish waits for the menu asks nothing; the dish is sent once it loads", async () => {
+    const user = userEvent.setup()
+    holdUploads()
+    let load!: () => void
+    api.menu = () =>
+      new Promise((resolve) => {
+        load = () => resolve({ ok: true, catalogue: CATALOGUE, focus: null })
+      })
+    host(<Opener opts={{ source: "library", preset }} />)
+    await user.click(screen.getByRole("button", { name: "Open" }))
+    await user.upload(input("library"), [jpeg("dish.jpg")])
+    const dialog = await screen.findByRole("dialog", { name: "Saving 1 photo" })
+    await user.click(within(dialog).getByRole("button", { name: "Done" }))
+    expect(
+      screen.queryByRole("alertdialog", { name: "Discard these labels?" })
+    ).toBeNull()
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+    await act(async () => load())
+    await waitFor(() => expect(api.posted).toHaveLength(1))
+    expect(api.posted[0].input.items).toEqual([
+      { itemId: "item-bhaji", variantId: null },
+    ])
+  })
+
+  it("m10: a dish whose menu failed to load says Labels not saved yet, and is sent when the signal returns", async () => {
+    const user = userEvent.setup()
+    const { find } = holdUploads()
+    api.menu = () => ({ ok: false, message: "The menu is unavailable." })
+    host(<Opener opts={{ source: "library", preset }} />)
+    await user.click(screen.getByRole("button", { name: "Open" }))
+    await user.upload(input("library"), [jpeg("dish.jpg")])
+    const dialog = await screen.findByRole("dialog", { name: "Saving 1 photo" })
+    await act(async () => find("dish.jpg").finish())
+    await waitFor(() =>
+      expect(fileRow("dish.jpg").textContent).toContain("Labels not saved yet.")
+    )
+    expect(fileRow("dish.jpg").textContent).not.toContain("Saving…")
+    expect(
+      within(dialog).getByRole("button", { name: "Retry labels for dish.jpg" })
+    ).toBeTruthy()
+    expect(api.posted).toEqual([])
+
+    // Tried again when the signal returns; while that try is out the row
+    // keeps saying what is true, not "Saving…".
+    let load!: () => void
+    api.menu = () =>
+      new Promise((resolve) => {
+        load = () => resolve({ ok: true, catalogue: CATALOGUE, focus: null })
+      })
+    await act(async () => {
+      window.dispatchEvent(new Event("online"))
+    })
+    expect(load).toBeTypeOf("function")
+    expect(fileRow("dish.jpg").textContent).toContain("Labels not saved yet.")
+    expect(fileRow("dish.jpg").textContent).not.toContain("Saving…")
+    await act(async () => load())
+    await waitFor(() => expect(api.posted).toHaveLength(1))
+    expect(api.posted[0].input.items).toEqual([
+      { itemId: "item-bhaji", variantId: null },
+    ])
+  })
+
+  it("R3: a failed menu is not tried again while no dish waits for it", async () => {
+    const user = userEvent.setup()
+    holdUploads()
+    const menu = vi.fn(() => ({
+      ok: false,
+      message: "The menu is unavailable.",
+    }))
+    api.menu = menu
+    host(<Opener opts={{ source: "library" }} />)
+    await user.click(screen.getByRole("button", { name: "Open" }))
+    await user.upload(input("library"), [jpeg("plain.jpg")])
+    const dialog = await screen.findByRole("dialog", { name: "Saving 1 photo" })
+    expect(
+      await within(dialog).findByText("The menu couldn't be loaded")
+    ).toBeTruthy()
+    const calls = menu.mock.calls.length
+    await act(async () => {
+      window.dispatchEvent(new Event("online"))
+    })
+    expect(menu).toHaveBeenCalledTimes(calls)
+  })
+
+  it("m16: a photo ready after its task screen closed is listed as not added to the task", async () => {
+    const user = userEvent.setup()
+    const { find } = holdUploads()
+    // The screen is gone: its listener says so.
+    const gone = vi.fn(() => false)
+    host(
+      <Opener
+        label="Task"
+        opts={{ source: "library", imagesOnly: true, onReady: gone }}
+      />
+    )
+    await user.click(screen.getByRole("button", { name: "Task" }))
+    await user.upload(input("library"), [jpeg("task.jpg")])
+    await screen.findByRole("dialog", { name: "Saving 1 photo" })
+    await hideSheet(user)
+    await act(async () => find("task.jpg").finish())
+    expect(gone).toHaveBeenCalledWith(["asset-task.jpg"])
+    // Not cleared unseen: Add points at it.
+    const add = await screen.findByRole("button", {
+      name: "Add photos, 1 need attention",
+    })
+    await user.click(add)
+    await screen.findByRole("dialog", { name: "Saving 1 photo" })
+    expect(fileRow("task.jpg").textContent).toContain(
+      "Saved to your portfolio. Not added to the task: its screen was closed."
+    )
+  })
+})
+
+describe("Review 1 regressions: Fix labels in the Add sheet", () => {
+  it("m4: saves at the photo's revision, not revision 0", async () => {
+    const user = userEvent.setup()
+    const { find } = holdUploads()
+    host(<Opener opts={{ source: "library", preset }} />)
+    await user.click(screen.getByRole("button", { name: "Open" }))
+    await user.upload(input("library"), [jpeg("dish.jpg")])
+    const dialog = await screen.findByRole("dialog", { name: "Saving 1 photo" })
+    await waitFor(() => expect(api.posted).toHaveLength(1))
+    // Finalise put the dish on the photo: revision 1.
+    await act(async () =>
+      find("dish.jpg").finish({
+        state: "saved",
+        labels: {
+          ...EMPTY_LABEL_SUMMARY,
+          revision: 1,
+          hasLabels: true,
+          items: [
+            {
+              itemId: "item-bhaji",
+              variantId: null,
+              name: "Onion Bhaji",
+              variantName: null,
+              sectionName: "Starters",
+              labelledAs: null,
+              state: "current",
+            },
+          ],
+        },
+      })
+    )
+    await waitFor(() =>
+      expect(fileRow("dish.jpg").textContent).toContain("Saved · Onion Bhaji")
+    )
+    // A change the server refuses.
+    api.post = (sent) => ({
+      ok: false,
+      assetId: (sent as { input: { assetId: string } }).input.assetId,
+      code: "unavailable_items",
+      message: "One of these items is no longer on the menu.",
+    })
+    await user.click(
+      within(dialog).getByRole("button", { name: /^More details/ })
+    )
+    await user.click(
+      within(dialog).getByRole("button", { name: "Finished dish" })
+    )
+    await waitFor(() => expect(api.posted).toHaveLength(2))
+    expect(api.posted[1].input).toMatchObject({ expectedRevision: 1 })
+    await user.click(
+      await screen.findByRole("button", { name: "Fix labels for dish.jpg" })
+    )
+    api.post = null
+    const fix = await screen.findByRole("dialog", { name: /labels/i })
+    await user.click(within(fix).getByRole("button", { name: "Save labels" }))
+    await waitFor(() => expect(api.posted).toHaveLength(3))
+    expect(api.posted[2].input).toMatchObject({
+      assetId: "asset-dish.jpg",
+      expectedRevision: 1,
+    })
+  })
+})
+
+describe("Review 2 regressions: Add host", () => {
+  const SAVED_BHAJI: FinaliseLabels = {
+    state: "saved",
+    labels: {
+      ...EMPTY_LABEL_SUMMARY,
+      revision: 1,
+      hasLabels: true,
+      items: [
+        {
+          itemId: "item-bhaji",
+          variantId: null,
+          name: "Onion Bhaji",
+          variantName: null,
+          sectionName: "Starters",
+          labelledAs: null,
+          state: "current",
+        },
+      ],
+    },
+  }
+
+  /**
+   * Two photos; "Finished dish" chosen for both while the menu loads, then
+   * finalise puts labels on b.jpg, so the label field mounts again.
+   */
+  async function editWhileMenuLoads(user: ReturnType<typeof userEvent.setup>) {
+    const { find } = holdUploads()
+    let load!: () => void
+    api.menu = () =>
+      new Promise((resolve) => {
+        load = () => resolve({ ok: true, catalogue: CATALOGUE, focus: null })
+      })
+    host(<Opener opts={{ source: "library" }} />)
+    await user.click(screen.getByRole("button", { name: "Open" }))
+    await user.upload(input("library"), [jpeg("a.jpg"), jpeg("b.jpg")])
+    const dialog = await screen.findByRole("dialog", {
+      name: "Saving 2 photos",
+    })
+    await user.click(
+      within(dialog).getByRole("button", { name: /^More details/ })
+    )
+    await user.click(
+      within(dialog).getByRole("button", { name: "Finished dish" })
+    )
+    await act(async () => find("b.jpg").finish(SAVED_BHAJI))
+    // Mounted again: More details is closed.
+    await waitFor(() =>
+      expect(
+        within(dialog).queryByRole("button", { name: "Finished dish" })
+      ).toBeNull()
+    )
+    return { dialog, load: () => load() }
+  }
+
+  it("N3: a label chosen while the menu loads survives the field mounting again and is sent once it loads", async () => {
+    const user = userEvent.setup()
+    const { dialog, load } = await editWhileMenuLoads(user)
+    expect(api.posted).toEqual([])
+    // Not stored yet: Done asks before dropping it.
+    await user.click(within(dialog).getByRole("button", { name: "Done" }))
+    expect(
+      await screen.findByRole("alertdialog", { name: "Discard these labels?" })
+    ).toBeTruthy()
+    await user.click(screen.getByRole("button", { name: "Keep labelling" }))
+
+    await act(async () => load())
+    await waitFor(() =>
+      expect(
+        api.posted.find((p) => p.input.assetId === "asset-a.jpg")?.input
+          .contentTypes
+      ).toEqual(["dish"])
+    )
+    // b.jpg keeps the labels finalise put on it.
+    expect(
+      api.posted.filter(
+        (p) =>
+          p.input.assetId === "asset-b.jpg" &&
+          p.input.contentTypes.includes("dish")
+      )
+    ).toEqual([])
+  })
+
+  it("A2: the Saved line names a dish with variants saved without one Name (Not specified)", async () => {
+    const user = userEvent.setup()
+    const { find } = holdUploads()
+    // Momo is on this venue's menu, in a food section.
+    api.menu = () => ({ ok: true, catalogue: MOMO_CATALOGUE, focus: null })
+    host(<Opener opts={{ source: "library" }} />)
+    await user.click(screen.getByRole("button", { name: "Open" }))
+    await user.upload(input("library"), [jpeg("momo.jpg")])
+    await screen.findByRole("dialog", { name: "Saving 1 photo" })
+    await act(async () =>
+      find("momo.jpg").finish({
+        state: "saved",
+        labels: {
+          ...SAVED_BHAJI.labels,
+          items: [
+            {
+              itemId: "item-momo",
+              variantId: null,
+              name: "Momo",
+              variantName: null,
+              sectionName: "Starters",
+              labelledAs: null,
+              state: "current",
+              unspecified: true,
+            },
+          ],
+        },
+      })
+    )
+    await waitFor(() =>
+      expect(fileRow("momo.jpg").textContent).toContain(
+        "Saved · Momo (Not specified) · waiting for manager review"
+      )
+    )
+  })
+
+  it("B2: a check's upload saved after its screen closed says check, not task or portfolio", async () => {
+    const user = userEvent.setup()
+    const { find } = holdUploads()
+    const gone = vi.fn(() => false)
+    host(
+      <Opener
+        label="Check"
+        opts={{ source: "library", purpose: "amenity", onReady: gone }}
+      />
+    )
+    await user.click(screen.getByRole("button", { name: "Check" }))
+    await user.upload(input("library"), [jpeg("bar.jpg")])
+    await screen.findByRole("dialog", { name: "Saving 1 photo" })
+    await act(async () => find("bar.jpg").finish())
+    expect(gone).toHaveBeenCalledWith(["asset-bar.jpg"])
+    await waitFor(() =>
+      expect(fileRow("bar.jpg").textContent).toContain(
+        "Saved. Not added to the check: its screen was closed."
+      )
+    )
+    expect(fileRow("bar.jpg").textContent).not.toMatch(/task|portfolio/)
+  })
+
+  it("N3a: a detail chosen while the menu loads keeps Our menu's dish through a remount", async () => {
+    const user = userEvent.setup()
+    const { find } = holdUploads()
+    let load!: () => void
+    api.menu = () =>
+      new Promise((resolve) => {
+        load = () => resolve({ ok: true, catalogue: CATALOGUE, focus: null })
+      })
+    host(<Opener opts={{ source: "library", preset }} />)
+    await user.click(screen.getByRole("button", { name: "Open" }))
+    await user.upload(input("library"), [jpeg("a.jpg"), jpeg("b.jpg")])
+    const dialog = await screen.findByRole("dialog", {
+      name: "Saving 2 photos",
+    })
+    await user.click(
+      within(dialog).getByRole("button", { name: /^More details/ })
+    )
+    await user.click(
+      within(dialog).getByRole("button", { name: "Finished dish" })
+    )
+    // Finalise puts labels on b.jpg: the label field mounts again.
+    await act(async () => find("b.jpg").finish(SAVED_BHAJI))
+    await waitFor(() =>
+      expect(
+        within(dialog).queryByRole("button", { name: "Finished dish" })
+      ).toBeNull()
+    )
+    expect(api.posted).toEqual([])
+
+    await act(async () => load())
+    await waitFor(() =>
+      expect(
+        api.posted.filter((p) => p.input.assetId === "asset-a.jpg").at(-1)
+          ?.input
+      ).toMatchObject({
+        items: [{ itemId: "item-bhaji", variantId: null }],
+        contentTypes: ["dish"],
+      })
+    )
+  })
+
+  it("N3b: labels chosen while the menu loads make leaving and reloading ask", async () => {
+    const user = userEvent.setup()
+    const { find } = holdUploads()
+    api.menu = () => new Promise(() => {})
+    host(
+      <>
+        <Opener opts={{ source: "library" }} />
+        <a href="/login">Elsewhere</a>
+      </>
+    )
+    await user.click(screen.getByRole("button", { name: "Open" }))
+    await user.upload(input("library"), [jpeg("a.jpg")])
+    const dialog = await screen.findByRole("dialog", { name: "Saving 1 photo" })
+    await act(async () => find("a.jpg").finish())
+    const unloading = () => {
+      const event = new Event("beforeunload", { cancelable: true })
+      window.dispatchEvent(event)
+      return event.defaultPrevented
+    }
+    expect(unloading()).toBe(false)
+
+    await user.click(
+      within(dialog).getByRole("button", { name: /^More details/ })
+    )
+    await user.click(
+      within(dialog).getByRole("button", { name: "Finished dish" })
+    )
+    expect(unloading()).toBe(true)
+    // fireEvent: the open sheet makes the page behind it inert to user.click.
+    fireEvent.click(
+      screen.getByRole("link", { name: "Elsewhere", hidden: true })
+    )
+    expect(
+      await screen.findByText("Labels for 1 photo haven't saved yet.")
     ).toBeTruthy()
   })
 
-  it("suggests the dish only for the files picked from it, not earlier ones", async () => {
+  it("N3: labels discarded while the menu loads stay discarded", async () => {
     const user = userEvent.setup()
-    actions.loadLabelEditorContext.mockImplementation(
-      async (ids: string[]) => ({
-        ok: true,
-        viewer: "staff",
-        assets: ids.map((id) => asset(id)),
-        missing: [],
-        catalogue: CATALOGUE,
-      })
+    const { dialog, load } = await editWhileMenuLoads(user)
+    await user.click(within(dialog).getByRole("button", { name: "Done" }))
+    await user.click(
+      await screen.findByRole("button", { name: "Discard labels" })
     )
-    const release = deferUploads()
-    host(
-      <>
-        <Opener label="Me" opts={{ dialog: true }} />
-        <Opener label="Dish" opts={{ source: "library", preset }} />
-      </>
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Saving 2 photos" })
+      ).toBeNull()
     )
-    // An earlier file finishes out of sight and waits to be labelled.
-    await user.click(screen.getByRole("button", { name: "Me" }))
-    const first = screen.getByRole("dialog", {
-      name: "Upload photos or videos",
+    await act(async () => load())
+    await user.click(screen.getByRole("button", { name: /^Add photos/ }))
+    const again = await screen.findByRole("dialog", {
+      name: "Saving 2 photos",
     })
-    await user.upload(within(first).getByLabelText("Choose photos or videos"), [
-      jpeg("early.jpg"),
-    ])
-    await user.click(
-      within(first).getByRole("button", { name: "Upload 1 file" })
-    )
-    await hideQueue(user)
-    await act(async () => release())
-    await screen.findByRole("button", { name: "Add photos, 1 ready to label" })
-
-    // Then a photo of the dish joins the same queue.
-    uploads.current = uploader
-    await user.click(screen.getByRole("button", { name: "Dish" }))
-    await user.upload(input("library"), [jpeg("dish.jpg")])
-    const dialog = await screen.findByRole("dialog", {
-      name: "Upload photos or videos",
-    })
-    await user.click(
-      within(dialog).getByRole("button", { name: "Upload 1 file" })
-    )
-    await user.click(
-      await within(dialog).findByRole("button", { name: "Label these files" })
-    )
-    const editor = await screen.findByRole("dialog", { name: "Labels" })
-    expect(actions.loadLabelEditorContext).toHaveBeenCalledWith([
-      "asset-early.jpg",
-      "asset-dish.jpg",
-    ])
+    await act(async () => {})
     expect(
-      (await within(editor).findByText(/Onion Bhaji is added as a label/))
-        .textContent
-    ).toMatch(/for the photo picked for it, not the others/)
+      api.posted.filter((p) => p.input.contentTypes.includes("dish"))
+    ).toEqual([])
+    await user.click(within(again).getByRole("button", { name: "Done" }))
+    expect(
+      screen.queryByRole("alertdialog", { name: "Discard these labels?" })
+    ).toBeNull()
   })
+})
 
-  it("drops a cancelled dish pick's suggestion for the next batch", async () => {
+describe("Add host: a missing-item suggestion", () => {
+  const lastMissing = () =>
+    (api.posted.at(-1)?.input as { missingItem?: string | null } | undefined)
+      ?.missingItem
+
+  it('sends the suggestion, then withdraws it ("") when it is cleared, keeping the dish', async () => {
     const user = userEvent.setup()
-    actions.loadLabelEditorContext.mockImplementation(
-      async (ids: string[]) => ({
-        ok: true,
-        viewer: "staff",
-        assets: ids.map((id) => asset(id)),
-        missing: [],
-        catalogue: CATALOGUE,
+    holdUploads()
+    host(<Opener opts={{ source: "library", preset }} />)
+    await user.click(screen.getByRole("button", { name: "Open" }))
+    await user.upload(input("library"), [jpeg("dish.jpg")])
+    await waitFor(() => expect(api.posted).toHaveLength(1))
+    expect(lastMissing()).toBeNull()
+
+    const dialog = await screen.findByRole("dialog", { name: "Saving 1 photo" })
+    await user.click(
+      within(dialog).getByRole("button", { name: "Adjust labels for photo 1" })
+    )
+    await user.click(
+      within(dialog).getByRole("button", {
+        name: "Item not on the menu? for photo 1",
       })
     )
-    const release = deferUploads()
-    host(
-      <>
-        <Opener label="Me" opts={{ dialog: true }} />
-        <Opener label="Dish" opts={{ source: "library", preset }} />
-        <Opener label="Home" opts={{ source: "library" }} />
-      </>
-    )
-    // A file waits in the queue (ready to label), so the queue is not empty.
-    await user.click(screen.getByRole("button", { name: "Me" }))
-    const first = screen.getByRole("dialog", {
-      name: "Upload photos or videos",
+    const field = within(dialog).getByRole("textbox", {
+      name: "Missing menu item for photo 1",
     })
-    await user.upload(within(first).getByLabelText("Choose photos or videos"), [
-      jpeg("early.jpg"),
+    await user.type(field, "Lamb shank")
+    await waitFor(() => expect(lastMissing()).toBe("Lamb shank"))
+
+    await user.clear(field)
+    await waitFor(() => expect(lastMissing()).toBe(""))
+    expect(api.posted.at(-1)!.input.items).toEqual([
+      { itemId: "item-bhaji", variantId: null },
     ])
-    await user.click(
-      within(first).getByRole("button", { name: "Upload 1 file" })
-    )
-    await hideQueue(user)
-    await act(async () => release())
-    await screen.findByRole("button", { name: "Add photos, 1 ready to label" })
-
-    uploads.current = uploader
-    fireEvent.click(screen.getByRole("button", { name: "Dish" }))
-    fireEvent.change(input("library"), { target: { files: [] } })
-    await user.click(screen.getByRole("button", { name: "Home" }))
-    await user.upload(input("library"), [jpeg("cocktail.jpg")])
-    const dialog = await screen.findByRole("dialog", {
-      name: "Upload photos or videos",
-    })
-    await user.click(
-      within(dialog).getByRole("button", { name: "Upload 1 file" })
-    )
-    await user.click(
-      await within(dialog).findByRole("button", { name: "Label these files" })
-    )
-    const editor = await screen.findByRole("dialog", { name: "Labels" })
-    await within(editor).findByRole("button", { name: /Save/ })
-    expect(within(editor).queryByText("Suggested from Our menu")).toBeNull()
+    expect(api.deleted).toEqual([])
   })
+})
 
-  it("stops counting files labelled elsewhere as ready to label", async () => {
+describe("Add host: manager review is promised for food and drinks dishes", () => {
+  it("a dish photo whose section is neither food nor drinks says Saved with its dish, no review", async () => {
     const user = userEvent.setup()
-    const release = deferUploads()
-    host(
-      <>
-        <Opener opts={{ dialog: true }} />
-        <MarkLabelled ids={["asset-late.jpg"]} />
-      </>
-    )
-    await user.click(screen.getByRole("button", { name: "Open" }))
-    const dialog = screen.getByRole("dialog", {
-      name: "Upload photos or videos",
+    const { find } = holdUploads()
+    // The same menu, with the bhaji's section marked other (say, sides
+    // sold as retail): review never takes it.
+    if (CATALOGUE.status !== "active") throw new Error("Active fixture")
+    const { sections } = CATALOGUE
+    api.menu = () => ({
+      ok: true,
+      catalogue: {
+        ...CATALOGUE,
+        sections: sections.map((section) =>
+          section.items.some((item) => item.itemId === "item-bhaji")
+            ? { ...section, kind: "other" as const }
+            : section
+        ),
+      },
+      focus: null,
     })
-    await user.upload(
-      within(dialog).getByLabelText("Choose photos or videos"),
-      [jpeg("late.jpg")]
+    host(<Opener opts={{ source: "library", imagesOnly: true, preset }} />)
+    await user.click(screen.getByRole("button", { name: "Open" }))
+    await user.upload(input("library"), [jpeg("dish.jpg")])
+    await waitFor(() => expect(api.posted).toHaveLength(1))
+    await act(async () =>
+      find("dish.jpg").finish({
+        state: "saved",
+        labels: {
+          ...EMPTY_LABEL_SUMMARY,
+          revision: 1,
+          hasLabels: true,
+          items: [
+            {
+              itemId: "item-bhaji",
+              variantId: null,
+              name: "Onion Bhaji",
+              variantName: null,
+              sectionName: "Starters",
+              labelledAs: null,
+              state: "current",
+            },
+          ],
+        },
+      })
     )
-    await user.click(
-      within(dialog).getByRole("button", { name: "Upload 1 file" })
+    await waitFor(() =>
+      expect(fileRow("dish.jpg").textContent).toContain("Saved · Onion Bhaji")
     )
-    await hideQueue(user)
-    await act(async () => release())
-    await screen.findByRole("button", { name: "Add photos, 1 ready to label" })
-    await user.click(screen.getByRole("button", { name: "Labelled elsewhere" }))
-    expect(screen.getByRole("button", { name: "Add photos" })).toBeTruthy()
+    expect(fileRow("dish.jpg").textContent).not.toContain("review")
   })
 })

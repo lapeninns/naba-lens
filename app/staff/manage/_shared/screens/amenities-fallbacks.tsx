@@ -2,7 +2,6 @@
 
 import { ArrowClockwiseIcon } from "@phosphor-icons/react"
 
-import { logout } from "@/app/_media/actions"
 import { AppShell } from "@/components/nabalens/app-shell"
 import { ERROR_COPY, ErrorState } from "@/components/nabalens/error-state"
 import { Button } from "@/components/ui/button"
@@ -19,7 +18,7 @@ function Shell({
   children: React.ReactNode
 }) {
   return admin ? (
-    <AppShell variant="admin" active="coverage" logoutAction={logout}>
+    <AppShell variant="admin" active="coverage">
       <div className="grid gap-5">{children}</div>
     </AppShell>
   ) : (

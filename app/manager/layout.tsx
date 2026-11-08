@@ -1,5 +1,7 @@
 import { ManagerShell } from "@/components/nabalens/manager/manager-shell"
 import { VenueAccessUnavailablePage } from "@/components/nabalens/manager/venue-access-unavailable"
+import { SessionGuardHost } from "@/components/nabalens/session-guard-host"
+import { getLoginCaptchaConfig } from "@/lib/auth/captcha"
 import { getManagerWorkspace } from "@/lib/auth/manager"
 
 import { loadManagerOverview } from "./load-overview"
@@ -11,7 +13,8 @@ import { loadManagerOverview } from "./load-overview"
  * re-render on client navigation, and pages render regardless): every page
  * and Server Function checks the workspace again. The Review badge is the
  * overview's `pendingPhotos`; when that read fails the badge is left out and
- * the page shows the failure.
+ * the page shows the failure. An ended session is met in place (Sign in
+ * again over the page) rather than by losing the page.
  */
 export default async function ManagerLayout({
   children,
@@ -23,13 +26,19 @@ export default async function ManagerLayout({
     return <VenueAccessUnavailablePage reason={workspace.reason} />
   }
   const read = await loadManagerOverview().catch(() => null)
+  const captcha = getLoginCaptchaConfig()
   return (
-    <ManagerShell
-      venueName={workspace.venue.name}
-      userName={workspace.profile.displayName}
-      reviewCount={read?.ok ? read.overview.pendingPhotos : undefined}
+    <SessionGuardHost
+      captchaRequired={captcha.enabled}
+      captchaSiteKey={captcha.siteKey}
     >
-      {children}
-    </ManagerShell>
+      <ManagerShell
+        venueName={workspace.venue.name}
+        userName={workspace.profile.displayName}
+        reviewCount={read?.ok ? read.overview.pendingPhotos : undefined}
+      >
+        {children}
+      </ManagerShell>
+    </SessionGuardHost>
   )
 }

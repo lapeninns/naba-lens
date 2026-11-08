@@ -75,7 +75,9 @@ test("menus.o3-usage-docs: the usage guides describe Menus, labelling and the li
   expect(admin.length).toBeGreaterThan(0)
   for (const phrase of [
     "Add labels",
-    "Label these files",
+    // Labels are chosen in the Saving sheet while photos save (no separate
+    // "Label these files" step any more).
+    "What's in these photos?",
     "Item not on the menu?",
   ]) {
     expect(staff, `usage-staff.md mentions "${phrase}"`).toContain(phrase)

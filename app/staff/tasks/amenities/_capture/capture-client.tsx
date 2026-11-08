@@ -1,6 +1,6 @@
 "use client"
 
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 
 import {
   listSubmittableAssetsAction,
@@ -12,11 +12,15 @@ import {
   type AssetsResult,
 } from "@/components/nabalens/amenities/capture"
 import {
+  findingSentHref,
+  STAFF_HOME_PATH,
+} from "@/components/nabalens/amenities/capture/finding-sent"
+import {
   useAddQueue,
   useAddRefreshSignal,
 } from "@/components/nabalens/shell/add-context"
 import type { CheckSummary } from "@/lib/amenities/contract"
-import { ROUTES } from "@/lib/auth/routes"
+import { loginHref } from "@/lib/auth/routes"
 import { MEDIA_LIMITS } from "@/lib/config/media"
 
 /**
@@ -43,6 +47,7 @@ export function CaptureClient({
   doneHref: string
 }) {
   const router = useRouter()
+  const pathname = usePathname()
   const uploader = useMediaUploader()
   const addQueue = useAddQueue()
   const refreshSignal = useAddRefreshSignal()
@@ -57,8 +62,15 @@ export function CaptureClient({
       canAttachLegacy={canAttachLegacy}
       refreshSignal={refreshSignal}
       onReload={() => router.refresh()}
-      onDone={() => router.push(doneHref)}
-      signInHref={ROUTES.login}
+      onDone={() =>
+        router.push(
+          // Home says which check was sent; check pages show it themselves.
+          doneHref === STAFF_HOME_PATH
+            ? findingSentHref(doneHref, check.id)
+            : doneHref
+        )
+      }
+      signInHref={loginHref(pathname)}
     />
   )
 }

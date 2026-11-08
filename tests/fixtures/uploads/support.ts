@@ -9,7 +9,12 @@ import {
 } from "@playwright/test"
 
 import { provisioner } from "../../e2e/helpers/stack"
-import { STAFF_LANDING, openPortfolio, staffTile } from "../../e2e/helpers/ui"
+import {
+  STAFF_LANDING,
+  openPortfolio,
+  staffTile,
+  uploadSheet,
+} from "../../e2e/helpers/ui"
 import {
   provisionWorld,
   signedInPage,
@@ -101,16 +106,22 @@ export async function objectsOf(uploaderId: string, assetId: string) {
   return data.map((o) => o.name).sort()
 }
 
+/**
+ * Opens the upload sheet from My portfolio. Its name changes from "Upload
+ * photos or videos" to "Saving N photos" once files are picked, so the locator
+ * matches both (and a queue Add reopens while files are still waiting).
+ */
 export async function openUploadDialog(page: Page) {
   await page
     .getByRole("button", { name: "Upload photos or videos" })
     .first()
     .click()
-  const dialog = page.getByRole("dialog", { name: "Upload photos or videos" })
+  const dialog = uploadSheet(page)
   await expect(dialog).toBeVisible()
   return dialog
 }
 
+/** Picks files in the sheet; they start uploading as soon as they are picked. */
 export async function chooseAndUpload(
   dialog: Locator,
   files: string[]
@@ -118,14 +129,15 @@ export async function chooseAndUpload(
   await dialog
     .getByLabel("Choose photos or videos")
     .setInputFiles(files.map(fixtureFile))
-  await dialog
-    .getByRole("button", {
-      name: `Upload ${files.length} ${files.length === 1 ? "file" : "files"}`,
-    })
-    .click()
+  // Files refused before upload (type, size) show in the alert, not the list.
+  await expect(dialog.getByRole("list", { name: "Files" })).toBeVisible()
 }
 
-/** The queue row of one file in the upload dialog. */
+/**
+ * The queue row of one file in the upload sheet. Its status line is exactly
+ * "Saved", "Saving…" or "Needs attention", followed by a detail line
+ * ("Uploading 40%", "Processing", or the reason).
+ */
 export const row = (dialog: Locator, name: string) =>
   dialog
     .getByRole("list", { name: "Files" })

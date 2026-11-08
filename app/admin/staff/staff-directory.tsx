@@ -101,12 +101,29 @@ function describeFilters(filters: Filters, venues: Option[]) {
   return `Showing ${status}staff${venue}${team}${query}.${hint}`
 }
 
-function countLine(shown: StaffMember[], filtered: boolean) {
+function countLine(
+  shown: StaffMember[],
+  filtered: boolean,
+  authDetails: "ok" | "unavailable"
+) {
   const parts = [`${shown.length} shown`]
   if (!filtered) {
-    for (const status of ["active", "invited", "inactive"] as const) {
-      const count = shown.filter((m) => m.status === status).length
-      if (count > 0) parts.push(`${count} ${status}`)
+    const count = (status: StaffMember["status"]) =>
+      shown.filter((m) => m.status === status).length
+    // Without Auth the server can't tell Invited from Active and reports
+    // Active for both; the summary mustn't claim the split.
+    const groups: [number, string][] =
+      authDetails === "ok"
+        ? [
+            [count("active"), "active"],
+            [count("invited"), "invited"],
+          ]
+        : [[count("active") + count("invited"), "active or invited"]]
+    for (const [n, label] of [...groups, [count("inactive"), "inactive"]] as [
+      number,
+      string,
+    ][]) {
+      if (n > 0) parts.push(`${n} ${label}`)
     }
   }
   return parts.join(" · ")
@@ -121,6 +138,7 @@ export function StaffDirectory({
   grants,
   maxAvatarBytes,
   notices,
+  authDetails = "ok",
 }: {
   staff: DirectoryMember[]
   venues: Option[]
@@ -129,6 +147,8 @@ export function StaffDirectory({
   maxAvatarBytes: number
   /** Server-side notices (sign-in details unavailable) shown under the filters. */
   notices?: React.ReactNode
+  /** "unavailable": Auth didn't answer, so Invited and Active can't be told apart. */
+  authDetails?: "ok" | "unavailable"
 }) {
   const [inviting, setInviting] = React.useState(false)
   const [draft, setDraft] = React.useState<Filters>(NO_FILTERS)
@@ -325,7 +345,7 @@ export function StaffDirectory({
                 className="pt-0"
                 action={
                   <span className="text-meta text-ink-muted">
-                    {countLine(shown, filtered)}
+                    {countLine(shown, filtered, authDetails)}
                   </span>
                 }
               />
@@ -338,6 +358,7 @@ export function StaffDirectory({
                 onEdit={controls.edit}
                 onResendInvite={(member) => void controls.resend(member)}
                 onSetActive={controls.setActive}
+                pending={controls.busy}
               />
               <p className="px-1 text-body text-ink-muted">
                 Needs setup and Invited first, then A to Z by surname.

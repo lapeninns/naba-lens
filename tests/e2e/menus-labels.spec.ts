@@ -1,17 +1,31 @@
 import { readFileSync } from "node:fs"
 import { fileURLToPath } from "node:url"
 
-import { expect, test, type Locator, type Page } from "@playwright/test"
+import {
+  expect,
+  test,
+  type Locator,
+  type Page,
+  type Route,
+} from "@playwright/test"
 
+import { isFinalise } from "../fixtures/uploads/support"
 import { signIn, type Db } from "../support/identities"
-import { sha256, supportedMp4, syntheticJpeg } from "./helpers/media"
+import {
+  sha256,
+  supportedMp4,
+  syntheticJpeg,
+  type SourceFile,
+} from "./helpers/media"
 import { provisioner, psql, requireIsolatedStack } from "./helpers/stack"
 import {
   chooseOption,
   escape,
   libraryList,
   portfolioList,
+  savingTitle,
   staffTile,
+  uploadSheet,
   uploadThroughDialog,
   openPortfolio,
 } from "./helpers/ui"
@@ -191,6 +205,44 @@ const tileLabels = (list: Locator) =>
     .getByRole("button")
     .evaluateAll((els) => els.map((el) => el.getAttribute("aria-label") ?? ""))
 
+/**
+ * Opens the upload sheet from My portfolio and picks the files: they start
+ * saving at once, and the sheet becomes "Saving N photos/files" with the
+ * optional labels ("What's in these photos?") inline.
+ */
+async function pickInSheet(page: Page, files: SourceFile[]) {
+  await page
+    .getByRole("button", { name: "Upload photos or videos" })
+    .first()
+    .click()
+  const sheet = uploadSheet(page)
+  await expect(sheet).toBeVisible()
+  await sheet
+    .getByLabel("Choose photos or videos")
+    .setInputFiles(files.map((f) => f.path))
+  await expect(sheet).toHaveAccessibleName(savingTitle(files))
+  await expect(sheet.getByRole("list", { name: "Files" })).toBeVisible()
+  return sheet
+}
+
+/**
+ * Holds every finalise Server Function call of the page until `release()`, so
+ * the files stay unfinished (uploading) while labels are chosen: the labels
+ * are then kept on the server and finalise puts them on the photo.
+ */
+async function holdFinalise(page: Page) {
+  let open!: () => void
+  const held = new Promise<void>((resolve) => (open = resolve))
+  await page.route("**/staff", async (route) => {
+    if (isFinalise(route.request())) await held
+    await route.continue()
+  })
+  return {
+    release: () => open(),
+    stop: () => page.unroute("**/staff"),
+  }
+}
+
 test("rows 5+7: photo + video uploaded, batch-labelled with per-file overrides; persists after reload", async ({
   browser,
 }) => {
@@ -204,43 +256,49 @@ test("rows 5+7: photo + video uploaded, batch-labelled with per-file overrides; 
   const note = `QA common note ${world.tag}`
   const videoNote = `QA video-only note ${world.tag}`
 
-  await uploadThroughDialog(staff, [photo, video], { close: false })
-  const upload = staff.getByRole("dialog", { name: "Upload photos or videos" })
-  await expect(upload).toContainText("Optional: add menu items or details now")
-  await upload.getByRole("button", { name: "Label these files" }).click()
-  const editor = staff.getByRole("dialog", { name: "Labels", exact: true })
+  // The files start saving as soon as they are picked; finalise is held so
+  // they are still unfinished while the labels are chosen in the sheet.
+  const finalise = await holdFinalise(staff)
+  const editor = await pickInSheet(staff, [photo, video])
   await expect(
-    editor.getByRole("combobox", { name: `Menu item at ${world.venue1.name}` })
+    editor.getByRole("combobox", {
+      name: "What's in these photos? (optional) for all files",
+    })
   ).toBeVisible()
 
   await test.step("common selection: two items (one with a variant), a content type, a note", async () => {
-    const all = editor.getByRole("region", { name: "Common to all 2 files" })
     await pick(
-      all,
-      /^Menu item at .* for all files$/,
+      editor,
+      "What's in these photos? (optional) for all files",
       "momo",
       /^Momo Appetisers/
     )
-    await all
+    await editor
       .getByRole("group", { name: /^Which Momo\?/ })
       .getByRole("button", { name: "Chicken" })
       .click()
     await pick(
-      all,
-      /^Menu item at .* for all files$/,
+      editor,
+      "What's in these photos? (optional) for all files",
       "onion bhaji",
       /^Onion Bhaji Appetisers/
     )
     await expect(
-      all
+      editor
         .getByRole("list", { name: "Selected menu items for all files" })
         .getByRole("listitem")
     ).toHaveCount(2)
-    await all.getByRole("button", { name: "Finished dish" }).click()
+    await editor
+      .getByRole("button", { name: "More details for all photos" })
+      .click()
+    const types = editor.getByRole("group", {
+      name: /^What's in the photo .* for all files$/,
+    })
+    await types.getByRole("button", { name: "Finished dish" }).click()
     await expect(
-      all.getByRole("button", { name: "Finished dish" })
+      types.getByRole("button", { name: "Finished dish" })
     ).toHaveAttribute("aria-pressed", "true")
-    await all
+    await editor
       .getByRole("textbox", { name: "Note (optional) for all files" })
       .fill(note)
   })
@@ -249,10 +307,18 @@ test("rows 5+7: photo + video uploaded, batch-labelled with per-file overrides; 
     await editor
       .getByRole("button", { name: "Adjust labels for video 2" })
       .click()
+    // The file's own fields search this venue's menu.
+    await expect(
+      editor.getByRole("combobox", {
+        name: `Menu item at ${world.venue1.name} (optional) for video 2`,
+      })
+    ).toBeVisible()
     const items = editor.getByRole("list", {
       name: "Selected menu items for video 2",
     })
-    await items.getByRole("button", { name: "Remove Onion Bhaji" }).click()
+    await items
+      .getByRole("button", { name: "Remove Onion Bhaji for video 2" })
+      .click()
     await editor
       .getByRole("group", { name: /^What's in the video .* for video 2$/ })
       .getByRole("button", { name: "Preparation" })
@@ -260,17 +326,54 @@ test("rows 5+7: photo + video uploaded, batch-labelled with per-file overrides; 
     await editor
       .getByRole("textbox", { name: "Note (optional) for video 2" })
       .fill(videoNote)
-    const files = editor.getByRole("list", { name: "Files" })
+    const files = editor.getByRole("list", { name: "Your photos" })
     await expect(
       files.getByRole("listitem").filter({ hasText: "Photo 1" })
-    ).toContainText("2 menu items · 1 content type · note")
+    ).toContainText(
+      /(Momo \(Chicken\), Onion Bhaji|Onion Bhaji, Momo \(Chicken\)) · 1 content type · note/
+    )
     await expect(
       files.getByRole("listitem").filter({ hasText: "Video 2" })
-    ).toContainText("1 menu item · 2 content types · note")
+    ).toContainText("Momo (Chicken) · 2 content types · note")
   })
 
-  await editor.getByRole("button", { name: "Save labels", exact: true }).click()
-  await expect(editor).toBeHidden()
+  await test.step("labels are kept on the server while the files are unfinished, then saved with them", async () => {
+    // No Save button: each file's labels go to the server by asset id.
+    await expect
+      .poll(
+        () =>
+          psql(`select string_agg(a.original_filename || ':' || jsonb_array_length(p.input->'items')
+              || ':' || jsonb_array_length(p.input->'contentTypes') || ':' || coalesce(p.input->>'note', ''),
+              '|' order by a.original_filename)
+            from public.media_pending_labels p join public.media_assets a on a.id = p.asset_id
+            where a.uploader_id = ${sql(world.staffA.id)}`),
+        { timeout: 30_000 }
+      )
+      .toBe(`${photo.name}:2:1:${note}|${video.name}:1:2:${videoNote}`)
+    finalise.release()
+    // A row shows "Saved" only once its labels are on the file.
+    await expect(editor.getByRole("status")).toHaveText("2 saved", {
+      timeout: 90_000,
+    })
+    await finalise.stop()
+    const savedRow = (name: string) =>
+      editor
+        .getByRole("list", { name: "Files" })
+        .getByRole("listitem")
+        .filter({ has: staff.getByText(name, { exact: true }) })
+    await expect(savedRow(photo.name)).toContainText(
+      /Saved · .*Momo \(Chicken\).* · waiting for manager review/
+    )
+    // Managers review photos only: the video keeps its dish, not the promise.
+    await expect(savedRow(video.name)).toContainText(
+      /Saved · .*Momo \(Chicken\)/
+    )
+    await expect(savedRow(video.name)).not.toContainText(
+      "waiting for manager review"
+    )
+    await editor.getByRole("button", { name: "Done" }).click()
+    await expect(editor).toBeHidden()
+  })
 
   await test.step("reload: both files keep exactly what was saved", async () => {
     await staff.goto("/staff")
@@ -287,11 +390,11 @@ test("rows 5+7: photo + video uploaded, batch-labelled with per-file overrides; 
     await expect(
       pl.getByRole("list", { name: "Menu items" }).getByRole("listitem")
     ).toHaveText([
-      /Onion Bhaji · Appetisers|Momo, Chicken · Appetisers/,
-      /Onion Bhaji · Appetisers|Momo, Chicken · Appetisers/,
+      /Onion Bhaji · Appetisers|Momo \(Chicken\) · Appetisers/,
+      /Onion Bhaji · Appetisers|Momo \(Chicken\) · Appetisers/,
     ])
     await expect(pl.getByRole("list", { name: "Menu items" })).toContainText(
-      "Momo, Chicken"
+      "Momo (Chicken)"
     )
     await expect(
       pl.getByRole("list", { name: "Content types" }).getByRole("listitem")
@@ -303,7 +406,7 @@ test("rows 5+7: photo + video uploaded, batch-labelled with per-file overrides; 
     const vl = v.getByRole("region", { name: "Labels" })
     await expect(
       vl.getByRole("list", { name: "Menu items" }).getByRole("listitem")
-    ).toHaveText(["Momo, Chicken · Appetisers"])
+    ).toHaveText(["Momo (Chicken) · Appetisers"])
     await expect(
       vl.getByRole("list", { name: "Content types" }).getByRole("listitem")
     ).toHaveText(["Finished dish", "Preparation"])
@@ -329,17 +432,18 @@ test("row 6: skip labelling at upload, label later from the viewer; the asset is
   await openPortfolio(staff)
   const photo = await syntheticJpeg(`qa-later-${world.tag}.jpg`)
 
+  // Labels are offered in the sheet ("What's in these photos?") but optional:
+  // the photo saves without them and Done closes the sheet.
   await uploadThroughDialog(staff, [photo], { close: false })
-  const upload = staff.getByRole("dialog", { name: "Upload photos or videos" })
-  await upload.getByRole("button", { name: "Label this file" }).click()
-  const editor = staff.getByRole("dialog", {
-    name: "Labels",
-    exact: true,
-  })
-  await editor.getByRole("button", { name: "Cancel" }).click()
-  await expect(editor).toBeHidden()
-  if (await upload.isVisible())
-    await upload.getByRole("button", { name: "Done" }).click()
+  const upload = uploadSheet(staff)
+  await expect(
+    upload.getByRole("combobox", {
+      name: "What's in these photos? (optional)",
+    })
+  ).toBeVisible()
+  await expect(upload.getByRole("status")).toHaveText("1 saved")
+  await upload.getByRole("button", { name: "Done" }).click()
+  await expect(upload).toBeHidden()
 
   await expect(
     await staffTile(portfolioList(staff), photo.name)
@@ -807,12 +911,37 @@ test("rows 12+13: label filters combine with venue/staff/type, search and dates;
       .getByRole("option", { name: /Onion Bhaji/ })
       .first()
       .click()
+    // Hold the Photos navigation: while it is on its way, the results still
+    // on screen (all media types, also a full first page) must not take a
+    // Load more whose page the new list would drop (a CI flake before).
+    let release = () => {}
+    const held = new Promise<void>((resolve) => (release = resolve))
+    const photosNavigation = (url: URL) =>
+      url.pathname === "/admin" &&
+      url.searchParams.get("type") === "image" &&
+      url.searchParams.has("_rsc")
+    const hold = async (route: Route) => {
+      await held
+      await route.continue()
+    }
+    await admin.route(photosNavigation, hold)
     await admin
       .getByRole("group", { name: "Media type" })
       .getByRole("button", { name: "Photos", exact: true })
       .click()
-    await expect(admin).toHaveURL(new RegExp(`item=${onion}`))
+    // The outgoing list's Load more is still drawn, but inert: it takes no
+    // click (Playwright's role queries still list inert elements).
+    const outgoing = admin.locator('[aria-busy="true"][inert]')
+    await expect(outgoing).toHaveCount(1)
+    await expect(
+      outgoing.getByRole("button", { name: /^Load more/ })
+    ).toHaveCount(1)
+    release()
+    await expect(admin).toHaveURL(
+      new RegExp(`type=image.*item=${onion}|item=${onion}.*type=image`)
+    )
     await expect(tiles).toHaveCount(24)
+    await admin.unroute(photosNavigation, hold)
     await admin.getByRole("button", { name: /^Load more/ }).click()
     await expect(tiles).toHaveCount(26)
     await expect(admin.getByText("All 26 shown")).toBeVisible()
@@ -900,7 +1029,7 @@ test("rows 12+13: label filters combine with venue/staff/type, search and dates;
     await tiles.first().click()
     const viewer = admin.getByRole("dialog").first()
     const editor = await openEditorFromViewer(admin, viewer)
-    await editor.getByRole("button", { name: "Remove Momo, Chicken" }).click()
+    await editor.getByRole("button", { name: "Remove Momo (Chicken)" }).click()
     await pick(
       editor,
       /^Menu item at /,
@@ -934,20 +1063,29 @@ test("rows 12+13: label filters combine with venue/staff/type, search and dates;
     await openPortfolio(staff)
     const photo = await syntheticJpeg(`qa-bytes-${t}.jpg`)
     await uploadThroughDialog(staff, [photo], { close: false })
-    await staff
-      .getByRole("dialog", { name: "Upload photos or videos" })
-      .getByRole("button", { name: "Label this file" })
+    // Label it in the sheet: content types are under "More details", and the
+    // labels are sent by asset id (no Save button).
+    const sheet = uploadSheet(staff)
+    await sheet.getByRole("button", { name: "More details" }).click()
+    await sheet
+      .getByRole("group", { name: /^What's in the photo \(up to \d+\)$/ })
+      .getByRole("button", { name: "Team" })
       .click()
-    const editor = staff.getByRole("dialog", {
-      name: "Labels",
-      exact: true,
-    })
-    await editor.getByRole("button", { name: "Team" }).click()
-    await editor.getByRole("button", { name: /^Save labels/ }).click()
-    await expect(editor).toBeHidden()
     const id = psql(
       `select id from public.media_assets where original_filename = ${sql(photo.name)}`
     )
+    await expect
+      .poll(
+        () =>
+          psql(
+            `select coalesce(array_to_string(content_types, ','), '') from public.media_labels where asset_id = ${sql(id)}`
+          ),
+        { timeout: 30_000 }
+      )
+      .toBe("team")
+    await expect(sheet.getByRole("status")).toHaveText("1 saved")
+    await sheet.getByRole("button", { name: "Done" }).click()
+    await expect(sheet).toBeHidden()
     await admin.goto(`/admin?content=team&venue=${v1}`)
     await library
       .getByRole("button", { name: tileName("Photo", photo.name) })

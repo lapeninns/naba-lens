@@ -99,5 +99,17 @@ export function isOrphanedInvite(user: User): boolean {
   )
 }
 
+/**
+ * The invitation is still open: the person has never signed in and hasn't
+ * confirmed the email. GoTrue refuses to re-invite a confirmed address, so a
+ * confirmed account that never signed in is not "invited": it signs in from
+ * the login page.
+ */
+export function hasPendingInvitation(
+  user: Pick<User, "last_sign_in_at" | "email_confirmed_at">
+): boolean {
+  return !user.last_sign_in_at && !user.email_confirmed_at
+}
+
 /** Long enough to be permanent; cleared again on reactivation. */
 export const DEACTIVATED_BAN_DURATION = "876000h"

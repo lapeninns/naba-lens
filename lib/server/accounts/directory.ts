@@ -4,7 +4,12 @@ import type { Department } from "@/lib/config/departments"
 import { MEDIA_LIMITS } from "@/lib/config/media"
 import { STORAGE_BUCKETS } from "@/lib/config/storage"
 
-import { AuthLookupError, listAuthUsers, withAuthDeadline } from "./auth-users"
+import {
+  AuthLookupError,
+  hasPendingInvitation,
+  listAuthUsers,
+  withAuthDeadline,
+} from "./auth-users"
 import {
   requireAdminCaller,
   type AccountResult,
@@ -14,7 +19,11 @@ import {
 import { dbFailed, notFound } from "./invite"
 import { isUuid } from "./validation"
 
-/** active: signed in at least once. invited: never signed in. inactive: deactivated. */
+/**
+ * active: can sign in on their own (signed in before, or confirmed the email).
+ * invited: hasn't accepted the invitation yet, so it can be resent.
+ * inactive: deactivated.
+ */
 export type StaffAccountStatus = "active" | "invited" | "inactive"
 
 /** Staff and venue manager accounts; admins are never listed. */
@@ -57,10 +66,10 @@ type ProfileRow = {
 
 export function staffStatus(
   active: boolean,
-  user: Pick<User, "last_sign_in_at"> | null
+  user: Pick<User, "last_sign_in_at" | "email_confirmed_at"> | null
 ): StaffAccountStatus {
   if (!active) return "inactive"
-  return user?.last_sign_in_at ? "active" : "invited"
+  return !user || hasPendingInvitation(user) ? "invited" : "active"
 }
 
 /**

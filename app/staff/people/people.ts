@@ -30,64 +30,39 @@ export const PROFILE_COPY = {
 
 export const TEAM_TAG: Record<Department, string> = { foh: "FOH", boh: "BOH" }
 
-function nameParts(displayName: string) {
-  const parts = displayName.trim().split(/\s+/).filter(Boolean)
-  return parts.length > 1
-    ? { surname: parts[parts.length - 1], given: parts.slice(0, -1).join(" ") }
-    : { surname: parts[0] ?? "", given: "" }
-}
-
 export function firstName(displayName: string): string {
   return displayName.trim().split(/\s+/)[0] || displayName
-}
-
-const collator = new Intl.Collator("en-GB", {
-  sensitivity: "base",
-  numeric: true,
-})
-
-/**
- * A to Z by surname, ties by first name. The directory never orders by how
- * much someone has shared, so the list never reads as a ranking.
- */
-export function comparePeople(
-  a: { id: string; displayName: string },
-  b: { id: string; displayName: string }
-): number {
-  const left = nameParts(a.displayName)
-  const right = nameParts(b.displayName)
-  return (
-    collator.compare(left.surname, right.surname) ||
-    collator.compare(left.given, right.given) ||
-    collator.compare(a.displayName, b.displayName) ||
-    (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
-  )
-}
-
-export function sortPeople<T extends { id: string; displayName: string }>(
-  people: readonly T[]
-): T[] {
-  return [...people].sort(comparePeople)
 }
 
 export function photoCount(count: number): string {
   return `${count} ${count === 1 ? "photo" : "photos"}`
 }
 
-/** How many to show: whole pages, at least one, never past the list's end. */
-export function shownCount(value: string, total: number): number {
+/**
+ * How far Next people goes. Each page re-reads everyone above it, so past
+ * this a name search is the way to find someone.
+ */
+export const PEOPLE_MAX_SHOWN = 20 * PEOPLE_PAGE_SIZE
+
+/** How many to show: whole pages, at least one, at most PEOPLE_MAX_SHOWN. */
+export function shownCount(value: string): number {
   const asked = Number(value)
   const pages =
     Number.isInteger(asked) && asked > 0
       ? Math.ceil(asked / PEOPLE_PAGE_SIZE)
       : 1
-  const lastPage = Math.max(1, Math.ceil(total / PEOPLE_PAGE_SIZE))
-  return Math.min(pages, lastPage) * PEOPLE_PAGE_SIZE
+  return Math.min(pages * PEOPLE_PAGE_SIZE, PEOPLE_MAX_SHOWN)
 }
 
-/** "Showing 1 to 24 of 64, A to Z by surname" */
-export function showingRange(shown: number, total: number): string {
-  return `Showing 1 to ${Math.min(shown, total)} of ${total}, A to Z by surname`
+/**
+ * "Showing 1 to 24, A to Z by name". The order is the directory's (whole
+ * display name, never how much someone has shared), so it never reads as a
+ * ranking. `capped`: more people match than Next people reaches.
+ */
+export function showingRange(shown: number, capped = false): string {
+  return capped
+    ? `Showing the first ${shown}, A to Z by name. Search by name to find anyone else.`
+    : `Showing 1 to ${shown}, A to Z by name`
 }
 
 export type PeopleSearch = {

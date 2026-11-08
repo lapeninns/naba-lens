@@ -106,6 +106,35 @@ describe("magic links", () => {
     )
   })
 
+  it("a link sign-in returns to the page asked for, only within the role's area", async () => {
+    const browser = new Browser("return-to")
+    const deepLink = "/staff/people?q=links"
+    const asked = await proxy(appRequest(browser, deepLink))
+    expect(asked.status).toBe(307)
+    browser.absorb(asked.cookies.getAll())
+
+    await signedIn(browser, staff.email)
+    expect((await browser.run(() => redirectOf(RootPage))).location).toBe(
+      deepLink
+    )
+    // Landing on the page uses the remembered path up.
+    const landed = await proxy(appRequest(browser, deepLink))
+    browser.absorb(landed.cookies.getAll())
+    expect(browser.cookieHeader()).not.toContain("nl-return-to")
+    expect((await browser.run(() => redirectOf(RootPage))).location).toBe(
+      "/staff/tasks"
+    )
+
+    // Another account signing in on a browser that remembers a staff page is
+    // sent to its own home: the role check runs after.
+    const shared = new Browser("return-to-shared")
+    shared.absorb((await proxy(appRequest(shared, deepLink))).cookies.getAll())
+    await signedIn(shared, admin.email)
+    expect((await shared.run(() => redirectOf(RootPage))).location).toBe(
+      "/admin"
+    )
+  })
+
   it("an expired link is refused, sets no session and offers recovery", async () => {
     const browser = new Browser("expired")
     const link = await issueSignInLink(service, staff.email)
@@ -347,7 +376,11 @@ describe("session expiry", () => {
       const res = await proxy(appRequest(browser, path))
       expect(res.status).toBe(307)
       expect(new URL(res.headers.get("location")!).pathname).toBe("/login")
-      expect(new URL(res.headers.get("location")!).search).toBe("")
+      // The page asked for is remembered for after sign-in (AUTH-1).
+      expect(new URL(res.headers.get("location")!).search).toBe(
+        `?next=${encodeURIComponent(path)}`
+      )
+      expect(res.cookies.get("nl-return-to")?.value).toBe(path)
       expect(await res.text()).toBe("")
       const cleared = res.cookies
         .getAll()
@@ -436,7 +469,11 @@ describe("session expiry", () => {
     await signedIn(a, admin.email)
     await signedIn(b, admin.email)
 
-    const res = await a.run(() => logout())
+    const res = await a.run(() =>
+      logout(
+        new Request("http://127.0.0.1:3000/auth/logout", { method: "POST" })
+      )
+    )
     expect(res.status).toBe(303)
     expect(res.headers.get("location")).toBe("/login?signed_out=1")
     expect(a.authCookies().filter((c) => !c.name.includes("verifier"))).toEqual(

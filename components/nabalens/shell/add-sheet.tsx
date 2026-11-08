@@ -21,8 +21,8 @@ export type AddBlocked =
 
 /**
  * What Add opens on phones: choose from the phone's photos (first, several at
- * a time) or take a photo. Nothing uploads until a choice is made; the chosen
- * files go to the upload queue, which waits for "Upload N files".
+ * a time) or take a photo. The chosen files start uploading at once, in the
+ * "Saving N photos" sheet.
  */
 export function AddSheet({
   open,
@@ -83,8 +83,7 @@ export function AddSheet({
             </div>
             <p className="flex gap-2 text-meta-touch text-ink-muted md:text-meta">
               <InfoIcon aria-hidden className="mt-0.5 size-4 flex-none" />
-              Nothing uploads until you choose Upload. Your colleagues will see
-              them in Photos, and you can label them after.
+              Photos start saving as soon as you pick them.
             </p>
           </>
         )}

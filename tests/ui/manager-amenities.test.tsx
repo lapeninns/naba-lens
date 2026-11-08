@@ -184,11 +184,13 @@ describe("/manager/amenities/[checkId]", () => {
     expect(
       screen.getByRole("link", { name: "All amenities" }).getAttribute("href")
     ).toBe("/manager/amenities")
-    expect(
-      screen
-        .getByRole("link", { name: UI_TEXT.captureMyself })
-        .getAttribute("href")
-    ).toBe(`/manager/amenities/${WIFI_CHECK.id}/capture`)
+    const capture = screen.getByRole("link", { name: UI_TEXT.captureMyself })
+    expect(capture.getAttribute("href")).toBe(
+      `/manager/amenities/${WIFI_CHECK.id}/capture`
+    )
+    // A manager account can't upload: Capture myself is not the primary.
+    expect(capture.className).not.toContain("bg-accent")
+    expect(screen.getByText(/assign this check to staff/)).toBeTruthy()
     noStaffLinks()
   })
 

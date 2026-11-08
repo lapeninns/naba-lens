@@ -45,7 +45,7 @@ describe("LabelSummary", () => {
     )
     const items = screen.getByRole("list", { name: "Menu items" })
     const rows = within(items).getAllByRole("listitem")
-    expect(rows[0].textContent).toBe("Tikka Masala, Lamb · House Specials")
+    expect(rows[0].textContent).toBe("Tikka Masala (Lamb) · House Specials")
     expect(rows[1].textContent).toBe(
       "Lamb Bhuna · CurriesNot on the current menulabelled as Lamb Bhoona"
     )
@@ -83,5 +83,27 @@ describe("LabelBadge", () => {
     expect(container.textContent).toBe("")
     expect(labelBadgeText(undefined)).toBeNull()
     expect(labelBadgeText(summary({ contentTypes: ["team"] }))).toBe("1 label")
+  })
+})
+
+describe("LabelSummary: A2", () => {
+  it("names a dish with variants labelled without one Name (Not specified)", () => {
+    render(
+      <LabelSummary
+        labels={summary({
+          items: [
+            view("i1", "Momo", "Appetisers", { unspecified: true }),
+            view("i2", "Onion Bhaji", "Appetisers"),
+          ],
+        })}
+      />
+    )
+    const rows = within(
+      screen.getByRole("list", { name: "Menu items" })
+    ).getAllByRole("listitem")
+    expect(rows.map((r) => r.textContent)).toEqual([
+      "Momo (Not specified) · Appetisers",
+      "Onion Bhaji · Appetisers",
+    ])
   })
 })

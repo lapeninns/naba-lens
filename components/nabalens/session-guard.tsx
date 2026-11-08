@@ -14,6 +14,7 @@ import {
 
 import { CAPTCHA_UNAVAILABLE_MESSAGE } from "@/lib/auth/captcha"
 import { lastSignInSent, recordSignInSent } from "@/lib/auth/pending-sign-in"
+import { loginHref } from "@/lib/auth/routes"
 
 import { Notice } from "./notice"
 import { RESEND_COOLDOWN_SECONDS, SignInCodeStep } from "./sign-in-code-step"
@@ -43,6 +44,13 @@ export type SessionGuard = {
    */
   isSignedIn: () => Promise<boolean>
   /**
+   * The opposite bias, for closing Sign in again: resolves true only when this
+   * browser holds a session for the same user (any user while none is known
+   * yet). Offline or unsure resolves false, so the sheet never closes on a
+   * lost signal.
+   */
+  isSignedInAgain?: () => Promise<boolean>
+  /**
    * Signs this browser in with the code from the sign-in email and resolves the
    * signed-in user's id, or `{ error }`. Without it the sheet offers the link
    * only.
@@ -55,6 +63,8 @@ export type SessionGuard = {
 
 export const DIFFERENT_ACCOUNT_MESSAGE =
   "That code signed in a different account, so the stopped files were not resumed. Reload the page to continue as that account."
+export const DIFFERENT_ACCOUNT_PAGE_MESSAGE =
+  "That code signed in a different account. Reload the page to continue as that account."
 
 const SessionGuardContext = React.createContext<SessionGuard | null>(null)
 
@@ -119,15 +129,18 @@ function count(n: number, one: string, many: string) {
 
 /**
  * E7 Sign in again: a sheet over the page that sends a sign-in link, so the
- * page, and anything waiting on it, stays where it is.
+ * page, and anything waiting on it, stays where it is. `uploads` speaks about
+ * the files the ended session stopped; `page` about the page itself (what was
+ * typed stays, what was tried while signed out was not saved).
  */
 export function SignInAgainSheet({
   open,
   onOpenChange,
   guard,
-  done,
-  stopped,
+  done = 0,
+  stopped = 0,
   onSignedIn,
+  variant = "uploads",
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -138,10 +151,12 @@ export function SignInAgainSheet({
    */
   onSignedIn?: () => void
   /** Files that finished before the session ended. */
-  done: number
+  done?: number
   /** Files that stopped because of it. */
-  stopped: number
+  stopped?: number
+  variant?: "uploads" | "page"
 }) {
+  const page = variant === "page"
   const [sending, setSending] = React.useState(false)
   const [sent, setSent] = React.useState(false)
   const [sentAt, setSentAt] = React.useState(0)
@@ -151,10 +166,16 @@ export function SignInAgainSheet({
   const needsCaptcha = guard.captchaRequired || !!guard.captchaSiteKey
   const captchaUnavailable = needsCaptcha && !guard.captchaSiteKey
 
+  // Signing in from a new tab comes back to this page.
+  const [loginLink, setLoginLink] = React.useState<string>(loginHref())
+
   React.useEffect(() => {
-    if (open) return
+    if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setLoginLink(loginHref(window.location.pathname + window.location.search))
+      return
+    }
     // Each time the sheet opens it starts from the request, not the result.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSent(false)
     setError(null)
   }, [open])
@@ -203,21 +224,27 @@ export function SignInAgainSheet({
     const result = await verifyCode(email, code)
     if (result.error) return { error: result.error }
     if (userId && result.userId && result.userId !== userId) {
-      return { error: DIFFERENT_ACCOUNT_MESSAGE }
+      return {
+        error: page
+          ? DIFFERENT_ACCOUNT_PAGE_MESSAGE
+          : DIFFERENT_ACCOUNT_MESSAGE,
+      }
     }
     if (onSignedIn) onSignedIn()
     else onOpenChange(false)
   }
 
-  const summary = [
-    "You were signed out after a while away.",
-    done > 0
-      ? `${count(done, "photo", "photos")} finished uploading and ${done === 1 ? "is" : "are"} safe.`
-      : null,
-    stopped > 0 ? `${stopped} stopped.` : null,
-  ]
-    .filter(Boolean)
-    .join(" ")
+  const summary = page
+    ? "You were signed out, so anything you tried since then wasn't saved."
+    : [
+        "You were signed out after a while away.",
+        done > 0
+          ? `${count(done, "photo", "photos")} finished uploading and ${done === 1 ? "is" : "are"} safe.`
+          : null,
+        stopped > 0 ? `${stopped} stopped.` : null,
+      ]
+        .filter(Boolean)
+        .join(" ")
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -237,6 +264,22 @@ export function SignInAgainSheet({
               If {guard.email} has an account, a sign-in link is on its way. It
               works once. Open it on this phone to stay signed in here.
             </DialogDescription>
+          ) : page ? (
+            guard.email ? (
+              <DialogDescription>
+                We&apos;ll send a sign-in link and code to{" "}
+                <strong className="font-bold [overflow-wrap:anywhere] text-ink">
+                  {guard.email}
+                </strong>
+                . Sign in here to carry on. This page stays open, with what
+                you&apos;ve entered.
+              </DialogDescription>
+            ) : (
+              <DialogDescription>
+                Sign in again in a new tab, then come back here. This page stays
+                open, with what you&apos;ve entered.
+              </DialogDescription>
+            )
           ) : guard.email ? (
             <DialogDescription>
               We&apos;ll send a sign-in link to{" "}
@@ -310,7 +353,7 @@ export function SignInAgainSheet({
             </Button>
           ) : (
             <a
-              href="/login"
+              href={loginLink}
               target="_blank"
               rel="noopener"
               className={buttonVariants({ variant: "primary", size: "touch" })}

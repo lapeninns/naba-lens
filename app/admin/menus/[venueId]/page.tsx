@@ -3,7 +3,6 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 import { FileTextIcon } from "@phosphor-icons/react/dist/ssr"
 
-import { logout } from "@/app/_media/actions"
 import {
   AppShell,
   EmptyState,
@@ -212,12 +211,7 @@ export default async function VenueMenusPage({
     : null
 
   const shell = (children: React.ReactNode) => (
-    <AppShell
-      variant="admin"
-      active="menus"
-      userName={profile.displayName}
-      logoutAction={logout}
-    >
+    <AppShell variant="admin" active="menus" userName={profile.displayName}>
       {children}
     </AppShell>
   )

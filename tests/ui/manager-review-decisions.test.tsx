@@ -726,6 +726,50 @@ describe("ReviewList decisions", () => {
   })
 })
 
+describe("a decision after the manager's access ended", () => {
+  const WORKSPACE_REFUSED =
+    "You do not have access to this venue's workspace. Reload the page."
+
+  it.each(["not_permitted", "wrong_venue", "account_inactive"])(
+    "%s says so on the card and offers Refresh, which re-renders the workspace",
+    async (code) => {
+      const user = userEvent.setup()
+      actions.decideMenuPhotoAction.mockResolvedValueOnce({
+        ok: false,
+        code,
+        status: 403,
+        message: WORKSPACE_REFUSED,
+      })
+      renderList([card()])
+      await user.click(screen.getByRole("button", { name: REVIEW_COPY.accept }))
+      const alert = await within(cardEl(card().key)).findByRole("alert")
+      expect(alert.textContent).toContain(WORKSPACE_REFUSED)
+      expect(nav.refresh).not.toHaveBeenCalled()
+      await user.click(
+        within(alert).getByRole("button", { name: REVIEW_COPY.refresh })
+      )
+      expect(nav.refresh).toHaveBeenCalledTimes(1)
+    }
+  )
+
+  it("keeps the admin's refusal as a plain card error", async () => {
+    const user = userEvent.setup()
+    actions.decideMenuPhotoAction.mockResolvedValueOnce({
+      ok: false,
+      code: "not_permitted",
+      status: 403,
+      message: "Not allowed.",
+    })
+    renderList([card()], { scope: { kind: "admin", venueId: id(0xb1) } })
+    await user.click(screen.getByRole("button", { name: REVIEW_COPY.accept }))
+    const alert = await within(cardEl(card().key)).findByRole("alert")
+    expect(alert.textContent).toContain("Not allowed.")
+    expect(
+      within(alert).queryByRole("button", { name: REVIEW_COPY.refresh })
+    ).toBeNull()
+  })
+})
+
 describe("Item page waiting list", () => {
   it("refreshes the item detail after a decision", async () => {
     const user = userEvent.setup()

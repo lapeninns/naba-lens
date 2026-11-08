@@ -11,6 +11,8 @@ import { buttonVariants } from "@/components/ui/button"
 import { requireManagerVenue } from "@/lib/auth/manager"
 import { getManagerPhotoCtx } from "@/lib/server/menu-photos"
 
+import { failedRead } from "../../../load-overview"
+
 export const metadata = { title: "Contributor · Naba-Lens" }
 
 /** One contributor's photos at the manager's venue, with their status and tallies. */
@@ -22,9 +24,10 @@ export default async function ManagerContributorPage({
   searchParams: Promise<ReviewSearch>
 }) {
   await requireManagerVenue()
-  const scope = await getManagerPhotoCtx()
-  if (!scope.ok) throw new Error(`Could not open Review: ${scope.code}`)
   const { staffId } = await params
+  const scope = await getManagerPhotoCtx()
+  if (!scope.ok)
+    failedRead(scope.code, "a contributor", managerHrefs.contributor(staffId))
   return (
     <div className="grid gap-6">
       <Link

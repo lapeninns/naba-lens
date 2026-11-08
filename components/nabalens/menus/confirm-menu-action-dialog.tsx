@@ -2,6 +2,7 @@
 
 import * as React from "react"
 
+import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -53,6 +54,7 @@ export function ConfirmMenuActionDialog({
 }: ConfirmMenuActionDialogProps) {
   const [pending, setPending] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const sessionEnded = useSessionEndedCatch()
 
   async function confirm() {
     setPending(true)
@@ -64,8 +66,8 @@ export function ConfirmMenuActionDialog({
         return
       }
       onOpenChange(false)
-    } catch {
-      setError(fallbackError)
+    } catch (cause) {
+      setError(sessionEnded(cause) ?? fallbackError)
     } finally {
       setPending(false)
     }

@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises"
 import { createHash } from "node:crypto"
 
-import { expect, test, type Route } from "@playwright/test"
+import { expect, test, type Locator, type Route } from "@playwright/test"
 
 import { provisioner, psql } from "../e2e/helpers/stack"
 import {
@@ -33,7 +33,9 @@ import {
 /**
  * Media upload interruption and recovery against the real local Supabase
  * stack (real TUS resumable uploads and signed PUTs through the real upload
- * dialog). Every test asserts the CORRECT behaviour; the interruption is made
+ * sheet: Me's "Upload photos or videos" opens Add's queue, which starts
+ * uploading as soon as files are picked and is titled "Saving N photos" from
+ * then on). Every test asserts the CORRECT behaviour; the interruption is made
  * with Playwright routes or the browser's offline switch, never with Docker.
  * Each test name starts with the journey id it belongs to
  * (tests/journeys/media.*.journey.json select them by that prefix).
@@ -43,6 +45,24 @@ const sha256 = (bytes: Uint8Array) =>
   createHash("sha256").update(bytes).digest("hex")
 
 const SIZE = async () => (await readFile(fixtureFile("tus-video.mp4"))).length
+
+/**
+ * A queue row's state word ("Saved", "Saving…" or "Needs attention", the
+ * row's accessible description) and, optionally, the text of its detail line
+ * (the failure reason, "Waiting for a signal", "Uploading 40%"…).
+ */
+async function expectRow(
+  dialog: Locator,
+  name: string,
+  word: "Saved" | "Saving…" | "Needs attention",
+  detail?: string,
+  timeout?: number
+) {
+  const item = row(dialog, name)
+  await expect(item).toHaveAccessibleDescription(word, { timeout })
+  if (detail !== undefined)
+    await expect(item).toContainText(detail, { timeout })
+}
 
 async function storedHash(path: string) {
   const { data, error } = await provisioner()
@@ -108,7 +128,7 @@ test.describe("media.tus-interrupted-resume", () => {
     })
     const dialog = await openUploadDialog(page)
     await chooseAndUpload(dialog, ["tus-video.mp4"])
-    await expectSummary(dialog, "1 uploaded", 90_000)
+    await expectSummary(dialog, "1 saved", 90_000)
 
     expect(dropped).toBe(1)
     const offsets = storage.patchOffsets()
@@ -167,7 +187,7 @@ test.describe("media.tus-interrupted-resume", () => {
     })
     const dialog = await openUploadDialog(page)
     await chooseAndUpload(dialog, ["tus-video.mp4"])
-    await expectSummary(dialog, "1 uploaded", 90_000)
+    await expectSummary(dialog, "1 saved", 90_000)
 
     expect(cut).toBe(2)
     expect(storage.methods().filter((m) => m === "POST")).toHaveLength(1)
@@ -220,19 +240,27 @@ test.describe("media.tus-offline-retry", () => {
             "Waiting for a signal. Keep this page open; nothing is sent twice."
           )
         ).toBeVisible({ timeout: 120_000 })
-        await expect(row(dialog, "tus-video.mp4")).toContainText("Waiting", {
-          timeout: 120_000,
-        })
+        await expectRow(
+          dialog,
+          "tus-video.mp4",
+          "Saving…",
+          "Waiting for a signal",
+          120_000
+        )
+        // The notice above is a status too: the footer is the last one.
         await expect(dialog.getByRole("status").last()).toHaveText(
-          "0 uploaded · 1 waiting"
+          "0 saved · 1 waiting"
         )
       } else {
-        await expect(row(dialog, "tus-video.mp4")).toContainText(
-          "Failed — The connection was interrupted. Check your connection, then retry: the upload continues where it stopped.",
-          { timeout: 120_000 }
+        await expectRow(
+          dialog,
+          "tus-video.mp4",
+          "Needs attention",
+          "The connection was interrupted. Check your connection, then retry: the upload continues where it stopped.",
+          120_000
         )
         await expect(dialog.getByRole("status")).toHaveText(
-          "0 uploaded · 1 failed"
+          "0 saved · 1 need attention"
         )
       }
       await testInfo.attach(offline ? "offline-waiting" : "offline-failed", {
@@ -253,7 +281,7 @@ test.describe("media.tus-offline-retry", () => {
         await dialog
           .getByRole("button", { name: "Retry tus-video.mp4" })
           .click()
-      await expectSummary(dialog, "1 uploaded", 90_000)
+      await expectSummary(dialog, "1 saved", 90_000)
       expect(storage.methods()[0]).toBe("HEAD")
       expect(storage.methods()).not.toContain("POST")
       expect(storage.patchOffsets()[0]).toBe(CHUNK)
@@ -297,7 +325,7 @@ test.describe("media.reload-resume", () => {
     storage.reset()
     dialog = await openUploadDialog(page)
     await chooseAndUpload(dialog, ["tus-video.mp4"])
-    await expectSummary(dialog, "1 uploaded", 90_000)
+    await expectSummary(dialog, "1 saved", 90_000)
     expect(storage.methods()[0]).toBe("HEAD")
     expect(storage.methods()).not.toContain("POST")
     expect(storage.patchOffsets()[0]).toBe(2 * CHUNK)
@@ -343,12 +371,15 @@ test.describe("media.removed-reservation", () => {
 
     dialog = await openUploadDialog(page)
     await chooseAndUpload(dialog, ["tus-video.mp4"])
-    await expect(row(dialog, "tus-video.mp4")).toContainText(
-      "Failed — This unfinished upload was removed or expired. Retry to upload the file again.",
-      { timeout: 60_000 }
+    await expectRow(
+      dialog,
+      "tus-video.mp4",
+      "Needs attention",
+      "This unfinished upload was removed or expired. Retry to upload the file again.",
+      60_000
     )
     await dialog.getByRole("button", { name: "Retry tus-video.mp4" }).click()
-    await expectSummary(dialog, "1 uploaded", 90_000)
+    await expectSummary(dialog, "1 saved", 90_000)
     const live = (await rowsOf(staff.id)).filter((r) => r.deleted_at === null)
     expect(live).toHaveLength(1)
     expect(live[0].id).not.toBe(reserved.id)
@@ -370,10 +401,13 @@ test.describe("media.reopen-states", () => {
     // Completed and failed: one batch through the real dialog.
     let dialog = await openUploadDialog(page)
     await chooseAndUpload(dialog, ["photo.jpg", "disguised.jpg"])
-    await expectSummary(dialog, "1 uploaded · 1 failed", 90_000)
+    await expectSummary(dialog, "1 saved · 1 need attention", 90_000)
+    // Done hides the sheet; the failed file stays in Add's queue.
     await dialog.getByRole("button", { name: "Done" }).click()
+    await expect(dialog).toBeHidden()
 
-    // Incomplete: a video whose transfer is cut by a reload.
+    // Incomplete: a video whose transfer is cut by a reload. Add reopens the
+    // queue that still holds the failed file; the video joins it.
     const hold = await holdPatchAt(page, CHUNK)
     dialog = await openUploadDialog(page)
     await chooseAndUpload(dialog, ["tus-video.mp4"])
@@ -409,10 +443,13 @@ test.describe("media.reopen-states", () => {
     })
 
     // Reopening the uploader starts a clean queue and claims nothing.
+    // Its title is the picker's, not "Saving N …".
     dialog = await openUploadDialog(page)
+    await expect(dialog).toHaveAccessibleName("Upload photos or videos")
     await expect(dialog.getByRole("list", { name: "Files" })).toHaveCount(0)
     await expect(dialog.getByRole("status")).toHaveCount(0)
-    await dialog.getByRole("button", { name: "Cancel" }).click()
+    await dialog.getByRole("button", { name: "Done" }).click()
+    await expect(dialog).toBeHidden()
 
     // Another device sees the same states from the server.
     const fresh = await signInAs(browser, staff, baseURL!, STAFF_LANDING)
@@ -473,15 +510,25 @@ test.describe("media.partial-batch", () => {
 
     const dialog = await openUploadDialog(page)
     await chooseAndUpload(dialog, files)
-    await expectSummary(dialog, "2 uploaded · 2 failed", 120_000)
+    await expectSummary(dialog, "2 saved · 2 need attention", 120_000)
     expect(aborted).toBeGreaterThanOrEqual(1)
-    await expect(row(dialog, "photo.jpg")).toContainText("Uploaded")
-    await expect(row(dialog, "photo.png")).toContainText("Uploaded")
-    await expect(row(dialog, "disguised.jpg")).toContainText(
-      "Failed — This file type is not supported."
+    await expectRow(dialog, "photo.jpg", "Saved")
+    await expectRow(dialog, "photo.png", "Saved")
+    // The server refused the disguised file: it can't be used, so no Retry.
+    await expectRow(
+      dialog,
+      "disguised.jpg",
+      "Needs attention",
+      "This file can't be used: This file type is not supported."
     )
-    await expect(row(dialog, "extra.jpg")).toContainText(
-      "Failed — The connection was interrupted."
+    await expect(
+      dialog.getByRole("button", { name: "Retry disguised.jpg" })
+    ).toHaveCount(0)
+    await expectRow(
+      dialog,
+      "extra.jpg",
+      "Needs attention",
+      "The connection was interrupted."
     )
 
     const before = await rowsOf(staff.id)
@@ -497,7 +544,8 @@ test.describe("media.partial-batch", () => {
 
     offline = false
     await dialog.getByRole("button", { name: "Retry extra.jpg" }).click()
-    await expectSummary(dialog, "3 uploaded · 1 failed", 60_000)
+    await expectSummary(dialog, "3 saved · 1 need attention", 60_000)
+    await expectRow(dialog, "extra.jpg", "Saved")
 
     const after = await rowsOf(staff.id)
     // Exactly one row per file, the successful ones untouched, the retried one
@@ -536,9 +584,7 @@ test.describe("media.stuck-processing", () => {
     })
     let dialog = await openUploadDialog(page)
     await chooseAndUpload(dialog, ["photo.jpg"])
-    await expect(row(dialog, "photo.jpg")).toContainText("Failed", {
-      timeout: 60_000,
-    })
+    await expectRow(dialog, "photo.jpg", "Needs attention", undefined, 60_000)
     await page.unroute("**/staff")
     const [claimed] = await rowsOf(staff.id)
     expect(await objectsOf(staff.id, claimed.id)).toContain("original.jpg")
@@ -584,7 +630,7 @@ test.describe("media.stuck-processing", () => {
     // Recovery: choosing the file again finalises the stored bytes.
     dialog = await openUploadDialog(page)
     await chooseAndUpload(dialog, ["photo.jpg"])
-    await expectSummary(dialog, "1 uploaded", 60_000)
+    await expectSummary(dialog, "1 saved", 60_000)
     const rows = await rowsOf(staff.id)
     expect(rows).toHaveLength(1)
     expect(rows[0]).toMatchObject({ id: claimed.id, upload_state: "ready" })
@@ -611,13 +657,13 @@ test.describe("media.leave-warning", () => {
     const dialog = await openUploadDialog(page)
     await chooseAndUpload(dialog, ["tus-video.mp4"])
     await expect.poll(() => hold.isHeld(), { timeout: 30_000 }).toBe(true)
-    await expect(row(dialog, "tus-video.mp4")).toContainText("Uploading")
+    await expectRow(dialog, "tus-video.mp4", "Saving…", "Uploading")
 
     // Navigation away: the page asks, and staying keeps the upload running.
     await page.goto("/login").catch(() => {})
     expect(seen).toEqual(["beforeunload"])
     expect(new URL(page.url()).pathname).toBe("/staff")
-    await expect(row(dialog, "tus-video.mp4")).toContainText("Uploading")
+    await expectRow(dialog, "tus-video.mp4", "Saving…", "Uploading")
 
     // Closing the tab asks too.
     await page.close({ runBeforeUnload: true })
@@ -627,7 +673,7 @@ test.describe("media.leave-warning", () => {
 
     // Idle again: no prompt.
     await hold.release()
-    await expectSummary(dialog, "1 uploaded", 90_000)
+    await expectSummary(dialog, "1 saved", 90_000)
     await dialog.getByRole("button", { name: "Done" }).click()
     seen.length = 0
     accept = true
@@ -647,7 +693,7 @@ test.describe("media.reload-metadata", () => {
 
     const dialog = await openUploadDialog(page)
     await chooseAndUpload(dialog, ["photo.jpg", "photo.png"])
-    await expectSummary(dialog, "2 uploaded", 90_000)
+    await expectSummary(dialog, "2 saved", 90_000)
     await dialog.getByRole("button", { name: "Done" }).click()
     await page.reload()
 

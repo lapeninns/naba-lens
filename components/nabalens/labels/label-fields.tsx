@@ -12,6 +12,7 @@ import { Notice } from "@/components/nabalens/notice"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
+import { dishName } from "@/lib/menus/dish-name"
 import {
   CONTENT_TYPE_LABELS,
   CONTENT_TYPES,
@@ -22,7 +23,12 @@ import { cn } from "@/lib/utils"
 
 import type { CatalogueIndex } from "./catalogue-search"
 import { FIELD_CONTROL, FIELD_HINT, FIELD_LABEL } from "./field-styles"
-import type { DraftItem, EffectiveItem, EffectiveLabels } from "./label-draft"
+import {
+  isUnspecifiedVariant,
+  type DraftItem,
+  type EffectiveItem,
+  type EffectiveLabels,
+} from "./label-draft"
 import { ITEM_STATE_TEXT } from "./label-summary"
 import { MenuItemPicker } from "./menu-item-picker"
 import type { CatalogueProp, LabelAudience } from "./types"
@@ -31,12 +37,20 @@ import type { CatalogueProp, LabelAudience } from "./types"
 export const LABEL_RULE =
   "A label describes what is in the file. It is not a claim about allergens, dietary suitability, price or availability, and not permission to publish."
 
-export function itemDisplayName(item: {
-  name: string
-  variantName: string | null
-}) {
-  return item.variantName ? `${item.name}, ${item.variantName}` : item.name
+export function itemDisplayName(
+  item: {
+    name: string
+    variantName: string | null
+  },
+  /** The dish has variants and none was chosen. */
+  unspecified = false
+) {
+  // The same style as cards and the portfolio: "Momo (Veg)".
+  return dishName(item, unspecified)
 }
+
+/** Chip text for an item the current menu no longer offers. */
+export const OFF_MENU_TEXT = "No longer on the menu"
 
 /**
  * A field label: visible text with an optional muted part ("(optional)"),
@@ -69,33 +83,49 @@ function SelectedItems({
   label,
   items,
   unavailableKeys,
+  unspecifiedKeys,
   onRemove,
+  nameSuffix,
   onEmptied,
   disabled,
 }: {
   label: string
   items: EffectiveItem[]
   unavailableKeys: ReadonlySet<string>
+  /** Keys of dishes with variants saved without one ("Not specified"). */
+  unspecifiedKeys: ReadonlySet<string>
   onRemove: (item: EffectiveItem) => void
+  /** File scope: "for photo 2", so remove buttons stay unique per file. */
+  nameSuffix?: string
   /** Where focus goes after the last chip is removed. */
   onEmptied: () => void
   disabled?: boolean
 }) {
   if (items.length === 0) return null
-  const names = items.map(itemDisplayName)
+  const names = items.map((item) =>
+    itemDisplayName(item, unspecifiedKeys.has(item.key))
+  )
   return (
     <ul aria-label={label} className="flex flex-wrap gap-2">
       {items.map((item, i) => {
         const name = names[i]
-        // Same name twice (e.g. "Chicken" in two curry sections): add the section.
-        const clash = names.filter((n) => n === name).length > 1
+        // Same name twice (e.g. "Chicken" in two curry sections): add the
+        // section, else (two dishes the menu dropped) a position.
+        const same = names.filter((n) => n === name)
+        const nth = names.slice(0, i + 1).filter((n) => n === name).length
         const accessibleName =
-          clash && item.sectionName ? `${name} (${item.sectionName})` : name
+          same.length < 2
+            ? name
+            : item.sectionName
+              ? `${name} (${item.sectionName})`
+              : `${name}, ${nth} of ${same.length}`
         const unavailable = unavailableKeys.has(item.key)
         const meta = [
           item.sectionName,
-          unavailable ? "No longer available, remove it" : null,
-          item.state !== "current" ? ITEM_STATE_TEXT[item.state] : null,
+          unavailable ? OFF_MENU_TEXT : null,
+          item.state !== "current" && !unavailable
+            ? ITEM_STATE_TEXT[item.state]
+            : null,
           item.labelledAs ? `labelled as ${item.labelledAs}` : null,
         ]
           .filter(Boolean)
@@ -121,7 +151,7 @@ function SelectedItems({
               variant="quiet"
               size="icon-sm"
               className="shrink-0 text-current"
-              aria-label={`Remove ${accessibleName}`}
+              aria-label={`Remove ${accessibleName}${nameSuffix ? ` ${nameSuffix}` : ""}`}
               disabled={disabled}
               onClick={(e) => {
                 const li = e.currentTarget.closest("li")
@@ -376,6 +406,8 @@ export type LabelFieldsProps = {
   removedCommon?: DraftItem[]
   onAddItem: (item: DraftItem) => void
   onRemoveItem: (item: EffectiveItem) => void
+  /** Swap a just-added item for another variant of the same dish. */
+  onReplaceItem: (fromKey: string, item: DraftItem) => void
   onRestoreItem?: (item: DraftItem) => void
   contentTypes: ContentType[]
   onToggleType: (type: ContentType) => void
@@ -391,6 +423,15 @@ export type LabelFieldsProps = {
   disabled?: boolean
   /** Content types shown first (the person's work focus). Order only. */
   focusTypes?: readonly ContentType[]
+  /** The menu search has an unfinished choice (see MenuItemPicker). */
+  onPendingChange?: (pending: boolean) => void
+  /** Replaces the menu item search label ("Menu item at {venue}"). */
+  itemLabel?: string
+  /**
+   * Which fields: everything (default), only the menu items, or only the
+   * details (content types and note), e.g. behind a "More details" toggle.
+   */
+  part?: "all" | "items" | "details"
 }
 
 export function LabelFields({
@@ -407,6 +448,7 @@ export function LabelFields({
   removedCommon = [],
   onAddItem,
   onRemoveItem,
+  onReplaceItem,
   onRestoreItem,
   contentTypes,
   onToggleType,
@@ -417,6 +459,9 @@ export function LabelFields({
   missingItem,
   disabled,
   focusTypes,
+  onPendingChange,
+  itemLabel: itemLabelProp,
+  part = "all",
 }: LabelFieldsProps) {
   const containerRef = React.useRef<HTMLDivElement>(null)
   const missingRef = React.useRef<HTMLInputElement>(null)
@@ -446,7 +491,7 @@ export function LabelFields({
     [items]
   )
   const atMaxItems = items.length >= LABEL_LIMITS.maxItemsPerAsset
-  const itemLabel = `Menu item at ${venueName}`
+  const itemLabel = itemLabelProp ?? `Menu item at ${venueName}`
   const itemOpt = audience === "staff" ? "(optional)" : undefined
 
   function focusSearch() {
@@ -515,6 +560,8 @@ export function LabelFields({
         index={index}
         selectedKeys={selectedKeys}
         onPick={onAddItem}
+        onReplace={onReplaceItem}
+        onPendingChange={onPendingChange}
         venueName={venueName}
         onAddMissing={missingItem ? addMissing : undefined}
         addMissingHint={
@@ -533,124 +580,135 @@ export function LabelFields({
   }
 
   const ready = catalogue.state === "ready" ? catalogue.catalogue : null
+  const unspecifiedKeys = new Set(
+    items.filter((i) => isUnspecifiedVariant(ready, i)).map((i) => i.key)
+  )
 
   return (
     <div ref={containerRef} className="grid gap-5">
-      <div className="grid min-w-0 gap-3">
-        <SelectedItems
-          label={`Selected menu items${suffix ? ` ${suffix}` : ""}`}
-          items={items}
-          unavailableKeys={unavailableKeys}
-          onRemove={onRemoveItem}
-          onEmptied={focusSearch}
-          disabled={disabled}
-        />
-        {removedCommon.length > 0 && onRestoreItem ? (
-          <div className="grid gap-1.5">
-            <p className={FIELD_HINT}>
-              Left off this file (common to all files):
-            </p>
-            <ul className="flex flex-wrap gap-2">
-              {removedCommon.map((item) => (
-                <li key={`${item.itemId}:${item.variantId ?? ""}`}>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    disabled={disabled}
-                    onClick={() => onRestoreItem(item)}
-                    aria-label={`Add back ${itemDisplayName(item)}${suffix ? ` ${suffix}` : ""}`}
-                  >
-                    <ArrowCounterClockwiseIcon
-                      data-icon="inline-start"
-                      aria-hidden
-                    />
-                    {itemDisplayName(item)}
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-        <div className="grid gap-1.5">
-          {picker}
-          {audience === "admin" && ready?.status === "active" ? (
-            <p className={FIELD_HINT}>
-              {`Searches the menu of the venue at upload, ${venueName}, not where the uploader works now.`}
-            </p>
+      {part === "details" ? null : (
+        <div className="grid min-w-0 gap-3">
+          <SelectedItems
+            label={`Selected menu items${suffix ? ` ${suffix}` : ""}`}
+            items={items}
+            unavailableKeys={unavailableKeys}
+            unspecifiedKeys={unspecifiedKeys}
+            onRemove={onRemoveItem}
+            nameSuffix={scope === "file" ? suffix : undefined}
+            onEmptied={focusSearch}
+            disabled={disabled}
+          />
+          {removedCommon.length > 0 && onRestoreItem ? (
+            <div className="grid gap-1.5">
+              <p className={FIELD_HINT}>
+                Left off this file (common to all files):
+              </p>
+              <ul className="flex flex-wrap gap-2">
+                {removedCommon.map((item) => (
+                  <li key={`${item.itemId}:${item.variantId ?? ""}`}>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      disabled={disabled}
+                      onClick={() => onRestoreItem(item)}
+                      aria-label={`Add back ${itemDisplayName(item)}${suffix ? ` ${suffix}` : ""}`}
+                    >
+                      <ArrowCounterClockwiseIcon
+                        data-icon="inline-start"
+                        aria-hidden
+                      />
+                      {itemDisplayName(item)}
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </div>
           ) : null}
-          {staffHint}
-        </div>
-        {missingItem ? (
-          <div id={`${missingToggleId}-panel`} hidden={!missingOpen}>
-            <MissingItemField
-              inputRef={missingRef}
-              value={missingItem.value}
-              saved={missingItem.saved}
-              onChange={missingItem.onChange}
-              venueName={venueName}
-              audience={audience}
-              suffix={suffix || undefined}
-              disabled={disabled}
-            />
+          <div className="grid gap-1.5">
+            {picker}
+            {audience === "admin" && ready?.status === "active" ? (
+              <p className={FIELD_HINT}>
+                {`Searches the menu of the venue at upload, ${venueName}, not where the uploader works now.`}
+              </p>
+            ) : null}
+            {staffHint}
           </div>
-        ) : null}
-        {audience === "admin" && missingItem?.saved ? (
-          <Notice
-            title="1 missing-item suggestion"
-            action={
-              menusHref ? (
-                <Link
-                  href={menusHref}
-                  data-variant="secondary"
-                  className={buttonVariants({
-                    variant: "secondary",
-                    size: "sm",
-                  })}
-                >
-                  Open Menus
-                </Link>
-              ) : undefined
+          {missingItem ? (
+            <div id={`${missingToggleId}-panel`} hidden={!missingOpen}>
+              <MissingItemField
+                inputRef={missingRef}
+                value={missingItem.value}
+                saved={missingItem.saved}
+                onChange={missingItem.onChange}
+                venueName={venueName}
+                audience={audience}
+                suffix={suffix || undefined}
+                disabled={disabled}
+              />
+            </div>
+          ) : null}
+          {audience === "admin" && missingItem?.saved ? (
+            <Notice
+              title="1 missing-item suggestion"
+              action={
+                menusHref ? (
+                  <Link
+                    href={menusHref}
+                    data-variant="secondary"
+                    className={buttonVariants({
+                      variant: "secondary",
+                      size: "sm",
+                    })}
+                  >
+                    Open Menus
+                  </Link>
+                ) : undefined
+              }
+            >
+              {`Someone suggested "${missingItem.saved}", which isn't on ${venueName}'s menu. Link it to an item or dismiss it on Menus.`}
+            </Notice>
+          ) : null}
+        </div>
+      )}
+
+      {part === "items" ? null : (
+        <>
+          <ContentTypeChips
+            legend={named(
+              `What's in the ${mediaNoun}`,
+              `(up to ${LABEL_LIMITS.maxContentTypes})`,
+              suffix
+            )}
+            selected={contentTypes}
+            onToggle={onToggleType}
+            disabled={disabled}
+            focusTypes={focusTypes}
+          />
+
+          <NoteField
+            label={named("Note", "(optional)", suffix)}
+            value={note}
+            onChange={onNoteChange}
+            disabled={disabled}
+            help={
+              scope === "common"
+                ? `Replaces each file’s note, unless a file has its own note. ${LABEL_RULE}`
+                : scope === "file" && noteSource === "common"
+                  ? "Using the common note. Edit to write a note for this file only."
+                  : scope === "file"
+                    ? undefined
+                    : LABEL_RULE
             }
-          >
-            {`Someone suggested "${missingItem.saved}", which isn't on ${venueName}'s menu. Link it to an item or dismiss it on Menus.`}
-          </Notice>
-        ) : null}
-      </div>
-
-      <ContentTypeChips
-        legend={named(
-          `What's in the ${mediaNoun}`,
-          `(up to ${LABEL_LIMITS.maxContentTypes})`,
-          suffix
-        )}
-        selected={contentTypes}
-        onToggle={onToggleType}
-        disabled={disabled}
-        focusTypes={focusTypes}
-      />
-
-      <NoteField
-        label={named("Note", "(optional)", suffix)}
-        value={note}
-        onChange={onNoteChange}
-        disabled={disabled}
-        help={
-          scope === "common"
-            ? `Replaces each file’s note, unless a file has its own note. ${LABEL_RULE}`
-            : scope === "file" && noteSource === "common"
-              ? "Using the common note. Edit to write a note for this file only."
-              : scope === "file"
-                ? undefined
-                : LABEL_RULE
-        }
-        onReset={
-          scope === "file" && noteSource === "file"
-            ? onUseCommonNote
-            : undefined
-        }
-        resetLabel="Use the common note"
-      />
+            onReset={
+              scope === "file" && noteSource === "file"
+                ? onUseCommonNote
+                : undefined
+            }
+            resetLabel="Use the common note"
+          />
+        </>
+      )}
     </div>
   )
 }

@@ -602,7 +602,69 @@ export async function listMyMenuPhotoDecisions(
     .order("id", { ascending: false })
     .limit(STATES_MAX)
   if (error) return unavailableFailure("my menu photos", error)
-  return { ok: true, states: (data ?? []).map(myStateView) }
+  const states = (data ?? []).map(myStateView)
+  const dishes = await retakeableDishes(actor, states)
+  if (!dishes) return { ok: true, states }
+  return {
+    ok: true,
+    states: states.map((state) =>
+      state.state === "better_photo_requested"
+        ? { ...state, canRetake: dishes.has(dishKey(state)) }
+        : state
+    ),
+  }
+}
+
+const dishKey = (ref: { itemId: string; variantId: string | null }) =>
+  `${ref.itemId}:${ref.variantId ?? ""}`
+
+/**
+ * The dishes of open better-photo requests that the caller's current venue's
+ * active menu offers in a food or drinks section, not archived (with the
+ * variant, when one was asked for). A retake is labelled from that menu, so
+ * a dish that left it, or a request from a venue the person has moved from,
+ * can't be answered. Null when the menu can't be read.
+ */
+async function retakeableDishes(
+  actor: MediaActor,
+  states: readonly MyMenuPhotoState[]
+): Promise<Set<string> | null> {
+  const itemIds = [
+    ...new Set(
+      states
+        .filter((s) => s.state === "better_photo_requested")
+        .map((s) => s.itemId)
+    ),
+  ]
+  const venueId = actor.profile.venueId
+  if (itemIds.length === 0 || !venueId) return new Set()
+  const version = await actor.db
+    .from("menu_versions")
+    .select("id")
+    .eq("venue_id", venueId)
+    .eq("status", "active")
+    .maybeSingle()
+  if (version.error) return null
+  if (!version.data) return new Set()
+  const entries = await actor.db
+    .from("menu_entries")
+    .select(
+      "item_id, menu_sections!inner(kind), menu_items!inner(archived_at), menu_entry_variants(variant_id)"
+    )
+    .eq("version_id", version.data.id)
+    .in("item_id", itemIds)
+    .in("menu_sections.kind", ["food", "drinks"])
+    .is("menu_items.archived_at", null)
+  if (entries.error) return null
+  const offered = new Set<string>()
+  for (const entry of entries.data ?? []) {
+    offered.add(dishKey({ itemId: entry.item_id, variantId: null }))
+    for (const variant of entry.menu_entry_variants ?? [])
+      offered.add(
+        dishKey({ itemId: entry.item_id, variantId: variant.variant_id })
+      )
+  }
+  return offered
 }
 
 /** Item-photo decisions where the reviewer was the photo's author, newest first (admins). */

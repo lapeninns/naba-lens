@@ -163,8 +163,17 @@ export function OverviewBody({
 }) {
   const month = monthName(period.label)
   const shown = attention.slice(0, ATTENTION_SHOWN)
+  // People without a target or team need the manager too, even though they
+  // never count toward venue coverage.
+  const staffSetup = participation.needSetup
+  // Before preparing, everyone shows Needs setup and the lead card already
+  // says so; the row would only repeat it.
+  const staffRow = staffSetup > 0 && preparation.kind !== "unprepared"
   const allDone =
-    summary.complete && attention.length === 0 && preparation.kind === "ready"
+    summary.complete &&
+    attention.length === 0 &&
+    staffSetup === 0 &&
+    preparation.kind === "ready"
   const checklistDone =
     summary.applicable > 0 && summary.satisfied === summary.applicable
   const staffNote =
@@ -316,7 +325,11 @@ export function OverviewBody({
         <CoverageSection
           id="attention"
           title="Needs your attention"
-          count={attention.length > 0 ? String(attention.length) : undefined}
+          count={
+            attention.length + (staffRow ? 1 : 0) > 0
+              ? String(attention.length + (staffRow ? 1 : 0))
+              : undefined
+          }
           action={
             attention.length > shown.length ? (
               <Link
@@ -328,8 +341,17 @@ export function OverviewBody({
             ) : undefined
           }
         >
-          {shown.length > 0 ? (
+          {shown.length > 0 || staffRow ? (
             <ItemList label="Needs your attention">
+              {staffRow ? (
+                <ItemRow
+                  title={`${plural(staffSetup, "person", "people")} ${staffSetup === 1 ? "needs" : "need"} setup`}
+                  href={hrefs.team}
+                  chip={<StatusChip state="needs_setup" />}
+                  issues={[staffNote]}
+                  meta={<span>Team</span>}
+                />
+              ) : null}
               {shown.map((r) => (
                 <AttentionRow
                   key={r.id}
@@ -341,7 +363,9 @@ export function OverviewBody({
           ) : (
             <Card>
               <p className="text-body text-ink-muted">
-                Nothing needs setup, reassignment or follow-up.
+                {staffSetup > 0
+                  ? "No checklist items need setup, reassignment or follow-up."
+                  : "Nothing needs setup, reassignment or follow-up."}
               </p>
             </Card>
           )}

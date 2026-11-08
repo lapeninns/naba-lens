@@ -4,6 +4,7 @@ import * as React from "react"
 import { useRouter } from "next/navigation"
 import { XIcon } from "@phosphor-icons/react"
 
+import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import type { ActionResult, Option, StaffMember } from "@/components/nabalens"
 import { Notice, type NoticeTone } from "@/components/nabalens/notice"
 import {
@@ -15,7 +16,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import type { StaffActionPending } from "@/components/nabalens/staff-directory-table"
 import { Button } from "@/components/ui/button"
+import { SESSION_ENDED_MESSAGE } from "@/lib/auth/session-ended"
 
 import {
   resendInvitationAction,
@@ -29,7 +32,10 @@ import {
 } from "./edit-staff-dialog"
 import { firstName } from "./staff-order"
 
-export type Notice = { tone: "success" | "error" | "warning"; text: string }
+export type Notice = {
+  tone: "success" | "error" | "warning" | "pending"
+  text: string
+}
 
 /** An effective venue manager grant, as the staff pages need it. */
 export type ManagerGrant = {
@@ -42,9 +48,14 @@ const NOTICE_TONE: Record<Notice["tone"], NoticeTone> = {
   success: "positive",
   error: "negative",
   warning: "attention",
+  pending: "info",
 }
 
-/** Polite live region for the outcome of the last account action. */
+/**
+ * Polite live region for the outcome of the last account action. The region
+ * stays mounted; the notice inside has no role of its own, so a nested status
+ * region doesn't announce each message twice.
+ */
 export function AccountNotice({
   notice,
   onDismiss,
@@ -57,16 +68,18 @@ export function AccountNotice({
       {notice ? (
         <Notice
           tone={NOTICE_TONE[notice.tone]}
-          role="status"
+          role="none"
           action={
-            <Button
-              variant="quiet"
-              size="icon-sm"
-              aria-label="Close"
-              onClick={onDismiss}
-            >
-              <XIcon aria-hidden />
-            </Button>
+            notice.tone === "pending" ? undefined : (
+              <Button
+                variant="quiet"
+                size="icon-sm"
+                aria-label="Close"
+                onClick={onDismiss}
+              >
+                <XIcon aria-hidden />
+              </Button>
+            )
           }
         >
           {notice.text}
@@ -76,29 +89,52 @@ export function AccountNotice({
   )
 }
 
+const AVATAR_UNCONFIRMED =
+  "We couldn't confirm the photo uploaded. Check your connection and try again."
+
+/**
+ * Uploads a new profile photo. Throws Error(SESSION_ENDED_MESSAGE) when the
+ * session has ended: the route answers 401, or the proxy redirects the POST
+ * to sign-in before the route runs (a followed redirect ends in a 200 HTML
+ * page, so only the route's own `{ ok: true }` counts as saved).
+ */
 async function uploadAvatar(
   staffId: string,
   file: File
 ): Promise<ActionResult> {
   const body = new FormData()
   body.set("file", file)
+  let response: Response
   try {
-    const response = await fetch(
+    response = await fetch(
       `/admin/staff/${encodeURIComponent(staffId)}/avatar`,
-      { method: "POST", body }
+      { method: "POST", body, redirect: "manual" }
     )
-    const json = (await response.json().catch(() => null)) as {
-      error?: string
-      fieldErrors?: Record<string, string>
-    } | null
-    if (response.ok) return { ok: true }
-    return {
-      ok: false,
-      error: json?.error ?? "The photo could not be saved. Try again.",
-      fieldErrors: json?.fieldErrors,
-    }
   } catch {
-    return { ok: false, error: "The photo could not be uploaded. Try again." }
+    return { ok: false, error: AVATAR_UNCONFIRMED }
+  }
+  if (
+    response.status === 401 ||
+    response.type === "opaqueredirect" ||
+    response.redirected ||
+    (response.status >= 300 && response.status < 400)
+  ) {
+    throw new Error(SESSION_ENDED_MESSAGE)
+  }
+  const json = (await response.json().catch(() => null)) as {
+    ok?: boolean
+    error?: string
+    fieldErrors?: Record<string, string>
+  } | null
+  if (response.ok) {
+    return json?.ok === true
+      ? { ok: true }
+      : { ok: false, error: AVATAR_UNCONFIRMED }
+  }
+  return {
+    ok: false,
+    error: json?.error ?? "The photo could not be saved. Try again.",
+    fieldErrors: json?.fieldErrors,
   }
 }
 
@@ -124,9 +160,16 @@ export function useAccountControls({
     null
   )
   const [pending, setPending] = React.useState(false)
-  const [deactivateError, setDeactivateError] = React.useState<string | null>(
-    null
-  )
+  const sessionEnded = useSessionEndedCatch()
+  // Resend or reactivate in flight. The ref turns away a second tap that lands
+  // before the re-render disables the buttons: each resend invalidates the
+  // link sent before it.
+  const [busy, setBusy] = React.useState<StaffActionPending | null>(null)
+  const busyRef = React.useRef(false)
+  const [deactivateError, setDeactivateError] = React.useState<{
+    title: string
+    text: string
+  } | null>(null)
   // Statuses the server has confirmed, keyed by account, with the server props
   // object they apply to. The action's own re-render of the page can arrive long
   // after its result (it re-reads Auth, media and venues: over 30 s on a loaded
@@ -162,37 +205,72 @@ export function useAccountControls({
     return shown
   }
 
-  async function resend(member: StaffMember) {
-    setNotice(null)
-    const result = await resendInvitationAction(member.id)
-    setNotice(
-      result.ok
-        ? {
-            tone: "success",
-            text: `Invitation sent again to ${member.email ?? member.displayName}. Earlier links stop working.`,
-          }
-        : { tone: "error", text: result.error }
+  /**
+   * Runs one resend or reactivate at a time. A rejected call proves nothing:
+   * the server may have acted before the reply was lost.
+   */
+  async function runAction(
+    action: StaffActionPending,
+    pendingText: string,
+    failedText: string,
+    task: () => Promise<Notice>
+  ) {
+    if (busyRef.current) return
+    busyRef.current = true
+    setBusy(action)
+    setNotice({ tone: "pending", text: pendingText })
+    try {
+      setNotice(await task())
+    } catch (cause) {
+      setNotice({ tone: "error", text: sessionEnded(cause) ?? failedText })
+    } finally {
+      busyRef.current = false
+      setBusy(null)
+    }
+  }
+
+  function resend(member: StaffMember) {
+    const to = member.email ?? member.displayName
+    return runAction(
+      { action: "resend", memberId: member.id },
+      `Sending the invitation to ${to}…`,
+      `We couldn't confirm the invitation to ${to} was sent. Check your connection, then try again. A new invitation replaces any earlier link.`,
+      async () => {
+        const result = await resendInvitationAction(member.id)
+        return result.ok
+          ? {
+              tone: "success",
+              text: `Invitation sent again to ${to}. Earlier links stop working.`,
+            }
+          : { tone: "error", text: result.error }
+      }
     )
   }
 
-  async function reactivate(member: StaffMember) {
-    setNotice(null)
-    const result = await setStaffActiveAction(member.id, true)
-    if (result.ok) {
-      confirmStatus(member, result.status)
-      router.refresh()
-    }
-    setNotice(
-      result.ok
-        ? {
-            tone: "success",
-            text: `${member.displayName} can sign in again.`,
-          }
-        : { tone: "error", text: result.error }
+  function reactivate(member: StaffMember) {
+    return runAction(
+      { action: "reactivate", memberId: member.id },
+      `Reactivating ${member.displayName}…`,
+      `We couldn't confirm ${member.displayName} was reactivated. Check your connection, then refresh to see their status.`,
+      async () => {
+        const result = await setStaffActiveAction(member.id, true)
+        if (!result.ok) return { tone: "error", text: result.error }
+        confirmStatus(member, result.status)
+        router.refresh()
+        const first = firstName(member.displayName)
+        return {
+          tone: "success",
+          text:
+            result.status === "invited"
+              ? `${member.displayName} is reactivated and shows as Invited: ${first} hasn't accepted the invitation yet. Resend it if ${first} needs a new link.`
+              : `${member.displayName} can sign in again.`,
+        }
+      }
     )
   }
 
   function setActive(member: StaffMember, active: boolean) {
+    if (busyRef.current) return
     if (active) void reactivate(member)
     else {
       setDeactivateError(null)
@@ -208,7 +286,7 @@ export function useAccountControls({
     try {
       const result = await setStaffActiveAction(deactivating.id, false)
       if (!result.ok) {
-        setDeactivateError(result.error)
+        setDeactivateError({ title: "Couldn't deactivate", text: result.error })
         return
       }
       confirmStatus(deactivating, result.status)
@@ -220,9 +298,15 @@ export function useAccountControls({
           `${deactivating.displayName} is inactive. ${first}'s uploads stay in the library.`,
       })
       setDeactivating(null)
-    } catch {
+    } catch (cause) {
+      const ended = sessionEnded(cause)
       setDeactivateError(
-        `Nothing changed. ${first} still has access. Check your connection and try again.`
+        ended
+          ? { title: "Couldn't deactivate", text: ended }
+          : {
+              title: "Couldn't confirm",
+              text: `We couldn't confirm ${first} was deactivated. Check your connection, then try again.`,
+            }
       )
     } finally {
       setPending(false)
@@ -236,21 +320,61 @@ export function useAccountControls({
     let photoSaved = false
     try {
       if (values.avatarFile) {
-        const avatar = await uploadAvatar(member.id, values.avatarFile)
+        let avatar: ActionResult
+        try {
+          avatar = await uploadAvatar(member.id, values.avatarFile)
+        } catch (cause) {
+          // Signed out before anything saved: the photo stays chosen.
+          const ended = sessionEnded(cause)
+          if (ended) return { ok: false, error: ended }
+          throw cause
+        }
         if (!avatar.ok) return avatar
         photoSaved = true
       }
-      const result = await updateStaffAccountAction(member.id, {
-        displayName: values.displayName,
-        jobTitle: values.jobTitle ?? null,
-        ...(values.department !== undefined
-          ? { department: values.department }
-          : {}),
-        ...(values.venueId ? { venueId: values.venueId } : {}),
-        ...(values.active !== undefined ? { active: values.active } : {}),
-      })
+      let result: Awaited<ReturnType<typeof updateStaffAccountAction>>
+      try {
+        result = await updateStaffAccountAction(member.id, {
+          displayName: values.displayName,
+          jobTitle: values.jobTitle ?? null,
+          ...(values.department !== undefined
+            ? { department: values.department }
+            : {}),
+          ...(values.venueId ? { venueId: values.venueId } : {}),
+          ...(values.active !== undefined ? { active: values.active } : {}),
+        })
+      } catch (cause) {
+        const ended = sessionEnded(cause)
+        if (ended) return { ok: false, error: ended, photoSaved }
+        return {
+          ok: false,
+          error:
+            "We couldn't confirm your changes saved. Check your connection and try again.",
+          photoSaved,
+          unconfirmed: true,
+        }
+      }
       if (!result.ok) return { ...result, photoSaved }
       if (result.status) confirmStatus(member, result.status)
+      // The edit dialog's Account active switch saves without a confirmation,
+      // so the notice says what the saved status means for the person.
+      const first = firstName(values.displayName)
+      const now = result.status ?? member.status
+      // Only this edit's switch: a status another admin changed meanwhile
+      // isn't credited to this save.
+      const switched =
+        values.active !== undefined &&
+        values.active !== (member.status !== "inactive")
+      const access =
+        !switched || now === member.status
+          ? ""
+          : now === "inactive"
+            ? ` ${first} can no longer sign in.`
+            : member.status !== "inactive"
+              ? ""
+              : now === "invited"
+                ? ` ${first} is active again and hasn't accepted the invitation yet.`
+                : ` ${first} can sign in again.`
       const moved =
         values.venueId && member.venueId && values.venueId !== member.venueId
       const grant = grantOf(member)
@@ -265,7 +389,7 @@ export function useAccountControls({
                   ? ` The manager grant at ${grant.venueName} ended: Ended: moved to another venue.`
                   : ""
               }`
-            : `Saved ${values.displayName}.`),
+            : `Saved ${values.displayName}.`) + access,
       })
       return result
     } finally {
@@ -295,6 +419,7 @@ export function useAccountControls({
           )
         }
         maxAvatarBytes={maxAvatarBytes}
+        actionPending={!!busy}
         onSubmit={(values) =>
           editing
             ? saveEdit(editing, values)
@@ -314,8 +439,8 @@ export function useAccountControls({
             </AlertDialogTitle>
           </AlertDialogHeader>
           {deactivateError ? (
-            <Notice tone="negative" title="Couldn't deactivate">
-              {deactivateError}
+            <Notice tone="negative" title={deactivateError.title}>
+              {deactivateError.text}
             </Notice>
           ) : null}
           <AlertDialogDescription
@@ -373,9 +498,14 @@ export function useAccountControls({
     notice,
     setNotice,
     dismissNotice: () => setNotice(null),
-    edit: (member: StaffMember) => setEditing(member),
+    edit: (member: StaffMember) => {
+      // An edit can change activation too; it waits for a resend or reactivate.
+      if (!busyRef.current) setEditing(member)
+    },
     resend,
     setActive,
+    /** The resend or reactivate in flight; every such action waits for it. */
+    busy,
     withConfirmedStatus,
     grantOf,
     dialogs,

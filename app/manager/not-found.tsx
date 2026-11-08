@@ -9,6 +9,7 @@ import { buttonVariants } from "@/components/ui/button"
 export default function ManagerNotFound() {
   return (
     <EmptyState
+      titleAs="h1"
       title={MANAGER_COPY.notFound.title}
       action={
         <Link

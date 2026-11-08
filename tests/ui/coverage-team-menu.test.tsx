@@ -268,6 +268,213 @@ describe("TeamRoster", () => {
     )
   })
 
+  it("before the month is prepared, says targets can be set now and saves them", async () => {
+    const user = userEvent.setup()
+    const onSetTarget = vi.fn<SetTargetHandler>(ok)
+    render(
+      <TeamRoster
+        period={PERIOD}
+        currentPeriod="2026-11"
+        rows={[
+          monthly({
+            targetId: null,
+            revision: null,
+            status: "needs_setup",
+            setupMissing: ["target"],
+            targetCount: null,
+            source: null,
+            due: null,
+          }),
+        ]}
+        canEdit
+        isAdmin
+        basePath="/admin/coverage/v-1"
+        onSetTarget={onSetTarget}
+      />
+    )
+    const hint = screen.getByText(
+      "You can set targets now. Preparing November keeps the ones you set and copies last month's targets for everyone else."
+    )
+    const field = screen.getByLabelText("TEST Sam's photo target")
+    expect(field.getAttribute("aria-describedby")?.split(" ")).toContain(
+      hint.id
+    )
+    await user.type(field, "4")
+    await user.click(screen.getByRole("button", { name: "Save targets" }))
+    expect(onSetTarget).toHaveBeenCalledWith(
+      expect.objectContaining({
+        targetCount: 4,
+        reason: null,
+        expectedRevision: null,
+      })
+    )
+  })
+
+  it("unprepared with every target already set still says preparing keeps them", () => {
+    render(
+      <TeamRoster
+        period={PERIOD}
+        currentPeriod="2026-11"
+        rows={[monthly()]}
+        canEdit
+        isAdmin
+        basePath="/admin/coverage/v-1"
+        onSetTarget={vi.fn<SetTargetHandler>(ok)}
+        unprepared
+      />
+    )
+    expect(
+      screen.getByText(
+        "You can set targets now. Preparing November keeps the ones you set and copies last month's targets for everyone else."
+      )
+    ).toBeTruthy()
+  })
+
+  it("prepared, a new starter without a target is asked for one, not to prepare", () => {
+    render(
+      <TeamRoster
+        period={PERIOD}
+        currentPeriod="2026-11"
+        rows={[
+          monthly(),
+          monthly({
+            targetId: null,
+            revision: null,
+            status: "needs_setup",
+            setupMissing: ["target"],
+            targetCount: null,
+            source: null,
+            due: null,
+            person: person({
+              id: "eeeeeeee-0000-4000-8000-0000000000b1",
+              displayName: "TEST Nova",
+            }),
+          }),
+        ]}
+        canEdit
+        isAdmin
+        basePath="/admin/coverage/v-1"
+        onSetTarget={vi.fn<SetTargetHandler>(ok)}
+        unprepared={false}
+      />
+    )
+    const hint = screen.getByText("1 person has no target yet. Set one below.")
+    expect(screen.queryByText(/Preparing November/)).toBeNull()
+    expect(
+      screen
+        .getByLabelText("TEST Nova's photo target")
+        .getAttribute("aria-describedby")
+        ?.split(" ")
+    ).toContain(hint.id)
+  })
+
+  it("once the month is prepared, has no before-preparing hint", () => {
+    render(
+      <TeamRoster
+        period={PERIOD}
+        currentPeriod="2026-11"
+        rows={[monthly()]}
+        canEdit
+        isAdmin
+        basePath="/admin/coverage/v-1"
+        onSetTarget={vi.fn<SetTargetHandler>(ok)}
+      />
+    )
+    expect(screen.queryByText(/You can set targets now/)).toBeNull()
+  })
+
+  it("marks an unsaved target's progress as not saved, without a state chip", async () => {
+    const user = userEvent.setup()
+    render(
+      <TeamRoster
+        period={PERIOD}
+        currentPeriod="2026-11"
+        rows={[
+          monthly({
+            status: "needs_setup",
+            setupMissing: ["target"],
+            targetCount: null,
+            source: "placeholder",
+            accepted: 2,
+          }),
+        ]}
+        canEdit
+        isAdmin={false}
+        basePath="/staff/manage"
+        onSetTarget={vi.fn<SetTargetHandler>(ok)}
+        unprepared={false}
+      />
+    )
+    await user.type(screen.getByLabelText("TEST Sam's photo target"), "2")
+    expect(screen.getByText("1 change not saved")).toBeTruthy()
+    const row = screen.getByLabelText("TEST Sam's photo target").closest("li")!
+    expect(within(row).getByText("· not saved yet")).toBeTruthy()
+    expect(within(row).getByText("of 2 accepted")).toBeTruthy()
+    // 2 of 2 would meet the target, but nothing is saved yet.
+    expect(within(row).queryByText("Target met")).toBeNull()
+  })
+
+  describe("a row whose save got no reply", () => {
+    const untargeted = monthly({
+      status: "needs_setup",
+      setupMissing: ["target"],
+      targetCount: null,
+      source: "placeholder",
+      accepted: 1,
+    })
+    async function saveDraft(onSetTarget: SetTargetHandler) {
+      const user = userEvent.setup()
+      render(
+        <TeamRoster
+          period={PERIOD}
+          currentPeriod="2026-11"
+          rows={[untargeted]}
+          canEdit
+          isAdmin={false}
+          basePath="/staff/manage"
+          onSetTarget={onSetTarget}
+          unprepared={false}
+        />
+      )
+      const field = screen.getByLabelText("TEST Sam's photo target")
+      await user.type(field, "3")
+      await user.click(screen.getByRole("button", { name: "Save targets" }))
+      return { user, field, row: () => field.closest("li")! }
+    }
+
+    it("is marked not confirmed, keeps the draft, and clears the mark when edited", async () => {
+      const lost = vi.fn<SetTargetHandler>(async () => {
+        throw new TypeError("Failed to fetch")
+      })
+      const { user, field, row } = await saveDraft(lost)
+      expect(
+        await screen.findByText(
+          /We couldn't confirm TEST Sam's target was saved/
+        )
+      ).toBeTruthy()
+      expect(within(row()).getByText("· not confirmed")).toBeTruthy()
+      expect(within(row()).queryByText("· not saved yet")).toBeNull()
+      expect((field as HTMLInputElement).value).toBe("3")
+      expect(lost).toHaveBeenCalledTimes(1)
+      await user.type(field, "0")
+      expect(within(row()).getByText("· not saved yet")).toBeTruthy()
+    })
+
+    it("a refusal keeps 'not saved yet'", async () => {
+      const { row } = await saveDraft(
+        vi.fn<SetTargetHandler>(async () => ({
+          ok: false,
+          code: "invalid_input",
+          status: 400,
+          message: "Targets go up to 500.",
+        }))
+      )
+      expect(await screen.findByText(/Targets go up to 500\./)).toBeTruthy()
+      expect(within(row()).getByText("· not saved yet")).toBeTruthy()
+      expect(within(row()).queryByText("· not confirmed")).toBeNull()
+    })
+  })
+
   it("re-reads the page on a conflict and moves focus to the page notice", async () => {
     const user = userEvent.setup()
     const onStale = vi.fn()

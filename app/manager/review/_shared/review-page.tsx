@@ -3,9 +3,10 @@ import "server-only"
 import { notFound } from "next/navigation"
 
 import { ContributorHeader } from "@/components/nabalens/manager/review/contributor-header"
-import type {
-  ReviewScope,
-  ReviewView,
+import {
+  reviewHref,
+  type ReviewScope,
+  type ReviewView,
 } from "@/components/nabalens/manager/review/links"
 import { REVIEW_COPY } from "@/components/nabalens/manager/review/review-copy"
 import { ReviewScreen } from "@/components/nabalens/manager/review/review-screen"
@@ -21,6 +22,8 @@ import {
   type QueueStatus,
 } from "@/lib/server/menu-photos"
 import { isUuid } from "@/lib/server/coverage/validate"
+
+import { failedRead } from "../../load-overview"
 
 // The server half of the Review screen, shared by the manager workspace
 // (/manager/review, the contributor view) and the admin Review pages
@@ -51,9 +54,19 @@ export function reviewViewOf(
   }
 }
 
-/** A failed read: an unknown venue or item is not found; anything else is the error boundary's. */
-function failed(failure: MenuPhotoFailure): never {
-  if (failure.code === "not_found" || failure.code === "wrong_venue") notFound()
+/**
+ * A failed read: an unknown item is not found. In the workspace a refusal
+ * means the manager's access ended (see failedRead); for an admin an unknown
+ * venue is not found. Anything else is the error boundary's.
+ */
+function failed(
+  failure: MenuPhotoFailure,
+  scope: ReviewScope,
+  path: string
+): never {
+  if (failure.code === "not_found") notFound()
+  if (scope.kind === "manager") failedRead(failure.code, undefined, path)
+  if (failure.code === "wrong_venue") notFound()
   throw new Error(`Could not load menu photos: ${failure.code}`)
 }
 
@@ -81,6 +94,7 @@ export async function ReviewBody({
   search: ReviewSearch
 }) {
   const view = reviewViewOf(search)
+  const path = reviewHref(scope, view)
   const [overview, contributors, queue] = await Promise.all([
     getManagerOverview(ctx),
     listContributors(ctx),
@@ -91,11 +105,11 @@ export async function ReviewBody({
       itemId: view.itemId ?? undefined,
     }),
   ])
-  if (!overview.ok) failed(overview)
+  if (!overview.ok) failed(overview, scope, path)
   if (overview.overview.menuState !== "ready")
     return <MenuNotReady empty={overview.overview.menuState === "empty"} />
-  if (!contributors.ok) failed(contributors)
-  if (!queue.ok) failed(queue)
+  if (!contributors.ok) failed(contributors, scope, path)
+  if (!queue.ok) failed(queue, scope, path)
   return (
     <ReviewScreen
       scope={scope}
@@ -146,6 +160,7 @@ export async function ContributorBody({
 }) {
   if (!isUuid(staffId) || staffId === ctx.actor.profile.id) notFound()
   const view = reviewViewOf(search, "all", staffId)
+  const path = reviewHref(scope, view, staffId, "all")
   const [contributor, overview, queue] = await Promise.all([
     getContributor(ctx, staffId),
     getManagerOverview(ctx),
@@ -156,9 +171,9 @@ export async function ContributorBody({
       itemId: view.itemId ?? undefined,
     }),
   ])
-  if (!contributor.ok) failed(contributor)
+  if (!contributor.ok) failed(contributor, scope, path)
   if (!contributor.contributor) notFound()
-  if (!overview.ok) failed(overview)
+  if (!overview.ok) failed(overview, scope, path)
   const venueName = overview.overview.venueName
   const header = (
     <ContributorHeader
@@ -175,7 +190,7 @@ export async function ContributorBody({
       </div>
     )
   }
-  if (!queue.ok) failed(queue)
+  if (!queue.ok) failed(queue, scope, path)
   return (
     <div className="grid gap-6">
       {header}

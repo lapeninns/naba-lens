@@ -15,6 +15,7 @@ import { deleteMedia } from "@/app/_media/actions"
 import AdminLayout from "@/app/admin/layout"
 import ManagerLayout from "@/app/manager/layout"
 import { ManagerShell } from "@/components/nabalens/manager/manager-shell"
+import { SessionGuardHost } from "@/components/nabalens/session-guard-host"
 import { VenueAccessUnavailablePage } from "@/components/nabalens/manager/venue-access-unavailable"
 import AdminPage from "@/app/admin/(content)/page"
 import { loadLibraryPage } from "@/app/admin/library-actions"
@@ -401,7 +402,7 @@ describe("segment layouts reject before anything renders (privacy R3)", () => {
           redirectOf(() => AdminLayout({ children }))
         )
       ).value
-    ).toBe(children)
+    ).toMatchObject({ type: SessionGuardHost, props: { children } })
   })
 
   it("staff layout sends admins to /admin and lets staff through", async () => {
@@ -418,7 +419,10 @@ describe("segment layouts reject before anything renders (privacy R3)", () => {
           redirectOf(() => StaffLayout({ children }))
         )
       ).value
-    ).toMatchObject({ type: AddHost, props: { children } })
+    ).toMatchObject({
+      type: SessionGuardHost,
+      props: { children: { type: AddHost, props: { children } } },
+    })
   })
 
   it("signed-out browsers go to /login from both", async () => {
@@ -856,8 +860,13 @@ describe("venue manager accounts", () => {
     )
     expect(layout.location).toBeNull()
     expect(layout.value).toMatchObject({
-      type: ManagerShell,
-      props: { venueName: managerVenue.name, children },
+      type: SessionGuardHost,
+      props: {
+        children: {
+          type: ManagerShell,
+          props: { venueName: managerVenue.name, children },
+        },
+      },
     })
   })
 

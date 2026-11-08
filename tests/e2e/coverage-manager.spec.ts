@@ -258,14 +258,14 @@ test.describe("coverage: manager and admin journeys (WS5)", () => {
     )
     await manager.goto("/admin/coverage")
     await expect(manager).toHaveURL(STAFF_LANDING)
-    // The loading boundary streams first, so not-found arrives as the
+    // The loading boundary streams first, so not-found arrives as the staff
     // not-found screen (noindex) under a 200: assert that and no leak.
     const otherTitle = `WS5 other venue item ${w.tag}`
     for (const id of [other!.requirement_id, randomUUID(), "not-a-uuid"]) {
       const res = await manager.goto(`/staff/manage/checklist/${id}`)
       expect([200, 404], id).toContain(res?.status())
       await expect(
-        manager.getByRole("heading", { name: "This page could not be found." })
+        manager.getByRole("heading", { name: "We can't find that page" })
       ).toBeVisible()
       await expect(
         manager.locator('meta[name="robots"]').first()
@@ -299,6 +299,66 @@ test.describe("coverage: manager and admin journeys (WS5)", () => {
     await expect(manager.locator('a[href="/staff/manage"]')).toHaveCount(0)
 
     for (const page of [admin, manager, staffC]) await page.context().close()
+  })
+
+  test("revoke whose reply is lost: says it can't confirm, the grant really ended, and a reload shows it", async ({
+    browser,
+  }) => {
+    const w = await provisionCoverageWorld()
+    const grantId = await legacyStaffGrant(w.admin, w.manager, w.venue1)
+    const admin = await signedInPage(browser, w.admin)
+    await admin.goto("/admin/coverage/managers")
+    const current = admin.getByRole("table", { name: "Current grants" })
+    await expect(current.getByText(w.manager.name)).toBeVisible()
+
+    // The Revoke POST reaches the server; only its reply is dropped. One
+    // stable matcher and no unroute, so later requests pass through.
+    const isManagersPage = (url: URL) =>
+      url.pathname === "/admin/coverage/managers"
+    let dropped = 0
+    await admin.route(isManagersPage, async (route) => {
+      const request = route.request()
+      if (
+        request.method() === "POST" &&
+        request.headers()["next-action"] &&
+        dropped === 0
+      ) {
+        dropped++
+        await route.fetch()
+        return route.abort("connectionreset")
+      }
+      return route.continue()
+    })
+
+    await admin
+      .getByRole("button", { name: `More actions for ${w.manager.name}` })
+      .click()
+    await admin.getByRole("menuitem", { name: "Revoke grant" }).click()
+    const revoke = admin.getByRole("dialog")
+    await revoke.getByLabel("Reason").fill("F-1: lost reply")
+    await revoke.getByRole("button", { name: "Revoke grant" }).click()
+    await expect(revoke.getByRole("alert")).toHaveText(
+      new RegExp(
+        `^We couldn't confirm .+ is no longer ${escape(w.venue1.name)}'s venue manager\\. Check your connection, then refresh to see\\.$`
+      )
+    )
+    await expect(revoke.getByText(/Nothing changed/)).toHaveCount(0)
+    expect(dropped).toBe(1)
+    // The server did revoke it: the uncertain copy was the truthful one.
+    expect(
+      psql(
+        `select revoked_at is not null from public.venue_manager_grants where id = '${grantId}'::uuid`
+      )
+    ).toBe("t")
+
+    await revoke.getByRole("button", { name: "Cancel" }).click()
+    await admin.reload()
+    await expect(
+      admin
+        .getByRole("table", { name: "Current grants" })
+        .getByText(w.manager.name)
+    ).toHaveCount(0)
+    await admin.context().close()
   })
 
   test("set-up: prepare all venues; confirm, assign and attach on a checklist item; an unknown amenity blocks confirm; start a menu plan; an expired evidence link re-signs once", async ({

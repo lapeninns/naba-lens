@@ -56,6 +56,22 @@ describe("S13 delete this photo", () => {
     ).toBeTruthy()
   })
 
+  it("warns that a dish may need a new photo when its accepted photo goes", () => {
+    confirm({ impact: { kind: "menu", dishes: ["Soup"] } })
+    expect(
+      screen.getByText(
+        "It's removed from your profile and from Photos. It's the accepted menu photo for Soup, so that dish may need a new photo. When backups are enabled, copies are retained indefinitely for recovery. Previously downloaded copies cannot be recalled."
+      )
+    ).toBeTruthy()
+    cleanup()
+    confirm({ impact: { kind: "menu", dishes: ["Soup", "Pie", "Momo (Veg)"] } })
+    expect(
+      screen.getByText(
+        /accepted menu photo for Soup, Pie and Momo \(Veg\), so those dishes may need a new photo\./
+      )
+    ).toBeTruthy()
+  })
+
   it("claims nothing about tasks when the impact is unknown", () => {
     confirm({})
     expect(

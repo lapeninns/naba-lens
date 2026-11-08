@@ -9,6 +9,7 @@ import {
   WarningCircleIcon,
 } from "@phosphor-icons/react"
 
+import { dishName } from "@/lib/menus/dish-name"
 import { cn } from "@/lib/utils"
 
 import { Post } from "./common-room/post"
@@ -16,6 +17,16 @@ import { formatDate, formatDuration, UPLOAD_STATE_LABEL } from "./format"
 import { labelBadgeText } from "./labels"
 import { ProfileAvatar } from "./profile-avatar"
 import type { MediaItem } from "./types"
+
+/**
+ * The dishes and drinks a file is labelled with, as cards show them under
+ * the photo: "Onion Bhaji, Momo (Veg)", "Momo (Not specified)". Null when it
+ * has none.
+ */
+export function labelDishNames(labels: MediaItem["labels"]): string | null {
+  if (!labels || labels.items.length === 0) return null
+  return labels.items.map((i) => dishName(i, i.unspecified)).join(", ")
+}
 
 /** A small badge over a photo: the photo, not the theme, is behind it. */
 export function TileBadge({
@@ -45,7 +56,10 @@ type MediaTileProps = {
   onOpen: (item: MediaItem) => void
   /** Admin views show who uploaded it and where. */
   showAttribution?: boolean
-  /** v0.3: small "Needs labels" / "N labels" badge on ready tiles. */
+  /**
+   * v0.3: small "Needs labels" / "N labels" badge on ready tiles, and the
+   * dishes they are labelled with under the photo.
+   */
   showLabelBadge?: boolean
   /** Admin views only: staff and managers never see original file names. */
   showFileName?: boolean
@@ -158,10 +172,21 @@ export function MediaTile({
   showFileName = false,
   className,
 }: MediaTileProps) {
-  const labelText =
-    showLabelBadge && item.uploadState === "ready"
-      ? labelBadgeText(item.labels)
-      : null
+  const labelled = showLabelBadge && item.uploadState === "ready"
+  const labelText = labelled ? labelBadgeText(item.labels) : null
+  // Which dish a card shows is how files are found in folders and on Me,
+  // so it is on the card itself, not only in the viewer's details.
+  const dishes = labelled ? labelDishNames(item.labels) : null
+  const dishLine = dishes ? (
+    <span
+      data-slot="tile-dishes"
+      title={dishes}
+      className="truncate text-meta text-ink"
+    >
+      <span className="sr-only">Labelled: </span>
+      {dishes}
+    </span>
+  ) : null
 
   return (
     <figure
@@ -197,6 +222,7 @@ export function MediaTile({
       </div>
       {showAttribution ? (
         <figcaption className="grid min-w-0 px-px">
+          {dishLine}
           <span className="truncate text-label text-ink">
             {item.contributorName}
           </span>
@@ -204,6 +230,8 @@ export function MediaTile({
             {item.venueName} · {formatDate(item.createdAt)}
           </span>
         </figcaption>
+      ) : dishLine ? (
+        <figcaption className="grid min-w-0 px-px">{dishLine}</figcaption>
       ) : null}
     </figure>
   )

@@ -718,7 +718,12 @@ describe("ReviewScreen", () => {
     actions.decideMenuPhotoAction.mockRejectedValueOnce(new Error("offline"))
     renderScreen([card()])
     await user.click(screen.getByRole("button", { name: REVIEW_COPY.accept }))
-    expect(await screen.findByText(REVIEW_COPY.network)).toBeTruthy()
+    // A lost reply: the decision may be saved, so it can't say it failed.
+    expect(
+      await screen.findByText(
+        "We couldn't confirm the decision was saved. Check your connection, then try again or refresh to see if it was. The photo won't be decided twice."
+      )
+    ).toBeTruthy()
     actions.decideMenuPhotoAction.mockResolvedValueOnce(outcome())
     await user.click(screen.getByRole("button", { name: REVIEW_COPY.accept }))
     await waitFor(() =>
@@ -727,6 +732,56 @@ describe("ReviewScreen", () => {
     const [a, b] = actions.decideMenuPhotoAction.mock.calls
     expect(a[0].requestId).toBeTruthy()
     expect(b[0].requestId).toBe(a[0].requestId)
+  })
+
+  it("A1: names a variant as Name (Variant) on the card and in the preview", async () => {
+    const user = userEvent.setup()
+    const variantId = id(0x7)
+    renderScreen([
+      card({
+        item: { ...card().item!, variantId, variantName: "Chicken" },
+        staffLabels: [
+          {
+            itemId: SOUP,
+            variantId,
+            itemName: "Soup",
+            variantName: "Chicken",
+            onMenu: true,
+          },
+        ],
+      }),
+    ])
+    expect(screen.getByText("Labelled: Soup (Chicken)")).toBeTruthy()
+    expect(
+      screen.getByRole("heading", { level: 3, name: "Soup (Chicken)" })
+    ).toBeTruthy()
+    expect(document.body.textContent).not.toContain("· Chicken")
+    expect(document.body.textContent).not.toMatch(/Soup ?· ?Chicken/)
+    await user.click(
+      screen.getByRole("button", {
+        name: REVIEW_COPY.openPreview("TEST Sam Lee"),
+      })
+    )
+    const dialog = await screen.findByRole("dialog")
+    expect(within(dialog).getByText(/^Soup \(Chicken\) · /)).toBeTruthy()
+  })
+
+  it("A2b: a dish with variants labelled without one reads Name (Not specified)", () => {
+    renderScreen([
+      card({
+        staffLabels: [
+          {
+            itemId: SOUP,
+            variantId: null,
+            itemName: "Soup",
+            variantName: null,
+            onMenu: true,
+            unspecified: true,
+          },
+        ],
+      }),
+    ])
+    expect(screen.getByText("Labelled: Soup (Not specified)")).toBeTruthy()
   })
 
   it("the preview moves with the arrow keys and Esc returns focus", async () => {

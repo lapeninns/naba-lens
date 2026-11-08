@@ -218,6 +218,29 @@ export function removeItem(
   }
 }
 
+/**
+ * A common item was replaced (its variant question answered): a file that left
+ * it off leaves the new one off too, unless the file has that one itself
+ * (added, or among `saved`, its saved item keys). A saved item the file left
+ * off stays off.
+ */
+export function renameRemoved(
+  adj: FileAdjust,
+  fromKey: string,
+  toKey: string,
+  saved: readonly string[] = []
+): FileAdjust {
+  if (!adj.remove.includes(fromKey)) return adj
+  const remove = saved.includes(fromKey)
+    ? adj.remove
+    : adj.remove.filter((k) => k !== fromKey)
+  const own = saved.includes(toKey) || adj.add.some((i) => itemKey(i) === toKey)
+  return {
+    ...adj,
+    remove: own || remove.includes(toKey) ? remove : [...remove, toKey],
+  }
+}
+
 export function setContentType(
   adj: FileAdjust,
   type: ContentType,
@@ -267,7 +290,7 @@ export function isPickable(catalogue: LabelCatalogue, ref: LabelItemRef) {
 }
 
 /**
- * A suggested item (Our menu's photo request) as a draft item, when the
+ * A preset (the dish the files were picked for) as a draft item, when the
  * catalogue still offers it. Names come from the catalogue, so a renamed dish
  * shows its current name.
  */
@@ -293,6 +316,107 @@ export function presetDraft(
     }
   }
   return null
+}
+
+/** The catalogue item of a reference, when the catalogue still offers it. */
+function findItem(catalogue: LabelCatalogue | null, itemId: string) {
+  if (catalogue?.status !== "active") return null
+  for (const section of catalogue.sections) {
+    const item = section.items.find((i) => i.itemId === itemId)
+    if (item) return { item, section }
+  }
+  return null
+}
+
+/**
+ * True for a dish that has variants but was labelled without one ("Not
+ * specified"). Saved as variantId null.
+ */
+export function isUnspecifiedVariant(
+  catalogue: LabelCatalogue | null,
+  ref: LabelItemRef
+) {
+  if (ref.variantId !== null) return false
+  return (findItem(catalogue, ref.itemId)?.item.variants.length ?? 0) > 0
+}
+
+/**
+ * Adjustments that make a file show exactly `input` (a stored draft) on top of
+ * its saved labels. `items` are the input's items as draft items (see
+ * draftItemsFromRefs).
+ */
+export function adjustFromInput(
+  base: MediaLabelSummary,
+  input: Pick<SaveLabelsInput, "contentTypes" | "note" | "missingItem">,
+  items: readonly DraftItem[]
+): FileAdjust {
+  const keys = new Set(items.map(itemKey))
+  const savedKeys = new Set(base.items.map(itemKey))
+  const note = input.note ?? ""
+  return {
+    add: items.filter((i) => !savedKeys.has(itemKey(i))),
+    remove: base.items.map(itemKey).filter((k) => !keys.has(k)),
+    addTypes: input.contentTypes.filter((t) => !base.contentTypes.includes(t)),
+    removeTypes: base.contentTypes.filter(
+      (t) => !input.contentTypes.includes(t)
+    ),
+    note: note.trim() === (base.note ?? "").trim() ? undefined : note,
+    missingItem: input.missingItem ?? undefined,
+  }
+}
+
+/** Shown in place of a dish name the current menu no longer has. */
+export const OFF_MENU_NAME = "Dish no longer on the menu"
+
+/**
+ * Stored item references (a draft saved earlier) as draft items named from the
+ * current catalogue. A reference the catalogue no longer offers keeps the name
+ * it had in `known` (e.g. the asset's saved labels), else OFF_MENU_NAME; the
+ * editor flags it as no longer on the menu.
+ */
+export function draftItemsFromRefs(
+  catalogue: LabelCatalogue | null,
+  refs: readonly LabelItemRef[],
+  known: readonly DraftItem[] = []
+): DraftItem[] {
+  const seen = new Set<string>()
+  const out: DraftItem[] = []
+  for (const ref of refs) {
+    const key = itemKey(ref)
+    if (seen.has(key)) continue
+    seen.add(key)
+    const found = findItem(catalogue, ref.itemId)
+    const variant =
+      ref.variantId === null
+        ? null
+        : (found?.item.variants.find((v) => v.variantId === ref.variantId) ??
+          null)
+    if (found && (ref.variantId === null || variant)) {
+      out.push({
+        itemId: ref.itemId,
+        variantId: ref.variantId,
+        name: found.item.name,
+        variantName: variant?.name ?? null,
+        sectionName: found.section.name,
+        labelledAs: null,
+        state: "current",
+      })
+      continue
+    }
+    const before = known.find((k) => itemKey(k) === key)
+    out.push(
+      before ?? {
+        itemId: ref.itemId,
+        variantId: ref.variantId,
+        name: OFF_MENU_NAME,
+        variantName: null,
+        sectionName: null,
+        labelledAs: null,
+        state: "not_on_active_menu",
+      }
+    )
+  }
+  return out
 }
 
 export type FileStatus =

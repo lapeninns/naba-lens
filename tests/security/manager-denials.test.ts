@@ -293,9 +293,16 @@ describe("labels", () => {
   })
 
   it("the guard is in the function body", () => {
+    // 20261107140000: the body moved to private.save_media_labels_as; the
+    // public function passes the caller's own id as the actor.
     expect(
       psql(
-        "select pg_get_functiondef('public.save_media_labels'::regproc) like '%v_role not in (''staff'', ''admin'')%'"
+        "select pg_get_functiondef('private.save_media_labels_as'::regproc) like '%v_role not in (''staff'', ''admin'')%'"
+      )
+    ).toBe("t")
+    expect(
+      psql(
+        "select pg_get_functiondef('public.save_media_labels'::regproc) like '%private.save_media_labels_as(%(select auth.uid()), p_asset_id%'"
       )
     ).toBe("t")
   })
@@ -689,7 +696,10 @@ describe("work profile", () => {
       })
       expect(error?.code).toBe("42501")
       expect(error?.message).toContain("work_profile_forbidden")
-      for (const fn of ["skip_work_profile", "set_welcome_dismissed"] as const) {
+      for (const fn of [
+        "skip_work_profile",
+        "set_welcome_dismissed",
+      ] as const) {
         const { error: other } = await managerA.client.rpc(
           fn,
           (fn === "set_welcome_dismissed" ? { p_dismissed: true } : {}) as never

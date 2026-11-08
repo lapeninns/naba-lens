@@ -106,6 +106,8 @@ export type StaffLabel = {
   itemName: string
   variantName: string | null
   onMenu: boolean
+  /** The dish has variants and none was chosen: "Momo (Not specified)". */
+  unspecified?: boolean
 }
 
 export type QueueCardKind = "labelled" | "unlabelled" | "stale" | "decided"

@@ -19,9 +19,12 @@ import {
   type MediaLabelItemView,
   type MediaLabelSummary,
   type MenuSectionKind,
+  type PendingLabelItem,
   type SaveLabelsErrorCode,
   type SaveLabelsInput,
   type SaveLabelsResult,
+  type UploadLabelDiscardResult,
+  type UploadLabelPostResult,
 } from "@/lib/menus/types"
 import { redactError } from "@/lib/server/log/redact"
 import type { Db, MediaActor, Outcome } from "@/lib/server/media/types"
@@ -386,11 +389,13 @@ const MESSAGES: Record<SaveLabelsErrorCode, string> = {
   unavailable: "Labels could not be saved right now. Try again in a moment.",
 }
 
+type SaveLabelsFailure = Extract<SaveLabelsResult, { ok: false }>
+
 function failure(
   assetId: string,
   code: SaveLabelsErrorCode,
   extra: { current?: MediaLabelSummary; unavailableItemIds?: string[] } = {}
-): SaveLabelsResult {
+): SaveLabelsFailure {
   return { ok: false, assetId, code, message: MESSAGES[code], ...extra }
 }
 
@@ -571,6 +576,264 @@ export async function saveAssetLabels(
   return { ok: true, assetId: valid.assetId, labels }
 }
 
+/** The user-facing text for a label save failure code. */
+export function labelSaveMessage(code: SaveLabelsErrorCode): string {
+  return MESSAGES[code]
+}
+
+// ---------------------------------------------------------------------------
+// Upload drafts: labels chosen while the photo is still uploading
+// ---------------------------------------------------------------------------
+
+const STAGE_NOT_FOUND =
+  "These labels could not be applied to this upload. Check the file in your portfolio."
+
+/**
+ * POST /api/upload-labels. Labels for one of the caller's own portfolio
+ * uploads at `venueId` (its upload-time venue): saved now through
+ * `saveAssetLabels` when the asset is ready, otherwise stored on the server
+ * (`stage_media_labels`) for finalise to apply, also while it is failed with
+ * its bytes still stored (a Retry finalises it again). A deleted or unknown
+ * asset, or a failed one that can never be used, is `not_found` (404).
+ * `status` is the HTTP status: as before, a rejected save answers 200 with
+ * its code.
+ */
+export async function stageAssetLabels(
+  actor: MediaActor,
+  venueId: string,
+  input: SaveLabelsInput
+): Promise<{ status: number; result: UploadLabelPostResult }> {
+  const rawId =
+    input && typeof input === "object" && typeof input.assetId === "string"
+      ? input.assetId
+      : ""
+  if (refuseManager(actor)) {
+    return {
+      status: 403,
+      result: {
+        ok: false,
+        assetId: rawId,
+        code: "forbidden",
+        message: MANAGER_REFUSED,
+      },
+    }
+  }
+  const valid = validateInput(input)
+  if (!valid) return { status: 200, result: failure(rawId, "invalid") }
+  if (!isUuid(venueId)) {
+    return { status: 400, result: failure(valid.assetId, "invalid") }
+  }
+
+  // The normalised input (SaveLabelsInput's shape) is what finalise applies.
+  const { data, error } = await actor.db.rpc("stage_media_labels", {
+    p_asset_id: valid.assetId,
+    p_venue_id: venueId,
+    p_input: valid as unknown as Json,
+  })
+  if (error) {
+    const code = classify(error)
+    if (code === "not_found") {
+      return {
+        status: 404,
+        result: {
+          ok: false,
+          assetId: valid.assetId,
+          code,
+          message: STAGE_NOT_FOUND,
+        },
+      }
+    }
+    if (code === "invalid") {
+      return { status: 400, result: failure(valid.assetId, code) }
+    }
+    if (code === "forbidden") {
+      return { status: 403, result: failure(valid.assetId, code) }
+    }
+    logFailure("stage_media_labels", error)
+    return {
+      status: 503,
+      result: {
+        ok: false,
+        assetId: valid.assetId,
+        code: "unavailable",
+        message: "Could not check this upload. Try again.",
+      },
+    }
+  }
+  if (data === "pending") {
+    return {
+      status: 200,
+      result: { ok: true, assetId: valid.assetId, state: "pending" },
+    }
+  }
+
+  // Ready: save now (the RPC validates everything again and deletes any
+  // stored draft of this asset when it succeeds).
+  const saved = await saveAssetLabels(actor, input)
+  return {
+    status: 200,
+    result: saved.ok
+      ? {
+          ok: true,
+          assetId: saved.assetId,
+          state: "saved",
+          labels: saved.labels,
+        }
+      : saved,
+  }
+}
+
+type PendingRow = {
+  asset_id: string
+  venue_id: string
+  status: string
+  code: string | null
+  input: Json
+  updated_at: string
+}
+
+type PendingAssetRow = {
+  id: string
+  upload_state: string
+  media_type: "image" | "video"
+  thumbnail_path: string | null
+}
+
+/** At most this many drafts are listed (newest first). */
+const PENDING_LIST_LIMIT = 200
+
+const isErrorCode = (value: string | null): value is SaveLabelsErrorCode =>
+  value !== null && Object.prototype.hasOwnProperty.call(MESSAGES, value)
+
+/**
+ * GET /api/upload-labels?attention=1: the caller's own stored drafts, newest
+ * first, still `pending` or `needs_attention`, with the photo's state. Read as
+ * the caller (RLS: own rows of active staff only).
+ */
+export async function listPendingLabels(
+  actor: MediaActor
+): Promise<Outcome<{ items: PendingLabelItem[] }>> {
+  const refused = refuseManager(actor)
+  if (refused) return refused
+
+  const read = await actor.db
+    .from("media_pending_labels")
+    .select("asset_id, venue_id, status, code, input, updated_at")
+    .eq("uploader_id", actor.profile.id)
+    .order("updated_at", { ascending: false })
+    .order("asset_id")
+    .limit(PENDING_LIST_LIMIT)
+  if (read.error) {
+    logFailure("pending labels read", read.error)
+    return unavailable
+  }
+  const rows = read.data as PendingRow[]
+
+  const assets = new Map<string, PendingAssetRow>()
+  for (let i = 0; i < rows.length; i += DETAILS_CHUNK) {
+    const chunk = rows.slice(i, i + DETAILS_CHUNK).map((r) => r.asset_id)
+    const assetRead = await actor.db
+      .from("media_assets")
+      .select("id, upload_state, media_type, thumbnail_path")
+      .in("id", chunk)
+    if (assetRead.error) {
+      logFailure("pending labels asset read", assetRead.error)
+      return unavailable
+    }
+    for (const row of assetRead.data as PendingAssetRow[])
+      assets.set(row.id, row)
+  }
+
+  const items: PendingLabelItem[] = []
+  for (const row of rows) {
+    const asset = assets.get(row.asset_id)
+    // A removed asset takes its draft with it; never list one without it.
+    if (!asset) continue
+    const status =
+      row.status === "needs_attention" ? "needs_attention" : "pending"
+    const code: SaveLabelsErrorCode | null =
+      status === "pending"
+        ? null
+        : isErrorCode(row.code)
+          ? row.code
+          : "unavailable"
+    items.push({
+      assetId: row.asset_id,
+      venueId: row.venue_id,
+      status,
+      code,
+      message: code ? MESSAGES[code] : null,
+      input: row.input as unknown as SaveLabelsInput,
+      uploadState: asset.upload_state,
+      // finalise deletes the labels of a file that can never be used, and
+      // stage_media_labels stores them for a failed asset only while its bytes
+      // are stored: a failed asset that still has them failed temporarily.
+      retryable: asset.upload_state === "failed",
+      mediaType: asset.media_type,
+      thumbnailUrl: asset.thumbnail_path ? thumbnailRoute(asset.id) : null,
+      updatedAt: row.updated_at,
+    })
+  }
+  return { ok: true, items }
+}
+
+const DISCARD_UNAVAILABLE: Outcome<never> = {
+  ok: false,
+  status: 503,
+  message: "Labels could not be discarded right now. Try again.",
+}
+
+/**
+ * DELETE /api/upload-labels?assetId=: discards the caller's own stored draft
+ * of that asset (pending or needs_attention). The upload itself carries on.
+ * Idempotent. When nothing was deleted, says whether finalise applied the
+ * labels first (`already_applied`, with what the photo has now) so a discard
+ * that lost that race is never reported as one that worked.
+ */
+export async function discardPendingLabels(
+  actor: MediaActor,
+  assetId: string
+): Promise<Outcome<UploadLabelDiscardResult>> {
+  const refused = refuseManager(actor)
+  if (refused) return refused
+  if (!isUuid(assetId)) return notFound
+  // A finalise applying this draft holds its row lock: the delete waits for
+  // it, then matches nothing.
+  const removed = await actor.db
+    .from("media_pending_labels")
+    .delete()
+    .eq("asset_id", assetId)
+    .eq("uploader_id", actor.profile.id)
+    .select("asset_id")
+  if (removed.error) {
+    logFailure("pending labels delete", removed.error)
+    return DISCARD_UNAVAILABLE
+  }
+  if (removed.data.length > 0) return { ok: true, state: "discarded" }
+
+  // RLS: active staff read only their own, non-deleted assets.
+  const asset = await actor.db
+    .from("media_assets")
+    .select("upload_state")
+    .eq("id", assetId)
+    .eq("uploader_id", actor.profile.id)
+    .is("deleted_at", null)
+    .maybeSingle()
+  if (asset.error) {
+    logFailure("pending labels discard asset read", asset.error)
+    return DISCARD_UNAVAILABLE
+  }
+  if (asset.data?.upload_state !== "ready") return { ok: true, state: "none" }
+  // Never answer "none" without knowing: a failed read is a retry.
+  const labels = await currentSummary(actor, assetId)
+  if (!labels) return DISCARD_UNAVAILABLE
+  const applied =
+    labels.hasLabels || labels.note !== null || labels.missingItem !== null
+  return applied
+    ? { ok: true, state: "already_applied", labels }
+    : { ok: true, state: "none" }
+}
+
 // ---------------------------------------------------------------------------
 // Summaries
 // ---------------------------------------------------------------------------
@@ -589,16 +852,19 @@ type DetailRow = {
 
 const ITEM_STATES = ["current", "not_on_active_menu", "archived"] as const
 
-function itemView(row: DetailRow): MediaLabelItemView {
+function itemView(
+  row: DetailRow,
+  withVariants: ReadonlySet<string>
+): MediaLabelItemView {
   const renamed = row.snapshot_name !== row.name
   const variantRenamed =
     row.variant_id !== null &&
     (row.snapshot_variant_name ?? null) !== (row.variant_name ?? null)
-  // The snapshot, in the editor's "Name, Variant" form, when it differs.
+  // The snapshot, in the editor's "Name (Variant)" form, when it differs.
   const labelledAs =
     renamed || variantRenamed
       ? row.variant_id !== null && row.snapshot_variant_name
-        ? `${row.snapshot_name}, ${row.snapshot_variant_name}`
+        ? `${row.snapshot_name} (${row.snapshot_variant_name})`
         : row.snapshot_name
       : null
   return {
@@ -611,7 +877,53 @@ function itemView(row: DetailRow): MediaLabelItemView {
     state: (ITEM_STATES as readonly string[]).includes(row.state)
       ? (row.state as MediaLabelItemView["state"])
       : "not_on_active_menu",
+    ...(row.variant_id === null && withVariants.has(row.item_id)
+      ? { unspecified: true }
+      : {}),
   }
+}
+
+const VARIANT_PAGE = 1000
+
+/**
+ * Of these items, those whose menu entry (the active one, else the latest
+ * activated) has variants, as the caller can read it: one labelled without a
+ * variant reads "Momo (Not specified)". Only how a name is shown depends on
+ * it, so a failed read leaves the plain name.
+ */
+async function itemsWithVariants(
+  db: Db,
+  itemIds: string[]
+): Promise<Set<string>> {
+  const best = new Map<string, { rank: string; variants: boolean }>()
+  for (let i = 0; i < itemIds.length; i += DETAILS_CHUNK)
+    for (let from = 0; ; from += VARIANT_PAGE) {
+      const { data, error } = await db
+        .from("menu_entries")
+        .select(
+          "id, item_id, version:menu_versions!inner(status, activated_at), menu_entry_variants(variant_id)"
+        )
+        .in("item_id", itemIds.slice(i, i + DETAILS_CHUNK))
+        .in("version.status", ["active", "retired"])
+        .not("version.activated_at", "is", null)
+        .order("id")
+        .range(from, from + VARIANT_PAGE - 1)
+      if (error) {
+        logFailure("label variants read", error)
+        return new Set()
+      }
+      for (const row of data) {
+        const rank = `${row.version.status === "active" ? 1 : 0}|${row.version.activated_at}`
+        const seen = best.get(row.item_id)
+        if (!seen || rank > seen.rank)
+          best.set(row.item_id, {
+            rank,
+            variants: row.menu_entry_variants.length > 0,
+          })
+      }
+      if (data.length < VARIANT_PAGE) break
+    }
+  return new Set([...best].filter(([, b]) => b.variants).map(([id]) => id))
 }
 
 export type LoadLabelSummariesOptions = {
@@ -626,7 +938,8 @@ export type LoadLabelSummariesOptions = {
 /**
  * Label summaries for a page of gallery assets, read as the caller (RLS), in
  * at most a few queries (no N+1): per 100 ids, one `media_labels` read, one
- * `media_label_details` call and one open-suggestion read. Assets without a
+ * `media_label_details` call and one open-suggestion read, plus a menu read
+ * for dishes labelled without a variant (itemsWithVariants). Assets without a
  * visible label row are absent (callers use EMPTY_LABEL_SUMMARY for ready
  * assets, A2.1). Throws (redacted log) when a read fails, so a failure is never
  * mistaken for "no labels"; see `tryLoadLabelSummaries`.
@@ -660,10 +973,16 @@ export async function loadLabelSummaries(
       throw new Error("Labels could not be loaded.")
     }
 
+    const rows = details.data as unknown as DetailRow[]
+    const withVariants = await itemsWithVariants(db, [
+      ...new Set(
+        rows.filter((r) => r.variant_id === null).map((r) => r.item_id)
+      ),
+    ])
     const items = new Map<string, MediaLabelItemView[]>()
-    for (const row of details.data as unknown as DetailRow[]) {
+    for (const row of rows) {
       const list = items.get(row.asset_id) ?? []
-      list.push(itemView(row))
+      list.push(itemView(row, withVariants))
       items.set(row.asset_id, list)
     }
 

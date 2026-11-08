@@ -26,7 +26,10 @@ import {
   TaskSummary,
   periodLabel,
   shiftPeriod,
+  todoCount,
+  todoItems,
 } from "@/components/nabalens/tasks"
+import type { MyAmenityTask } from "@/lib/amenities/contract"
 
 import {
   assignment,
@@ -115,6 +118,89 @@ describe("TasksOverview", () => {
     ).toBeTruthy()
     expect(screen.queryByText("Target met")).toBeNull()
     expect(screen.queryByRole("progressbar")).toBeNull()
+  })
+
+  function renderSetup(profile: Partial<typeof PROFILE> = {}) {
+    const view = tasksView({
+      scope: { ...base.scope, setup: { complete: false, missing: ["team"] } },
+    })
+    render(
+      <TasksOverview
+        tasks={view}
+        profile={{ ...PROFILE, department: null, ...profile }}
+        tasksPath="/staff/tasks"
+        portfolioPath="/staff"
+      />
+    )
+    return screen.getByRole("region", { name: "Your setup isn't finished" })
+  }
+
+  it("reads the optional photo step as one sentence", () => {
+    renderSetup({ hasAvatar: false })
+    const step = within(
+      screen.getByRole("list", { name: "Profile setup" })
+    ).getByText((_, el) =>
+      el?.tagName === "LI" ? el.textContent!.startsWith("Profile photo") : false
+    )
+    expect(step.textContent).toBe(
+      "Profile photo (optional). Add one in Edit profile."
+    )
+  })
+
+  it("ends the setup card in one Edit profile button, the lead card's primary action", () => {
+    const card = renderSetup({ hasAvatar: false })
+    // Like every other To do card: one real action, not small inline links.
+    const links = within(card).getAllByRole("link")
+    expect(links).toHaveLength(1)
+    const edit = within(card).getByRole("link", { name: "Edit profile" })
+    expect(edit.getAttribute("href")).toBe("/staff?edit=profile")
+    expect(edit.className).toContain("bg-accent")
+    expect(edit.className).toContain("w-full")
+    expect(
+      within(screen.getByRole("list", { name: "Profile setup" })).queryByRole(
+        "link"
+      )
+    ).toBeNull()
+  })
+
+  it("says plainly when only an admin can finish setup, with no button", () => {
+    const card = renderSetup({ hasAvatar: true })
+    expect(within(card).queryByRole("link")).toBeNull()
+    expect(card.textContent).toContain(
+      "There's nothing here for you to change. An admin finishes the rest."
+    )
+    expect(card.textContent).toContain("Ask an admin to set your team.")
+  })
+
+  it("gives the primary action to the first card that has one", () => {
+    const view = tasksView({
+      scope: { ...base.scope, setup: { complete: false, missing: ["team"] } },
+    })
+    render(
+      <TasksOverview
+        tasks={view}
+        profile={{ ...PROFILE, department: null, hasAvatar: true }}
+        tasksPath="/staff/tasks"
+        portfolioPath="/staff"
+        reviewCount={2}
+      />
+    )
+    const todo = screen.getByRole("region", { name: /^To do/ })
+    // Setup leads but only an admin can finish it, so it has no button.
+    expect(
+      within(
+        screen.getByRole("region", { name: "Your setup isn't finished" })
+      ).queryByRole("link")
+    ).toBeNull()
+    const review = within(todo).getByRole("link", { name: "Review photos" })
+    expect(review.className).toContain("bg-accent")
+    expect(review.className).toContain("w-full")
+    // Still one blue action on the screen.
+    expect(
+      within(todo)
+        .getAllByRole("link")
+        .filter((link) => link.className.includes("bg-accent"))
+    ).toEqual([review])
   })
 
   it("explains a missing venue and offers no send action", () => {
@@ -765,5 +851,113 @@ describe("MonthCard", () => {
     )
     expect(screen.getByText("Read-only")).toBeTruthy()
     expect(screen.queryByRole("link")).toBeNull()
+  })
+})
+
+function amenityCheck(
+  id: string,
+  question: string,
+  overrides: Partial<MyAmenityTask> = {}
+): MyAmenityTask {
+  return {
+    id,
+    venueId: "v1",
+    entry: {
+      key: id,
+      category: "Access",
+      question,
+      captureBrief: "Film the route in.",
+      evidenceRule: "photo",
+      isCore: true,
+      position: 1,
+      version: 1,
+    },
+    status: "active",
+    progress: "needs_capture",
+    answer: "to_check",
+    assignee: { id: "me", displayName: "TEST Sam" },
+    answeredBy: null,
+    answeredAt: null,
+    recheckReason: null,
+    notes: null,
+    revision: 1,
+    updatedAt: "2026-11-05T10:00:00.000Z",
+    ...overrides,
+  }
+}
+
+describe("To do: amenity checks", () => {
+  const checks = [
+    amenityCheck("c1", "Is there step-free access?"),
+    amenityCheck("c2", "Is there guest Wi-Fi?", {
+      progress: "needs_recheck",
+      recheckReason: "Password or QR visible",
+    }),
+  ]
+
+  it("counts every assigned check in To do and the badge", () => {
+    const items = todoItems(base, new Date("2026-11-05T10:00:00Z"), 0, checks)
+    expect(items.map((i) => i.kind)).toEqual(["amenity"])
+    expect(todoCount(items)).toBe(2)
+    expect(todoCount(todoItems(base, new Date(), 2, checks))).toBe(3)
+  })
+
+  it("never says nothing to do while a check waits, and leads with the recheck", () => {
+    render(
+      <TasksOverview
+        tasks={base}
+        profile={PROFILE}
+        tasksPath="/staff/tasks"
+        portfolioPath="/staff"
+        amenityTasks={checks}
+      />
+    )
+    expect(screen.queryByText("Nothing to do right now.")).toBeNull()
+    const todo = screen.getByRole("region", { name: /^To do/ })
+    expect(within(todo).getByText("2")).toBeTruthy()
+    // Named exactly, not from the badge's layout (Chrome adds a space there).
+    expect(
+      within(todo).getByRole("heading", { level: 2 }).getAttribute("aria-label")
+    ).toBe("To do, 2 things to do")
+    expect(
+      within(todo).getByRole("heading", { name: "Is there guest Wi-Fi?" })
+    ).toBeTruthy()
+    expect(within(todo).getByText("Password or QR visible")).toBeTruthy()
+    expect(within(todo).getByText(/1 more check below/)).toBeTruthy()
+    const start = within(todo).getByRole("link", {
+      name: "Start check: Is there guest Wi-Fi?",
+    })
+    expect(start.getAttribute("href")).toBe("/staff/tasks/amenities/c2")
+    // The lead card's action is the page's one primary button.
+    expect(start.className).toContain("w-full")
+    // The full list still follows To do.
+    expect(
+      screen.getByRole("list", { name: "Amenity checks" }).children
+    ).toHaveLength(2)
+  })
+
+  it("puts overdue photo tasks before amenity checks and due-soon tasks after", () => {
+    const view = tasksView({
+      assignments: [
+        assignment({
+          id: "r-overdue",
+          title: "Bar",
+          progress: { ...requirement().progress, overdue: true },
+          due: due({ overdue: true }),
+        }),
+        assignment({
+          id: "r-soon",
+          title: "Terrace",
+          due: due({ dueAt: "2026-11-07T00:00:00.000Z" }),
+        }),
+      ],
+    })
+    const kinds = todoItems(
+      view,
+      new Date("2026-11-05T10:00:00Z"),
+      0,
+      checks
+    ).map((i) => i.kind)
+    expect(kinds).toEqual(["overdue", "amenity", "due-soon"])
   })
 })

@@ -1,7 +1,6 @@
 "use client"
 
 import * as React from "react"
-import { useObjectUrl } from "@/components/nabalens/use-upload-queue"
 import {
   ArrowClockwiseIcon,
   CaretDownIcon,
@@ -9,6 +8,7 @@ import {
   ImageIcon,
 } from "@phosphor-icons/react"
 
+import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { Notice } from "@/components/nabalens/notice"
 import {
   AlertDialog,
@@ -33,6 +33,8 @@ import {
   type ContentType,
   type LabelEditorAsset,
   type MediaLabelSummary,
+  type SaveLabelsErrorCode,
+  type SaveLabelsInput,
   type SaveLabelsResult,
 } from "@/lib/menus/types"
 import { cn } from "@/lib/utils"
@@ -44,15 +46,19 @@ import {
   IDLE,
   NO_ADJUST,
   addItem,
+  adjustFromInput,
   adoptCurrent,
   buildSaveInput,
+  draftItemsFromRefs,
   effectiveLabels,
   isDirty,
   isPickable,
   itemKey,
   limitProblem,
   presetDraft,
+  OFF_MENU_NAME,
   removeItem,
+  renameRemoved,
   setContentType,
   type CommonDraft,
   type DraftItem,
@@ -76,22 +82,53 @@ type FileState = {
   status: FileStatus
 }
 
+/** Shown when Save is pressed while a menu item choice is unfinished. */
+export const PENDING_CHOICE_TEXT =
+  "Finish choosing the menu item first: choose it from the list or clear the search, or answer or cancel the variant question."
+
+/**
+ * FixLabelsDialog's mode: reopen a stored draft (labels that could not be
+ * saved) against the current menu, and always save it.
+ */
+export type FixDraft = {
+  draft: SaveLabelsInput
+  problem?: { code: SaveLabelsErrorCode; message: string } | null
+}
+
+type LabelEditorProps = LabelEditorDialogProps & { fix?: FixDraft }
+
+/** Same labels in every file (save status ignored). */
+function sameDraft(a: Record<string, FileState>, b: Record<string, FileState>) {
+  return Object.keys(b).every((id) => {
+    const x = effectiveLabels(a[id].base, EMPTY_COMMON, a[id].adj)
+    const y = effectiveLabels(b[id].base, EMPTY_COMMON, b[id].adj)
+    return (
+      JSON.stringify(buildSaveInput(id, a[id].base, x, null)) ===
+      JSON.stringify(buildSaveInput(id, b[id].base, y, null))
+    )
+  })
+}
+
 /**
  * Optional labels for 1..10 files of one venue. Presentational: the host
  * loads the catalogue and saves through `onSave`. Mounted only while open, so
  * every opening starts from the assets' saved labels.
  */
 export function LabelEditorDialog(props: LabelEditorDialogProps) {
+  return <LabelEditorRoot {...props} />
+}
+
+/** LabelEditorDialog plus the internal fix mode (FixLabelsDialog). */
+export function LabelEditorRoot(props: LabelEditorProps) {
   if (!props.open || props.assets.length === 0) return null
   return (
     <LabelEditor key={props.assets.map((a) => a.id).join(",")} {...props} />
   )
 }
 
-function Thumb({ asset, file }: { asset: LabelEditorAsset; file?: File }) {
+function Thumb({ asset }: { asset: LabelEditorAsset }) {
   const [failed, setFailed] = React.useState(false)
-  const localUrl = useObjectUrl(asset.mediaType === "image" ? file : null)
-  const thumbnail = localUrl ?? asset.thumbnailUrl
+  const thumbnail = asset.thumbnailUrl
   const Icon = asset.mediaType === "video" ? FilmStripIcon : ImageIcon
   return (
     <span className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-control bg-surface-2 text-ink-muted">
@@ -180,7 +217,13 @@ function FileProblem({
     return (
       <Notice id={id} tabIndex={-1} tone="attention" role="none">
         <div className="grid gap-3">
-          <p>{conflictText(audience, status.current)}</p>
+          {/* A stored problem (Fix labels) comes without the current labels
+              and says what happened itself. */}
+          <p>
+            {status.current || !status.message
+              ? conflictText(audience, status.current)
+              : status.message}
+          </p>
           {status.current ? (
             <>
               <div className="rounded-card bg-surface p-3 shadow-card">
@@ -224,6 +267,8 @@ function FileProblem({
     body = problem
   } else if (status.kind === "error") {
     body = status.message
+    // No answer for this file: it may have been saved.
+    if (status.code === "no_result") title = "Couldn't confirm the save"
     if (status.code === "unavailable_items") {
       title = "Some menu items are no longer available"
       body = (
@@ -277,14 +322,14 @@ function LabelEditor({
   catalogue,
   onRetryCatalogue,
   onSave,
-  uploadDraft,
   onSaved,
   title,
   cancelLabel,
   focus = null,
   preset = null,
   presetAssetIds,
-}: LabelEditorDialogProps) {
+  fix,
+}: LabelEditorProps) {
   const uid = React.useId()
   const batch = assets.length > 1
   const venueName = assets[0].venueName
@@ -300,17 +345,35 @@ function LabelEditor({
   const [expanded, setExpanded] = React.useState<string[]>([])
   const [problems, setProblems] = React.useState<Record<string, string>>({})
   const [pending, setPending] = React.useState(false)
-  const [networkError, setNetworkError] = React.useState(false)
+  // True after a lost reply; the copy when refused for the ended session.
+  const [networkError, setNetworkError] = React.useState<boolean | string>(
+    false
+  )
   const [announcement, setAnnouncement] = React.useState("")
   const [confirmOpen, setConfirmOpen] = React.useState(false)
   const [focusTarget, setFocusTarget] = React.useState<{ id: string } | null>(
     null
   )
+  // Menu searches with an unfinished choice, by scope ("common" or asset id).
+  const [pendingScopes, setPendingScopes] = React.useState<
+    Record<string, boolean>
+  >({})
+  const [choiceError, setChoiceError] = React.useState(false)
+  const sessionEnded = useSessionEndedCatch()
+  const choicePending = Object.values(pendingScopes).some(Boolean)
+  if (choiceError && !choicePending) setChoiceError(false)
+  function pendingFor(scope: string) {
+    return (pending: boolean) =>
+      setPendingScopes((prev) =>
+        !!prev[scope] === pending ? prev : { ...prev, [scope]: pending }
+      )
+  }
 
   const ids = {
     problem: (assetId: string) => `${uid}-problem-${assetId}`,
     panel: (assetId: string) => `${uid}-panel-${assetId}`,
     network: `${uid}-network`,
+    choice: `${uid}-choice`,
     status: `${uid}-status`,
   }
 
@@ -319,17 +382,69 @@ function LabelEditor({
   }, [focusTarget])
 
   const ready = catalogue.state === "ready" ? catalogue.catalogue : null
-  const catalogueVersionId = ready?.status === "active" ? ready.versionId : null
+  const readyVersionId = ready?.status === "active" ? ready.versionId : null
+  // While the menu reloads or failed (Fix labels reloads it as it opens), the
+  // chips are still named from the version last shown: a save sends that one.
+  const [shownVersionId, setShownVersionId] = React.useState(readyVersionId)
+  if (ready && readyVersionId !== shownVersionId)
+    setShownVersionId(readyVersionId)
+  const catalogueVersionId = ready ? readyVersionId : shownVersionId
   const index = React.useMemo(
     () => buildCatalogueIndex(ready, focus),
     [ready, focus]
   )
 
-  // A suggested item (Our menu's photo request) goes in once, as an unsaved
-  // draft, as soon as the menu is loaded, on the files it came with only: a
-  // common item when that is every file of a batch, else on each of those
-  // files. Earlier files in the same batch stay as they were. Saving stays the
-  // person's choice.
+  // Fix mode: the stored draft goes in once the menu is loaded, named from the
+  // current menu; items it no longer offers are flagged for removal. Saving
+  // waits until then, so the draft is never replaced by the saved labels.
+  const [fixPending, setFixPending] = React.useState(!!fix)
+  const [seeded, setSeeded] = React.useState<Record<string, FileState> | null>(
+    null
+  )
+  // The menu the chips are named from. Fix labels reloads the menu as it
+  // opens, so it may change after the draft went in: the chips are named
+  // again from the menu as it is now (a dish dropped since keeps the name it
+  // had, flagged "No longer on the menu"), before Save is possible.
+  const [namedFrom, setNamedFrom] = React.useState<typeof ready>(null)
+  if (fix && !fixPending && ready && namedFrom !== ready) {
+    setNamedFrom(ready)
+    setFiles((prev) =>
+      Object.fromEntries(
+        assets.map((a) => {
+          const f = prev[a.id]
+          const add = draftItemsFromRefs(ready, f.adj.add, [
+            ...a.labels.items,
+            ...f.adj.add.filter((i) => i.name !== OFF_MENU_NAME),
+          ])
+          return [a.id, { ...f, adj: { ...f.adj, add } }]
+        })
+      )
+    )
+  }
+  if (fixPending && ready) {
+    setFixPending(false)
+    setNamedFrom(ready)
+    const a = assets[0]
+    const items = draftItemsFromRefs(ready, fix!.draft.items, a.labels.items)
+    const next = {
+      ...files,
+      [a.id]: {
+        base: a.labels,
+        adj: adjustFromInput(a.labels, fix!.draft, items),
+        status: fix!.problem
+          ? ({ kind: "error", ...fix!.problem } as FileStatus)
+          : IDLE,
+      },
+    }
+    setSeeded(next)
+    setFiles(next)
+  }
+
+  // A preset (Our menu's dish, a task's dish) is applied as soon as the menu
+  // is loaded, as a removable chip, on the files it came with only: a common
+  // item when that is every file of a batch, else on each of those files.
+  // Earlier files in the same batch stay as they were. It is saved with the
+  // other labels unless the person removes it.
   const presetTargets = assets
     .filter((a) => !presetAssetIds || presetAssetIds.includes(a.id))
     .map((a) => a.id)
@@ -386,7 +501,9 @@ function LabelEditor({
       status?.kind === "error" ? (status.unavailableItemIds ?? []) : []
     for (const item of items) {
       if (serverIds.includes(item.itemId)) keys.add(item.key)
-      else if (ready && !item.saved && !isPickable(ready, item))
+      // A fix reviews the whole stored draft against the current menu, so
+      // saved items it no longer offers are flagged too.
+      else if (ready && (!item.saved || fix) && !isPickable(ready, item))
         keys.add(item.key)
     }
     return keys
@@ -436,6 +553,36 @@ function LabelEditor({
       ...c,
       items: c.items.filter((i) => itemKey(i) !== item.key),
     }))
+  }
+
+  /** The variant question answered: files that left the dish off still do. */
+  function replaceCommonItem(fromKey: string, item: DraftItem) {
+    const toKey = itemKey(item)
+    setCommon((c) => ({
+      ...c,
+      items: [
+        ...c.items.filter(
+          (i) => itemKey(i) !== fromKey && itemKey(i) !== toKey
+        ),
+        item,
+      ],
+    }))
+    setFiles((prev) =>
+      Object.fromEntries(
+        Object.entries(prev).map(([id, f]) => [
+          id,
+          {
+            ...f,
+            adj: renameRemoved(
+              f.adj,
+              fromKey,
+              toKey,
+              f.base.items.map(itemKey)
+            ),
+          },
+        ])
+      )
+    )
   }
 
   // -------------------------------------------------------------------------
@@ -488,8 +635,15 @@ function LabelEditor({
   // -------------------------------------------------------------------------
 
   async function save() {
-    if (pending) return
+    if (pending || fixPending) return
     setNetworkError(false)
+    if (choicePending) {
+      // Never close (or save) over a half-made choice (audit J4b).
+      setChoiceError(true)
+      setAnnouncement("")
+      setFocusTarget({ id: ids.choice })
+      return
+    }
 
     const nextProblems: Record<string, string> = {}
     for (const id of dirtyIds) {
@@ -505,7 +659,8 @@ function LabelEditor({
       return
     }
 
-    const targets = assets.filter((a) => dirtyIds.includes(a.id))
+    // A fix always saves: that is what clears the stored draft.
+    const targets = fix ? assets : assets.filter((a) => dirtyIds.includes(a.id))
     if (targets.length === 0) {
       onOpenChange(false)
       return
@@ -519,21 +674,15 @@ function LabelEditor({
       )
     )
 
-    if (uploadDraft) {
-      uploadDraft.onQueue(inputs)
-      onOpenChange(false)
-      return
-    }
-    if (!onSave) return
     setPending(true)
     setAnnouncement("Saving labels…")
     let results: SaveLabelsResult[]
     try {
       results = await onSave(inputs)
       if (!Array.isArray(results)) throw new Error("No results")
-    } catch {
+    } catch (cause) {
       setPending(false)
-      setNetworkError(true)
+      setNetworkError(sessionEnded(cause) ?? true)
       setAnnouncement("")
       setFocusTarget({ id: ids.network })
       return
@@ -595,7 +744,9 @@ function LabelEditor({
     setAnnouncement(
       batch
         ? `${saved.length} of ${targets.length} files saved. ${failed.length} ${failed.length === 1 ? "needs" : "need"} attention.`
-        : "Labels not saved."
+        : outcomes[0]
+          ? "Labels not saved."
+          : "Couldn't confirm the save."
     )
     setFocusTarget({ id: ids.problem(failed[0].id) })
   }
@@ -606,7 +757,11 @@ function LabelEditor({
 
   function requestClose() {
     if (pending) return
-    if (dirtyIds.length > 0) setConfirmOpen(true)
+    // A fix only asks when the stored draft was edited: closing keeps it.
+    const unsaved = fix
+      ? !fixPending && !!seeded && !sameDraft(files, seeded)
+      : dirtyIds.length > 0
+    if (unsaved) setConfirmOpen(true)
     else onOpenChange(false)
   }
 
@@ -627,7 +782,7 @@ function LabelEditor({
 
   /** How a file is named on screen: staff never see original file names. */
   function fileLabel(asset: LabelEditorAsset) {
-    if (audience === "admin" || uploadDraft) return asset.originalFilename
+    if (audience === "admin") return asset.originalFilename
     const n = assets.indexOf(asset) + 1
     return `${asset.mediaType === "video" ? "Video" : "Photo"} ${n}`
   }
@@ -665,6 +820,20 @@ function LabelEditor({
             removeItem(adj, item.key, item.saved || item.fromCommon)
           )
         }
+        onReplaceItem={(fromKey, item) =>
+          adjust(asset.id, (adj) =>
+            addItem(
+              removeItem(
+                adj,
+                fromKey,
+                f.base.items.some((i) => itemKey(i) === fromKey) ||
+                  common.items.some((i) => itemKey(i) === fromKey)
+              ),
+              item
+            )
+          )
+        }
+        onPendingChange={pendingFor(asset.id)}
         onRestoreItem={(item) => adjust(asset.id, (adj) => addItem(adj, item))}
         contentTypes={eff.contentTypes}
         onToggleType={(type) => toggleFileType(asset.id, type)}
@@ -763,8 +932,8 @@ function LabelEditor({
             <DialogHeader>
               <DialogTitle>{heading}</DialogTitle>
               <DialogDescription>
-                {uploadDraft
-                  ? "Uploads continue while you label. Each file gets its labels once it finishes processing."
+                {fix
+                  ? `These labels haven't been saved on the ${assets[0].mediaType === "video" ? "video" : "photo"} yet. Check them against the current menu, then save.`
                   : audience === "staff"
                     ? "Your uploads stay in your portfolio. Saved dish and content type labels also group them in the admin library."
                     : "Saved dish and content type labels determine which folders show these files in the library."}
@@ -778,8 +947,9 @@ function LabelEditor({
                 tabIndex={-1}
                 title="The labels couldn't be saved"
               >
-                Your choices are still here. Check your connection and try
-                again.
+                {typeof networkError === "string"
+                  ? `Your choices are still here. ${networkError}`
+                  : "Your choices are still here. Check your connection and try again."}
               </Notice>
             ) : null}
 
@@ -805,10 +975,25 @@ function LabelEditor({
             ) : null}
 
             {suggested && suggestedShown ? (
-              <Notice tone="plain" title="Suggested from Our menu">
+              <Notice
+                tone="plain"
+                title={`${itemDisplayName(suggested)} added`}
+              >
                 {presetTargets.length < assets.length
-                  ? `${itemDisplayName(suggested)} is added as a label for the ${presetTargets.length === 1 ? `${noun} picked` : `${presetTargets.length} ${nouns} picked`} for it, not the others. It's saved only when you choose Save labels; remove it if it isn't in the ${presetTargets.length === 1 ? noun : nouns}.`
-                  : `${itemDisplayName(suggested)} is added as a label for ${batch ? `these ${nouns}` : `this ${noun}`}. It's saved only when you choose Save labels; remove it if it isn't in the ${batch ? nouns : noun}.`}
+                  ? `It's on the ${presetTargets.length === 1 ? `${noun} picked` : `${presetTargets.length} ${nouns} picked`} for it, not the others, and is saved with the other labels. Remove it if it isn't in the ${presetTargets.length === 1 ? noun : nouns}.`
+                  : `It's on ${batch ? `these ${nouns}` : `this ${noun}`} and is saved with the other labels. Remove it if it isn't in the ${batch ? nouns : noun}.`}
+              </Notice>
+            ) : null}
+
+            {choiceError ? (
+              <Notice
+                tone="negative"
+                id={ids.choice}
+                tabIndex={-1}
+                role="none"
+                title="Nothing saved yet"
+              >
+                {PENDING_CHOICE_TEXT}
               </Notice>
             ) : null}
 
@@ -824,10 +1009,7 @@ function LabelEditor({
                   <ul aria-hidden="true" className="flex flex-wrap gap-2">
                     {assets.map((asset) => (
                       <li key={asset.id}>
-                        <Thumb
-                          asset={asset}
-                          file={uploadDraft?.files.get(asset.id)}
-                        />
+                        <Thumb asset={asset} />
                       </li>
                     ))}
                   </ul>
@@ -849,6 +1031,8 @@ function LabelEditor({
                     unavailableKeys={unavailableKeysFor(commonEff.items)}
                     onAddItem={addCommonItem}
                     onRemoveItem={removeCommonItem}
+                    onReplaceItem={replaceCommonItem}
+                    onPendingChange={pendingFor("common")}
                     contentTypes={common.contentTypes}
                     onToggleType={toggleCommonType}
                     note={common.note}
@@ -888,10 +1072,7 @@ function LabelEditor({
                       return (
                         <li key={asset.id} className="grid gap-3 p-3">
                           <div className="flex min-w-0 items-center gap-3">
-                            <Thumb
-                              asset={asset}
-                              file={uploadDraft?.files.get(asset.id)}
-                            />
+                            <Thumb asset={asset} />
                             <div className="min-w-0 flex-1">
                               <p className="truncate text-label text-ink">
                                 {fileLabel(asset)}
@@ -960,10 +1141,7 @@ function LabelEditor({
               <>
                 {problemBlock(single)}
                 <div className="flex min-w-0 items-center gap-3">
-                  <Thumb
-                    asset={single}
-                    file={uploadDraft?.files.get(single.id)}
-                  />
+                  <Thumb asset={single} />
                   <p className="min-w-0 text-body">
                     <span className="block font-bold text-ink">
                       {singleTitle}
@@ -1001,14 +1179,10 @@ function LabelEditor({
               id={`${uid}-save`}
               type="submit"
               size="touch"
-              disabled={pending || catalogue.state === "loading"}
-              aria-busy={pending || catalogue.state === "loading"}
+              disabled={pending || catalogue.state === "loading" || fixPending}
+              aria-busy={pending || catalogue.state === "loading" || fixPending}
             >
-              {pending
-                ? "Saving…"
-                : uploadDraft
-                  ? "Save labels when ready"
-                  : "Save labels"}
+              {pending ? "Saving…" : "Save labels"}
             </Button>
           </DialogFooter>
         </form>

@@ -1,7 +1,6 @@
 import type { Metadata } from "next"
 
 import { loadOurMenuItemsAction } from "@/app/_coverage/actions"
-import { logout } from "@/app/_media/actions"
 import { AppShell } from "@/components/nabalens/app-shell"
 import {
   OUR_MENU_QUERY_MAX,
@@ -20,7 +19,7 @@ import type { CoverageFailure } from "@/lib/server/coverage/types"
 import { isUuid } from "@/lib/server/coverage/validate"
 import type { MediaActor } from "@/lib/server/media/types"
 
-import { canManageVenue } from "../can-manage"
+import { staffShellStatus } from "../_shell/shell-status"
 
 export const metadata: Metadata = { title: "Our menu · Naba-Lens" }
 
@@ -83,18 +82,17 @@ export default async function OurMenuPage({
   const auth = await getCoverageActor()
   if (!auth.ok) throw new Error(auth.message)
   const requested = ourMenuFilter(await searchParams)
-  const [{ load, filter }, canManage] = await Promise.all([
+  const [{ load, filter }, shell] = await Promise.all([
     loadOurMenu(auth.actor, requested),
-    canManageVenue(auth.actor),
+    staffShellStatus(auth.actor, profile),
   ])
 
   return (
     <AppShell
       variant="staff"
       active="menu"
-      canManage={canManage}
+      {...shell}
       userName={profile.displayName}
-      logoutAction={logout}
     >
       <div className="flex flex-col gap-(--gutter)">
         <OfflineNotice />

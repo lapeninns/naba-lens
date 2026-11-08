@@ -2,6 +2,7 @@
 
 import * as React from "react"
 
+import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { LoadMoreButton } from "@/components/nabalens/load-more-button"
 import { formatDateTime } from "@/components/nabalens/menus/copy"
 
@@ -37,6 +38,7 @@ function usePagedList<T>(
   }
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const sessionEnded = useSessionEndedCatch()
 
   async function loadMore() {
     if (!onLoadMore || !cursor) return
@@ -53,7 +55,8 @@ function usePagedList<T>(
         return [...current, ...result.items.filter((i) => !seen.has(keyOf(i)))]
       })
       setCursor(result.nextCursor)
-    } catch {
+    } catch (cause) {
+      sessionEnded(cause)
       setError("More could not load. Try again.")
     } finally {
       setLoading(false)

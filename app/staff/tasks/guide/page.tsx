@@ -1,6 +1,5 @@
 import { CheckIcon } from "@phosphor-icons/react/dist/ssr"
 
-import { logout } from "@/app/_media/actions"
 import { AppShell } from "@/components/nabalens/app-shell"
 import { Card } from "@/components/nabalens/common-room/card"
 import { DishGuide } from "@/components/nabalens/guide"
@@ -9,9 +8,9 @@ import { PageHeader } from "@/components/nabalens/page-header"
 import { BackToTasks } from "@/components/nabalens/tasks"
 import { requireActiveStaff } from "@/lib/auth"
 import { GUIDE_RULES, GUIDE_SAFETY } from "@/lib/guide/dish-guide"
-import { getCoverageActor, getCoverageScope } from "@/lib/server/coverage"
-import { avatarUrl } from "@/lib/server/media/library"
+import { getCoverageActor } from "@/lib/server/coverage"
 
+import { staffShellStatus } from "../../_shell/shell-status"
 import { TASKS_PATH, unwrap } from "../result"
 
 export const metadata = { title: "Photo guide · Naba-Lens" }
@@ -24,16 +23,14 @@ export const metadata = { title: "Photo guide · Naba-Lens" }
 export default async function PhotoGuidePage() {
   const profile = await requireActiveStaff()
   const { actor } = unwrap(await getCoverageActor())
-  const { scope } = unwrap(await getCoverageScope(actor))
+  const shell = await staffShellStatus(actor, profile)
 
   return (
     <AppShell
       variant="staff"
       active="tasks"
-      canManage={scope.canManageVenue}
+      {...shell}
       userName={profile.displayName}
-      avatarUrl={avatarUrl(profile.id, profile.avatarPath)}
-      logoutAction={logout}
     >
       <div className="mx-auto flex w-full max-w-(--size-feed) flex-col gap-(--gutter) pb-4">
         <BackToTasks href={TASKS_PATH} />

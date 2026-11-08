@@ -128,6 +128,8 @@ describe("UploadDialog when the session ends", () => {
     await waitFor(() => expect(held).toHaveLength(1))
     await act(async () => held[0].resolve())
     await waitFor(() => expect(held).toHaveLength(2))
+    // Each file is reported as soon as it is ready, not when the run ends.
+    expect(onUploaded).toHaveBeenCalledTimes(1)
 
     signOut()
     await act(async () => held[1].reject(new Error("Sign in to continue.")))
@@ -141,12 +143,13 @@ describe("UploadDialog when the session ends", () => {
     ).toBeTruthy()
     expect(within(e7).getByText("priya.gurung@example.test")).toBeTruthy()
     expect(screen.getByText("Page behind")).toBeTruthy()
+    expect(SIGNED_OUT_MESSAGE).toBe("Sign in again, then tap Retry.")
     expect(
       screen.getByText(new RegExp(SIGNED_OUT_MESSAGE.replace(/\./g, "\\.")))
     ).toBeTruthy()
     expect(statusLine().textContent).toBe("1 uploaded · 1 waiting · 1 stopped")
     // Nothing is refreshed while signed out; that would leave the page.
-    expect(onUploaded).not.toHaveBeenCalled()
+    expect(onUploaded).toHaveBeenCalledTimes(1)
     expect(held).toHaveLength(2)
 
     await user.click(
@@ -182,7 +185,7 @@ describe("UploadDialog when the session ends", () => {
     await waitFor(() =>
       expect(statusLine().textContent).toBe("2 uploaded · 1 stopped")
     )
-    expect(onUploaded).toHaveBeenCalledWith(2)
+    expect(onUploaded).toHaveBeenCalledTimes(2)
 
     await user.click(screen.getByRole("button", { name: "Retry b.jpg" }))
     await waitFor(() => expect(held).toHaveLength(4))

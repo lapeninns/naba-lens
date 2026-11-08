@@ -3,6 +3,7 @@
 import * as React from "react"
 import { CameraRotateIcon, CheckIcon } from "@phosphor-icons/react"
 
+import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { EmptyState } from "@/components/nabalens/empty-state"
 import { LoadMoreButton } from "@/components/nabalens/load-more-button"
 import { formatDateTime } from "@/components/nabalens/menus/copy"
@@ -45,8 +46,9 @@ export type LoadSubmissionsHandler = (
 export const REVIEW_EMPTY_COPY =
   "Nothing to review. New photos appear here as they're sent."
 
+/** The reply was lost: the decision may be saved. The request id is kept. */
 const NETWORK_ERROR =
-  "Could not reach the server. Check your connection and try again; the photo will not be reviewed twice."
+  "We couldn't confirm the decision was saved. Check your connection, then try again or refresh to see if it was. The photo won't be reviewed twice."
 
 /** The photo's author as running text: "Priya" or, for your own photo, "you". */
 function whoTook(submission: SubmissionView, viewerId: string) {
@@ -101,6 +103,7 @@ export function ReviewQueue({
   const [asking, setAsking] = React.useState<SubmissionView | null>(null)
   const [loading, setLoading] = React.useState(false)
   const [loadError, setLoadError] = React.useState<string | null>(null)
+  const sessionEnded = useSessionEndedCatch()
   const noticeRef = React.useRef<HTMLDivElement>(null)
   const listRef = React.useRef<HTMLUListElement>(null)
   const focusNoticeRef = React.useRef(false)
@@ -204,12 +207,10 @@ export function ReviewQueue({
             : `Asked ${own ? "yourself" : firstName(submission.author.displayName)} for another photo.${result.submission.selfReview ? " Recorded as a self-review." : ""}`,
       })
       return { ok: true }
-    } catch {
-      setItemErrors((current) => ({
-        ...current,
-        [submission.id]: NETWORK_ERROR,
-      }))
-      return { ok: false, error: NETWORK_ERROR }
+    } catch (cause) {
+      const text = sessionEnded(cause) ?? NETWORK_ERROR
+      setItemErrors((current) => ({ ...current, [submission.id]: text }))
+      return { ok: false, error: text }
     } finally {
       setPendingId(null)
     }
@@ -233,7 +234,8 @@ export function ReviewQueue({
         ]
       })
       setCursor(result.nextCursor)
-    } catch {
+    } catch (cause) {
+      sessionEnded(cause)
       setLoadError("More photos could not load. Try again.")
     } finally {
       setLoading(false)

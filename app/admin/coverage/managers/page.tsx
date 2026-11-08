@@ -2,7 +2,6 @@ import type { Metadata } from "next"
 import Link from "next/link"
 import { ArrowLeftIcon } from "@phosphor-icons/react/dist/ssr"
 
-import { logout } from "@/app/_media/actions"
 import { unexpected } from "@/app/staff/manage/_shared/context"
 import type { ManageSearch } from "@/app/staff/manage/_shared/screens"
 import { AppShell } from "@/components/nabalens/app-shell"
@@ -58,12 +57,7 @@ export default async function VenueManagersPage({
   if (candidates && !candidates.ok) unexpected(candidates)
 
   return (
-    <AppShell
-      variant="admin"
-      active="coverage"
-      userName={profile.displayName}
-      logoutAction={logout}
-    >
+    <AppShell variant="admin" active="coverage" userName={profile.displayName}>
       <div className="flex flex-col gap-6">
         <div className="flex flex-col gap-4">
           <PageHeader

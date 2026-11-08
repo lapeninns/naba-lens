@@ -25,7 +25,11 @@ import { OfflineNotice } from "@/components/nabalens/offline-notice"
 import { StatusChip } from "@/components/nabalens/status-chip"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { getStaffMonth, getVenueRoster } from "@/lib/server/coverage"
+import {
+  getPreparationStatus,
+  getStaffMonth,
+  getVenueRoster,
+} from "@/lib/server/coverage"
 import {
   isPeriodKey,
   periodKeyOf,
@@ -136,10 +140,14 @@ export async function TeamScreen({
   const requested = param(search, "period")
   const period = requested && isPeriodKey(requested) ? requested : current
   const staffId = param(search, "staff")
-  const [roster, month] = await Promise.all([
+  const [roster, month, preparation] = await Promise.all([
     getVenueRoster(ctx.actor, { venueId: ctx.venueId, period }),
     staffId
       ? getStaffMonth(ctx.actor, { venueId: ctx.venueId, staffId, period })
+      : Promise.resolve(null),
+    // The status covers the current month only.
+    !staffId && period === current
+      ? getPreparationStatus(ctx.actor, { venueId: ctx.venueId })
       : Promise.resolve(null),
   ])
   if (!roster.ok) return failed(ctx, roster)
@@ -188,9 +196,13 @@ export async function TeamScreen({
     )
   }
 
+  // A successful preparation run decides it, as on the overview. Missing
+  // targets only stand in when the status can't be read.
   const unprepared =
     period === current &&
-    roster.roster.some((r) => r.isCurrentMember && r.targetId == null)
+    (preparation?.ok
+      ? !preparation.status?.lastSuccessAt
+      : roster.roster.some((r) => r.isCurrentMember && r.targetId == null))
   const summary = past
     ? isAdmin
       ? undefined
@@ -224,7 +236,8 @@ export async function TeamScreen({
       {unprepared ? (
         <Notice tone="attention" title={`${name} isn't prepared yet`}>
           {monthName(shiftPeriod(period, -1))}&apos;s targets haven&apos;t been
-          copied yet. Preparing copies them; new starters show Needs setup.
+          copied yet. Preparing copies them; new starters show Needs setup. You
+          can still set targets below now: preparing keeps them.
         </Notice>
       ) : null}
       <MonthStepper
@@ -248,6 +261,7 @@ export async function TeamScreen({
         basePath={ctx.basePath}
         venueId={ctx.venueId}
         venueName={venue}
+        unprepared={unprepared}
       />
     </ManageFrame>
   )

@@ -361,9 +361,9 @@ describe("upload recovery (local Supabase)", () => {
       const service = interceptedService(async (url, init) => {
         if (
           !deleted &&
-          init?.method === "PATCH" &&
-          url.includes("/rest/v1/media_assets") &&
-          String(init.body).includes('"ready"')
+          init?.method === "POST" &&
+          // The ready update (and any stored labels): one RPC transaction.
+          url.includes("/rest/v1/rpc/complete_media_finalise")
         ) {
           deleted = await removeMediaAssetWith(
             { user: staff.client, service: admin },
@@ -390,9 +390,9 @@ describe("upload recovery (local Supabase)", () => {
       const service = interceptedService(async (url, init) => {
         if (
           !finishedElsewhere &&
-          init?.method === "PATCH" &&
-          url.includes("/rest/v1/media_assets") &&
-          String(init.body).includes('"ready"')
+          init?.method === "POST" &&
+          // The ready update (and any stored labels): one RPC transaction.
+          url.includes("/rest/v1/rpc/complete_media_finalise")
         ) {
           finishedElsewhere = true
           const { error } = await admin

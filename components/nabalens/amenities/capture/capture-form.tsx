@@ -11,6 +11,7 @@ import {
   WarningIcon,
 } from "@phosphor-icons/react"
 
+import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import {
   ANSWER_LABEL,
   EVIDENCE_RULE_LABEL,
@@ -33,6 +34,7 @@ import { cn } from "@/lib/utils"
 import { ReasonField } from "../../coverage/reason-dialog"
 import { EmptyState } from "../../empty-state"
 import { Notice } from "../../notice"
+import { useOnline } from "../../offline-notice"
 import {
   PhotoSourceActions,
   usePhotoSource,
@@ -244,13 +246,30 @@ export function CaptureForm({
   const [uploadNote, setUploadNote] = React.useState<string | null>(null)
   const [uploadOpen, setUploadOpen] = React.useState(false)
   const [pickedFiles, setPickedFiles] = React.useState<File[] | undefined>()
+  const sessionEnded = useSessionEndedCatch()
   const inFlight = React.useRef(false)
   const mounted = React.useRef(false)
+  // One read at a time: Add hands over each upload as soon as it is ready,
+  // so several reads can be asked for at once. A later request waits and
+  // then reads once for every upload it carries; an older answer landing
+  // after a newer one would otherwise drop an upload just selected.
+  const loadingAssets = React.useRef(false)
+  const queuedReload = React.useRef<Set<string> | null>(null)
+  // The current pick's uploads selected here, and those not listed yet.
+  const arrivals = React.useRef(newArrivals())
+  // Uploads ready while an answer was sending: not in what was sent, so they
+  // wait for its result instead of being selected into a draft it replaces.
+  const late = React.useRef(new Set<string>())
+  // A send with no definite answer yet (no reply, or a retryable failure) may
+  // have been recorded: Try again replays it unchanged, so uploads arriving
+  // until a definite answer wait in `late` as well.
+  const unresolved = React.useRef(false)
 
   React.useEffect(() => {
     mounted.current = true
     return () => {
       mounted.current = false
+      queuedReload.current = null
     }
   }, [])
 
@@ -339,6 +358,8 @@ export function CaptureForm({
   }
 
   function toggle(assetId: string) {
+    // The person decided about this upload: it no longer waits to be selected.
+    late.current.delete(assetId)
     edit((d) => {
       const current = d.assetIds.filter((id) => listed.has(id))
       return {
@@ -354,50 +375,67 @@ export function CaptureForm({
   }
 
   const reloadAssets = React.useCallback(
-    async (select: string[] = []) => {
-      let result: AssetsResult
+    async function reloadAssets(select: string[] = []) {
+      if (loadingAssets.current) {
+        queuedReload.current ??= new Set()
+        for (const id of select) queuedReload.current.add(id)
+        return
+      }
+      queuedReload.current = null
+      loadingAssets.current = true
       try {
-        result = await loadAssets({ checkId: check.id })
-      } catch {
-        if (mounted.current)
-          setListError("We couldn't load your photos and videos.")
-        return
+        let result: AssetsResult
+        try {
+          result = await loadAssets({ checkId: check.id })
+        } catch (cause) {
+          sessionEnded(cause)
+          if (mounted.current)
+            setListError("We couldn't load your photos and videos.")
+          return
+        }
+        if (!mounted.current) return
+        if (!result.ok) {
+          setListError(result.message)
+          return
+        }
+        setAssets(result.assets)
+        setListError(null)
+        if (select.length === 0) return
+        if (inFlight.current || unresolved.current) {
+          for (const id of select) late.current.add(id)
+          return
+        }
+        // Listed now: they are selected (or wait as arrivals) from here.
+        for (const id of select) late.current.delete(id)
+        const ready = new Set(result.assets.map((a) => a.assetId))
+        const picked = select.filter((id) => ready.has(id))
+        if (picked.length > 0)
+          edit((d) => {
+            const next = d.assetIds.filter((id) => ready.has(id))
+            for (const id of picked) {
+              if (next.length >= maxSelected) break
+              if (!next.includes(id)) next.push(id)
+            }
+            return { ...d, assetIds: next }
+          })
+        const tally = arrivals.current
+        for (const id of select) {
+          if (ready.has(id)) {
+            tally.selected.add(id)
+            tally.waiting.delete(id)
+          } else if (!tally.selected.has(id)) tally.waiting.add(id)
+        }
+        setUploadNote(arrivalNote(tally))
+      } finally {
+        loadingAssets.current = false
+        const queued = queuedReload.current
+        queuedReload.current = null
+        if (queued !== null && mounted.current)
+          void reloadAssets(Array.from(queued))
       }
-      if (!mounted.current) return
-      if (!result.ok) {
-        setListError(result.message)
-        return
-      }
-      setAssets(result.assets)
-      setListError(null)
-      if (select.length === 0) return
-      const ready = new Set(result.assets.map((a) => a.assetId))
-      const picked = select.filter((id) => ready.has(id))
-      if (picked.length > 0)
-        edit((d) => {
-          const next = d.assetIds.filter((id) => ready.has(id))
-          for (const id of picked) {
-            if (next.length >= maxSelected) break
-            if (!next.includes(id)) next.push(id)
-          }
-          return { ...d, assetIds: next }
-        })
-      const waiting = select.length - picked.length
-      setUploadNote(
-        [
-          picked.length
-            ? `${picked.length} new ${picked.length === 1 ? "upload" : "uploads"} selected.`
-            : null,
-          waiting
-            ? `${waiting} new ${waiting === 1 ? "upload isn't" : "uploads aren't"} ready yet.`
-            : null,
-        ]
-          .filter(Boolean)
-          .join(" ")
-      )
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps -- edit only touches state setters and newKey
-    [loadAssets, check.id, maxSelected]
+    [loadAssets, check.id, maxSelected, sessionEnded]
   )
 
   const reloadRef = React.useRef(reloadAssets)
@@ -414,6 +452,7 @@ export function CaptureForm({
 
   const ownPicker = usePhotoSource({
     onFiles: (files) => {
+      arrivals.current = newArrivals()
       setPickedFiles(files)
       setUploadOpen(true)
     },
@@ -426,12 +465,39 @@ export function CaptureForm({
         source,
         // Amenity evidence, never in the organisation community.
         purpose: "amenity",
-        onReady: (assetIds) => {
-          if (!mounted.current) return false
-          void reloadRef.current(assetIds)
+        onPicked: () => {
+          if (mounted.current) arrivals.current = newArrivals()
         },
+        // Once per upload, as soon as that upload is ready (not when the
+        // whole pick settles): each is added to the evidence, never
+        // replacing it. False after unmount ("the screen is gone"): Add keeps
+        // the upload saved, not attached to this check.
+        onReady: (assetIds) => arrived.current(assetIds),
       })
     else ownPicker.open(source)
+  }
+
+  function onArrived(assetIds: string[]) {
+    if (!mounted.current) return false
+    if (inFlight.current || unresolved.current) {
+      for (const id of assetIds) late.current.add(id)
+      return
+    }
+    void reloadRef.current(assetIds)
+  }
+  const arrived = React.useRef(onArrived)
+  React.useLayoutEffect(() => {
+    arrived.current = onArrived
+  })
+
+  /**
+   * Uploads that arrived during the send are selected for the next one. They
+   * stay waiting until a reload lists them: if it fails (a session that
+   * ended fails it too), the next send still reports them as not added.
+   */
+  function selectLate() {
+    const ids = [...late.current]
+    if (ids.length > 0) void reloadAssets(ids)
   }
 
   async function send() {
@@ -454,6 +520,7 @@ export function CaptureForm({
     }
     setErrors({})
     inFlight.current = true
+    unresolved.current = true
     setSending(true)
     setOutcome(null)
     const sentDraft: CaptureDraft = {
@@ -468,9 +535,18 @@ export function CaptureForm({
     let result: AmenityResult<SubmitResult>
     try {
       result = await submit(checked.input)
-    } catch {
-      // The draft and its key stay: Try again replays, never sends twice.
-      if (mounted.current) setOutcome({ kind: "retry" })
+    } catch (cause) {
+      // The draft and its key stay, and uploads that arrive meanwhile wait:
+      // Try again replays the same answer, never sends twice. Refused for
+      // the ended session, it waits for Sign in again instead.
+      const ended = sessionEnded(cause)
+      // Refused for the ended session: definitely not recorded, so uploads
+      // stop waiting for an answer and are selected as usual.
+      if (ended) unresolved.current = false
+      if (mounted.current) {
+        setOutcome(ended ? { kind: "sign_in" } : { kind: "retry" })
+        if (ended) selectLate()
+      }
       return
     } finally {
       inFlight.current = false
@@ -479,6 +555,7 @@ export function CaptureForm({
     // A replay older than the revision on screen: the earlier send was
     // recorded, but the check changed since (a manager reopened it). This
     // answer still has to be sent, as a new intent with a new key.
+    if (result.ok || !RETRYABLE.has(result.code)) unresolved.current = false
     const stale =
       result.ok && result.replayed && result.revision < check.revision
     // Recorded: drop the stored draft even when the form is gone, or a later
@@ -494,15 +571,25 @@ export function CaptureForm({
         revision: check.revision,
       }))
       setOutcome({ kind: "stale" })
+      selectLate()
       return
     }
     if (result.ok) {
       setDraft(emptyDraft(newKey, check.revision))
       setOutcome({ kind: "sent", replayed: result.replayed })
+      const sentIds = new Set(checked.input.assetIds)
+      const missed = [...late.current].filter((id) => !sentIds.has(id)).length
+      late.current.clear()
+      // Stay, so the person learns those uploads are not in the answer.
+      if (missed > 0) {
+        setUploadNote(lateNote(missed))
+        return
+      }
       onDone()
       return
     }
     failed(result)
+    if (!unresolved.current) selectLate()
   }
 
   function failed(result: AmenityFailure) {
@@ -570,6 +657,22 @@ export function CaptureForm({
     }
     setOutcome({ kind: "failed", message: result.message })
   }
+
+  // Offline, Try again would only fail again. The unresolved send waits and
+  // goes again by itself once the browser is back online: the same replay
+  // as Try again (same key and revision; late uploads still wait).
+  const online = useOnline()
+  const sendRef = React.useRef(send)
+  React.useLayoutEffect(() => {
+    sendRef.current = send
+  })
+  const wasOnline = React.useRef(online)
+  React.useEffect(() => {
+    const back = online && !wasOnline.current
+    wasOnline.current = online
+    if (back && outcome?.kind === "retry" && !inFlight.current)
+      void sendRef.current()
+  }, [online, outcome])
 
   const errorId = (field: CaptureField) =>
     errors[field] ? `${ids}-${field}-error` : undefined
@@ -868,6 +971,7 @@ export function CaptureForm({
           outcome={outcome}
           extra={extraErrors}
           sending={sending}
+          online={online}
           onRetry={() => void send()}
           onReload={onReload}
           signInHref={signInHref}
@@ -899,12 +1003,41 @@ export function CaptureForm({
           uploader={upload.uploader}
           limits={upload.limits}
           initialFiles={pickedFiles}
-          onReady={(assetIds) => void reloadAssets(assetIds)}
+          onReady={(assetIds) => arrived.current(assetIds)}
           purpose="amenity"
         />
       ) : null}
     </form>
   )
+}
+
+type Arrivals = { selected: Set<string>; waiting: Set<string> }
+
+function newArrivals(): Arrivals {
+  return { selected: new Set(), waiting: new Set() }
+}
+
+/** "2 new uploads selected. 1 new upload isn't ready yet." */
+function arrivalNote({ selected, waiting }: Arrivals): string | null {
+  return (
+    [
+      selected.size
+        ? `${selected.size} new ${selected.size === 1 ? "upload" : "uploads"} selected.`
+        : null,
+      waiting.size
+        ? `${waiting.size} new ${waiting.size === 1 ? "upload isn't" : "uploads aren't"} ready yet.`
+        : null,
+    ]
+      .filter(Boolean)
+      .join(" ") || null
+  )
+}
+
+/** Uploads ready after the answer was sent: saved, not in the answer. */
+function lateNote(n: number) {
+  return n === 1
+    ? "1 new upload finished while your answer was sending, so it wasn't added to this check. The upload is saved."
+    : `${n} new uploads finished while your answer was sending, so they weren't added to this check. The uploads are saved.`
 }
 
 const FIELD_NAMES = new Set<string>([
@@ -924,6 +1057,7 @@ function OutcomeMessage({
   outcome,
   extra,
   sending,
+  online,
   onRetry,
   onReload,
   signInHref,
@@ -931,6 +1065,7 @@ function OutcomeMessage({
   outcome: Outcome | null
   extra: string[]
   sending: boolean
+  online: boolean
   onRetry: () => void
   onReload: () => void
   signInHref: string
@@ -964,15 +1099,16 @@ function OutcomeMessage({
               variant="secondary"
               size="touch"
               onClick={onRetry}
-              disabled={sending}
+              disabled={sending || !online}
             >
               <ArrowClockwiseIcon data-icon="inline-start" aria-hidden />
               {UI_TEXT.retry}
             </Button>
           }
         >
-          Your draft is kept. Check your connection and try again; nothing is
-          recorded twice.
+          {online
+            ? "Your draft is kept. Check your connection and try again; nothing is recorded twice."
+            : "You're offline. We'll try when you're back online. Your draft is kept; nothing is recorded twice."}
         </Notice>
       )
     case "reload":

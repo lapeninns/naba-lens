@@ -630,7 +630,7 @@ describe("AmenityFactForm", () => {
     ).toBe("true")
   })
 
-  it("says it couldn't save, and that nothing is saved twice, when offline", async () => {
+  it("says it couldn't confirm the save, and that nothing is saved twice, when offline", async () => {
     const user = userEvent.setup()
     const onSaved = vi.fn()
     const onSave = vi.fn<SetAmenityFactHandler>(async () => {
@@ -648,10 +648,12 @@ describe("AmenityFactForm", () => {
     await user.click(screen.getByRole("radio", { name: "Present" }))
     await user.click(screen.getByRole("button", { name: "Save facts" }))
     const alert = await screen.findByRole("alert")
-    expect(within(alert).getByText("We couldn't save the facts")).toBeTruthy()
+    expect(
+      within(alert).getByText("We couldn't confirm the facts were saved")
+    ).toBeTruthy()
     expect(
       within(alert).getByText(
-        "Check your connection and try again. Nothing is saved twice."
+        "Check your connection, then try again or refresh to see if they were. Nothing is saved twice."
       )
     ).toBeTruthy()
     expect(onSaved).not.toHaveBeenCalled()
@@ -1044,7 +1046,9 @@ describe("NewRequirementDialog", () => {
     await user.type(within(dialog).getByLabelText("Title"), "Function room")
     await user.click(within(dialog).getByRole("button", { name: "Add item" }))
     expect(
-      await within(dialog).findByText(/Could not reach the server/)
+      await within(dialog).findByText(
+        "We couldn't confirm the item was added. Check your connection, then try again or refresh to see if it was. It won't be added twice."
+      )
     ).toBeTruthy()
     await user.click(within(dialog).getByRole("button", { name: "Add item" }))
     expect(onCreate).toHaveBeenCalledTimes(2)
@@ -1077,7 +1081,7 @@ describe("NewRequirementDialog", () => {
     const title = within(dialog).getByLabelText("Title")
     await user.type(title, "Terrace")
     await user.click(within(dialog).getByRole("button", { name: "Add item" }))
-    await within(dialog).findByText(/Could not reach the server/)
+    await within(dialog).findByText(/We couldn't confirm the item was added/)
     await user.type(title, " bar")
     await user.click(within(dialog).getByRole("button", { name: "Add item" }))
     const [first, second] = onCreate.mock.calls.map(([input]) => input)

@@ -1,7 +1,6 @@
 import Link from "next/link"
 import { CaretDownIcon, UsersIcon } from "@phosphor-icons/react/dist/ssr"
 
-import { logout } from "@/app/_media/actions"
 import { AppShell } from "@/components/nabalens/app-shell"
 import { IconDisc } from "@/components/nabalens/common-room"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
@@ -11,7 +10,7 @@ import { requireActiveStaff } from "@/lib/auth"
 import { listCommunityVenues } from "@/lib/server/community"
 import { getMediaActor } from "@/lib/server/media/context"
 
-import { canManageVenue } from "../can-manage"
+import { staffShellStatus } from "../_shell/shell-status"
 import {
   communityFilters,
   searchValue,
@@ -22,6 +21,7 @@ import {
   isSearching,
   noResults,
   PEOPLE_COPY,
+  PEOPLE_MAX_SHOWN,
   PEOPLE_PAGE_SIZE,
   searchSummary,
   showingRange,
@@ -43,10 +43,11 @@ export default async function PeoplePage({
   const search = await searchParams
   const { venueId, department } = communityFilters(search)
   const query = searchValue(search.q).trim().slice(0, 80)
-  const [people, options, canManage] = await Promise.all([
-    listPeople(auth.actor, { venueId, department, search: query }),
+  const shown = shownCount(searchValue(search.shown))
+  const [people, options, shell] = await Promise.all([
+    listPeople(auth.actor, { venueId, department, search: query }, shown),
     listCommunityVenues(auth.actor),
-    canManageVenue(auth.actor),
+    staffShellStatus(auth.actor, profile),
   ])
   if (!people.ok) throw new Error(people.message)
   if (!options.ok) throw new Error(options.message)
@@ -54,9 +55,8 @@ export default async function PeoplePage({
     options.venues.find((venue) => venue.id === venueId)?.name ?? null
   const described = { query, venueName, department }
   const summary = searchSummary(described)
-  const total = people.members.length
-  const shown = shownCount(searchValue(search.shown), total)
-  const members = people.members.slice(0, shown)
+  const { members, more } = people
+  const canShowMore = more && shown < PEOPLE_MAX_SHOWN
   const params = new URLSearchParams()
   if (venueId) params.set("venue", venueId)
   if (department) params.set("department", department)
@@ -77,9 +77,8 @@ export default async function PeoplePage({
     <AppShell
       variant="staff"
       active="people"
-      canManage={canManage}
+      {...shell}
       userName={profile.displayName}
-      logoutAction={logout}
     >
       {/* Common Room feed: white cards on the grey canvas, one column. */}
       <div className="mx-auto flex w-full max-w-(--size-feed) flex-col gap-(--gutter)">
@@ -97,7 +96,7 @@ export default async function PeoplePage({
           department={department}
           query={query}
         />
-        {total === 0 ? (
+        {members.length === 0 ? (
           <PeopleEmpty
             title={empty.title}
             description={empty.description}
@@ -131,9 +130,9 @@ export default async function PeoplePage({
                 </li>
               ))}
             </ul>
-            {total > PEOPLE_PAGE_SIZE ? (
+            {more || members.length > PEOPLE_PAGE_SIZE ? (
               <div className="grid justify-items-center gap-2">
-                {shown < total ? (
+                {canShowMore ? (
                   <Link
                     href={`/staff/people?${nextParams.toString()}`}
                     scroll={false}
@@ -148,7 +147,7 @@ export default async function PeoplePage({
                   </Link>
                 ) : null}
                 <p className="font-mono text-meta text-ink-muted tabular-nums">
-                  {showingRange(shown, total)}
+                  {showingRange(members.length, more && !canShowMore)}
                 </p>
               </div>
             ) : null}

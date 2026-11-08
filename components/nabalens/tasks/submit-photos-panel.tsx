@@ -8,6 +8,7 @@ import {
   SpinnerGapIcon,
 } from "@phosphor-icons/react"
 
+import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton"
 
@@ -26,7 +27,13 @@ import type { OpenAddOptions } from "../shell/add-context"
 import type { UploadLimits } from "../types"
 import { UploadDialog } from "../upload-dialog"
 import type { Uploader } from "../upload-queue"
-import { failureCopy, NETWORK_FAILURE, plural, type FailureCopy } from "./copy"
+import {
+  failureCopy,
+  NETWORK_FAILURE,
+  plural,
+  sendUnconfirmed,
+  type FailureCopy,
+} from "./copy"
 import { PhotoPicker } from "./photo-picker"
 import { intentKey, useRequestIntent } from "./request-intent"
 import type {
@@ -156,11 +163,14 @@ export function SubmitPhotosPanel({
   const [sending, setSending] = React.useState(false)
   const [outcome, setOutcome] = React.useState<Outcome | null>(null)
   const [uploadNote, setUploadNote] = React.useState<string | null>(null)
+  const sessionEnded = useSessionEndedCatch()
   const inFlight = React.useRef(false)
   const loadingPhotos = React.useRef(false)
   const queuedReload = React.useRef<Set<string> | null>(null)
   const selectedRef = React.useRef(selected)
   const mounted = React.useRef(false)
+  // The current pick's photos selected here, and those listed but not ready.
+  const arrivals = React.useRef(newArrivals())
 
   React.useLayoutEffect(() => {
     selectedRef.current = selected
@@ -227,19 +237,16 @@ export function SubmitPhotosPanel({
           }
           return next
         })
-        const waiting = select.length - picked.length
-        setUploadNote(
-          [
-            picked.length
-              ? `${plural(picked.length, "new photo", "new photos")} selected.`
-              : null,
-            waiting
-              ? `${plural(waiting, "new photo isn't", "new photos aren't")} ready to send yet.`
-              : null,
-          ]
-            .filter(Boolean)
-            .join(" ")
-        )
+        // Add hands over each photo as soon as it is ready, so one pick
+        // arrives over several calls: the note counts the whole pick.
+        const tally = arrivals.current
+        for (const id of select) {
+          if (picked.includes(id)) {
+            tally.selected.add(id)
+            tally.waiting.delete(id)
+          } else if (!tally.selected.has(id)) tally.waiting.add(id)
+        }
+        setUploadNote(arrivalNote(tally))
       } catch {
         if (mounted.current)
           setList((l) => ({
@@ -261,8 +268,8 @@ export function SubmitPhotosPanel({
 
   // Only the files picked from this panel are selected here once ready (not
   // every upload of the shared Add queue). The latest reload function, so a
-  // batch that settles later uses current state; after unmount Add keeps the
-  // files as ready to label instead.
+  // batch that settles later uses current state. After unmount the photo is
+  // still saved in the person's photos, just not selected here.
   const reloadRef = React.useRef(reloadFirstPage)
   React.useLayoutEffect(() => {
     reloadRef.current = reloadFirstPage
@@ -272,6 +279,7 @@ export function SubmitPhotosPanel({
   const ownPicker = usePhotoSource({
     imagesOnly: true,
     onFiles: (files) => {
+      arrivals.current = newArrivals()
       setPickedFiles(files)
       setUploadOpen(true)
     },
@@ -283,6 +291,13 @@ export function SubmitPhotosPanel({
       addQueue.openAdd({
         source,
         imagesOnly: true,
+        // Once per photo, as soon as that photo is ready (not when the whole
+        // pick settles): each one is added to the selection, never replacing
+        // it. False after unmount ("the screen is gone"): Add keeps the photo
+        // saved in the person's photos, not attached to this task.
+        onPicked: () => {
+          if (mounted.current) arrivals.current = newArrivals()
+        },
         onReady: (ids) => {
           if (!mounted.current) return false
           void reloadRef.current(ids)
@@ -328,7 +343,8 @@ export function SubmitPhotosPanel({
           errorSource: "more",
         }))
       }
-    } catch {
+    } catch (cause) {
+      sessionEnded(cause)
       if (mounted.current)
         setList((l) => ({
           ...l,
@@ -368,6 +384,7 @@ export function SubmitPhotosPanel({
     setSending(true)
     setOutcome(null)
     setUploadNote(null)
+    arrivals.current = newArrivals()
     let result: SubmitPhotosResult
     try {
       result = await submit({
@@ -376,9 +393,15 @@ export function SubmitPhotosPanel({
         assetIds,
         ...(replacesSubmissionId ? { replacesSubmissionId } : {}),
       })
-    } catch {
+    } catch (cause) {
       // Same selection, same request ID on retry: never sent twice.
-      setOutcome({ kind: "failed", copy: NETWORK_FAILURE })
+      const ended = sessionEnded(cause)
+      setOutcome({
+        kind: "failed",
+        copy: ended
+          ? { message: ended, action: "sign_in" }
+          : sendUnconfirmed(replaced),
+      })
       return
     } finally {
       inFlight.current = false
@@ -387,7 +410,9 @@ export function SubmitPhotosPanel({
 
     if (result.ok) {
       intent.settle(key)
-      setSelected([])
+      // Only what was sent leaves the selection: a photo that became ready
+      // during the send stays selected (and counted) for the next one.
+      setSelected((current) => current.filter((id) => !assetIds.includes(id)))
       setFlagged(new Map(result.skipped.map((s) => [s.assetId, s.reason])))
       const fresh = result.submitted.filter((p) => !p.reused).length
       setOutcome({
@@ -530,7 +555,6 @@ export function SubmitPhotosPanel({
             onReload={onReload}
             signInHref={signInHref}
             retrying={sending || !online}
-            replacing={replacesSubmissionId !== null}
           />
           {!sending ? (
             <p className="text-center font-mono text-meta text-ink-muted tabular-nums empty:hidden md:text-left">
@@ -583,20 +607,40 @@ export function SubmitPhotosPanel({
   )
 }
 
+type Arrivals = { selected: Set<string>; waiting: Set<string> }
+
+function newArrivals(): Arrivals {
+  return { selected: new Set(), waiting: new Set() }
+}
+
+/** "2 new photos selected. 1 new photo isn't ready to send yet." */
+function arrivalNote({ selected, waiting }: Arrivals): string | null {
+  return (
+    [
+      selected.size
+        ? `${plural(selected.size, "new photo", "new photos")} selected.`
+        : null,
+      waiting.size
+        ? `${plural(waiting.size, "new photo isn't", "new photos aren't")} ready to send yet.`
+        : null,
+    ]
+      .filter(Boolean)
+      .join(" ") || null
+  )
+}
+
 function OutcomeMessage({
   outcome,
   onRetry,
   onReload,
   signInHref,
   retrying,
-  replacing,
 }: {
   outcome: Outcome | null
   onRetry: () => void
   onReload: () => void
   signInHref: string
   retrying: boolean
-  replacing: boolean
 }) {
   if (!outcome) return null
   if (outcome.kind === "sent" && outcome.replaced && !outcome.alreadySent) {
@@ -645,7 +689,6 @@ function OutcomeMessage({
     )
   }
   const { copy } = outcome
-  const retry = copy.action === "retry"
   const action =
     copy.action === "retry" ? (
       <Button
@@ -671,21 +714,8 @@ function OutcomeMessage({
       </Link>
     ) : undefined
   return (
-    <Notice
-      tone="negative"
-      role="alert"
-      title={
-        retry
-          ? replacing
-            ? "We couldn't send your photo"
-            : "We couldn't send your photos"
-          : undefined
-      }
-      action={action}
-    >
-      {retry
-        ? "Check your connection and try again. Nothing is sent twice."
-        : copy.message}
+    <Notice tone="negative" role="alert" action={action}>
+      {copy.message}
     </Notice>
   )
 }

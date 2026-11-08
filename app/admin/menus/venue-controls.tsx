@@ -8,6 +8,7 @@ import {
   UploadSimpleIcon,
 } from "@phosphor-icons/react"
 
+import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import {
   ACTIVE_MEANING_COPY,
   SuggestionList,
@@ -81,6 +82,7 @@ export function VenueSwitch({
 function useCreateDraft(venueId: string) {
   const router = useRouter()
   const [pending, setPending] = React.useState<"empty" | "copy" | null>(null)
+  const sessionEnded = useSessionEndedCatch()
   const [error, setError] = React.useState<string | null>(null)
 
   async function run(kind: "empty" | "copy") {
@@ -96,8 +98,10 @@ function useCreateDraft(venueId: string) {
         return
       }
       router.push(versionHref(result.versionId))
-    } catch {
-      setError("The draft could not be created. Try again.")
+    } catch (cause) {
+      setError(
+        sessionEnded(cause) ?? "The draft could not be created. Try again."
+      )
     } finally {
       setPending(null)
     }

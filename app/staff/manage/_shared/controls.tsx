@@ -241,6 +241,7 @@ export function TeamRosterControl({
   basePath,
   venueId,
   venueName,
+  unprepared,
 }: {
   period: PeriodView
   currentPeriod: PeriodKey
@@ -250,10 +251,12 @@ export function TeamRosterControl({
   basePath: string
   venueId: string
   venueName?: string
+  unprepared?: boolean
 }) {
   const refresh = useRefresh()
   return (
     <TeamRoster
+      unprepared={unprepared}
       period={period}
       currentPeriod={currentPeriod}
       rows={rows}

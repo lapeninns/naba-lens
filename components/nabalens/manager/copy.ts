@@ -17,14 +17,22 @@ export const MANAGER_COPY = {
     },
     signOut: "Sign out",
   },
+  /** What each page's error boundary says it couldn't load. */
+  couldNotLoad: {
+    overview: "the overview",
+    review: "photos for review",
+    contributor: "this contributor's photos",
+    menu: "the menu",
+    item: "this menu item",
+    account: "your account",
+  },
   notFound: {
     title: "This page isn't available in your workspace",
     back: "Go to Overview",
   },
   overview: {
     title: "Overview",
-    loading: "Loading menu photos",
-    couldNotLoad: "menu photos",
+    loading: "Loading the overview",
     noMenuTitle: "Menu photos will appear once your venue's menu is set up",
     noMenuBody:
       "An admin activates the menu. Staff can keep adding photos to their portfolios meanwhile.",
@@ -59,12 +67,14 @@ export const MANAGER_COPY = {
   },
   review: {
     title: "Review",
+    loading: "Loading photos for review",
     pendingTitle: "Photo review is being set up",
     pendingBody:
       "Photos waiting for a decision will appear here once item review is switched on for your venue.",
   },
   contributor: {
     title: "Contributor",
+    loading: "Loading this contributor's photos",
     pendingBody:
       "A contributor's photos will appear here once item review is switched on for your venue.",
   },
@@ -100,6 +110,7 @@ export const MANAGER_COPY = {
   },
   item: {
     title: "Menu item",
+    loading: "Loading this menu item",
     back: "Menu",
     menuPhoto: "Menu photo",
     noMenuPhoto: "No menu photo yet",
@@ -138,8 +149,9 @@ export const MANAGER_COPY = {
     withdrawRequestLabel: "Why is this request no longer needed?",
     conflict: (item: string) =>
       `Someone else changed ${item} first. Here is the latest.`,
+    // The reply was lost: the decision may be saved. The request id is kept.
     network:
-      "Could not reach the server. Try again; the photo will not be decided twice.",
+      "We couldn't confirm the decision was saved. Check your connection, then try again or refresh to see if it was. The photo won't be decided twice.",
     done: {
       set_preferred: (item: string) => `Set as the menu photo for ${item}.`,
       withdraw: "Withdrawn.",
@@ -168,6 +180,7 @@ export const MANAGER_COPY = {
   },
   accountPage: {
     title: "Account",
+    loading: "Loading your account",
     summary: "Your name as staff and admins see it.",
     displayName: "Display name",
     displayNameError: "Enter a name of up to 80 characters.",

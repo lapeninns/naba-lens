@@ -2,7 +2,11 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { createRequirement } from "@/lib/server/coverage/config"
 import { attachPhotos } from "@/lib/server/coverage/review"
-import { submitPhotos } from "@/lib/server/coverage/staff"
+import {
+  getMyMonth,
+  getMyTasks,
+  submitPhotos,
+} from "@/lib/server/coverage/staff"
 import { coverageRpcFailure, failure } from "@/lib/server/coverage/errors"
 import {
   dueView,
@@ -468,4 +472,170 @@ describe("coverage RPC failure mapping (schema v4 §8)", () => {
     for (const [code, status] of Object.entries(expected))
       expect(failure(code as CoverageErrorCode, "x").status).toBe(status)
   })
+})
+
+describe("own photo windows", () => {
+  const venueId = crypto.randomUUID()
+  const me = crypto.randomUUID()
+  const scope = {
+    user_id: me,
+    active: true,
+    is_admin: false,
+    role: "staff",
+    venue_id: venueId,
+    venue_active: true,
+    department: "foh",
+    manager_venue_id: null,
+  }
+
+  function itemRow(state: string, overrides: Record<string, unknown> = {}) {
+    return {
+      item_id: crypto.randomUUID(),
+      venue_id: venueId,
+      revision: 1,
+      state,
+      origin: "submitted",
+      requirement_id: null,
+      requirement_title: null,
+      author_id: me,
+      author_name: "TEST Sam",
+      author_active: true,
+      submitted_by: me,
+      submitted_at: "2026-11-02T10:00:00.000Z",
+      submitted_month: "2026-11-01",
+      uploaded_month: "2026-11-01",
+      monthly_eligible: true,
+      asset_id: crypto.randomUUID(),
+      media_type: "image",
+      has_preview: true,
+      has_thumbnail: true,
+      width: 100,
+      height: 100,
+      evidence_available: true,
+      decision_reason: state === "needs_another_photo" ? "Too dark" : null,
+      decided_by: state === "submitted" ? null : crypto.randomUUID(),
+      decided_at: state === "submitted" ? null : "2026-11-03T10:00:00.000Z",
+      self_review: false,
+      archived: false,
+      replaces_item_id: null,
+      ...overrides,
+    }
+  }
+
+  /** The database as getMyTasks/getMyMonth read it: the window holds `newest`. */
+  function fakeActor({
+    newest,
+    declined = [],
+    replacements = [],
+  }: {
+    newest: unknown[]
+    declined?: unknown[]
+    replacements?: unknown[]
+  }) {
+    const tables: Record<string, unknown[]> = {
+      coverage_requirement_assignees: [],
+      coverage_submission_items: replacements,
+    }
+    return {
+      profile: { id: me, role: "staff", displayName: "TEST Sam", venue: null },
+      db: {
+        from: vi.fn((table: string) => fakeQuery(tables[table] ?? [])),
+        rpc: vi.fn(async (name: string, args: Record<string, unknown>) => ({
+          data:
+            name === "coverage_access_scope"
+              ? [scope]
+              : name === "coverage_items_page"
+                ? (args.p_states as string[] | undefined)?.includes(
+                    "needs_another_photo"
+                  )
+                  ? declined
+                  : newest
+                : [],
+          error: null,
+        })),
+      },
+    }
+  }
+
+  it("keeps a request for another photo that 101 newer photos pushed out of the window", async () => {
+    const newest = Array.from({ length: 101 }, () => itemRow("submitted"))
+    const old = itemRow("needs_another_photo", {
+      submitted_at: "2026-10-01T10:00:00.000Z",
+    })
+    const answered = itemRow("needs_another_photo", {
+      submitted_at: "2026-09-01T10:00:00.000Z",
+    })
+    const actor = fakeActor({
+      newest,
+      declined: [old, answered],
+      replacements: [{ replaces_item_id: answered.item_id }],
+    })
+    const result = await getMyTasks(actor as never)
+    expect(
+      result.ok && result.tasks.needsAnotherPhoto.map((s) => s.id)
+    ).toEqual([old.item_id])
+    expect(actor.db.rpc).toHaveBeenCalledWith(
+      "coverage_items_page",
+      expect.objectContaining({
+        p_author_id: me,
+        p_states: ["needs_another_photo"],
+      })
+    )
+  })
+
+  it("reads replacements only for the open requests it found", async () => {
+    const asked = itemRow("needs_another_photo")
+    const calls: unknown[][] = []
+    const actor = fakeActor({ newest: [], declined: [asked] })
+    const from = actor.db.from.getMockImplementation()!
+    actor.db.from.mockImplementation((table: string) => {
+      const query = from(table) as Record<string, unknown>
+      if (table !== "coverage_submission_items") return query
+      const chain: unknown = new Proxy(query, {
+        get: (target, prop) =>
+          prop === "then"
+            ? (target.then as unknown)
+            : (...args: unknown[]) => {
+                calls.push([prop, ...args])
+                return chain
+              },
+      })
+      return chain
+    })
+    await getMyTasks(actor as never)
+    expect(calls).toContainEqual(["in", "replaces_item_id", [asked.item_id]])
+
+    // No open request, no replacement read.
+    const none = fakeActor({ newest: [], declined: [] })
+    await getMyTasks(none as never)
+    expect(none.db.from).not.toHaveBeenCalledWith("coverage_submission_items")
+  })
+
+  it("drops a request answered by a replacement inside the window", async () => {
+    const asked = itemRow("needs_another_photo")
+    const replacement = itemRow("submitted", {
+      replaces_item_id: asked.item_id,
+    })
+    const actor = fakeActor({
+      newest: [replacement, asked],
+      declined: [asked],
+    })
+    const result = await getMyTasks(actor as never)
+    expect(result.ok && result.tasks.needsAnotherPhoto).toEqual([])
+  })
+
+  it.each([
+    [100, false],
+    [101, true],
+  ])(
+    "shows the newest 100 of %i sent photos and says whether there are more",
+    async (sent, more) => {
+      const actor = fakeActor({
+        newest: Array.from({ length: sent }, () => itemRow("submitted")),
+      })
+      const result = await getMyMonth(actor as never, { period: "2026-11" })
+      expect(result.ok && result.month.submissions).toHaveLength(100)
+      expect(result.ok && result.more).toBe(more)
+    }
+  )
 })

@@ -7,6 +7,7 @@ import {
   openPortfolio,
   portfolioList,
   staffTile,
+  uploadSheet,
   uploadThroughDialog,
 } from "./helpers/ui"
 import { signedInPage } from "./helpers/world"
@@ -76,10 +77,7 @@ test.describe("a hung gallery refresh", () => {
 
     // Once the server answers again, the next refresh shows the upload.
     await page.unroute("**/api/portfolio**")
-    await page
-      .getByRole("dialog", { name: "Upload photos or videos" })
-      .getByRole("button", { name: "Done" })
-      .click()
+    await uploadSheet(page).getByRole("button", { name: "Done" }).click()
     // (A refresh started after the abort but before unroute is held too and
     // aborts in its turn, so keep asking until one gets through.)
     await expect(async () => {

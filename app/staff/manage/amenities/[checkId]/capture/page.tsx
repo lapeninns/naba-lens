@@ -1,6 +1,5 @@
 import type { Metadata } from "next"
 
-import { logout } from "@/app/_media/actions"
 import { managerAccess } from "@/app/staff/manage/_shared/context"
 import { NotManagerPage } from "@/app/staff/manage/_shared/frame"
 import { CaptureScreen } from "@/app/staff/tasks/amenities/_capture/screen"
@@ -32,7 +31,6 @@ export default async function ManageAmenityCapturePage({
       active="manage"
       canManage
       userName={ctx.viewerName}
-      logoutAction={logout}
     >
       <CaptureScreen
         actor={ctx.actor}

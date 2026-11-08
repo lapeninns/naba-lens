@@ -1,4 +1,3 @@
-import { logout } from "@/app/_media/actions"
 import { AppShell } from "@/components/nabalens"
 import { requireActiveAdmin } from "@/lib/auth"
 import { getMediaActor } from "@/lib/server/media/context"
@@ -49,12 +48,7 @@ export default async function AdminPage({
   ])
 
   return (
-    <AppShell
-      variant="admin"
-      active="content"
-      userName={profile.displayName}
-      logoutAction={logout}
-    >
+    <AppShell variant="admin" active="content" userName={profile.displayName}>
       <AdminLibrary
         venues={options.venues}
         staff={options.staff}

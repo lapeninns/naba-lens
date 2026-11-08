@@ -2,6 +2,7 @@
 
 import * as React from "react"
 
+import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -78,6 +79,7 @@ export function ActivateMenuDialog({
 }: ActivateMenuDialogProps) {
   const [pending, setPending] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const sessionEnded = useSessionEndedCatch()
   const reasonsId = React.useId()
   const blockers = activationBlockers(counts)
   const blocked = blockers.length > 0
@@ -93,8 +95,10 @@ export function ActivateMenuDialog({
         return
       }
       onOpenChange(false)
-    } catch {
-      setError("The menu could not be activated. Try again.")
+    } catch (cause) {
+      setError(
+        sessionEnded(cause) ?? "The menu could not be activated. Try again."
+      )
     } finally {
       setPending(false)
     }

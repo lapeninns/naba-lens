@@ -8,7 +8,6 @@ import { MEDIA_LIMITS } from "@/lib/config/media"
 import { listAssignableVenues, listStaffDirectory } from "@/lib/server/accounts"
 import { accountsContext } from "@/lib/server/accounts/request"
 
-import { signOutAction } from "./actions"
 import { AuthDetailsNotice } from "./auth-details-notice"
 import { effectiveGrants, loadManagerGrants } from "./manager-grants"
 import { RetryButton } from "./retry-button"
@@ -27,18 +26,14 @@ export default async function StaffDirectoryPage() {
   ])
 
   return (
-    <AppShell
-      variant="admin"
-      active="staff"
-      userName={admin.displayName}
-      logoutAction={signOutAction}
-    >
+    <AppShell variant="admin" active="staff" userName={admin.displayName}>
       {directory.ok && venues.ok ? (
         <StaffDirectory
           staff={directory.staff}
           venues={venues.venues}
           grants={effectiveGrants(grants)}
           maxAvatarBytes={MEDIA_LIMITS.maxAvatarBytes}
+          authDetails={directory.authDetails}
           notices={
             directory.authDetails === "unavailable" ? (
               <AuthDetailsNotice />

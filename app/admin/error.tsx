@@ -1,6 +1,5 @@
 "use client"
 
-import { logout } from "@/app/_media/actions"
 import { AppShell } from "@/components/nabalens"
 import { PageHeader } from "@/components/nabalens/page-header"
 
@@ -15,7 +14,7 @@ export default function AdminError({
   retry: () => void
 }) {
   return (
-    <AppShell variant="admin" active="content" logoutAction={logout}>
+    <AppShell variant="admin" active="content">
       <div className="flex flex-col gap-6">
         <PageHeader
           venueScope

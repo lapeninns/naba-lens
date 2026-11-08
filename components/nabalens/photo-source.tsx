@@ -10,8 +10,8 @@ import { ACCEPT_ATTRIBUTE, IMAGE_ACCEPT_ATTRIBUTE } from "./upload-queue"
 
 // One picker contract for every way into an upload: Add, welcome, Me and task
 // screens. The phone's photo library comes first (several at a time); the
-// camera is the second choice (one photo). Nothing uploads on pick: the files
-// go to the upload queue, which waits for "Upload N files".
+// camera is the second choice (one photo). Through Add, picked files start
+// uploading at once; a screen's own dialog waits for "Upload N files".
 
 /** The primary picker: the device's photo library, several files at once. */
 export const LIBRARY_LABEL = "Choose from your photos"

@@ -5,6 +5,7 @@ import {
   MinusCircleIcon,
 } from "@phosphor-icons/react/dist/ssr"
 
+import { buttonVariants } from "@/components/ui/button"
 import { departmentLabel, type Department } from "@/lib/config/departments"
 import { cn } from "@/lib/utils"
 
@@ -29,20 +30,31 @@ type Step = {
   optional?: boolean
 }
 
+/** Whether the person can fix a setup step themselves (name, or the photo). */
+export function setupHasAction(
+  profile: Pick<SetupProfile, "displayName" | "hasAvatar">
+): boolean {
+  return profile.displayName.trim() === "" || !profile.hasAvatar
+}
+
 /**
  * Profile setup: name, venue and team (FOH/BOH) are required; a profile photo
  * is optional. Staff edit their name and photo themselves; an admin assigns
- * venue and team.
+ * venue and team. Like every To do card, it ends in one action (Edit profile)
+ * when there is something the person can do, and says so when there isn't.
  */
 export function SetupChecklist({
   setup,
   profile,
   editProfileHref,
+  actionClassName = buttonVariants({ variant: "secondary", size: "touch" }),
 }: {
   setup: CoverageScope["setup"]
   profile: SetupProfile
   /** Me with its Edit profile dialog open (`/staff?edit=profile`). */
   editProfileHref: string
+  /** The card's action style: the page's primary button on the lead card. */
+  actionClassName?: string
 }) {
   const missing = new Set(setup.missing)
   const hasName = profile.displayName.trim() !== ""
@@ -60,7 +72,7 @@ export function SetupChecklist({
       label: "Name",
       done: hasName,
       value: profile.displayName,
-      todo: <>Add your name in {editLink}.</>,
+      todo: "Add your name in Edit profile.",
     },
     {
       id: "venue",
@@ -80,7 +92,7 @@ export function SetupChecklist({
       id: "photo",
       label: "Profile photo",
       done: profile.hasAvatar,
-      todo: <>Optional. Add one in {editLink}.</>,
+      todo: "Add one in Edit profile.",
       optional: true,
     },
   ]
@@ -141,7 +153,7 @@ export function SetupChecklist({
                 {step.optional ? " (optional)" : null}
               </span>
               <span className="sr-only">
-                {step.done ? ": done" : step.optional ? "" : ": missing"}
+                {step.done ? ": done" : step.optional ? ". " : ": missing"}
               </span>
               <span className="block text-ink-muted">
                 {step.done ? (step.value ?? "Added") : step.todo}
@@ -150,6 +162,16 @@ export function SetupChecklist({
           </li>
         ))}
       </ul>
+      {setupHasAction(profile) ? (
+        <Link href={editProfileHref} className={actionClassName}>
+          Edit profile
+        </Link>
+      ) : (
+        <p className="text-body text-ink-muted">
+          There&apos;s nothing here for you to change. An admin finishes the
+          rest.
+        </p>
+      )}
     </section>
   )
 }

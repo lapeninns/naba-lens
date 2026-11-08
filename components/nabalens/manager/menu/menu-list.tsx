@@ -3,6 +3,7 @@
 import * as React from "react"
 import { SpinnerGapIcon } from "@phosphor-icons/react"
 
+import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { failureText } from "@/components/nabalens/coverage/copy"
 import { Button } from "@/components/ui/button"
 
@@ -66,6 +67,7 @@ export function MenuList({
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [announcement, setAnnouncement] = React.useState("")
+  const sessionEnded = useSessionEndedCatch()
   // The last page removes the button: focus moves to the first new item.
   const focusItem = React.useRef<string | null>(null)
   const listRef = React.useRef<HTMLDivElement>(null)
@@ -103,7 +105,8 @@ export function MenuList({
       setCursor(result.nextCursor)
       setAnnouncement(copy.loaded(added.length))
       if (!result.nextCursor && added[0]) focusItem.current = added[0].itemId
-    } catch {
+    } catch (cause) {
+      sessionEnded(cause)
       setError(copy.loadFailed)
     } finally {
       setLoading(false)

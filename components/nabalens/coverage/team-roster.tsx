@@ -11,6 +11,7 @@ import {
   WarningCircleIcon,
 } from "@phosphor-icons/react"
 
+import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { EmptyState } from "@/components/nabalens/empty-state"
 import { Notice } from "@/components/nabalens/notice"
 import { ProfileAvatar } from "@/components/nabalens/profile-avatar"
@@ -281,6 +282,12 @@ type TeamRosterProps = {
   venueName?: string
   onSetTarget?: SetTargetHandler
   onStale?: () => void
+  /**
+   * The current month hasn't been prepared, from the preparation status.
+   * Missing targets don't decide it: they can be set before preparing, and a
+   * new starter can lack one after it. Omitted: inferred from missing targets.
+   */
+  unprepared?: boolean
 }
 
 /**
@@ -305,6 +312,7 @@ function TeamRosterMonth({
   venueName,
   onSetTarget,
   onStale,
+  unprepared: monthUnprepared,
 }: TeamRosterProps) {
   const ids = React.useId()
   const staffHref = (id: string) =>
@@ -319,7 +327,13 @@ function TeamRosterMonth({
   const [focusNotice, setFocusNotice] = React.useState(0)
   const [drafts, setDrafts] = React.useState<Record<string, Draft>>({})
   const [errors, setErrors] = React.useState<Record<string, RowErrors>>({})
+  // The draft whose save got no reply, per person: it may have been saved.
+  // Editing the row makes a new draft object, which drops the mark.
+  const [unconfirmed, setUnconfirmed] = React.useState<Record<string, Draft>>(
+    {}
+  )
   const [saving, setSaving] = React.useState(false)
+  const sessionEnded = useSessionEndedCatch()
   // The row stays set while the dialog animates closed.
   const [correctingRow, setCorrectingRow] =
     React.useState<MonthlyProgress | null>(null)
@@ -336,8 +350,12 @@ function TeamRosterMonth({
     timing === "past" ? sorted : sorted.filter((r) => r.isCurrentMember)
   const moved =
     timing === "past" ? [] : sorted.filter((r) => !r.isCurrentMember)
+  const missingTarget = team.filter((r) => r.targetId == null).length
   const unprepared =
-    timing === "current" && team.some((r) => r.targetId == null)
+    timing === "current" && (monthUnprepared ?? missingTarget > 0)
+  // Before preparing, or for someone with no target after it.
+  const targetHint =
+    inPlace && timing === "current" && (unprepared || missingTarget > 0)
   const met = team.filter((r) => r.complete).length
 
   const draftFor = (row: MonthlyProgress) => {
@@ -416,6 +434,7 @@ function TeamRosterMonth({
     }
     setSaving(true)
     setNotice(null)
+    setUnconfirmed({})
     const saved: { row: MonthlyProgress; count: number; reason: string }[] = []
     let failure: { tone: "error" | "warning"; text: string } | null = null
     for (const row of changes) {
@@ -432,8 +451,18 @@ function TeamRosterMonth({
           reason: reason || null,
           expectedRevision: row.revision,
         })
-      } catch {
-        failure = { tone: "error", text: NETWORK_ERROR }
+      } catch (cause) {
+        // Refused for the ended session: this row wasn't saved.
+        const ended = sessionEnded(cause)
+        if (!ended) setUnconfirmed({ [row.person.id]: draft })
+        failure = {
+          tone: "error",
+          text: ended
+            ? saved.length > 0
+              ? `${plural(saved.length, "target")} saved. You were signed out before ${row.person.displayName}'s was saved. Sign in again, then try again.`
+              : ended
+            : `${saved.length > 0 ? `${plural(saved.length, "target")} saved. ` : ""}We couldn't confirm ${row.person.displayName}'s target was saved. Check your connection, then refresh to see.`,
+        }
         break
       }
       if (!result.ok) {
@@ -539,14 +568,21 @@ function TeamRosterMonth({
         .join(" · ")
     }
 
-    const chip =
-      row.status === "needs_setup" && !changed ? (
-        <StatusChip state="needs_setup" />
-      ) : met ? (
-        <StatusChip state="target_met" />
-      ) : row.due?.overdue && timing !== "past" ? (
-        <StatusChip state="overdue" />
-      ) : null
+    // An unsaved target previews progress; it isn't a state yet, so no chip
+    // (Target met, Overdue) is drawn from it.
+    const chip = changed ? (
+      <span className="text-meta text-ink-muted">
+        {draft && unconfirmed[id] === draft
+          ? "· not confirmed"
+          : "· not saved yet"}
+      </span>
+    ) : row.status === "needs_setup" ? (
+      <StatusChip state="needs_setup" />
+    ) : met ? (
+      <StatusChip state="target_met" />
+    ) : row.due?.overdue && timing !== "past" ? (
+      <StatusChip state="overdue" />
+    ) : null
 
     let progress: React.ReactNode
     if ((movedAway && !editable) || (changed && shownTarget == null)) {
@@ -600,7 +636,14 @@ function TeamRosterMonth({
             changed={changed}
             invalid={!!rowErrors.count}
             disabled={saving}
-            describedBy={rowErrors.count ? countErrorId : undefined}
+            describedBy={
+              [
+                rowErrors.count ? countErrorId : null,
+                targetHint && row.targetId == null ? `${ids}-unprepared` : null,
+              ]
+                .filter(Boolean)
+                .join(" ") || undefined
+            }
           />
         ) : movedAway ? (
           <span aria-hidden />
@@ -743,6 +786,17 @@ function TeamRosterMonth({
           <p className="-mt-1 px-1 text-body text-ink-muted">
             Needs setup first, then A to Z by surname.
           </p>
+          {/* Preparing inserts only missing targets, so one set now stays. */}
+          {targetHint ? (
+            <p
+              id={`${ids}-unprepared`}
+              className="-mt-1 px-1 text-body text-ink"
+            >
+              {unprepared
+                ? `You can set targets now. Preparing ${month} keeps the ones you set and copies last month's targets for everyone else.`
+                : `${plural(missingTarget, "person", "people")} ${missingTarget === 1 ? "has" : "have"} no target yet. Set one below.`}
+            </p>
+          ) : null}
           {team.length > 0 ? (
             <ItemList label={`Team targets, ${period.label}`}>
               {team.map((row) => renderRow(row, false))}
@@ -805,7 +859,9 @@ function TeamRosterMonth({
               reason: values.reason,
               expectedRevision: row.revision,
             })
-          } catch {
+          } catch (cause) {
+            const ended = sessionEnded(cause)
+            if (ended) return { ok: false, error: ended }
             return { ok: false, network: true, error: NETWORK_ERROR }
           }
           if (!result.ok) {
@@ -935,9 +991,18 @@ function CorrectTargetDialog({
             </DialogTitle>
           </DialogHeader>
           {failure ? (
-            <Notice tone="negative" title="Couldn't save the correction">
+            <Notice
+              tone="negative"
+              title={
+                failure.network
+                  ? "Couldn't confirm the correction"
+                  : "Couldn't save the correction"
+              }
+            >
+              {/* A lost reply may follow a saved correction; a retry is safe
+                  (expectedRevision turns it into a refresh notice). */}
               {failure.network
-                ? "Nothing changed. Check your connection and try again."
+                ? "We couldn't confirm the target changed. Check your connection, then refresh to see."
                 : `Nothing changed. ${failure.text}`}
             </Notice>
           ) : null}

@@ -8,6 +8,7 @@ import {
   WarningIcon,
 } from "@phosphor-icons/react"
 
+import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import {
   ACTIVE_MEANING_COPY,
   ActivateMenuDialog,
@@ -163,6 +164,7 @@ export function VersionEditor({
   >(null)
   const [leaving, setLeaving] = React.useState<string | null>(null)
   const [starting, setStarting] = React.useState(false)
+  const sessionEnded = useSessionEndedCatch()
   const decisionsId = React.useId()
   const editorId = React.useId()
 
@@ -286,10 +288,12 @@ export function VersionEditor({
         tone: "positive",
         text: `Saved. ${plural(countItems(local.document), "item")} in ${plural(local.document.sections.length, "section")}.`,
       })
-    } catch {
+    } catch (cause) {
       setMessage({
         tone: "negative",
-        text: "The draft could not be saved. Your changes are still here; try again.",
+        text:
+          sessionEnded(cause) ??
+          "The draft could not be saved. Your changes are still here; try again.",
       })
     } finally {
       setSaving(false)
@@ -315,10 +319,11 @@ export function VersionEditor({
         return
       }
       router.push(`/admin/menus/versions/${result.versionId}`)
-    } catch {
+    } catch (cause) {
       setMessage({
         tone: "negative",
-        text: "The draft could not be created. Try again.",
+        text:
+          sessionEnded(cause) ?? "The draft could not be created. Try again.",
       })
     } finally {
       setStarting(false)

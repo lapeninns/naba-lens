@@ -5,12 +5,13 @@ import AxeBuilder from "@axe-core/playwright"
 import { expect, test, type Locator, type Page } from "@playwright/test"
 
 import { supportedMp4, syntheticJpeg, type SourceFile } from "./helpers/media"
-import { horizontalOverflow } from "./helpers/overflow"
+import { appBarFit, horizontalOverflow } from "./helpers/overflow"
 import {
   libraryList,
   portfolioList,
   staffTile,
   tile,
+  uploadSheet,
   uploadThroughDialog,
   openPortfolio,
   STAFF_LANDING,
@@ -101,6 +102,7 @@ async function check(
     { timeout: 20_000 }
   )
   const { overflowPx, culprit } = await horizontalOverflow(page)
+  const bar = await appBarFit(page)
   const box = await primary.boundingBox()
   const primaryVisible =
     !!box && box.x >= 0 && box.x + box.width <= width + 0.5 && box.width > 0
@@ -135,6 +137,9 @@ async function check(
     .soft(overflowPx, `${state}@${width}: horizontal overflow (${culprit})`)
     .toBe(0)
   expect.soft(primaryVisible, `${state}@${width}: primary action`).toBe(true)
+  // A squeezed nav slides its last links under Add/Log out (axe only sees
+  // it once less than 24px of a link is left, which depends on the fonts).
+  expect.soft(bar?.fits ?? true, `${state}@${width}: ${bar?.detail}`).toBe(true)
   expect
     .soft(
       serious.map((v) => v.id),
@@ -195,18 +200,33 @@ for (const width of WIDTHS) {
     await check(staff, width, "staff-portfolio", upload)
 
     await upload.click()
-    const uploadDialog = staff.getByRole("dialog")
-    await uploadDialog
-      .getByLabel("Choose photos or videos")
-      .setInputFiles(jpeg.path)
+    const uploadDialog = uploadSheet(staff)
+    await expect(uploadDialog).toHaveAccessibleName("Upload photos or videos")
     await check(
       staff,
       width,
       "staff-upload-dialog",
-      uploadDialog.getByRole("button", { name: "Upload 1 file" }),
+      uploadDialog.getByRole("button", { name: "Choose from your photos" }),
       uploadDialog
     )
-    await uploadDialog.getByRole("button", { name: "Cancel" }).click()
+    // A pick starts saving at once: the "Saving 1 photo" sheet, its row and
+    // the label field, with Done as the primary action.
+    const sheetPhoto = await syntheticJpeg(`viewport-${width}-${world.tag}.jpg`)
+    await uploadDialog
+      .getByLabel("Choose photos or videos")
+      .setInputFiles(sheetPhoto.path)
+    await expect(uploadDialog).toHaveAccessibleName("Saving 1 photo")
+    await expect(uploadDialog.getByRole("status")).toHaveText("1 saved", {
+      timeout: 60_000,
+    })
+    await check(
+      staff,
+      width,
+      "staff-upload-saving",
+      uploadDialog.getByRole("button", { name: "Done" }),
+      uploadDialog
+    )
+    await uploadDialog.getByRole("button", { name: "Done" }).click()
     await expect(uploadDialog).toBeHidden()
 
     await staff.getByRole("button", { name: "Edit profile" }).click()
@@ -369,7 +389,7 @@ test("keyboard only: upload, open the viewer, download", async () => {
   await expect(portfolioList(staff)).toBeVisible()
   await tabTo(staff, /^Upload photos or videos$/)
   await staff.keyboard.press("Enter")
-  const dialog = staff.getByRole("dialog")
+  const dialog = uploadSheet(staff)
   await expect(dialog).toBeVisible()
   // Base UI moves initial focus into the dialog in the next frame; tabbing
   // before that walks the page behind it.
@@ -381,10 +401,10 @@ test("keyboard only: upload, open the viewer, download", async () => {
     staff.waitForEvent("filechooser"),
     staff.keyboard.press("Enter"),
   ])
+  // The pick starts saving at once; there is no separate start step.
   await chooser.setFiles(extra.path)
-  await tabTo(staff, /^Upload 1 file$/)
-  await staff.keyboard.press("Enter")
-  await expect(dialog.getByRole("status")).toHaveText("1 uploaded", {
+  await expect(dialog).toHaveAccessibleName("Saving 1 photo")
+  await expect(dialog.getByRole("status")).toHaveText("1 saved", {
     timeout: 90_000,
   })
   await tabTo(staff, /^Done$/)

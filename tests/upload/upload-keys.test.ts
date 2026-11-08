@@ -73,6 +73,29 @@ describe("localUploadKeyStore", () => {
     expect(await store.get(a)).toBeNull()
   })
 
+  it("keeps keys per signed-in account; the same account resumes", async () => {
+    const storage = memoryStorage()
+    const store = localUploadKeyStore({ storage })
+    const a = file("shared-phone.jpg", 10)
+    await store.set(a, "key-u1", { account: "user-1" })
+    expect(await store.get(a, { account: "user-1" })).toBe("key-u1")
+    // Another account on this device never finds it, nor does an unscoped read.
+    expect(await store.get(a, { account: "user-2" })).toBeNull()
+    expect(await store.get(a)).toBeNull()
+    // Purpose and account together; a bare purpose still works as before.
+    await store.set(a, "key-amenity", { purpose: "amenity", account: "user-1" })
+    expect(await store.get(a, { purpose: "amenity", account: "user-1" })).toBe(
+      "key-amenity"
+    )
+    expect(await store.get(a, "amenity")).toBeNull()
+    expect(storage.map.get(UPLOAD_KEYS_STORAGE_KEY)).not.toContain("user-1")
+    await store.delete(a, { account: "user-1" })
+    expect(await store.get(a, { account: "user-1" })).toBeNull()
+    expect(await store.get(a, { purpose: "amenity", account: "user-1" })).toBe(
+      "key-amenity"
+    )
+  })
+
   it("survives unreadable or unavailable storage", async () => {
     const storage = memoryStorage()
     storage.map.set(UPLOAD_KEYS_STORAGE_KEY, "{not json")

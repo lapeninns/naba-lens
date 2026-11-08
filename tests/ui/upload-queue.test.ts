@@ -281,3 +281,60 @@ describe("UploadQueue", () => {
     expect(summarize(queue.getSnapshot()).failed).toBe(1)
   })
 })
+
+describe("UploadQueue: asset ID, labels and failures for good", () => {
+  it("knows the asset ID from the reservation on, and keeps finalise's labels", async () => {
+    const calls: { ctx: UploadContext; resolve: (v: unknown) => void }[] = []
+    const upload: Uploader = (_f, ctx) =>
+      new Promise((resolve) => calls.push({ ctx, resolve: resolve as never }))
+    const queue = new UploadQueue(upload, LIMITS)
+    queue.add([file("a.jpg")])
+    queue.start()
+    await flush()
+    calls[0].ctx.onReserved?.("asset-a")
+    expect(queue.getSnapshot()[0]).toMatchObject({
+      status: "uploading",
+      assetId: "asset-a",
+    })
+    const labels = {
+      state: "needs_attention" as const,
+      code: "catalogue_changed" as const,
+      message: "The menu changed. Check the dish.",
+    }
+    calls[0].resolve({ assetId: "asset-a", labels })
+    await flush()
+    expect(queue.getSnapshot()[0]).toMatchObject({
+      status: "done",
+      assetId: "asset-a",
+      labels,
+    })
+  })
+
+  it("never retries a file the server could not process", async () => {
+    const { upload, calls } = controllableUploader()
+    const queue = new UploadQueue(upload, LIMITS)
+    queue.add([file("broken.jpg"), file("flaky.jpg")])
+    queue.start()
+    await flush()
+    calls[0].reject(
+      Object.assign(new Error("This file could not be processed."), {
+        error: { code: "processing_failed", retryable: false },
+      })
+    )
+    calls[1].reject(new Error("The upload was interrupted."))
+    await flush()
+    const [broken, flaky] = queue.getSnapshot()
+    expect(broken).toMatchObject({ status: "failed", retryable: false })
+    expect(flaky.status).toBe("failed")
+    expect(flaky.retryable).toBeUndefined()
+
+    queue.retry(broken.id)
+    queue.retryFailed()
+    await flush()
+    expect(statuses(queue)).toEqual([
+      "broken.jpg:failed",
+      "flaky.jpg:uploading",
+    ])
+    expect(calls).toHaveLength(3)
+  })
+})

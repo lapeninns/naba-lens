@@ -128,14 +128,14 @@ test.describe("release journey @core", () => {
     const seen = await uploadThroughDialog(staff, [jpeg, mp4, heic])
     for (const file of [jpeg, mp4, heic]) {
       const log = seen[file.name]
-      // Real technical states, in order, ending in Uploaded.
+      // Real technical states, in order, ending in Saved.
       expect(log, file.name).toEqual(
-        expect.arrayContaining(["Uploading", "Processing", "Uploaded"])
+        expect.arrayContaining(["Uploading", "Processing", "Saved"])
       )
       expect(log.indexOf("Uploading"), file.name).toBeLessThan(
         log.indexOf("Processing")
       )
-      expect(log.at(-1), file.name).toBe("Uploaded")
+      expect(log.at(-1), file.name).toBe("Saved")
     }
     const uploadsReadyAt = Date.now()
 

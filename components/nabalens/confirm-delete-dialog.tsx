@@ -7,6 +7,7 @@ import {
   WarningCircleIcon,
 } from "@phosphor-icons/react"
 
+import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -35,12 +36,21 @@ export type DeleteImpact =
   /** Counted in a closed month: "October 2026". */
   | { kind: "past"; monthName: string }
   | { kind: "none" }
+  /** Accepted for menu use for these dishes ("Momo (Veg)"); owner only. */
+  | { kind: "menu"; dishes: string[] }
 
 /** The neutral body for the owner when the impact is unknown. */
 export const DELETE_CONFIRM_COPY = `It's removed from your profile and from Photos. ${RETENTION_NOTE}`
 
 function firstName(name: string) {
   return name.trim().split(/\s+/)[0] || name
+}
+
+/** "Soup", "Soup and Pie", "Soup, Pie and Momo" */
+function joinNames(names: string[]) {
+  return names.length > 1
+    ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`
+    : (names[0] ?? "")
 }
 
 function ownBody(impact: DeleteImpact | undefined) {
@@ -54,6 +64,10 @@ function ownBody(impact: DeleteImpact | undefined) {
       return `${removed} ${impact.monthName} is closed, so your history keeps a note that a photo was removed and the month's result doesn't change. ${RETENTION_NOTE}`
     case "none":
       return `${removed} It isn't counting toward any task. ${RETENTION_NOTE}`
+    case "menu": {
+      const one = impact.dishes.length === 1
+      return `${removed} It's the accepted menu photo for ${joinNames(impact.dishes)}, so ${one ? "that dish" : "those dishes"} may need a new photo. ${RETENTION_NOTE}`
+    }
     default:
       return DELETE_CONFIRM_COPY
   }
@@ -99,6 +113,7 @@ export function ConfirmDeleteDialog({
 }: ConfirmDeleteDialogProps) {
   const [pending, setPending] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const sessionEnded = useSessionEndedCatch()
   const noun = mediaType === "video" ? "video" : "photo"
 
   async function confirm() {
@@ -112,8 +127,10 @@ export function ConfirmDeleteDialog({
         return
       }
       onOpenChange(false)
-    } catch {
-      setError(`We couldn't delete this ${noun}. Try again.`)
+    } catch (cause) {
+      setError(
+        sessionEnded(cause) ?? `We couldn't delete this ${noun}. Try again.`
+      )
     } finally {
       setPending(false)
     }

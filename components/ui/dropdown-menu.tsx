@@ -5,6 +5,12 @@ import { Menu as MenuPrimitive } from "@base-ui/react/menu"
 import { cn } from "@/lib/utils"
 import { CaretRightIcon, CheckIcon } from "@phosphor-icons/react"
 
+// Keyboard focus on an item: the project's focus outline, inset because the
+// popup scrolls (and so clips anything outside an item). The focus tint alone
+// is about 1.2:1 against the menu, below WCAG 1.4.11's 3:1.
+const ITEM_FOCUS =
+  "focus-visible:outline-3 focus-visible:-outline-offset-3 focus-visible:outline-focus focus-visible:outline-solid"
+
 function DropdownMenu({ ...props }: MenuPrimitive.Root.Props) {
   return <MenuPrimitive.Root data-slot="dropdown-menu" {...props} />
 }
@@ -91,6 +97,7 @@ function DropdownMenuItem({
       data-variant={variant}
       className={cn(
         "group/dropdown-menu-item relative flex min-h-11 cursor-default items-center gap-2.5 rounded-control px-3 py-2 text-body outline-hidden select-none focus:bg-surface-2 focus:text-ink not-data-[variant=destructive]:focus:**:text-ink data-inset:pl-9 data-[variant=destructive]:text-warn-fg data-[variant=destructive]:focus:bg-warn-bg data-[variant=destructive]:focus:text-warn-fg data-disabled:pointer-events-none data-disabled:opacity-60 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-5 data-[variant=destructive]:*:[svg]:text-warn-fg",
+        ITEM_FOCUS,
         className
       )}
       {...props}
@@ -116,6 +123,7 @@ function DropdownMenuSubTrigger({
       data-inset={inset}
       className={cn(
         "flex min-h-11 cursor-default items-center gap-2.5 rounded-control px-3 py-2 text-body outline-hidden select-none focus:bg-fill-hover focus:text-ink not-data-[variant=destructive]:focus:**:text-ink data-inset:pl-9 data-popup-open:bg-fill-hover data-popup-open:text-ink data-open:bg-fill-hover data-open:text-ink [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-5",
+        ITEM_FOCUS,
         className
       )}
       {...props}
@@ -165,6 +173,7 @@ function DropdownMenuCheckboxItem({
       data-inset={inset}
       className={cn(
         "relative flex min-h-11 cursor-default items-center gap-2.5 rounded-control py-2 pr-10 pl-3 text-body outline-hidden select-none focus:bg-surface-2 focus:text-ink focus:**:text-ink data-inset:pl-9 data-disabled:pointer-events-none data-disabled:opacity-60 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-5",
+        ITEM_FOCUS,
         className
       )}
       checked={checked}
@@ -206,6 +215,7 @@ function DropdownMenuRadioItem({
       data-inset={inset}
       className={cn(
         "relative flex min-h-11 cursor-default items-center gap-2.5 rounded-control py-2 pr-10 pl-3 text-body outline-hidden select-none focus:bg-surface-2 focus:text-ink focus:**:text-ink data-inset:pl-9 data-disabled:pointer-events-none data-disabled:opacity-60 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-5",
+        ITEM_FOCUS,
         className
       )}
       {...props}

@@ -9,6 +9,7 @@ import {
   grantVenueManagerAction,
   revokeVenueManagerAction,
 } from "@/app/_coverage/actions"
+import { failureText } from "@/components/nabalens/coverage/copy"
 import { CoverageNotice } from "@/components/nabalens/coverage/coverage-notice"
 import { ReasonDialog } from "@/components/nabalens/coverage/reason-dialog"
 import type {
@@ -500,12 +501,24 @@ export function ManagersView({
             )
           )
           if (result.ok) return { ok: true }
+          if (result.code === "network") {
+            return {
+              ok: false,
+              error: result.sessionEnded
+                ? result.message
+                : MANAGERS_COPY.revoke.notConfirmed(
+                    target.staff.displayName,
+                    target.venue.name
+                  ),
+            }
+          }
           if (action.reportedOnPage(result)) return REPORTED
           return {
             ok: false,
             error: MANAGERS_COPY.revoke.nothingChanged(
               target.staff.displayName,
-              target.venue.name
+              target.venue.name,
+              failureText(result)
             ),
             fieldError:
               "fieldErrors" in result ? result.fieldErrors?.reason : undefined,

@@ -1,6 +1,8 @@
 // Public types for the browser upload transport. Client-only; no React and no
 // server imports. See docs/upload-transport.md for the full contract.
 
+import type { MediaLabelSummary, SaveLabelsErrorCode } from "../menus/types"
+
 export type MediaKind = "image" | "video"
 
 /**
@@ -62,8 +64,18 @@ export type ReserveResult = {
 
 export type FinaliseInput = { assetId: string; idempotencyKey: string }
 
+/**
+ * What finalise did with labels the person chose while the file was still
+ * uploading (stored on the server against the reserved asset). Present only
+ * when such labels existed.
+ */
+export type FinaliseLabels =
+  | { state: "saved"; labels: MediaLabelSummary }
+  | { state: "needs_attention"; code: SaveLabelsErrorCode; message: string }
+
 export type FinaliseResult =
-  { state: "ready" } | { state: "failed"; error?: string }
+  | { state: "ready"; labels?: FinaliseLabels }
+  | { state: "failed"; error?: string }
 
 export type ReserveFn = (input: ReserveInput) => Promise<ReserveResult>
 export type FinaliseFn = (input: FinaliseInput) => Promise<FinaliseResult>
@@ -109,6 +121,8 @@ export type UploadResult = {
   assetId: string | null
   state: "ready" | "failed"
   error?: UploadError
+  /** From finalise, when labels were waiting for this asset. */
+  labels?: FinaliseLabels
 }
 
 export type UploadFn = (
@@ -134,10 +148,22 @@ export type UploadContext = {
    * evidence never appears in the organisation community. Omitted: general.
    */
   purpose?: UploadPurpose
+  /**
+   * Called once the server has reserved the asset (its ID is known).
+   * `resumed`: the reservation is an earlier upload of the same file (picked
+   * again, for example after a reload), so the server may already keep or
+   * show labels for it.
+   */
+  onReserved?: (assetId: string, resumed?: boolean) => void
+  /**
+   * The signed-in account. Resume keys are kept per account, so another
+   * account on the same device never reuses them. Omitted: not scoped.
+   */
+  account?: string
 }
 
 /** Injected upload function. Resolve when the asset is ready; reject on failure. */
 export type Uploader = (
   file: File,
   context: UploadContext
-) => Promise<void | { assetId: string }>
+) => Promise<void | { assetId: string; labels?: FinaliseLabels }>

@@ -360,7 +360,8 @@ describe("idempotency", () => {
 
     storage.fault = () => "pass"
     const second = await upload(video(), { idempotencyKey: "same" })
-    // Even a third call after success stays on the same asset and is a no-op.
+    // Even a third call after success stays on the same asset: no transfer,
+    // only finalise asked what became of its labels.
     const third = await upload(video(), { idempotencyKey: "same" })
 
     expect(first.assetId).toBe("asset-1")
@@ -368,7 +369,7 @@ describe("idempotency", () => {
     expect(third).toEqual({ assetId: "asset-1", state: "ready" })
     expect(backend.calls.reserve).toHaveLength(3)
     expect(backend.assets.size).toBe(1)
-    expect(backend.calls.finalise).toHaveLength(1)
+    expect(backend.calls.finalise).toHaveLength(2)
     expect(posts()).toHaveLength(1)
   })
 

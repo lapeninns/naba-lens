@@ -1,6 +1,5 @@
 import Link from "next/link"
 
-import { logout } from "@/app/_media/actions"
 import { AppShell } from "@/components/nabalens/app-shell"
 import { Card } from "@/components/nabalens/common-room"
 import { ManageNav, type ManageSection } from "@/components/nabalens/coverage"
@@ -9,6 +8,7 @@ import { buttonVariants } from "@/components/ui/button"
 import type { CoverageFailure } from "@/lib/server/coverage/types"
 import { periodKeyOf, periodView } from "@/lib/server/coverage/time"
 
+import { currentStaffShell } from "../../_shell/shell-status"
 import { readVenueCoverage, unexpected, type ManageContext } from "./context"
 
 /** "November 2026" in UK time, for the scope line. */
@@ -45,9 +45,12 @@ export async function ManageFrame({
   pendingReview?: number
   children: React.ReactNode
 }) {
+  const [shell, read] = await Promise.all([
+    ctx.mode === "manager" ? currentStaffShell() : null,
+    pendingReview === undefined ? readVenueCoverage(ctx) : null,
+  ])
   let reviewCount = pendingReview
-  if (reviewCount === undefined) {
-    const read = await readVenueCoverage(ctx)
+  if (read) {
     if (!read.ok) return <RefusedPage ctx={ctx} failure={read} />
     reviewCount = read.coverage.summary.pendingReview
   }
@@ -77,22 +80,19 @@ export async function ManageFrame({
   )
 
   return ctx.mode === "admin" ? (
-    <AppShell
-      variant="admin"
-      active="coverage"
-      userName={ctx.viewerName}
-      logoutAction={logout}
-    >
+    <AppShell variant="admin" active="coverage" userName={ctx.viewerName}>
       {body}
     </AppShell>
   ) : (
+    // This page has just proved the grant and read the venue's count, so they
+    // win over the shared status (same source, possibly a later read).
     <AppShell
       variant="staff"
       active="manage"
+      {...shell}
       canManage
       reviewCount={reviewCount}
       userName={ctx.viewerName}
-      logoutAction={logout}
     >
       {body}
     </AppShell>
@@ -102,21 +102,18 @@ export async function ManageFrame({
 /**
  * Staff without an effective manager grant: never granted, revoked, moved
  * venue or deactivated. The services don't tell staff why a grant ended, so
- * one version covers every case.
+ * one version covers every case. New grants go to venue manager accounts
+ * only, so the way in is an account change, never a grant to this account.
  */
-export function NotManagerPage({ viewerName }: { viewerName: string }) {
+export async function NotManagerPage({ viewerName }: { viewerName: string }) {
+  const shell = await currentStaffShell()
   return (
-    <AppShell
-      variant="staff"
-      active="manage"
-      userName={viewerName}
-      logoutAction={logout}
-    >
+    <AppShell variant="staff" active="manage" {...shell} userName={viewerName}>
       <PageHeader scope={currentMonthLabel()} title="Manage isn't available" />
       <Card className="max-w-(--size-reading) text-body">
         <p>
-          Manage is for venue managers. An admin can make you a venue manager
-          for your venue.
+          Manage is for venue managers. To manage your venue, ask an admin to
+          change your account to a venue manager account.
         </p>
         <p className="text-ink-muted">
           You still have Home, Photos, Add, People and Me.

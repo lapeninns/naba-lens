@@ -1,9 +1,8 @@
-import { logout } from "@/app/_media/actions"
 import { AppShell } from "@/components/nabalens/app-shell"
 import { requireActiveStaff } from "@/lib/auth"
-import { getCoverageActor, getCoverageScope } from "@/lib/server/coverage"
-import { avatarUrl } from "@/lib/server/media/library"
+import { getCoverageActor } from "@/lib/server/coverage"
 
+import { staffShellStatus } from "../../../_shell/shell-status"
 import { TASKS_PATH, unwrap } from "../../result"
 import { CaptureScreen } from "../_capture/screen"
 
@@ -22,25 +21,28 @@ export default async function AmenityCapturePage({
   const profile = await requireActiveStaff()
   const { checkId } = await params
   const { actor } = unwrap(await getCoverageActor())
-  const { scope } = unwrap(await getCoverageScope(actor))
+  // CaptureScreen is an async server component without hooks. Calling it here
+  // starts the check's reads alongside the shell's instead of after them.
+  const [shell, screen] = await Promise.all([
+    staffShellStatus(actor, profile),
+    CaptureScreen({
+      actor,
+      checkId,
+      mode: "staff",
+      venueName: profile.venue?.name ?? null,
+      backHref: TASKS_PATH,
+      backLabel: "Home",
+      doneHref: TASKS_PATH,
+    }),
+  ])
   return (
     <AppShell
       variant="staff"
       active="tasks"
-      canManage={scope.canManageVenue}
+      {...shell}
       userName={profile.displayName}
-      avatarUrl={avatarUrl(profile.id, profile.avatarPath)}
-      logoutAction={logout}
     >
-      <CaptureScreen
-        actor={actor}
-        checkId={checkId}
-        mode="staff"
-        venueName={profile.venue?.name ?? null}
-        backHref={TASKS_PATH}
-        backLabel="Home"
-        doneHref={TASKS_PATH}
-      />
+      {screen}
     </AppShell>
   )
 }

@@ -9,6 +9,7 @@ import {
   StarIcon,
 } from "@phosphor-icons/react"
 
+import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { failureText, needsRefresh } from "@/components/nabalens/coverage/copy"
 import { SelfReviewBadge } from "@/components/nabalens/coverage/coverage-badges"
 import {
@@ -86,8 +87,9 @@ export type LoadCandidatesHandler = (
   cursor: string
 ) => Promise<CoverageResult<Page<ItemPhotoCandidate>>>
 
+/** The reply was lost: the decision may be saved. The request id is kept. */
 const NETWORK_ERROR =
-  "Could not reach the server. Check your connection and try again; the photo will not be reviewed twice."
+  "We couldn't confirm the decision was saved. Check your connection, then try again or refresh to see if it was. The photo won't be reviewed twice."
 
 type Dialog =
   | { kind: "better"; candidate: ItemPhotoCandidate }
@@ -168,6 +170,7 @@ export function ItemPhotoReview({
   const [dialog, setDialog] = React.useState<Dialog | null>(null)
   const [loading, setLoading] = React.useState(false)
   const [loadError, setLoadError] = React.useState<string | null>(null)
+  const sessionEnded = useSessionEndedCatch()
   const noticeRef = React.useRef<HTMLDivElement>(null)
   const listRef = React.useRef<HTMLDivElement>(null)
   const focusNoticeRef = React.useRef(false)
@@ -239,12 +242,10 @@ export function ItemPhotoReview({
       focusNoticeRef.current = action === "accept" || action === "primary"
       setNotice({ tone: "success", text: onSuccess(result) })
       return { ok: true }
-    } catch {
-      setItemErrors((current) => ({
-        ...current,
-        [candidate.labelId]: NETWORK_ERROR,
-      }))
-      return { ok: false, error: NETWORK_ERROR }
+    } catch (cause) {
+      const text = sessionEnded(cause) ?? NETWORK_ERROR
+      setItemErrors((current) => ({ ...current, [candidate.labelId]: text }))
+      return { ok: false, error: text }
     } finally {
       setPending(null)
     }
@@ -397,7 +398,8 @@ export function ItemPhotoReview({
         return [...current, ...result.items.filter((c) => !seen.has(c.labelId))]
       })
       setCursor(result.nextCursor)
-    } catch {
+    } catch (cause) {
+      sessionEnded(cause)
       setLoadError("More photos could not load. Try again.")
     } finally {
       setLoading(false)

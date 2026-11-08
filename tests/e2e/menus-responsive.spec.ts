@@ -16,9 +16,9 @@ import { supportedMp4, syntheticJpeg } from "./helpers/media"
 import { requireIsolatedStack } from "./helpers/stack"
 import {
   chooseOption,
-  escape,
   portfolioList,
   staffTile,
+  uploadSheet,
   uploadThroughDialog,
 } from "./helpers/ui"
 import {
@@ -282,29 +282,46 @@ for (const width of WIDTHS) {
     const photo = await syntheticJpeg(`qa-rsp-up-${width}-${world.tag}.jpg`)
     const video = supportedMp4(`qa-rsp-up-${width}-${world.tag}.mp4`)
     await page.keyboard.press("Escape")
+    // The batch labels live in the "Saving 2 files" sheet itself.
     await uploadThroughDialog(page, [photo, video], { close: false })
-    await page
-      .getByRole("dialog", { name: "Upload photos or videos" })
-      .getByRole("button", { name: "Label these files" })
-      .click()
-    const batch = page.getByRole("dialog", { name: "Labels", exact: true })
+    const batch = uploadSheet(page)
     await batch
       .getByRole("combobox", {
-        name: new RegExp(
-          `^Menu item at ${escape(world.venue1.name)}\\b.* for all files$`
-        ),
+        name: "What's in these photos? (optional) for all files",
       })
       .fill("momo")
     await batch.getByRole("option", { name: /^Momo Appetisers/ }).click()
     await check(page, width, "label-editor-batch-variant", batch)
-    await batch.getByRole("button", { name: "Chicken" }).click()
+    await batch
+      .getByRole("group", { name: /^Which Momo\?/ })
+      .getByRole("button", { name: "Chicken" })
+      .click()
     await batch
       .getByRole("button", { name: "Adjust labels for video 2" })
       .click()
+    await expect(
+      batch.getByRole("combobox", {
+        name: `Menu item at ${world.venue1.name} (optional) for video 2`,
+      })
+    ).toBeVisible()
     await check(page, width, "label-editor-batch-adjust", batch)
-    await batch
-      .getByRole("button", { name: "Save labels", exact: true })
-      .click()
+    // No Save button: each file's labels are sent by asset id, and its row
+    // says "Saved" with the dish once they are on it.
+    const savedRow = (name: string) =>
+      batch
+        .getByRole("list", { name: "Files" })
+        .getByRole("listitem")
+        .filter({ has: page.getByText(name, { exact: true }) })
+    await expect(savedRow(photo.name)).toContainText(
+      "Saved · Momo (Chicken) · waiting for manager review"
+    )
+    // Managers review photos only: the video keeps its dish, not the promise.
+    await expect(savedRow(video.name)).toContainText("Saved · Momo (Chicken)")
+    await expect(savedRow(video.name)).not.toContainText(
+      "waiting for manager review"
+    )
+    await expect(batch.getByRole("status")).toHaveText("2 saved")
+    await batch.getByRole("button", { name: "Done" }).click()
     await expect(batch).toBeHidden()
     await page.context().close()
   })
@@ -376,17 +393,29 @@ test("touch (Pixel 7 emulation): upload, label with taps, labels persist", async
   await page.goto("/staff")
   const photo = await syntheticJpeg(`qa-touch-${world.tag}.jpg`)
   await uploadThroughDialog(page, [photo], { close: false })
-  await page
-    .getByRole("dialog", { name: "Upload photos or videos" })
-    .getByRole("button", { name: "Label this file" })
+  // Labels in the sheet itself: the content type under "More details" first,
+  // the dish last, so the row's "Saved · Garlic Mushroom" proves both are on
+  // the photo (labels are sent by asset id; there is no Save button).
+  const editor = uploadSheet(page)
+  await editor.getByRole("button", { name: "More details" }).tap()
+  await editor
+    .getByRole("group", { name: /^What's in the photo \(up to \d+\)$/ })
+    .getByRole("button", { name: "Plating" })
     .tap()
-  const editor = page.getByRole("dialog", { name: "Labels" })
-  await editor.getByRole("combobox", { name: /^Menu item at / }).fill("garlic")
+  await editor
+    .getByRole("combobox", { name: "What's in these photos? (optional)" })
+    .fill("garlic")
   await editor
     .getByRole("option", { name: /^Garlic Mushroom Appetisers/ })
     .tap()
-  await editor.getByRole("button", { name: "Plating" }).tap()
-  await editor.getByRole("button", { name: /^Save labels/ }).tap()
+  await expect(
+    editor
+      .getByRole("list", { name: "Files" })
+      .getByRole("listitem")
+      .filter({ has: page.getByText(photo.name, { exact: true }) })
+  ).toContainText("Saved · Garlic Mushroom · waiting for manager review")
+  await expect(editor.getByRole("status")).toHaveText("1 saved")
+  await editor.getByRole("button", { name: "Done" }).tap()
   await expect(editor).toBeHidden()
   await page.reload()
   await expect(

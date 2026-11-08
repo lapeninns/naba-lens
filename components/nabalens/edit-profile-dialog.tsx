@@ -2,6 +2,7 @@
 
 import * as React from "react"
 
+import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import {
   DEPARTMENT_OPTIONS,
   isDepartment,
@@ -109,6 +110,7 @@ function EditProfileForm({
   const [avatarFile, setAvatarFile] = React.useState<File | null>(null)
   const [avatarError, setAvatarError] = React.useState<string | null>(null)
   const [result, setResult] = React.useState<ActionResult | null>(null)
+  const sessionEnded = useSessionEndedCatch()
   const avatarPreview = useObjectUrl(avatarFile)
   const ids = {
     name: React.useId(),
@@ -153,10 +155,11 @@ function EditProfileForm({
       const outcome = await onSubmit(values)
       setResult(outcome)
       if (outcome.ok) onOpenChange(false)
-    } catch {
+    } catch (cause) {
       setResult({
         ok: false,
-        error: "Your changes could not be saved. Try again.",
+        error:
+          sessionEnded(cause) ?? "Your changes could not be saved. Try again.",
       })
     } finally {
       setPending(false)

@@ -2,6 +2,7 @@
 
 import * as React from "react"
 
+import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { Button } from "@/components/ui/button"
 import { Field, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
@@ -33,6 +34,7 @@ export function ManagerAccountForm({
   const [pending, setPending] = React.useState(false)
   const [fieldError, setFieldError] = React.useState<string | null>(null)
   const [result, setResult] = React.useState<ActionResult | null>(null)
+  const sessionEnded = useSessionEndedCatch()
   const nameId = React.useId()
   const errorId = React.useId()
 
@@ -51,8 +53,8 @@ export function ManagerAccountForm({
       setResult(outcome)
       if (outcome.ok) setDisplayName(trimmed)
       else setFieldError(outcome.fieldErrors?.displayName ?? null)
-    } catch {
-      setResult({ ok: false, error: COPY.saveFailed })
+    } catch (cause) {
+      setResult({ ok: false, error: sessionEnded(cause) ?? COPY.saveFailed })
     } finally {
       setPending(false)
     }

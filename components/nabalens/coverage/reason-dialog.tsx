@@ -3,6 +3,7 @@
 import * as React from "react"
 import { SpinnerGapIcon, WarningCircleIcon } from "@phosphor-icons/react"
 
+import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -161,6 +162,7 @@ export function ReasonDialog({
   const [pending, setPending] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [fieldError, setFieldError] = React.useState<string | null>(null)
+  const sessionEnded = useSessionEndedCatch()
 
   function close(next: boolean) {
     if (pending) return
@@ -192,9 +194,12 @@ export function ReasonDialog({
       reportedRef.current = !outcome.ok || reportFocusOnSuccess === true
       setReason("")
       onOpenChange(false)
-    } catch {
+    } catch (cause) {
+      // Refused for the ended session; otherwise the reply was lost, not
+      // refused, and the change may have been saved.
       setError(
-        "Could not reach the server. Check your connection and try again."
+        sessionEnded(cause) ??
+          "We couldn't confirm this was saved. Check your connection, then try again or refresh to see if it was."
       )
     } finally {
       setPending(false)

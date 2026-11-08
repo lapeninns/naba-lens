@@ -642,7 +642,7 @@ describe("catalogue lifecycle", () => {
       name: "Royal Korma",
       variantName: "Lamb shoulder",
       sectionName: "House Curries",
-      labelledAs: "Korma, Lamb",
+      labelledAs: "Korma (Lamb)",
       state: "current",
     })
     expect(byItem[rows["curries--saag"].itemId]).toMatchObject({
@@ -795,5 +795,45 @@ describe("Server Functions", () => {
     const map = await loadLabelSummaries(actor.db, ids)
     expect([...map.keys()]).toEqual([photo.id])
     expect(map.get(photo.id)?.contentTypes).toEqual(["team"])
+  })
+})
+
+describe("A2: a dish with variants saved without one", () => {
+  it("is marked unspecified in summaries; a dish without variants is not", async () => {
+    const photo = await reserveReady(service, staffA, "image")
+    const actor = await as(staffA)
+    const momo = railway["appetisers--momo-veg-chicken"]
+    const plain = Object.values(railway).find((r) => r.variants.length === 0)!
+    const saved = await saveAssetLabels(
+      actor,
+      input(photo.id, {
+        catalogueVersionId: railwayVersion,
+        items: [ref(momo), ref(plain)],
+      })
+    )
+    expect(saved.ok).toBe(true)
+    const items = (await loadLabelSummaries(actor.db, [photo.id])).get(
+      photo.id
+    )!.items
+    const byItem = Object.fromEntries(items.map((i) => [i.itemId, i]))
+    expect(byItem[momo.itemId]).toMatchObject({
+      variantId: null,
+      variantName: null,
+      unspecified: true,
+    })
+    expect(byItem[plain.itemId].unspecified).toBeUndefined()
+
+    // With a variant it is named by the variant instead.
+    const again = await saveAssetLabels(
+      actor,
+      input(photo.id, {
+        expectedRevision: 1,
+        catalogueVersionId: railwayVersion,
+        items: [ref(momo, 0)],
+      })
+    )
+    expect(again.ok && again.labels.items).toEqual([
+      expect.not.objectContaining({ unspecified: true }),
+    ])
   })
 })
