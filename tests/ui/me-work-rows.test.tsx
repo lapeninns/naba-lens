@@ -136,6 +136,8 @@ import {
   betterPhotoRequests,
   photoMilestone,
   photosNeedingLabels,
+  PROFILE_SAVE_COPY,
+  saveProfile,
   StaffPortfolio,
 } from "@/app/staff/staff-portfolio"
 import StaffPage from "@/app/staff/page"
@@ -483,5 +485,95 @@ describe("Me: Needs labels and milestones", () => {
     expect(
       photosNeedingLabels(Array.from({ length: 14 }, (_, i) => item(`x${i}`)))
     ).toHaveLength(10)
+  })
+})
+
+describe("Me: saving the profile", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  const values = { displayName: "Anil Thapa", avatarFile: null }
+  const html = (status: number) =>
+    new Response("<html><body>Error</body></html>", {
+      status,
+      headers: { "content-type": "text/html" },
+    })
+
+  it("says what an HTML error page means, not a connection problem", async () => {
+    const fetch = vi.fn()
+    vi.stubGlobal("fetch", fetch)
+
+    fetch.mockResolvedValueOnce(html(413))
+    expect(await saveProfile(values)).toEqual({
+      ok: false,
+      error: PROFILE_SAVE_COPY.tooLarge,
+      fieldErrors: { avatar: PROFILE_SAVE_COPY.tooLarge },
+    })
+    expect(PROFILE_SAVE_COPY.tooLarge).toBe(
+      "This photo is too large. Profile photos can be up to 4.0 MB."
+    )
+
+    fetch.mockResolvedValueOnce(html(504))
+    expect(await saveProfile(values)).toEqual({
+      ok: false,
+      error: "Saving took too long, so it may not have finished. Try again.",
+    })
+
+    fetch.mockResolvedValueOnce(html(401))
+    expect(await saveProfile(values)).toEqual({
+      ok: false,
+      error: "Sign in again, then try again.",
+    })
+
+    fetch.mockResolvedValueOnce(html(500))
+    expect(await saveProfile(values)).toEqual({
+      ok: false,
+      error: "Your changes could not be saved. Try again.",
+    })
+
+    fetch.mockRejectedValueOnce(new TypeError("Failed to fetch"))
+    expect(await saveProfile(values)).toEqual({
+      ok: false,
+      error: "Could not save. Check your connection.",
+    })
+  })
+
+  it("passes on the route's own JSON answer", async () => {
+    const answer = {
+      ok: false,
+      error: "Enter a display name.",
+      fieldErrors: { displayName: "Enter a display name." },
+    }
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Response.json(answer, { status: 400 }))
+    )
+    expect(await saveProfile(values)).toEqual(answer)
+  })
+
+  it("confirms a saved profile on Me until Edit profile opens again", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Response.json({ ok: true }))
+    )
+    library.items = []
+    render(
+      await StaffPage({ searchParams: Promise.resolve({ edit: "profile" }) })
+    )
+    expect(screen.queryByText("Profile saved.")).toBeNull()
+    const dialog = screen.getByRole("dialog", { name: "Edit profile" })
+    await act(async () => {
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Save changes" })
+      )
+    })
+    expect(screen.queryByRole("dialog", { name: "Edit profile" })).toBeNull()
+    expect(
+      screen.getByText("Profile saved.").closest("[role=status]")
+    ).toBeTruthy()
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit profile" }))
+    expect(screen.queryByText("Profile saved.")).toBeNull()
   })
 })

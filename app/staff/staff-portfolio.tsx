@@ -33,6 +33,7 @@ import {
   type ProfileFormValues,
 } from "@/components/nabalens"
 import type { MediaItem } from "@/components/nabalens/types"
+import { formatBytes } from "@/components/nabalens/format"
 import { GUIDE_PATH } from "@/components/nabalens/guide"
 import { CountBadge, StatusChip } from "@/components/nabalens/status-chip"
 import {
@@ -51,6 +52,7 @@ import { LABEL_LIMITS } from "@/lib/menus/types"
 
 import { loadMyMedia } from "./actions"
 import { NeedsAttention } from "./needs-attention"
+import { SIGNED_OUT_MESSAGE } from "./needs-attention-api"
 
 type StaffPortfolioProps = {
   profile: {
@@ -121,16 +123,53 @@ function refreshMyMedia(signal: AbortSignal, cursor?: string | null) {
   return fetchMediaPage("/api/portfolio", { cursor }, signal)
 }
 
-async function saveProfile(values: ProfileFormValues): Promise<ActionResult> {
+export const PROFILE_SAVE_COPY = {
+  saved: "Profile saved.",
+  offline: "Could not save. Check your connection.",
+  tooLarge: `This photo is too large. Profile photos can be up to ${formatBytes(MEDIA_LIMITS.maxAvatarBytes)}.`,
+  timeout: "Saving took too long, so it may not have finished. Try again.",
+  failed: "Your changes could not be saved. Try again.",
+} as const
+
+/**
+ * Saves name and photo through /api/profile. The route answers in JSON; an
+ * HTML page instead comes from the platform in front of it (a body over its
+ * size limit, a timeout), so the status says what happened, not the network.
+ */
+export async function saveProfile(
+  values: ProfileFormValues
+): Promise<ActionResult> {
   const body = new FormData()
   body.set("displayName", values.displayName)
   if (values.avatarFile) body.set("avatar", values.avatarFile)
+  let response: Response
   try {
-    const response = await fetch("/api/profile", { method: "POST", body })
-    const result = (await response.json()) as ActionResult
-    return result
+    response = await fetch("/api/profile", { method: "POST", body })
   } catch {
-    return { ok: false, error: "Could not save. Check your connection." }
+    return { ok: false, error: PROFILE_SAVE_COPY.offline }
+  }
+  const result: unknown = await response.json().catch(() => null)
+  if (
+    result &&
+    typeof result === "object" &&
+    "ok" in result &&
+    typeof result.ok === "boolean"
+  )
+    return result as ActionResult
+  switch (response.status) {
+    case 401:
+      return { ok: false, error: SIGNED_OUT_MESSAGE }
+    case 413:
+      return {
+        ok: false,
+        error: PROFILE_SAVE_COPY.tooLarge,
+        fieldErrors: { avatar: PROFILE_SAVE_COPY.tooLarge },
+      }
+    case 408:
+    case 504:
+      return { ok: false, error: PROFILE_SAVE_COPY.timeout }
+    default:
+      return { ok: false, error: PROFILE_SAVE_COPY.failed }
   }
 }
 
@@ -425,6 +464,8 @@ export function StaffPortfolio({
   const [editOpen, setEditOpen] = React.useState(initialEditOpen)
   // Closing drops `?edit=profile`, so Back, Forward or a reload to this entry
   // does not open Edit profile again.
+  // Shown after a save until Edit profile opens again.
+  const [profileSaved, setProfileSaved] = React.useState(false)
   const onEditOpenChange = React.useCallback((open: boolean) => {
     setEditOpen(open)
     if (open) return
@@ -511,7 +552,10 @@ export function StaffPortfolio({
             <Button
               variant="secondary"
               size="touch"
-              onClick={() => setEditOpen(true)}
+              onClick={() => {
+                setProfileSaved(false)
+                setEditOpen(true)
+              }}
             >
               <PencilSimpleIcon data-icon="inline-start" aria-hidden />
               Edit profile
@@ -520,6 +564,9 @@ export function StaffPortfolio({
           </>
         }
       />
+      {profileSaved ? (
+        <Notice tone="positive">{PROFILE_SAVE_COPY.saved}</Notice>
+      ) : null}
       {manage ? (
         <ManageRow
           venueName={manage.venueName}
@@ -700,7 +747,10 @@ export function StaffPortfolio({
         maxAvatarBytes={MEDIA_LIMITS.maxAvatarBytes}
         onSubmit={async (values) => {
           const result = await saveProfile(values)
-          if (result.ok) router.refresh()
+          if (result.ok) {
+            setProfileSaved(true)
+            router.refresh()
+          }
           return result
         }}
       />
