@@ -1,7 +1,13 @@
 import { readFileSync } from "node:fs"
 import { fileURLToPath } from "node:url"
 
-import { expect, test, type Locator, type Page } from "@playwright/test"
+import {
+  expect,
+  test,
+  type Locator,
+  type Page,
+  type Route,
+} from "@playwright/test"
 
 import { isFinalise } from "../fixtures/uploads/support"
 import { signIn, type Db } from "../support/identities"
@@ -899,12 +905,37 @@ test("rows 12+13: label filters combine with venue/staff/type, search and dates;
       .getByRole("option", { name: /Onion Bhaji/ })
       .first()
       .click()
+    // Hold the Photos navigation: while it is on its way, the results still
+    // on screen (all media types, also a full first page) must not take a
+    // Load more whose page the new list would drop (a CI flake before).
+    let release = () => {}
+    const held = new Promise<void>((resolve) => (release = resolve))
+    const photosNavigation = (url: URL) =>
+      url.pathname === "/admin" &&
+      url.searchParams.get("type") === "image" &&
+      url.searchParams.has("_rsc")
+    const hold = async (route: Route) => {
+      await held
+      await route.continue()
+    }
+    await admin.route(photosNavigation, hold)
     await admin
       .getByRole("group", { name: "Media type" })
       .getByRole("button", { name: "Photos", exact: true })
       .click()
-    await expect(admin).toHaveURL(new RegExp(`item=${onion}`))
+    // The outgoing list's Load more is still drawn, but inert: it takes no
+    // click (Playwright's role queries still list inert elements).
+    const outgoing = admin.locator('[aria-busy="true"][inert]')
+    await expect(outgoing).toHaveCount(1)
+    await expect(
+      outgoing.getByRole("button", { name: /^Load more/ })
+    ).toHaveCount(1)
+    release()
+    await expect(admin).toHaveURL(
+      new RegExp(`type=image.*item=${onion}|item=${onion}.*type=image`)
+    )
     await expect(tiles).toHaveCount(24)
+    await admin.unroute(photosNavigation, hold)
     await admin.getByRole("button", { name: /^Load more/ }).click()
     await expect(tiles).toHaveCount(26)
     await expect(admin.getByText("All 26 shown")).toBeVisible()

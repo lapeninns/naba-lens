@@ -89,7 +89,14 @@ export function AdminLibrary({
         menuOptions={menuOptions}
         onChange={navigate}
       />
-      <div aria-busy={pending} className={pending ? "opacity-60" : undefined}>
+      {/* While new filters load, the results on screen are on their way out:
+          inert, so Load more (or a tile) can't act on a list about to be
+          replaced, whose answer would be dropped. */}
+      <div
+        aria-busy={pending}
+        inert={pending}
+        className={pending ? "opacity-60" : undefined}
+      >
         <LibraryErrorBoundary>
           <React.Suspense fallback={<LibraryGridSkeleton />}>
             <LibraryResults
