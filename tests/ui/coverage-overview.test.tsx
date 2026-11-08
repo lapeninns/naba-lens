@@ -154,7 +154,10 @@ describe("OverviewBody", () => {
     expect(
       screen.getByText(/Preparing copies October’s targets at The Railway/)
     ).toBeTruthy()
-    expect(screen.getByText("2 November targets not set yet")).toBeTruthy()
+    const staff = screen.getByRole("region", { name: "Staff participation" })
+    expect(
+      within(staff).getByText("2 November targets not set yet")
+    ).toBeTruthy()
   })
 
   it("reports a failed preparation with a retry", () => {
@@ -196,6 +199,84 @@ describe("OverviewBody", () => {
     ).toBeTruthy()
     expect(screen.queryByText("Needs your attention")).toBeNull()
     expect(screen.getByText("Complete")).toBeTruthy()
+  })
+
+  it("lists staff who need setup under Needs your attention, never 'nothing needs setup'", () => {
+    body({
+      roster: [
+        monthly({
+          status: "needs_setup",
+          setupMissing: ["target"],
+          targetCount: null,
+        }),
+        monthly({
+          status: "needs_setup",
+          setupMissing: ["target"],
+          targetCount: null,
+        }),
+      ],
+      preparation: { kind: "unprepared" },
+    })
+    const staff = screen.getByRole("region", { name: "Staff participation" })
+    expect(
+      within(staff).getByText("2 November targets not set yet")
+    ).toBeTruthy()
+    const attention = screen.getByRole("region", {
+      name: "Needs your attention",
+    })
+    expect(
+      within(attention).queryByText(
+        "Nothing needs setup, reassignment or follow-up."
+      )
+    ).toBeNull()
+    const row = within(attention).getByRole("link", {
+      name: /2 people need setup/,
+    })
+    expect(row.getAttribute("href")).toBe(hrefs.team)
+    expect(within(row).getByText("2 November targets not set yet")).toBeTruthy()
+  })
+
+  it("isn't 'everything complete' while someone still needs setup", () => {
+    body({
+      summary: summary({
+        complete: true,
+        satisfied: 13,
+        needsSetup: 0,
+        pendingReview: 0,
+        overdue: 0,
+        amenityUnknown: 0,
+      }),
+      roster: [
+        monthly({ complete: true, accepted: 5 }),
+        monthly({
+          status: "needs_setup",
+          setupMissing: ["team"],
+          targetCount: null,
+        }),
+      ],
+    })
+    expect(
+      screen.queryByText(/Everything at The Railway is complete/)
+    ).toBeNull()
+    const attention = screen.getByRole("region", {
+      name: "Needs your attention",
+    })
+    expect(
+      within(attention).getByRole("link", { name: /1 person needs setup/ })
+    ).toBeTruthy()
+    expect(within(attention).getByText("No team assigned")).toBeTruthy()
+  })
+
+  it("says nothing needs setup only when no item or person does", () => {
+    body({ roster: [monthly({ complete: false, accepted: 1 })] })
+    const attention = screen.getByRole("region", {
+      name: "Needs your attention",
+    })
+    expect(
+      within(attention).getByText(
+        "Nothing needs setup, reassignment or follow-up."
+      )
+    ).toBeTruthy()
   })
 
   it("links to the full checklist when more than six need attention", () => {

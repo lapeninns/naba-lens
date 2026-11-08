@@ -224,7 +224,8 @@ export async function TeamScreen({
       {unprepared ? (
         <Notice tone="attention" title={`${name} isn't prepared yet`}>
           {monthName(shiftPeriod(period, -1))}&apos;s targets haven&apos;t been
-          copied yet. Preparing copies them; new starters show Needs setup.
+          copied yet. Preparing copies them; new starters show Needs setup. You
+          can still set targets below now: preparing keeps them.
         </Notice>
       ) : null}
       <MonthStepper

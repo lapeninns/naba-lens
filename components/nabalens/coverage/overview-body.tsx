@@ -163,8 +163,14 @@ export function OverviewBody({
 }) {
   const month = monthName(period.label)
   const shown = attention.slice(0, ATTENTION_SHOWN)
+  // People without a target or team need the manager too, even though they
+  // never count toward venue coverage.
+  const staffSetup = participation.needSetup
   const allDone =
-    summary.complete && attention.length === 0 && preparation.kind === "ready"
+    summary.complete &&
+    attention.length === 0 &&
+    staffSetup === 0 &&
+    preparation.kind === "ready"
   const checklistDone =
     summary.applicable > 0 && summary.satisfied === summary.applicable
   const staffNote =
@@ -316,7 +322,11 @@ export function OverviewBody({
         <CoverageSection
           id="attention"
           title="Needs your attention"
-          count={attention.length > 0 ? String(attention.length) : undefined}
+          count={
+            attention.length + (staffSetup > 0 ? 1 : 0) > 0
+              ? String(attention.length + (staffSetup > 0 ? 1 : 0))
+              : undefined
+          }
           action={
             attention.length > shown.length ? (
               <Link
@@ -328,8 +338,17 @@ export function OverviewBody({
             ) : undefined
           }
         >
-          {shown.length > 0 ? (
+          {shown.length > 0 || staffSetup > 0 ? (
             <ItemList label="Needs your attention">
+              {staffSetup > 0 ? (
+                <ItemRow
+                  title={`${plural(staffSetup, "person", "people")} ${staffSetup === 1 ? "needs" : "need"} setup`}
+                  href={hrefs.team}
+                  chip={<StatusChip state="needs_setup" />}
+                  issues={[staffNote]}
+                  meta={<span>Team</span>}
+                />
+              ) : null}
               {shown.map((r) => (
                 <AttentionRow
                   key={r.id}
