@@ -92,6 +92,34 @@ async function enterCode(page: Page, code: string) {
   await page.getByRole("button", { name: "Sign in with code" }).click()
 }
 
+/**
+ * Everything a page renders, links to or would submit: every text node outside
+ * scripts and styles (hidden ones too), every attribute (href, action, hidden
+ * inputs' values) and every form control's value. Not inline script text, which
+ * holds Next's flight data.
+ */
+function rendered(page: Page): Promise<string> {
+  return page.evaluate(() => {
+    const parts: string[] = [document.title]
+    const walker = document.createTreeWalker(document, NodeFilter.SHOW_TEXT)
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const parent = node.parentElement?.tagName
+      if (parent !== "SCRIPT" && parent !== "STYLE")
+        parts.push(node.nodeValue ?? "")
+    }
+    for (const el of Array.from(document.querySelectorAll("*"))) {
+      for (const attr of Array.from(el.attributes)) parts.push(attr.value)
+      if (
+        el instanceof HTMLInputElement ||
+        el instanceof HTMLTextAreaElement ||
+        el instanceof HTMLSelectElement
+      )
+        parts.push(el.value)
+    }
+    return parts.join("\n")
+  })
+}
+
 test.describe("deep links survive sign-in (AUTH-1)", () => {
   test("staff: link sign-in returns to the exact page and query", async ({
     page,
@@ -174,14 +202,27 @@ test.describe("deep links survive sign-in (AUTH-1)", () => {
     ]) {
       await page.goto(`/login?next=${encodeURIComponent(next)}`)
       await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible()
-      expect(await page.content(), next).not.toContain("evil.example")
-      expect(await page.content(), next).not.toContain("__pwned")
+      // Next's flight data (inline scripts) echoes the URL it was asked for;
+      // what matters is what the page shows, links to, submits or runs.
+      const shown = await rendered(page)
+      expect(shown, next).not.toContain("evil.example")
+      expect(shown, next).not.toContain("__pwned")
+      expect(await page.evaluate(() => "__pwned" in window), next).toBe(false)
       expect(await returnCookie(context), next).toBeUndefined()
     }
+    const visited: string[] = []
+    page.on("framenavigated", (frame) => {
+      if (frame === page.mainFrame()) visited.push(frame.url())
+    })
     await page.goto(`/login?next=${encodeURIComponent("//evil.example/staff")}`)
+    const origin = new URL(page.url()).origin
     const { code } = await requestSignIn(page, staff.email)
     await enterCode(page, code)
     await expect(page).toHaveURL(STAFF_LANDING)
+    // Never left this origin on the way, and landed on the plain home.
+    expect(visited.map((url) => new URL(url).origin)).toEqual(
+      visited.map(() => origin)
+    )
     expect(page.url()).not.toContain("evil.example")
     await context.close()
   })
