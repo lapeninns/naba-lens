@@ -104,7 +104,6 @@ function jsonBody(response, body) {
   }
 }
 
-/** fetchImpl is injectable for fixture-server tests; target validation is always on. */
 /**
  * A login redirect may say where to return (AUTH-1): no query, or exactly
  * one `next` naming the page that was asked for. Anything else (another
@@ -119,6 +118,7 @@ function returnsTo(target, path) {
   )
 }
 
+/** fetchImpl is injectable for fixture-server tests; target validation is always on. */
 export async function runProductionSmoke(
   rawOrigin,
   { fetchImpl = fetch } = {}
