@@ -88,13 +88,17 @@ function isPrefetch(request: NextRequest) {
   )
 }
 
-/** Carries the refreshed (or cleared) session cookies and no-cache headers. */
+/**
+ * Carries the refreshed (or cleared) session cookies and no-cache headers. The
+ * answer depends on the session and may set cookies, so no cache may keep it.
+ */
 function withSessionHeaders(from: NextResponse, to: NextResponse) {
   from.cookies.getAll().forEach((cookie) => to.cookies.set(cookie))
-  for (const header of ["cache-control", "expires", "pragma"]) {
+  for (const header of ["expires", "pragma"]) {
     const value = from.headers.get(header)
     if (value) to.headers.set(header, value)
   }
+  to.headers.set("cache-control", "private, no-store")
   return to
 }
 

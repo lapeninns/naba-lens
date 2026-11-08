@@ -6,14 +6,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { SESSION_ENDED_MESSAGE } from "@/lib/auth/session-ended"
 
-const session = vi.hoisted(() => ({ userId: null as string | null }))
+const session = vi.hoisted(() => ({
+  userId: null as string | null,
+  cacheHeaders: true,
+}))
 vi.mock("@/lib/supabase/proxy", () => ({
   updateSession: async (request: NextRequest) => {
     const response = NextResponse.next({ request })
     // What @supabase/ssr does for a lapsed session: clear the auth cookie.
     if (!session.userId)
       response.cookies.set("sb-x-auth-token", "", { maxAge: 0 })
-    response.headers.set("cache-control", "private, no-store")
+    if (session.cacheHeaders)
+      response.headers.set("cache-control", "private, no-store")
     return { response, userId: session.userId }
   },
 }))
@@ -45,6 +49,25 @@ const returnCookie = (res: Response) =>
 
 beforeEach(() => {
   session.userId = null
+  session.cacheHeaders = true
+})
+
+describe("proxy: answers that depend on the session are never cached", () => {
+  it("marks the login redirect and the session-ended 401 private, no-store", async () => {
+    // A session that was already absent: @supabase/ssr sets no cookies or
+    // cache headers of its own.
+    session.cacheHeaders = false
+    for (const [path, init] of [
+      ["/manager/review?status=pending", {}],
+      ["/admin/staff", { method: "POST" }],
+      ["/staff/tasks", { method: "POST", headers: { "next-action": "abc" } }],
+      ["/staff/%5C%5Cevil.example", {}],
+    ] as [string, Parameters<typeof request>[1]][]) {
+      const res = await proxy(request(path, init))
+      expect([307, 303, 401], path).toContain(res.status)
+      expect(res.headers.get("cache-control"), path).toBe("private, no-store")
+    }
+  })
 })
 
 describe("proxy: signed out on an app page", () => {
