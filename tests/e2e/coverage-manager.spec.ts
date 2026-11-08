@@ -258,14 +258,14 @@ test.describe("coverage: manager and admin journeys (WS5)", () => {
     )
     await manager.goto("/admin/coverage")
     await expect(manager).toHaveURL(STAFF_LANDING)
-    // The loading boundary streams first, so not-found arrives as the
+    // The loading boundary streams first, so not-found arrives as the staff
     // not-found screen (noindex) under a 200: assert that and no leak.
     const otherTitle = `WS5 other venue item ${w.tag}`
     for (const id of [other!.requirement_id, randomUUID(), "not-a-uuid"]) {
       const res = await manager.goto(`/staff/manage/checklist/${id}`)
       expect([200, 404], id).toContain(res?.status())
       await expect(
-        manager.getByRole("heading", { name: "This page could not be found." })
+        manager.getByRole("heading", { name: "We can't find that page" })
       ).toBeVisible()
       await expect(
         manager.locator('meta[name="robots"]').first()
