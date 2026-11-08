@@ -1,7 +1,9 @@
 import "server-only"
 
 import { cache } from "react"
+import { redirect } from "next/navigation"
 
+import { ROUTES } from "@/lib/auth/routes"
 import {
   getManagerOverview,
   getManagerPhotoCtx,
@@ -27,7 +29,28 @@ export const loadManagerOverview = cache(
   }
 )
 
-/** A failed read becomes the route's error boundary (Try again). */
-export function failedRead(code: string): never {
-  throw new Error(`Could not load menu photos: ${code}`)
+/**
+ * The database refused the manager's scope: the grant ended, the venue moved
+ * or closed, or the account is no longer an active manager. The workspace read
+ * earlier in the same render can still say available (it is memoised per
+ * render pass), so these refusals are not errors to retry.
+ */
+export function isRefusal(code: string): boolean {
+  return (
+    code === "not_permitted" ||
+    code === "wrong_venue" ||
+    code === "account_inactive"
+  )
+}
+
+/**
+ * A failed read on a page below Overview. A refusal goes to Overview, whose
+ * fresh workspace read shows Venue access unavailable (or sends a changed or
+ * deactivated account to its own home); an expired session goes to sign in.
+ * Anything else becomes the route's error boundary (Try again).
+ */
+export function failedRead(code: string, what = "menu photos"): never {
+  if (code === "unauthenticated") redirect(ROUTES.login)
+  if (isRefusal(code)) redirect(ROUTES.managerHome)
+  throw new Error(`Could not load ${what}: ${code}`)
 }
