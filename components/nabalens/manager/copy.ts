@@ -17,6 +17,15 @@ export const MANAGER_COPY = {
     },
     signOut: "Sign out",
   },
+  /** What each page's error boundary says it couldn't load. */
+  couldNotLoad: {
+    overview: "the overview",
+    review: "photos for review",
+    contributor: "this contributor's photos",
+    menu: "the menu",
+    item: "this menu item",
+    account: "your account",
+  },
   notFound: {
     title: "This page isn't available in your workspace",
     back: "Go to Overview",
@@ -24,7 +33,6 @@ export const MANAGER_COPY = {
   overview: {
     title: "Overview",
     loading: "Loading menu photos",
-    couldNotLoad: "menu photos",
     noMenuTitle: "Menu photos will appear once your venue's menu is set up",
     noMenuBody:
       "An admin activates the menu. Staff can keep adding photos to their portfolios meanwhile.",

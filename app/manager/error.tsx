@@ -1,13 +1,9 @@
 "use client"
 
-import { useRouter } from "next/navigation"
-import { ArrowClockwiseIcon } from "@phosphor-icons/react"
-
-import { ERROR_COPY, ErrorState } from "@/components/nabalens/error-state"
 import { MANAGER_COPY } from "@/components/nabalens/manager/copy"
-import { Button } from "@/components/ui/button"
+import { ManagerWorkspaceError } from "@/components/nabalens/manager/workspace-error"
 
-/** A failed workspace read. The layout, and so the shell, stays in place. */
+/** A failed Overview read (pages with their own boundary name their content). */
 export default function ManagerError({
   error,
   retry,
@@ -15,31 +11,12 @@ export default function ManagerError({
   error: unknown
   retry: () => void
 }) {
-  const router = useRouter()
-  const digest =
-    error instanceof Error &&
-    "digest" in error &&
-    typeof error.digest === "string"
-      ? error.digest
-      : undefined
   return (
-    <ErrorState
-      title={ERROR_COPY.couldNotLoad(MANAGER_COPY.overview.couldNotLoad)}
-      action={
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          onClick={() => {
-            retry()
-            router.refresh()
-          }}
-        >
-          <ArrowClockwiseIcon aria-hidden />
-          {ERROR_COPY.tryAgain}
-        </Button>
-      }
-      detail={digest ? `Request ID ${digest}` : undefined}
+    <ManagerWorkspaceError
+      title={MANAGER_COPY.overview.title}
+      what={MANAGER_COPY.couldNotLoad.overview}
+      error={error}
+      retry={retry}
     />
   )
 }
