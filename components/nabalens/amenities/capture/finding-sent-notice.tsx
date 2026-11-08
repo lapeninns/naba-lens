@@ -10,8 +10,16 @@ import { FINDING_SENT_PARAM } from "./finding-sent"
 /**
  * "Finding sent" on Home after an amenity check, until dismissed or the
  * person moves on. It takes focus on arrival: the form that sent it is gone.
+ * Dismiss hands focus to `returnFocusId` (focusable with tabIndex -1), as the
+ * button that had it disappears.
  */
-export function FindingSentNotice({ question }: { question: string }) {
+export function FindingSentNotice({
+  question,
+  returnFocusId,
+}: {
+  question: string
+  returnFocusId: string
+}) {
   const ref = React.useRef<HTMLDivElement>(null)
   const [open, setOpen] = React.useState(true)
 
@@ -22,6 +30,7 @@ export function FindingSentNotice({ question }: { question: string }) {
   if (!open) return null
 
   function dismiss() {
+    document.getElementById(returnFocusId)?.focus()
     setOpen(false)
     // A reload after Dismiss must not bring the notice back.
     const url = new URL(window.location.href)
@@ -39,7 +48,6 @@ export function FindingSentNotice({ question }: { question: string }) {
       tabIndex={-1}
       tone="positive"
       role="status"
-      aria-live="polite"
       title="Finding sent"
       action={
         <Button variant="quiet" size="touch" onClick={dismiss}>

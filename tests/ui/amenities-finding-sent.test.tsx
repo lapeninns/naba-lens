@@ -83,9 +83,15 @@ describe("capture: after a successful send", () => {
 
 describe("Home: Finding sent notice", () => {
   it("is a focused polite status naming the check", () => {
-    render(<FindingSentNotice question="Is there step-free access?" />)
+    render(
+      <FindingSentNotice
+        question="Is there step-free access?"
+        returnFocusId="todo-heading"
+      />
+    )
     const notice = screen.getByRole("status")
-    expect(notice.getAttribute("aria-live")).toBe("polite")
+    // Focus on arrival announces it; a second live region would repeat it.
+    expect(notice.getAttribute("aria-live")).toBeNull()
     expect(notice.textContent).toContain("Finding sent")
     expect(notice.textContent).toContain("Is there step-free access?")
     expect(notice.textContent).toContain("The check is complete.")
@@ -98,9 +104,25 @@ describe("Home: Finding sent notice", () => {
       "",
       `/staff/tasks?${FINDING_SENT_PARAM}=${CHECK_ID}&x=1`
     )
-    render(<FindingSentNotice question="Is there step-free access?" />)
-    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }))
+    render(
+      <>
+        <FindingSentNotice
+          question="Is there step-free access?"
+          returnFocusId="todo-heading"
+        />
+        <h2 id="todo-heading" tabIndex={-1}>
+          To do
+        </h2>
+      </>
+    )
+    const dismiss = screen.getByRole("button", { name: "Dismiss" })
+    dismiss.focus()
+    fireEvent.click(dismiss)
     expect(screen.queryByRole("status")).toBeNull()
+    // Focus lands on To do, not on the page body.
+    expect(document.activeElement).toBe(
+      screen.getByRole("heading", { name: "To do" })
+    )
     expect(`${window.location.pathname}${window.location.search}`).toBe(
       "/staff/tasks?x=1"
     )

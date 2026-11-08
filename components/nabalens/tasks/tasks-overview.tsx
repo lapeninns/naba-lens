@@ -14,7 +14,7 @@ import { AssignmentList } from "./assignment-list"
 import { ColleaguePosts } from "./colleague-posts"
 import { FirstRunEntry } from "./first-run-entry"
 import { MonthlyProgressCard } from "./monthly-progress-card"
-import { todoItems, TodoSection } from "./todo-list"
+import { TODO_HEADING_ID, todoItems, TodoSection } from "./todo-list"
 import type { CoverageScope, MyTasksView } from "./types"
 
 /** Why sending is paused (no venue, or an inactive venue), or null. */
@@ -109,7 +109,12 @@ export function TasksOverview({
         </Notice>
       ) : null}
 
-      {findingSent ? <FindingSentNotice question={findingSent} /> : null}
+      {findingSent ? (
+        <FindingSentNotice
+          question={findingSent}
+          returnFocusId={TODO_HEADING_ID}
+        />
+      ) : null}
 
       {/* The share box comes first; Start here sits between it and To do. */}
       {contribute ? (

@@ -27,6 +27,9 @@ import type {
 
 const DUE_SOON_MS = 7 * 24 * 60 * 60 * 1000
 
+/** To do's heading: focusable, for a notice above it that goes away. */
+export const TODO_HEADING_ID = "todo-heading"
+
 export type TodoItem =
   | { kind: "setup" }
   | { kind: "replace"; submission: SubmissionView; closed: boolean }
@@ -372,11 +375,12 @@ export function TodoSection({
 }) {
   const count = todoCount(items)
   return (
-    <section aria-labelledby="todo-heading" className="grid gap-(--gutter)">
+    <section aria-labelledby={TODO_HEADING_ID} className="grid gap-(--gutter)">
       <div className="px-1 pt-2">
         <h2
-          id="todo-heading"
-          className="flex items-center gap-2 font-display text-section-title text-ink"
+          id={TODO_HEADING_ID}
+          tabIndex={-1}
+          className="flex items-center gap-2 rounded-control font-display text-section-title text-ink outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
         >
           To do
           <CountBadge count={count} label="things to do" />
