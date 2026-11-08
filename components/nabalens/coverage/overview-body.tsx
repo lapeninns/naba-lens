@@ -166,6 +166,9 @@ export function OverviewBody({
   // People without a target or team need the manager too, even though they
   // never count toward venue coverage.
   const staffSetup = participation.needSetup
+  // Before preparing, everyone shows Needs setup and the lead card already
+  // says so; the row would only repeat it.
+  const staffRow = staffSetup > 0 && preparation.kind !== "unprepared"
   const allDone =
     summary.complete &&
     attention.length === 0 &&
@@ -323,8 +326,8 @@ export function OverviewBody({
           id="attention"
           title="Needs your attention"
           count={
-            attention.length + (staffSetup > 0 ? 1 : 0) > 0
-              ? String(attention.length + (staffSetup > 0 ? 1 : 0))
+            attention.length + (staffRow ? 1 : 0) > 0
+              ? String(attention.length + (staffRow ? 1 : 0))
               : undefined
           }
           action={
@@ -338,9 +341,9 @@ export function OverviewBody({
             ) : undefined
           }
         >
-          {shown.length > 0 || staffSetup > 0 ? (
+          {shown.length > 0 || staffRow ? (
             <ItemList label="Needs your attention">
-              {staffSetup > 0 ? (
+              {staffRow ? (
                 <ItemRow
                   title={`${plural(staffSetup, "person", "people")} ${staffSetup === 1 ? "needs" : "need"} setup`}
                   href={hrefs.team}
@@ -360,7 +363,9 @@ export function OverviewBody({
           ) : (
             <Card>
               <p className="text-body text-ink-muted">
-                Nothing needs setup, reassignment or follow-up.
+                {staffSetup > 0
+                  ? "No checklist items need setup, reassignment or follow-up."
+                  : "Nothing needs setup, reassignment or follow-up."}
               </p>
             </Card>
           )}
