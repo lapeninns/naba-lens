@@ -323,8 +323,13 @@ export function useAccountControls({
       // so the notice says what the saved status means for the person.
       const first = firstName(values.displayName)
       const now = result.status ?? member.status
+      // Only this edit's switch: a status another admin changed meanwhile
+      // isn't credited to this save.
+      const switched =
+        values.active !== undefined &&
+        values.active !== (member.status !== "inactive")
       const access =
-        now === member.status
+        !switched || now === member.status
           ? ""
           : now === "inactive"
             ? ` ${first} can no longer sign in.`

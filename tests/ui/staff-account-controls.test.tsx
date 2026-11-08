@@ -452,6 +452,22 @@ describe("Edit details: the saved notice says what an access change means", () =
     expect(announced()).toContain("Saved TEST Sam. TEST can sign in again.")
   })
 
+  it("a status changed elsewhere isn't credited to an edit that left the switch alone", async () => {
+    // Another admin deactivated the person while this dialog was open.
+    updateStaffAccountAction.mockResolvedValue({ ok: true, status: "inactive" })
+    render(header("active"))
+    const user = userEvent.setup()
+    await user.click(screen.getByRole("button", { name: "Edit details" }))
+    const dialog = await screen.findByRole("dialog")
+    await user.type(within(dialog).getByLabelText(/Job title/), " lead")
+    await user.click(
+      within(dialog).getByRole("button", { name: "Save changes" })
+    )
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+    expect(announced()).toContain("Saved TEST Sam.")
+    expect(announced()).not.toContain("can no longer sign in")
+  })
+
   it("an edit that leaves access alone says only Saved", async () => {
     updateStaffAccountAction.mockResolvedValue({ ok: true })
     render(header("active"))
