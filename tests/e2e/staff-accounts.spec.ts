@@ -1,4 +1,5 @@
 import { expect as baseExpect, test, type Page } from "@playwright/test"
+import sharp from "sharp"
 
 import {
   createIdentity,
@@ -235,6 +236,171 @@ test.describe("admin staff management", () => {
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth)
     ).toBeLessThanOrEqual(360)
+    await page.context().close()
+  })
+})
+
+/** Matches the Server Action POSTs a staff page makes (not its avatar route). */
+function isAction(id: string) {
+  return (url: URL) => url.pathname === `/admin/staff/${id}`
+}
+
+test.describe("admin account actions on a flaky connection (ADM-1, ADM-2)", () => {
+  test("a held resend sends once; a dropped one can't confirm the send", async ({
+    browser,
+  }) => {
+    const world = await provisionWorld()
+    const person = world.staffA // never signed in: Invited
+    const page = await signedInPage(browser, world.adminA)
+    await page.goto(`/admin/staff/${person.id}`)
+    await expect(page.getByRole("heading", { name: person.name })).toBeVisible()
+
+    let posts = 0
+    let release!: () => void
+    const held = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    await page.route(isAction(person.id), async (route) => {
+      const request = route.request()
+      if (request.method() !== "POST" || !request.headers()["next-action"]) {
+        return route.continue()
+      }
+      posts++
+      await held
+      return route.abort("internetdisconnected")
+    })
+
+    await page.getByRole("button", { name: "Resend invitation" }).dblclick()
+    const sending = page.getByRole("button", { name: "Sending invitation…" })
+    await expect(sending).toBeDisabled()
+    await expect(page.getByText(/^Sending the invitation to /)).toBeVisible()
+    const box = await sending.boundingBox()
+    expect(box!.height).toBeGreaterThanOrEqual(44)
+    await page
+      .getByRole("button", { name: `More actions for ${person.name}` })
+      .click()
+    await expect(
+      page.getByRole("menuitem", { name: "Sending invitation…" })
+    ).toBeDisabled()
+    await page.keyboard.press("Escape")
+    release()
+
+    await expect(
+      page.getByText(
+        `We couldn't confirm the invitation to ${person.email} was sent. Check your connection, then try again. A new invitation replaces any earlier link.`
+      )
+    ).toBeVisible()
+    expect(posts).toBe(1)
+    await expect(
+      page.getByRole("button", { name: "Resend invitation" })
+    ).toBeEnabled()
+    await page.context().close()
+  })
+
+  test("a dropped reactivation can't confirm, shows Inactive, and a retry works", async ({
+    browser,
+  }) => {
+    const world = await provisionWorld()
+    const person = world.staffB
+    psql(
+      `update public.profiles set active = false where id = '${person.id}'::uuid`
+    )
+    const page = await signedInPage(browser, world.adminA)
+    await page.goto(`/admin/staff/${person.id}`)
+    await expect(page.getByRole("heading", { name: person.name })).toBeVisible()
+
+    await page.route(isAction(person.id), (route) =>
+      route.request().method() === "POST" &&
+      route.request().headers()["next-action"]
+        ? route.abort("internetdisconnected")
+        : route.continue()
+    )
+    await page.getByRole("button", { name: "Reactivate" }).click()
+    await expect(
+      page.getByText(
+        `We couldn't confirm ${person.name} was reactivated. Check your connection, then refresh to see their status.`
+      )
+    ).toBeVisible()
+    await expect(
+      page.getByText("Inactive", { exact: true }).first()
+    ).toBeVisible()
+
+    await page.unroute(isAction(person.id))
+    await page.getByRole("button", { name: "Reactivate" }).click()
+    await expect(
+      page.getByText(`${person.name} can sign in again.`)
+    ).toBeVisible()
+    const { data } = await admin
+      .from("profiles")
+      .select("active")
+      .eq("id", person.id)
+      .single()
+    expect(data?.active).toBe(true)
+    await page.context().close()
+  })
+
+  test("photo saved, details reply dropped: says so, and the retry sends only the details", async ({
+    browser,
+  }) => {
+    test.setTimeout(120_000)
+    const world = await provisionWorld()
+    const person = world.staffC
+    const page = await signedInPage(browser, world.adminA)
+    await page.goto(`/admin/staff/${person.id}`)
+    await expect(page.getByRole("heading", { name: person.name })).toBeVisible()
+
+    let avatarPosts = 0
+    await page.route(`**/admin/staff/${person.id}/avatar`, (route) => {
+      avatarPosts++
+      return route.continue()
+    })
+    let dropped = 0
+    await page.route(isAction(person.id), (route) => {
+      const request = route.request()
+      if (
+        request.method() === "POST" &&
+        request.headers()["next-action"] &&
+        dropped === 0
+      ) {
+        dropped++
+        return route.abort("internetdisconnected")
+      }
+      return route.continue()
+    })
+
+    await page.getByRole("button", { name: "Edit details" }).click()
+    const edit = page.getByRole("dialog")
+    await edit.getByLabel("Profile photo").setInputFiles({
+      name: "avatar.jpg",
+      mimeType: "image/jpeg",
+      buffer: await sharp({
+        create: { width: 96, height: 96, channels: 3, background: "#c0392b" },
+      })
+        .jpeg()
+        .toBuffer(),
+    })
+    await edit.getByLabel("Job title").fill("TEST Head server")
+    await edit.getByRole("button", { name: "Save changes" }).click()
+
+    const alert = edit.getByRole("alert")
+    await expect(alert).toContainText("Some changes may not have saved")
+    await expect(alert).toContainText(
+      /The profile photo was saved\. We couldn't confirm the changes to .+'s job title saved\. Check your connection and try again\./
+    )
+    expect(avatarPosts).toBe(1)
+    expect(dropped).toBe(1)
+
+    await edit.getByRole("button", { name: "Save changes" }).click()
+    await expect(edit).toBeHidden()
+    await expect(page.getByText(`Saved ${person.name}.`)).toBeVisible()
+    expect(avatarPosts).toBe(1)
+    const { data } = await admin
+      .from("profiles")
+      .select("job_title, avatar_path")
+      .eq("id", person.id)
+      .single()
+    expect(data?.job_title).toBe("TEST Head server")
+    expect(data?.avatar_path).toBeTruthy()
     await page.context().close()
   })
 })

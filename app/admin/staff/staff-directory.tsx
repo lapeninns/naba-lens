@@ -338,6 +338,7 @@ export function StaffDirectory({
                 onEdit={controls.edit}
                 onResendInvite={(member) => void controls.resend(member)}
                 onSetActive={controls.setActive}
+                pending={controls.busy}
               />
               <p className="px-1 text-body text-ink-muted">
                 Needs setup and Invited first, then A to Z by surname.

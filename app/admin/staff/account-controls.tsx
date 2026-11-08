@@ -15,6 +15,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import type { StaffActionPending } from "@/components/nabalens/staff-directory-table"
 import { Button } from "@/components/ui/button"
 
 import {
@@ -29,7 +30,10 @@ import {
 } from "./edit-staff-dialog"
 import { firstName } from "./staff-order"
 
-export type Notice = { tone: "success" | "error" | "warning"; text: string }
+export type Notice = {
+  tone: "success" | "error" | "warning" | "pending"
+  text: string
+}
 
 /** An effective venue manager grant, as the staff pages need it. */
 export type ManagerGrant = {
@@ -42,9 +46,14 @@ const NOTICE_TONE: Record<Notice["tone"], NoticeTone> = {
   success: "positive",
   error: "negative",
   warning: "attention",
+  pending: "info",
 }
 
-/** Polite live region for the outcome of the last account action. */
+/**
+ * Polite live region for the outcome of the last account action. The region
+ * stays mounted; the notice inside has no role of its own, so a nested status
+ * region doesn't announce each message twice.
+ */
 export function AccountNotice({
   notice,
   onDismiss,
@@ -57,16 +66,18 @@ export function AccountNotice({
       {notice ? (
         <Notice
           tone={NOTICE_TONE[notice.tone]}
-          role="status"
+          role="none"
           action={
-            <Button
-              variant="quiet"
-              size="icon-sm"
-              aria-label="Close"
-              onClick={onDismiss}
-            >
-              <XIcon aria-hidden />
-            </Button>
+            notice.tone === "pending" ? undefined : (
+              <Button
+                variant="quiet"
+                size="icon-sm"
+                aria-label="Close"
+                onClick={onDismiss}
+              >
+                <XIcon aria-hidden />
+              </Button>
+            )
           }
         >
           {notice.text}
@@ -98,7 +109,11 @@ async function uploadAvatar(
       fieldErrors: json?.fieldErrors,
     }
   } catch {
-    return { ok: false, error: "The photo could not be uploaded. Try again." }
+    return {
+      ok: false,
+      error:
+        "We couldn't confirm the photo uploaded. Check your connection and try again.",
+    }
   }
 }
 
@@ -124,9 +139,15 @@ export function useAccountControls({
     null
   )
   const [pending, setPending] = React.useState(false)
-  const [deactivateError, setDeactivateError] = React.useState<string | null>(
-    null
-  )
+  // Resend or reactivate in flight. The ref turns away a second tap that lands
+  // before the re-render disables the buttons: each resend invalidates the
+  // link sent before it.
+  const [busy, setBusy] = React.useState<StaffActionPending | null>(null)
+  const busyRef = React.useRef(false)
+  const [deactivateError, setDeactivateError] = React.useState<{
+    title: string
+    text: string
+  } | null>(null)
   // Statuses the server has confirmed, keyed by account, with the server props
   // object they apply to. The action's own re-render of the page can arrive long
   // after its result (it re-reads Auth, media and venues: over 30 s on a loaded
@@ -162,37 +183,68 @@ export function useAccountControls({
     return shown
   }
 
-  async function resend(member: StaffMember) {
-    setNotice(null)
-    const result = await resendInvitationAction(member.id)
-    setNotice(
-      result.ok
-        ? {
-            tone: "success",
-            text: `Invitation sent again to ${member.email ?? member.displayName}. Earlier links stop working.`,
-          }
-        : { tone: "error", text: result.error }
+  /**
+   * Runs one resend or reactivate at a time. A rejected call proves nothing:
+   * the server may have acted before the reply was lost.
+   */
+  async function runAction(
+    action: StaffActionPending,
+    pendingText: string,
+    failedText: string,
+    task: () => Promise<Notice>
+  ) {
+    if (busyRef.current) return
+    busyRef.current = true
+    setBusy(action)
+    setNotice({ tone: "pending", text: pendingText })
+    try {
+      setNotice(await task())
+    } catch {
+      setNotice({ tone: "error", text: failedText })
+    } finally {
+      busyRef.current = false
+      setBusy(null)
+    }
+  }
+
+  function resend(member: StaffMember) {
+    const to = member.email ?? member.displayName
+    return runAction(
+      { action: "resend", memberId: member.id },
+      `Sending the invitation to ${to}…`,
+      `We couldn't confirm the invitation to ${to} was sent. Check your connection, then try again. A new invitation replaces any earlier link.`,
+      async () => {
+        const result = await resendInvitationAction(member.id)
+        return result.ok
+          ? {
+              tone: "success",
+              text: `Invitation sent again to ${to}. Earlier links stop working.`,
+            }
+          : { tone: "error", text: result.error }
+      }
     )
   }
 
-  async function reactivate(member: StaffMember) {
-    setNotice(null)
-    const result = await setStaffActiveAction(member.id, true)
-    if (result.ok) {
-      confirmStatus(member, result.status)
-      router.refresh()
-    }
-    setNotice(
-      result.ok
-        ? {
-            tone: "success",
-            text: `${member.displayName} can sign in again.`,
-          }
-        : { tone: "error", text: result.error }
+  function reactivate(member: StaffMember) {
+    return runAction(
+      { action: "reactivate", memberId: member.id },
+      `Reactivating ${member.displayName}…`,
+      `We couldn't confirm ${member.displayName} was reactivated. Check your connection, then refresh to see their status.`,
+      async () => {
+        const result = await setStaffActiveAction(member.id, true)
+        if (!result.ok) return { tone: "error", text: result.error }
+        confirmStatus(member, result.status)
+        router.refresh()
+        return {
+          tone: "success",
+          text: `${member.displayName} can sign in again.`,
+        }
+      }
     )
   }
 
   function setActive(member: StaffMember, active: boolean) {
+    if (busyRef.current) return
     if (active) void reactivate(member)
     else {
       setDeactivateError(null)
@@ -208,7 +260,7 @@ export function useAccountControls({
     try {
       const result = await setStaffActiveAction(deactivating.id, false)
       if (!result.ok) {
-        setDeactivateError(result.error)
+        setDeactivateError({ title: "Couldn't deactivate", text: result.error })
         return
       }
       confirmStatus(deactivating, result.status)
@@ -221,9 +273,10 @@ export function useAccountControls({
       })
       setDeactivating(null)
     } catch {
-      setDeactivateError(
-        `Nothing changed. ${first} still has access. Check your connection and try again.`
-      )
+      setDeactivateError({
+        title: "Couldn't confirm",
+        text: `We couldn't confirm ${first} was deactivated. Check your connection, then try again.`,
+      })
     } finally {
       setPending(false)
     }
@@ -240,15 +293,26 @@ export function useAccountControls({
         if (!avatar.ok) return avatar
         photoSaved = true
       }
-      const result = await updateStaffAccountAction(member.id, {
-        displayName: values.displayName,
-        jobTitle: values.jobTitle ?? null,
-        ...(values.department !== undefined
-          ? { department: values.department }
-          : {}),
-        ...(values.venueId ? { venueId: values.venueId } : {}),
-        ...(values.active !== undefined ? { active: values.active } : {}),
-      })
+      let result: Awaited<ReturnType<typeof updateStaffAccountAction>>
+      try {
+        result = await updateStaffAccountAction(member.id, {
+          displayName: values.displayName,
+          jobTitle: values.jobTitle ?? null,
+          ...(values.department !== undefined
+            ? { department: values.department }
+            : {}),
+          ...(values.venueId ? { venueId: values.venueId } : {}),
+          ...(values.active !== undefined ? { active: values.active } : {}),
+        })
+      } catch {
+        return {
+          ok: false,
+          error:
+            "We couldn't confirm your changes saved. Check your connection and try again.",
+          photoSaved,
+          unconfirmed: true,
+        }
+      }
       if (!result.ok) return { ...result, photoSaved }
       if (result.status) confirmStatus(member, result.status)
       const moved =
@@ -295,6 +359,7 @@ export function useAccountControls({
           )
         }
         maxAvatarBytes={maxAvatarBytes}
+        actionPending={!!busy}
         onSubmit={(values) =>
           editing
             ? saveEdit(editing, values)
@@ -314,8 +379,8 @@ export function useAccountControls({
             </AlertDialogTitle>
           </AlertDialogHeader>
           {deactivateError ? (
-            <Notice tone="negative" title="Couldn't deactivate">
-              {deactivateError}
+            <Notice tone="negative" title={deactivateError.title}>
+              {deactivateError.text}
             </Notice>
           ) : null}
           <AlertDialogDescription
@@ -373,9 +438,14 @@ export function useAccountControls({
     notice,
     setNotice,
     dismissNotice: () => setNotice(null),
-    edit: (member: StaffMember) => setEditing(member),
+    edit: (member: StaffMember) => {
+      // An edit can change activation too; it waits for a resend or reactivate.
+      if (!busyRef.current) setEditing(member)
+    },
     resend,
     setActive,
+    /** The resend or reactivate in flight; every such action waits for it. */
+    busy,
     withConfirmedStatus,
     grantOf,
     dialogs,
