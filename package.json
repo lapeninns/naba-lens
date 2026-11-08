@@ -29,7 +29,11 @@
     "cleanup": "tsx scripts/cleanup.ts",
     "test:visual": "node tests/visual/run.mjs",
     "stack": "node scripts/ci/stack.mjs",
-    "journeys": "node scripts/ci/journeys/cli.mjs"
+    "journeys": "node scripts/ci/journeys/cli.mjs",
+    "verify:change": "node scripts/verification/cli.mjs focused",
+    "verify:batch": "node scripts/verification/cli.mjs",
+    "verify:release": "node scripts/verification/cli.mjs release",
+    "test:verification": "node --test scripts/verification/*.test.mjs scripts/ci/common-receipt.test.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1159.0",

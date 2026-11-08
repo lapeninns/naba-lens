@@ -10,9 +10,22 @@ done
 if [[ $(pnpm --version) != 10.30.1 ]]; then
   echo 'Requires pnpm 10.30.1'; exit 1
 fi
-for tool in ffmpeg psql; do
-  command -v "$tool" >/dev/null || { echo "Requires $tool on PATH (see docs/ci.md)"; exit 1; }
-done
+phase=${CI_PHASE:-full}
+case "$phase" in full|common|browser) ;; *) echo 'Invalid CI_PHASE'; exit 1;; esac
+if [[ "$phase" != full && -z "${CI_COMMON_RECEIPT:-}" ]]; then
+  echo 'Split CI requires CI_COMMON_RECEIPT'; exit 1
+fi
+if [[ "$phase" != common ]]; then
+  for tool in ffmpeg psql; do
+    command -v "$tool" >/dev/null || { echo "Requires $tool on PATH (see docs/ci.md)"; exit 1; }
+  done
+fi
+if [[ "$phase" == common ]]; then
+  node scripts/ci/common-receipt.mjs clear "$CI_COMMON_RECEIPT" || exit 1
+fi
+if [[ "$phase" == browser ]]; then
+  node scripts/ci/common-receipt.mjs verify "$CI_COMMON_RECEIPT" || exit 1
+fi
 work=$(mktemp -d "${TMPDIR:-/tmp}/nabalens-ci.XXXXXX")
 logdir="${CI_LOG_DIR:-$work/logs}"
 mkdir -p "$logdir"
@@ -42,11 +55,20 @@ finish() {
 trap finish EXIT
 trap 'exit 130' INT TERM
 run install pnpm install --frozen-lockfile || exit 1
-run typecheck pnpm typecheck || true
-run lint pnpm lint || true
-run unit pnpm test || true
-run monitoring pnpm test:monitoring || true
-run archive pnpm test:archive || true
+if [[ "$phase" != browser ]]; then
+  run typecheck pnpm typecheck || true
+  run lint pnpm lint || true
+  run unit pnpm test || true
+  run monitoring pnpm test:monitoring || true
+  run archive pnpm test:archive || true
+  run verification pnpm test:verification || true
+fi
+if [[ "$phase" == common ]]; then
+  # A failed common check never publishes reusable evidence.
+  [[ "$failed" == 0 ]] || exit "$failed"
+  run common-receipt node scripts/ci/common-receipt.mjs write "$CI_COMMON_RECEIPT" || exit 1
+  exit "$failed"
+fi
 run build pnpm build && run scan-bundle node scripts/ci/scan-bundle.mjs || true
 run prepare node scripts/ci/prepare-stack.mjs "$work" || exit 1
 export E2E_PORT
