@@ -301,6 +301,66 @@ test.describe("coverage: manager and admin journeys (WS5)", () => {
     for (const page of [admin, manager, staffC]) await page.context().close()
   })
 
+  test("revoke whose reply is lost: says it can't confirm, the grant really ended, and a reload shows it", async ({
+    browser,
+  }) => {
+    const w = await provisionCoverageWorld()
+    const grantId = await legacyStaffGrant(w.admin, w.manager, w.venue1)
+    const admin = await signedInPage(browser, w.admin)
+    await admin.goto("/admin/coverage/managers")
+    const current = admin.getByRole("table", { name: "Current grants" })
+    await expect(current.getByText(w.manager.name)).toBeVisible()
+
+    // The Revoke POST reaches the server; only its reply is dropped. One
+    // stable matcher and no unroute, so later requests pass through.
+    const isManagersPage = (url: URL) =>
+      url.pathname === "/admin/coverage/managers"
+    let dropped = 0
+    await admin.route(isManagersPage, async (route) => {
+      const request = route.request()
+      if (
+        request.method() === "POST" &&
+        request.headers()["next-action"] &&
+        dropped === 0
+      ) {
+        dropped++
+        await route.fetch()
+        return route.abort("connectionreset")
+      }
+      return route.continue()
+    })
+
+    await admin
+      .getByRole("button", { name: `More actions for ${w.manager.name}` })
+      .click()
+    await admin.getByRole("menuitem", { name: "Revoke grant" }).click()
+    const revoke = admin.getByRole("dialog")
+    await revoke.getByLabel("Reason").fill("F-1: lost reply")
+    await revoke.getByRole("button", { name: "Revoke grant" }).click()
+    await expect(revoke.getByRole("alert")).toHaveText(
+      new RegExp(
+        `^We couldn't confirm .+ is no longer ${escape(w.venue1.name)}'s venue manager\\. Check your connection, then refresh to see\\.$`
+      )
+    )
+    await expect(revoke.getByText(/Nothing changed/)).toHaveCount(0)
+    expect(dropped).toBe(1)
+    // The server did revoke it: the uncertain copy was the truthful one.
+    expect(
+      psql(
+        `select revoked_at is not null from public.venue_manager_grants where id = '${grantId}'::uuid`
+      )
+    ).toBe("t")
+
+    await revoke.getByRole("button", { name: "Cancel" }).click()
+    await admin.reload()
+    await expect(
+      admin
+        .getByRole("table", { name: "Current grants" })
+        .getByText(w.manager.name)
+    ).toHaveCount(0)
+    await admin.context().close()
+  })
+
   test("set-up: prepare all venues; confirm, assign and attach on a checklist item; an unknown amenity blocks confirm; start a menu plan; an expired evidence link re-signs once", async ({
     browser,
   }) => {

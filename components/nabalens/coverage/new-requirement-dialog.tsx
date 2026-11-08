@@ -135,8 +135,9 @@ export function NewRequirementDialog({
       reset()
       onCreated(result.requirementId)
     } catch {
+      // The request id is kept, so a retry replays instead of adding twice.
       setError(
-        "Could not reach the server. Check your connection and try again."
+        "We couldn't confirm the item was added. Check your connection, then try again or refresh to see if it was. It won't be added twice."
       )
     } finally {
       setPending(false)

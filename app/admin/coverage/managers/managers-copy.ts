@@ -66,9 +66,12 @@ export const MANAGERS_COPY = {
     help: "It's kept in the grant history, with your name and the time.",
     confirm: "Revoke grant",
     confirming: "Revoking…",
-    failedTitle: "Couldn't revoke the grant",
-    nothingChanged: (name: string, venue: string) =>
-      `Nothing changed. ${firstName(name)} is still ${venue}'s venue manager. Try again.`,
+    /** The server refused: the grant is unchanged, and it says why. */
+    nothingChanged: (name: string, venue: string, reason: string) =>
+      `Nothing changed. ${firstName(name)} is still ${venue}'s venue manager. ${reason}`,
+    /** The reply was lost: the revoke may have happened. */
+    notConfirmed: (name: string, venue: string) =>
+      `We couldn't confirm ${firstName(name)} is no longer ${venue}'s venue manager. Check your connection, then refresh to see.`,
     done: (name: string, venue: string) =>
       `${name}'s grant at ${venue} was revoked. It takes effect on ${firstName(name)}'s next page load; ${firstName(name)}'s review decisions stand.`,
     context: (venue: string, since: string) =>

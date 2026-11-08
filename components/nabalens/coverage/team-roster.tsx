@@ -433,7 +433,10 @@ function TeamRosterMonth({
           expectedRevision: row.revision,
         })
       } catch {
-        failure = { tone: "error", text: NETWORK_ERROR }
+        failure = {
+          tone: "error",
+          text: `${saved.length > 0 ? `${plural(saved.length, "target")} saved. ` : ""}We couldn't confirm ${row.person.displayName}'s target was saved. Check your connection, then refresh to see.`,
+        }
         break
       }
       if (!result.ok) {
@@ -935,9 +938,18 @@ function CorrectTargetDialog({
             </DialogTitle>
           </DialogHeader>
           {failure ? (
-            <Notice tone="negative" title="Couldn't save the correction">
+            <Notice
+              tone="negative"
+              title={
+                failure.network
+                  ? "Couldn't confirm the correction"
+                  : "Couldn't save the correction"
+              }
+            >
+              {/* A lost reply may follow a saved correction; a retry is safe
+                  (expectedRevision turns it into a refresh notice). */}
               {failure.network
-                ? "Nothing changed. Check your connection and try again."
+                ? "We couldn't confirm the target changed. Check your connection, then refresh to see."
                 : `Nothing changed. ${failure.text}`}
             </Notice>
           ) : null}
