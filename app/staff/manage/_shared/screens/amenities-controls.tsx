@@ -50,15 +50,18 @@ export function AmenitiesOverviewControl({
 export function AmenityCheckControl({
   detail,
   basePath,
+  canUpload,
 }: {
   detail: CheckDetail
   basePath: string
+  canUpload?: boolean
 }) {
   return (
     <AmenityCheckDetail
       key={detail.check.id}
       detail={detail}
       basePath={basePath}
+      canUpload={canUpload}
       handlers={{
         assign: (input) => assignCheckAction(input),
         setNotes: (input) => setCheckNotesAction(input),

@@ -90,6 +90,37 @@ describe("AmenityCheckDetail: status and actions", () => {
     )
   })
 
+  it("makes Capture myself the primary action only for a viewer who can upload", () => {
+    render(
+      <AmenityCheckDetail
+        detail={detail()}
+        basePath={BASE}
+        handlers={handlers()}
+      />
+    )
+    const note = /For new ones, assign this check to staff/
+    expect(
+      screen.getByRole("link", { name: UI_TEXT.captureMyself }).className
+    ).toContain("bg-accent")
+    expect(screen.queryByText(note)).toBeNull()
+    cleanup()
+
+    render(
+      <AmenityCheckDetail
+        detail={detail()}
+        basePath={BASE}
+        handlers={handlers()}
+        canUpload={false}
+      />
+    )
+    const capture = screen.getByRole("link", { name: UI_TEXT.captureMyself })
+    expect(capture.className).not.toContain("bg-accent")
+    expect(capture.className).toContain("bg-surface-2")
+    expect(screen.getByText(note).textContent).toBe(
+      `${UI_TEXT.captureMyself} attaches photos and videos already on Naba-Lens. For new ones, assign this check to staff.`
+    )
+  })
+
   it("shows the recheck reason and hides Reopen while it needs a recheck", () => {
     render(
       <AmenityCheckDetail
