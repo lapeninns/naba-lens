@@ -7,18 +7,30 @@
 // Lost replies are plain async functions that throw, not vi.fn() rejections:
 // Vitest's spy reports an async rejection as a test error even when the
 // component catches it.
-import { cleanup, render, screen, within } from "@testing-library/react"
+import {
+  act,
+  cleanup,
+  render,
+  renderHook,
+  screen,
+  within,
+} from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
   AmenityFactForm,
   AttachPhotosDialog,
   type SubmittablePhoto,
 } from "@/components/nabalens/coverage"
+import { useAmenityAction } from "@/components/nabalens/amenities/manage/use-amenity-action"
 import { ReasonDialog } from "@/components/nabalens/coverage/reason-dialog"
 
 import { MANAGER_ID, STAFF_ID, amenityFact } from "./coverage-fixtures"
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: () => {}, push: () => {}, replace: () => {} }),
+}))
 
 afterEach(cleanup)
 
@@ -163,5 +175,39 @@ describe("AmenityFactForm", () => {
     expect(
       within(alert).getByText("Describe the facts in 500 characters or fewer.")
     ).toBeTruthy()
+  })
+})
+
+describe("useAmenityAction", () => {
+  it("a lost reply says the change couldn't be confirmed", async () => {
+    const { result } = renderHook(() => useAmenityAction())
+    let outcome: unknown
+    await act(async () => {
+      outcome = await result.current.run(lostReply, "Saved.")
+    })
+    expect(outcome).toMatchObject({ ok: false, code: "network" })
+    expect(result.current.notice).toEqual({
+      tone: "error",
+      text: "We couldn't confirm your change was saved. Check your connection, then try again or refresh to see if it was.",
+    })
+  })
+
+  it("a refusal shows the server's reason", async () => {
+    const { result } = renderHook(() => useAmenityAction())
+    await act(async () => {
+      await result.current.run(
+        async () => ({
+          ok: false as const,
+          code: "invalid_input" as const,
+          status: 400 as const,
+          message: "Add a note of up to 500 characters.",
+        }),
+        "Saved."
+      )
+    })
+    expect(result.current.notice).toEqual({
+      tone: "error",
+      text: "Add a note of up to 500 characters.",
+    })
   })
 })
