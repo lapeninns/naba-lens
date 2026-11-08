@@ -37,10 +37,18 @@ import { StaffStatusBadge } from "./staff-status-badge"
 import { StatusChip } from "./status-chip"
 import type { StaffMember } from "./types"
 
+/** A resend or reactivate the server hasn't answered yet. */
+export type StaffActionPending = {
+  action: "resend" | "reactivate"
+  memberId: string
+}
+
 type StaffActions = {
   onEdit: (member: StaffMember) => void
   onResendInvite: (member: StaffMember) => void
   onSetActive: (member: StaffMember, active: boolean) => void
+  /** While set, resend and (de)activate wait for it on every account. */
+  pending?: StaffActionPending | null
 }
 
 type StaffDirectoryTableProps = StaffActions & {
@@ -80,6 +88,7 @@ export function StaffActionsMenu({
   onEdit,
   onResendInvite,
   onSetActive,
+  pending = null,
   profileHref,
   makeManagerHref,
   className,
@@ -91,6 +100,7 @@ export function StaffActionsMenu({
   makeManagerHref?: string
   className?: string
 }) {
+  const busyWith = pending?.memberId === member.id ? pending.action : null
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -119,9 +129,14 @@ export function StaffActionsMenu({
             Edit details
           </DropdownMenuItem>
           {member.status === "invited" ? (
-            <DropdownMenuItem onClick={() => onResendInvite(member)}>
+            <DropdownMenuItem
+              disabled={!!pending}
+              onClick={() => onResendInvite(member)}
+            >
               <EnvelopeSimpleIcon aria-hidden />
-              Resend invitation
+              {busyWith === "resend"
+                ? "Sending invitation…"
+                : "Resend invitation"}
             </DropdownMenuItem>
           ) : null}
           {profileHref ? (
@@ -139,13 +154,17 @@ export function StaffActionsMenu({
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         {member.status === "inactive" ? (
-          <DropdownMenuItem onClick={() => onSetActive(member, true)}>
+          <DropdownMenuItem
+            disabled={!!pending}
+            onClick={() => onSetActive(member, true)}
+          >
             <ArrowCounterClockwiseIcon aria-hidden />
-            Reactivate
+            {busyWith === "reactivate" ? "Reactivating…" : "Reactivate"}
           </DropdownMenuItem>
         ) : (
           <DropdownMenuItem
             variant="destructive"
+            disabled={!!pending}
             onClick={() => onSetActive(member, false)}
           >
             <ProhibitIcon aria-hidden />

@@ -1,0 +1,313 @@
+// @vitest-environment jsdom
+// Admin account actions tell the truth (ADM-1, ADM-2). Resend and Reactivate
+// run one at a time with a pending label, and a rejected call (offline, server
+// unreachable) says nothing changed instead of clearing the notice. A second
+// tap must never resend: each resend invalidates the link sent before it. An
+// edit whose photo saved before the details failed says exactly that, and a
+// retry does not upload the photo again.
+import * as React from "react"
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+
+import type { StaffMember } from "@/components/nabalens"
+
+const refresh = vi.fn()
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh, push: vi.fn(), replace: vi.fn() }),
+}))
+
+const setStaffActiveAction = vi.fn()
+const resendInvitationAction = vi.fn()
+const updateStaffAccountAction = vi.fn()
+vi.mock("@/app/admin/staff/actions", () => ({
+  setStaffActiveAction: (...args: unknown[]) => setStaffActiveAction(...args),
+  resendInvitationAction: (...args: unknown[]) =>
+    resendInvitationAction(...args),
+  updateStaffAccountAction: (...args: unknown[]) =>
+    updateStaffAccountAction(...args),
+  inviteStaffAction: vi.fn(async () => ({ status: "sent" })),
+}))
+
+import { AccountHeader } from "@/app/admin/staff/[id]/account-header"
+import { useAccountControls } from "@/app/admin/staff/account-controls"
+import { StaffDirectory } from "@/app/admin/staff/staff-directory"
+
+const member = (
+  status: StaffMember["status"],
+  extra: Partial<StaffMember> = {}
+): StaffMember => ({
+  id: "7c2e1a90-4b3d-4e8f-9a1c-2d5e6f7a8b22",
+  displayName: "TEST Sam",
+  avatarUrl: null,
+  jobTitle: "Bartender",
+  department: "foh",
+  venueId: "5b0d8f43-2a1e-4c5f-8d4b-0e7c9a3f1b11",
+  venueName: "TEST Venue",
+  email: "sam@nabalens.test",
+  status,
+  ...extra,
+})
+
+function header(status: StaffMember["status"]) {
+  return (
+    <AccountHeader
+      member={member(status)}
+      venueActive
+      venues={[]}
+      maxAvatarBytes={5 * 1024 * 1024}
+    />
+  )
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason: unknown) => void
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+  return { promise, resolve, reject }
+}
+
+/** What the account notice's polite live region holds right now. */
+const announced = () =>
+  Array.from(document.querySelectorAll('[aria-live="polite"]'))
+    .map((region) => region.textContent ?? "")
+    .join(" ")
+
+async function openMenu(name = "TEST Sam") {
+  await userEvent
+    .setup()
+    .click(screen.getByRole("button", { name: `More actions for ${name}` }))
+  return screen.findByRole("menu")
+}
+
+beforeEach(() => {
+  refresh.mockClear()
+  setStaffActiveAction.mockReset()
+  resendInvitationAction.mockReset()
+  updateStaffAccountAction.mockReset()
+})
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+})
+
+describe("Resend invitation (ADM-1)", () => {
+  it("is disabled with a pending label while sending, and a second tap sends nothing", async () => {
+    const call = deferred<{ ok: true }>()
+    resendInvitationAction.mockReturnValue(call.promise)
+    render(header("invited"))
+    const button = screen.getByRole("button", { name: "Resend invitation" })
+
+    await act(async () => {
+      fireEvent.click(button)
+    })
+    const pending = screen.getByRole("button", { name: "Sending invitation…" })
+    expect(pending).toHaveProperty("disabled", true)
+    expect(pending.getAttribute("aria-busy")).toBe("true")
+    expect(announced()).toContain(
+      "Sending the invitation to sam@nabalens.test…"
+    )
+    await act(async () => {
+      fireEvent.click(pending)
+    })
+    // The menu offers the same action; it waits too.
+    const menu = await openMenu()
+    const item = within(menu).getByRole("menuitem", {
+      name: "Sending invitation…",
+    })
+    expect(item.getAttribute("aria-disabled")).toBe("true")
+    expect(
+      within(menu)
+        .getByRole("menuitem", { name: "Deactivate" })
+        .getAttribute("aria-disabled")
+    ).toBe("true")
+    await act(async () => {
+      fireEvent.click(item)
+    })
+    expect(resendInvitationAction).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      call.resolve({ ok: true })
+    })
+    expect(announced()).toContain(
+      "Invitation sent again to sam@nabalens.test. Earlier links stop working."
+    )
+    expect(
+      screen.getByRole("button", { name: "Resend invitation" })
+    ).toHaveProperty("disabled", false)
+  })
+
+  it("a rejected call says nothing changed, and the button works again", async () => {
+    resendInvitationAction.mockRejectedValue(new TypeError("Failed to fetch"))
+    render(header("invited"))
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Resend invitation" }))
+    })
+    expect(announced()).toContain(
+      "Nothing changed. The invitation to sam@nabalens.test wasn't sent. Check your connection and try again."
+    )
+    expect(
+      screen.getByRole("button", { name: "Resend invitation" })
+    ).toHaveProperty("disabled", false)
+  })
+
+  it("a refusal from the server is shown as the server worded it", async () => {
+    resendInvitationAction.mockResolvedValue({
+      ok: false,
+      error: "TEST Sam has already signed in.",
+    })
+    render(header("invited"))
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Resend invitation" }))
+    })
+    expect(announced()).toContain("TEST Sam has already signed in.")
+  })
+})
+
+describe("Reactivate (ADM-1)", () => {
+  it("is disabled with a pending label until the server answers", async () => {
+    const call = deferred<{ ok: true; status: "active" }>()
+    setStaffActiveAction.mockReturnValue(call.promise)
+    render(header("inactive"))
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Reactivate" }))
+    })
+    const pending = screen.getByRole("button", { name: "Reactivating…" })
+    expect(pending).toHaveProperty("disabled", true)
+    expect(announced()).toContain("Reactivating TEST Sam…")
+    await act(async () => {
+      fireEvent.click(pending)
+    })
+    expect(setStaffActiveAction).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      call.resolve({ ok: true, status: "active" })
+    })
+    expect(announced()).toContain("TEST Sam can sign in again.")
+    expect(refresh).toHaveBeenCalledTimes(1)
+  })
+
+  it("a rejected call says nothing changed and keeps Inactive", async () => {
+    setStaffActiveAction.mockRejectedValue(new TypeError("Failed to fetch"))
+    render(header("inactive"))
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Reactivate" }))
+    })
+    expect(announced()).toContain(
+      "Nothing changed. TEST Sam still can't sign in. Check your connection and try again."
+    )
+    expect(screen.getByRole("button", { name: "Reactivate" })).toHaveProperty(
+      "disabled",
+      false
+    )
+    expect(
+      screen.getAllByText("Inactive", { exact: true }).length
+    ).toBeGreaterThan(0)
+    expect(refresh).not.toHaveBeenCalled()
+  })
+})
+
+describe("one account action at a time (ADM-1)", () => {
+  type Controls = ReturnType<typeof useAccountControls>
+  function Harness({ onRender }: { onRender: (c: Controls) => void }) {
+    const current = useAccountControls({ venues: [], maxAvatarBytes: 5 << 20 })
+    React.useEffect(() => onRender(current))
+    return current.dialogs
+  }
+
+  it("two taps in the same tick send one invitation", async () => {
+    const call = deferred<{ ok: true }>()
+    resendInvitationAction.mockReturnValue(call.promise)
+    let controls: Controls | null = null
+    render(
+      <Harness
+        onRender={(c) => {
+          controls = c
+        }}
+      />
+    )
+    const invited = member("invited")
+    await act(async () => {
+      // Both before React re-renders, as a fast double tap can land.
+      void controls!.resend(invited)
+      void controls!.resend(invited)
+      controls!.setActive(member("inactive"), true)
+    })
+    expect(resendInvitationAction).toHaveBeenCalledTimes(1)
+    expect(setStaffActiveAction).not.toHaveBeenCalled()
+    expect(controls!.busy).toEqual({ action: "resend", memberId: invited.id })
+    await act(async () => {
+      call.resolve({ ok: true })
+    })
+    expect(controls!.busy).toBeNull()
+  })
+
+  it("the directory menu shows the pending resend and waits for it", async () => {
+    const call = deferred<{ ok: true }>()
+    resendInvitationAction.mockReturnValue(call.promise)
+    const josh = member("invited", {
+      id: "00000000-0000-4000-8000-000000000001",
+      displayName: "Josh Patel",
+      email: "josh@nabalens.test",
+    })
+    const dan = member("active", {
+      id: "00000000-0000-4000-8000-000000000002",
+      displayName: "Dan Cooper",
+      email: "dan@nabalens.test",
+    })
+    render(
+      <StaffDirectory
+        staff={[josh, dan]}
+        venues={[]}
+        grants={[]}
+        maxAvatarBytes={5 << 20}
+      />
+    )
+    const user = userEvent.setup()
+    // Phone list and table both render in jsdom; the table's menu is the second.
+    const joshMenu = () =>
+      screen.getAllByRole("button", { name: "More actions for Josh Patel" })[1]
+    await user.click(joshMenu())
+    await user.click(
+      within(await screen.findByRole("menu")).getByRole("menuitem", {
+        name: "Resend invitation",
+      })
+    )
+    expect(announced()).toContain(
+      "Sending the invitation to josh@nabalens.test…"
+    )
+
+    await user.click(joshMenu())
+    const again = within(await screen.findByRole("menu")).getByRole(
+      "menuitem",
+      { name: "Sending invitation…" }
+    )
+    expect(again.getAttribute("aria-disabled")).toBe("true")
+    await user.keyboard("{Escape}")
+    await user.click(
+      screen.getAllByRole("button", { name: "More actions for Dan Cooper" })[1]
+    )
+    expect(
+      within(await screen.findByRole("menu"))
+        .getByRole("menuitem", { name: "Deactivate" })
+        .getAttribute("aria-disabled")
+    ).toBe("true")
+    expect(resendInvitationAction).toHaveBeenCalledTimes(1)
+    await act(async () => {
+      call.resolve({ ok: true })
+    })
+    expect(announced()).toContain(
+      "Invitation sent again to josh@nabalens.test."
+    )
+  })
+})

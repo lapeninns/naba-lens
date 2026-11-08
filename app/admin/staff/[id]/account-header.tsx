@@ -161,6 +161,8 @@ export function AccountHeader({
     ],
   })
   const member = controls.withConfirmedStatus(fromProps)
+  const busy =
+    controls.busy?.memberId === member.id ? controls.busy.action : null
   const first = firstName(member.displayName)
   const inactive = member.status === "inactive"
   const managerAccount = role === "manager"
@@ -209,6 +211,7 @@ export function AccountHeader({
               onEdit={controls.edit}
               onResendInvite={(m) => void controls.resend(m)}
               onSetActive={controls.setActive}
+              pending={controls.busy}
             />
           </>
         }
@@ -224,9 +227,11 @@ export function AccountHeader({
               variant="primary"
               size="sm"
               onClick={() => void controls.resend(member)}
+              disabled={!!controls.busy}
+              aria-busy={busy === "resend"}
             >
               <EnvelopeSimpleIcon aria-hidden />
-              Resend invitation
+              {busy === "resend" ? "Sending invitation…" : "Resend invitation"}
             </Button>
           }
         >
@@ -241,9 +246,11 @@ export function AccountHeader({
               variant="primary"
               size="sm"
               onClick={() => controls.setActive(member, true)}
+              disabled={!!controls.busy}
+              aria-busy={busy === "reactivate"}
             >
               <ArrowCounterClockwiseIcon aria-hidden />
-              Reactivate
+              {busy === "reactivate" ? "Reactivating…" : "Reactivate"}
             </Button>
           }
         >

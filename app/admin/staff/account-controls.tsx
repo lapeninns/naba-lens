@@ -15,6 +15,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import type { StaffActionPending } from "@/components/nabalens/staff-directory-table"
 import { Button } from "@/components/ui/button"
 
 import {
@@ -29,7 +30,10 @@ import {
 } from "./edit-staff-dialog"
 import { firstName } from "./staff-order"
 
-export type Notice = { tone: "success" | "error" | "warning"; text: string }
+export type Notice = {
+  tone: "success" | "error" | "warning" | "pending"
+  text: string
+}
 
 /** An effective venue manager grant, as the staff pages need it. */
 export type ManagerGrant = {
@@ -42,6 +46,7 @@ const NOTICE_TONE: Record<Notice["tone"], NoticeTone> = {
   success: "positive",
   error: "negative",
   warning: "attention",
+  pending: "info",
 }
 
 /** Polite live region for the outcome of the last account action. */
@@ -59,14 +64,16 @@ export function AccountNotice({
           tone={NOTICE_TONE[notice.tone]}
           role="status"
           action={
-            <Button
-              variant="quiet"
-              size="icon-sm"
-              aria-label="Close"
-              onClick={onDismiss}
-            >
-              <XIcon aria-hidden />
-            </Button>
+            notice.tone === "pending" ? undefined : (
+              <Button
+                variant="quiet"
+                size="icon-sm"
+                aria-label="Close"
+                onClick={onDismiss}
+              >
+                <XIcon aria-hidden />
+              </Button>
+            )
           }
         >
           {notice.text}
@@ -124,6 +131,11 @@ export function useAccountControls({
     null
   )
   const [pending, setPending] = React.useState(false)
+  // Resend or reactivate in flight. The ref turns away a second tap that lands
+  // before the re-render disables the buttons: each resend invalidates the
+  // link sent before it.
+  const [busy, setBusy] = React.useState<StaffActionPending | null>(null)
+  const busyRef = React.useRef(false)
   const [deactivateError, setDeactivateError] = React.useState<string | null>(
     null
   )
@@ -162,37 +174,65 @@ export function useAccountControls({
     return shown
   }
 
-  async function resend(member: StaffMember) {
-    setNotice(null)
-    const result = await resendInvitationAction(member.id)
-    setNotice(
-      result.ok
-        ? {
-            tone: "success",
-            text: `Invitation sent again to ${member.email ?? member.displayName}. Earlier links stop working.`,
-          }
-        : { tone: "error", text: result.error }
+  /** Runs one resend or reactivate at a time; a rejected call changes nothing. */
+  async function runAction(
+    action: StaffActionPending,
+    pendingText: string,
+    failedText: string,
+    task: () => Promise<Notice>
+  ) {
+    if (busyRef.current) return
+    busyRef.current = true
+    setBusy(action)
+    setNotice({ tone: "pending", text: pendingText })
+    try {
+      setNotice(await task())
+    } catch {
+      setNotice({ tone: "error", text: failedText })
+    } finally {
+      busyRef.current = false
+      setBusy(null)
+    }
+  }
+
+  function resend(member: StaffMember) {
+    const to = member.email ?? member.displayName
+    return runAction(
+      { action: "resend", memberId: member.id },
+      `Sending the invitation to ${to}…`,
+      `Nothing changed. The invitation to ${to} wasn't sent. Check your connection and try again.`,
+      async () => {
+        const result = await resendInvitationAction(member.id)
+        return result.ok
+          ? {
+              tone: "success",
+              text: `Invitation sent again to ${to}. Earlier links stop working.`,
+            }
+          : { tone: "error", text: result.error }
+      }
     )
   }
 
-  async function reactivate(member: StaffMember) {
-    setNotice(null)
-    const result = await setStaffActiveAction(member.id, true)
-    if (result.ok) {
-      confirmStatus(member, result.status)
-      router.refresh()
-    }
-    setNotice(
-      result.ok
-        ? {
-            tone: "success",
-            text: `${member.displayName} can sign in again.`,
-          }
-        : { tone: "error", text: result.error }
+  function reactivate(member: StaffMember) {
+    return runAction(
+      { action: "reactivate", memberId: member.id },
+      `Reactivating ${member.displayName}…`,
+      `Nothing changed. ${member.displayName} still can't sign in. Check your connection and try again.`,
+      async () => {
+        const result = await setStaffActiveAction(member.id, true)
+        if (!result.ok) return { tone: "error", text: result.error }
+        confirmStatus(member, result.status)
+        router.refresh()
+        return {
+          tone: "success",
+          text: `${member.displayName} can sign in again.`,
+        }
+      }
     )
   }
 
   function setActive(member: StaffMember, active: boolean) {
+    if (busyRef.current) return
     if (active) void reactivate(member)
     else {
       setDeactivateError(null)
@@ -376,6 +416,8 @@ export function useAccountControls({
     edit: (member: StaffMember) => setEditing(member),
     resend,
     setActive,
+    /** The resend or reactivate in flight; every such action waits for it. */
+    busy,
     withConfirmedStatus,
     grantOf,
     dialogs,
