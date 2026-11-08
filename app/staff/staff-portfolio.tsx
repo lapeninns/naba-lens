@@ -472,7 +472,7 @@ function BetterPhotoRow({
               {BETTER_PHOTO_COPY.offMenu}
             </p>
           ) : null}
-          {sent ? (
+          {sent && canRetake ? (
             <p className="flex items-center gap-1.5 text-body text-ink">
               <CheckCircleIcon aria-hidden className="size-5 text-ok-fg" />
               {BETTER_PHOTO_COPY.sent}
