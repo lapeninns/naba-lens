@@ -381,6 +381,43 @@ describe("status summary when Auth details are unavailable", () => {
   })
 })
 
+describe("Edit details explains why Save is unavailable", () => {
+  it("an empty display name shows an inline error tied to the field and to Save", async () => {
+    render(
+      <EditStaffDialog
+        member={member("active")}
+        onClose={() => {}}
+        venues={[]}
+        grant={null}
+        maxAvatarBytes={5 << 20}
+        onSubmit={vi.fn(async () => ({ ok: true as const }))}
+      />
+    )
+    const user = userEvent.setup()
+    const dialog = await screen.findByRole("dialog")
+    const name = within(dialog).getByLabelText("Display name")
+    expect(name.getAttribute("aria-invalid")).toBeNull()
+    expect(within(dialog).queryByText("Enter their name.")).toBeNull()
+
+    await user.clear(name)
+    const error = within(dialog)
+      .getByText("Enter their name.")
+      .closest('[data-slot="field-error"]')!
+    expect(error.id).toBeTruthy()
+    expect(name.getAttribute("aria-invalid")).toBe("true")
+    expect(name.getAttribute("aria-describedby")).toBe(error.id)
+    const save = within(dialog).getByRole("button", { name: "Save changes" })
+    expect(save).toHaveProperty("disabled", true)
+    expect(save.getAttribute("aria-describedby")).toBe(error.id)
+
+    await user.type(name, "TEST Samir")
+    expect(within(dialog).queryByText("Enter their name.")).toBeNull()
+    expect(name.getAttribute("aria-invalid")).toBeNull()
+    expect(save).toHaveProperty("disabled", false)
+    expect(save.getAttribute("aria-describedby")).toBeNull()
+  })
+})
+
 describe("Reactivate (ADM-1)", () => {
   it("is disabled with a pending label until the server answers", async () => {
     const call = deferred<{ ok: true; status: "active" }>()

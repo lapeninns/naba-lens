@@ -268,6 +268,13 @@ function EditStaffForm({
   const fieldErrors = result && !result.ok ? (result.fieldErrors ?? {}) : {}
   const notice =
     result && !result.ok ? partialNotice(result, first, unsaved) : null
+  const nameMissing = !displayName.trim()
+  const nameError = nameMissing ? "Enter their name." : fieldErrors.displayName
+  // Save is disabled for these; each reason is read with it.
+  const saveBlockedBy =
+    [nameMissing && `${id}-name-error`, actionPending && `${id}-waiting`]
+      .filter(Boolean)
+      .join(" ") || undefined
 
   return (
     <>
@@ -335,10 +342,11 @@ function EditStaffForm({
                   required
                   maxLength={80}
                   autoComplete="off"
-                  aria-invalid={!!fieldErrors.displayName || undefined}
+                  aria-invalid={!!nameError || undefined}
+                  aria-describedby={nameError ? `${id}-name-error` : undefined}
                 />
-                {fieldErrors.displayName ? (
-                  <FieldError>{fieldErrors.displayName}</FieldError>
+                {nameError ? (
+                  <FieldError id={`${id}-name-error`}>{nameError}</FieldError>
                 ) : null}
               </Field>
               <Field className="gap-1.5">
@@ -466,9 +474,9 @@ function EditStaffForm({
               <Button
                 type="submit"
                 size="touch"
-                disabled={pending || !displayName.trim() || actionPending}
+                disabled={pending || nameMissing || actionPending}
                 aria-busy={pending}
-                aria-describedby={actionPending ? `${id}-waiting` : undefined}
+                aria-describedby={saveBlockedBy}
               >
                 {pending ? "Saving…" : "Save changes"}
               </Button>
