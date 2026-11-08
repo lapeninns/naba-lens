@@ -117,8 +117,10 @@ const ClaimSignIn = React.createContext<
 
 /**
  * For a screen with its own Sign in again (the upload sheet, which resumes
- * its uploads once signed in): while `claimed`, the page's Sign in again
- * stays closed, so the two never show together. A no-op outside the host.
+ * its uploads once signed in): while `claimed` (its own Sign in again is
+ * showing), the page's stays closed, so the two never show together. After a
+ * claim ends, only an action refused for the session opens the page's. A
+ * no-op outside the host.
  */
 export function useClaimSignIn(claimed: boolean) {
   const claim = React.useContext(ClaimSignIn)
@@ -169,7 +171,9 @@ export function SessionGuardHost({
   const claims = React.useRef(new Set<string>())
   const claim = React.useCallback((id: string, claimed: boolean) => {
     if (!claimed) {
-      claims.current.delete(id)
+      // The screen's own Sign in again was dismissed (or signed in): like the
+      // page's "Not now", only an action refused for the session reopens.
+      if (claims.current.delete(id)) quiet.current = true
       return
     }
     claims.current.add(id)

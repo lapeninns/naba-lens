@@ -572,7 +572,9 @@ export function UploadDialog({
     labels.retrySignedOut()
   }
   useSignedInAgain(needsSignIn, isSignedIn, signedInAgain)
-  useClaimSignIn(needsSignIn && !!guard)
+  // Only while its own Sign in again shows: after "Not now", or with the sheet
+  // closed, an action refused for the ended session opens the page's.
+  useClaimSignIn(signInOpen && open && !!guard)
   const [rejected, setRejected] = React.useState<RejectedFile[]>([])
   const [closeBlocked, setCloseBlocked] = React.useState(false)
   const [fixing, setFixing] = React.useState<string | null>(null)

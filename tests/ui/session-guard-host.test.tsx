@@ -1,6 +1,13 @@
 // @vitest-environment jsdom
 import * as React from "react"
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react"
+import {
+  act,
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import {
   afterEach,
@@ -52,6 +59,8 @@ import {
   useReportSessionEnded,
 } from "@/components/nabalens/session-guard-host"
 import { useSessionGuard } from "@/components/nabalens/session-guard"
+import { UploadDialog } from "@/components/nabalens/upload-dialog"
+import type { Uploader } from "@/components/nabalens/upload-queue"
 
 const ME = { user: { id: "manager-1", email: "manager@example.test" } }
 
@@ -355,7 +364,7 @@ describe("SessionGuardHost with a screen that has its own Sign in again", () => 
     }
   }
 
-  it("keeps the page's sheet closed while the screen claims it, and opens it after", async () => {
+  it("keeps the page's sheet closed while the screen claims it; after, a refused action opens it", async () => {
     const { user, claim } = renderClaimed(true)
     await signedInFirst()
     auth.session = null
@@ -363,8 +372,13 @@ describe("SessionGuardHost with a screen that has its own Sign in again", () => 
     await new Promise((resolve) => setTimeout(resolve, 1300))
     expect(screen.queryByRole("dialog")).toBeNull()
 
+    // The screen's own Sign in again was dismissed: a tap stays quiet, as
+    // after the page's "Not now"; a refused action opens the page's.
     claim(false)
     await user.click(screen.getByRole("button", { name: "Save" }))
+    await new Promise((resolve) => setTimeout(resolve, 1300))
+    expect(screen.queryByRole("dialog")).toBeNull()
+    await user.click(screen.getByRole("button", { name: "Report" }))
     expect(await sheet()).toBeTruthy()
   })
 
@@ -406,5 +420,73 @@ describe("SessionGuardHost while a streamed page is still arriving", () => {
     const guard = seen[0] as { email: string | null; userId: string | null }
     expect(guard.email).toBe("manager@example.test")
     expect(guard.userId).toBe("manager-1")
+  })
+})
+
+describe("SessionGuardHost around the upload sheet", () => {
+  it("after Not now and closing the sheet, a refused action opens the page's Sign in again", async () => {
+    const held: { reject: (e: Error) => void }[] = []
+    const upload: Uploader = () =>
+      new Promise<void>((_, reject) => {
+        held.push({ reject })
+      })
+    function Page() {
+      const [open, setOpen] = React.useState(true)
+      return (
+        <UploadDialog
+          open={open}
+          onOpenChange={setOpen}
+          uploader={upload}
+          limits={{
+            maxBatchFiles: 10,
+            maxParallelUploads: 1,
+            maxPhotoBytes: 20 * 1024 * 1024,
+            maxVideoBytes: 200 * 1024 * 1024,
+          }}
+          keepRunningWhenClosed
+        />
+      )
+    }
+    render(
+      <SessionGuardHost captchaRequired={false} captchaSiteKey={null}>
+        <Page />
+      </SessionGuardHost>
+    )
+    const user = userEvent.setup()
+    await signedInFirst()
+    await user.upload(screen.getByLabelText("Choose photos or videos"), [
+      new File([new Uint8Array(64)], "a.jpg", { type: "image/jpeg" }),
+    ])
+    await user.click(screen.getByRole("button", { name: "Upload 1 file" }))
+    await waitFor(() => expect(held).toHaveLength(1))
+
+    // The session ends mid-upload: the sheet's own Sign in again, alone.
+    auth.session = null
+    await act(async () => held[0].reject(new Error("Sign in to continue.")))
+    const uploads = await sheet()
+    expect(uploads.textContent).toMatch(/stopped|photo|upload/i)
+    expect(
+      screen.getAllByRole("dialog", { name: "Sign in again" })
+    ).toHaveLength(1)
+
+    await user.click(within(uploads).getByRole("button", { name: "Not now" }))
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Sign in again" })).toBeNull()
+    )
+    await user.keyboard("{Escape}")
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+
+    // A Server Action refused for the ended session elsewhere on the page.
+    act(() => {
+      window.dispatchEvent(
+        Object.assign(new Event("unhandledrejection"), {
+          reason: new Error(SESSION_ENDED_MESSAGE),
+        })
+      )
+    })
+    const page = await sheet()
+    expect(page.textContent).toContain(
+      "This page stays open, with what you've entered."
+    )
   })
 })
