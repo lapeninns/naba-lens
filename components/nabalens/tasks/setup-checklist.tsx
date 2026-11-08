@@ -80,7 +80,7 @@ export function SetupChecklist({
       id: "photo",
       label: "Profile photo",
       done: profile.hasAvatar,
-      todo: <>Optional. Add one in {editLink}.</>,
+      todo: <>Add one in {editLink}.</>,
       optional: true,
     },
   ]
@@ -141,7 +141,7 @@ export function SetupChecklist({
                 {step.optional ? " (optional)" : null}
               </span>
               <span className="sr-only">
-                {step.done ? ": done" : step.optional ? "" : ": missing"}
+                {step.done ? ": done" : step.optional ? ". " : ": missing"}
               </span>
               <span className="block text-ink-muted">
                 {step.done ? (step.value ?? "Added") : step.todo}

@@ -120,6 +120,30 @@ describe("TasksOverview", () => {
     expect(screen.queryByRole("progressbar")).toBeNull()
   })
 
+  it("reads the optional photo step as one sentence with its link inline", () => {
+    const view = tasksView({
+      scope: { ...base.scope, setup: { complete: false, missing: ["team"] } },
+    })
+    render(
+      <TasksOverview
+        tasks={view}
+        profile={{ ...PROFILE, department: null, hasAvatar: false }}
+        tasksPath="/staff/tasks"
+        portfolioPath="/staff"
+      />
+    )
+    const step = within(
+      screen.getByRole("list", { name: "Profile setup" })
+    ).getByText((_, el) =>
+      el?.tagName === "LI" ? el.textContent!.startsWith("Profile photo") : false
+    )
+    expect(step.textContent).toBe(
+      "Profile photo (optional). Add one in Edit profile."
+    )
+    const link = within(step).getByRole("link", { name: "Edit profile" })
+    expect(link.getAttribute("href")).toBe("/staff?edit=profile")
+  })
+
   it("explains a missing venue and offers no send action", () => {
     const view = tasksView({
       scope: {
