@@ -2,11 +2,8 @@
 // Writes whose reply was lost (the call threw: offline, or the response never
 // arrived) must say the outcome couldn't be confirmed, never that it failed or
 // that nothing changed; the server may have applied it. A refusal from the
-// server keeps its definite wording and reason.
-//
-// Lost replies are plain async functions that throw, not vi.fn() rejections:
-// Vitest's spy reports an async rejection as a test error even when the
-// component catches it.
+// server keeps its definite wording and reason. Each test makes its own
+// vi.fn() spy, so call counts never carry over between tests.
 import {
   act,
   cleanup,
@@ -34,14 +31,18 @@ vi.mock("next/navigation", () => ({
 
 afterEach(cleanup)
 
-const lostReply = async (): Promise<never> => {
-  throw new TypeError("Failed to fetch")
-}
+type ConfirmHandler = Parameters<typeof ReasonDialog>[0]["onConfirm"]
+type AttachHandler = Parameters<typeof AttachPhotosDialog>[0]["onAttach"]
+type SaveFactsHandler = Parameters<typeof AmenityFactForm>[0]["onSave"]
+
+/** A fresh spy that rejects like a Server Action whose reply never arrives. */
+const lostReply = () =>
+  vi.fn(async (): Promise<never> => {
+    throw new TypeError("Failed to fetch")
+  })
 
 describe("ReasonDialog", () => {
-  async function confirm(
-    onConfirm: Parameters<typeof ReasonDialog>[0]["onConfirm"]
-  ) {
+  async function confirm(onConfirm: ConfirmHandler) {
     render(
       <ReasonDialog
         open
@@ -61,18 +62,22 @@ describe("ReasonDialog", () => {
   }
 
   it("a lost reply says it couldn't confirm the save", async () => {
-    const alert = await confirm(lostReply)
+    const onConfirm = lostReply()
+    const alert = await confirm(onConfirm)
     expect(alert.textContent).toBe(
       "We couldn't confirm this was saved. Check your connection, then try again or refresh to see if it was."
     )
+    expect(onConfirm).toHaveBeenCalledExactlyOnceWith("Too dark")
   })
 
   it("a refusal shows the caller's definite wording", async () => {
-    const alert = await confirm(async () => ({
+    const onConfirm = vi.fn<ConfirmHandler>(async () => ({
       ok: false,
       error: "Nothing changed. Use up to 500 characters.",
     }))
+    const alert = await confirm(onConfirm)
     expect(alert.textContent).toBe("Nothing changed. Use up to 500 characters.")
+    expect(onConfirm).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -92,9 +97,7 @@ describe("AttachPhotosDialog", () => {
     reason: null,
   }
 
-  async function attach(
-    onAttach: Parameters<typeof AttachPhotosDialog>[0]["onAttach"]
-  ) {
+  async function attach(onAttach: AttachHandler) {
     render(
       <AttachPhotosDialog
         requirementTitle="Bar area"
@@ -118,29 +121,35 @@ describe("AttachPhotosDialog", () => {
   }
 
   it("a lost reply says it couldn't confirm the photos were attached", async () => {
-    const dialog = await attach(lostReply)
+    const onAttach = lostReply()
+    const dialog = await attach(onAttach)
     expect(
       await within(dialog).findByText(
         "We couldn't confirm the photos were attached. Check your connection, then try again or refresh to see if they were. They won't be attached twice."
       )
     ).toBeTruthy()
+    expect(onAttach).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ assetIds: ["asset-1"] })
+    )
   })
 
   it("a refusal gives the server's reason", async () => {
-    const dialog = await attach(async () => ({
+    const onAttach = vi.fn<AttachHandler>(async () => ({
       ok: false,
       code: "invalid_input",
       status: 400,
       message: "Choose up to 20 photos.",
     }))
+    const dialog = await attach(onAttach)
     expect(
       await within(dialog).findByText("Choose up to 20 photos.")
     ).toBeTruthy()
+    expect(onAttach).toHaveBeenCalledTimes(1)
   })
 })
 
 describe("AmenityFactForm", () => {
-  async function save(onSave: Parameters<typeof AmenityFactForm>[0]["onSave"]) {
+  async function save(onSave: SaveFactsHandler) {
     render(
       <AmenityFactForm
         fact={amenityFact()}
@@ -157,20 +166,26 @@ describe("AmenityFactForm", () => {
   }
 
   it("a lost reply's title doesn't claim the save failed", async () => {
-    const alert = await save(lostReply)
+    const onSave = lostReply()
+    const alert = await save(onSave)
     expect(
       within(alert).getByText("We couldn't confirm the facts were saved")
     ).toBeTruthy()
     expect(alert.textContent).not.toContain("We couldn't save the facts")
+    expect(onSave).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ presence: "present" })
+    )
   })
 
   it("a refusal says it couldn't save, with the server's reason", async () => {
-    const alert = await save(async () => ({
+    const onSave = vi.fn<SaveFactsHandler>(async () => ({
       ok: false,
       code: "invalid_input",
       status: 400,
       message: "Describe the facts in 500 characters or fewer.",
     }))
+    const alert = await save(onSave)
+    expect(onSave).toHaveBeenCalledTimes(1)
     expect(within(alert).getByText("We couldn't save the facts")).toBeTruthy()
     expect(
       within(alert).getByText("Describe the facts in 500 characters or fewer.")
@@ -181,10 +196,12 @@ describe("AmenityFactForm", () => {
 describe("useAmenityAction", () => {
   it("a lost reply says the change couldn't be confirmed", async () => {
     const { result } = renderHook(() => useAmenityAction())
+    const call = lostReply()
     let outcome: unknown
     await act(async () => {
-      outcome = await result.current.run(lostReply, "Saved.")
+      outcome = await result.current.run(call, "Saved.")
     })
+    expect(call).toHaveBeenCalledTimes(1)
     expect(outcome).toMatchObject({ ok: false, code: "network" })
     expect(result.current.notice).toEqual({
       tone: "error",
