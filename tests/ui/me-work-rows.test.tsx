@@ -11,6 +11,7 @@ import type * as React from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { MediaItem } from "@/components/nabalens/types"
+import { AddProvider } from "@/components/nabalens/shell/add-context"
 import { EMPTY_LABEL_SUMMARY } from "@/lib/menus/types"
 
 vi.mock("server-only", () => ({}))
@@ -132,8 +133,10 @@ const coverage = vi.hoisted(() => ({
 vi.mock("@/lib/server/coverage", () => coverage)
 
 import {
+  betterPhotoRequests,
   photoMilestone,
   photosNeedingLabels,
+  StaffPortfolio,
 } from "@/app/staff/staff-portfolio"
 import StaffPage from "@/app/staff/page"
 
@@ -323,12 +326,145 @@ describe("Me: Needs labels and milestones", () => {
     ).getAllByRole("listitem")
     expect(tiles).toHaveLength(1)
     expect(tiles[0].textContent).toContain("Better photo requested")
-    expect(tiles[0].textContent).toContain(
-      "Chicken curry: Too dark, shoot near the pass"
-    )
+    const row = screen.getByRole("article", { name: "Chicken curry" })
+    expect(row.textContent).toContain("Too dark, shoot near the pass")
     expect(
       screen.queryByRole("list", { name: "Photos accepted for menu use" })
     ).toBeNull()
+  })
+
+  it("takes the replacement photo of a better-photo request in one tap, labelled with that dish", async () => {
+    library.items = []
+    library.byId = [
+      item("b1", { labels: LABELLED }),
+      item("b2", { labels: LABELLED }),
+    ]
+    coverage.listMyMenuPhotoDecisions.mockResolvedValueOnce({
+      ok: true,
+      states: [
+        {
+          photoId: "p2",
+          assetId: "b1",
+          itemId: "i2",
+          itemName: "Chicken curry",
+          variantId: null,
+          variantName: null,
+          state: "better_photo_requested",
+          isPrimary: false,
+          reason: "Too dark, shoot near the pass",
+        },
+        {
+          photoId: "p3",
+          assetId: "b2",
+          itemId: "i3",
+          itemName: "Momo",
+          variantId: "v-veg",
+          variantName: "Veg",
+          state: "better_photo_requested",
+          isPrimary: false,
+          reason: "Show all ten",
+        },
+      ],
+    })
+    const openAdd = vi.fn()
+    render(<AddProvider value={{ openAdd }}>{await StaffPage()}</AddProvider>)
+    const heading = screen.getByRole("heading", {
+      level: 2,
+      name: /Better photo requested/,
+    })
+    expect(within(heading).getByText("2")).toBeTruthy()
+
+    const momo = screen.getByRole("article", { name: "Momo (Veg)" })
+    expect(momo.textContent).toContain("Show all ten")
+    fireEvent.click(
+      within(momo).getByRole("button", { name: "Take a new photo" })
+    )
+    expect(openAdd).toHaveBeenLastCalledWith({
+      source: "camera",
+      imagesOnly: true,
+      preset: {
+        itemId: "i3",
+        variantId: "v-veg",
+        itemName: "Momo",
+        variantName: "Veg",
+      },
+    })
+
+    const curry = screen.getByRole("article", { name: "Chicken curry" })
+    fireEvent.click(
+      within(curry).getByRole("button", { name: "Choose from photos" })
+    )
+    expect(openAdd).toHaveBeenLastCalledWith({
+      source: "library",
+      imagesOnly: true,
+      preset: {
+        itemId: "i2",
+        variantId: null,
+        itemName: "Chicken curry",
+        variantName: null,
+      },
+    })
+    expect(openAdd).toHaveBeenCalledTimes(2)
+  })
+
+  it("offers no camera on a better-photo request while uploads are paused", () => {
+    const openAdd = vi.fn()
+    render(
+      <AddProvider value={{ openAdd }}>
+        <StaffPortfolio
+          profile={{
+            displayName: "Anil Thapa",
+            jobTitle: null,
+            venueName: null,
+            avatarUrl: null,
+          }}
+          uploadBlocked="Uploads are paused until you have a venue."
+          initialPage={{ items: [], nextCursor: null }}
+          menuPhotos={[
+            {
+              photoId: "p2",
+              assetId: "b1",
+              itemId: "i2",
+              itemName: "Chicken curry",
+              variantId: null,
+              variantName: null,
+              state: "better_photo_requested",
+              isPrimary: false,
+              reason: "Too dark",
+            },
+          ]}
+          menuPhotoItems={[item("b1", { labels: LABELLED })]}
+        />
+      </AddProvider>
+    )
+    const row = screen.getByRole("article", { name: "Chicken curry" })
+    expect(within(row).queryByRole("button")).toBeNull()
+    expect(
+      screen.getByText("Uploads are paused until you have a venue.")
+    ).toBeTruthy()
+  })
+
+  it("lists a better-photo request only once its photo is ready", () => {
+    const state = {
+      photoId: "p1",
+      assetId: "a1",
+      itemId: "i1",
+      itemName: "Soup",
+      variantId: null,
+      variantName: null,
+      state: "better_photo_requested" as const,
+      isPrimary: false,
+      reason: "Brighter",
+    }
+    expect(
+      betterPhotoRequests(
+        [state, { ...state, photoId: "p0", state: "accepted" as const }],
+        [item("a1", { labels: LABELLED })]
+      ).map((r) => [r.key, r.dish, r.reason])
+    ).toEqual([["p1", "Soup", "Brighter"]])
+    expect(
+      betterPhotoRequests([state], [item("a1", { uploadState: "processing" })])
+    ).toEqual([])
   })
 
   it("words each photo's milestone", () => {

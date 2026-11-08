@@ -7,9 +7,11 @@ import {
   BookOpenTextIcon,
   BriefcaseIcon,
   CameraIcon,
+  CameraPlusIcon,
   CaretRightIcon,
   ClipboardTextIcon,
   ForkKnifeIcon,
+  ImagesIcon,
   PencilSimpleIcon,
   SignOutIcon,
   TagIcon,
@@ -38,6 +40,8 @@ import {
   useAddDiscarded,
   useAddLabelled,
   useAddRefreshSignal,
+  type AddLabelPreset,
+  type OpenAddOptions,
 } from "@/components/nabalens/shell/add-context"
 import { Button } from "@/components/ui/button"
 import { MEDIA_LIMITS } from "@/lib/config/media"
@@ -259,16 +263,140 @@ function MilestoneTile({
         {MILESTONES[milestone]}
       </StatusChip>
       {detail ? (
-        <span
-          className={
-            milestone === "better"
-              ? "text-meta [overflow-wrap:anywhere] text-ink-muted"
-              : "truncate text-meta text-ink-muted"
-          }
-        >
-          {detail}
-        </span>
+        <span className="truncate text-meta text-ink-muted">{detail}</span>
       ) : null}
+    </li>
+  )
+}
+
+/** One manager request for a better photo of one dish on one own photo. */
+export type BetterPhotoRequest = {
+  key: string
+  item: MediaItem
+  dish: string
+  reason: string | null
+  preset: AddLabelPreset
+}
+
+export const BETTER_PHOTO_COPY = {
+  intro:
+    "A manager would like a better photo of these dishes. Take a new one and it goes to them for review, already labelled with the dish.",
+  take: "Take a new photo",
+  choose: "Choose from photos",
+} as const
+
+/**
+ * Open better-photo requests on photos that are ready, newest decision first.
+ * The dish and its variant become Add's label preset, as on Our menu.
+ */
+export function betterPhotoRequests(
+  states: readonly MyMenuPhotoState[],
+  items: readonly MediaItem[]
+): BetterPhotoRequest[] {
+  const ready = new Map(
+    items
+      .filter((item) => item.uploadState === "ready")
+      .map((item) => [item.id, item])
+  )
+  return states.flatMap((state) => {
+    const item = ready.get(state.assetId)
+    if (state.state !== "better_photo_requested" || !item) return []
+    return [
+      {
+        key: state.photoId,
+        item,
+        dish: state.variantName
+          ? `${state.itemName} (${state.variantName})`
+          : state.itemName,
+        reason: state.reason,
+        preset: {
+          itemId: state.itemId,
+          variantId: state.variantId,
+          itemName: state.itemName,
+          variantName: state.variantName,
+        },
+      },
+    ]
+  })
+}
+
+/**
+ * A better-photo request: the photo, the dish, the manager's note, and the
+ * camera (or library) straight away with the dish preset. Grey buttons: the
+ * profile card keeps the screen's one blue action.
+ */
+function BetterPhotoRow({
+  request,
+  openAdd,
+}: {
+  request: BetterPhotoRequest
+  openAdd: ((opts?: OpenAddOptions) => void) | null
+}) {
+  const nameId = React.useId()
+  const { item, dish, reason, preset } = request
+  return (
+    <li>
+      <article
+        aria-labelledby={nameId}
+        className="grid grid-cols-[auto_minmax(0,1fr)] gap-3 p-3"
+      >
+        <span className="relative block size-16 shrink-0 overflow-hidden rounded-control bg-plate">
+          {item.thumbnailUrl ? (
+            // Signed private URLs never go through next/image (see MediaTile).
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={item.thumbnailUrl}
+              alt=""
+              loading="lazy"
+              decoding="async"
+              className="absolute inset-0 size-full object-cover"
+            />
+          ) : null}
+        </span>
+        <div className="grid min-w-0 content-start gap-1">
+          <StatusChip state={MILESTONE_STATE.better} className="w-fit">
+            {MILESTONES.better}
+          </StatusChip>
+          <h3
+            id={nameId}
+            className="text-item-title [overflow-wrap:anywhere] text-ink"
+          >
+            {dish}
+          </h3>
+          {reason ? (
+            <p className="text-body [overflow-wrap:anywhere] text-ink-muted">
+              {reason}
+            </p>
+          ) : null}
+        </div>
+        {openAdd ? (
+          <div className="col-span-2 flex flex-wrap gap-2 *:flex-auto sm:*:flex-none">
+            <Button
+              variant="secondary"
+              size="touch"
+              aria-describedby={nameId}
+              // openAdd clicks the camera input inside this click handler.
+              onClick={() =>
+                openAdd({ source: "camera", imagesOnly: true, preset })
+              }
+            >
+              <CameraPlusIcon data-icon="inline-start" aria-hidden />
+              {BETTER_PHOTO_COPY.take}
+            </Button>
+            <Button
+              variant="quiet"
+              size="touch"
+              aria-describedby={nameId}
+              onClick={() =>
+                openAdd({ source: "library", imagesOnly: true, preset })
+              }
+            >
+              <ImagesIcon data-icon="inline-start" aria-hidden />
+              {BETTER_PHOTO_COPY.choose}
+            </Button>
+          </div>
+        ) : null}
+      </article>
     </li>
   )
 }
@@ -323,24 +451,19 @@ export function StaffPortfolio({
   const [labelSaves, setLabelSaves] = React.useState(0)
   const [labelIds, setLabelIds] = React.useState<string[] | null>(null)
   const needsLabels = photosNeedingLabels(initialPage.items, labelled)
-  const { accepted, better } = React.useMemo(() => {
+  const accepted = React.useMemo(() => {
     const accepted = new Map<string, string[]>()
-    const better = new Map<string, string[]>()
     for (const state of menuPhotos) {
+      if (state.state !== "accepted") continue
       const name = state.variantName
         ? `${state.itemName} (${state.variantName})`
         : state.itemName
-      if (state.state === "accepted") {
-        accepted.set(state.assetId, [
-          ...(accepted.get(state.assetId) ?? []),
-          name,
-        ])
-      } else if (state.state === "better_photo_requested") {
-        const note = state.reason ? `${name}: ${state.reason}` : name
-        better.set(state.assetId, [...(better.get(state.assetId) ?? []), note])
-      }
+      accepted.set(state.assetId, [
+        ...(accepted.get(state.assetId) ?? []),
+        name,
+      ])
     }
-    return { accepted, better }
+    return accepted
   }, [menuPhotos])
   const acceptedIds = React.useMemo(() => new Set(accepted.keys()), [accepted])
   // From the decisions themselves, not the newest gallery page, so an older
@@ -348,9 +471,9 @@ export function StaffPortfolio({
   const acceptedItems = menuPhotoItems.filter(
     (item) => photoMilestone(item, acceptedIds) === "accepted"
   )
-  const betterItems = menuPhotoItems.filter(
-    (item) => item.uploadState === "ready" && better.has(item.id)
-  )
+  const betterRequests = betterPhotoRequests(menuPhotos, menuPhotoItems)
+  // A blocked account sees why in the notice below, not a camera that fails.
+  const openRetake = uploadBlocked ? null : openAdd
 
   const uploadButton = (variant: "primary" | "secondary" = "primary") =>
     uploadBlocked || !openAdd ? null : (
@@ -499,30 +622,32 @@ export function StaffPortfolio({
           </ul>
         </section>
       ) : null}
-      {betterItems.length > 0 ? (
+      {betterRequests.length > 0 ? (
         <section aria-labelledby="better-heading" className="grid gap-3 pt-2">
           <div className="grid gap-1 px-1">
             <h2
               id="better-heading"
-              className="font-display text-section-title text-ink"
+              className="flex items-center gap-2 font-display text-section-title text-ink"
             >
               {MILESTONES.better}
+              <CountBadge
+                count={betterRequests.length}
+                label={betterRequests.length === 1 ? "request" : "requests"}
+              />
             </h2>
             <p className="text-body text-ink-muted">
-              A manager would like a better photo of these dishes. Their note is
-              under each photo.
+              {BETTER_PHOTO_COPY.intro}
             </p>
           </div>
           <ul
             aria-label="Photos with a better photo requested"
-            className={TILE_GRID}
+            className="grid divide-y divide-line overflow-hidden rounded-card bg-surface shadow-card"
           >
-            {betterItems.map((item) => (
-              <MilestoneTile
-                key={item.id}
-                item={item}
-                milestone="better"
-                detail={better.get(item.id)?.join("; ")}
+            {betterRequests.map((request) => (
+              <BetterPhotoRow
+                key={request.key}
+                request={request}
+                openAdd={openRetake}
               />
             ))}
           </ul>
