@@ -695,8 +695,31 @@ function PanelHost({
         for (const input of kept) {
           const id = input.assetId
           const base = heldFor(id)?.base ?? recorded(id)
-          if (heldFor(id) || !sameLabelChoice(input, base))
-            held.set(id, { base, input, discards })
+          const changed = !sameLabelChoice(input, base)
+          if (!heldFor(id) && !changed) continue
+          // The field names a file's dish only once the menu is known, so a
+          // change made before that lacks it. Held as restored labels, it
+          // would stop the dish being added later: keep a dish never shown.
+          const dish = dishOf(id)
+          const unseen =
+            changed &&
+            dish &&
+            !settledIds.includes(id) &&
+            !dishShown(id) &&
+            !hasDish(input, dish)
+          held.set(id, {
+            base,
+            input: unseen
+              ? {
+                  ...input,
+                  items: [
+                    ...input.items,
+                    { itemId: dish.itemId, variantId: dish.variantId },
+                  ],
+                }
+              : input,
+            discards,
+          })
         }
         heldChanged()
       }}
