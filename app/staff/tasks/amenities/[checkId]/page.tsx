@@ -22,7 +22,20 @@ export default async function AmenityCapturePage({
   const profile = await requireActiveStaff()
   const { checkId } = await params
   const { actor } = unwrap(await getCoverageActor())
-  const shell = await staffShellStatus(actor, profile)
+  // CaptureScreen is an async server component without hooks. Calling it here
+  // starts the check's reads alongside the shell's instead of after them.
+  const [shell, screen] = await Promise.all([
+    staffShellStatus(actor, profile),
+    CaptureScreen({
+      actor,
+      checkId,
+      mode: "staff",
+      venueName: profile.venue?.name ?? null,
+      backHref: TASKS_PATH,
+      backLabel: "Home",
+      doneHref: TASKS_PATH,
+    }),
+  ])
   return (
     <AppShell
       variant="staff"
@@ -31,15 +44,7 @@ export default async function AmenityCapturePage({
       userName={profile.displayName}
       logoutAction={logout}
     >
-      <CaptureScreen
-        actor={actor}
-        checkId={checkId}
-        mode="staff"
-        venueName={profile.venue?.name ?? null}
-        backHref={TASKS_PATH}
-        backLabel="Home"
-        doneHref={TASKS_PATH}
-      />
+      {screen}
     </AppShell>
   )
 }
