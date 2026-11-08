@@ -361,6 +361,40 @@ describe("Saving sheet: labels by asset ID", () => {
     expect(labels.attention).not.toHaveBeenCalled()
   })
 
+  it("promises manager review for a dish photo only: a video keeps its dish without it", async () => {
+    const { upload, find } = heldUploader()
+    const labels = labelsConfig()
+    sheet({ uploader: upload, labels: labels.config })
+    const user = userEvent.setup()
+    await user.upload(screen.getByLabelText("Choose photos or videos"), [
+      jpeg("dish.jpg"),
+      mp4("dish.mp4"),
+    ])
+    await labels.choose((id) => input(id))
+    act(() => {
+      find("dish.jpg").reserve("asset-1")
+      find("dish.mp4").reserve("asset-2")
+    })
+    await waitFor(() => expect(labels.save).toHaveBeenCalledTimes(2))
+    await act(async () => {
+      find("dish.jpg").resolve({
+        state: "saved",
+        labels: summary(["Onion Bhaji"]),
+      })
+      find("dish.mp4").resolve({
+        state: "saved",
+        labels: summary(["Onion Bhaji"]),
+      })
+    })
+    await waitFor(() =>
+      expect(row("dish.mp4").textContent).toContain("Saved · Onion Bhaji")
+    )
+    expect(row("dish.mp4").textContent).not.toContain("review")
+    expect(row("dish.jpg").textContent).toContain(
+      "Saved · Onion Bhaji · waiting for manager review"
+    )
+  })
+
   it("sends a change again and discards labels the person clears", async () => {
     const { upload, find } = heldUploader()
     const labels = labelsConfig()

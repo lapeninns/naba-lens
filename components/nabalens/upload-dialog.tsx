@@ -255,10 +255,14 @@ function rowState(
     case "saved":
       return {
         word: "Saved",
+        // Only a photo goes to a manager for its dish: videos never enter
+        // review, so a video keeps its dish names without the promise.
         suffix:
-          labels.names.length > 0
-            ? `${labels.names.join(", ")} · waiting for manager review`
-            : null,
+          labels.names.length === 0
+            ? null
+            : item.kind === "image"
+              ? `${labels.names.join(", ")} · waiting for manager review`
+              : labels.names.join(", "),
         detail: null,
       }
     case "retry":

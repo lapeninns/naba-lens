@@ -374,7 +374,8 @@ Each row ends in exactly one of three words:
 
 - **Saved**: the photo is processed and its labels, if you chose any, are
   stored on it. A dish photo says, for example, **Saved · Onion Bhaji ·
-  waiting for manager review**.
+  waiting for manager review**. A video keeps its dish label but only says
+  **Saved · Onion Bhaji**: managers review photos, never videos, for a dish.
 - **Saving…**: still working. The line under it says **Uploading 40%** or
   **Processing**. With a weak or lost connection it carries on when the signal
   returns; nothing is sent twice.
