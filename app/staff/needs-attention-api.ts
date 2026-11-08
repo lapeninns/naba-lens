@@ -112,7 +112,8 @@ export function sameLabels(
 }
 
 /**
- * "Fix labels": save the corrected input. A ready photo saves it now and * drops the stored row. "pending" (the photo hasn't finished saving) keeps
+ * "Fix labels": save the corrected input. A ready photo saves it now and
+ * drops the stored row. "pending" (the photo hasn't finished saving) keeps
  * the input on the server; it counts as stored, not as on the photo.
  */
 export async function saveFixedLabels(

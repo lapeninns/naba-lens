@@ -178,7 +178,8 @@ export function savedSince(labels: MediaLabelSummary, draft: SaveLabelsInput) {
 }
 
 /**
- * One listed row. `applied`: a discard found the labels already on the * photo (its upload applied them first), so the row stays to say so.
+ * One listed row. `applied`: a discard found the labels already on the
+ * photo (its upload applied them first), so the row stays to say so.
  */
 type Row = PendingLabelItem & {
   applied?: { labels: MediaLabelSummary | null }
