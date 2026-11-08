@@ -23,10 +23,8 @@ import type {
   Uploader,
   UploadPurpose,
 } from "@/components/nabalens/upload-queue"
-import {
-  SessionGuardProvider,
-  type SessionGuard,
-} from "@/components/nabalens/session-guard"
+import { SessionGuardProvider } from "@/components/nabalens/session-guard"
+import { useBrowserSessionGuard } from "@/components/nabalens/session-guard-host"
 import { usePhotoSource } from "@/components/nabalens/photo-source"
 import {
   AddProvider,
@@ -40,8 +38,6 @@ import {
   type AddBlocked,
 } from "@/components/nabalens/shell/add-sheet"
 import { useObjectUrl } from "@/components/nabalens/use-upload-queue"
-import { CAPTCHA_RETRY_MESSAGE } from "@/lib/auth/captcha"
-import { sendSignInLink, signInWithCode } from "@/lib/auth/magic-link"
 import { MEDIA_LIMITS } from "@/lib/config/media"
 import type { WorkFocus } from "@/lib/config/work-roles"
 import { dishName } from "@/lib/menus/dish-name"
@@ -51,7 +47,6 @@ import type {
   SaveLabelsInput,
 } from "@/lib/menus/types"
 import { createClient } from "@/lib/supabase/browser"
-import { getSiteUrl } from "@/lib/supabase/env"
 
 import {
   discardUploadLabels,
@@ -116,56 +111,11 @@ export function AddHost({
     undefined
   )
   const [refreshSignal, setRefreshSignal] = React.useState(0)
-  const [email, setEmail] = React.useState<string | null>(null)
-  const [userId, setUserId] = React.useState<string | null>(null)
   const supabase = React.useMemo(() => createClient(), [])
-
-  React.useEffect(() => {
-    // Read the email in the browser and keep it through session expiry so an
-    // interrupted upload can offer a sign-in link.
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session) return
-      setEmail(session.user.email ?? null)
-      // Keep the first identity: the queue belongs to it, even if another
-      // account signs in later in this browser.
-      setUserId((current) => current ?? session.user.id)
-    })
-    return () => data.subscription.unsubscribe()
-  }, [supabase])
-
-  const guard = React.useMemo<SessionGuard>(() => {
-    return {
-      email,
-      userId,
-      captchaRequired,
-      captchaSiteKey,
-      // The same request the login page makes (never creates an account), sent
-      // from the browser: while signed out, a Server Action posted from a staff
-      // page is redirected to /login by the proxy.
-      sendLink: async (to, captchaToken) => {
-        const result = await sendSignInLink(
-          supabase,
-          to,
-          `${getSiteUrl()}/auth/callback`,
-          captchaToken
-        )
-        return result.status === "captcha_failed"
-          ? { error: CAPTCHA_RETRY_MESSAGE }
-          : {}
-      },
-      // Also from the browser, for the same reason as sendLink.
-      verifyCode: (to, code) => signInWithCode(supabase, to, code),
-      // Reads the session from this browser's auth cookies (refreshing it if
-      // needed); the server still re-authorises every upload step.
-      isSignedIn: async () => {
-        if (navigator.onLine === false) return true
-        const { data, error } = await supabase.auth.getSession()
-        // A different account does not resume this person's queue.
-        if (data.session) return !userId || data.session.user.id === userId
-        return error?.name === "AuthRetryableFetchError"
-      },
-    }
-  }, [email, userId, captchaRequired, captchaSiteKey, supabase])
+  // Kept through session expiry so an interrupted upload can offer a sign-in
+  // link; the queue belongs to the first identity (guard.userId).
+  const guard = useBrowserSessionGuard({ captchaRequired, captchaSiteKey })
+  const { userId } = guard
 
   const [busy, setBusy] = React.useState<UploadBusy>({
     active: 0,

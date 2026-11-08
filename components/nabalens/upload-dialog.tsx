@@ -45,6 +45,7 @@ import {
   useSessionGuard,
   useSignedInAgain,
 } from "./session-guard"
+import { useClaimSignIn } from "./session-guard-host"
 import type { UploadLimits } from "./types"
 import {
   LABELS_LOST,
@@ -571,6 +572,7 @@ export function UploadDialog({
     labels.retrySignedOut()
   }
   useSignedInAgain(needsSignIn, isSignedIn, signedInAgain)
+  useClaimSignIn(needsSignIn && !!guard)
   const [rejected, setRejected] = React.useState<RejectedFile[]>([])
   const [closeBlocked, setCloseBlocked] = React.useState(false)
   const [fixing, setFixing] = React.useState<string | null>(null)

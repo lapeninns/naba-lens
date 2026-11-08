@@ -93,6 +93,24 @@ export function useBrowserSessionGuard({
 }
 
 const ReportSessionEnded = React.createContext<() => void>(() => {})
+const ClaimSignIn = React.createContext<
+  ((id: string, claimed: boolean) => void) | null
+>(null)
+
+/**
+ * For a screen with its own Sign in again (the upload sheet, which resumes
+ * its uploads once signed in): while `claimed`, the page's Sign in again
+ * stays closed, so the two never show together. A no-op outside the host.
+ */
+export function useClaimSignIn(claimed: boolean) {
+  const claim = React.useContext(ClaimSignIn)
+  const id = React.useId()
+  React.useEffect(() => {
+    if (!claim) return
+    claim(id, claimed)
+    return () => claim(id, false)
+  }, [claim, id, claimed])
+}
 
 /**
  * For a screen whose action failed with `isSessionEndedError`: opens Sign in
@@ -130,6 +148,17 @@ export function SessionGuardHost({
   const check = React.useRef<(refused: boolean) => Promise<void>>(
     async () => {}
   )
+  const claims = React.useRef(new Set<string>())
+  const claim = React.useCallback((id: string, claimed: boolean) => {
+    if (!claimed) {
+      claims.current.delete(id)
+      return
+    }
+    claims.current.add(id)
+    if (!shown.current) return
+    shown.current = false
+    setOpen(false)
+  }, [])
 
   const guard = useBrowserSessionGuard({
     captchaRequired,
@@ -140,7 +169,7 @@ export function SessionGuardHost({
   React.useEffect(() => {
     check.current = async (wasRefused) => {
       if (wasRefused) refused.current = true
-      if (shown.current || checking.current) return
+      if (shown.current || checking.current || claims.current.size > 0) return
       checking.current = true
       // Unsure (offline, auth server unreachable) counts as signed in: a lost
       // signal is never shown as a sign-out.
@@ -154,7 +183,7 @@ export function SessionGuardHost({
         if (quiet.current && !refused.current) return
         // A cookie being rewritten can read as signed out once.
         await new Promise((resolve) => setTimeout(resolve, CONFIRM_AFTER_MS))
-        if (await signedIn()) return
+        if ((await signedIn()) || claims.current.size > 0) return
         shown.current = true
         refused.current = false
         setOpen(true)
@@ -217,7 +246,7 @@ export function SessionGuardHost({
   return (
     <SessionGuardProvider value={guard}>
       <ReportSessionEnded.Provider value={report}>
-        {children}
+        <ClaimSignIn.Provider value={claim}>{children}</ClaimSignIn.Provider>
         <SignInAgainSheet
           open={open}
           onOpenChange={onOpenChange}

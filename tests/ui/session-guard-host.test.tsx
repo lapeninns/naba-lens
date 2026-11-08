@@ -48,6 +48,7 @@ vi.mock("@/lib/supabase/browser", () => ({
 
 import {
   SessionGuardHost,
+  useClaimSignIn,
   useReportSessionEnded,
 } from "@/components/nabalens/session-guard-host"
 
@@ -332,3 +333,47 @@ describe("SessionGuardHost", () => {
 
 // Keep React in scope for the JSX transform used by this file.
 void React
+
+function Claimer({ claimed }: { claimed: boolean }) {
+  useClaimSignIn(claimed)
+  return null
+}
+
+describe("SessionGuardHost with a screen that has its own Sign in again", () => {
+  function renderClaimed(claimed: boolean) {
+    const ui = (on: boolean) => (
+      <SessionGuardHost captchaRequired={false} captchaSiteKey={null}>
+        <RenameForm />
+        <Claimer claimed={on} />
+      </SessionGuardHost>
+    )
+    const view = render(ui(claimed))
+    return {
+      user: userEvent.setup(),
+      claim: (on: boolean) => view.rerender(ui(on)),
+    }
+  }
+
+  it("keeps the page's sheet closed while the screen claims it, and opens it after", async () => {
+    const { user, claim } = renderClaimed(true)
+    await signedInFirst()
+    auth.session = null
+    await user.click(screen.getByRole("button", { name: "Save" }))
+    await new Promise((resolve) => setTimeout(resolve, 1300))
+    expect(screen.queryByRole("dialog")).toBeNull()
+
+    claim(false)
+    await user.click(screen.getByRole("button", { name: "Save" }))
+    expect(await sheet()).toBeTruthy()
+  })
+
+  it("closes the page's sheet when the screen claims it", async () => {
+    const { user, claim } = renderClaimed(false)
+    await signedInFirst()
+    auth.session = null
+    await user.click(screen.getByRole("button", { name: "Save" }))
+    await sheet()
+    claim(true)
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+  })
+})

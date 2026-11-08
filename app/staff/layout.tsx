@@ -1,4 +1,5 @@
 import { requireActiveStaff, uploadBlockReason } from "@/lib/auth"
+import { SessionGuardHost } from "@/components/nabalens/session-guard-host"
 import { getLoginCaptchaConfig } from "@/lib/auth/captcha"
 
 import { AddHost } from "./_shell/add-host"
@@ -12,7 +13,8 @@ export const maxDuration = 120
  * Early role gate for /staff: a real 307 for admins, inactive and profile-less
  * accounts before loading.tsx streams. Not the authorisation boundary (layouts
  * do not re-render on client navigation); the page and every Server Function
- * still call lib/auth.
+ * still call lib/auth. An ended session is met in place (Sign in again over
+ * the page); the upload sheet keeps its own, which resumes the uploads.
  */
 export default async function StaffLayout({
   children,
@@ -29,12 +31,17 @@ export default async function StaffLayout({
         : null
   const captcha = getLoginCaptchaConfig()
   return (
-    <AddHost
-      blocked={blocked}
+    <SessionGuardHost
       captchaRequired={captcha.enabled}
       captchaSiteKey={captcha.siteKey}
     >
-      {children}
-    </AddHost>
+      <AddHost
+        blocked={blocked}
+        captchaRequired={captcha.enabled}
+        captchaSiteKey={captcha.siteKey}
+      >
+        {children}
+      </AddHost>
+    </SessionGuardHost>
   )
 }
