@@ -19,8 +19,14 @@ import {
   NeedsAttention,
   attentionItems,
   attentionReason,
+  draftOnCurrentLabels,
+  savedSince,
   type NeedsAttentionApi,
 } from "@/app/staff/needs-attention"
+import {
+  adjustFromInput,
+  draftItemsFromRefs,
+} from "@/components/nabalens/labels/label-draft"
 import type { DiscardResult } from "@/app/staff/needs-attention-api"
 import {
   EMPTY_LABEL_SUMMARY,
@@ -370,6 +376,84 @@ describe("NeedsAttention on Me", () => {
     expect(onFixed).toHaveBeenCalledWith([row(1).assetId])
   })
 
+  it("keeps labels saved on the photo since the draft was stored, and adds the draft (B2)", async () => {
+    const user = userEvent.setup()
+    const PIE = "00000000-0000-4000-8000-0000000000c2"
+    const now: MediaLabelSummary = {
+      revision: 2,
+      contentTypes: ["dish"],
+      note: "Chef's special plate",
+      items: [
+        {
+          itemId: PIE,
+          variantId: null,
+          name: "Pie",
+          variantName: null,
+          sectionName: "Mains",
+          labelledAs: null,
+          state: "current",
+        },
+      ],
+      missingItem: null,
+      hasLabels: true,
+      updatedAt: "2026-11-07T11:00:00.000Z",
+    }
+    const stored = row(1, {
+      code: "conflict",
+      input: {
+        ...draft(row(1).assetId),
+        contentTypes: ["plating"],
+        note: "From the pass",
+      },
+    })
+    const base = api([stored])
+    const calls = api([stored], {
+      loadContext: vi.fn<NeedsAttentionApi["loadContext"]>(async (ids) => {
+        const ctx = await base.loadContext(ids)
+        if (!ctx.ok) return ctx
+        return {
+          ...ctx,
+          assets: ctx.assets.map((a) => ({ ...a, labels: now })),
+        }
+      }),
+    })
+    render(<NeedsAttention api={calls} />)
+    await user.click(await screen.findByRole("button", { name: "Fix labels" }))
+    expect(
+      (await screen.findByRole("dialog", { name: "Fix labels" })).textContent
+    ).toBe(
+      "Labels were saved on this photo since. Yours are added to them; nothing is removed."
+    )
+    const opened = dialog.last!.draft
+    expect(opened).toEqual({
+      assetId: stored.assetId,
+      expectedRevision: 2,
+      catalogueVersionId: "version-1",
+      contentTypes: ["dish", "plating"],
+      note: "Chef's special plate",
+      items: [
+        { itemId: PIE, variantId: null },
+        { itemId: SOUP, variantId: null },
+      ],
+      missingItem: null,
+    })
+    // The editor removes nothing the photo has now.
+    const adjust = adjustFromInput(
+      now,
+      opened,
+      draftItemsFromRefs(null, opened.items, now.items)
+    )
+    expect(adjust.remove).toEqual([])
+    expect(adjust.removeTypes).toEqual([])
+    expect(adjust.note).toBeUndefined()
+
+    // Unchanged labels on the photo still open the stored draft as it is.
+    expect(savedSince(EMPTY_LABEL_SUMMARY, stored.input)).toBe(false)
+    expect(savedSince(now, stored.input)).toBe(true)
+    expect(draftOnCurrentLabels(EMPTY_LABEL_SUMMARY, stored.input)).toEqual(
+      stored.input
+    )
+  })
   it("keeps the row and hands the problem back when the fix doesn't save", async () => {
     const user = userEvent.setup()
     const onFixed = vi.fn()

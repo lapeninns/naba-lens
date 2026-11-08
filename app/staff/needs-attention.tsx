@@ -53,6 +53,8 @@ export const ATTENTION_COPY = {
   /** The list doesn't say why an upload failed. */
   noReason: "no reason was given",
   alreadySaved: "These labels were already saved on the photo.",
+  savedSince:
+    "Labels were saved on this photo since. Yours are added to them; nothing is removed.",
   saved: "Saved",
   keep: "Keep labels",
   fix: "Fix labels",
@@ -138,8 +140,45 @@ function inputFromLabels(
 }
 
 /**
- * One listed row. `applied`: a discard found the labels already on the
- * photo (its upload applied them first), so the row stays to say so.
+ * A stored draft on top of labels saved on the photo since it was stored
+ * (an admin, or another save): the photo's dishes, content types and note
+ * stay, and the draft's are added. Opening the draft as it is would remove
+ * whatever the photo gained, at the photo's current revision, so the save
+ * would never conflict.
+ */
+export function draftOnCurrentLabels(
+  labels: MediaLabelSummary,
+  draft: SaveLabelsInput
+): SaveLabelsInput {
+  const current = inputFromLabels(draft.assetId, labels)
+  const items = [...current.items]
+  for (const ref of draft.items)
+    if (
+      !items.some(
+        (i) => i.itemId === ref.itemId && i.variantId === ref.variantId
+      )
+    )
+      items.push(ref)
+  return {
+    ...current,
+    catalogueVersionId: draft.catalogueVersionId,
+    contentTypes: [
+      ...current.contentTypes,
+      ...draft.contentTypes.filter((t) => !current.contentTypes.includes(t)),
+    ],
+    note: current.note?.trim() ? current.note : draft.note,
+    items,
+    missingItem: draft.missingItem,
+  }
+}
+
+/** Labels were saved on the photo after the draft was stored. */
+export function savedSince(labels: MediaLabelSummary, draft: SaveLabelsInput) {
+  return labels.hasLabels || labels.revision !== draft.expectedRevision
+}
+
+/**
+ * One listed row. `applied`: a discard found the labels already on the * photo (its upload applied them first), so the row stays to say so.
  */
 type Row = PendingLabelItem & {
   applied?: { labels: MediaLabelSummary | null }
@@ -150,6 +189,8 @@ type Fixing = {
   asset: LabelEditorAsset
   /** What the dialog opens with: the stored labels, or those on the photo. */
   draft: SaveLabelsInput
+  /** Labels were saved on the photo after the draft was stored. */
+  since: boolean
   catalogue: CatalogueProp
   focus: WorkFocus | null
 }
@@ -333,13 +374,18 @@ export function NeedsAttention({
         (handled.current.has(item.assetId) || !listed.current.has(item.assetId))
       )
         return
+      const since = !item.applied && savedSince(asset.labels, item.input)
       setFixing({
         item,
         asset,
-        // Labels already on the photo open as they are now.
+        // Labels already on the photo open as they are now; labels saved
+        // since the draft was stored are kept, with the draft added.
         draft: item.applied
           ? inputFromLabels(item.assetId, asset.labels)
-          : item.input,
+          : since
+            ? draftOnCurrentLabels(asset.labels, item.input)
+            : item.input,
+        since,
         catalogue,
         focus: context.focus ?? null,
       })
@@ -486,12 +532,14 @@ export function NeedsAttention({
           asset={fixing.asset}
           draft={fixing.draft}
           problem={
-            fixing.item.code && !fixing.item.applied
-              ? {
-                  code: fixing.item.code,
-                  message: attentionReason(fixing.item),
-                }
-              : null
+            fixing.since
+              ? { code: "conflict", message: ATTENTION_COPY.savedSince }
+              : fixing.item.code && !fixing.item.applied
+                ? {
+                    code: fixing.item.code,
+                    message: attentionReason(fixing.item),
+                  }
+                : null
           }
           catalogue={fixing.catalogue}
           onRetryCatalogue={() => void retryCatalogue()}
