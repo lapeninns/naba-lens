@@ -356,15 +356,21 @@ test("rows 5+7: photo + video uploaded, batch-labelled with per-file overrides; 
       timeout: 90_000,
     })
     await finalise.stop()
-    for (const name of [photo.name, video.name])
-      await expect(
-        editor
-          .getByRole("list", { name: "Files" })
-          .getByRole("listitem")
-          .filter({ has: staff.getByText(name, { exact: true }) })
-      ).toContainText(
-        /Saved · .*Momo \(Chicken\).* · waiting for manager review/
-      )
+    const savedRow = (name: string) =>
+      editor
+        .getByRole("list", { name: "Files" })
+        .getByRole("listitem")
+        .filter({ has: staff.getByText(name, { exact: true }) })
+    await expect(savedRow(photo.name)).toContainText(
+      /Saved · .*Momo \(Chicken\).* · waiting for manager review/
+    )
+    // Managers review photos only: the video keeps its dish, not the promise.
+    await expect(savedRow(video.name)).toContainText(
+      /Saved · .*Momo \(Chicken\)/
+    )
+    await expect(savedRow(video.name)).not.toContainText(
+      "waiting for manager review"
+    )
     await editor.getByRole("button", { name: "Done" }).click()
     await expect(editor).toBeHidden()
   })

@@ -215,6 +215,10 @@ test("a3 reload mid-upload: picking the same file again puts the kept labels on 
   await expect(fileRow(again, video.name)).toContainText("Saved", {
     timeout: 120_000,
   })
+  // A video is never reviewed for its dish.
+  await expect(fileRow(again, video.name)).not.toContainText(
+    "waiting for manager review"
+  )
   expect(assetIdsNamed(video.name)).toEqual([id])
   await expect.poll(() => labelsOn(id), { timeout: 30_000 }).toBe("Onion Bhaji")
   expect(keptLabels(id)).toBe("")

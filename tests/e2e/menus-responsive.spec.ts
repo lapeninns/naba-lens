@@ -307,13 +307,19 @@ for (const width of WIDTHS) {
     await check(page, width, "label-editor-batch-adjust", batch)
     // No Save button: each file's labels are sent by asset id, and its row
     // says "Saved" with the dish once they are on it.
-    for (const file of [photo, video])
-      await expect(
-        batch
-          .getByRole("list", { name: "Files" })
-          .getByRole("listitem")
-          .filter({ has: page.getByText(file.name, { exact: true }) })
-      ).toContainText("Saved · Momo (Chicken) · waiting for manager review")
+    const savedRow = (name: string) =>
+      batch
+        .getByRole("list", { name: "Files" })
+        .getByRole("listitem")
+        .filter({ has: page.getByText(name, { exact: true }) })
+    await expect(savedRow(photo.name)).toContainText(
+      "Saved · Momo (Chicken) · waiting for manager review"
+    )
+    // Managers review photos only: the video keeps its dish, not the promise.
+    await expect(savedRow(video.name)).toContainText("Saved · Momo (Chicken)")
+    await expect(savedRow(video.name)).not.toContainText(
+      "waiting for manager review"
+    )
     await expect(batch.getByRole("status")).toHaveText("2 saved")
     await batch.getByRole("button", { name: "Done" }).click()
     await expect(batch).toBeHidden()
