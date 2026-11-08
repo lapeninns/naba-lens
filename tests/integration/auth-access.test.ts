@@ -419,7 +419,10 @@ describe("segment layouts reject before anything renders (privacy R3)", () => {
           redirectOf(() => StaffLayout({ children }))
         )
       ).value
-    ).toMatchObject({ type: AddHost, props: { children } })
+    ).toMatchObject({
+      type: SessionGuardHost,
+      props: { children: { type: AddHost, props: { children } } },
+    })
   })
 
   it("signed-out browsers go to /login from both", async () => {
