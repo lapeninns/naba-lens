@@ -174,6 +174,44 @@ describe("SessionGuardHost", () => {
     expect(refresh).toHaveBeenCalledOnce()
   })
 
+  it("stays open, without refreshing, while offline or unsure", async () => {
+    const user = renderHost()
+    await signedInFirst()
+    auth.session = null
+    await user.click(screen.getByRole("button", { name: "Save" }))
+    await sheet()
+
+    // Offline: the lenient check would say "signed in"; closing must not.
+    const online = vi.spyOn(navigator, "onLine", "get").mockReturnValue(false)
+    act(() => {
+      window.dispatchEvent(new Event("focus"))
+    })
+    // The auth server cannot be reached and there is no session.
+    online.mockRestore()
+    auth.error = { name: "AuthRetryableFetchError" }
+    act(() => {
+      window.dispatchEvent(new Event("focus"))
+    })
+    await new Promise((resolve) => setTimeout(resolve, 3500))
+    expect(screen.getByRole("dialog", { name: "Sign in again" })).toBeTruthy()
+    expect(refresh).not.toHaveBeenCalled()
+  })
+
+  it("stays open when another account is signed in from another tab", async () => {
+    const user = renderHost()
+    await signedInFirst()
+    auth.session = null
+    await user.click(screen.getByRole("button", { name: "Save" }))
+    await sheet()
+    auth.session = { user: { id: "someone-else", email: "x@example.test" } }
+    act(() => {
+      window.dispatchEvent(new Event("focus"))
+    })
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    expect(screen.getByRole("dialog", { name: "Sign in again" })).toBeTruthy()
+    expect(refresh).not.toHaveBeenCalled()
+  })
+
   it("does not resume for a different account", async () => {
     const user = renderHost()
     await signedInFirst()

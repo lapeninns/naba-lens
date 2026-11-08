@@ -83,6 +83,10 @@ export function useBrowserSessionGuard({
         if (data.session) return !userId || data.session.user.id === userId
         return error?.name === "AuthRetryableFetchError"
       },
+      isSignedInAgain: async () => {
+        const { data } = await supabase.auth.getSession()
+        return !!data.session && (!userId || data.session.user.id === userId)
+      },
     }),
     [email, userId, captchaRequired, captchaSiteKey, supabase]
   )
@@ -198,7 +202,7 @@ export function SessionGuardHost({
     // Server data for the new session; client state (form input) is kept.
     router.refresh()
   }, [router])
-  useSignedInAgain(open, guard.isSignedIn, signedInAgain)
+  useSignedInAgain(open, guard.isSignedInAgain, signedInAgain)
 
   const onOpenChange = React.useCallback((next: boolean) => {
     if (!next) {

@@ -44,6 +44,13 @@ export type SessionGuard = {
    */
   isSignedIn: () => Promise<boolean>
   /**
+   * The opposite bias, for closing Sign in again: resolves true only when this
+   * browser holds a session for the same user (any user while none is known
+   * yet). Offline or unsure resolves false, so the sheet never closes on a
+   * lost signal.
+   */
+  isSignedInAgain?: () => Promise<boolean>
+  /**
    * Signs this browser in with the code from the sign-in email and resolves the
    * signed-in user's id, or `{ error }`. Without it the sheet offers the link
    * only.
