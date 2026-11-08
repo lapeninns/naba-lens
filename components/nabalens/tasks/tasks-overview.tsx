@@ -53,6 +53,7 @@ export function TasksOverview({
   peoplePath = "/staff/people",
   welcomeHref = null,
   reviewCount = 0,
+  reviewError = false,
   contribute = null,
   ourMenu = null,
   amenityTasks = [],
@@ -78,6 +79,8 @@ export function TasksOverview({
   welcomeHref?: string | null
   /** Photos waiting for this manager; 0 for everyone else. */
   reviewCount?: number
+  /** A manager's photos to review couldn't be counted. */
+  reviewError?: boolean
   /** The role-aware "add photos" card; null to hide it. */
   contribute?: { prompt: string; blocked: string | null } | null
   /** The venue's menu photo progress; null to hide the card (no venue). */
@@ -135,6 +138,7 @@ export function TasksOverview({
         tasksPath={tasksPath}
         portfolioPath={portfolioPath}
         amenityError={amenityTasks === null}
+        reviewError={reviewError}
       />
 
       <AmenityTaskList tasks={amenityTasks ?? []} />
