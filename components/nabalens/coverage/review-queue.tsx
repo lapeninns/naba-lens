@@ -45,8 +45,9 @@ export type LoadSubmissionsHandler = (
 export const REVIEW_EMPTY_COPY =
   "Nothing to review. New photos appear here as they're sent."
 
+/** The reply was lost: the decision may be saved. The request id is kept. */
 const NETWORK_ERROR =
-  "Could not reach the server. Check your connection and try again; the photo will not be reviewed twice."
+  "We couldn't confirm the decision was saved. Check your connection, then try again or refresh to see if it was. The photo won't be reviewed twice."
 
 /** The photo's author as running text: "Priya" or, for your own photo, "you". */
 function whoTook(submission: SubmissionView, viewerId: string) {

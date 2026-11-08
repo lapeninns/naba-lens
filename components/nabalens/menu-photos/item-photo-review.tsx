@@ -86,8 +86,9 @@ export type LoadCandidatesHandler = (
   cursor: string
 ) => Promise<CoverageResult<Page<ItemPhotoCandidate>>>
 
+/** The reply was lost: the decision may be saved. The request id is kept. */
 const NETWORK_ERROR =
-  "Could not reach the server. Check your connection and try again; the photo will not be reviewed twice."
+  "We couldn't confirm the decision was saved. Check your connection, then try again or refresh to see if it was. The photo won't be reviewed twice."
 
 type Dialog =
   | { kind: "better"; candidate: ItemPhotoCandidate }

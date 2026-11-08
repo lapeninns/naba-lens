@@ -297,11 +297,36 @@ describe("ItemPhotoReview", () => {
     const accept = () =>
       within(card()).getByRole("button", { name: ITEM_REVIEW_COPY.accept })
     await user.click(accept())
-    expect(await within(card()).findByRole("alert")).toBeTruthy()
+    // A lost reply: the decision may be saved, so it says it can't confirm.
+    expect((await within(card()).findByRole("alert")).textContent).toBe(
+      "We couldn't confirm the decision was saved. Check your connection, then try again or refresh to see if it was. The photo won't be reviewed twice."
+    )
     await user.click(accept())
     expect(review).toHaveBeenCalledTimes(2)
     expect(review.mock.calls[1][0].requestId).toBe(
       review.mock.calls[0][0].requestId
+    )
+  })
+
+  it("a refusal shows the server's reason on the card", async () => {
+    const user = userEvent.setup()
+    const h = handlers()
+    renderReview({
+      handlers: {
+        ...h,
+        review: async () => ({
+          ok: false,
+          code: "invalid_input",
+          status: 400,
+          message: "This photo can't be accepted for Soup.",
+        }),
+      },
+    })
+    await user.click(
+      within(card()).getByRole("button", { name: ITEM_REVIEW_COPY.accept })
+    )
+    expect((await within(card()).findByRole("alert")).textContent).toBe(
+      "This photo can't be accepted for Soup."
     )
   })
 

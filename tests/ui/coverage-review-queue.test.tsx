@@ -285,7 +285,9 @@ describe("ReviewQueue", () => {
     expect(await within(dialog).findByText("Try again shortly.")).toBeTruthy()
     await user.click(confirm())
     expect(
-      await within(dialog).findByText(/Could not reach the server/)
+      await within(dialog).findByText(
+        "We couldn't confirm the decision was saved. Check your connection, then try again or refresh to see if it was. The photo won't be reviewed twice."
+      )
     ).toBeTruthy()
 
     expect(screen.getByRole("dialog")).toBe(dialog)
@@ -310,7 +312,11 @@ describe("ReviewQueue", () => {
     )
     const accept = () => screen.getByRole("button", { name: "Accept" })
     await user.click(accept())
-    expect(await screen.findByText(/Could not reach the server/)).toBeTruthy()
+    expect(
+      await screen.findByText(
+        "We couldn't confirm the decision was saved. Check your connection, then try again or refresh to see if it was. The photo won't be reviewed twice."
+      )
+    ).toBeTruthy()
     await user.click(accept())
     await user.click(await screen.findByRole("button", { name: "Accept" }))
     const ids = onReview.mock.calls.map(([input]) => input.requestId)
