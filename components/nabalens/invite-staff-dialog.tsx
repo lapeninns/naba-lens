@@ -4,6 +4,7 @@ import * as React from "react"
 import Link from "next/link"
 import { EnvelopeSimpleIcon } from "@phosphor-icons/react"
 
+import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -164,6 +165,7 @@ function InviteForm({
     venueId: "",
   })
   const [result, setResult] = React.useState<InviteResult | null>(null)
+  const sessionEnded = useSessionEndedCatch()
   const online = useOnline()
   const [localErrors, setLocalErrors] = React.useState<
     Partial<Record<keyof InviteFormValues, string>>
@@ -194,10 +196,11 @@ function InviteForm({
     setResult(null)
     try {
       setResult(await onSubmit(trimmed))
-    } catch {
+    } catch (cause) {
       setResult({
         status: "error",
-        error: "The invitation could not be sent. Try again.",
+        error:
+          sessionEnded(cause) ?? "The invitation could not be sent. Try again.",
       })
     } finally {
       setPending(false)

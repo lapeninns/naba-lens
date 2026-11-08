@@ -3,6 +3,7 @@
 import * as React from "react"
 import { SpinnerGapIcon } from "@phosphor-icons/react"
 
+import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { failureText } from "@/components/nabalens/coverage/copy"
 import { formatDate } from "@/components/nabalens/format"
 import { Button } from "@/components/ui/button"
@@ -53,6 +54,7 @@ export function ItemHistory({
   const [events, setEvents] = React.useState(initial?.items ?? [])
   const [cursor, setCursor] = React.useState(initial?.nextCursor ?? null)
   const [loading, setLoading] = React.useState(false)
+  const sessionEnded = useSessionEndedCatch()
   const [error, setError] = React.useState<string | null>(
     initial ? null : copy.historyFailed
   )
@@ -70,7 +72,8 @@ export function ItemHistory({
       const seen = new Set(events.map((e) => e.id))
       setEvents([...events, ...result.items.filter((e) => !seen.has(e.id))])
       setCursor(result.nextCursor)
-    } catch {
+    } catch (cause) {
+      sessionEnded(cause)
       setError(copy.historyFailed)
     } finally {
       setLoading(false)

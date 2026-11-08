@@ -504,10 +504,12 @@ export function ManagersView({
           if (result.code === "network") {
             return {
               ok: false,
-              error: MANAGERS_COPY.revoke.notConfirmed(
-                target.staff.displayName,
-                target.venue.name
-              ),
+              error: result.sessionEnded
+                ? result.message
+                : MANAGERS_COPY.revoke.notConfirmed(
+                    target.staff.displayName,
+                    target.venue.name
+                  ),
             }
           }
           if (action.reportedOnPage(result)) return REPORTED

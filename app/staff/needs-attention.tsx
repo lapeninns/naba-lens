@@ -3,6 +3,7 @@
 import * as React from "react"
 import { ImageIcon, VideoCameraIcon } from "@phosphor-icons/react"
 
+import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import {
   loadLabelCatalogue,
   loadLabelEditorContext,
@@ -200,6 +201,7 @@ export function NeedsAttention({
   )
   const [fixing, setFixing] = React.useState<Fixing | null>(null)
   const [confirming, setConfirming] = React.useState<Row | null>(null)
+  const sessionEnded = useSessionEndedCatch()
   // Rows discarded or fixed here: a read that started before the server
   // changed must not bring them back.
   const handled = React.useRef(new Set<string>())
@@ -341,7 +343,8 @@ export function NeedsAttention({
         catalogue,
         focus: context.focus ?? null,
       })
-    } catch {
+    } catch (cause) {
+      sessionEnded(cause)
       setRowError(item.assetId, ATTENTION_COPY.openFailed)
     } finally {
       markBusy(item.assetId, false)
@@ -363,7 +366,8 @@ export function NeedsAttention({
           ? { state: "ready", catalogue: result.catalogue }
           : { state: "error", message: result.message }
       )
-    } catch {
+    } catch (cause) {
+      sessionEnded(cause)
       set({ state: "error", message: ATTENTION_COPY.openFailed })
     }
   }

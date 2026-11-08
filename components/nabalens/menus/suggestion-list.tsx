@@ -3,6 +3,7 @@
 import * as React from "react"
 import { ImageIcon } from "@phosphor-icons/react"
 
+import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { Button } from "@/components/ui/button"
 import { Field, FieldLabel } from "@/components/ui/field"
 import type { SuggestionView } from "@/lib/menus/types"
@@ -90,6 +91,7 @@ function SuggestionRow({
   )
   const [error, setError] = React.useState<string | null>(null)
   const [thumbFailed, setThumbFailed] = React.useState(false)
+  const sessionEnded = useSessionEndedCatch()
 
   async function run(kind: "resolve" | "dismiss") {
     if (kind === "resolve" && !picking) {
@@ -108,8 +110,10 @@ function SuggestionRow({
           ? await onResolve(s.id, itemId!)
           : await onDismiss(s.id)
       if (!result.ok) setError(result.error)
-    } catch {
-      setError("The suggestion could not be updated. Try again.")
+    } catch (cause) {
+      setError(
+        sessionEnded(cause) ?? "The suggestion could not be updated. Try again."
+      )
     } finally {
       setPending(null)
     }

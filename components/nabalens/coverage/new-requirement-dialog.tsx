@@ -3,6 +3,7 @@
 import * as React from "react"
 import { PlusIcon } from "@phosphor-icons/react"
 
+import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -73,6 +74,7 @@ export function NewRequirementDialog({
   )
   const [error, setError] = React.useState<string | null>(null)
   const [pending, setPending] = React.useState(false)
+  const sessionEnded = useSessionEndedCatch()
   // One id per create intent (same details), kept across retries and reloads:
   // a retry after a lost response returns the item already created (replayed)
   // instead of adding a second one. Changed details make a new intent.
@@ -134,10 +136,11 @@ export function NewRequirementDialog({
       setOpen(false)
       reset()
       onCreated(result.requirementId)
-    } catch {
+    } catch (cause) {
       // The request id is kept, so a retry replays instead of adding twice.
       setError(
-        "We couldn't confirm the item was added. Check your connection, then try again or refresh to see if it was. It won't be added twice."
+        sessionEnded(cause) ??
+          "We couldn't confirm the item was added. Check your connection, then try again or refresh to see if it was. It won't be added twice."
       )
     } finally {
       setPending(false)

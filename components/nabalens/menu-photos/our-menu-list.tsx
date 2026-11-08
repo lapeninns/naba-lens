@@ -2,6 +2,7 @@
 
 import * as React from "react"
 
+import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { failureText } from "@/components/nabalens/coverage/copy"
 import { LoadMoreButton } from "@/components/nabalens/load-more-button"
 
@@ -71,6 +72,7 @@ export function OurMenuList({
   }
   const [loading, setLoading] = React.useState(false)
   const [loadError, setLoadError] = React.useState<string | null>(null)
+  const sessionEnded = useSessionEndedCatch()
   const totals = React.useMemo(
     () => new Map(sections.map((s) => [s.sectionId, s])),
     [sections]
@@ -94,7 +96,8 @@ export function OurMenuList({
         ]
       })
       setCursor(result.nextCursor)
-    } catch {
+    } catch (cause) {
+      sessionEnded(cause)
       setLoadError("More dishes could not load. Try again.")
     } finally {
       setLoading(false)

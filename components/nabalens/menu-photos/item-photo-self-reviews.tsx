@@ -2,6 +2,7 @@
 
 import * as React from "react"
 
+import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { failureText } from "@/components/nabalens/coverage/copy"
 import {
   CoverageBadge,
@@ -48,6 +49,7 @@ export function ItemPhotoSelfReviewList({
   }
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const sessionEnded = useSessionEndedCatch()
 
   async function loadMore() {
     if (!onLoadMore || !cursor) return
@@ -64,7 +66,8 @@ export function ItemPhotoSelfReviewList({
         return [...current, ...result.items.filter((i) => !seen.has(i.eventId))]
       })
       setCursor(result.nextCursor)
-    } catch {
+    } catch (cause) {
+      sessionEnded(cause)
       setError("More could not load. Try again.")
     } finally {
       setLoading(false)

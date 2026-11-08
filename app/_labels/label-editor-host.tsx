@@ -3,6 +3,7 @@
 import * as React from "react"
 import { ArrowClockwiseIcon } from "@phosphor-icons/react"
 
+import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { LabelEditorDialog, type CatalogueProp } from "@/components/nabalens"
 import { Notice } from "@/components/nabalens/notice"
 import type { AddLabelPreset } from "@/components/nabalens/shell/add-context"
@@ -144,6 +145,7 @@ function HostSession({
   const [groups, setGroups] = React.useState<string[][]>([assetIds])
   const [index, setIndex] = React.useState(0)
   const [phase, setPhase] = React.useState<Phase>({ kind: "loading" })
+  const sessionEnded = useSessionEndedCatch()
   // Only the latest request may update state (stale responses are ignored).
   const contextRequest = React.useRef(0)
   const catalogueRequest = React.useRef(0)
@@ -182,7 +184,8 @@ function HostSession({
       next = result.ok
         ? { state: "ready", catalogue: result.catalogue }
         : { state: "error", message: result.message }
-    } catch {
+    } catch (cause) {
+      sessionEnded(cause)
       next = { state: "error", message: NETWORK }
     }
     if (token === catalogueRequest.current) setCatalogue(next)

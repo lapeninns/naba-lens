@@ -3,6 +3,7 @@
 import * as React from "react"
 import { WarningCircleIcon } from "@phosphor-icons/react"
 
+import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { LabelEditorHost } from "@/app/_labels/label-editor-host"
 import {
   ConfirmDeleteDialog,
@@ -189,6 +190,7 @@ export function MediaGallery({
   // The last loaded view of the open file. If a refresh drops it (removed
   // elsewhere), the viewer keeps showing it with a notice instead of closing.
   const [shownItem, setShownItem] = React.useState<MediaItem | null>(null)
+  const sessionEnded = useSessionEndedCatch()
   if (openItem && openItem !== shownItem) setShownItem(openItem)
   const viewerItem =
     openItem ?? (shownItem && shownItem.id === openId ? shownItem : null)
@@ -343,7 +345,8 @@ export function MediaGallery({
           nextCursor: result.page.nextCursor,
         }
       })
-    } catch {
+    } catch (cause) {
+      sessionEnded(cause)
       if (generation === pageGeneration.current)
         setLoadError("Could not load more. Check your connection.")
     } finally {

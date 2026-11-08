@@ -3,6 +3,7 @@
 import * as React from "react"
 import { PaperclipIcon } from "@phosphor-icons/react"
 
+import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { formatDate } from "@/components/nabalens/format"
 import { LoadMoreButton } from "@/components/nabalens/load-more-button"
 import { Button } from "@/components/ui/button"
@@ -100,6 +101,7 @@ export function AttachPhotosDialog({
   const [pending, setPending] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [skipped, setSkipped] = React.useState<SkippedNote[]>([])
+  const sessionEnded = useSessionEndedCatch()
   const intents = useRequestIds()
 
   async function load(next: string | null) {
@@ -118,7 +120,8 @@ export function AttachPhotosDialog({
       })
       setCursor(result.nextCursor)
       setLoaded(true)
-    } catch {
+    } catch (cause) {
+      sessionEnded(cause)
       setLoadError("Photos could not load. Try again.")
     } finally {
       setLoading(false)
@@ -173,8 +176,8 @@ export function AttachPhotosDialog({
         setSelected([])
         void load(null)
       }
-    } catch {
-      setError(NETWORK_ERROR)
+    } catch (cause) {
+      setError(sessionEnded(cause) ?? NETWORK_ERROR)
     } finally {
       setPending(false)
     }

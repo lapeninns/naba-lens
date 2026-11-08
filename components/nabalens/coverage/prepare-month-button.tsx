@@ -8,6 +8,7 @@ import {
   SpinnerGapIcon,
 } from "@phosphor-icons/react"
 
+import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { Notice } from "@/components/nabalens/notice"
 import { OFFLINE_COPY, useOnline } from "@/components/nabalens/offline-notice"
 import { formatTime } from "@/components/nabalens/format"
@@ -105,6 +106,7 @@ export function PrepareMonthButton({
   const [open, setOpen] = React.useState(false)
   const [pending, setPending] = React.useState(false)
   const [outcome, setOutcome] = React.useState<Outcome | null>(null)
+  const sessionEnded = useSessionEndedCatch()
   const month = period ? periodKeyLabel(period).split(" ")[0] : "This month"
   const previous = period ? previousMonth(period) : "last month"
   const where = venueName ? ` at ${venueName}` : " at every venue"
@@ -126,8 +128,13 @@ export function PrepareMonthButton({
         return
       }
       setOutcome(outcomeOf(result.runs))
-    } catch {
-      setOutcome({ kind: "offline", at: new Date() })
+    } catch (cause) {
+      const ended = sessionEnded(cause)
+      setOutcome(
+        ended
+          ? { kind: "refused", text: ended }
+          : { kind: "offline", at: new Date() }
+      )
     } finally {
       setPending(false)
     }

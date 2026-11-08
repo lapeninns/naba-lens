@@ -8,6 +8,7 @@ import {
   ImageIcon,
 } from "@phosphor-icons/react"
 
+import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { Notice } from "@/components/nabalens/notice"
 import {
   AlertDialog,
@@ -336,7 +337,10 @@ function LabelEditor({
   const [expanded, setExpanded] = React.useState<string[]>([])
   const [problems, setProblems] = React.useState<Record<string, string>>({})
   const [pending, setPending] = React.useState(false)
-  const [networkError, setNetworkError] = React.useState(false)
+  // True after a lost reply; the copy when refused for the ended session.
+  const [networkError, setNetworkError] = React.useState<boolean | string>(
+    false
+  )
   const [announcement, setAnnouncement] = React.useState("")
   const [confirmOpen, setConfirmOpen] = React.useState(false)
   const [focusTarget, setFocusTarget] = React.useState<{ id: string } | null>(
@@ -347,6 +351,7 @@ function LabelEditor({
     Record<string, boolean>
   >({})
   const [choiceError, setChoiceError] = React.useState(false)
+  const sessionEnded = useSessionEndedCatch()
   const choicePending = Object.values(pendingScopes).some(Boolean)
   if (choiceError && !choicePending) setChoiceError(false)
   function pendingFor(scope: string) {
@@ -667,9 +672,9 @@ function LabelEditor({
     try {
       results = await onSave(inputs)
       if (!Array.isArray(results)) throw new Error("No results")
-    } catch {
+    } catch (cause) {
       setPending(false)
-      setNetworkError(true)
+      setNetworkError(sessionEnded(cause) ?? true)
       setAnnouncement("")
       setFocusTarget({ id: ids.network })
       return
@@ -932,8 +937,9 @@ function LabelEditor({
                 tabIndex={-1}
                 title="The labels couldn't be saved"
               >
-                Your choices are still here. Check your connection and try
-                again.
+                {typeof networkError === "string"
+                  ? `Your choices are still here. ${networkError}`
+                  : "Your choices are still here. Check your connection and try again."}
               </Notice>
             ) : null}
 

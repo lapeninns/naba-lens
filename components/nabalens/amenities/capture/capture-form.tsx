@@ -11,6 +11,7 @@ import {
   WarningIcon,
 } from "@phosphor-icons/react"
 
+import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import {
   ANSWER_LABEL,
   EVIDENCE_RULE_LABEL,
@@ -245,6 +246,7 @@ export function CaptureForm({
   const [uploadNote, setUploadNote] = React.useState<string | null>(null)
   const [uploadOpen, setUploadOpen] = React.useState(false)
   const [pickedFiles, setPickedFiles] = React.useState<File[] | undefined>()
+  const sessionEnded = useSessionEndedCatch()
   const inFlight = React.useRef(false)
   const mounted = React.useRef(false)
   // One read at a time: Add hands over each upload as soon as it is ready,
@@ -383,7 +385,8 @@ export function CaptureForm({
         let result: AssetsResult
         try {
           result = await loadAssets({ checkId: check.id })
-        } catch {
+        } catch (cause) {
+          sessionEnded(cause)
           if (mounted.current)
             setListError("We couldn't load your photos and videos.")
           return
@@ -428,7 +431,7 @@ export function CaptureForm({
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps -- edit only touches state setters and newKey
-    [loadAssets, check.id, maxSelected]
+    [loadAssets, check.id, maxSelected, sessionEnded]
   )
 
   const reloadRef = React.useRef(reloadAssets)
@@ -525,10 +528,13 @@ export function CaptureForm({
     let result: AmenityResult<SubmitResult>
     try {
       result = await submit(checked.input)
-    } catch {
+    } catch (cause) {
       // The draft and its key stay, and uploads that arrive meanwhile wait:
-      // Try again replays the same answer, never sends twice.
-      if (mounted.current) setOutcome({ kind: "retry" })
+      // Try again replays the same answer, never sends twice. Refused for
+      // the ended session, it waits for Sign in again instead.
+      const ended = sessionEnded(cause)
+      if (mounted.current)
+        setOutcome(ended ? { kind: "sign_in" } : { kind: "retry" })
       return
     } finally {
       inFlight.current = false

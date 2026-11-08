@@ -7,6 +7,7 @@ import {
   WarningCircleIcon,
 } from "@phosphor-icons/react"
 
+import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -112,6 +113,7 @@ export function ConfirmDeleteDialog({
 }: ConfirmDeleteDialogProps) {
   const [pending, setPending] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const sessionEnded = useSessionEndedCatch()
   const noun = mediaType === "video" ? "video" : "photo"
 
   async function confirm() {
@@ -125,8 +127,10 @@ export function ConfirmDeleteDialog({
         return
       }
       onOpenChange(false)
-    } catch {
-      setError(`We couldn't delete this ${noun}. Try again.`)
+    } catch (cause) {
+      setError(
+        sessionEnded(cause) ?? `We couldn't delete this ${noun}. Try again.`
+      )
     } finally {
       setPending(false)
     }

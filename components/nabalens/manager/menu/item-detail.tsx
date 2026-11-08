@@ -5,6 +5,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { ArrowLeftIcon } from "@phosphor-icons/react"
 
+import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { EvidencePreviewButton } from "@/components/nabalens/coverage/evidence-image"
 import {
   CoverageNotice,
@@ -80,6 +81,7 @@ export function ItemDetail({
   const { requestIdFor, settle } = useRequestIds()
   const [notice, setNotice] = React.useState<Notice | null>(null)
   const [busy, setBusy] = React.useState<string | null>(null)
+  const sessionEnded = useSessionEndedCatch()
   const noticeRef = React.useRef<HTMLDivElement>(null)
 
   const run: Decide = async (action, photo, reason) => {
@@ -130,10 +132,11 @@ export function ItemDetail({
       if (conflict || needsRefresh(result) || result.needsRefresh)
         router.refresh()
       return REPORTED
-    } catch {
+    } catch (cause) {
       // The request id is kept: a retry replays rather than deciding twice.
-      setNotice({ tone: "error", text: copy.network })
-      return { ok: false, error: copy.network }
+      const text = sessionEnded(cause) ?? copy.network
+      setNotice({ tone: "error", text })
+      return { ok: false, error: text }
     } finally {
       setBusy(null)
     }

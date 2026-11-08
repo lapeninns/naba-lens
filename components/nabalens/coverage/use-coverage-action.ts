@@ -2,6 +2,7 @@
 
 import * as React from "react"
 
+import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { failureText, needsRefresh } from "./copy"
 import type { Notice } from "./coverage-notice"
 import type { CoverageFailure, CoverageResult } from "./types"
@@ -25,7 +26,7 @@ export type Reported = typeof REPORTED
 type Outcome<T> =
   | ({ ok: true } & T)
   | CoverageFailure
-  | { ok: false; code: "network"; message: string }
+  | { ok: false; code: "network"; message: string; sessionEnded: boolean }
 
 /**
  * Runs one coverage mutation with a pending flag and a notice. A successful
@@ -36,6 +37,7 @@ type Outcome<T> =
 export function useCoverageAction(onStale?: () => void) {
   const [pending, setPending] = React.useState(false)
   const [notice, setNotice] = React.useState<Notice | null>(null)
+  const sessionEnded = useSessionEndedCatch()
 
   const run = React.useCallback(
     async <T extends object>(
@@ -60,14 +62,18 @@ export function useCoverageAction(onStale?: () => void) {
           text: typeof success === "function" ? success(result) : success,
         })
         return result
-      } catch {
-        setNotice({ tone: "error", text: NETWORK_ERROR })
-        return { ok: false, code: "network", message: NETWORK_ERROR }
+      } catch (cause) {
+        // Refused for the ended session (nothing was saved), or the reply
+        // was lost.
+        const ended = sessionEnded(cause)
+        const message = ended ?? NETWORK_ERROR
+        setNotice({ tone: "error", text: message })
+        return { ok: false, code: "network", message, sessionEnded: !!ended }
       } finally {
         setPending(false)
       }
     },
-    [onStale]
+    [onStale, sessionEnded]
   )
 
   /** True when `run` showed a refresh notice and re-read the page. */

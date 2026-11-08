@@ -8,6 +8,7 @@ import {
   SpinnerGapIcon,
 } from "@phosphor-icons/react"
 
+import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton"
 
@@ -156,6 +157,7 @@ export function SubmitPhotosPanel({
   const [sending, setSending] = React.useState(false)
   const [outcome, setOutcome] = React.useState<Outcome | null>(null)
   const [uploadNote, setUploadNote] = React.useState<string | null>(null)
+  const sessionEnded = useSessionEndedCatch()
   const inFlight = React.useRef(false)
   const loadingPhotos = React.useRef(false)
   const queuedReload = React.useRef<Set<string> | null>(null)
@@ -335,7 +337,8 @@ export function SubmitPhotosPanel({
           errorSource: "more",
         }))
       }
-    } catch {
+    } catch (cause) {
+      sessionEnded(cause)
       if (mounted.current)
         setList((l) => ({
           ...l,
@@ -384,9 +387,13 @@ export function SubmitPhotosPanel({
         assetIds,
         ...(replacesSubmissionId ? { replacesSubmissionId } : {}),
       })
-    } catch {
+    } catch (cause) {
       // Same selection, same request ID on retry: never sent twice.
-      setOutcome({ kind: "failed", copy: NETWORK_FAILURE })
+      const ended = sessionEnded(cause)
+      setOutcome({
+        kind: "failed",
+        copy: ended ? { message: ended, action: "retry" } : NETWORK_FAILURE,
+      })
       return
     } finally {
       inFlight.current = false

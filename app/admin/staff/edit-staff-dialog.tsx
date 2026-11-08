@@ -2,6 +2,7 @@
 
 import * as React from "react"
 
+import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import {
   formatBytes,
   OptionSelect,
@@ -196,6 +197,7 @@ function EditStaffForm({
   // What the last failed save asked for besides the photo.
   const [unsaved, setUnsaved] = React.useState<string[]>([])
   const [confirmingDiscard, setConfirmingDiscard] = React.useState(false)
+  const sessionEnded = useSessionEndedCatch()
   const avatarPreview = useObjectUrl(avatarFile)
   const savedAvatarPreview = useObjectUrl(savedAvatar)
   const id = React.useId()
@@ -255,10 +257,11 @@ function EditStaffForm({
         setAvatarFile(null)
         setPhotoInputKey((key) => key + 1)
       }
-    } catch {
+    } catch (cause) {
       setResult({
         ok: false,
-        error: "Your changes could not be saved. Try again.",
+        error:
+          sessionEnded(cause) ?? "Your changes could not be saved. Try again.",
       })
     } finally {
       setPending(false)

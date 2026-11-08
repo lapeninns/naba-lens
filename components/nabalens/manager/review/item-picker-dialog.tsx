@@ -7,6 +7,7 @@ import {
   SpinnerGapIcon,
 } from "@phosphor-icons/react"
 
+import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { loadMenuItemsPageAction } from "@/app/manager/actions"
 import { failureText } from "@/components/nabalens/coverage/copy"
 import { EvidenceThumb } from "@/components/nabalens/coverage/evidence-image"
@@ -86,6 +87,7 @@ export function ItemPickerDialog({
   const [pickError, setPickError] = React.useState<string | null>(null)
   const [error, setError] = React.useState<string | null>(null)
   const [pending, setPending] = React.useState(false)
+  const sessionEnded = useSessionEndedCatch()
   const requestRef = React.useRef(0)
 
   // Search the menu, debounced; the latest request wins.
@@ -104,7 +106,8 @@ export function ItemPickerDialog({
           if (request !== requestRef.current) return
           if (!result.ok) setLoadError(failureText(result))
           else setItems(result.items)
-        } catch {
+        } catch (cause) {
+          sessionEnded(cause)
           if (request === requestRef.current)
             setLoadError(REVIEW_COPY.pickerFailed)
         } finally {
@@ -114,7 +117,7 @@ export function ItemPickerDialog({
       query ? SEARCH_DELAY : 0
     )
     return () => window.clearTimeout(timer)
-  }, [open, query, venueId])
+  }, [open, query, sessionEnded, venueId])
 
   function reset() {
     setQuery("")

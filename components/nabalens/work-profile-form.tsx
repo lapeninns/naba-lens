@@ -4,6 +4,7 @@ import * as React from "react"
 import { useRouter } from "next/navigation"
 import { MapPinIcon } from "@phosphor-icons/react"
 
+import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { Button } from "@/components/ui/button"
 import { FieldError } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
@@ -76,6 +77,7 @@ export function WorkProfileForm({
   const [areas, setAreas] = React.useState(() => new Set(initial.workAreas))
   const [pending, setPending] = React.useState<"save" | "skip" | null>(null)
   const [error, setError] = React.useState<string | null>(null)
+  const sessionEnded = useSessionEndedCatch()
   const [fieldErrors, setFieldErrors] = React.useState<
     Partial<Record<"roleKey" | "roleTitle" | "workAreas", string>>
   >({})
@@ -123,8 +125,8 @@ export function WorkProfileForm({
           ),
         })
       )
-    } catch {
-      setError(NETWORK)
+    } catch (cause) {
+      setError(sessionEnded(cause) ?? NETWORK)
     } finally {
       setPending(null)
     }
@@ -136,8 +138,8 @@ export function WorkProfileForm({
     setPending("skip")
     try {
       finish(await onSkip())
-    } catch {
-      setError(NETWORK)
+    } catch (cause) {
+      setError(sessionEnded(cause) ?? NETWORK)
     } finally {
       setPending(null)
     }

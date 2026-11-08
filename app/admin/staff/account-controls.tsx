@@ -4,6 +4,7 @@ import * as React from "react"
 import { useRouter } from "next/navigation"
 import { XIcon } from "@phosphor-icons/react"
 
+import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import type { ActionResult, Option, StaffMember } from "@/components/nabalens"
 import { Notice, type NoticeTone } from "@/components/nabalens/notice"
 import {
@@ -139,6 +140,7 @@ export function useAccountControls({
     null
   )
   const [pending, setPending] = React.useState(false)
+  const sessionEnded = useSessionEndedCatch()
   // Resend or reactivate in flight. The ref turns away a second tap that lands
   // before the re-render disables the buttons: each resend invalidates the
   // link sent before it.
@@ -199,8 +201,8 @@ export function useAccountControls({
     setNotice({ tone: "pending", text: pendingText })
     try {
       setNotice(await task())
-    } catch {
-      setNotice({ tone: "error", text: failedText })
+    } catch (cause) {
+      setNotice({ tone: "error", text: sessionEnded(cause) ?? failedText })
     } finally {
       busyRef.current = false
       setBusy(null)
@@ -276,11 +278,16 @@ export function useAccountControls({
           `${deactivating.displayName} is inactive. ${first}'s uploads stay in the library.`,
       })
       setDeactivating(null)
-    } catch {
-      setDeactivateError({
-        title: "Couldn't confirm",
-        text: `We couldn't confirm ${first} was deactivated. Check your connection, then try again.`,
-      })
+    } catch (cause) {
+      const ended = sessionEnded(cause)
+      setDeactivateError(
+        ended
+          ? { title: "Couldn't deactivate", text: ended }
+          : {
+              title: "Couldn't confirm",
+              text: `We couldn't confirm ${first} was deactivated. Check your connection, then try again.`,
+            }
+      )
     } finally {
       setPending(false)
     }
@@ -308,7 +315,9 @@ export function useAccountControls({
           ...(values.venueId ? { venueId: values.venueId } : {}),
           ...(values.active !== undefined ? { active: values.active } : {}),
         })
-      } catch {
+      } catch (cause) {
+        const ended = sessionEnded(cause)
+        if (ended) return { ok: false, error: ended, photoSaved }
         return {
           ok: false,
           error:

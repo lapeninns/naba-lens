@@ -3,6 +3,7 @@
 import * as React from "react"
 import { useRouter } from "next/navigation"
 
+import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import type { Notice } from "@/components/nabalens/coverage"
 import type { AmenityFailure, AmenityResult } from "@/lib/amenities/contract"
 
@@ -13,7 +14,12 @@ export const NETWORK_ERROR =
 export const CONFLICT_TEXT =
   "Someone else changed this check. The page now shows the latest version; check it and try again."
 
-type NetworkFailure = { ok: false; code: "network"; message: string }
+type NetworkFailure = {
+  ok: false
+  code: "network"
+  message: string
+  sessionEnded: boolean
+}
 export type AmenityOutcome<T> = AmenityResult<T> | NetworkFailure
 
 /** Codes after which the page no longer matches the database: re-read it. */
@@ -40,6 +46,7 @@ export function useAmenityAction() {
   const router = useRouter()
   const [pending, setPending] = React.useState(false)
   const [notice, setNotice] = React.useState<Notice | null>(null)
+  const sessionEnded = useSessionEndedCatch()
   const [fieldErrors, setFieldErrors] = React.useState<
     Partial<Record<string, string>>
   >({})
@@ -70,14 +77,18 @@ export function useAmenityAction() {
         })
         router.refresh()
         return result
-      } catch {
-        setNotice({ tone: "error", text: NETWORK_ERROR })
-        return { ok: false, code: "network", message: NETWORK_ERROR }
+      } catch (cause) {
+        // Refused for the ended session (nothing was saved), or the reply
+        // was lost.
+        const ended = sessionEnded(cause)
+        const message = ended ?? NETWORK_ERROR
+        setNotice({ tone: "error", text: message })
+        return { ok: false, code: "network", message, sessionEnded: !!ended }
       } finally {
         setPending(false)
       }
     },
-    [router]
+    [router, sessionEnded]
   )
 
   return {

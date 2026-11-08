@@ -5,7 +5,10 @@ import { useRouter } from "next/navigation"
 
 import { CAPTCHA_RETRY_MESSAGE } from "@/lib/auth/captcha"
 import { sendSignInLink, signInWithCode } from "@/lib/auth/magic-link"
-import { isSessionEndedError } from "@/lib/auth/session-ended"
+import {
+  isSessionEndedError,
+  SESSION_ENDED_MESSAGE,
+} from "@/lib/auth/session-ended"
 import { createClient } from "@/lib/supabase/browser"
 import { getSiteUrl } from "@/lib/supabase/env"
 
@@ -138,6 +141,24 @@ export function useClaimSignIn(claimed: boolean) {
  */
 export function useReportSessionEnded() {
   return React.useContext(ReportSessionEnded)
+}
+
+/**
+ * For an action's catch: when the action was refused for the ended session,
+ * reports it (Sign in again opens, even after "Not now") and returns the copy
+ * to show in place of a lost-connection message; otherwise null. A load can
+ * ignore the copy and keep its own.
+ */
+export function useSessionEndedCatch() {
+  const report = useReportSessionEnded()
+  return React.useCallback(
+    (error: unknown): string | null => {
+      if (!isSessionEndedError(error)) return null
+      report()
+      return SESSION_ENDED_MESSAGE
+    },
+    [report]
+  )
 }
 
 /**

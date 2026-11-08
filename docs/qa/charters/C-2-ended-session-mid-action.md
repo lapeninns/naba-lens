@@ -52,5 +52,5 @@ After this batch:
 
 ## Known limits (report, don't fail)
 
-- Screens that catch the rejection and show only their own generic text depend on the tap-time check to open the sheet. If a screen submits without a tap or submit event (a timer, for example), the sheet opens on the next tap, focus or 30 s tick. A screen can call `useReportSessionEnded()` from its catch to open it at once (batches D and E).
+- Screens that catch the rejection pass it to `useSessionEndedCatch()`: for the ended session it opens the sheet at once (even after "Not now") and returns "You were signed out. Sign in again, then try again. Nothing was saved." for a save to show instead of its lost-connection text. Loads keep their own text. Fetch-based routes (avatar upload, menu import preview) are not Server Actions and keep their own 401 handling.
 - Staff pages still use the upload-only guard in `AddHost` until integration adopts `SessionGuardHost` there.

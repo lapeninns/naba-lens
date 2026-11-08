@@ -11,6 +11,7 @@ import {
   WarningCircleIcon,
 } from "@phosphor-icons/react"
 
+import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { EmptyState } from "@/components/nabalens/empty-state"
 import { Notice } from "@/components/nabalens/notice"
 import { ProfileAvatar } from "@/components/nabalens/profile-avatar"
@@ -332,6 +333,7 @@ function TeamRosterMonth({
     {}
   )
   const [saving, setSaving] = React.useState(false)
+  const sessionEnded = useSessionEndedCatch()
   // The row stays set while the dialog animates closed.
   const [correctingRow, setCorrectingRow] =
     React.useState<MonthlyProgress | null>(null)
@@ -449,11 +451,17 @@ function TeamRosterMonth({
           reason: reason || null,
           expectedRevision: row.revision,
         })
-      } catch {
-        setUnconfirmed({ [row.person.id]: draft })
+      } catch (cause) {
+        // Refused for the ended session: this row wasn't saved.
+        const ended = sessionEnded(cause)
+        if (!ended) setUnconfirmed({ [row.person.id]: draft })
         failure = {
           tone: "error",
-          text: `${saved.length > 0 ? `${plural(saved.length, "target")} saved. ` : ""}We couldn't confirm ${row.person.displayName}'s target was saved. Check your connection, then refresh to see.`,
+          text: ended
+            ? saved.length > 0
+              ? `${plural(saved.length, "target")} saved. You were signed out before ${row.person.displayName}'s was saved. Sign in again, then try again.`
+              : ended
+            : `${saved.length > 0 ? `${plural(saved.length, "target")} saved. ` : ""}We couldn't confirm ${row.person.displayName}'s target was saved. Check your connection, then refresh to see.`,
         }
         break
       }
@@ -851,7 +859,9 @@ function TeamRosterMonth({
               reason: values.reason,
               expectedRevision: row.revision,
             })
-          } catch {
+          } catch (cause) {
+            const ended = sessionEnded(cause)
+            if (ended) return { ok: false, error: ended }
             return { ok: false, network: true, error: NETWORK_ERROR }
           }
           if (!result.ok) {
