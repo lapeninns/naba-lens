@@ -1,5 +1,5 @@
 // Staff amenity capture: the capture form and the Home list of my checks.
-export { AmenityTaskList } from "./amenity-task-list"
+export { AmenityTaskList, orderAmenityTasks } from "./amenity-task-list"
 export {
   CaptureForm,
   type AssetsResult,

@@ -6,6 +6,7 @@ import { cleanup, render, screen, within } from "@testing-library/react"
 import type * as React from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
+import { AmenityTaskList } from "@/components/nabalens/amenities/capture"
 import {
   UI_TEXT,
   staffCaptureHref,
@@ -201,5 +202,41 @@ describe("Home: amenity checks", () => {
     amenities.getMyAmenityTasks.mockResolvedValue({ ok: true, tasks: [] })
     await home()
     expect(screen.queryByText(UI_TEXT.staffSection)).toBeNull()
+  })
+})
+
+describe("Home: amenity check cards", () => {
+  // Common Room cards like the rest of Home, not the pre-redesign tokens.
+  it("draws each check as a Common Room card with a section title", () => {
+    render(
+      <AmenityTaskList
+        tasks={[
+          task("c1", "Is there step-free access?"),
+          task("c2", "Is there guest Wi-Fi?", {
+            progress: "needs_recheck",
+            recheckReason: "Password or QR visible",
+          }),
+        ]}
+      />
+    )
+    const heading = screen.getByRole("heading", {
+      level: 2,
+      name: /Amenity checks/,
+    })
+    expect(heading.className).toContain("text-section-title")
+    expect(heading.className).not.toContain("text-2xl")
+    const cards = within(
+      screen.getByRole("list", { name: UI_TEXT.staffSection })
+    ).getAllByRole("listitem")
+    for (const card of cards) {
+      expect(card.className).toContain("rounded-card")
+      expect(card.className).toContain("bg-surface")
+      expect(card.className).not.toMatch(
+        /\bbg-card\b|\brounded-xl\b|\bborder\b/
+      )
+    }
+    // The recheck card carries the warn bar, like a replacement request.
+    expect(cards[0].className).toContain("inset_4px_0_0_var(--warn-fg)")
+    expect(document.body.innerHTML).not.toContain("text-muted-foreground")
   })
 })
