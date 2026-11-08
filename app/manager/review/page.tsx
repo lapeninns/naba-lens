@@ -5,6 +5,7 @@ import {
 import { REVIEW_COPY } from "@/components/nabalens/manager/review/review-copy"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { requireManagerVenue } from "@/lib/auth/manager"
+import { ROUTES } from "@/lib/auth/routes"
 import { getManagerPhotoCtx } from "@/lib/server/menu-photos"
 
 import { failedRead } from "../load-overview"
@@ -23,7 +24,7 @@ export default async function ManagerReviewPage({
 }) {
   const { venue } = await requireManagerVenue()
   const scope = await getManagerPhotoCtx()
-  if (!scope.ok) failedRead(scope.code, "Review")
+  if (!scope.ok) failedRead(scope.code, "Review", ROUTES.managerReview)
   return (
     <div className="grid gap-6">
       <PageHeader

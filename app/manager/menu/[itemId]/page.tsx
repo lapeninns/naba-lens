@@ -3,6 +3,7 @@ import { notFound } from "next/navigation"
 import { ItemDetail } from "@/components/nabalens/manager/menu/item-detail"
 import { ItemWaiting } from "@/components/nabalens/manager/menu/item-waiting"
 import { ItemWaitingReview } from "@/components/nabalens/manager/menu/item-waiting-review"
+import { managerHrefs } from "@/components/nabalens/manager/hrefs"
 import { backHref } from "@/components/nabalens/manager/menu/menu-query"
 import { requireManagerVenue } from "@/lib/auth/manager"
 import { isUuid } from "@/lib/server/coverage/validate"
@@ -33,13 +34,13 @@ export default async function ManagerMenuItemPage({
   const { itemId } = await params
   if (!isUuid(itemId)) notFound()
   const scope = await getManagerPhotoCtx()
-  if (!scope.ok) failedRead(scope.code)
+  if (!scope.ok) failedRead(scope.code, undefined, managerHrefs.item(itemId))
   const [read, history, search] = await Promise.all([
     getManagerItem(scope.ctx, itemId),
     listItemEvents(scope.ctx, { itemId }),
     searchParams,
   ])
-  if (!read.ok) failedRead(read.code)
+  if (!read.ok) failedRead(read.code, undefined, managerHrefs.item(itemId))
   const { detail } = read
   if (!detail) notFound()
 

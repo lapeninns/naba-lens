@@ -3,7 +3,7 @@ import "server-only"
 import { cache } from "react"
 import { redirect } from "next/navigation"
 
-import { ROUTES } from "@/lib/auth/routes"
+import { loginHref, ROUTES } from "@/lib/auth/routes"
 import {
   getManagerOverview,
   getManagerPhotoCtx,
@@ -46,11 +46,16 @@ export function isRefusal(code: string): boolean {
 /**
  * A failed read on a page below Overview. A refusal goes to Overview, whose
  * fresh workspace read shows Venue access unavailable (or sends a changed or
- * deactivated account to its own home); an expired session goes to sign in.
- * Anything else becomes the route's error boundary (Try again).
+ * deactivated account to its own home); an expired session goes to sign in,
+ * back to `path` (the page asked for) afterwards. Anything else becomes the
+ * route's error boundary (Try again).
  */
-export function failedRead(code: string, what = "menu photos"): never {
-  if (code === "unauthenticated") redirect(ROUTES.login)
+export function failedRead(
+  code: string,
+  what = "menu photos",
+  path?: string
+): never {
+  if (code === "unauthenticated") redirect(loginHref(path))
   if (isRefusal(code)) redirect(ROUTES.managerHome)
   throw new Error(`Could not load ${what}: ${code}`)
 }

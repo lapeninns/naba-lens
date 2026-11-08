@@ -1,6 +1,6 @@
 "use client"
 
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 
 import {
   listSubmittableAssetsAction,
@@ -20,7 +20,7 @@ import {
   useAddRefreshSignal,
 } from "@/components/nabalens/shell/add-context"
 import type { CheckSummary } from "@/lib/amenities/contract"
-import { ROUTES } from "@/lib/auth/routes"
+import { loginHref } from "@/lib/auth/routes"
 import { MEDIA_LIMITS } from "@/lib/config/media"
 
 /**
@@ -47,6 +47,7 @@ export function CaptureClient({
   doneHref: string
 }) {
   const router = useRouter()
+  const pathname = usePathname()
   const uploader = useMediaUploader()
   const addQueue = useAddQueue()
   const refreshSignal = useAddRefreshSignal()
@@ -69,7 +70,7 @@ export function CaptureClient({
             : doneHref
         )
       }
-      signInHref={ROUTES.login}
+      signInHref={loginHref(pathname)}
     />
   )
 }

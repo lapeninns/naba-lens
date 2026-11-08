@@ -24,9 +24,10 @@ export default async function ManagerContributorPage({
   searchParams: Promise<ReviewSearch>
 }) {
   await requireManagerVenue()
-  const scope = await getManagerPhotoCtx()
-  if (!scope.ok) failedRead(scope.code, "a contributor")
   const { staffId } = await params
+  const scope = await getManagerPhotoCtx()
+  if (!scope.ok)
+    failedRead(scope.code, "a contributor", managerHrefs.contributor(staffId))
   return (
     <div className="grid gap-6">
       <Link

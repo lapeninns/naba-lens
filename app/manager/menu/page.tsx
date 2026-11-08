@@ -1,6 +1,7 @@
 import { MenuScreen } from "@/components/nabalens/manager/menu/menu-screen"
 import { parseMenuFilter } from "@/components/nabalens/manager/menu/menu-query"
 import { requireManagerVenue } from "@/lib/auth/manager"
+import { ROUTES } from "@/lib/auth/routes"
 import { listManagerMenuItems } from "@/lib/server/menu-photos"
 
 import { loadMenuItemsPageAction } from "../actions"
@@ -22,7 +23,7 @@ export default async function ManagerMenuPage({
 }) {
   await requireManagerVenue()
   const read = await loadManagerOverview()
-  if (!read.ok) failedRead(read.code)
+  if (!read.ok) failedRead(read.code, undefined, ROUTES.managerMenu)
   const { ctx, overview } = read
   const parsed = parseMenuFilter(await searchParams)
   // A section from another menu version (an old link) shows every section.
@@ -37,7 +38,7 @@ export default async function ManagerMenuPage({
       ...(filter.sectionId ? { sectionId: filter.sectionId } : {}),
       ...(filter.query ? { query: filter.query } : {}),
     })
-    if (!page.ok) failedRead(page.code)
+    if (!page.ok) failedRead(page.code, undefined, ROUTES.managerMenu)
     items = { items: page.items, nextCursor: page.nextCursor }
   }
 

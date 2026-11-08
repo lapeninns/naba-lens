@@ -10,6 +10,7 @@ import type { CheckSummary } from "@/lib/amenities/contract"
 const { push } = vi.hoisted(() => ({ push: vi.fn() }))
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push, refresh: vi.fn() }),
+  usePathname: () => "/staff/tasks/amenities/check/capture",
 }))
 vi.mock("@/app/_amenities/actions", () => ({
   listSubmittableAssetsAction: vi.fn(),

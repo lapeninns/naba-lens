@@ -1,6 +1,7 @@
 import { OverviewBody } from "@/components/nabalens/manager/overview/overview-body"
 import { VenueAccessUnavailable } from "@/components/nabalens/manager/venue-access-unavailable"
 import { getManagerWorkspace } from "@/lib/auth/manager"
+import { ROUTES } from "@/lib/auth/routes"
 
 import { failedRead, isRefusal, loadManagerOverview } from "./load-overview"
 
@@ -26,7 +27,7 @@ export default async function ManagerOverviewPage() {
     // ourselves.
     if (isRefusal(read.code))
       return <VenueAccessUnavailable reason="no_grant" refreshShell />
-    failedRead(read.code, "the overview")
+    failedRead(read.code, "the overview", ROUTES.managerHome)
   }
   return (
     <OverviewBody overview={read.overview} now={new Date().toISOString()} />
