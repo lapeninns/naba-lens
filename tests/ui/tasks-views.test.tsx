@@ -120,18 +120,23 @@ describe("TasksOverview", () => {
     expect(screen.queryByRole("progressbar")).toBeNull()
   })
 
-  it("reads the optional photo step as one sentence with its link inline", () => {
+  function renderSetup(profile: Partial<typeof PROFILE> = {}) {
     const view = tasksView({
       scope: { ...base.scope, setup: { complete: false, missing: ["team"] } },
     })
     render(
       <TasksOverview
         tasks={view}
-        profile={{ ...PROFILE, department: null, hasAvatar: false }}
+        profile={{ ...PROFILE, department: null, ...profile }}
         tasksPath="/staff/tasks"
         portfolioPath="/staff"
       />
     )
+    return screen.getByRole("region", { name: "Your setup isn't finished" })
+  }
+
+  it("reads the optional photo step as one sentence", () => {
+    renderSetup({ hasAvatar: false })
     const step = within(
       screen.getByRole("list", { name: "Profile setup" })
     ).getByText((_, el) =>
@@ -140,8 +145,31 @@ describe("TasksOverview", () => {
     expect(step.textContent).toBe(
       "Profile photo (optional). Add one in Edit profile."
     )
-    const link = within(step).getByRole("link", { name: "Edit profile" })
-    expect(link.getAttribute("href")).toBe("/staff?edit=profile")
+  })
+
+  it("ends the setup card in one Edit profile button, the lead card's primary action", () => {
+    const card = renderSetup({ hasAvatar: false })
+    // Like every other To do card: one real action, not small inline links.
+    const links = within(card).getAllByRole("link")
+    expect(links).toHaveLength(1)
+    const edit = within(card).getByRole("link", { name: "Edit profile" })
+    expect(edit.getAttribute("href")).toBe("/staff?edit=profile")
+    expect(edit.className).toContain("bg-accent")
+    expect(edit.className).toContain("w-full")
+    expect(
+      within(screen.getByRole("list", { name: "Profile setup" })).queryByRole(
+        "link"
+      )
+    ).toBeNull()
+  })
+
+  it("says plainly when only an admin can finish setup, with no button", () => {
+    const card = renderSetup({ hasAvatar: true })
+    expect(within(card).queryByRole("link")).toBeNull()
+    expect(card.textContent).toContain(
+      "There's nothing here for you to change. An admin finishes the rest."
+    )
+    expect(card.textContent).toContain("Ask an admin to set your team.")
   })
 
   it("explains a missing venue and offers no send action", () => {

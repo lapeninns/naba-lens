@@ -432,6 +432,7 @@ export function TodoSection({
                       setup={scope.setup}
                       profile={profile}
                       editProfileHref={`${portfolioPath}?edit=profile`}
+                      actionClassName={action(primary)}
                     />
                   </li>
                 )
