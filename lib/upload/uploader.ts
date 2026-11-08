@@ -113,9 +113,20 @@ export function createUploader(options: CreateUploaderOptions): MediaUploader {
       if (signal?.aborted) return fail(aborted())
 
       if (reservation.state === "ready") {
+        // An earlier finalise finished it (the tab may have closed while it
+        // ran), maybe leaving its stored labels needing attention. Finalise
+        // answers a ready asset at once and reports such a draft; with no
+        // answer, the photo is still ready, just without that report.
         onProgress(1)
+        const labels = await finalise({ assetId, idempotencyKey })
+          .then((result) =>
+            result.state === "ready" ? result.labels : undefined
+          )
+          .catch(() => undefined)
         onStateChange("ready")
-        return { assetId, state: "ready" }
+        return labels
+          ? { assetId, state: "ready", labels }
+          : { assetId, state: "ready" }
       }
 
       if (reservation.state !== "processing") {

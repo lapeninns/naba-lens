@@ -91,6 +91,58 @@ describe("createUploader passes finalise's labels on", () => {
   })
 })
 
+describe("createUploader on a resumed asset an earlier finalise made ready", () => {
+  // The tab closed while finalise ran: the server finished the photo, its
+  // stored labels in needs_attention, and the browser kept the resume key.
+  const attention: FinaliseLabels = {
+    state: "needs_attention",
+    code: "catalogue_changed",
+    message: "The menu changed. Check the dish.",
+  }
+  function readyUploader(finalise: () => Promise<unknown>) {
+    const calls = vi.fn(finalise)
+    const upload = createUploader({
+      reserve: async () => ({
+        assetId: "asset-1",
+        objectKey: "u/asset-1/original.jpg",
+        bucket: "media",
+        resumable: false,
+        state: "ready",
+      }),
+      finalise: calls as never,
+      supabaseUrl: "http://storage.invalid",
+      getAccessToken: async () => "jwt",
+      limits: LIMITS,
+    })
+    return { upload, calls }
+  }
+
+  it("reports labels left needing attention, so the row offers Fix labels", async () => {
+    const { upload, calls } = readyUploader(async () => ({
+      state: "ready",
+      labels: attention,
+    }))
+    const result = await upload(photo(), { idempotencyKey: "k" })
+    expect(calls).toHaveBeenCalledWith({
+      assetId: "asset-1",
+      idempotencyKey: "k",
+    })
+    expect(result).toEqual({
+      assetId: "asset-1",
+      state: "ready",
+      labels: attention,
+    })
+  })
+
+  it("is still ready, without labels, when that check gets no answer", async () => {
+    const { upload } = readyUploader(async () => {
+      throw new TypeError("Failed to fetch")
+    })
+    const result = await upload(photo(), { idempotencyKey: "k" })
+    expect(result).toEqual({ assetId: "asset-1", state: "ready" })
+  })
+})
+
 describe("toQueueUploader", () => {
   it("reports the reserved asset ID before the file is done, and the finalise labels after", async () => {
     let finish = () => {}
