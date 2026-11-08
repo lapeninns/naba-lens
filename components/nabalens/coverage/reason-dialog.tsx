@@ -193,8 +193,9 @@ export function ReasonDialog({
       setReason("")
       onOpenChange(false)
     } catch {
+      // The reply was lost, not refused: the change may have been saved.
       setError(
-        "Could not reach the server. Check your connection and try again."
+        "We couldn't confirm this was saved. Check your connection, then try again or refresh to see if it was."
       )
     } finally {
       setPending(false)

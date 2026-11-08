@@ -310,9 +310,17 @@ export function AmenityFactForm({
   return (
     <form onSubmit={save} className="grid gap-4" noValidate>
       {notice?.tone === "error" ? (
-        <Notice tone="negative" role="alert" title="We couldn't save the facts">
+        <Notice
+          tone="negative"
+          role="alert"
+          title={
+            notice.text === NETWORK_ERROR
+              ? "We couldn't confirm the facts were saved"
+              : "We couldn't save the facts"
+          }
+        >
           {notice.text === NETWORK_ERROR
-            ? "Check your connection and try again. Nothing is saved twice."
+            ? "Check your connection, then try again or refresh to see if they were. Nothing is saved twice."
             : notice.text}
         </Notice>
       ) : (

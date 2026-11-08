@@ -48,8 +48,9 @@ export type AttachPhotosHandler = (input: {
   }>
 >
 
+/** The reply was lost: the photos may be attached. The request id is kept. */
 const NETWORK_ERROR =
-  "Could not reach the server. Try again; the photos will not be attached twice."
+  "We couldn't confirm the photos were attached. Check your connection, then try again or refresh to see if they were. They won't be attached twice."
 
 type SkippedNote = SkippedPhoto & { photo: string | null }
 
