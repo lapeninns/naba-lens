@@ -43,6 +43,35 @@ describe("POST /auth/logout from another site", () => {
     expect(signOut).not.toHaveBeenCalled()
   })
 
+  it("refuses when the browser says the request is cross-site, whatever the Origin", async () => {
+    signOut.mockClear()
+    for (const headers of [
+      {
+        origin: "https://app.nabalens.test",
+        host: "app.nabalens.test",
+        "sec-fetch-site": "cross-site",
+      },
+      { host: "app.nabalens.test", "sec-fetch-site": "same-site" },
+    ] as Record<string, string>[]) {
+      const res = await post(headers)
+      expect(res.status, JSON.stringify(headers)).toBe(403)
+    }
+    expect(signOut).not.toHaveBeenCalled()
+  })
+
+  it("reads the first host of a comma-separated X-Forwarded-Host", async () => {
+    signOut.mockClear()
+    signOut.mockResolvedValue({ error: null })
+    const res = await post({
+      origin: "https://app.nabalens.test",
+      host: "internal:3000",
+      "x-forwarded-host": "app.nabalens.test, internal:3000",
+      "sec-fetch-site": "same-origin",
+    })
+    expect(res.status).toBe(303)
+    expect(signOut).toHaveBeenCalledOnce()
+  })
+
   it("signs out a form from this site, behind a proxy, or with no Origin", async () => {
     vi.stubEnv("NEXT_PUBLIC_SITE_URL", "http://127.0.0.1:3000")
     signOut.mockClear()
