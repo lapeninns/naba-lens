@@ -405,6 +405,8 @@ export function CaptureForm({
           for (const id of select) late.current.add(id)
           return
         }
+        // Listed now: they are selected (or wait as arrivals) from here.
+        for (const id of select) late.current.delete(id)
         const ready = new Set(result.assets.map((a) => a.assetId))
         const picked = select.filter((id) => ready.has(id))
         if (picked.length > 0)
@@ -488,10 +490,13 @@ export function CaptureForm({
     arrived.current = onArrived
   })
 
-  /** Uploads that arrived during the send are selected for the next one. */
+  /**
+   * Uploads that arrived during the send are selected for the next one. They
+   * stay waiting until a reload lists them: if it fails (a session that
+   * ended fails it too), the next send still reports them as not added.
+   */
   function selectLate() {
     const ids = [...late.current]
-    late.current.clear()
     if (ids.length > 0) void reloadAssets(ids)
   }
 

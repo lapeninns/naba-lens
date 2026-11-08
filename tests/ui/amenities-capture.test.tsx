@@ -1026,6 +1026,34 @@ describe("CaptureForm: uploads after a refused or resent answer (B5)", () => {
     )
   })
 
+  it("still reports uploads as not added when their reload after a refused send fails", async () => {
+    let refuse!: (error: Error) => void
+    const submit = vi
+      .fn<SubmitHandler>()
+      .mockImplementationOnce(
+        () => new Promise((_, reject) => (refuse = reject))
+      )
+      .mockResolvedValue(sentOk())
+    const { user, opts, onDone, loadAssets } = await withAddQueue(submit)
+    await user.click(submitButton())
+    opts.onReady?.([VIDEO.assetId])
+    // The session ended: the send is refused and so is the list reload.
+    loadAssets.mockRejectedValue(new Error(SESSION_ENDED_MESSAGE))
+    await act(async () => refuse(new Error(SESSION_ENDED_MESSAGE)))
+    await waitFor(() => expect(loadAssets).toHaveBeenCalled())
+    await act(async () => {})
+    expect(screen.queryByRole("checkbox", { name: /^Video added/ })).toBeNull()
+
+    // Signed in again, the answer is sent without the upload.
+    loadAssets.mockResolvedValue(assetsOk([LATER, VIDEO, PHOTO]))
+    await user.click(submitButton())
+    expect(lastInput(submit).assetIds).toEqual([PHOTO.assetId])
+    expect(
+      await screen.findByText(/1 new upload finished while your answer/)
+    ).toBeTruthy()
+    expect(onDone).not.toHaveBeenCalled()
+  })
+
   it("never calls an upload the person ticked and sent a missed one", async () => {
     const submit = vi
       .fn<SubmitHandler>()
