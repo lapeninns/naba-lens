@@ -136,3 +136,31 @@ test("changing the installed CI profile invalidates a frozen candidate and a run
     "blocked"
   )
 })
+
+test("an implementation finding can reopen a completed task without discarding other completion evidence", () => {
+  let s = initial()
+  s = transition(s, { type: "complete", task: "labels" }, context)
+  s = transition(
+    s,
+    {
+      type: "repair",
+      task: "labels",
+      reason: "Blocking check found the changed label case was not covered",
+    },
+    context
+  )
+  assert.equal(s.phase, "implementation")
+  assert.equal(s.completed.includes("labels"), false)
+  assert.equal(s.repairs.length, 1)
+  assert.throws(() =>
+    transition(
+      s,
+      {
+        type: "repair",
+        task: "bad task",
+        reason: "Blocking malformed identifier",
+      },
+      context
+    )
+  )
+})

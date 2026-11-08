@@ -167,6 +167,20 @@ function focused(args) {
     ]
   } else if (kind === "browser") {
     const project = args.shift()
+    const grepIndex = args.indexOf("--grep")
+    let grep
+    if (grepIndex !== -1) {
+      if (
+        grepIndex < 1 ||
+        grepIndex !== args.length - 2 ||
+        !args[grepIndex + 1] ||
+        args[grepIndex + 1].startsWith("-")
+      )
+        throw Error("Use explicit spec files followed by --grep <case-pattern>")
+      grep = args[grepIndex + 1]
+      new RegExp(grep) // Reject malformed case filters before starting a browser.
+      args.splice(grepIndex)
+    }
     if (
       !["chromium", "mobile-chromium", "firefox", "webkit"].includes(project) ||
       !args.length
@@ -179,6 +193,7 @@ function focused(args) {
       "--project",
       project,
       ...args.map((p) => positionalPath(p, /^tests\/e2e\/.+\.spec\.[jt]s$/)),
+      ...(grep ? ["--grep", grep] : []),
     ]
   } else
     throw Error(

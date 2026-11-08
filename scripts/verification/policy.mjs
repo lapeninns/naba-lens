@@ -71,14 +71,23 @@ export function transition(previous, action, context) {
     })
   } else if (action.type === "repair") {
     if (
-      !["integration", "frozen", "blocked", "qualified"].includes(s.phase) ||
+      ![
+        "implementation",
+        "integration",
+        "frozen",
+        "blocked",
+        "qualified",
+      ].includes(s.phase) ||
       typeof action.reason !== "string" ||
       action.reason.trim().length < 12
     )
       fail(
         "Reopen only for a documented blocking finding; a running gate cannot be reopened"
       )
-    if (!action.task || /[\r\n]/.test(action.task))
+    if (
+      typeof action.task !== "string" ||
+      !/^[a-z0-9][a-z0-9-]{1,70}$/.test(action.task)
+    )
       fail("Name the blocking repair task")
     s.repairs.push({
       reason: action.reason,

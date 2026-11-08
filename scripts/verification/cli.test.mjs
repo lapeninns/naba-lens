@@ -5,6 +5,7 @@ import {
   mkdirSync,
   mkdtempSync,
   realpathSync,
+  readFileSync,
   rmSync,
   writeFileSync,
 } from "node:fs"
@@ -55,6 +56,11 @@ function fixture(t, probe = "") {
     spawnSync(process.execPath, ["scripts/verification/cli.mjs", ...args], {
       cwd: root,
       encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: join(root, ".git/bin") + ":" + process.env.PATH,
+        CAPTURE: join(root, ".git/capture"),
+      },
     })
   return { root, git, run }
 }
@@ -109,4 +115,37 @@ test("batch control is unavailable on main and a dirty candidate cannot freeze",
     f.run("freeze", f.git("rev-parse", "HEAD"), "review").status,
     0
   )
+})
+
+test("browser focus forwards an explicit case filter and rejects incomplete or malformed filters", (t) => {
+  const f = fixture(t)
+  mkdirSync(join(f.root, ".git/bin"))
+  mkdirSync(join(f.root, "tests/e2e"), { recursive: true })
+  writeFileSync(
+    join(f.root, "tests/e2e/fixture.spec.ts"),
+    "// contract fixture\n"
+  )
+  writeFileSync(
+    join(f.root, ".git/bin/pnpm"),
+    '#!/bin/sh\nprintf "%s\\n" "$@" > "$CAPTURE"\n',
+    { mode: 0o755 }
+  )
+  const args = ["focused", "browser", "chromium", "tests/e2e/fixture.spec.ts"]
+  const result = f.run(...args, "--grep", "only selected case")
+  assert.equal(result.status, 0, result.stderr + result.stdout)
+  assert.deepEqual(
+    readFileSync(join(f.root, ".git/capture"), "utf8").trim().split("\n"),
+    [
+      "exec",
+      "playwright",
+      "test",
+      "--project",
+      "chromium",
+      "tests/e2e/fixture.spec.ts",
+      "--grep",
+      "only selected case",
+    ]
+  )
+  assert.notEqual(f.run(...args, "--grep").status, 0)
+  assert.notEqual(f.run(...args, "--grep", "](").status, 0)
 })

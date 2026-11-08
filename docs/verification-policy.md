@@ -15,7 +15,7 @@ pnpm verify:change lint lib/example.ts
 pnpm verify:change types
 pnpm verify:change tooling
 # Browser checks require the project's usual isolated stack/config prerequisites:
-pnpm verify:change browser chromium tests/e2e/menus-labels.spec.ts
+pnpm verify:change browser chromium tests/e2e/menus-labels.spec.ts --grep "label filters"
 pnpm verify:batch complete labels
 pnpm verify:batch complete recovery
 pnpm verify:batch complete review
