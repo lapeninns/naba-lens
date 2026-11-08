@@ -1168,6 +1168,43 @@ describe("Review 2 regressions: Add host", () => {
     )
   })
 
+  it("N3b: labels chosen while the menu loads make leaving and reloading ask", async () => {
+    const user = userEvent.setup()
+    const { find } = holdUploads()
+    api.menu = () => new Promise(() => {})
+    host(
+      <>
+        <Opener opts={{ source: "library" }} />
+        <a href="/login">Elsewhere</a>
+      </>
+    )
+    await user.click(screen.getByRole("button", { name: "Open" }))
+    await user.upload(input("library"), [jpeg("a.jpg")])
+    const dialog = await screen.findByRole("dialog", { name: "Saving 1 photo" })
+    await act(async () => find("a.jpg").finish())
+    const unloading = () => {
+      const event = new Event("beforeunload", { cancelable: true })
+      window.dispatchEvent(event)
+      return event.defaultPrevented
+    }
+    expect(unloading()).toBe(false)
+
+    await user.click(
+      within(dialog).getByRole("button", { name: /^More details/ })
+    )
+    await user.click(
+      within(dialog).getByRole("button", { name: "Finished dish" })
+    )
+    expect(unloading()).toBe(true)
+    // fireEvent: the open sheet makes the page behind it inert to user.click.
+    fireEvent.click(
+      screen.getByRole("link", { name: "Elsewhere", hidden: true })
+    )
+    expect(
+      await screen.findByText("Labels for 1 photo haven't saved yet.")
+    ).toBeTruthy()
+  })
+
   it("N3: labels discarded while the menu loads stay discarded", async () => {
     const user = userEvent.setup()
     const { dialog, load } = await editWhileMenuLoads(user)
