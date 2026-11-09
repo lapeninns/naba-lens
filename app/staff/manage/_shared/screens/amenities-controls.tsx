@@ -26,16 +26,21 @@ import type {
   CheckDetail,
   VenueAmenitiesView,
 } from "@/lib/amenities/contract"
-import type { QuestionView } from "@/lib/knowledge-client/contract"
+import type {
+  QuestionView,
+  ToConfirmList,
+} from "@/lib/knowledge-client/contract"
 
 export function AmenitiesOverviewControl({
   view,
   catalogue,
   basePath,
+  toConfirm = null,
 }: {
   view: VenueAmenitiesView
   catalogue: CatalogueOption[] | null
   basePath: string
+  toConfirm?: ToConfirmList | null
 }) {
   const venueId = view.venue.id
   return (
@@ -43,6 +48,7 @@ export function AmenitiesOverviewControl({
       view={view}
       catalogue={catalogue}
       basePath={basePath}
+      toConfirm={toConfirm}
       handlers={{
         enable: () => enableAmenitiesAction({ venueId }),
         addChecks: (keys) => addChecksAction({ venueId, keys }),

@@ -26,12 +26,15 @@ export function ManagerShell({
   venueName,
   userName,
   reviewCount,
+  confirmCount,
   children,
 }: {
   venueName: string
   userName: string
   /** Photos waiting for a decision; omitted when it could not be read. */
   reviewCount?: number
+  /** Amenity findings waiting for a decision; omitted when it could not be read. */
+  confirmCount?: number
   children: React.ReactNode
 }) {
   return (
@@ -90,7 +93,11 @@ export function ManagerShell({
             </div>
           </div>
           <div className="mx-auto hidden w-full max-w-(--size-page) px-2 md:block md:px-4">
-            <ManagerNav kind="tabs" reviewCount={reviewCount} />
+            <ManagerNav
+              kind="tabs"
+              reviewCount={reviewCount}
+              confirmCount={confirmCount}
+            />
           </div>
         </header>
         <main
@@ -99,7 +106,11 @@ export function ManagerShell({
         >
           <OfflineShell>{children}</OfflineShell>
         </main>
-        <ManagerNav kind="bar" reviewCount={reviewCount} />
+        <ManagerNav
+          kind="bar"
+          reviewCount={reviewCount}
+          confirmCount={confirmCount}
+        />
       </div>
     </ReviewCountProvider>
   )

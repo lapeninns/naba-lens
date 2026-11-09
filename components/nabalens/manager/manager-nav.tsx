@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils"
 
 import { SectionTabs } from "../section-tabs"
 import { TAB_ITEM } from "../shell/tab-item"
+import { TO_CONFIRM_COPY } from "../knowledge/copy"
 import { CountBadge } from "../status-chip"
 import { MANAGER_COPY } from "./copy"
 import { managerHrefs, managerSectionFor, type ManagerSection } from "./hrefs"
@@ -54,14 +55,24 @@ const ITEMS: {
 export function ManagerNav({
   kind,
   reviewCount,
+  confirmCount,
 }: {
   kind: "tabs" | "bar"
   /** Photos waiting for this manager's decision, shown on Review (the provider's count wins). */
   reviewCount?: number
+  /** Amenity findings and answers waiting for a decision, shown on Amenities. */
+  confirmCount?: number
 }) {
   const active = managerSectionFor(usePathname() ?? "") ?? ""
   const shared = useReviewCount().count ?? reviewCount
   const count = shared && shared > 0 ? shared : undefined
+  const confirm = confirmCount && confirmCount > 0 ? confirmCount : undefined
+  const badgeFor = (id: ManagerSection) =>
+    id === "review" && count
+      ? { value: count, label: MANAGER_COPY.reviewBadge(count) }
+      : id === "amenities" && confirm
+        ? { value: confirm, label: TO_CONFIRM_COPY.badge(confirm) }
+        : undefined
 
   if (kind === "tabs") {
     return (
@@ -72,10 +83,7 @@ export function ManagerNav({
           id: item.id,
           label: item.label,
           href: item.href,
-          count:
-            item.id === "review" && count
-              ? { value: count, label: MANAGER_COPY.reviewBadge(count) }
-              : undefined,
+          count: badgeFor(item.id),
         }))}
         className="border-b-0"
       />
@@ -91,7 +99,7 @@ export function ManagerNav({
       {ITEMS.map((item) => {
         const Icon = item.icon
         const current = active === item.id
-        const badge = item.id === "review" ? count : undefined
+        const badge = badgeFor(item.id)
         return (
           <Link
             key={item.id}
@@ -110,8 +118,8 @@ export function ManagerNav({
             {item.label}
             {badge ? (
               <CountBadge
-                count={badge}
-                label={MANAGER_COPY.reviewBadge(badge)}
+                count={badge.value}
+                label={badge.label}
                 tone="warn"
                 className="absolute top-1 left-[calc(50%+6px)] ring-2 ring-surface"
               />

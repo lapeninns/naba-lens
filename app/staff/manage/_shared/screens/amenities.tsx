@@ -106,7 +106,13 @@ function amenityFailed(
 }
 
 export async function AmenitiesScreen({ ctx }: { ctx: ManageContext }) {
-  const result = await getVenueAmenities(ctx.actor, { venueId: ctx.venueId })
+  const [result, toConfirm] = await Promise.all([
+    getVenueAmenities(ctx.actor, { venueId: ctx.venueId }),
+    // Optional: a failed read leaves the checks without the To confirm group.
+    knowledgeServices
+      .listToConfirm(ctx.actor, { venueId: ctx.venueId })
+      .catch(() => null),
+  ])
   if (!result.ok) return amenityFailed(ctx, result, UI_TEXT.navTab)
   const view = result.view
   // The picker is only offered once Amenities are on; a failed catalogue read
@@ -128,6 +134,7 @@ export async function AmenitiesScreen({ ctx }: { ctx: ManageContext }) {
         view={view}
         catalogue={catalogue?.ok ? catalogue.options : null}
         basePath={ctx.basePath}
+        toConfirm={toConfirm?.ok ? toConfirm.view : null}
       />
     </AmenitiesFrame>
   )
