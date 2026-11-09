@@ -40,21 +40,24 @@ Short names used below:
 
 ## 1. Summary
 
-| #   | Need (UI §10)                            | Proposal                                                                                          | New database objects                                       | Blocked by an owner decision?                           |
-| --- | ---------------------------------------- | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------- |
-| R1  | Labels-needed count                      | `public.my_label_work()`: two counts with Me's exact rule                                         | 1 function                                                 | No                                                      |
-| R2  | Better-photo requests for the caller     | Extend the existing `listMyMenuPhotoDecisions` read; no SQL needed                                | none                                                       | OD-2 (old-menu requests), OD-3 (who asked)              |
-| R3  | Manager triage counts and oldest waiting | `public.manager_triage_summary(p_venue_id)`: one row per queue, never summed                      | 1 function                                                 | No (queue visibility follows today's rules)             |
-| R4  | `waitingSince` on To confirm rows        | Additive key on `knowledge_to_confirm`                                                            | `create or replace` of a B01 function in a B02 migration   | No                                                      |
-| R5  | One-cursor My contributions feed         | `public.my_contributions_feed(p_cursor, p_limit)`: typed rows, `(time, key)` cursor               | 1 function, up to 1 additive index                         | OD-4 (sort by send time or by latest activity)          |
-| R6  | Revision numbers the UI may show         | Task sends: replacement chain. Findings: B01 replaced-own. Menu photos: **none exists**           | none (derived in R5)                                       | OD-5 (link menu retakes)                                |
-| R7  | Permitted use per photo                  | Only "menu use accepted" in B02; no grants before B05                                             | none (derived in R5)                                       | Owner to confirm (OD-6)                                 |
-| R8  | Capabilities for the caller              | `public.my_venue_capabilities(p_venue_id)`, computed from the same predicates the write gates use | 1 function                                                 | No (it reports whatever the gates allow)                |
-| W1  | Contribution group                       | Two additive tables and three functions; groups never widen visibility and add no credit          | 2 tables, 3 functions                                      | OD-7 (one group per asset, size), table owner to assign |
-| W2  | `from` return parameter                  | Client only                                                                                       | none                                                       | No                                                      |
-| W3  | Manager-account upload                   | Shape ready, **not to be built until decided**                                                    | `create or replace` of the upload gates, 1 additive column | **Q1, Q10, Q11; OD-8 (audit), OD-9 (Photos audience)**  |
-| W4  | Manager-account labelling                | Shape ready, **not to be built until decided**                                                    | `create or replace` of the label gates                     | **Q4** (and Q1)                                         |
-| W5  | Page `loadedAt`                          | Server render time; no database work                                                              | none                                                       | No                                                      |
+| #   | Need (UI §10)                               | Proposal                                                                                                                    | New database objects                                       | Blocked by an owner decision?                           |
+| --- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------- |
+| R1  | Labels-needed count                         | `public.my_label_work()`: two counts with Me's exact rule                                                                   | 1 function                                                 | No                                                      |
+| R2  | Better-photo requests for the caller        | Extend the existing `listMyMenuPhotoDecisions` read; no SQL needed                                                          | none                                                       | OD-2 (old-menu requests), OD-3 (who asked)              |
+| R3  | Manager triage counts and oldest waiting    | `public.manager_triage_summary(p_venue_id)`: one row per queue, never summed                                                | 1 function                                                 | No (queue visibility follows today's rules)             |
+| R4  | `waitingSince` on To confirm rows           | Additive key on `knowledge_to_confirm`                                                                                      | `create or replace` of a B01 function in a B02 migration   | No                                                      |
+| R5  | One-cursor My contributions feed            | `public.my_contributions_feed(p_cursor, p_limit)`: typed rows, `(time, key)` cursor                                         | 1 function, up to 1 additive index                         | OD-4 (sort by send time or by latest activity)          |
+| R6  | Revision numbers the UI may show            | Task sends: replacement chain. Findings: B01 replaced-own. Menu photos: **none exists**                                     | none (derived in R5)                                       | OD-5 (link menu retakes)                                |
+| R7  | Permitted use per photo                     | Only "menu use accepted" in B02; no grants before B05                                                                       | none (derived in R5)                                       | Owner to confirm (OD-6)                                 |
+| R8  | Capabilities for the caller                 | `public.my_venue_capabilities(p_venue_id)`, computed from the same predicates the write gates use                           | 1 function                                                 | No (it reports whatever the gates allow)                |
+| R9  | Delete impact for a photo (HM-04)           | `public.my_asset_delete_impact(p_asset_id)`: uploader only; predicts each answer's effect with the triggers' own predicates | 1 function                                                 | OD-10 (admins in the Library)                           |
+| R10 | Request keys on legacy check writes (MG-01) | `public.amenity_commands` and six keyed overloads that replay before the revision check; old signatures kept                | 1 table, 6 functions                                       | No                                                      |
+| R11 | Draft-save guard (L-b)                      | `knowledge_save_draft` overload with `p_base_sent_at`; refuses with `draft_already_sent` (`NLK09`)                          | 1 function, 2 `create or replace`                          | No                                                      |
+| W1  | Contribution group                          | Two additive tables and three functions; groups never widen visibility and add no credit                                    | 2 tables, 3 functions                                      | OD-7 (one group per asset, size), table owner to assign |
+| W2  | `from` return parameter                     | Client only                                                                                                                 | none                                                       | No                                                      |
+| W3  | Manager-account upload                      | Shape ready, **not to be built until decided**                                                                              | `create or replace` of the upload gates, 1 additive column | **Q1, Q10, Q11; OD-8 (audit), OD-9 (Photos audience)**  |
+| W4  | Manager-account labelling                   | Shape ready, **not to be built until decided**                                                                              | `create or replace` of the label gates                     | **Q4** (and Q1)                                         |
+| W5  | Page `loadedAt`                             | Server render time; no database work                                                                                        | none                                                       | No                                                      |
 
 ---
 
@@ -103,10 +106,9 @@ its page read; there is no count.
 - `needs_attention`: the caller's own `media_pending_labels` rows with
   `status = 'needs_attention'` whose asset still exists.
 - The predicate is written once, in a private function, so Me's list and this
-  count cannot drift. If Me's rule differs from `!hasLabels` (for example a
-  note or a missing-item report counting as labelled, as `discardPendingLabels`
-  treats it), the count follows Me, and WS2 states which rule Me uses before
-  the build.
+  count cannot drift. The rule is Me's, as WS2 states it (D-12): a ready photo
+  needs labels when its labels have no menu item and no content type. A note
+  or a missing-item report alone still needs labels.
 
 **Authorisation.** The caller's own rows only. Labelling is staff (own) and
 admin only today (matrix §4.2), so MO and AD get `0, 0`; R8 tells the UI not
@@ -155,8 +157,9 @@ signature still works.
 
 **Owner decisions.**
 
-- **OD-2:** show requests for items no longer on the menu (today's Me shows
-  them), or hide them server-side.
+- **OD-2:** WS2 settles the display (D-13): a request for an item no longer
+  on the menu is not a To do item. The read still returns it, with
+  `canRetake: false`, for Me. Hiding it server-side stays an owner option.
 - **OD-3:** whether the card names who asked. Today Me shows the reason, not
   the reviewer. Showing the reviewer's first name would be a new disclosure to
   staff.
@@ -354,6 +357,271 @@ in the T9b guard.
 **Owner decisions.** None for the read. Its values change only when a gate
 changes.
 
+---
+
+## 3a. Further reads and writes asked in WS2 revisions 3 and 4
+
+### R9. Delete impact for a photo (audit HM-04)
+
+**Need.** UI §8.8: before a staff member deletes their photo on Me, say which
+venue answers it is evidence for, and whether deleting it takes an answer out
+of use. The delete itself is unchanged.
+
+**What a deletion does today.** `delete_media_asset` sets `deleted_at` (the
+uploader while active staff, or an admin). Two triggers then react:
+
+- `media_assets_knowledge_evidence_withdrawn` (B01): for every check whose
+  **current** submission uses the asset and whose slot is on the working list,
+  it records `evidence_withdrawn`. The resolver then reports the answer
+  `withdrawn / evidence_withdrawn` until a manager reaffirms it or it is
+  answered again. This happens even when the remaining evidence still meets
+  the rule.
+- `media_assets_amenity_evidence_lost` (legacy): for a check whose current
+  submission is a complete **Yes** using the asset, if the remaining ready
+  evidence no longer meets the rule, the check moves to `needs_recheck`.
+- A pending (undecided) knowledge contribution is not changed at delete time,
+  but adopting a Yes that relied on the asset is then refused
+  (`evidence_not_eligible` or `evidence_rule_unmet`).
+- Earlier, non-current submissions keep their history. The asset is hidden.
+
+**Shape.** `public.my_asset_delete_impact(p_asset_id uuid) returns jsonb`:
+
+```text
+{ assetId, impacts: [
+    { kind: 'answer_in_use' | 'pending_finding' | 'earlier_answer',
+      effect: 'withdrawn' | 'needs_recheck' | 'none' | 'pending_loses_evidence',
+      venueId, venueName, checkId, questionKey, question,
+      yours: boolean,            -- the answer or finding is the caller's own
+      findingRef?: { type, id }  -- own pending finding only
+    } ] }
+```
+
+- One `answer_in_use` item per check whose current submission uses the
+  asset. `effect` is `withdrawn` when the slot is on the working list. Else
+  it is `needs_recheck` when the answer is a complete Yes whose remaining
+  ready evidence would not meet its rule. Otherwise it is `none`.
+- One `pending_finding` item per undecided contribution of the caller's that
+  uses the asset, with `effect = 'pending_loses_evidence'`.
+- `earlier_answer` items (effect `none`) for the caller's own non-current
+  submissions, so the person knows the photo stays in that history, hidden.
+- The prediction uses the **same private predicates** as the triggers
+  (`private.knowledge_in_scope`, `private.amenity_rule_met` over the
+  remaining ready evidence). Where a trigger's test is inline, the build moves
+  it into a named private helper that the trigger and this read both call,
+  with the trigger's behaviour unchanged and pinned by its existing tests.
+- It is advisory and one `stable` statement. A manager may act between the
+  read and the delete, so WS2's wording says what deleting it "will" do only
+  for the answer as loaded.
+
+**Authorisation and disclosure.**
+
+- **The uploader only:** active staff, own, non-deleted asset (the same rule
+  `delete_media_asset` applies to staff). Anyone else, or an unknown or
+  deleted id, gets `not_found`.
+- An admin deleting from the Library is not covered here (OD-10).
+- **No other people's data beyond D3.** Items carry the venue name, the
+  question and the effect, and `yours`. They never carry a name, the answer
+  value, finding text, notes or Wi-Fi notes. A staff photo can be evidence for
+  someone else's answer, for example legacy coverage media a manager
+  attached. Such an item says only "an answer at {venue}" (`yours: false`).
+- After a transfer, the person still owns and may delete the photo, so the
+  former venue's name is shown, as B01 history already does.
+
+**Migration and rollback.** One additive function in batch B02-a (plus any
+extracted trigger helper, with results unchanged). Rollback: drop it; WS2's
+dialog falls back to today's text.
+
+**Tests (predict, then delete, then compare).** For each fixture, read the
+impact, delete the asset through `delete_media_asset` as the uploader, and
+assert the actual state change equals the predicted `effect`:
+
+- current Yes on a working-list slot → `withdrawn`; the slot reads
+  `withdrawn / evidence_withdrawn`;
+- current Yes off the list, sole photo → `needs_recheck`; progress
+  `needs_recheck`;
+- current Yes off the list, another photo still meets the rule → `none`;
+  still complete;
+- current No with a photo, off the list → `none`;
+- current No with a photo on the list → `withdrawn` (B01 behaviour);
+- own pending finding → `pending_loses_evidence`; a later confirm is refused;
+- an earlier, replaced submission → `earlier_answer`, `none`;
+- legacy media in a manager's answer → `yours: false`, and the JSON contains
+  no profile id or name;
+- an unused photo → `impacts: []`.
+
+Refusals:
+
+- a colleague, another venue's staff, a manager account and an admin calling
+  for the uploader's asset → `not_found`;
+- a deleted asset → `not_found`.
+
+**Owner decisions.** **OD-10:** whether admins should see the same impact
+when deleting from the Library (they may already read everything, so it is a
+product choice, not a disclosure question).
+
+### R10. Request keys on legacy amenity check writes (audit MG-01)
+
+**Need.** UI §8.2 rule 3. A retry after a lost reply on assign, notes,
+reopen, archive, restore or add from catalogue today meets its own committed
+change as a stale revision (`amenity_conflict`, "Someone else changed this
+check").
+
+**Shape (same pattern as B01's knowledge commands).**
+
+- **New table** `public.amenity_commands`, separate from the frozen
+  `knowledge_commands`:
+  - `idempotency_key uuid primary key`;
+  - `actor_id uuid not null` (profiles);
+  - `command text not null`, one of `assign`, `set_notes`, `reopen`,
+    `archive`, `restore`, `add_checks`;
+  - `request_hash text not null` (sha256 of the canonical jsonb of the
+    arguments);
+  - `venue_id uuid not null`;
+  - `check_id uuid null` (null for `add_checks`);
+  - `result jsonb not null`;
+  - `created_at`.
+
+  RLS on, no policies, append-only guard.
+
+- **New overloads** with a **required** `p_idempotency_key uuid`:
+  - `amenity_assign_check(p_check_id, p_assignee_id, p_revision, p_idempotency_key)`;
+  - `amenity_set_check_notes(…, p_idempotency_key)`;
+  - `amenity_reopen_check(…, p_idempotency_key)`;
+  - `amenity_archive_check(…, p_idempotency_key)`;
+  - `amenity_restore_check(…, p_idempotency_key)`;
+  - `amenity_add_checks(p_venue_id, p_keys, p_idempotency_key)`.
+
+  Each returns `jsonb {revision, replayed}`, or `{checkIds, replayed}` for
+  add.
+
+- **Order in each:**
+  1. the active-account check (`private.amenity_assert_active_user`), as
+     B01 runs `knowledge_lock_actor` first;
+  2. validate the key;
+  3. `pg_advisory_xact_lock` on the key;
+  4. look up a prior command. Same actor, command and hash returns its stored
+     result with `replayed: true`. Anything else raises the existing
+     `idempotency_key_reused`;
+  5. otherwise call the **unchanged** existing function in the same
+     transaction (its revision check, locks, event and authorisation all
+     apply);
+  6. record the result.
+
+  The replay lookup comes before the revision check, so a lost-reply retry
+  replays instead of conflicting.
+
+- **The old signatures stay** exactly as they are. The key is a required
+  parameter in the new overloads, so PostgREST picks each overload by its
+  named arguments without ambiguity. Old clients keep working, and new
+  clients send a key.
+- A refused write records nothing (as in B01). A retry of a refused request
+  runs again and meets the current state.
+- **Mapping:** no new code. `idempotency_key_reused` is already
+  `state_conflict`, and `amenity_conflict` is still `revision_conflict` for a
+  genuine conflict under a fresh key.
+- **Retention:** like `knowledge_commands`, rows are kept. A purge after a
+  bounded age is a B10 operations item (keys only matter for retries).
+
+**Authorisation.** Unchanged: the wrapped function re-checks role, venue and
+grant on every call, including a replay's first run. A replay is served only
+to the same actor.
+
+**Migration and rollback.** One additive migration (the table, the guard, six
+functions). Rollback: the client calls the old signatures again (they never
+left); the table stays.
+
+**Tests.**
+
+- **Lost reply:** call with key K at revision N (succeeds, revision N+1).
+  Call again with K, the same arguments and N: same result, `replayed:
+true`, one event, revision still N+1.
+- **Same key, other changes:** different arguments → `idempotency_key_reused`;
+  another person (a second manager) → `idempotency_key_reused`.
+- **Fresh key, stale revision** → `amenity_conflict` (a genuine conflict
+  still says so).
+- **Each of the six commands**, including `add_checks` returning the same ids.
+- **Old signatures** work unchanged (the existing amenities suites run
+  unmodified).
+- **Lost grant or account:** a deactivated account gets `not_active_user`,
+  even on a replay. An active caller whose grant has since ended gets the
+  stored result of the write it already made (no new effect); a new key is
+  refused as today.
+
+**Owner decisions.** None.
+
+### R11. Draft-save guard (reviewer L-b)
+
+**Need.** UI §8.10 L-b. A draft save that was in flight when the person sent,
+and reaches the server after the send's delete (CA-01), recreates a draft of
+work already sent. The client should learn "already sent" and clear its
+device copy.
+
+**Shape.**
+
+- **New overload** of `public.knowledge_save_draft` with a **required**
+  `p_base_sent_at timestamptz` (null allowed as a value). This is the send
+  time of the caller's latest send on this question that the form knew about
+  when it was opened or last refreshed (`myLatest.sentAt`, or the send time of
+  the caller's latest legacy answer from My contributions). It is null when
+  the form knew of none.
+- **Refusal** `draft_already_sent`, SQLSTATE **`NLK09`**, with detail
+  `{reason, sentAt}`, when either:
+  - `reason = 'key_sent'`: `knowledge_commands` already has a `submit` by
+    this caller with the save's `p_idempotency_key`; or
+  - `reason = 'newer_send'`: the caller has a knowledge contribution, or an
+    amenity submission, on this check with `created_at > p_base_sent_at`, or
+    any at all when `p_base_sent_at` is null. `sentAt` is the newest one.
+- The guard runs **before** the draft-revision check, so a late save gets
+  `draft_already_sent` rather than `draft_conflict` (its draft was deleted by
+  the send).
+- **The old signature** is replaced with a body that adds only the `key_sent`
+  test (it has no base). This narrows the race for old clients without
+  blocking anything legitimate.
+- **TS:** a new `KnowledgeErrorCode` `draft_already_sent` (409, never
+  retryable), mapped by message or `NLK09`. Old clients that don't know it get
+  B01's default for an unknown `NL` code, `state_conflict` (reload), which is
+  safe.
+
+**Edge cases.**
+
+| Case                                                                                      | Result                                                                                                                                                                                              |
+| ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Person sends, then starts a new draft on the same question (fresh page or refreshed form) | The form's base is that send's `sentAt`, so nothing is newer and the save is allowed. **Not blocked.**                                                                                              |
+| Same form stays open after sending and the person starts again                            | The client takes `sentAt` from the send's own result (an additive `sentAt` key on `knowledge_submit`'s result, also in B02-a) and uses it as the new base                                           |
+| A save sent before the send but processed after it (L-b)                                  | Its base predates the send → `newer_send` → refused; nothing is written                                                                                                                             |
+| A save carrying the send's own key (the form saved, then sent with the same key)          | `key_sent` → refused                                                                                                                                                                                |
+| A second device sends while this device has the form open                                 | This device's next save is refused `newer_send` with the other send's `sentAt`. WS2 says it was sent from another device and offers "Start a new draft", which saves with that `sentAt` as the base |
+| The send was replayed (same key)                                                          | No new contribution, so no new time; nothing changes                                                                                                                                                |
+| Someone else sends on the question                                                        | Not counted: only the caller's own sends are compared                                                                                                                                               |
+| The caller answered through the legacy path (question off the list)                       | Counted as a send (CA-01 also deletes the draft there)                                                                                                                                              |
+| Clock or ordering                                                                         | Times are the database's own `created_at` for both the send and the base, never the device clock. Equal times count as not newer                                                                    |
+| Transfer to another venue                                                                 | Unchanged: the check is not found for the caller, as today                                                                                                                                          |
+
+**Migration and rollback.** In batch B02-a: the new overload, a
+`create or replace` of the old `knowledge_save_draft` (key guard only) and of
+`knowledge_submit` (additive `sentAt`), all in a new migration. Rollback: the
+client calls the old signature. A later migration restores the B01 bodies.
+
+**Tests.**
+
+- **L-b:** save with base null and key K1; send with key K2; a late save with
+  base null → `draft_already_sent` / `newer_send`; no draft row exists.
+- **Key:** after sending with K, a save with K and a fresh base →
+  `draft_already_sent` / `key_sent`.
+- **New draft after sending:** a save with base = the send's `sentAt` and a
+  new key → allowed, `draftRevision` 1.
+- **Second device:** refused with the other send's `sentAt`; a retry with
+  that base is allowed.
+- **Not blocked by others:** a colleague's send doesn't block my save.
+- **Legacy answer:** counts as a send; its `sentAt` as base allows a new
+  draft.
+- **Order:** a late save with a stale draft revision gets
+  `draft_already_sent`, not `draft_conflict`.
+- **Old signature:** only `key_sent` is enforced.
+- **Unit:** `NLK09` maps to `draft_already_sent` (409) and is never retryable
+  (the T14c loop covers the new code).
+
+**Owner decisions.** None.
 ---
 
 ## 4. Writes
@@ -587,16 +855,17 @@ self · Q14 legacy grant retirement.
 
 ### 6.2 Raised by this design
 
-| #    | Decision                                              | Today                       | Design default until decided                          |
-| ---- | ----------------------------------------------------- | --------------------------- | ----------------------------------------------------- |
-| OD-2 | Better-photo requests for items no longer on the menu | Me shows them               | Returned with `canRetake: false`; WS2 decides display |
-| OD-3 | Name the reviewer on a better-photo request           | Reason shown, reviewer not  | Not named                                             |
-| OD-4 | My contributions order: send time or latest activity  | n/a                         | Send time (stable cursor)                             |
-| OD-5 | Link a menu retake to the photo it replaces           | No link                     | No link; consider in B05-01                           |
-| OD-6 | Use claims beyond "Accepted for menu use"             | None exist                  | None                                                  |
-| OD-7 | One group per asset; maximum group size               | No groups                   | One group; 10 members                                 |
-| OD-8 | Record the uploader's role on new uploads (if W3)     | Not recorded                | Add a nullable snapshot column                        |
-| OD-9 | Manager uploads in colleagues' Photos (if W3)         | n/a (managers don't upload) | Not shown                                             |
+| #     | Decision                                                      | Today                       | Design default until decided                       |
+| ----- | ------------------------------------------------------------- | --------------------------- | -------------------------------------------------- |
+| OD-2  | Better-photo requests for items no longer on the menu         | Me shows them               | Returned with `canRetake: false`; not To do (D-13) |
+| OD-3  | Name the reviewer on a better-photo request                   | Reason shown, reviewer not  | Not named                                          |
+| OD-4  | My contributions order: send time or latest activity          | n/a                         | Send time (stable cursor)                          |
+| OD-5  | Link a menu retake to the photo it replaces                   | No link                     | No link; consider in B05-01                        |
+| OD-6  | Use claims beyond "Accepted for menu use"                     | None exist                  | None                                               |
+| OD-7  | One group per asset; maximum group size                       | No groups                   | One group; 10 members                              |
+| OD-8  | Record the uploader's role on new uploads (if W3)             | Not recorded                | Add a nullable snapshot column                     |
+| OD-9  | Manager uploads in colleagues' Photos (if W3)                 | n/a (managers don't upload) | Not shown                                          |
+| OD-10 | Show the delete impact (R9) to admins deleting in the Library | No warning for anyone       | Uploader only                                      |
 
 ---
 
@@ -605,11 +874,11 @@ self · Q14 legacy grant retirement.
 Each batch is a new migration file after the B01 freeze, additive, with a
 rollback note. None edits a B01 migration.
 
-| Batch | Contents                                                                                                        | Rollback                                                                         |
-| ----- | --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| B02-a | R1, R3, R5, R8 functions; R4 `create or replace` of `knowledge_to_confirm`; any extracted helpers; any R5 index | Drop the functions; restore the B01 `knowledge_to_confirm` body; UI switches off |
-| B02-b | W1 tables and functions                                                                                         | UI switches off; tables stay (no data loss)                                      |
-| B02-c | W3 and W4, **only after Q1 and Q4 are decided**                                                                 | Restore the staff-only gates; uploads and labels already made stay               |
+| Batch | Contents                                                                                                                                                                                                                                                      | Rollback                                                                                                           |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| B02-a | R1, R3, R5, R8, R9 functions; R4 `create or replace` of `knowledge_to_confirm`; R10 table and keyed overloads; R11 overload and `create or replace` of `knowledge_save_draft` and `knowledge_submit` (additive `sentAt`); any extracted helpers; any R5 index | Drop the new functions and overloads; restore the B01 bodies; the client calls the old signatures; UI switches off |
+| B02-b | W1 tables and functions                                                                                                                                                                                                                                       | UI switches off; tables stay (no data loss)                                                                        |
+| B02-c | W3 and W4, **only after Q1 and Q4 are decided**                                                                                                                                                                                                               | Restore the staff-only gates; uploads and labels already made stay                                                 |
 
 Every batch runs, on a spare stack after a full-chain reset:
 
@@ -644,3 +913,16 @@ Every batch runs, on a spare stack after a full-chain reset:
 
 **Draft 1 (9 Nov 2026):** first B02 server design from WS2's UI design
 revision 1 and the B02-03 account matrix, at pilot head `a86bdba8`.
+
+**Draft 2 (9 Nov 2026):** answers WS2's revisions 3 and 4.
+
+- New §3a:
+  - **R9:** delete impact for a photo (audit HM-04), uploader only,
+    predicted with the triggers' own predicates and tested by deleting
+    afterwards.
+  - **R10:** request keys for the six legacy check writes (audit MG-01),
+    using B01's command pattern, with the old signatures kept.
+  - **R11:** the draft-save guard `draft_already_sent` (`NLK09`; reviewer
+    L-b), with its edge cases.
+- R1 now states Me's rule (D-12), and R2 notes D-13.
+- New OD-10. The migration plan places R9, R10 and R11 in batch B02-a.
