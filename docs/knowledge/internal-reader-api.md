@@ -1,10 +1,11 @@
 # Internal reader API, v1 contract
 
 Status: draft contract for B01-05, written in B00-03. Owner: WS5 (consumers).
-The knowledge domain model, the current-answer projection, the audience rules
-and the question registry belong to WS1 (`docs/knowledge/**`). Where this
-contract depends on a WS1 rule, it says so and names the safe behaviour until
-that rule is approved.
+The knowledge domain model, the single resolver, the audience rules and the
+question rules belong to WS1: [state model](state-model.md),
+[identities](identities.md), [access and rights](access-and-rights.md) and
+[B01 design](b01-design.md). This contract uses WS1's names and follows its
+rules; where it repeats one, WS1's document is the source.
 
 The reader lets an authorised server-side consumer ask NabaLens for the
 current answer to named venue questions. Each answer comes back with its
@@ -167,7 +168,12 @@ A successful request returns `200` with `Content-Type: application/json`,
       "provenance": {
         "sourceKind": "staff_observation",
         "contributionId": "6c1e…",
-        "confirmation": null,
+        "confirmation": {
+          "authority": "venue_manager",
+          "selfConfirmed": false,
+          "savedAt": "2026-11-19T09:40:00Z"
+        },
+        "redactionProof": null,
         "evidence": { "photos": 2, "videos": 0 }
       },
       "revision": 4,
@@ -197,18 +203,18 @@ A successful request returns `200` with `Content-Type: application/json`,
 
 ### Answer fields
 
-| Field             | Meaning                                                                                                                                                                                                                                                                                                                                                                                                 |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `key`             | The question key, as requested.                                                                                                                                                                                                                                                                                                                                                                         |
-| `questionVersion` | The question definition version the answer was given under (today `amenity_submissions.template_version`).                                                                                                                                                                                                                                                                                              |
-| `status`          | `available` or `unavailable`. Nothing else.                                                                                                                                                                                                                                                                                                                                                             |
-| `value`           | Present only when available. v1 type `yes_no_na` with `answer` one of `yes`, `no`, `not_applicable`. Unknown is never a value; it is an unavailable reason (below), so a consumer cannot mistake it for No.                                                                                                                                                                                             |
-| `summary`         | The finding text of the selected contribution, when the audience allows staff-written text for this question (section 7). Otherwise `null`.                                                                                                                                                                                                                                                             |
-| `conditions`      | Limitations and reasons that qualify the answer, each `{ kind, text }` with `kind` one of `limitation` or `reason`. Empty when none, or when the audience does not allow staff-written text for this question. B03 adds structured conditions as new `kind` values.                                                                                                                                     |
-| `provenance`      | Where the answer came from, with no staff personal data: `sourceKind` (`staff_observation`, `manager_observation`, `legacy_fact`, later `external_source`), the opaque `contributionId`, `confirmation` (`null`, or `{ authority, savedAt }`, where `authority` is a role such as `venue_manager`, never a person, and `savedAt` is when the confirmation was saved, section 5.4), and evidence counts. |
-| `revision`        | The answer revision for this venue and question. It only ever increases, including when an answer becomes unavailable. A consumer holding a higher revision must never replace it with a lower one.                                                                                                                                                                                                     |
-| `freshness`       | `savedAt` (when the answer was saved in NabaLens; not an observation time), `observedAt` (only an explicitly recorded observation time, otherwise `null`; never filled from a save time), `nextCheckDue` (or `null` until a freshness policy exists), and `state`: `current`, `due_soon` or `unrated` (no policy yet). Section 5.4 defines these times. Expired answers are never `available`.          |
-| `unavailable`     | `null` when available; otherwise `{ reason, detail }`.                                                                                                                                                                                                                                                                                                                                                  |
+| Field             | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `key`             | The question key, as requested.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `questionVersion` | The question definition version: the current submission's `template_version`, else the catalogue version (resolver `question_version`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `status`          | `available` or `unavailable`. Nothing else.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `value`           | Present only when available. v1 type `yes_no_na` with `answer` one of `yes`, `no`, `not_applicable`. Unknown is never a value; it is an unavailable reason (below), so a consumer cannot mistake it for No.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `summary`         | The finding text of the selected contribution, when the audience allows staff-written text for this question (section 7). Otherwise `null`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `conditions`      | Limitations and reasons that qualify the answer, each `{ kind, text }` with `kind` one of `limitation` or `reason`. Empty when none, or when the audience does not allow staff-written text for this question. B03 adds structured conditions as new `kind` values.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `provenance`      | Where the answer came from, with no staff personal data. `sourceKind` from the resolver's `source_basis`: `staff` → `staff_observation`, `venue_manager` → `manager_observation`, `admin` → `admin_observation`, and null (not recorded, every submission before B01) → the neutral `observation`. `contributionId` is opaque (the resolver's `current_contribution_id`, else `current_submission_id`). `confirmation` is `null` when the question needs no confirmation, otherwise `{ authority, selfConfirmed, savedAt }`: `authority` is a role (`venue_manager` or `admin`), never a person; `selfConfirmed` is true when the author confirmed their own answer (allowed and recorded where WS1's rule permits it); `savedAt` is when the confirmation was saved (section 5.4). `redactionProof` is `recorded` or `not_recorded` for keys that need redaction (`guest_wifi`), otherwise `null`. `evidence` is `{ photos, videos }`, counts of available attached assets. |
+| `revision`        | The answer revision for this venue and question: `venue_amenity_checks.revision` plus the number of `knowledge_events` rows for the slot (0 plus events when there is no check). It only ever increases, including when an answer becomes unavailable. A consumer holding a higher revision must never replace it with a lower one.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `freshness`       | `savedAt` (when the answer was saved in NabaLens; not an observation time), `observedAt` (only an explicitly recorded observation time, otherwise `null`; always `null` in B01), `nextCheckDue` and `state` (`current`, `due_soon` or `unrated`). B01 has no expiry for any key, so `nextCheckDue` is `null` and `state` is `unrated`. Section 5.4 defines these times. Expired answers are never `available`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `unavailable`     | `null` when available; otherwise `{ reason, detail }`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 
 Provenance never contains user IDs, names, emails, avatars, job titles,
 assignee details, manager notes, Wi-Fi test notes, file names, storage paths,
@@ -222,21 +228,27 @@ cannot present a stale or unconfirmed answer as current. It keeps `key`,
 `questionVersion` (when known) and `revision`, so a newer unavailable state
 supersedes an older available one.
 
-| Reason                | Meaning                                                                                              | `detail` values (v1)                                             |
-| --------------------- | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `unknown`             | No answer is established.                                                                            | `not_checked`, `unable_to_establish`, `not_enabled`              |
-| `not_confirmed`       | A contribution exists, but the confirmation this question requires is pending or was declined.       | `pending`, `declined`                                            |
-| `stale`               | The answer expired at read time, or a recheck was requested.                                         | `expired`, `recheck_requested`, `evidence_lost`                  |
-| `disputed`            | Supported sources conflict and no resolution has been made.                                          | `conflict`                                                       |
-| `withdrawn`           | The answer, its confirmation or its evidence was withdrawn.                                          | `answer_withdrawn`, `confirmation_revoked`, `evidence_withdrawn` |
-| `not_permitted`       | The credential, audience or purpose may not read this question. Nothing about its state is revealed. | none                                                             |
-| `unsupported_version` | The answer uses a question version or value type newer than the declared `schema` can represent.     | none                                                             |
-| `venue_not_found`     | Used only as the request-level error below; never inside `answers`.                                  | none                                                             |
+| Reason                | Meaning                                                                                                                           | `detail` values (v1)                                             |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `unknown`             | No answer is established, or the question is not on the venue's open working list (`not_enabled`, which hides every other state). | `not_checked`, `unable_to_establish`, `not_enabled`              |
+| `not_confirmed`       | A contribution exists, but the confirmation this question requires is pending or was declined.                                    | `pending`, `declined`                                            |
+| `stale`               | The answer expired at read time, or a recheck was requested.                                                                      | `expired`, `recheck_requested`, `evidence_lost`                  |
+| `disputed`            | Supported sources conflict and no resolution has been made.                                                                       | `conflict`                                                       |
+| `withdrawn`           | The answer, its confirmation or its evidence was withdrawn.                                                                       | `answer_withdrawn`, `confirmation_revoked`, `evidence_withdrawn` |
+| `not_permitted`       | The credential, audience or purpose may not read this question. Nothing about its state is revealed.                              | none                                                             |
+| `unsupported_version` | The answer uses a question version or value type newer than the declared `schema` can represent.                                  | none                                                             |
+| `venue_not_found`     | Used only as the request-level error below; never inside `answers`.                                                               | none                                                             |
 
-When several reasons apply, the first in this order wins: `not_permitted`,
-`unsupported_version`, `withdrawn`, `disputed`, `stale`, `not_confirmed`,
-`unknown`. `not_permitted` comes first so that a refused question reveals
-nothing else, not even its revision (its `revision` is `null`).
+When several reasons apply, the first in this order wins:
+
+1. `not_permitted` (the reader's credential and audience check). Nothing else
+   is revealed, not even the revision (`revision` is `null`).
+2. `unknown` / `not_enabled` (the slot is out of scope). It hides every other
+   state. Its `revision` is still returned, so a consumer holding an older
+   answer sees it superseded when a question leaves the working list.
+3. `unsupported_version`.
+4. `withdrawn`, `disputed`, `stale`, `not_confirmed`, `unknown`, in that order,
+   as the resolver applies them ([state model §4.5](state-model.md#45-current-answer-status)).
 
 Consumers must treat an unrecognised `reason` or `detail` as unavailable. New
 reasons may be added within v1.
@@ -245,22 +257,35 @@ reasons may be added within v1.
 
 ### 5.1 One resolver
 
-There is exactly one resolver for current answers. WS1 owns it, names it, and
-defines how it combines `venue_amenity_checks`, `amenity_submissions`, legacy
-`venue_amenity_facts` and any new contribution or confirmation records. The
-reader calls that resolver and nothing else.
+There is exactly one resolver for current answers:
+`private.knowledge_slot_state(p_venue_id uuid, p_keys text[])`. WS1 owns it
+([B01 design §5](b01-design.md#5-one-resolver-review-point-5)). It reduces
+each slot to the statuses in section 4, using `venue_amenity_checks`,
+`amenity_submissions` and the B01 knowledge tables. Legacy
+`venue_amenity_facts` is not one of its inputs in B01.
 
+The reader's only data access is the wrapper over that resolver:
+`public.knowledge_reader_answers_v1(p_venue_id uuid, p_keys text[])`.
+
+- It is granted to `service_role` only and called only by the reader's server
+  route. The resolver itself has no client grants.
+- It is one SQL statement (`LANGUAGE sql STABLE`), so every row in a call, and
+  its revision, comes from one snapshot. One response is one call.
+- It returns only the columns in WS1's
+  [internal allowlist](access-and-rights.md#3-internal-audience-allowlist-per-key),
+  with no names, user IDs, notes, internal metadata, asset IDs, idempotency
+  keys or workflow summaries.
+- It raises `knowledge_venue_not_found` when the venue does not exist, is
+  inactive, or has no open working-list row. The reader answers that with
+  `404 venue_not_found` (section 6).
+- The reader applies the audience allowlist (section 7) again when it builds
+  the response. It never adds a field the wrapper did not return, and it drops
+  any field the allowlist does not name.
 - The reader never reads `venue_amenity_checks.answer`,
-  `venue_amenity_checks.progress`, `amenity_submissions` or
-  `venue_amenity_facts` directly, not even as a fallback.
-- Until the resolver exists, the reader is not enabled. There is no interim
-  query over the amenity tables.
-- The resolver returns one result per venue and question, already reduced to
-  the states in section 4, with its revision, from one snapshot.
-- The resolver returns only columns the reader may expose. The reader then
-  applies the audience allowlist (section 7) again when it builds the response.
-  It never adds a field the resolver did not return, and it drops any field the
-  allowlist does not name.
+  `venue_amenity_checks.progress`, `amenity_submissions`,
+  `venue_amenity_facts` or the screen reads (`knowledge_working_list`,
+  `knowledge_check`, `knowledge_to_confirm`), not even as a fallback. Until the
+  wrapper is integrated, the reader is not enabled.
 
 ### 5.2 Existing app reads are not reused
 
@@ -278,21 +303,25 @@ and the check detail loaders) and any other screen-facing query.
 ### 5.3 Existing guest_wifi evidence is not publishable
 
 The capture form asks staff to confirm that the Wi-Fi password and join QR
-code are covered (`p_redaction_confirmed`), but the database never stored that
-confirmation. No existing `guest_wifi` submission can prove its evidence was
-redacted.
+code are covered (`p_redaction_confirmed`), but before B01 the database never
+stored that confirmation. No existing `guest_wifi` submission can prove its
+evidence was redacted.
 
-- Every `guest_wifi` answer saved before redaction proof is stored is **not
-  publishable**. For the `public` audience, and for any audience whose rules
-  require publishable content, the reader returns it as `not_permitted`.
+- From B01, new submissions and contributions store `redaction_confirmed`.
+  Older rows keep it null. The resolver reports `redaction_proof` as
+  `recorded`, `not_recorded` or `not_applicable`, and the reader returns it as
+  `provenance.redactionProof`.
+- Every `guest_wifi` answer with `not_recorded` proof is **not publishable**.
+  For the `public` audience, and for any audience whose rules require
+  publishable content, the reader returns it as `not_permitted`.
 - For the `internal` audience, v1 returns only the value (`yes`, `no`,
-  `not_applicable`) and evidence counts: no staff-written text, no Wi-Fi test
-  notes and no evidence links. This applies to every `guest_wifi` answer
-  (section 7).
-- A `guest_wifi` answer can become publishable only after WS1 stores redaction
-  proof with new submissions, the resolver reports that proof, and the
-  public-use rules approve the field. Old submissions never become publishable
-  through a backfill that assumes the tick was given.
+  `not_applicable`), evidence counts and the redaction proof, whether or not
+  proof is recorded: no staff-written text, no Wi-Fi test notes and no evidence
+  links ([access and rights §4](access-and-rights.md#4-wi-fi-details)).
+- A `guest_wifi` answer can become publishable only with `recorded` proof and
+  the public-use rules' approval
+  ([access and rights §8](access-and-rights.md#8-public-use-rule)). No backfill
+  may assume the tick was given.
 
 ### 5.4 Save times are not observation times
 
@@ -300,11 +329,11 @@ redacted.
 legacy fact record when a person saved something in NabaLens. None of them is
 the time anyone looked at the venue. The reader names them for what they are:
 
-| Reader field                      | Source today (through the resolver)                                                                                       | Meaning                                                              |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| `freshness.savedAt`               | The selected contribution's save time (`amenity_submissions.created_at`, which `venue_amenity_checks.answered_at` copies) | When the answer was saved.                                           |
-| `provenance.confirmation.savedAt` | The confirmation's save time (for a legacy fact, `venue_amenity_facts.confirmed_at`)                                      | When the confirmation was saved.                                     |
-| `freshness.observedAt`            | Only an explicitly recorded observation time                                                                              | When the venue was observed. `null` today for every existing record. |
+| Reader field                      | Resolver column         | Source today                                                                                  | Meaning                                            |
+| --------------------------------- | ----------------------- | --------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `freshness.savedAt`               | `saved_at`              | The current submission's `created_at` (which `venue_amenity_checks.answered_at` equals)       | When the answer was saved.                         |
+| `provenance.confirmation.savedAt` | `confirmation_saved_at` | The confirming decision's save time. Legacy `venue_amenity_facts.confirmed_at` is never used. | When the confirmation was saved.                   |
+| `freshness.observedAt`            | `observed_at`           | Only an explicitly recorded observation time                                                  | When the venue was observed. Always `null` in B01. |
 
 - `observedAt` is never filled from a save time, a migration time or a Wi-Fi
   test date.
@@ -313,24 +342,35 @@ the time anyone looked at the venue. The reader names them for what they are:
 - A freshness policy (B03-05) may use `savedAt` to decide when a recheck is
   due. It reports that as `nextCheckDue`, never as an observation.
 
-### 5.5 Expected resolver output for today's data
+### 5.5 Expected resolver output
 
-WS1 owns this mapping. It is listed so the reader's tests have expected
-results; the reader does not compute it.
+WS1 owns this mapping
+([state model §4.5](state-model.md#45-current-answer-status)). It is summarised
+here so the reader's tests have expected results; the reader does not compute
+it.
 
-| Today                                                     | Reader result                                                                                               |
-| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| No `venue_amenity_checks` row, or the check is `archived` | `unknown` / `not_enabled`                                                                                   |
-| `answer = 'to_check'`, progress `needs_capture`           | `unknown` / `not_checked`                                                                                   |
-| B01-03 Unknown outcome                                    | `unknown` / `unable_to_establish`                                                                           |
-| Progress `complete` with a current submission             | `available`, unless WS1 marks the question as needing confirmation and none exists (`not_confirmed`)        |
-| Progress `needs_recheck` after a reopen                   | `stale` / `recheck_requested`                                                                               |
-| Progress `needs_recheck` after `evidence_lost`            | `stale` / `evidence_lost`                                                                                   |
-| Legacy `venue_amenity_facts` rows                         | Used by the resolver only through WS1's explicit legacy mapping (B03-06). Until then they change no answer. |
+| Slot                                                                                                                              | Reader result                        |
+| --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| No check row, or not on an open working list                                                                                      | `unknown` / `not_enabled`            |
+| Archived check that had an answer                                                                                                 | `withdrawn` / `answer_withdrawn`     |
+| Archived check never answered                                                                                                     | `unknown` / `not_enabled`            |
+| Confirmation required and the latest decision on the current answer is a revocation                                               | `withdrawn` / `confirmation_revoked` |
+| Evidence on a current No or Not applicable became unavailable, not reaffirmed                                                     | `withdrawn` / `evidence_withdrawn`   |
+| An undecided finding or change report differs from the current value                                                              | `disputed` / `conflict`              |
+| `needs_recheck` after a reopen                                                                                                    | `stale` / `recheck_requested`        |
+| `needs_recheck` after `evidence_lost` (a Yes whose evidence became unavailable)                                                   | `stale` / `evidence_lost`            |
+| Read-time expiry (never in B01)                                                                                                   | `stale` / `expired`                  |
+| Confirmation required and none given, including any `step_free_entrance` answer saved before B01; or a proposal awaits a decision | `not_confirmed` / `pending`          |
+| No current answer and the newest proposal was declined                                                                            | `not_confirmed` / `declined`         |
+| No current answer and an Unknown was recorded since the last answer or reopen                                                     | `unknown` / `unable_to_establish`    |
+| No current answer otherwise                                                                                                       | `unknown` / `not_checked`            |
+| A current answer and none of the above                                                                                            | `available`                          |
 
-`revision` is the resolver's answer revision. Until WS1 defines it, the
-expected value is `venue_amenity_checks.revision`, which rises on every
-submission, reopen and archive.
+Confirmation rules for the pilot keys
+([access and rights §6](access-and-rights.md#6-confirmation-rules)):
+`step_free_entrance` requires venue-manager confirmation (a manager or admin;
+self-confirmation allowed and exposed as `selfConfirmed`).
+`onsite_parking`, `guest_toilets` and `guest_wifi` need none.
 
 ## 6. Errors
 
@@ -347,18 +387,18 @@ Request-level failures return a JSON error body and no `answers`:
 }
 ```
 
-| HTTP | `code`                | When                                                                                                                                                            |
-| ---- | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 400  | `invalid_request`     | Missing, malformed, duplicated or unknown parameters; too many keys; a key that is not in the question registry.                                                |
-| 400  | `unsupported_version` | The `schema` major differs from the path, or the minor is newer than the server supports. The body lists `supported` versions.                                  |
-| 401  | `unauthenticated`     | No credential, a malformed, unknown, expired or revoked credential, or a disabled consumer. Sent with `WWW-Authenticate: Bearer`. The message never says which. |
-| 403  | `forbidden`           | A valid credential that does not hold the requested audience or purpose.                                                                                        |
-| 404  | `venue_not_found`     | The venue ID does not exist, is inactive, has no knowledge enabled, or is outside the credential's venues. These are deliberately indistinguishable.            |
-| 405  | `method_not_allowed`  | Any method other than `GET` or `HEAD`.                                                                                                                          |
-| 414  | `request_too_large`   | The URL is over 2,048 bytes.                                                                                                                                    |
-| 429  | `rate_limited`        | Over the consumer's rate or concurrency bound. Sent with `Retry-After`.                                                                                         |
-| 503  | `reader_unavailable`  | The reader is switched off, or its data source did not answer within the time bound. Sent with `Retry-After` when a retry may help.                             |
-| 500  | `internal_error`      | Anything else. The message is generic; details stay in server logs under the request ID.                                                                        |
+| HTTP | `code`                | When                                                                                                                                                                                   |
+| ---- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 400  | `invalid_request`     | Missing, malformed, duplicated or unknown parameters; too many keys; a key that is not in the question registry.                                                                       |
+| 400  | `unsupported_version` | The `schema` major differs from the path, or the minor is newer than the server supports. The body lists `supported` versions.                                                         |
+| 401  | `unauthenticated`     | No credential, a malformed, unknown, expired or revoked credential, or a disabled consumer. Sent with `WWW-Authenticate: Bearer`. The message never says which.                        |
+| 403  | `forbidden`           | A valid credential that does not hold the requested audience or purpose.                                                                                                               |
+| 404  | `venue_not_found`     | The venue ID does not exist, is inactive, has no open working-list row (`knowledge_venue_not_found`), or is outside the credential's venues. These are deliberately indistinguishable. |
+| 405  | `method_not_allowed`  | Any method other than `GET` or `HEAD`.                                                                                                                                                 |
+| 414  | `request_too_large`   | The URL is over 2,048 bytes.                                                                                                                                                           |
+| 429  | `rate_limited`        | Over the consumer's rate or concurrency bound. Sent with `Retry-After`.                                                                                                                |
+| 503  | `reader_unavailable`  | The reader is switched off, or its data source did not answer within the time bound. Sent with `Retry-After` when a retry may help.                                                    |
+| 500  | `internal_error`      | Anything else. The message is generic; details stay in server logs under the request ID.                                                                                               |
 
 Errors are never cached (`Cache-Control: private, no-store`). Error messages
 never echo credentials, parameter values, venue names or data.
@@ -412,15 +452,19 @@ they are always omitted, because free text could contain the password.
 The `public` audience will receive no staff-written text unless WS1's
 public-use rules approve a reviewed field for it.
 
-Until WS1's audience rules are approved, the reader applies exactly this
-allowlist and nothing wider.
+This is WS1's
+[internal allowlist](access-and-rights.md#3-internal-audience-allowlist-per-key),
+which the wrapper applies first. The reader applies exactly this allowlist and
+nothing wider.
 
 ### Logs
 
 Each request logs the request ID, consumer ID, audience, purpose, venue ID,
 requested keys, status code, the revision returned per key, and the duration.
 Logs never contain the credential, its digest, response content or
-staff-written text. Retention follows the B00-04 retention rules.
+staff-written text. They are kept for 90 days
+([access and rights §9](access-and-rights.md#9-retention-and-sensitive-data),
+owner to confirm).
 
 ## 8. Bounds
 
@@ -534,17 +578,28 @@ deterministic tests unless stated.
   test notes, a planted password-like string in `guest_wifi` free text, asset
   IDs and storage paths. Logs are checked for the credential and for response
   content.
-- **Single source (V11, V12):** the reader's data access goes through the
-  resolver only. A static test fails if `app/api/knowledge/**` or its helpers
-  reference `amenity_check_submissions`, `venue_amenity_facts`,
-  `venue_amenity_checks` or `amenity_submissions` directly.
-- **Wi-Fi redaction (V11):** an existing `guest_wifi` answer is `not_permitted`
-  for any audience that requires publishable content, and returns only the
-  value and evidence counts for `internal`.
+- **Single source (V11, V12):** the reader's only data access is
+  `knowledge_reader_answers_v1`. A static test fails if `app/api/knowledge/**`
+  or its helpers reference `knowledge_slot_state`, the screen reads,
+  `amenity_check_submissions`, `venue_amenity_facts`, `venue_amenity_checks` or
+  `amenity_submissions` directly. `knowledge_venue_not_found` maps to `404`.
+- **Wi-Fi redaction (V11):** a `guest_wifi` answer with `not_recorded` proof is
+  `not_permitted` for any audience that requires publishable content, and
+  returns only the value, evidence counts and `redactionProof` for `internal`.
+- **Provenance (V04, V11):** a submission saved before B01 (null
+  `source_basis`) returns `sourceKind` `observation`; staff, manager and admin
+  findings return their own kinds; a self-confirmed `step_free_entrance`
+  answer returns `selfConfirmed: true`, and another manager's confirmation
+  returns `false`.
+- **Confirmation and archive (V04, V12):** `step_free_entrance` without a
+  confirmation, including one saved before B01, is `not_confirmed` /
+  `pending`, and becomes `available` once confirmed; revoking the confirmation
+  gives `withdrawn` / `confirmation_revoked`. Archiving an answered check gives
+  `withdrawn` / `answer_withdrawn` with a higher revision; archiving an
+  unanswered one gives `unknown` / `not_enabled`.
 - **Timestamps (V12):** fixtures with different save, confirmation and
   migration times return them only under `savedAt` and
-  `confirmation.savedAt`; `observedAt` stays `null` unless an observation time
-  was recorded.
+  `confirmation.savedAt`; `observedAt` stays `null`.
 - **Versions (V12):** `schema=2.0` on `/v1/`, a future minor and a question
   version newer than the declared schema.
 - **Fixture journey (B01 step 6 to 9):** after a confirmation, reopen, conflict
@@ -555,16 +610,25 @@ A real internal read against the pilot venue (B01 exit gate) is separate live
 evidence. It needs the coordinator's authorisation for the production
 credential, and it is recorded apart from these tests.
 
-## 13. Open points for WS1 and the owner
+## 13. Resolved with WS1, and still open
 
-These are needed before B01-05 is implemented. The reader applies the safe
-default shown until each is resolved.
+Resolved by WS1's contracts and the orchestrator's reconciliation:
 
-| Point                                                                                                                 | Safe default until resolved                                                                                                                                         |
-| --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| The single resolver (WS1): its name, columns, revision and snapshot guarantee, including how it combines legacy facts | None. The reader is not enabled until the resolver exists; it never falls back to reading the amenity tables (section 5.1).                                         |
-| Which v1 questions need confirmation before they are `available`                                                      | None of the four core keys require it in v1, matching today's "valid evidence completes the check" rule. Dog policy and similar policy questions stay fixture-only. |
-| Redaction proof stored with new `guest_wifi` submissions (WS1)                                                        | Every existing `guest_wifi` answer is not publishable (section 5.3).                                                                                                |
-| Audience rules (B00-04): audiences, staff-written text, Wi-Fi details                                                 | One audience, `internal`, with the allowlist in section 7.                                                                                                          |
-| Freshness policy per question                                                                                         | No expiry (`unrated`); only reopen and evidence loss make an answer `stale`.                                                                                        |
-| Named internal reader operator who holds and rotates credentials (X4)                                                 | The coordinator issues the pilot credential; no production credential is created without authorisation.                                                             |
+| Point                                 | Resolution                                                                                                                              |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Resolver and reader entry point       | `private.knowledge_slot_state` and `public.knowledge_reader_answers_v1`, `service_role` only, one SQL statement per call (section 5.1). |
+| Revision                              | Check revision plus the slot's `knowledge_events` count (section 4).                                                                    |
+| Redaction proof                       | New `guest_wifi` rows store `redaction_confirmed`; older rows are `not_recorded` (section 5.3).                                         |
+| Freshness                             | No expiry for any pilot key in B01: `nextCheckDue` null, `state` `unrated`.                                                             |
+| Archived check with an answer (D6)    | `withdrawn` / `answer_withdrawn`; never answered stays `unknown` / `not_enabled`.                                                       |
+| Confirmation on core keys (D7)        | `step_free_entrance` requires venue-manager confirmation; the other three do not.                                                       |
+| Provenance before B01 (D8)            | Null `source_basis` maps to the neutral `sourceKind` `observation`, never `staff_observation`.                                          |
+| Self-confirmation (D9)                | `provenance.confirmation.selfConfirmed`.                                                                                                |
+| Audience rules and internal allowlist | WS1 access and rights §3 and §4, matching section 7.                                                                                    |
+
+Still open:
+
+| Point                                                                 | Default until resolved                                                                                  |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Named internal reader operator who holds and rotates credentials (X4) | The coordinator issues the pilot credential; no production credential is created without authorisation. |
+| WS1 rules marked "owner to confirm"                                   | The reader follows WS1's defaults as written.                                                           |
