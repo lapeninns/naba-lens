@@ -230,36 +230,35 @@ export async function handleAnswersRequest(
     const permitted = new Set(consumerQuestions(consumer))
     const readable = query.keys.filter((key) => permitted.has(key))
     const byKey = new Map<string, ReaderAnswer>()
-    if (readable.length > 0) {
-      const result = await readWithTimeout(deps, query.venueId, readable)
-      if (result === "timeout")
-        return fail(
-          ctx,
-          { code: "reader_unavailable", retryAfterSeconds: 5 },
-          "source_timeout"
-        )
-      if (result === "error" || !result.ok) {
-        if (result !== "error" && result.error === "venue_not_found")
-          return fail(ctx, { code: "venue_not_found" })
-        return fail(
-          ctx,
-          { code: "reader_unavailable", retryAfterSeconds: 30 },
-          "source_unavailable"
-        )
-      }
-      for (const raw of result.rows) {
-        const row = parseResolverRow(raw)
-        const answer =
-          row && readable.includes(row.question_key)
-            ? toAnswer(row, query.audience)
-            : null
-        if (!answer || byKey.has(answer.key))
-          return fail(ctx, { code: "internal_error" }, "resolver_contract")
-        byKey.set(answer.key, answer)
-      }
-      if (byKey.size !== readable.length)
-        return fail(ctx, { code: "internal_error" }, "resolver_contract")
+    // Called even with no permitted key, so the venue is always checked.
+    const result = await readWithTimeout(deps, query.venueId, readable)
+    if (result === "timeout")
+      return fail(
+        ctx,
+        { code: "reader_unavailable", retryAfterSeconds: 5 },
+        "source_timeout"
+      )
+    if (result === "error" || !result.ok) {
+      if (result !== "error" && result.error === "venue_not_found")
+        return fail(ctx, { code: "venue_not_found" })
+      return fail(
+        ctx,
+        { code: "reader_unavailable", retryAfterSeconds: 30 },
+        "source_unavailable"
+      )
     }
+    for (const raw of result.rows) {
+      const row = parseResolverRow(raw)
+      const answer =
+        row && readable.includes(row.question_key)
+          ? toAnswer(row, query.audience)
+          : null
+      if (!answer || byKey.has(answer.key))
+        return fail(ctx, { code: "internal_error" }, "resolver_contract")
+      byKey.set(answer.key, answer)
+    }
+    if (byKey.size !== readable.length)
+      return fail(ctx, { code: "internal_error" }, "resolver_contract")
 
     const answers = query.keys.map(
       (key) => byKey.get(key) ?? notPermittedAnswer(key)

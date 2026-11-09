@@ -213,6 +213,41 @@ describe("answers handler", () => {
     })
   })
 
+  it("checks the venue even when no requested key is permitted", async () => {
+    const query =
+      "keys=guest_wifi&audience=internal&purpose=pilot_verification&schema=1.0"
+    const gone = deps({
+      source: vi.fn<ReaderSource>(async () => ({
+        ok: false,
+        error: "venue_not_found",
+      })),
+    }).d
+    const res = await answers(
+      get(answersPath(VENUE, query), { credential: LIMITED }),
+      gone
+    )
+    expect(res.status).toBe(404)
+    expect(gone.source).toHaveBeenCalledWith(
+      expect.objectContaining({ venueId: VENUE, keys: [] })
+    )
+
+    const open = deps({
+      source: vi.fn<ReaderSource>(async () => ({ ok: true, rows: [] })),
+    }).d
+    const ok = await answers(
+      get(answersPath(VENUE, query), { credential: LIMITED }),
+      open
+    )
+    expect(ok.status).toBe(200)
+    expect((await ok.json()).answers).toEqual([
+      expect.objectContaining({
+        key: "guest_wifi",
+        revision: null,
+        unavailable: { reason: "not_permitted", detail: null },
+      }),
+    ])
+  })
+
   it("gives every credential failure the same 401", async () => {
     const { d } = deps()
     const bodies = new Set<string>()

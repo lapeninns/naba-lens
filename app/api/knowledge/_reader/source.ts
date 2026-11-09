@@ -9,6 +9,11 @@ export type ReaderSourceResult =
   | { ok: true; rows: readonly unknown[] }
   | { ok: false; error: "venue_not_found" | "unavailable" }
 
+/**
+ * `keys` may be empty (none of the requested keys is permitted). The source
+ * must still check the venue and report `venue_not_found`, so an inactive or
+ * unknown venue is a 404 whatever was asked.
+ */
 export type ReaderSource = (input: {
   venueId: string
   keys: readonly string[]

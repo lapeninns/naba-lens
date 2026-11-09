@@ -280,7 +280,9 @@ The reader's only data access is the wrapper over that resolver:
   keys or workflow summaries.
 - It raises `knowledge_venue_not_found` when the venue does not exist, is
   inactive, or has no open working-list row. The reader answers that with
-  `404 venue_not_found` (section 6).
+  `404 venue_not_found` (section 6). The reader calls it even when none of the
+  requested keys is permitted (with an empty key list), so the venue check
+  always runs.
 - The reader applies the audience allowlist (section 7) again when it builds
   the response. It never adds a field the wrapper did not return, and it drops
   any field the allowlist does not name.
@@ -484,8 +486,14 @@ owner to confirm).
 | Server time bound                | 5 seconds, then `503 reader_unavailable`                                                                                                     |
 
 The guarantee is the behaviour (`429` with `Retry-After`), not the counter's
-implementation. The pilot may enforce rates per server instance; a shared
-limiter is required before B06 opens the reader to the website or MCP.
+implementation. Known limits of the v1 limiter:
+
+- It counts per server instance, so with several instances a consumer can
+  exceed the stated rate in total.
+- It counts only authenticated requests. Requests that fail authentication
+  (`401`) are not rate-limited by the reader.
+- A shared limiter that also bounds failed authentication is required before
+  B06 opens the reader to the website or MCP.
 
 ## 9. Consistency and caching
 
