@@ -932,9 +932,17 @@ function FindingCard({
         </h3>
         <StatusChip state="awaiting_confirmation" />
       </div>
-      <p className="text-meta-touch text-ink-muted md:text-meta">
-        {isCurrent ? "Recorded" : "Sent"} {dateAndTime(finding.sentAt)}
-      </p>
+      {isCurrent ? (
+        finding.recordedAt ? (
+          <p className="text-meta-touch text-ink-muted md:text-meta">
+            Recorded {dateAndTime(finding.recordedAt)}
+          </p>
+        ) : null
+      ) : finding.sentAt ? (
+        <p className="text-meta-touch text-ink-muted md:text-meta">
+          Sent {dateAndTime(finding.sentAt)}
+        </p>
+      ) : null}
       {finding.kind === "answer_unconfirmed" ? (
         <p className="text-body-touch text-ink md:text-body">
           This answer is recorded but not confirmed, so readers are told

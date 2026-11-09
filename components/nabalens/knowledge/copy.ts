@@ -239,6 +239,7 @@ export function findingExplanation(
     | "stateReason"
     | "managerNote"
     | "answeredBy"
+    | "answeredAt"
     | "decidedAt"
   >,
   compared: Compared = "none"
@@ -269,7 +270,7 @@ export function findingExplanation(
       return `${why}. It stays in your history.`
     }
     case "assignment_closed":
-      return `Assigned to you; answered by ${finding.answeredBy ?? "a former team member"}${finding.decidedAt ? ` on ${shortDate(finding.decidedAt)}` : ""}.`
+      return `Assigned to you; answered by ${finding.answeredBy ?? "a former team member"}${finding.answeredAt ? ` on ${shortDate(finding.answeredAt)}` : ""}.`
   }
 }
 

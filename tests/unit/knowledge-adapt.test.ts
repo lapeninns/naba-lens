@@ -313,9 +313,12 @@ describe("knowledge adapter: history, drafts and results", () => {
     ])
     expect(page.items[2].noLongerUsed).toBe("replaced_by_own")
     expect(page.items[3].stateReason).toBe("Wrong car park")
+    // Someone else's answer: not this person's send or decision (HM-05).
     expect(page.items[4]).toMatchObject({
       answeredBy: "Maya Rai",
-      decidedAt: "2026-11-06T09:00:00.000Z",
+      answeredAt: "2026-11-06T09:00:00.000Z",
+      sentAt: null,
+      decidedAt: null,
     })
   })
 

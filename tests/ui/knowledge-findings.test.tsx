@@ -84,8 +84,9 @@ const CLOSED = finding({
   kind: "assignment",
   state: "assignment_closed",
   answeredBy: "Priya",
-  decidedAt: "2026-11-04T09:00:00.000Z",
-  sentAt: "2026-11-04T09:00:00.000Z",
+  answeredAt: "2026-11-04T09:00:00.000Z",
+  decidedAt: null,
+  sentAt: null,
   recognition: { kind: "none" },
 })
 const UNKNOWN = finding({
@@ -140,11 +141,12 @@ describe("Your findings", () => {
     expect(draft.getByText("Saved 6 Nov 2026, 09:30")).toBeTruthy()
     expect(draft.queryByText(/^Answer:/)).toBeNull()
 
+    const closed = within(rowOf("Are dogs welcome?"))
     expect(
-      within(rowOf("Are dogs welcome?")).getByText(
-        "Assigned to you; answered by Priya on 4 Nov."
-      )
+      closed.getByText("Assigned to you; answered by Priya on 4 Nov.")
     ).toBeTruthy()
+    // Priya's answer is never shown as this person's send (HM-05).
+    expect(closed.queryByText(/^Sent /)).toBeNull()
     const unknown = within(rowOf("Is there a hearing loop?"))
     expect(unknown.getByText("Answer: Couldn't establish")).toBeTruthy()
     expect(
