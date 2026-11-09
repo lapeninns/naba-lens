@@ -36,7 +36,7 @@ import {
   type SaveDraftInput,
   type ServerDraft,
   type SubmitKnowledgeInput,
-  type SubmitKnowledgeResult,
+  type SubmittedFinding,
   type WorkingSlot,
 } from "@/lib/knowledge-client/contract"
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -116,7 +116,7 @@ export type KnowledgeCapture = {
   respondsTo: { decisionId: string; note: string } | null
   submit: (
     input: SubmitKnowledgeInput
-  ) => Promise<KnowledgeResult<SubmitKnowledgeResult>>
+  ) => Promise<KnowledgeResult<SubmittedFinding>>
   saveDraft:
     | ((
         input: SaveDraftInput
@@ -176,7 +176,7 @@ type Sent =
       replayed: boolean
       /** The check (legacy) or slot (knowledge) revision after the send. */
       revision: number
-      knowledge?: SubmitKnowledgeResult
+      knowledge?: SubmittedFinding
     }
   | KnowledgeFailure
 
@@ -186,7 +186,7 @@ function fromLegacy(result: AmenityResult<SubmitResult>): Sent {
     : result
 }
 
-function fromKnowledge(result: KnowledgeResult<SubmitKnowledgeResult>): Sent {
+function fromKnowledge(result: KnowledgeResult<SubmittedFinding>): Sent {
   return result.ok
     ? {
         ok: true,
@@ -835,7 +835,7 @@ export function CaptureForm({
 
   /** What the knowledge path reports, in the person's words. */
   function knowledgeSent(
-    sent: SubmitKnowledgeResult,
+    sent: SubmittedFinding,
     input: SubmitKnowledgeInput
   ): { copy: SentCopy; extra: string[] } {
     const inUse = slot?.answerInUse.value ?? null

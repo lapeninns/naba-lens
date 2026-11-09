@@ -19,7 +19,6 @@ import {
   FINDING_STATES,
   findingKey,
   isRetryable,
-  KNOWLEDGE_ONLY_ERRORS,
   type AnswerInUse,
   type FindingSummary,
   type WorkingSlot,
@@ -78,6 +77,7 @@ function finding(over: Partial<FindingSummary> = {}): FindingSummary {
     noLongerUsed: null,
     stateReason: null,
     managerNote: null,
+    detailRequestId: null,
     unknownPreset: null,
     answeredBy: null,
     sentAt: "2026-11-05T10:00:00.000Z",
@@ -118,7 +118,13 @@ describe("knowledge words", () => {
   it("keys findings by type and id, and retries only unavailable", () => {
     expect(findingKey({ type: "submission", id: "s9" })).toBe("submission:s9")
     expect(isRetryable("unavailable")).toBe(true)
-    for (const code of KNOWLEDGE_ONLY_ERRORS)
+    for (const code of [
+      "knowledge_path_required",
+      "knowledge_slot_out_of_scope",
+      "already_decided",
+      "self_confirmation_not_permitted",
+      "draft_conflict",
+    ] as const)
       expect(isRetryable(code)).toBe(false)
     expect(isRetryable("revision_conflict")).toBe(false)
   })
@@ -349,7 +355,7 @@ describe("Home rows", () => {
         assignee: { firstName: "Sam", isMe: true },
         answerInUse: YES,
         closedAssignment: {
-          eventId: "e1",
+          eventId: 1,
           answeredBy: "Priya Gurung",
           at: "2026-11-05T10:00:00Z",
         },

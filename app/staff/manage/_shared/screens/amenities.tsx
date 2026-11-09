@@ -143,7 +143,9 @@ export async function AmenityCheckScreen({
   if (!isUuid(checkId)) notFound()
   const [result, knowledge] = await Promise.all([
     getCheck(ctx.actor, { checkId }),
-    knowledgeServices.getKnowledgeCheck(ctx.actor, { checkId }),
+    knowledgeServices
+      .getKnowledgeCheck(ctx.actor, { checkId, venueName: ctx.venue.name })
+      .catch(() => null),
   ])
   if (!result.ok) return amenityFailed(ctx, result, "Amenity check")
   const detail = result.detail
@@ -174,7 +176,7 @@ export async function AmenityCheckScreen({
         knowledge={
           // A failed knowledge read leaves the legacy screen: decisions need
           // the slot revision the server reads.
-          knowledge.ok && knowledge.view.inScope ? knowledge.view : null
+          knowledge?.ok && knowledge.view.inScope ? knowledge.view : null
         }
       />
     </AmenitiesFrame>

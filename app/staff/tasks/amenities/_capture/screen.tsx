@@ -15,7 +15,7 @@ import {
 } from "@/lib/amenities/contract"
 import { answerInUseLines } from "@/components/nabalens/knowledge/copy"
 import { ROUTES } from "@/lib/auth/routes"
-import type { KnowledgeCheckView } from "@/lib/knowledge-client/contract"
+import type { QuestionView } from "@/lib/knowledge-client/contract"
 import { knowledgeServices } from "@/lib/knowledge-client/services"
 import { getCheck, listSubmittableAssets } from "@/lib/server/amenities"
 import type { MediaActor } from "@/lib/server/media/types"
@@ -30,36 +30,37 @@ import { CaptureClient, type KnowledgeProps } from "./capture-client"
 async function knowledgeFor(
   actor: MediaActor,
   checkId: string,
-  role: KnowledgeProps["role"]
+  role: KnowledgeProps["role"],
+  venueName: string
 ): Promise<KnowledgeProps | null> {
   const [view, draft] = await Promise.all([
-    knowledgeServices.getKnowledgeCheck(actor, { checkId }),
-    knowledgeServices.getDraft(actor, { checkId }),
+    knowledgeServices
+      .getKnowledgeCheck(actor, { checkId, venueName })
+      .catch(() => null),
+    knowledgeServices.getDraft(actor, { checkId }).catch(() => null),
   ])
-  if (!view.ok || !view.view.inScope) return null
-  return fromView(view.view, draft.ok ? draft.draft : null, role)
+  if (!view?.ok || !view.view.inScope) return null
+  return fromView(view.view, draft?.ok ? draft.draft : null, role)
 }
 
 function fromView(
-  view: Extract<KnowledgeCheckView, { inScope: true }>,
+  view: Extract<QuestionView, { inScope: true }>,
   serverDraft: KnowledgeProps["serverDraft"],
   role: KnowledgeProps["role"]
 ): KnowledgeProps {
   // The person's own finding a manager asked more detail about.
-  const asked = view.pending.find((p) => p.mine && p.detailRequest)
+  const latest = view.slot.myLatest
+  const asked =
+    latest?.state === "needs_attention" && latest.detailRequestId
+      ? { decisionId: latest.detailRequestId, note: latest.managerNote ?? "" }
+      : null
   return {
     venueName: view.venue.name,
     slot: view.slot,
     role,
     canContribute: view.permissions.canContribute,
     canSelfConfirm: view.permissions.canSelfConfirm,
-    respondsTo:
-      role === "staff" && asked?.detailRequest
-        ? {
-            decisionId: asked.detailRequest.decisionId,
-            note: asked.detailRequest.note,
-          }
-        : null,
+    respondsTo: role === "staff" ? asked : null,
     serverDraft,
   }
 }
@@ -135,7 +136,12 @@ export async function CaptureScreen({
   const [checkResult, assets, knowledge] = await Promise.all([
     getCheck(actor, { checkId }),
     listSubmittableAssets(actor, { checkId }),
-    knowledgeFor(actor, checkId, mode === "staff" ? "staff" : "manager"),
+    knowledgeFor(
+      actor,
+      checkId,
+      mode === "staff" ? "staff" : "manager",
+      venueName ?? "your venue"
+    ),
   ])
   const { detail } = unwrapAmenity(checkResult)
   const { check, permissions } = detail

@@ -166,7 +166,9 @@ export function answerInUseLines(
     case "unable_to_establish":
       return slot.latestAttempt
         ? [
-            `To check. Last try: couldn't establish (${UNKNOWN_PRESET_SHORT[slot.latestAttempt.preset]}).`,
+            slot.latestAttempt.preset
+              ? `To check. Last try: couldn't establish (${UNKNOWN_PRESET_SHORT[slot.latestAttempt.preset]}).`
+              : "To check. Last try: couldn't establish.",
           ]
         : ["To check."]
     case "not_checked":
@@ -212,6 +214,7 @@ const NO_LONGER_USED: Record<
   NonNullable<FindingSummary["noLongerUsed"]>,
   (reason: string | null) => string
 > = {
+  archived: () => "The question was archived",
   replaced_by_newer_answer: () => "A newer answer replaced it",
   reopened: (reason) =>
     reason
@@ -389,8 +392,10 @@ export const DRAFT_SAVED: SentCopy = {
   tone: "plain",
 }
 
-export function replacedOwnLine(sentAt: string): string {
-  return `Your earlier finding on ${shortDate(sentAt)} was replaced.`
+export function replacedOwnLine(sentAt: string | null): string {
+  return sentAt
+    ? `Your earlier finding on ${shortDate(sentAt)} was replaced.`
+    : "Your earlier finding was replaced."
 }
 
 // ---- Failures (§3.1, §4.2, §6.6) -------------------------------------------------------

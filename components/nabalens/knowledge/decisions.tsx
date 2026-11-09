@@ -41,7 +41,7 @@ import {
   type DecideInput,
   type DecisionResult,
   type FindingRef,
-  type KnowledgeCheckView,
+  type QuestionView,
   type KnowledgeFailure,
   type KnowledgeResult,
   type PendingFinding,
@@ -56,7 +56,7 @@ import {
   UNKNOWN_PRESET_LABEL,
 } from "./copy"
 
-type InScope = Extract<KnowledgeCheckView, { inScope: true }>
+type InScope = Extract<QuestionView, { inScope: true }>
 type Decision = KnowledgeResult<DecisionResult>
 
 export type DecisionHandlers = {
@@ -332,7 +332,7 @@ export function DecisionPanel({
     note?: string
   ) => {
     const input: DecideInput = {
-      target: finding.findingRef,
+      findingRef: finding.findingRef,
       decision: kind,
       slotRevision,
       idempotencyKey: newIdempotencyKey(),
@@ -850,9 +850,11 @@ function FindingCard({
       ) : null}
       {finding.kind === "evidence_removed" ? (
         <p className="text-body-touch text-ink md:text-body">
-          {finding.removedEvidence === 1
-            ? "1 photo attached to this answer was deleted."
-            : `${finding.removedEvidence} photos attached to this answer were deleted.`}{" "}
+          {finding.removedEvidence === 0
+            ? "Evidence attached to this answer was deleted."
+            : finding.removedEvidence === 1
+              ? "1 photo attached to this answer was deleted."
+              : `${finding.removedEvidence} photos attached to this answer were deleted.`}{" "}
           Readers aren&apos;t given the answer until you decide.
         </p>
       ) : null}
@@ -915,8 +917,10 @@ function FindingCard({
       ) : null}
       {finding.detailRequest ? (
         <p className="text-body-touch text-ink-muted md:text-body-sm">
-          You asked for more detail on {longDate(finding.detailRequest.at)}:{" "}
-          {finding.detailRequest.note}
+          {finding.detailRequest.at
+            ? `You asked for more detail on ${longDate(finding.detailRequest.at)}`
+            : "You asked for more detail"}
+          {finding.detailRequest.note ? `: ${finding.detailRequest.note}` : "."}
         </p>
       ) : null}
       {note ? (
