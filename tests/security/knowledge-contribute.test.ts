@@ -401,6 +401,29 @@ describe("a send settles the sender's draft (CA-01)", () => {
     expect(await draftOf(v.staffB, check)).not.toBeNull()
   })
 
+  it("keeps a newer draft when an earlier send is replayed", async () => {
+    const v = await world("kn-draft-replay")
+    const check = v.checks.guest_toilets!
+    const args = submitArgs(v, "guest_toilets", {
+      answer: "unknown",
+      key: randomUUID(),
+    })
+    const first = await json<{ replayed: boolean }>(
+      v.staffA,
+      "knowledge_submit",
+      args
+    )
+    expect(first.replayed).toBe(false)
+    await saveDraft(v, v.staffA, randomUUID())
+    const again = await json<{ replayed: boolean }>(
+      v.staffA,
+      "knowledge_submit",
+      args
+    )
+    expect(again.replayed).toBe(true)
+    expect(await draftOf(v.staffA, check)).not.toBeNull()
+  })
+
   it("keeps the draft when the send is refused", async () => {
     const v = await world("kn-draft-refused")
     const check = v.checks.guest_toilets!
