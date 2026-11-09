@@ -2,6 +2,7 @@ import "server-only"
 
 import type {
   DraftView,
+  KnowledgeAsset,
   KnowledgeCheckView,
   KnowledgeResult,
   MyFindingsPage,
@@ -10,9 +11,14 @@ import type {
   ToConfirmItem,
   WorkingListView,
 } from "@/lib/knowledge/contract"
+import { mediaRoutes } from "@/lib/server/media/library"
 import type { MediaActor } from "@/lib/server/media/types"
 
-import { knowledgeInvalid, knowledgeRpcFailure } from "./errors"
+import {
+  knowledgeFailure,
+  knowledgeInvalid,
+  knowledgeRpcFailure,
+} from "./errors"
 import { knowledgeRpc } from "./rpc"
 import {
   isObject,
@@ -51,6 +57,55 @@ export async function getKnowledgeCheck(
   })
   if (error) return knowledgeRpcFailure(error, "knowledge check")
   return { ok: true, check: data }
+}
+
+/** As private.amenity_submittable: newest first, at most this many. */
+const ASSETS_LIMIT = 200
+
+/**
+ * The caller's own photos and videos they may attach on a working-list
+ * question: ready, not deleted, uploaded at the question's venue. Exactly the
+ * staff rule of private.amenity_asset_ineligibility, which knowledge_submit
+ * applies, read as the caller (RLS: own rows of active staff only). Staff need
+ * no assignment here, unlike amenity_submittable_assets. Managers and admins
+ * keep listSubmittableAssets, which also offers legacy coverage media.
+ */
+export async function listKnowledgeAssets(
+  actor: MediaActor,
+  input: unknown
+): Promise<KnowledgeResult<{ assets: KnowledgeAsset[] }>> {
+  const checkId = parseCheckId(input)
+  if (!checkId.ok) return checkId
+  const slot = await knowledgeRpc(actor.db, "knowledge_check", {
+    p_check_id: checkId.value,
+  })
+  if (slot.error) return knowledgeRpcFailure(slot.error, "knowledge assets")
+  if (!slot.data.inScope)
+    return knowledgeFailure(
+      "knowledge_slot_out_of_scope",
+      "This question is no longer on the working list. Reload the page."
+    )
+  const { data, error } = await actor.db
+    .from("media_assets")
+    .select("id, media_type, created_at, thumbnail_path")
+    .eq("uploader_id", actor.profile.id)
+    .eq("venue_id", slot.data.venueId)
+    .eq("upload_state", "ready")
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(ASSETS_LIMIT)
+  if (error) return knowledgeRpcFailure(error, "knowledge assets")
+  return {
+    ok: true,
+    assets: (data ?? []).map((a) => ({
+      assetId: a.id,
+      kind: a.media_type === "video" ? "video" : "photo",
+      createdAt: a.created_at,
+      source: "own",
+      thumbUrl: a.thumbnail_path ? mediaRoutes.thumbnail(a.id) : null,
+    })),
+  }
 }
 
 /** S4. The caller's draft for a question, or null. */
