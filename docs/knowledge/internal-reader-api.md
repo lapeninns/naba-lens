@@ -269,7 +269,15 @@ The reader's only data access is the wrapper over that resolver:
 `public.knowledge_reader_answers_v1(p_venue_id uuid, p_keys text[])`.
 
 - It is granted to `service_role` only and called only by the reader's server
-  route. The resolver itself has no client grants.
+  route. The resolver itself has no client grants. A signed-in user calling the
+  wrapper gets `42501`.
+- The route calls it through WS1's helper
+  `readKnowledgeAnswers(service, venueId, keys)` (`@/lib/server/knowledge`)
+  with the service-role client. The helper maps `knowledge_venue_not_found`
+  (`NLK06`) to `venue_not_found` (`404`). More than 50 keys raises
+  `invalid_key_list` (`22023`) and the helper reports `invalid_input`; the
+  reader never sends more than 20, so that and any other failure are
+  `503 reader_unavailable`.
 - It is a `STABLE` PL/pgSQL function. PostgreSQL runs every statement inside a
   `STABLE` function on the snapshot of the query that called it, so every row
   in a call, and its revision, comes from one snapshot, however many statements
@@ -370,6 +378,17 @@ it.
 | No current answer and an Unknown was recorded since the last answer or reopen                                                     | `unknown` / `unable_to_establish`    |
 | No current answer otherwise                                                                                                       | `unknown` / `not_checked`            |
 | A current answer and none of the above                                                                                            | `available`                          |
+
+The wrapper reports out of scope as reason `unknown` with detail
+`not_enabled`. WS1's row type also allows a bare `not_enabled` reason; the
+reader reads that as `unknown` / `not_enabled` too, so consumers only ever see
+the reasons in section 4. `stale` / `expired` is defined but cannot occur in
+B01, because every pilot key's freshness is `unrated`.
+
+A confirmation is exposed only with a role as its authority (`venue_manager`
+or `admin`). The decisions table also allows the bases `self` and `rule`; a
+confirmed answer that arrives with either breaks the resolver contract, and
+the reader answers `500 internal_error` rather than present it.
 
 Confirmation rules for the pilot keys
 ([access and rights §6](access-and-rights.md#6-confirmation-rules)):
@@ -640,6 +659,7 @@ Resolved by WS1's contracts and the orchestrator's reconciliation:
 | Confirmation on core keys (D7)        | `step_free_entrance` requires venue-manager confirmation; the other three do not.                                                                                               |
 | Provenance before B01 (D8)            | Null `source_basis` maps to the neutral `sourceKind` `observation`, never `staff_observation`.                                                                                  |
 | Self-confirmation (D9)                | `provenance.confirmation.selfConfirmed`.                                                                                                                                        |
+| Reader helper and routes (B01-05)     | `readKnowledgeAnswers` with the service-role client; routes `/api/knowledge/v1/venues/{venueId}/answers` and `/api/knowledge/v1/meta` (section 5.1).                            |
 | Audience rules and internal allowlist | WS1 access and rights §3 and §4, matching section 7.                                                                                                                            |
 
 Still open:
