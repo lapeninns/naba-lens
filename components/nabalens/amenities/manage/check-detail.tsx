@@ -30,6 +30,13 @@ import {
   type ReopenPreset,
 } from "@/lib/amenities/contract"
 
+import {
+  DecisionPanel,
+  type DecisionHandlers,
+} from "@/components/nabalens/knowledge/decisions"
+import { answerInUseLines } from "@/components/nabalens/knowledge/copy"
+import type { KnowledgeCheckView } from "@/lib/knowledge-client/contract"
+
 import { EventHistory, SubmissionHistory, peopleIndex } from "./check-history"
 import { ProgressChip, answeredText } from "./check-row"
 import { ReopenDialog, type ReopenOutcome } from "./reopen-dialog"
@@ -81,11 +88,17 @@ export function AmenityCheckDetail({
   basePath,
   handlers,
   canUpload = true,
+  knowledge = null,
 }: {
   detail: CheckDetail
   basePath: string
   handlers: CheckDetailHandlers
   canUpload?: boolean
+  /** A working-list question: its decisions and the venue's answer. */
+  knowledge?: {
+    view: Extract<KnowledgeCheckView, { inScope: true }>
+    handlers: DecisionHandlers
+  } | null
 }) {
   const { check, permissions } = detail
   const id = React.useId()
@@ -159,7 +172,9 @@ export function AmenityCheckDetail({
   }): Promise<ReopenOutcome> {
     const result = await action.run(
       () => handlers.reopen({ checkId: check.id, revision, ...input }),
-      "Reopened: staff will see it as Needs recheck."
+      knowledge
+        ? "Reopened. The answer is no longer in use; staff see it as Needs recheck."
+        : "Reopened: staff will see it as Needs recheck."
     )
     if (result.ok) return { ok: true }
     if (result.code === "invalid_input" || result.code === "network")
@@ -180,6 +195,14 @@ export function AmenityCheckDetail({
     <div className="grid min-w-0 gap-6 md:gap-8">
       <CoverageNotice notice={action.notice} onDismiss={action.dismiss} />
 
+      {knowledge ? (
+        <DecisionPanel
+          view={knowledge.view}
+          handlers={knowledge.handlers}
+          onReopen={canReopen ? () => setReopenOpen(true) : undefined}
+        />
+      ) : null}
+
       <CoverageSection id="amenity-status" title="Where it stands">
         <dl className="grid gap-3 sm:grid-cols-2">
           <div className="grid gap-1">
@@ -195,7 +218,16 @@ export function AmenityCheckDetail({
               Answer
             </dt>
             <dd className="text-body-touch text-ink md:text-body">
-              {ANSWER_LABEL[check.answer]}
+              {knowledge
+                ? answerInUseLines(
+                    knowledge.view.slot.answerInUse,
+                    knowledge.view.slot
+                  ).map((line) => (
+                    <span key={line} className="block">
+                      {line}
+                    </span>
+                  ))
+                : ANSWER_LABEL[check.answer]}
               {answered ? (
                 <span className="block text-meta-touch text-ink-muted md:text-meta">
                   {answered}
@@ -427,6 +459,7 @@ export function AmenityCheckDetail({
           onOpenChange={setReopenOpen}
           question={check.entry.question}
           onConfirm={reopen}
+          knowledge={knowledge !== null}
         />
       ) : null}
     </div>

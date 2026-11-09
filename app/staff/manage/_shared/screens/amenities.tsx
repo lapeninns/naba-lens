@@ -18,6 +18,7 @@ import {
   listCatalogue,
 } from "@/lib/server/amenities"
 import { isUuid } from "@/lib/server/coverage/validate"
+import { knowledgeServices } from "@/lib/knowledge-client/services"
 
 import { type ManageContext } from "../context"
 import { ManageFrame, NotManagerPage } from "../frame"
@@ -140,7 +141,10 @@ export async function AmenityCheckScreen({
   checkId: string
 }) {
   if (!isUuid(checkId)) notFound()
-  const result = await getCheck(ctx.actor, { checkId })
+  const [result, knowledge] = await Promise.all([
+    getCheck(ctx.actor, { checkId }),
+    knowledgeServices.getKnowledgeCheck(ctx.actor, { checkId }),
+  ])
   if (!result.ok) return amenityFailed(ctx, result, "Amenity check")
   const detail = result.detail
   // An admin URL names its venue: a check from another venue is not here.
@@ -167,6 +171,11 @@ export async function AmenityCheckScreen({
         detail={detail}
         basePath={ctx.basePath}
         canUpload={ctx.mode === "manager"}
+        knowledge={
+          // A failed knowledge read leaves the legacy screen: decisions need
+          // the slot revision the server reads.
+          knowledge.ok && knowledge.view.inScope ? knowledge.view : null
+        }
       />
     </AmenitiesFrame>
   )

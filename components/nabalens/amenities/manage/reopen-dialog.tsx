@@ -46,10 +46,13 @@ export function ReopenDialog({
   onOpenChange,
   question,
   onConfirm,
+  knowledge = false,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   question: string
+  /** A working-list question: reopening takes its answer out of use at once. */
+  knowledge?: boolean
   onConfirm: (input: {
     preset: ReopenPreset
     reason?: string
@@ -116,8 +119,9 @@ export function ReopenDialog({
           <DialogHeader>
             <DialogTitle>Reopen this check</DialogTitle>
             <DialogDescription className="break-words">
-              “{question}” goes back to Needs recheck for staff to capture
-              again. The current answer stays until a new finding replaces it.
+              {knowledge
+                ? `“${question}” goes back to Needs recheck for staff. Its answer stops being used straight away and stays in the history.`
+                : `“${question}” goes back to Needs recheck for staff to capture again. The current answer stays until a new finding replaces it.`}
             </DialogDescription>
           </DialogHeader>
           <fieldset
