@@ -93,10 +93,12 @@ describe("GET /api/knowledge/v1/venues/{venueId}/answers", () => {
     helper.read.mockResolvedValue({ ok: true, rows: [available, unavailable] })
     const res = await answersRoute.GET(request(), params)
     expect(res.status).toBe(200)
-    expect(helper.read).toHaveBeenCalledExactlyOnceWith(SERVICE, VENUE, [
-      "onsite_parking",
-      "guest_toilets",
-    ])
+    expect(helper.read).toHaveBeenCalledExactlyOnceWith(
+      SERVICE,
+      VENUE,
+      ["onsite_parking", "guest_toilets"],
+      { signal: expect.any(AbortSignal) }
+    )
     const body = await res.json()
     expect(body.answers).toEqual([
       expect.objectContaining({

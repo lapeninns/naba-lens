@@ -27,9 +27,13 @@ export type ReaderSource = (input: {
 
 let service: Db | null = null
 
-export const databaseSource: ReaderSource = async ({ venueId, keys }) => {
+export const databaseSource: ReaderSource = async ({
+  venueId,
+  keys,
+  signal,
+}) => {
   service ??= createAdminClient()
-  const result = await readKnowledgeAnswers(service, venueId, keys)
+  const result = await readKnowledgeAnswers(service, venueId, keys, { signal })
   if (result.ok) return { ok: true, rows: result.rows }
   // invalid_input cannot follow a parsed request (a UUID and at most 20
   // keys), so it is treated as the source being unusable, not as a 400.
