@@ -11,6 +11,7 @@ import { actorFor } from "../slice/media-actor"
 import { insertAsset, ok } from "./coverage-fixtures"
 import {
   call,
+  count,
   json,
   photo,
   service,
@@ -32,7 +33,11 @@ describe("capture reads for an unassigned staff member (F1)", () => {
     const assets = await call(w.staffA, "amenity_submittable_assets", {
       p_check_id: check,
     })
-    expect(assets.error?.message).toBe("amenity_not_permitted")
+    // The readable-check step runs first, so it is not found, not "not permitted".
+    expect(assets.error).toMatchObject({
+      message: "amenity_check_not_found",
+      code: "P0002",
+    })
     const slot = await json<{
       inScope: boolean
       permissions: { canContribute: boolean }
@@ -41,6 +46,48 @@ describe("capture reads for an unassigned staff member (F1)", () => {
       inScope: true,
       permissions: { canContribute: true },
     })
+  })
+})
+
+describe("legacy photo list for a former submitter", () => {
+  it("reads the check but may not list photos once no longer assigned", async () => {
+    const w = await world("kn-capture-former", { extra: ["darts"] })
+    const check = w.checks.darts!
+    const revision = () =>
+      count(
+        `select revision from public.venue_amenity_checks where id = '${check}'`
+      )
+    const assign = async (to: string) =>
+      ok(
+        w.manager.client.rpc("amenity_assign_check", {
+          p_check_id: check,
+          p_assignee_id: to,
+          p_revision: revision(),
+        })
+      )
+    await assign(w.staffA.id)
+    await ok(
+      w.staffA.client.rpc("amenity_submit_finding", {
+        p_check_id: check,
+        p_revision: revision(),
+        p_idempotency_key: crypto.randomUUID(),
+        p_answer: "no",
+        p_finding: null as unknown as string,
+        p_limitations: null as unknown as string,
+        p_reason: "TEST none here",
+        p_asset_ids: [],
+        p_internal_metadata: null,
+        p_redaction_confirmed: false,
+      })
+    )
+    await assign(w.staffB.id)
+    expect(
+      (await call(w.staffA, "amenity_check", { p_check_id: check })).error
+    ).toBeNull()
+    const assets = await call(w.staffA, "amenity_submittable_assets", {
+      p_check_id: check,
+    })
+    expect(assets.error?.message).toBe("amenity_not_permitted")
   })
 })
 
