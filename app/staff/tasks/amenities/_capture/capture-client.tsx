@@ -8,8 +8,14 @@ import {
 } from "@/app/_amenities/actions"
 import { useMediaUploader } from "@/app/_media/use-media-uploader"
 import {
+  discardKnowledgeDraftAction,
+  saveKnowledgeDraftAction,
+  submitKnowledgeFindingAction,
+} from "@/app/_knowledge/actions"
+import {
   CaptureForm,
   type AssetsResult,
+  type KnowledgeCapture,
 } from "@/components/nabalens/amenities/capture"
 import {
   findingSentHref,
@@ -22,6 +28,12 @@ import {
 import type { CheckSummary } from "@/lib/amenities/contract"
 import { loginHref } from "@/lib/auth/routes"
 import { MEDIA_LIMITS } from "@/lib/config/media"
+
+/** What the server read about a working-list question (no functions). */
+export type KnowledgeProps = Omit<
+  KnowledgeCapture,
+  "submit" | "saveDraft" | "discardDraft"
+> & { canContribute: boolean }
 
 /**
  * Wires the capture form to the amenity actions and the existing upload flow:
@@ -36,6 +48,7 @@ export function CaptureClient({
   canUpload,
   canAttachLegacy,
   doneHref,
+  knowledge = null,
 }: {
   check: CheckSummary
   /** The signed-in person; their drafts are kept apart on a shared device. */
@@ -45,6 +58,8 @@ export function CaptureClient({
   canAttachLegacy: boolean
   /** Home for staff, the check page for managers and admins. */
   doneHref: string
+  /** Set for a working-list question: send through the knowledge path. */
+  knowledge?: KnowledgeProps | null
 }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -71,6 +86,22 @@ export function CaptureClient({
         )
       }
       signInHref={loginHref(pathname)}
+      pageHref={pathname}
+      knowledge={
+        knowledge
+          ? {
+              ...knowledge,
+              submit: submitKnowledgeFindingAction,
+              // Drafts are the author's own: staff only.
+              saveDraft:
+                knowledge.role === "staff" ? saveKnowledgeDraftAction : null,
+              discardDraft:
+                knowledge.role === "staff"
+                  ? () => discardKnowledgeDraftAction({ checkId: check.id })
+                  : null,
+            }
+          : null
+      }
     />
   )
 }

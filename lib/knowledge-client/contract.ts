@@ -211,7 +211,7 @@ export type PendingFinding = {
   /** Its answer differs from the answer in use. */
   disputes: boolean
   /** A manager asked for more detail and the reply hasn't come yet. */
-  detailRequest: { note: string; at: Instant } | null
+  detailRequest: { decisionId: string; note: string; at: Instant } | null
   /** Evidence removed: photos deleted from the answer in use. */
   removedEvidence: number
 }
