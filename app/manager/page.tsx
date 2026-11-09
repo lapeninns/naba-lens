@@ -18,15 +18,15 @@ export const metadata = { title: "Overview · Naba-Lens" }
  * requireManagerVenue(), which redirects here, as does a read the database
  * refuses on any page below. A failed read goes to error.tsx (Try again).
  */
-/** Amenity findings waiting for this manager; 0 when unreadable. */
-async function countToConfirm(): Promise<number> {
+/** Amenity findings waiting for this manager; null when unreadable (MG-03). */
+async function countToConfirm(): Promise<number | null> {
   try {
     const auth = await getAmenityActor()
-    if (!auth.ok) return 0
+    if (!auth.ok) return null
     const result = await knowledgeServices.listToConfirm(auth.actor, {})
-    return result.ok ? result.view.count : 0
+    return result.ok ? result.view.count : null
   } catch {
-    return 0
+    return null
   }
 }
 

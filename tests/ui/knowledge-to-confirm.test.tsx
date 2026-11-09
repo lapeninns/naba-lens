@@ -35,7 +35,7 @@ function row(over: Partial<ToConfirmRow> = {}): ToConfirmRow {
   }
 }
 
-function overview(toConfirm: ToConfirmList | null) {
+function overview(toConfirm: ToConfirmList | null, toConfirmFailed = false) {
   return render(
     <AmenitiesOverview
       view={view()}
@@ -43,6 +43,7 @@ function overview(toConfirm: ToConfirmList | null) {
       basePath="/manager"
       handlers={{ enable: vi.fn(), addChecks: vi.fn(), restore: vi.fn() }}
       toConfirm={toConfirm}
+      toConfirmFailed={toConfirmFailed}
     />
   )
 }
@@ -96,12 +97,17 @@ describe("Amenities overview: To confirm", () => {
     expect(tally.getAttribute("href")).toBe("#amenities-to-confirm")
   })
 
-  it("shows nothing for To confirm when nothing waits or it couldn't be read", () => {
+  it("shows nothing for To confirm when nothing waits", () => {
     overview({ count: 0, items: [] })
     expect(document.getElementById("amenities-to-confirm")).toBeNull()
-    cleanup()
-    overview(null)
-    expect(screen.queryByText("To confirm")).toBeNull()
+    expect(screen.queryByRole("alert")).toBeNull()
+  })
+
+  it("says the findings couldn't be loaded, never that nothing waits (MG-03)", () => {
+    overview(null, true)
+    expect(screen.getByRole("alert").textContent).toBe(
+      "Findings to confirm couldn't be loaded. Reload to try again."
+    )
   })
 })
 
@@ -183,5 +189,17 @@ describe("manager Overview: findings to confirm", () => {
       />
     )
     expect(screen.queryByText(/to confirm/)).toBeNull()
+    cleanup()
+    // A failed read is unknown, never zero (MG-03).
+    render(
+      <OverviewBody
+        overview={base}
+        now="2026-11-09T12:00:00.000Z"
+        confirmCount={null}
+      />
+    )
+    expect(screen.getByRole("alert").textContent).toBe(
+      "Findings to confirm couldn't be loaded. Reload to try again."
+    )
   })
 })

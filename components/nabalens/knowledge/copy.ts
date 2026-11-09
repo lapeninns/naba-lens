@@ -522,6 +522,8 @@ export const KNOWLEDGE_FAILURE_COPY = {
 export const TO_CONFIRM_COPY = {
   title: "To confirm",
   empty: "Nothing to confirm.",
+  /** A failed read: never shown as nothing waiting (MG-03). */
+  failed: "Findings to confirm couldn't be loaded. Reload to try again.",
   /** Accessible words after the count on the Amenities tab. */
   badge: (n: number) =>
     n === 1 ? "finding to confirm" : "findings to confirm",

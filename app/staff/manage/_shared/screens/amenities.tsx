@@ -2,6 +2,7 @@ import Link from "next/link"
 import { notFound, redirect } from "next/navigation"
 import { ArrowLeftIcon } from "@phosphor-icons/react/dist/ssr"
 
+import { TO_CONFIRM_COPY } from "@/components/nabalens/knowledge/copy"
 import { Notice } from "@/components/nabalens/notice"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
 import { PageHeader } from "@/components/nabalens/page-header"
@@ -108,7 +109,8 @@ function amenityFailed(
 export async function AmenitiesScreen({ ctx }: { ctx: ManageContext }) {
   const [result, toConfirm] = await Promise.all([
     getVenueAmenities(ctx.actor, { venueId: ctx.venueId }),
-    // Optional: a failed read leaves the checks without the To confirm group.
+    // A failed read leaves the checks usable and says the findings to
+    // confirm couldn't be loaded (MG-03), never that nothing is waiting.
     knowledgeServices
       .listToConfirm(ctx.actor, { venueId: ctx.venueId })
       .catch(() => null),
@@ -135,6 +137,7 @@ export async function AmenitiesScreen({ ctx }: { ctx: ManageContext }) {
         catalogue={catalogue?.ok ? catalogue.options : null}
         basePath={ctx.basePath}
         toConfirm={toConfirm?.ok ? toConfirm.view : null}
+        toConfirmFailed={!toConfirm?.ok}
       />
     </AmenitiesFrame>
   )
@@ -176,6 +179,12 @@ export async function AmenityCheckScreen({
           All amenities
         </Link>
       </div>
+      {knowledge?.ok ? null : (
+        // The legacy screen still works, but findings may be waiting (MG-03).
+        <Notice tone="negative" role="alert">
+          {TO_CONFIRM_COPY.failed}
+        </Notice>
+      )}
       <AmenityCheckControl
         detail={detail}
         basePath={ctx.basePath}

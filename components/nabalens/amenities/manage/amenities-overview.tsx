@@ -94,6 +94,7 @@ export function AmenitiesOverview({
   basePath,
   handlers,
   toConfirm = null,
+  toConfirmFailed = false,
 }: {
   view: VenueAmenitiesView
   /** Null when the catalogue could not be read (or Amenities are off). */
@@ -102,6 +103,8 @@ export function AmenitiesOverview({
   handlers: AmenitiesOverviewHandlers
   /** Findings and answers waiting for a decision, when they could be read. */
   toConfirm?: ToConfirmList | null
+  /** The findings to confirm couldn't be read: say so (MG-03). */
+  toConfirmFailed?: boolean
 }) {
   const hrefs = amenityHrefs(basePath)
   const action = useAmenityAction()
@@ -249,6 +252,11 @@ export function AmenitiesOverview({
         />
       ) : null}
 
+      {toConfirmFailed ? (
+        <Notice tone="negative" role="alert">
+          {TO_CONFIRM_COPY.failed}
+        </Notice>
+      ) : null}
       {confirmCount > 0 ? (
         <CoverageSection
           id="amenities-to-confirm"
