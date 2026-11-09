@@ -31,6 +31,7 @@ import {
   KNOWLEDGE_ANSWERS,
   type FindingKind,
   type KnowledgeAnswer,
+  type UnknownPreset,
   type KnowledgeFailure,
   type KnowledgeResult,
   type SaveDraftInput,
@@ -124,6 +125,14 @@ export type KnowledgeCapture = {
     | null
   discardDraft: (() => Promise<KnowledgeResult<Record<never, never>>>) | null
   serverDraft: ServerDraft | null
+  /**
+   * "Change my finding" (§4.6): start from my undecided finding's answer.
+   * A draft on this device or the account still wins.
+   */
+  prefill?: {
+    answer: KnowledgeAnswer | null
+    unknownPreset: UnknownPreset | null
+  } | null
 }
 
 type Outcome =
@@ -345,9 +354,13 @@ export function CaptureForm({
     () => ({ userId: viewerId, checkId: check.id }),
     [viewerId, check.id]
   )
-  const [draft, setDraft] = React.useState<CaptureDraft>(() =>
-    emptyDraft(newKey, knowledge ? knowledge.slot.slotRevision : check.revision)
-  )
+  const [draft, setDraft] = React.useState<CaptureDraft>(() => ({
+    ...emptyDraft(
+      newKey,
+      knowledge ? knowledge.slot.slotRevision : check.revision
+    ),
+    ...(knowledge?.prefill ?? {}),
+  }))
   const [restored, setRestored] = React.useState(false)
   const [assets, setAssets] = React.useState<SubmittableAsset[]>(() =>
     initialAssets.ok ? initialAssets.assets : []
@@ -1912,4 +1925,3 @@ function OutcomeMessage({
       )
   }
 }
-

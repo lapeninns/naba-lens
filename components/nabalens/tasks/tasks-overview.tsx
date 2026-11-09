@@ -66,6 +66,7 @@ export function TasksOverview({
   workingList = null,
   workingListError = false,
   onDismissClosed,
+  alsoPending = null,
 }: {
   tasks: MyTasksView
   profile: {
@@ -106,6 +107,8 @@ export function TasksOverview({
   workingListError?: boolean
   /** S13: hides a closed assignment from the working list. */
   onDismissClosed?: (input: { eventId: number }) => Promise<unknown>
+  /** This month's findings outside the target number (§4.7). */
+  alsoPending?: { awaitingConfirmation: number; unknownRecorded: number } | null
 }) {
   const { scope, period, monthly, assignments, needsAnotherPhoto } = tasks
   const blocked = submitBlockedCopy(scope)
@@ -184,6 +187,7 @@ export function TasksOverview({
           periodLabel={period.label}
           addHref={`${tasksPath}/month`}
           canSubmit={scope.canSubmit}
+          alsoPending={alsoPending}
         />
 
         <p className="max-w-(--size-reading) px-1 text-meta text-ink-muted">

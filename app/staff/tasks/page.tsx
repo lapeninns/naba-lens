@@ -15,6 +15,7 @@ import {
 } from "@/components/nabalens/tasks"
 import { requireActiveStaff, uploadBlockReason } from "@/lib/auth"
 import { homePrompt } from "@/lib/config/work-roles"
+import { knowledgeServices } from "@/lib/knowledge-client/services"
 import { getCheck } from "@/lib/server/amenities"
 import { getCoverageActor, getOurMenu } from "@/lib/server/coverage"
 import type { MediaActor } from "@/lib/server/media/types"
@@ -73,6 +74,16 @@ async function hasOwnMedia(actor: MediaActor): Promise<boolean> {
     return error ? true : (data?.length ?? 0) > 0
   } catch {
     return true
+  }
+}
+
+/** This month's findings outside the target (S14); none when unread. */
+async function myPending(actor: MediaActor) {
+  try {
+    const result = await knowledgeServices.getMyPending(actor, {})
+    return result.ok ? result.pending : null
+  } catch {
+    return null
   }
 }
 
@@ -154,6 +165,7 @@ export default async function TasksPage({
     amenityTasks,
     findingSent,
     workingList,
+    pending,
   ] = await Promise.all([
     myTasks(actor).then(unwrap),
     recentColleaguePhotos(),
@@ -166,6 +178,7 @@ export default async function TasksPage({
     myAmenityTasks(actor),
     searchParams.then((p) => sentFinding(actor, p)),
     myWorkingList(actor),
+    myPending(actor),
   ])
   const { reviewCount } = shell
   const blockedReason = uploadBlockReason(profile)
@@ -218,6 +231,7 @@ export default async function TasksPage({
         workingList={workingList ?? null}
         workingListError={workingList === undefined}
         onDismissClosed={dismissClosedAssignmentAction}
+        alsoPending={pending}
       />
     </AppShell>
   )

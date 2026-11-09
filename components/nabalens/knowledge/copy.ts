@@ -379,6 +379,28 @@ export function sentCopy({
   }
 }
 
+/**
+ * The monthly card's "also this month" lines (§4.7): findings that aren't in
+ * the target number, and never will be for Couldn't establish. None at zero.
+ */
+export function pendingLines(
+  pending: { awaitingConfirmation: number; unknownRecorded: number } | null
+): string[] {
+  if (!pending) return []
+  const lines: string[] = []
+  const waiting = pending.awaitingConfirmation
+  if (waiting > 0)
+    lines.push(
+      `Also this month: ${waiting} ${waiting === 1 ? "finding" : "findings"} waiting for confirmation. ${waiting === 1 ? "It's" : "They're"} not in this count.`
+    )
+  const unknown = pending.unknownRecorded
+  if (unknown > 0)
+    lines.push(
+      `${unknown} couldn't-establish ${unknown === 1 ? "finding" : "findings"} recorded. ${unknown === 1 ? "It doesn't" : "These don't"} count toward targets.`
+    )
+  return lines
+}
+
 export const DETAIL_SENT: SentCopy = {
   status: "Detail sent. Your manager will look at it again.",
   title: "Detail sent",
