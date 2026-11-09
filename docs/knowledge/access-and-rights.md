@@ -54,11 +54,11 @@ applies the same allowlist again (`internal-reader-api.md` §5.1 and §7).
 | ------------------------------------------------------------------- | ---------------- | -------------------- | --------------- | ------------ |
 | Status, reason and detail                                           | Yes              | Yes                  | Yes             | Yes          |
 | Value (`yes`, `no`, `not_applicable`)                               | Yes              | Yes                  | Yes             | Yes          |
-| Question version, answer revision                                   | Yes              | Yes                  | Yes             | Yes          |
+| Question version, slot revision                                     | Yes              | Yes                  | Yes             | Yes          |
 | Finding as `summary`                                                | Yes              | Yes                  | Yes             | **No**       |
 | Limitations and reason as `conditions`                              | Yes              | Yes                  | Yes             | **No**       |
 | Source basis (staff, venue manager or admin; null before B01)       | Yes              | Yes                  | Yes             | Yes          |
-| Contribution ID (opaque)                                            | Yes              | Yes                  | Yes             | Yes          |
+| Contribution or submission ID (opaque) and `contribution_kind`      | Yes              | Yes                  | Yes             | Yes          |
 | Confirmation authority role, self-confirmed flag, saved time        | Yes              | Yes                  | Yes             | Yes          |
 | Evidence counts (photos, videos available)                          | Yes              | Yes                  | Yes             | Yes          |
 | Redaction proof (`recorded`, `not_recorded`)                        | —                | —                    | —               | Yes          |
@@ -144,7 +144,7 @@ Rules that apply to every confirmation:
 
 - Staff accounts never confirm. A staff account with a transitional manager
   grant confirms as a manager.
-- A confirmation binds to one assertion ID and the check revision shown.
+- A confirmation binds to one assertion ID and the slot revision shown.
   If either has changed, it is refused as stale.
 - Self-confirmation is a confirmation by the assertion's author. It is allowed
   only where the rule says so, and is always recorded and exposed
