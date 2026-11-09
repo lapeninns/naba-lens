@@ -24,15 +24,20 @@ export type KnowledgeReaderResult =
 export async function readKnowledgeAnswers(
   service: Db,
   venueId: string,
-  keys: readonly string[]
+  keys: readonly string[],
+  options: { signal?: AbortSignal } = {}
 ): Promise<KnowledgeReaderResult> {
   if (keys.length > KNOWLEDGE_LIMITS.maxReaderKeys)
     return { ok: false, code: "invalid_input" }
-  const { data, error } = await knowledgeRpc(service, "knowledge_reader_answers_v1", {
-    p_venue_id: venueId,
-    p_keys: [...keys],
-  })
+  const { data, error } = await knowledgeRpc(
+    service,
+    "knowledge_reader_answers_v1",
+    { p_venue_id: venueId, p_keys: [...keys] },
+    options
+  )
   if (!error) return { ok: true, rows: data }
+  // The caller gave up (its time bound passed); not a database failure.
+  if (options.signal?.aborted) return { ok: false, code: "unavailable" }
   return { ok: false, code: readerCode(error) }
 }
 
