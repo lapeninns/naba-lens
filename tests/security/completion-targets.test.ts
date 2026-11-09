@@ -513,3 +513,235 @@ describe("venue completion targets", () => {
     })
   })
 })
+
+// Characterisation of amenity credit as deployed before the B01 knowledge
+// work (20261109120000). B01 must keep every expectation here; only an
+// approved B08 scoring change may alter them.
+describe("amenity credit baseline", () => {
+  type Answer = "yes" | "no" | "not_applicable"
+
+  function submitFinding(
+    who: TestIdentity,
+    check: string,
+    checkRevision: number,
+    answer: Answer,
+    assets: string[] = []
+  ) {
+    return ok(
+      who.client.rpc("amenity_submit_finding", {
+        p_check_id: check,
+        p_revision: checkRevision,
+        p_idempotency_key: randomUUID(),
+        p_answer: answer,
+        p_finding: null as unknown as string,
+        p_limitations: null as unknown as string,
+        p_reason: (answer === "yes"
+          ? null
+          : "Checked in person at the venue") as string,
+        p_asset_ids: assets,
+        p_internal_metadata: null,
+        p_redaction_confirmed: false,
+      })
+    )
+  }
+
+  async function photo(uploader: TestIdentity, venue: string) {
+    return (await insertAsset(service, { uploader: uploader.id, venue })).id
+  }
+
+  async function enrolled(label: string) {
+    const w = await world(label)
+    await configure(w.venue, currentMonth(), 5)
+    await ok(admin.client.rpc("amenity_enable_venue", { p_venue_id: w.venue }))
+    const amenityUnits = async (staff: TestIdentity) =>
+      (await ok(progress(staff, w.venue, staff.id)))[0]!
+        .amenity_checks_completed
+    const venueUnits = async () =>
+      (
+        await ok(
+          w.manager.client.rpc("coverage_staff_progress_v2", {
+            p_venue_id: w.venue,
+          })
+        )
+      ).reduce((n, row) => n + row.amenity_checks_completed, 0)
+    const kinds = async (check: string) =>
+      (
+        await ok(
+          w.manager.client.rpc("amenity_check_events", { p_check_id: check })
+        )
+      ).map((e) => e.kind)
+    return { ...w, amenityUnits, venueUnits, kinds }
+  }
+
+  it("earns one unit per check whatever the answer value", async () => {
+    // Pins pre-B01 behaviour: the answer value is not read, so Yes, No and
+    // Not applicable each earn exactly one unit. Keep unless B08 approves.
+    const { venue, author, manager, amenityUnits } = await enrolled(
+      "credit-answer-values"
+    )
+    const answers: [string, Answer][] = [
+      ["pool_table", "yes"],
+      ["darts", "no"],
+      ["fruit_machine", "not_applicable"],
+    ]
+    let expected = 0
+    for (const [key, answer] of answers) {
+      const check = await addCheck(manager, venue, key)
+      const rev = await assignCheck(manager, check, author)
+      const assets = answer === "yes" ? [await photo(author, venue)] : []
+      await submitFinding(author, check, rev, answer, assets)
+      expected += 1
+      expect(await amenityUnits(author)).toBe(expected)
+    }
+    const { data: stored, error } = await service
+      .from("amenity_submissions")
+      .select("answer")
+      .eq("venue_id", venue)
+    if (error) throw error
+    expect(stored.map((s) => s.answer).sort()).toEqual([
+      "no",
+      "not_applicable",
+      "yes",
+    ])
+    expect((await ok(progress(author, venue, author.id)))[0]).toMatchObject({
+      target_basis: "menu_items_and_amenities",
+      menu_items_completed: 0,
+      amenity_checks_completed: 3,
+      completion_count: 3,
+    })
+  })
+
+  it("moves the unit to a later submitter on the same check", async () => {
+    // Pins pre-B01 behaviour: the latest submission on a check holds its
+    // unit, even without a reopen, and the venue total stays the same. Keep
+    // unless B08 approves a change.
+    const {
+      venue,
+      author,
+      colleague,
+      manager,
+      amenityUnits,
+      venueUnits,
+      kinds,
+    } = await enrolled("credit-supersession")
+    const check = await addCheck(manager, venue, "pool_table")
+    await submitFinding(
+      author,
+      check,
+      await assignCheck(manager, check, author),
+      "no"
+    )
+    expect(await amenityUnits(author)).toBe(1)
+    expect(await amenityUnits(colleague)).toBe(0)
+    expect(await venueUnits()).toBe(1)
+
+    await submitFinding(
+      colleague,
+      check,
+      await assignCheck(manager, check, colleague),
+      "yes",
+      [await photo(colleague, venue)]
+    )
+    expect(await amenityUnits(author)).toBe(0)
+    expect(await amenityUnits(colleague)).toBe(1)
+    expect(await venueUnits()).toBe(1)
+    expect(await kinds(check)).not.toContain("reopened")
+  })
+
+  it("loses a Yes unit with its evidence but keeps No and Not applicable units", async () => {
+    // Pins pre-B01 behaviour: evidence_lost is only raised for a complete Yes,
+    // so deleting media attached to a No or Not applicable finding keeps its
+    // unit. Keep unless B08 approves a change.
+    const { venue, author, manager, amenityUnits, kinds } = await enrolled(
+      "credit-evidence-lost"
+    )
+    const submitted: Record<Answer, { check: string; asset: string }> = {
+      yes: { check: "", asset: "" },
+      no: { check: "", asset: "" },
+      not_applicable: { check: "", asset: "" },
+    }
+    const answers: [string, Answer][] = [
+      ["pool_table", "yes"],
+      ["darts", "no"],
+      ["fruit_machine", "not_applicable"],
+    ]
+    for (const [key, answer] of answers) {
+      const check = await addCheck(manager, venue, key)
+      const asset = await photo(author, venue)
+      await submitFinding(
+        author,
+        check,
+        await assignCheck(manager, check, author),
+        answer,
+        [asset]
+      )
+      submitted[answer] = { check, asset }
+    }
+    expect(await amenityUnits(author)).toBe(3)
+
+    for (const answer of ["no", "not_applicable"] as const) {
+      await ok(
+        author.client.rpc("delete_media_asset", {
+          p_asset_id: submitted[answer].asset,
+        })
+      )
+      expect(await kinds(submitted[answer].check)).not.toContain(
+        "evidence_lost"
+      )
+    }
+    expect(await amenityUnits(author)).toBe(3)
+
+    await ok(
+      author.client.rpc("delete_media_asset", {
+        p_asset_id: submitted.yes.asset,
+      })
+    )
+    expect(await kinds(submitted.yes.check)).toContain("evidence_lost")
+    expect(await amenityUnits(author)).toBe(2)
+  })
+
+  it("suspends a unit while its check is archived and restores it", async () => {
+    // Pins pre-B01 behaviour: archiving a check within the month removes its
+    // unit and restoring brings the same submission's unit back without a new
+    // finding. Keep unless B08 approves a change.
+    const { venue, author, manager, amenityUnits, kinds } = await enrolled(
+      "credit-archive-restore"
+    )
+    const archived = await addCheck(manager, venue, "pool_table")
+    const kept = await addCheck(manager, venue, "darts")
+    for (const check of [archived, kept]) {
+      await submitFinding(
+        author,
+        check,
+        await assignCheck(manager, check, author),
+        "no"
+      )
+    }
+    expect(await amenityUnits(author)).toBe(2)
+
+    const archivedRevision = await ok(
+      manager.client.rpc("amenity_archive_check", {
+        p_check_id: archived,
+        p_revision: await revision(archived),
+      })
+    )
+    expect(await amenityUnits(author)).toBe(1)
+
+    await ok(
+      manager.client.rpc("amenity_restore_check", {
+        p_check_id: archived,
+        p_revision: archivedRevision,
+      })
+    )
+    expect(await amenityUnits(author)).toBe(2)
+    expect(await kinds(archived)).toEqual(
+      expect.arrayContaining(["archived", "restored"])
+    )
+    const { count, error } = await service
+      .from("amenity_submissions")
+      .select("id", { count: "exact", head: true })
+      .eq("check_id", archived)
+    if (error) throw error
+    expect(count).toBe(1)
+  })
+})
