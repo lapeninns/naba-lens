@@ -818,8 +818,14 @@ New logic, additive and not a change to the legacy trigger:
   - the profile row is locked FOR SHARE (§4.4, §7).
 
   `private.amenity_can_submit` and `private.amenity_can_read` are **not**
-  widened, so the legacy reads and the evidence-media gate keep today's
-  exposure.
+  widened, so the legacy reads keep today's exposure.
+
+- The evidence-media gate `public.amenity_evidence_asset` (behind
+  `/api/amenities/evidence/{id}/*`) keeps every existing branch and gains
+  one: an asset attached to a knowledge contribution is visible to that
+  venue's effective manager or an admin, and to the contributor while still
+  active staff at the venue. Colleagues, other venues and former staff gain
+  nothing; deleted or unready assets stay hidden.
 
 - Unknown and forbidden IDs return the same `not_found`.
 

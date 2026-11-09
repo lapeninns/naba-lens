@@ -17,10 +17,15 @@
 --   knowledge_venue_not_found, NLK07 knowledge_not_adoptable, NLK08
 --   knowledge_not_current.
 --
+-- * amenity_evidence_asset is replaced with today's body plus one branch:
+--   the deciders of a knowledge contribution, and its contributor, may view
+--   its evidence before adoption.
+--
 -- Rollback (§16): disable working-list rows with knowledge_set_working_list;
 -- the guard lifts and every legacy path behaves exactly as before. A forward
--- migration can restore the previous amenity_submit_finding body. Nothing here
--- deletes or rewrites data, and no trigger is disabled.
+-- migration can restore the previous amenity_submit_finding and
+-- amenity_evidence_asset bodies. Nothing here deletes or rewrites data, and
+-- no trigger is disabled.
 
 -- ---------------------------------------------------------------------------
 -- Helpers
@@ -1649,6 +1654,71 @@ create trigger media_assets_knowledge_evidence_withdrawn
   for each row
   when (old.deleted_at is null and new.deleted_at is not null)
   execute function private.media_assets_knowledge_evidence_withdrawn();
+
+-- ---------------------------------------------------------------------------
+-- Evidence media gate: today's body plus contribution evidence (§12)
+-- ---------------------------------------------------------------------------
+
+-- Unchanged branches first. The added branch lets the people who decide a
+-- finding see its photos and videos before it is adopted: the venue's
+-- effective manager or an admin, and the contributor while still active staff
+-- at that venue (the submitter rule above). Colleagues gain nothing.
+create or replace function public.amenity_evidence_asset(p_asset_id uuid)
+returns table (asset_id uuid, media_type public.media_type, has_thumbnail boolean, has_preview boolean)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select a.id, a.media_type, a.thumbnail_path is not null, a.preview_path is not null
+  from public.media_assets a
+  where a.id = p_asset_id
+    and a.upload_state = 'ready'
+    and a.deleted_at is null
+    and private.is_active_user()
+    and (
+      exists (
+        select 1
+        from public.amenity_submission_assets sa
+        join public.amenity_submissions s on s.id = sa.submission_id
+        where sa.asset_id = a.id
+          and (
+            private.can_manage_venue(s.venue_id)
+            or (
+              s.submitted_by = (select auth.uid())
+              and private.active_staff_venue_id() = s.venue_id
+            )
+          )
+      )
+      or exists (
+        select 1
+        from public.venue_amenity_checks c
+        where c.venue_id = a.venue_id
+          and c.status = 'active'
+          and private.amenity_can_submit(c)
+          and (
+            a.uploader_id = (select auth.uid())
+            or (private.can_manage_venue(c.venue_id) and private.amenity_is_legacy_media(c, a.id))
+          )
+      )
+      or exists (
+        select 1
+        from public.knowledge_contribution_assets ka
+        join public.knowledge_contributions x on x.id = ka.contribution_id
+        where ka.asset_id = a.id
+          and (
+            private.can_manage_venue(x.venue_id)
+            or (
+              x.contributed_by = (select auth.uid())
+              and private.active_staff_venue_id() = x.venue_id
+            )
+          )
+      )
+    );
+$$;
+
+revoke all on function public.amenity_evidence_asset(uuid) from public, anon, service_role;
+grant execute on function public.amenity_evidence_asset(uuid) to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Recognition (§3.5): the credit predicate for one submission in its month
