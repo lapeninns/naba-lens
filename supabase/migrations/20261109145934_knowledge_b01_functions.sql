@@ -521,6 +521,11 @@ begin
   perform private.amenity_event(v_check.id, v_check.venue_id, 'submitted', null,
     jsonb_build_object('submissionId', v_id, 'answer', p_answer));
 
+  -- A draft saved while the question was on the working list is settled by
+  -- this answer too.
+  delete from public.knowledge_drafts d
+  where d.user_id = v_uid and d.check_id = v_check.id;
+
   return query select v_id, v_revision, false;
 end;
 $$;
@@ -1090,8 +1095,10 @@ begin
     );
   end if;
 
+  -- The send settles the caller's work on this question, so their draft goes
+  -- whatever key it carried: the form may mint a new key before sending.
   delete from public.knowledge_drafts d
-  where d.user_id = v_uid and d.check_id = v_check.id and d.idempotency_key = p_idempotency_key;
+  where d.user_id = v_uid and d.check_id = v_check.id;
 
   v_result := jsonb_build_object(
     'contributionId', v_contribution.id,
