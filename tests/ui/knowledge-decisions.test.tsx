@@ -3,7 +3,13 @@
 // confirm, ask for more detail, don't confirm or keep the answer in use,
 // Couldn't-establish findings, conflicts, answers that need a decision, and
 // refusals in the manager's words.
-import { cleanup, render, screen, within } from "@testing-library/react"
+import {
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -688,5 +694,109 @@ describe("the check page on a working-list question", () => {
       "goes back to Needs recheck for staff. Its answer stops being used straight away and stays in the history."
     )
     expect(dialog.textContent).not.toContain("The current answer stays")
+  })
+})
+
+describe("To confirm: recovery and focus (MG-02, MG-04, MG-05, MG-06, MG-11)", () => {
+  it("keeps the success notice after the last finding is decided (MG-02)", async () => {
+    const f = finding()
+    const handlers = {
+      decide: vi.fn<DecisionHandlers["decide"]>(async () => ok),
+      onResolveConflict: vi.fn<DecisionHandlers["onResolveConflict"]>(
+        async () => ok
+      ),
+    }
+    const { rerender } = render(
+      <DecisionPanel view={view([f])} handlers={handlers} />
+    )
+    await userEvent.click(screen.getByRole("button", { name: "Confirm" }))
+    // The refresh brings the question with nothing left to decide.
+    rerender(<DecisionPanel view={view([])} handlers={handlers} />)
+    expect(
+      screen.getByText("Confirmed. This is now the answer for The Old Crown.")
+    ).toBeTruthy()
+    expect(
+      screen.getByText("Nothing left to confirm on this question.")
+    ).toBeTruthy()
+  })
+
+  it("replays the same request when the same decision is tapped again after a lost reply (MG-06)", async () => {
+    const decide = vi
+      .fn<DecisionHandlers["decide"]>()
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce(ok)
+    const { user } = setup(view([finding()]), { decide })
+    await user.click(screen.getByRole("button", { name: "Confirm" }))
+    await user.click(screen.getByRole("button", { name: "Confirm" }))
+    const [first, second] = decide.mock.calls.map((c) => c[0])
+    expect(second.idempotencyKey).toBe(first.idempotencyKey)
+  })
+
+  it("keeps a typed reason in its dialog when the reply is lost (MG-04)", async () => {
+    const decide = vi
+      .fn<DecisionHandlers["decide"]>()
+      .mockRejectedValue(new TypeError("Failed to fetch"))
+    const { user } = setup(view([finding()]), { decide })
+    await user.click(screen.getByRole("button", { name: "Don't confirm" }))
+    const dialog = await screen.findByRole("dialog")
+    const field = within(dialog).getByRole("textbox", { name: /Why not\?/ })
+    await user.type(field, "Wrong car park")
+    await user.click(
+      within(dialog).getByRole("button", { name: "Don't confirm" })
+    )
+    expect(screen.getByRole("dialog")).toBeTruthy()
+    expect((field as HTMLTextAreaElement).value).toBe("Wrong car park")
+    expect(within(dialog).getByRole("alert").textContent).toContain(
+      "We couldn't confirm your decision was saved."
+    )
+  })
+
+  it("keeps the note and the dialog open when a confirmation is refused (MG-05)", async () => {
+    const decide = vi.fn<DecisionHandlers["decide"]>(async () => ({
+      ok: false,
+      code: "self_confirmation_not_permitted",
+      status: 403,
+      message: "refused",
+    }))
+    const { user } = setup(view([finding({ answer: "no" })], YES), { decide })
+    await user.click(screen.getByRole("button", { name: "Confirm" }))
+    const dialog = await screen.findByRole("dialog", {
+      name: "Replace the current answer?",
+    })
+    const note = within(dialog).getByRole("textbox", { name: /Note/ })
+    await user.type(note, "Checked the sign")
+    await user.click(
+      within(dialog).getByRole("button", { name: "Confirm and replace" })
+    )
+    expect(screen.getByRole("dialog")).toBeTruthy()
+    expect((note as HTMLTextAreaElement).value).toBe("Checked the sign")
+    expect(within(dialog).getByRole("alert").textContent).toBe(
+      "You sent this, so another manager or an admin confirms it."
+    )
+  })
+
+  it("puts focus on the To confirm heading after a decision (MG-11)", async () => {
+    const { user } = setup(view([finding()]))
+    await user.click(screen.getByRole("button", { name: "Confirm" }))
+    await waitFor(() =>
+      expect(document.activeElement?.id).toBe("amenity-to-confirm-title")
+    )
+  })
+})
+
+describe("To confirm: the recorded time of an answer in use (X-07)", () => {
+  it("shows the answer's recorded time, and no line when it isn't known", () => {
+    const current = finding({
+      kind: "answer_unconfirmed",
+      findingRef: { type: "submission", id: "sub-x" },
+      answer: "yes",
+      recordedAt: "2026-11-03T14:05:00.000Z",
+    })
+    setup(view([current], YES))
+    expect(screen.getByText("Recorded 3 Nov 2026, 14:05")).toBeTruthy()
+    cleanup()
+    setup(view([{ ...current, recordedAt: null, sentAt: "" }], YES))
+    expect(screen.queryByText(/^Recorded/)).toBeNull()
+    expect(screen.queryByText(/an unknown time/)).toBeNull()
   })
 })

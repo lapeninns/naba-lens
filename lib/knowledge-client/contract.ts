@@ -139,8 +139,9 @@ export type FindingSummary = {
   /** The open request for more detail this finding answers. */
   detailRequestId: string | null
   unknownPreset: UnknownPreset | null
-  /** Closed assignments: who answered. */
+  /** Closed assignments: who answered, and when (never this person's send). */
   answeredBy: string | null
+  answeredAt?: Instant | null
   sentAt: Instant | null
   savedAt: Instant | null
   decidedAt: Instant | null
@@ -206,6 +207,8 @@ export type PendingFinding = {
   senderIsAssignee: boolean
   mine: boolean
   sentAt: Instant
+  /** Answers in use needing a decision: when the answer was recorded. */
+  recordedAt?: Instant | null
   evidence: EvidenceItem[]
   /** Only for the sender, the venue's manager and admins. */
   wifi: WifiMetadata | null

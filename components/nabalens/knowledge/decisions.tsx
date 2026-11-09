@@ -21,6 +21,7 @@ import {
   ReasonDialog,
   ReasonField,
   type ReasonOutcome,
+  useReportedFocus,
 } from "@/components/nabalens/coverage/reason-dialog"
 import { Notice } from "@/components/nabalens/notice"
 import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
@@ -132,10 +133,25 @@ export function decisionFailureText(failure: KnowledgeFailure): string {
 
 type Lost = { text: string; retry: () => void }
 
+/** What a decision came to, for a dialog that stays open on failure. */
+type Outcome = { ok: true } | { ok: false; text: string }
+
+/** The To confirm heading: focus lands here when a decision removes a card. */
+const PANEL_HEADING_ID = "amenity-to-confirm-title"
+
+function focusPanel() {
+  requestAnimationFrame(() =>
+    document.getElementById(PANEL_HEADING_ID)?.focus()
+  )
+}
+
 /**
- * Runs one decision: a fresh request key per intent, the refusal in the
- * person's words, a re-read after success or a stale refusal, and Try again
- * (same key, same input) only when the reply was lost.
+ * Runs one decision: one request key per intent, kept until it is settled,
+ * so any repeat of the same decision (Try again or another tap) replays
+ * rather than decides twice (MG-06); the refusal in the person's words; a
+ * re-read after success or a stale refusal. From a dialog, a failure is
+ * returned for the dialog to show, with the person's text kept (MG-04/05);
+ * otherwise it is the panel's notice, and a lost reply offers Try again.
  */
 function useDecision() {
   const router = useRouter()
@@ -143,38 +159,56 @@ function useDecision() {
   const [pending, setPending] = React.useState(false)
   const [notice, setNotice] = React.useState<CoverageNoticeValue | null>(null)
   const [lost, setLost] = React.useState<Lost | null>(null)
+  const keys = React.useRef(new Map<string, string>())
+
+  /** The key for this exact decision, the same until it is settled. */
+  const keyFor = React.useCallback((intent: object) => {
+    const signature = JSON.stringify(intent)
+    let key = keys.current.get(signature)
+    if (!key) {
+      key = newIdempotencyKey()
+      keys.current.set(signature, key)
+    }
+    return { key, settle: () => keys.current.delete(signature) }
+  }, [])
 
   const run = React.useCallback(
     async function run(
       call: () => Promise<Decision>,
-      success: string
-    ): Promise<boolean> {
+      success: string,
+      { settle, inDialog = false }: { settle: () => void; inDialog?: boolean }
+    ): Promise<Outcome> {
       setPending(true)
       setNotice(null)
       setLost(null)
       try {
         const result = await call()
         if (!result.ok) {
+          // A refusal recorded nothing: the next attempt is a new intent.
+          settle()
           const stale = STALE.has(result.code)
-          setNotice({
-            tone: stale ? "warning" : "error",
-            text: decisionFailureText(result),
-          })
+          const text = decisionFailureText(result)
+          if (!inDialog) setNotice({ tone: stale ? "warning" : "error", text })
           if (stale) router.refresh()
-          return false
+          return { ok: false, text }
         }
+        settle()
         setNotice({ tone: "success", text: success })
         router.refresh()
-        return true
+        // The card that held the button may go: keep focus in the panel.
+        focusPanel()
+        return { ok: true }
       } catch (cause) {
         const ended = sessionEnded(cause)
+        const text = ended || KNOWLEDGE_FAILURE_COPY.decision.lost
+        if (inDialog) return { ok: false, text }
         if (ended) setNotice({ tone: "error", text: ended })
         else
           setLost({
-            text: KNOWLEDGE_FAILURE_COPY.decision.lost,
-            retry: () => void run(call, success),
+            text,
+            retry: () => void run(call, success, { settle }),
           })
-        return false
+        return { ok: false, text }
       } finally {
         setPending(false)
       }
@@ -184,6 +218,7 @@ function useDecision() {
 
   return {
     run,
+    keyFor,
     pending,
     notice,
     lost,
@@ -210,30 +245,46 @@ function NoteDialog({
   title: string
   description: string
   confirmLabel: string
-  onConfirm: (note: string) => Promise<void>
+  /** Null on success; otherwise what went wrong, and the dialog stays open. */
+  onConfirm: (note: string) => Promise<string | null>
 }) {
   const id = React.useId()
   const [note, setNote] = React.useState("")
   const [pending, setPending] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+  // After a decision the card that opened this may be gone: focus the panel.
+  const { reportedRef, finalFocus } = useReportedFocus(() =>
+    document.getElementById(PANEL_HEADING_ID)
+  )
   return (
     <Dialog
       open={open}
       onOpenChange={(next) => {
         if (pending) return
-        if (!next) setNote("")
+        if (!next) {
+          setNote("")
+          setError(null)
+        }
         onOpenChange(next)
       }}
     >
-      <DialogContent>
+      <DialogContent finalFocus={finalFocus}>
         <form
           className="grid gap-4"
           noValidate
           onSubmit={async (event) => {
             event.preventDefault()
             setPending(true)
+            setError(null)
             try {
-              await onConfirm(note.trim())
+              // A refusal or a lost reply keeps the dialog and the note (MG-05).
+              const failed = await onConfirm(note.trim())
+              if (failed) {
+                setError(failed)
+                return
+              }
               setNote("")
+              reportedRef.current = true
               onOpenChange(false)
             } finally {
               setPending(false)
@@ -256,6 +307,14 @@ function NoteDialog({
             required={false}
             disabled={pending}
           />
+          {error ? (
+            <p
+              role="alert"
+              className="text-meta-touch font-semibold text-negative md:text-meta-strong"
+            >
+              {error}
+            </p>
+          ) : null}
           <DialogFooter>
             <Button
               type="button"
@@ -314,7 +373,9 @@ export function DecisionPanel({
   const answer = slot.answerInUse
   const slotRevision = slot.slotRevision
   const venue = view.venue.name
-  if (pending.length === 0) return null
+  // The last decision empties the list; its notice still has to be read
+  // (MG-02).
+  if (pending.length === 0 && !decision.notice && !decision.lost) return null
 
   const isFinding = (p: PendingFinding) =>
     p.kind === "finding" || p.kind === "change_report" || p.kind === "detail"
@@ -331,16 +392,21 @@ export function DecisionPanel({
     finding: PendingFinding,
     kind: DecideInput["decision"],
     success: string,
-    note?: string
+    note?: string,
+    inDialog = false
   ) => {
-    const input: DecideInput = {
+    const intent = {
       findingRef: finding.findingRef,
       decision: kind,
       slotRevision,
-      idempotencyKey: newIdempotencyKey(),
       ...(note ? { note } : {}),
     }
-    return decision.run(() => handlers.decide(input), success)
+    const { key, settle } = decision.keyFor(intent)
+    const input: DecideInput = { ...intent, idempotencyKey: key }
+    return decision.run(() => handlers.decide(input), success, {
+      settle,
+      inDialog,
+    })
   }
 
   const resolve = (
@@ -348,19 +414,22 @@ export function DecisionPanel({
     reason: string,
     success: string
   ) => {
-    const input: ResolveConflictInput = {
-      checkId: slot.checkId,
-      slotRevision,
-      idempotencyKey: newIdempotencyKey(),
-      choose,
-      reason,
-    }
-    return decision.run(() => handlers.onResolveConflict(input), success)
+    const intent = { checkId: slot.checkId, slotRevision, choose, reason }
+    const { key, settle } = decision.keyFor(intent)
+    const input: ResolveConflictInput = { ...intent, idempotencyKey: key }
+    return decision.run(() => handlers.onResolveConflict(input), success, {
+      settle,
+      inDialog: true,
+    })
   }
 
-  /** A dialog's decision: closes and reports through the panel either way. */
-  const reported = async (done: Promise<boolean>): Promise<ReasonOutcome> =>
-    (await done) ? { ok: true } : REPORTED
+  /** A dialog's decision: closes on success; otherwise stays open, text kept. */
+  const reported = async (done: Promise<Outcome>): Promise<ReasonOutcome> => {
+    const outcome = await done
+    return outcome.ok ? { ok: true } : { ok: false, error: outcome.text }
+  }
+  /** Focus after a dialog's decision: the card that opened it may be gone. */
+  const panelHeading = () => document.getElementById(PANEL_HEADING_ID)
 
   function confirm(finding: PendingFinding) {
     if (answer.value && finding.answer !== answer.value) {
@@ -545,6 +614,7 @@ export function DecisionPanel({
       id="amenity-to-confirm"
       title="To confirm"
       count={pending.length}
+      focusableTitle
     >
       <CoverageNotice notice={decision.notice} onDismiss={decision.dismiss} />
       {decision.lost ? (
@@ -575,7 +645,12 @@ export function DecisionPanel({
           in use.
         </Notice>
       ) : null}
-      <ul className="grid gap-3">
+      {pending.length === 0 ? (
+        <p className="text-body-touch text-ink-muted md:text-body">
+          Nothing left to confirm on this question.
+        </p>
+      ) : null}
+      <ul className="grid gap-3 empty:hidden">
         {current.map(card)}
         {answers.map(card)}
         {conflict ? null : unknowns.map(card)}
@@ -622,6 +697,8 @@ export function DecisionPanel({
         emptyError="Say what you need."
         confirmLabel="Ask for more detail"
         pendingLabel="Asking…"
+        reportFocus={panelHeading}
+        reportFocusOnSuccess
         onConfirm={(note) =>
           ask?.kind === "detail"
             ? reported(
@@ -629,7 +706,8 @@ export function DecisionPanel({
                   ask.finding,
                   "request_detail",
                   `Asked ${name(ask.finding)} for more detail.`,
-                  note
+                  note,
+                  true
                 )
               )
             : Promise.resolve(REPORTED)
@@ -671,6 +749,8 @@ export function DecisionPanel({
             : "Don't confirm"
         }
         pendingLabel="Saving…"
+        reportFocus={panelHeading}
+        reportFocusOnSuccess
         onConfirm={(reason) => {
           if (ask?.kind === "keep_single")
             // A disputing Couldn't-establish finding is settled by S10 (R3).
@@ -687,7 +767,8 @@ export function DecisionPanel({
                 ask.finding,
                 "decline",
                 `Not confirmed. ${name(ask.finding)} will see why.`,
-                reason
+                reason,
+                true
               )
             )
           return Promise.resolve(REPORTED)
@@ -713,6 +794,8 @@ export function DecisionPanel({
           ask?.kind === "choose" ? "Use this answer" : "Keep the answer in use"
         }
         pendingLabel="Saving…"
+        reportFocus={panelHeading}
+        reportFocusOnSuccess
         onConfirm={(reason) =>
           ask?.kind === "choose"
             ? reported(
@@ -738,13 +821,15 @@ export function DecisionPanel({
         }
         confirmLabel="Confirm and replace"
         onConfirm={async (note) => {
-          if (ask?.kind !== "confirm_replace") return
-          await decide(
+          if (ask?.kind !== "confirm_replace") return null
+          const outcome = await decide(
             ask.finding,
             "confirm",
             `Confirmed. This is now the answer for ${venue}.`,
-            note || undefined
+            note || undefined,
+            true
           )
+          return outcome.ok ? null : outcome.text
         }}
       />
       <NoteDialog
@@ -754,13 +839,15 @@ export function DecisionPanel({
         description={`The remaining evidence is enough. ${againLine(disputing)}`}
         confirmLabel="Keep this answer"
         onConfirm={async (note) => {
-          if (ask?.kind !== "reaffirm") return
-          await decide(
+          if (ask?.kind !== "reaffirm") return null
+          const outcome = await decide(
             ask.finding,
             "reaffirm",
             "Kept this answer.",
-            note || undefined
+            note || undefined,
+            true
           )
+          return outcome.ok ? null : outcome.text
         }}
       />
     </CoverageSection>
@@ -845,9 +932,17 @@ function FindingCard({
         </h3>
         <StatusChip state="awaiting_confirmation" />
       </div>
-      <p className="text-meta-touch text-ink-muted md:text-meta">
-        {isCurrent ? "Recorded" : "Sent"} {dateAndTime(finding.sentAt)}
-      </p>
+      {isCurrent ? (
+        finding.recordedAt ? (
+          <p className="text-meta-touch text-ink-muted md:text-meta">
+            Recorded {dateAndTime(finding.recordedAt)}
+          </p>
+        ) : null
+      ) : finding.sentAt ? (
+        <p className="text-meta-touch text-ink-muted md:text-meta">
+          Sent {dateAndTime(finding.sentAt)}
+        </p>
+      ) : null}
       {finding.kind === "answer_unconfirmed" ? (
         <p className="text-body-touch text-ink md:text-body">
           This answer is recorded but not confirmed, so readers are told
