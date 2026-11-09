@@ -191,6 +191,45 @@ export function ChangeReasonField({
   )
 }
 
+/** "Discard this draft?": shared by the capture form and Me. */
+export function DiscardDraftDialog({
+  open,
+  onOpenChange,
+  onDiscard,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onDiscard: () => Promise<void> | void
+}) {
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Discard this draft?</AlertDialogTitle>
+          <AlertDialogDescription className="text-ink">
+            It&apos;s deleted. Nothing was sent.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <Button
+            type="button"
+            variant="danger-quiet"
+            size="touch"
+            onClick={() => {
+              onOpenChange(false)
+              void onDiscard()
+            }}
+          >
+            Discard
+          </Button>
+          <AlertDialogCancel variant="primary" size="touch">
+            Keep draft
+          </AlertDialogCancel>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  )
+}
 /** The person's saved draft came back: say when, and offer to discard it. */
 export function DraftRestoredNotice({
   savedAt,
@@ -223,32 +262,11 @@ export function DraftRestoredNotice({
     >
       <p>You saved this on {dateAndTime(savedAt)}. It hasn&apos;t been sent.</p>
       {nearPurge ? <p>Saved drafts are deleted after 90 days.</p> : null}
-      <AlertDialog open={open} onOpenChange={setOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Discard this draft?</AlertDialogTitle>
-            <AlertDialogDescription className="text-ink">
-              It&apos;s deleted. Nothing was sent.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <Button
-              type="button"
-              variant="danger-quiet"
-              size="touch"
-              onClick={() => {
-                setOpen(false)
-                void onDiscard()
-              }}
-            >
-              Discard
-            </Button>
-            <AlertDialogCancel variant="primary" size="touch">
-              Keep draft
-            </AlertDialogCancel>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DiscardDraftDialog
+        open={open}
+        onOpenChange={setOpen}
+        onDiscard={onDiscard}
+      />
     </Notice>
   )
 }

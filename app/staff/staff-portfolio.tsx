@@ -75,6 +75,8 @@ type StaffPortfolioProps = {
   menuPhotos?: MyMenuPhotoState[]
   /** The own photos those decisions are on, whichever gallery page they are on. */
   menuPhotoItems?: MediaItem[]
+  /** "Your findings" (B01-06), after the menu decisions; null to leave it out. */
+  findings?: React.ReactNode
 }
 
 /** The three milestones of an own photo, in these exact words. */
@@ -544,6 +546,7 @@ export function StaffPortfolio({
   initialEditOpen = false,
   menuPhotos = [],
   menuPhotoItems = [],
+  findings = null,
 }: StaffPortfolioProps) {
   const router = useRouter()
   const [editOpen, setEditOpen] = React.useState(initialEditOpen)
@@ -796,6 +799,7 @@ export function StaffPortfolio({
           </ul>
         </section>
       ) : null}
+      {findings}
       {uploadBlocked ? (
         <Notice tone="attention" role="status">
           {uploadBlocked}
