@@ -65,7 +65,7 @@ export function YourFindings({
   initial,
   venue,
   loadMore,
-  discardDraft,
+  onDiscardDraft,
   retryHref = "/staff",
   homeHref = "/staff/tasks",
 }: {
@@ -74,7 +74,7 @@ export function YourFindings({
   /** Where I work now; rows elsewhere are read-only. */
   venue: { id: string; name: string } | null
   loadMore: Load
-  discardDraft?: Discard
+  onDiscardDraft?: Discard
   retryHref?: string
   homeHref?: string
 }) {
@@ -180,9 +180,9 @@ export function YourFindings({
                     finding={finding}
                     venue={venue}
                     onDiscard={
-                      discardDraft
+                      onDiscardDraft
                         ? async () => {
-                            const result = await discardDraft({
+                            const result = await onDiscardDraft({
                               checkId: finding.checkId,
                             }).catch(() => null)
                             if (!result?.ok) return false

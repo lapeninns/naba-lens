@@ -81,7 +81,7 @@ export function AmenityCheckControl({
               view: knowledge,
               handlers: {
                 decide: decideFindingAction,
-                resolveConflict: resolveConflictAction,
+                onResolveConflict: resolveConflictAction,
               },
             }
           : null

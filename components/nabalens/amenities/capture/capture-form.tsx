@@ -123,7 +123,7 @@ export type KnowledgeCapture = {
         input: SaveDraftInput
       ) => Promise<KnowledgeResult<{ draftRevision: number; savedAt: string }>>)
     | null
-  discardDraft: (() => Promise<KnowledgeResult<Record<never, never>>>) | null
+  onDiscardDraft: (() => Promise<KnowledgeResult<Record<never, never>>>) | null
   serverDraft: ServerDraft | null
   /**
    * "Change my finding" (§4.6): start from my undecided finding's answer.
@@ -1039,9 +1039,9 @@ export function CaptureForm({
     setDraft(emptyDraft(newKey, revision))
     setRestoredFrom(null)
     serverDraftRevision.current = null
-    if (knowledge?.discardDraft) {
+    if (knowledge?.onDiscardDraft) {
       try {
-        await knowledge.discardDraft()
+        await knowledge.onDiscardDraft()
       } catch (cause) {
         sessionEnded(cause)
       }

@@ -149,7 +149,7 @@ export default async function StaffPage({
                   : null
               }
               loadMore={listMyFindingsAction}
-              discardDraft={discardKnowledgeDraftAction}
+              onDiscardDraft={discardKnowledgeDraftAction}
             />
           ) : null
         }
