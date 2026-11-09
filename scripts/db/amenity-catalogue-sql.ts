@@ -3,7 +3,9 @@
 // The catalogue only changes through a new migration: edit the CSV, bump
 // CATALOGUE_VERSION, run this and paste the output into a new migration. The
 // block updates existing keys in place, so it re-runs over an earlier version;
-// it never deletes a key (checks reference them).
+// it never deletes a key (checks reference them). From version 2 the block
+// also records a definition change for every key, so each knowledge slot's
+// revision rises with its question version (docs/knowledge/b01-design.md G3).
 //
 //   pnpm exec tsx scripts/db/amenity-catalogue-sql.ts [csv]
 import { readFileSync } from "node:fs"
@@ -164,8 +166,19 @@ export function catalogueInsertSql(
     `${COLUMNS.filter((c) => c !== "key")
       .map((c) => `  ${c} = excluded.${c}`)
       .join(",\n")};`,
+    ...(version > 1 ? definitionChangeSql(version) : []),
     END_MARKER,
   ].join("\n")
+}
+
+/** Version 1 predates the knowledge tables; later versions must note the change. */
+function definitionChangeSql(version: number): string[] {
+  return [
+    "select private.knowledge_note_definition_change(c.key, 'question_version_changed')",
+    "from public.amenity_catalogue c",
+    `where c.catalogue_version = ${version}`,
+    "order by c.key;",
+  ]
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
