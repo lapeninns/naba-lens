@@ -329,6 +329,52 @@ export const CHIP_STATES = {
     icon: TagIcon,
     shape: "plain",
   },
+  // A venue question nobody has answered (never "Needs verification", which
+  // is a legacy fact's word)
+  to_check: { word: "To check", tone: "neutral", shape: "plain" },
+  // One finding about a venue question (knowledge history)
+  saved: {
+    word: "Saved",
+    tone: "neutral",
+    icon: FileTextIcon,
+    shape: "plain",
+  },
+  awaiting_confirmation: {
+    word: "Awaiting confirmation",
+    tone: "pending",
+    icon: ClockIcon,
+    shape: "waiting",
+  },
+  current_answer: {
+    word: "Current answer",
+    tone: "positive",
+    icon: CheckIcon,
+    shape: "met",
+  },
+  needs_attention: {
+    word: "Needs attention",
+    tone: "attention",
+    icon: WarningCircleIcon,
+    shape: "needs",
+  },
+  not_confirmed: {
+    word: "Not confirmed",
+    tone: "closed",
+    icon: XIcon,
+    shape: "closed",
+  },
+  no_longer_used: {
+    word: "No longer in use",
+    tone: "closed",
+    icon: MinusCircleIcon,
+    shape: "closed",
+  },
+  couldnt_establish: {
+    word: "Couldn't establish",
+    tone: "neutral",
+    icon: MinusIcon,
+    shape: "na",
+  },
 } as const satisfies Record<string, ChipState>
 
 export type ChipStateKey = keyof typeof CHIP_STATES
