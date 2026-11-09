@@ -135,9 +135,11 @@ function adaptClosed(
     detailRequestId: null,
     unknownPreset: null,
     answeredBy: view.answeredBy,
-    sentAt: view.sentAt,
+    // Someone else's answer: never shown as this person's send or decision.
+    answeredAt: view.sentAt,
+    sentAt: null,
     savedAt: null,
-    decidedAt: view.sentAt,
+    decidedAt: null,
     recognition: { kind: "none" },
   }
 }
@@ -258,7 +260,9 @@ function currentCard(
     sender: null,
     senderIsAssignee: false,
     mine: false,
-    sentAt: item.sentAt ?? inUse.savedAt ?? "",
+    sentAt: item.sentAt ?? "",
+    // "Recorded" is the answer's own time, or no line at all (X-07).
+    recordedAt: inUse.savedAt,
     evidence: [],
     wifi: null,
     disputes: false,

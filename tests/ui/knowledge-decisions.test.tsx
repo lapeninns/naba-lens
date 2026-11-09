@@ -783,3 +783,20 @@ describe("To confirm: recovery and focus (MG-02, MG-04, MG-05, MG-06, MG-11)", (
     )
   })
 })
+
+describe("To confirm: the recorded time of an answer in use (X-07)", () => {
+  it("shows the answer's recorded time, and no line when it isn't known", () => {
+    const current = finding({
+      kind: "answer_unconfirmed",
+      findingRef: { type: "submission", id: "sub-x" },
+      answer: "yes",
+      recordedAt: "2026-11-03T14:05:00.000Z",
+    })
+    setup(view([current], YES))
+    expect(screen.getByText("Recorded 3 Nov 2026, 14:05")).toBeTruthy()
+    cleanup()
+    setup(view([{ ...current, recordedAt: null, sentAt: "" }], YES))
+    expect(screen.queryByText(/^Recorded/)).toBeNull()
+    expect(screen.queryByText(/an unknown time/)).toBeNull()
+  })
+})
