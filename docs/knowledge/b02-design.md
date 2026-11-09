@@ -25,36 +25,36 @@ B02 code or migration exists.
 
 Short names used below:
 
-| Short   | Meaning                                                                                                          |
-| ------- | ---------------------------------------------------------------------------------------------------------------- |
-| MO      | Dedicated manager account (`role='manager'` with an effective grant)                                             |
-| SO      | Staff account without a grant                                                                                    |
-| SG      | Staff account holding a legacy venue-manager grant                                                               |
-| AD      | Admin                                                                                                            |
-| One-acc | A venue whose only account is one MO (matrix §5)                                                                 |
-| UI §n   | Section n of WS2's B02 UI design                                                                                 |
-| D-n     | WS2's default decisions (UI §11)                                                                                 |
-| OD-n    | Owner decisions raised in this document (§6.2); the matrix's questions are cited as Q1 to Q14                    |
+| Short   | Meaning                                                                                       |
+| ------- | --------------------------------------------------------------------------------------------- |
+| MO      | Dedicated manager account (`role='manager'` with an effective grant)                          |
+| SO      | Staff account without a grant                                                                 |
+| SG      | Staff account holding a legacy venue-manager grant                                            |
+| AD      | Admin                                                                                         |
+| One-acc | A venue whose only account is one MO (matrix §5)                                              |
+| UI §n   | Section n of WS2's B02 UI design                                                              |
+| D-n     | WS2's default decisions (UI §11)                                                              |
+| OD-n    | Owner decisions raised in this document (§6.2); the matrix's questions are cited as Q1 to Q14 |
 
 ---
 
 ## 1. Summary
 
-| #   | Need (UI §10)                                       | Proposal                                                                                                    | New database objects                                                         | Blocked by an owner decision?                            |
-| --- | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------- |
-| R1  | Labels-needed count                                 | `public.my_label_work()`: two counts with Me's exact rule                                                   | 1 function                                                                   | No                                                       |
-| R2  | Better-photo requests for the caller                | Extend the existing `listMyMenuPhotoDecisions` read; no SQL needed                                          | none                                                                         | OD-2 (old-menu requests), OD-3 (who asked)               |
-| R3  | Manager triage counts and oldest waiting            | `public.manager_triage_summary(p_venue_id)`: one row per queue, never summed                                | 1 function                                                                   | No (queue visibility follows today's rules)              |
-| R4  | `waitingSince` on To confirm rows                   | Additive key on `knowledge_to_confirm`                                                                      | `create or replace` of a B01 function in a B02 migration                     | No                                                       |
-| R5  | One-cursor My contributions feed                    | `public.my_contributions_feed(p_cursor, p_limit)`: typed rows, `(time, key)` cursor                         | 1 function, up to 1 additive index                                           | OD-4 (sort by send time or by latest activity)           |
-| R6  | Revision numbers the UI may show                    | Task sends: replacement chain. Findings: B01 replaced-own. Menu photos: **none exists**                     | none (derived in R5)                                                         | OD-5 (link menu retakes)                                 |
-| R7  | Permitted use per photo                             | Only "menu use accepted" in B02; no grants before B05                                                       | none (derived in R5)                                                         | Owner to confirm (OD-6)                                  |
-| R8  | Capabilities for the caller                         | `public.my_venue_capabilities(p_venue_id)`, computed from the same predicates the write gates use           | 1 function                                                                   | No (it reports whatever the gates allow)                 |
-| W1  | Contribution group                                  | Two additive tables and three functions; groups never widen visibility and add no credit                    | 2 tables, 3 functions                                                        | OD-7 (one group per asset, size), table owner to assign  |
-| W2  | `from` return parameter                             | Client only                                                                                                 | none                                                                         | No                                                       |
-| W3  | Manager-account upload                              | Shape ready, **not to be built until decided**                                                              | `create or replace` of the upload gates, 1 additive column                   | **Q1, Q10, Q11; OD-8 (audit), OD-9 (Photos audience)**   |
-| W4  | Manager-account labelling                           | Shape ready, **not to be built until decided**                                                              | `create or replace` of the label gates                                       | **Q4** (and Q1)                                          |
-| W5  | Page `loadedAt`                                     | Server render time; no database work                                                                        | none                                                                         | No                                                       |
+| #   | Need (UI §10)                            | Proposal                                                                                          | New database objects                                       | Blocked by an owner decision?                           |
+| --- | ---------------------------------------- | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------- |
+| R1  | Labels-needed count                      | `public.my_label_work()`: two counts with Me's exact rule                                         | 1 function                                                 | No                                                      |
+| R2  | Better-photo requests for the caller     | Extend the existing `listMyMenuPhotoDecisions` read; no SQL needed                                | none                                                       | OD-2 (old-menu requests), OD-3 (who asked)              |
+| R3  | Manager triage counts and oldest waiting | `public.manager_triage_summary(p_venue_id)`: one row per queue, never summed                      | 1 function                                                 | No (queue visibility follows today's rules)             |
+| R4  | `waitingSince` on To confirm rows        | Additive key on `knowledge_to_confirm`                                                            | `create or replace` of a B01 function in a B02 migration   | No                                                      |
+| R5  | One-cursor My contributions feed         | `public.my_contributions_feed(p_cursor, p_limit)`: typed rows, `(time, key)` cursor               | 1 function, up to 1 additive index                         | OD-4 (sort by send time or by latest activity)          |
+| R6  | Revision numbers the UI may show         | Task sends: replacement chain. Findings: B01 replaced-own. Menu photos: **none exists**           | none (derived in R5)                                       | OD-5 (link menu retakes)                                |
+| R7  | Permitted use per photo                  | Only "menu use accepted" in B02; no grants before B05                                             | none (derived in R5)                                       | Owner to confirm (OD-6)                                 |
+| R8  | Capabilities for the caller              | `public.my_venue_capabilities(p_venue_id)`, computed from the same predicates the write gates use | 1 function                                                 | No (it reports whatever the gates allow)                |
+| W1  | Contribution group                       | Two additive tables and three functions; groups never widen visibility and add no credit          | 2 tables, 3 functions                                      | OD-7 (one group per asset, size), table owner to assign |
+| W2  | `from` return parameter                  | Client only                                                                                       | none                                                       | No                                                      |
+| W3  | Manager-account upload                   | Shape ready, **not to be built until decided**                                                    | `create or replace` of the upload gates, 1 additive column | **Q1, Q10, Q11; OD-8 (audit), OD-9 (Photos audience)**  |
+| W4  | Manager-account labelling                | Shape ready, **not to be built until decided**                                                    | `create or replace` of the label gates                     | **Q4** (and Q1)                                         |
+| W5  | Page `loadedAt`                          | Server render time; no database work                                                              | none                                                       | No                                                      |
 
 ---
 
@@ -170,11 +170,11 @@ waiting time, never summed (D-6).
 **Shape.**
 `public.manager_triage_summary(p_venue_id uuid default null) returns table (queue text, available boolean, waiting integer, oldest_waiting_at timestamptz, own_waiting integer)`.
 
-| `queue`        | `available` when                                                                 | `waiting` and `oldest_waiting_at` equal                                                                                     |
-| -------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `menu_photos`  | the caller may decide menu photos at the venue (MO, SG for labelled photos, AD)  | the rows `manager_menu_photo_queue` returns to this caller, and the oldest of them; `own_waiting` as the overview reports it |
-| `findings`     | `knowledge_basis` is `venue_manager` or `admin`                                  | `knowledge_to_confirm` count, oldest `waitingSince` (R4)                                                                    |
-| `checklist`    | SG or AD (MO is refused today, matrix §4.3 and OA4)                              | the venue's pending coverage items, as `venue_coverage_summary.pending_review_count`                                         |
+| `queue`       | `available` when                                                                | `waiting` and `oldest_waiting_at` equal                                                                                      |
+| ------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `menu_photos` | the caller may decide menu photos at the venue (MO, SG for labelled photos, AD) | the rows `manager_menu_photo_queue` returns to this caller, and the oldest of them; `own_waiting` as the overview reports it |
+| `findings`    | `knowledge_basis` is `venue_manager` or `admin`                                 | `knowledge_to_confirm` count, oldest `waitingSince` (R4)                                                                     |
+| `checklist`   | SG or AD (MO is refused today, matrix §4.3 and OA4)                             | the venue's pending coverage items, as `venue_coverage_summary.pending_review_count`                                         |
 
 - **Venue:** MO and SG use their grant venue (another `p_venue_id` is
   `wrong_venue`); AD must name one. SO is refused (`not_venue_manager`).
@@ -210,12 +210,12 @@ the checklist to MO, `available` follows the gate.
 **Shape.** An additive key `waitingSince` on every `knowledge_to_confirm`
 item, and items ordered by it:
 
-| Row kind                        | `waitingSince`                                                    |
-| ------------------------------- | ----------------------------------------------------------------- |
-| Finding, change report, detail  | the contribution's send time (`created_at`)                       |
-| `answer_awaiting_confirmation`  | the answer's send time                                            |
-| `evidence_withdrawn`            | the `evidence_withdrawn` event's time                             |
-| `confirmation_revoked`          | the revoke decision's time                                        |
+| Row kind                       | `waitingSince`                              |
+| ------------------------------ | ------------------------------------------- |
+| Finding, change report, detail | the contribution's send time (`created_at`) |
+| `answer_awaiting_confirmation` | the answer's send time                      |
+| `evidence_withdrawn`           | the `evidence_withdrawn` event's time       |
+| `confirmation_revoked`         | the revoke decision's time                  |
 
 **Authorisation.** Unchanged (`assert_can_manage_venue`).
 
@@ -238,12 +238,12 @@ newest first, 20 a page, with separate dimension lines.
 `{items, nextCursor}`. Each item has `type`, `key`, `at` and the ids the
 existing routes use, plus its own dimension fields:
 
-| `type`              | Source (caller's own rows only)                                                                              | Fields                                                                                                                                                                                                                                                                                           |
-| ------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `photo`             | `media_assets` uploaded by the caller, `purpose = 'general'`, not deleted                                    | `assetId`, `venueId`, `mediaType`, `uploadState`, `labels` (has labels; needs attention), `menuDecisions[]` (each live `menu_item_photos` row for the asset: `photoId`, `itemId`, item name, `state`, `reason`), `menuUseAccepted` (R7), `groupId` (W1, when built)                                  |
-| `task_send`         | `coverage_submission_items` with `submitted_by` = caller and `origin = 'submitted'`                          | `itemId`, `submissionId`, `requirementId`, `assetId`, `state`, `reason`, `replacesItemId`, `revision` (R6)                                                                                                                                                                                        |
-| `finding`           | exactly the items `knowledge_my_contributions` returns (contributions and pre-B01 amenity submissions)        | as B01, including `findingRef`, `state`, `recognition`, `replacedOwn`                                                                                                                                                                                                                            |
-| `assignment_closed` | as B01                                                                                                       | as B01                                                                                                                                                                                                                                                                                            |
+| `type`              | Source (caller's own rows only)                                                                        | Fields                                                                                                                                                                                                                                                              |
+| ------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `photo`             | `media_assets` uploaded by the caller, `purpose = 'general'`, not deleted                              | `assetId`, `venueId`, `mediaType`, `uploadState`, `labels` (has labels; needs attention), `menuDecisions[]` (each live `menu_item_photos` row for the asset: `photoId`, `itemId`, item name, `state`, `reason`), `menuUseAccepted` (R7), `groupId` (W1, when built) |
+| `task_send`         | `coverage_submission_items` with `submitted_by` = caller and `origin = 'submitted'`                    | `itemId`, `submissionId`, `requirementId`, `assetId`, `state`, `reason`, `replacesItemId`, `revision` (R6)                                                                                                                                                          |
+| `finding`           | exactly the items `knowledge_my_contributions` returns (contributions and pre-B01 amenity submissions) | as B01, including `findingRef`, `state`, `recognition`, `replacedOwn`                                                                                                                                                                                               |
+| `assignment_closed` | as B01                                                                                                 | as B01                                                                                                                                                                                                                                                              |
 
 - **Order and cursor:** by `(at, key)` descending, where `at` is the record's
   creation (send) time and `key` is a type prefix plus the id (`p:`, `t:`, and
@@ -286,12 +286,12 @@ This is WS2's call with the owner.
 
 ### R6. Revisions the UI may show
 
-| Record           | What exists                                                                                                             | Shown as                                                                                                                                                                                                |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Task send        | `coverage_submission_items.replaces_item_id` chain (CD:313; one replacement per item, enforced by its trigger)          | `revision` = position in the chain (1 for an original), `replacesItemId` and the replaced item's send time. Computed in R5 with a bounded recursive walk                                                  |
-| Finding          | B01's `replaced` decision, `replacedOwn` and `replacedOwnSentAt`                                                        | "Replaced your earlier finding of {time}". No number: B01 keeps one undecided finding per person, so a count would not mean anything                                                                    |
-| Menu photo       | **No link exists.** A retake is a new asset and a new decision. `menu_item_photos.revision` is an optimistic-lock counter | Nothing. The counter must never be shown as a version                                                                                                                                                    |
-| Slot revision    | Concurrency token (B01 G4)                                                                                              | Never shown                                                                                                                                                                                             |
+| Record        | What exists                                                                                                               | Shown as                                                                                                                                                 |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Task send     | `coverage_submission_items.replaces_item_id` chain (CD:313; one replacement per item, enforced by its trigger)            | `revision` = position in the chain (1 for an original), `replacesItemId` and the replaced item's send time. Computed in R5 with a bounded recursive walk |
+| Finding       | B01's `replaced` decision, `replacedOwn` and `replacedOwnSentAt`                                                          | "Replaced your earlier finding of {time}". No number: B01 keeps one undecided finding per person, so a count would not mean anything                     |
+| Menu photo    | **No link exists.** A retake is a new asset and a new decision. `menu_item_photos.revision` is an optimistic-lock counter | Nothing. The counter must never be shown as a version                                                                                                    |
+| Slot revision | Concurrency token (B01 G4)                                                                                                | Never shown                                                                                                                                              |
 
 **OD-5:** whether menu retakes should be linked to the photo they replace.
 That needs new data (for example a nullable `retake_of_photo_id`, set when a
@@ -320,19 +320,19 @@ at the venue, so screens show only usable choices.
 
 **Shape.** `public.my_venue_capabilities(p_venue_id uuid default null) returns jsonb`:
 
-| Key                      | Computed by (the same predicate the write uses)                                                                                  | Today: MO / SO / SG / AD (matrix §3)            |
-| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| `accountKind`            | profile role plus `effective_manager_venue_id`                                                                                   | `manager` / `staff` / `staff_with_grant` / `admin` |
-| `venueId`                | grant venue (MO, SG), profile venue (SO), `p_venue_id` (AD)                                                                      |                                                  |
-| `canUpload`              | `private.uploadable_venue_id() = venueId`                                                                                        | no / yes / yes / no                              |
-| `canLabel`               | the role allow-list in `private.save_media_labels_as` (own uploads)                                                              | no / yes / yes / yes (admin library)             |
-| `canSendFindings`        | `private.knowledge_basis(venueId) is not null` and the venue has an open working list                                            | yes / yes / yes / yes                            |
-| `canConfirmFindings`     | `knowledge_basis` in (`venue_manager`, `admin`)                                                                                  | yes / no / yes / yes                             |
-| `canSelfConfirm`         | per in-scope key: confirmation-free, or `self_confirmation_allowed` (`knowledge_question_rules`)                                  | object keyed by question                         |
-| `canReviewMenuPhotos`    | `private.can_manage_venue(venueId)` and the menu-photo context rules                                                             | yes / no / partial / yes                         |
-| `canDecideOwnMenuPhoto`  | `not private.menu_photo_self_blocked(caller)` and the reviewable-uploader rule                                                   | **no** / n/a / yes, recorded / yes, recorded     |
-| `canReviewChecklist`     | `can_manage_venue` and not a manager account (MD triggers)                                                                       | no / no / yes / yes                              |
-| `canBeAssigned`          | the assignee rule (`staff_not_eligible` otherwise)                                                                               | no / yes / yes / no                              |
+| Key                     | Computed by (the same predicate the write uses)                                                  | Today: MO / SO / SG / AD (matrix §3)               |
+| ----------------------- | ------------------------------------------------------------------------------------------------ | -------------------------------------------------- |
+| `accountKind`           | profile role plus `effective_manager_venue_id`                                                   | `manager` / `staff` / `staff_with_grant` / `admin` |
+| `venueId`               | grant venue (MO, SG), profile venue (SO), `p_venue_id` (AD)                                      |                                                    |
+| `canUpload`             | `private.uploadable_venue_id() = venueId`                                                        | no / yes / yes / no                                |
+| `canLabel`              | the role allow-list in `private.save_media_labels_as` (own uploads)                              | no / yes / yes / yes (admin library)               |
+| `canSendFindings`       | `private.knowledge_basis(venueId) is not null` and the venue has an open working list            | yes / yes / yes / yes                              |
+| `canConfirmFindings`    | `knowledge_basis` in (`venue_manager`, `admin`)                                                  | yes / no / yes / yes                               |
+| `canSelfConfirm`        | per in-scope key: confirmation-free, or `self_confirmation_allowed` (`knowledge_question_rules`) | object keyed by question                           |
+| `canReviewMenuPhotos`   | `private.can_manage_venue(venueId)` and the menu-photo context rules                             | yes / no / partial / yes                           |
+| `canDecideOwnMenuPhoto` | `not private.menu_photo_self_blocked(caller)` and the reviewable-uploader rule                   | **no** / n/a / yes, recorded / yes, recorded       |
+| `canReviewChecklist`    | `can_manage_venue` and not a manager account (MD triggers)                                       | no / no / yes / yes                                |
+| `canBeAssigned`         | the assignee rule (`staff_not_eligible` otherwise)                                               | no / yes / yes / no                                |
 
 - The function reports what the gates allow. It is never consulted by a gate,
   so a wrong capability can hide a choice but never grant one.
@@ -531,17 +531,17 @@ that caching doesn't reuse it (UI §8.1).
 
 ### 5.1 Gaps (matrix §5) and where each goes
 
-| Gap | Today                                         | In this design                                                               |
-| --- | --------------------------------------------- | ---------------------------------------------------------------------------- |
-| OA1 | MO can't upload, so it can't answer Yes       | W3, only if Q1 says yes                                                      |
-| OA2 | No menu photo contribution                    | W3 and W4, only if Q1 and Q4 say yes                                         |
-| OA3 | MO's own photos wait for an admin             | **Unchanged** (§5.3; Q2, Q9)                                                 |
-| OA4 | Legacy coverage closed to MO                  | **Unchanged** (Q8). R3 and R8 report it as unavailable                       |
-| OA5 | No targets, credit or recognition for MO      | **Unchanged** (Q5). R5 shows no recognition line for MO                      |
-| OA6 | MO can't be an assignee                       | **Unchanged** (Q7). R8 `canBeAssigned` false                                 |
-| OA7 | Self-confirmation depends on the rule seed    | **Unchanged** (Q6). R8 `canSelfConfirm` reports it per question              |
-| OA8 | Admin prerequisites (enable, working list)    | **Unchanged**                                                                |
-| OA9 | Coverage evidence and general media hidden    | **Unchanged** (Q10). If W3 is approved, MO's own new uploads still need Q10 to open them through `/api/media` |
+| Gap | Today                                      | In this design                                                                                                |
+| --- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| OA1 | MO can't upload, so it can't answer Yes    | W3, only if Q1 says yes                                                                                       |
+| OA2 | No menu photo contribution                 | W3 and W4, only if Q1 and Q4 say yes                                                                          |
+| OA3 | MO's own photos wait for an admin          | **Unchanged** (§5.3; Q2, Q9)                                                                                  |
+| OA4 | Legacy coverage closed to MO               | **Unchanged** (Q8). R3 and R8 report it as unavailable                                                        |
+| OA5 | No targets, credit or recognition for MO   | **Unchanged** (Q5). R5 shows no recognition line for MO                                                       |
+| OA6 | MO can't be an assignee                    | **Unchanged** (Q7). R8 `canBeAssigned` false                                                                  |
+| OA7 | Self-confirmation depends on the rule seed | **Unchanged** (Q6). R8 `canSelfConfirm` reports it per question                                               |
+| OA8 | Admin prerequisites (enable, working list) | **Unchanged**                                                                                                 |
+| OA9 | Coverage evidence and general media hidden | **Unchanged** (Q10). If W3 is approved, MO's own new uploads still need Q10 to open them through `/api/media` |
 
 ### 5.2 Fixtures
 
@@ -587,16 +587,16 @@ self · Q14 legacy grant retirement.
 
 ### 6.2 Raised by this design
 
-| #    | Decision                                                            | Today                                                     | Design default until decided                         |
-| ---- | ------------------------------------------------------------------- | --------------------------------------------------------- | ---------------------------------------------------- |
-| OD-2 | Better-photo requests for items no longer on the menu               | Me shows them                                             | Returned with `canRetake: false`; WS2 decides display |
-| OD-3 | Name the reviewer on a better-photo request                         | Reason shown, reviewer not                                | Not named                                            |
-| OD-4 | My contributions order: send time or latest activity                | n/a                                                       | Send time (stable cursor)                            |
-| OD-5 | Link a menu retake to the photo it replaces                         | No link                                                   | No link; consider in B05-01                          |
-| OD-6 | Use claims beyond "Accepted for menu use"                           | None exist                                                | None                                                 |
-| OD-7 | One group per asset; maximum group size                             | No groups                                                 | One group; 10 members                                |
-| OD-8 | Record the uploader's role on new uploads (if W3)                   | Not recorded                                              | Add a nullable snapshot column                       |
-| OD-9 | Manager uploads in colleagues' Photos (if W3)                       | n/a (managers don't upload)                               | Not shown                                            |
+| #    | Decision                                              | Today                       | Design default until decided                          |
+| ---- | ----------------------------------------------------- | --------------------------- | ----------------------------------------------------- |
+| OD-2 | Better-photo requests for items no longer on the menu | Me shows them               | Returned with `canRetake: false`; WS2 decides display |
+| OD-3 | Name the reviewer on a better-photo request           | Reason shown, reviewer not  | Not named                                             |
+| OD-4 | My contributions order: send time or latest activity  | n/a                         | Send time (stable cursor)                             |
+| OD-5 | Link a menu retake to the photo it replaces           | No link                     | No link; consider in B05-01                           |
+| OD-6 | Use claims beyond "Accepted for menu use"             | None exist                  | None                                                  |
+| OD-7 | One group per asset; maximum group size               | No groups                   | One group; 10 members                                 |
+| OD-8 | Record the uploader's role on new uploads (if W3)     | Not recorded                | Add a nullable snapshot column                        |
+| OD-9 | Manager uploads in colleagues' Photos (if W3)         | n/a (managers don't upload) | Not shown                                             |
 
 ---
 
@@ -605,11 +605,11 @@ self · Q14 legacy grant retirement.
 Each batch is a new migration file after the B01 freeze, additive, with a
 rollback note. None edits a B01 migration.
 
-| Batch | Contents                                                                                             | Rollback                                                                     |
-| ----- | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Batch | Contents                                                                                                        | Rollback                                                                         |
+| ----- | --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
 | B02-a | R1, R3, R5, R8 functions; R4 `create or replace` of `knowledge_to_confirm`; any extracted helpers; any R5 index | Drop the functions; restore the B01 `knowledge_to_confirm` body; UI switches off |
-| B02-b | W1 tables and functions                                                                              | UI switches off; tables stay (no data loss)                                  |
-| B02-c | W3 and W4, **only after Q1 and Q4 are decided**                                                      | Restore the staff-only gates; uploads and labels already made stay           |
+| B02-b | W1 tables and functions                                                                                         | UI switches off; tables stay (no data loss)                                      |
+| B02-c | W3 and W4, **only after Q1 and Q4 are decided**                                                                 | Restore the staff-only gates; uploads and labels already made stay               |
 
 Every batch runs, on a spare stack after a full-chain reset:
 
