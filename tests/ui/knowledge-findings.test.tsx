@@ -198,6 +198,7 @@ describe("Your findings", () => {
         venue={HERE}
         loadMore={noLoad}
         onDiscardDraft={discardDraft}
+        viewerId="u1"
       />
     )
     const old = within(rowOf("Is there parking on site?"))
@@ -217,8 +218,15 @@ describe("Your findings", () => {
     await userEvent.click(
       draft.getByRole("button", { name: "Discard draft: Is there a lift?" })
     )
+    // This device's copy of the capture form's draft goes too (L1).
+    window.localStorage.setItem("nabalens.amenity-draft.v2:u1:c-draft", "{}")
     await userEvent.click(screen.getByRole("button", { name: "Discard" }))
     expect(discardDraft).toHaveBeenCalledWith({ checkId: "c-draft" })
+    expect(
+      window.localStorage.getItem("nabalens.amenity-draft.v2:u1:c-draft")
+    ).toBeNull()
+    // Focus goes to the heading, which can take it (L2).
+    expect(document.activeElement?.id).toBe("your-findings-heading")
     expect(
       screen.queryByRole("heading", { level: 3, name: "Is there a lift?" })
     ).toBeNull()

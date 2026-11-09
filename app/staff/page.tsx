@@ -150,6 +150,7 @@ export default async function StaffPage({
               }
               loadMore={listMyFindingsAction}
               onDiscardDraft={discardKnowledgeDraftAction}
+              viewerId={profile.id}
             />
           ) : null
         }

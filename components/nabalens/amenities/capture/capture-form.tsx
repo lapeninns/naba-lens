@@ -29,6 +29,7 @@ import {
 } from "@/lib/amenities/contract"
 import {
   KNOWLEDGE_ANSWERS,
+  stateConflictKind,
   type FindingKind,
   type KnowledgeAnswer,
   type UnknownPreset,
@@ -156,7 +157,12 @@ type Outcome =
   /** The server refused a manager's self-confirmation. */
   | { kind: "self_stale" }
   | { kind: "not_permitted" }
-  | { kind: "reused_key" }
+  /** Knowledge path: a state conflict, by kind (L4). */
+  | {
+      kind: "conflict"
+      reason: "reused_key" | "archived" | "other"
+      message: string
+    }
   | { kind: "saved"; offline: boolean }
   | { kind: "save_failed" }
   | { kind: "draft_conflict" }
@@ -404,6 +410,8 @@ export function CaptureForm({
   // ready to attach), and whether the person chose to wait for them.
   const [pendingUploads, setPendingUploads] = React.useState(0)
   const [waiting, setWaiting] = React.useState(false)
+  // Counts finished asset reads, so the wait re-checks after each (L3).
+  const [assetReads, setAssetReads] = React.useState(0)
   const addActive = useAddActive()
   const answerGroupRef = React.useRef<HTMLFieldSetElement>(null)
   const inFlight = React.useRef(false)
@@ -607,6 +615,7 @@ export function CaptureForm({
         setUploadNote(arrivalNote(tally))
       } finally {
         loadingAssets.current = false
+        if (mounted.current) setAssetReads((n) => n + 1)
         const queued = queuedReload.current
         queuedReload.current = null
         if (queued !== null && mounted.current)
@@ -773,12 +782,15 @@ export function CaptureForm({
       inFlight.current = false
       if (mounted.current) setSending(false)
     }
-    // A replay older than the revision on screen: the earlier send was
-    // recorded, but the check changed since (a manager reopened it). This
-    // answer still has to be sent, as a new intent with a new key.
+    // Legacy only: a replay older than the revision on screen means the
+    // earlier send was recorded but the check changed since (a manager
+    // reopened it), so this answer still has to be sent with a new key. A
+    // knowledge replay returns the original slot revision, which any later
+    // event outdates: it was sent, with its original outcome (M1).
     if (result.ok || !RETRYABLE.has(result.code as AmenityFailure["code"]))
       unresolved.current = false
-    const stale = result.ok && result.replayed && result.revision < revision
+    const stale =
+      !knowledge && result.ok && result.replayed && result.revision < revision
     // Recorded: drop the stored draft even when the form is gone, or a later
     // visit would replay this key after a reopen.
     if (result.ok && !stale) clearDraft(sentFor)
@@ -911,7 +923,11 @@ export function CaptureForm({
         break
       case "state_conflict":
         if (knowledge) {
-          setOutcome({ kind: "reused_key" })
+          setOutcome({
+            kind: "conflict",
+            reason: stateConflictKind(result) ?? "other",
+            message: result.message,
+          })
           return
         }
         break
@@ -1071,11 +1087,21 @@ export function CaptureForm({
 
   // Waiting: once every upload from here is ready (and listed), send by
   // itself, with the same key (nothing was attempted while waiting).
+  // A failed read ends the wait with its error: the uploads can't be listed,
+  // so nothing is sent without them.
   React.useEffect(() => {
     if (!waiting || pendingUploads > 0 || loadingAssets.current) return
     setWaiting(false)
+    if (listError) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- the wait ends on an asset read finishing
+      setOutcome({
+        kind: "failed",
+        message: `${listError} Nothing was sent. Try again when your photos and videos load.`,
+      })
+      return
+    }
     void sendRef.current({ fromWait: true })
-  }, [waiting, pendingUploads, draft.assetIds])
+  }, [waiting, pendingUploads, draft.assetIds, assetReads, listError])
 
   // The Add queue has nothing in progress, yet uploads from here never became
   // ready: they failed or stopped. Give the last ready answer a moment first.
@@ -1796,10 +1822,14 @@ function OutcomeMessage({
           {KNOWLEDGE_FAILURE_COPY.notPermitted}
         </Notice>
       )
-    case "reused_key":
+    case "conflict":
       return (
         <Notice tone="negative" role="alert" action={reload()}>
-          {KNOWLEDGE_FAILURE_COPY.reusedKey}
+          {outcome.reason === "reused_key"
+            ? KNOWLEDGE_FAILURE_COPY.reusedKey
+            : outcome.reason === "archived"
+              ? KNOWLEDGE_FAILURE_COPY.archived
+              : outcome.message || KNOWLEDGE_FAILURE_COPY.conflict}
         </Notice>
       )
     case "saved":

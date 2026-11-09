@@ -93,7 +93,13 @@ async function resolve(node: ReactNode): Promise<ReactNode> {
     if (isValidElement(value) || Array.isArray(value))
       next[key] = await resolve(value as ReactNode)
   }
-  return Object.keys(next).length ? cloneElement(node, next) : node
+  if (Object.keys(next).length === 0) return node
+  // Children go back as arguments, as JSX wrote them: an array prop would be
+  // a list to React and want keys.
+  const { children, ...rest } = next
+  return Array.isArray(children)
+    ? cloneElement(node, rest, ...(children as ReactNode[]))
+    : cloneElement(node, next)
 }
 
 async function show(page: Promise<ReactNode>) {

@@ -322,6 +322,8 @@ export function DecisionPanel({
   const unknowns = pending.filter((p) => isFinding(p) && p.answer === "unknown")
   const current = pending.filter((p) => !isFinding(p))
   const conflict = answers.length >= 2
+  // S10 keep_in_use settles every undecided finding, agreeing ones too.
+  const undecided = answers.length + unknowns.length
   const disputing = pending.filter((p) => p.disputes).length
   const readers = readersNow(answer, pending)
 
@@ -448,8 +450,8 @@ export function DecisionPanel({
         </Button>
       )
       // Keep (S10) settles every listed finding, so a card offers it only
-      // when it's the only finding that disputes the answer (R3, rev 5).
-      if (finding.disputes && disputing === 1 && !conflict)
+      // when it's the only undecided finding on the question (M2, rev 7).
+      if (finding.disputes && undecided === 1)
         return (
           <>
             {detail}
@@ -520,9 +522,11 @@ export function DecisionPanel({
   const unknownNote = (finding: PendingFinding) =>
     finding.answer !== "unknown" || !finding.disputes
       ? null
-      : disputing === 1 && !conflict
+      : undecided === 1
         ? "Either Keep the answer in use or Mark as seen ends the dispute, and readers then get the answer again. If the doubt is right, reopen the question instead."
-        : "Marking it as seen settles this finding only. To keep the answer in use, use the panel above, which settles every finding that disagrees."
+        : conflict
+          ? "Marking it as seen settles this finding only. Keep the answer in use, above, settles every finding listed here."
+          : "Marking it as seen settles this finding only. The other findings here still need a decision."
 
   const card = (finding: PendingFinding) => (
     <FindingCard
@@ -652,9 +656,11 @@ export function DecisionPanel({
           ask && "finding" in ask
             ? ask.finding.kind === "answer_unconfirmed"
               ? "The question is reopened: staff see it as Needs recheck."
-              : ask.finding.disputes || ask.kind === "keep_single"
-                ? `The answer in use doesn't change. ${againLine(disputing - 1)}`
-                : "The answer in use doesn't change."
+              : ask.kind === "keep_single"
+                ? `The answer in use doesn't change, and every finding listed here is settled: this one, the only one, is marked as seen. ${againLine(0)}`
+                : ask.finding.disputes
+                  ? `The answer in use doesn't change. ${againLine(disputing - 1)}`
+                  : "The answer in use doesn't change."
             : undefined
         }
         confirmLabel={
@@ -698,7 +704,7 @@ export function DecisionPanel({
         description={
           ask?.kind === "choose"
             ? "The other findings are marked Not confirmed with your reason, and any Couldn't-establish findings listed here are marked as seen. Only findings sent after this can disagree with the new answer."
-            : "The findings that disagree are marked Not confirmed with your reason, and any Couldn't-establish findings listed here are marked as seen."
+            : "Every finding listed here is settled: answers, including any that agree with the answer in use, are marked Not confirmed with your reason, and Couldn't-establish findings are marked as seen."
         }
         label="Why this one?"
         help="Everyone who sent a finding sees this."
