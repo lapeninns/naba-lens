@@ -5,6 +5,7 @@
 // server's DTOs, so screens read one stable shape.
 
 import type {
+  AmenityResult,
   CheckProgress,
   CheckSummary,
   EvidenceItem,
@@ -20,7 +21,9 @@ import type {
   Decision,
   FindingRef,
   KnowledgeAnswer,
+  KnowledgeAsset,
   KnowledgeErrorCode,
+  KnowledgeResult,
   Recognition,
   SlotReason,
   SubmitOutcome,
@@ -36,6 +39,7 @@ export type {
   ConfirmationState,
   FindingRef,
   KnowledgeAnswer,
+  KnowledgeAsset,
   KnowledgeErrorCode,
   KnowledgeFailure,
   KnowledgeResult,
@@ -413,6 +417,28 @@ export function stateConflictKind(failure: {
     return "reused_key"
   if (failure.message.startsWith("This check is archived")) return "archived"
   return "other"
+}
+
+/**
+ * Staff's own attachable media on a working-list question (F1), in the
+ * capture form's list shape. Its failures are amenity codes but for the three
+ * knowledge-only ones, which can't come from this read; they read as a state
+ * conflict if they ever do. The form shows only the message.
+ */
+export function knowledgeAssetsResult(
+  result: KnowledgeResult<{ assets: KnowledgeAsset[] }>
+): AmenityResult<{ assets: KnowledgeAsset[] }> {
+  if (result.ok) return { ok: true, assets: result.assets }
+  const { code } = result
+  return {
+    ...result,
+    code:
+      code === "already_decided" ||
+      code === "self_confirmation_not_permitted" ||
+      code === "draft_conflict"
+        ? "state_conflict"
+        : code,
+  }
 }
 
 export function isKnowledgePathRequired(failure: { code: string }): boolean {

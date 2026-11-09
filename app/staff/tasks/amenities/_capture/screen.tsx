@@ -16,9 +16,10 @@ import {
 import { answerInUseLines } from "@/components/nabalens/knowledge/copy"
 import { LatestFinding } from "@/components/nabalens/knowledge/latest-finding"
 import { ROUTES } from "@/lib/auth/routes"
-import type {
-  CaptureCheck,
-  QuestionView,
+import {
+  knowledgeAssetsResult,
+  type CaptureCheck,
+  type QuestionView,
 } from "@/lib/knowledge-client/contract"
 import { knowledgeServices } from "@/lib/knowledge-client/services"
 import { getCheck, listSubmittableAssets } from "@/lib/server/amenities"
@@ -246,6 +247,24 @@ export async function CaptureScreen({
   )
 }
 
+async function knowledgeAssets(
+  actor: MediaActor,
+  checkId: string
+): Promise<AssetsResult> {
+  try {
+    return knowledgeAssetsResult(
+      await knowledgeServices.listKnowledgeAssets(actor, { checkId })
+    )
+  } catch {
+    return {
+      ok: false,
+      code: "unavailable",
+      status: 503,
+      message: "We couldn't load your photos and videos.",
+    }
+  }
+}
+
 /**
  * Staff read the knowledge view first. A working-list question is open to
  * everyone working at the venue, but the amenity read lets only its assignee
@@ -264,8 +283,8 @@ async function staffReads(
   ]
 > {
   const knowledge = await knowledgeFor(actor, checkId, "staff", venueName)
-  if (knowledge)
-    return [knowledge, null, await listSubmittableAssets(actor, { checkId })]
+  // Their own media, without the assignment the amenity list needs.
+  if (knowledge) return [knowledge, null, await knowledgeAssets(actor, checkId)]
   const [checkResult, assets] = await Promise.all([
     getCheck(actor, { checkId }),
     listSubmittableAssets(actor, { checkId }),

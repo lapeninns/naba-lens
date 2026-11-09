@@ -10,6 +10,7 @@ const server = vi.hoisted(() => ({
   getKnowledgeCheck: vi.fn(),
   listToConfirm: vi.fn(),
   knowledgeRpcFailure: vi.fn(),
+  listKnowledgeAssets: vi.fn(),
 }))
 vi.mock("@/lib/server/knowledge", () => server)
 const rpc = vi.hoisted(() => ({ knowledgeRpc: vi.fn() }))
@@ -151,5 +152,18 @@ describe("knowledge services seam: the working list before the migrations (M3)",
       "knowledge_working_list",
       {}
     )
+  })
+})
+
+describe("knowledge services seam: own media for a working-list question (F1)", () => {
+  it("passes the input to WS1's listKnowledgeAssets", async () => {
+    const result = { ok: true, assets: [] }
+    server.listKnowledgeAssets.mockResolvedValue(result)
+    expect(
+      await knowledgeServices.listKnowledgeAssets(actor, { checkId: "c1" })
+    ).toBe(result)
+    expect(server.listKnowledgeAssets).toHaveBeenCalledWith(actor, {
+      checkId: "c1",
+    })
   })
 })

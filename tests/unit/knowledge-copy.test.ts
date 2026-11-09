@@ -20,6 +20,8 @@ import {
   FINDING_STATES,
   findingKey,
   isRetryable,
+  knowledgeAssetsResult,
+  type KnowledgeErrorCode,
   type AnswerInUse,
   type FindingSummary,
   type WorkingSlot,
@@ -443,5 +445,34 @@ describe("replacedOwnLine", () => {
       "Your earlier finding, sent 4 Nov, was replaced."
     )
     expect(replacedOwnLine(null)).toBe("Your earlier finding was replaced.")
+  })
+})
+
+describe("knowledgeAssetsResult (F1)", () => {
+  it("passes the own-media list through unchanged", () => {
+    const assets = [
+      {
+        assetId: "a1",
+        kind: "photo" as const,
+        createdAt: "2026-11-05T10:00:00.000Z",
+        source: "own" as const,
+        thumbUrl: "/api/media/a1/thumb",
+      },
+    ]
+    expect(knowledgeAssetsResult({ ok: true, assets })).toEqual({
+      ok: true,
+      assets,
+    })
+  })
+
+  it("keeps amenity failure codes and reads knowledge-only ones as a state conflict", () => {
+    const fail = (code: KnowledgeErrorCode) =>
+      knowledgeAssetsResult({ ok: false, code, status: 409, message: "m" })
+    expect(fail("knowledge_slot_out_of_scope")).toMatchObject({
+      ok: false,
+      code: "knowledge_slot_out_of_scope",
+      message: "m",
+    })
+    expect(fail("already_decided")).toMatchObject({ code: "state_conflict" })
   })
 })

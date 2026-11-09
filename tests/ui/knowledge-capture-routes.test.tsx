@@ -3,7 +3,8 @@
 // form (staff, manager account, legacy grant, admin), and every route keeps
 // the legacy form for a question that isn't on a working list. Renders the
 // real capture screen and form.
-import { cleanup, render, screen } from "@testing-library/react"
+import { cleanup, render, screen, within } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { cloneElement, isValidElement, type ReactNode } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -51,18 +52,22 @@ const services = vi.hoisted(() => ({
   listSubmittableAssets: vi.fn(),
 }))
 vi.mock("@/lib/server/amenities", () => services)
-vi.mock("@/app/_amenities/actions", () => ({
+const amenityActions = vi.hoisted(() => ({
   listSubmittableAssetsAction: vi.fn(),
   submitFindingAction: vi.fn(),
 }))
-vi.mock("@/app/_knowledge/actions", () => ({
+vi.mock("@/app/_amenities/actions", () => amenityActions)
+const actions = vi.hoisted(() => ({
   submitKnowledgeFindingAction: vi.fn(),
   saveKnowledgeDraftAction: vi.fn(),
   discardKnowledgeDraftAction: vi.fn(),
+  listKnowledgeAssetsAction: vi.fn(),
 }))
+vi.mock("@/app/_knowledge/actions", () => actions)
 const knowledge = vi.hoisted(() => ({
   getKnowledgeCheck: vi.fn(),
   getDraft: vi.fn(),
+  listKnowledgeAssets: vi.fn(),
 }))
 vi.mock("@/lib/knowledge-client/services", () => ({
   knowledgeServices: knowledge,
@@ -105,6 +110,8 @@ async function resolve(node: ReactNode): Promise<ReactNode> {
 async function show(page: Promise<ReactNode>) {
   return render(<>{await resolve(await page)}</>)
 }
+
+const OWN_PHOTO = "7d000000-0000-4000-8000-0000000000aa"
 
 const STEP_FREE = {
   ...DARTS,
@@ -213,6 +220,7 @@ beforeEach(() => {
     detail: detail({ check: STEP_FREE }),
   })
   services.listSubmittableAssets.mockResolvedValue({ ok: true, assets: [] })
+  knowledge.listKnowledgeAssets.mockResolvedValue({ ok: true, assets: [] })
   knowledge.getDraft.mockResolvedValue({ ok: true, draft: null })
 })
 
@@ -326,6 +334,97 @@ describe("capture routes on a working-list question (G2)", () => {
       })
     }
   )
+
+  it("lists an unassigned staff member's own media through the knowledge read, with own-media thumbnails (F1)", async () => {
+    services.getCheck.mockResolvedValue({
+      ok: false,
+      code: "not_found",
+      status: 404,
+      message: "This check could not be found.",
+    })
+    services.listSubmittableAssets.mockResolvedValue({
+      ok: false,
+      code: "not_permitted",
+      status: 403,
+      message: "refused",
+    })
+    knowledge.getKnowledgeCheck.mockResolvedValue({ ok: true, view: inScope() })
+    knowledge.listKnowledgeAssets.mockResolvedValue({
+      ok: true,
+      assets: [
+        {
+          assetId: OWN_PHOTO,
+          kind: "photo",
+          createdAt: "2026-11-05T10:00:00.000Z",
+          source: "own",
+          thumbUrl: `/api/media/${OWN_PHOTO}/thumb`,
+        },
+      ],
+    })
+    const { container } = await show(pages.staff())
+    expect(knowledge.listKnowledgeAssets).toHaveBeenCalledWith(
+      expect.anything(),
+      { checkId: DARTS.id }
+    )
+    expect(services.listSubmittableAssets).not.toHaveBeenCalled()
+    const srcs = [...container.querySelectorAll("img")].map((img) =>
+      img.getAttribute("src")
+    )
+    expect(srcs).toContain(`/api/media/${OWN_PHOTO}/thumb`)
+    expect(srcs.some((src) => src?.includes("/api/amenities/evidence/"))).toBe(
+      false
+    )
+    expect(screen.queryByRole("alert")).toBeNull()
+  })
+
+  it("reloads the list through the knowledge action after a failed read (F1)", async () => {
+    knowledge.getKnowledgeCheck.mockResolvedValue({ ok: true, view: inScope() })
+    knowledge.listKnowledgeAssets.mockResolvedValue({
+      ok: false,
+      code: "unavailable",
+      status: 503,
+      message: "We couldn't load your photos and videos.",
+    })
+    actions.listKnowledgeAssetsAction.mockResolvedValue({
+      ok: true,
+      assets: [],
+    })
+    await show(pages.staff())
+    const alert = screen.getByRole("alert")
+    expect(alert.textContent).toContain(
+      "We couldn't load your photos and videos."
+    )
+    await userEvent.click(
+      within(alert).getByRole("button", { name: /Try again/ })
+    )
+    expect(actions.listKnowledgeAssetsAction).toHaveBeenCalledWith({
+      checkId: DARTS.id,
+    })
+    expect(amenityActions.listSubmittableAssetsAction).not.toHaveBeenCalled()
+  })
+
+  it.each(["manager", "legacy grant", "admin"] as const)(
+    "%s capture keeps the amenity media list on a working-list question",
+    async (name) => {
+      knowledge.getKnowledgeCheck.mockResolvedValue({
+        ok: true,
+        view: inScope(),
+      })
+      await show(pages[name]())
+      expect(services.listSubmittableAssets).toHaveBeenCalled()
+      expect(knowledge.listKnowledgeAssets).not.toHaveBeenCalled()
+    }
+  )
+
+  it("staff keep the amenity media list off the working list", async () => {
+    knowledge.getKnowledgeCheck.mockResolvedValue({
+      ok: true,
+      view: { inScope: false },
+    })
+    await show(pages.staff())
+    expect(services.listSubmittableAssets).toHaveBeenCalled()
+    expect(knowledge.listKnowledgeAssets).not.toHaveBeenCalled()
+  })
 
   it("falls back to the legacy form when the knowledge read throws", async () => {
     knowledge.getKnowledgeCheck.mockRejectedValue(new Error("network"))

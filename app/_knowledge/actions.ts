@@ -58,6 +58,11 @@ export async function listMyFindingsAction(input: unknown) {
   return read(k.listMyFindings, input)
 }
 
+/** Staff's own attachable media on a working-list question (F1). */
+export async function listKnowledgeAssetsAction(input: unknown) {
+  return read(k.listKnowledgeAssets, input)
+}
+
 export async function dismissClosedAssignmentAction(input: unknown) {
   return write(k.dismissClosedAssignment, input)
 }
