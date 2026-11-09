@@ -197,7 +197,7 @@ describe("Your findings", () => {
         ])}
         venue={HERE}
         loadMore={noLoad}
-        discardDraft={discardDraft}
+        onDiscardDraft={discardDraft}
       />
     )
     const old = within(rowOf("Is there parking on site?"))
@@ -230,7 +230,7 @@ describe("Your findings", () => {
         initial={page([{ ...DRAFT, sendable: false }])}
         venue={HERE}
         loadMore={noLoad}
-        discardDraft={async () => ({
+        onDiscardDraft={async () => ({
           ok: false as const,
           code: "unavailable" as const,
           status: 503,

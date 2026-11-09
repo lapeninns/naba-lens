@@ -61,7 +61,7 @@ type Decision = KnowledgeResult<DecisionResult>
 
 export type DecisionHandlers = {
   decide: (input: DecideInput) => Promise<Decision>
-  resolveConflict: (input: ResolveConflictInput) => Promise<Decision>
+  onResolveConflict: (input: ResolveConflictInput) => Promise<Decision>
 }
 
 // ---- Words ------------------------------------------------------------------------
@@ -353,7 +353,7 @@ export function DecisionPanel({
       choose,
       reason,
     }
-    return decision.run(() => handlers.resolveConflict(input), success)
+    return decision.run(() => handlers.onResolveConflict(input), success)
   }
 
   /** A dialog's decision: closes and reports through the panel either way. */

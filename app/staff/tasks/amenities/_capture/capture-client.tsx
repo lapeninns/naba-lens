@@ -32,7 +32,7 @@ import { MEDIA_LIMITS } from "@/lib/config/media"
 /** What the server read about a working-list question (no functions). */
 export type KnowledgeProps = Omit<
   KnowledgeCapture,
-  "submit" | "saveDraft" | "discardDraft"
+  "submit" | "saveDraft" | "onDiscardDraft"
 > & { canContribute: boolean }
 
 /**
@@ -95,7 +95,7 @@ export function CaptureClient({
               // Drafts are the author's own: staff only.
               saveDraft:
                 knowledge.role === "staff" ? saveKnowledgeDraftAction : null,
-              discardDraft:
+              onDiscardDraft:
                 knowledge.role === "staff"
                   ? () => discardKnowledgeDraftAction({ checkId: check.id })
                   : null,

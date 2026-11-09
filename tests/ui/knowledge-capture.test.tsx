@@ -133,7 +133,7 @@ type Submit = (
   input: SubmitKnowledgeInput
 ) => Promise<KnowledgeResult<SubmittedFinding>>
 type SaveDraft = NonNullable<KnowledgeCapture["saveDraft"]>
-type DiscardDraft = NonNullable<KnowledgeCapture["discardDraft"]>
+type DiscardDraft = NonNullable<KnowledgeCapture["onDiscardDraft"]>
 
 function setup({
   knowledgeSlot = slot(),
@@ -183,7 +183,7 @@ function setup({
         respondsTo: null,
         submit,
         saveDraft,
-        discardDraft,
+        onDiscardDraft: discardDraft,
         serverDraft,
         prefill,
       }}
@@ -635,7 +635,7 @@ describe("knowledge capture: evidence that isn't ready yet (D2, G4)", () => {
           respondsTo: null,
           submit,
           saveDraft: null,
-          discardDraft: null,
+          onDiscardDraft: null,
           serverDraft: null,
         }}
       />

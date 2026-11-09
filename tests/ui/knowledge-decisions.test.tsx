@@ -134,7 +134,9 @@ function setup(
 ) {
   const handlers = {
     decide: vi.fn<DecisionHandlers["decide"]>(async () => ok),
-    resolveConflict: vi.fn<DecisionHandlers["resolveConflict"]>(async () => ok),
+    onResolveConflict: vi.fn<DecisionHandlers["onResolveConflict"]>(
+      async () => ok
+    ),
     ...h,
   }
   const onReopen = vi.fn()
@@ -323,7 +325,7 @@ describe("To confirm: Couldn't establish (rev 5 §6.2)", () => {
       within(dialog).getByRole("button", { name: "Keep the answer in use" })
     )
     expect(handlers.decide).not.toHaveBeenCalled()
-    expect(handlers.resolveConflict).toHaveBeenCalledWith(
+    expect(handlers.onResolveConflict).toHaveBeenCalledWith(
       expect.objectContaining({
         checkId: "c1",
         slotRevision: 21,
@@ -411,7 +413,7 @@ describe("To confirm: findings that disagree (§6.4)", () => {
     await user.click(
       within(dialog).getByRole("button", { name: "Use this answer" })
     )
-    expect(handlers.resolveConflict).toHaveBeenCalledWith(
+    expect(handlers.onResolveConflict).toHaveBeenCalledWith(
       expect.objectContaining({
         choose: b.findingRef,
         reason: "Matches the sign",
@@ -624,7 +626,7 @@ describe("the check page on a working-list question", () => {
         }}
         knowledge={{
           view: v,
-          handlers: { decide: vi.fn(), resolveConflict: vi.fn() },
+          handlers: { decide: vi.fn(), onResolveConflict: vi.fn() },
         }}
       />
     )
