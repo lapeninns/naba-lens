@@ -84,6 +84,12 @@ const amenities = vi.hoisted(() => ({
   getCheck: vi.fn(),
 }))
 vi.mock("@/lib/server/amenities", () => amenities)
+// No working list at this venue: the legacy screens, counts and badge.
+vi.mock("@/lib/knowledge-client/services", () => ({
+  knowledgeServices: {
+    getWorkingList: async () => ({ ok: true, view: null }),
+  },
+}))
 
 import TasksPage from "@/app/staff/tasks/page"
 

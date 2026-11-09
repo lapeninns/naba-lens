@@ -136,6 +136,12 @@ const coverage = vi.hoisted(() => ({
   listMyMenuPhotoDecisions: vi.fn(),
 }))
 vi.mock("@/lib/server/coverage", () => coverage)
+// No working list at this venue: the legacy screens, counts and badge.
+vi.mock("@/lib/knowledge-client/services", () => ({
+  knowledgeServices: {
+    getWorkingList: async () => ({ ok: true, view: null }),
+  },
+}))
 vi.mock("@/lib/server/amenities", () => ({
   getMyAmenityTasks: vi.fn(async () => ({ ok: true, tasks: [] })),
 }))
