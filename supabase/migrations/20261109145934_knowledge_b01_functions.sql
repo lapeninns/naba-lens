@@ -893,6 +893,7 @@ declare
   v_outcome text;
   v_contribution public.knowledge_contributions;
   v_old record;
+  v_replaced_at timestamptz;
   v_replaced uuid;
   v_submission uuid;
   v_responds public.knowledge_decisions;
@@ -1044,7 +1045,7 @@ begin
 
   -- At most one undecided finding per person and question (§9.3).
   for v_old in
-    select x.id from public.knowledge_contributions x
+    select x.id, x.created_at from public.knowledge_contributions x
     where x.check_id = v_check.id and x.contributed_by = v_uid
       and not private.knowledge_is_terminal(x.id)
     order by x.created_at
@@ -1052,6 +1053,7 @@ begin
     perform private.knowledge_decision(v_check, v_old.id, null, 'replaced', v_uid, 'self',
       false, v_rule.rule_version, null, v_revision, null);
     v_replaced := v_old.id;
+    v_replaced_at := v_old.created_at;
   end loop;
 
   insert into public.knowledge_contributions (
@@ -1096,6 +1098,7 @@ begin
     'submissionId', v_submission,
     'outcome', v_outcome,
     'replacedOwn', v_replaced,
+    'replacedOwnSentAt', v_replaced_at,
     'slotRevision', private.knowledge_slot_revision(v_check.venue_id, v_check.template_key),
     'replayed', false
   );
@@ -1872,7 +1875,17 @@ as $$
       'value', st.current_answer, 'available', st.status = 'available', 'reason', st.reason,
       'savedAt', st.saved_at, 'sentAt', st.sent_at, 'lastCheckedAt', null,
       'confirmed', st.confirmation_state = 'confirmed', 'confirmationState', st.confirmation_state,
-      'evidenceState', st.evidence_state) end,
+      'evidenceState', st.evidence_state)
+      -- Who confirmed it, for the people who decide (null until confirmed).
+      || case when p_basis in ('venue_manager', 'admin') then jsonb_build_object(
+        'confirmedByFirstName', case when st.confirmation_state = 'confirmed' then (
+          select split_part(cp.display_name, ' ', 1)
+          from public.knowledge_decisions d
+          join public.profiles cp on cp.id = d.decided_by
+          where d.submission_id = st.current_submission_id and d.decision = 'confirmed'
+          order by d.created_at desc, d.id desc limit 1) end,
+        'confirmedAt', st.confirmation_saved_at,
+        'confirmedSelf', st.confirmation_self) else '{}'::jsonb end end,
     'previousAnswer', case when p_check.progress = 'needs_recheck' then st.current_answer end,
     'requiresConfirmation', st.confirmation_required,
     'latestAttempt', case when st.last_unknown_at is not null then jsonb_build_object(
@@ -2011,6 +2024,11 @@ begin
           select 1 from public.knowledge_decisions d
           where d.contribution_id = x.id and d.decision = 'detail_requested'
         ),
+        'detailRequest', case when v_manager then (
+          select jsonb_build_object('decisionId', d.id, 'note', d.note, 'requestedAt', d.created_at)
+          from public.knowledge_decisions d
+          where d.contribution_id = x.id and d.decision = 'detail_requested'
+          order by d.created_at desc, d.id desc limit 1) end,
         'wifi', case when v_manager or x.contributed_by = v_uid then x.internal_metadata end,
         'evidence', coalesce((
           select jsonb_agg(jsonb_build_object(
@@ -2056,7 +2074,10 @@ begin
       'conflict', (
         select count(*) from public.knowledge_contributions y
         where y.check_id = c.id and y.answer <> 'unknown' and not private.knowledge_is_terminal(y.id)
-      ) > 1 or (st.current_answer is not null and c.progress = 'complete' and x.answer is distinct from st.current_answer)
+      ) > 1 or (st.current_answer is not null and c.progress = 'complete' and x.answer is distinct from st.current_answer),
+      -- The resolver's dispute test for this one finding (Couldn't establish included).
+      'disputes', st.current_submission_id is not null and c.progress = 'complete'
+        and x.answer is distinct from st.current_answer
     ) as i
     from public.venue_amenity_checks c
     join public.amenity_catalogue t on t.key = c.template_key
@@ -2070,7 +2091,7 @@ begin
       'findingRef', jsonb_build_object('type', 'submission', 'id', st.current_submission_id),
       'kind', case when st.detail = 'evidence_withdrawn' then 'evidence_withdrawn' else 'answer_awaiting_confirmation' end,
       'answer', st.current_answer, 'senderName', p.display_name, 'sentAt', st.sent_at,
-      'slotRevision', st.revision, 'conflict', false
+      'slotRevision', st.revision, 'conflict', false, 'disputes', false
     )
     from public.venue_amenity_checks c
     join public.amenity_catalogue t on t.key = c.template_key
@@ -2157,9 +2178,13 @@ begin
     'nextCursor', v_next,
     'drafts', coalesce((
       select jsonb_agg(jsonb_build_object(
-        'checkId', d.check_id, 'venueId', d.venue_id, 'savedAt', d.updated_at,
+        'checkId', d.check_id, 'venueId', d.venue_id, 'venueName', dv.name,
+        'questionKey', dc.template_key, 'question', dt.question, 'savedAt', d.updated_at,
         'sendable', private.knowledge_basis(d.venue_id) is not null) order by d.updated_at desc)
       from public.knowledge_drafts d
+      join public.venue_amenity_checks dc on dc.id = d.check_id
+      join public.venues dv on dv.id = d.venue_id
+      join public.amenity_catalogue dt on dt.key = dc.template_key
       where d.user_id = v_uid and d.updated_at >= now() - interval '90 days'
     ), '[]'::jsonb),
     'hiddenEarlierVenues', '[]'::jsonb
