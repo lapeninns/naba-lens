@@ -237,7 +237,8 @@ export function DraftRestoredNotice({
   onDiscard,
   disabled,
 }: {
-  savedAt: string
+  /** The account copy's save time; null when this phone's copy was restored. */
+  savedAt: string | null
   /** Saved 80 days ago or more: drafts are deleted after 90. */
   nearPurge: boolean
   onDiscard: () => Promise<void> | void
@@ -260,7 +261,11 @@ export function DraftRestoredNotice({
         </Button>
       }
     >
-      <p>You saved this on {dateAndTime(savedAt)}. It hasn&apos;t been sent.</p>
+      <p>
+        {savedAt
+          ? `You saved this on ${dateAndTime(savedAt)}. It hasn't been sent.`
+          : "Restored from this phone. It hasn't been sent."}
+      </p>
       {nearPurge ? <p>Saved drafts are deleted after 90 days.</p> : null}
       <DiscardDraftDialog
         open={open}
