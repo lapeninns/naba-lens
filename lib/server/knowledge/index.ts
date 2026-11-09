@@ -13,6 +13,7 @@ export {
   getMyPending,
   getPilotPreview,
   getWorkingList,
+  listKnowledgeAssets,
   listMyFindings,
   listToConfirm,
 } from "./reads"

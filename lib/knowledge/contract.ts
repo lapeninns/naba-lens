@@ -276,6 +276,21 @@ export type ToConfirmItem = {
   disputes: boolean
 }
 
+/**
+ * A photo or video the caller may attach to a finding on a working-list
+ * question: their own ready upload at the question's venue (the rule
+ * knowledge_submit applies to staff). Shaped like the amenity
+ * `SubmittableAsset`, so the capture form takes either; `thumbUrl` is the
+ * own-media route, which serves an uploader's own assets of any purpose.
+ */
+export type KnowledgeAsset = {
+  assetId: string
+  kind: "photo" | "video"
+  createdAt: string
+  source: "own"
+  thumbUrl: string | null
+}
+
 export type DraftView = {
   checkId: string
   venueId: string
