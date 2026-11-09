@@ -377,6 +377,8 @@ export type AmenityErrorCode =
   | "state_conflict" // archived, idempotency key reused, assignee not eligible
   | "asset_ineligible"
   | "evidence_rule_unmet"
+  | "knowledge_path_required" // the question moved to the knowledge form: open it again
+  | "knowledge_slot_out_of_scope" // the question left the knowledge working list
   | "unavailable"
 
 export type AmenityFailure = {
