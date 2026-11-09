@@ -24,7 +24,7 @@ export type ResolverRow = {
   value: string | null
   current_submission_id: string | null
   current_contribution_id: string | null
-  /** Which ID names the current answer; column name assumed until WS1 confirms it. */
+  /** Which ID names the current answer; null when there is no current answer. */
   contribution_kind: "contribution" | "submission" | null
   source_basis: "staff" | "venue_manager" | "admin" | null
   finding: string | null
