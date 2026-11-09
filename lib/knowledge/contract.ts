@@ -12,10 +12,19 @@ import type {
   WifiMetadata,
 } from "@/lib/amenities/contract"
 
-export const KNOWLEDGE_ANSWERS = ["yes", "no", "not_applicable", "unknown"] as const
+export const KNOWLEDGE_ANSWERS = [
+  "yes",
+  "no",
+  "not_applicable",
+  "unknown",
+] as const
 export type KnowledgeAnswer = (typeof KNOWLEDGE_ANSWERS)[number]
 
-export const CONTRIBUTION_KINDS = ["finding", "change_report", "detail"] as const
+export const CONTRIBUTION_KINDS = [
+  "finding",
+  "change_report",
+  "detail",
+] as const
 export type ContributionKind = (typeof CONTRIBUTION_KINDS)[number]
 
 /** Couldn't establish: why not (WS2 §3.4). "other" needs the tried text only. */
@@ -37,7 +46,11 @@ export const DECISIONS = [
 ] as const
 export type Decision = (typeof DECISIONS)[number]
 
-export const SUBMIT_OUTCOMES = ["current", "awaiting_confirmation", "recorded"] as const
+export const SUBMIT_OUTCOMES = [
+  "current",
+  "awaiting_confirmation",
+  "recorded",
+] as const
 export type SubmitOutcome = (typeof SUBMIT_OUTCOMES)[number]
 
 /** B01-era findings are contributions; only pre-B01 answers are submissions. */
@@ -68,7 +81,8 @@ export type SlotReason =
   | "stale"
   | "not_confirmed"
   | "unknown"
-export type ConfirmationState = "not_required" | "pending" | "confirmed" | "revoked"
+export type ConfirmationState =
+  "not_required" | "pending" | "confirmed" | "revoked"
 export type EvidenceState = "complete" | "withdrawn" | "none_attached"
 export type ContributionSource = "contribution" | "submission"
 
@@ -132,7 +146,8 @@ export type MyFindingView = {
   sentAt: string
   decidedAt?: string | null
   state: ContributionState
-  stateReason?: "archived" | "replaced_by_newer" | "reopened" | "replaced_by_own" | null
+  stateReason?:
+    "archived" | "replaced_by_newer" | "reopened" | "replaced_by_own" | null
   managerNote?: string | null
   detailRequestId?: string | null
   recognition: Recognition
@@ -180,14 +195,22 @@ export type KnowledgeSlotView = {
   } | null
   previousAnswer: SubmitAnswer | null
   requiresConfirmation: boolean
-  latestAttempt: { outcome: "unknown"; preset: UnknownPreset | null; at: string } | null
+  latestAttempt: {
+    outcome: "unknown"
+    preset: UnknownPreset | null
+    at: string
+  } | null
   /** `id` for managers and admins only; staff see the first name (D3). */
   assignee: { id?: string; firstName: string; isMe: boolean } | null
   mode: SlotMode
   othersPending: number
   myLatest: MyFindingView | null
   myDraft: { savedAt: string; draftRevision: number } | null
-  closedAssignment: { eventId: number; answeredBy: string | null; at: string } | null
+  closedAssignment: {
+    eventId: number
+    answeredBy: string | null
+    at: string
+  } | null
 }
 
 export type PendingFindingView = {
@@ -256,12 +279,20 @@ export type MyFindingsPage = {
   items: (MyFindingView | ClosedAssignmentView)[]
   /** Opaque; pass it back as `cursor` for the next page. */
   nextCursor: string | null
-  drafts: { checkId: string; venueId: string; savedAt: string; sendable: boolean }[]
+  drafts: {
+    checkId: string
+    venueId: string
+    savedAt: string
+    sendable: boolean
+  }[]
   /** Always empty while history is kept across venues. */
   hiddenEarlierVenues: never[]
 }
 
-export type MyPending = { awaitingConfirmation: number; unknownRecorded: number }
+export type MyPending = {
+  awaitingConfirmation: number
+  unknownRecorded: number
+}
 
 export type PilotPreviewRow = {
   questionKey: string
@@ -360,7 +391,10 @@ type SubmitArgs = {
 }
 
 export type KnowledgeRpcs = {
-  knowledge_working_list: { args: Record<string, never>; returns: WorkingListView }
+  knowledge_working_list: {
+    args: Record<string, never>
+    returns: WorkingListView
+  }
   knowledge_check: { args: { p_check_id: string }; returns: KnowledgeCheckView }
   knowledge_to_confirm: {
     args: { p_venue_id: string | null }
@@ -370,16 +404,27 @@ export type KnowledgeRpcs = {
     args: { p_cursor: string | null; p_limit: number }
     returns: MyFindingsPage
   }
-  knowledge_my_pending: { args: { p_period: string | null }; returns: MyPending | null }
-  knowledge_get_draft: { args: { p_check_id: string }; returns: DraftView | null }
-  knowledge_pilot_preview: { args: { p_venue_id: string }; returns: PilotPreviewRow[] }
+  knowledge_my_pending: {
+    args: { p_period: string | null }
+    returns: MyPending | null
+  }
+  knowledge_get_draft: {
+    args: { p_check_id: string }
+    returns: DraftView | null
+  }
+  knowledge_pilot_preview: {
+    args: { p_venue_id: string }
+    returns: PilotPreviewRow[]
+  }
   knowledge_reader_answers_v1: {
     args: { p_venue_id: string; p_keys: string[] }
     returns: KnowledgeReaderRow[]
   }
   knowledge_submit: {
     args: SubmitArgs
-    returns: Omit<SubmitKnowledgeResult, "findingRef"> & { contributionId: string }
+    returns: Omit<SubmitKnowledgeResult, "findingRef"> & {
+      contributionId: string
+    }
   }
   knowledge_decide: {
     args: {
@@ -404,7 +449,12 @@ export type KnowledgeRpcs = {
     returns: ResolveConflictResult
   }
   knowledge_set_working_list: {
-    args: { p_venue_id: string; p_keys: string[]; p_enabled: boolean; p_reason: string | null }
+    args: {
+      p_venue_id: string
+      p_keys: string[]
+      p_enabled: boolean
+      p_reason: string | null
+    }
     returns: number
   }
   knowledge_save_draft: {

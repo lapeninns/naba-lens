@@ -36,7 +36,11 @@ type RpcResult = {
 type RpcClient = { rpc(fn: string, args?: object): PromiseLike<RpcResult> }
 
 /** Calls an RPC that is not in the generated types yet. */
-export function call(who: TestIdentity | { client: unknown }, fn: string, args: object = {}) {
+export function call(
+  who: TestIdentity | { client: unknown },
+  fn: string,
+  args: object = {}
+) {
   return (who.client as RpcClient).rpc(fn, args)
 }
 
@@ -45,7 +49,12 @@ export async function json<T = Record<string, unknown>>(
   fn: string,
   args: object = {}
 ): Promise<T> {
-  return (await ok(call(who, fn, args) as PromiseLike<{ data: T | null; error: RpcResult["error"] }>)) as T
+  return (await ok(
+    call(who, fn, args) as PromiseLike<{
+      data: T | null
+      error: RpcResult["error"]
+    }>
+  )) as T
 }
 
 export async function refused(
@@ -99,10 +108,26 @@ export async function world(
   const a = await admin()
   const v = await createVenue(service, label)
   const [manager, staffManager, staffA, staffB] = await Promise.all([
-    createIdentity(service, { label: `${label}-mgr`, role: "manager", venueId: v.id }),
-    createIdentity(service, { label: `${label}-smgr`, role: "staff", venueId: v.id }),
-    createIdentity(service, { label: `${label}-a`, role: "staff", venueId: v.id }),
-    createIdentity(service, { label: `${label}-b`, role: "staff", venueId: v.id }),
+    createIdentity(service, {
+      label: `${label}-mgr`,
+      role: "manager",
+      venueId: v.id,
+    }),
+    createIdentity(service, {
+      label: `${label}-smgr`,
+      role: "staff",
+      venueId: v.id,
+    }),
+    createIdentity(service, {
+      label: `${label}-a`,
+      role: "staff",
+      venueId: v.id,
+    }),
+    createIdentity(service, {
+      label: `${label}-b`,
+      role: "staff",
+      venueId: v.id,
+    }),
   ])
   await grantManager(a, manager.id, v.id)
   await legacyStaffGrant(service, a, staffManager.id, v.id)
@@ -115,7 +140,10 @@ export async function world(
   await ok(a.client.rpc("amenity_enable_venue", { p_venue_id: v.id }))
   if (opts.extra?.length) {
     await ok(
-      a.client.rpc("amenity_add_checks", { p_venue_id: v.id, p_keys: opts.extra })
+      a.client.rpc("amenity_add_checks", {
+        p_venue_id: v.id,
+        p_keys: opts.extra,
+      })
     )
   }
   const { data, error } = await service
@@ -132,7 +160,9 @@ export async function world(
       p_reason: "TEST pilot",
     })
   }
-  const name = (await ok(service.from("venues").select("name").eq("id", v.id).single())) as {
+  const name = (await ok(
+    service.from("venues").select("name").eq("id", v.id).single()
+  )) as {
     name: string
   }
   return {
@@ -192,11 +222,14 @@ export async function photo(uploader: string, venue: string) {
   return (await insertAsset(service, { uploader, venue })).id
 }
 export async function video(uploader: string, venue: string) {
-  return (await insertAsset(service, { uploader, venue, mediaType: "video" })).id
+  return (await insertAsset(service, { uploader, venue, mediaType: "video" }))
+    .id
 }
 
 export const londonToday = () =>
-  new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London" }).format(new Date())
+  new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London" }).format(
+    new Date()
+  )
 
 export const wifiNotes = () => ({
   testSpot: "Back bar",
@@ -239,11 +272,24 @@ export function submitArgs(w: World, key: string, o: SubmitOpts = {}) {
         : answer === "no" || answer === "not_applicable"
           ? "TEST checked on site"
           : null,
-    p_unknown_preset: o.preset !== undefined ? o.preset : answer === "unknown" ? "no_one_sure" : null,
+    p_unknown_preset:
+      o.preset !== undefined
+        ? o.preset
+        : answer === "unknown"
+          ? "no_one_sure"
+          : null,
     p_tried_text:
-      o.tried !== undefined ? o.tried : answer === "unknown" ? "TEST asked the duty manager" : null,
+      o.tried !== undefined
+        ? o.tried
+        : answer === "unknown"
+          ? "TEST asked the duty manager"
+          : null,
     p_change_reason:
-      o.change !== undefined ? o.change : o.kind === "change_report" ? "TEST it changed" : null,
+      o.change !== undefined
+        ? o.change
+        : o.kind === "change_report"
+          ? "TEST it changed"
+          : null,
     p_responds_to: o.respondsTo ?? null,
     p_asset_ids: o.assets ?? [],
     p_internal_metadata: o.metadata ?? null,
@@ -262,12 +308,22 @@ export type SubmitResult = {
   recognition: { kind: string; period?: string }
 }
 
-export function submit(who: TestIdentity, w: World, key: string, o: SubmitOpts = {}) {
+export function submit(
+  who: TestIdentity,
+  w: World,
+  key: string,
+  o: SubmitOpts = {}
+) {
   return json<SubmitResult>(who, "knowledge_submit", submitArgs(w, key, o))
 }
 
 /** A Yes with the evidence the key's rule needs (and Wi-Fi notes and tick). */
-export async function yes(who: TestIdentity, w: World, key: string, o: SubmitOpts = {}) {
+export async function yes(
+  who: TestIdentity,
+  w: World,
+  key: string,
+  o: SubmitOpts = {}
+) {
   const assets: string[] = []
   if (key === "step_free_entrance") assets.push(await video(who.id, w.venue))
   else if (key === "guest_wifi") {

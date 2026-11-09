@@ -33,7 +33,9 @@ beforeAll(async () => {
 })
 
 function submissions(check: string) {
-  return count(`select count(*) from public.amenity_submissions where check_id = '${check}'`)
+  return count(
+    `select count(*) from public.amenity_submissions where check_id = '${check}'`
+  )
 }
 function checkEvents(check: string, kind: string) {
   return count(
@@ -44,12 +46,16 @@ function checkEvents(check: string, kind: string) {
 describe("who may contribute (T1)", () => {
   it("lets unassigned staff answer an open confirmation-free slot, which becomes current", async () => {
     const before = submissions(w.checks.onsite_parking!)
-    const r = await yes(w.staffA, w, "onsite_parking", { limitations: "TEST two bays" })
+    const r = await yes(w.staffA, w, "onsite_parking", {
+      limitations: "TEST two bays",
+    })
     expect(r.outcome).toBe("current")
     expect(r.submissionId).not.toBeNull()
     expect(submissions(w.checks.onsite_parking!)).toBe(before + 1)
     const row = JSON.parse(
-      psql(`select row_to_json(s) from public.amenity_submissions s where s.id = '${r.submissionId}'`)
+      psql(
+        `select row_to_json(s) from public.amenity_submissions s where s.id = '${r.submissionId}'`
+      )
     )
     expect(row).toMatchObject({
       submitted_by: w.staffA.id,
@@ -96,7 +102,11 @@ describe("who may contribute (T1)", () => {
 
   it("applies the role matrix (V01)", async () => {
     const anon = { client: anonClient() }
-    const { error: anonError } = await call(anon, "knowledge_submit", submitArgs(w, "guest_toilets", { answer: "no" }))
+    const { error: anonError } = await call(
+      anon,
+      "knowledge_submit",
+      submitArgs(w, "guest_toilets", { answer: "no" })
+    )
     expect(anonError).not.toBeNull()
     const gone = await createIdentity(service, {
       label: "kn-contrib-gone",
@@ -104,18 +114,40 @@ describe("who may contribute (T1)", () => {
       venueId: w.venue,
       active: false,
     })
-    await refused(gone, "knowledge_submit", submitArgs(w, "guest_toilets", { answer: "no" }), "not_active_user")
-    const { error: serviceError } = await call({ client: service }, "knowledge_submit", submitArgs(w, "guest_toilets", { answer: "no" }))
+    await refused(
+      gone,
+      "knowledge_submit",
+      submitArgs(w, "guest_toilets", { answer: "no" }),
+      "not_active_user"
+    )
+    const { error: serviceError } = await call(
+      { client: service },
+      "knowledge_submit",
+      submitArgs(w, "guest_toilets", { answer: "no" })
+    )
     expect(serviceError?.code).toBe("42501")
 
     const fresh = await world("kn-roles")
-    const viaManager = await submit(fresh.manager, fresh, "guest_toilets", { answer: "no" })
+    const viaManager = await submit(fresh.manager, fresh, "guest_toilets", {
+      answer: "no",
+    })
     expect(viaManager.outcome).toBe("current")
-    expect(slot(fresh.venue, "guest_toilets").source_basis).toBe("venue_manager")
-    const viaStaffManager = await submit(fresh.staffManager, fresh, "onsite_parking", { answer: "no" })
+    expect(slot(fresh.venue, "guest_toilets").source_basis).toBe(
+      "venue_manager"
+    )
+    const viaStaffManager = await submit(
+      fresh.staffManager,
+      fresh,
+      "onsite_parking",
+      { answer: "no" }
+    )
     expect(viaStaffManager.outcome).toBe("current")
-    expect(slot(fresh.venue, "onsite_parking").source_basis).toBe("venue_manager")
-    const viaAdmin = await submit(fresh.admin, fresh, "guest_wifi", { answer: "no" })
+    expect(slot(fresh.venue, "onsite_parking").source_basis).toBe(
+      "venue_manager"
+    )
+    const viaAdmin = await submit(fresh.admin, fresh, "guest_wifi", {
+      answer: "no",
+    })
     expect(viaAdmin.outcome).toBe("current")
     expect(slot(fresh.venue, "guest_wifi").source_basis).toBe("admin")
   })
@@ -127,7 +159,9 @@ describe("evidence and conditions (T2)", () => {
     await refused(
       v.staffA,
       "knowledge_submit",
-      submitArgs(v, "step_free_entrance", { assets: [await photo(v.staffA.id, v.venue)] }),
+      submitArgs(v, "step_free_entrance", {
+        assets: [await photo(v.staffA.id, v.venue)],
+      }),
       "evidence_rule_unmet"
     )
     await refused(
@@ -148,7 +182,10 @@ describe("evidence and conditions (T2)", () => {
       v.staffA,
       "knowledge_submit",
       submitArgs(v, "guest_wifi", {
-        assets: [await photo(v.staffA.id, v.venue), await video(v.staffA.id, v.venue)],
+        assets: [
+          await photo(v.staffA.id, v.venue),
+          await video(v.staffA.id, v.venue),
+        ],
         metadata: wifiNotes(),
         redaction: false,
       }),
@@ -156,14 +193,26 @@ describe("evidence and conditions (T2)", () => {
     )
     const r = await yes(v.staffA, v, "guest_wifi")
     expect(r.outcome).toBe("current")
-    expect(psql(`select redaction_confirmed from public.amenity_submissions where id = '${r.submissionId}'`)).toBe("t")
-    expect(slot(v.venue, "guest_wifi")).toMatchObject({ redaction_proof: "recorded", finding: null })
+    expect(
+      psql(
+        `select redaction_confirmed from public.amenity_submissions where id = '${r.submissionId}'`
+      )
+    ).toBe("t")
+    expect(slot(v.venue, "guest_wifi")).toMatchObject({
+      redaction_proof: "recorded",
+      finding: null,
+    })
   })
 
   it("reports a Wi-Fi answer saved before the tick was stored as not recorded", async () => {
     const v = await world("kn-wifi-old", { enable: false })
-    const assets = [await photo(v.staffManager.id, v.venue), await video(v.staffManager.id, v.venue)]
-    const revision = count(`select revision from public.venue_amenity_checks where id = '${v.checks.guest_wifi}'`)
+    const assets = [
+      await photo(v.staffManager.id, v.venue),
+      await video(v.staffManager.id, v.venue),
+    ]
+    const revision = count(
+      `select revision from public.venue_amenity_checks where id = '${v.checks.guest_wifi}'`
+    )
     const [row] = (await ok(
       v.staffManager.client.rpc("amenity_submit_finding", {
         p_check_id: v.checks.guest_wifi!,
@@ -221,39 +270,69 @@ describe("drafts (T3)", () => {
   it("saves, reads and discards an owner-only draft with a revision check", async () => {
     const v = await world("kn-drafts")
     const check = v.checks.guest_toilets!
-    const first = await json<{ draftRevision: number }>(v.staffA, "knowledge_save_draft", {
-      p_check_id: check,
-      p_draft_revision: null,
-      p_payload: { answer: "yes" },
-      p_asset_ids: [],
-      p_idempotency_key: randomUUID(),
-    })
+    const first = await json<{ draftRevision: number }>(
+      v.staffA,
+      "knowledge_save_draft",
+      {
+        p_check_id: check,
+        p_draft_revision: null,
+        p_payload: { answer: "yes" },
+        p_asset_ids: [],
+        p_idempotency_key: randomUUID(),
+      }
+    )
     expect(first.draftRevision).toBe(1)
     await refused(
       v.staffA,
       "knowledge_save_draft",
-      { p_check_id: check, p_draft_revision: null, p_payload: {}, p_asset_ids: [], p_idempotency_key: null },
+      {
+        p_check_id: check,
+        p_draft_revision: null,
+        p_payload: {},
+        p_asset_ids: [],
+        p_idempotency_key: null,
+      },
       "draft_conflict",
       "NLK05"
     )
-    const second = await json<{ draftRevision: number }>(v.staffA, "knowledge_save_draft", {
-      p_check_id: check,
-      p_draft_revision: 1,
-      p_payload: { answer: "no" },
-      p_asset_ids: [],
-      p_idempotency_key: null,
-    })
+    const second = await json<{ draftRevision: number }>(
+      v.staffA,
+      "knowledge_save_draft",
+      {
+        p_check_id: check,
+        p_draft_revision: 1,
+        p_payload: { answer: "no" },
+        p_asset_ids: [],
+        p_idempotency_key: null,
+      }
+    )
     expect(second.draftRevision).toBe(2)
-    const mine = await json<{ payload: { answer: string } }>(v.staffA, "knowledge_get_draft", { p_check_id: check })
+    const mine = await json<{ payload: { answer: string } }>(
+      v.staffA,
+      "knowledge_get_draft",
+      { p_check_id: check }
+    )
     expect(mine.payload.answer).toBe("no")
-    expect(await json(v.staffB, "knowledge_get_draft", { p_check_id: check })).toBeNull()
-    expect(await json(v.staffA, "knowledge_discard_draft", { p_check_id: check })).toBe(true)
-    expect(await json(v.staffA, "knowledge_get_draft", { p_check_id: check })).toBeNull()
+    expect(
+      await json(v.staffB, "knowledge_get_draft", { p_check_id: check })
+    ).toBeNull()
+    expect(
+      await json(v.staffA, "knowledge_discard_draft", { p_check_id: check })
+    ).toBe(true)
+    expect(
+      await json(v.staffA, "knowledge_get_draft", { p_check_id: check })
+    ).toBeNull()
   })
 
   it("refuses evidence that is not ready", async () => {
     const v = await world("kn-notready")
-    const pending = (await insertAsset(service, { uploader: v.staffA.id, venue: v.venue, ready: false })).id
+    const pending = (
+      await insertAsset(service, {
+        uploader: v.staffA.id,
+        venue: v.venue,
+        ready: false,
+      })
+    ).id
     const e = await refused(
       v.staffA,
       "knowledge_submit",
@@ -274,10 +353,25 @@ describe("drafts (T3)", () => {
       p_idempotency_key: key,
     })
     const args = submitArgs(v, "guest_toilets", { answer: "no", key })
-    const first = await json<{ contributionId: string; replayed: boolean }>(v.staffA, "knowledge_submit", args)
-    const again = await json<{ contributionId: string; replayed: boolean }>(v.staffA, "knowledge_submit", args)
-    expect(again).toMatchObject({ contributionId: first.contributionId, replayed: true })
-    expect(await json(v.staffA, "knowledge_get_draft", { p_check_id: v.checks.guest_toilets! })).toBeNull()
+    const first = await json<{ contributionId: string; replayed: boolean }>(
+      v.staffA,
+      "knowledge_submit",
+      args
+    )
+    const again = await json<{ contributionId: string; replayed: boolean }>(
+      v.staffA,
+      "knowledge_submit",
+      args
+    )
+    expect(again).toMatchObject({
+      contributionId: first.contributionId,
+      replayed: true,
+    })
+    expect(
+      await json(v.staffA, "knowledge_get_draft", {
+        p_check_id: v.checks.guest_toilets!,
+      })
+    ).toBeNull()
   })
 })
 
@@ -286,7 +380,14 @@ describe("idempotency and the slot revision (T4)", () => {
     const v = await world("kn-replay")
     const args = submitArgs(v, "guest_toilets", { answer: "no" })
     const results = []
-    for (let i = 0; i < 3; i++) results.push(await json<{ contributionId: string; replayed: boolean }>(v.staffA, "knowledge_submit", args))
+    for (let i = 0; i < 3; i++)
+      results.push(
+        await json<{ contributionId: string; replayed: boolean }>(
+          v.staffA,
+          "knowledge_submit",
+          args
+        )
+      )
     expect(results.map((r) => r.replayed)).toEqual([false, true, true])
     expect(new Set(results.map((r) => r.contributionId)).size).toBe(1)
     expect(submissions(v.checks.guest_toilets!)).toBe(1)
@@ -302,7 +403,12 @@ describe("idempotency and the slot revision (T4)", () => {
       { p_confirm_own: true },
       { p_slot_revision: args.p_slot_revision + 1 },
     ]) {
-      await refused(v.staffA, "knowledge_submit", { ...args, ...change }, "idempotency_key_reused")
+      await refused(
+        v.staffA,
+        "knowledge_submit",
+        { ...args, ...change },
+        "idempotency_key_reused"
+      )
     }
     await refused(v.staffB, "knowledge_submit", args, "idempotency_key_reused")
   })
@@ -310,9 +416,15 @@ describe("idempotency and the slot revision (T4)", () => {
   it("records one row for concurrent sends with one key", async () => {
     const v = await world("kn-concurrent")
     const args = submitArgs(v, "guest_toilets", { answer: "no" })
-    const results = await Promise.all([1, 2, 3].map(() => call(v.staffA, "knowledge_submit", args)))
+    const results = await Promise.all(
+      [1, 2, 3].map(() => call(v.staffA, "knowledge_submit", args))
+    )
     expect(results.every((r) => r.error === null)).toBe(true)
-    expect(count(`select count(*) from public.knowledge_contributions where idempotency_key = '${args.p_idempotency_key}'`)).toBe(1)
+    expect(
+      count(
+        `select count(*) from public.knowledge_contributions where idempotency_key = '${args.p_idempotency_key}'`
+      )
+    ).toBe(1)
     expect(submissions(v.checks.guest_toilets!)).toBe(1)
   })
 
@@ -320,10 +432,18 @@ describe("idempotency and the slot revision (T4)", () => {
     const v = await world("kn-stale")
     const stale = slotRevision(v.venue, "guest_toilets")
     // Someone else's Couldn't establish adds a knowledge event; the check revision is unchanged.
-    const checkRevision = count(`select revision from public.venue_amenity_checks where id = '${v.checks.guest_toilets}'`)
+    const checkRevision = count(
+      `select revision from public.venue_amenity_checks where id = '${v.checks.guest_toilets}'`
+    )
     await submit(v.staffB, v, "guest_toilets", { answer: "unknown" })
-    expect(count(`select revision from public.venue_amenity_checks where id = '${v.checks.guest_toilets}'`)).toBe(checkRevision)
-    const before = count(`select count(*) from public.knowledge_contributions where check_id = '${v.checks.guest_toilets}'`)
+    expect(
+      count(
+        `select revision from public.venue_amenity_checks where id = '${v.checks.guest_toilets}'`
+      )
+    ).toBe(checkRevision)
+    const before = count(
+      `select count(*) from public.knowledge_contributions where check_id = '${v.checks.guest_toilets}'`
+    )
     const e = await refused(
       v.staffA,
       "knowledge_submit",
@@ -331,18 +451,29 @@ describe("idempotency and the slot revision (T4)", () => {
       "amenity_conflict"
     )
     expect(JSON.parse(e.details!).revision).toBe(stale + 1)
-    expect(count(`select count(*) from public.knowledge_contributions where check_id = '${v.checks.guest_toilets}'`)).toBe(before)
+    expect(
+      count(
+        `select count(*) from public.knowledge_contributions where check_id = '${v.checks.guest_toilets}'`
+      )
+    ).toBe(before)
   })
 })
 
 describe("Couldn't establish (T7)", () => {
   it("records Unknown with no submission, no check event and no credit path", async () => {
     const v = await world("kn-unknown")
-    const r = await submit(v.staffA, v, "guest_toilets", { answer: "unknown", preset: "could_not_access" })
+    const r = await submit(v.staffA, v, "guest_toilets", {
+      answer: "unknown",
+      preset: "could_not_access",
+    })
     expect(r.outcome).toBe("recorded")
     expect(r.submissionId).toBeNull()
     expect(submissions(v.checks.guest_toilets!)).toBe(0)
-    expect(count(`select count(*) from public.amenity_check_events where check_id = '${v.checks.guest_toilets}' and kind <> 'added'`)).toBe(0)
+    expect(
+      count(
+        `select count(*) from public.amenity_check_events where check_id = '${v.checks.guest_toilets}' and kind <> 'added'`
+      )
+    ).toBe(0)
     expect(slot(v.venue, "guest_toilets")).toMatchObject({
       status: "unavailable",
       reason: "unknown",
@@ -367,7 +498,10 @@ describe("Couldn't establish (T7)", () => {
       p_idempotency_key: randomUUID(),
       p_note: null,
     })
-    expect(error).toMatchObject({ message: "knowledge_not_adoptable", code: "NLK07" })
+    expect(error).toMatchObject({
+      message: "knowledge_not_adoptable",
+      code: "NLK07",
+    })
     expect(() =>
       psql(`insert into public.amenity_submissions (check_id, venue_id, submitted_by, answer, template_version,
         evidence_rule, idempotency_key, result_revision)
@@ -386,15 +520,29 @@ describe("Couldn't establish (T7)", () => {
       p_idempotency_key: randomUUID(),
       p_note: null,
     })
-    expect(count(`select count(*) from public.knowledge_decisions where contribution_id = '${r.contributionId}' and decision = 'seen'`)).toBe(1)
+    expect(
+      count(
+        `select count(*) from public.knowledge_decisions where contribution_id = '${r.contributionId}' and decision = 'seen'`
+      )
+    ).toBe(1)
   })
 
   it("is not changed by a legacy fact marked unknown", async () => {
     const v = await world("kn-legacy")
-    psql(`insert into public.venue_amenity_facts (venue_id, amenity_key, presence) values ('${v.venue}', 'toilets', 'unknown')`)
-    expect(slot(v.venue, "guest_toilets")).toMatchObject({ reason: "unknown", detail: "not_checked" })
-    psql(`update public.venue_amenity_facts set presence = 'present', revision = revision + 1 where venue_id = '${v.venue}' and amenity_key = 'toilets'`)
-    expect(slot(v.venue, "guest_toilets")).toMatchObject({ reason: "unknown", detail: "not_checked" })
+    psql(
+      `insert into public.venue_amenity_facts (venue_id, amenity_key, presence) values ('${v.venue}', 'toilets', 'unknown')`
+    )
+    expect(slot(v.venue, "guest_toilets")).toMatchObject({
+      reason: "unknown",
+      detail: "not_checked",
+    })
+    psql(
+      `update public.venue_amenity_facts set presence = 'present', revision = revision + 1 where venue_id = '${v.venue}' and amenity_key = 'toilets'`
+    )
+    expect(slot(v.venue, "guest_toilets")).toMatchObject({
+      reason: "unknown",
+      detail: "not_checked",
+    })
   })
 })
 
@@ -402,10 +550,17 @@ describe("one undecided finding per person and no silent overwrite (§4.2, §9.3
   it("makes a staff finding a proposal when an answer is current, and replaces the person's own earlier one", async () => {
     const v = await world("kn-proposal")
     await submit(v.staffA, v, "guest_toilets", { answer: "no" })
-    const first = await submit(v.staffB, v, "guest_toilets", { kind: "change_report", answer: "yes", assets: [await photo(v.staffB.id, v.venue)] })
+    const first = await submit(v.staffB, v, "guest_toilets", {
+      kind: "change_report",
+      answer: "yes",
+      assets: [await photo(v.staffB.id, v.venue)],
+    })
     expect(first.outcome).toBe("awaiting_confirmation")
     expect(slot(v.venue, "guest_toilets").current_answer).toBe("no")
-    const second = await submit(v.staffB, v, "guest_toilets", { kind: "change_report", answer: "not_applicable" })
+    const second = await submit(v.staffB, v, "guest_toilets", {
+      kind: "change_report",
+      answer: "not_applicable",
+    })
     expect(second.replacedOwn).toBe(first.contributionId)
     expect(slot(v.venue, "guest_toilets").pending_count).toBe(1)
   })
@@ -417,12 +572,18 @@ describe("one undecided finding per person and no silent overwrite (§4.2, §9.3
       v.manager.client.rpc("amenity_assign_check", {
         p_check_id: check,
         p_assignee_id: v.staffA.id,
-        p_revision: count(`select revision from public.venue_amenity_checks where id = '${check}'`),
+        p_revision: count(
+          `select revision from public.venue_amenity_checks where id = '${check}'`
+        ),
       })
     )
     const r = await submit(v.staffB, v, "onsite_parking", { answer: "no" })
     expect(r.outcome).toBe("awaiting_confirmation")
-    expect(psql(`select assignee_user_id from public.venue_amenity_checks where id = '${check}'`)).toBe(v.staffA.id)
+    expect(
+      psql(
+        `select assignee_user_id from public.venue_amenity_checks where id = '${check}'`
+      )
+    ).toBe(v.staffA.id)
     expect(submissions(check)).toBe(0)
   })
 })
@@ -435,20 +596,37 @@ describe("assignee visibility (T12)", () => {
       v.manager.client.rpc("amenity_assign_check", {
         p_check_id: check,
         p_assignee_id: v.staffA.id,
-        p_revision: count(`select revision from public.venue_amenity_checks where id = '${check}'`),
+        p_revision: count(
+          `select revision from public.venue_amenity_checks where id = '${check}'`
+        ),
       })
     )
     await submit(v.manager, v, "guest_toilets", { answer: "no" })
-    const list = await json<{ items: { questionKey: string; closedAssignment: { eventId: number } | null }[] }>(
-      v.staffA,
-      "knowledge_working_list"
-    )
+    const list = await json<{
+      items: {
+        questionKey: string
+        closedAssignment: { eventId: number } | null
+      }[]
+    }>(v.staffA, "knowledge_working_list")
     const row = list.items.find((i) => i.questionKey === "guest_toilets")!
     expect(row.closedAssignment).not.toBeNull()
-    expect(await json(v.staffB, "knowledge_dismiss_outcome", { p_event_id: row.closedAssignment!.eventId })).toBe(false)
-    expect(await json(v.staffA, "knowledge_dismiss_outcome", { p_event_id: row.closedAssignment!.eventId })).toBe(true)
-    const after = await json<{ items: { questionKey: string; closedAssignment: unknown }[] }>(v.staffA, "knowledge_working_list")
-    expect(after.items.find((i) => i.questionKey === "guest_toilets")!.closedAssignment).toBeNull()
+    expect(
+      await json(v.staffB, "knowledge_dismiss_outcome", {
+        p_event_id: row.closedAssignment!.eventId,
+      })
+    ).toBe(false)
+    expect(
+      await json(v.staffA, "knowledge_dismiss_outcome", {
+        p_event_id: row.closedAssignment!.eventId,
+      })
+    ).toBe(true)
+    const after = await json<{
+      items: { questionKey: string; closedAssignment: unknown }[]
+    }>(v.staffA, "knowledge_working_list")
+    expect(
+      after.items.find((i) => i.questionKey === "guest_toilets")!
+        .closedAssignment
+    ).toBeNull()
   })
 })
 

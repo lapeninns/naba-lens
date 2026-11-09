@@ -54,7 +54,11 @@ export async function submitKnowledgeFinding(
   })
   if (error) return knowledgeRpcFailure(error, "knowledge submit")
   const { contributionId, ...rest } = data
-  return { ok: true, ...rest, findingRef: { type: "contribution", id: contributionId } }
+  return {
+    ok: true,
+    ...rest,
+    findingRef: { type: "contribution", id: contributionId },
+  }
 }
 
 async function decide(
@@ -104,13 +108,17 @@ export async function resolveConflict(
   const parsed = parseResolve(input)
   if (!parsed.ok) return parsed
   const p = parsed.value
-  const { data, error } = await knowledgeRpc(actor.db, "knowledge_resolve_conflict", {
-    p_check_id: p.checkId,
-    p_slot_revision: p.slotRevision,
-    p_idempotency_key: p.idempotencyKey,
-    p_choose: p.choose,
-    p_reason: p.reason,
-  })
+  const { data, error } = await knowledgeRpc(
+    actor.db,
+    "knowledge_resolve_conflict",
+    {
+      p_check_id: p.checkId,
+      p_slot_revision: p.slotRevision,
+      p_idempotency_key: p.idempotencyKey,
+      p_choose: p.choose,
+      p_reason: p.reason,
+    }
+  )
   if (error) return knowledgeRpcFailure(error, "knowledge resolve conflict")
   return { ok: true, ...data }
 }
@@ -140,9 +148,13 @@ export async function discardDraft(
 ): Promise<KnowledgeResult<{ discarded: boolean }>> {
   const checkId = parseCheckId(input)
   if (!checkId.ok) return checkId
-  const { data, error } = await knowledgeRpc(actor.db, "knowledge_discard_draft", {
-    p_check_id: checkId.value,
-  })
+  const { data, error } = await knowledgeRpc(
+    actor.db,
+    "knowledge_discard_draft",
+    {
+      p_check_id: checkId.value,
+    }
+  )
   if (error) return knowledgeRpcFailure(error, "knowledge discard draft")
   return { ok: true, discarded: data }
 }
@@ -152,11 +164,18 @@ export async function dismissClosedAssignment(
   actor: MediaActor,
   input: unknown
 ): Promise<KnowledgeResult<{ dismissed: boolean }>> {
-  if (!isObject(input) || !intInRange(input.eventId, 1, Number.MAX_SAFE_INTEGER))
+  if (
+    !isObject(input) ||
+    !intInRange(input.eventId, 1, Number.MAX_SAFE_INTEGER)
+  )
     return knowledgeInvalid({ eventId: "Reload the page." })
-  const { data, error } = await knowledgeRpc(actor.db, "knowledge_dismiss_outcome", {
-    p_event_id: input.eventId,
-  })
+  const { data, error } = await knowledgeRpc(
+    actor.db,
+    "knowledge_dismiss_outcome",
+    {
+      p_event_id: input.eventId,
+    }
+  )
   if (error) return knowledgeRpcFailure(error, "knowledge dismiss outcome")
   return { ok: true, dismissed: data }
 }
@@ -169,12 +188,16 @@ export async function setWorkingList(
   const parsed = parseWorkingList(input)
   if (!parsed.ok) return parsed
   const p = parsed.value
-  const { data, error } = await knowledgeRpc(actor.db, "knowledge_set_working_list", {
-    p_venue_id: p.venueId,
-    p_keys: p.keys,
-    p_enabled: p.enabled,
-    p_reason: p.reason,
-  })
+  const { data, error } = await knowledgeRpc(
+    actor.db,
+    "knowledge_set_working_list",
+    {
+      p_venue_id: p.venueId,
+      p_keys: p.keys,
+      p_enabled: p.enabled,
+      p_reason: p.reason,
+    }
+  )
   if (error) return knowledgeRpcFailure(error, "knowledge working list change")
   return { ok: true, changed: data }
 }

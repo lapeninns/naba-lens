@@ -19,9 +19,14 @@ describe("catalogue generator and knowledge definition changes", () => {
   it("leaves the version 1 block without knowledge calls", () => {
     const block = catalogueInsertSql(rows, 1)
     expect(block).not.toContain("knowledge")
-    const seed = readFileSync("supabase/migrations/20261107120000_amenity_catalogue.sql", "utf8")
+    const seed = readFileSync(
+      "supabase/migrations/20261107120000_amenity_catalogue.sql",
+      "utf8"
+    )
     const start = seed.indexOf(BEGIN_MARKER)
-    expect(seed.slice(start, seed.indexOf(END_MARKER, start) + END_MARKER.length)).toBe(block)
+    expect(
+      seed.slice(start, seed.indexOf(END_MARKER, start) + END_MARKER.length)
+    ).toBe(block)
   })
 
   it("notes a question version change for every key from version 2", () => {
@@ -32,6 +37,8 @@ describe("catalogue generator and knowledge definition changes", () => {
     )
     expect(upsertEnd).toBeGreaterThan(0)
     expect(call).toBeGreaterThan(upsertEnd)
-    expect(block).toContain("where c.catalogue_version = 2\norder by c.key;\n" + END_MARKER)
+    expect(block).toContain(
+      "where c.catalogue_version = 2\norder by c.key;\n" + END_MARKER
+    )
   })
 })

@@ -94,14 +94,23 @@ const BY_SQLSTATE: Record<string, string> = {
 
 const FIELD_ERRORS: Record<string, [field: string, message: string]> = {
   invalid_kind: ["kind", "Choose what you are sending."],
-  invalid_answer: ["answer", "Choose Yes, No, Not applicable or Couldn't establish."],
-  invalid_unknown_preset: ["unknownPreset", "Choose why it couldn't be established."],
+  invalid_answer: [
+    "answer",
+    "Choose Yes, No, Not applicable or Couldn't establish.",
+  ],
+  invalid_unknown_preset: [
+    "unknownPreset",
+    "Choose why it couldn't be established.",
+  ],
   tried_text_required: ["triedText", "Say what you tried."],
   invalid_tried_text: ["triedText", "Use up to 500 characters."],
   change_reason_required: ["changeReason", "Say what has changed."],
   invalid_change_reason: ["changeReason", "Use up to 500 characters."],
   invalid_note: ["note", "Use up to 500 characters."],
-  invalid_decision: ["decision", "This action isn't available here. Reload the page."],
+  invalid_decision: [
+    "decision",
+    "This action isn't available here. Reload the page.",
+  ],
   invalid_draft: ["payload", "This draft is too large to save."],
   invalid_cursor: ["cursor", "Reload the page."],
 }
@@ -135,7 +144,9 @@ export function knowledgeRpcFailure(
     return knowledgeFailure(
       mapped,
       text,
-      mapped === "draft_conflict" ? { draftRevision: draftRevisionOf(error) } : {}
+      mapped === "draft_conflict"
+        ? { draftRevision: draftRevisionOf(error) }
+        : {}
     )
   }
   if (message in FIELD_ERRORS) {
