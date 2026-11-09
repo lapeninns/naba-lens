@@ -71,7 +71,7 @@ export async function listMyFindings(
   const cursor = parseCursor(isObject(input) ? input.cursor : null)
   if (!cursor.ok) return cursor
   const { data, error } = await knowledgeRpc(actor.db, "knowledge_my_contributions", {
-    p_before: cursor.value,
+    p_cursor: cursor.value,
     p_limit: 20,
   })
   if (error) return knowledgeRpcFailure(error, "my findings")

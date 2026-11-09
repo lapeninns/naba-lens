@@ -11,6 +11,7 @@ import { amenityRpcFailure } from "@/lib/server/amenities/errors"
 import * as knowledge from "@/lib/server/knowledge"
 import { knowledgeRpcFailure } from "@/lib/server/knowledge/errors"
 import {
+  parseCursor,
   parseKnowledgeSubmit,
   parseResolve,
 } from "@/lib/server/knowledge/validate"
@@ -100,6 +101,13 @@ describe("NL-class refusals (T14c)", () => {
     expect(knowledgeRpcFailure({ code: "P0001", message: "tried_text_required" }, "t")).toMatchObject({
       code: "invalid_input",
       fieldErrors: { triedText: expect.any(String) },
+    })
+    expect(
+      knowledgeRpcFailure({ code: "23505", message: "duplicate key value violates unique constraint" }, "t")
+    ).toMatchObject({ code: "state_conflict", status: 409 })
+    expect(knowledgeRpcFailure({ code: "22023", message: "invalid_cursor" }, "t")).toMatchObject({
+      code: "invalid_input",
+      fieldErrors: { cursor: expect.any(String) },
     })
     silence()
     expect(knowledgeRpcFailure({ code: "XX000", message: "boom" }, "t").code).toBe("unavailable")
@@ -206,6 +214,18 @@ describe("knowledge services", () => {
         idempotencyKey: KEY,
       })
     ).toMatchObject({ ok: false, code: "self_confirmation_not_permitted", status: 403 })
+  })
+})
+
+describe("parseCursor", () => {
+  it("accepts only a previous page's nextCursor", () => {
+    expect(parseCursor(undefined)).toEqual({ ok: true, value: null })
+    const cursor = `2026-11-02T10:00:00.000000Z|c:${CONTRIBUTION}`
+    expect(parseCursor(cursor)).toEqual({ ok: true, value: cursor })
+    expect(parseCursor("2026-11-02T10:00:00.000000Z|e:0000000000000000042")).toMatchObject({ ok: true })
+    for (const bad of ["2026-11-02", "2026-11-02T10:00:00Z", `x|c:${CONTRIBUTION}`, 42]) {
+      expect(parseCursor(bad), String(bad)).toMatchObject({ ok: false, code: "invalid_input" })
+    }
   })
 })
 

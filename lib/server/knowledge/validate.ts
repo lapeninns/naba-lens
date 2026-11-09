@@ -312,10 +312,12 @@ export function parseWorkingList(input: unknown): Parsed<ParsedWorkingList> {
   return ok({ venueId: input.venueId, keys, enabled: input.enabled, reason })
 }
 
-/** A cursor from a previous page (an ISO instant), or none. */
+const CURSOR = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z\|[cse]:[0-9a-f-]{1,36}$/
+
+/** A previous page's `nextCursor` ("<UTC instant>|<key>"), or none. */
 export function parseCursor(v: unknown): Parsed<string | null> {
   if (v === undefined || v === null || v === "") return ok(null)
-  if (typeof v !== "string" || Number.isNaN(Date.parse(v)))
+  if (typeof v !== "string" || !CURSOR.test(v))
     return knowledgeInvalid({ cursor: "Reload the page." })
   return ok(v)
 }

@@ -79,6 +79,16 @@ async function units(w: World, month = currentMonth()) {
     out[name] = row.amenity_checks_completed
   }
   expect(rows.find((r) => r.staff_id === w.manager.id), "manager account").toBeUndefined()
+  // C20 for every submitter, participants or not: a scored submission always
+  // has a credit row to count it.
+  const scoredBy = psql(`select coalesce(string_agg(distinct s.submitted_by::text, ','), '')
+    from public.amenity_submissions s
+    where s.venue_id = '${w.venue}'
+      and (date_trunc('month', s.created_at at time zone 'Europe/London'))::date = '${month}'
+      and private.knowledge_submission_scored(s.id) ->> 'kind' = 'scored'`)
+  for (const id of scoredBy.split(",").filter(Boolean)) {
+    expect(rows.some((r) => r.staff_id === id), `C20 scored implies a credit row: ${id}`).toBe(true)
+  }
   return out
 }
 
@@ -252,12 +262,18 @@ describe("credit for knowledge outcomes (C1 to C23)", () => {
   it("moves credit to a direct capture by a granted staff account, not a manager account (C21, C22)", async () => {
     const w = await enrolled("kn-credit-c21")
     await yes(w.staffA, w, "onsite_parking")
-    expect((await submit(w.staffManager, w, "onsite_parking", { answer: "no" })).outcome).toBe("current")
+    expect(await submit(w.staffManager, w, "onsite_parking", { answer: "no" })).toMatchObject({
+      outcome: "current",
+      recognition: { kind: "scored" },
+    })
     expect(await units(w)).toEqual({ ...zero, SM: 1 })
 
     const v = await enrolled("kn-credit-c22")
     await yes(v.staffA, v, "onsite_parking")
-    expect((await submit(v.manager, v, "onsite_parking", { answer: "no" })).outcome).toBe("current")
+    expect(await submit(v.manager, v, "onsite_parking", { answer: "no" })).toMatchObject({
+      outcome: "current",
+      recognition: { kind: "none" },
+    })
     expect(await units(v)).toEqual(zero)
   })
 

@@ -181,7 +181,8 @@ export type KnowledgeSlotView = {
   previousAnswer: SubmitAnswer | null
   requiresConfirmation: boolean
   latestAttempt: { outcome: "unknown"; preset: UnknownPreset | null; at: string } | null
-  assignee: { id: string; firstName: string; isMe: boolean } | null
+  /** `id` for managers and admins only; staff see the first name (D3). */
+  assignee: { id?: string; firstName: string; isMe: boolean } | null
   mode: SlotMode
   othersPending: number
   myLatest: MyFindingView | null
@@ -253,6 +254,7 @@ export type DraftView = {
 
 export type MyFindingsPage = {
   items: (MyFindingView | ClosedAssignmentView)[]
+  /** Opaque; pass it back as `cursor` for the next page. */
   nextCursor: string | null
   drafts: { checkId: string; venueId: string; savedAt: string; sendable: boolean }[]
   /** Always empty while history is kept across venues. */
@@ -365,7 +367,7 @@ export type KnowledgeRpcs = {
     returns: { count: number; items: ToConfirmItem[] }
   }
   knowledge_my_contributions: {
-    args: { p_before: string | null; p_limit: number }
+    args: { p_cursor: string | null; p_limit: number }
     returns: MyFindingsPage
   }
   knowledge_my_pending: { args: { p_period: string | null }; returns: MyPending | null }
