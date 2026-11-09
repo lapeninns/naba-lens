@@ -270,3 +270,86 @@ describe("snapshot ETag", () => {
     expect(etagMatches(null, a)).toBe(false)
   })
 })
+
+describe("rows as knowledge_reader_answers_v1 returns them", () => {
+  // An unavailable row carries only its state, revision and version; every
+  // other column is null.
+  const unavailableRow = (reason: string, detail: string | null) => ({
+    question_key: "guest_toilets",
+    status: "unavailable",
+    reason,
+    detail,
+    revision: 4,
+    question_version: 1,
+    value: null,
+    finding: null,
+    limitations: null,
+    reason_text: null,
+    source_basis: null,
+    current_contribution_id: null,
+    current_submission_id: null,
+    contribution_kind: null,
+    confirmation_required: false,
+    confirmation_state: null,
+    confirmation_basis: null,
+    confirmation_self: null,
+    confirmation_saved_at: null,
+    evidence_photos: null,
+    evidence_videos: null,
+    redaction_proof: null,
+    saved_at: null,
+    observed_at: null,
+    next_check_due: null,
+    freshness_state: null,
+  })
+
+  it("reads an unavailable row with null columns", () => {
+    expect(
+      toAnswer(
+        parseResolverRow(unavailableRow("unknown", "not_checked"))!,
+        "internal"
+      )
+    ).toMatchObject({
+      status: "unavailable",
+      revision: 4,
+      unavailable: { reason: "unknown", detail: "not_checked" },
+    })
+  })
+
+  it("reads a bare not_enabled reason as unknown / not_enabled", () => {
+    for (const detail of [null, "not_enabled"]) {
+      expect(
+        toAnswer(
+          parseResolverRow(unavailableRow("not_enabled", detail))!,
+          "internal"
+        )?.unavailable
+      ).toEqual({ reason: "unknown", detail: "not_enabled" })
+    }
+    const odd = parseResolverRow(unavailableRow("not_enabled", "conflict"))
+    expect(odd === null || toAnswer(odd, "internal") === null).toBe(true)
+  })
+
+  it.each(["self", "rule"])(
+    "fails closed on a confirmation recorded with basis %s (not a role)",
+    (basis) => {
+      const parsed = parseResolverRow(
+        row({
+          question_key: "step_free_entrance",
+          confirmation_required: true,
+          confirmation_state: "confirmed",
+          confirmation_basis: basis,
+          confirmation_saved_at: "2026-11-19T09:40:00Z",
+        })
+      )
+      expect(parsed === null || toAnswer(parsed, "internal") === null).toBe(
+        true
+      )
+    }
+  )
+
+  it("reads a timestamptz with an offset", () => {
+    expect(
+      answer({ saved_at: "2026-11-18T14:02:11.123+00:00" })?.freshness?.savedAt
+    ).toBe("2026-11-18T14:02:11.123Z")
+  })
+})

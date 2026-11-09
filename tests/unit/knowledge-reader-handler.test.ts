@@ -11,10 +11,7 @@ import {
   type ReaderLogEntry,
 } from "@/app/api/knowledge/_reader/handler"
 import { ConsumerLimiter } from "@/app/api/knowledge/_reader/rate-limit"
-import {
-  notIntegratedSource,
-  type ReaderSource,
-} from "@/app/api/knowledge/_reader/source"
+import type { ReaderSource } from "@/app/api/knowledge/_reader/source"
 
 const VENUE = "0f8f6b2e-1111-4111-8111-111111111111"
 const OTHER_VENUE = "1a2b3c4d-2222-4222-8222-222222222222"
@@ -295,7 +292,7 @@ describe("answers handler", () => {
     }
     const res = await answers(
       get(answersPath()),
-      deps({ source: notIntegratedSource }).d
+      deps({ source: async () => ({ ok: false, error: "unavailable" }) }).d
     )
     expect(res.status).toBe(503)
     expect(res.headers.get("retry-after")).toBe("30")
