@@ -121,9 +121,16 @@ describe("one snapshot per read (T9b)", () => {
             'knowledge_reader_answers_v1', 'knowledge_working_list', 'knowledge_check',
             'knowledge_to_confirm', 'knowledge_my_contributions', 'knowledge_my_pending',
             'knowledge_get_draft', 'knowledge_pilot_preview'))`)
-    ) as Record<string, { language: string; volatility: string; definer: boolean }>
+    ) as Record<
+      string,
+      { language: string; volatility: string; definer: boolean }
+    >
     expect(Object.keys(rows)).toHaveLength(12)
-    expect(rows["private.knowledge_slot_state"]).toEqual({ language: "sql", volatility: "s", definer: true })
+    expect(rows["private.knowledge_slot_state"]).toEqual({
+      language: "sql",
+      volatility: "s",
+      definer: true,
+    })
     for (const [name, fn] of Object.entries(rows)) {
       expect(fn.volatility, name).toBe("s")
       expect(fn.definer, name).toBe(true)
