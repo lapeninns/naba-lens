@@ -11,6 +11,7 @@ import {
   type AssetsResult,
   type KnowledgeCapture,
 } from "@/components/nabalens/amenities/capture"
+import type { OpenAddOptions } from "@/components/nabalens/shell/add-context"
 import type {
   AmenityFailure,
   CheckSummary,
@@ -578,5 +579,179 @@ describe("knowledge capture: Save for later", () => {
     await user.click(within(dialog).getByRole("button", { name: "Discard" }))
     expect(discardDraft).toHaveBeenCalledTimes(1)
     expect((radio("No") as HTMLInputElement).checked).toBe(false)
+  })
+})
+
+describe("knowledge capture: evidence that isn't ready yet (D2, G4)", () => {
+  const NEW_PHOTO: SubmittableAsset = {
+    assetId: "7d000000-0000-4000-8000-00000000002b",
+    kind: "photo",
+    createdAt: "2026-11-06T10:00:00.000Z",
+    source: "own",
+    thumbUrl: null,
+  }
+
+  function withUpload(submit = vi.fn<Submit>(async () => sent())) {
+    let listed: SubmittableAsset[] = [PHOTO]
+    const loadAssets = vi.fn(async (): Promise<AssetsResult> => ({
+      ok: true,
+      assets: listed,
+    }))
+    const opened: { last: OpenAddOptions | undefined } = { last: undefined }
+    const openAdd = vi.fn((opts?: OpenAddOptions) => {
+      opened.last = opts
+    })
+    const onDone = vi.fn()
+    const onReload = vi.fn()
+    render(
+      <CaptureForm
+        check={check}
+        viewerId={VIEWER_ID}
+        initialAssets={{ ok: true, assets: [PHOTO] }}
+        loadAssets={loadAssets}
+        submit={vi.fn()}
+        upload={{
+          addQueue: { openAdd },
+          uploader: async () => {},
+          limits: {
+            maxBatchFiles: 10,
+            maxParallelUploads: 2,
+            maxPhotoBytes: 1,
+            maxVideoBytes: 1,
+          },
+        }}
+        onReload={onReload}
+        onDone={onDone}
+        signInHref="/login"
+        newKey={keys()}
+        knowledge={{
+          venueName: "The Old Crown",
+          slot: slot(),
+          role: "staff",
+          canSelfConfirm: false,
+          respondsTo: null,
+          submit,
+          saveDraft: null,
+          discardDraft: null,
+          serverDraft: null,
+        }}
+      />
+    )
+    return {
+      user: userEvent.setup(),
+      submit,
+      onDone,
+      opened,
+      pick: async () => {
+        await userEvent
+          .setup()
+          .click(
+            screen.getByRole("button", { name: /Choose from your photos/ })
+          )
+        act(() => opened.last?.onPicked?.([new File(["x"], "new.jpg")]))
+      },
+      ready: async () => {
+        listed = [PHOTO, NEW_PHOTO]
+        await act(async () => {
+          opened.last?.onReady?.([NEW_PHOTO.assetId])
+        })
+      },
+    }
+  }
+
+  it("sends nothing while a photo from here is saving, and offers to send without it when the answer doesn't need it", async () => {
+    const { user, submit, pick } = withUpload()
+    await user.click(radio("No"))
+    await user.type(
+      screen.getByRole("textbox", { name: /^Reason/ }),
+      "Residents only"
+    )
+    await pick()
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    expect(submit).not.toHaveBeenCalled()
+    expect(
+      screen.getByText(
+        "Your photo is still saving. Wait for it, or send without it."
+      )
+    ).toBeTruthy()
+    await user.click(screen.getByRole("button", { name: "Send without it" }))
+    expect(lastInput(submit)).toMatchObject({ answer: "no", assetIds: [] })
+  })
+
+  it("for a Yes that only the saving photo would meet, offers only to wait", async () => {
+    const { user, submit, pick } = withUpload()
+    await user.click(radio("Yes"))
+    await pick()
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    expect(submit).not.toHaveBeenCalled()
+    expect(
+      screen.getByText(
+        "Yes needs evidence: Photo. Wait for your photo to finish saving."
+      )
+    ).toBeTruthy()
+    expect(screen.queryByRole("button", { name: "Send without it" })).toBeNull()
+    expect(screen.getByRole("button", { name: "Wait for it" })).toBeTruthy()
+  })
+
+  it("waits read-only, then sends by itself with the same key once the photo is ready", async () => {
+    const { user, submit, pick, ready, onDone } = withUpload()
+    await user.click(radio("Yes"))
+    await pick()
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    await user.click(screen.getByRole("button", { name: "Wait for it" }))
+    expect(
+      screen.getByText(
+        "Waiting for your photo to finish saving. It sends by itself when ready."
+      )
+    ).toBeTruthy()
+    expect(radio("No").matches(":disabled")).toBe(true)
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Waiting for 1 photo…",
+        }) as HTMLButtonElement
+      ).disabled
+    ).toBe(true)
+    expect(submit).not.toHaveBeenCalled()
+    await ready()
+    expect(submit).toHaveBeenCalledTimes(1)
+    expect(lastInput(submit)).toMatchObject({
+      answer: "yes",
+      idempotencyKey: "key-1",
+      assetIds: [NEW_PHOTO.assetId],
+    })
+    expect(onDone).toHaveBeenCalled()
+  })
+
+  it("Stop waiting and edit cancels: nothing sends when the photo is ready", async () => {
+    const { user, submit, pick, ready } = withUpload()
+    await user.click(radio("Yes"))
+    await pick()
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    await user.click(screen.getByRole("button", { name: "Wait for it" }))
+    await user.click(
+      screen.getByRole("button", { name: "Stop waiting and edit" })
+    )
+    expect(radio("No").matches(":disabled")).toBe(false)
+    await ready()
+    expect(submit).not.toHaveBeenCalled()
+    expect(screen.getByRole("button", { name: "Submit finding" })).toBeTruthy()
+  })
+
+  it("says the question changed while the photo was saving when the send meets a newer revision", async () => {
+    const { user, pick, ready } = withUpload(
+      vi.fn<Submit>(async () => refused("revision_conflict"))
+    )
+    await user.click(radio("Yes"))
+    await pick()
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    await user.click(screen.getByRole("button", { name: "Wait for it" }))
+    await ready()
+    const alert = screen.getByRole("alert")
+    expect(alert.textContent).toContain(
+      "This question changed while your photo was saving. Nothing was sent."
+    )
+    expect(within(alert).getByRole("button", { name: "Reload" })).toBeTruthy()
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull()
   })
 })

@@ -434,6 +434,29 @@ export const KNOWLEDGE_FAILURE_COPY = {
   },
 } as const
 
+// ---- Evidence that isn't ready yet (§4.2, G4) ----------------------------------------
+
+const photos = (n: number) => (n === 1 ? "your photo" : `your ${n} photos`)
+
+export const UPLOAD_WAIT_COPY = {
+  pending: (n: number) =>
+    n === 1
+      ? "Your photo is still saving. Wait for it, or send without it."
+      : `Your ${n} photos are still saving. Wait for them, or send without them.`,
+  yesNeeds: (rule: string, n: number) =>
+    `Yes needs evidence: ${rule}. Wait for ${photos(n)} to finish saving.`,
+  waitFor: (n: number) => (n === 1 ? "Wait for it" : "Wait for them"),
+  sendWithout: (n: number) =>
+    n === 1 ? "Send without it" : "Send without them",
+  waiting: (n: number) =>
+    `Waiting for ${photos(n)} to finish saving. It sends by itself when ready.`,
+  primary: (n: number) => `Waiting for ${n} ${n === 1 ? "photo" : "photos"}…`,
+  stop: "Stop waiting and edit",
+  offline:
+    "You're offline. Your photo will finish saving when you're back online; then you can send.",
+  failed: "This photo couldn't be processed. Add it again or choose another.",
+} as const
+
 // ---- Capture context (§4.2) ----------------------------------------------------------
 
 /** The plain notice above the capture form: venue line, then one situation line. */

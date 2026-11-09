@@ -61,7 +61,7 @@ import {
 type PickOwner = {
   onReady: ((assetIds: string[]) => boolean | void) | null
   /** Told once files are actually picked. */
-  onPicked: (() => void) | null
+  onPicked: ((files?: File[]) => void) | null
   preset: AddLabelPreset | null
   /** Fixed at reservation; "amenity" keeps the files out of the community. */
   purpose: UploadPurpose
@@ -219,7 +219,7 @@ export function AddHost({
     if (!owner || files.length === 0) return
     if (owner.onReady || owner.preset || owner.purpose !== "general")
       for (const file of files) fileOwners.current.set(file, owner)
-    owner.onPicked?.()
+    owner.onPicked?.(files)
   }, [])
 
   /** Every pick (the dialog's own, or files handed to it). */
@@ -336,11 +336,13 @@ export function AddHost({
       labelled,
       discarded,
       busy: waiting > 0 ? { count: waiting, words: busyWords } : null,
+      active: busy.active,
       refreshSignal,
     }),
     [
       blocked,
       waiting,
+      busy.active,
       busyWords,
       refreshSignal,
       onReady,
@@ -745,3 +747,4 @@ function assetOf(
     labels,
   }
 }
+

@@ -38,8 +38,11 @@ export type OpenAddOptions = {
    * earlier files in the queue, and later picks, never get it.
    */
   preset?: AddLabelPreset | null
-  /** Called once files are actually picked (not when the picker is cancelled). */
-  onPicked?: () => void
+  /**
+   * Called once files are actually picked (not when the picker is cancelled),
+   * with those files.
+   */
+  onPicked?: (files?: File[]) => void
   /**
    * Hears only the files picked from this call, each one as soon as THAT file
    * is ready (one asset ID per call, many calls per pick), so a task screen
@@ -75,6 +78,8 @@ type AddContextValue = {
   refreshSignal?: number
   /** Files in the Add queue that are not finished, in the queue's words. */
   busy?: { count: number; words: string } | null
+  /** Uploads still transferring or processing (not failed or stopped). */
+  active?: number
   /**
    * Labels were saved on these photos elsewhere (Me's Fix labels): Add's
    * rows for them read "Saved" with the labels the photo has now.
@@ -138,6 +143,14 @@ export function useAddDiscarded(): (assetIds: string[]) => void {
 }
 
 function noop() {}
+
+/**
+ * How many uploads of the one Add queue are still in progress, or null
+ * outside the staff layout.
+ */
+export function useAddActive(): number | null {
+  return React.useContext(AddContext)?.active ?? null
+}
 
 export function useAddRefreshSignal(): number {
   return React.useContext(AddContext)?.refreshSignal ?? 0
@@ -212,3 +225,4 @@ export function AddTrigger({ kind }: { kind: "tab" | "bar" }) {
     </Link>
   )
 }
+
