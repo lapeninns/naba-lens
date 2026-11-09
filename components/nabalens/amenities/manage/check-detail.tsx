@@ -35,7 +35,7 @@ import {
   type DecisionHandlers,
 } from "@/components/nabalens/knowledge/decisions"
 import { answerInUseLines } from "@/components/nabalens/knowledge/copy"
-import type { KnowledgeCheckView } from "@/lib/knowledge-client/contract"
+import type { QuestionView } from "@/lib/knowledge-client/contract"
 
 import { EventHistory, SubmissionHistory, peopleIndex } from "./check-history"
 import { ProgressChip, answeredText } from "./check-row"
@@ -96,7 +96,7 @@ export function AmenityCheckDetail({
   canUpload?: boolean
   /** A working-list question: its decisions and the venue's answer. */
   knowledge?: {
-    view: Extract<KnowledgeCheckView, { inScope: true }>
+    view: Extract<QuestionView, { inScope: true }>
     handlers: DecisionHandlers
   } | null
 }) {

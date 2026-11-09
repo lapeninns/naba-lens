@@ -23,7 +23,7 @@ import type {
   KnowledgeResult,
   ServerDraft,
   SubmitKnowledgeInput,
-  SubmitKnowledgeResult,
+  SubmittedFinding,
   WorkingSlot,
 } from "@/lib/knowledge-client/contract"
 
@@ -105,8 +105,8 @@ function slot(over: Partial<WorkingSlot> = {}): WorkingSlot {
 }
 
 const sent = (
-  over: Partial<SubmitKnowledgeResult> = {}
-): KnowledgeResult<SubmitKnowledgeResult> => ({
+  over: Partial<SubmittedFinding> = {}
+): KnowledgeResult<SubmittedFinding> => ({
   ok: true,
   findingRef: { type: "contribution", id: "f1" },
   slotRevision: 8,
@@ -131,7 +131,7 @@ function keys() {
 
 type Submit = (
   input: SubmitKnowledgeInput
-) => Promise<KnowledgeResult<SubmitKnowledgeResult>>
+) => Promise<KnowledgeResult<SubmittedFinding>>
 type SaveDraft = NonNullable<KnowledgeCapture["saveDraft"]>
 type DiscardDraft = NonNullable<KnowledgeCapture["discardDraft"]>
 
@@ -754,4 +754,34 @@ describe("knowledge capture: evidence that isn't ready yet (D2, G4)", () => {
     expect(within(alert).getByRole("button", { name: "Reload" })).toBeTruthy()
     expect(screen.queryByRole("button", { name: "Try again" })).toBeNull()
   })
+})
+
+describe("knowledge capture: credit lines only when the server says scored", () => {
+  const stepFree = slot({
+    key: "step_free_entrance",
+    requiresConfirmation: true,
+  })
+
+  it.each([{ kind: "none" as const }, { kind: "pending" as const }])(
+    "a manager's direct capture with recognition %o shows no counted line",
+    async (recognition) => {
+      const submit = vi.fn<Submit>(async () =>
+        sent({ outcome: "current", recognition })
+      )
+      const { user } = setup({
+        submit,
+        role: "manager",
+        canSelfConfirm: true,
+        knowledgeSlot: stepFree,
+      })
+      await user.click(radio("Yes"))
+      await user.click(photoBox())
+      await user.click(radio("I confirm it now"))
+      await user.click(
+        screen.getByRole("button", { name: "Submit and confirm" })
+      )
+      expect(status()).toContain("It's now the venue's answer.")
+      expect(status()).not.toMatch(/Counted in/)
+    }
+  )
 })

@@ -1,12 +1,10 @@
-// The knowledge contract as the staff and manager screens use it: the WS1
-// server operations S1-S14 (docs/knowledge/b01-design.md §13), their DTOs,
-// inputs, results and error codes. Type-only plus plain constants, so client
-// components can import it. Field names follow the server design; adapters in
-// `lib/knowledge-client/services.ts` map the server layer onto these types.
+// The knowledge screens' view models. The shared values, finding refs,
+// recognition, outcomes, decisions and error codes are the knowledge server's
+// (lib/knowledge/contract.ts, the source of truth) and are re-exported here;
+// the screen shapes below are what lib/knowledge-client/adapt.ts makes of the
+// server's DTOs, so screens read one stable shape.
 
 import type {
-  AmenityErrorCode,
-  AmenityFailure,
   CheckProgress,
   EvidenceItem,
   EvidenceRule,
@@ -15,34 +13,39 @@ import type {
   SubmitAnswer,
   WifiMetadata,
 } from "@/lib/amenities/contract"
+import type {
+  ConfirmationState,
+  ContributionKind,
+  Decision,
+  FindingRef,
+  KnowledgeAnswer,
+  KnowledgeErrorCode,
+  Recognition,
+  SlotReason,
+  SubmitOutcome,
+  UnknownPreset,
+} from "@/lib/knowledge/contract"
 
-// ---- Values -----------------------------------------------------------------
+export {
+  CONTRIBUTION_KINDS as FINDING_KINDS,
+  KNOWLEDGE_ANSWERS,
+  UNKNOWN_PRESETS,
+} from "@/lib/knowledge/contract"
+export type {
+  ConfirmationState,
+  FindingRef,
+  KnowledgeAnswer,
+  KnowledgeErrorCode,
+  KnowledgeFailure,
+  KnowledgeResult,
+  MyPending,
+  Recognition,
+  SlotReason,
+  UnknownPreset,
+} from "@/lib/knowledge/contract"
 
-/** What a finding may record. `unknown` is "Couldn't establish": never the answer. */
-export const KNOWLEDGE_ANSWERS = [
-  "yes",
-  "no",
-  "not_applicable",
-  "unknown",
-] as const
-export type KnowledgeAnswer = (typeof KNOWLEDGE_ANSWERS)[number]
-
-export const UNKNOWN_PRESETS = [
-  "no_one_sure",
-  "could_not_access",
-  "needs_access",
-  "other",
-] as const
-export type UnknownPreset = (typeof UNKNOWN_PRESETS)[number]
-
-export const FINDING_KINDS = ["finding", "change_report", "detail"] as const
-export type FindingKind = (typeof FINDING_KINDS)[number]
-
-/**
- * A finding: a contribution sent through the knowledge path, or (only for
- * answers recorded before B01) an amenity submission.
- */
-export type FindingRef = { type: "contribution" | "submission"; id: string }
+export type FindingKind = ContributionKind
+export type KnowledgeOutcome = SubmitOutcome
 
 /** Stable string key for a finding (React keys, URL fragments). */
 export function findingKey(ref: FindingRef): string {
@@ -54,9 +57,6 @@ export function sameFinding(a: FindingRef, b: FindingRef): boolean {
 }
 
 // ---- The venue's answer (resolver, state model §4.5) ------------------------
-
-export type SlotReason =
-  "unknown" | "withdrawn" | "disputed" | "stale" | "not_confirmed"
 
 export type SlotDetail =
   | "not_enabled"
@@ -71,9 +71,6 @@ export type SlotDetail =
   | "declined"
   | "unable_to_establish"
   | "not_checked"
-
-export type ConfirmationState =
-  "not_required" | "pending" | "confirmed" | "revoked"
 
 export type AnswerInUse = {
   /** `available` is the only status a reader may present as an answer. */
@@ -99,12 +96,6 @@ export type WorkingMode = "answer" | "add" | "change" | "recheck" | "none"
 
 // ---- Findings and recognition -----------------------------------------------
 
-export type Recognition =
-  | { kind: "scored"; period: string }
-  | { kind: "not_scored" }
-  | { kind: "pending" }
-  | { kind: "none" }
-
 export const FINDING_STATES = [
   "saved",
   "submitted",
@@ -119,6 +110,7 @@ export type FindingState = (typeof FINDING_STATES)[number]
 
 /** Why a finding is no longer used. */
 export type NoLongerUsedReason =
+  | "archived"
   | "replaced_by_newer_answer"
   | "reopened"
   | "evidence_deleted"
@@ -137,8 +129,10 @@ export type FindingSummary = {
   noLongerUsed: NoLongerUsedReason | null
   /** Reason given by the manager (not confirmed, reopened). */
   stateReason: string | null
-  /** A request for more detail. */
+  /** A request for more detail, or why it wasn't confirmed. */
   managerNote: string | null
+  /** The open request for more detail this finding answers. */
+  detailRequestId: string | null
   unknownPreset: UnknownPreset | null
   /** Closed assignments: who answered. */
   answeredBy: string | null
@@ -146,6 +140,8 @@ export type FindingSummary = {
   savedAt: Instant | null
   decidedAt: Instant | null
   recognition: Recognition
+  /** Drafts only: false once the author can't send it (moved venue). */
+  sendable?: boolean
 }
 
 // ---- S1 working list ----------------------------------------------------------
@@ -160,7 +156,7 @@ export type WorkingSlot = {
   slotRevision: number
   answerInUse: AnswerInUse
   previousAnswer: SubmitAnswer | null
-  latestAttempt: { preset: UnknownPreset; at: Instant } | null
+  latestAttempt: { preset: UnknownPreset | null; at: Instant } | null
   /** Staff see only the assignee's first name. */
   assignee: { firstName: string | null; isMe: boolean } | null
   mode: WorkingMode
@@ -170,13 +166,13 @@ export type WorkingSlot = {
   /** Other people's undecided findings: a count, never names. */
   othersPending: number
   closedAssignment: {
-    eventId: string
+    eventId: number
     answeredBy: string | null
     at: Instant
   } | null
 }
 
-export type WorkingListView = {
+export type WorkingList = {
   venue: { id: string; name: string }
   slots: WorkingSlot[]
 }
@@ -211,7 +207,12 @@ export type PendingFinding = {
   /** Its answer differs from the answer in use. */
   disputes: boolean
   /** A manager asked for more detail and the reply hasn't come yet. */
-  detailRequest: { decisionId: string; note: string; at: Instant } | null
+  /** The manager asked for more detail; the request's note and id when known. */
+  detailRequest: {
+    decisionId: string | null
+    note: string | null
+    at: Instant | null
+  } | null
   /** Evidence removed: photos deleted from the answer in use. */
   removedEvidence: number
 }
@@ -231,7 +232,7 @@ export type KnowledgeEventLine = {
   text: string
 }
 
-export type KnowledgeCheckView =
+export type QuestionView =
   | { inScope: false }
   | {
       inScope: true
@@ -268,14 +269,12 @@ export type SubmitKnowledgeInput = {
   confirmOwn?: boolean
 }
 
-export type KnowledgeOutcome = "current" | "awaiting_confirmation" | "recorded"
-
-export type SubmitKnowledgeResult = {
+export type SubmittedFinding = {
   findingRef: FindingRef
   slotRevision: number
   replayed: boolean
   outcome: KnowledgeOutcome
-  replacedOwn: { findingRef: FindingRef; sentAt: Instant } | null
+  replacedOwn: { findingRef: FindingRef; sentAt: Instant | null } | null
   recognition: Recognition
 }
 
@@ -306,6 +305,8 @@ export type ServerDraft = {
   payload: DraftPayload
   assetIds: string[]
   idempotencyKey: string
+  /** False once the author can't send it (moved venue). */
+  sendable?: boolean
 }
 
 export type SaveDraftInput = {
@@ -319,20 +320,20 @@ export type SaveDraftInput = {
 
 // ---- S5 history, S6 to confirm, S14 pending --------------------------------------
 
-export type MyFindingsPage = {
+export type FindingsPage = {
   items: FindingSummary[]
   nextCursor: string | null
   /** Empty under the history-kept default. */
   hiddenEarlierVenues: { name: string }[]
 }
 
-export type ToConfirmItem = {
+export type ToConfirmRow = {
   checkId: string
   question: string
   kind: PendingKind
   sender: PersonRef | null
-  sentAt: Instant
-  answer: KnowledgeAnswer
+  sentAt: Instant | null
+  answer: KnowledgeAnswer | null
   /** More than one undecided finding disagrees. */
   conflict: boolean
   /** It disputes the answer in use (readers are told it's being checked). */
@@ -340,20 +341,14 @@ export type ToConfirmItem = {
   slotRevision: number
 }
 
-export type ToConfirmView = { items: ToConfirmItem[]; count: number }
-
-export type MyPending = {
-  awaitingConfirmation: number
-  unknownRecorded: number
-}
+export type ToConfirmList = { items: ToConfirmRow[]; count: number }
 
 // ---- S7-S11 decisions -------------------------------------------------------------
 
-export type DecisionKind =
-  "confirm" | "reaffirm" | "request_detail" | "decline" | "seen"
+export type DecisionKind = Exclude<Decision, "revoke">
 
 export type DecideInput = {
-  target: FindingRef
+  findingRef: FindingRef
   decision: DecisionKind
   slotRevision: number
   idempotencyKey: string
@@ -376,22 +371,6 @@ export type DecisionResult = {
 }
 
 // ---- Errors -----------------------------------------------------------------------
-
-export const KNOWLEDGE_ONLY_ERRORS = [
-  "knowledge_path_required",
-  "knowledge_slot_out_of_scope",
-  "already_decided",
-  "self_confirmation_not_permitted",
-  "draft_conflict",
-] as const
-export type KnowledgeOnlyErrorCode = (typeof KNOWLEDGE_ONLY_ERRORS)[number]
-export type KnowledgeErrorCode = AmenityErrorCode | KnowledgeOnlyErrorCode
-
-export type KnowledgeFailure = Omit<AmenityFailure, "code"> & {
-  code: KnowledgeErrorCode
-}
-
-export type KnowledgeResult<T> = ({ ok: true } & T) | KnowledgeFailure
 
 /**
  * Only `unavailable` may be retried with the same request. Every knowledge

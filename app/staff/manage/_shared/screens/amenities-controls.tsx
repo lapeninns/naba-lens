@@ -26,7 +26,7 @@ import type {
   CheckDetail,
   VenueAmenitiesView,
 } from "@/lib/amenities/contract"
-import type { KnowledgeCheckView } from "@/lib/knowledge-client/contract"
+import type { QuestionView } from "@/lib/knowledge-client/contract"
 
 export function AmenitiesOverviewControl({
   view,
@@ -61,7 +61,7 @@ export function AmenityCheckControl({
   detail: CheckDetail
   basePath: string
   canUpload?: boolean
-  knowledge?: Extract<KnowledgeCheckView, { inScope: true }> | null
+  knowledge?: Extract<QuestionView, { inScope: true }> | null
 }) {
   return (
     <AmenityCheckDetail

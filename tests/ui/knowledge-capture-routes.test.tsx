@@ -76,10 +76,7 @@ import ManagerCapturePage from "@/app/manager/amenities/[checkId]/capture/page"
 import ManageCapturePage from "@/app/staff/manage/amenities/[checkId]/capture/page"
 import StaffCapturePage from "@/app/staff/tasks/amenities/[checkId]/page"
 import type { CheckDetail } from "@/lib/amenities/contract"
-import type {
-  KnowledgeCheckView,
-  WorkingSlot,
-} from "@/lib/knowledge-client/contract"
+import type { QuestionView, WorkingSlot } from "@/lib/knowledge-client/contract"
 
 import { DARTS, MANAGER, VENUE, detail } from "./amenities-manage-fixtures"
 
@@ -139,7 +136,7 @@ function slot(over: Partial<WorkingSlot> = {}): WorkingSlot {
   }
 }
 
-function inScope(canSelfConfirm = true): KnowledgeCheckView {
+function inScope(canSelfConfirm = true): QuestionView {
   return {
     inScope: true,
     slot: slot(),
@@ -209,7 +206,7 @@ describe("capture routes on a working-list question (G2)", () => {
       await show(pages[name]())
       expect(knowledge.getKnowledgeCheck).toHaveBeenCalledWith(
         expect.anything(),
-        { checkId: DARTS.id }
+        { checkId: DARTS.id, venueName: expect.any(String) }
       )
       expect(
         screen.getByRole("radio", { name: "Couldn't establish" })
@@ -262,6 +259,15 @@ describe("capture routes on a working-list question (G2)", () => {
     await show(pages.staff())
     expect(screen.getByRole("button", { name: "Submit finding" })).toBeTruthy()
     expect(screen.getByRole("button", { name: "Save for later" })).toBeTruthy()
+  })
+
+  it("falls back to the legacy form when the knowledge read throws", async () => {
+    knowledge.getKnowledgeCheck.mockRejectedValue(new Error("network"))
+    await show(pages.staff())
+    expect(
+      screen.queryByRole("radio", { name: "Couldn't establish" })
+    ).toBeNull()
+    expect(screen.getByRole("radio", { name: "Not applicable" })).toBeTruthy()
   })
 
   it("falls back to the legacy form when the knowledge read fails", async () => {

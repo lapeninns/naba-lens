@@ -18,7 +18,7 @@ import {
 } from "@/components/nabalens/knowledge/decisions"
 import type {
   AnswerInUse,
-  KnowledgeCheckView,
+  QuestionView,
   PendingFinding,
 } from "@/lib/knowledge-client/contract"
 
@@ -82,9 +82,9 @@ function view(
   pending: PendingFinding[],
   answer: AnswerInUse = NONE,
   permissions: Partial<
-    Extract<KnowledgeCheckView, { inScope: true }>["permissions"]
+    Extract<QuestionView, { inScope: true }>["permissions"]
   > = {}
-): Extract<KnowledgeCheckView, { inScope: true }> {
+): Extract<QuestionView, { inScope: true }> {
   return {
     inScope: true,
     venue: { id: "v1", name: "The Old Crown" },
@@ -129,7 +129,7 @@ const ok = {
 }
 
 function setup(
-  v: Extract<KnowledgeCheckView, { inScope: true }>,
+  v: Extract<QuestionView, { inScope: true }>,
   h: Partial<DecisionHandlers> = {}
 ) {
   const handlers = {
@@ -165,7 +165,7 @@ describe("To confirm: one finding", () => {
     await user.click(within(c).getByRole("button", { name: "Confirm" }))
     expect(handlers.decide).toHaveBeenCalledWith(
       expect.objectContaining({
-        target: f.findingRef,
+        findingRef: f.findingRef,
         decision: "confirm",
         slotRevision: 21,
         idempotencyKey: expect.any(String),
@@ -297,7 +297,7 @@ describe("To confirm: Couldn't establish (rev 5 §6.2)", () => {
     ).toBeTruthy()
     await user.click(within(c).getByRole("button", { name: "Mark as seen" }))
     expect(handlers.decide).toHaveBeenCalledWith(
-      expect.objectContaining({ target: f.findingRef, decision: "seen" })
+      expect.objectContaining({ findingRef: f.findingRef, decision: "seen" })
     )
   })
 
@@ -466,7 +466,7 @@ describe("To confirm: answers in use that need a decision", () => {
     await user.click(within(c).getByRole("button", { name: "Confirm" }))
     expect(handlers.decide).toHaveBeenCalledWith(
       expect.objectContaining({
-        target: { type: "submission", id: "sub1" },
+        findingRef: { type: "submission", id: "sub1" },
         decision: "confirm",
       })
     )

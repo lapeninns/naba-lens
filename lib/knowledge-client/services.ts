@@ -1,41 +1,54 @@
 import "server-only"
 
+import * as server from "@/lib/server/knowledge"
 import type { MediaActor } from "@/lib/server/media/types"
 
+import {
+  adaptCheck,
+  adaptDecision,
+  adaptDraft,
+  adaptFindingsPage,
+  adaptSubmitted,
+  adaptToConfirm,
+  adaptWorkingList,
+} from "./adapt"
 import type {
   DecideInput,
   DecisionResult,
-  KnowledgeCheckView,
+  FindingsPage,
   KnowledgeFailure,
   KnowledgeResult,
-  MyFindingsPage,
   MyPending,
+  QuestionView,
   ResolveConflictInput,
   SaveDraftInput,
   ServerDraft,
   SubmitKnowledgeInput,
-  SubmitKnowledgeResult,
-  ToConfirmView,
-  WorkingListView,
+  SubmittedFinding,
+  ToConfirmList,
+  WorkingList,
 } from "./contract"
 
 /**
- * The server operations the knowledge screens call (WS1 S1-S14), each with
- * the authorised actor and untrusted input, like the amenity services.
+ * The server operations the knowledge screens call (S1-S14), each with the
+ * authorised actor and untrusted input, answering in the screens' view models.
+ * Unit tests mock this seam.
  */
 export type KnowledgeServices = {
+  /** Null when the caller has no current venue. */
   getWorkingList(
     actor: MediaActor,
     input: unknown
-  ): Promise<KnowledgeResult<{ view: WorkingListView }>>
+  ): Promise<KnowledgeResult<{ view: WorkingList | null }>>
+  /** `input`: `{ checkId, venueName }`; the venue name is the page's. */
   getKnowledgeCheck(
     actor: MediaActor,
-    input: unknown
-  ): Promise<KnowledgeResult<{ view: KnowledgeCheckView }>>
+    input: { checkId: string; venueName: string }
+  ): Promise<KnowledgeResult<{ view: QuestionView }>>
   submitKnowledgeFinding(
     actor: MediaActor,
     input: SubmitKnowledgeInput | unknown
-  ): Promise<KnowledgeResult<SubmitKnowledgeResult>>
+  ): Promise<KnowledgeResult<SubmittedFinding>>
   saveDraft(
     actor: MediaActor,
     input: SaveDraftInput | unknown
@@ -51,11 +64,11 @@ export type KnowledgeServices = {
   listMyFindings(
     actor: MediaActor,
     input: unknown
-  ): Promise<KnowledgeResult<{ page: MyFindingsPage }>>
+  ): Promise<KnowledgeResult<{ page: FindingsPage }>>
   listToConfirm(
     actor: MediaActor,
     input: unknown
-  ): Promise<KnowledgeResult<{ view: ToConfirmView }>>
+  ): Promise<KnowledgeResult<{ view: ToConfirmList }>>
   decide(
     actor: MediaActor,
     input: DecideInput | unknown
@@ -74,37 +87,122 @@ export type KnowledgeServices = {
   ): Promise<KnowledgeResult<{ pending: MyPending }>>
 }
 
-const OUT_OF_SCOPE: KnowledgeFailure = {
+const DECIDE = {
+  confirm: server.confirmFinding,
+  reaffirm: server.reaffirmAnswer,
+  request_detail: server.requestMoreDetail,
+  decline: server.declineFinding,
+  seen: server.markUnknownSeen,
+} as const
+
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null
+
+const UNKNOWN_DECISION: KnowledgeFailure = {
   ok: false,
-  code: "knowledge_slot_out_of_scope",
-  status: 409,
-  message: "This question isn't on the question list.",
+  code: "invalid_input",
+  status: 400,
+  message: "This action isn't available here. Reload the page.",
+  fieldErrors: {
+    decision: "This action isn't available here. Reload the page.",
+  },
 }
 
-/**
- * Until the knowledge server layer is available, no question is on a working
- * list: reads report nothing in scope and every write is refused as out of
- * scope, so every screen keeps its legacy behaviour.
- */
-const NOT_ENABLED: KnowledgeServices = {
-  getWorkingList: async () => OUT_OF_SCOPE,
-  getKnowledgeCheck: async () => ({ ok: true, view: { inScope: false } }),
-  submitKnowledgeFinding: async () => OUT_OF_SCOPE,
-  saveDraft: async () => OUT_OF_SCOPE,
-  getDraft: async () => ({ ok: true, draft: null }),
-  discardDraft: async () => ({ ok: true }),
-  listMyFindings: async () => ({
-    ok: true,
-    page: { items: [], nextCursor: null, hiddenEarlierVenues: [] },
-  }),
-  listToConfirm: async () => ({ ok: true, view: { items: [], count: 0 } }),
-  decide: async () => OUT_OF_SCOPE,
-  resolveConflict: async () => OUT_OF_SCOPE,
-  dismissClosedAssignment: async () => ({ ok: true }),
-  getMyPending: async () => ({
-    ok: true,
-    pending: { awaitingConfirmation: 0, unknownRecorded: 0 },
-  }),
-}
+export const knowledgeServices: KnowledgeServices = {
+  async getWorkingList(actor) {
+    const result = await server.getWorkingList(actor)
+    if (!result.ok) return result
+    return { ok: true, view: adaptWorkingList(result.list) }
+  },
 
-export const knowledgeServices: KnowledgeServices = NOT_ENABLED
+  async getKnowledgeCheck(actor, input) {
+    const result = await server.getKnowledgeCheck(actor, {
+      checkId: input.checkId,
+    })
+    if (!result.ok) return result
+    const check = result.check
+    // Answers in use that need a decision are listed for deciders only.
+    const toConfirm =
+      check.inScope && check.permissions.canConfirm
+        ? await server.listToConfirm(actor, { venueId: check.venueId })
+        : null
+    return {
+      ok: true,
+      view: adaptCheck(
+        check,
+        input.venueName,
+        toConfirm?.ok ? toConfirm.items : []
+      ),
+    }
+  },
+
+  async submitKnowledgeFinding(actor, input) {
+    const result = await server.submitKnowledgeFinding(actor, input)
+    return result.ok ? { ok: true, ...adaptSubmitted(result) } : result
+  },
+
+  saveDraft: (actor, input) => server.saveDraft(actor, input),
+
+  async getDraft(actor, input) {
+    const result = await server.getDraft(actor, input)
+    if (!result.ok) return result
+    return { ok: true, draft: result.draft ? adaptDraft(result.draft) : null }
+  },
+
+  async discardDraft(actor, input) {
+    const result = await server.discardDraft(actor, input)
+    return result.ok ? { ok: true } : result
+  },
+
+  async listMyFindings(actor, input) {
+    const [result, list] = await Promise.all([
+      server.listMyFindings(actor, input),
+      server.getWorkingList(actor),
+    ])
+    if (!result.ok) return result
+    // Drafts carry only their check: name them from what the person can see.
+    const known = new Map<string, { question: string; venueName: string }>()
+    if (list.ok && list.list.venue)
+      for (const item of list.list.items)
+        known.set(item.checkId, {
+          question: item.question,
+          venueName: list.list.venue.name,
+        })
+    for (const item of result.page.items)
+      if ("venueName" in item && !known.has(item.checkId))
+        known.set(item.checkId, {
+          question: item.question,
+          venueName: item.venueName,
+        })
+    return { ok: true, page: adaptFindingsPage(result.page, known) }
+  },
+
+  async listToConfirm(actor, input) {
+    const result = await server.listToConfirm(actor, input)
+    if (!result.ok) return result
+    return { ok: true, view: adaptToConfirm(result.items, result.count) }
+  },
+
+  async decide(actor, input) {
+    const decision = isRecord(input) ? input.decision : null
+    const run =
+      typeof decision === "string" && decision in DECIDE
+        ? DECIDE[decision as keyof typeof DECIDE]
+        : null
+    if (!run) return UNKNOWN_DECISION
+    const result = await run(actor, input)
+    return result.ok ? { ok: true, ...adaptDecision(result) } : result
+  },
+
+  async resolveConflict(actor, input) {
+    const result = await server.resolveConflict(actor, input)
+    return result.ok ? { ok: true, ...adaptDecision(result) } : result
+  },
+
+  async dismissClosedAssignment(actor, input) {
+    const result = await server.dismissClosedAssignment(actor, input)
+    return result.ok ? { ok: true } : result
+  },
+
+  getMyPending: (actor, input) => server.getMyPending(actor, input),
+}
