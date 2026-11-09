@@ -4,9 +4,11 @@ import type { KnowledgeRpcName, KnowledgeRpcs } from "@/lib/knowledge/contract"
 import type { DbError } from "@/lib/server/amenities/errors"
 import type { Db } from "@/lib/server/media/types"
 
-type RpcClient = {
-  rpc(fn: string, args: object): PromiseLike<{ data: unknown; error: DbError }>
+type RpcResult = { data: unknown; error: DbError }
+type RpcCall = PromiseLike<RpcResult> & {
+  abortSignal?: (signal: AbortSignal) => PromiseLike<RpcResult>
 }
+type RpcClient = { rpc(fn: string, args: object): RpcCall }
 
 export type KnowledgeRpcResponse<K extends KnowledgeRpcName> =
   | { data: KnowledgeRpcs[K]["returns"]; error: null }
@@ -21,10 +23,16 @@ export type KnowledgeRpcResponse<K extends KnowledgeRpcName> =
 export async function knowledgeRpc<K extends KnowledgeRpcName>(
   db: Db,
   fn: K,
-  args: KnowledgeRpcs[K]["args"]
+  args: KnowledgeRpcs[K]["args"],
+  options: { signal?: AbortSignal } = {}
 ): Promise<KnowledgeRpcResponse<K>> {
   const client = db as unknown as RpcClient
-  const { data, error } = await client.rpc(fn, args)
+  const call = client.rpc(fn, args)
+  // Aborting cancels the HTTP request to the API; it does not promise that a
+  // statement already running in Postgres stops at once.
+  const { data, error } = await (options.signal && call.abortSignal
+    ? call.abortSignal(options.signal)
+    : call)
   if (error) return { data: null, error }
   return { data: data as KnowledgeRpcs[K]["returns"], error: null }
 }

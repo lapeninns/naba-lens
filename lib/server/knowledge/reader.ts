@@ -24,24 +24,33 @@ export type KnowledgeReaderResult =
 export async function readKnowledgeAnswers(
   service: Db,
   venueId: string,
-  keys: readonly string[]
+  keys: readonly string[],
+  options: { signal?: AbortSignal } = {}
 ): Promise<KnowledgeReaderResult> {
   if (keys.length > KNOWLEDGE_LIMITS.maxReaderKeys)
     return { ok: false, code: "invalid_input" }
-  const { data, error } = await knowledgeRpc(service, "knowledge_reader_answers_v1", {
-    p_venue_id: venueId,
-    p_keys: [...keys],
-  })
+  const { data, error } = await knowledgeRpc(
+    service,
+    "knowledge_reader_answers_v1",
+    { p_venue_id: venueId, p_keys: [...keys] },
+    options
+  )
   if (!error) return { ok: true, rows: data }
+  // The caller gave up (its time bound passed); not a database failure.
+  if (options.signal?.aborted) return { ok: false, code: "unavailable" }
   return { ok: false, code: readerCode(error) }
 }
 
-function readerCode(error: DbError): "venue_not_found" | "invalid_input" | "unavailable" {
+function readerCode(
+  error: DbError
+): "venue_not_found" | "invalid_input" | "unavailable" {
   if (error?.code === "NLK06" || error?.message === "knowledge_venue_not_found")
     return "venue_not_found"
   if (error?.code === "22023" || error?.code === "22P02") return "invalid_input"
   console.error("[knowledge] reader answers failed", {
-    error: redactError(new Error(`${error?.code || "unknown"}: ${error?.message ?? ""}`)),
+    error: redactError(
+      new Error(`${error?.code || "unknown"}: ${error?.message ?? ""}`)
+    ),
   })
   return "unavailable"
 }

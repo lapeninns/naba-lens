@@ -30,7 +30,11 @@ import {
 export async function getWorkingList(
   actor: MediaActor
 ): Promise<KnowledgeResult<{ list: WorkingListView }>> {
-  const { data, error } = await knowledgeRpc(actor.db, "knowledge_working_list", {})
+  const { data, error } = await knowledgeRpc(
+    actor.db,
+    "knowledge_working_list",
+    {}
+  )
   if (error) return knowledgeRpcFailure(error, "knowledge working list")
   return { ok: true, list: data }
 }
@@ -70,10 +74,14 @@ export async function listMyFindings(
 ): Promise<KnowledgeResult<{ page: MyFindingsPage }>> {
   const cursor = parseCursor(isObject(input) ? input.cursor : null)
   if (!cursor.ok) return cursor
-  const { data, error } = await knowledgeRpc(actor.db, "knowledge_my_contributions", {
-    p_before: cursor.value,
-    p_limit: 20,
-  })
+  const { data, error } = await knowledgeRpc(
+    actor.db,
+    "knowledge_my_contributions",
+    {
+      p_cursor: cursor.value,
+      p_limit: 20,
+    }
+  )
   if (error) return knowledgeRpcFailure(error, "my findings")
   return { ok: true, page: data }
 }
@@ -115,9 +123,13 @@ export async function getPilotPreview(
 ): Promise<KnowledgeResult<{ rows: PilotPreviewRow[] }>> {
   if (!isObject(input) || !isUuid(input.venueId))
     return knowledgeInvalid({ venueId: "Choose a venue." })
-  const { data, error } = await knowledgeRpc(actor.db, "knowledge_pilot_preview", {
-    p_venue_id: input.venueId,
-  })
+  const { data, error } = await knowledgeRpc(
+    actor.db,
+    "knowledge_pilot_preview",
+    {
+      p_venue_id: input.venueId,
+    }
+  )
   if (error) return knowledgeRpcFailure(error, "knowledge pilot preview")
   return { ok: true, rows: data }
 }

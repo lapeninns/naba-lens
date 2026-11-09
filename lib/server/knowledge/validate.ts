@@ -122,19 +122,35 @@ export function parseKnowledgeSubmit(
   const answer = input.answer
   const errors: Record<string, string> = {}
   const finding = text(errors, "finding", input.finding, LIMITS.finding)
-  const limitations = text(errors, "limitations", input.limitations, LIMITS.limitations)
+  const limitations = text(
+    errors,
+    "limitations",
+    input.limitations,
+    LIMITS.limitations
+  )
   const reason = text(errors, "reason", input.reason, LIMITS.reason)
-  if ((answer === "no" || answer === "not_applicable") && !reason && !errors.reason)
+  if (
+    (answer === "no" || answer === "not_applicable") &&
+    !reason &&
+    !errors.reason
+  )
     errors.reason = "Enter a reason."
   let unknownPreset: UnknownPreset | null = null
   let triedText: string | null = null
   if (answer === "unknown") {
-    if (oneOf(UNKNOWN_PRESETS, input.unknownPreset)) unknownPreset = input.unknownPreset
+    if (oneOf(UNKNOWN_PRESETS, input.unknownPreset))
+      unknownPreset = input.unknownPreset
     else errors.unknownPreset = "Choose why it couldn't be established."
     triedText = text(errors, "triedText", input.triedText, LIMITS.triedText)
-    if (!triedText && !errors.triedText) errors.triedText = "Say what you tried."
+    if (!triedText && !errors.triedText)
+      errors.triedText = "Say what you tried."
   }
-  const changeReason = text(errors, "changeReason", input.changeReason, LIMITS.changeReason)
+  const changeReason = text(
+    errors,
+    "changeReason",
+    input.changeReason,
+    LIMITS.changeReason
+  )
   if (kind === "change_report" && !changeReason && !errors.changeReason)
     errors.changeReason = "Say what has changed."
   let respondsTo: string | null = null
@@ -143,10 +159,16 @@ export function parseKnowledgeSubmit(
     else errors.respondsTo = "Reload the page and try again."
   }
   const assetIds = uuidList(input.assetIds ?? [], 0, LIMITS.maxAssets)
-  if (!assetIds) errors.assetIds = `Choose up to ${LIMITS.maxAssets} photos or videos.`
+  if (!assetIds)
+    errors.assetIds = `Choose up to ${LIMITS.maxAssets} photos or videos.`
   const redaction = input.redactionConfirmed
-  if (redaction !== undefined && redaction !== null && typeof redaction !== "boolean")
-    errors.redactionConfirmed = "Confirm the Wi-Fi password and join QR code are covered."
+  if (
+    redaction !== undefined &&
+    redaction !== null &&
+    typeof redaction !== "boolean"
+  )
+    errors.redactionConfirmed =
+      "Confirm the Wi-Fi password and join QR code are covered."
   if (input.confirmOwn !== undefined && typeof input.confirmOwn !== "boolean")
     errors.confirmOwn = "Reload the page and try again."
   if (Object.keys(errors).length) return knowledgeInvalid(errors)
@@ -186,11 +208,18 @@ export type ParsedDecide = {
 }
 
 /** Request detail, decline and revoke need a note (the reason shown to the sender). */
-export function parseDecide(input: unknown, decision: Decision): Parsed<ParsedDecide> {
-  if (!oneOf(DECISIONS, decision)) return knowledgeInvalid({ decision: "Reload the page." })
+export function parseDecide(
+  input: unknown,
+  decision: Decision
+): Parsed<ParsedDecide> {
+  if (!oneOf(DECISIONS, decision))
+    return knowledgeInvalid({ decision: "Reload the page." })
   const target = isObject(input) ? parseFindingRef(input.findingRef) : null
   if (!isObject(input) || !target)
-    return knowledgeFailure("not_found", "This finding could not be found. Reload the page.")
+    return knowledgeFailure(
+      "not_found",
+      "This finding could not be found. Reload the page."
+    )
   if (!isRevision(input.slotRevision)) return RELOAD
   if (!isUuid(input.idempotencyKey))
     return knowledgeInvalid(
@@ -200,7 +229,9 @@ export function parseDecide(input: unknown, decision: Decision): Parsed<ParsedDe
   const errors: Record<string, string> = {}
   const note = text(errors, "note", input.note, LIMITS.note)
   if (
-    (decision === "request_detail" || decision === "decline" || decision === "revoke") &&
+    (decision === "request_detail" ||
+      decision === "decline" ||
+      decision === "revoke") &&
     !note &&
     !errors.note
   )
@@ -237,7 +268,9 @@ export function parseResolve(input: unknown): Parsed<ParsedResolve> {
   if (input.choose !== "keep_in_use") {
     const ref = parseFindingRef(input.choose)
     if (!ref || ref.type !== "contribution")
-      return knowledgeInvalid({ choose: "Choose a finding, or keep the answer in use." })
+      return knowledgeInvalid({
+        choose: "Choose a finding, or keep the answer in use.",
+      })
     choose = ref.id
   }
   const errors: Record<string, string> = {}
@@ -265,17 +298,24 @@ export function parseDraft(input: unknown): Parsed<ParsedDraft> {
   if (!isObject(input) || !isUuid(input.checkId)) return NOT_FOUND
   const revision = input.draftRevision ?? null
   if (revision !== null && !intInRange(revision, 1, 2 ** 31 - 1))
-    return knowledgeInvalid({ draftRevision: "Reload the draft and try again." })
+    return knowledgeInvalid({
+      draftRevision: "Reload the draft and try again.",
+    })
   if (!isUuid(input.idempotencyKey))
-    return knowledgeInvalid({ idempotencyKey: "Reload the page and try again." })
+    return knowledgeInvalid({
+      idempotencyKey: "Reload the page and try again.",
+    })
   if (
     !isObject(input.payload) ||
-    new TextEncoder().encode(JSON.stringify(input.payload)).length > LIMITS.draftPayload
+    new TextEncoder().encode(JSON.stringify(input.payload)).length >
+      LIMITS.draftPayload
   )
     return knowledgeInvalid({ payload: "This draft is too large to save." })
   const assetIds = uuidList(input.assetIds ?? [], 0, LIMITS.maxAssets)
   if (!assetIds)
-    return knowledgeInvalid({ assetIds: `Choose up to ${LIMITS.maxAssets} photos or videos.` })
+    return knowledgeInvalid({
+      assetIds: `Choose up to ${LIMITS.maxAssets} photos or videos.`,
+    })
   return ok({
     checkId: input.checkId,
     draftRevision: revision as number | null,
@@ -305,17 +345,22 @@ export function parseWorkingList(input: unknown): Parsed<ParsedWorkingList> {
   )
     return knowledgeInvalid({ keys: "Choose at least one question." })
   if (typeof input.enabled !== "boolean")
-    return knowledgeInvalid({ enabled: "Choose whether to add or remove the questions." })
+    return knowledgeInvalid({
+      enabled: "Choose whether to add or remove the questions.",
+    })
   const errors: Record<string, string> = {}
   const reason = text(errors, "reason", input.reason, LIMITS.reason)
   if (Object.keys(errors).length) return knowledgeInvalid(errors)
   return ok({ venueId: input.venueId, keys, enabled: input.enabled, reason })
 }
 
-/** A cursor from a previous page (an ISO instant), or none. */
+const CURSOR =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z\|[cse]:[0-9a-f-]{1,36}$/
+
+/** A previous page's `nextCursor` ("<UTC instant>|<key>"), or none. */
 export function parseCursor(v: unknown): Parsed<string | null> {
   if (v === undefined || v === null || v === "") return ok(null)
-  if (typeof v !== "string" || Number.isNaN(Date.parse(v)))
+  if (typeof v !== "string" || !CURSOR.test(v))
     return knowledgeInvalid({ cursor: "Reload the page." })
   return ok(v)
 }

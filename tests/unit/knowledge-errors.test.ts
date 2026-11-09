@@ -11,6 +11,7 @@ import { amenityRpcFailure } from "@/lib/server/amenities/errors"
 import * as knowledge from "@/lib/server/knowledge"
 import { knowledgeRpcFailure } from "@/lib/server/knowledge/errors"
 import {
+  parseCursor,
   parseKnowledgeSubmit,
   parseResolve,
 } from "@/lib/server/knowledge/validate"
@@ -23,10 +24,15 @@ const VENUE = "11111111-1111-4111-8111-111111111111"
 
 const retryable = (() => {
   const source = readFileSync(
-    join(process.cwd(), "components/nabalens/amenities/capture/capture-form.tsx"),
+    join(
+      process.cwd(),
+      "components/nabalens/amenities/capture/capture-form.tsx"
+    ),
     "utf8"
   )
-  const match = /RETRYABLE\s*=\s*new Set(?:<[^>]*>)?\(\[([^\]]*)\]\)/.exec(source)
+  const match = /RETRYABLE\s*=\s*new Set(?:<[^>]*>)?\(\[([^\]]*)\]\)/.exec(
+    source
+  )
   if (!match) throw new Error("RETRYABLE set not found in capture-form.tsx")
   return new Set([...match[1]!.matchAll(/"([a-z_]+)"/g)].map((m) => m[1]))
 })()
@@ -38,75 +44,156 @@ afterEach(() => vi.restoreAllMocks())
 describe("NL-class refusals (T14c)", () => {
   const sqlstates = [...Object.keys(KNOWLEDGE_SQLSTATES), "NLK09", "NLKZZ"]
 
-  it.each(sqlstates)("%s is a non-retryable 4xx by SQLSTATE in both mappers", (code) => {
-    const log = silence()
-    for (const map of [amenityRpcFailure, knowledgeRpcFailure]) {
-      const f = map({ code, message: "something new" }, "test")
-      expect(f.code).not.toBe("unavailable")
-      expect(f.status).toBeGreaterThanOrEqual(400)
-      expect(f.status).toBeLessThan(500)
-      expect(retryable.has(f.code)).toBe(false)
+  it.each(sqlstates)(
+    "%s is a non-retryable 4xx by SQLSTATE in both mappers",
+    (code) => {
+      const log = silence()
+      for (const map of [amenityRpcFailure, knowledgeRpcFailure]) {
+        const f = map({ code, message: "something new" }, "test")
+        expect(f.code).not.toBe("unavailable")
+        expect(f.status).toBeGreaterThanOrEqual(400)
+        expect(f.status).toBeLessThan(500)
+        expect(retryable.has(f.code)).toBe(false)
+      }
+      expect(log).not.toHaveBeenCalled()
     }
-    expect(log).not.toHaveBeenCalled()
-  })
+  )
 
-  it.each(Object.entries(KNOWLEDGE_SQLSTATES))("%s / %s maps by message too", (code, message) => {
-    for (const sqlstate of [code, "P0001"]) {
-      const f = knowledgeRpcFailure({ code: sqlstate, message }, "test")
-      expect(f.code).not.toBe("unavailable")
-      expect(f.status).toBeLessThan(500)
+  it.each(Object.entries(KNOWLEDGE_SQLSTATES))(
+    "%s / %s maps by message too",
+    (code, message) => {
+      for (const sqlstate of [code, "P0001"]) {
+        const f = knowledgeRpcFailure({ code: sqlstate, message }, "test")
+        expect(f.code).not.toBe("unavailable")
+        expect(f.status).toBeLessThan(500)
+      }
     }
-  })
+  )
 
   it("names the two codes the legacy capture form receives", () => {
-    expect(amenityRpcFailure({ code: "NLK01", message: "knowledge_path_required" }, "t")).toMatchObject({
+    expect(
+      amenityRpcFailure(
+        { code: "NLK01", message: "knowledge_path_required" },
+        "t"
+      )
+    ).toMatchObject({
       code: "knowledge_path_required",
       status: 409,
     })
-    expect(amenityRpcFailure({ code: "NLK02", message: "knowledge_slot_out_of_scope" }, "t")).toMatchObject({
+    expect(
+      amenityRpcFailure(
+        { code: "NLK02", message: "knowledge_slot_out_of_scope" },
+        "t"
+      )
+    ).toMatchObject({
       code: "knowledge_slot_out_of_scope",
       status: 409,
     })
     expect(
-      amenityRpcFailure({ code: "NLK01", message: "knowledge_path_required" }, "t").message
+      amenityRpcFailure(
+        { code: "NLK01", message: "knowledge_path_required" },
+        "t"
+      ).message
     ).not.toMatch(/try again/i)
-    expect(amenityRpcFailure({ code: "NLK77", message: "x" }, "t").code).toBe("state_conflict")
+    expect(amenityRpcFailure({ code: "NLK77", message: "x" }, "t").code).toBe(
+      "state_conflict"
+    )
   })
 
   it("maps the knowledge-only codes per §4.1", () => {
     const cases: [string, string, string, number][] = [
-      ["NLK02", "knowledge_slot_out_of_scope", "knowledge_slot_out_of_scope", 409],
+      [
+        "NLK02",
+        "knowledge_slot_out_of_scope",
+        "knowledge_slot_out_of_scope",
+        409,
+      ],
       ["NLK03", "already_decided", "already_decided", 409],
-      ["NLK04", "self_confirmation_not_permitted", "self_confirmation_not_permitted", 403],
+      [
+        "NLK04",
+        "self_confirmation_not_permitted",
+        "self_confirmation_not_permitted",
+        403,
+      ],
       ["NLK05", "draft_conflict", "draft_conflict", 409],
       ["NLK06", "knowledge_venue_not_found", "not_found", 404],
       ["NLK07", "knowledge_not_adoptable", "state_conflict", 409],
       ["NLK08", "knowledge_not_current", "state_conflict", 409],
     ]
     for (const [code, message, mapped, status] of cases) {
-      expect(knowledgeRpcFailure({ code, message }, "t")).toMatchObject({ code: mapped, status })
+      expect(knowledgeRpcFailure({ code, message }, "t")).toMatchObject({
+        code: mapped,
+        status,
+      })
     }
     expect(
-      knowledgeRpcFailure({ code: "NLK05", message: "draft_conflict", details: '{"draftRevision": 4}' }, "t")
+      knowledgeRpcFailure(
+        {
+          code: "NLK05",
+          message: "draft_conflict",
+          details: '{"draftRevision": 4}',
+        },
+        "t"
+      )
     ).toMatchObject({ draftRevision: 4 })
   })
 
   it("keeps the existing shared mappings", () => {
     expect(
-      knowledgeRpcFailure({ code: "P0001", message: "amenity_conflict", details: '{"revision": 9}' }, "t")
+      knowledgeRpcFailure(
+        {
+          code: "P0001",
+          message: "amenity_conflict",
+          details: '{"revision": 9}',
+        },
+        "t"
+      )
     ).toMatchObject({ code: "revision_conflict", currentRevision: 9 })
-    expect(knowledgeRpcFailure({ code: "P0001", message: "idempotency_key_reused" }, "t").code).toBe("state_conflict")
-    expect(knowledgeRpcFailure({ code: "42501", message: "not_venue_manager" }, "t").code).toBe("not_permitted")
-    expect(knowledgeRpcFailure({ code: "P0001", message: "tried_text_required" }, "t")).toMatchObject({
+    expect(
+      knowledgeRpcFailure(
+        { code: "P0001", message: "idempotency_key_reused" },
+        "t"
+      ).code
+    ).toBe("state_conflict")
+    expect(
+      knowledgeRpcFailure({ code: "42501", message: "not_venue_manager" }, "t")
+        .code
+    ).toBe("not_permitted")
+    expect(
+      knowledgeRpcFailure(
+        { code: "P0001", message: "tried_text_required" },
+        "t"
+      )
+    ).toMatchObject({
       code: "invalid_input",
       fieldErrors: { triedText: expect.any(String) },
     })
+    expect(
+      knowledgeRpcFailure(
+        {
+          code: "23505",
+          message: "duplicate key value violates unique constraint",
+        },
+        "t"
+      )
+    ).toMatchObject({ code: "state_conflict", status: 409 })
+    expect(
+      knowledgeRpcFailure({ code: "22023", message: "invalid_cursor" }, "t")
+    ).toMatchObject({
+      code: "invalid_input",
+      fieldErrors: { cursor: expect.any(String) },
+    })
     silence()
-    expect(knowledgeRpcFailure({ code: "XX000", message: "boom" }, "t").code).toBe("unavailable")
+    expect(
+      knowledgeRpcFailure({ code: "XX000", message: "boom" }, "t").code
+    ).toBe("unavailable")
   })
 })
 
-type Handler = (args: Record<string, unknown>) => { data?: unknown; error?: object }
+type Handler = (args: Record<string, unknown>) => {
+  data?: unknown
+  error?: object
+}
 
 function actorWith(handlers: Record<string, Handler>) {
   const rpc = vi.fn(async (fn: string, args: Record<string, unknown> = {}) => {
@@ -163,26 +250,41 @@ describe("knowledge services", () => {
     const base = { checkId: CHECK, slotRevision: 0, idempotencyKey: KEY }
     expect(parseKnowledgeSubmit({ ...base, answer: "unknown" })).toMatchObject({
       ok: false,
-      fieldErrors: { unknownPreset: expect.any(String), triedText: expect.any(String) },
+      fieldErrors: {
+        unknownPreset: expect.any(String),
+        triedText: expect.any(String),
+      },
     })
     expect(parseKnowledgeSubmit({ ...base, answer: "no" })).toMatchObject({
       fieldErrors: { reason: "Enter a reason." },
     })
-    expect(parseKnowledgeSubmit({ ...base, answer: "yes", kind: "change_report" })).toMatchObject({
+    expect(
+      parseKnowledgeSubmit({ ...base, answer: "yes", kind: "change_report" })
+    ).toMatchObject({
       fieldErrors: { changeReason: expect.any(String) },
     })
-    expect(parseKnowledgeSubmit({ ...base, answer: "yes", kind: "detail" })).toMatchObject({
+    expect(
+      parseKnowledgeSubmit({ ...base, answer: "yes", kind: "detail" })
+    ).toMatchObject({
       fieldErrors: { respondsTo: expect.any(String) },
     })
-    expect(parseKnowledgeSubmit({ ...base, slotRevision: -1, answer: "yes" })).toMatchObject({
+    expect(
+      parseKnowledgeSubmit({ ...base, slotRevision: -1, answer: "yes" })
+    ).toMatchObject({
       code: "invalid_input",
     })
-    expect(parseResolve({ ...base, choose: "keep_in_use", reason: "Kept" })).toMatchObject({
+    expect(
+      parseResolve({ ...base, choose: "keep_in_use", reason: "Kept" })
+    ).toMatchObject({
       ok: true,
       value: { choose: null },
     })
     expect(
-      parseResolve({ ...base, choose: { type: "submission", id: CONTRIBUTION }, reason: "x" })
+      parseResolve({
+        ...base,
+        choose: { type: "submission", id: CONTRIBUTION },
+        reason: "x",
+      })
     ).toMatchObject({ ok: false })
     const { actor, rpc } = actorWith({})
     expect(
@@ -191,13 +293,18 @@ describe("knowledge services", () => {
         slotRevision: 2,
         idempotencyKey: KEY,
       })
-    ).toMatchObject({ code: "invalid_input", fieldErrors: { note: "Enter a reason." } })
+    ).toMatchObject({
+      code: "invalid_input",
+      fieldErrors: { note: "Enter a reason." },
+    })
     expect(rpc).not.toHaveBeenCalled()
   })
 
   it("maps a decision refusal without retrying", async () => {
     const { actor } = actorWith({
-      knowledge_decide: () => ({ error: { code: "NLK04", message: "self_confirmation_not_permitted" } }),
+      knowledge_decide: () => ({
+        error: { code: "NLK04", message: "self_confirmation_not_permitted" },
+      }),
     })
     expect(
       await knowledge.confirmFinding(actor, {
@@ -205,7 +312,33 @@ describe("knowledge services", () => {
         slotRevision: 2,
         idempotencyKey: KEY,
       })
-    ).toMatchObject({ ok: false, code: "self_confirmation_not_permitted", status: 403 })
+    ).toMatchObject({
+      ok: false,
+      code: "self_confirmation_not_permitted",
+      status: 403,
+    })
+  })
+})
+
+describe("parseCursor", () => {
+  it("accepts only a previous page's nextCursor", () => {
+    expect(parseCursor(undefined)).toEqual({ ok: true, value: null })
+    const cursor = `2026-11-02T10:00:00.000000Z|c:${CONTRIBUTION}`
+    expect(parseCursor(cursor)).toEqual({ ok: true, value: cursor })
+    expect(
+      parseCursor("2026-11-02T10:00:00.000000Z|e:0000000000000000042")
+    ).toMatchObject({ ok: true })
+    for (const bad of [
+      "2026-11-02",
+      "2026-11-02T10:00:00Z",
+      `x|c:${CONTRIBUTION}`,
+      42,
+    ]) {
+      expect(parseCursor(bad), String(bad)).toMatchObject({
+        ok: false,
+        code: "invalid_input",
+      })
+    }
   })
 })
 
@@ -220,14 +353,20 @@ describe("readKnowledgeAnswers", () => {
           : { error: { code: "NLK06", message: "knowledge_venue_not_found" } }
       },
     })
-    expect(await knowledge.readKnowledgeAnswers(actor.service, VENUE, [])).toEqual({ ok: true, rows: [] })
-    expect(await knowledge.readKnowledgeAnswers(actor.service, CHECK, [])).toEqual({
+    expect(
+      await knowledge.readKnowledgeAnswers(actor.service, VENUE, [])
+    ).toEqual({ ok: true, rows: [] })
+    expect(
+      await knowledge.readKnowledgeAnswers(actor.service, CHECK, [])
+    ).toEqual({
       ok: false,
       code: "venue_not_found",
     })
     expect(calls[0]).toEqual({ p_venue_id: VENUE, p_keys: [] })
     const many = Array.from({ length: 51 }, (_, i) => `k${i}`)
-    expect(await knowledge.readKnowledgeAnswers(actor.service, VENUE, many)).toEqual({
+    expect(
+      await knowledge.readKnowledgeAnswers(actor.service, VENUE, many)
+    ).toEqual({
       ok: false,
       code: "invalid_input",
     })

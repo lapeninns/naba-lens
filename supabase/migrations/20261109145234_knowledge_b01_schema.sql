@@ -146,7 +146,12 @@ create table public.knowledge_decisions (
   created_at timestamptz not null default now(),
   constraint knowledge_decisions_check_fkey foreign key (check_id, venue_id)
     references public.venue_amenity_checks (id, venue_id) on delete restrict,
-  constraint knowledge_decisions_target check (num_nonnulls(contribution_id, submission_id) = 1)
+  constraint knowledge_decisions_target check (num_nonnulls(contribution_id, submission_id) = 1),
+  -- A confirmation is always a person with authority over the venue; the
+  -- reader exposes its basis, so 'self' and 'rule' can never appear here.
+  constraint knowledge_decisions_confirmed_basis check (
+    decision <> 'confirmed' or (decider_basis in ('venue_manager', 'admin') and decided_by is not null)
+  )
 );
 
 create index knowledge_decisions_contribution_idx on public.knowledge_decisions (contribution_id, created_at)
