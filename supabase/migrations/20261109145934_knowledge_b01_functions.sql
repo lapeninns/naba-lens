@@ -1222,6 +1222,10 @@ begin
       raise exception 'invalid_decision' using errcode = 'P0001';
     end if;
   else
+    -- Like the legacy reopen: an archived check's answer takes no decisions.
+    if v_check.status <> 'active' then
+      raise exception 'amenity_check_archived' using errcode = 'P0001';
+    end if;
     if v_check.current_submission_id is distinct from v_submission.id or v_check.progress <> 'complete' then
       raise exception 'knowledge_not_current' using errcode = 'NLK08';
     end if;
@@ -1424,6 +1428,7 @@ declare
   v_check_id uuid;
   v_reason text := private.clean_text(p_reason, 500, 'invalid_reason');
   v_changed integer := 0;
+  v_rows integer;
 begin
   if p_enabled is null then
     raise exception 'invalid_decision' using errcode = 'P0001';
@@ -1458,17 +1463,26 @@ begin
   foreach v_key in array p_keys loop
     select c.id into v_check_id from public.venue_amenity_checks c
     where c.venue_id = p_venue_id and c.template_key = v_key;
-    if p_enabled and not private.knowledge_in_scope(p_venue_id, v_key) then
+    -- The check locks above serialise concurrent calls; the conflict clause
+    -- and row counts still keep a racing repeat a no-op, never an error.
+    if p_enabled then
       insert into public.knowledge_working_list (venue_id, question_key, enabled_by, reason)
-      values (p_venue_id, v_key, v_uid, v_reason);
-      perform private.knowledge_event(p_venue_id, v_key, v_check_id, 'working_list_enabled', null, null, null, '{}');
-      v_changed := v_changed + 1;
-    elsif not p_enabled and private.knowledge_in_scope(p_venue_id, v_key) then
+      values (p_venue_id, v_key, v_uid, v_reason)
+      on conflict (venue_id, question_key) where disabled_at is null do nothing;
+      get diagnostics v_rows = row_count;
+      if v_rows > 0 then
+        perform private.knowledge_event(p_venue_id, v_key, v_check_id, 'working_list_enabled', null, null, null, '{}');
+        v_changed := v_changed + 1;
+      end if;
+    else
       update public.knowledge_working_list w
       set disabled_at = now(), disabled_by = v_uid
       where w.venue_id = p_venue_id and w.question_key = v_key and w.disabled_at is null;
-      perform private.knowledge_event(p_venue_id, v_key, v_check_id, 'working_list_disabled', null, null, null, '{}');
-      v_changed := v_changed + 1;
+      get diagnostics v_rows = row_count;
+      if v_rows > 0 then
+        perform private.knowledge_event(p_venue_id, v_key, v_check_id, 'working_list_disabled', null, null, null, '{}');
+        v_changed := v_changed + 1;
+      end if;
     end if;
   end loop;
   return v_changed;
@@ -1654,6 +1668,21 @@ as $$
   select case
     when not exists (select 1 from s) then jsonb_build_object('kind', 'none')
     when private.venue_monthly_completion_target(s.venue_id, s.month) is null then jsonb_build_object('kind', 'none')
+    -- Participants exactly as coverage_staff_progress_v2 counts them: a staff
+    -- membership at the venue overlapping the month, or a legacy monthly
+    -- target created in its own month. Anyone else (a manager account) has no
+    -- credit row, so no recognition (§3.5).
+    when not exists (
+      select 1 from private.completion_staff_venue_memberships m
+      where m.staff_id = s.submitted_by and m.venue_id = s.venue_id
+        and m.started_at < private.london_month_end(s.month)
+        and (m.ended_at is null or m.ended_at > private.london_month_start(s.month))
+    ) and not exists (
+      select 1 from public.monthly_targets t
+      where t.staff_id = s.submitted_by and t.venue_id = s.venue_id and t.period_month = s.month
+        and t.created_at >= private.london_month_start(s.month)
+        and t.created_at < private.london_month_end(s.month)
+    ) then jsonb_build_object('kind', 'none')
     when (
       select e.kind = 'submitted' and e.detail ->> 'submissionId' = s.id::text
       from public.amenity_check_events e
@@ -1778,10 +1807,12 @@ as $$
     'requiresConfirmation', st.confirmation_required,
     'latestAttempt', case when st.last_unknown_at is not null then jsonb_build_object(
       'outcome', 'unknown', 'preset', st.last_unknown_preset, 'at', st.last_unknown_at) end,
+    -- Staff see the assignee's first name only (D3); managers also get the id.
     'assignee', case when p_check.assignee_user_id is not null then jsonb_build_object(
-      'id', p_check.assignee_user_id,
       'firstName', split_part(ap.display_name, ' ', 1),
-      'isMe', p_check.assignee_user_id = p_viewer) end,
+      'isMe', p_check.assignee_user_id = p_viewer)
+      || case when p_basis in ('venue_manager', 'admin')
+        then jsonb_build_object('id', p_check.assignee_user_id) else '{}'::jsonb end end,
     'mode', case
       when not st.in_scope or p_basis is null or p_check.status <> 'active' then 'none'
       when p_basis in ('venue_manager', 'admin') then
@@ -1983,7 +2014,10 @@ end;
 $$;
 
 -- S5. The caller's own findings across venues, read-only for earlier venues.
-create function public.knowledge_my_contributions(p_before timestamptz, p_limit integer)
+-- The cursor is the previous page's nextCursor, "<UTC instant>|<key>". Items
+-- sort by (time, key) descending, so items sharing a time are never skipped
+-- or repeated across pages.
+create function public.knowledge_my_contributions(p_cursor text, p_limit integer)
 returns jsonb
 language plpgsql
 stable
@@ -1993,15 +2027,25 @@ as $$
 declare
   v_uid uuid := private.amenity_assert_active_user();
   v_limit integer := least(greatest(coalesce(p_limit, 20), 1), 20);
+  v_before_at timestamptz;
+  v_before_key text collate "C";
   v_items jsonb;
-  v_next timestamptz;
+  v_next text;
 begin
+  if p_cursor is not null then
+    if p_cursor !~ '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z\|[cse]:[0-9a-f-]{1,36}$' then
+      raise exception 'invalid_cursor' using errcode = '22023';
+    end if;
+    v_before_at := split_part(p_cursor, '|', 1)::timestamptz;
+    v_before_key := split_part(p_cursor, '|', 2);
+  end if;
   with own as (
-    select x.created_at as at, private.knowledge_contribution_view(x.id) as item
+    select x.created_at as at, ('c:' || x.id::text) collate "C" as k,
+      private.knowledge_contribution_view(x.id) as item
     from public.knowledge_contributions x
-    where x.contributed_by = v_uid and (p_before is null or x.created_at < p_before)
+    where x.contributed_by = v_uid
     union all
-    select s.created_at, jsonb_build_object(
+    select s.created_at, ('s:' || s.id::text) collate "C", jsonb_build_object(
       'findingRef', jsonb_build_object('type', 'submission', 'id', s.id),
       'checkId', s.check_id, 'venueId', s.venue_id, 'venueName', v.name,
       'questionKey', c.template_key, 'question', t.question, 'kind', 'finding',
@@ -2015,9 +2059,8 @@ begin
     join public.venues v on v.id = s.venue_id
     join public.amenity_catalogue t on t.key = c.template_key
     where s.submitted_by = v_uid and s.source_contribution_id is null
-      and (p_before is null or s.created_at < p_before)
     union all
-    select e.created_at, jsonb_build_object(
+    select e.created_at, ('e:' || lpad(e.id::text, 19, '0')) collate "C", jsonb_build_object(
       'kind', 'assignment_closed', 'state', 'assignment_closed', 'checkId', e.check_id,
       'venueId', e.venue_id, 'questionKey', e.question_key, 'question', t.question,
       'answeredBy', bp.display_name, 'sentAt', e.created_at)
@@ -2025,16 +2068,20 @@ begin
     join public.amenity_catalogue t on t.key = e.question_key
     left join public.profiles bp on bp.id = (e.detail ->> 'answeredBy')::uuid
     where e.kind = 'assignment_closed_by_other' and e.detail ->> 'assigneeId' = v_uid::text
-      and (p_before is null or e.created_at < p_before)
   ),
   page as (
-    select * from own order by at desc limit v_limit + 1
+    select * from own o
+    where v_before_at is null or (o.at, o.k) < (v_before_at, v_before_key)
+    order by o.at desc, o.k desc
+    limit v_limit + 1
   )
-  -- The next page starts before the oldest item shown, when there is one more.
-  select coalesce(jsonb_agg(item order by at desc) filter (where rn <= v_limit), '[]'::jsonb),
-    case when count(*) > v_limit then min(at) filter (where rn <= v_limit) end
+  -- When there is one more item, the next page starts after the last shown.
+  select coalesce(jsonb_agg(item order by at desc, k desc) filter (where rn <= v_limit), '[]'::jsonb),
+    case when count(*) > v_limit then max(
+      (to_char(z.at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') || '|' || z.k) collate "C"
+    ) filter (where z.rn = v_limit) end
   into v_items, v_next
-  from (select p.*, row_number() over (order by p.at desc) as rn from page p) z;
+  from (select p.*, row_number() over (order by p.at desc, p.k desc) as rn from page p) z;
   return jsonb_build_object(
     'items', v_items,
     'nextCursor', v_next,
@@ -2170,7 +2217,7 @@ revoke all on function
   public.knowledge_working_list(),
   public.knowledge_check(uuid),
   public.knowledge_to_confirm(uuid),
-  public.knowledge_my_contributions(timestamptz, integer),
+  public.knowledge_my_contributions(text, integer),
   public.knowledge_my_pending(date),
   public.knowledge_pilot_preview(uuid)
 from public, anon, service_role;
@@ -2187,7 +2234,7 @@ grant execute on function
   public.knowledge_working_list(),
   public.knowledge_check(uuid),
   public.knowledge_to_confirm(uuid),
-  public.knowledge_my_contributions(timestamptz, integer),
+  public.knowledge_my_contributions(text, integer),
   public.knowledge_my_pending(date),
   public.knowledge_pilot_preview(uuid)
 to authenticated;

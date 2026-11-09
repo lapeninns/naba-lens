@@ -200,6 +200,24 @@ describe("eligibility changes (T8)", () => {
     expect(slot(w.venue, "guest_toilets")).toMatchObject({ reason: "withdrawn", detail: "answer_withdrawn" })
   })
 
+  it("refuses every decision on an archived check's answer, like the legacy reopen (L3)", async () => {
+    const w = await world("kn-archived-decide")
+    const r = await yes(w.manager, w, "step_free_entrance", { confirmOwn: true })
+    const check = w.checks.step_free_entrance!
+    await ok(
+      w.manager.client.rpc("amenity_archive_check", {
+        p_check_id: check,
+        p_revision: count(`select revision from public.venue_amenity_checks where id = '${check}'`),
+      })
+    )
+    const before = count(`select count(*) from public.knowledge_decisions where check_id = '${check}'`)
+    for (const decision of ["confirm", "decline", "revoke", "reaffirm"]) {
+      const { error } = await decide(w.manager, w, "step_free_entrance", submission(r.submissionId!), decision, "TEST note")
+      expect(error?.message, decision).toBe("amenity_check_archived")
+    }
+    expect(count(`select count(*) from public.knowledge_decisions where check_id = '${check}'`)).toBe(before)
+  })
+
   it("settles every listed finding with a conflict decision (disputed-service fixture)", async () => {
     const w = await world("kn-conflict", { extra: ["sports_screen"], inScope: ["sports_screen"] })
     await yes(w.staffA, w, "sports_screen")
@@ -312,7 +330,53 @@ describe("screen reads (S1, S2, S6)", () => {
     })
     const s = slot(w.venue, "step_free_entrance")
     expect(new Date(s.sent_at!).getTime()).toBeLessThan(new Date(s.saved_at!).getTime())
-    const mine = await json<{ items: { state: string }[] }>(w.staffA, "knowledge_my_contributions", { p_before: null, p_limit: 20 })
+    const mine = await json<{ items: { state: string }[] }>(w.staffA, "knowledge_my_contributions", { p_cursor: null, p_limit: 20 })
     expect(mine.items[0]!.state).toBe("current")
+  })
+
+  it("shows staff the assignee's first name only; managers also get the id (D3)", async () => {
+    const w = await world("kn-assignee")
+    const check = w.checks.guest_toilets!
+    await ok(
+      w.manager.client.rpc("amenity_assign_check", {
+        p_check_id: check,
+        p_assignee_id: w.staffA.id,
+        p_revision: count(`select revision from public.venue_amenity_checks where id = '${check}'`),
+      })
+    )
+    type View = { assignee: Record<string, unknown> | null }
+    const staffView = await json<View>(w.staffB, "knowledge_check", { p_check_id: check })
+    expect(staffView.assignee).toEqual({ firstName: expect.any(String), isMe: false })
+    const own = await json<View>(w.staffA, "knowledge_check", { p_check_id: check })
+    expect(own.assignee).toEqual({ firstName: expect.any(String), isMe: true })
+    const list = await json<{ items: View[] }>(w.staffB, "knowledge_working_list")
+    expect(JSON.stringify(list)).not.toContain(w.staffA.id)
+    const managerView = await json<View>(w.manager, "knowledge_check", { p_check_id: check })
+    expect(managerView.assignee).toMatchObject({ id: w.staffA.id, isMe: false })
+  })
+
+  it("pages own findings saved at the same instant without skipping or repeating", async () => {
+    const w = await world("kn-cursor")
+    const sent: string[] = []
+    for (const key of ["onsite_parking", "guest_toilets", "guest_wifi"]) {
+      sent.push((await submit(w.staffA, w, key, { answer: "unknown" })).contributionId)
+    }
+    psql(`begin;
+      set local session_replication_role = replica;
+      update public.knowledge_contributions set created_at = '2026-11-02T10:00:00Z'
+      where contributed_by = '${w.staffA.id}';
+      commit;`)
+    type Page = { items: { findingRef: { id: string } }[]; nextCursor: string | null }
+    const seen: string[] = []
+    let cursor: string | null = null
+    for (let i = 0; i < 5; i += 1) {
+      const page: Page = await json<Page>(w.staffA, "knowledge_my_contributions", { p_cursor: cursor, p_limit: 1 })
+      seen.push(...page.items.map((x) => x.findingRef.id))
+      cursor = page.nextCursor
+      if (!cursor) break
+    }
+    expect(cursor).toBeNull()
+    expect([...seen].sort()).toEqual([...sent].sort())
+    await refused(w.staffA, "knowledge_my_contributions", { p_cursor: "2026-11-02", p_limit: 1 }, "invalid_cursor", "22023")
   })
 })

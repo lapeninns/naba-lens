@@ -91,7 +91,7 @@ describe("venue transfer during a contribution (T10)", () => {
     await refused(w.staffA, "knowledge_submit", submitArgs(w, "onsite_parking", { answer: "no" }), "amenity_check_not_found")
     const draft = await json<{ sendable: boolean }>(w.staffA, "knowledge_get_draft", { p_check_id: w.checks.onsite_parking })
     expect(draft.sendable).toBe(false)
-    const history = await json<{ items: { findingRef: { id: string }; venueId: string }[] }>(w.staffA, "knowledge_my_contributions", { p_before: null, p_limit: 20 })
+    const history = await json<{ items: { findingRef: { id: string }; venueId: string }[] }>(w.staffA, "knowledge_my_contributions", { p_cursor: null, p_limit: 20 })
     expect(history.items.map((i) => i.findingRef.id)).toContain(sent.contributionId)
     expect(JSON.stringify(history)).not.toContain("internal_metadata")
   })

@@ -103,6 +103,7 @@ const FIELD_ERRORS: Record<string, [field: string, message: string]> = {
   invalid_note: ["note", "Use up to 500 characters."],
   invalid_decision: ["decision", "This action isn't available here. Reload the page."],
   invalid_draft: ["payload", "This draft is too large to save."],
+  invalid_cursor: ["cursor", "Reload the page."],
 }
 
 function draftRevisionOf(error: DbError): number | null {
@@ -141,5 +142,11 @@ export function knowledgeRpcFailure(
     const [field, text] = FIELD_ERRORS[message]!
     return knowledgeInvalid({ [field]: text })
   }
+  // A unique violation is a lost race with an identical request: reload.
+  if (code === "23505")
+    return knowledgeFailure(
+      "state_conflict",
+      "This changed while you were looking at it. Reload the page."
+    )
   return amenityRpcFailure(error, context)
 }
