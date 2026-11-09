@@ -21,7 +21,6 @@ import {
   evidenceSatisfies,
   type AmenityFailure,
   type AmenityResult,
-  type CheckSummary,
   type EvidenceKind,
   type SubmitInput,
   type SubmitResult,
@@ -30,6 +29,7 @@ import {
 import {
   KNOWLEDGE_ANSWERS,
   stateConflictKind,
+  type CaptureCheck,
   type FindingKind,
   type KnowledgeAnswer,
   type UnknownPreset,
@@ -316,7 +316,7 @@ export function CaptureForm({
   knowledge = null,
   newKey = newIdempotencyKey,
 }: {
-  check: CheckSummary
+  check: CaptureCheck
   /** The signed-in person: drafts are kept per person on a shared device. */
   viewerId: string
   initialAssets: AssetsResult

@@ -473,3 +473,25 @@ describe("knowledge adapter: fields for deciders (ef27740e)", () => {
     ).toEqual([true, false])
   })
 })
+
+describe("knowledge adapter: the capture screen's check (F1)", () => {
+  it("describes the check from the knowledge read, guarded by the slot revision", () => {
+    const view = adaptCheck(check({ captureBrief: null }), "The Old Crown")
+    if (!view.inScope) throw new Error("in scope")
+    expect(view.capture).toEqual({
+      id: CHECK,
+      venueId: "v1",
+      status: "active",
+      progress: "complete",
+      recheckReason: null,
+      revision: 9,
+      entry: {
+        key: "onsite_parking",
+        category: "Arrival",
+        question: "Is there parking on site?",
+        captureBrief: "",
+        evidenceRule: "photo",
+      },
+    })
+  })
+})

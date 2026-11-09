@@ -88,6 +88,21 @@ function view(
   return {
     inScope: true,
     venue: { id: "v1", name: "The Old Crown" },
+    capture: {
+      id: "c1",
+      venueId: "v1",
+      status: "active",
+      progress: "complete",
+      recheckReason: null,
+      revision: 21,
+      entry: {
+        key: "onsite_parking",
+        category: "Arrival",
+        question: "Is there parking on site?",
+        captureBrief: "",
+        evidenceRule: "photo",
+      },
+    },
     slot: {
       checkId: "c1",
       key: "onsite_parking",

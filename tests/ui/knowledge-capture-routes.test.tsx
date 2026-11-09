@@ -146,6 +146,21 @@ function inScope(canSelfConfirm = true): QuestionView {
   return {
     inScope: true,
     slot: slot(),
+    capture: {
+      id: STEP_FREE.id,
+      venueId: STEP_FREE.venueId,
+      status: "active",
+      progress: "needs_capture",
+      recheckReason: null,
+      revision: 12,
+      entry: {
+        key: STEP_FREE.entry.key,
+        category: STEP_FREE.entry.category,
+        question: STEP_FREE.entry.question,
+        captureBrief: STEP_FREE.entry.captureBrief,
+        evidenceRule: "photo",
+      },
+    },
     venue: { id: VENUE.id, name: VENUE.name },
     pending: [],
     permissions: {
@@ -266,6 +281,51 @@ describe("capture routes on a working-list question (G2)", () => {
     expect(screen.getByRole("button", { name: "Submit finding" })).toBeTruthy()
     expect(screen.getByRole("button", { name: "Save for later" })).toBeTruthy()
   })
+
+  it("renders a working-list question for unassigned staff through the knowledge read, never the amenity read (F1)", async () => {
+    // amenity_can_read refuses an unassigned person: the page must not 404.
+    services.getCheck.mockResolvedValue({
+      ok: false,
+      code: "not_found",
+      status: 404,
+      message: "This check could not be found.",
+    })
+    knowledge.getKnowledgeCheck.mockResolvedValue({ ok: true, view: inScope() })
+    await show(pages.staff())
+    expect(services.getCheck).not.toHaveBeenCalled()
+    expect(
+      screen.getByRole("heading", { level: 1, name: STEP_FREE.entry.question })
+    ).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Submit finding" })).toBeTruthy()
+    expect(
+      screen.getByRole("radio", { name: "Couldn't establish" })
+    ).toBeTruthy()
+  })
+
+  it("staff still use the amenity read for a question off the working list", async () => {
+    knowledge.getKnowledgeCheck.mockResolvedValue({
+      ok: true,
+      view: { inScope: false },
+    })
+    await show(pages.staff())
+    expect(services.getCheck).toHaveBeenCalledWith(expect.anything(), {
+      checkId: DARTS.id,
+    })
+  })
+
+  it.each(["manager", "legacy grant", "admin"] as const)(
+    "%s capture keeps the amenity read on a working-list question",
+    async (name) => {
+      knowledge.getKnowledgeCheck.mockResolvedValue({
+        ok: true,
+        view: inScope(),
+      })
+      await show(pages[name]())
+      expect(services.getCheck).toHaveBeenCalledWith(expect.anything(), {
+        checkId: DARTS.id,
+      })
+    }
+  )
 
   it("falls back to the legacy form when the knowledge read throws", async () => {
     knowledge.getKnowledgeCheck.mockRejectedValue(new Error("network"))
