@@ -24,6 +24,8 @@ export type ResolverRow = {
   value: string | null
   current_submission_id: string | null
   current_contribution_id: string | null
+  /** Which ID names the current answer; column name assumed until WS1 confirms it. */
+  contribution_kind: "contribution" | "submission" | null
   source_basis: "staff" | "venue_manager" | "admin" | null
   finding: string | null
   limitations: string | null
@@ -97,6 +99,10 @@ export function parseResolverRow(raw: unknown): ResolverRow | null {
     value: text(raw.value),
     current_submission_id: id(raw.current_submission_id),
     current_contribution_id: id(raw.current_contribution_id),
+    contribution_kind: oneOf(raw.contribution_kind, [
+      "contribution",
+      "submission",
+    ] as const),
     source_basis: oneOf(raw.source_basis, [
       "staff",
       "venue_manager",
@@ -201,9 +207,14 @@ export function toAnswer(
       row.revision,
       row.question_version
     )
+  const idKind = row.contribution_kind
   const contributionId =
-    row.current_contribution_id ?? row.current_submission_id
-  if (!contributionId || !row.saved_at) return null
+    idKind === "contribution"
+      ? row.current_contribution_id
+      : idKind === "submission"
+        ? row.current_submission_id
+        : null
+  if (!idKind || !contributionId || !row.saved_at) return null
 
   let confirmation: NonNullable<ReaderAnswer["provenance"]>["confirmation"] =
     null
@@ -254,6 +265,7 @@ export function toAnswer(
         ? SOURCE_KINDS[row.source_basis]
         : UNRECORDED_SOURCE_KIND,
       contributionId,
+      idKind,
       confirmation,
       redactionProof,
       evidence: { photos: row.evidence_photos, videos: row.evidence_videos },

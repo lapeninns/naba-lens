@@ -1,7 +1,7 @@
 /**
  * The reader's only data access. In production this calls
  * `public.knowledge_reader_answers_v1(p_venue_id, p_keys)` (WS1, service_role
- * only, one SQL statement, so one snapshot), and maps its
+ * only, a STABLE PL/pgSQL function, so one snapshot per call), and maps its
  * `knowledge_venue_not_found` error to `venue_not_found`. Rows are untrusted
  * until `parseResolverRow` accepts them.
  */

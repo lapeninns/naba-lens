@@ -26,6 +26,7 @@ function row(overrides: Record<string, unknown> = {}) {
     value: "yes",
     current_submission_id: SUB,
     current_contribution_id: CONTRIB,
+    contribution_kind: "contribution",
     source_basis: "staff",
     finding: "Car park behind the pub, 20 spaces.",
     limitations: "Gravel surface.",
@@ -83,6 +84,7 @@ describe("answer allowlist", () => {
       provenance: {
         sourceKind: "staff_observation",
         contributionId: CONTRIB,
+        idKind: "contribution",
         confirmation: null,
         redactionProof: null,
         evidence: { photos: 2, videos: 1 },
@@ -139,10 +141,22 @@ describe("answer allowlist", () => {
     expect(answer({ source_basis: basis })?.provenance?.sourceKind).toBe(kind)
   })
 
-  it("uses the submission ID when there is no contribution (before B01)", () => {
+  it("names a submission ID as a submission when there is no contribution (before B01)", () => {
+    const provenance = answer({
+      current_contribution_id: null,
+      contribution_kind: "submission",
+    })?.provenance
+    expect(provenance?.contributionId).toBe(SUB)
+    expect(provenance?.idKind).toBe("submission")
+  })
+
+  it("returns the ID that matches the stated kind, never the other one", () => {
     expect(
-      answer({ current_contribution_id: null })?.provenance?.contributionId
-    ).toBe(SUB)
+      answer({ contribution_kind: "submission" })?.provenance
+    ).toMatchObject({ contributionId: SUB, idKind: "submission" })
+    expect(
+      answer({ contribution_kind: "contribution" })?.provenance
+    ).toMatchObject({ contributionId: CONTRIB, idKind: "contribution" })
   })
 
   it("exposes a confirmation as a role, a self-confirmed flag and a save time", () => {
@@ -220,6 +234,16 @@ describe("answer allowlist", () => {
     ["a negative revision", { revision: -1 }],
     ["a fractional revision", { revision: 1.5 }],
     ["a non-UUID contribution", { current_contribution_id: "Asha" }],
+    ["no contribution kind", { contribution_kind: null }],
+    ["an unknown contribution kind", { contribution_kind: "legacy" }],
+    [
+      "a contribution kind without its ID",
+      { contribution_kind: "contribution", current_contribution_id: null },
+    ],
+    [
+      "a submission kind without its ID",
+      { contribution_kind: "submission", current_submission_id: null },
+    ],
     ["an invalid save time", { saved_at: "yesterday" }],
     ["no save time", { saved_at: null }],
     ["no value", { value: null }],
