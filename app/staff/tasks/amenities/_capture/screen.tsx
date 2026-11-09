@@ -16,10 +16,16 @@ import {
 import { answerInUseLines } from "@/components/nabalens/knowledge/copy"
 import { LatestFinding } from "@/components/nabalens/knowledge/latest-finding"
 import { ROUTES } from "@/lib/auth/routes"
-import type { QuestionView } from "@/lib/knowledge-client/contract"
+import {
+  knowledgeAssetsResult,
+  type CaptureCheck,
+  type QuestionView,
+} from "@/lib/knowledge-client/contract"
 import { knowledgeServices } from "@/lib/knowledge-client/services"
 import { getCheck, listSubmittableAssets } from "@/lib/server/amenities"
 import type { MediaActor } from "@/lib/server/media/types"
+
+import type { AssetsResult } from "@/components/nabalens/amenities/capture"
 
 import { CaptureClient, type KnowledgeProps } from "./capture-client"
 
@@ -33,7 +39,7 @@ async function knowledgeFor(
   checkId: string,
   role: KnowledgeProps["role"],
   venueName: string
-): Promise<KnowledgeProps | null> {
+): Promise<{ props: KnowledgeProps; capture: CaptureCheck } | null> {
   const [view, draft] = await Promise.all([
     knowledgeServices
       .getKnowledgeCheck(actor, { checkId, venueName })
@@ -41,7 +47,10 @@ async function knowledgeFor(
     knowledgeServices.getDraft(actor, { checkId }).catch(() => null),
   ])
   if (!view?.ok || !view.view.inScope) return null
-  return fromView(view.view, draft?.ok ? draft.draft : null, role)
+  return {
+    props: fromView(view.view, draft?.ok ? draft.draft : null, role),
+    capture: view.view.capture,
+  }
 }
 
 function fromView(
@@ -139,41 +148,45 @@ export async function CaptureScreen({
   backLabel: string
   doneHref: string
 }) {
-  const [checkResult, assets, knowledge] = await Promise.all([
-    getCheck(actor, { checkId }),
-    listSubmittableAssets(actor, { checkId }),
-    knowledgeFor(
-      actor,
-      checkId,
-      mode === "staff" ? "staff" : "manager",
-      venueName ?? "your venue"
-    ),
-  ])
-  const { detail } = unwrapAmenity(checkResult)
-  const { check, permissions } = detail
+  const venue = venueName ?? "your venue"
+  const [knowledgeRead, checkResult, assets] =
+    mode === "staff"
+      ? await staffReads(actor, checkId, venue)
+      : await Promise.all([
+          knowledgeFor(actor, checkId, "manager", venue),
+          getCheck(actor, { checkId }),
+          listSubmittableAssets(actor, { checkId }),
+        ])
+  const knowledge = knowledgeRead?.props ?? null
+
+  // The amenity read when there is one; for staff on a working-list
+  // question, the knowledge read's view of the check instead (F1).
+  const detail = checkResult ? unwrapAmenity(checkResult).detail : null
+  const check: CaptureCheck = detail?.check ?? knowledgeRead!.capture
+  const permissions = detail?.permissions ?? null
   if (venueId && check.venueId !== venueId) notFound()
   // A working-list question is open to every eligible person at the venue,
   // not only its assignee (the knowledge service decides who).
   const open =
     check.status === "active" &&
-    (knowledge ? knowledge.canContribute : permissions.canSubmit)
+    (knowledge ? knowledge.canContribute : (permissions?.canSubmit ?? false))
   // Staff see what they last sent above the form (§4.6).
   const latest =
     mode === "staff" && knowledge?.slot.myLatest?.answer
       ? knowledge.slot.myLatest
       : null
+  const legacyAnswer = knowledge ? null : (detail?.check.answer ?? null)
   const form = (
     <CaptureClient
       check={check}
       viewerId={actor.profile.id}
       initialAssets={assets}
       canUpload={canUpload}
-      canAttachLegacy={permissions.canAttachLegacy}
+      canAttachLegacy={permissions?.canAttachLegacy ?? false}
       doneHref={doneHref}
       knowledge={knowledge}
     />
   )
-
   return (
     <div className="flex min-w-0 flex-col gap-6 pb-4">
       <BackLink href={backHref} label={backLabel} />
@@ -202,9 +215,9 @@ export async function CaptureScreen({
                   knowledge.slot
                 ).join(" ")}
               </span>
-            ) : check.answer !== "to_check" ? (
+            ) : legacyAnswer && legacyAnswer !== "to_check" ? (
               <span className="text-meta-touch text-ink-muted md:text-meta">
-                Current answer: {ANSWER_LABEL[check.answer]}
+                Current answer: {ANSWER_LABEL[legacyAnswer]}
               </span>
             ) : null}
           </span>
@@ -232,4 +245,49 @@ export async function CaptureScreen({
       )}
     </div>
   )
+}
+
+async function knowledgeAssets(
+  actor: MediaActor,
+  checkId: string
+): Promise<AssetsResult> {
+  try {
+    return knowledgeAssetsResult(
+      await knowledgeServices.listKnowledgeAssets(actor, { checkId })
+    )
+  } catch {
+    return {
+      ok: false,
+      code: "unavailable",
+      status: 503,
+      message: "We couldn't load your photos and videos.",
+    }
+  }
+}
+
+/**
+ * Staff read the knowledge view first. A working-list question is open to
+ * everyone working at the venue, but the amenity read lets only its assignee
+ * (and managers) see the check, so an unassigned person got a 404 (F1). The
+ * amenity read is for questions off the working list only.
+ */
+async function staffReads(
+  actor: MediaActor,
+  checkId: string,
+  venueName: string
+): Promise<
+  [
+    Awaited<ReturnType<typeof knowledgeFor>>,
+    Awaited<ReturnType<typeof getCheck>> | null,
+    AssetsResult,
+  ]
+> {
+  const knowledge = await knowledgeFor(actor, checkId, "staff", venueName)
+  // Their own media, without the assignment the amenity list needs.
+  if (knowledge) return [knowledge, null, await knowledgeAssets(actor, checkId)]
+  const [checkResult, assets] = await Promise.all([
+    getCheck(actor, { checkId }),
+    listSubmittableAssets(actor, { checkId }),
+  ])
+  return [null, checkResult, assets]
 }

@@ -17,6 +17,7 @@ import type {
   DecideInput,
   DecisionResult,
   FindingsPage,
+  KnowledgeAsset,
   KnowledgeFailure,
   KnowledgeResult,
   MyPending,
@@ -86,6 +87,11 @@ export type KnowledgeServices = {
     actor: MediaActor,
     input: unknown
   ): Promise<KnowledgeResult<{ pending: MyPending }>>
+  /** Staff only: own attachable media on a working-list question (F1). */
+  listKnowledgeAssets(
+    actor: MediaActor,
+    input: unknown
+  ): Promise<KnowledgeResult<{ assets: KnowledgeAsset[] }>>
 }
 
 /** PostgREST and Postgres "no such function": the schema predates B01. */
@@ -212,4 +218,7 @@ export const knowledgeServices: KnowledgeServices = {
   },
 
   getMyPending: (actor, input) => server.getMyPending(actor, input),
+
+  listKnowledgeAssets: (actor, input) =>
+    server.listKnowledgeAssets(actor, input),
 }

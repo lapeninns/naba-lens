@@ -9,6 +9,7 @@ import {
 import { useMediaUploader } from "@/app/_media/use-media-uploader"
 import {
   discardKnowledgeDraftAction,
+  listKnowledgeAssetsAction,
   saveKnowledgeDraftAction,
   submitKnowledgeFindingAction,
 } from "@/app/_knowledge/actions"
@@ -25,8 +26,11 @@ import {
   useAddQueue,
   useAddRefreshSignal,
 } from "@/components/nabalens/shell/add-context"
-import type { CheckSummary } from "@/lib/amenities/contract"
 import { loginHref } from "@/lib/auth/routes"
+import {
+  knowledgeAssetsResult,
+  type CaptureCheck,
+} from "@/lib/knowledge-client/contract"
 import { MEDIA_LIMITS } from "@/lib/config/media"
 
 /** What the server read about a working-list question (no functions). */
@@ -34,6 +38,13 @@ export type KnowledgeProps = Omit<
   KnowledgeCapture,
   "submit" | "saveDraft" | "onDiscardDraft"
 > & { canContribute: boolean }
+
+/** The capture form's asset list for staff on a working-list question. */
+async function loadKnowledgeAssets(input: {
+  checkId: string
+}): Promise<AssetsResult> {
+  return knowledgeAssetsResult(await listKnowledgeAssetsAction(input))
+}
 
 /**
  * Wires the capture form to the amenity actions and the existing upload flow:
@@ -50,7 +61,7 @@ export function CaptureClient({
   doneHref,
   knowledge = null,
 }: {
-  check: CheckSummary
+  check: CaptureCheck
   /** The signed-in person; their drafts are kept apart on a shared device. */
   viewerId: string
   initialAssets: AssetsResult
@@ -71,7 +82,13 @@ export function CaptureClient({
       check={check}
       viewerId={viewerId}
       initialAssets={initialAssets}
-      loadAssets={listSubmittableAssetsAction}
+      loadAssets={
+        // Staff on a working-list question list their own media, which needs
+        // no assignment (F1); everyone else keeps the amenity list.
+        knowledge?.role === "staff"
+          ? loadKnowledgeAssets
+          : listSubmittableAssetsAction
+      }
       submit={submitFindingAction}
       upload={canUpload ? { addQueue, uploader, limits: MEDIA_LIMITS } : null}
       canAttachLegacy={canAttachLegacy}
