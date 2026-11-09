@@ -71,6 +71,8 @@ export type ReaderAnswer = {
   provenance: {
     sourceKind: string
     contributionId: string
+    /** Contribution and submission IDs are separate spaces; compare within one. */
+    idKind: "contribution" | "submission"
     confirmation: {
       authority: "venue_manager" | "admin"
       selfConfirmed: boolean

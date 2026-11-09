@@ -65,6 +65,7 @@ function rowFor(key: string, extra: Record<string, unknown> = {}) {
     value: "yes",
     current_submission_id: "6c1e0000-0000-4000-8000-000000000001",
     current_contribution_id: null,
+    contribution_kind: "submission",
     source_basis: null,
     finding: "Seen",
     limitations: null,
@@ -158,7 +159,11 @@ describe("answers handler", () => {
       "onsite_parking",
       "guest_wifi",
     ])
-    expect(body.answers[0].provenance.sourceKind).toBe("observation")
+    expect(body.answers[0].provenance).toMatchObject({
+      sourceKind: "observation",
+      contributionId: "6c1e0000-0000-4000-8000-000000000001",
+      idKind: "submission",
+    })
     expect(body.answers[1].summary).toBeNull()
     expect(d.source).toHaveBeenCalledOnce()
     expect(logs).toEqual([
