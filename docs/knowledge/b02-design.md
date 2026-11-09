@@ -110,7 +110,7 @@ its page read; there is no count.
 
 **Authorisation.** The caller's own rows only. Labelling is staff (own) and
 admin only today (matrix §4.2), so MO and AD get `0, 0`; R8 tells the UI not
-to show the item. If W4 is approved, MO is counted the same way as staff.
+to show the item. If the owner allows W4, MO is counted the same way as staff.
 
 **Migration and rollback.** One additive function. Rollback: drop it, or
 switch off `homeLayout` (D-10).
@@ -401,7 +401,7 @@ public.media_contribution_group_members
   credit-function hash and the C-tests.
 - Membership is append-only. A deleted asset stays a member and is hidden by
   the gate. Groups are never deleted.
-- Manager accounts can create groups only if W3 is approved (they need their
+- Manager accounts can create groups only if the owner allows W3 (they need their
   own uploads to add).
 
 **Authorisation and RLS.** RLS on, no client policies, functions only.
@@ -531,17 +531,17 @@ that caching doesn't reuse it (UI §8.1).
 
 ### 5.1 Gaps (matrix §5) and where each goes
 
-| Gap | Today                                      | In this design                                                                                                |
-| --- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
-| OA1 | MO can't upload, so it can't answer Yes    | W3, only if Q1 says yes                                                                                       |
-| OA2 | No menu photo contribution                 | W3 and W4, only if Q1 and Q4 say yes                                                                          |
-| OA3 | MO's own photos wait for an admin          | **Unchanged** (§5.3; Q2, Q9)                                                                                  |
-| OA4 | Legacy coverage closed to MO               | **Unchanged** (Q8). R3 and R8 report it as unavailable                                                        |
-| OA5 | No targets, credit or recognition for MO   | **Unchanged** (Q5). R5 shows no recognition line for MO                                                       |
-| OA6 | MO can't be an assignee                    | **Unchanged** (Q7). R8 `canBeAssigned` false                                                                  |
-| OA7 | Self-confirmation depends on the rule seed | **Unchanged** (Q6). R8 `canSelfConfirm` reports it per question                                               |
-| OA8 | Admin prerequisites (enable, working list) | **Unchanged**                                                                                                 |
-| OA9 | Coverage evidence and general media hidden | **Unchanged** (Q10). If W3 is approved, MO's own new uploads still need Q10 to open them through `/api/media` |
+| Gap | Today                                      | In this design                                                                                                     |
+| --- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| OA1 | MO can't upload, so it can't answer Yes    | W3, only if Q1 says yes                                                                                            |
+| OA2 | No menu photo contribution                 | W3 and W4, only if Q1 and Q4 say yes                                                                               |
+| OA3 | MO's own photos wait for an admin          | **Unchanged** (§5.3; Q2, Q9)                                                                                       |
+| OA4 | Legacy coverage closed to MO               | **Unchanged** (Q8). R3 and R8 report it as unavailable                                                             |
+| OA5 | No targets, credit or recognition for MO   | **Unchanged** (Q5). R5 shows no recognition line for MO                                                            |
+| OA6 | MO can't be an assignee                    | **Unchanged** (Q7). R8 `canBeAssigned` false                                                                       |
+| OA7 | Self-confirmation depends on the rule seed | **Unchanged** (Q6). R8 `canSelfConfirm` reports it per question                                                    |
+| OA8 | Admin prerequisites (enable, working list) | **Unchanged**                                                                                                      |
+| OA9 | Coverage evidence and general media hidden | **Unchanged** (Q10). If the owner allows W3, MO's own new uploads still need Q10 to open them through `/api/media` |
 
 ### 5.2 Fixtures
 
