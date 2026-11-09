@@ -11,6 +11,7 @@ import type {
   KnowledgeAnswer,
   KnowledgeOutcome,
   Recognition,
+  ToConfirmRow,
   UnknownPreset,
   WorkingSlot,
 } from "@/lib/knowledge-client/contract"
@@ -438,6 +439,40 @@ export const KNOWLEDGE_FAILURE_COPY = {
       "This question was taken off the question list, so nothing was changed. Reload to see it.",
   },
 } as const
+
+// ---- To confirm (§6.1) ---------------------------------------------------------------
+
+export const TO_CONFIRM_COPY = {
+  title: "To confirm",
+  empty: "Nothing to confirm.",
+  /** Accessible words after the count on the Amenities tab. */
+  badge: (n: number) =>
+    n === 1 ? "finding to confirm" : "findings to confirm",
+  overviewRow: (n: number) =>
+    `${n} ${n === 1 ? "finding to confirm" : "findings to confirm"}`,
+} as const
+
+/** One question's line in To confirm: what waits, and from whom. */
+export function toConfirmLine(rows: readonly ToConfirmRow[]): string {
+  if (rows.length > 1)
+    return rows.some((row) => row.conflict)
+      ? `${rows.length} findings disagree`
+      : `${rows.length} findings to decide`
+  const [row] = rows
+  const name = row.sender?.displayName ?? "a former team member"
+  switch (row.kind) {
+    case "finding":
+      return `Finding from ${name}`
+    case "change_report":
+      return `Change report from ${name}`
+    case "detail":
+      return `Added detail from ${name}`
+    case "answer_unconfirmed":
+      return "Answer in use, not confirmed"
+    case "evidence_removed":
+      return "Evidence removed from the answer in use"
+  }
+}
 
 // ---- Evidence that isn't ready yet (§4.2, G4) ----------------------------------------
 

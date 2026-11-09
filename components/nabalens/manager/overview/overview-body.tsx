@@ -7,6 +7,7 @@ import {
   HourglassIcon,
   ImageSquareIcon,
   ImagesIcon,
+  ShieldCheckIcon,
   UserIcon,
 } from "@phosphor-icons/react/dist/ssr"
 
@@ -17,6 +18,8 @@ import { PageHeader } from "@/components/nabalens/page-header"
 import { buttonVariants } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 
+import { TO_CONFIRM_COPY } from "@/components/nabalens/knowledge/copy"
+import { amenityHrefs } from "@/lib/amenities/contract"
 import type { ManagerOverview } from "@/lib/server/menu-photos/types"
 
 import { MANAGER_COPY } from "../copy"
@@ -43,18 +46,38 @@ const TALLY_ICON: Record<string, React.ReactNode> = {
  * menu photo, what is waiting for a decision (each count links to the
  * filtered Review or Menu view), a recent activation, and per-section totals.
  */
+/** Amenity findings waiting for this manager: one row, hidden at zero. */
+function ConfirmRow({ count }: { count: number }) {
+  if (count <= 0) return null
+  return (
+    <ul className={ROW_LIST}>
+      <li data-tally="confirm">
+        <Row
+          href={`${amenityHrefs(managerHrefs.overview).list}#amenities-to-confirm`}
+          icon={<ShieldCheckIcon />}
+          title={TO_CONFIRM_COPY.overviewRow(count)}
+        />
+      </li>
+    </ul>
+  )
+}
+
 export function OverviewBody({
   overview,
   now,
   staffTargets,
+  confirmCount = 0,
 }: {
   overview: ManagerOverview
   staffTargets?: React.ReactNode
   /** ISO instant of the render, so server and browser agree. */
   now: string
+  /** Amenity findings waiting for a decision (0 when none or unreadable). */
+  confirmCount?: number
 }) {
   const copy = MANAGER_COPY.overview
   const venueName = overview.venueName
+  const confirm = <ConfirmRow count={confirmCount} />
 
   if (overview.menuState === "no_menu") {
     return (
@@ -65,6 +88,7 @@ export function OverviewBody({
           noteTitle={copy.noMenuTitle}
           note={copy.noMenuBody}
         />
+        {confirm}
         {staffTargets}
       </div>
     )
@@ -84,6 +108,7 @@ export function OverviewBody({
     return (
       <div className="grid gap-(--gutter)">
         {header}
+        {confirm}
         <EmptyState
           title={copy.emptyTitle}
           description={
@@ -160,6 +185,7 @@ export function OverviewBody({
   return (
     <div className="grid gap-(--gutter)">
       {header}
+      {confirm}
       <ActivationBanner overview={overview} now={now} />
       <section
         aria-labelledby="overview-photos"

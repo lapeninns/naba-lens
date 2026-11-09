@@ -23,8 +23,9 @@ export function CoverageSection({
   const titleId = id ? `${id}-title` : undefined
   return (
     <section
+      id={id}
       aria-labelledby={titleId}
-      className={cn("grid min-w-0 gap-(--gutter)", className)}
+      className={cn("grid min-w-0 scroll-mt-4 gap-(--gutter)", className)}
     >
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-1 pt-2">
         <h2
@@ -399,3 +400,4 @@ export function Quote({
     </blockquote>
   )
 }
+

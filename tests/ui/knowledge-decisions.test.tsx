@@ -562,6 +562,26 @@ describe("To confirm: refusals (§6.6)", () => {
     expect(screen.queryByRole("button", { name: "Try again" })).toBeNull()
   })
 
+  it("says an archived check can't be decided, and offers no Try again", async () => {
+    const { user } = setup(view([finding()]), {
+      decide: vi.fn(async () => ({
+        ok: false as const,
+        code: "state_conflict" as const,
+        status: 409 as const,
+        message:
+          "This check is archived. Restore it first, or reload the page.",
+      })),
+    })
+    await user.click(screen.getByRole("button", { name: "Confirm" }))
+    expect(
+      screen.getByText(
+        "This check is archived. Restore it first, or reload the page."
+      )
+    ).toBeTruthy()
+    expect(nav.refresh).toHaveBeenCalled()
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull()
+  })
+
   it("offers Try again with the same request after a lost reply", async () => {
     const decide = vi
       .fn<DecisionHandlers["decide"]>()
