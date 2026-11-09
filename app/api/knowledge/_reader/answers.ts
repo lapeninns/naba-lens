@@ -17,7 +17,8 @@ import { UUID } from "./credentials"
 export type ResolverRow = {
   question_key: string
   status: "available" | "unavailable"
-  reason: ResolverReason | null
+  /** WS1's row type also allows `not_enabled`; it is read as unknown / not_enabled. */
+  reason: ResolverReason | "not_enabled" | null
   detail: string | null
   revision: number
   question_version: number | null
@@ -84,7 +85,10 @@ function id(v: unknown): string | null | undefined {
  */
 export function parseResolverRow(raw: unknown): ResolverRow | null {
   if (!isObject(raw)) return null
-  const reasons = Object.keys(UNAVAILABLE_DETAILS) as ResolverReason[]
+  const reasons = [
+    ...(Object.keys(UNAVAILABLE_DETAILS) as ResolverReason[]),
+    "not_enabled" as const,
+  ]
   const row = {
     question_key:
       typeof raw.question_key === "string" ? raw.question_key : undefined,
@@ -187,6 +191,16 @@ export function toAnswer(
   const key = row.question_key
   if (row.status === "unavailable") {
     if (!row.reason) return null
+    // One reason set for consumers: out of scope is always unknown/not_enabled.
+    if (row.reason === "not_enabled") {
+      if (row.detail !== null && row.detail !== "not_enabled") return null
+      return unavailable(
+        key,
+        { reason: "unknown", detail: "not_enabled" },
+        row.revision,
+        row.question_version
+      )
+    }
     const details: readonly string[] = UNAVAILABLE_DETAILS[row.reason]
     if (row.detail === null || !details.includes(row.detail)) return null
     return unavailable(

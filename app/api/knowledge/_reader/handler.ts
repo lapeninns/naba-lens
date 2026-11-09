@@ -23,7 +23,7 @@ import {
   toAnswer,
 } from "./answers"
 import {
-  notIntegratedSource,
+  databaseSource,
   type ReaderSource,
   type ReaderSourceResult,
 } from "./source"
@@ -58,7 +58,7 @@ let defaults: ReaderDeps | null = null
 export function defaultReaderDeps(): ReaderDeps {
   defaults ??= {
     config: () => readerConfigFromEnv(),
-    source: notIntegratedSource,
+    source: databaseSource,
     limiter: new ConsumerLimiter(),
     now: Date.now,
     requestId: randomUUID,

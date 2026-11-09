@@ -1,9 +1,14 @@
+import "server-only"
+
+import { readKnowledgeAnswers } from "@/lib/server/knowledge"
+import type { Db } from "@/lib/server/media/types"
+import { createAdminClient } from "@/lib/supabase/admin"
+
 /**
- * The reader's only data access. In production this calls
- * `public.knowledge_reader_answers_v1(p_venue_id, p_keys)` (WS1, service_role
- * only, a STABLE PL/pgSQL function, so one snapshot per call), and maps its
- * `knowledge_venue_not_found` error to `venue_not_found`. Rows are untrusted
- * until `parseResolverRow` accepts them.
+ * The reader's only data access: `public.knowledge_reader_answers_v1`
+ * through WS1's `readKnowledgeAnswers` (service_role only, a STABLE
+ * PL/pgSQL function, so one snapshot per call). Rows are untrusted until
+ * `parseResolverRow` accepts them.
  */
 export type ReaderSourceResult =
   | { ok: true; rows: readonly unknown[] }
@@ -20,8 +25,17 @@ export type ReaderSource = (input: {
   signal: AbortSignal
 }) => Promise<ReaderSourceResult>
 
-/** Until the resolver is integrated, the reader answers 503 for every read. */
-export const notIntegratedSource: ReaderSource = async () => ({
-  ok: false,
-  error: "unavailable",
-})
+let service: Db | null = null
+
+export const databaseSource: ReaderSource = async ({ venueId, keys }) => {
+  service ??= createAdminClient()
+  const result = await readKnowledgeAnswers(service, venueId, keys)
+  if (result.ok) return { ok: true, rows: result.rows }
+  // invalid_input cannot follow a parsed request (a UUID and at most 20
+  // keys), so it is treated as the source being unusable, not as a 400.
+  return {
+    ok: false,
+    error:
+      result.code === "venue_not_found" ? "venue_not_found" : "unavailable",
+  }
+}
