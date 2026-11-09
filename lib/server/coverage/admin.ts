@@ -45,6 +45,10 @@ const objectOrEmpty = (input: unknown) =>
 
 // ---- Manager grants (admin) ------------------------------------------------------
 
+// Every id goes into one GET URL; a few hundred UUIDs exceed the gateway's URI
+// limit, so holder roles are read this many at a time.
+export const GRANT_HOLDER_CHUNK = 100
+
 export async function listManagerGrants(
   actor: MediaActor,
   input: unknown
@@ -66,11 +70,11 @@ export async function listManagerGrants(
   // accounts existed. They stay in effect until an admin converts the person.
   const holders = [...new Set(rows.map((g) => g.staff_id))]
   const staffHolders = new Set<string>()
-  if (holders.length > 0) {
+  for (let i = 0; i < holders.length; i += GRANT_HOLDER_CHUNK) {
     const { data: people, error: peopleError } = await actor.db
       .from("profiles")
       .select("id, role")
-      .in("id", holders)
+      .in("id", holders.slice(i, i + GRANT_HOLDER_CHUNK))
     if (peopleError)
       return unavailableFailure("manager grant holders", peopleError)
     for (const p of people ?? []) if (p.role === "staff") staffHolders.add(p.id)

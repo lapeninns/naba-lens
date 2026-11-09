@@ -22,6 +22,7 @@ import {
   listManagerGrants,
 } from "@/lib/server/coverage/admin"
 
+import { localSql } from "./auth-support"
 import { actorFor } from "../slice/media-actor"
 import {
   anonClient,
@@ -455,5 +456,61 @@ describe("account tooling for manager accounts", () => {
         .filter((g) => g.staff.id !== holder.id)
         .every((g) => !g.legacyStaffGrant)
     ).toBe(true)
+  })
+
+  it("lists grants for more holders than one profile read can carry", async () => {
+    // Holder roles were once read with every id in one GET URL, which the
+    // gateway refused at a few hundred holders.
+    const venue = await createVenue(service, "conv-many")
+    const tag = randomUUID().slice(0, 8)
+    const people = Array.from({ length: 305 }, (_, n) => ({
+      id: randomUUID(),
+      email: `it-conv-many-${n}-${tag}@nabalens.test`,
+      role: n % 2 === 0 ? "staff" : "manager",
+    }))
+    const users = people
+      .map((p) => `('${p.id}'::uuid, '${p.email}')`)
+      .join(", ")
+    const profiles = people
+      .map(
+        (p, n) =>
+          `('${p.id}'::uuid, 'TEST Holder ${n} ${tag}', '${p.role}'::public.app_role, '${venue.id}'::uuid, true)`
+      )
+      .join(", ")
+    localSql(`
+      with fixture_users (id, email) as (values ${users}),
+      inserted as (
+        insert into auth.users (
+          instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+          raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+          confirmation_token, recovery_token, email_change_token_new, email_change,
+          email_change_token_current, phone_change, phone_change_token, reauthentication_token
+        )
+        select '00000000-0000-0000-0000-000000000000', id, 'authenticated', 'authenticated',
+          email, '', now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb,
+          now(), now(), '', '', '', '', '', '', '', ''
+        from fixture_users
+        returning id
+      )
+      insert into public.profiles (id, display_name, role, venue_id, active)
+      select v.* from (values ${profiles}) as v (id, display_name, role, venue_id, active)
+      where v.id in (select id from inserted);
+      insert into public.venue_manager_grants (staff_id, venue_id, granted_by, grant_reason)
+      select p.id, p.venue_id, '${admin.id}'::uuid, 'TEST many holders'
+      from public.profiles p where p.venue_id = '${venue.id}'::uuid;
+    `)
+
+    const listed = await listManagerGrants(await actorFor(admin), {
+      venueId: venue.id,
+    })
+    if (!listed.ok) throw new Error(`${listed.code}: ${listed.message}`)
+    expect(listed.grants).toHaveLength(people.length)
+    const byHolder = new Map(listed.grants.map((g) => [g.staff.id, g]))
+    for (const p of people) {
+      expect(byHolder.get(p.id)).toMatchObject({
+        effective: true,
+        legacyStaffGrant: p.role === "staff",
+      })
+    }
   })
 })
