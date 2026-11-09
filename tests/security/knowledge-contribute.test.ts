@@ -375,6 +375,84 @@ describe("drafts (T3)", () => {
   })
 })
 
+describe("a send settles the sender's draft (CA-01)", () => {
+  const saveDraft = (v: World, who: World["staffA"], key: string) =>
+    json(who, "knowledge_save_draft", {
+      p_check_id: v.checks.guest_toilets!,
+      p_draft_revision: null,
+      p_payload: { answer: "no" },
+      p_asset_ids: [],
+      p_idempotency_key: key,
+    })
+  const draftOf = (who: World["staffA"], check: string) =>
+    json(who, "knowledge_get_draft", { p_check_id: check })
+
+  it("deletes the sender's draft whatever key it carried, and nobody else's", async () => {
+    const v = await world("kn-draft-newkey")
+    const check = v.checks.guest_toilets!
+    await saveDraft(v, v.staffA, randomUUID())
+    await saveDraft(v, v.staffB, randomUUID())
+    const sent = await submit(v.staffA, v, "guest_toilets", {
+      answer: "unknown",
+      key: randomUUID(),
+    })
+    expect(sent.replayed).toBe(false)
+    expect(await draftOf(v.staffA, check)).toBeNull()
+    expect(await draftOf(v.staffB, check)).not.toBeNull()
+  })
+
+  it("keeps the draft when the send is refused", async () => {
+    const v = await world("kn-draft-refused")
+    const check = v.checks.guest_toilets!
+    await saveDraft(v, v.staffA, randomUUID())
+    await refused(
+      v.staffA,
+      "knowledge_submit",
+      submitArgs(v, "guest_toilets", { answer: "no", revision: 999 }),
+      "amenity_conflict"
+    )
+    expect(await draftOf(v.staffA, check)).not.toBeNull()
+  })
+
+  it("is settled by a legacy answer after the question leaves the working list", async () => {
+    const v = await world("kn-draft-legacy")
+    const check = v.checks.guest_toilets!
+    await saveDraft(v, v.staffA, randomUUID())
+    await json(v.admin, "knowledge_set_working_list", {
+      p_venue_id: v.venue,
+      p_keys: ["guest_toilets"],
+      p_enabled: false,
+      p_reason: "TEST",
+    })
+    const revision = () =>
+      count(
+        `select revision from public.venue_amenity_checks where id = '${check}'`
+      )
+    await ok(
+      v.manager.client.rpc("amenity_assign_check", {
+        p_check_id: check,
+        p_assignee_id: v.staffA.id,
+        p_revision: revision(),
+      })
+    )
+    await ok(
+      v.staffA.client.rpc("amenity_submit_finding", {
+        p_check_id: check,
+        p_revision: revision(),
+        p_idempotency_key: randomUUID(),
+        p_answer: "no",
+        p_finding: null as unknown as string,
+        p_limitations: null as unknown as string,
+        p_reason: "TEST none here",
+        p_asset_ids: [],
+        p_internal_metadata: null,
+        p_redaction_confirmed: false,
+      })
+    )
+    expect(await draftOf(v.staffA, check)).toBeNull()
+  })
+})
+
 describe("idempotency and the slot revision (T4)", () => {
   it("records one contribution, submission and event for a key sent three times", async () => {
     const v = await world("kn-replay")
