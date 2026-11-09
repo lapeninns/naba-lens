@@ -192,6 +192,11 @@ export type KnowledgeSlotView = {
     confirmed: boolean
     confirmationState: ConfirmationState | null
     evidenceState: EvidenceState | null
+    /** Managers and admins only (absent for staff); null until confirmed. */
+    confirmedByFirstName?: string | null
+    confirmedAt?: string | null
+    /** The confirmer was also the person who sent the finding. */
+    confirmedSelf?: boolean | null
   } | null
   previousAnswer: SubmitAnswer | null
   requiresConfirmation: boolean
@@ -229,6 +234,12 @@ export type PendingFindingView = {
   senderAssigned: boolean
   isMine: boolean
   detailRequested: boolean
+  /** The latest request for more detail; managers and admins only (else null). */
+  detailRequest: {
+    decisionId: string
+    note: string | null
+    requestedAt: string
+  } | null
   wifi: WifiMetadata | null
   evidence: { assetId: string; kind: "photo" | "video"; available: boolean }[]
 }
@@ -261,6 +272,8 @@ export type ToConfirmItem = {
   sentAt: string | null
   slotRevision: number
   conflict: boolean
+  /** This finding disputes the answer in use (the resolver's dispute test). */
+  disputes: boolean
 }
 
 export type DraftView = {
@@ -282,6 +295,9 @@ export type MyFindingsPage = {
   drafts: {
     checkId: string
     venueId: string
+    venueName: string
+    questionKey: string
+    question: string
     savedAt: string
     sendable: boolean
   }[]
@@ -316,6 +332,8 @@ export type SubmitKnowledgeResult = {
   submissionId: string | null
   outcome: SubmitOutcome
   replacedOwn: string | null
+  /** When the replaced own finding was sent (it was never the answer in use). */
+  replacedOwnSentAt: string | null
   slotRevision: number
   replayed: boolean
   recognition: Recognition
