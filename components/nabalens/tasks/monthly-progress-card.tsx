@@ -4,6 +4,7 @@ import { PlusIcon } from "@phosphor-icons/react/dist/ssr"
 import { buttonVariants } from "@/components/ui/button"
 
 import { CardFoot, CardHead } from "../common-room"
+import { pendingLines } from "../knowledge/copy"
 import { completionBreakdown, plural } from "./copy"
 import { PhotoSegments } from "./month-card"
 import { DueLine, StatusChip } from "./status-badges"
@@ -21,6 +22,7 @@ export function MonthlyProgressCard({
   canSubmit,
   headingLevel = 2,
   showVenue = false,
+  alsoPending = null,
 }: {
   monthly: MonthlyProgress | null
   /** Shown when there is no target row ("November 2026"). */
@@ -31,6 +33,11 @@ export function MonthlyProgressCard({
   headingLevel?: 2 | 3
   /** Name the venue (a month spanning a transfer has one card per venue). */
   showVenue?: boolean
+  /**
+   * Amenity findings this month outside the target number (S14): waiting
+   * for confirmation, or recorded as Couldn't establish. Nothing at zero.
+   */
+  alsoPending?: { awaitingConfirmation: number; unknownRecorded: number } | null
 }) {
   const Heading = headingLevel === 2 ? "h2" : "h3"
   const label =
@@ -63,6 +70,7 @@ export function MonthlyProgressCard({
   const count = completion?.total ?? monthly.accepted
   const unit = completion ? "completed" : "accepted"
   const remaining = target ? Math.max(0, target - count) : null
+  const also = pendingLines(alsoPending)
 
   return (
     <section
@@ -172,6 +180,15 @@ export function MonthlyProgressCard({
           ) : null}
         </ul>
       )}
+
+      {also.length > 0 ? (
+        // Separate from the bar and its number: these aren't counted.
+        <div className="grid gap-1 border-t border-line pt-3 text-meta text-ink-muted">
+          {also.map((line) => (
+            <p key={line}>{line}</p>
+          ))}
+        </div>
+      ) : null}
 
       {monthly.due ? (
         <div className="grid gap-1">

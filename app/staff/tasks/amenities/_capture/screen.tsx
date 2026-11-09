@@ -14,6 +14,7 @@ import {
   type AmenityResult,
 } from "@/lib/amenities/contract"
 import { answerInUseLines } from "@/components/nabalens/knowledge/copy"
+import { LatestFinding } from "@/components/nabalens/knowledge/latest-finding"
 import { ROUTES } from "@/lib/auth/routes"
 import type { QuestionView } from "@/lib/knowledge-client/contract"
 import { knowledgeServices } from "@/lib/knowledge-client/services"
@@ -62,6 +63,11 @@ function fromView(
     canSelfConfirm: view.permissions.canSelfConfirm,
     respondsTo: role === "staff" ? asked : null,
     serverDraft,
+    // Changing my undecided finding starts from what I sent.
+    prefill:
+      role === "staff" && latest?.state === "awaiting_confirmation"
+        ? { answer: latest.answer, unknownPreset: latest.unknownPreset }
+        : null,
   }
 }
 
@@ -151,6 +157,22 @@ export async function CaptureScreen({
   const open =
     check.status === "active" &&
     (knowledge ? knowledge.canContribute : permissions.canSubmit)
+  // Staff see what they last sent above the form (§4.6).
+  const latest =
+    mode === "staff" && knowledge?.slot.myLatest?.answer
+      ? knowledge.slot.myLatest
+      : null
+  const form = (
+    <CaptureClient
+      check={check}
+      viewerId={actor.profile.id}
+      initialAssets={assets}
+      canUpload={canUpload}
+      canAttachLegacy={permissions.canAttachLegacy}
+      doneHref={doneHref}
+      knowledge={knowledge}
+    />
+  )
 
   return (
     <div className="flex min-w-0 flex-col gap-6 pb-4">
@@ -189,15 +211,16 @@ export async function CaptureScreen({
         }
       />
       {open ? (
-        <CaptureClient
-          check={check}
-          viewerId={actor.profile.id}
-          initialAssets={assets}
-          canUpload={canUpload}
-          canAttachLegacy={permissions.canAttachLegacy}
-          doneHref={doneHref}
-          knowledge={knowledge}
-        />
+        latest ? (
+          <LatestFinding
+            finding={latest}
+            inUse={knowledge?.slot.answerInUse.value ?? null}
+          >
+            {form}
+          </LatestFinding>
+        ) : (
+          form
+        )
       ) : (
         <Notice tone="plain">
           {check.status === "archived"

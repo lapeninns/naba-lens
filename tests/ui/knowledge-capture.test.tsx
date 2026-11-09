@@ -147,6 +147,7 @@ function setup({
     savedAt: "2026-11-06T09:00:00.000Z",
   })),
   discardDraft = vi.fn<DiscardDraft>(async () => ({ ok: true })),
+  prefill = null,
 }: {
   knowledgeSlot?: WorkingSlot
   submit?: ReturnType<typeof vi.fn<Submit>>
@@ -155,6 +156,7 @@ function setup({
   serverDraft?: ServerDraft | null
   saveDraft?: ReturnType<typeof vi.fn<SaveDraft>>
   discardDraft?: ReturnType<typeof vi.fn<DiscardDraft>>
+  prefill?: KnowledgeCapture["prefill"]
 } = {}) {
   const onDone = vi.fn()
   const onReload = vi.fn()
@@ -183,6 +185,7 @@ function setup({
         saveDraft,
         discardDraft,
         serverDraft,
+        prefill,
       }}
     />
   )
@@ -784,4 +787,11 @@ describe("knowledge capture: credit lines only when the server says scored", () 
       expect(status()).not.toMatch(/Counted in/)
     }
   )
+})
+
+describe("Change my finding (§4.6)", () => {
+  it("starts from the undecided finding's answer", () => {
+    setup({ prefill: { answer: "no", unknownPreset: null } })
+    expect((radio("No") as HTMLInputElement).checked).toBe(true)
+  })
 })
