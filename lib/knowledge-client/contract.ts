@@ -6,6 +6,7 @@
 
 import type {
   CheckProgress,
+  CheckSummary,
   EvidenceItem,
   EvidenceRule,
   Instant,
@@ -232,11 +233,28 @@ export type KnowledgeEventLine = {
   text: string
 }
 
+/**
+ * What the capture screen and form need of a check. The amenity read gives a
+ * full CheckSummary; for staff on a working-list question it comes from the
+ * knowledge read instead, which anyone at the venue may make (F1).
+ */
+export type CaptureCheck = Pick<
+  CheckSummary,
+  "id" | "venueId" | "status" | "progress" | "recheckReason" | "revision"
+> & {
+  entry: Pick<
+    CheckSummary["entry"],
+    "key" | "category" | "question" | "captureBrief" | "evidenceRule"
+  >
+}
+
 export type QuestionView =
   | { inScope: false }
   | {
       inScope: true
       slot: WorkingSlot
+      /** The check as the capture screen shows it (F1). */
+      capture: CaptureCheck
       venue: { id: string; name: string }
       pending: PendingFinding[]
       permissions: KnowledgePermissions

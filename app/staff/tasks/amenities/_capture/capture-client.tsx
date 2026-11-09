@@ -25,8 +25,8 @@ import {
   useAddQueue,
   useAddRefreshSignal,
 } from "@/components/nabalens/shell/add-context"
-import type { CheckSummary } from "@/lib/amenities/contract"
 import { loginHref } from "@/lib/auth/routes"
+import type { CaptureCheck } from "@/lib/knowledge-client/contract"
 import { MEDIA_LIMITS } from "@/lib/config/media"
 
 /** What the server read about a working-list question (no functions). */
@@ -50,7 +50,7 @@ export function CaptureClient({
   doneHref,
   knowledge = null,
 }: {
-  check: CheckSummary
+  check: CaptureCheck
   /** The signed-in person; their drafts are kept apart on a shared device. */
   viewerId: string
   initialAssets: AssetsResult
