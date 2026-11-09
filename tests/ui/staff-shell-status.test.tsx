@@ -76,7 +76,10 @@ vi.mock("@/lib/server/coverage", () => coverage)
 const amenities = vi.hoisted(() => ({ getMyAmenityTasks: vi.fn() }))
 vi.mock("@/lib/server/amenities", () => amenities)
 // No working list at this venue unless a test gives one: the legacy counts.
-const knowledge = vi.hoisted(() => ({ getWorkingList: vi.fn() }))
+const knowledge = vi.hoisted(() => ({
+  getWorkingList: vi.fn(),
+  listMyFindings: vi.fn(),
+}))
 vi.mock("@/lib/knowledge-client/services", () => ({
   knowledgeServices: knowledge,
 }))
@@ -107,6 +110,10 @@ beforeEach(() => {
     tasks: [check("c1"), check("c2")],
   })
   knowledge.getWorkingList.mockResolvedValue({ ok: true, view: null })
+  knowledge.listMyFindings.mockResolvedValue({
+    ok: true,
+    page: { items: [], nextCursor: null, hiddenEarlierVenues: [] },
+  })
 })
 
 afterEach(() => {
@@ -365,5 +372,49 @@ describe("currentStaffShell", () => {
       variant: "staff",
       todoCount: undefined,
     })
+  })
+})
+
+describe("Me: Your findings (B01-06)", () => {
+  it("shows the history on Me when there is some", async () => {
+    knowledge.listMyFindings.mockResolvedValue({
+      ok: true,
+      page: {
+        items: [
+          {
+            findingRef: { type: "contribution", id: "f1" },
+            checkId: "c1",
+            question: "Is there parking on site?",
+            venue: { id: "v1", name: "TEST Inn" },
+            answer: "yes",
+            kind: "finding",
+            state: "current",
+            noLongerUsed: null,
+            stateReason: null,
+            managerNote: null,
+            detailRequestId: null,
+            unknownPreset: null,
+            answeredBy: null,
+            sentAt: "2026-11-05T10:00:00.000Z",
+            savedAt: null,
+            decidedAt: null,
+            recognition: { kind: "pending" },
+          },
+        ],
+        nextCursor: null,
+        hiddenEarlierVenues: [],
+      },
+    })
+    const { getByRole } = render(await StaffPage())
+    expect(getByRole("region", { name: "Your findings" })).toBeTruthy()
+    expect(
+      getByRole("heading", { level: 3, name: "Is there parking on site?" })
+    ).toBeTruthy()
+  })
+
+  it("leaves it out at a venue with no questions and nothing sent, even when the read fails", async () => {
+    knowledge.listMyFindings.mockRejectedValue(new Error("down"))
+    const { queryByRole } = render(await StaffPage())
+    expect(queryByRole("region", { name: /Your findings/ })).toBeNull()
   })
 })
