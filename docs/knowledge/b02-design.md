@@ -191,6 +191,17 @@ waiting time, never summed (D-6).
   `venue_coverage_summary`) inside its own body, so it reimplements no filter
   and re-creates no existing function. Each of those already re-checks the
   caller.
+- **One snapshot.** All three are declared `stable` today:
+  - `manager_menu_photo_overview`, `20261107100500_manager_item_photo_reads.sql:41`;
+  - `venue_coverage_summary`, `20261102150000_coverage_procedures.sql:2219`;
+  - `knowledge_to_confirm`, `20261109145934_knowledge_b01_functions.sql:2057`,
+    and still `stable` after R4.
+
+  A `stable` function called from a `stable` one uses the caller's snapshot,
+  so the three counts come from one snapshot. If one of them were ever made
+  `volatile`, its queue's count could come from a separate snapshot. That is
+  acceptable for counts shown side by side and never summed, and the
+  catalogue test below would flag the change.
 
 **Migration and rollback.** One additive function. Nothing existing is
 re-created. Rollback: drop it, or switch off `managerTriage`.
@@ -203,7 +214,11 @@ re-created. Rollback: drop it, or switch off `managerTriage`.
   To confirm kind, and checklist items.
 - MO's `checklist` row is `available = false`.
 - SO is refused; another venue's id is `wrong_venue` for MO and SG.
-- The function is `stable` (T9b guard).
+- **Catalogue assertion (T9b style):** `manager_triage_summary`,
+  `manager_menu_photo_overview`, `venue_coverage_summary` and
+  `knowledge_to_confirm` all have `provolatile = 's'` and are security
+  definer. They are added to the `pg_proc` check in
+  `tests/security/knowledge-compat.test.ts`.
 
 **Owner decisions.** None. Visibility follows today's rules. If Q8 later opens
 the checklist to MO, `available` follows the gate.
@@ -229,8 +244,21 @@ item, and items ordered by it:
 The rollback note restores the B01 body. Existing keys and their meaning are
 unchanged.
 
-**Tests.** Each kind's `waitingSince`, the order, and every existing
-`knowledge-screens` assertion unchanged.
+**Visible order change.** Today the items are ordered by `sentAt`, which for
+`evidence_withdrawn` and `confirmation_revoked` rows is the original
+answer's send time. Ordering by `waitingSince` moves those two kinds to their
+event time (the withdrawal or the revoke), usually later in the list. Finding
+rows keep their place. This is an intended, visible change in To confirm, and
+WS2's UI tests should expect it.
+
+**Tests.**
+
+- Each kind's `waitingSince`.
+- The new order: a revoked or evidence-withdrawn row whose answer was sent
+  before a pending finding, but withdrawn or revoked after it, now sorts
+  after the finding.
+- Every existing `knowledge-screens` assertion unchanged, apart from that
+  order.
 
 **Owner decisions.** None.
 
@@ -939,12 +967,12 @@ rollback note. None edits a B01 migration.
 Each is a `create or replace` with the same signature, owner and grants, in a
 new migration.
 
-| Function                                    | Change                                                                                                                | Behaviour otherwise            | Tests that pin it                                                                                               |
-| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------ | --------------------------------------------------------------------------------------------------------------- |
-| `public.knowledge_to_confirm` (B01)         | Additive `waitingSince` on every item; items ordered by it (the same as today for findings, which order by send time) | Identical                      | `knowledge-screens.test.ts`, `knowledge-confirm.test.ts` screen reads, `tests/ui/knowledge-to-confirm.test.tsx` |
-| `public.knowledge_check` (B01)              | Additive own-data `mySentAt`                                                                                          | Identical                      | `knowledge-confirm.test.ts` screen reads, `knowledge-screens.test.ts`, `knowledge-capture.test.ts`              |
-| `public.knowledge_submit` (B01)             | Additive `sentAt` in the result                                                                                       | Identical; no credit input     | `knowledge-contribute.test.ts`, `knowledge-credit.test.ts` (C1 to C23), `knowledge-legacy-guard.test.ts`        |
-| `public.knowledge_save_draft` (B01, 5 args) | Refuses a save whose key is an already-recorded send (`draft_already_sent`, `key_sent`)                               | Identical for every other save | `knowledge-contribute.test.ts` drafts (T3) and CA-01 blocks                                                     |
+| Function                                    | Change                                                                                                                                                                                      | Behaviour otherwise            | Tests that pin it                                                                                               |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| `public.knowledge_to_confirm` (B01)         | Additive `waitingSince` on every item; items ordered by it. Findings keep their order; `evidence_withdrawn` and `confirmation_revoked` rows move to their event time (a visible change, R4) | Identical otherwise            | `knowledge-screens.test.ts`, `knowledge-confirm.test.ts` screen reads, `tests/ui/knowledge-to-confirm.test.tsx` |
+| `public.knowledge_check` (B01)              | Additive own-data `mySentAt`                                                                                                                                                                | Identical                      | `knowledge-confirm.test.ts` screen reads, `knowledge-screens.test.ts`, `knowledge-capture.test.ts`              |
+| `public.knowledge_submit` (B01)             | Additive `sentAt` in the result                                                                                                                                                             | Identical; no credit input     | `knowledge-contribute.test.ts`, `knowledge-credit.test.ts` (C1 to C23), `knowledge-legacy-guard.test.ts`        |
+| `public.knowledge_save_draft` (B01, 5 args) | Refuses a save whose key is an already-recorded send (`draft_already_sent`, `key_sent`)                                                                                                     | Identical for every other save | `knowledge-contribute.test.ts` drafts (T3) and CA-01 blocks                                                     |
 
 **Not re-created in any B02 batch,** because the reads call or restate the
 existing predicates instead:
@@ -1053,3 +1081,10 @@ revision 1 and the B02-03 account matrix, at pilot head `a86bdba8`.
   particular, the credit-input trigger is left alone. W1's review grouping is
   a new read.
 - WS1 owns the W1 tables.
+
+**Draft 3, amendment (9 Nov 2026):**
+
+- R3 records that the three reads it calls are `stable` (one snapshot), and
+  adds them to the T9b-style catalogue assertion.
+- R4 and §7.1 state the visible order change for `evidence_withdrawn` and
+  `confirmation_revoked` rows.
