@@ -247,6 +247,18 @@ export async function CaptureScreen({
   )
 }
 
+async function recheckReason(
+  actor: MediaActor,
+  checkId: string
+): Promise<string | null> {
+  try {
+    const result = await getCheck(actor, { checkId })
+    return result.ok ? result.detail.check.recheckReason : null
+  } catch {
+    return null
+  }
+}
+
 async function knowledgeAssets(
   actor: MediaActor,
   checkId: string
@@ -283,8 +295,25 @@ async function staffReads(
   ]
 > {
   const knowledge = await knowledgeFor(actor, checkId, "staff", venueName)
-  // Their own media, without the assignment the amenity list needs.
-  if (knowledge) return [knowledge, null, await knowledgeAssets(actor, checkId)]
+  if (knowledge) {
+    // Their own media, without the assignment the amenity list needs; and
+    // for the assignee of a reopened question, the reopen reason, which only
+    // the amenity read carries (it succeeds for the assignee).
+    const { slot } = knowledge.props
+    const [assets, reason] = await Promise.all([
+      knowledgeAssets(actor, checkId),
+      slot.assignee?.isMe && slot.progress === "needs_recheck"
+        ? recheckReason(actor, checkId)
+        : null,
+    ])
+    const withReason = reason
+      ? {
+          ...knowledge,
+          capture: { ...knowledge.capture, recheckReason: reason },
+        }
+      : knowledge
+    return [withReason, null, assets]
+  }
   const [checkResult, assets] = await Promise.all([
     getCheck(actor, { checkId }),
     listSubmittableAssets(actor, { checkId }),

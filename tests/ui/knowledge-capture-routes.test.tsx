@@ -426,6 +426,50 @@ describe("capture routes on a working-list question (G2)", () => {
     expect(knowledge.listKnowledgeAssets).not.toHaveBeenCalled()
   })
 
+  it("shows an assignee the reopen reason on a reopened working-list question (L1)", async () => {
+    services.getCheck.mockResolvedValue({
+      ok: true,
+      detail: detail({
+        check: {
+          ...STEP_FREE,
+          progress: "needs_recheck",
+          recheckReason: "The ramp was removed",
+        },
+      }),
+    })
+    const view = inScope()
+    if (!view.inScope) throw new Error("in scope")
+    knowledge.getKnowledgeCheck.mockResolvedValue({
+      ok: true,
+      view: {
+        ...view,
+        slot: {
+          ...view.slot,
+          progress: "needs_recheck",
+          assignee: { firstName: "Sam", isMe: true },
+        },
+        capture: { ...view.capture, progress: "needs_recheck" },
+      },
+    })
+    await show(pages.staff())
+    expect(screen.getByText("The ramp was removed")).toBeTruthy()
+  })
+
+  it("reads the reopen reason only for the assignee", async () => {
+    const view = inScope()
+    if (!view.inScope) throw new Error("in scope")
+    knowledge.getKnowledgeCheck.mockResolvedValue({
+      ok: true,
+      view: {
+        ...view,
+        slot: { ...view.slot, progress: "needs_recheck" },
+        capture: { ...view.capture, progress: "needs_recheck" },
+      },
+    })
+    await show(pages.staff())
+    expect(services.getCheck).not.toHaveBeenCalled()
+  })
+
   it("falls back to the legacy form when the knowledge read throws", async () => {
     knowledge.getKnowledgeCheck.mockRejectedValue(new Error("network"))
     await show(pages.staff())
