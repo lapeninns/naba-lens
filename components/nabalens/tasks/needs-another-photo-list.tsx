@@ -61,10 +61,12 @@ export function askerName(submission: SubmissionView): string {
 export function ReplacementNote({
   submission,
   currentPeriod,
+  completionTarget = false,
   closed = false,
 }: {
   submission: SubmissionView
   currentPeriod?: PeriodKey
+  completionTarget?: boolean
   closed?: boolean
 }) {
   const decision = submission.decision
@@ -112,8 +114,10 @@ export function ReplacementNote({
       </div>
       {earlier ? (
         <p className="text-meta text-ink-muted">
-          {name.split(" ")[0]} asked in {earlier.asked}. A new photo counts for{" "}
-          {earlier.current}, the month you send it.
+          {name.split(" ")[0]} asked in {earlier.asked}.
+          {completionTarget
+            ? null
+            : ` A new photo counts for ${earlier.current}, the month you send it.`}
         </p>
       ) : null}
       {closed ? null : (

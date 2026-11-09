@@ -11,6 +11,7 @@ import {
   WarningCircleIcon,
 } from "@phosphor-icons/react"
 
+import { completionBreakdown } from "@/components/nabalens/tasks/copy"
 import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { EmptyState } from "@/components/nabalens/empty-state"
 import { Notice } from "@/components/nabalens/notice"
@@ -350,9 +351,13 @@ function TeamRosterMonth({
     timing === "past" ? sorted : sorted.filter((r) => r.isCurrentMember)
   const moved =
     timing === "past" ? [] : sorted.filter((r) => !r.isCurrentMember)
-  const missingTarget = team.filter((r) => r.targetId == null).length
+  const missingTarget = team.filter(
+    (r) => !r.completionProgress && r.targetId == null
+  ).length
   const unprepared =
-    timing === "current" && (monthUnprepared ?? missingTarget > 0)
+    timing === "current" &&
+    team.some((r) => !r.completionProgress) &&
+    (monthUnprepared ?? missingTarget > 0)
   // Before preparing, or for someone with no target after it.
   const targetHint =
     inPlace && timing === "current" && (unprepared || missingTarget > 0)
@@ -363,7 +368,7 @@ function TeamRosterMonth({
     return draft && draft.base === rowKey(row) ? draft : null
   }
   const canEditRow = (row: MonthlyProgress) =>
-    inPlace && (row.isCurrentMember || isAdmin)
+    inPlace && !row.completionProgress && (row.isCurrentMember || isAdmin)
   const changes = rows.filter(
     (row) => canEditRow(row) && isChanged(row, draftFor(row), period.key)
   )
@@ -514,6 +519,7 @@ function TeamRosterMonth({
 
   function renderRow(row: MonthlyProgress, movedAway: boolean) {
     const id = row.person.id
+    const completion = row.completionProgress
     const name = row.person.displayName
     const draft = draftFor(row)
     const editable = canEditRow(row)
@@ -537,7 +543,11 @@ function TeamRosterMonth({
 
     let due: string
     if (movedAway) {
-      due = "Photos sent before the move still count here."
+      due = completion
+        ? "Progress before the move stays here."
+        : "Photos sent before the move still count here."
+    } else if (completion) {
+      due = missingTeam ? "An admin assigns the team." : (row.due?.label ?? "")
     } else if (changed) {
       due =
         row.targetCount == null
@@ -591,9 +601,10 @@ function TeamRosterMonth({
       progress = (
         <Frames
           compact
-          accepted={row.accepted}
+          accepted={completion?.total ?? row.accepted}
           target={shownTarget}
-          pending={row.pending}
+          verb={completion ? "completed" : "accepted"}
+          pending={completion ? 0 : row.pending}
           chip={chip}
           className="@max-[640px]:col-span-full"
         />
@@ -649,11 +660,18 @@ function TeamRosterMonth({
           <span aria-hidden />
         ) : (
           <p className="font-mono text-item-title text-ink tabular-nums">
-            {row.targetCount != null ? plural(row.targetCount, "photo") : "–"}
+            {row.targetCount != null
+              ? plural(row.targetCount, completion ? "completion" : "photo")
+              : "–"}
           </p>
         )}
         {progress}
         <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 @max-[640px]:col-span-full">
+          {completion ? (
+            <p className="text-meta text-ink-muted">
+              {completionBreakdown(completion)}
+            </p>
+          ) : null}
           {due ? <p className="text-meta text-ink-muted">{due}</p> : null}
           {editable && !draft?.dueOpen ? (
             <Button
@@ -667,7 +685,7 @@ function TeamRosterMonth({
               Change due date
             </Button>
           ) : null}
-          {correcting ? (
+          {correcting && !completion ? (
             <Button
               variant="secondary"
               size="sm"

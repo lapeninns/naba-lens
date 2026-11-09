@@ -152,7 +152,7 @@ export function homePrompt(key: WorkRoleKey | null | undefined): string {
 export type WorkFocus = {
   /** Section kinds to put first, in order. */
   sectionKinds: readonly MenuSectionKind[]
-  /** Lower-case words matched against section names and slugs, ranked first. */
+  /** Lower-case word prefixes or whole phrases in section names and slugs. */
   sectionKeywords: readonly string[]
   /** Content types to show first, in order. The rest keep their usual order. */
   contentTypes: readonly ContentType[]
@@ -183,6 +183,7 @@ const AREA_FOCUS: Record<WorkArea, WorkFocus> = {
     sectionKeywords: [
       "tandoor",
       "tandoori",
+      "clay oven",
       "grill",
       "naan",
       "bread",

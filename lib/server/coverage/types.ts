@@ -84,6 +84,13 @@ export type MonthlyTargetSource =
 
 export type MonthlySetupGap = "team" | "target"
 
+/** The two types of distinct work that can meet a venue's completion target. */
+export type CompletionProgress = {
+  total: number
+  menuItems: number
+  amenityChecks: number
+}
+
 export type MonthlyProgress = {
   /** Null when the person has no target row for this period ("missing period"). */
   targetId: string | null
@@ -97,6 +104,8 @@ export type MonthlyProgress = {
   status: "needs_setup" | "set"
   setupMissing: MonthlySetupGap[]
   targetCount: number | null
+  /** Present for venues with a completion target. Legacy photo counts stay separate. */
+  completionProgress?: CompletionProgress
   source: MonthlyTargetSource | null
   /** Pass as `expectedRevision` when changing the target; null when there is no row. */
   revision: number | null
@@ -246,7 +255,9 @@ export type SubmissionView = {
   author: { id: string; displayName: string; active: boolean }
   submittedById: string
   submittedAt: Instant
-  /** Own photo, submitted by the author, uploaded and submitted in the same month. */
+  /** Present if the venue uses a completion target for the submission month. */
+  completionTarget?: true
+  /** Own eligible photo submitted toward a photo target in its upload month. */
   countsTowardMonthly: boolean
   decision: {
     decision: ReviewDecision
@@ -287,7 +298,9 @@ export type SubmittablePhoto = {
   uploadedAt: Instant
   uploadedPeriod: PeriodKey
   uploader: { id: string; displayName: string; active: boolean }
-  /** Uploaded this month: submitting it by its author can earn monthly credit. */
+  /** Present if the venue uses a completion target for this month. */
+  completionTarget?: true
+  /** Uploaded this month: submitting it by its author can earn monthly photo credit. */
   countsTowardMonthly: boolean
   /** The photo's live (submitted or accepted) item, if any. */
   live: {

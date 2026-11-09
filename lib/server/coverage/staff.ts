@@ -44,6 +44,8 @@ import {
   candidateView,
   monthlyView,
   nameMap,
+  readCompletionTargetPeriods,
+  readSubmissionCompletionPeriods,
   replacedIds,
   requirementView,
   submissionView,
@@ -93,14 +95,15 @@ function assignmentOf(
   assigned: boolean,
   canSubmit: boolean,
   items: ItemRow[],
-  names: Map<string, string>
+  names: Map<string, string>,
+  completionPeriods: Map<string, Set<string>>
 ): MyAssignment {
   const mine = items.filter((i) => i.requirement_id === requirement.id)
   return {
     requirement,
     assigned,
     canSubmit: canSubmit && assigned && requirement.isCurrent,
-    mySubmissions: mine.map((i) => submissionView(i, names)),
+    mySubmissions: mine.map((i) => submissionView(i, names, completionPeriods)),
     myAccepted: mine.filter((i) => i.state === "accepted" && !i.archived)
       .length,
     myPending: mine.filter((i) => i.state === "submitted").length,
@@ -120,7 +123,7 @@ export async function getMyTasks(
 
   const [progress, assigned, requirements, items, declined, people] =
     await Promise.all([
-      actor.db.rpc("coverage_staff_progress", {}),
+      actor.db.rpc("coverage_staff_progress_v2", {}),
       openAssignmentIds(actor),
       venueId
         ? actor.db.rpc("coverage_requirement_progress", { p_venue_id: venueId })
@@ -154,7 +157,7 @@ export async function getMyTasks(
 
   const rows = items.data ?? []
   const declinedRows = declined.data ?? []
-  const [names, replacements] = await Promise.all([
+  const [names, replacements, completionPeriods] = await Promise.all([
     nameMap(
       actor,
       people,
@@ -172,7 +175,9 @@ export async function getMyTasks(
             declinedRows.map((r) => r.item_id)
           )
       : Promise.resolve({ data: [], error: null }),
+    readSubmissionCompletionPeriods(actor, [...rows, ...declinedRows]),
   ])
+  if (!completionPeriods.ok) return completionPeriods
   if (replacements.error)
     return unavailableFailure("read replacements", replacements.error)
   const progressRows = progress.data ?? []
@@ -192,7 +197,8 @@ export async function getMyTasks(
         true,
         scope.canSubmit,
         rows,
-        names
+        names,
+        completionPeriods.byVenue
       )
     )
     .sort(sortAssignments)
@@ -211,7 +217,7 @@ export async function getMyTasks(
             !r.archived &&
             !replaced.has(r.item_id)
         )
-        .map((r) => submissionView(r, names)),
+        .map((r) => submissionView(r, names, completionPeriods.byVenue)),
       pendingReview: rows.filter((r) => r.state === "submitted").length,
     },
   }
@@ -253,11 +259,15 @@ export async function getMyAssignment(
   )
   if (!row) return NOT_FOUND
   const rows = items.data ?? []
-  const names = await nameMap(
-    actor,
-    people,
-    rows.map((r) => r.decided_by)
-  )
+  const [names, completionPeriods] = await Promise.all([
+    nameMap(
+      actor,
+      people,
+      rows.map((r) => r.decided_by)
+    ),
+    readSubmissionCompletionPeriods(actor, rows),
+  ])
+  if (!completionPeriods.ok) return completionPeriods
   return {
     ok: true,
     assignment: assignmentOf(
@@ -265,7 +275,8 @@ export async function getMyAssignment(
       assigned.ids.has(requirementId),
       scopeOf(actor, access).canSubmit,
       rows,
-      names
+      names,
+      completionPeriods.byVenue
     ),
   }
 }
@@ -286,7 +297,7 @@ export async function getMyMonth(
   const { access } = read
   const month = periodMonthDate(period)
   const [progress, items, people] = await Promise.all([
-    actor.db.rpc("coverage_staff_progress", { p_period_month: month }),
+    actor.db.rpc("coverage_staff_progress_v2", { p_period_month: month }),
     actor.db.rpc("coverage_items_page", {
       p_author_id: actor.profile.id,
       p_period_month: month,
@@ -305,18 +316,24 @@ export async function getMyMonth(
   if (items.error) return coverageRpcFailure(items.error, "my month photos")
   const all = items.data ?? []
   const rows = all.slice(0, 100)
-  const names = await nameMap(
-    actor,
-    people,
-    rows.map((r) => r.decided_by)
-  )
+  const [names, completionPeriods] = await Promise.all([
+    nameMap(
+      actor,
+      people,
+      rows.map((r) => r.decided_by)
+    ),
+    readSubmissionCompletionPeriods(actor, rows),
+  ])
+  if (!completionPeriods.ok) return completionPeriods
   const now = new Date()
   return {
     ok: true,
     month: {
       period: periodView(period, now),
       monthly: (progress.data ?? []).map((r) => monthlyView(r, now)),
-      submissions: rows.map((r) => submissionView(r, names)),
+      submissions: rows.map((r) =>
+        submissionView(r, names, completionPeriods.byVenue)
+      ),
     },
     more: all.length > rows.length,
   }
@@ -411,7 +428,8 @@ export async function listMySubmittablePhotos(
     if (missing) return missing
   }
 
-  const [candidates, declined] = await Promise.all([
+  const month = periodMonthDate(periodKeyOf(new Date()))
+  const [candidates, declined, completionPeriods] = await Promise.all([
     actor.db.rpc("coverage_candidate_assets", {
       ...(after
         ? { p_after_created_at: after.createdAt, p_after_id: after.id }
@@ -419,10 +437,13 @@ export async function listMySubmittablePhotos(
       p_limit: LIMITS.pageSize + 1,
     }),
     declinedAssets(actor, requirementId),
+    readCompletionTargetPeriods(actor, access.venueId, [month]),
   ])
   if (candidates.error)
     return coverageRpcFailure(candidates.error, "submittable photos")
   if (!declined.ok) return declined
+  if (!completionPeriods.ok) return completionPeriods
+  const combined = completionPeriods.periods.has(month)
   const rows = candidates.data ?? []
   const page = rows.slice(0, LIMITS.pageSize)
   const last = rows.length > LIMITS.pageSize ? page[page.length - 1] : null
@@ -443,7 +464,8 @@ export async function listMySubmittablePhotos(
           declined.ids.has(row.asset_id),
           row.monthly_eligible_now
         ),
-        row.monthly_eligible_now
+        !combined && row.monthly_eligible_now,
+        combined
       )
     ),
     nextCursor: last ? encodeCursor(last.created_at, last.asset_id) : null,
@@ -581,6 +603,20 @@ export async function submitPhotos(
         return failure(
           "not_permitted",
           "You can add photos to this task only while it is assigned to you."
+        )
+    }
+    if (!requirementId && !replaces) {
+      const month = periodMonthDate(periodKeyOf(new Date()))
+      const completionPeriods = await readCompletionTargetPeriods(
+        actor,
+        access.venueId,
+        [month]
+      )
+      if (!completionPeriods.ok) return completionPeriods
+      if (completionPeriods.periods.has(month))
+        return invalid(
+          {},
+          "Label a menu photo or submit a finding for an assigned amenity check to work toward your target."
         )
     }
     const checked = await precheckOwnPhotos(

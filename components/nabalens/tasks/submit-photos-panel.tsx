@@ -69,6 +69,8 @@ type SubmitPhotosPanelProps = {
   replacesSubmissionId?: string | null
   /** Who asked for the replacement; named in the sent message. */
   reviewerName?: string | null
+  /** An older Coverage photo can still be replaced at a completion-target venue. */
+  completionTarget?: boolean
   /** The task's title, for the heading; null in monthly mode. */
   taskTitle?: string | null
   /** The venue photos must be taken at, named when nothing can be sent. */
@@ -136,6 +138,7 @@ export function SubmitPhotosPanel({
   venueName = null,
   replacesSubmissionId = null,
   reviewerName = null,
+  completionTarget = false,
   initialPhotos,
   refreshSignal,
   loadPhotos,
@@ -498,7 +501,9 @@ export function SubmitPhotosPanel({
           </h3>
           <p className="text-meta text-ink-muted">
             {monthly
-              ? "Photos you upload and send this month count toward your target once accepted."
+              ? completionTarget
+                ? "Choose a photo from this month to answer the review request."
+                : "Photos you upload and send this month count toward your target once accepted."
               : "Photos from earlier months can still count for this task."}{" "}
             Only ready photos can be sent; photos still processing or that
             failed to upload don&apos;t count.

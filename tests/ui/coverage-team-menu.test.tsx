@@ -60,6 +60,34 @@ describe("TeamRoster", () => {
     isCurrent: false,
   }
 
+  it("shows a fixed venue completion target without a photo-target editor", () => {
+    render(
+      <TeamRoster
+        period={PERIOD}
+        currentPeriod="2026-11"
+        rows={[
+          monthly({
+            targetId: null,
+            targetCount: 5,
+            source: null,
+            accepted: 9,
+            pending: 3,
+            completionProgress: { total: 3, menuItems: 2, amenityChecks: 1 },
+          }),
+        ]}
+        canEdit
+        isAdmin
+        basePath="/staff/manage"
+        onSetTarget={ok}
+      />
+    )
+    expect(screen.getByText("5 completions")).toBeTruthy()
+    expect(screen.getByText("3 of 5 completed")).toBeTruthy()
+    expect(screen.getByText("2 menu items · 1 amenity check")).toBeTruthy()
+    expect(screen.queryByLabelText(/photo target/i)).toBeNull()
+    expect(screen.queryByText("Copied when you prepare this month")).toBeNull()
+  })
+
   it("shows names, teams and progress only, Needs setup first and never met", () => {
     render(
       <TeamRoster

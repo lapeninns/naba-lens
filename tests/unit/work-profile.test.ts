@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 
+import { sectionFocusRank } from "@/components/nabalens/labels/catalogue-search"
 import { toWorkProfile } from "@/lib/auth/profile"
 import {
   homePrompt,
@@ -82,6 +83,35 @@ describe("workFocus", () => {
       focus.sectionKeywords.length
     )
     expect(focus.contentTypes).toEqual(["dish", "preparation"])
+  })
+
+  it("prioritises Clay Oven for tandoor work without promoting other oven sections", () => {
+    const tandoor = workFocus("tandoor_chef")
+    const curry = workFocus("curry_chef")
+    const clayOven = {
+      name: "Clay Oven",
+      slug: "specials",
+      kind: "food",
+    } as const
+
+    expect(sectionFocusRank(clayOven, tandoor)).toBe(0)
+    expect(
+      sectionFocusRank(
+        { ...clayOven, name: "Specials", slug: "clay-oven" },
+        tandoor
+      )
+    ).toBe(0)
+    expect(
+      sectionFocusRank({ ...clayOven, name: "Mixed Grills" }, tandoor)
+    ).toBe(0)
+    expect(
+      sectionFocusRank(
+        { ...clayOven, name: "Wood-Fired Oven", slug: "clay" },
+        tandoor
+      )
+    ).toBe(1)
+    expect(sectionFocusRank(clayOven, curry)).toBe(1)
+    expect(sectionFocusRank({ ...clayOven, name: "Curries" }, curry)).toBe(0)
   })
 
   it("uses extra areas alone for other", () => {

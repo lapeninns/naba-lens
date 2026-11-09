@@ -30,6 +30,7 @@ export function TaskSubmit({
   venueName,
   replacesSubmissionId,
   reviewerName,
+  completionTarget,
   initialPhotos,
 }: {
   requirementId: string | null
@@ -37,6 +38,7 @@ export function TaskSubmit({
   venueName?: string | null
   replacesSubmissionId: string | null
   reviewerName?: string | null
+  completionTarget?: boolean
   initialPhotos: SubmittablePhotosResult
 }) {
   const router = useRouter()
@@ -50,6 +52,7 @@ export function TaskSubmit({
       venueName={venueName}
       replacesSubmissionId={replacesSubmissionId}
       reviewerName={reviewerName}
+      completionTarget={completionTarget}
       initialPhotos={initialPhotos}
       refreshSignal={refreshSignal}
       loadPhotos={loadSubmittablePhotosAction}

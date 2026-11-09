@@ -5,6 +5,7 @@ import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 import { CardHead } from "../common-room"
+import { completionBreakdown } from "./copy"
 import { StatusChip } from "./status-badges"
 import type { MonthlyProgress } from "./types"
 
@@ -88,7 +89,7 @@ export function PhotoSegments({
 }
 
 /**
- * One person's photos for one month against their target. A missing target or
+ * One person's progress for a month against their target. A missing target or
  * team reads Needs setup, never complete. Monthly numbers stay here and are
  * never added to a venue's checklist progress.
  */
@@ -113,13 +114,14 @@ export function MonthCard({
   /** Secondary action: where to add photos, or null to hide it. */
   addHref?: string | null
 }) {
-  const heading = `Your photos for ${periodLabel}${venueName ? ` at ${venueName}` : ""}`
+  const completion = monthly?.completionProgress
+  const heading = `${completion ? "Your target for" : "Your photos for"} ${periodLabel}${venueName ? ` at ${venueName}` : ""}`
   const headingId = `month-${monthly?.venue.id ?? "none"}`
   const needsSetup = monthly?.status === "needs_setup"
   const target = monthly?.targetCount ?? 0
-  const toTake = monthly
-    ? Math.max(0, target - monthly.accepted - monthly.pending)
-    : 0
+  const count = completion?.total ?? monthly?.accepted ?? 0
+  const pending = completion ? 0 : (monthly?.pending ?? 0)
+  const toTake = Math.max(0, target - count - pending)
 
   return (
     <section
@@ -147,10 +149,10 @@ export function MonthCard({
         <div className="grid gap-3">
           <p className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
             <span className="font-display text-count text-ink tabular-nums">
-              {monthly.accepted}
+              {count}
             </span>
             <span className="font-display text-section-title text-ink-muted">
-              of {target} accepted
+              of {target} {completion ? "completed" : "accepted"}
             </span>
             {monthly.complete ? (
               <StatusChip tone="positive">Target met</StatusChip>
@@ -158,24 +160,30 @@ export function MonthCard({
           </p>
           <div
             role="img"
-            aria-label={`${monthly.accepted} of ${target} photos accepted`}
+            aria-label={`${count} of ${target} ${completion ? "items completed" : "photos accepted"}`}
           >
-            <PhotoSegments
-              accepted={monthly.accepted}
-              pending={monthly.pending}
-              target={target}
-            />
+            <PhotoSegments accepted={count} pending={pending} target={target} />
           </div>
           <p className="flex flex-wrap gap-x-4 gap-y-1 text-meta text-ink-muted">
-            {monthly.pending > 0 ? (
+            {pending > 0 ? (
               <span>
-                {monthly.pending}
+                {pending}
                 {monthly.complete ? " more" : ""} waiting for review
               </span>
             ) : null}
-            {toTake > 0 ? <span>{toTake} to take</span> : null}
+            {toTake > 0 ? (
+              <span>
+                {toTake} {completion ? "to complete" : "to take"}
+              </span>
+            ) : null}
           </p>
         </div>
+      ) : null}
+
+      {completion ? (
+        <p className="text-meta text-ink-muted">
+          {completionBreakdown(completion)}
+        </p>
       ) : null}
 
       {!monthly ? (

@@ -31,6 +31,7 @@ export type Participation = {
   total: number
   met: number
   accepted: number
+  completions?: number
   needSetup: number
   /** Someone has no FOH/BOH team yet. */
   teamMissing: boolean
@@ -43,10 +44,16 @@ export type Participation = {
 export function participationOf(roster: MonthlyProgress[]): Participation {
   const members = roster.filter((r) => r.isCurrentMember)
   const setup = members.filter((r) => r.status === "needs_setup")
+  const completionRows = members.flatMap((r) =>
+    r.completionProgress ? [r.completionProgress] : []
+  )
   return {
     total: members.length,
     met: members.filter((r) => r.complete).length,
     accepted: members.reduce((n, r) => n + r.accepted, 0),
+    ...(completionRows.length
+      ? { completions: completionRows.reduce((sum, row) => sum + row.total, 0) }
+      : {}),
     needSetup: setup.length,
     teamMissing: setup.some((r) => r.setupMissing.includes("team")),
   }
@@ -168,7 +175,9 @@ export function OverviewBody({
   const staffSetup = participation.needSetup
   // Before preparing, everyone shows Needs setup and the lead card already
   // says so; the row would only repeat it.
-  const staffRow = staffSetup > 0 && preparation.kind !== "unprepared"
+  const combined = participation.completions != null
+  const staffRow =
+    staffSetup > 0 && (combined || preparation.kind !== "unprepared")
   const allDone =
     summary.complete &&
     attention.length === 0 &&
@@ -177,13 +186,15 @@ export function OverviewBody({
   const checklistDone =
     summary.applicable > 0 && summary.satisfied === summary.applicable
   const staffNote =
-    preparation.kind === "unprepared"
+    !combined && preparation.kind === "unprepared"
       ? `${participation.needSetup} ${month} ${participation.needSetup === 1 ? "target" : "targets"} not set yet`
       : participation.teamMissing
         ? "No team assigned"
         : "Target not set"
 
-  const unpreparedText = `Targets and checklist items haven’t been copied from ${previousMonth} yet. Preparing copies ${previousMonth}’s targets at ${venueName}; new starters show Needs setup.`
+  const unpreparedText = combined
+    ? `The ${month} checklist hasn’t been prepared yet. Staff targets already apply.`
+    : `Targets and checklist items haven’t been copied from ${previousMonth} yet. Preparing copies ${previousMonth}’s targets at ${venueName}; new starters show Needs setup.`
   const menuText = (change: { changedOn: string | null }) =>
     `${venueName}’s food menu changed${change.changedOn ? ` on ${change.changedOn}` : ""}. Nothing carries over automatically, so menu sections need you to decide what still applies.`
   // The lead card holds the one blue action; a month that isn't prepared
@@ -218,9 +229,11 @@ export function OverviewBody({
           action={retry}
         >
           <p>
-            {preparation.total > preparation.copied
-              ? `Targets were copied for ${preparation.copied} of ${plural(preparation.total, "person", "people")}. ${preparation.total - preparation.copied} need you to set them on Team.`
-              : "Some targets may not have been copied. Check Team, then try again."}
+            {combined
+              ? "Check the venue checklist, then try preparing this month again."
+              : preparation.total > preparation.copied
+                ? `Targets were copied for ${preparation.copied} of ${plural(preparation.total, "person", "people")}. ${preparation.total - preparation.copied} need you to set them on Team.`
+                : "Some targets may not have been copied. Check Team, then try again."}
           </p>
         </Notice>
       ) : null}
@@ -305,8 +318,12 @@ export function OverviewBody({
               href={hrefs.team}
             />
             <TallyItem
-              label="Photos accepted"
-              value={participation.accepted}
+              label={
+                combined
+                  ? "Menu items and amenity checks completed"
+                  : "Photos accepted"
+              }
+              value={participation.completions ?? participation.accepted}
               href={hrefs.team}
             />
             <TallyItem

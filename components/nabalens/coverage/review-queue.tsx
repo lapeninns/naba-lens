@@ -199,11 +199,14 @@ export function ReviewQueue({
       // The card's buttons are gone now (see the refresh branch above).
       focusNoticeRef.current = decision === "accept"
       const own = isOwnPhoto(submission, viewerId)
+      const acceptedText = submission.completionTarget
+        ? "Accepted."
+        : `Accepted. It counts for ${periodKeyLabel(submission.period)}, the month it was sent.`
       setNotice({
         tone: "success",
         text:
           decision === "accept"
-            ? `Accepted. It counts for ${periodKeyLabel(submission.period)}, the month it was sent.${result.submission.selfReview ? " Recorded as a self-review." : ""}`
+            ? `${acceptedText}${result.submission.selfReview ? " Recorded as a self-review." : ""}`
             : `Asked ${own ? "yourself" : firstName(submission.author.displayName)} for another photo.${result.submission.selfReview ? " Recorded as a self-review." : ""}`,
       })
       return { ok: true }

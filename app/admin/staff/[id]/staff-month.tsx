@@ -1,4 +1,5 @@
 import { StatusChip } from "@/components/nabalens/status-chip"
+import { completionBreakdown } from "@/components/nabalens/tasks/copy"
 import type { MonthlyProgress } from "@/lib/server/coverage/types"
 import { cn } from "@/lib/utils"
 
@@ -61,7 +62,7 @@ function Frames({
 }
 
 /**
- * One person's photo target for the month at their venue, as on A7: counted
+ * One person's target for the month at their venue, as on A7: counted
  * apart from the venue's checklist. Inactive accounts get the compact form
  * and the note that deactivation closed their assignments.
  */
@@ -75,6 +76,9 @@ export function StaffMonth({
   inactive: boolean
 }) {
   const target = monthly.targetCount
+  const completion = monthly.completionProgress
+  const count = completion?.total ?? monthly.accepted
+  const unit = completion ? "completed" : "accepted"
   const needsSetup = monthly.status === "needs_setup" || !target
   const toTake = target
     ? Math.max(0, target - monthly.accepted - monthly.pending)
@@ -106,10 +110,10 @@ export function StaffMonth({
               inactive ? "text-label" : "font-display text-count"
             )}
           >
-            {monthly.accepted}
+            {count}
           </span>
           <span className="text-lead font-bold text-ink-muted">
-            {needsSetup ? "accepted" : `of ${target} accepted`}
+            {needsSetup ? unit : `of ${target} ${unit}`}
           </span>
           {needsSetup ? (
             <StatusChip state="needs_setup" className="self-center" />
@@ -118,12 +122,16 @@ export function StaffMonth({
         {target && !needsSetup ? (
           <Frames
             target={target}
-            accepted={monthly.accepted}
-            waiting={monthly.pending}
+            accepted={count}
+            waiting={completion ? 0 : monthly.pending}
             compact={inactive}
           />
         ) : null}
-        {inactive ? null : (
+        {completion ? (
+          <p className="text-meta text-ink-muted">
+            {completionBreakdown(completion)}
+          </p>
+        ) : inactive ? null : (
           <p className="flex flex-wrap gap-x-4 gap-y-1 text-meta text-ink-muted tabular-nums">
             <span className="inline-flex items-center gap-1.5">
               <i
@@ -147,7 +155,9 @@ export function StaffMonth({
       <p className="text-body text-ink-muted">
         {inactive
           ? `${firstName}'s open assignments closed on deactivation; those items show Needs reassignment.`
-          : `Counts only ${firstName}'s photos at ${monthly.venue.name} this UK month. It's never added to the venue's checklist.`}
+          : completion
+            ? `Counts ${firstName}'s accepted menu items and completed amenity checks at ${monthly.venue.name} this month.`
+            : `Counts only ${firstName}'s photos at ${monthly.venue.name} this UK month. It's never added to the venue's checklist.`}
       </p>
     </section>
   )

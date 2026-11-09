@@ -15,6 +15,7 @@ export type {
   CoverageFailure,
   CoveragePerson,
   CoverageResult,
+  CompletionProgress,
   CoverageScope,
   CoverageVenue,
   DueView,

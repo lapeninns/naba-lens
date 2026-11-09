@@ -4,13 +4,13 @@ import { PlusIcon } from "@phosphor-icons/react/dist/ssr"
 import { buttonVariants } from "@/components/ui/button"
 
 import { CardFoot, CardHead } from "../common-room"
-import { plural } from "./copy"
+import { completionBreakdown, plural } from "./copy"
 import { PhotoSegments } from "./month-card"
 import { DueLine, StatusChip } from "./status-badges"
 import type { MonthlyProgress } from "./types"
 
 /**
- * This month's photo target. A missing target or incomplete profile shows
+ * This month's target. A missing target or incomplete profile shows
  * Needs setup and never reads as complete; overdue is shown for follow-up and
  * sending stays available.
  */
@@ -59,7 +59,10 @@ export function MonthlyProgressCard({
 
   const needsSetup = monthly.status === "needs_setup"
   const target = monthly.targetCount
-  const remaining = target ? Math.max(0, target - monthly.accepted) : null
+  const completion = monthly.completionProgress
+  const count = completion?.total ?? monthly.accepted
+  const unit = completion ? "completed" : "accepted"
+  const remaining = target ? Math.max(0, target - count) : null
 
   return (
     <section
@@ -71,7 +74,7 @@ export function MonthlyProgressCard({
           id={headingId}
           className="font-display text-section-title [overflow-wrap:anywhere] text-ink"
         >
-          Your photos for {label}
+          {completion ? "Your target for" : "Your photos for"} {label}
         </Heading>
         {needsSetup ? (
           <StatusChip tone="warning">Needs setup</StatusChip>
@@ -92,75 +95,88 @@ export function MonthlyProgressCard({
             </p>
           ) : null}
           <p className="text-meta text-ink-muted">
-            {plural(monthly.accepted, "photo", "photos")} accepted so far.
+            {completion
+              ? completionBreakdown(completion)
+              : `${plural(count, "photo", "photos")} accepted so far.`}
           </p>
         </div>
       ) : (
         <div className="grid gap-3">
           <p className="flex flex-wrap items-baseline gap-x-2">
             <span className="font-display text-count text-ink tabular-nums">
-              {monthly.accepted}
+              {count}
             </span>
             <span className="font-display text-section-title text-ink-muted">
               {" "}
-              of {target} accepted
+              of {target} {unit}
             </span>
           </p>
           <div
             role="progressbar"
             aria-valuemin={0}
             aria-valuemax={target ?? 0}
-            aria-valuenow={Math.min(monthly.accepted, target ?? 0)}
-            aria-label={`${monthly.accepted} of ${target} photos accepted`}
+            aria-valuenow={Math.min(count, target ?? 0)}
+            aria-label={`${count} of ${target} ${completion ? "items completed" : "photos accepted"}`}
           >
             <PhotoSegments
-              accepted={monthly.accepted}
-              pending={monthly.pending}
+              accepted={count}
+              pending={completion ? 0 : monthly.pending}
               target={target ?? 0}
             />
           </div>
           {remaining ? (
             <p className="text-body text-ink">
-              {plural(remaining, "more photo", "more photos")} to go.
+              {completion
+                ? plural(remaining, "more completion", "more completions")
+                : plural(remaining, "more photo", "more photos")}{" "}
+              to go.
             </p>
           ) : null}
         </div>
       )}
 
-      <ul className="flex flex-wrap gap-x-4 gap-y-1 text-meta text-ink-muted">
-        <li>{monthly.pending} waiting for review</li>
-        {monthly.needsAnotherPhoto > 0 ? (
-          <li className="font-semibold text-ink">
-            {plural(monthly.needsAnotherPhoto, "photo needs", "photos need")}{" "}
-            replacing
-          </li>
-        ) : null}
-        {monthly.lateAcceptances > 0 ? (
-          <li>
-            {plural(
-              monthly.lateAcceptances,
-              "late acceptance",
-              "late acceptances"
-            )}{" "}
-            included
-          </li>
-        ) : null}
-        {monthly.evidenceRemoved > 0 ? (
-          <li>
-            {plural(
-              monthly.evidenceRemoved,
-              "accepted photo",
-              "accepted photos"
-            )}{" "}
-            later removed (still counted)
-          </li>
-        ) : null}
-      </ul>
+      {completion ? (
+        !needsSetup && (
+          <p className="text-meta text-ink-muted">
+            {completionBreakdown(completion)}
+          </p>
+        )
+      ) : (
+        <ul className="flex flex-wrap gap-x-4 gap-y-1 text-meta text-ink-muted">
+          <li>{monthly.pending} waiting for review</li>
+          {monthly.needsAnotherPhoto > 0 ? (
+            <li className="font-semibold text-ink">
+              {plural(monthly.needsAnotherPhoto, "photo needs", "photos need")}{" "}
+              replacing
+            </li>
+          ) : null}
+          {monthly.lateAcceptances > 0 ? (
+            <li>
+              {plural(
+                monthly.lateAcceptances,
+                "late acceptance",
+                "late acceptances"
+              )}{" "}
+              included
+            </li>
+          ) : null}
+          {monthly.evidenceRemoved > 0 ? (
+            <li>
+              {plural(
+                monthly.evidenceRemoved,
+                "accepted photo",
+                "accepted photos"
+              )}{" "}
+              later removed (still counted)
+            </li>
+          ) : null}
+        </ul>
+      )}
 
       {monthly.due ? (
         <div className="grid gap-1">
           <DueLine due={monthly.due} done={monthly.complete} />
-          {monthly.due.overdue && !monthly.complete ? (
+          {!completion && monthly.due.overdue && !monthly.complete ? (
             <p className="text-meta text-ink-muted">
               You can still send photos.
             </p>
@@ -178,7 +194,9 @@ export function MonthlyProgressCard({
               className: "w-full sm:w-auto",
             })}
           >
-            {canSubmit ? (
+            {completion ? (
+              "See this month's target"
+            ) : canSubmit ? (
               <>
                 <PlusIcon data-icon="inline-start" aria-hidden />
                 Add photos for this month

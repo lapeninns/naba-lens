@@ -40,6 +40,10 @@ function countsText(
   viewerId: string,
   currentPeriod: PeriodKey | undefined
 ): string {
+  if (submission.completionTarget)
+    return submission.requirement
+      ? "Counts toward this checklist item once accepted."
+      : "This photo is part of the venue’s Coverage history."
   const periodLabel = periodKeyLabel(submission.period)
   if (currentPeriod && submission.period < currentPeriod) {
     const month = periodLabel.split(" ")[0]
@@ -161,7 +165,11 @@ export function SubmissionCard({
         </div>
         <div className="grid gap-0.5">
           <p className="text-meta font-semibold text-ink-muted">
-            {submission.requirement ? "Checklist item" : "Monthly target"}
+            {submission.requirement
+              ? "Checklist item"
+              : submission.completionTarget
+                ? "Coverage photo"
+                : "Monthly target"}
           </p>
           <h3 className="text-item-title [overflow-wrap:anywhere] text-ink">
             {purpose}
