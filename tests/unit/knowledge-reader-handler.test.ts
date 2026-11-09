@@ -357,7 +357,11 @@ describe("answers handler", () => {
   })
 
   it("gives up on a slow source with 503 and frees the slot", async () => {
-    const never: ReaderSource = () => new Promise(() => {})
+    let seen: AbortSignal | undefined
+    const never: ReaderSource = ({ signal }) => {
+      seen = signal
+      return new Promise(() => {})
+    }
     const { d, logs } = deps({
       source: never,
       limiter: new ConsumerLimiter({
@@ -371,6 +375,8 @@ describe("answers handler", () => {
     expect(res.status).toBe(503)
     expect(res.headers.get("retry-after")).toBe("5")
     expect(logs[0].note).toBe("source_timeout")
+    // The timed-out read is cancelled, not left running.
+    expect(seen?.aborted).toBe(true)
     d.source = fakeSource()
     expect((await answers(get(answersPath()), d)).status).toBe(200)
   })

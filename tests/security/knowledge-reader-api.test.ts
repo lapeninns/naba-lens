@@ -2,6 +2,7 @@
 // the real route handler, the service-role source and
 // knowledge_reader_answers_v1 on the isolated stack. The wrapper's own
 // contract is knowledge-reader.test.ts; this covers what the reader adds.
+// Each test sets up its own state; only the venues are shared.
 import { randomBytes, randomUUID } from "node:crypto"
 
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
@@ -25,15 +26,53 @@ import {
 const credential = (id: string) =>
   `nlr_${id}_${randomBytes(32).toString("base64url")}`
 const OPS = credential("sec-ops")
+const VENUES = credential("sec-venues")
 const TOILETS = credential("sec-toilets")
 const ALL_KEYS = "onsite_parking,step_free_entrance,guest_toilets,guest_wifi"
+const PILOT = [
+  "onsite_parking",
+  "step_free_entrance",
+  "guest_toilets",
+  "guest_wifi",
+]
+
+const sorted = (keys: string[]) => [...keys].sort()
+const ANSWER_KEYS = sorted([
+  "conditions",
+  "freshness",
+  "key",
+  "provenance",
+  "questionVersion",
+  "revision",
+  "status",
+  "summary",
+  "unavailable",
+  "value",
+])
+const PROVENANCE_KEYS = sorted([
+  "confirmation",
+  "contributionId",
+  "evidence",
+  "idKind",
+  "redactionProof",
+  "sourceKind",
+])
+const CONFIRMATION_KEYS = sorted(["authority", "savedAt", "selfConfirmed"])
+const FRESHNESS_KEYS = sorted([
+  "nextCheckDue",
+  "observedAt",
+  "savedAt",
+  "state",
+])
+const SNAPSHOT_KEYS = sorted(["etag", "readAt"])
 
 let w: World
 let other: World
+let confirmWorld: World
+let selfWorld: World
 let noScope: World
-let inactive: string
 let removed: World
-let stepFree: string
+let inactive: string
 const UNKNOWN = randomUUID()
 const OUTSIDE = randomUUID()
 
@@ -41,10 +80,9 @@ function read(venue: string, keys: string, as = OPS) {
   const query = new URLSearchParams({
     keys,
     audience: "internal",
-    purpose: "operations_lookup",
+    purpose: as === TOILETS ? "pilot_verification" : "operations_lookup",
     schema: "1.0",
   })
-  if (as === TOILETS) query.set("purpose", "pilot_verification")
   return GET(
     new Request(
       `http://127.0.0.1:3000/api/knowledge/v1/venues/${venue}/answers?${query}`,
@@ -54,17 +92,34 @@ function read(venue: string, keys: string, as = OPS) {
   )
 }
 
+async function one(venue: string, key: string) {
+  const res = await read(venue, key)
+  expect(res.status).toBe(200)
+  return (await res.json()).answers[0]
+}
+
 beforeAll(async () => {
-  ;[w, other, noScope, removed] = await Promise.all([
+  ;[w, other, confirmWorld, selfWorld, noScope, removed] = await Promise.all([
     world("kn-api"),
     world("kn-api-other"),
+    world("kn-api-confirm"),
+    world("kn-api-self"),
     world("kn-api-noscope", { enable: false }),
     world("kn-api-removed"),
   ])
   inactive = (await createVenue(service, "kn-api-inactive", false)).id
+  // Listed, then taken off the working list entirely.
+  await json(removed.admin, "knowledge_set_working_list", {
+    p_venue_id: removed.venue,
+    p_keys: PILOT,
+    p_enabled: false,
+    p_reason: "TEST",
+  })
   const venues = [
     w.venue,
     other.venue,
+    confirmWorld.venue,
+    selfWorld.venue,
     noScope.venue,
     removed.venue,
     inactive,
@@ -88,6 +143,10 @@ beforeAll(async () => {
         purposes: ["operations_lookup"],
         questions: "all",
       }),
+      entry("sec-venues", VENUES, {
+        purposes: ["operations_lookup"],
+        questions: "all",
+      }),
       entry("sec-toilets", TOILETS, {
         purposes: ["pilot_verification"],
         questions: ["guest_toilets"],
@@ -108,7 +167,7 @@ describe("internal reader over the database", () => {
       limitations: "TEST hunter2 on the bar",
     })
     await submit(w.staffB, w, "guest_toilets", { answer: "unknown" })
-    stepFree = (await yes(w.staffA, w, "step_free_entrance")).contributionId
+    await yes(w.staffA, w, "step_free_entrance")
     await yes(other.staffA, other, "onsite_parking", {
       finding: "TEST other venue",
     })
@@ -125,24 +184,13 @@ describe("internal reader over the database", () => {
     const body = JSON.parse(raw)
 
     expect(Object.keys(body).sort()).toEqual(
-      ["answers", "audience", "purpose", "schema", "snapshot", "venue"].sort()
+      sorted(["answers", "audience", "purpose", "schema", "snapshot", "venue"])
     )
+    expect(Object.keys(body.snapshot).sort()).toEqual(SNAPSHOT_KEYS)
+    expect(body.snapshot.etag).toBe(res.headers.get("etag"))
     const [p, s, t, g] = body.answers
     for (const a of body.answers)
-      expect(Object.keys(a).sort()).toEqual(
-        [
-          "conditions",
-          "freshness",
-          "key",
-          "provenance",
-          "questionVersion",
-          "revision",
-          "status",
-          "summary",
-          "unavailable",
-          "value",
-        ].sort()
-      )
+      expect(Object.keys(a).sort()).toEqual(ANSWER_KEYS)
     expect(p).toMatchObject({
       key: "onsite_parking",
       status: "available",
@@ -159,21 +207,14 @@ describe("internal reader over the database", () => {
       },
       freshness: { observedAt: null, nextCheckDue: null, state: "unrated" },
     })
-    expect(Object.keys(p.provenance).sort()).toEqual(
-      [
-        "confirmation",
-        "contributionId",
-        "evidence",
-        "idKind",
-        "redactionProof",
-        "sourceKind",
-      ].sort()
-    )
+    expect(Object.keys(p.provenance).sort()).toEqual(PROVENANCE_KEYS)
+    expect(Object.keys(p.freshness).sort()).toEqual(FRESHNESS_KEYS)
     expect(s).toMatchObject({
       key: "step_free_entrance",
       status: "unavailable",
       value: null,
       provenance: null,
+      freshness: null,
       unavailable: { reason: "not_confirmed", detail: "pending" },
     })
     expect(t).toMatchObject({
@@ -190,6 +231,8 @@ describe("internal reader over the database", () => {
         evidence: { photos: 1, videos: 1 },
       },
     })
+    expect(Object.keys(g.provenance).sort()).toEqual(PROVENANCE_KEYS)
+    expect(Object.keys(g.freshness).sort()).toEqual(FRESHNESS_KEYS)
 
     const { data: assets } = await service
       .from("amenity_submission_assets")
@@ -215,41 +258,64 @@ describe("internal reader over the database", () => {
     expect(JSON.stringify(logs)).not.toContain("TEST car park")
   })
 
-  it("follows a confirmation to available, with a higher revision", async () => {
-    const before = (await (await read(w.venue, "step_free_entrance")).json())
-      .answers[0]
+  it("follows a manager's confirmation to available, with a higher revision", async () => {
+    const finding = await yes(
+      confirmWorld.staffA,
+      confirmWorld,
+      "step_free_entrance"
+    )
+    const before = await one(confirmWorld.venue, "step_free_entrance")
+    expect(before.unavailable).toEqual({
+      reason: "not_confirmed",
+      detail: "pending",
+    })
     const confirmed = await decide(
-      w.manager,
-      w,
+      confirmWorld.manager,
+      confirmWorld,
       "step_free_entrance",
-      { type: "contribution", id: stepFree },
+      { type: "contribution", id: finding.contributionId },
       "confirm"
     )
     expect(confirmed.error).toBeNull()
-    const after = (await (await read(w.venue, "step_free_entrance")).json())
-      .answers[0]
+    const after = await one(confirmWorld.venue, "step_free_entrance")
     expect(after).toMatchObject({
       status: "available",
       provenance: {
         sourceKind: "staff_observation",
+        contributionId: finding.contributionId,
+        idKind: "contribution",
         confirmation: { authority: "venue_manager", selfConfirmed: false },
       },
     })
+    expect(Object.keys(after.provenance.confirmation).sort()).toEqual(
+      CONFIRMATION_KEYS
+    )
+    expect(Date.parse(after.provenance.confirmation.savedAt)).not.toBeNaN()
     expect(after.revision).toBeGreaterThan(before.revision)
   })
 
-  it("gives the same 404 for unknown, inactive, unlisted and out-of-scope venues (NLK06)", async () => {
-    await json(removed.admin, "knowledge_set_working_list", {
-      p_venue_id: removed.venue,
-      p_keys: [
-        "onsite_parking",
-        "step_free_entrance",
-        "guest_toilets",
-        "guest_wifi",
-      ],
-      p_enabled: false,
-      p_reason: "TEST",
+  it("shows a manager's own confirmed capture as self-confirmed", async () => {
+    const own = await yes(selfWorld.manager, selfWorld, "step_free_entrance", {
+      confirmOwn: true,
     })
+    expect(own.outcome).toBe("current")
+    const answer = await one(selfWorld.venue, "step_free_entrance")
+    expect(answer).toMatchObject({
+      status: "available",
+      provenance: {
+        sourceKind: "manager_observation",
+        contributionId: own.contributionId,
+        idKind: "contribution",
+        confirmation: { authority: "venue_manager", selfConfirmed: true },
+      },
+    })
+    expect(Object.keys(answer.provenance.confirmation).sort()).toEqual(
+      CONFIRMATION_KEYS
+    )
+    expect(JSON.stringify(answer)).not.toContain(selfWorld.manager.id)
+  })
+
+  it("gives the same 404 for unknown, inactive, unlisted and out-of-scope venues (NLK06)", async () => {
     const bodies = new Set<string>()
     for (const venue of [
       UNKNOWN,
@@ -258,7 +324,7 @@ describe("internal reader over the database", () => {
       removed.venue,
       OUTSIDE,
     ]) {
-      const res = await read(venue, "guest_toilets")
+      const res = await read(venue, "guest_toilets", VENUES)
       expect(res.status, venue).toBe(404)
       const body = await res.json()
       expect(body.error.code).toBe("venue_not_found")
@@ -268,7 +334,7 @@ describe("internal reader over the database", () => {
   })
 
   it("checks the venue even when no requested key is permitted (empty key list)", async () => {
-    for (const venue of [UNKNOWN, inactive, noScope.venue]) {
+    for (const venue of [UNKNOWN, inactive, noScope.venue, removed.venue]) {
       expect((await read(venue, "guest_wifi", TOILETS)).status, venue).toBe(404)
       expect(
         await databaseSource({
@@ -276,10 +342,7 @@ describe("internal reader over the database", () => {
           keys: [],
           signal: new AbortController().signal,
         })
-      ).toEqual({
-        ok: false,
-        error: "venue_not_found",
-      })
+      ).toEqual({ ok: false, error: "venue_not_found" })
     }
     const res = await read(w.venue, "guest_wifi", TOILETS)
     expect(res.status).toBe(200)
