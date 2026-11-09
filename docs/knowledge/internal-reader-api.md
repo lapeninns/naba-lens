@@ -127,7 +127,7 @@ never widen or silently change a query. The whole URL is limited to 2,048
 bytes. There is no request body.
 
 Purposes and audiences are both checked against the credential. The audience
-decides which fields may appear (section 6). The purpose is recorded with every
+decides which fields may appear (section 7). The purpose is recorded with every
 read and must be one the consumer was registered for; it does not widen
 fields.
 
@@ -172,9 +172,8 @@ A successful request returns `200` with `Content-Type: application/json`,
       },
       "revision": 4,
       "freshness": {
-        "recordedAt": "2026-11-18T14:02:11Z",
+        "savedAt": "2026-11-18T14:02:11Z",
         "observedAt": null,
-        "checkedAt": "2026-11-18T14:02:11Z",
         "nextCheckDue": null,
         "state": "unrated"
       },
@@ -198,18 +197,18 @@ A successful request returns `200` with `Content-Type: application/json`,
 
 ### Answer fields
 
-| Field             | Meaning                                                                                                                                                                                                                                                                                                                                     |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `key`             | The question key, as requested.                                                                                                                                                                                                                                                                                                             |
-| `questionVersion` | The question definition version the answer was given under (today `amenity_submissions.template_version`).                                                                                                                                                                                                                                  |
-| `status`          | `available` or `unavailable`. Nothing else.                                                                                                                                                                                                                                                                                                 |
-| `value`           | Present only when available. v1 type `yes_no_na` with `answer` one of `yes`, `no`, `not_applicable`. Unknown is never a value; it is an unavailable reason (below), so a consumer cannot mistake it for No.                                                                                                                                 |
-| `summary`         | The finding text of the selected contribution, when the audience allows staff-written text for this question (section 6). Otherwise `null`.                                                                                                                                                                                                 |
-| `conditions`      | Limitations and reasons that qualify the answer, each `{ kind, text }` with `kind` one of `limitation` or `reason`. Empty when none, or when the audience does not allow staff-written text for this question. B03 adds structured conditions as new `kind` values.                                                                         |
-| `provenance`      | Where the answer came from, with no staff personal data: `sourceKind` (`staff_observation`, `manager_observation`, `legacy_fact`, later `external_source`), the opaque `contributionId`, `confirmation` (`null`, or `{ authority, confirmedAt }` where `authority` is a role such as `venue_manager`, never a person), and evidence counts. |
-| `revision`        | The answer revision for this venue and question. It only ever increases, including when an answer becomes unavailable. A consumer holding a higher revision must never replace it with a lower one.                                                                                                                                         |
-| `freshness`       | `recordedAt` (when NabaLens received the contribution), `observedAt` (when it was observed, or `null` when not recorded; never filled from another time), `checkedAt`, `nextCheckDue` (or `null` until a freshness policy exists), and `state`: `current`, `due_soon` or `unrated` (no policy yet). Expired answers are never `available`.  |
-| `unavailable`     | `null` when available; otherwise `{ reason, detail }`.                                                                                                                                                                                                                                                                                      |
+| Field             | Meaning                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `key`             | The question key, as requested.                                                                                                                                                                                                                                                                                                                                                                         |
+| `questionVersion` | The question definition version the answer was given under (today `amenity_submissions.template_version`).                                                                                                                                                                                                                                                                                              |
+| `status`          | `available` or `unavailable`. Nothing else.                                                                                                                                                                                                                                                                                                                                                             |
+| `value`           | Present only when available. v1 type `yes_no_na` with `answer` one of `yes`, `no`, `not_applicable`. Unknown is never a value; it is an unavailable reason (below), so a consumer cannot mistake it for No.                                                                                                                                                                                             |
+| `summary`         | The finding text of the selected contribution, when the audience allows staff-written text for this question (section 7). Otherwise `null`.                                                                                                                                                                                                                                                             |
+| `conditions`      | Limitations and reasons that qualify the answer, each `{ kind, text }` with `kind` one of `limitation` or `reason`. Empty when none, or when the audience does not allow staff-written text for this question. B03 adds structured conditions as new `kind` values.                                                                                                                                     |
+| `provenance`      | Where the answer came from, with no staff personal data: `sourceKind` (`staff_observation`, `manager_observation`, `legacy_fact`, later `external_source`), the opaque `contributionId`, `confirmation` (`null`, or `{ authority, savedAt }`, where `authority` is a role such as `venue_manager`, never a person, and `savedAt` is when the confirmation was saved, section 5.4), and evidence counts. |
+| `revision`        | The answer revision for this venue and question. It only ever increases, including when an answer becomes unavailable. A consumer holding a higher revision must never replace it with a lower one.                                                                                                                                                                                                     |
+| `freshness`       | `savedAt` (when the answer was saved in NabaLens; not an observation time), `observedAt` (only an explicitly recorded observation time, otherwise `null`; never filled from a save time), `nextCheckDue` (or `null` until a freshness policy exists), and `state`: `current`, `due_soon` or `unrated` (no policy yet). Section 5.4 defines these times. Expired answers are never `available`.          |
+| `unavailable`     | `null` when available; otherwise `{ reason, detail }`.                                                                                                                                                                                                                                                                                                                                                  |
 
 Provenance never contains user IDs, names, emails, avatars, job titles,
 assignee details, manager notes, Wi-Fi test notes, file names, storage paths,
@@ -242,25 +241,98 @@ nothing else, not even its revision (its `revision` is `null`).
 Consumers must treat an unrecognised `reason` or `detail` as unavailable. New
 reasons may be added within v1.
 
-### Expected mapping from today's data (owned by WS1)
+## 5. Source of answers
 
-The reader reads WS1's current-answer projection, not raw tables. Until that
-projection exists, the expected mapping from the amenity tables is:
+### 5.1 One resolver
 
-| Today                                                     | Reader result                                                                                        |
-| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| No `venue_amenity_checks` row, or the check is `archived` | `unknown` / `not_enabled`                                                                            |
-| `answer = 'to_check'`, progress `needs_capture`           | `unknown` / `not_checked`                                                                            |
-| B01-03 Unknown outcome                                    | `unknown` / `unable_to_establish`                                                                    |
-| Progress `complete` with a current submission             | `available`, unless WS1 marks the question as needing confirmation and none exists (`not_confirmed`) |
-| Progress `needs_recheck` after a reopen                   | `stale` / `recheck_requested`                                                                        |
-| Progress `needs_recheck` after `evidence_lost`            | `stale` / `evidence_lost`                                                                            |
-| Legacy `venue_amenity_facts` rows                         | Not read in v1. Their use needs WS1's explicit legacy mapping (B03-06).                              |
+There is exactly one resolver for current answers. WS1 owns it, names it, and
+defines how it combines `venue_amenity_checks`, `amenity_submissions`, legacy
+`venue_amenity_facts` and any new contribution or confirmation records. The
+reader calls that resolver and nothing else.
 
-`revision` is `venue_amenity_checks.revision` until WS1's projection defines its
-own answer revision; it rises on every submission, reopen and archive.
+- The reader never reads `venue_amenity_checks.answer`,
+  `venue_amenity_checks.progress`, `amenity_submissions` or
+  `venue_amenity_facts` directly, not even as a fallback.
+- Until the resolver exists, the reader is not enabled. There is no interim
+  query over the amenity tables.
+- The resolver returns one result per venue and question, already reduced to
+  the states in section 4, with its revision, from one snapshot.
+- The resolver returns only columns the reader may expose. The reader then
+  applies the audience allowlist (section 7) again when it builds the response.
+  It never adds a field the resolver did not return, and it drops any field the
+  allowlist does not name.
 
-## 5. Errors
+### 5.2 Existing app reads are not reused
+
+The reader has its own allowlisted read path. It never calls the RPCs and
+server helpers that serve the app's screens: they are built for signed-in
+staff and managers and return more than a consumer may see.
+
+In particular, it never calls `amenity_check_submissions`. That function
+returns Wi-Fi test notes (`internal_metadata`) to the venue's manager and to the
+submitter. It also returns the free-text `finding` and `limitations`, the
+submitter's ID and their display name to every reader of the check. The same
+rule covers the `lib/server/amenities` reads and views (including `wifiFrom`
+and the check detail loaders) and any other screen-facing query.
+
+### 5.3 Existing guest_wifi evidence is not publishable
+
+The capture form asks staff to confirm that the Wi-Fi password and join QR
+code are covered (`p_redaction_confirmed`), but the database never stored that
+confirmation. No existing `guest_wifi` submission can prove its evidence was
+redacted.
+
+- Every `guest_wifi` answer saved before redaction proof is stored is **not
+  publishable**. For the `public` audience, and for any audience whose rules
+  require publishable content, the reader returns it as `not_permitted`.
+- For the `internal` audience, v1 returns only the value (`yes`, `no`,
+  `not_applicable`) and evidence counts: no staff-written text, no Wi-Fi test
+  notes and no evidence links. This applies to every `guest_wifi` answer
+  (section 7).
+- A `guest_wifi` answer can become publishable only after WS1 stores redaction
+  proof with new submissions, the resolver reports that proof, and the
+  public-use rules approve the field. Old submissions never become publishable
+  through a backfill that assumes the tick was given.
+
+### 5.4 Save times are not observation times
+
+`answered_at` on a check, `created_at` on a submission and `confirmed_at` on a
+legacy fact record when a person saved something in NabaLens. None of them is
+the time anyone looked at the venue. The reader names them for what they are:
+
+| Reader field                      | Source today (through the resolver)                                                                                       | Meaning                                                              |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `freshness.savedAt`               | The selected contribution's save time (`amenity_submissions.created_at`, which `venue_amenity_checks.answered_at` copies) | When the answer was saved.                                           |
+| `provenance.confirmation.savedAt` | The confirmation's save time (for a legacy fact, `venue_amenity_facts.confirmed_at`)                                      | When the confirmation was saved.                                     |
+| `freshness.observedAt`            | Only an explicitly recorded observation time                                                                              | When the venue was observed. `null` today for every existing record. |
+
+- `observedAt` is never filled from a save time, a migration time or a Wi-Fi
+  test date.
+- Consumers must not present `savedAt` as "observed on" or "checked on".
+  Suitable wording is "saved in NabaLens on".
+- A freshness policy (B03-05) may use `savedAt` to decide when a recheck is
+  due. It reports that as `nextCheckDue`, never as an observation.
+
+### 5.5 Expected resolver output for today's data
+
+WS1 owns this mapping. It is listed so the reader's tests have expected
+results; the reader does not compute it.
+
+| Today                                                     | Reader result                                                                                               |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| No `venue_amenity_checks` row, or the check is `archived` | `unknown` / `not_enabled`                                                                                   |
+| `answer = 'to_check'`, progress `needs_capture`           | `unknown` / `not_checked`                                                                                   |
+| B01-03 Unknown outcome                                    | `unknown` / `unable_to_establish`                                                                           |
+| Progress `complete` with a current submission             | `available`, unless WS1 marks the question as needing confirmation and none exists (`not_confirmed`)        |
+| Progress `needs_recheck` after a reopen                   | `stale` / `recheck_requested`                                                                               |
+| Progress `needs_recheck` after `evidence_lost`            | `stale` / `evidence_lost`                                                                                   |
+| Legacy `venue_amenity_facts` rows                         | Used by the resolver only through WS1's explicit legacy mapping (B03-06). Until then they change no answer. |
+
+`revision` is the resolver's answer revision. Until WS1 defines it, the
+expected value is `venue_amenity_checks.revision`, which rises on every
+submission, reopen and archive.
+
+## 6. Errors
 
 Request-level failures return a JSON error body and no `answers`:
 
@@ -294,7 +366,7 @@ never echo credentials, parameter values, venue names or data.
 Question-level problems are not errors: a permitted request for a question with
 no usable answer returns `200` with that answer unavailable.
 
-## 6. Privacy allowlist
+## 7. Privacy allowlist
 
 The reader builds every response from an explicit allowlist per audience and
 question. Fields are added to output only when listed. It never serialises a
@@ -313,13 +385,16 @@ database row, and it never selects excluded columns in the first place.
   see them.
 - Private originals, asset IDs, storage paths, signed URLs and file names.
 - Idempotency keys and raw event history.
+- Anything from the app's screen-facing reads, such as
+  `amenity_check_submissions` (section 5.2).
 
 ### The Wi-Fi password
 
 NabaLens does not store the guest Wi-Fi password today. The capture rule for
 `guest_wifi` requires staff to cover the password and join QR code, and a check
 can be reopened for `credentials_visible`. v1 therefore has no field that could
-carry it.
+carry it. Existing `guest_wifi` evidence has no stored redaction proof, so those
+answers are not publishable (section 5.3).
 
 The password never appears in v1 output. It could be added only if WS1's
 approved audience rules (B00-04) name an internal audience that may receive it.
@@ -347,7 +422,7 @@ requested keys, status code, the revision returned per key, and the duration.
 Logs never contain the credential, its digest, response content or
 staff-written text. Retention follows the B00-04 retention rules.
 
-## 7. Bounds
+## 8. Bounds
 
 | Bound                            | v1 value                                                                                                                                     |
 | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -365,7 +440,7 @@ The guarantee is the behaviour (`429` with `Retry-After`), not the counter's
 implementation. The pilot may enforce rates per server instance; a shared
 limiter is required before B06 opens the reader to the website or MCP.
 
-## 8. Consistency and caching
+## 9. Consistency and caching
 
 - All answers in one response come from one database snapshot, so two keys
   never mix states from different moments.
@@ -379,7 +454,7 @@ limiter is required before B06 opens the reader to the website or MCP.
   corrections, withdrawals or data repair. A consumer that already holds a
   higher revision keeps it.
 
-## 9. Versioning
+## 10. Versioning
 
 - The path carries the major version (`/v1/`). The `schema` parameter carries
   the minor version the consumer understands.
@@ -395,7 +470,7 @@ limiter is required before B06 opens the reader to the website or MCP.
 - `meta` lists the supported `schema` versions so consumers can check before
   they read.
 
-## 10. Compatibility with the public projection and the website snapshot (B06)
+## 11. Compatibility with the public projection and the website snapshot (B06)
 
 The v1 reader is the base that B06 hardens. These rules keep the step
 additive:
@@ -432,7 +507,7 @@ additive:
   allowed question families, the authoritative source per website field, and
   delivery settings. The credential format does not change.
 
-## 11. Verification required for B01-05
+## 12. Verification required for B01-05
 
 These map to plan verification families V01, V02, V11 and V12. All are
 deterministic tests unless stated.
@@ -459,6 +534,17 @@ deterministic tests unless stated.
   test notes, a planted password-like string in `guest_wifi` free text, asset
   IDs and storage paths. Logs are checked for the credential and for response
   content.
+- **Single source (V11, V12):** the reader's data access goes through the
+  resolver only. A static test fails if `app/api/knowledge/**` or its helpers
+  reference `amenity_check_submissions`, `venue_amenity_facts`,
+  `venue_amenity_checks` or `amenity_submissions` directly.
+- **Wi-Fi redaction (V11):** an existing `guest_wifi` answer is `not_permitted`
+  for any audience that requires publishable content, and returns only the
+  value and evidence counts for `internal`.
+- **Timestamps (V12):** fixtures with different save, confirmation and
+  migration times return them only under `savedAt` and
+  `confirmation.savedAt`; `observedAt` stays `null` unless an observation time
+  was recorded.
 - **Versions (V12):** `schema=2.0` on `/v1/`, a future minor and a question
   version newer than the declared schema.
 - **Fixture journey (B01 step 6 to 9):** after a confirmation, reopen, conflict
@@ -469,15 +555,16 @@ A real internal read against the pilot venue (B01 exit gate) is separate live
 evidence. It needs the coordinator's authorisation for the production
 credential, and it is recorded apart from these tests.
 
-## 12. Open points for WS1 and the owner
+## 13. Open points for WS1 and the owner
 
 These are needed before B01-05 is implemented. The reader applies the safe
 default shown until each is resolved.
 
-| Point                                                                                                     | Safe default until resolved                                                                                                                                         |
-| --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| WS1 current-answer projection: function or view the reader calls, its revision and its snapshot guarantee | Read the amenity tables through one server-side query that selects only allowlisted columns, using the mapping in section 4.                                        |
-| Which v1 questions need confirmation before they are `available`                                          | None of the four core keys require it in v1, matching today's "valid evidence completes the check" rule. Dog policy and similar policy questions stay fixture-only. |
-| Audience rules (B00-04): audiences, staff-written text, Wi-Fi details                                     | One audience, `internal`, with the allowlist in section 6.                                                                                                          |
-| Freshness policy per question                                                                             | No expiry (`unrated`); only reopen and evidence loss make an answer `stale`.                                                                                        |
-| Named internal reader operator who holds and rotates credentials (X4)                                     | The coordinator issues the pilot credential; no production credential is created without authorisation.                                                             |
+| Point                                                                                                                 | Safe default until resolved                                                                                                                                         |
+| --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The single resolver (WS1): its name, columns, revision and snapshot guarantee, including how it combines legacy facts | None. The reader is not enabled until the resolver exists; it never falls back to reading the amenity tables (section 5.1).                                         |
+| Which v1 questions need confirmation before they are `available`                                                      | None of the four core keys require it in v1, matching today's "valid evidence completes the check" rule. Dog policy and similar policy questions stay fixture-only. |
+| Redaction proof stored with new `guest_wifi` submissions (WS1)                                                        | Every existing `guest_wifi` answer is not publishable (section 5.3).                                                                                                |
+| Audience rules (B00-04): audiences, staff-written text, Wi-Fi details                                                 | One audience, `internal`, with the allowlist in section 7.                                                                                                          |
+| Freshness policy per question                                                                                         | No expiry (`unrated`); only reopen and evidence loss make an answer `stale`.                                                                                        |
+| Named internal reader operator who holds and rotates credentials (X4)                                                 | The coordinator issues the pilot credential; no production credential is created without authorisation.                                                             |
