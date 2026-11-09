@@ -46,8 +46,10 @@ const TALLY_ICON: Record<string, React.ReactNode> = {
 export function OverviewBody({
   overview,
   now,
+  staffTargets,
 }: {
   overview: ManagerOverview
+  staffTargets?: React.ReactNode
   /** ISO instant of the render, so server and browser agree. */
   now: string
 }) {
@@ -56,12 +58,15 @@ export function OverviewBody({
 
   if (overview.menuState === "no_menu") {
     return (
-      <WorkspacePending
-        venueName={venueName}
-        title={copy.title}
-        noteTitle={copy.noMenuTitle}
-        note={copy.noMenuBody}
-      />
+      <div className="grid gap-(--gutter)">
+        <WorkspacePending
+          venueName={venueName}
+          title={copy.title}
+          noteTitle={copy.noMenuTitle}
+          note={copy.noMenuBody}
+        />
+        {staffTargets}
+      </div>
     )
   }
 
@@ -88,6 +93,7 @@ export function OverviewBody({
             </>
           }
         />
+        {staffTargets}
       </div>
     )
   }
@@ -224,6 +230,7 @@ export function OverviewBody({
           />
         )}
       </section>
+      {staffTargets}
       {overview.sections.length > 0 ? (
         <section
           aria-labelledby="overview-sections"

@@ -120,8 +120,8 @@ export function GroupParticipationTable({
           Staff participation, {periodLabel}
         </h2>
         <p className="max-w-prose text-meta text-ink-muted">
-          Monthly targets met with new photos accepted this month. A person
-          without a target or team needs setup and is never counted complete.
+          Staff progress toward their monthly targets. A person without a target
+          or team needs setup before they can complete it.
         </p>
       </div>
       <div className="overflow-x-auto rounded-card bg-surface shadow-card">
@@ -132,7 +132,7 @@ export function GroupParticipationTable({
               <TableHead>Staff</TableHead>
               <TableHead>Targets set</TableHead>
               <TableHead>Needs setup</TableHead>
-              <TableHead>No target row</TableHead>
+              <TableHead>No target</TableHead>
               <TableHead>Complete</TableHead>
               <TableHead>Accepted photos</TableHead>
               <TableHead>Self-reviews</TableHead>

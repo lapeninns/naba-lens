@@ -23,6 +23,7 @@ import { formatDate } from "@/components/nabalens/format"
 import { Notice } from "@/components/nabalens/notice"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
 import { StatusChip } from "@/components/nabalens/status-chip"
+import { completionBreakdown } from "@/components/nabalens/tasks/copy"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import {
@@ -196,22 +197,29 @@ export async function TeamScreen({
     )
   }
 
-  // A successful preparation run decides it, as on the overview. Missing
-  // targets only stand in when the status can't be read.
+  const combined = roster.roster.some((r) => r.completionProgress)
+  // Photo targets follow the preparation run. A venue's combined target
+  // already applies for the month, independently of checklist preparation.
   const unprepared =
+    !combined &&
     period === current &&
     (preparation?.ok
       ? !preparation.status?.lastSuccessAt
-      : roster.roster.some((r) => r.isCurrentMember && r.targetId == null))
-  const summary = past
-    ? isAdmin
-      ? undefined
-      : `${name} is read-only. Only an admin can correct a past month, with a reason.`
-    : isAdmin
-      ? `Each person's ${name} target at ${venue}. A person's month is never added to the venue's checklist.`
-      : period === current
-        ? `Each person's photo target at ${venue} this month. It counts their accepted photos only, separately from the checklist.`
-        : `Each person's photo target at ${venue} in ${name}. It counts their accepted photos only, separately from the checklist.`
+      : roster.roster.some(
+          (r) =>
+            r.isCurrentMember && !r.completionProgress && r.targetId == null
+        ))
+  const summary = combined
+    ? `Each person's ${name} target at ${venue} counts distinct accepted menu items and completed amenity checks.`
+    : past
+      ? isAdmin
+        ? undefined
+        : `${name} is read-only. Only an admin can correct a past month, with a reason.`
+      : isAdmin
+        ? `Each person's ${name} target at ${venue}. A person's month is never added to the venue's checklist.`
+        : period === current
+          ? `Each person's photo target at ${venue} this month. It counts their accepted photos only, separately from the checklist.`
+          : `Each person's photo target at ${venue} in ${name}. It counts their accepted photos only, separately from the checklist.`
 
   return (
     <ManageFrame
@@ -246,7 +254,7 @@ export async function TeamScreen({
         current={current}
         showFollowing={showFollowing}
       />
-      {past && isAdmin ? (
+      {past && isAdmin && !combined ? (
         <Notice>
           {name} is read-only for managers. Admins can correct a target, with a
           reason; the row then shows Corrected by an admin.
@@ -300,13 +308,16 @@ function PersonMonth({
     (s) => s.state === "accepted" && s.decision?.lateAcceptance
   )
   const hasTarget = row?.targetCount != null
+  const completion = row?.completionProgress
   const muted = "px-1 text-body text-ink-muted"
 
   let targetBody: React.ReactNode
   if (row && row.targetCount != null) {
     const target = row.targetCount
     const toTake = Math.max(0, target - row.accepted - row.pending)
-    const source = targetSourceText(row, period.key, past ? "past" : "current")
+    const source = completion
+      ? "Venue target"
+      : targetSourceText(row, period.key, past ? "past" : "current")
     const dueText = row.due
       ? past
         ? `Was due ${localDateLabel(row.due.dueOn)}`
@@ -324,12 +335,17 @@ function PersonMonth({
       <div className={cn(CARD)}>
         <div className="grid gap-2">
           <Frames
-            accepted={row.accepted}
+            accepted={completion?.total ?? row.accepted}
             target={target}
-            pending={row.pending}
+            verb={completion ? "completed" : "accepted"}
+            pending={completion ? 0 : row.pending}
             chip={chip}
           />
-          {!past && (row.pending > 0 || toTake > 0) ? (
+          {completion ? (
+            <p className="text-meta text-ink-muted">
+              {completionBreakdown(completion)}
+            </p>
+          ) : !past && (row.pending > 0 || toTake > 0) ? (
             <p className="flex flex-wrap gap-x-4 gap-y-1 text-meta text-ink-muted tabular-nums">
               {row.pending > 0 ? (
                 <span className="inline-flex items-center gap-1.5">
@@ -443,7 +459,7 @@ function PersonMonth({
         {submissions.length === 0 ? (
           <p role="status" className={cn(CARD, "text-body text-ink-muted")}>
             {first} hasn&apos;t sent any photos for {name} yet.
-            {hasTarget
+            {hasTarget && !completion
               ? " Photos count for the month their upload started."
               : null}
           </p>
@@ -452,7 +468,9 @@ function PersonMonth({
             {submissions.map((s) => {
               const title = s.requirement?.title ?? "Photo"
               const isLate =
-                s.state === "accepted" && s.decision?.lateAcceptance
+                !completion &&
+                s.state === "accepted" &&
+                s.decision?.lateAcceptance
               const word = isLate
                 ? `Accepted late, counts for ${periodView(s.period).label}`
                 : stateWord(s.state)
@@ -482,21 +500,22 @@ function PersonMonth({
             })}
           </ul>
         )}
-        {late.map((s) => (
-          <div key={s.id} className={cn(CARD, "gap-2")}>
-            <p>
-              <StatusChip tone="closed">
-                Accepted late · counts for {periodView(s.period).label}
-              </StatusChip>
-            </p>
-            <p className={muted}>
-              {s.requirement?.title ?? "Photo"}: sent{" "}
-              {formatDate(s.submittedAt)} and accepted on{" "}
-              {formatDate(s.decision!.decidedAt)}, so it counts for{" "}
-              {monthName(s.period)}.
-            </p>
-          </div>
-        ))}
+        {!completion &&
+          late.map((s) => (
+            <div key={s.id} className={cn(CARD, "gap-2")}>
+              <p>
+                <StatusChip tone="closed">
+                  Accepted late · counts for {periodView(s.period).label}
+                </StatusChip>
+              </p>
+              <p className={muted}>
+                {s.requirement?.title ?? "Photo"}: sent{" "}
+                {formatDate(s.submittedAt)} and accepted on{" "}
+                {formatDate(s.decision!.decidedAt)}, so it counts for{" "}
+                {monthName(s.period)}.
+              </p>
+            </div>
+          ))}
         {toReview.length > 0 ? (
           <details className="group grid gap-3">
             <summary
@@ -526,8 +545,9 @@ function PersonMonth({
         ) : null}
       </section>
       <p className={muted}>
-        Only accepted photos count, for the month their upload started. Every
-        ready photo is already in Photos.
+        {completion
+          ? "Menu items count after photo acceptance. Each completed amenity check counts once."
+          : "Only accepted photos count, for the month their upload started. Every ready photo is already in Photos."}
       </p>
     </>
   )

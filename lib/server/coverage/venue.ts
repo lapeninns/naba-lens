@@ -1,5 +1,6 @@
 import "server-only"
 
+import type { ManagerPhotoCtx } from "@/lib/server/menu-photos/context"
 import { decodeCursor, encodeCursor } from "@/lib/server/media/library"
 import type { MediaActor } from "@/lib/server/media/types"
 
@@ -30,6 +31,7 @@ import {
   candidateView,
   monthlyView,
   nameMap,
+  readSubmissionCompletionPeriods,
   requirementView,
   submissionView,
   summaryView,
@@ -137,7 +139,7 @@ export async function getVenueRoster(
   const venue = await resolveVenue(actor, args.venueId)
   if (!venue.ok) return venue
   const period = (args.period as string | null | undefined) ?? null
-  const { data, error } = await actor.db.rpc("coverage_staff_progress", {
+  const { data, error } = await actor.db.rpc("coverage_staff_progress_v2", {
     p_venue_id: venue.venueId,
     ...(period ? { p_period_month: periodMonthDate(period) } : {}),
   })
@@ -154,6 +156,31 @@ export async function getVenueRoster(
   }
 }
 
+/**
+ * The dedicated manager workspace shows combined target progress for active
+ * staff. The scoped RPC rechecks the manager's grant for this venue.
+ */
+export async function getManagerCompletionRoster({
+  actor,
+  venueId,
+}: ManagerPhotoCtx): Promise<CoverageResult<{ roster: MonthlyProgress[] }>> {
+  const { data, error } = await actor.db.rpc("coverage_staff_progress_v2", {
+    p_venue_id: venueId,
+  })
+  if (error) return coverageRpcFailure(error, "manager completion roster")
+  const now = new Date()
+  return {
+    ok: true,
+    roster: (data ?? [])
+      .filter(
+        (row) =>
+          row.is_current_member &&
+          row.target_basis === "menu_items_and_amenities"
+      )
+      .map((row) => monthlyView(row, now)),
+  }
+}
+
 /** One person's month at this venue: target, progress and photos submitted here. */
 export async function getStaffMonth(
   actor: MediaActor,
@@ -165,7 +192,7 @@ export async function getStaffMonth(
   if (!venue.ok) return venue
   const month = periodMonthDate(input.period)
   const [progress, items, people] = await Promise.all([
-    actor.db.rpc("coverage_staff_progress", {
+    actor.db.rpc("coverage_staff_progress_v2", {
       p_venue_id: venue.venueId,
       p_period_month: month,
       p_staff_id: input.staffId,
@@ -184,18 +211,24 @@ export async function getStaffMonth(
   const row = (progress.data ?? []).find((r) => r.staff_id === input.staffId)
   const rows = (items.data ?? []).slice(0, 100)
   if (!row && !rows.length) return NOT_FOUND
-  const names = await nameMap(
-    actor,
-    people,
-    rows.map((r) => r.decided_by)
-  )
+  const [names, completionPeriods] = await Promise.all([
+    nameMap(
+      actor,
+      people,
+      rows.map((r) => r.decided_by)
+    ),
+    readSubmissionCompletionPeriods(actor, rows),
+  ])
+  if (!completionPeriods.ok) return completionPeriods
   const now = new Date()
   return {
     ok: true,
     month: {
       period: periodView(input.period, now),
       monthly: row ? monthlyView(row, now) : null,
-      submissions: rows.map((r) => submissionView(r, names)),
+      submissions: rows.map((r) =>
+        submissionView(r, names, completionPeriods.byVenue)
+      ),
     },
   }
 }
@@ -242,14 +275,18 @@ export async function listReviewQueue(
   const rows = items.data ?? []
   const page = rows.slice(0, LIMITS.pageSize)
   const last = rows.length > LIMITS.pageSize ? page[page.length - 1] : null
-  const names = await nameMap(
-    actor,
-    people,
-    page.map((r) => r.decided_by)
-  )
+  const [names, completionPeriods] = await Promise.all([
+    nameMap(
+      actor,
+      people,
+      page.map((r) => r.decided_by)
+    ),
+    readSubmissionCompletionPeriods(actor, page),
+  ])
+  if (!completionPeriods.ok) return completionPeriods
   return {
     ok: true,
-    items: page.map((r) => submissionView(r, names)),
+    items: page.map((r) => submissionView(r, names, completionPeriods.byVenue)),
     nextCursor: last ? encodeCursor(last.submitted_at, last.item_id) : null,
   }
 }

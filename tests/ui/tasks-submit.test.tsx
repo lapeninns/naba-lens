@@ -615,6 +615,14 @@ describe("SubmitPhotosPanel", () => {
     ).toBeTruthy()
   })
 
+  it("labels a current photo at a completion venue as checklist only", () => {
+    setup({
+      photos: [photo({ countsTowardMonthly: false, completionTarget: true })],
+    })
+    expect(screen.getByText("Checklist item only")).toBeTruthy()
+    expect(screen.queryByText("Task only (from an earlier month)")).toBeNull()
+  })
+
   it("caps one send at the upload batch limit", async () => {
     const { user } = setup({ limits: { ...LIMITS, maxBatchFiles: 2 } })
     await user.click(tile("2 Nov 2026"))

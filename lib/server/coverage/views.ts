@@ -5,7 +5,7 @@ import type { Database } from "@/lib/db/types"
 import { avatarUrl, mediaRoutes } from "@/lib/server/media/library"
 import type { MediaActor } from "@/lib/server/media/types"
 
-import { unavailableFailure } from "./errors"
+import { coverageRpcFailure, unavailableFailure } from "./errors"
 import { dueView, periodOfDate, periodView } from "./time"
 import type {
   AmenityPresence,
@@ -32,7 +32,7 @@ import type {
 } from "./types"
 
 type Fns = Database["public"]["Functions"]
-export type ProgressRow = Fns["coverage_staff_progress"]["Returns"][number]
+export type ProgressRow = Fns["coverage_staff_progress_v2"]["Returns"][number]
 export type RequirementRow =
   Fns["coverage_requirement_progress"]["Returns"][number]
 export type ItemRow = Fns["coverage_items_page"]["Returns"][number]
@@ -68,7 +68,9 @@ export function evidenceAsset(
   }
 }
 
-export function personFromProgress(row: ProgressRow): CoveragePerson {
+export function personFromProgress(
+  row: Fns["coverage_staff_progress"]["Returns"][number]
+): CoveragePerson {
   return {
     id: row.staff_id,
     displayName: row.display_name,
@@ -95,6 +97,15 @@ export function monthlyView(
       (gap): gap is MonthlySetupGap => gap === "team" || gap === "target"
     ),
     targetCount: row.target_count,
+    ...(row.target_basis === "menu_items_and_amenities"
+      ? {
+          completionProgress: {
+            total: row.completion_count,
+            menuItems: row.menu_items_completed,
+            amenityChecks: row.amenity_checks_completed,
+          },
+        }
+      : {}),
     source: row.target_source as MonthlyTargetSource | null,
     revision: row.target_revision,
     accepted: row.accepted_count,
@@ -185,12 +196,63 @@ export function requirementView(
   }
 }
 
+/** Completion-target months for a venue the caller is authorised to read. */
+export async function readCompletionTargetPeriods(
+  actor: MediaActor,
+  venueId: string,
+  months: string[]
+): Promise<CoverageResult<{ periods: Set<string> }>> {
+  if (months.length === 0) return { ok: true, periods: new Set() }
+  const { data, error } = await actor.db.rpc(
+    "coverage_completion_target_periods",
+    {
+      p_venue_id: venueId,
+      p_period_months: months,
+    }
+  )
+  if (error) return coverageRpcFailure(error, "completion target periods")
+  return { ok: true, periods: new Set(data ?? []) }
+}
+
+/** Resolve each venue and submission month together for a page of Coverage photos. */
+export async function readSubmissionCompletionPeriods(
+  actor: MediaActor,
+  rows: ItemRow[]
+): Promise<CoverageResult<{ byVenue: Map<string, Set<string>> }>> {
+  const monthsByVenue = new Map<string, Set<string>>()
+  for (const { venue_id, submitted_month } of rows) {
+    const months = monthsByVenue.get(venue_id) ?? new Set<string>()
+    months.add(submitted_month)
+    monthsByVenue.set(venue_id, months)
+  }
+  const reads = await Promise.all(
+    Array.from(monthsByVenue, async ([venue, months]) => ({
+      venue,
+      result: await readCompletionTargetPeriods(
+        actor,
+        venue,
+        Array.from(months)
+      ),
+    }))
+  )
+  const byVenue = new Map<string, Set<string>>()
+  for (const { venue, result } of reads) {
+    if (!result.ok) return result
+    byVenue.set(venue, result.periods)
+  }
+  return { ok: true, byVenue }
+}
+
 export function submissionView(
   row: ItemRow,
-  names: Map<string, string>
+  names: Map<string, string>,
+  completionPeriods: Map<string, Set<string>>
 ): SubmissionView {
   const state = row.state as SubmissionState
   const period = periodOfDate(row.submitted_month)
+  const completionTarget = completionPeriods
+    .get(row.venue_id)
+    ?.has(row.submitted_month)
   const decided =
     (state === "accepted" || state === "needs_another_photo") &&
     row.decided_at &&
@@ -221,7 +283,8 @@ export function submissionView(
     },
     submittedById: row.submitted_by,
     submittedAt: row.submitted_at,
-    countsTowardMonthly: row.monthly_eligible,
+    ...(completionTarget ? { completionTarget: true } : {}),
+    countsTowardMonthly: !completionTarget && row.monthly_eligible,
     decision:
       decided && row.decided_at && row.decided_by
         ? {
@@ -234,6 +297,7 @@ export function submissionView(
             },
             selfReview: row.self_review === true,
             lateAcceptance:
+              !completionTarget &&
               state === "accepted" &&
               new Date(row.decided_at).getTime() >=
                 new Date(periodView(period).endsAt).getTime(),
@@ -248,7 +312,8 @@ export function submissionView(
 export function candidateView(
   row: CandidateRow,
   reason: AssetIneligibleReason | null,
-  countsTowardMonthly: boolean
+  countsTowardMonthly: boolean,
+  completionTarget = false
 ): SubmittablePhoto {
   return {
     assetId: row.asset_id,
@@ -265,6 +330,7 @@ export function candidateView(
       displayName: row.uploader_name,
       active: row.uploader_active,
     },
+    ...(completionTarget ? { completionTarget: true } : {}),
     countsTowardMonthly,
     live:
       row.live_item_id && row.live_item_state

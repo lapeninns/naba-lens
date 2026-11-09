@@ -1,7 +1,10 @@
 import { OverviewBody } from "@/components/nabalens/manager/overview/overview-body"
+import { TeamCompletionTargets } from "@/components/nabalens/manager/overview/team-completion-targets"
 import { VenueAccessUnavailable } from "@/components/nabalens/manager/venue-access-unavailable"
+import { Notice } from "@/components/nabalens/notice"
 import { getManagerWorkspace } from "@/lib/auth/manager"
 import { ROUTES } from "@/lib/auth/routes"
+import { getManagerCompletionRoster } from "@/lib/server/coverage/venue"
 
 import { failedRead, isRefusal, loadManagerOverview } from "./load-overview"
 
@@ -29,7 +32,21 @@ export default async function ManagerOverviewPage() {
       return <VenueAccessUnavailable reason="no_grant" refreshShell />
     failedRead(read.code, "the overview", ROUTES.managerHome)
   }
+  const team = await getManagerCompletionRoster(read.ctx)
+  if (!team.ok && isRefusal(team.code)) {
+    return <VenueAccessUnavailable reason="no_grant" refreshShell />
+  }
   return (
-    <OverviewBody overview={read.overview} now={new Date().toISOString()} />
+    <OverviewBody
+      overview={read.overview}
+      now={new Date().toISOString()}
+      staffTargets={
+        team.ok ? (
+          <TeamCompletionTargets roster={team.roster} />
+        ) : (
+          <Notice role="status">Staff targets couldn’t be loaded.</Notice>
+        )
+      }
+    />
   )
 }

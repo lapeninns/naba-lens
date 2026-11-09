@@ -100,6 +100,32 @@ describe("FirstRun", () => {
     expect(screen.getByText("Due 30 Nov 2026")).toBeTruthy()
   })
 
+  it("shows a combined target even if the staff team is unset", () => {
+    render(
+      <FirstRun
+        {...props({
+          gaps: [
+            "No team yet: an admin assigns Front of house or Back of house",
+          ],
+          monthly: {
+            target: 5,
+            accepted: 0,
+            completionProgress: { total: 2, menuItems: 1, amenityChecks: 1 },
+            dueLabel: "Due 30 Nov 2026",
+          },
+        })}
+      />
+    )
+    expect(
+      screen.getByRole("heading", { name: "Still being set up" })
+    ).toBeTruthy()
+    expect(
+      screen.getByRole("heading", { name: "Your target for November 2026" })
+    ).toBeTruthy()
+    expect(screen.getByText("2 of 5 completed")).toBeTruthy()
+    expect(screen.getByText("1 menu item · 1 amenity check")).toBeTruthy()
+  })
+
   it("opens the library picker straight away and dismisses only on an actual pick", () => {
     const calls: OpenAddOptions[] = []
     const openAdd = vi.fn((opts?: OpenAddOptions) => {

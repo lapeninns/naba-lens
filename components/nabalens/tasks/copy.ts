@@ -1,5 +1,6 @@
 import type {
   AssetIneligibleReason,
+  CompletionProgress,
   CoverageErrorCode,
   CoverageFailure,
   PeriodKey,
@@ -191,4 +192,11 @@ export function shiftPeriod(key: PeriodKey, delta: number): PeriodKey {
 
 export function plural(count: number, one: string, many: string): string {
   return `${count} ${count === 1 ? one : many}`
+}
+
+export function completionBreakdown({
+  menuItems,
+  amenityChecks,
+}: CompletionProgress): string {
+  return `${plural(menuItems, "menu item", "menu items")} · ${plural(amenityChecks, "amenity check", "amenity checks")}`
 }

@@ -33,7 +33,8 @@ export function decisionText(
 
 /** What the photo was sent for: its task, or this month's photos. */
 export function submissionTitle(submission: SubmissionView): string {
-  if (!submission.requirement) return "Monthly photo"
+  if (!submission.requirement)
+    return submission.completionTarget ? "Coverage photo" : "Monthly photo"
   return submission.requirement.title ?? "Task"
 }
 
@@ -95,7 +96,13 @@ export function SubmissionRow({
           {decisionText(submission.decision)}
         </p>
       ) : null}
-      {!submission.countsTowardMonthly ? (
+      {submission.completionTarget ? (
+        <p className="text-meta text-ink-muted">
+          {submission.requirement
+            ? "Counts for this checklist item."
+            : "Coverage photo history."}
+        </p>
+      ) : !submission.countsTowardMonthly ? (
         <p className="text-meta text-ink-muted">
           Counts for the task only, not your monthly target.
         </p>

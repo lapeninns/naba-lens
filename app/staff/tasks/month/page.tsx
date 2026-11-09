@@ -40,7 +40,7 @@ import { myTasks, staffShellStatus } from "../../_shell/shell-status"
 import { PORTFOLIO_PATH, TASKS_PATH, unwrap } from "../result"
 import { TaskSubmit } from "../task-submit"
 
-export const metadata = { title: "Monthly photos · Naba-Lens" }
+export const metadata = { title: "Monthly progress · Naba-Lens" }
 
 // finaliseUpload (Server Action used by the upload dialog on this page) decodes
 // HEIC/images; same bound as /staff, below MEDIA_LIMITS.staleProcessingMinutes.
@@ -48,8 +48,10 @@ export const maxDuration = 120
 
 const MONTH_PATH = `${TASKS_PATH}/month`
 const PAST_MONTHS = 3
-const SUMMARY =
+const PHOTO_SUMMARY =
   "Accepted photos count toward your target. Each photo counts for the month its upload started."
+const COMPLETION_SUMMARY =
+  "Each menu item counts once after its photo is accepted. Each completed amenity check counts once. Any mix can meet your monthly target."
 
 function monthHref(period: string, current: string) {
   return period === current ? MONTH_PATH : `${MONTH_PATH}?period=${period}`
@@ -75,14 +77,19 @@ async function pastMonths(
       (m) => m.status === "set" && m.targetCount
     )
     if (set.length === 0) return []
-    return [
-      {
-        period,
-        accepted: set.reduce((sum, m) => sum + m.accepted, 0),
-        target: set.reduce((sum, m) => sum + (m.targetCount ?? 0), 0),
-        met: set.every((m) => m.complete),
-      },
-    ]
+    const summaries = [false, true].flatMap((combined) => {
+      const entries = set.filter(
+        (m) => Boolean(m.completionProgress) === combined
+      )
+      if (!entries.length) return []
+      const count = entries.reduce(
+        (sum, m) => sum + (m.completionProgress?.total ?? m.accepted),
+        0
+      )
+      const target = entries.reduce((sum, m) => sum + (m.targetCount ?? 0), 0)
+      return [`${count} of ${target} ${combined ? "completed" : "accepted"}`]
+    })
+    return [{ period, summaries, met: set.every((m) => m.complete) }]
   })
 }
 
@@ -161,18 +168,30 @@ export default async function MonthPage({
   const isCurrent = period === current
 
   const { actor } = unwrap(await getCoverageActor())
-  const [tasksResult, monthResult, photos, past, shellStatus] =
-    await Promise.all([
-      myTasks(actor),
-      getMyMonth(actor, { period }),
-      isCurrent
-        ? listMySubmittablePhotos(actor, { requirementId: null, cursor: null })
-        : null,
-      isCurrent ? pastMonths(actor, current) : [],
-      staffShellStatus(actor, profile),
-    ])
-  const { tasks } = unwrap(tasksResult)
+  const tasksPromise = myTasks(actor).then(unwrap)
+  const [taskData, monthResult, photos, past, shellStatus] = await Promise.all([
+    tasksPromise,
+    getMyMonth(actor, { period }),
+    isCurrent
+      ? tasksPromise.then(({ tasks }) =>
+          !tasks.monthly?.completionProgress ||
+          tasks.needsAnotherPhoto.some((submission) => !submission.requirement)
+            ? listMySubmittablePhotos(actor, {
+                requirementId: null,
+                cursor: null,
+              })
+            : null
+        )
+      : null,
+    isCurrent ? pastMonths(actor, current) : [],
+    staffShellStatus(actor, profile),
+  ])
+  const { tasks } = taskData
   const { scope } = tasks
+  const combined =
+    monthResult.ok &&
+    monthResult.month.monthly.some((row) => row.completionProgress)
+  const combinedHere = Boolean(tasks.monthly?.completionProgress)
 
   const shell = (children: React.ReactNode) => (
     <AppShell
@@ -187,8 +206,8 @@ export default async function MonthPage({
         <PageHeader
           scope={[scope.venue?.name, periodLabel(period)]}
           venueScope
-          title="Monthly photos"
-          summary={SUMMARY}
+          title={combined ? "Monthly target" : "Monthly photos"}
+          summary={combined ? COMPLETION_SUMMARY : PHOTO_SUMMARY}
         />
         {children}
       </div>
@@ -233,8 +252,10 @@ export default async function MonthPage({
   const here = entries.find((m) => m.isCurrentMember)
   const elsewhere = entries.find((m) => !m.isCurrentMember)
   const moved = isCurrent && here && elsewhere
-  const setupPending = entries.some((m) => m.status === "needs_setup")
-  const met = entries.some((m) => m.complete)
+  const setupPending = entries.some(
+    (m) => !m.completionProgress && m.status === "needs_setup"
+  )
+  const met = entries.some((m) => !m.completionProgress && m.complete)
   const label = periodLabel(period)
 
   return shell(
@@ -243,8 +264,9 @@ export default async function MonthPage({
 
       {moved ? (
         <Notice>
-          You moved to {here.venue.name}. Photos you sent at{" "}
-          {elsewhere.venue.name} keep counting there.
+          You moved to {here.venue.name}.{" "}
+          {combined ? "Your progress" : "Photos you sent"} at{" "}
+          {elsewhere.venue.name} {combined ? "stays" : "keep counting"} there.
         </Notice>
       ) : null}
 
@@ -263,7 +285,10 @@ export default async function MonthPage({
             }
             replaceCount={open.length}
             addHref={
-              isCurrent && monthly.isCurrentMember && scope.canSubmit
+              isCurrent &&
+              monthly.isCurrentMember &&
+              scope.canSubmit &&
+              !monthly.completionProgress
                 ? "#add-heading"
                 : null
             }
@@ -290,7 +315,50 @@ export default async function MonthPage({
         </p>
       ) : null}
 
-      {isCurrent ? (
+      {isCurrent && combinedHere ? (
+        <section
+          className="grid min-w-0 gap-3 rounded-card bg-surface p-4 shadow-card"
+          aria-labelledby="completion-work-heading"
+        >
+          <h2
+            id="completion-work-heading"
+            className="font-display text-section-title text-ink"
+          >
+            What counts toward your target
+          </h2>
+          <ul className="grid gap-2 text-body text-ink-muted">
+            <li>
+              Label a photo with a food or drink item and get it accepted for
+              the menu.
+            </li>
+            <li>
+              Submit a valid finding for an amenity check assigned to you.
+            </li>
+          </ul>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/staff/menu"
+              className={buttonVariants({
+                variant: "secondary",
+                size: "touch",
+              })}
+            >
+              Browse menu items
+            </Link>
+            <Link
+              href={TASKS_PATH}
+              className={buttonVariants({
+                variant: "secondary",
+                size: "touch",
+              })}
+            >
+              See assigned checks on Home
+            </Link>
+          </div>
+        </section>
+      ) : null}
+
+      {isCurrent && (!combinedHere || replacing) ? (
         <section
           aria-labelledby="add-heading"
           className="flex scroll-mt-4 flex-col gap-(--gutter)"
@@ -316,12 +384,14 @@ export default async function MonthPage({
                 <ReplacementNote
                   submission={replacing}
                   currentPeriod={current}
+                  completionTarget={combinedHere}
                 />
               ) : null}
               <TaskSubmit
                 requirementId={null}
                 replacesSubmissionId={replacing?.id ?? null}
                 reviewerName={replacing ? askerName(replacing) : null}
+                completionTarget={combinedHere}
                 initialPhotos={photos}
               />
             </>
@@ -331,45 +401,50 @@ export default async function MonthPage({
         </section>
       ) : null}
 
-      <section
-        aria-labelledby="sent-heading"
-        className="flex flex-col gap-(--gutter)"
-      >
-        <SectionHeader
-          id="sent-heading"
-          title={`Sent for ${monthName(period)}`}
-          action={
-            month.submissions.length > 0 ? (
-              <span className="text-body text-ink-muted">{sentCount}</span>
-            ) : null
-          }
-        />
-        {month.submissions.length > 0 ? (
-          <>
-            <SubmissionList
-              label={`Sent for ${monthName(period)}`}
-              submissions={month.submissions}
-              showTask
-              empty={null}
+      {!combined || month.submissions.length > 0 ? (
+        <section
+          aria-labelledby="sent-heading"
+          className="flex flex-col gap-(--gutter)"
+        >
+          <SectionHeader
+            id="sent-heading"
+            title={`${combined ? "Coverage photos" : "Sent"} for ${monthName(period)}`}
+            action={
+              month.submissions.length > 0 ? (
+                <span className="text-body text-ink-muted">{sentCount}</span>
+              ) : null
+            }
+          />
+          {month.submissions.length > 0 ? (
+            <>
+              <SubmissionList
+                label={`Sent for ${monthName(period)}`}
+                submissions={month.submissions}
+                showTask
+                empty={null}
+              />
+              {more ? (
+                <p className="max-w-(--size-reading) px-1 text-body text-ink-muted">
+                  These are your newest {month.submissions.length}. Every photo
+                  you sent is on{" "}
+                  <Link
+                    href={PORTFOLIO_PATH}
+                    className="inline-flex min-h-11 items-center rounded-control font-semibold text-ink underline underline-offset-3 outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+                  >
+                    Me
+                  </Link>
+                  .
+                </p>
+              ) : null}
+            </>
+          ) : (
+            <EmptyState
+              variant="done"
+              title="No photos were sent this month."
             />
-            {more ? (
-              <p className="max-w-(--size-reading) px-1 text-body text-ink-muted">
-                These are your newest {month.submissions.length}. Every photo
-                you sent is on{" "}
-                <Link
-                  href={PORTFOLIO_PATH}
-                  className="inline-flex min-h-11 items-center rounded-control font-semibold text-ink underline underline-offset-3 outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
-                >
-                  Me
-                </Link>
-                .
-              </p>
-            ) : null}
-          </>
-        ) : (
-          <EmptyState variant="done" title="No photos were sent this month." />
-        )}
-      </section>
+          )}
+        </section>
+      ) : null}
 
       {isCurrent && past.length > 0 ? (
         <section
@@ -386,7 +461,7 @@ export default async function MonthPage({
                 title={periodLabel(m.period)}
                 subtitle={
                   <>
-                    {m.accepted} of {m.target} accepted
+                    {m.summaries.join(" · ")}
                     {m.met ? " · Target met" : ""}
                   </>
                 }

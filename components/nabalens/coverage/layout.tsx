@@ -148,6 +148,7 @@ export function Frames({
   accepted,
   target,
   pending = 0,
+  verb = "accepted",
   compact = false,
   chip,
   className,
@@ -155,6 +156,7 @@ export function Frames({
   accepted: number
   target: number
   pending?: number
+  verb?: "accepted" | "completed"
   compact?: boolean
   /** A state chip beside the count (Target met, Overdue). */
   chip?: React.ReactNode
@@ -162,7 +164,7 @@ export function Frames({
 }) {
   const filled = Math.min(accepted, target)
   const waiting = Math.max(0, Math.min(pending, target - filled))
-  const text = `${accepted} of ${target} accepted`
+  const text = `${accepted} of ${target} ${verb}`
   const asBar = target > 12
   return (
     <div
@@ -192,7 +194,7 @@ export function Frames({
               : "font-display text-section-title"
           )}
         >
-          of {target} accepted
+          of {target} {verb}
         </span>
         {chip ? <span className="self-center">{chip}</span> : null}
       </p>

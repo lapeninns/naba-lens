@@ -4,7 +4,10 @@ import { afterEach, describe, expect, it } from "vitest"
 
 import { MANAGER_COPY } from "@/components/nabalens/manager/copy"
 import { OverviewBody } from "@/components/nabalens/manager/overview/overview-body"
+import { TeamCompletionTargets } from "@/components/nabalens/manager/overview/team-completion-targets"
 import type { ManagerOverview } from "@/lib/server/menu-photos/types"
+
+import { monthly } from "./coverage-fixtures"
 
 afterEach(() => cleanup())
 
@@ -215,5 +218,26 @@ describe("Overview", () => {
       })
     )
     expect(document.querySelector('[data-slot="activation-banner"]')).toBeNull()
+  })
+})
+
+describe("Team completion targets", () => {
+  it("shows the staff member's breakdown and completed target", () => {
+    const target = monthly({
+      targetCount: 5,
+      accepted: 0,
+      complete: true,
+      completionProgress: { total: 5, menuItems: 3, amenityChecks: 2 },
+    })
+    render(<TeamCompletionTargets roster={[target]} />)
+    const section = screen.getByRole("region", {
+      name: "Staff targets for November 2026",
+    })
+    expect(within(section).getByText(target.person.displayName)).toBeTruthy()
+    expect(within(section).getByText("5 of 5 completed")).toBeTruthy()
+    expect(
+      within(section).getByText("3 menu items · 2 amenity checks")
+    ).toBeTruthy()
+    expect(within(section).getByText("Target met")).toBeTruthy()
   })
 })

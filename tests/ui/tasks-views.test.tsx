@@ -384,6 +384,36 @@ describe("MonthlyProgressCard", () => {
     expect(screen.getByText(/1 late acceptance included/)).toBeTruthy()
   })
 
+  it("uses distinct completions and keeps legacy photo credits out of the target", () => {
+    render(
+      <MonthlyProgressCard
+        monthly={monthly({
+          accepted: 8,
+          pending: 2,
+          targetCount: 5,
+          completionProgress: { total: 3, menuItems: 1, amenityChecks: 2 },
+        })}
+        periodLabel="November 2026"
+        addHref="/staff/tasks/month"
+        canSubmit
+      />
+    )
+    expect(
+      screen.getByRole("progressbar", { name: "3 of 5 items completed" })
+    ).toBeTruthy()
+    expect(screen.getByText("1 menu item · 2 amenity checks")).toBeTruthy()
+    expect(screen.getByText("2 more completions to go.")).toBeTruthy()
+    expect(screen.queryByText("2 waiting for review")).toBeNull()
+    expect(
+      screen
+        .getByRole("link", { name: "See this month's target" })
+        .getAttribute("href")
+    ).toBe("/staff/tasks/month")
+    expect(
+      screen.queryByRole("link", { name: "Add photos for this month" })
+    ).toBeNull()
+  })
+
   it("keeps sending available when overdue", () => {
     render(
       <MonthlyProgressCard

@@ -55,9 +55,11 @@ export function PhotoPicker({
               : ineligibleCopy(reason)
             : photo.live
               ? "Waiting for review on another task. Sending it here moves it."
-              : !monthly && !photo.countsTowardMonthly
-                ? "Task only (from an earlier month)"
-                : null
+              : !monthly && photo.completionTarget
+                ? "Checklist item only"
+                : !monthly && !photo.countsTowardMonthly
+                  ? "Task only (from an earlier month)"
+                  : null
           return (
             <li key={photo.assetId} className="flex min-w-0 flex-col gap-1.5">
               <div

@@ -111,6 +111,26 @@ describe("Team page preparation state", () => {
     )
   })
 
+  it("shows combined targets without a legacy photo preparation prompt", async () => {
+    await team(
+      [
+        monthly({
+          targetId: null,
+          targetCount: 5,
+          completionProgress: { total: 0, menuItems: 0, amenityChecks: 0 },
+        }),
+      ],
+      { ok: true, status: { lastSuccessAt: null } }
+    )
+    expect(screen.queryByText(/targets haven't been copied yet/)).toBeNull()
+    expect(
+      screen.queryByRole("button", { name: "Prepare this month" })
+    ).toBeNull()
+    expect(screen.getByTestId("roster").textContent).toBe(
+      "roster unprepared: false"
+    )
+  })
+
   it("prepared, with a new starter lacking a target: no notice, no Prepare", async () => {
     await team([withTarget, noTarget], {
       ok: true,

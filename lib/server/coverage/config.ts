@@ -27,7 +27,13 @@ import {
   optionalText,
   uuidList,
 } from "./validate"
-import { evidenceAsset, nameMap, readableAssets, venuePeople } from "./views"
+import {
+  evidenceAsset,
+  nameMap,
+  readableAssets,
+  readCompletionTargetPeriods,
+  venuePeople,
+} from "./views"
 
 const BAD_REQUEST = invalid({}, "This request is invalid. Reload the page.")
 const MAX_REVISION = 2 ** 31 - 1
@@ -421,10 +427,19 @@ export async function setMonthlyTarget(
   if (Object.keys(errors).length) return invalid(errors)
   const venue = await resolveVenue(actor, input.venueId)
   if (!venue.ok) return venue
+  const month = periodMonthDate(period as string)
+  const completionPeriods = await readCompletionTargetPeriods(
+    actor,
+    venue.venueId,
+    [month]
+  )
+  if (!completionPeriods.ok) return completionPeriods
+  if (completionPeriods.periods.has(month))
+    return invalid({}, "This month’s target is set for the whole venue.")
   const { data, error } = await actor.db.rpc("set_monthly_target", {
     p_staff_id: input.staffId,
     p_venue_id: venue.venueId,
-    p_period_month: periodMonthDate(period as string),
+    p_period_month: month,
     p_target_count: input.targetCount as number,
     ...(dueOn ? { p_due_on: dueOn } : {}),
     ...(reason ? { p_reason: reason } : {}),

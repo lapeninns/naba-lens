@@ -16,9 +16,10 @@ import { cn } from "@/lib/utils"
 import { Notice } from "../notice"
 import { PhotoSourceActions, type PhotoSource } from "../photo-source"
 import { useAdd } from "../shell/add-context"
+import { completionBreakdown } from "./copy"
 import { PhotoSegments } from "./month-card"
 import { StatusChip } from "./status-badges"
-import type { MyTasksView } from "./types"
+import type { CompletionProgress, MyTasksView } from "./types"
 
 /** What is still missing, in the words of the copy deck. */
 export function setupGaps(tasks: MyTasksView): string[] {
@@ -77,8 +78,13 @@ export function FirstRun({
   name: string
   venueName: string | null
   periodLabel: string
-  /** This month's target and accepted photos, when a target is set. */
-  monthly: { target: number; accepted: number; dueLabel: string | null } | null
+  /** This month's target and progress, when a target is set. */
+  monthly: {
+    target: number
+    accepted: number
+    completionProgress?: CompletionProgress
+    dueLabel: string | null
+  } | null
   gaps: string[]
   /** Why photos can't be added yet, or null. */
   uploadBlocked: string | null
@@ -189,20 +195,33 @@ export function FirstRun({
         You can add photos now. They are saved to your portfolio.
       </Notice>
     </section>
-  ) : monthly ? (
+  ) : null
+
+  const targetProgress = monthly ? (
     <section aria-labelledby="month-heading" className={card}>
       <h2 id="month-heading" className={sectionTitle}>
-        Your photos for {periodLabel}
+        {monthly.completionProgress ? "Your target for" : "Your photos for"}{" "}
+        {periodLabel}
       </h2>
       <p className="flex flex-wrap gap-x-3 gap-y-1 text-body text-ink">
         <span className="font-mono font-bold tabular-nums">
-          {monthly.accepted} of {monthly.target} accepted
+          {monthly.completionProgress?.total ?? monthly.accepted} of{" "}
+          {monthly.target}{" "}
+          {monthly.completionProgress ? "completed" : "accepted"}
         </span>
         {monthly.dueLabel ? (
           <span className="text-ink-muted">{monthly.dueLabel}</span>
         ) : null}
       </p>
-      <PhotoSegments accepted={monthly.accepted} target={monthly.target} />
+      <PhotoSegments
+        accepted={monthly.completionProgress?.total ?? monthly.accepted}
+        target={monthly.target}
+      />
+      {monthly.completionProgress ? (
+        <p className="text-meta text-ink-muted">
+          {completionBreakdown(monthly.completionProgress)}
+        </p>
+      ) : null}
     </section>
   ) : null
 
@@ -260,7 +279,7 @@ export function FirstRun({
 
         {gapsFirst ? middle : null}
         {milestones}
-        {gapsFirst ? null : middle}
+        {!gapsFirst || monthly?.completionProgress ? targetProgress : null}
 
         <section aria-labelledby="work-heading" className={card}>
           <h2 id="work-heading" className={sectionTitle}>

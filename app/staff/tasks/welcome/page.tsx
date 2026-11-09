@@ -41,6 +41,7 @@ export default async function WelcomePage({
           ? {
               target,
               accepted: tasks.monthly.accepted,
+              completionProgress: tasks.monthly.completionProgress,
               dueLabel: tasks.monthly.due?.label ?? null,
             }
           : null

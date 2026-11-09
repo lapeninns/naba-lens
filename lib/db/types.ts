@@ -3153,6 +3153,10 @@ export type Database = {
           width: number
         }[]
       }
+      coverage_completion_target_periods: {
+        Args: { p_period_months: string[]; p_venue_id: string }
+        Returns: string[]
+      }
       coverage_group_overview: {
         Args: { p_period_month?: string }
         Returns: {
@@ -3290,6 +3294,43 @@ export type Database = {
           period_month: string
           setup_missing: string[]
           staff_id: string
+          target_count: number
+          target_id: string
+          target_revision: number
+          target_source: string
+          venue_id: string
+          venue_name: string
+        }[]
+      }
+      coverage_staff_progress_v2: {
+        Args: {
+          p_period_month?: string
+          p_staff_id?: string
+          p_venue_id?: string
+        }
+        Returns: {
+          accepted_count: number
+          amenity_checks_completed: number
+          avatar_path: string
+          complete: boolean
+          completion_count: number
+          department: string
+          display_name: string
+          due_on: string
+          evidence_removed_count: number
+          is_current_member: boolean
+          is_manager: boolean
+          job_title: string
+          late_accepted_count: number
+          menu_items_completed: number
+          needs_another_photo_count: number
+          needs_setup: boolean
+          overdue: boolean
+          pending_count: number
+          period_month: string
+          setup_missing: string[]
+          staff_id: string
+          target_basis: string
           target_count: number
           target_id: string
           target_revision: number

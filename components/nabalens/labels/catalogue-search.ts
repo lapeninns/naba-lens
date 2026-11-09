@@ -46,16 +46,23 @@ export type CatalogueIndex = IndexEntry[]
 const NO_FOCUS = 1000
 
 /**
- * How closely a section fits a focus: a section named for the work (keyword
- * on a word of its name or slug) first, then by section kind in focus order.
+ * How closely a section fits a focus: keyword matches on the name or slug
+ * first, then by section kind in focus order.
  */
 export function sectionFocusRank(
   section: Pick<CatalogueSection, "name" | "slug" | "kind">,
   focus: WorkFocus | null | undefined
 ): number {
   if (!focus) return NO_FOCUS
-  const words = normalizeText(`${section.name} ${section.slug}`).split(" ")
-  if (focus.sectionKeywords.some((k) => words.some((w) => w.startsWith(k))))
+  const names = [normalizeText(section.name), normalizeText(section.slug)]
+  const words = names.join(" ").split(" ")
+  if (
+    focus.sectionKeywords.some((keyword) =>
+      keyword.includes(" ")
+        ? names.some((name) => ` ${name} `.includes(` ${keyword} `))
+        : words.some((word) => word.startsWith(keyword))
+    )
+  )
     return 0
   const kind = focus.sectionKinds.indexOf(section.kind)
   return kind >= 0 ? 1 + kind : NO_FOCUS
