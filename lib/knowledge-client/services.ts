@@ -155,20 +155,12 @@ export const knowledgeServices: KnowledgeServices = {
   },
 
   async listMyFindings(actor, input) {
-    const [result, list] = await Promise.all([
-      server.listMyFindings(actor, input),
-      server.getWorkingList(actor),
-    ])
+    const result = await server.listMyFindings(actor, input)
     if (!result.ok) return result
-    // Drafts carry only their check: name them from what the person can see.
+    // Drafts carry their own names; a closed assignment borrows its venue's
+    // name from another row of the page.
     const known = new Map<string, { question: string; venueName: string }>()
-    if (list.ok && list.list.venue)
-      for (const item of list.list.items)
-        known.set(item.checkId, {
-          question: item.question,
-          venueName: list.list.venue.name,
-        })
-    for (const item of result.page.items)
+    for (const item of [...result.page.drafts, ...result.page.items])
       if ("venueName" in item && !known.has(item.checkId))
         known.set(item.checkId, {
           question: item.question,

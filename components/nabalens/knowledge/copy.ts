@@ -468,7 +468,7 @@ export function sentNoticeFor(
 
 export function replacedOwnLine(sentAt: string | null): string {
   return sentAt
-    ? `Your earlier finding on ${shortDate(sentAt)} was replaced.`
+    ? `Your earlier finding, sent ${shortDate(sentAt)}, was replaced.`
     : "Your earlier finding was replaced."
 }
 

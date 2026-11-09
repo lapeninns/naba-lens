@@ -77,6 +77,7 @@ function pending(over: Partial<PendingFindingView> = {}): PendingFindingView {
     senderAssigned: false,
     isMine: false,
     detailRequested: false,
+    detailRequest: null,
     wifi: null,
     evidence: [
       { assetId: "a1", kind: "photo", available: true },
@@ -168,6 +169,7 @@ describe("knowledge adapter: the question", () => {
         sentAt: null,
         slotRevision: 9,
         conflict: false,
+        disputes: false,
       },
       {
         checkId: "another-check",
@@ -180,6 +182,7 @@ describe("knowledge adapter: the question", () => {
         sentAt: null,
         slotRevision: 3,
         conflict: false,
+        disputes: false,
       },
     ]
     const view = adaptCheck(
@@ -248,7 +251,7 @@ describe("knowledge adapter: the question", () => {
 })
 
 describe("knowledge adapter: history, drafts and results", () => {
-  it("names drafts from what the person can see, and keeps closed assignments", () => {
+  it("names drafts from the server, and keeps closed assignments", () => {
     const page = adaptFindingsPage(
       {
         items: [
@@ -273,12 +276,18 @@ describe("knowledge adapter: history, drafts and results", () => {
           {
             checkId: CHECK,
             venueId: "v1",
+            venueName: "The Old Crown",
+            questionKey: "onsite_parking",
+            question: "Is there parking on site?",
             savedAt: "2026-11-06T08:00:00.000Z",
             sendable: true,
           },
           {
             checkId: "old",
             venueId: "v0",
+            venueName: "The Swan",
+            questionKey: "step_free_entrance",
+            question: "Is the entrance step-free?",
             savedAt: "2026-10-01T08:00:00.000Z",
             sendable: false,
           },
@@ -297,7 +306,7 @@ describe("knowledge adapter: history, drafts and results", () => {
       page.items.map((i) => [i.state, i.question, i.sendable ?? null])
     ).toEqual([
       ["saved", "Is there parking on site?", true],
-      ["saved", "A saved draft", false],
+      ["saved", "Is the entrance step-free?", false],
       ["no_longer_used", "Is there parking on site?", null],
       ["not_confirmed", "Is there parking on site?", null],
       ["assignment_closed", "Is there parking on site?", null],
@@ -343,11 +352,15 @@ describe("knowledge adapter: history, drafts and results", () => {
         submissionId: null,
         outcome: "awaiting_confirmation",
         replacedOwn: "f8",
+        replacedOwnSentAt: "2026-11-04T10:00:00.000Z",
         slotRevision: 10,
         replayed: false,
         recognition: { kind: "pending" },
       }).replacedOwn
-    ).toEqual({ findingRef: { type: "contribution", id: "f8" }, sentAt: null })
+    ).toEqual({
+      findingRef: { type: "contribution", id: "f8" },
+      sentAt: "2026-11-04T10:00:00.000Z",
+    })
     expect(
       adaptDecision({
         decisionId: "d",
@@ -379,10 +392,84 @@ describe("knowledge adapter: history, drafts and results", () => {
             sentAt: null,
             slotRevision: 9,
             conflict: false,
+            disputes: false,
           },
         ],
         1
       ).items[0]
     ).toMatchObject({ kind: "answer_unconfirmed", sender: null, answer: null })
+  })
+})
+
+describe("knowledge adapter: fields for deciders (ef27740e)", () => {
+  it("names the confirmer, says when it was their own finding, and gives staff none", () => {
+    const confirmed = adaptSlot(
+      slot({
+        answerInUse: {
+          ...slot().answerInUse!,
+          confirmed: true,
+          confirmationState: "confirmed",
+          confirmedByFirstName: "Maya",
+          confirmedAt: "2026-11-04T12:00:00.000Z",
+          confirmedSelf: true,
+        },
+      })
+    ).answerInUse.confirmation
+    expect(confirmed).toEqual({
+      state: "confirmed",
+      self: true,
+      at: "2026-11-04T12:00:00.000Z",
+      by: { id: "", displayName: "Maya" },
+    })
+    // Staff: the keys are absent.
+    expect(adaptSlot(slot()).answerInUse.confirmation).toEqual({
+      state: "not_required",
+      self: false,
+      at: null,
+      by: null,
+    })
+  })
+
+  it("passes on the latest request for more detail with its note", () => {
+    const view = adaptCheck(
+      check({
+        pending: [
+          pending({
+            detailRequested: true,
+            detailRequest: {
+              decisionId: "d1",
+              note: "Which car park?",
+              requestedAt: "2026-11-06T09:00:00.000Z",
+            },
+          }),
+        ],
+      }),
+      "The Old Crown"
+    )
+    if (!view.inScope) throw new Error("in scope")
+    expect(view.pending[0].detailRequest).toEqual({
+      decisionId: "d1",
+      note: "Which car park?",
+      at: "2026-11-06T09:00:00.000Z",
+    })
+  })
+
+  it("takes each To confirm row's dispute from the server", () => {
+    const row = (disputes: boolean): ToConfirmItem => ({
+      checkId: CHECK,
+      questionKey: "onsite_parking",
+      question: "Is there parking on site?",
+      findingRef: { type: "contribution", id: disputes ? "a" : "b" },
+      kind: "change_report",
+      answer: "no",
+      senderName: "Sam Lee",
+      sentAt: "2026-11-05T10:00:00.000Z",
+      slotRevision: 9,
+      conflict: false,
+      disputes,
+    })
+    expect(
+      adaptToConfirm([row(true), row(false)], 2).items.map((r) => r.disputes)
+    ).toEqual([true, false])
   })
 })

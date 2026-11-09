@@ -11,6 +11,7 @@ import {
   periodMonth,
   readerLine,
   recognitionLine,
+  replacedOwnLine,
   sentCopy,
   slotRow,
 } from "@/components/nabalens/knowledge/copy"
@@ -433,5 +434,14 @@ describe("Home rows", () => {
         })
       ).status
     ).toBe("Recorded answer: Yes. Being checked: a finding disagrees with it.")
+  })
+})
+
+describe("replacedOwnLine", () => {
+  it("says when the replaced finding was sent, never saved", () => {
+    expect(replacedOwnLine("2026-11-04T10:00:00.000Z")).toBe(
+      "Your earlier finding, sent 4 Nov, was replaced."
+    )
+    expect(replacedOwnLine(null)).toBe("Your earlier finding was replaced.")
   })
 })

@@ -72,10 +72,12 @@ export function adaptAnswerInUse(slot: KnowledgeSlotView): AnswerInUse {
     sentAt: answer?.sentAt ?? null,
     confirmation: {
       state: answer?.confirmationState ?? "not_required",
-      // The slot view names no confirmer; the history does.
-      self: false,
-      at: null,
-      by: null,
+      // Managers and admins only: staff get no confirmer.
+      self: answer?.confirmedSelf === true,
+      at: answer?.confirmedAt ?? null,
+      by: answer?.confirmedByFirstName
+        ? { id: "", displayName: answer.confirmedByFirstName }
+        : null,
     },
   }
 }
@@ -216,9 +218,16 @@ function adaptPending(
     })),
     wifi: view.wifi,
     disputes: disputes(view.answer, inUse),
-    detailRequest: view.detailRequested
-      ? { decisionId: null, note: null, at: null }
-      : null,
+    // The latest request, for deciders; the flag alone for anyone else.
+    detailRequest: view.detailRequest
+      ? {
+          decisionId: view.detailRequest.decisionId,
+          note: view.detailRequest.note,
+          at: view.detailRequest.requestedAt,
+        }
+      : view.detailRequested
+        ? { decisionId: null, note: null, at: null }
+        : null,
     removedEvidence: 0,
   }
 }
@@ -299,7 +308,7 @@ export function adaptToConfirm(
       sentAt: item.sentAt,
       answer: item.answer,
       conflict: item.conflict,
-      disputes: false,
+      disputes: item.disputes,
       slotRevision: item.slotRevision,
     })),
   }
@@ -314,8 +323,12 @@ export function adaptFindingsPage(
   const drafts = page.drafts.map((draft): FindingSummary => ({
     findingRef: null,
     checkId: draft.checkId,
-    question: known.get(draft.checkId)?.question ?? "A saved draft",
-    venue: { id: draft.venueId, name: venueOf(draft.checkId) },
+    question:
+      draft.question || known.get(draft.checkId)?.question || "A saved draft",
+    venue: {
+      id: draft.venueId,
+      name: draft.venueName || venueOf(draft.checkId),
+    },
     answer: null,
     kind: "draft",
     state: "saved",
@@ -399,7 +412,7 @@ export function adaptSubmitted(result: ServerSubmitted): SubmittedFinding {
     replacedOwn: result.replacedOwn
       ? {
           findingRef: { type: "contribution", id: result.replacedOwn },
-          sentAt: null,
+          sentAt: result.replacedOwnSentAt ?? null,
         }
       : null,
     recognition: result.recognition,
