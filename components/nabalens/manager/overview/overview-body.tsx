@@ -19,6 +19,7 @@ import { buttonVariants } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 
 import { TO_CONFIRM_COPY } from "@/components/nabalens/knowledge/copy"
+import { Notice } from "@/components/nabalens/notice"
 import { amenityHrefs } from "@/lib/amenities/contract"
 import type { ManagerOverview } from "@/lib/server/menu-photos/types"
 
@@ -46,8 +47,17 @@ const TALLY_ICON: Record<string, React.ReactNode> = {
  * menu photo, what is waiting for a decision (each count links to the
  * filtered Review or Menu view), a recent activation, and per-section totals.
  */
-/** Amenity findings waiting for this manager: one row, hidden at zero. */
-function ConfirmRow({ count }: { count: number }) {
+/**
+ * Amenity findings waiting for this manager: one row, hidden at zero; a
+ * failed read says so rather than showing nothing waiting (MG-03).
+ */
+function ConfirmRow({ count }: { count: number | null }) {
+  if (count === null)
+    return (
+      <Notice tone="negative" role="alert">
+        {TO_CONFIRM_COPY.failed}
+      </Notice>
+    )
   if (count <= 0) return null
   return (
     <ul className={ROW_LIST}>
@@ -73,7 +83,7 @@ export function OverviewBody({
   /** ISO instant of the render, so server and browser agree. */
   now: string
   /** Amenity findings waiting for a decision (0 when none or unreadable). */
-  confirmCount?: number
+  confirmCount?: number | null
 }) {
   const copy = MANAGER_COPY.overview
   const venueName = overview.venueName
