@@ -16,6 +16,7 @@ import {
   slotRow,
 } from "@/components/nabalens/knowledge/copy"
 import { CHIP_STATES } from "@/components/nabalens/status-chip"
+import { todoCount, todoItems } from "@/components/nabalens/tasks/todo-list"
 import {
   FINDING_STATES,
   findingKey,
@@ -26,6 +27,8 @@ import {
   type FindingSummary,
   type WorkingSlot,
 } from "@/lib/knowledge-client/contract"
+
+import { tasksView } from "../ui/tasks-fixtures"
 
 const NONE: AnswerInUse = {
   status: "unavailable",
@@ -474,5 +477,71 @@ describe("knowledgeAssetsResult (F1)", () => {
       message: "m",
     })
     expect(fail("already_decided")).toMatchObject({ code: "state_conflict" })
+  })
+})
+
+describe("slotRow: an assignee who already sent (HM-01, HM-02)", () => {
+  const assigned = { assignee: { firstName: "Sam", isMe: true } }
+
+  it("doesn't ask an assignee to start a check whose finding awaits confirmation", () => {
+    const row = slotRow(
+      slot({
+        ...assigned,
+        myLatest: finding({ state: "awaiting_confirmation" }),
+      })
+    )
+    expect(row).toMatchObject({
+      chip: { state: "awaiting_confirmation" },
+      action: "View",
+      needsMe: false,
+    })
+    expect(row.status).toBe(
+      "You sent a finding. Your manager confirms it before it's used."
+    )
+  })
+
+  it("offers an assignee's saved draft before Start check, and still counts it", () => {
+    const row = slotRow(
+      slot({ ...assigned, myDraft: { savedAt: "2026-11-06T09:30:00.000Z" } })
+    )
+    expect(row).toMatchObject({
+      chip: { state: "saved" },
+      action: "Finish",
+      needsMe: true,
+    })
+    expect(
+      slotRow(slot({ myDraft: { savedAt: "2026-11-06T09:30:00.000Z" } }))
+        .needsMe
+    ).toBe(false)
+  })
+
+  it('never ends on "Your manager asked:" with nothing after it', () => {
+    expect(
+      slotRow(
+        slot({
+          myLatest: finding({ state: "needs_attention", managerNote: null }),
+        })
+      ).status
+    ).toBe("Your manager asked for more detail.")
+  })
+
+  it("leaves an awaiting check out of To do and the badge", () => {
+    const awaiting = slot({
+      ...assigned,
+      checkId: "c-sent",
+      myLatest: finding({ state: "awaiting_confirmation" }),
+    })
+    const items = todoItems(
+      tasksView(),
+      new Date(),
+      0,
+      [{ id: "c-sent" } as never, { id: "c-open" } as never],
+      [awaiting]
+    )
+    const amenity = items.find((item) => item.kind === "amenity")
+    expect(
+      amenity && "checks" in amenity ? amenity.checks.map((c) => c.id) : []
+    ).toEqual(["c-open"])
+    expect(todoCount(items)).toBe(1)
   })
 })

@@ -94,8 +94,16 @@ export function todoItems(
       items.push({ kind: "overdue", assignment })
     }
   }
-  // A check that asks me for detail is already its own card above.
-  const checks = amenityChecks.filter((check) => !asked.has(check.id))
+  // A check that asks me for detail is already its own card above, and one
+  // whose finding of mine awaits confirmation needs nothing more (HM-01).
+  const sent = new Set(
+    attention
+      .filter((slot) => slot.myLatest?.state === "awaiting_confirmation")
+      .map((slot) => slot.checkId)
+  )
+  const checks = amenityChecks.filter(
+    (check) => !asked.has(check.id) && !sent.has(check.id)
+  )
   if (checks.length > 0)
     items.push({ kind: "amenity", checks: orderAmenityTasks(checks) })
   for (const assignment of pending) {

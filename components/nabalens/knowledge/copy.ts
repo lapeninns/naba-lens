@@ -693,7 +693,9 @@ export function slotRow(slot: WorkingSlot): SlotRow {
   if (latest?.state === "needs_attention")
     return {
       chip: { state: "needs_attention" },
-      status: `Your manager asked: ${latest.managerNote ?? ""}`.trim(),
+      status: latest.managerNote
+        ? `Your manager asked: ${latest.managerNote}`
+        : "Your manager asked for more detail.",
       action: "Add detail",
       needsMe: true,
       dismissable: false,
@@ -705,6 +707,30 @@ export function slotRow(slot: WorkingSlot): SlotRow {
       action: null,
       needsMe: false,
       dismissable: true,
+    }
+  // What I sent is waiting on my manager: not mine to do again (HM-01).
+  if (latest?.state === "awaiting_confirmation")
+    return {
+      chip: { state: "awaiting_confirmation" },
+      status:
+        answer.reason === "disputed"
+          ? `Recorded answer: ${answer.value ? ANSWER_LABEL[answer.value] : "none"}. Being checked: a finding disagrees with it.`
+          : answer.value && latest.answer === answer.value
+            ? "You sent a finding. It agrees with the recorded answer; your manager confirms it."
+            : "You sent a finding. Your manager confirms it before it's used.",
+      action: "View",
+      needsMe: false,
+      dismissable: false,
+    }
+  // My unsent draft, before "Start check": finishing it is the next step;
+  // it still needs me when the check is assigned to me (HM-02).
+  if (slot.myDraft)
+    return {
+      chip: { state: "saved" },
+      status: `Not sent yet. Saved ${dateAndTime(slot.myDraft.savedAt)}.`,
+      action: "Finish",
+      needsMe: mine,
+      dismissable: false,
     }
   if (mine && slot.progress === "needs_recheck")
     return {
@@ -723,27 +749,6 @@ export function slotRow(slot: WorkingSlot): SlotRow {
           : "Assigned to you.",
       action: "Start check",
       needsMe: true,
-      dismissable: false,
-    }
-  if (slot.myDraft)
-    return {
-      chip: { state: "saved" },
-      status: `Not sent yet. Saved ${dateAndTime(slot.myDraft.savedAt)}.`,
-      action: "Finish",
-      needsMe: false,
-      dismissable: false,
-    }
-  if (latest?.state === "awaiting_confirmation")
-    return {
-      chip: { state: "awaiting_confirmation" },
-      status:
-        answer.reason === "disputed"
-          ? `Recorded answer: ${answer.value ? ANSWER_LABEL[answer.value] : "none"}. Being checked: a finding disagrees with it.`
-          : answer.value && latest.answer === answer.value
-            ? "You sent a finding. It agrees with the recorded answer; your manager confirms it."
-            : "You sent a finding. Your manager confirms it before it's used.",
-      action: "View",
-      needsMe: false,
       dismissable: false,
     }
   if (answer.status === "available")
