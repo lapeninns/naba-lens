@@ -1,11 +1,16 @@
 import type { MyAmenityTask } from "@/lib/amenities/contract"
 import type { Department } from "@/lib/config/departments"
+import type { WorkingList } from "@/lib/knowledge-client/contract"
 
 import { AmenityTaskList } from "../amenities/capture/amenity-task-list"
-import { FindingSentNotice } from "../amenities/capture/finding-sent-notice"
+import {
+  FindingSentNotice,
+  type FindingSentCopy,
+} from "../amenities/capture/finding-sent-notice"
 import { EmptyState } from "../empty-state"
 import { ContributeCard } from "../home/contribute-card"
 import { OurMenuCard, type OurMenuProgress } from "../home/our-menu-card"
+import { WorkingListSection } from "../knowledge/working-list"
 import { Notice } from "../notice"
 import { PageHeader } from "../page-header"
 import { CountBadge } from "../status-chip"
@@ -58,6 +63,9 @@ export function TasksOverview({
   ourMenu = null,
   amenityTasks = [],
   findingSent = null,
+  workingList = null,
+  workingListError = false,
+  onDismissClosed,
 }: {
   tasks: MyTasksView
   profile: {
@@ -87,15 +95,37 @@ export function TasksOverview({
   ourMenu?: OurMenuProgress | null
   /** Amenity checks assigned to me: counted in To do, listed after it. Null when they couldn't be read. */
   amenityTasks?: MyAmenityTask[] | null
-  /** The question of the amenity check whose finding was just sent. */
-  findingSent?: string | null
+  /**
+   * The amenity check whose finding was just sent: its question (a legacy
+   * check, now complete) or its question and what happened to the finding.
+   */
+  findingSent?: string | { question: string; copy: FindingSentCopy } | null
+  /** My venue's working list (B01-06); null when the venue has none. */
+  workingList?: WorkingList | null
+  /** The working list couldn't be read: To do may be incomplete. */
+  workingListError?: boolean
+  /** S13: hides a closed assignment from the working list. */
+  onDismissClosed?: (input: { eventId: number }) => Promise<unknown>
 }) {
   const { scope, period, monthly, assignments, needsAnotherPhoto } = tasks
   const blocked = submitBlockedCopy(scope)
   const replacing = new Set(
     needsAnotherPhoto.flatMap((s) => (s.requirement ? [s.requirement.id] : []))
   )
-  const items = todoItems(tasks, new Date(), reviewCount, amenityTasks ?? [])
+  const items = todoItems(
+    tasks,
+    new Date(),
+    reviewCount,
+    amenityTasks ?? [],
+    workingList?.slots ?? []
+  )
+  // Working-list questions are listed there; the old list keeps the rest.
+  const onList = new Set(workingList?.slots.map((slot) => slot.checkId))
+  const offList = (amenityTasks ?? []).filter((task) => !onList.has(task.id))
+  const sent =
+    typeof findingSent === "string"
+      ? { question: findingSent, copy: undefined }
+      : findingSent
 
   return (
     <div className="mx-auto grid w-full max-w-(--size-feed) min-w-0 gap-(--gutter)">
@@ -112,9 +142,10 @@ export function TasksOverview({
         </Notice>
       ) : null}
 
-      {findingSent ? (
+      {sent ? (
         <FindingSentNotice
-          question={findingSent}
+          question={sent.question}
+          copy={sent.copy}
           returnFocusId={TODO_HEADING_ID}
         />
       ) : null}
@@ -137,11 +168,15 @@ export function TasksOverview({
         profile={profile}
         tasksPath={tasksPath}
         portfolioPath={portfolioPath}
-        amenityError={amenityTasks === null}
+        amenityError={amenityTasks === null || workingListError}
         reviewError={reviewError}
       />
 
-      <AmenityTaskList tasks={amenityTasks ?? []} />
+      {workingList ? (
+        <WorkingListSection list={workingList} onDismiss={onDismissClosed} />
+      ) : null}
+
+      <AmenityTaskList tasks={offList} />
 
       <div className="mt-3 grid gap-(--gutter)">
         <MonthlyProgressCard

@@ -393,6 +393,57 @@ export const DRAFT_SAVED: SentCopy = {
   tone: "plain",
 }
 
+/**
+ * Home's notice after a send (§4.3), from the person's latest finding as the
+ * server has it now, so a reload stays truthful. Null when there is nothing
+ * of theirs to announce.
+ */
+export function sentNoticeFor(
+  slot: Pick<WorkingSlot, "myLatest" | "myDraft" | "answerInUse">
+): (SentCopy & { extra: string | null }) | null {
+  const latest = slot.myLatest
+  const draft = slot.myDraft
+  const sentAt = latest?.sentAt ?? latest?.savedAt ?? null
+  if (draft && (!latest || !sentAt || draft.savedAt > sentAt))
+    return { ...DRAFT_SAVED, extra: null }
+  if (!latest?.answer) return null
+  // Recognition only when it is real; nothing is promised (§2.4).
+  const extra =
+    latest.recognition.kind === "scored"
+      ? recognitionLine(latest.recognition, latest.answer)
+      : null
+  if (latest.kind === "detail" && latest.state === "awaiting_confirmation")
+    return { ...DETAIL_SENT, extra }
+  const inUse = slot.answerInUse.value
+  const base = {
+    answer: latest.answer,
+    compared: "none" as const,
+    changeReport: false,
+  }
+  switch (latest.state) {
+    case "current":
+      return { ...sentCopy({ ...base, outcome: "current" }), extra }
+    case "submitted":
+      return { ...sentCopy({ ...base, outcome: "recorded" }), extra }
+    case "awaiting_confirmation":
+      return {
+        ...sentCopy({
+          ...base,
+          outcome: "awaiting_confirmation",
+          compared: inUse
+            ? inUse === latest.answer
+              ? "same"
+              : "differs"
+            : "none",
+          changeReport: latest.kind === "change_report",
+        }),
+        extra,
+      }
+    default:
+      return null
+  }
+}
+
 export function replacedOwnLine(sentAt: string | null): string {
   return sentAt
     ? `Your earlier finding on ${shortDate(sentAt)} was replaced.`

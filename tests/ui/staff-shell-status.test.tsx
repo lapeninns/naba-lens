@@ -75,6 +75,11 @@ const coverage = vi.hoisted(() => ({
 vi.mock("@/lib/server/coverage", () => coverage)
 const amenities = vi.hoisted(() => ({ getMyAmenityTasks: vi.fn() }))
 vi.mock("@/lib/server/amenities", () => amenities)
+// No working list at this venue unless a test gives one: the legacy counts.
+const knowledge = vi.hoisted(() => ({ getWorkingList: vi.fn() }))
+vi.mock("@/lib/knowledge-client/services", () => ({
+  knowledgeServices: knowledge,
+}))
 
 import {
   currentStaffShell,
@@ -101,6 +106,7 @@ beforeEach(() => {
     ok: true,
     tasks: [check("c1"), check("c2")],
   })
+  knowledge.getWorkingList.mockResolvedValue({ ok: true, view: null })
 })
 
 afterEach(() => {
@@ -120,6 +126,42 @@ describe("staffShellStatus", () => {
     expect(coverage.getManagerReviewCount).not.toHaveBeenCalled()
   })
 
+  it("counts a finding my manager asked about in Home's To do (B01-06)", async () => {
+    knowledge.getWorkingList.mockResolvedValue({
+      ok: true,
+      view: {
+        venue: { id: "v1", name: "The Old Crown" },
+        slots: [
+          {
+            checkId: "c9",
+            myLatest: { state: "needs_attention" },
+          },
+          { checkId: "c8", myLatest: { state: "awaiting_confirmation" } },
+        ],
+      },
+    })
+    expect(await staffShellStatus(ACTOR as never, PROFILE)).toMatchObject({
+      todoCount: 3,
+    })
+  })
+
+  it.each([
+    ["refused", async () => ({ ok: false, code: "unavailable" })],
+    [
+      "throws",
+      async () => {
+        throw new Error("down")
+      },
+    ],
+  ])(
+    "gives no To do count, rather than a smaller one, when the working list read is %s",
+    async (_, impl) => {
+      knowledge.getWorkingList.mockImplementation(impl)
+      expect(await staffShellStatus(ACTOR as never, PROFILE)).toMatchObject({
+        todoCount: undefined,
+      })
+    }
+  )
   it("adds a manager's photos to review to To do and the Manage badge", async () => {
     coverage.getCoverageScope.mockResolvedValue(scope(true))
     expect(await staffShellStatus(ACTOR as never, PROFILE)).toMatchObject({

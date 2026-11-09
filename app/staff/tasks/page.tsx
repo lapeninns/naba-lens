@@ -1,6 +1,9 @@
 import { cookies } from "next/headers"
 
+import { dismissClosedAssignmentAction } from "@/app/_knowledge/actions"
 import { AppShell } from "@/components/nabalens/app-shell"
+import type { FindingSentCopy } from "@/components/nabalens/amenities/capture/finding-sent-notice"
+import { sentNoticeFor } from "@/components/nabalens/knowledge/copy"
 import { FINDING_SENT_PARAM } from "@/components/nabalens/amenities/capture/finding-sent"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
 import type { OurMenuProgress } from "@/components/nabalens/home/our-menu-card"
@@ -21,6 +24,7 @@ import { getMediaActor } from "@/lib/server/media/context"
 import {
   myAmenityTasks,
   myTasks,
+  myWorkingList,
   staffShellStatus,
 } from "../_shell/shell-status"
 import { WELCOME_PATH, PORTFOLIO_PATH, TASKS_PATH, unwrap } from "./result"
@@ -92,16 +96,24 @@ async function ourMenuProgress(
 }
 
 /**
- * The question of the amenity check named by `?finding_sent=<id>`, but only
- * once the database shows it complete and answered by me: the notice is never
- * shown on the word of the URL alone.
+ * The amenity check named by `?finding_sent=<id>`, as the database has it now:
+ * the notice is never shown on the word of the URL alone. A working-list
+ * question says what happened to my latest finding (design §4.3); any other
+ * check only once it is complete and answered by me.
  */
 async function sentFinding(
   actor: MediaActor,
   params: SearchParams
-): Promise<string | null> {
+): Promise<string | { question: string; copy: FindingSentCopy } | null> {
   const checkId = first(params[FINDING_SENT_PARAM])
   if (!checkId) return null
+  const slot = (await myWorkingList(actor))?.slots.find(
+    (item) => item.checkId === checkId
+  )
+  if (slot) {
+    const copy = sentNoticeFor(slot)
+    return copy ? { question: slot.question, copy } : null
+  }
   try {
     const result = await getCheck(actor, { checkId })
     if (!result.ok) return null
@@ -141,6 +153,7 @@ export default async function TasksPage({
     jar,
     amenityTasks,
     findingSent,
+    workingList,
   ] = await Promise.all([
     myTasks(actor).then(unwrap),
     recentColleaguePhotos(),
@@ -152,6 +165,7 @@ export default async function TasksPage({
     cookies(),
     myAmenityTasks(actor),
     searchParams.then((p) => sentFinding(actor, p)),
+    myWorkingList(actor),
   ])
   const { reviewCount } = shell
   const blockedReason = uploadBlockReason(profile)
@@ -201,6 +215,9 @@ export default async function TasksPage({
         ourMenu={ourMenu}
         amenityTasks={amenityTasks}
         findingSent={findingSent}
+        workingList={workingList ?? null}
+        workingListError={workingList === undefined}
+        onDismissClosed={dismissClosedAssignmentAction}
       />
     </AppShell>
   )
