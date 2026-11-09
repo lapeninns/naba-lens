@@ -7,7 +7,12 @@ import {
   type EvidenceKind,
   type EvidenceRule,
   type SubmitInput,
+  type WifiMetadata,
 } from "@/lib/amenities/contract"
+import type {
+  FindingKind,
+  SubmitKnowledgeInput,
+} from "@/lib/knowledge-client/contract"
 
 import type { CaptureDraft } from "./draft"
 
@@ -17,6 +22,10 @@ export type CaptureField =
   | "finding"
   | "limitations"
   | "reason"
+  | "unknownPreset"
+  | "triedText"
+  | "changeReason"
+  | "confirmOwn"
   | "assetIds"
   | "wifi.testSpot"
   | "wifi.testedOn"
@@ -75,28 +84,24 @@ function mbps(value: string): number | null {
   return Number.isFinite(n) && n >= 0 && n <= LIMITS.maxMbps ? n : null
 }
 
-/**
- * Checks the draft as the services will, so most mistakes show next to the
- * field before anything is sent. Returns the input when valid.
- */
-export function validateDraft({
-  draft,
-  templateKey,
-  rule,
-  kinds,
-  checkId,
-  revision,
-  today = londonToday(),
-}: {
+type Common = {
   draft: CaptureDraft
   templateKey: string
   rule: EvidenceRule
   /** Kinds of the selected evidence. */
   kinds: readonly EvidenceKind[]
   checkId: string
-  revision: number
   today?: string
-}): { ok: true; input: SubmitInput } | { ok: false; errors: CaptureErrors } {
+}
+
+/** Checks every form shares: text limits, evidence for Yes, Wi-Fi notes, the tick. */
+function checkCommon({
+  draft,
+  templateKey,
+  rule,
+  kinds,
+  today = londonToday(),
+}: Common) {
   const errors: CaptureErrors = {}
   const { answer } = draft
   const finding = draft.finding.trim()
@@ -105,7 +110,6 @@ export function validateDraft({
   const wifiCheck = templateKey === WIFI_KEY && answer === "yes"
   const redaction = needsRedactionConfirm(templateKey)
 
-  if (!answer) errors.answer = "Choose Yes, No or Not applicable."
   if (finding.length > LIMITS.finding)
     errors.finding = `Use up to ${LIMITS.finding} characters.`
   if (limitations.length > LIMITS.limitations)
@@ -123,7 +127,7 @@ export function validateDraft({
       errors.assetIds = `${missing} Required: ${EVIDENCE_RULE_LABEL[rule]}.`
   }
 
-  let wifi: SubmitInput["wifi"]
+  let wifi: WifiMetadata | undefined
   if (wifiCheck) {
     const testSpot = draft.wifi.testSpot.trim()
     const testedOn = draft.wifi.testedOn.trim()
@@ -152,21 +156,111 @@ export function validateDraft({
       "Tick this once the password and join QR code are covered."
   }
 
-  if (Object.values(errors).some(Boolean) || !answer)
+  const text = {
+    ...(finding ? { finding } : {}),
+    ...(limitations ? { limitations } : {}),
+    ...(reason ? { reason } : {}),
+    assetIds: draft.assetIds,
+    ...(wifi ? { wifi } : {}),
+    ...(redaction ? { redactionConfirmed: draft.redactionConfirmed } : {}),
+  }
+  return { errors, text }
+}
+
+const hasErrors = (errors: CaptureErrors) => Object.values(errors).some(Boolean)
+
+/**
+ * Checks the draft as the services will, so most mistakes show next to the
+ * field before anything is sent. Returns the input when valid.
+ */
+export function validateDraft({
+  revision,
+  ...common
+}: Common & { revision: number }):
+  { ok: true; input: SubmitInput } | { ok: false; errors: CaptureErrors } {
+  const { errors, text } = checkCommon(common)
+  const { answer } = common.draft
+  if (!answer) errors.answer = "Choose Yes, No or Not applicable."
+  else if (answer === "unknown")
+    errors.answer =
+      "Couldn't establish can't be sent with this form. Choose another answer, or ask your manager."
+  if (hasErrors(errors) || !answer || answer === "unknown")
     return { ok: false, errors }
   return {
     ok: true,
     input: {
-      checkId,
+      checkId: common.checkId,
       revision,
-      idempotencyKey: draft.idempotencyKey,
+      idempotencyKey: common.draft.idempotencyKey,
       answer,
-      ...(finding ? { finding } : {}),
-      ...(limitations ? { limitations } : {}),
-      ...(reason ? { reason } : {}),
-      assetIds: draft.assetIds,
-      ...(wifi ? { wifi } : {}),
-      ...(redaction ? { redactionConfirmed: draft.redactionConfirmed } : {}),
+      ...text,
+    },
+  }
+}
+
+/**
+ * The knowledge form's checks: everything above, plus Couldn't establish (a
+ * reason preset and what was tried), a change report's "What changed?" and a
+ * manager's choice of who confirms the answer.
+ */
+export function validateKnowledgeDraft({
+  slotRevision,
+  kind,
+  respondsTo,
+  askConfirmOwn,
+  ...common
+}: Common & {
+  slotRevision: number
+  kind: FindingKind
+  respondsTo: string | null
+  /** A manager on a confirmation-required question must choose. */
+  askConfirmOwn: boolean
+}):
+  | { ok: true; input: SubmitKnowledgeInput }
+  | { ok: false; errors: CaptureErrors } {
+  const { errors, text } = checkCommon(common)
+  const { draft } = common
+  const { answer } = draft
+  const tried = draft.triedText.trim()
+  const changed = draft.changeReason.trim()
+
+  if (!answer) errors.answer = "Choose an answer, or Save for later."
+  if (answer === "unknown") {
+    if (!draft.unknownPreset)
+      errors.unknownPreset = "Choose why you couldn't establish it."
+    if (!tried) errors.triedText = "Say what you tried."
+    else if (tried.length > LIMITS.reason)
+      errors.triedText = `Use up to ${LIMITS.reason} characters.`
+  }
+  if (kind === "change_report") {
+    if (!changed) errors.changeReason = "Say what changed."
+    else if (changed.length > LIMITS.reason)
+      errors.changeReason = `Use up to ${LIMITS.reason} characters.`
+  }
+  if (askConfirmOwn && draft.confirmOwn === null)
+    errors.confirmOwn = "Choose who confirms this answer."
+
+  if (hasErrors(errors) || !answer) return { ok: false, errors }
+  // A reason belongs to No and Not applicable only (the server's row check).
+  const { reason, ...rest } = text
+  return {
+    ok: true,
+    input: {
+      checkId: common.checkId,
+      slotRevision,
+      idempotencyKey: draft.idempotencyKey,
+      kind,
+      answer,
+      ...rest,
+      ...(reason && (answer === "no" || answer === "not_applicable")
+        ? { reason }
+        : {}),
+      ...(answer === "unknown"
+        ? { unknownPreset: draft.unknownPreset!, triedText: tried }
+        : {}),
+      ...(kind === "change_report" ? { changeReason: changed } : {}),
+      ...(kind === "detail" && respondsTo ? { respondsTo } : {}),
+      ...(askConfirmOwn ? { confirmOwn: draft.confirmOwn === true } : {}),
     },
   }
 }

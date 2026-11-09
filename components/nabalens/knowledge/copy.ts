@@ -441,6 +441,7 @@ export function captureContextLines({
   venueName,
   slot,
   role,
+  canSelfConfirm = false,
 }: {
   venueName: string
   slot: Pick<
@@ -453,6 +454,8 @@ export function captureContextLines({
     | "myLatest"
   >
   role: "staff" | "manager"
+  /** Managers on a confirmation-required question: may they confirm their own? */
+  canSelfConfirm?: boolean
 }): string[] {
   const lines = [`You're answering for ${venueName}.`]
   const answer = slot.answerInUse
@@ -473,8 +476,14 @@ export function captureContextLines({
     )
   } else if (slot.requiresConfirmation) {
     lines.push(
-      "Your manager confirms answers to this question before they're used."
+      role === "staff"
+        ? "Your manager confirms answers to this question before they're used."
+        : canSelfConfirm
+          ? "Answers to this question need confirming. You can confirm your own, or leave it for another manager or an admin."
+          : "Another manager or an admin confirms this before it's used."
     )
+  } else if (role === "manager") {
+    lines.push("What you send becomes the venue's answer straight away.")
   } else if (slot.othersPending === 0) {
     lines.push(
       "No one needs to confirm this question. What you send becomes the venue's answer straight away."

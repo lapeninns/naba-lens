@@ -1,4 +1,9 @@
-import { SUBMIT_ANSWERS, type SubmitAnswer } from "@/lib/amenities/contract"
+import {
+  KNOWLEDGE_ANSWERS,
+  UNKNOWN_PRESETS,
+  type KnowledgeAnswer,
+  type UnknownPreset,
+} from "@/lib/knowledge-client/contract"
 
 /**
  * One unsent finding per person and check, kept in localStorage so a failed
@@ -27,10 +32,23 @@ export type CaptureDraft = {
   attempted: boolean
   /** The check revision this draft (and its key) belongs to; null if unknown. */
   revision: number | null
-  answer: SubmitAnswer | null
+  /** `unknown` (Couldn't establish) only on a knowledge question. */
+  answer: KnowledgeAnswer | null
   finding: string
   limitations: string
   reason: string
+  /** Couldn't establish: why, and what was tried. */
+  unknownPreset: UnknownPreset | null
+  triedText: string
+  /** A change report: what changed. */
+  changeReason: string
+  /** A manager on a confirmation-required question; null until chosen. */
+  confirmOwn: boolean | null
+  /**
+   * The slot revision an attempted knowledge send went with. A retry or a
+   * replay from another device resends it, so the request is the same.
+   */
+  sentSlotRevision: number | null
   assetIds: string[]
   wifi: {
     testSpot: string
@@ -70,6 +88,11 @@ export function emptyDraft(
     finding: "",
     limitations: "",
     reason: "",
+    unknownPreset: null,
+    triedText: "",
+    changeReason: "",
+    confirmOwn: null,
+    sentSlotRevision: null,
     assetIds: [],
     wifi: { testSpot: "", testedOn: "", downloadMbps: "", uploadMbps: "" },
     redactionConfirmed: false,
@@ -138,12 +161,23 @@ export function loadDraft(owner: DraftOwner): CaptureDraft | null {
         typeof d.revision === "number" && Number.isInteger(d.revision)
           ? d.revision
           : null,
-      answer: SUBMIT_ANSWERS.includes(d.answer as SubmitAnswer)
-        ? (d.answer as SubmitAnswer)
+      answer: KNOWLEDGE_ANSWERS.includes(d.answer as KnowledgeAnswer)
+        ? (d.answer as KnowledgeAnswer)
         : null,
       finding: str(d.finding),
       limitations: str(d.limitations),
       reason: str(d.reason),
+      unknownPreset: UNKNOWN_PRESETS.includes(d.unknownPreset as UnknownPreset)
+        ? (d.unknownPreset as UnknownPreset)
+        : null,
+      triedText: str(d.triedText),
+      changeReason: str(d.changeReason),
+      confirmOwn: typeof d.confirmOwn === "boolean" ? d.confirmOwn : null,
+      sentSlotRevision:
+        typeof d.sentSlotRevision === "number" &&
+        Number.isInteger(d.sentSlotRevision)
+          ? d.sentSlotRevision
+          : null,
       assetIds: strings(d.assetIds),
       wifi: {
         testSpot: str(wifi.testSpot),

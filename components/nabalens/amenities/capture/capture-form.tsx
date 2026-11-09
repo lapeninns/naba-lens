@@ -7,7 +7,6 @@ import {
   CheckCircleIcon,
   PaperPlaneTiltIcon,
   SpinnerGapIcon,
-  WarningCircleIcon,
   WarningIcon,
 } from "@phosphor-icons/react"
 
@@ -28,11 +27,36 @@ import {
   type SubmitResult,
   type SubmittableAsset,
 } from "@/lib/amenities/contract"
+import {
+  KNOWLEDGE_ANSWERS,
+  type FindingKind,
+  type KnowledgeAnswer,
+  type KnowledgeFailure,
+  type KnowledgeResult,
+  type SaveDraftInput,
+  type ServerDraft,
+  type SubmitKnowledgeInput,
+  type SubmitKnowledgeResult,
+  type WorkingSlot,
+} from "@/lib/knowledge-client/contract"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 import { ReasonField } from "../../coverage/reason-dialog"
 import { EmptyState } from "../../empty-state"
+import {
+  ANSWER_HINT,
+  DETAIL_SENT,
+  DRAFT_SAVED,
+  KNOWLEDGE_ANSWER_LABEL,
+  KNOWLEDGE_FAILURE_COPY,
+  captureContextLines,
+  dockNote,
+  recognitionLine,
+  replacedOwnLine,
+  sentCopy,
+  type SentCopy,
+} from "../../knowledge/copy"
 import { Notice } from "../../notice"
 import { useOnline } from "../../offline-notice"
 import {
@@ -55,11 +79,19 @@ import {
   type CaptureDraft,
 } from "./draft"
 import { EvidencePicker } from "./evidence-picker"
+import { FieldMessage, LABEL, MUTED } from "./field-parts"
+import {
+  ChangeReasonField,
+  DraftRestoredNotice,
+  SelfConfirmFieldset,
+  UnknownFields,
+} from "./knowledge-fields"
 import {
   londonToday,
   missingEvidenceText,
   needsRedactionConfirm,
   validateDraft,
+  validateKnowledgeDraft,
   type CaptureErrors,
   type CaptureField,
 } from "./validate"
@@ -69,14 +101,55 @@ export type SubmitHandler = (
   input: SubmitInput
 ) => Promise<AmenityResult<SubmitResult>>
 
+/**
+ * The knowledge path for a working-list question: what the screen read about
+ * the question, the knowledge submit and server drafts. Without it the form
+ * sends through the legacy amenity submit.
+ */
+export type KnowledgeCapture = {
+  venueName: string
+  slot: WorkingSlot
+  role: "staff" | "manager"
+  canSelfConfirm: boolean
+  /** Replying to a manager's request for more detail. */
+  respondsTo: { decisionId: string; note: string } | null
+  submit: (
+    input: SubmitKnowledgeInput
+  ) => Promise<KnowledgeResult<SubmitKnowledgeResult>>
+  saveDraft:
+    | ((
+        input: SaveDraftInput
+      ) => Promise<KnowledgeResult<{ draftRevision: number; savedAt: string }>>)
+    | null
+  discardDraft: (() => Promise<KnowledgeResult<Record<never, never>>>) | null
+  serverDraft: ServerDraft | null
+}
+
 type Outcome =
   | { kind: "retry" }
   | { kind: "reload" }
   | { kind: "sign_in" }
   | { kind: "failed"; message: string }
-  | { kind: "sent"; replayed: boolean }
+  | {
+      kind: "sent"
+      replayed: boolean
+      /** Knowledge path: what happened to the finding. */
+      copy?: SentCopy
+      extra?: string[]
+    }
   /** An earlier send was recorded, but the check has changed since. */
   | { kind: "stale" }
+  /** The legacy submit refused a working-list question. */
+  | { kind: "path_required" }
+  /** The question left the working list while the form was open. */
+  | { kind: "out_of_scope" }
+  /** The server refused a manager's self-confirmation. */
+  | { kind: "self_stale" }
+  | { kind: "not_permitted" }
+  | { kind: "reused_key" }
+  | { kind: "saved"; offline: boolean }
+  | { kind: "save_failed" }
+  | { kind: "draft_conflict" }
 
 const ASSET_REASON_TEXT: Record<
   NonNullable<AmenityFailure["assetReason"]>,
@@ -91,11 +164,36 @@ const ASSET_REASON_TEXT: Record<
 
 const RETRYABLE = new Set<AmenityFailure["code"]>(["unavailable"])
 
+/** One send's result, legacy or knowledge, as the form handles it. */
+type Sent =
+  | {
+      ok: true
+      replayed: boolean
+      /** The check (legacy) or slot (knowledge) revision after the send. */
+      revision: number
+      knowledge?: SubmitKnowledgeResult
+    }
+  | KnowledgeFailure
+
+function fromLegacy(result: AmenityResult<SubmitResult>): Sent {
+  return result.ok
+    ? { ok: true, replayed: result.replayed, revision: result.revision }
+    : result
+}
+
+function fromKnowledge(result: KnowledgeResult<SubmitKnowledgeResult>): Sent {
+  return result.ok
+    ? {
+        ok: true,
+        replayed: result.replayed,
+        revision: result.slotRevision,
+        knowledge: result,
+      }
+    : result
+}
+
 const inputClass =
   "block min-h-12 w-full min-w-0 rounded-control border border-line-control bg-panel px-3 py-2 text-body-touch text-ink outline-none focus-visible:border-focus focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-1 focus-visible:outline-focus disabled:cursor-not-allowed disabled:bg-well aria-invalid:border-negative md:min-h-9 md:text-body"
-
-const LABEL = "text-label-touch text-ink md:text-label"
-const MUTED = "text-meta-touch text-ink-muted md:text-meta"
 
 function isDirty(draft: CaptureDraft): boolean {
   return Boolean(
@@ -103,6 +201,10 @@ function isDirty(draft: CaptureDraft): boolean {
     draft.finding ||
     draft.limitations ||
     draft.reason ||
+    draft.unknownPreset ||
+    draft.triedText ||
+    draft.changeReason ||
+    draft.confirmOwn !== null ||
     draft.assetIds.length ||
     draft.redactionConfirmed ||
     Object.values(draft.wifi).some(Boolean)
@@ -113,18 +215,24 @@ function sameIds(a: string[], b: string[]) {
   return a.length === b.length && a.every((id, i) => id === b[i])
 }
 
-function FieldMessage({ id, error }: { id: string; error?: string }) {
-  if (!error) return null
-  return (
-    <p
-      id={id}
-      role="alert"
-      className="flex items-start gap-1.5 text-meta-touch font-semibold text-negative md:text-meta-strong"
-    >
-      <WarningCircleIcon aria-hidden className="mt-px size-4 shrink-0" />
-      {error}
-    </p>
-  )
+/** A server draft as the form's draft, keeping its key and sent revision. */
+function fromServerDraft(server: ServerDraft): CaptureDraft {
+  const { payload } = server
+  const attempted = payload.sentSlotRevision !== null
+  return {
+    ...emptyDraft(() => server.idempotencyKey, payload.sentSlotRevision),
+    attempted,
+    answer: payload.answer,
+    finding: payload.finding,
+    limitations: payload.limitations,
+    reason: payload.reason,
+    unknownPreset: payload.unknownPreset,
+    triedText: payload.triedText,
+    changeReason: payload.changeReason,
+    sentSlotRevision: payload.sentSlotRevision,
+    wifi: { ...payload.wifi },
+    assetIds: [...server.assetIds],
+  }
 }
 
 function TextInput({
@@ -184,6 +292,8 @@ export function CaptureForm({
   onReload,
   onDone,
   signInHref,
+  pageHref,
+  knowledge = null,
   newKey = newIdempotencyKey,
 }: {
   check: CheckSummary
@@ -213,6 +323,10 @@ export function CaptureForm({
   /** After a successful submit: back to Home or the check page. */
   onDone: () => void
   signInHref: string
+  /** This page, opened again: the form a refused legacy send should use. */
+  pageHref?: string
+  /** Send through the knowledge path (a working-list question). */
+  knowledge?: KnowledgeCapture | null
   newKey?: () => string
 }) {
   const ids = React.useId()
@@ -227,7 +341,7 @@ export function CaptureForm({
     [viewerId, check.id]
   )
   const [draft, setDraft] = React.useState<CaptureDraft>(() =>
-    emptyDraft(newKey, check.revision)
+    emptyDraft(newKey, knowledge ? knowledge.slot.slotRevision : check.revision)
   )
   const [restored, setRestored] = React.useState(false)
   const [assets, setAssets] = React.useState<SubmittableAsset[]>(() =>
@@ -247,6 +361,27 @@ export function CaptureForm({
   const [uploadOpen, setUploadOpen] = React.useState(false)
   const [pickedFiles, setPickedFiles] = React.useState<File[] | undefined>()
   const sessionEnded = useSessionEndedCatch()
+  const slot = knowledge?.slot ?? null
+  const findingKind: FindingKind = knowledge?.respondsTo
+    ? "detail"
+    : slot?.mode === "change"
+      ? "change_report"
+      : "finding"
+  const askConfirmOwn =
+    knowledge?.role === "manager" &&
+    slot?.requiresConfirmation === true &&
+    knowledge.canSelfConfirm
+  // The server refused "I confirm it now": only the other choice is left.
+  const [ownAllowed, setOwnAllowed] = React.useState(true)
+  const selfConfirmRef = React.useRef<HTMLFieldSetElement>(null)
+  const serverDraftRevision = React.useRef<number | null>(
+    knowledge?.serverDraft?.draftRevision ?? null
+  )
+  const [restoredFrom, setRestoredFrom] = React.useState<{
+    savedAt: string
+    nearPurge: boolean
+  } | null>(null)
+  const pendingSync = React.useRef(false)
   const inFlight = React.useRef(false)
   const mounted = React.useRef(false)
   // One read at a time: Add hands over each upload as soon as it is ready,
@@ -277,14 +412,29 @@ export function CaptureForm({
   // draft from another revision of the check keeps its key only if it was
   // sent (it may have been recorded); a re-read after a conflict brings a new
   // revision too.
-  const revision = check.revision
+  // A knowledge question is guarded by its slot revision (the check's revision
+  // plus its knowledge events), not the check's own.
+  const revision = slot ? slot.slotRevision : check.revision
+  const serverDraft = knowledge?.serverDraft ?? null
   React.useEffect(() => {
     const stored = loadDraft(owner)
+    // This device's draft is the newest; otherwise the account's saved one.
+    const fromServer =
+      !stored && serverDraft ? fromServerDraft(serverDraft) : null
     // eslint-disable-next-line react-hooks/set-state-in-effect -- restore from storage
-    setDraft((current) => reconcileDraft(stored ?? current, revision, newKey))
+    setDraft((current) =>
+      reconcileDraft(stored ?? fromServer ?? current, revision, newKey)
+    )
+    if (serverDraft)
+      setRestoredFrom({
+        savedAt: serverDraft.savedAt,
+        nearPurge:
+          Date.now() - new Date(serverDraft.savedAt).getTime() >=
+          80 * 86_400_000,
+      })
     setRestored(true)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- newKey is a stable factory
-  }, [owner, revision])
+  }, [owner, revision, serverDraft])
 
   React.useEffect(() => {
     if (!restored) return
@@ -325,7 +475,12 @@ export function CaptureForm({
       if (!sameIds(next.assetIds, current.assetIds))
         next = { ...next, redactionConfirmed: false, redactionAssetIds: [] }
       return current.attempted && !sameIntent
-        ? { ...next, attempted: false, idempotencyKey: newKey() }
+        ? {
+            ...next,
+            attempted: false,
+            idempotencyKey: newKey(),
+            sentSlotRevision: null,
+          }
         : next
     })
   }
@@ -503,15 +658,29 @@ export function CaptureForm({
   async function send() {
     if (inFlight.current) return
     // Only evidence still listed is sent (a deleted upload drops out).
-    const checked = validateDraft({
+    const common = {
       draft: { ...draft, assetIds: selected, redactionConfirmed },
       templateKey: entry.key,
       rule,
       kinds,
       checkId: check.id,
-      revision: check.revision,
       today: londonToday(),
-    })
+    }
+    // A retry, or a replay from another device, resends the revision the
+    // first attempt went with, so the request is the same one.
+    const sendRevision =
+      draft.attempted && draft.sentSlotRevision !== null
+        ? draft.sentSlotRevision
+        : revision
+    const checked = knowledge
+      ? validateKnowledgeDraft({
+          ...common,
+          slotRevision: sendRevision,
+          kind: findingKind,
+          respondsTo: knowledge.respondsTo?.decisionId ?? null,
+          askConfirmOwn,
+        })
+      : validateDraft({ ...common, revision: check.revision })
     setExtraErrors([])
     if (!checked.ok) {
       setErrors(checked.errors)
@@ -525,16 +694,21 @@ export function CaptureForm({
     setOutcome(null)
     const sentDraft: CaptureDraft = {
       ...draft,
-      revision: check.revision,
+      revision,
       assetIds: checked.input.assetIds,
       attempted: true,
+      sentSlotRevision: knowledge ? sendRevision : null,
     }
     setDraft(sentDraft)
     // Who and what was sent, even if the page is left before the answer.
     const sentFor = owner
-    let result: AmenityResult<SubmitResult>
+    let result: Sent
     try {
-      result = await submit(checked.input)
+      result = knowledge
+        ? fromKnowledge(
+            await knowledge.submit(checked.input as SubmitKnowledgeInput)
+          )
+        : fromLegacy(await submit(checked.input as SubmitInput))
     } catch (cause) {
       // The draft and its key stay, and uploads that arrive meanwhile wait:
       // Try again replays the same answer, never sends twice. Refused for
@@ -555,9 +729,9 @@ export function CaptureForm({
     // A replay older than the revision on screen: the earlier send was
     // recorded, but the check changed since (a manager reopened it). This
     // answer still has to be sent, as a new intent with a new key.
-    if (result.ok || !RETRYABLE.has(result.code)) unresolved.current = false
-    const stale =
-      result.ok && result.replayed && result.revision < check.revision
+    if (result.ok || !RETRYABLE.has(result.code as AmenityFailure["code"]))
+      unresolved.current = false
+    const stale = result.ok && result.replayed && result.revision < revision
     // Recorded: drop the stored draft even when the form is gone, or a later
     // visit would replay this key after a reopen.
     if (result.ok && !stale) clearDraft(sentFor)
@@ -568,15 +742,25 @@ export function CaptureForm({
         ...d,
         attempted: false,
         idempotencyKey: newKey(),
-        revision: check.revision,
+        revision,
+        sentSlotRevision: null,
       }))
       setOutcome({ kind: "stale" })
       selectLate()
       return
     }
     if (result.ok) {
-      setDraft(emptyDraft(newKey, check.revision))
-      setOutcome({ kind: "sent", replayed: result.replayed })
+      setDraft(emptyDraft(newKey, revision))
+      setOutcome({
+        kind: "sent",
+        replayed: result.replayed,
+        ...(result.knowledge
+          ? knowledgeSent(
+              result.knowledge,
+              checked.input as SubmitKnowledgeInput
+            )
+          : {}),
+      })
       const sentIds = new Set(checked.input.assetIds)
       const missed = [...late.current].filter((id) => !sentIds.has(id)).length
       late.current.clear()
@@ -592,13 +776,76 @@ export function CaptureForm({
     if (!unresolved.current) selectLate()
   }
 
-  function failed(result: AmenityFailure) {
-    if (RETRYABLE.has(result.code)) {
+  /** What the knowledge path reports, in the person's words. */
+  function knowledgeSent(
+    sent: SubmitKnowledgeResult,
+    input: SubmitKnowledgeInput
+  ): { copy: SentCopy; extra: string[] } {
+    const inUse = slot?.answerInUse.value ?? null
+    const copy =
+      input.kind === "detail"
+        ? DETAIL_SENT
+        : sentCopy({
+            outcome: sent.outcome,
+            answer: input.answer,
+            compared: inUse
+              ? inUse === input.answer
+                ? "same"
+                : "differs"
+              : "none",
+            changeReport: input.kind === "change_report",
+            selfConfirmed:
+              input.confirmOwn === true && sent.outcome === "current",
+            leftForOthers: input.confirmOwn === false,
+          })
+    const recognition = recognitionLine(sent.recognition, input.answer)
+    return {
+      copy,
+      extra: [
+        ...(sent.replacedOwn ? [replacedOwnLine(sent.replacedOwn.sentAt)] : []),
+        ...(recognition ? [recognition] : []),
+      ],
+    }
+  }
+
+  function failed(result: KnowledgeFailure) {
+    if (RETRYABLE.has(result.code as AmenityFailure["code"])) {
       setOutcome({ kind: "retry" })
       return
     }
     // Nothing was recorded: the next send is a new intent with a new key.
-    setDraft((d) => ({ ...d, attempted: false, idempotencyKey: newKey() }))
+    setDraft((d) => ({
+      ...d,
+      attempted: false,
+      idempotencyKey: newKey(),
+      sentSlotRevision: null,
+    }))
+    switch (result.code) {
+      case "knowledge_path_required":
+        setOutcome({ kind: "path_required" })
+        return
+      case "knowledge_slot_out_of_scope":
+        setOutcome({ kind: "out_of_scope" })
+        return
+      case "self_confirmation_not_permitted":
+        setOwnAllowed(false)
+        setDraft((d) => ({ ...d, confirmOwn: null }))
+        setOutcome({ kind: "self_stale" })
+        requestAnimationFrame(() => selfConfirmRef.current?.focus())
+        return
+      case "not_permitted":
+        if (knowledge) {
+          setOutcome({ kind: "not_permitted" })
+          return
+        }
+        break
+      case "state_conflict":
+        if (knowledge) {
+          setOutcome({ kind: "reused_key" })
+          return
+        }
+        break
+    }
     switch (result.code) {
       case "revision_conflict":
         setOutcome({ kind: "reload" })
@@ -658,6 +905,79 @@ export function CaptureForm({
     setOutcome({ kind: "failed", message: result.message })
   }
 
+  /**
+   * Save for later: the draft as it is, answer or not, to the account (the
+   * device keeps its copy regardless). Offline it stays on this phone and is
+   * saved to the account once the browser is back online.
+   */
+  async function saveForLater(fromSync = false) {
+    if (!knowledge?.saveDraft || inFlight.current) return
+    if (!navigator.onLine) {
+      pendingSync.current = true
+      setOutcome({ kind: "saved", offline: true })
+      return
+    }
+    pendingSync.current = false
+    let result: KnowledgeResult<{ draftRevision: number; savedAt: string }>
+    try {
+      result = await knowledge.saveDraft({
+        checkId: check.id,
+        draftRevision: serverDraftRevision.current,
+        payload: {
+          answer: draft.answer,
+          finding: draft.finding,
+          limitations: draft.limitations,
+          reason: draft.reason,
+          unknownPreset: draft.unknownPreset,
+          triedText: draft.triedText,
+          changeReason: draft.changeReason,
+          wifi: { ...draft.wifi },
+          sentSlotRevision: draft.attempted ? draft.sentSlotRevision : null,
+        },
+        assetIds: selected,
+        idempotencyKey: draft.idempotencyKey,
+      })
+    } catch (cause) {
+      if (sessionEnded(cause)) {
+        if (mounted.current) setOutcome({ kind: "sign_in" })
+        return
+      }
+      pendingSync.current = true
+      if (mounted.current) setOutcome({ kind: "save_failed" })
+      return
+    }
+    if (!mounted.current) return
+    if (result.ok) {
+      serverDraftRevision.current = result.draftRevision
+      if (!fromSync) setOutcome({ kind: "saved", offline: false })
+      return
+    }
+    if (result.code === "draft_conflict") {
+      setOutcome({ kind: "draft_conflict" })
+      onReload()
+      return
+    }
+    if (result.code === "knowledge_slot_out_of_scope") {
+      setOutcome({ kind: "out_of_scope" })
+      return
+    }
+    setOutcome({ kind: "save_failed" })
+  }
+
+  async function discardServerDraft() {
+    clearDraft(owner)
+    setDraft(emptyDraft(newKey, revision))
+    setRestoredFrom(null)
+    serverDraftRevision.current = null
+    if (knowledge?.discardDraft) {
+      try {
+        await knowledge.discardDraft()
+      } catch (cause) {
+        sessionEnded(cause)
+      }
+    }
+  }
+
   // Offline, Try again would only fail again. The unresolved send waits and
   // goes again by itself once the browser is back online: the same replay
   // as Try again (same key and revision; late uploads still wait).
@@ -666,12 +986,17 @@ export function CaptureForm({
   React.useLayoutEffect(() => {
     sendRef.current = send
   })
+  const saveRef = React.useRef(saveForLater)
+  React.useLayoutEffect(() => {
+    saveRef.current = saveForLater
+  })
   const wasOnline = React.useRef(online)
   React.useEffect(() => {
     const back = online && !wasOnline.current
     wasOnline.current = online
     if (back && outcome?.kind === "retry" && !inFlight.current)
       void sendRef.current()
+    if (back && pendingSync.current) void saveRef.current(true)
   }, [online, outcome])
 
   const errorId = (field: CaptureField) =>
@@ -692,6 +1017,37 @@ export function CaptureForm({
         void send()
       }}
     >
+      {knowledge && slot ? (
+        <Notice tone="plain" role="note">
+          {captureContextLines({
+            venueName: knowledge.venueName,
+            slot,
+            role: knowledge.role,
+            canSelfConfirm: knowledge.canSelfConfirm,
+          }).map((line) => (
+            <p key={line} className="[overflow-wrap:anywhere]">
+              {line}
+            </p>
+          ))}
+        </Notice>
+      ) : null}
+      {knowledge?.respondsTo ? (
+        <Notice
+          tone="attention"
+          role="note"
+          title="Your manager asked for more detail"
+        >
+          <span className="break-words">{knowledge.respondsTo.note}</span>
+        </Notice>
+      ) : null}
+      {knowledge && restoredFrom ? (
+        <DraftRestoredNotice
+          savedAt={restoredFrom.savedAt}
+          nearPurge={restoredFrom.nearPurge}
+          onDiscard={discardServerDraft}
+          disabled={sending}
+        />
+      ) : null}
       <section
         aria-labelledby={`${ids}-brief`}
         className="flex flex-col gap-2 rounded-panel bg-well p-4"
@@ -726,32 +1082,88 @@ export function CaptureForm({
         </Notice>
       ) : null}
 
+      {knowledge && findingKind === "change_report" ? (
+        <ChangeReasonField
+          id={`${ids}-changeReason`}
+          value={draft.changeReason}
+          onChange={(value) => setField("changeReason", value)}
+          error={errors.changeReason}
+          disabled={sending}
+        />
+      ) : null}
+
       <fieldset
         className="flex min-w-0 flex-col gap-2"
         aria-describedby={errorId("answer")}
         disabled={sending}
       >
         <legend className={cn(LABEL, "mb-2")}>{entry.question}</legend>
-        <div className="grid gap-2 sm:grid-cols-3">
-          {SUBMIT_ANSWERS.map((option) => (
-            <label
-              key={option}
-              className="flex min-h-13 cursor-pointer items-center gap-3 rounded-control border border-line-control bg-panel px-4 text-label-touch text-ink has-checked:border-ink has-checked:bg-accent-soft has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus md:min-h-11 md:text-label"
-            >
-              <input
-                type="radio"
-                name={`${ids}-answer`}
-                value={option}
-                checked={answer === option}
-                onChange={() => setField("answer", option)}
-                className="size-5 shrink-0 accent-primary"
-              />
-              {ANSWER_LABEL[option]}
-            </label>
-          ))}
-        </div>
+        {knowledge ? (
+          <div className="grid gap-2 min-[360px]:grid-cols-2 sm:grid-cols-4">
+            {KNOWLEDGE_ANSWERS.map((option: KnowledgeAnswer) => (
+              <label
+                key={option}
+                className="flex min-h-13 cursor-pointer items-start gap-3 rounded-control border border-line-control bg-panel px-4 py-3 text-label-touch text-ink has-checked:border-ink has-checked:bg-accent-soft has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus md:min-h-11 md:text-label"
+              >
+                <input
+                  type="radio"
+                  name={`${ids}-answer`}
+                  value={option}
+                  checked={answer === option}
+                  onChange={() => setField("answer", option)}
+                  aria-labelledby={`${ids}-answer-${option}`}
+                  aria-describedby={`${ids}-answer-${option}-hint`}
+                  className="mt-0.5 size-5 shrink-0 accent-primary"
+                />
+                <span className="grid gap-0.5">
+                  <span id={`${ids}-answer-${option}`}>
+                    {KNOWLEDGE_ANSWER_LABEL[option]}
+                  </span>
+                  <span
+                    id={`${ids}-answer-${option}-hint`}
+                    className="text-meta-touch font-normal text-ink-muted md:text-meta"
+                  >
+                    {ANSWER_HINT[option]}
+                  </span>
+                </span>
+              </label>
+            ))}
+          </div>
+        ) : (
+          <div className="grid gap-2 sm:grid-cols-3">
+            {SUBMIT_ANSWERS.map((option) => (
+              <label
+                key={option}
+                className="flex min-h-13 cursor-pointer items-center gap-3 rounded-control border border-line-control bg-panel px-4 text-label-touch text-ink has-checked:border-ink has-checked:bg-accent-soft has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus md:min-h-11 md:text-label"
+              >
+                <input
+                  type="radio"
+                  name={`${ids}-answer`}
+                  value={option}
+                  checked={answer === option}
+                  onChange={() => setField("answer", option)}
+                  className="size-5 shrink-0 accent-primary"
+                />
+                {ANSWER_LABEL[option]}
+              </label>
+            ))}
+          </div>
+        )}
         <FieldMessage id={`${ids}-answer-error`} error={errors.answer} />
       </fieldset>
+
+      {knowledge && answer === "unknown" ? (
+        <UnknownFields
+          id={`${ids}-unknown`}
+          preset={draft.unknownPreset}
+          tried={draft.triedText}
+          onPreset={(value) => setField("unknownPreset", value)}
+          onTried={(value) => setField("triedText", value)}
+          presetError={errors.unknownPreset}
+          triedError={errors.triedText}
+          disabled={sending}
+        />
+      ) : null}
 
       <ReasonField
         id={`${ids}-finding`}
@@ -818,7 +1230,9 @@ export function CaptureForm({
             ? `Evidence rule met: ${EVIDENCE_RULE_LABEL[rule]}.`
             : answer === "yes"
               ? missing
-              : `Needed for Yes: ${EVIDENCE_RULE_LABEL[rule]}. Optional for No and Not applicable.`}
+              : knowledge
+                ? `Needed for Yes: ${EVIDENCE_RULE_LABEL[rule]}. Optional for the other answers.`
+                : `Needed for Yes: ${EVIDENCE_RULE_LABEL[rule]}. Optional for No and Not applicable.`}
         </p>
 
         {canUpload ? (
@@ -966,6 +1380,18 @@ export function CaptureForm({
         </fieldset>
       ) : null}
 
+      {askConfirmOwn ? (
+        <SelfConfirmFieldset
+          ref={selfConfirmRef}
+          id={`${ids}-confirmOwn`}
+          value={draft.confirmOwn}
+          onChange={(value) => setField("confirmOwn", value)}
+          ownAllowed={ownAllowed}
+          error={errors.confirmOwn}
+          disabled={sending}
+        />
+      ) : null}
+
       <div className="sticky bottom-0 z-20 -mx-4 flex flex-col gap-3 border-t border-line bg-paper/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
         <OutcomeMessage
           outcome={outcome}
@@ -975,25 +1401,51 @@ export function CaptureForm({
           onRetry={() => void send()}
           onReload={onReload}
           signInHref={signInHref}
+          pageHref={pageHref}
+          venueName={knowledge?.venueName ?? null}
         />
-        <Button
-          type="submit"
-          size="touch"
-          disabled={sending}
-          aria-busy={sending || undefined}
-          className="sm:self-start"
-        >
-          {sending ? (
-            <SpinnerGapIcon
-              data-icon="inline-start"
-              className="motion-safe:animate-spin"
-              aria-hidden
-            />
-          ) : (
-            <PaperPlaneTiltIcon data-icon="inline-start" aria-hidden />
-          )}
-          {UI_TEXT.submit}
-        </Button>
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:flex-wrap">
+          {knowledge?.saveDraft ? (
+            <Button
+              type="button"
+              variant="secondary"
+              size="touch"
+              disabled={sending}
+              onClick={() => void saveForLater()}
+            >
+              Save for later
+            </Button>
+          ) : null}
+          <Button
+            type="submit"
+            size="touch"
+            disabled={sending}
+            aria-busy={sending || undefined}
+            className="sm:self-start"
+          >
+            {sending ? (
+              <SpinnerGapIcon
+                data-icon="inline-start"
+                className="motion-safe:animate-spin"
+                aria-hidden
+              />
+            ) : (
+              <PaperPlaneTiltIcon data-icon="inline-start" aria-hidden />
+            )}
+            {!knowledge
+              ? UI_TEXT.submit
+              : findingKind === "detail"
+                ? "Send detail"
+                : findingKind === "change_report"
+                  ? "Send change report"
+                  : askConfirmOwn && draft.confirmOwn === true
+                    ? "Submit and confirm"
+                    : UI_TEXT.submit}
+          </Button>
+        </div>
+        {knowledge && slot && dockNote(slot, knowledge.role) ? (
+          <p className={MUTED}>{dockNote(slot, knowledge.role)}</p>
+        ) : null}
       </div>
 
       {canUpload && !upload.addQueue ? (
@@ -1061,6 +1513,8 @@ function OutcomeMessage({
   onRetry,
   onReload,
   signInHref,
+  pageHref,
+  venueName,
 }: {
   outcome: Outcome | null
   extra: string[]
@@ -1069,15 +1523,118 @@ function OutcomeMessage({
   onRetry: () => void
   onReload: () => void
   signInHref: string
+  pageHref?: string
+  venueName: string | null
 }) {
   if (!outcome) return null
+  const reload = (label = "Reload") => (
+    <Button type="button" variant="secondary" size="touch" onClick={onReload}>
+      <ArrowClockwiseIcon data-icon="inline-start" aria-hidden />
+      {label}
+    </Button>
+  )
   switch (outcome.kind) {
     case "sent":
+      if (outcome.copy)
+        return (
+          <Notice
+            tone={outcome.copy.tone === "plain" ? "plain" : outcome.copy.tone}
+            role="status"
+          >
+            <p>
+              {outcome.replayed
+                ? "This finding was already sent. Nothing was recorded twice."
+                : outcome.copy.status}
+            </p>
+            {outcome.extra?.map((line) => (
+              <p key={line}>{line}</p>
+            ))}
+          </Notice>
+        )
       return (
         <Notice tone="positive" role="status">
           {outcome.replayed
             ? "This finding was already sent. Nothing was recorded twice."
             : "Finding sent. The check is complete."}
+        </Notice>
+      )
+    case "path_required":
+      // A plain navigation: the server then renders the knowledge form. A
+      // retry of the legacy call could only be refused again.
+      return (
+        <Notice
+          tone="negative"
+          role="alert"
+          title={KNOWLEDGE_FAILURE_COPY.pathRequired.title}
+          action={
+            <a
+              href={pageHref ?? ""}
+              className={buttonVariants({
+                variant: "secondary",
+                size: "touch",
+              })}
+            >
+              {KNOWLEDGE_FAILURE_COPY.pathRequired.action}
+            </a>
+          }
+        >
+          {KNOWLEDGE_FAILURE_COPY.pathRequired.body}
+        </Notice>
+      )
+    case "out_of_scope": {
+      const copy = KNOWLEDGE_FAILURE_COPY.outOfScope(venueName ?? "the venue")
+      return (
+        <Notice
+          tone="negative"
+          role="alert"
+          title={copy.title}
+          action={reload(copy.action)}
+        >
+          {copy.body}
+        </Notice>
+      )
+    }
+    case "self_stale":
+      return (
+        <Notice
+          tone="negative"
+          role="alert"
+          title={KNOWLEDGE_FAILURE_COPY.selfConfirmStale.title}
+        >
+          {KNOWLEDGE_FAILURE_COPY.selfConfirmStale.body}
+        </Notice>
+      )
+    case "not_permitted":
+      return (
+        <Notice tone="negative" role="alert" action={reload()}>
+          {KNOWLEDGE_FAILURE_COPY.notPermitted}
+        </Notice>
+      )
+    case "reused_key":
+      return (
+        <Notice tone="negative" role="alert" action={reload()}>
+          {KNOWLEDGE_FAILURE_COPY.reusedKey}
+        </Notice>
+      )
+    case "saved":
+      return (
+        <Notice tone="plain" role="status">
+          {outcome.offline
+            ? "Saved on this phone. It's saved to your account when you're back online."
+            : DRAFT_SAVED.status}
+        </Notice>
+      )
+    case "save_failed":
+      return (
+        <Notice tone="negative" role="alert">
+          We couldn&apos;t save your draft to your account. It&apos;s kept on
+          this phone; try again.
+        </Notice>
+      )
+    case "draft_conflict":
+      return (
+        <Notice tone="attention" role="status">
+          This draft was updated on another device. The newer version is shown.
         </Notice>
       )
     case "stale":
