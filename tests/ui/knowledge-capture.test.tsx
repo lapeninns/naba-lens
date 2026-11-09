@@ -486,6 +486,62 @@ describe("knowledge capture: refusals are never retried", () => {
     expect(stored).toBeNull()
   })
 
+  it("treats a replay as sent, even when the question moved on since (M1)", async () => {
+    const { user, onDone } = setup({
+      // The replay returns the original slot revision, older than the one
+      // on screen; that's not a stale send on the knowledge path.
+      submit: vi.fn<Submit>(async () =>
+        sent({
+          replayed: true,
+          slotRevision: 3,
+          outcome: "awaiting_confirmation",
+        })
+      ),
+    })
+    await sendYes(user)
+    expect(screen.queryByText(/This check has changed since/)).toBeNull()
+    expect(
+      window.localStorage.getItem(
+        `nabalens.amenity-draft.v2:${VIEWER_ID}:${CHECK_ID}`
+      )
+    ).toBeNull()
+    expect(onDone).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    [
+      "the key was used for different details",
+      "This submission was already used for a different finding. Reload and try again.",
+      "This draft was already sent with different details. Reload to see what was recorded; your draft is kept.",
+    ],
+    [
+      "the question was archived",
+      "This check is archived. Restore it first, or reload the page.",
+      "This question was archived, so it can't take a finding. Nothing was sent; reload to see it.",
+    ],
+    [
+      "anything else changed",
+      "This answer is no longer the one in use. Reload the page.",
+      "This answer is no longer the one in use. Reload the page.",
+    ],
+  ])(
+    "a state conflict where %s says so, with Reload only (L4)",
+    async (_, message, shown) => {
+      const { user, onReload } = setup({
+        submit: vi.fn<Submit>(async () => ({
+          ...refused("state_conflict"),
+          message,
+        })),
+      })
+      await sendYes(user)
+      const alert = screen.getByRole("alert")
+      expect(alert.textContent).toContain(shown)
+      expect(screen.queryByRole("button", { name: "Try again" })).toBeNull()
+      await user.click(within(alert).getByRole("button", { name: "Reload" }))
+      expect(onReload).toHaveBeenCalledTimes(1)
+    }
+  )
+
   it("the legacy form sends a refused working-list question back to its page, never Try again (G2)", async () => {
     const legacy = vi.fn(async (): Promise<AmenityFailure> => ({
       ok: false,
@@ -596,10 +652,17 @@ describe("knowledge capture: evidence that isn't ready yet (D2, G4)", () => {
 
   function withUpload(submit = vi.fn<Submit>(async () => sent())) {
     let listed: SubmittableAsset[] = [PHOTO]
-    const loadAssets = vi.fn(async (): Promise<AssetsResult> => ({
-      ok: true,
-      assets: listed,
-    }))
+    let failing = false
+    const loadAssets = vi.fn(async (): Promise<AssetsResult> =>
+      failing
+        ? {
+            ok: false,
+            code: "unavailable",
+            status: 503,
+            message: "We couldn't load your photos and videos.",
+          }
+        : { ok: true, assets: listed }
+    )
     const opened: { last: OpenAddOptions | undefined } = { last: undefined }
     const openAdd = vi.fn((opts?: OpenAddOptions) => {
       opened.last = opts
@@ -653,7 +716,8 @@ describe("knowledge capture: evidence that isn't ready yet (D2, G4)", () => {
           )
         act(() => opened.last?.onPicked?.([new File(["x"], "new.jpg")]))
       },
-      ready: async () => {
+      ready: async ({ failReload = false } = {}) => {
+        failing = failReload
         listed = [PHOTO, NEW_PHOTO]
         await act(async () => {
           opened.last?.onReady?.([NEW_PHOTO.assetId])
@@ -739,6 +803,25 @@ describe("knowledge capture: evidence that isn't ready yet (D2, G4)", () => {
     await ready()
     expect(submit).not.toHaveBeenCalled()
     expect(screen.getByRole("button", { name: "Submit finding" })).toBeTruthy()
+  })
+
+  it("ends the wait with the list error when the photos can't be read, sending nothing (L3)", async () => {
+    const { user, submit, pick, ready } = withUpload()
+    await user.click(radio("Yes"))
+    await pick()
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    await user.click(screen.getByRole("button", { name: "Wait for it" }))
+    await ready({ failReload: true })
+    expect(submit).not.toHaveBeenCalled()
+    expect(
+      screen
+        .getAllByRole("alert")
+        .map((a) => a.textContent)
+        .join(" ")
+    ).toContain(
+      "We couldn't load your photos and videos. Nothing was sent. Try again when your photos and videos load."
+    )
+    expect(radio("No").matches(":disabled")).toBe(false)
   })
 
   it("says the question changed while the photo was saving when the send meets a newer revision", async () => {

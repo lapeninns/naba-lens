@@ -317,6 +317,9 @@ describe("To confirm: Couldn't establish (rev 5 §6.2)", () => {
     const dialog = await screen.findByRole("dialog", {
       name: "Keep the answer in use?",
     })
+    expect(dialog.textContent).toContain(
+      "The answer in use doesn't change, and every finding listed here is settled: this one, the only one, is marked as seen. Readers get the answer again."
+    )
     await user.type(
       within(dialog).getByRole("textbox", { name: /Why not\?/ }),
       "Seen it"
@@ -357,9 +360,34 @@ describe("To confirm: Couldn't establish (rev 5 §6.2)", () => {
       within(c).getByRole("button", { name: "Ask for more detail" })
     ).toBeTruthy()
     expect(c.textContent).toContain(
-      "Marking it as seen settles this finding only. To keep the answer in use, use the panel above, which settles every finding that disagrees."
+      "Marking it as seen settles this finding only. The other findings here still need a decision."
     )
     expect(c.textContent).not.toContain("only once the other")
+  })
+
+  it("with an agreeing proposal also undecided offers no Keep, since Keep settles that one too (M2)", () => {
+    setup(
+      view(
+        [
+          finding({ answer: "yes", disputes: false }),
+          unknown({
+            disputes: true,
+            sender: { id: "s9", displayName: "Ana Gurung" },
+          }),
+        ],
+        DISPUTED
+      )
+    )
+    const c = card("Finding from Ana Gurung")
+    expect(
+      within(c).queryByRole("button", { name: "Keep the answer in use" })
+    ).toBeNull()
+    expect(within(c).getByRole("button", { name: "Mark as seen" })).toBeTruthy()
+    expect(
+      within(c).getByRole("button", { name: "Ask for more detail" })
+    ).toBeTruthy()
+    // Both findings are listed.
+    expect(card("Finding from Sam Lee")).toBeTruthy()
   })
 })
 
@@ -427,7 +455,7 @@ describe("To confirm: findings that disagree (§6.4)", () => {
       (await screen.findByRole("dialog", { name: "Keep the answer in use?" }))
         .textContent
     ).toContain(
-      "The findings that disagree are marked Not confirmed with your reason, and any Couldn't-establish findings listed here are marked as seen."
+      "Every finding listed here is settled: answers, including any that agree with the answer in use, are marked Not confirmed with your reason, and Couldn't-establish findings are marked as seen."
     )
   })
 })

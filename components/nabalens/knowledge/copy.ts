@@ -494,6 +494,10 @@ export const KNOWLEDGE_FAILURE_COPY = {
     "Nothing was sent: you can't send a finding for this question any more. Your draft is kept.",
   reusedKey:
     "This draft was already sent with different details. Reload to see what was recorded; your draft is kept.",
+  archived:
+    "This question was archived, so it can't take a finding. Nothing was sent; reload to see it.",
+  conflict:
+    "This question changed while you were working. Nothing was sent; reload to see the latest. Your draft is kept.",
   selfConfirmStale: {
     title: "You can't confirm this yourself now",
     body: "Nothing was sent. Choose “Leave it for another manager or an admin”, then submit again.",

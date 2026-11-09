@@ -381,6 +381,22 @@ export function isRetryable(code: KnowledgeErrorCode | (string & {})): boolean {
 }
 
 /** The legacy submit refused a working-list question (SQLSTATE NLK01). */
+/**
+ * Which state conflict a knowledge send met. WS1 reports these by message
+ * only (lib/server/amenities/errors.ts); a test pins the mapping to WS1's
+ * mapper, so a changed message fails there rather than here.
+ */
+export function stateConflictKind(failure: {
+  code: string
+  message: string
+}): "reused_key" | "archived" | "other" | null {
+  if (failure.code !== "state_conflict") return null
+  if (failure.message.startsWith("This submission was already used"))
+    return "reused_key"
+  if (failure.message.startsWith("This check is archived")) return "archived"
+  return "other"
+}
+
 export function isKnowledgePathRequired(failure: { code: string }): boolean {
   return failure.code === "knowledge_path_required"
 }
