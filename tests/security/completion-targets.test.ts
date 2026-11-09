@@ -699,4 +699,49 @@ describe("amenity credit baseline", () => {
     expect(await kinds(submitted.yes.check)).toContain("evidence_lost")
     expect(await amenityUnits(author)).toBe(2)
   })
+
+  it("suspends a unit while its check is archived and restores it", async () => {
+    // Pins pre-B01 behaviour: archiving a check within the month removes its
+    // unit and restoring brings the same submission's unit back without a new
+    // finding. Keep unless B08 approves a change.
+    const { venue, author, manager, amenityUnits, kinds } = await enrolled(
+      "credit-archive-restore"
+    )
+    const archived = await addCheck(manager, venue, "pool_table")
+    const kept = await addCheck(manager, venue, "darts")
+    for (const check of [archived, kept]) {
+      await submitFinding(
+        author,
+        check,
+        await assignCheck(manager, check, author),
+        "no"
+      )
+    }
+    expect(await amenityUnits(author)).toBe(2)
+
+    const archivedRevision = await ok(
+      manager.client.rpc("amenity_archive_check", {
+        p_check_id: archived,
+        p_revision: await revision(archived),
+      })
+    )
+    expect(await amenityUnits(author)).toBe(1)
+
+    await ok(
+      manager.client.rpc("amenity_restore_check", {
+        p_check_id: archived,
+        p_revision: archivedRevision,
+      })
+    )
+    expect(await amenityUnits(author)).toBe(2)
+    expect(await kinds(archived)).toEqual(
+      expect.arrayContaining(["archived", "restored"])
+    )
+    const { count, error } = await service
+      .from("amenity_submissions")
+      .select("id", { count: "exact", head: true })
+      .eq("check_id", archived)
+    if (error) throw error
+    expect(count).toBe(1)
+  })
 })
