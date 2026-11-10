@@ -1,6 +1,7 @@
 import "server-only"
 
 import * as server from "@/lib/server/knowledge"
+import { knowledgeRpc } from "@/lib/server/knowledge/rpc"
 import type { MediaActor } from "@/lib/server/media/types"
 
 import {
@@ -16,6 +17,7 @@ import type {
   DecideInput,
   DecisionResult,
   FindingsPage,
+  KnowledgeAsset,
   KnowledgeFailure,
   KnowledgeResult,
   MyPending,
@@ -85,7 +87,15 @@ export type KnowledgeServices = {
     actor: MediaActor,
     input: unknown
   ): Promise<KnowledgeResult<{ pending: MyPending }>>
+  /** Staff only: own attachable media on a working-list question (F1). */
+  listKnowledgeAssets(
+    actor: MediaActor,
+    input: unknown
+  ): Promise<KnowledgeResult<{ assets: KnowledgeAsset[] }>>
 }
+
+/** PostgREST and Postgres "no such function": the schema predates B01. */
+const MISSING_FUNCTION = new Set(["PGRST202", "42883"])
 
 const DECIDE = {
   confirm: server.confirmFinding,
@@ -110,9 +120,20 @@ const UNKNOWN_DECISION: KnowledgeFailure = {
 
 export const knowledgeServices: KnowledgeServices = {
   async getWorkingList(actor) {
-    const result = await server.getWorkingList(actor)
-    if (!result.ok) return result
-    return { ok: true, view: adaptWorkingList(result.list) }
+    // Read here, not through server.getWorkingList, to see the database's
+    // code: before the B01 migrations the function doesn't exist, and that
+    // is no working list (Home as on main), not a failed read (M3).
+    const { data, error } = await knowledgeRpc(
+      actor.db,
+      "knowledge_working_list",
+      {}
+    )
+    if (error) {
+      if (MISSING_FUNCTION.has(error.code ?? ""))
+        return { ok: true, view: null }
+      return server.knowledgeRpcFailure(error, "knowledge working list")
+    }
+    return { ok: true, view: adaptWorkingList(data) }
   },
 
   async getKnowledgeCheck(actor, input) {
@@ -197,4 +218,7 @@ export const knowledgeServices: KnowledgeServices = {
   },
 
   getMyPending: (actor, input) => server.getMyPending(actor, input),
+
+  listKnowledgeAssets: (actor, input) =>
+    server.listKnowledgeAssets(actor, input),
 }

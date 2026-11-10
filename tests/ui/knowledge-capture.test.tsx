@@ -2,7 +2,14 @@
 // The capture form on a working-list question (B01-02, B01-03, D4): four
 // answers with Couldn't establish, change reports, Save for later, a
 // manager's self-confirmation choice, and truthful outcome and refusal copy.
-import { act, cleanup, render, screen, within } from "@testing-library/react"
+import {
+  act,
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -133,7 +140,7 @@ type Submit = (
   input: SubmitKnowledgeInput
 ) => Promise<KnowledgeResult<SubmittedFinding>>
 type SaveDraft = NonNullable<KnowledgeCapture["saveDraft"]>
-type DiscardDraft = NonNullable<KnowledgeCapture["discardDraft"]>
+type DiscardDraft = NonNullable<KnowledgeCapture["onDiscardDraft"]>
 
 function setup({
   knowledgeSlot = slot(),
@@ -183,7 +190,7 @@ function setup({
         respondsTo: null,
         submit,
         saveDraft,
-        discardDraft,
+        onDiscardDraft: discardDraft,
         serverDraft,
         prefill,
       }}
@@ -486,6 +493,62 @@ describe("knowledge capture: refusals are never retried", () => {
     expect(stored).toBeNull()
   })
 
+  it("treats a replay as sent, even when the question moved on since (M1)", async () => {
+    const { user, onDone } = setup({
+      // The replay returns the original slot revision, older than the one
+      // on screen; that's not a stale send on the knowledge path.
+      submit: vi.fn<Submit>(async () =>
+        sent({
+          replayed: true,
+          slotRevision: 3,
+          outcome: "awaiting_confirmation",
+        })
+      ),
+    })
+    await sendYes(user)
+    expect(screen.queryByText(/This check has changed since/)).toBeNull()
+    expect(
+      window.localStorage.getItem(
+        `nabalens.amenity-draft.v2:${VIEWER_ID}:${CHECK_ID}`
+      )
+    ).toBeNull()
+    expect(onDone).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    [
+      "the key was used for different details",
+      "This submission was already used for a different finding. Reload and try again.",
+      "This draft was already sent with different details. Reload to see what was recorded; your draft is kept.",
+    ],
+    [
+      "the question was archived",
+      "This check is archived. Restore it first, or reload the page.",
+      "This question was archived, so it can't take a finding. Nothing was sent; reload to see it.",
+    ],
+    [
+      "anything else changed",
+      "This answer is no longer the one in use. Reload the page.",
+      "This answer is no longer the one in use. Reload the page.",
+    ],
+  ])(
+    "a state conflict where %s says so, with Reload only (L4)",
+    async (_, message, shown) => {
+      const { user, onReload } = setup({
+        submit: vi.fn<Submit>(async () => ({
+          ...refused("state_conflict"),
+          message,
+        })),
+      })
+      await sendYes(user)
+      const alert = screen.getByRole("alert")
+      expect(alert.textContent).toContain(shown)
+      expect(screen.queryByRole("button", { name: "Try again" })).toBeNull()
+      await user.click(within(alert).getByRole("button", { name: "Reload" }))
+      expect(onReload).toHaveBeenCalledTimes(1)
+    }
+  )
+
   it("the legacy form sends a refused working-list question back to its page, never Try again (G2)", async () => {
     const legacy = vi.fn(async (): Promise<AmenityFailure> => ({
       ok: false,
@@ -596,10 +659,17 @@ describe("knowledge capture: evidence that isn't ready yet (D2, G4)", () => {
 
   function withUpload(submit = vi.fn<Submit>(async () => sent())) {
     let listed: SubmittableAsset[] = [PHOTO]
-    const loadAssets = vi.fn(async (): Promise<AssetsResult> => ({
-      ok: true,
-      assets: listed,
-    }))
+    let failing = false
+    const loadAssets = vi.fn(async (): Promise<AssetsResult> =>
+      failing
+        ? {
+            ok: false,
+            code: "unavailable",
+            status: 503,
+            message: "We couldn't load your photos and videos.",
+          }
+        : { ok: true, assets: listed }
+    )
     const opened: { last: OpenAddOptions | undefined } = { last: undefined }
     const openAdd = vi.fn((opts?: OpenAddOptions) => {
       opened.last = opts
@@ -635,7 +705,7 @@ describe("knowledge capture: evidence that isn't ready yet (D2, G4)", () => {
           respondsTo: null,
           submit,
           saveDraft: null,
-          discardDraft: null,
+          onDiscardDraft: null,
           serverDraft: null,
         }}
       />
@@ -653,7 +723,8 @@ describe("knowledge capture: evidence that isn't ready yet (D2, G4)", () => {
           )
         act(() => opened.last?.onPicked?.([new File(["x"], "new.jpg")]))
       },
-      ready: async () => {
+      ready: async ({ failReload = false } = {}) => {
+        failing = failReload
         listed = [PHOTO, NEW_PHOTO]
         await act(async () => {
           opened.last?.onReady?.([NEW_PHOTO.assetId])
@@ -741,6 +812,25 @@ describe("knowledge capture: evidence that isn't ready yet (D2, G4)", () => {
     expect(screen.getByRole("button", { name: "Submit finding" })).toBeTruthy()
   })
 
+  it("ends the wait with the list error when the photos can't be read, sending nothing (L3)", async () => {
+    const { user, submit, pick, ready } = withUpload()
+    await user.click(radio("Yes"))
+    await pick()
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    await user.click(screen.getByRole("button", { name: "Wait for it" }))
+    await ready({ failReload: true })
+    expect(submit).not.toHaveBeenCalled()
+    expect(
+      screen
+        .getAllByRole("alert")
+        .map((a) => a.textContent)
+        .join(" ")
+    ).toContain(
+      "We couldn't load your photos and videos. Nothing was sent. Try again when your photos and videos load."
+    )
+    expect(radio("No").matches(":disabled")).toBe(false)
+  })
+
   it("says the question changed while the photo was saving when the send meets a newer revision", async () => {
     const { user, pick, ready } = withUpload(
       vi.fn<Submit>(async () => refused("revision_conflict"))
@@ -793,5 +883,169 @@ describe("Change my finding (§4.6)", () => {
   it("starts from the undecided finding's answer", () => {
     setup({ prefill: { answer: "no", unknownPreset: null } })
     expect((radio("No") as HTMLInputElement).checked).toBe(true)
+  })
+})
+
+describe("knowledge capture: a send removes the saved draft (CA-01, CA-02, CA-04, CA-06, CA-07, CA-16)", () => {
+  function deferred<T>() {
+    let resolve!: (value: T) => void
+    const promise = new Promise<T>((r) => (resolve = r))
+    return { promise, resolve }
+  }
+  const serverDraft: ServerDraft = {
+    draftRevision: 3,
+    savedAt: "2026-11-06T09:00:00.000Z",
+    payload: {
+      answer: "yes",
+      finding: "",
+      limitations: "",
+      reason: "",
+      unknownPreset: null,
+      triedText: "",
+      changeReason: "",
+      wifi: { testSpot: "", testedOn: "", downloadMbps: "", uploadMbps: "" },
+      sentSlotRevision: null,
+    },
+    assetIds: [],
+    idempotencyKey: "server-key",
+  }
+
+  it("a send waits for a save still on its way, so the save can't come after it", async () => {
+    const pending = deferred<{
+      ok: true
+      draftRevision: number
+      savedAt: string
+    }>()
+    const saveDraft = vi.fn<SaveDraft>(() => pending.promise)
+    const { user, submit } = setup({ saveDraft })
+    await user.click(radio("Yes"))
+    await user.click(photoBox())
+    await user.click(screen.getByRole("button", { name: "Save for later" }))
+    // Saving: neither button can start another request.
+    expect(
+      (screen.getByRole("button", { name: "Saving…" }) as HTMLButtonElement)
+        .disabled
+    ).toBe(true)
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Submit finding",
+        }) as HTMLButtonElement
+      ).disabled
+    ).toBe(true)
+    expect(submit).not.toHaveBeenCalled()
+    await act(async () =>
+      pending.resolve({
+        ok: true,
+        draftRevision: 1,
+        savedAt: "2026-11-06T09:00:00.000Z",
+      })
+    )
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    expect(submit).toHaveBeenCalledTimes(1)
+    expect(saveDraft).toHaveBeenCalledTimes(1)
+  })
+
+  it("never saves again after a successful send, even when a save was waiting for a connection", async () => {
+    const online = vi.spyOn(navigator, "onLine", "get").mockReturnValue(false)
+    const submit = vi
+      .fn<Submit>()
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce(sent())
+    const { user, saveDraft } = setup({ submit })
+    await user.click(radio("Yes"))
+    await user.click(photoBox())
+    await user.click(screen.getByRole("button", { name: "Save for later" }))
+    expect(status()).toContain(
+      "It's saved to your account when you're back online with this page open."
+    )
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    online.mockReturnValue(true)
+    await act(async () => {
+      window.dispatchEvent(new Event("online"))
+    })
+    // The retry went; the waiting save didn't recreate the draft it removed.
+    expect(submit).toHaveBeenCalledTimes(2)
+    expect(saveDraft).not.toHaveBeenCalled()
+    online.mockRestore()
+  })
+
+  it("after a conflict, takes the stored revision so the next save goes through", async () => {
+    const saveDraft = vi
+      .fn<SaveDraft>()
+      .mockResolvedValueOnce({
+        ok: false,
+        code: "draft_conflict",
+        status: 409,
+        message: "conflict",
+        draftRevision: 5,
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        draftRevision: 6,
+        savedAt: "2026-11-06T10:00:00.000Z",
+      })
+    const { user } = setup({ saveDraft })
+    await user.click(radio("No"))
+    await user.click(screen.getByRole("button", { name: "Save for later" }))
+    expect(status()).toContain(
+      "This draft was also saved on another device. Save for later again to replace that copy with this one."
+    )
+    expect(status()).not.toContain("The newer version is shown")
+    await user.click(screen.getByRole("button", { name: "Save for later" }))
+    expect(saveDraft.mock.calls[1][0].draftRevision).toBe(5)
+    expect(status()).toContain("Saved for later.")
+  })
+
+  it("names this phone, without the account's time, when the phone's copy is restored", async () => {
+    window.localStorage.setItem(
+      `nabalens.amenity-draft.v2:${VIEWER_ID}:${CHECK_ID}`,
+      JSON.stringify({
+        ...JSON.parse(JSON.stringify(serverDraft.payload)),
+        idempotencyKey: "phone-key",
+        attempted: false,
+        revision: 7,
+        answer: "no",
+        reason: "Gate locked",
+        confirmOwn: null,
+        assetIds: [],
+        redactionConfirmed: false,
+        redactionAssetIds: [],
+      })
+    )
+    setup({ serverDraft })
+    expect(
+      await screen.findByText("Restored from this phone. It hasn't been sent.")
+    ).toBeTruthy()
+    expect(screen.queryByText(/You saved this on/)).toBeNull()
+  })
+
+  it("keeps the draft and says so when the account copy can't be discarded", async () => {
+    const onDiscard = vi.fn<DiscardDraft>(async () => ({
+      ok: false,
+      code: "unavailable",
+      status: 503,
+      message: "down",
+    }))
+    const { user } = setup({ serverDraft, discardDraft: onDiscard })
+    await user.click(
+      await screen.findByRole("button", { name: "Discard draft" })
+    )
+    await user.click(screen.getByRole("button", { name: "Discard" }))
+    expect(onDiscard).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole("alert").textContent).toContain(
+      "We couldn't discard your draft. It's still saved; try again."
+    )
+    expect(screen.getByText(/You saved this on/)).toBeTruthy()
+  })
+
+  it("after a discard, says so and starts at the answers", async () => {
+    const { user } = setup({ serverDraft })
+    await user.click(
+      await screen.findByRole("button", { name: "Discard draft" })
+    )
+    await user.click(screen.getByRole("button", { name: "Discard" }))
+    expect(status()).toContain("Draft discarded.")
+    await waitFor(() => expect(document.activeElement).toBe(radio("Yes")))
   })
 })

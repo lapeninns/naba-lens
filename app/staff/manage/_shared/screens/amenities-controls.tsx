@@ -36,11 +36,13 @@ export function AmenitiesOverviewControl({
   catalogue,
   basePath,
   toConfirm = null,
+  toConfirmFailed = false,
 }: {
   view: VenueAmenitiesView
   catalogue: CatalogueOption[] | null
   basePath: string
   toConfirm?: ToConfirmList | null
+  toConfirmFailed?: boolean
 }) {
   const venueId = view.venue.id
   return (
@@ -49,6 +51,7 @@ export function AmenitiesOverviewControl({
       catalogue={catalogue}
       basePath={basePath}
       toConfirm={toConfirm}
+      toConfirmFailed={toConfirmFailed}
       handlers={{
         enable: () => enableAmenitiesAction({ venueId }),
         addChecks: (keys) => addChecksAction({ venueId, keys }),
@@ -81,7 +84,7 @@ export function AmenityCheckControl({
               view: knowledge,
               handlers: {
                 decide: decideFindingAction,
-                resolveConflict: resolveConflictAction,
+                onResolveConflict: resolveConflictAction,
               },
             }
           : null

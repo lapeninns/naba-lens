@@ -12,6 +12,7 @@ import {
   type KnowledgeResult,
 } from "@/lib/knowledge-client/contract"
 
+import { clearDraft } from "../amenities/capture/draft"
 import { DiscardDraftDialog } from "../amenities/capture/knowledge-fields"
 import { Notice } from "../notice"
 import { CountBadge, StatusChip } from "../status-chip"
@@ -65,7 +66,8 @@ export function YourFindings({
   initial,
   venue,
   loadMore,
-  discardDraft,
+  onDiscardDraft,
+  viewerId = null,
   retryHref = "/staff",
   homeHref = "/staff/tasks",
 }: {
@@ -74,7 +76,9 @@ export function YourFindings({
   /** Where I work now; rows elsewhere are read-only. */
   venue: { id: string; name: string } | null
   loadMore: Load
-  discardDraft?: Discard
+  onDiscardDraft?: Discard
+  /** The signed-in person: a discard also clears this device's copy. */
+  viewerId?: string | null
   retryHref?: string
   homeHref?: string
 }) {
@@ -124,12 +128,14 @@ export function YourFindings({
       <div className="grid gap-1 px-1">
         <h2
           id={YOUR_FINDINGS_HEADING_ID}
+          // Focus lands here after a discard removes the row (L2).
+          tabIndex={-1}
           aria-label={
             asked > 0
               ? `${YOUR_FINDINGS_COPY.title}, ${asked} needs attention`
               : YOUR_FINDINGS_COPY.title
           }
-          className="flex items-center gap-2 font-display text-section-title text-ink"
+          className="flex items-center gap-2 rounded-control font-display text-section-title text-ink outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
         >
           {YOUR_FINDINGS_COPY.title}
           <CountBadge count={asked} label="needs attention" />
@@ -180,12 +186,19 @@ export function YourFindings({
                     finding={finding}
                     venue={venue}
                     onDiscard={
-                      discardDraft
+                      onDiscardDraft
                         ? async () => {
-                            const result = await discardDraft({
+                            const result = await onDiscardDraft({
                               checkId: finding.checkId,
                             }).catch(() => null)
                             if (!result?.ok) return false
+                            // The capture form's copy on this device too,
+                            // or opening the question would restore it (L1).
+                            if (viewerId)
+                              clearDraft({
+                                userId: viewerId,
+                                checkId: finding.checkId,
+                              })
                             setItems((current) =>
                               current.filter((item) => rowKey(item) !== key)
                             )

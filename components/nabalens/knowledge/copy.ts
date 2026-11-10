@@ -239,6 +239,7 @@ export function findingExplanation(
     | "stateReason"
     | "managerNote"
     | "answeredBy"
+    | "answeredAt"
     | "decidedAt"
   >,
   compared: Compared = "none"
@@ -269,7 +270,7 @@ export function findingExplanation(
       return `${why}. It stays in your history.`
     }
     case "assignment_closed":
-      return `Assigned to you; answered by ${finding.answeredBy ?? "a former team member"}${finding.decidedAt ? ` on ${shortDate(finding.decidedAt)}` : ""}.`
+      return `Assigned to you; answered by ${finding.answeredBy ?? "a former team member"}${finding.answeredAt ? ` on ${shortDate(finding.answeredAt)}` : ""}.`
   }
 }
 
@@ -494,6 +495,10 @@ export const KNOWLEDGE_FAILURE_COPY = {
     "Nothing was sent: you can't send a finding for this question any more. Your draft is kept.",
   reusedKey:
     "This draft was already sent with different details. Reload to see what was recorded; your draft is kept.",
+  archived:
+    "This question was archived, so it can't take a finding. Nothing was sent; reload to see it.",
+  conflict:
+    "This question changed while you were working. Nothing was sent; reload to see the latest. Your draft is kept.",
   selfConfirmStale: {
     title: "You can't confirm this yourself now",
     body: "Nothing was sent. Choose “Leave it for another manager or an admin”, then submit again.",
@@ -518,6 +523,8 @@ export const KNOWLEDGE_FAILURE_COPY = {
 export const TO_CONFIRM_COPY = {
   title: "To confirm",
   empty: "Nothing to confirm.",
+  /** A failed read: never shown as nothing waiting (MG-03). */
+  failed: "Findings to confirm couldn't be loaded. Reload to try again.",
   /** Accessible words after the count on the Amenities tab. */
   badge: (n: number) =>
     n === 1 ? "finding to confirm" : "findings to confirm",
@@ -689,7 +696,9 @@ export function slotRow(slot: WorkingSlot): SlotRow {
   if (latest?.state === "needs_attention")
     return {
       chip: { state: "needs_attention" },
-      status: `Your manager asked: ${latest.managerNote ?? ""}`.trim(),
+      status: latest.managerNote
+        ? `Your manager asked: ${latest.managerNote}`
+        : "Your manager asked for more detail.",
       action: "Add detail",
       needsMe: true,
       dismissable: false,
@@ -701,6 +710,30 @@ export function slotRow(slot: WorkingSlot): SlotRow {
       action: null,
       needsMe: false,
       dismissable: true,
+    }
+  // What I sent is waiting on my manager: not mine to do again (HM-01).
+  if (latest?.state === "awaiting_confirmation")
+    return {
+      chip: { state: "awaiting_confirmation" },
+      status:
+        answer.reason === "disputed"
+          ? `Recorded answer: ${answer.value ? ANSWER_LABEL[answer.value] : "none"}. Being checked: a finding disagrees with it.`
+          : answer.value && latest.answer === answer.value
+            ? "You sent a finding. It agrees with the recorded answer; your manager confirms it."
+            : "You sent a finding. Your manager confirms it before it's used.",
+      action: "View",
+      needsMe: false,
+      dismissable: false,
+    }
+  // My unsent draft, before "Start check": finishing it is the next step;
+  // it still needs me when the check is assigned to me (HM-02).
+  if (slot.myDraft)
+    return {
+      chip: { state: "saved" },
+      status: `Not sent yet. Saved ${dateAndTime(slot.myDraft.savedAt)}.`,
+      action: "Finish",
+      needsMe: mine,
+      dismissable: false,
     }
   if (mine && slot.progress === "needs_recheck")
     return {
@@ -719,27 +752,6 @@ export function slotRow(slot: WorkingSlot): SlotRow {
           : "Assigned to you.",
       action: "Start check",
       needsMe: true,
-      dismissable: false,
-    }
-  if (slot.myDraft)
-    return {
-      chip: { state: "saved" },
-      status: `Not sent yet. Saved ${dateAndTime(slot.myDraft.savedAt)}.`,
-      action: "Finish",
-      needsMe: false,
-      dismissable: false,
-    }
-  if (latest?.state === "awaiting_confirmation")
-    return {
-      chip: { state: "awaiting_confirmation" },
-      status:
-        answer.reason === "disputed"
-          ? `Recorded answer: ${answer.value ? ANSWER_LABEL[answer.value] : "none"}. Being checked: a finding disagrees with it.`
-          : answer.value && latest.answer === answer.value
-            ? "You sent a finding. It agrees with the recorded answer; your manager confirms it."
-            : "You sent a finding. Your manager confirms it before it's used.",
-      action: "View",
-      needsMe: false,
       dismissable: false,
     }
   if (answer.status === "available")

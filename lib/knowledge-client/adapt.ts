@@ -135,9 +135,11 @@ function adaptClosed(
     detailRequestId: null,
     unknownPreset: null,
     answeredBy: view.answeredBy,
-    sentAt: view.sentAt,
+    // Someone else's answer: never shown as this person's send or decision.
+    answeredAt: view.sentAt,
+    sentAt: null,
     savedAt: null,
-    decidedAt: view.sentAt,
+    decidedAt: null,
     recognition: { kind: "none" },
   }
 }
@@ -258,7 +260,9 @@ function currentCard(
     sender: null,
     senderIsAssignee: false,
     mine: false,
-    sentAt: item.sentAt ?? inUse.savedAt ?? "",
+    sentAt: item.sentAt ?? "",
+    // "Recorded" is the answer's own time, or no line at all (X-07).
+    recordedAt: inUse.savedAt,
     evidence: [],
     wifi: null,
     disputes: false,
@@ -282,6 +286,23 @@ export function adaptCheck(
   return {
     inScope: true,
     slot,
+    capture: {
+      id: check.checkId,
+      venueId: check.venueId,
+      status: check.checkStatus,
+      progress: check.progress,
+      // Shown by the legacy form only; the knowledge form says why it's open.
+      recheckReason: null,
+      // The knowledge path is guarded by the slot revision, not the check's.
+      revision: check.slotRevision,
+      entry: {
+        key: check.questionKey,
+        category: check.category,
+        question: check.question,
+        captureBrief: check.captureBrief ?? "",
+        evidenceRule: check.evidenceRule,
+      },
+    },
     venue: { id: check.venueId, name: venueName },
     pending: [...current, ...check.pending.map((p) => adaptPending(p, inUse))],
     permissions: check.permissions,

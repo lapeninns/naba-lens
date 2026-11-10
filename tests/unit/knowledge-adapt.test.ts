@@ -313,9 +313,12 @@ describe("knowledge adapter: history, drafts and results", () => {
     ])
     expect(page.items[2].noLongerUsed).toBe("replaced_by_own")
     expect(page.items[3].stateReason).toBe("Wrong car park")
+    // Someone else's answer: not this person's send or decision (HM-05).
     expect(page.items[4]).toMatchObject({
       answeredBy: "Maya Rai",
-      decidedAt: "2026-11-06T09:00:00.000Z",
+      answeredAt: "2026-11-06T09:00:00.000Z",
+      sentAt: null,
+      decidedAt: null,
     })
   })
 
@@ -471,5 +474,27 @@ describe("knowledge adapter: fields for deciders (ef27740e)", () => {
     expect(
       adaptToConfirm([row(true), row(false)], 2).items.map((r) => r.disputes)
     ).toEqual([true, false])
+  })
+})
+
+describe("knowledge adapter: the capture screen's check (F1)", () => {
+  it("describes the check from the knowledge read, guarded by the slot revision", () => {
+    const view = adaptCheck(check({ captureBrief: null }), "The Old Crown")
+    if (!view.inScope) throw new Error("in scope")
+    expect(view.capture).toEqual({
+      id: CHECK,
+      venueId: "v1",
+      status: "active",
+      progress: "complete",
+      recheckReason: null,
+      revision: 9,
+      entry: {
+        key: "onsite_parking",
+        category: "Arrival",
+        question: "Is there parking on site?",
+        captureBrief: "",
+        evidenceRule: "photo",
+      },
+    })
   })
 })

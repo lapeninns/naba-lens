@@ -3,7 +3,13 @@
 // confirm, ask for more detail, don't confirm or keep the answer in use,
 // Couldn't-establish findings, conflicts, answers that need a decision, and
 // refusals in the manager's words.
-import { cleanup, render, screen, within } from "@testing-library/react"
+import {
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -88,6 +94,21 @@ function view(
   return {
     inScope: true,
     venue: { id: "v1", name: "The Old Crown" },
+    capture: {
+      id: "c1",
+      venueId: "v1",
+      status: "active",
+      progress: "complete",
+      recheckReason: null,
+      revision: 21,
+      entry: {
+        key: "onsite_parking",
+        category: "Arrival",
+        question: "Is there parking on site?",
+        captureBrief: "",
+        evidenceRule: "photo",
+      },
+    },
     slot: {
       checkId: "c1",
       key: "onsite_parking",
@@ -134,7 +155,9 @@ function setup(
 ) {
   const handlers = {
     decide: vi.fn<DecisionHandlers["decide"]>(async () => ok),
-    resolveConflict: vi.fn<DecisionHandlers["resolveConflict"]>(async () => ok),
+    onResolveConflict: vi.fn<DecisionHandlers["onResolveConflict"]>(
+      async () => ok
+    ),
     ...h,
   }
   const onReopen = vi.fn()
@@ -315,6 +338,9 @@ describe("To confirm: Couldn't establish (rev 5 §6.2)", () => {
     const dialog = await screen.findByRole("dialog", {
       name: "Keep the answer in use?",
     })
+    expect(dialog.textContent).toContain(
+      "The answer in use doesn't change, and every finding listed here is settled: this one, the only one, is marked as seen. Readers get the answer again."
+    )
     await user.type(
       within(dialog).getByRole("textbox", { name: /Why not\?/ }),
       "Seen it"
@@ -323,7 +349,7 @@ describe("To confirm: Couldn't establish (rev 5 §6.2)", () => {
       within(dialog).getByRole("button", { name: "Keep the answer in use" })
     )
     expect(handlers.decide).not.toHaveBeenCalled()
-    expect(handlers.resolveConflict).toHaveBeenCalledWith(
+    expect(handlers.onResolveConflict).toHaveBeenCalledWith(
       expect.objectContaining({
         checkId: "c1",
         slotRevision: 21,
@@ -355,9 +381,34 @@ describe("To confirm: Couldn't establish (rev 5 §6.2)", () => {
       within(c).getByRole("button", { name: "Ask for more detail" })
     ).toBeTruthy()
     expect(c.textContent).toContain(
-      "Marking it as seen settles this finding only. To keep the answer in use, use the panel above, which settles every finding that disagrees."
+      "Marking it as seen settles this finding only. The other findings here still need a decision."
     )
     expect(c.textContent).not.toContain("only once the other")
+  })
+
+  it("with an agreeing proposal also undecided offers no Keep, since Keep settles that one too (M2)", () => {
+    setup(
+      view(
+        [
+          finding({ answer: "yes", disputes: false }),
+          unknown({
+            disputes: true,
+            sender: { id: "s9", displayName: "Ana Gurung" },
+          }),
+        ],
+        DISPUTED
+      )
+    )
+    const c = card("Finding from Ana Gurung")
+    expect(
+      within(c).queryByRole("button", { name: "Keep the answer in use" })
+    ).toBeNull()
+    expect(within(c).getByRole("button", { name: "Mark as seen" })).toBeTruthy()
+    expect(
+      within(c).getByRole("button", { name: "Ask for more detail" })
+    ).toBeTruthy()
+    // Both findings are listed.
+    expect(card("Finding from Sam Lee")).toBeTruthy()
   })
 })
 
@@ -411,7 +462,7 @@ describe("To confirm: findings that disagree (§6.4)", () => {
     await user.click(
       within(dialog).getByRole("button", { name: "Use this answer" })
     )
-    expect(handlers.resolveConflict).toHaveBeenCalledWith(
+    expect(handlers.onResolveConflict).toHaveBeenCalledWith(
       expect.objectContaining({
         choose: b.findingRef,
         reason: "Matches the sign",
@@ -425,7 +476,7 @@ describe("To confirm: findings that disagree (§6.4)", () => {
       (await screen.findByRole("dialog", { name: "Keep the answer in use?" }))
         .textContent
     ).toContain(
-      "The findings that disagree are marked Not confirmed with your reason, and any Couldn't-establish findings listed here are marked as seen."
+      "Every finding listed here is settled: answers, including any that agree with the answer in use, are marked Not confirmed with your reason, and Couldn't-establish findings are marked as seen."
     )
   })
 })
@@ -624,7 +675,7 @@ describe("the check page on a working-list question", () => {
         }}
         knowledge={{
           view: v,
-          handlers: { decide: vi.fn(), resolveConflict: vi.fn() },
+          handlers: { decide: vi.fn(), onResolveConflict: vi.fn() },
         }}
       />
     )
@@ -643,5 +694,109 @@ describe("the check page on a working-list question", () => {
       "goes back to Needs recheck for staff. Its answer stops being used straight away and stays in the history."
     )
     expect(dialog.textContent).not.toContain("The current answer stays")
+  })
+})
+
+describe("To confirm: recovery and focus (MG-02, MG-04, MG-05, MG-06, MG-11)", () => {
+  it("keeps the success notice after the last finding is decided (MG-02)", async () => {
+    const f = finding()
+    const handlers = {
+      decide: vi.fn<DecisionHandlers["decide"]>(async () => ok),
+      onResolveConflict: vi.fn<DecisionHandlers["onResolveConflict"]>(
+        async () => ok
+      ),
+    }
+    const { rerender } = render(
+      <DecisionPanel view={view([f])} handlers={handlers} />
+    )
+    await userEvent.click(screen.getByRole("button", { name: "Confirm" }))
+    // The refresh brings the question with nothing left to decide.
+    rerender(<DecisionPanel view={view([])} handlers={handlers} />)
+    expect(
+      screen.getByText("Confirmed. This is now the answer for The Old Crown.")
+    ).toBeTruthy()
+    expect(
+      screen.getByText("Nothing left to confirm on this question.")
+    ).toBeTruthy()
+  })
+
+  it("replays the same request when the same decision is tapped again after a lost reply (MG-06)", async () => {
+    const decide = vi
+      .fn<DecisionHandlers["decide"]>()
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce(ok)
+    const { user } = setup(view([finding()]), { decide })
+    await user.click(screen.getByRole("button", { name: "Confirm" }))
+    await user.click(screen.getByRole("button", { name: "Confirm" }))
+    const [first, second] = decide.mock.calls.map((c) => c[0])
+    expect(second.idempotencyKey).toBe(first.idempotencyKey)
+  })
+
+  it("keeps a typed reason in its dialog when the reply is lost (MG-04)", async () => {
+    const decide = vi
+      .fn<DecisionHandlers["decide"]>()
+      .mockRejectedValue(new TypeError("Failed to fetch"))
+    const { user } = setup(view([finding()]), { decide })
+    await user.click(screen.getByRole("button", { name: "Don't confirm" }))
+    const dialog = await screen.findByRole("dialog")
+    const field = within(dialog).getByRole("textbox", { name: /Why not\?/ })
+    await user.type(field, "Wrong car park")
+    await user.click(
+      within(dialog).getByRole("button", { name: "Don't confirm" })
+    )
+    expect(screen.getByRole("dialog")).toBeTruthy()
+    expect((field as HTMLTextAreaElement).value).toBe("Wrong car park")
+    expect(within(dialog).getByRole("alert").textContent).toContain(
+      "We couldn't confirm your decision was saved."
+    )
+  })
+
+  it("keeps the note and the dialog open when a confirmation is refused (MG-05)", async () => {
+    const decide = vi.fn<DecisionHandlers["decide"]>(async () => ({
+      ok: false,
+      code: "self_confirmation_not_permitted",
+      status: 403,
+      message: "refused",
+    }))
+    const { user } = setup(view([finding({ answer: "no" })], YES), { decide })
+    await user.click(screen.getByRole("button", { name: "Confirm" }))
+    const dialog = await screen.findByRole("dialog", {
+      name: "Replace the current answer?",
+    })
+    const note = within(dialog).getByRole("textbox", { name: /Note/ })
+    await user.type(note, "Checked the sign")
+    await user.click(
+      within(dialog).getByRole("button", { name: "Confirm and replace" })
+    )
+    expect(screen.getByRole("dialog")).toBeTruthy()
+    expect((note as HTMLTextAreaElement).value).toBe("Checked the sign")
+    expect(within(dialog).getByRole("alert").textContent).toBe(
+      "You sent this, so another manager or an admin confirms it."
+    )
+  })
+
+  it("puts focus on the To confirm heading after a decision (MG-11)", async () => {
+    const { user } = setup(view([finding()]))
+    await user.click(screen.getByRole("button", { name: "Confirm" }))
+    await waitFor(() =>
+      expect(document.activeElement?.id).toBe("amenity-to-confirm-title")
+    )
+  })
+})
+
+describe("To confirm: the recorded time of an answer in use (X-07)", () => {
+  it("shows the answer's recorded time, and no line when it isn't known", () => {
+    const current = finding({
+      kind: "answer_unconfirmed",
+      findingRef: { type: "submission", id: "sub-x" },
+      answer: "yes",
+      recordedAt: "2026-11-03T14:05:00.000Z",
+    })
+    setup(view([current], YES))
+    expect(screen.getByText("Recorded 3 Nov 2026, 14:05")).toBeTruthy()
+    cleanup()
+    setup(view([{ ...current, recordedAt: null, sentAt: "" }], YES))
+    expect(screen.queryByText(/^Recorded/)).toBeNull()
+    expect(screen.queryByText(/an unknown time/)).toBeNull()
   })
 })

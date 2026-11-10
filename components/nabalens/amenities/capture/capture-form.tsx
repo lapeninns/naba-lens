@@ -21,7 +21,6 @@ import {
   evidenceSatisfies,
   type AmenityFailure,
   type AmenityResult,
-  type CheckSummary,
   type EvidenceKind,
   type SubmitInput,
   type SubmitResult,
@@ -29,6 +28,8 @@ import {
 } from "@/lib/amenities/contract"
 import {
   KNOWLEDGE_ANSWERS,
+  stateConflictKind,
+  type CaptureCheck,
   type FindingKind,
   type KnowledgeAnswer,
   type UnknownPreset,
@@ -123,7 +124,7 @@ export type KnowledgeCapture = {
         input: SaveDraftInput
       ) => Promise<KnowledgeResult<{ draftRevision: number; savedAt: string }>>)
     | null
-  discardDraft: (() => Promise<KnowledgeResult<Record<never, never>>>) | null
+  onDiscardDraft: (() => Promise<KnowledgeResult<Record<never, never>>>) | null
   serverDraft: ServerDraft | null
   /**
    * "Change my finding" (§4.6): start from my undecided finding's answer.
@@ -156,10 +157,18 @@ type Outcome =
   /** The server refused a manager's self-confirmation. */
   | { kind: "self_stale" }
   | { kind: "not_permitted" }
-  | { kind: "reused_key" }
+  /** Knowledge path: a state conflict, by kind (L4). */
+  | {
+      kind: "conflict"
+      reason: "reused_key" | "archived" | "other"
+      message: string
+    }
   | { kind: "saved"; offline: boolean }
   | { kind: "save_failed" }
-  | { kind: "draft_conflict" }
+  /** Saved elsewhere since (or sent or discarded there, when `gone`). */
+  | { kind: "draft_conflict"; gone: boolean }
+  | { kind: "discarded" }
+  | { kind: "discard_failed" }
   /** Uploads from this form aren't ready yet: nothing was sent. */
   | { kind: "uploads_pending"; canSendWithout: boolean }
   /** The question changed while the form waited for an upload. */
@@ -310,7 +319,7 @@ export function CaptureForm({
   knowledge = null,
   newKey = newIdempotencyKey,
 }: {
-  check: CheckSummary
+  check: CaptureCheck
   /** The signed-in person: drafts are kept per person on a shared device. */
   viewerId: string
   initialAssets: AssetsResult
@@ -395,15 +404,25 @@ export function CaptureForm({
   const serverDraftRevision = React.useRef<number | null>(
     knowledge?.serverDraft?.draftRevision ?? null
   )
+  // Which copy was restored: the account's (with its save time) or this
+  // phone's (no time: the account time wouldn't describe it, CA-06).
   const [restoredFrom, setRestoredFrom] = React.useState<{
-    savedAt: string
+    savedAt: string | null
     nearPurge: boolean
   } | null>(null)
   const pendingSync = React.useRef(false)
+  // A save to the account in flight: a send waits for it, so the send's
+  // draft removal comes after it on the server (CA-01).
+  const saving = React.useRef<Promise<void> | null>(null)
+  const [savingNow, setSavingNow] = React.useState(false)
+  // A send succeeded: no later save may recreate the draft it removed.
+  const sentOk = React.useRef(false)
   // Uploads picked here that aren't ready yet (knowledge evidence must be
   // ready to attach), and whether the person chose to wait for them.
   const [pendingUploads, setPendingUploads] = React.useState(0)
   const [waiting, setWaiting] = React.useState(false)
+  // Counts finished asset reads, so the wait re-checks after each (L3).
+  const [assetReads, setAssetReads] = React.useState(0)
   const addActive = useAddActive()
   const answerGroupRef = React.useRef<HTMLFieldSetElement>(null)
   const inFlight = React.useRef(false)
@@ -449,7 +468,9 @@ export function CaptureForm({
     setDraft((current) =>
       reconcileDraft(stored ?? fromServer ?? current, revision, newKey)
     )
-    if (serverDraft)
+    if (stored && isDirty(stored))
+      setRestoredFrom({ savedAt: null, nearPurge: false })
+    else if (serverDraft)
       setRestoredFrom({
         savedAt: serverDraft.savedAt,
         nearPurge:
@@ -459,6 +480,11 @@ export function CaptureForm({
     setRestored(true)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- newKey is a stable factory
   }, [owner, revision, serverDraft])
+
+  // A re-read brings the account draft's current revision (CA-02).
+  React.useEffect(() => {
+    serverDraftRevision.current = serverDraft?.draftRevision ?? null
+  }, [serverDraft])
 
   React.useEffect(() => {
     if (!restored) return
@@ -493,6 +519,8 @@ export function CaptureForm({
     change: (d: CaptureDraft) => CaptureDraft,
     { sameIntent = false } = {}
   ) {
+    // New input after a send is a new draft that may be saved again.
+    sentOk.current = false
     setOutcome((o) => (o?.kind === "sent" ? o : null))
     setDraft((current) => {
       let next = change(current)
@@ -607,6 +635,7 @@ export function CaptureForm({
         setUploadNote(arrivalNote(tally))
       } finally {
         loadingAssets.current = false
+        if (mounted.current) setAssetReads((n) => n + 1)
         const queued = queuedReload.current
         queuedReload.current = null
         if (queued !== null && mounted.current)
@@ -688,6 +717,9 @@ export function CaptureForm({
     fromWait = false,
   }: { ignorePending?: boolean; fromWait?: boolean } = {}) {
     if (inFlight.current) return
+    // A save still on its way finishes first, so this send's removal of the
+    // account draft comes after it (CA-01).
+    if (saving.current) await saving.current
     // Only evidence still listed is sent (a deleted upload drops out).
     const common = {
       draft: { ...draft, assetIds: selected, redactionConfirmed },
@@ -737,6 +769,8 @@ export function CaptureForm({
     setErrors({})
     inFlight.current = true
     unresolved.current = true
+    // The send supersedes a save still waiting for a connection.
+    pendingSync.current = false
     setSending(true)
     setOutcome(null)
     const sentDraft: CaptureDraft = {
@@ -773,15 +807,22 @@ export function CaptureForm({
       inFlight.current = false
       if (mounted.current) setSending(false)
     }
-    // A replay older than the revision on screen: the earlier send was
-    // recorded, but the check changed since (a manager reopened it). This
-    // answer still has to be sent, as a new intent with a new key.
+    // Legacy only: a replay older than the revision on screen means the
+    // earlier send was recorded but the check changed since (a manager
+    // reopened it), so this answer still has to be sent with a new key. A
+    // knowledge replay returns the original slot revision, which any later
+    // event outdates: it was sent, with its original outcome (M1).
     if (result.ok || !RETRYABLE.has(result.code as AmenityFailure["code"]))
       unresolved.current = false
-    const stale = result.ok && result.replayed && result.revision < revision
+    const stale =
+      !knowledge && result.ok && result.replayed && result.revision < revision
     // Recorded: drop the stored draft even when the form is gone, or a later
     // visit would replay this key after a reopen.
-    if (result.ok && !stale) clearDraft(sentFor)
+    if (result.ok && !stale) {
+      clearDraft(sentFor)
+      // The server removed the account draft with the send (CA-01).
+      sentOk.current = true
+    }
     if (!mounted.current) return
 
     if (stale) {
@@ -911,7 +952,11 @@ export function CaptureForm({
         break
       case "state_conflict":
         if (knowledge) {
-          setOutcome({ kind: "reused_key" })
+          setOutcome({
+            kind: "conflict",
+            reason: stateConflictKind(result) ?? "other",
+            message: result.message,
+          })
           return
         }
         break
@@ -981,13 +1026,32 @@ export function CaptureForm({
    * saved to the account once the browser is back online.
    */
   async function saveForLater(fromSync = false) {
-    if (!knowledge?.saveDraft || inFlight.current) return
+    if (
+      !knowledge?.saveDraft ||
+      inFlight.current ||
+      saving.current ||
+      sentOk.current
+    )
+      return
     if (!navigator.onLine) {
       pendingSync.current = true
       setOutcome({ kind: "saved", offline: true })
       return
     }
     pendingSync.current = false
+    const run = saveToAccount(fromSync)
+    saving.current = run
+    setSavingNow(true)
+    try {
+      await run
+    } finally {
+      saving.current = null
+      if (mounted.current) setSavingNow(false)
+    }
+  }
+
+  async function saveToAccount(fromSync: boolean) {
+    if (!knowledge?.saveDraft) return
     let result: KnowledgeResult<{ draftRevision: number; savedAt: string }>
     try {
       result = await knowledge.saveDraft({
@@ -1016,15 +1080,24 @@ export function CaptureForm({
       if (mounted.current) setOutcome({ kind: "save_failed" })
       return
     }
-    if (!mounted.current) return
+    // A send that succeeded meanwhile removed the draft: ignore this answer.
+    if (!mounted.current || sentOk.current) return
     if (result.ok) {
       serverDraftRevision.current = result.draftRevision
-      if (!fromSync) setOutcome({ kind: "saved", offline: false })
+      // After an offline save, say it reached the account (X-04).
+      setOutcome((current) =>
+        !fromSync || current?.kind === "saved"
+          ? { kind: "saved", offline: false }
+          : current
+      )
       return
     }
     if (result.code === "draft_conflict") {
-      setOutcome({ kind: "draft_conflict" })
-      onReload()
+      // Take the revision now stored, so the next save goes through rather
+      // than conflicting until a reload (CA-02).
+      const stored = result.draftRevision ?? null
+      serverDraftRevision.current = stored
+      setOutcome({ kind: "draft_conflict", gone: stored === null })
       return
     }
     if (result.code === "knowledge_slot_out_of_scope") {
@@ -1035,17 +1108,33 @@ export function CaptureForm({
   }
 
   async function discardServerDraft() {
+    // The account copy first: if it can't be discarded, nothing is cleared
+    // and the person is told, rather than it coming back later (CA-07).
+    if (knowledge?.onDiscardDraft) {
+      let ok = false
+      try {
+        ok = (await knowledge.onDiscardDraft()).ok
+      } catch (cause) {
+        if (sessionEnded(cause)) {
+          if (mounted.current) setOutcome({ kind: "sign_in" })
+          return
+        }
+      }
+      if (!mounted.current) return
+      if (!ok) {
+        setOutcome({ kind: "discard_failed" })
+        return
+      }
+    }
     clearDraft(owner)
     setDraft(emptyDraft(newKey, revision))
     setRestoredFrom(null)
     serverDraftRevision.current = null
-    if (knowledge?.discardDraft) {
-      try {
-        await knowledge.discardDraft()
-      } catch (cause) {
-        sessionEnded(cause)
-      }
-    }
+    setOutcome({ kind: "discarded" })
+    // The notice that held the button is gone: start at the answers (CA-16).
+    requestAnimationFrame(() =>
+      answerGroupRef.current?.querySelector<HTMLInputElement>("input")?.focus()
+    )
   }
 
   // Offline, Try again would only fail again. The unresolved send waits and
@@ -1064,18 +1153,33 @@ export function CaptureForm({
   React.useEffect(() => {
     const back = online && !wasOnline.current
     wasOnline.current = online
-    if (back && outcome?.kind === "retry" && !inFlight.current)
+    if (back && outcome?.kind === "retry" && !inFlight.current) {
+      // The send goes; a save waiting too would only recreate the draft the
+      // send removes (CA-01).
+      pendingSync.current = false
       void sendRef.current()
+      return
+    }
     if (back && pendingSync.current) void saveRef.current(true)
   }, [online, outcome])
 
   // Waiting: once every upload from here is ready (and listed), send by
   // itself, with the same key (nothing was attempted while waiting).
+  // A failed read ends the wait with its error: the uploads can't be listed,
+  // so nothing is sent without them.
   React.useEffect(() => {
     if (!waiting || pendingUploads > 0 || loadingAssets.current) return
     setWaiting(false)
+    if (listError) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- the wait ends on an asset read finishing
+      setOutcome({
+        kind: "failed",
+        message: `${listError} Nothing was sent. Try again when your photos and videos load.`,
+      })
+      return
+    }
     void sendRef.current({ fromWait: true })
-  }, [waiting, pendingUploads, draft.assetIds])
+  }, [waiting, pendingUploads, draft.assetIds, assetReads, listError])
 
   // The Add queue has nothing in progress, yet uploads from here never became
   // ready: they failed or stopped. Give the last ready answer a moment first.
@@ -1520,16 +1624,17 @@ export function CaptureForm({
               type="button"
               variant="secondary"
               size="touch"
-              disabled={locked}
+              disabled={locked || savingNow}
+              aria-busy={savingNow || undefined}
               onClick={() => void saveForLater()}
             >
-              Save for later
+              {savingNow ? "Saving…" : "Save for later"}
             </Button>
           ) : null}
           <Button
             type="submit"
             size="touch"
-            disabled={locked}
+            disabled={locked || savingNow}
             aria-busy={sending || waiting || undefined}
             className="sm:self-start"
           >
@@ -1796,17 +1901,21 @@ function OutcomeMessage({
           {KNOWLEDGE_FAILURE_COPY.notPermitted}
         </Notice>
       )
-    case "reused_key":
+    case "conflict":
       return (
         <Notice tone="negative" role="alert" action={reload()}>
-          {KNOWLEDGE_FAILURE_COPY.reusedKey}
+          {outcome.reason === "reused_key"
+            ? KNOWLEDGE_FAILURE_COPY.reusedKey
+            : outcome.reason === "archived"
+              ? KNOWLEDGE_FAILURE_COPY.archived
+              : outcome.message || KNOWLEDGE_FAILURE_COPY.conflict}
         </Notice>
       )
     case "saved":
       return (
         <Notice tone="plain" role="status">
           {outcome.offline
-            ? "Saved on this phone. It's saved to your account when you're back online."
+            ? "Saved on this phone. It's saved to your account when you're back online with this page open."
             : DRAFT_SAVED.status}
         </Notice>
       )
@@ -1833,7 +1942,21 @@ function OutcomeMessage({
     case "draft_conflict":
       return (
         <Notice tone="attention" role="status">
-          This draft was updated on another device. The newer version is shown.
+          {outcome.gone
+            ? "This draft was sent or discarded on another device. Save for later again to keep this version."
+            : "This draft was also saved on another device. Save for later again to replace that copy with this one."}
+        </Notice>
+      )
+    case "discarded":
+      return (
+        <Notice tone="plain" role="status">
+          Draft discarded.
+        </Notice>
+      )
+    case "discard_failed":
+      return (
+        <Notice tone="negative" role="alert">
+          We couldn&apos;t discard your draft. It&apos;s still saved; try again.
         </Notice>
       )
     case "stale":
