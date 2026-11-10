@@ -29,7 +29,10 @@ vi.mock("next/navigation", () => ({
 }))
 
 afterEach(cleanup)
-beforeEach(() => refresh.mockReset())
+beforeEach(() => {
+  refresh.mockReset()
+  sessionStorage.clear()
+})
 
 function handlers(
   overrides: Partial<AmenitiesOverviewHandlers> = {}
@@ -181,6 +184,7 @@ describe("AmenitiesOverview: lists", () => {
       within(archived).getByRole("button", { name: UI_TEXT.restore })
     )
     expect(h.restore).toHaveBeenCalledWith({
+      idempotencyKey: expect.any(String),
       checkId: ARCHIVED.id,
       revision: ARCHIVED.revision,
     })
@@ -277,7 +281,10 @@ describe("Catalogue picker", () => {
     await user.click(
       within(dialog).getByRole("button", { name: UI_TEXT.addSelected })
     )
-    expect(h.addChecks).toHaveBeenCalledWith(["high_chairs", "baby_changing"])
+    expect(h.addChecks).toHaveBeenCalledWith(
+      ["high_chairs", "baby_changing"],
+      expect.any(String)
+    )
     expect(await screen.findByText("2 checks added.")).toBeTruthy()
     expect(screen.queryByRole("dialog")).toBeNull()
   })
@@ -311,7 +318,7 @@ describe("Catalogue picker", () => {
     await user.click(
       within(dialog).getByRole("button", { name: UI_TEXT.addSelected })
     )
-    expect(h.addChecks).toHaveBeenCalledWith(["pool_table"])
+    expect(h.addChecks).toHaveBeenCalledWith(["pool_table"], expect.any(String))
     expect((await within(dialog).findByRole("alert")).textContent).toBe(
       "Unknown catalogue key."
     )

@@ -115,7 +115,9 @@ export function ReopenDialog({
         return
       }
       setPending(false)
-      reset()
+      // A conflict closes the dialog to show the page's latest; the preset
+      // and details stay for the next try (MG-08).
+      if (outcome.ok) reset()
       onOpenChange(false)
     } finally {
       setPending(false)

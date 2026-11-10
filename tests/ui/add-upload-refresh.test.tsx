@@ -37,6 +37,7 @@ vi.mock("@/app/_media/use-media-uploader", () => ({
 }))
 vi.mock("@/app/_media/actions", () => ({
   deleteMedia: vi.fn(),
+  readDeleteEvidence: vi.fn(async () => ({ status: "missing" })),
 }))
 vi.mock("@/app/_labels/actions", () => ({
   loadLabelEditorContext: vi.fn(),

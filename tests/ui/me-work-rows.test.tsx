@@ -20,24 +20,29 @@ vi.mock("next/navigation", () => ({
 }))
 vi.mock("@/app/_media/actions", () => ({
   deleteMedia: vi.fn(),
+  readDeleteEvidence: vi.fn(async () => ({ status: "missing" })),
 }))
 vi.mock("@/app/staff/actions", () => ({ loadMyMedia: vi.fn() }))
 const gallery = vi.hoisted(() => ({
   signals: [] as number[],
   impact: undefined as ((item: MediaItem) => unknown) | undefined,
+  readEvidence: undefined as unknown,
 }))
 vi.mock("@/app/_media/media-gallery", () => ({
   MediaGallery: ({
     label,
     refreshSignal,
     getDeleteImpact,
+    readDeleteEvidence,
   }: {
     label: string
     refreshSignal?: number
     getDeleteImpact?: (item: MediaItem) => unknown
+    readDeleteEvidence?: unknown
   }) => {
     gallery.signals.push(refreshSignal ?? 0)
     gallery.impact = getDeleteImpact
+    gallery.readEvidence = readDeleteEvidence
     return <section aria-label={label} />
   },
 }))
@@ -356,6 +361,8 @@ describe("Me: Needs labels and milestones", () => {
       dishes: ["Lamb rogan josh"],
     })
     expect(gallery.impact?.(item("a2"))).toBeUndefined()
+    // It also reads what deleting does to venue answers (HM-04).
+    expect(gallery.readEvidence).toBeTypeOf("function")
   })
 
   it("shows a better photo request with the reviewer's reason", async () => {

@@ -20,6 +20,7 @@ vi.mock("next/navigation", () => ({
 }))
 vi.mock("@/app/_media/actions", () => ({
   deleteMedia: vi.fn(),
+  readDeleteEvidence: vi.fn(async () => ({ status: "missing" })),
 }))
 vi.mock("@/app/staff/actions", () => ({ loadMyMedia: vi.fn() }))
 vi.mock("@/app/_media/media-gallery", () => ({ MediaGallery: () => null }))

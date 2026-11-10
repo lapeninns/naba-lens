@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 
+import type { DeleteWarning } from "./delete-impact/copy"
 import type { ActionResult, MediaType } from "./types"
 
 /** Owner-approved disclosure: shown in every variant, before the recall line. */
@@ -100,6 +101,12 @@ type ConfirmDeleteDialogProps = {
    */
   ownerName?: string
   impact?: DeleteImpact
+  /**
+   * What deleting does to venue answers (HM-04), for the owner's own photo:
+   * "checking" while it is read, which holds Delete until the warning and
+   * its button label are known. Omitted: today's dialog.
+   */
+  evidence?: "checking" | DeleteWarning
   onConfirm: () => Promise<ActionResult | void> | ActionResult | void
 }
 
@@ -109,15 +116,19 @@ export function ConfirmDeleteDialog({
   mediaType = "image",
   ownerName,
   impact,
+  evidence,
   onConfirm,
 }: ConfirmDeleteDialogProps) {
   const [pending, setPending] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const sessionEnded = useSessionEndedCatch()
   const noun = mediaType === "video" ? "video" : "photo"
+  const checking = evidence === "checking"
+  const warning = evidence === "checking" ? undefined : evidence
+  const busy = pending || checking
 
   async function confirm() {
-    if (pending) return
+    if (busy) return
     setPending(true)
     setError(null)
     try {
@@ -154,6 +165,16 @@ export function ConfirmDeleteDialog({
               : adminBody(ownerName, impact)}
           </AlertDialogDescription>
         </AlertDialogHeader>
+        {evidence !== undefined ? (
+          // Mounted while checking, so lines that arrive are announced.
+          <div aria-live="polite" className="grid gap-2">
+            {warning?.lines.map((line) => (
+              <p key={line} className="text-body text-ink">
+                {line}
+              </p>
+            ))}
+          </div>
+        ) : null}
         {error ? (
           <p
             role="alert"
@@ -175,10 +196,10 @@ export function ConfirmDeleteDialog({
             variant="danger"
             size="touch"
             onClick={confirm}
-            aria-disabled={pending || undefined}
-            aria-busy={pending || undefined}
+            aria-disabled={busy || undefined}
+            aria-busy={busy || undefined}
           >
-            {pending ? (
+            {busy ? (
               <SpinnerGapIcon
                 data-icon="inline-start"
                 aria-hidden
@@ -187,7 +208,11 @@ export function ConfirmDeleteDialog({
             ) : (
               <TrashIcon data-icon="inline-start" aria-hidden />
             )}
-            {pending ? "Deleting…" : "Delete"}
+            {pending
+              ? "Deleting…"
+              : checking
+                ? "Checking…"
+                : (warning?.confirmLabel ?? "Delete")}
           </Button>
         </AlertDialogFooter>
       </AlertDialogContent>

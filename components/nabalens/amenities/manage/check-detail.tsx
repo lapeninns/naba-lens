@@ -46,36 +46,72 @@ import { useAmenityAction } from "./use-amenity-action"
 
 type RevisionResult = AmenityResult<{ revision: number }>
 
+/** Every check write carries a request key (MG-01). */
+type Keyed<T> = T & { idempotencyKey: string }
+
 type Write = "assign" | "unassign" | "notes" | "archive" | "restore" | "reopen"
 
 export const SAVING = "Saving…"
 export const STILL_SAVING = "Still saving; keep this page open."
 
 export type CheckDetailHandlers = {
-  assign: (input: {
-    checkId: string
-    assigneeId: string | null
-    revision: number
-  }) => Promise<RevisionResult>
-  setNotes: (input: {
-    checkId: string
-    notes: string
-    revision: number
-  }) => Promise<RevisionResult>
-  archive: (input: {
-    checkId: string
-    revision: number
-  }) => Promise<RevisionResult>
-  restore: (input: {
-    checkId: string
-    revision: number
-  }) => Promise<RevisionResult>
-  reopen: (input: {
-    checkId: string
-    revision: number
-    preset: ReopenPreset
-    reason?: string
-  }) => Promise<RevisionResult>
+  assign: (
+    input: Keyed<{
+      checkId: string
+      assigneeId: string | null
+      revision: number
+    }>
+  ) => Promise<RevisionResult>
+  setNotes: (
+    input: Keyed<{
+      checkId: string
+      notes: string
+      revision: number
+    }>
+  ) => Promise<RevisionResult>
+  archive: (
+    input: Keyed<{
+      checkId: string
+      revision: number
+    }>
+  ) => Promise<RevisionResult>
+  restore: (
+    input: Keyed<{
+      checkId: string
+      revision: number
+    }>
+  ) => Promise<RevisionResult>
+  reopen: (
+    input: Keyed<{
+      checkId: string
+      revision: number
+      preset: ReopenPreset
+      reason?: string
+    }>
+  ) => Promise<RevisionResult>
+}
+
+const NOTES_DRAFT_PREFIX = "nabalens.amenity-notes."
+
+function readNotesDraft(checkId: string): string | null {
+  try {
+    return window.sessionStorage.getItem(NOTES_DRAFT_PREFIX + checkId)
+  } catch {
+    return null
+  }
+}
+
+const noSubscription = () => () => {}
+
+/** Null clears the draft. */
+function writeNotesDraft(checkId: string, notes: string | null) {
+  try {
+    if (notes === null)
+      window.sessionStorage.removeItem(NOTES_DRAFT_PREFIX + checkId)
+    else window.sessionStorage.setItem(NOTES_DRAFT_PREFIX + checkId, notes)
+  } catch {
+    // Storage unavailable (private mode, quota): the draft lives on screen only.
+  }
 }
 
 /**
@@ -84,7 +120,9 @@ export type CheckDetailHandlers = {
  * change. Each write sends the revision the page was read at. A re-read
  * (after any write) keeps the notice; the assignee and notes drafts follow
  * what is saved unless the manager has unsaved changes in them, so typed
- * notes survive a revision conflict.
+ * notes survive a revision conflict. Unsaved notes are also kept in this
+ * tab's sessionStorage per check until saved, so a reload or a session-ended
+ * sign-in brings them back (MG-09).
  *
  * `canUpload` is false for viewers who can only attach media already on
  * Naba-Lens (manager accounts, admins): Capture myself is then a secondary
@@ -117,6 +155,22 @@ export function AmenityCheckDetail({
     savedAssigneeId
   )
   const [notes, setNotes] = React.useState(savedNotes)
+  // The server renders no draft (sessionStorage is the browser's); the
+  // stored one is restored once, after hydration.
+  const storedNotes = React.useSyncExternalStore(
+    noSubscription,
+    () => readNotesDraft(check.id),
+    () => null
+  )
+  const [restored, setRestored] = React.useState(false)
+  if (!restored && storedNotes !== null) {
+    setRestored(true)
+    if (storedNotes.trim() !== savedNotes) setNotes(storedNotes)
+  }
+  function editNotes(value: string) {
+    setNotes(value)
+    writeNotesDraft(check.id, value.trim() === savedNotes ? null : value)
+  }
   // What the drafts were last reset to, to tell an unsaved edit from a
   // value that is simply behind the page after a re-read.
   const [base, setBase] = React.useState({
@@ -156,16 +210,26 @@ export function AmenityCheckDetail({
     ...detail.events.map((e) => e.actor),
   ])
 
-  async function write<T extends object>(
+  /**
+   * One check write, keyed per intent: the same write with the same input
+   * (a retry or a second tap) reuses its key until a reply settles it.
+   */
+  async function write<I extends { checkId: string }, T extends object>(
     key: Write,
-    call: () => Promise<AmenityResult<T>>,
+    input: I,
+    call: (input: Keyed<I>) => Promise<AmenityResult<T>>,
     success: string
   ) {
     setBusy(key)
     // Reopen's dialog hands focus to the notice as it closes instead.
     focusOutcome.current = key !== "reopen"
     try {
-      return await action.run(call, success)
+      return await action.runKeyed(
+        `amenity-check:${input.checkId}:${key}`,
+        input,
+        (idempotencyKey) => call({ ...input, idempotencyKey }),
+        success
+      )
     } finally {
       setBusy(null)
     }
@@ -175,8 +239,8 @@ export function AmenityCheckDetail({
     if (next == null) {
       await write(
         "unassign",
-        () =>
-          handlers.assign({ checkId: check.id, assigneeId: null, revision }),
+        { checkId: check.id, assigneeId: null, revision },
+        handlers.assign,
         "Unassigned."
       )
       return
@@ -185,7 +249,8 @@ export function AmenityCheckDetail({
     const name = people.get(next) ?? "them"
     await write(
       "assign",
-      () => handlers.assign({ checkId: check.id, assigneeId: next, revision }),
+      { checkId: check.id, assigneeId: next, revision },
+      handlers.assign,
       `Assigned to ${name}.`
     )
   }
@@ -196,12 +261,13 @@ export function AmenityCheckDetail({
       action.setFieldErrors({ notes: `Use up to ${LIMITS.notes} characters.` })
       return
     }
-    await write(
+    const result = await write(
       "notes",
-      () =>
-        handlers.setNotes({ checkId: check.id, notes: notes.trim(), revision }),
+      { checkId: check.id, notes: notes.trim(), revision },
+      handlers.setNotes,
       "Notes saved."
     )
+    if (result.ok) writeNotesDraft(check.id, null)
   }
 
   async function reopen(input: {
@@ -210,7 +276,8 @@ export function AmenityCheckDetail({
   }): Promise<ReopenOutcome> {
     const result = await write(
       "reopen",
-      () => handlers.reopen({ checkId: check.id, revision, ...input }),
+      { checkId: check.id, revision, ...input },
+      handlers.reopen,
       knowledge
         ? "Reopened. The answer is no longer in use; staff see it as Needs recheck."
         : "Reopened: staff will see it as Needs recheck."
@@ -360,7 +427,8 @@ export function AmenityCheckDetail({
               onClick={() =>
                 write(
                   "archive",
-                  () => handlers.archive({ checkId: check.id, revision }),
+                  { checkId: check.id, revision },
+                  handlers.archive,
                   "Archived. Restore it from the Archived list at any time."
                 )
               }
@@ -377,7 +445,8 @@ export function AmenityCheckDetail({
               onClick={() =>
                 write(
                   "restore",
-                  () => handlers.restore({ checkId: check.id, revision }),
+                  { checkId: check.id, revision },
+                  handlers.restore,
                   "Restored."
                 )
               }
@@ -505,7 +574,7 @@ export function AmenityCheckDetail({
               label="Notes for this venue"
               help="Kept with this check, for whoever manages the venue."
               value={notes}
-              onChange={setNotes}
+              onChange={editNotes}
               error={action.fieldErrors.notes}
               required={false}
               maxLength={LIMITS.notes}

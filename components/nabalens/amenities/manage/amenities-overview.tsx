@@ -49,10 +49,15 @@ import { useAmenityAction } from "./use-amenity-action"
 
 export type AmenitiesOverviewHandlers = {
   enable: () => Promise<AmenityResult<{ created: number }>>
-  addChecks: (keys: string[]) => Promise<AmenityResult<{ checkIds: string[] }>>
+  /** `idempotencyKey`: one per intent, reused on a retry (MG-10). */
+  addChecks: (
+    keys: string[],
+    idempotencyKey: string
+  ) => Promise<AmenityResult<{ checkIds: string[] }>>
   restore: (input: {
     checkId: string
     revision: number
+    idempotencyKey: string
   }) => Promise<AmenityResult<{ revision: number }>>
 }
 
@@ -147,8 +152,10 @@ export function AmenitiesOverview({
   }
 
   async function add(keys: string[]): Promise<AddOutcome> {
-    const result = await action.run(
-      () => handlers.addChecks(keys),
+    const result = await action.runKeyed(
+      `amenity-venue:${view.venue.id}:add`,
+      { keys },
+      (idempotencyKey) => handlers.addChecks(keys, idempotencyKey),
       (r) => `${plural(r.checkIds.length, "check")} added.`
     )
     if (result.ok) return { ok: true }
@@ -169,8 +176,11 @@ export function AmenitiesOverview({
   async function restore(check: CheckSummary) {
     focusNotice.current = true
     restoring.current = true
-    const result = await action.run(
-      () => handlers.restore({ checkId: check.id, revision: check.revision }),
+    const input = { checkId: check.id, revision: check.revision }
+    const result = await action.runKeyed(
+      `amenity-check:${check.id}:restore`,
+      input,
+      (idempotencyKey) => handlers.restore({ ...input, idempotencyKey }),
       `Restored “${check.entry.question}”.`
     )
     if (result.ok) setRestored(check.id)

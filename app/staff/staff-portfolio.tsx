@@ -22,6 +22,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 
 import { LabelEditorHost } from "@/app/_labels/label-editor-host"
+import { readDeleteEvidence } from "@/app/_media/actions"
 import { fetchMediaPage } from "@/app/_media/fetch-page"
 import { MediaGallery } from "@/app/_media/media-gallery"
 import {
@@ -820,6 +821,7 @@ export function StaffPortfolio({
           const dishes = accepted.get(item.id)
           return dishes ? { kind: "menu", dishes } : undefined
         }}
+        readDeleteEvidence={readDeleteEvidence}
         refreshSignal={addRefreshSignal + labelSaves}
         canLabel
         showLabelBadge
