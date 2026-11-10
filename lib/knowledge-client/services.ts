@@ -39,6 +39,7 @@ import type {
   RecheckTask,
   Place,
   QuestionView,
+  RegistryItem,
   RegistryQuestion,
   ResolveConflictInput,
   SaveDraftInput,
@@ -263,11 +264,14 @@ export type KnowledgeServices = {
       items: QuestionLegacyNarrativeItem[]
     }>
   >
-  /** Admins: every question with its latest version (B03-a). */
+  /**
+   * Admins: every question with its latest version (B03-a) and the
+   * check-date rules in force now (absent on an older database).
+   */
   listQuestionRegistry(
     actor: MediaActor,
     input: unknown
-  ): Promise<KnowledgeResult<{ questions: RegistryQuestion[] }>>
+  ): Promise<KnowledgeResult<{ questions: RegistryItem[] }>>
   /** B03-e (§7.3): admin, no write: what naming check-date rules would do. */
   previewFreshness(
     actor: MediaActor,

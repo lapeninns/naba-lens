@@ -13,7 +13,7 @@ import { Notice } from "@/components/nabalens/notice"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { requireActiveAdmin } from "@/lib/auth"
-import type { RegistryQuestion } from "@/lib/knowledge-client/contract"
+import type { RegistryItem } from "@/lib/knowledge-client/contract"
 import { knowledgeServices } from "@/lib/knowledge-client/services"
 import { getCoverageActor } from "@/lib/server/coverage"
 import type { MediaActor } from "@/lib/server/media/types"
@@ -52,35 +52,27 @@ async function venueNames(actor: MediaActor, ids: string[]) {
   }
 }
 
-type Rules = RegistryQuestion["freshness"]
+type Rules = RegistryItem["freshness"]
 const NO_RULES: Rules = { internal: null, public: null }
 
 /**
  * The question's check-date rules in force now. The registry lists each
- * question's latest version, which may only take effect later; earlier
- * versions are read until one is in force (a version is never backdated, so
- * one with no or a past effective date is). Version numbers may be skipped,
- * so a version the registry says doesn't exist is passed over. Null when a
- * read fails.
+ * question's latest version, which may only take effect later, with the rules
+ * of the version in force (null when none is yet). An older database doesn't
+ * send those: then the latest version's rules are used only when it is in
+ * force (no or a past effective date; a version is never backdated). Null
+ * when they can't be worked out here.
  */
-async function rulesInForce(
-  actor: MediaActor,
-  latest: RegistryQuestion | undefined
-): Promise<Rules | null> {
+function rulesInForce(latest: RegistryItem | undefined): Rules | null {
   if (!latest) return NO_RULES
-  const now = Date.now()
-  const inForce = (q: Pick<RegistryQuestion, "effectiveFrom">) =>
-    !q.effectiveFrom || Date.parse(q.effectiveFrom) <= now
-  if (inForce(latest)) return latest.freshness
-  for (let version = latest.version - 1; version >= 1; version--) {
-    const read = await knowledgeServices
-      .getQuestion(actor, { key: latest.key, version })
-      .catch(() => null)
-    if (read && !read.ok && read.code === "not_found") continue
-    if (!read?.ok || !read.question) return null
-    if (inForce(read.question)) return read.question.freshness
+  if ("effectiveFreshness" in latest) {
+    const rules = latest.effectiveFreshness
+    if (rules === null) return NO_RULES
+    return typeof rules === "object" ? rules : null
   }
-  return NO_RULES
+  if (!latest.effectiveFrom) return latest.freshness
+  const from = Date.parse(latest.effectiveFrom)
+  return Number.isFinite(from) && from <= Date.now() ? latest.freshness : null
 }
 
 /**
@@ -116,10 +108,7 @@ export default async function CheckDatesPreviewPage({
   const current =
     named || !KEY.test(key)
       ? NO_RULES
-      : await rulesInForce(
-          actor,
-          questions.find((q) => q.key === key)
-        )
+      : rulesInForce(questions.find((q) => q.key === key))
   const internal = named ? one(search.internal) : (current?.internal ?? "")
   const publicRule = named ? one(search.public) : (current?.public ?? "")
   const asked =
