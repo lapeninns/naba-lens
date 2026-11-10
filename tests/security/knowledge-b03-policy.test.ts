@@ -124,7 +124,8 @@ describe("qualified answers (§3.8)", () => {
     })
     expect(await legacy(w, "guest_toilets")).toMatchObject({
       progress: "needs_recheck",
-      recheck_reason: "Temporarily unavailable. Check whether it is back.",
+      recheck_reason:
+        "The answer in use is temporarily unavailable. Open the check to see until when.",
       qualification: "temporarily_unavailable",
     })
     const [one] = await json<LegacyRow[]>(w.manager, "amenity_check", {
@@ -203,7 +204,7 @@ describe("policy answers (§5.2, A5)", () => {
     expect(await legacy(v, "onsite_parking")).toMatchObject({
       progress: "needs_recheck",
       recheck_reason:
-        "This answer has conditions. Check them before relying on it.",
+        "The answer in use has conditions. Open the check to see them.",
       qualification: "conditional",
     })
   })

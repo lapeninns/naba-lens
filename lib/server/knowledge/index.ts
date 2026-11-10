@@ -48,5 +48,31 @@ export {
   listQuestionRegistry,
 } from "./registry"
 export { addPlace, listPlaces, retirePlace } from "./places"
+export {
+  addScheduleException,
+  getOccurrences,
+  previewSchedule,
+} from "./schedule-services"
+export { expandScheduleOccurrences } from "./schedules"
+export { getCheckRechecks, listMyRechecks, previewFreshness } from "./rechecks"
+export {
+  correctAnswer,
+  getSlotHistory,
+  listSlotEvents,
+  runSchemaUpgrade,
+  withdrawAnswer,
+} from "./corrections"
+export {
+  declareSource,
+  getLegacyNarrative,
+  getReconciliationRun,
+  importSourceAssertions,
+  listLegacyMappings,
+  listReconciliationRuns,
+  listSources,
+  reconcile,
+  retireSource,
+  reviewMapping,
+} from "./reconciliation"
 export { readKnowledgeAnswers, type KnowledgeReaderResult } from "./reader"
 export { knowledgeRpcFailure } from "./errors"
