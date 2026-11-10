@@ -14,7 +14,8 @@ const flat = (d: MenuDocument | null) =>
       kind: s.kind,
     }))
   ) ?? []
-const nameKey = (s: string) =>
+/** Also the crosswalk name key (lib/menus/trading/crosswalk.ts). */
+export const nameKey = (s: string) =>
   s
     .normalize("NFC")
     .toLowerCase()
