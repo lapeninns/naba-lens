@@ -211,6 +211,10 @@ export type KnowledgeSlotView = {
   progress: CheckProgress
   checkStatus: CheckStatus
   answerInUse: {
+    /**
+     * The value as read: A40 reads a service's stored Yes as No once its end
+     * (`stop`) is in effect. The stored headline is not returned separately.
+     */
     value: SubmitAnswer
     available: boolean
     reason: SlotReason | null
@@ -252,6 +256,12 @@ export type KnowledgeSlotView = {
      * why.
      */
     withdrawal?: AnswerWithdrawal | null
+    /**
+     * A40: how a service in use ends (a stop date, or a schedule's last day),
+     * whether or not that has happened yet; null otherwise. Display it from
+     * here, never by reading the detail.
+     */
+    stop?: ServiceEnd | null
   } | null
   previousAnswer: SubmitAnswer | null
   requiresConfirmation: boolean
@@ -757,6 +767,27 @@ export type KnowledgeDetail = Record<string, unknown>
 export const OBSERVED_ON_SOURCES = ["form_default", "chosen"] as const
 export type ObservedOnSource = (typeof OBSERVED_ON_SOURCES)[number]
 
+/**
+ * A40: a service.v1 Yes may carry `detail.lastDayOffered` (YYYY-MM-DD,
+ * venue-local, inclusive): the service is Not offered from the next day. Only
+ * on a Yes; with a schedule it equals `schedule.effectiveTo`. A stop from
+ * today is a No instead. Sends and corrections refuse a date before the
+ * venue's today (`out_of_range`); imports refuse the field.
+ *
+ * The end of a service in use, derived when read and never stored.
+ * `stopped`: the deliberate stop (`detail.lastDayOffered`), which opens no
+ * recheck. `schedule_ended`: no stop date, but the schedule has a last day;
+ * a `schedule_ended` recheck opens once it is in effect. `notOfferedFromAt`
+ * is local midnight of `notOfferedFrom`; `inEffect` once that has passed.
+ */
+export type ServiceEnd = {
+  kind: "stopped" | "schedule_ended"
+  lastDayOffered: string
+  notOfferedFrom: string
+  notOfferedFromAt: string
+  inEffect: boolean
+}
+
 /** B03-c (§3.8): a Yes narrowed by its detail. */
 export type QualifiedAnswer = {
   qualifier: "conditional" | "temporarily_unavailable"
@@ -932,7 +963,12 @@ export type SlotHistoryView = {
   at: string
   answerInUse: {
     submissionId: string
+    /** The stored headline. */
     answer: SubmitAnswer
+    /** A40: the value as it read at `at` (No once a service's end was in effect). */
+    value?: SubmitAnswer
+    /** A40: the service's end as it stood at `at`, or null. */
+    stop?: ServiceEnd | null
     sentAt: string
     confirmationState: ConfirmationState
     withdrawn: boolean

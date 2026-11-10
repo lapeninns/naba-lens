@@ -1555,3 +1555,60 @@ items }`, managers and admins as the venue-wide narrative. An item is the
   eligibility everywhere a venue's open rechecks are counted or listed; A44
   counts reviews of the current fact revision only, and an unreviewed fact
   is never attributed to a question.
+
+**UI ask A40: a service stopped from a later date (10 Nov 2026):** owner
+approval "Support future stop dates"; migration
+`20261110160000_knowledge_b03_a40_service_stop` (after R-L1/R-L2 and A41 to
+A44). The pool design `evidence/b03-a40-pool-design.md` with its four review
+corrections.
+
+- **Encoding:** a `service.v1` Yes may carry `detail.lastDayOffered`
+  (YYYY-MM-DD, venue-local, inclusive). The service reads Not offered from
+  local midnight of the next day; nothing is written on that day. A stop
+  from today stays a No. Validator (shared fixtures): `lastDayOffered` and
+  `schedule` are `not_allowed` unless the headline is `yes`; `lastDayOffered`
+  must be a date (`invalid`); with a schedule, `schedule.effectiveTo` is
+  `required` and must equal it (`out_of_range`). Sends and corrections refuse
+  a `lastDayOffered` before the venue's today (`out_of_range`, the venue
+  check, not the validator); imports refuse the field (`not_allowed`). For a
+  service, a change to `schedule` or `lastDayOffered` is a material
+  correction.
+- **End of a service:** `private.knowledge_service_end` gives `{ kind,
+lastDayOffered, notOfferedFrom, notOfferedFromAt, inEffect }` or null:
+  `stopped` from `lastDayOffered` (venue timezone), else `schedule_ended`
+  from the submission's latest schedule row created at or before the read
+  time (its timezone). Never the current schedule-in-use helper.
+- **Reads:** the resolver (same columns) reads `value` `no` and no qualifier
+  once an end is in effect; withdrawal, scope, schema and freshness keep
+  their order. `answerInUse.value` is the value as read and
+  `answerInUse.stop` the end; the old amenity rows read `no`. The v1 reader
+  reads `no` with no finding or limitations while stopped; its ETag now
+  carries each answer's value, so the change at the same revision is never a
+  `304`. No reader column was added.
+- **History:** `knowledge_answer_at` / `knowledge_slot_history` add `value`
+  (as read at `at`) and `stop`, from the latest correction at or before `at`
+  (`created_at`, `id`) and that submission's schedule as it stood then.
+  `answer` stays the stored headline; B08 scoring is unchanged (B08 §6.2a).
+- **Rechecks:** a deliberate stop opens no `schedule_ended` task and, with
+  its qualifier cleared, no `temporary_until_passed` task; freshness and
+  `schema_changed` tasks still apply (R-L1 due time kept). A schedule that
+  ends without a stop date reads Not offered and opens one `schedule_ended`
+  task due at local midnight; a new Offered schedule, an immediate No or a
+  deliberate stop closes it. A task whose own cause has gone (a
+  `schedule_ended` task once no schedule end without a stop date is in
+  effect, a `temporary_until_passed` task once a deliberate stop is in
+  effect) closes whatever the slot's status or freshness, and never holds
+  back a freshness task with the same use and due time (A40 review P1).
+- **Schedules:** `knowledge_occurrences` lists nothing from a deliberate
+  stop and ends the last overnight window at it; the shared expansion (B04)
+  is unchanged. A deliberate stop sent without a schedule (it falls before
+  an upcoming version starts) keeps the supersedes chain of the exact
+  submission it was based on, as it stood when the stop was sent, each
+  version with its own dates and exceptions; never another schedule of the
+  check (A40 review P2). A new schedule version that restates the one it replaces
+  (same base submission, timezone, `effective_from`, recurrence and windows)
+  keeps its exceptions up to its `effective_to`.
+- **Defaults, owner to confirm:** no latest date for a stop; a past date is
+  refused (choose today, a No); stops apply to `service.v1` only; a
+  correction that keeps a stop date already past is refused (send No);
+  reconciliation still compares the stored headline.

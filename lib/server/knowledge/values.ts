@@ -450,6 +450,7 @@ function serviceProblems(
         "limitations",
         "availability",
         "broadcasters",
+        "lastDayOffered",
       ].includes(key)
     )
       add(`detail.${key}`, "not_allowed")
@@ -484,6 +485,39 @@ function serviceProblems(
           add(`detail.broadcasters[${i}]`, "invalid")
       })
   }
+  return out
+}
+
+/**
+ * private.knowledge_service_stop_problems (A40): a stop date and a schedule
+ * belong to an Offered answer; with a schedule, the stop date is its
+ * effectiveTo. A stop date before today is the database's venue check.
+ */
+function serviceStopProblems(
+  headline: unknown,
+  detail: unknown
+): ValueFieldProblem[] {
+  const out: ValueFieldProblem[] = []
+  const add = (path: string, problem: Problem) => out.push({ path, problem })
+  if (!isRecord(detail)) return out
+  const other = ["no", "not_applicable", "unknown"].includes(headline as string)
+  if (has(detail, "lastDayOffered")) {
+    const last = safeDate(detail.lastDayOffered)
+    const schedule = detail.schedule
+    if (other) add("detail.lastDayOffered", "not_allowed")
+    else if (!last) add("detail.lastDayOffered", "invalid")
+    else if (isRecord(schedule)) {
+      if (!has(schedule, "effectiveTo"))
+        add("detail.schedule.effectiveTo", "required")
+      else {
+        // An unreadable effectiveTo is already invalid (scheduleProblems).
+        const to = safeDate(schedule.effectiveTo)
+        if (to && to !== last)
+          add("detail.schedule.effectiveTo", "out_of_range")
+      }
+    }
+  }
+  if (other && has(detail, "schedule")) add("detail.schedule", "not_allowed")
   return out
 }
 
@@ -576,7 +610,10 @@ export function validateKnowledgeValue(
       fields.push(...policyProblems(headline, given, lists, now))
       normalised = given as Record<string, unknown>
     } else if (schema === "service") {
-      fields.push(...serviceProblems(given, lists, now))
+      fields.push(
+        ...serviceProblems(given, lists, now),
+        ...serviceStopProblems(headline, given)
+      )
       normalised = given as Record<string, unknown>
     } else if (schema === "schedule_event") {
       fields.push(...scheduleEventProblems(headline, given))
