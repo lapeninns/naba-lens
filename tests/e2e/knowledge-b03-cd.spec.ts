@@ -1,6 +1,12 @@
 import { randomUUID } from "node:crypto"
 
-import { expect, test, type Page, type Route } from "@playwright/test"
+import {
+  expect,
+  test,
+  type Page,
+  type Request,
+  type Route,
+} from "@playwright/test"
 
 import {
   localDateWords,
@@ -14,17 +20,19 @@ import {
   seedPhoto,
 } from "./helpers/amenities-world"
 import {
+  addDays,
   checkIdFor,
   checkRevision,
   confirmContribution,
   key,
   londonDay,
   longDate,
+  openFreshnessRechecks,
   rpcOk,
-  runRecheckJob,
   seedPolicies,
   seedQuestions,
   sendYes,
+  serviceAt,
   sessionFor,
   slotRevision,
   syntheticPrefix,
@@ -73,37 +81,104 @@ const CHECK_DATES_TEXT = {
   public: "Rule for guests (optional)",
   show: "Show what it would do",
   none: "No venue has an answer to this question.",
+  use: { internal: "For staff and internal tools", public: "For guests" },
 } as const
+
+/** capture-form's line after a recheck send that a manager must confirm. */
+const RECHECK_SENT_OPEN =
+  "Recheck sent. It stays open until a manager or an admin confirms your finding."
 
 /** A listed rule as the page offers it (freshnessPolicyLabel). */
 const ruleLabel = (id: string, maxAgeDays: number | null) =>
   `${id} (${maxAgeDays === null ? "until the event ends" : `due for a check after ${maxAgeDays} days`})`
 
+/** A preview row's four lines (FRESHNESS_PREVIEW_COPY answers to rechecks). */
+const previewLines = (n: {
+  answers: number
+  expired: number
+  basisMissing: number
+  rechecks: number
+}) => [
+  `${n.answers} ${n.answers === 1 ? "answer" : "answers"} in use`,
+  `${n.expired} ${n.expired === 1 ? "answer" : "answers"} would be past their check date`,
+  `${n.basisMissing} would be not in use because they have no check date`,
+  `${n.rechecks} ${n.rechecks === 1 ? "recheck" : "rechecks"} would open`,
+]
+
+/** The Check dates form's GET, in the order the form sends its fields. */
+const checkDatesQuery = (f: {
+  for: string
+  key: string
+  internal: string
+  public: string
+}) =>
+  `${CHECK_DATES}?${new URLSearchParams([
+    ["for", f.for],
+    ["key", f.key],
+    ["internal", f.internal],
+    ["public", f.public],
+  ])}`
+
 /**
- * Holds the real Check dates document request for `key` until released, then
- * lets it through to the server unchanged. `held` resolves with the URL the
- * form sent once the browser has asked for it.
+ * Presses Show what it would do while the real native GET for `questionKey`
+ * is held before it reaches the server. The click is started and not awaited
+ * (its navigation can't commit while the request is held). `observe` runs
+ * with the held document request and the page as it still was; the request
+ * is then always released, passed to the server unchanged, and the new
+ * document waited for.
  */
-async function holdPreview(page: Page, questionKey: string) {
+async function showHeld(
+  page: Page,
+  questionKey: string,
+  observe: (request: Request) => Promise<void>
+) {
   const match = (url: URL) =>
     url.pathname === CHECK_DATES && url.searchParams.get("key") === questionKey
   let release!: () => void
   const gate = new Promise<void>((resolve) => (release = resolve))
-  let arrived!: (url: URL) => void
-  const held = new Promise<URL>((resolve) => (arrived = resolve))
+  let arrived!: (request: Request) => void
+  const held = new Promise<Request>((resolve) => (arrived = resolve))
   const handler = async (route: Route) => {
-    if (route.request().resourceType() !== "document") return route.continue()
-    arrived(new URL(route.request().url()))
+    const request = route.request()
+    if (request.resourceType() !== "document" || !request.isNavigationRequest())
+      return route.continue()
+    arrived(request)
     await gate
     await route.continue()
   }
   await page.route(match, handler)
-  return {
-    held,
-    release: async () => {
-      release()
-      await page.unroute(match, handler)
-    },
+  const clicked = page
+    .getByRole("button", { name: CHECK_DATES_TEXT.show })
+    .click()
+  let request: Request | null = null
+  let timer: ReturnType<typeof setTimeout> | undefined
+  let observed = false
+  try {
+    request = await Promise.race([
+      held,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error("the Check dates GET was never sent")),
+          15_000
+        )
+      }),
+    ])
+    await observe(request)
+    observed = true
+  } finally {
+    clearTimeout(timer)
+    release()
+    const settled = await Promise.allSettled([
+      clicked,
+      request
+        ? page.waitForURL(request.url(), { waitUntil: "load" })
+        : Promise.resolve(),
+    ])
+    await page.unroute(match, handler)
+    const failed = settled.find(
+      (s): s is PromiseRejectedResult => s.status === "rejected"
+    )
+    if (observed && failed) throw failed.reason
   }
 }
 
@@ -303,9 +378,10 @@ test.describe("B03 browser charters C and D", () => {
       staleSeed[role] = yes.contributionId
     }
 
-    // The hourly job opens one expired task each; then the third check is
-    // archived, so its open task is left out of every list.
-    await runRecheckJob()
+    // The three stale answers' expired tasks, opened for these checks only
+    // (never the global job); then the third check is archived, so its open
+    // task is left out of every list.
+    openFreshnessRechecks(w.venueA, [k.stale, k.later, k.archived])
     for (const role of ["stale", "later", "archived"] as const)
       expect(tasksOf(id[role]), role).toEqual([
         expect.objectContaining({
@@ -328,11 +404,20 @@ test.describe("B03 browser charters C and D", () => {
     expect(Date.parse(staleTask!.dueAt)).toBeLessThan(
       Date.parse(laterTask!.dueAt)
     )
-    // Neither service has a task: the stop opens none.
+    // Neither service has a task before the stop is set. (That the hourly job
+    // opens none for a deliberate stop is the database qualification's proof;
+    // this case reads these checks' tasks back before and after.)
     const stopTasksBefore = tasksOf(id.stopped)
     const serviceTasksBefore = tasksOf(id.service)
     expect(stopTasksBefore).toEqual([])
     expect(serviceTasksBefore).toEqual([])
+    // Each due at London midnight seven days after the day it was checked.
+    expect(Date.parse(staleTask!.dueAt)).toBe(
+      londonMidnight(addDays(londonDay(-20), 7))
+    )
+    expect(Date.parse(laterTask!.dueAt)).toBe(
+      londonMidnight(addDays(londonDay(-10), 7))
+    )
 
     // ---- Manager, 1280: Overview and Amenities rechecks ------------------------
     const manager = await signedInPage(browser, w.managerA, DESKTOP)
@@ -464,14 +549,28 @@ test.describe("B03 browser charters C and D", () => {
         where check_id = ${uuid(id.service)}`)
     ).toBe("2")
 
-    // The job again: no task for either service, and the one stale task is
-    // the same open task, unclosed.
-    await runRecheckJob()
+    // Two time positions, read back for this check only: the last moment of
+    // the last day still reads Yes with the end not in effect; its next
+    // London midnight reads No, a deliberate stop in effect.
+    const endsAt = now.stop!.notOfferedFromAt
+    const lastMoment = new Date(Date.parse(endsAt) - 1_000).toISOString()
+    expect(serviceAt(w.venueA, k.service, id.service, lastMoment)).toEqual({
+      value: "yes",
+      end: expect.objectContaining({ kind: now.stop!.kind, inEffect: false }),
+    })
+    expect(serviceAt(w.venueA, k.service, id.service, endsAt)).toEqual({
+      value: "no",
+      end: expect.objectContaining({ kind: now.stop!.kind, inEffect: true }),
+    })
+
+    // After the stop was set: still no task for either service, the existing
+    // stale task is the same open task, and the later one is untouched.
     expect(tasksOf(id.stopped)).toEqual(stopTasksBefore)
     expect(tasksOf(id.service)).toEqual(serviceTasksBefore)
     expect(tasksOf(id.stale)).toEqual([staleTask])
+    expect(tasksOf(id.later)).toEqual([laterTask])
 
-    // ---- Manager, 390: the stop already in effect --------------------------------
+    // ---- Manager, 1280: the stop already in effect -------------------------------
     expect(
       (
         await rpcOk<CheckRead>(managerDb, "knowledge_check", {
@@ -487,31 +586,35 @@ test.describe("B03 browser charters C and D", () => {
         inEffect: true,
       },
     })
-    const phone = await signedInPage(browser, w.managerA, PHONE)
-    await phone.goto(MANAGER.check(id.stopped))
+    // Manager only, so read at 1280: the stopped service reads No, with no
+    // schedule-end recheck line, and is not among the rechecks.
+    await manager.goto(MANAGER.check(id.stopped))
     await expect(
-      phone.getByRole("main").getByText(/^Current answer: No\./)
+      manager.getByRole("main").getByText(/^Current answer: No\./)
     ).toBeVisible()
     await expect(
-      phone.getByText(/Its last day offered was|Check whether it continues/)
+      manager.getByText(/Its last day offered was|Check whether it continues/)
     ).toHaveCount(0)
-    await phone.goto(MANAGER.list)
-    const phoneRechecks = phone.getByRole("region", { name: /^Rechecks/ })
-    await expect(phoneRechecks.getByRole("listitem")).toHaveCount(2)
-    await expect(phoneRechecks).not.toContainText(q.stopped)
+    await manager.goto(MANAGER.list)
+    await expect(rows).toHaveCount(2)
+    await expect(rechecks).not.toContainText(q.stopped)
+    await expect(rechecks).not.toContainText(q.service)
     expect(tasksOf(id.stopped)).toEqual(stopTasksBefore)
 
-    // ---- Staff A: Home To do, then Send leaves the task open ---------------------
-    const staff = await signedInPage(browser, w.staffA, DESKTOP)
+    // ---- Staff A (assigned), 390: Home To do, then Send leaves the task open ---
+    const staff = await signedInPage(browser, w.staffA, PHONE)
     await expect(staff).toHaveURL(STAFF_LANDING)
     const todo = staff.getByRole("region", { name: /^To do/ })
     const card = todo
       .getByRole("listitem")
       .filter({ has: staff.getByRole("heading", { name: q.stale }) })
+    const recheckLink = todo.getByRole("link", { name: `Recheck: ${q.stale}` })
     await expect(card).toContainText(
       `Recheck reason: Past its check date since ${longDate(staleTask!.dueAt)}.`
     )
-    await expect(todo).not.toContainText(q.later)
+    // Only the assigned recheck: not the unassigned one, nor either service.
+    for (const other of [q.later, q.archived, q.service, q.stopped])
+      await expect(todo).not.toContainText(other)
     const recheckPhoto = await photo(w.staffA, "recheck")
     await card.getByRole("link", { name: `Recheck: ${q.stale}` }).click()
     await expect(staff).toHaveURL(
@@ -521,6 +624,7 @@ test.describe("B03 browser charters C and D", () => {
     await capture.answer("yes")
     await capture.attach(recheckPhoto)
     await capture.submit.click()
+    await expect(staff.getByText(RECHECK_SENT_OPEN)).toBeVisible()
     const sentByStaff = () =>
       psql(`select coalesce(string_agg(x.id::text || ':' || x.initial_outcome, ','), '')
         from public.knowledge_contributions x
@@ -530,6 +634,7 @@ test.describe("B03 browser charters C and D", () => {
       .toMatch(/^[0-9a-f-]{36}:awaiting_confirmation$/)
     const recheckContribution = sentByStaff().split(":")[0]!
     expect(tasksOf(id.stale)).toEqual([staleTask])
+    expect(tasksOf(id.later)).toEqual([laterTask])
 
     // ---- Manager confirms: the same task closes, by that decision ---------------
     await manager.goto(MANAGER.check(id.stale))
@@ -548,6 +653,14 @@ test.describe("B03 browser charters C and D", () => {
     expect(tasksOf(id.stopped)).toEqual(stopTasksBefore)
     expect(tasksOf(id.service)).toEqual(serviceTasksBefore)
     expect(tasksOf(id.later)).toEqual([laterTask])
+
+    // ---- Staff A, 390: To do no longer offers the closed recheck ----------------
+    await staff.goto("/staff/tasks")
+    await expect(staff).toHaveURL(STAFF_LANDING)
+    await expect(recheckLink).toHaveCount(0)
+    await expect(todo).not.toContainText(
+      `Past its check date since ${longDate(staleTask!.dueAt)}.`
+    )
   })
 
   test("B03-D: Check dates starts each chosen question from its own rule in force, clears the last question's choice and writes no rule", async ({
@@ -601,7 +714,7 @@ test.describe("B03 browser charters C and D", () => {
       {
         key: q1,
         question: text1,
-        rule: null,
+        rule: "none",
         versions: [
           {
             version: 1,
@@ -624,7 +737,7 @@ test.describe("B03 browser charters C and D", () => {
       {
         key: q2,
         question: text2,
-        rule: null,
+        rule: "none",
         versions: [
           {
             version: 1,
@@ -657,6 +770,77 @@ test.describe("B03 browser charters C and D", () => {
     ).toEqual([`${q1}@1`, `${q1}@3`, `${q2}@1`])
     expect(JSON.parse(policiesBefore)).toHaveLength(4)
 
+    const questionRuleRows = () =>
+      psql(`select json_agg(json_build_object('key', r.question_key, 'ruleVersion', r.rule_version,
+          'confirmation', r.confirmation) order by r.question_key, r.rule_version)
+        from public.knowledge_question_rules r where r.question_key in (${key(q1)}, ${key(q2)})`)
+    const questionRulesBefore = questionRuleRows()
+
+    // One dated answer to each question at Venue A, checked ten days ago, in
+    // the sender's own session. Under the first question's rule in force
+    // (version 1, 30 days) it is up to date; under version 3's later rule
+    // (3 days) it would be past its check date. The second question's guest
+    // rule (until the event ends) has no event date for it.
+    const adminDb = await sessionFor(w.admin)
+    await rpcOk(adminDb, "amenity_enable_venue", { p_venue_id: w.venueA.id })
+    await rpcOk(adminDb, "amenity_add_checks", {
+      p_venue_id: w.venueA.id,
+      p_keys: [q1, q2],
+    })
+    await rpcOk(adminDb, "knowledge_set_working_list", {
+      p_venue_id: w.venueA.id,
+      p_keys: [q1, q2],
+      p_enabled: true,
+      p_reason: "DEV-FIXTURE B03-D",
+    })
+    const checkedOn = londonDay(-10)
+    const senderDb = await sessionFor(w.staffA2)
+    const check = { q1: checkIdFor(w.venueA, q1), q2: checkIdFor(w.venueA, q2) }
+    for (const k of [q1, q2]) {
+      const asset = await seedPhoto(w.staffA2, w.venueA, `b03d-${k}-${w.tag}`, {
+        purpose: "amenity",
+      })
+      const sent = await sendYes(senderDb, w.venueA, k, asset, {
+        observedOn: checkedOn,
+      })
+      expect(sent.outcome, k).toBe("current")
+    }
+    // Read back for these two checks: the version in force and how each
+    // answer reads now.
+    const inForce = () =>
+      JSON.parse(
+        psql(`select json_agg(json_build_object('key', x.key,
+            'version', (private.knowledge_version_as_of(x.key, now())).version,
+            'freshness', (private.knowledge_version_as_of(x.key, now())).freshness,
+            'states', (select json_agg(json_build_object('use', e ->> 'use', 'state', e ->> 'state')
+                order by e ->> 'use')
+              from private.knowledge_slot_state_b03(${uuid(w.venueA.id)}, array[x.key]::text[], now()) st
+              cross join lateral jsonb_array_elements(st.freshness) e))
+            order by x.key)
+          from (values (${key(q1)}), (${key(q2)})) x(key)`)
+      ) as unknown
+    expect(inForce()).toEqual([
+      {
+        key: q1,
+        version: 1,
+        freshness: { internal: rule.v1.id, public: null },
+        states: [
+          { use: "internal", state: "current" },
+          { use: "public", state: "unrated" },
+        ],
+      },
+      {
+        key: q2,
+        version: 1,
+        freshness: { internal: rule.second.id, public: rule.event.id },
+        states: [
+          { use: "internal", state: "current" },
+          { use: "public", state: "basis_missing" },
+        ],
+      },
+    ])
+    const tasksBefore = { q1: tasksOf(check.q1), q2: tasksOf(check.q2) }
+
     const admin = await signedInPage(browser, w.admin, DESKTOP)
     await admin.goto(CHECK_DATES)
     await expect(
@@ -672,6 +856,15 @@ test.describe("B03 browser charters C and D", () => {
     const preview = admin.locator("#check-dates-preview")
     const option = (select: typeof internal, id: string) =>
       select.locator("option", { hasText: id })
+    /** Venue A's preview row for one use, by its four lines. */
+    const row = (use: "internal" | "public") =>
+      preview
+        .getByRole("listitem")
+        .filter({ hasText: w.venueA.name })
+        .filter({ hasText: CHECK_DATES_TEXT.use[use] })
+    const venueRows = preview
+      .getByRole("listitem")
+      .filter({ hasText: w.venueA.name })
 
     // Each use offers only its own listed rules, worded with their basis.
     for (const r of [rule.v1, rule.v3, rule.second]) {
@@ -689,19 +882,28 @@ test.describe("B03 browser charters C and D", () => {
 
     // ---- The first question: held, then its version 1 rule in force -------------
     await question.selectOption({ label: text1 })
-    const first = await holdPreview(admin, q1)
-    await admin.getByRole("button", { name: CHECK_DATES_TEXT.show }).click()
-    const firstSent = await first.held
-    expect(firstSent.searchParams.get("for")).toBe("")
-    // Loading: the server has not been asked yet. The page that sent the form
-    // stays as it was, with no preview and no rule chosen for the question.
-    await expect(admin).toHaveURL(new RegExp(`${escape(CHECK_DATES)}$`))
-    await expect(preview).toHaveCount(0)
-    await expect(question).toHaveValue(q1)
-    await expect(internal).toHaveValue("")
-    expect(registryRows()).toBe(registryBefore)
-    await first.release()
-    await expect(admin).toHaveURL(new RegExp(`[?&]key=${q1}(&|$)`))
+    const firstQuery = checkDatesQuery({
+      for: "",
+      key: q1,
+      internal: "",
+      public: "",
+    })
+    await showHeld(admin, q1, async (request) => {
+      // The exact native GET the form sent, held before the server saw it.
+      expect(request.method()).toBe("GET")
+      expect(request.frame()).toBe(admin.mainFrame())
+      const sent = new URL(request.url())
+      expect(`${sent.pathname}${sent.search}`).toBe(firstQuery)
+      // Pending: the page that sent the form stays as it was, with no preview
+      // and no rule chosen for the question.
+      await expect(admin).toHaveURL(new RegExp(`${escape(CHECK_DATES)}$`))
+      await expect(preview).toHaveCount(0)
+      await expect(question).toHaveValue(q1)
+      await expect(internal).toHaveValue("")
+      await expect(guests).toHaveValue("")
+      expect(registryRows()).toBe(registryBefore)
+    })
+    await expect(admin).toHaveURL(new RegExp(`${escape(firstQuery)}$`))
     await expect(question).toHaveValue(q1)
     // Version 1's rule, not the future version 3's, and no guest rule.
     await expect(internal).toHaveValue(rule.v1.id)
@@ -709,7 +911,12 @@ test.describe("B03 browser charters C and D", () => {
       ruleLabel(rule.v1.id, rule.v1.days)
     )
     await expect(guests).toHaveValue("")
-    await expect(preview).toContainText(CHECK_DATES_TEXT.none)
+    // What version 1's rule does to the dated answer: in use, nothing due.
+    await expect(venueRows).toHaveCount(1)
+    await expect(row("internal").getByRole("listitem")).toHaveText(
+      previewLines({ answers: 1, expired: 0, basisMissing: 0, rechecks: 0 })
+    )
+    await expect(preview).not.toContainText(CHECK_DATES_TEXT.none)
     // A fresh document: focus starts at the top, on no stale control.
     await expect
       .poll(() =>
@@ -722,16 +929,27 @@ test.describe("B03 browser charters C and D", () => {
 
     // ---- Switch to the second question: the first one's rule is cleared -------
     await question.selectOption({ label: text2 })
-    const second = await holdPreview(admin, q2)
-    await admin.getByRole("button", { name: CHECK_DATES_TEXT.show }).click()
-    const secondSent = await second.held
-    // The form still names the first question's rule for the second one.
-    expect(secondSent.searchParams.get("for")).toBe(q1)
-    expect(secondSent.searchParams.get("internal")).toBe(rule.v1.id)
-    await expect(internal).toHaveValue(rule.v1.id)
-    await expect(preview).toContainText(CHECK_DATES_TEXT.none)
-    await second.release()
-    await expect(admin).toHaveURL(new RegExp(`[?&]key=${q2}(&|$)`))
+    const secondQuery = checkDatesQuery({
+      for: q1,
+      key: q2,
+      internal: rule.v1.id,
+      public: "",
+    })
+    await showHeld(admin, q2, async (request) => {
+      expect(request.method()).toBe("GET")
+      expect(request.frame()).toBe(admin.mainFrame())
+      const sent = new URL(request.url())
+      // The form still names the first question's rule, for the first one.
+      expect(`${sent.pathname}${sent.search}`).toBe(secondQuery)
+      // Pending: still the first question's document and preview.
+      await expect(admin).toHaveURL(new RegExp(`${escape(firstQuery)}$`))
+      await expect(internal).toHaveValue(rule.v1.id)
+      await expect(venueRows).toHaveCount(1)
+      await expect(row("internal").getByRole("listitem")).toHaveText(
+        previewLines({ answers: 1, expired: 0, basisMissing: 0, rechecks: 0 })
+      )
+    })
+    await expect(admin).toHaveURL(new RegExp(`${escape(secondQuery)}$`))
     await expect(question).toHaveValue(q2)
     await expect(internal).toHaveValue(rule.second.id)
     await expect(internal.locator("option:checked")).toHaveText(
@@ -741,7 +959,15 @@ test.describe("B03 browser charters C and D", () => {
     await expect(guests.locator("option:checked")).toHaveText(
       ruleLabel(rule.event.id, null)
     )
-    await expect(preview).toContainText(CHECK_DATES_TEXT.none)
+    // Its own rules' outcome: up to date for staff; for guests, no event
+    // date, so not in use and one recheck.
+    await expect(venueRows).toHaveCount(2)
+    await expect(row("internal").getByRole("listitem")).toHaveText(
+      previewLines({ answers: 1, expired: 0, basisMissing: 0, rechecks: 0 })
+    )
+    await expect(row("public").getByRole("listitem")).toHaveText(
+      previewLines({ answers: 1, expired: 0, basisMissing: 1, rechecks: 1 })
+    )
     await expect
       .poll(() =>
         admin.evaluate(() => document.activeElement === document.body)
@@ -751,14 +977,51 @@ test.describe("B03 browser charters C and D", () => {
     // ---- And back: the second question's guest rule does not carry over ------
     await question.selectOption({ label: text1 })
     await admin.getByRole("button", { name: CHECK_DATES_TEXT.show }).click()
-    await expect(admin).toHaveURL(new RegExp(`[?&]key=${q1}(&|$)`))
+    await expect(admin).toHaveURL(
+      new RegExp(
+        `${escape(
+          checkDatesQuery({
+            for: q2,
+            key: q1,
+            internal: rule.second.id,
+            public: rule.event.id,
+          })
+        )}$`
+      )
+    )
     await expect(internal).toHaveValue(rule.v1.id)
     await expect(guests).toHaveValue("")
+    await expect(venueRows).toHaveCount(1)
+    await expect(row("internal").getByRole("listitem")).toHaveText(
+      previewLines({ answers: 1, expired: 0, basisMissing: 0, rechecks: 0 })
+    )
 
-    // The previews wrote no rule: the two questions' versions and the four
-    // rules are as seeded.
+    // ---- The future version 3's rule, named: a different outcome ---------------
+    // The same answer under version 3's 3-day rule would be past its check
+    // date, so the in-force outcome above is version 1's, not version 3's.
+    await admin.goto(
+      checkDatesQuery({ for: q1, key: q1, internal: rule.v3.id, public: "" })
+    )
+    await expect(internal).toHaveValue(rule.v3.id)
+    await expect(guests).toHaveValue("")
+    await expect(venueRows).toHaveCount(1)
+    await expect(row("internal").getByRole("listitem")).toHaveText(
+      previewLines({ answers: 1, expired: 1, basisMissing: 0, rechecks: 1 })
+    )
+
+    // The previews wrote nothing: the two questions' versions, their B01 rule
+    // rows and the four rules are as seeded, version 1 is still the one in
+    // force, and neither check has a recheck task.
     expect(registryRows()).toBe(registryBefore)
+    expect(questionRuleRows()).toBe(questionRulesBefore)
     expect(policyRows()).toBe(policiesBefore)
+    expect((inForce() as { version: number }[]).map((v) => v.version)).toEqual([
+      1, 1,
+    ])
+    expect(tasksBefore).toEqual({ q1: [], q2: [] })
+    expect({ q1: tasksOf(check.q1), q2: tasksOf(check.q2) }).toEqual(
+      tasksBefore
+    )
 
     // ---- Manager and staff sessions are refused the admin route -------------
     for (const [who, home] of [
@@ -772,16 +1035,24 @@ test.describe("B03 browser charters C and D", () => {
       expect(new URL(direct.headers()["location"]!, "http://x").pathname).toBe(
         home
       )
-      expect(await direct.text()).not.toContain(text1)
+      const body = await direct.text()
+      expect(body).not.toContain(text1)
+      expect(body).not.toContain(rule.v1.id)
       await page.goto(url)
       await expect(page).toHaveURL(new RegExp(`${escape(home)}$`))
       await expect(
         page.getByRole("heading", { name: CHECK_DATES_TEXT.title, level: 1 })
       ).toHaveCount(0)
-      await expect(page.getByText(text1)).toHaveCount(0)
+      // No preview and no rule: Venue A's own pages may name its questions.
+      await expect(page.locator("#check-dates-preview")).toHaveCount(0)
+      await expect(page.getByText(rule.v1.id)).toHaveCount(0)
       await page.context().close()
     }
     expect(registryRows()).toBe(registryBefore)
+    expect(questionRuleRows()).toBe(questionRulesBefore)
     expect(policyRows()).toBe(policiesBefore)
+    expect({ q1: tasksOf(check.q1), q2: tasksOf(check.q2) }).toEqual(
+      tasksBefore
+    )
   })
 })

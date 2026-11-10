@@ -13,7 +13,9 @@ import type { Person, Venue } from "./world"
  * stay on the stack, but no other venue's working list names them and no
  * shared catalogue key gains a version. Readbacks are scoped by these keys and
  * by explicit fixture ids. Every product action still runs as a real user, in
- * the page or in that user's own database session.
+ * the page or in that user's own database session. Neither case calls the
+ * global hourly job (public.knowledge_run_rechecks): it opens and closes
+ * every venue's tasks.
  */
 
 const SQL_KEY = /^[a-z][a-z0-9_]{0,39}$/
@@ -69,7 +71,7 @@ export type SeedVersion = {
 export type SeedQuestion = {
   key: string
   question: string
-  /** A B01 rule row (needed for a working list); null for registry only. */
+  /** A B01 rule row (for a working list and an answer); null for registry only. */
   rule: "none" | "venue_manager" | null
   versions: SeedVersion[]
 }
@@ -246,12 +248,57 @@ export function confirmContribution(
   })
 }
 
-/** The hourly recheck job, run once now (service role only, as scheduled). */
-export async function runRecheckJob() {
-  await rpcOk(provisioner(), "knowledge_run_rechecks")
+/**
+ * DEV FIXTURE: opens the freshness recheck tasks (due soon, expired, no date)
+ * of one venue's synthetic `keys` only, as the hourly job's freshness step
+ * would, from the product's own slot state and due times. Never the global
+ * job (public.knowledge_run_rechecks), so no other check's tasks are opened
+ * or closed; idempotent by the task table's unique key. Schedule ends,
+ * temporary and schema rechecks are not opened here: the job's own database
+ * qualification covers those, deliberate stops included.
+ */
+export function openFreshnessRechecks(
+  venue: Pick<Venue, "id">,
+  keys: string[]
+) {
+  if (!keys.length) throw new Error("no keys")
+  psql(`insert into public.knowledge_recheck_tasks (venue_id, check_id, question_key, cause, use, due_at)
+    select st.venue_id, st.check_id, st.question_key, e ->> 'state', e ->> 'use',
+      coalesce((e ->> 'nextCheckDue')::timestamptz, st.saved_at)
+    from private.knowledge_slot_state_b03(${uuid(venue.id)}, array[${keys.map(key).join(", ")}]::text[], now()) st
+    cross join lateral jsonb_array_elements(st.freshness) e
+    where st.question_key in (${keys.map(key).join(", ")})
+      and st.in_scope and st.current_submission_id is not null
+      and st.check_progress = 'complete' and st.check_status = 'active'
+      and e ->> 'state' in ('due_soon', 'expired', 'basis_missing')
+    on conflict on constraint knowledge_recheck_tasks_once do nothing`)
 }
 
 // ---- Readbacks, scoped by fixture ids (service, read-only) ----------------------
+
+/**
+ * One check's answer as the resolver reads it at `at` (an instant), and its
+ * service end then: `value` and `private.knowledge_check_service_end`.
+ */
+export function serviceAt(
+  venue: Pick<Venue, "id">,
+  k: string,
+  checkId: string,
+  at: string
+) {
+  const instant = new Date(at)
+  if (Number.isNaN(instant.getTime())) throw new Error(`not an instant: ${at}`)
+  const t = `'${instant.toISOString()}'::timestamptz`
+  return JSON.parse(
+    psql(`select json_build_object(
+        'value', (select st.value from private.knowledge_slot_state_b03(${uuid(venue.id)}, array[${key(k)}]::text[], ${t}) st
+          where st.check_id = ${uuid(checkId)}),
+        'end', private.knowledge_check_service_end(${uuid(checkId)}, ${t}))`)
+  ) as {
+    value: string | null
+    end: { kind: string; inEffect: boolean; notOfferedFromAt: string } | null
+  }
+}
 
 export type TaskRow = {
   id: string
