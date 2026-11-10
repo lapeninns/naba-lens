@@ -42,6 +42,11 @@ export function useUploadQueue({
   )
   const summary = React.useMemo(() => summarize(items), [items])
   const isActive = summary.active > 0
+  // Leaving stops only files still waiting or transferring; a processing file
+  // is the server's to finish, so it alone does not warn.
+  const stoppable = items.some(
+    (i) => i.status === "queued" || i.status === "uploading"
+  )
 
   // Files wait while the device is offline and start again on `online`.
   React.useEffect(() => {
@@ -56,7 +61,7 @@ export function useUploadQueue({
   }, [queue])
 
   React.useEffect(() => {
-    if (!warnBeforeUnload || !isActive) return
+    if (!warnBeforeUnload || !stoppable) return
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
       if (isLeavingDeliberately()) return
       event.preventDefault()
@@ -65,7 +70,7 @@ export function useUploadQueue({
     }
     window.addEventListener("beforeunload", onBeforeUnload)
     return () => window.removeEventListener("beforeunload", onBeforeUnload)
-  }, [isActive, warnBeforeUnload])
+  }, [stoppable, warnBeforeUnload])
 
   return {
     items,

@@ -4,7 +4,7 @@
 // listener. The person already chose to leave, so the browser must not ask
 // again.
 import * as React from "react"
-import { cleanup, render, screen, waitFor } from "@testing-library/react"
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -13,7 +13,10 @@ import {
   useLeaveGuard,
 } from "@/components/nabalens/shell/leave-guard"
 import { useUploadQueue } from "@/components/nabalens/use-upload-queue"
-import { UploadQueue } from "@/components/nabalens/upload-queue"
+import {
+  UploadQueue,
+  type UploadContext,
+} from "@/components/nabalens/upload-queue"
 import {
   guardBeforeUnload,
   isLeavingDeliberately,
@@ -80,6 +83,83 @@ describe("Log out anyway while uploads run", () => {
       await screen.findByRole("button", { name: "Log out anyway" })
     )
     await waitFor(() => expect(asked).toEqual([false]))
+  })
+})
+
+describe("the native warning while files are processing", () => {
+  type Queue = ReturnType<typeof useUploadQueue>
+  type Run = { name: string; context: UploadContext }
+
+  function Harness({
+    runs,
+    expose,
+    parallel,
+  }: {
+    runs: Run[]
+    expose: (queue: Queue) => void
+    parallel: number
+  }) {
+    const queue = useUploadQueue({
+      // In-memory gate: each file stays where the test moves it.
+      upload: (file, context) => {
+        runs.push({ name: file.name, context })
+        return new Promise(() => {})
+      },
+      limits: { ...LIMITS, maxParallelUploads: parallel },
+    })
+    expose(queue)
+    return null
+  }
+
+  function setup(parallel: number) {
+    const runs: Run[] = []
+    let queue!: Queue
+    render(
+      <Harness
+        runs={runs}
+        parallel={parallel}
+        expose={(q) => {
+          queue = q
+        }}
+      />
+    )
+    const send = (name: string) =>
+      act(() => {
+        queue.add([new File([new Uint8Array(8)], name, { type: "image/jpeg" })])
+        queue.start()
+      })
+    const processing = (name: string) =>
+      act(() => runs.find((r) => r.name === name)!.context.onProcessing())
+    const status = () => queue.items.map((i) => i.status)
+    return { send, processing, status, queue: () => queue }
+  }
+
+  it("does not ask when only processing remains; asks while one uploads", () => {
+    const { send, processing, status, queue } = setup(2)
+    send("a.jpg")
+    expect(status()).toEqual(["uploading"])
+    expect(unload()).toBe(true)
+
+    processing("a.jpg")
+    expect(status()).toEqual(["processing"])
+    expect(queue().isActive).toBe(true)
+    expect(unload()).toBe(false)
+
+    send("b.jpg")
+    expect(status()).toEqual(["processing", "uploading"])
+    expect(unload()).toBe(true)
+
+    processing("b.jpg")
+    expect(unload()).toBe(false)
+  })
+
+  it("asks while another file is queued behind a processing one", () => {
+    const { send, processing, status } = setup(1)
+    send("a.jpg")
+    processing("a.jpg")
+    send("b.jpg")
+    expect(status()).toEqual(["processing", "queued"])
+    expect(unload()).toBe(true)
   })
 })
 
