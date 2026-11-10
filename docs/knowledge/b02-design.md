@@ -1139,3 +1139,12 @@ the scope and how it was built.
 
 **Approved for build (10 Nov 2026):** the R11 edge cases quote the UI copy
 for `key_sent` and `newer_send` (WS2 revision 5).
+
+**B02-c follow-up (10 Nov 2026):** a manager account's own-media reads leave
+out its staff-era uploads (default 13), as the B02-c policies already do:
+`my_contributions_feed` (photo rows; they also gain `uploaderRole`),
+`my_label_work` (`needs_attention` too), `private.viewer_sees_asset`
+(so `contribution_groups_for_assets` and `contribution_group`) and
+`contribution_group_add` (refused `not_own`). Migration
+`20261110095909_knowledge_b02c_manager_own_media_reads.sql`; test in
+`tests/security/manager-uploads.test.ts`.
