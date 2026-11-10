@@ -3,7 +3,7 @@ import { basename } from 'node:path';
 import { describe, test } from '@e2e-dev/web';
 import { expect } from 'e2e';
 
-import { db, DISH, QUESTION, setSaved, signInAs, world } from './fixture';
+import { db, DISH, json, QUESTION, setSaved, signInAs, target, uuid, world } from './fixture';
 
 // B02-01, B02-02, B02-04 (staff feed) and B02-05 at 1280x800: one serial
 // story in the staff scope (world().scopes.staff), which no manager,
@@ -28,11 +28,94 @@ const SIGNED_PUT = /\/storage\/v1\/object\/upload\/sign\//;
 const PUT_ASSET = /\/media\/[0-9a-f-]{36}\/([0-9a-f-]{36})\/original\.[a-z0-9]+(\?|$)/;
 const scope = () => world().scopes.staff;
 
+type ReplacementRows = {
+  original: { state: string; reason: string | null; revision: number; requirement: string | null; author: string } | null;
+  replacements: { state: string; origin: string; requirement: string | null; replaces: string; asset: string; author: string }[];
+};
+/**
+ * Local read-only fact: the reviewed original task photo and every item that
+ * replaces it (coverage_submission_items.replaces_item_id). Ids and states only.
+ */
+const replacementRows = (itemId: string) =>
+  json<ReplacementRows>(`select json_build_object(
+      'original', (select json_build_object('state', o.state, 'reason', o.decision_reason, 'revision', o.revision,
+                     'requirement', o.requirement_id, 'author', o.author_id)
+                   from public.coverage_submission_items o where o.id = ${uuid(itemId)}),
+      'replacements', (select coalesce(json_agg(json_build_object('state', n.state, 'origin', n.origin,
+                     'requirement', n.requirement_id, 'replaces', n.replaces_item_id, 'asset', n.asset_id,
+                     'author', n.author_id) order by n.submitted_at, n.id), '[]')
+                   from public.coverage_submission_items n where n.replaces_item_id = ${uuid(itemId)}))`);
+
 describe('B02 staff Home, shared entry, photo sets and contributions', { serial: true }, () => {
-  test('Home orders the label card before the assigned check, and labelling it updates To do and the badge', async ({ app, browser, screen }) => {
+  test('Home leads with a requested replacement and returns from it; then orders the label card before the assigned check, and labelling it updates To do and the badge', async ({ app, browser, screen }) => {
     const w = world();
     const s = scope();
     const toilets = QUESTION.guest_toilets;
+
+    // ---- Replacement (staffReplacement, the only actor with the request) ------
+    // The seed's genuine needs_another_photo decision on one task photo:
+    // Home's lead card leads to that task with ?replaces=, the task explains
+    // the request, a new photo is sent once through the real task upload, and
+    // the request leaves To do. The candidate acknowledges on the task page;
+    // Home can parse a ?replaced= banner, but no send path emits that query,
+    // so no Home banner is reachable (an acceptance gap, reported, not faked:
+    // the harness never builds a success URL).
+    const r = w.seeded.replacement;
+    const replaceHref = `/staff/tasks/${r.requirementId}?replaces=${r.itemId}`;
+    const original = { state: 'needs_another_photo', reason: r.reason, revision: r.revision, requirement: r.requirementId, author: w.staffReplacement.id };
+    expect(replacementRows(r.itemId)).toEqual({ original, replacements: [] });
+    await signInAs(app, browser, w.staffReplacement);
+    await app.open('/staff/tasks');
+    const ownTodo = screen.getByRole('region', /^To do, \d+ things? to do$/);
+    const lead = ownTodo.getByRole('listitem').first();
+    // The card names the reviewer (never the task) in its heading; the task title and reason follow.
+    await expect(lead.getByRole('heading', { level: 3 })).toHaveText(/^.+ asked for another photo$/);
+    await expect(lead.getByText(`For: ${r.title}`, { exact: true })).toBeVisible();
+    await expect(lead.getByText(`Reason: ${r.reason}`, { exact: true })).toBeVisible();
+    const sendAnother = lead.getByRole('link', `Send another photo for ${r.title}`);
+    await expect(sendAnother).toHaveAttribute('href', replaceHref);
+    await sendAnother.tap();
+    await expect(browser).toHaveURL(replaceHref);
+    await expect(screen.getByRole('heading', 'Send another photo', { level: 1 })).toBeVisible();
+    const asked = screen.getByRole('region', 'What your reviewer asked for');
+    await expect(asked).toContainText(r.reason);
+    await expect(asked.getByText('The photos you send now replace this one.', { exact: true })).toBeVisible();
+
+    // The real task upload: the shell's own library picker, then one send.
+    const replacementFile = basename(w.media.replacement);
+    expect(db.assets(w.staffReplacement.id, replacementFile)).toEqual([]);
+    await screen.getByRole('button', 'Choose from your photos').tap();
+    await browser.locator(LIBRARY).setInputFiles(w.media.replacement);
+    const replacementSheet = screen.getByRole('dialog', 'Saving 1 photo');
+    await expect(replacementSheet.getByRole('status')).toHaveText('1 saved', { timeout: 120000 });
+    await replacementSheet.getByRole('button', 'Done', { exact: true }).tap();
+    const picked = db.assets(w.staffReplacement.id, replacementFile);
+    expect(picked.map(({ mediaType, state, role, venue, deleted }) => ({ mediaType, state, role, venue, deleted }))).toEqual([
+      { mediaType: 'image', state: 'ready', role: 'staff', venue: s.venue.id, deleted: false },
+    ]);
+    await expect(screen.getByText('1 new photo selected.', { exact: true })).toBeVisible({ timeout: 30000 });
+    await screen.getByRole('button', 'Send another photo').tap();
+    const ack = screen.getByRole('status').filter({ hasText: 'Your new photo is waiting for review' });
+    await expect(ack).toBeVisible({ timeout: 30000 });
+    await expect(ack).toContainText(/Sent\. .+ reviews it next\. Your earlier photo stays in Photos and on your profile\./);
+    // One replacement, submitted, for the same requirement and original; the
+    // original keeps its decision, reason and revision.
+    await expect
+      .poll(() => replacementRows(r.itemId), { timeout: 30000 })
+      .toEqual({
+        original,
+        replacements: [{ state: 'submitted', origin: 'submitted', requirement: r.requirementId, replaces: r.itemId, asset: picked[0]!.id, author: w.staffReplacement.id }],
+      });
+
+    // Back through the task page's own Home control: the request has left To do.
+    await screen.getByRole('main').getByRole('link', 'Home', { exact: true }).tap();
+    await expect(browser).toHaveURL('/staff/tasks');
+    await expect(screen.getByRole('heading', 'Home', { level: 1 })).toBeVisible();
+    await expect(screen.getByRole('link', `Send another photo for ${r.title}`)).toHaveCount(0);
+    await expect(screen.getByRole('heading', /asked for another photo$/, { level: 3 })).toHaveCount(0);
+    expect(replacementRows(r.itemId).replacements).toHaveLength(1);
+
+    // ---- Labels card and assigned check (staffSet): To do 2 -> 1 -> 0 ----------
     await signInAs(app, browser, w.staffSet);
 
     // -- Badge and list agree, seen from Me (the badge never shows on Home itself).
@@ -119,17 +202,21 @@ describe('B02 staff Home, shared entry, photo sets and contributions', { serial:
     await app.open('/staff');
     await expect(screen.getByRole('region', 'My contributions')).toBeVisible();
     const feed = screen.getByRole('list', 'My contributions');
-    const finding = feed.getByRole('listitem').filter({ has: feed.getByRole('heading', toilets, { level: 3 }) });
+    // The inner heading is page-relative (screen): filter({ has }) resolves it
+    // from each candidate row, so it must not restate the outer list.
+    const finding = feed.getByRole('listitem').filter({ has: screen.getByRole('heading', toilets, { level: 3 }) });
     await expect(finding.getByText('Answer: No')).toBeVisible();
     await expect(finding.getByText('In use as the venue\'s answer.')).toBeVisible();
-    const photo = feed.getByRole('listitem').filter({ has: feed.getByRole('heading', DISH.naan, { level: 3 }) });
+    await expect(finding).toHaveCount(1);
+    const photo = feed.getByRole('listitem').filter({ has: screen.getByRole('heading', DISH.naan, { level: 3 }) });
+    await expect(photo).toHaveCount(1);
     await expect(photo.getByText('Upload: Saved')).toBeVisible();
     await expect(photo.getByText('Labels: Labelled')).toBeVisible();
     await expect(photo.getByText(`${DISH.naan}: Waiting`)).toBeVisible();
     await expect(screen.getByRole('list', 'Drafts')).toHaveCount(0);
   });
 
-  test('a three-photo dish set survives one member\'s failed transfer: one group, three members, no duplicate and no credit', async ({ app, browser, screen }) => {
+  test('a three-photo dish set survives one member\'s failed transfer and a re-pick of that file: one group, three members, no duplicate and no credit', async ({ app, browser, screen }) => {
     const w = world();
     const s = scope();
     const names = w.media.set.map((p) => basename(p));
@@ -143,80 +230,126 @@ describe('B02 staff Home, shared entry, photo sets and contributions', { serial:
     await expect(screen.getByText('What a useful photo shows')).toBeVisible();
 
     // -- Every PUT of the second member's reservation is dropped at the network
-    // level (the transport retries 6 times, then reports it). The asset is
-    // known from the URL, so only that member fails, whatever the order.
+    // level (the transport retries 6 times, then reports it). Only that
+    // asset's real PUT at the guarded loopback storage origin is intercepted
+    // (the asset is known from the URL, so only that member fails, whatever
+    // the order); the route is released in finally, pass or fail.
+    const storage = target().api;
     let drops = 0;
     await browser.route(SIGNED_PUT, async (route) => {
-      const asset = PUT_ASSET.exec(route.request.url)?.[1];
-      const target = route.request.method === 'PUT' && asset !== undefined && db.assets(w.staffSet.id, failing).some((a) => a.id === asset);
-      if (target) {
+      const url = route.request.url;
+      const asset = PUT_ASSET.exec(url)?.[1];
+      const failingPut =
+        route.request.method === 'PUT' &&
+        new URL(url).origin === storage &&
+        asset !== undefined &&
+        db.assets(w.staffSet.id, failing).some((a) => a.id === asset);
+      if (failingPut) {
         drops++;
         await route.abort();
       } else await route.continue();
     });
+    let routed = true;
+    const release = async () => {
+      if (routed) await browser.unroute(SIGNED_PUT);
+      routed = false;
+    };
+    try {
+      await dish.getByRole('button', 'Choose from photos').tap();
+      await browser.locator(LIBRARY).setInputFiles([...w.media.set]);
+      // The sheet's name counts its rows ("Saving N photos"), which the re-pick changes.
+      const sheet = screen.getByRole('dialog', /^Saving \d+ photos$/);
+      await expect(sheet).toHaveAccessibleName('Saving 3 photos');
+      const row = (name: string) => sheet.getByRole('list', 'Files').getByRole('listitem').filter({ hasText: name });
+      await expect(row(failing)).toContainText('Needs attention', { timeout: 90000 });
+      await expect(row(failing).getByText('The connection was interrupted.', { exact: true })).toBeVisible();
+      for (const ok of [names[0]!, names[2]!]) {
+        await expect(row(ok).getByText(`Saved · ${DISH.tandoor} · waiting for manager review`)).toBeVisible({ timeout: 60000 });
+      }
+      await expect(sheet.getByRole('status')).toHaveText('2 saved · 1 need attention', { timeout: 60000 });
+      await expect(sheet.getByText(setSaved(2, DISH.tandoor))).toBeVisible();
+      await expect(sheet.getByText(`${failing}: The connection was interrupted.`)).toBeVisible();
+      expect(drops).toBe(6);
 
-    await dish.getByRole('button', 'Choose from photos').tap();
-    await browser.locator(LIBRARY).setInputFiles([...w.media.set]);
-    const sheet = screen.getByRole('dialog', 'Saving 3 photos');
-    await expect(sheet).toBeVisible();
-    const row = (name: string) => sheet.getByRole('list', 'Files').getByRole('listitem').filter({ hasText: name });
-    await expect(row(failing)).toContainText('Needs attention', { timeout: 90000 });
-    await expect(row(failing).getByText('The connection was interrupted.', { exact: true })).toBeVisible();
-    for (const ok of [names[0]!, names[2]!]) {
-      await expect(row(ok).getByText(`Saved · ${DISH.tandoor} · waiting for manager review`)).toBeVisible({ timeout: 60000 });
+      // -- Persisted before recovery: three reservations, the failed one not
+      // finished, already a member of the one set.
+      const before = db.assets(w.staffSet.id, prefix);
+      expect(before).toHaveLength(3);
+      const failedAsset = db.assets(w.staffSet.id, failing);
+      expect(failedAsset.map(({ state, role, deleted }) => ({ state, role, deleted }))).toEqual([{ state: 'uploading', role: 'staff', deleted: false }]);
+      const ids = before.map((a) => a.id).sort();
+      await expect.poll(() => db.groupsOf(ids).map((g) => g.members.length), { timeout: 30000 }).toEqual([3]);
+      const groupId = db.groupsOf(ids)[0]!.id;
+      // Ordered membership before recovery: the failed member already holds its position.
+      const ordered = db.groupsOf(ids)[0]!.members.map((m) => ({ asset: m.asset, position: m.position }));
+      expect(ordered.map((m) => m.position)).toEqual([1, 2, 3]);
+      expect(ordered.map((m) => m.asset)).toContain(failedAsset[0]!.id);
+
+      // -- Recovery by re-pick: the same file chosen again through the sheet's
+      // own "Add more to this set" (a candidate path that joins the same set).
+      // The device's upload key (name, size, type, modified time) finds the
+      // unfinished reservation, so the same asset finishes. This is a real
+      // re-pick of the file from disk, not Retry of the in-memory File; the
+      // single-photo page-close re-pick is charter B02-06-A.
+      await release();
+      await sheet.getByRole('button', 'Add more to this set').tap();
+      // The sheet's own library input (its camera input is a second file input).
+      await sheet.getByLabel(/^Choose photos( or videos)?$/).setInputFiles(w.media.set[1]);
+      await expect(sheet).toHaveAccessibleName('Saving 4 photos');
+      await expect(row(failing)).toHaveCount(2);
+      const repicked = row(failing).filter({ hasText: `Saved · ${DISH.tandoor} · waiting for manager review` });
+      await expect(repicked).toHaveCount(1, { timeout: 60000 });
+      await expect.poll(() => db.assets(w.staffSet.id, failing).map(({ id, state }) => ({ id, state })), { timeout: 30000 }).toEqual([
+        { id: failedAsset[0]!.id, state: 'ready' },
+      ]);
+      // The earlier attempt's row stays in the sheet (the queue does not merge a
+      // re-pick into it), so the summary still counts it. It is left alone:
+      // Remove on it discards the dish labels held for the shared asset id
+      // (upload-dialog.tsx remove -> labels.discard), which would clear the
+      // re-picked member's label. That is reported as a candidate defect, not
+      // exercised or asserted around here. Done only hides the queue.
+      await expect(sheet.getByRole('status')).toHaveText('3 saved · 1 need attention', { timeout: 60000 });
+      await expect(sheet.getByText(setSaved(3, DISH.tandoor))).toBeVisible();
+      const stale = row(failing).filter({ hasText: 'Needs attention' });
+      await expect(stale).toHaveCount(1);
+      await expect(stale.getByRole('button', `Retry ${failing}`)).toBeVisible();
+      await expect(stale.getByRole('button', `Remove ${failing}`)).toBeVisible();
+      await expect(sheet.getByRole('button', /^Retry /)).toHaveCount(1);
+      await sheet.getByRole('button', 'Done', { exact: true }).tap();
+      await expect(sheet).toBeHidden();
+
+      const assets = db.assets(w.staffSet.id, prefix);
+      expect(assets.map(({ filename, state, role, venue, deleted }) => ({ filename, state, role, venue, deleted }))).toEqual(
+        expect.arrayContaining(names.map((filename) => ({ filename, state: 'ready', role: 'staff', venue: s.venue.id, deleted: false }))),
+      );
+      expect(assets).toHaveLength(3);
+      expect(assets.map((a) => a.id).sort()).toEqual(ids);
+      expect(db.assets(w.staffSet.id, failing)[0]!.id).toBe(failedAsset[0]!.id);
+      const groups = db.groupsOf(ids);
+      expect(groups).toHaveLength(1);
+      expect(groups[0]).toMatchObject({ id: groupId, createdBy: w.staffSet.id, venue: s.venue.id, subjectKind: 'menu_item', subjectId: s.items.tandoor });
+      // The same set, membership and order: the re-picked file finished the same member.
+      expect(groups[0]!.members.map((m) => ({ asset: m.asset, position: m.position }))).toEqual(ordered);
+      expect(groups[0]!.members.map((m) => m.state)).toEqual(['ready', 'ready', 'ready']);
+      for (const id of ids) {
+        await expect.poll(() => db.labelItems(id), { timeout: 30000 }).toEqual([DISH.tandoor]);
+        expect(db.photoRows(id)).toEqual([]);
+      }
+      // No credit widening: the set waits for review; checks credit is case 2's one answer.
+      expect(db.acceptedEvents(s.venue.id, w.staffSet.id)).toBe(0);
+      expect(db.credit(s.venue.id, w.staffSet.id)).toEqual({ menu: 0, checks: 1 });
+
+      // -- Per-member state in My contributions and on the dish.
+      await app.open('/staff');
+      const feed = screen.getByRole('list', 'My contributions');
+      await expect(feed.getByText('One of a set of 3')).toHaveCount(3);
+      await expect(feed.getByText(`${DISH.tandoor}: Waiting`)).toHaveCount(3);
+      await expect(feed.getByRole('heading', DISH.tandoor, { level: 3 })).toHaveCount(3);
+      await app.open('/staff/menu');
+      await expect(screen.getByRole('article', DISH.tandoor).getByText('3 of your photos are waiting for review')).toBeVisible();
+    } finally {
+      await release();
     }
-    await expect(sheet.getByRole('status')).toHaveText('2 saved · 1 need attention', { timeout: 60000 });
-    await expect(sheet.getByText(setSaved(2, DISH.tandoor))).toBeVisible();
-    await expect(sheet.getByText(`${failing}: The connection was interrupted.`)).toBeVisible();
-    expect(drops).toBe(6);
-
-    // -- Persisted before recovery: three reservations, the failed one not
-    // finished, already a member of the one set.
-    const before = db.assets(w.staffSet.id, prefix);
-    expect(before).toHaveLength(3);
-    const failedAsset = db.assets(w.staffSet.id, failing);
-    expect(failedAsset.map(({ state, role, deleted }) => ({ state, role, deleted }))).toEqual([{ state: 'uploading', role: 'staff', deleted: false }]);
-    const ids = before.map((a) => a.id).sort();
-    await expect.poll(() => db.groupsOf(ids).map((g) => g.members.length), { timeout: 30000 }).toEqual([3]);
-    const groupId = db.groupsOf(ids)[0]!.id;
-
-    // -- Recovery: Retry the same file; same asset, same set, nothing sent twice.
-    await browser.unroute(SIGNED_PUT);
-    await sheet.getByRole('button', `Retry ${failing}`).tap();
-    await expect(sheet.getByRole('status')).toHaveText('3 saved', { timeout: 60000 });
-    await expect(sheet.getByText(setSaved(3, DISH.tandoor))).toBeVisible();
-    await expect(sheet.getByRole('button', /^Retry /)).toHaveCount(0);
-    await sheet.getByRole('button', 'Done', { exact: true }).tap();
-    await expect(sheet).toBeHidden();
-
-    const assets = db.assets(w.staffSet.id, prefix);
-    expect(assets.map(({ filename, state, role, venue, deleted }) => ({ filename, state, role, venue, deleted }))).toEqual(
-      expect.arrayContaining(names.map((filename) => ({ filename, state: 'ready', role: 'staff', venue: s.venue.id, deleted: false }))),
-    );
-    expect(assets).toHaveLength(3);
-    expect(assets.map((a) => a.id).sort()).toEqual(ids);
-    expect(db.assets(w.staffSet.id, failing)[0]!.id).toBe(failedAsset[0]!.id);
-    const groups = db.groupsOf(ids);
-    expect(groups).toHaveLength(1);
-    expect(groups[0]).toMatchObject({ id: groupId, createdBy: w.staffSet.id, venue: s.venue.id, subjectKind: 'menu_item', subjectId: s.items.tandoor });
-    expect(groups[0]!.members.map((m) => m.position)).toEqual([1, 2, 3]);
-    expect(groups[0]!.members.map((m) => m.asset).sort()).toEqual(ids);
-    for (const id of ids) {
-      await expect.poll(() => db.labelItems(id), { timeout: 30000 }).toEqual([DISH.tandoor]);
-      expect(db.photoRows(id)).toEqual([]);
-    }
-    // No credit widening: the set waits for review; checks credit is case 2's one answer.
-    expect(db.acceptedEvents(s.venue.id, w.staffSet.id)).toBe(0);
-    expect(db.credit(s.venue.id, w.staffSet.id)).toEqual({ menu: 0, checks: 1 });
-
-    // -- Per-member state in My contributions and on the dish.
-    await app.open('/staff');
-    const feed = screen.getByRole('list', 'My contributions');
-    await expect(feed.getByText('One of a set of 3')).toHaveCount(3);
-    await expect(feed.getByText(`${DISH.tandoor}: Waiting`)).toHaveCount(3);
-    await expect(feed.getByRole('heading', DISH.tandoor, { level: 3 })).toHaveCount(3);
-    await app.open('/staff/menu');
-    await expect(screen.getByRole('article', DISH.tandoor).getByText('3 of your photos are waiting for review')).toBeVisible();
   });
 
   test('front of house reports a change and records Couldn\'t establish from Me; the bartender\'s drink photo reaches My contributions', async ({ app, browser, screen }) => {
@@ -270,7 +403,9 @@ describe('B02 staff Home, shared entry, photo sets and contributions', { serial:
     expect(db.submissions(parking)).toEqual([]);
     expect(db.credit(s.venue.id, w.staffFoh.id)).toEqual({ menu: 0, checks: 0 });
     const fohFeed = screen.getByRole('list', 'My contributions');
-    const fohRow = (q: string) => fohFeed.getByRole('listitem').filter({ has: fohFeed.getByRole('heading', q, { level: 3 }) });
+    const fohRow = (q: string) => fohFeed.getByRole('listitem').filter({ has: screen.getByRole('heading', q, { level: 3 }) });
+    await expect(fohRow(QUESTION.onsite_parking)).toHaveCount(1);
+    await expect(fohRow(QUESTION.guest_toilets)).toHaveCount(1);
     await expect(fohRow(QUESTION.onsite_parking).getByText('Answer: Couldn\'t establish')).toBeVisible();
     await expect(fohRow(QUESTION.guest_toilets).getByText('Answer: Not applicable')).toBeVisible();
 
@@ -293,7 +428,8 @@ describe('B02 staff Home, shared entry, photo sets and contributions', { serial:
     expect(db.credit(s.venue.id, w.staffBar.id)).toEqual({ menu: 0, checks: 0 });
     await app.open('/staff');
     const barFeed = screen.getByRole('list', 'My contributions');
-    const barRow = barFeed.getByRole('listitem').filter({ has: barFeed.getByRole('heading', DISH.lager, { level: 3 }) });
+    const barRow = barFeed.getByRole('listitem').filter({ has: screen.getByRole('heading', DISH.lager, { level: 3 }) });
+    await expect(barRow).toHaveCount(1);
     await expect(barRow.getByText('Upload: Saved')).toBeVisible();
     await expect(barRow.getByText('Labels: Labelled')).toBeVisible();
     await expect(barRow.getByText(`${DISH.lager}: Waiting`)).toBeVisible();
