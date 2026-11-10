@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto"
 
-import { expect, test } from "@playwright/test"
+import { expect, test, type Page, type Route } from "@playwright/test"
 
 import {
   localDateWords,
@@ -17,6 +17,7 @@ import {
   checkIdFor,
   checkRevision,
   confirmContribution,
+  key,
   londonDay,
   longDate,
   rpcOk,
@@ -61,6 +62,49 @@ type ServiceEnd = {
 }
 type CheckRead = {
   answerInUse: { value: string; stop?: ServiceEnd | null } | null
+}
+
+const CHECK_DATES = "/admin/knowledge/check-dates"
+/** components/nabalens/knowledge/copy.ts FRESHNESS_PREVIEW_COPY. */
+const CHECK_DATES_TEXT = {
+  title: "Check dates",
+  question: "Question",
+  internal: "Rule for staff and internal tools (optional)",
+  public: "Rule for guests (optional)",
+  show: "Show what it would do",
+  none: "No venue has an answer to this question.",
+} as const
+
+/** A listed rule as the page offers it (freshnessPolicyLabel). */
+const ruleLabel = (id: string, maxAgeDays: number | null) =>
+  `${id} (${maxAgeDays === null ? "until the event ends" : `due for a check after ${maxAgeDays} days`})`
+
+/**
+ * Holds the real Check dates document request for `key` until released, then
+ * lets it through to the server unchanged. `held` resolves with the URL the
+ * form sent once the browser has asked for it.
+ */
+async function holdPreview(page: Page, questionKey: string) {
+  const match = (url: URL) =>
+    url.pathname === CHECK_DATES && url.searchParams.get("key") === questionKey
+  let release!: () => void
+  const gate = new Promise<void>((resolve) => (release = resolve))
+  let arrived!: (url: URL) => void
+  const held = new Promise<URL>((resolve) => (arrived = resolve))
+  const handler = async (route: Route) => {
+    if (route.request().resourceType() !== "document") return route.continue()
+    arrived(new URL(route.request().url()))
+    await gate
+    await route.continue()
+  }
+  await page.route(match, handler)
+  return {
+    held,
+    release: async () => {
+      release()
+      await page.unroute(match, handler)
+    },
+  }
 }
 
 /** Local midnight in London of a date, as epoch ms (the server's clock). */
@@ -504,5 +548,240 @@ test.describe("B03 browser charters C and D", () => {
     expect(tasksOf(id.stopped)).toEqual(stopTasksBefore)
     expect(tasksOf(id.service)).toEqual(serviceTasksBefore)
     expect(tasksOf(id.later)).toEqual([laterTask])
+  })
+
+  test("B03-D: Check dates starts each chosen question from its own rule in force, clears the last question's choice and writes no rule", async ({
+    browser,
+  }) => {
+    const w = await provisionAmenitiesWorld()
+    const prefix = syntheticPrefix("d")
+    const q1 = `${prefix}_q1`
+    const q2 = `${prefix}_q2`
+    const text1 = `DEV-FIXTURE B03-D first question ${w.tag}`
+    const text2 = `DEV-FIXTURE B03-D second question ${w.tag}`
+    const rule = {
+      v1: { id: `${prefix}_v1`, days: 30 },
+      v3: { id: `${prefix}_v3`, days: 3 },
+      second: { id: `${prefix}_b`, days: 90 },
+      event: { id: `${prefix}_e`, days: null },
+    } as const
+    seedPolicies([
+      {
+        id: rule.v1.id,
+        use: "internal",
+        claimClass: "offering",
+        maxAgeDays: 30,
+        leadDays: 7,
+      },
+      {
+        id: rule.v3.id,
+        use: "internal",
+        claimClass: "offering",
+        maxAgeDays: 3,
+        leadDays: 1,
+      },
+      {
+        id: rule.second.id,
+        use: "internal",
+        claimClass: "schedule",
+        maxAgeDays: 90,
+        leadDays: 14,
+      },
+      {
+        id: rule.event.id,
+        use: "public",
+        claimClass: "event",
+        maxAgeDays: null,
+        leadDays: null,
+      },
+    ])
+    // The first question: version 1 in force, version 3 from ten years on
+    // and no version 2. The second: its own internal and guest rules.
+    seedQuestions([
+      {
+        key: q1,
+        question: text1,
+        rule: null,
+        versions: [
+          {
+            version: 1,
+            schema: "presence",
+            confirmation: "none",
+            freshness: { internal: rule.v1.id, public: null },
+            effectiveFrom: null,
+            createdAt: "now() - interval '1 day'",
+          },
+          {
+            version: 3,
+            schema: "presence",
+            confirmation: "none",
+            freshness: { internal: rule.v3.id, public: rule.event.id },
+            effectiveFrom: "now() + interval '10 years'",
+            createdAt: "now()",
+          },
+        ],
+      },
+      {
+        key: q2,
+        question: text2,
+        rule: null,
+        versions: [
+          {
+            version: 1,
+            schema: "presence",
+            confirmation: "none",
+            freshness: { internal: rule.second.id, public: rule.event.id },
+            effectiveFrom: null,
+            createdAt: "now() - interval '1 day'",
+          },
+        ],
+      },
+    ])
+    const ids = Object.values(rule).map((r) => key(r.id))
+    const registryRows = () =>
+      psql(`select json_agg(json_build_object('key', v.key, 'version', v.version,
+          'freshness', v.freshness, 'effectiveFrom', v.effective_from, 'createdAt', v.created_at)
+          order by v.key, v.version)
+        from public.knowledge_question_versions v where v.key in (${key(q1)}, ${key(q2)})`)
+    const policyRows = () =>
+      psql(`select json_agg(json_build_object('id', p.id, 'version', p.version, 'use', p.use,
+          'maxAge', p.max_age, 'basis', p.basis, 'createdAt', p.created_at)
+          order by p.id, p.version)
+        from public.knowledge_freshness_policies p where p.id in (${ids.join(", ")})`)
+    const registryBefore = registryRows()
+    const policiesBefore = policyRows()
+    expect(
+      (JSON.parse(registryBefore) as { key: string; version: number }[]).map(
+        (v) => `${v.key}@${v.version}`
+      )
+    ).toEqual([`${q1}@1`, `${q1}@3`, `${q2}@1`])
+    expect(JSON.parse(policiesBefore)).toHaveLength(4)
+
+    const admin = await signedInPage(browser, w.admin, DESKTOP)
+    await admin.goto(CHECK_DATES)
+    await expect(
+      admin.getByRole("heading", { name: CHECK_DATES_TEXT.title, level: 1 })
+    ).toBeVisible()
+    const question = admin.getByLabel(CHECK_DATES_TEXT.question, {
+      exact: true,
+    })
+    const internal = admin.getByLabel(CHECK_DATES_TEXT.internal, {
+      exact: true,
+    })
+    const guests = admin.getByLabel(CHECK_DATES_TEXT.public, { exact: true })
+    const preview = admin.locator("#check-dates-preview")
+    const option = (select: typeof internal, id: string) =>
+      select.locator("option", { hasText: id })
+
+    // Each use offers only its own listed rules, worded with their basis.
+    for (const r of [rule.v1, rule.v3, rule.second]) {
+      await expect(option(internal, r.id)).toHaveText(ruleLabel(r.id, r.days))
+      await expect(option(guests, r.id)).toHaveCount(0)
+    }
+    await expect(option(guests, rule.event.id)).toHaveText(
+      ruleLabel(rule.event.id, null)
+    )
+    await expect(option(internal, rule.event.id)).toHaveCount(0)
+    await expect(question.locator("option", { hasText: text1 })).toHaveCount(1)
+    await expect(question.locator("option", { hasText: text2 })).toHaveCount(1)
+    await expect(question).toHaveValue("")
+    await expect(preview).toHaveCount(0)
+
+    // ---- The first question: held, then its version 1 rule in force -------------
+    await question.selectOption({ label: text1 })
+    const first = await holdPreview(admin, q1)
+    await admin.getByRole("button", { name: CHECK_DATES_TEXT.show }).click()
+    const firstSent = await first.held
+    expect(firstSent.searchParams.get("for")).toBe("")
+    // Loading: the server has not been asked yet. The page that sent the form
+    // stays as it was, with no preview and no rule chosen for the question.
+    await expect(admin).toHaveURL(new RegExp(`${escape(CHECK_DATES)}$`))
+    await expect(preview).toHaveCount(0)
+    await expect(question).toHaveValue(q1)
+    await expect(internal).toHaveValue("")
+    expect(registryRows()).toBe(registryBefore)
+    await first.release()
+    await expect(admin).toHaveURL(new RegExp(`[?&]key=${q1}(&|$)`))
+    await expect(question).toHaveValue(q1)
+    // Version 1's rule, not the future version 3's, and no guest rule.
+    await expect(internal).toHaveValue(rule.v1.id)
+    await expect(internal.locator("option:checked")).toHaveText(
+      ruleLabel(rule.v1.id, rule.v1.days)
+    )
+    await expect(guests).toHaveValue("")
+    await expect(preview).toContainText(CHECK_DATES_TEXT.none)
+    // A fresh document: focus starts at the top, on no stale control.
+    await expect
+      .poll(() =>
+        admin.evaluate(() => document.activeElement === document.body)
+      )
+      .toBe(true)
+    await expect(
+      admin.getByRole("button", { name: CHECK_DATES_TEXT.show })
+    ).toBeEnabled()
+
+    // ---- Switch to the second question: the first one's rule is cleared -------
+    await question.selectOption({ label: text2 })
+    const second = await holdPreview(admin, q2)
+    await admin.getByRole("button", { name: CHECK_DATES_TEXT.show }).click()
+    const secondSent = await second.held
+    // The form still names the first question's rule for the second one.
+    expect(secondSent.searchParams.get("for")).toBe(q1)
+    expect(secondSent.searchParams.get("internal")).toBe(rule.v1.id)
+    await expect(internal).toHaveValue(rule.v1.id)
+    await expect(preview).toContainText(CHECK_DATES_TEXT.none)
+    await second.release()
+    await expect(admin).toHaveURL(new RegExp(`[?&]key=${q2}(&|$)`))
+    await expect(question).toHaveValue(q2)
+    await expect(internal).toHaveValue(rule.second.id)
+    await expect(internal.locator("option:checked")).toHaveText(
+      ruleLabel(rule.second.id, rule.second.days)
+    )
+    await expect(guests).toHaveValue(rule.event.id)
+    await expect(guests.locator("option:checked")).toHaveText(
+      ruleLabel(rule.event.id, null)
+    )
+    await expect(preview).toContainText(CHECK_DATES_TEXT.none)
+    await expect
+      .poll(() =>
+        admin.evaluate(() => document.activeElement === document.body)
+      )
+      .toBe(true)
+
+    // ---- And back: the second question's guest rule does not carry over ------
+    await question.selectOption({ label: text1 })
+    await admin.getByRole("button", { name: CHECK_DATES_TEXT.show }).click()
+    await expect(admin).toHaveURL(new RegExp(`[?&]key=${q1}(&|$)`))
+    await expect(internal).toHaveValue(rule.v1.id)
+    await expect(guests).toHaveValue("")
+
+    // The previews wrote no rule: the two questions' versions and the four
+    // rules are as seeded.
+    expect(registryRows()).toBe(registryBefore)
+    expect(policyRows()).toBe(policiesBefore)
+
+    // ---- Manager and staff sessions are refused the admin route -------------
+    for (const [who, home] of [
+      [w.managerA, "/manager"],
+      [w.staffA, "/staff/tasks"],
+    ] as const) {
+      const page = await signedInPage(browser, who, DESKTOP)
+      const url = `${CHECK_DATES}?key=${q1}`
+      const direct = await page.request.get(url, { maxRedirects: 0 })
+      expect(direct.status(), `${who.email} ${url}`).toBe(307)
+      expect(new URL(direct.headers()["location"]!, "http://x").pathname).toBe(
+        home
+      )
+      expect(await direct.text()).not.toContain(text1)
+      await page.goto(url)
+      await expect(page).toHaveURL(new RegExp(`${escape(home)}$`))
+      await expect(
+        page.getByRole("heading", { name: CHECK_DATES_TEXT.title, level: 1 })
+      ).toHaveCount(0)
+      await expect(page.getByText(text1)).toHaveCount(0)
+      await page.context().close()
+    }
+    expect(registryRows()).toBe(registryBefore)
+    expect(policyRows()).toBe(policiesBefore)
   })
 })
