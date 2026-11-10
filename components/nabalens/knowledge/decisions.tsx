@@ -1029,6 +1029,25 @@ function confirmationText(answer: AnswerInUse): string {
   }
 }
 
+/**
+ * A policy's rows (§4.4) on a policy question, from the detail as recorded,
+ * read with the owner's lists: active and retired (A38). Nothing otherwise.
+ */
+function PolicyFacts({
+  detail,
+  policy,
+}: {
+  detail: unknown
+  policy: PolicyContext | null
+}) {
+  if (!policy || !detail) return null
+  return policyFacts(detail, policy).map((row) => (
+    <Fact key={row.term} term={row.term}>
+      {row.value}
+    </Fact>
+  ))
+}
+
 /** A card's heading id, and the stem of the ids inside it. */
 const cardId = (finding: PendingFinding) =>
   `finding-${findingKey(finding.findingRef).replace(":", "-")}`
@@ -1120,6 +1139,10 @@ function FindingCard({
               {answer.value ? (
                 <Fact term="Confirmation">{confirmationText(answer)}</Fact>
               ) : null}
+              {/* A38 (§4): the answer in use names a retired type too. */}
+              {answer.value ? (
+                <PolicyFacts detail={answer.answerDetail} policy={policy} />
+              ) : null}
             </dl>
           </div>
           {isCurrent ? null : (
@@ -1131,13 +1154,7 @@ function FindingCard({
                 <Fact term="Answer" different={differs}>
                   {KNOWLEDGE_ANSWER_LABEL[finding.answer]}
                 </Fact>
-                {policy && finding.policyDetail
-                  ? policyFacts(finding.policyDetail, policy).map((row) => (
-                      <Fact key={row.term} term={row.term}>
-                        {row.value}
-                      </Fact>
-                    ))
-                  : null}
+                <PolicyFacts detail={finding.policyDetail} policy={policy} />
                 {isImport(finding) ? (
                   <Fact term="Checked on">{IMPORT_COPY.checkedOn}</Fact>
                 ) : null}
