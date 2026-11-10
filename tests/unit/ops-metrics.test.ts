@@ -113,6 +113,32 @@ describe("T-B10-01 metric registry", () => {
       expect(definition, value).toContain(value)
   })
 
+  it("keys M-DL-8's latest receipt by publication epoch as well as revision", () => {
+    const { definition } = metric("M-DL-8")
+    expect(definition).toContain(
+      "Latest provider receipt per publication epoch, destination, venue, field key and publication revision"
+    )
+    expect(definition).not.toContain("per destination, venue")
+    expect(definition).toContain(
+      "Publication revisions restart in each new epoch"
+    )
+    expect(definition).toContain("receipts from earlier epochs are historical")
+  })
+
+  it("separates M-DL-8's confirmed writes from values that already matched", () => {
+    const { definition } = metric("M-DL-8")
+    expect(definition).toContain(
+      "provider_confirmed means NabaPresence's readback confirmed the value after an attempted provider write"
+    )
+    expect(definition).toContain(
+      "provider_received, provider_awaiting_review, provider_approved and provider_sent are pending, awaiting-review, approved or sent work, not confirmation"
+    )
+    expect(definition).toContain(
+      "provider_closed with closeReason already_satisfied records a fresh provider observation that already matched, so no write was required; it is not a confirmed write"
+    )
+    expect(definition).not.toContain("provider_sent and the earlier kinds")
+  })
+
   it("reads the knowledge metrics from the B03 status view only", () => {
     for (const id of ["M-KN-1", "M-KN-2", "M-KN-3"])
       expect(metric(id).source.ref).toContain(
