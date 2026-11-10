@@ -124,8 +124,9 @@ const checkDatesQuery = (f: {
  * is held before it reaches the server. The click is started and not awaited
  * (its navigation can't commit while the request is held). `observe` runs
  * with the held document request and the page as it still was; the request
- * is then always released, passed to the server unchanged, and the new
- * document waited for.
+ * is then always released, passed to the server unchanged, and the click and
+ * the new document settled. A click that fails before the GET arrives is
+ * reported as itself, not as the GET never being sent.
  */
 async function showHeld(
   page: Page,
@@ -147,15 +148,27 @@ async function showHeld(
     await route.continue()
   }
   await page.route(match, handler)
+  // Settled at once: a click that fails before the GET arrives is never an
+  // unhandled rejection, and stays the cause reported.
   const clicked = page
     .getByRole("button", { name: CHECK_DATES_TEXT.show })
     .click()
+    .then(
+      () => null,
+      (reason: unknown) => ({ reason })
+    )
+  // Only the click's failure competes with the held GET; a click that
+  // succeeds first still waits for the request.
+  const clickFailed = clicked.then((failure) =>
+    failure ? Promise.reject(failure.reason) : new Promise<never>(() => {})
+  )
   let request: Request | null = null
   let timer: ReturnType<typeof setTimeout> | undefined
   let observed = false
   try {
     request = await Promise.race([
       held,
+      clickFailed,
       new Promise<never>((_, reject) => {
         timer = setTimeout(
           () => reject(new Error("the Check dates GET was never sent")),
@@ -168,17 +181,18 @@ async function showHeld(
   } finally {
     clearTimeout(timer)
     release()
-    const settled = await Promise.allSettled([
+    const [clickFailure, navigationFailure] = await Promise.all([
       clicked,
       request
-        ? page.waitForURL(request.url(), { waitUntil: "load" })
-        : Promise.resolve(),
+        ? page.waitForURL(request.url(), { waitUntil: "load" }).then(
+            () => null,
+            (reason: unknown) => ({ reason })
+          )
+        : null,
     ])
     await page.unroute(match, handler)
-    const failed = settled.find(
-      (s): s is PromiseRejectedResult => s.status === "rejected"
-    )
-    if (observed && failed) throw failed.reason
+    const failure = clickFailure ?? navigationFailure
+    if (observed && failure) throw failure.reason
   }
 }
 
