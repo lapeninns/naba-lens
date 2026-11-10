@@ -409,6 +409,12 @@ export type FeedPhotoItem = FeedKeys & {
   venueName: string
   mediaType: "image" | "video"
   uploadState: "uploading" | "processing" | "ready" | "failed"
+  /**
+   * The role recorded at upload (null before B02-c). A manager account's feed
+   * lists only its "manager" uploads. Always returned once the
+   * 20261110095909 migration is applied.
+   */
+  uploaderRole?: "staff" | "manager" | "admin" | null
   sentAt: string
   labels: { hasLabels: boolean; needsLabels: boolean; needsAttention: boolean }
   /**
