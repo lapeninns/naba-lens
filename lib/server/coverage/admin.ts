@@ -1,6 +1,7 @@
 import "server-only"
 
 import type { MediaActor } from "@/lib/server/media/types"
+import { readAllPages } from "@/lib/server/pages"
 
 import { adminOnly } from "./context"
 import {
@@ -59,12 +60,22 @@ export async function listManagerGrants(
   if (venueId === undefined) return invalid({ venueId: "Choose a venue." })
   const admin = await adminOnly(actor)
   if (!admin.ok) return admin
-  const { data, error } = await actor.db.rpc("venue_manager_grant_list", {
-    ...(venueId ? { p_venue_id: venueId } : {}),
-    p_include_revoked: args.includeRevoked === true,
-  })
-  if (error) return coverageRpcFailure(error, "manager grants")
-  const rows = data ?? []
+  // With every venue and ended grants this grows with history, past what one
+  // response holds (`max_rows`). The order is the function's own, made total.
+  const read = await readAllPages((from, to) =>
+    actor.db
+      .rpc("venue_manager_grant_list", {
+        ...(venueId ? { p_venue_id: venueId } : {}),
+        p_include_revoked: args.includeRevoked === true,
+      })
+      .order("venue_name")
+      .order("staff_name")
+      .order("granted_at", { ascending: false })
+      .order("grant_id")
+      .range(from, to)
+  )
+  if (!read.ok) return coverageRpcFailure(read.error, "manager grants")
+  const rows = read.rows
 
   // Which grants are still held by a staff account: made before venue manager
   // accounts existed. They stay in effect until an admin converts the person.

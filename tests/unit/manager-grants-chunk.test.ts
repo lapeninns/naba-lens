@@ -110,7 +110,17 @@ function actorWith(rows: GrantRow[], failOn?: number) {
     expect(table).toBe("profiles")
     return { select: vi.fn(() => ({ in: inFn })) }
   })
-  const rpc = vi.fn(async () => ({ data: rows, error: null }))
+  // The grant list is read in ranged pages; these lists fit in one.
+  const rpc = vi.fn(() => {
+    const query = {
+      order: () => query,
+      range: async (from: number, to: number) => ({
+        data: rows.slice(from, to + 1),
+        error: null,
+      }),
+    }
+    return query
+  })
   const actor = { db: { rpc, from } } as unknown as MediaActor
   return { actor, calls, from }
 }
