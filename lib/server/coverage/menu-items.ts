@@ -1,6 +1,7 @@
 import "server-only"
 
 import type { Database } from "@/lib/db/types"
+import { redactError } from "@/lib/server/log/redact"
 import type { MediaActor } from "@/lib/server/media/types"
 
 import { readAccess, resolveVenue } from "./context"
@@ -318,13 +319,12 @@ export async function listOurMenuItems(
     venue.venueId,
     page.map((r) => r.item_id)
   )
-  if (!mine.ok) return mine
   return {
     ok: true,
-    items: page.map((r) => ({
-      ...itemView(r, venue.canReview),
-      myWaiting: mine.byItem.get(r.item_id) ?? 0,
-    })),
+    items: page.map((r) => {
+      const view = itemView(r, venue.canReview)
+      return mine ? { ...view, myWaiting: mine.get(r.item_id) ?? 0 } : view
+    }),
     nextCursor: last ? encodeItemCursor(last) : null,
   }
 }
@@ -339,22 +339,29 @@ type WaitingRpc = {
   }>
 }
 
-/** The caller's own waiting photos per listed item (my_menu_waiting_items). */
+/**
+ * The caller's own waiting photos per listed item (my_menu_waiting_items), or
+ * null when that read fails: the list is still served, without myWaiting.
+ */
 async function myWaitingByItem(
   actor: MediaActor,
   venueId: string,
   itemIds: string[]
-): Promise<CoverageResult<{ byItem: Map<string, number> }>> {
-  if (itemIds.length === 0) return { ok: true, byItem: new Map() }
+): Promise<Map<string, number> | null> {
+  if (itemIds.length === 0) return new Map()
   const { data, error } = await (actor.db as unknown as WaitingRpc).rpc(
     "my_menu_waiting_items",
     { p_venue_id: venueId, p_item_ids: itemIds }
   )
-  if (error) return coverageRpcFailure(error, "our menu own waiting")
-  return {
-    ok: true,
-    byItem: new Map((data ?? []).map((r) => [r.item_id, r.waiting])),
+  if (error) {
+    console.error("[coverage] our menu own waiting failed", {
+      error: redactError(
+        new Error(`${error.code || "unknown"}: ${error.message ?? ""}`)
+      ),
+    })
+    return null
   }
+  return new Map((data ?? []).map((r) => [r.item_id, r.waiting]))
 }
 
 function candidateView(row: CandidateRow): ItemPhotoCandidate {
