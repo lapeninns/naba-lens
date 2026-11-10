@@ -478,6 +478,8 @@ export type CrosswalkHead = {
   /** Set on variant rows: the locator of the entry the variant belongs to. */
   entryLocator: string | null
   status: CrosswalkStatus
+  /** The basis of the head's row (see `isDeferredProposal`). */
+  basis: CrosswalkBasis
   itemId: string | null
   variantId: string | null
   channel: MenuChannel
@@ -550,6 +552,43 @@ function reviewRow(
     candidateCount: previous ? 1 : 0,
   }
 }
+
+/**
+ * A variant proposal deferred while its entry awaits review: `needs_review`
+ * on `name_candidate`, inside the item it was proposed in, with no variant and
+ * no candidates. What was proposed stays on the row this one supersedes (the
+ * database also copies it into the evidence as `deferredProposal`, marked
+ * historical); nothing here is a claim about the new snapshot.
+ */
+function deferredRow(
+  head: CrosswalkHead,
+  locator: string,
+  entryLocator: string,
+  contentHash: string
+): ProposedRow {
+  return {
+    locator,
+    entryLocator,
+    status: "needs_review",
+    basis: "name_candidate",
+    itemId: head.itemId,
+    variantId: null,
+    channel: head.channel,
+    candidates: [],
+    candidateCount: 0,
+    contentHash,
+  }
+}
+
+/**
+ * A head that is a deferred variant proposal (`deferredRow`): the matcher
+ * proposes it afresh once its entry is mapped, even on the same snapshot and
+ * item. Every other `needs_review` row (basis `carried`) awaits a reviewer.
+ */
+export const isDeferredProposal = (
+  head: Pick<CrosswalkHead, "status" | "basis">
+) => head.status === "needs_review" && head.basis === "name_candidate"
+
 const isDecidedAway = (s: CrosswalkStatus) =>
   s === "unmatched" || s === "rejected"
 
@@ -573,11 +612,15 @@ function keysOf(name: string, aliases: string[] | undefined): Set<string> {
  *   snapshot lists is on the source even while its entry awaits review: a
  *   mapping it had, or a review still open on other content, goes to
  *   `needs_review` on this snapshot's evidence, and only a variant the
- *   snapshot no longer lists becomes `not_on_source`.
+ *   snapshot no longer lists becomes `not_on_source`. An open proposal
+ *   (`proposed`, `ambiguous`, or one deferred before) on other content is
+ *   deferred (`deferredRow`): it claims no candidate until the entry is
+ *   mapped again, when it is matched afresh.
  * - An entry row already written from this snapshot is skipped; a variant row
- *   is skipped only while it is from this snapshot and inside the item its
- *   entry is mapped to now. Running the matcher again after confirming (or
- *   correcting) entries adds or re-proposes only the variant rows.
+ *   is skipped only while it is from this snapshot, inside the item its entry
+ *   is mapped to now, and not a deferred proposal. Running the matcher again
+ *   after confirming (or correcting) entries adds or re-proposes only the
+ *   variant rows.
  */
 export function proposeCrosswalk(input: ProposeInput): ProposeResult {
   const heads = new Map(input.heads.map((h) => [h.locator, h]))
@@ -589,6 +632,7 @@ export function proposeCrosswalk(input: ProposeInput): ProposeResult {
       locator: row.locator,
       entryLocator: row.entryLocator,
       status: row.status,
+      basis: row.basis,
       itemId: row.itemId,
       variantId: row.variantId,
       channel: row.channel,
@@ -690,19 +734,28 @@ export function proposeCrosswalk(input: ProposeInput): ProposeResult {
       if (!parentItem) {
         // The entry is not mapped: a mapping (or a removal) the variant had is
         // reviewed again on this snapshot's evidence, as is a review still
-        // open on older evidence; nothing is proposed.
+        // open on older evidence; an open proposal on older evidence is
+        // deferred. Nothing is proposed.
+        if (!head || current) continue
+        const changed = head.contentHash !== hash
         if (
-          head &&
-          !current &&
-          (isMapped(head.status) ||
-            head.status === "not_on_source" ||
-            (head.status === "needs_review" && head.contentHash !== hash))
+          changed &&
+          (head.status === "proposed" ||
+            head.status === "ambiguous" ||
+            isDeferredProposal(head))
+        )
+          write(deferredRow(head, locator, entry.locator, hash))
+        else if (
+          isMapped(head.status) ||
+          head.status === "not_on_source" ||
+          (head.status === "needs_review" && changed)
         )
           write(reviewRow(head, locator, entry.locator, hash))
         continue
       }
       const sameItem = head?.itemId === parentItem
-      if (current && sameItem) {
+      // A deferred proposal is matched afresh once its entry is mapped.
+      if (current && sameItem && !(head && isDeferredProposal(head))) {
         skipped++
         continue
       }
@@ -716,8 +769,9 @@ export function proposeCrosswalk(input: ProposeInput): ProposeResult {
         skipped++
         continue
       }
-      // New, removed and back, decided on other content, or proposed inside
-      // another item (the entry was mapped again): matched afresh.
+      // New, removed and back, decided on other content, proposed inside
+      // another item (the entry was mapped again), or deferred while the
+      // entry awaited review: matched afresh.
       const ids = (item?.variants ?? [])
         .filter((v) => variantNameKey(v.name) === key)
         .map((v) => v.variantId)

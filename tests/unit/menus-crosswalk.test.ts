@@ -26,6 +26,7 @@ import {
   contentHashInput,
   crosswalkDecisionError,
   crosswalkProvenanceError,
+  isDeferredProposal,
   manifestCsv,
   manifestOutcome,
   proposeCrosswalk,
@@ -140,6 +141,7 @@ function headsAfter(
       locator: r.locator,
       entryLocator: r.entryLocator,
       status: r.status,
+      basis: r.basis,
       itemId: r.itemId,
       variantId: r.variantId,
       channel: r.channel,
@@ -898,6 +900,407 @@ describe("variant transitions: retained, removed and remapped", () => {
   })
 })
 
+describe("deferred variant proposals while the entry awaits review", () => {
+  const BHUNA = id(5)
+  const BH_CHICKEN = id(51)
+  const BH_LAMB = id(52)
+  const BH_LAMB_2 = id(53)
+  const bhunaItem = (variants: CatalogueEntry["variants"]): CatalogueEntry => ({
+    itemId: BHUNA,
+    sourceKey: "mains--bhuna",
+    name: "Bhuna",
+    aliases: [],
+    sectionName: "Mains",
+    variants,
+  })
+  // S1's active version lists two Lamb variants under Bhuna; the version
+  // activated before the rematch lists one.
+  const before = [
+    ...catalogue,
+    bhunaItem([
+      { variantId: BH_CHICKEN, name: "Chicken" },
+      { variantId: BH_LAMB, name: "Lamb" },
+      { variantId: BH_LAMB_2, name: "lamb" },
+    ]),
+  ]
+  const after = [
+    ...catalogue,
+    bhunaItem([
+      { variantId: BH_CHICKEN, name: "Chicken" },
+      { variantId: BH_LAMB, name: "Lamb" },
+    ]),
+  ]
+  const bhuna: SnapshotEntry = {
+    locator: "curries.json#name=Bhuna",
+    name: "Bhuna",
+    variants: ["Chicken", "Lamb", "Chicken"],
+    priceText: "9",
+  }
+  const chickenAt = `${bhuna.locator}#variant=Chicken`
+  const lambAt = `${bhuna.locator}#variant=Lamb`
+  const chicken2At = `${bhuna.locator}#variant=Chicken#2`
+  const s2Entry: SnapshotEntry = { ...bhuna, priceText: "9.5" }
+  const s3Entry: SnapshotEntry = { ...bhuna, priceText: "10" }
+  const hashOf = async (e: SnapshotEntry) =>
+    (await snapshotOf([e])).contentHashes[0]
+  const variantOfBhuna = (v: string) =>
+    [BH_CHICKEN, BH_LAMB, BH_LAMB_2].includes(v) ? BHUNA : null
+  const deferred = (locator: string, contentHash: string) => ({
+    locator,
+    entryLocator: bhuna.locator,
+    status: "needs_review",
+    basis: "name_candidate",
+    itemId: BHUNA,
+    variantId: null,
+    channel: "all",
+    candidates: [],
+    candidateCount: 0,
+    contentHash,
+  })
+
+  /**
+   * S1: Bhuna confirmed and the matcher run again, so its variants are
+   * proposed (Chicken, a single candidate) and ambiguous (Lamb, two
+   * candidates; Chicken#2, a repeated occurrence). `confirm` decides some.
+   */
+  async function openOnS1(
+    confirm: Record<string, Partial<CrosswalkHead>> = {}
+  ) {
+    const first = proposeCrosswalk(await input([bhuna], { catalogue: before }))
+    const heads = headsAfter(first.rows, S1, {
+      [bhuna.locator]: { itemId: BHUNA },
+    })
+    const variants = proposeCrosswalk(
+      await input([bhuna], { catalogue: before, heads })
+    )
+    const s1Hash = await hashOf(bhuna)
+    expect(variants.rows).toEqual([
+      {
+        locator: chickenAt,
+        entryLocator: bhuna.locator,
+        status: "proposed",
+        basis: "name_candidate",
+        itemId: BHUNA,
+        variantId: BH_CHICKEN,
+        channel: "all",
+        candidates: [BH_CHICKEN],
+        candidateCount: 1,
+        contentHash: s1Hash,
+      },
+      {
+        locator: lambAt,
+        entryLocator: bhuna.locator,
+        status: "ambiguous",
+        basis: "name_candidate",
+        itemId: BHUNA,
+        variantId: null,
+        channel: "all",
+        candidates: [BH_LAMB, BH_LAMB_2],
+        candidateCount: 2,
+        contentHash: s1Hash,
+      },
+      {
+        locator: chicken2At,
+        entryLocator: bhuna.locator,
+        status: "ambiguous",
+        basis: "name_candidate",
+        itemId: BHUNA,
+        variantId: null,
+        channel: "all",
+        candidates: [BH_CHICKEN],
+        candidateCount: 1,
+        contentHash: s1Hash,
+      },
+    ])
+    return headsAfter(variants.rows, S1, confirm, heads)
+  }
+
+  /** S2 changes the price; nobody has reviewed Bhuna again yet. */
+  async function deferredOnS2(h1: CrosswalkHead[]) {
+    const s2 = proposeCrosswalk(
+      await input([s2Entry], { snapshotId: S2, catalogue: before, heads: h1 })
+    )
+    return { s2, h2: headsAfter(s2.rows, S2, {}, h1) }
+  }
+
+  it("defers singleton and ambiguous proposals on the new evidence and claims no candidate", async () => {
+    const h1 = await openOnS1()
+    const { s2, h2 } = await deferredOnS2(h1)
+    const s2Hash = await hashOf(s2Entry)
+    expect(s2).toEqual({
+      rows: [
+        {
+          locator: bhuna.locator,
+          entryLocator: null,
+          status: "needs_review",
+          basis: "carried",
+          itemId: BHUNA,
+          variantId: null,
+          channel: "all",
+          candidates: [BHUNA],
+          candidateCount: 1,
+          contentHash: s2Hash,
+        },
+        deferred(chickenAt, s2Hash),
+        deferred(lambAt, s2Hash),
+        deferred(chicken2At, s2Hash),
+      ],
+      skipped: 0,
+    })
+    expect(byLocator(h2)[chickenAt]).toMatchObject({
+      snapshotId: S2,
+      basis: "name_candidate",
+    })
+    expect(isDeferredProposal(byLocator(h2)[lambAt])).toBe(true)
+    // Nothing is proposed, confirmed or removed while the entry is pending.
+    expect(
+      s2.rows.filter((r) =>
+        ["proposed", "ambiguous", "confirmed", "not_on_source"].includes(
+          r.status
+        )
+      )
+    ).toEqual([])
+
+    // The S2 matcher again writes nothing.
+    expect(
+      proposeCrosswalk(
+        await input([s2Entry], { snapshotId: S2, catalogue: before, heads: h2 })
+      )
+    ).toEqual({ rows: [], skipped: 1 })
+
+    // The S2 row is current evidence; the S1 proposal is not, and no variant
+    // is confirmed before its entry.
+    const current = await snapshotOf([s2Entry])
+    expect(
+      crosswalkProvenanceError(
+        byLocator(h1)[chickenAt],
+        confirmTo(BHUNA, BH_CHICKEN),
+        current
+      )
+    ).toBe("crosswalk_not_on_source")
+    expect(
+      crosswalkProvenanceError(
+        byLocator(h2)[chickenAt],
+        confirmTo(BHUNA, BH_CHICKEN),
+        current
+      )
+    ).toBeNull()
+    expect(
+      crosswalkDecisionError(
+        h2,
+        chickenAt,
+        confirmTo(BHUNA, BH_CHICKEN),
+        variantOfBhuna
+      )
+    ).toBe("crosswalk_parent_not_confirmed")
+  })
+
+  it("defers again on changed S3 content, never on unchanged content, and still removes a dropped variant", async () => {
+    const { h2 } = await deferredOnS2(await openOnS1())
+    const s3 = proposeCrosswalk(
+      await input([s3Entry], { snapshotId: S3, catalogue: before, heads: h2 })
+    )
+    const s3Hash = await hashOf(s3Entry)
+    expect(s3.rows.filter((r) => r.entryLocator)).toEqual([
+      deferred(chickenAt, s3Hash),
+      deferred(lambAt, s3Hash),
+      deferred(chicken2At, s3Hash),
+    ])
+    const h3 = headsAfter(s3.rows, S3, {}, h2)
+    expect(
+      proposeCrosswalk(
+        await input([s3Entry], { snapshotId: S3, catalogue: before, heads: h3 })
+      )
+    ).toEqual({ rows: [], skipped: 1 })
+    // S4 lists the same content: the entry is matched afresh (it is not
+    // mapped), but no variant revision is written.
+    const s4 = proposeCrosswalk(
+      await input([s3Entry], {
+        snapshotId: id(904),
+        catalogue: before,
+        heads: h3,
+      })
+    )
+    expect(s4.rows.filter((r) => r.entryLocator)).toEqual([])
+
+    // A variant S3 no longer lists is removed, not deferred.
+    const dropped: SnapshotEntry = {
+      ...s3Entry,
+      variants: ["Chicken", "Chicken"],
+    }
+    const gone = byLocator(
+      proposeCrosswalk(
+        await input([dropped], { snapshotId: S3, catalogue: before, heads: h2 })
+      ).rows
+    )
+    const droppedHash = await hashOf(dropped)
+    expect(gone[chickenAt]).toEqual(deferred(chickenAt, droppedHash))
+    expect(gone[chicken2At]).toEqual(deferred(chicken2At, droppedHash))
+    expect(gone[lambAt]).toMatchObject({
+      status: "not_on_source",
+      itemId: BHUNA,
+      variantId: null,
+    })
+  })
+
+  it("does not write a revision when a pending entry's content is unchanged", async () => {
+    const h1 = await openOnS1({ [bhuna.locator]: { status: "rejected" } })
+    expect(
+      proposeCrosswalk(
+        await input([bhuna], { snapshotId: S2, catalogue: before, heads: h1 })
+      )
+    ).toEqual({ rows: [], skipped: 1 })
+  })
+
+  it("matches deferred proposals afresh in the active catalogue once the entry is reconfirmed to the same item on S2", async () => {
+    const { h2 } = await deferredOnS2(await openOnS1())
+    const s2Hash = await hashOf(s2Entry)
+    const confirmed = headsAfter(
+      [],
+      S2,
+      { [bhuna.locator]: { itemId: BHUNA } },
+      h2
+    )
+    const again = proposeCrosswalk(
+      await input([s2Entry], {
+        snapshotId: S2,
+        catalogue: after,
+        heads: confirmed,
+      })
+    )
+    expect(again).toEqual({
+      rows: [
+        {
+          ...deferred(chickenAt, s2Hash),
+          status: "proposed",
+          variantId: BH_CHICKEN,
+          candidates: [BH_CHICKEN],
+          candidateCount: 1,
+        },
+        // Two Lamb candidates on S1; the active version now lists one.
+        {
+          ...deferred(lambAt, s2Hash),
+          status: "proposed",
+          variantId: BH_LAMB,
+          candidates: [BH_LAMB],
+          candidateCount: 1,
+        },
+        {
+          ...deferred(chicken2At, s2Hash),
+          status: "ambiguous",
+          candidates: [BH_CHICKEN],
+          candidateCount: 1,
+        },
+      ],
+      skipped: 1,
+    })
+    const rematched = headsAfter(again.rows, S2, {}, confirmed)
+    expect(
+      proposeCrosswalk(
+        await input([s2Entry], {
+          snapshotId: S2,
+          catalogue: after,
+          heads: rematched,
+        })
+      )
+    ).toEqual({ rows: [], skipped: 4 })
+    expect(
+      crosswalkDecisionError(
+        rematched,
+        lambAt,
+        confirmTo(BHUNA, BH_LAMB),
+        variantOfBhuna
+      )
+    ).toBeNull()
+  })
+
+  it("matches afresh after a changed S3 too, keeping what S3 deferred until then", async () => {
+    const { h2 } = await deferredOnS2(await openOnS1())
+    const s3 = proposeCrosswalk(
+      await input([s3Entry], { snapshotId: S3, catalogue: before, heads: h2 })
+    )
+    const s3Hash = await hashOf(s3Entry)
+    // The entry is open on S3 (matched afresh); the reviewer confirms it.
+    const confirmed = headsAfter(
+      s3.rows,
+      S3,
+      { [bhuna.locator]: { itemId: BHUNA } },
+      h2
+    )
+    const again = proposeCrosswalk(
+      await input([s3Entry], {
+        snapshotId: S3,
+        catalogue: after,
+        heads: confirmed,
+      })
+    )
+    expect(
+      again.rows.map((r) => [
+        r.locator,
+        r.status,
+        r.variantId,
+        r.candidates,
+        r.candidateCount,
+        r.contentHash,
+      ])
+    ).toEqual([
+      [chickenAt, "proposed", BH_CHICKEN, [BH_CHICKEN], 1, s3Hash],
+      [lambAt, "proposed", BH_LAMB, [BH_LAMB], 1, s3Hash],
+      [chicken2At, "ambiguous", null, [BH_CHICKEN], 1, s3Hash],
+    ])
+  })
+
+  it("keeps a decision on the deferred row, and an ordinary review, for the reviewer", async () => {
+    // Chicken was confirmed on S1; Lamb and Chicken#2 were left open.
+    const h1 = await openOnS1({ [chickenAt]: { variantId: BH_CHICKEN } })
+    const { s2, h2 } = await deferredOnS2(h1)
+    const s2Hash = await hashOf(s2Entry)
+    expect(byLocator(s2.rows)[chickenAt]).toEqual({
+      ...deferred(chickenAt, s2Hash),
+      basis: "carried",
+      variantId: BH_CHICKEN,
+      candidates: [BH_CHICKEN],
+      candidateCount: 1,
+    })
+    expect(byLocator(s2.rows)[lambAt]).toEqual(deferred(lambAt, s2Hash))
+
+    // While Bhuna is pending, the reviewer rejects Lamb and marks Chicken#2
+    // unmatched on the S2 rows (each keeps the item, as the database does).
+    let heads = headsAfter(
+      [],
+      S2,
+      {
+        [lambAt]: { status: "rejected" },
+        [chicken2At]: { status: "unmatched", basis: "manual" },
+      },
+      h2
+    )
+    expect(
+      crosswalkProvenanceError(
+        byLocator(heads)[lambAt],
+        { status: "rejected" },
+        await snapshotOf([s2Entry])
+      )
+    ).toBeNull()
+    // Bhuna is reconfirmed to the same item: nothing is reopened, and Chicken
+    // still awaits its reviewer.
+    heads = headsAfter([], S2, { [bhuna.locator]: { itemId: BHUNA } }, heads)
+    expect(
+      proposeCrosswalk(
+        await input([s2Entry], { snapshotId: S2, catalogue: after, heads })
+      )
+    ).toEqual({ rows: [], skipped: 4 })
+    expect(
+      crosswalkDecisionError(
+        heads,
+        chickenAt,
+        confirmTo(BHUNA, BH_CHICKEN),
+        variantOfBhuna
+      )
+    ).toBeNull()
+  })
+})
+
 describe("decision rules (§4.2 #3, §4.6)", () => {
   const head = (
     locator: string,
@@ -906,6 +1309,7 @@ describe("decision rules (§4.2 #3, §4.6)", () => {
     locator,
     entryLocator: null,
     status: "proposed",
+    basis: "name_candidate",
     itemId: null,
     variantId: null,
     channel: "all",
@@ -1335,6 +1739,7 @@ describe("manifest helpers (§4.2 #7)", () => {
     locator: "l",
     entryLocator: null,
     status: "proposed" as const,
+    basis: "name_candidate" as const,
     itemId: null,
     variantId: null,
     channel: "all" as const,

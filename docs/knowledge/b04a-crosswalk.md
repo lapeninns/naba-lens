@@ -51,9 +51,13 @@ decision rules and the manifest types and CSV export.
 - **Locators.** Generated locator components (`websiteLocators`: file,
   category, name; variant names) have `%` and `#` percent-encoded
   (`locatorPart`, `private.menu_locator_part`), so `Dish`, `Dish`, `Dish#2`
-  give `…#name=Dish`, `…#name=Dish#2`, `…#name=Dish%232`. Variant locators are
-  `<entry>#variant=<encoded name>` (`#2`… for repeats); the longest is 552
-  characters (`CROSSWALK_LOCATOR_MAX`, the `menu_crosswalk.locator` check).
+  give `…#name=Dish`, `…#name=Dish#2`, `…#name=Dish%232`. An entry locator
+  is at most 900 characters and 1,200 UTF-8 bytes (`SNAPSHOT_LIMITS`,
+  `private.menu_snapshot_document_error`): every generated locator whose
+  unencoded form fit 300 characters is admitted encoded. Variant locators are
+  `<entry>#variant=<encoded name>` (`#2`… for repeats); a full variant locator
+  is at most 1,152 characters and 1,532 UTF-8 bytes (`CROSSWALK_LOCATOR_MAX`,
+  `CROSSWALK_LOCATOR_BYTES_MAX`, the `menu_crosswalk.locator` check).
 - **Variants** are proposed only for entries confirmed (or carried) to an item,
   and only among that item's variants on the active version. Every variant a
   snapshot lists is on the source whether or not its entry is mapped: while
@@ -61,9 +65,24 @@ decision rules and the manifest types and CSV export.
   `needs_review` on the new snapshot's evidence, and a variant no longer listed
   becomes `not_on_source`. A rejected entry sends its confirmed variants back
   to `needs_review`. Running the matcher again on the same snapshot adds or
-  re-proposes only variant rows: those missing, and those proposed or decided
-  inside an item other than the one their entry is mapped to now. A variant
-  marked unmatched keeps the item it was matched inside.
+  re-proposes only variant rows: those missing, those proposed or decided
+  inside an item other than the one their entry is mapped to now, and
+  deferred proposals. A variant marked unmatched keeps the item it was matched
+  inside.
+- **Deferred variant proposals.** While its entry awaits review, an open
+  variant proposal (`proposed` or `ambiguous`) whose entry content changed is
+  deferred: a `needs_review` row on the new snapshot, hash and evidence, basis
+  `name_candidate`, inside the item it was proposed in, with no variant and no
+  candidates. The proposal it supersedes keeps its candidates and full count;
+  the evidence repeats them under `deferredProposal` (`role: "historical"`,
+  with the proposal's row and snapshot), never as a candidate on the new
+  snapshot. A changed later snapshot defers it again (keeping the original
+  `deferredProposal`); the same content does not write a new revision. Once
+  the entry is confirmed or carried, the next matcher run proposes the variant
+  afresh within the mapped item and active version, the same snapshot and
+  item included. Ordinary `needs_review` rows (basis `carried`) and a
+  rejection or unmatched decision on the deferred row keep their usual
+  same-item semantics.
 - **Carry.** On a newer snapshot of the same source, a confirmed row with the
   same locator and content hash becomes `carried` with the original reviewer;
   a changed hash gives `needs_review`; a missing locator gives `not_on_source`.
