@@ -24,6 +24,7 @@ import {
   grantManager,
   insertAsset,
   insertSubmittedItem,
+  itemRevision,
   midMonth,
   monthOffset,
   ok,
@@ -69,6 +70,7 @@ type Snapshot = {
   amenity_units: number
   photo_units: number
   late_photo_units: number
+  photo_asset_ids: string[]
   total: number
   target_count: number | null
   function_hash: string
@@ -80,11 +82,19 @@ type Drift = {
   snapshot_kind: string
   reason: string
   expected: boolean
+  snapshot_function_hash: string | null
+  live_function_hash: string
+  snapshot_menu_units: number | null
+  live_menu_units: number
+  snapshot_amenity_units: number | null
+  live_amenity_units: number
   snapshot_total: number
   live_total: number
   snapshot_target: number | null
   live_target: number | null
+  added_since_snapshot: number
   late_since_snapshot: number
+  removed_since_snapshot: number
 }
 
 beforeAll(async () => {
@@ -249,6 +259,58 @@ function session(sql: string): Promise<{ code: number; err: string }> {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
+const GATE_CLASS = 80_801
+
+/**
+ * Orders two sessions on observable lock state, not on timing. The holder
+ * takes an advisory lock and waits until the other session queues behind it;
+ * the passer waits until the lock is held, then queues. Whatever the passer
+ * ran before `pass` happened before anything the holder runs after `hold`,
+ * and the passer resumes only after the holder's transaction ends.
+ */
+function gate() {
+  const id = 1 + Math.floor(Math.random() * 2_000_000_000)
+  const lock = `${GATE_CLASS}, ${id}`
+  const seen = (granted: boolean) => `exists (select 1 from pg_locks l
+      where l.locktype = 'advisory' and l.classid = ${GATE_CLASS} and l.objid = ${id}
+        and l.objsubid = 2 and l.granted = ${granted})`
+  const until = (condition: string) => `do $gate$
+    begin
+      for i in 1..400 loop
+        exit when ${condition};
+        perform pg_sleep(0.025);
+      end loop;
+      if not ${condition} then
+        raise exception 'fixture_gate_timeout';
+      end if;
+    end $gate$;`
+  return {
+    hold: `select pg_advisory_xact_lock(${lock});\n${until(seen(false))}`,
+    pass: `${until(seen(true))}\nselect pg_advisory_xact_lock_shared(${lock});`,
+  }
+}
+
+/** A close snapshot recorded from the live result, with chosen fields altered. */
+function recordAltered(
+  venue: string,
+  staff: string,
+  month: string,
+  alter: { swapMenuAmenity?: boolean; functionHash?: string }
+) {
+  const [menu, amenity] = alter.swapMenuAmenity
+    ? ["x.amenity_units", "x.menu_units"]
+    : ["x.menu_units", "x.amenity_units"]
+  const hash = alter.functionHash ? `'${alter.functionHash}'` : "x.function_hash"
+  psql(`insert into private.scoring_month_snapshots
+      (venue_id, staff_id, period_month, kind, policy_key, policy_version, target_basis,
+        menu_units, amenity_units, photo_units, late_photo_units, photo_asset_ids, total,
+        target_count, function_hash, computed_at)
+    select '${venue}', '${staff}', '${month}', 'close', x.policy_key, x.policy_version,
+      x.target_basis, ${menu}, ${amenity}, x.photo_units, x.late_photo_units,
+      x.photo_asset_ids, x.total, x.target_count, ${hash}, clock_timestamp()
+    from private.scoring_participant_result('${venue}', '${staff}', '${month}') x`)
+}
+
 /** One backdated amenity unit for `author` in `month` (completion-targets pattern). */
 function amenityUnit(venue: string, author: string, month: string) {
   const instant = midMonth(month)
@@ -327,9 +389,52 @@ describe("scoring policy registry and access (C-B08-3)", () => {
         values ('combined', 99, '{"unit_scope": "subject"}', 'TEST incomplete');
         rollback;`)
     ).toThrow(/scoring_policies_rules_valid/)
+    // A complete-looking flag set with a required enum set to JSON null reads
+    // as SQL NULL, which a bare CHECK would pass. Each is refused.
+    for (const [key, flag] of [
+      ["combined", "unit_scope"],
+      ["combined", "credit_month"],
+      ["accepted_photos", "unit"],
+      ["accepted_photos", "target_scope"],
+      ["accepted_photos", "credit_month"],
+    ] as const) {
+      expect(
+        () =>
+          psql(`begin;
+          insert into private.scoring_policies(policy_key, version, rules, description)
+          select policy_key, 97, rules || jsonb_build_object('${flag}', null), 'TEST null enum'
+          from private.scoring_policies where policy_key = '${key}' and version = 1;
+          rollback;`),
+        `${key}.${flag}`
+      ).toThrow(/scoring_policies_rules_valid/)
+    }
+    expect(
+      psql(`select count(*) from private.scoring_policies where version > 1`)
+    ).toBe("0")
   })
 
-  it("refuses any change to a referenced policy", async () => {
+  it("keeps every registered version append-only, referenced or not", async () => {
+    // Before any reference exists: a fresh version is fixed once inserted, so
+    // no edit can race a concurrent first reference.
+    const draft = `insert into private.scoring_policies(policy_key, version, rules, description)
+      select 'combined', 98, rules, 'TEST draft' from private.scoring_policies
+      where policy_key = 'combined' and version = 1;`
+    for (const change of [
+      `update private.scoring_policies set description = 'TEST draft edited'
+        where policy_key = 'combined' and version = 98;`,
+      `update private.scoring_policies set rules = rules || '{"grace_days": 0}'
+        where policy_key = 'combined' and version = 98;`,
+      `delete from private.scoring_policies where policy_key = 'combined' and version = 98;`,
+    ]) {
+      expect(() => psql(`begin; ${draft} ${change} rollback;`), change).toThrow(
+        /scoring_policy_immutable/
+      )
+    }
+    expect(
+      psql(`select count(*) from private.scoring_policies where version > 1`)
+    ).toBe("0")
+
+    // Referenced: the same refusals.
     const venue = (await createVenue(service, "scoring-policy-ref")).id
     await ok(
       assign(admin.client, { venue, startsOn: monthOffset(1), target: 3 })
@@ -337,36 +442,19 @@ describe("scoring policy registry and access (C-B08-3)", () => {
     expect(() =>
       psql(`update private.scoring_policies set rules = rules || '{"grace_days": 0}'
         where policy_key = 'combined' and version = 1`)
-    ).toThrow(/scoring_policy_referenced/)
+    ).toThrow(/scoring_policy_immutable/)
     expect(() =>
       psql(`update private.scoring_policies set description = 'TEST changed'
         where policy_key = 'combined' and version = 1`)
-    ).toThrow(/scoring_policy_referenced/)
+    ).toThrow(/scoring_policy_immutable/)
     expect(() =>
       psql(
         `delete from private.scoring_policies where policy_key = 'combined' and version = 1`
       )
-    ).toThrow(/scoring_policy_referenced/)
+    ).toThrow(/scoring_policy_immutable/)
     expect(() =>
       psql(`begin; truncate private.scoring_policies; rollback;`)
-    ).toThrow(/scoring_policy_referenced|referenced in a foreign key/)
-    // An unreferenced draft version may still be edited before use. The
-    // closing exception reports the edit and rolls the draft back.
-    expect(() =>
-      psql(`do $$
-      begin
-        insert into private.scoring_policies(policy_key, version, rules, description)
-        select 'combined', 98, rules, 'TEST draft' from private.scoring_policies
-        where policy_key = 'combined' and version = 1;
-        update private.scoring_policies set description = 'TEST draft edited'
-        where policy_key = 'combined' and version = 98;
-        raise exception 'draft: %', (select description from private.scoring_policies
-          where policy_key = 'combined' and version = 98);
-      end $$`)
-    ).toThrow(/draft: TEST draft edited/)
-    expect(
-      psql(`select count(*) from private.scoring_policies where version > 1`)
-    ).toBe("0")
+    ).toThrow(/scoring_policy_immutable|referenced in a foreign key/)
   })
 
   it("keeps private tables and functions closed and the command admin-only", async () => {
@@ -860,6 +948,63 @@ describe("policy assignment command (C-B08-2)", () => {
     )
     expect(assignmentRows(legacy)).toEqual([])
   })
+
+  it("enrols a first current month beside a future combined assignment", async () => {
+    const { venue } = await world("scoring-first-beside-future")
+    const owner = randomUUID()
+    const month = currentMonth()
+    const reason = "TEST first enrolment beside a future row"
+    // A combined row scheduled for next month is not a prior enrolment.
+    await ok(
+      assign(admin.client, { venue, startsOn: monthOffset(1), target: 4 })
+    )
+    const futureRow = () =>
+      psql(`select row_to_json(t)::text from private.venue_monthly_completion_targets t
+        where t.venue_id = '${venue}' and t.starts_on = '${monthOffset(1)}'`)
+    const future = futureRow()
+    expect(future).not.toBe("")
+    const pastBefore = JSON.stringify(
+      await progress(admin, venue, monthOffset(-1))
+    )
+
+    const key = requestKey()
+    provisionApproval({ key, venue, month, target: 3, reason, owner })
+    const [row] = await ok(
+      assign(admin.client, { venue, startsOn: month, target: 3, reason, key })
+    )
+    expect(row).toMatchObject({
+      starts_on: month,
+      policy_key: "combined",
+      policy_version: 1,
+      target_count: 3,
+      approved_by: owner,
+      first_enrolment: true,
+      replayed: false,
+    })
+    expect(new Date(row!.approved_at).toISOString()).toBe(
+      "2026-11-10T09:00:00.000Z"
+    )
+    const [replay] = await ok(
+      assign(admin.client, { venue, startsOn: month, target: 3, reason, key })
+    )
+    expect(replay).toEqual({ ...row, replayed: true })
+
+    expect(futureRow()).toBe(future)
+    expect(JSON.stringify(await progress(admin, venue, monthOffset(-1)))).toBe(
+      pastBefore
+    )
+    expect(
+      assignmentRows(venue).map((r) => [
+        r.starts_on,
+        r.target_count,
+        r.approved_by,
+        r.assigned_by,
+      ])
+    ).toEqual([
+      [month, 3, owner, admin.id],
+      [monthOffset(1), 4, admin.id, admin.id],
+    ])
+  })
 })
 
 describe("closed-month protection (C-B08-2)", () => {
@@ -934,10 +1079,12 @@ describe("closed-month protection (C-B08-2)", () => {
     memberSince(venue, month)
     psql(`insert into private.scoring_month_snapshots
         (venue_id, staff_id, period_month, kind, policy_key, policy_version, target_basis,
-          menu_units, amenity_units, photo_units, late_photo_units, total, target_count,
-          function_hash, computed_at)
+          menu_units, amenity_units, photo_units, late_photo_units, photo_asset_ids, total,
+          target_count, function_hash, computed_at)
       values ('${venue}', '${staffA.id}', '${month}', 'baseline', 'accepted_photos', 1,
-        'accepted_photos', 0, 0, 3, 0, 3, null, '${CREDIT_HASH}', now())`)
+        'accepted_photos', 0, 0, 3, 0,
+        array['${randomUUID()}', '${randomUUID()}', '${randomUUID()}']::uuid[], 3, null,
+        '${CREDIT_HASH}', now())`)
     // Unprotected: the month's policy may still be set directly.
     directRow(venue, month, 5)
     expect(closedFor(closeMonth(month), venue)).toEqual([
@@ -1006,6 +1153,37 @@ describe("closed-month protection (C-B08-2)", () => {
       null,
     ])
     expect(assignmentRows(b.venue)).toEqual([])
+  })
+
+  it("refuses a truncate whose snapshot predates a concurrent close", async () => {
+    const month = monthOffset(-12)
+    const { venue } = await world("scoring-truncate-race")
+    memberSince(venue, month)
+    directRow(venue, month, 5)
+    const before = assignmentRows(venue)
+    const g = gate()
+    // The truncating transaction reads the snapshot table under REPEATABLE
+    // READ first, so its snapshot cannot see the close committed afterwards.
+    const truncating = session(`begin isolation level repeatable read;
+      select count(*) from private.scoring_month_snapshots;
+      ${g.pass}
+      truncate private.venue_monthly_completion_targets;
+      rollback;`)
+    const closing = session(`begin;
+      ${g.hold}
+      select count(*) from private.scoring_close_month('${month}'::date);
+      commit;`)
+    expect(await closing).toMatchObject({ code: 0 })
+    const result = await truncating
+    expect(result.code).not.toBe(0)
+    expect(result.err).toMatch(/scoring_requires_read_committed/)
+    expect(assignmentRows(venue)).toEqual(before)
+    expect(
+      snapshots(venue, month).map((s) => [s.kind, s.target_count])
+    ).toEqual([
+      ["close", 5],
+      ["close", 5],
+    ])
   })
 })
 
@@ -1130,7 +1308,182 @@ describe("month close and drift (C-B08-5)", () => {
         expected: true,
         snapshot_total: 0,
         live_total: 1,
+        added_since_snapshot: 1,
         late_since_snapshot: 1,
+        removed_since_snapshot: 0,
+      }),
+    ])
+    expect(snapshots(venue, month)).toEqual(recorded)
+  })
+
+  it("reports a same-total breakdown change and a definition change as unexpected drift", async () => {
+    const month = monthOffset(-13)
+    const { venue, staffA, staffB } = await world("scoring-drift-identity")
+    memberSince(venue, month)
+    directRow(venue, month, 5)
+    amenityUnit(venue, staffA.id, month)
+    const live = JSON.stringify(await progress(admin, venue, month))
+    // Recorded closes that differ from the live result only in the breakdown
+    // (menu and amenity swapped, same total) or only in the function hash.
+    recordAltered(venue, staffA.id, month, { swapMenuAmenity: true })
+    const otherHash = psql(`select md5('TEST another definition')`)
+    recordAltered(venue, staffB.id, month, { functionHash: otherHash })
+    const recorded = snapshots(venue, month)
+    expect(
+      recorded.map((s) => [s.staff_id, s.menu_units, s.amenity_units, s.total])
+    ).toEqual(
+      expect.arrayContaining([
+        [staffA.id, 1, 0, 1],
+        [staffB.id, 0, 0, 0],
+      ])
+    )
+
+    const found = drift(venue, month)
+    expect(found).toHaveLength(2)
+    expect(found.find((d) => d.staff_id === staffA.id)).toMatchObject({
+      snapshot_kind: "close",
+      reason: "count_changed",
+      expected: false,
+      snapshot_menu_units: 1,
+      live_menu_units: 0,
+      snapshot_amenity_units: 0,
+      live_amenity_units: 1,
+      snapshot_total: 1,
+      live_total: 1,
+    })
+    expect(found.find((d) => d.staff_id === staffB.id)).toMatchObject({
+      snapshot_kind: "close",
+      reason: "definition_changed",
+      expected: false,
+      snapshot_function_hash: otherHash,
+      live_function_hash: CREDIT_HASH,
+      snapshot_total: 0,
+      live_total: 0,
+    })
+    // Read-only: snapshots and progress are unchanged.
+    expect(snapshots(venue, month)).toEqual(recorded)
+    expect(JSON.stringify(await progress(admin, venue, month))).toBe(live)
+  })
+
+  it("labels an acceptance decided before the close but committed after it as expected", async () => {
+    const month = monthOffset(-15)
+    const { venue, staffA, manager } = await world("scoring-legacy-straddle")
+    memberSince(venue, month)
+    const asset = await insertAsset(service, {
+      venue,
+      uploader: staffA.id,
+      createdAt: midMonth(month),
+    })
+    const item = await insertSubmittedItem(service, {
+      asset,
+      venue,
+      author: staffA.id,
+      submittedAt: midMonth(month),
+    })
+    const { revision } = await itemRevision(service, item)
+    const g = gate()
+    const claims = JSON.stringify({ sub: manager.id, role: "authenticated" })
+    // The released writer stamps decided_at = now(), its transaction start,
+    // which precedes the close; the commit follows it.
+    const accepting = session(`begin;
+      set local role authenticated;
+      select set_config('request.jwt.claims', '${claims}', true);
+      select count(*) from public.review_coverage_item('${item}', ${revision}, 'accepted');
+      reset role;
+      ${g.pass}
+      commit;`)
+    const closing = session(`begin;
+      ${g.hold}
+      select count(*) from private.scoring_close_month('${month}'::date);
+      commit;`)
+    expect(await closing).toMatchObject({ code: 0 })
+    expect(await accepting).toMatchObject({ code: 0 })
+
+    const recorded = snapshots(venue, month)
+    expect(recorded.find((s) => s.staff_id === staffA.id)).toMatchObject({
+      kind: "close",
+      policy_key: "accepted_photos",
+      photo_units: 0,
+      photo_asset_ids: [],
+      total: 0,
+    })
+    expect(
+      psql(`select i.decided_at < s.computed_at
+        from public.coverage_submission_items i, private.scoring_month_snapshots s
+        where i.id = '${item}' and i.state = 'accepted' and s.venue_id = '${venue}'
+          and s.staff_id = '${staffA.id}' and s.period_month = '${month}'`)
+    ).toBe("t")
+    expect(drift(venue, month)).toEqual([
+      expect.objectContaining({
+        staff_id: staffA.id,
+        snapshot_kind: "close",
+        reason: "legacy_late_acceptance",
+        expected: true,
+        snapshot_total: 0,
+        live_total: 1,
+        added_since_snapshot: 1,
+        late_since_snapshot: 1,
+        removed_since_snapshot: 0,
+      }),
+    ])
+    expect(snapshots(venue, month)).toEqual(recorded)
+  })
+
+  it("reports a lost counted asset beside late additions as unexpected", async () => {
+    const month = monthOffset(-16)
+    const { venue, staffA, manager } = await world("scoring-legacy-mixed")
+    memberSince(venue, month)
+    const assets: string[] = []
+    const items: string[] = []
+    for (let i = 0; i < 3; i++) {
+      const asset = await insertAsset(service, {
+        venue,
+        uploader: staffA.id,
+        createdAt: midMonth(month),
+      })
+      assets.push(asset.id)
+      items.push(
+        await insertSubmittedItem(service, {
+          asset,
+          venue,
+          author: staffA.id,
+          submittedAt: midMonth(month),
+        })
+      )
+    }
+    await accept(service, manager, items[0]!)
+    expect(closedFor(closeMonth(month), venue)).toEqual([
+      { venue_id: venue, outcome: "closed", participants: 2 },
+    ])
+    const recorded = snapshots(venue, month)
+    expect(recorded.find((s) => s.staff_id === staffA.id)).toMatchObject({
+      photo_units: 1,
+      photo_asset_ids: [assets[0]],
+      total: 1,
+    })
+
+    // The counted asset leaves the month (a tombstone dated inside it) and
+    // two late acceptances arrive: a net increase, but not only additions.
+    psql(`update public.media_assets set deleted_at = '${month.slice(0, 8)}20T12:00:00Z'
+      where id = '${assets[0]}'`)
+    await accept(service, manager, items[1]!)
+    await accept(service, manager, items[2]!)
+    expect(
+      (await progress(admin, venue, month)).find(
+        (r) => r.staff_id === staffA.id
+      )
+    ).toMatchObject({ accepted_count: 2, late_accepted_count: 2 })
+    expect(drift(venue, month)).toEqual([
+      expect.objectContaining({
+        staff_id: staffA.id,
+        snapshot_kind: "close",
+        reason: "count_changed",
+        expected: false,
+        snapshot_total: 1,
+        live_total: 2,
+        added_since_snapshot: 2,
+        late_since_snapshot: 2,
+        removed_since_snapshot: 1,
       }),
     ])
     expect(snapshots(venue, month)).toEqual(recorded)

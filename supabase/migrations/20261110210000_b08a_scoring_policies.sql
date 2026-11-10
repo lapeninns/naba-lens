@@ -20,7 +20,8 @@ language sql
 immutable
 set search_path = ''
 as $$
-  select case
+  -- Never NULL: a JSON null flag reads as SQL NULL, which a CHECK would pass.
+  select coalesce(case
     when p_rules is null or jsonb_typeof(p_rules) <> 'object' then false
     when p_policy_key = 'combined' then
       array(select k from jsonb_object_keys(p_rules) k order by k collate "C") = array[
@@ -46,7 +47,7 @@ as $$
       and p_rules ->> 'credit_month' = 'upload_and_submit_month'
       and jsonb_typeof(p_rules -> 'late_acceptance_changes_closed_month') = 'boolean'
     else false
-  end;
+  end, false);
 $$;
 
 create table private.scoring_policies (
@@ -58,7 +59,7 @@ create table private.scoring_policies (
   approved_at timestamptz,
   created_at timestamptz not null default now(),
   primary key (policy_key, version),
-  constraint scoring_policies_rules_valid check (private.scoring_rules_valid(policy_key, rules)),
+  constraint scoring_policies_rules_valid check (private.scoring_rules_valid(policy_key, rules) is true),
   constraint scoring_policies_approval_pair check ((approved_by is null) = (approved_at is null))
 );
 
@@ -66,7 +67,7 @@ alter table private.scoring_policies enable row level security;
 revoke all on table private.scoring_policies from public, anon, authenticated, service_role;
 
 comment on table private.scoring_policies is
-  'Versioned scoring rule sets. A policy referenced by an assignment, approval or snapshot never changes; a new rule set is a new version. No direct client access.';
+  'Versioned scoring rule sets, append-only: a registered version never changes or disappears, referenced or not; a new rule set is a new version. No direct client access.';
 
 -- Today's two bases, with every flag stated. No v2 row: the owner selects it later.
 insert into private.scoring_policies (policy_key, version, rules, description) values
@@ -176,6 +177,9 @@ create table private.scoring_month_snapshots (
   amenity_units integer not null check (amenity_units >= 0),
   photo_units integer not null check (photo_units >= 0),
   late_photo_units integer not null,
+  -- Private witness of the counted accepted assets, from the same read as
+  -- photo_units, so drift can prove which assets are new. Never returned.
+  photo_asset_ids uuid[] not null default '{}',
   corrections integer not null default 0,
   total integer not null,
   target_count integer check (target_count >= 1),
@@ -186,6 +190,8 @@ create table private.scoring_month_snapshots (
     on update restrict on delete restrict,
   constraint scoring_month_snapshots_identity unique (venue_id, staff_id, period_month, kind),
   constraint scoring_month_snapshots_late_check check (late_photo_units between 0 and photo_units),
+  constraint scoring_month_snapshots_assets_check check (
+    cardinality(photo_asset_ids) = photo_units and array_position(photo_asset_ids, null) is null),
   constraint scoring_month_snapshots_basis_check
     check ((policy_key = 'accepted_photos') = (target_basis = 'accepted_photos')),
   constraint scoring_month_snapshots_total_check check (total = corrections + case
@@ -214,30 +220,21 @@ comment on table private.scoring_month_snapshots is
 -- Policy immutability
 -- ---------------------------------------------------------------------------
 
+-- Append-only. A check for references before an edit cannot see a reference
+-- another transaction is adding: the foreign key's KEY SHARE lock does not
+-- conflict with a non-key update. So no registered version is ever edited.
 create function private.scoring_policies_guard()
 returns trigger
 language plpgsql
-security definer
 set search_path = ''
 as $$
 begin
   if tg_op = 'TRUNCATE' then
-    raise exception 'scoring_policy_referenced' using errcode = '42501',
+    raise exception 'scoring_policy_immutable' using errcode = '42501',
       detail = 'Scoring policies cannot be truncated.';
   end if;
-  if exists (
-      select 1 from private.venue_monthly_completion_targets t
-      where t.policy_key = old.policy_key and t.policy_version = old.version)
-    or exists (
-      select 1 from private.scoring_month_snapshots s
-      where s.policy_key = old.policy_key and s.policy_version = old.version)
-    or exists (
-      select 1 from private.scoring_first_enrolment_approvals a
-      where a.policy_key = old.policy_key and a.policy_version = old.version) then
-    raise exception 'scoring_policy_referenced' using errcode = '42501',
-      detail = format('%s v%s is in use; create a new version instead.', old.policy_key, old.version);
-  end if;
-  return case when tg_op = 'DELETE' then old else new end;
+  raise exception 'scoring_policy_immutable' using errcode = '42501',
+    detail = format('%s v%s is registered; create a new version instead.', old.policy_key, old.version);
 end;
 $$;
 
@@ -313,7 +310,9 @@ returns table (
   late_photo_units integer,
   total integer,
   target_count integer,
-  function_hash text
+  function_hash text,
+  photo_asset_ids uuid[],
+  late_photo_asset_ids uuid[]
 )
 language sql
 stable
@@ -329,13 +328,23 @@ as $$
     cross join lateral private.monthly_venue_completion_counts(p_venue_id, p_staff_id, p_period_month) c
     where p.target_count is not null
   ),
-  photos as (
-    select count(distinct c.asset_id)::integer as accepted,
-      (count(distinct c.asset_id)
-        filter (where c.decided_at >= private.london_month_end(p_period_month)))::integer as late
+  -- One row per distinct counted asset. late: any counted decision after the
+  -- month ended (late_photo_units, as before). late_photo_asset_ids: every
+  -- counted decision after the month ended, so it was never visible in time.
+  photo_assets as (
+    select c.asset_id, min(c.decided_at) as first_decided_at, max(c.decided_at) as last_decided_at
     from policy p
     cross join lateral private.monthly_credit_items(p_period_month) c
     where p.target_count is null and c.venue_id = p_venue_id and c.author_id = p_staff_id
+    group by c.asset_id
+  ),
+  photos as (
+    select count(*)::integer as accepted,
+      (count(*) filter (where a.last_decided_at >= private.london_month_end(p_period_month)))::integer as late,
+      coalesce(array_agg(a.asset_id order by a.asset_id), '{}') as assets,
+      coalesce(array_agg(a.asset_id order by a.asset_id)
+        filter (where a.first_decided_at >= private.london_month_end(p_period_month)), '{}') as late_assets
+    from photo_assets a
   )
   select p.policy_key, p.policy_version,
     case when p.target_count is null then 'accepted_photos' else 'menu_items_and_amenities' end,
@@ -347,7 +356,8 @@ as $$
     ) else p.target_count end,
     md5(pg_get_functiondef((case when p.target_count is null
       then 'private.monthly_credit_items(date)'
-      else 'private.monthly_venue_completion_counts(uuid,uuid,date)' end)::regprocedure))
+      else 'private.monthly_venue_completion_counts(uuid,uuid,date)' end)::regprocedure)),
+    ph.assets, ph.late_assets
   from policy p cross join combined c cross join photos ph;
 $$;
 
@@ -403,6 +413,8 @@ declare
   v_before record;
   v_after record;
 begin
+  -- First, so a TRUNCATE from an older snapshot cannot miss a committed close.
+  perform private.assert_scoring_read_committed();
   if tg_op = 'TRUNCATE' then
     if exists (select 1 from private.scoring_month_snapshots s where s.kind = 'close') then
       raise exception 'scoring_month_closed' using errcode = '42501',
@@ -411,7 +423,6 @@ begin
     return null;
   end if;
 
-  perform private.assert_scoring_read_committed();
   if tg_op in ('UPDATE', 'DELETE') then
     v_old_venue := old.venue_id;
     v_old_start := old.starts_on;
@@ -581,11 +592,13 @@ begin
 
   if p_starts_on = v_current then
     -- E33: only a first combined v1 enrolment of a venue on the legacy basis.
+    -- A combined row already scheduled for a later month is not a prior
+    -- enrolment; the occupied-slot check above covers the current month.
     if p_policy_key <> 'combined' or p_version <> 1
        or private.venue_monthly_completion_target(p_venue, v_current) is not null
        or exists (
          select 1 from private.venue_monthly_completion_targets t
-         where t.venue_id = p_venue and t.target_count is not null
+         where t.venue_id = p_venue and t.target_count is not null and t.starts_on < v_current
        ) then
       raise exception 'scoring_month_not_assignable' using errcode = '22023',
         detail = 'Only a first combined v1 enrolment can start in the current month.';
@@ -681,11 +694,11 @@ begin
       else
         insert into private.scoring_month_snapshots
           (venue_id, staff_id, period_month, kind, policy_key, policy_version, target_basis,
-            menu_units, amenity_units, photo_units, late_photo_units, total, target_count,
-            function_hash, computed_at)
+            menu_units, amenity_units, photo_units, late_photo_units, photo_asset_ids, total,
+            target_count, function_hash, computed_at)
         select v_venue, r.staff_id, p_month, 'close', x.policy_key, x.policy_version, x.target_basis,
-          x.menu_units, x.amenity_units, x.photo_units, x.late_photo_units, x.total, x.target_count,
-          x.function_hash, clock_timestamp()
+          x.menu_units, x.amenity_units, x.photo_units, x.late_photo_units, x.photo_asset_ids, x.total,
+          x.target_count, x.function_hash, clock_timestamp()
         from (
           select distinct r.staff_id
           from private.scoring_month_roster(p_month) r
@@ -704,8 +717,13 @@ end;
 $$;
 
 -- Compares live results with the recorded snapshot of each venue for the
--- month (the close if there is one, otherwise the baseline). Reports one row
--- per differing participant with the evidence; writes nothing.
+-- month (the close if there is one, otherwise the baseline): policy, version,
+-- basis, target, function hash, the menu/amenity/photo breakdown and total.
+-- Reports one row per differing participant with the evidence; writes
+-- nothing. Expected drift is only a legacy increase made entirely of newly
+-- counted assets (absent from the snapshot's witness) whose every counted
+-- decision came after the London month ended, with nothing lost and nothing
+-- else changed. Asset ids never leave the function.
 create function private.scoring_month_drift(p_month date)
 returns table (
   venue_id uuid,
@@ -718,11 +736,23 @@ returns table (
   snapshot_policy_version integer,
   live_policy_key text,
   live_policy_version integer,
+  snapshot_target_basis text,
+  live_target_basis text,
+  snapshot_function_hash text,
+  live_function_hash text,
+  snapshot_menu_units integer,
+  live_menu_units integer,
+  snapshot_amenity_units integer,
+  live_amenity_units integer,
+  snapshot_photo_units integer,
+  live_photo_units integer,
   snapshot_total integer,
   live_total integer,
   snapshot_target integer,
   live_target integer,
+  added_since_snapshot integer,
   late_since_snapshot integer,
+  removed_since_snapshot integer,
   computed_at timestamptz
 )
 language sql
@@ -754,17 +784,25 @@ as $$
   ),
   compared as (
     select x.venue_id, x.staff_id, k.kind, s.id as snapshot_id,
-      s.policy_key as s_key, s.policy_version as s_version, s.total as s_total,
-      s.target_count as s_target, s.computed_at as s_at,
-      l.policy_key as l_key, l.policy_version as l_version, l.total as l_total,
-      l.target_count as l_target,
+      s.policy_key as s_key, s.policy_version as s_version, s.target_basis as s_basis,
+      s.function_hash as s_hash, s.menu_units as s_menu, s.amenity_units as s_amenity,
+      s.photo_units as s_photo, s.total as s_total, s.target_count as s_target,
+      s.computed_at as s_at,
+      l.policy_key as l_key, l.policy_version as l_version, l.target_basis as l_basis,
+      l.function_hash as l_hash, l.menu_units as l_menu, l.amenity_units as l_amenity,
+      l.photo_units as l_photo, l.total as l_total, l.target_count as l_target,
       (r.staff_id is not null) as in_roster,
       exists (select 1 from public.profiles p where p.id = x.staff_id) as has_profile,
-      case when s.target_basis = 'accepted_photos' and l.target_basis = 'accepted_photos' then (
-        select count(distinct c.asset_id)::integer
-        from private.monthly_credit_items(p_month) c
-        where c.venue_id = x.venue_id and c.author_id = x.staff_id and c.decided_at > s.computed_at
-      ) else 0 end as late_since
+      -- Membership against the snapshot's witness, from the same read as l_photo.
+      case when s.id is null then 0 else (
+        select count(*)::integer from unnest(l.photo_asset_ids) a(id)
+        where a.id <> all (s.photo_asset_ids)) end as added,
+      case when s.id is null then 0 else (
+        select count(*)::integer from unnest(l.photo_asset_ids) a(id)
+        where a.id <> all (s.photo_asset_ids) and a.id = any (l.late_photo_asset_ids)) end as added_late,
+      case when s.id is null then 0 else (
+        select count(*)::integer from unnest(s.photo_asset_ids) a(id)
+        where a.id <> all (l.photo_asset_ids)) end as removed
     from pairs x
     join venue_kind k on k.venue_id = x.venue_id
     left join recorded s on s.venue_id = x.venue_id and s.staff_id = x.staff_id
@@ -777,17 +815,27 @@ as $$
         when c.snapshot_id is null then 'participant_added'
         when not c.in_roster and not c.has_profile then 'profile_deleted'
         when not c.in_roster then 'participant_removed'
-        when (c.s_key, c.s_version) is distinct from (c.l_key, c.l_version) then 'policy_changed'
+        when (c.s_key, c.s_version, c.s_basis) is distinct from (c.l_key, c.l_version, c.l_basis)
+          then 'policy_changed'
         when c.s_target is distinct from c.l_target then 'target_changed'
-        when c.s_total <> c.l_total and c.s_key = 'accepted_photos' and c.late_since > 0
-          and c.l_total - c.s_total = c.late_since then 'legacy_late_acceptance'
-        when c.s_total <> c.l_total then 'count_changed'
+        when c.s_hash is distinct from c.l_hash then 'definition_changed'
+        when (c.s_menu, c.s_amenity, c.s_photo, c.s_total)
+            is not distinct from (c.l_menu, c.l_amenity, c.l_photo, c.l_total)
+          and c.added = 0 and c.removed = 0 then null
+        when c.s_basis = 'accepted_photos' and c.removed = 0 and c.added > 0
+          and c.added_late = c.added
+          and c.l_menu = c.s_menu and c.l_amenity = c.s_amenity
+          and c.l_photo = c.s_photo + c.added and c.l_total = c.s_total + c.added
+          then 'legacy_late_acceptance'
+        else 'count_changed'
       end as reason
     from compared c
   )
   select c.venue_id, c.staff_id, p_month, c.kind, c.reason, c.reason = 'legacy_late_acceptance',
-    c.s_key, c.s_version, c.l_key, c.l_version, c.s_total, c.l_total, c.s_target, c.l_target,
-    c.late_since, c.s_at
+    c.s_key, c.s_version, c.l_key, c.l_version, c.s_basis, c.l_basis, c.s_hash, c.l_hash,
+    c.s_menu, c.l_menu, c.s_amenity, c.l_amenity, c.s_photo, c.l_photo,
+    c.s_total, c.l_total, c.s_target, c.l_target,
+    c.added, c.added_late, c.removed, c.s_at
   from classified c
   where c.reason is not null
   order by c.venue_id, c.staff_id;
@@ -820,11 +868,11 @@ comment on function private.scoring_month_drift(date) is
 -- computation time; never a close, and never protection for a month.
 insert into private.scoring_month_snapshots
   (venue_id, staff_id, period_month, kind, policy_key, policy_version, target_basis,
-    menu_units, amenity_units, photo_units, late_photo_units, total, target_count,
-    function_hash, computed_at)
+    menu_units, amenity_units, photo_units, late_photo_units, photo_asset_ids, total,
+    target_count, function_hash, computed_at)
 select r.venue_id, r.staff_id, m.month, 'baseline', x.policy_key, x.policy_version, x.target_basis,
-  x.menu_units, x.amenity_units, x.photo_units, x.late_photo_units, x.total, x.target_count,
-  x.function_hash, clock_timestamp()
+  x.menu_units, x.amenity_units, x.photo_units, x.late_photo_units, x.photo_asset_ids, x.total,
+  x.target_count, x.function_hash, clock_timestamp()
 from (
   select g::date as month
   from generate_series('2026-11-01'::timestamp,
