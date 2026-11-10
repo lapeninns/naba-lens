@@ -127,6 +127,11 @@ export type KnowledgeReaderRow = {
   observed_at: string | null
   next_check_due: string | null
   freshness_state: string | null
+  /**
+   * WS5 item 2: an adopted import's origin (legacy_fact, external_source),
+   * null otherwise and on unavailable rows. Never a label or excerpt.
+   */
+  source_origin?: "legacy_fact" | "external_source" | null
 }
 
 // ---- Screen DTOs (§13) -------------------------------------------------------
@@ -288,7 +293,10 @@ export type PendingFindingView = {
   sourceLabel?: string
   /** B03-f (A23): imports only; false while the check has an answer in use. */
   adoptable?: boolean
-  /** Review low 3: external imports only, what the source said (internal). */
+  /**
+   * Review low 3, WS5 item 3: imports only, what the source said (an external
+   * excerpt, or a legacy record's Coverage text). Internal; never limitations.
+   */
   sourceExcerpt?: string | null
 }
 
@@ -790,6 +798,9 @@ export type FreshnessEntry = {
   nextCheckDue: string | null
   basis: "observed_on" | "stated_on" | "event_end" | null
   basisDate: string | null
+  /** The freshness policy version in force at the time read (B08 M1). */
+  policyId?: string
+  policyVersion?: number
 }
 
 /** A refused value: the field path (b03-design §14.3) and a short problem code. */
@@ -908,6 +919,10 @@ export type SlotHistoryView = {
     withdrawn: boolean
     detail: KnowledgeDetail | null
     questionVersion: number
+    /** B08 M1: the registry version in force at `at` (null before B03). */
+    registryVersion?: number | null
+    /** B08 M1: freshness as it read at `at`, under the policies then. */
+    freshness?: FreshnessEntry[]
     selectionRule:
       | "adopted"
       | "confirmation"

@@ -124,6 +124,11 @@ describe("legacy facts (§8.2)", () => {
     )
     expect(triage.find((q) => q.queue === "suggestions")?.waiting).toBe(1)
     expect(triage.find((q) => q.queue === "findings")?.waiting).toBe(0)
+    // WS5 item 3: the Coverage text is provenance, never the limitations.
+    expect(check.pending[0]).toMatchObject({
+      sourceExcerpt: "TEST two toilets downstairs",
+      limitations: null,
+    })
   })
 
   it("is confirmed onto the empty slot by a manager, the admin staying the sender", async () => {
@@ -156,6 +161,17 @@ describe("legacy facts (§8.2)", () => {
     expect(check.answerInUse).toMatchObject({
       source: "legacy_fact",
       sourceLabel: "Coverage (legacy record)",
+    })
+    // WS5 item 2: the reader names the origin, never the label or excerpt.
+    const [row] = await json<
+      { source_origin: string | null; limitations: string | null }[]
+    >({ client: service }, "knowledge_reader_answers_v1", {
+      p_venue_id: w.venue,
+      p_keys: ["guest_toilets"],
+    })
+    expect(row).toMatchObject({
+      source_origin: "legacy_fact",
+      limitations: null,
     })
   })
 

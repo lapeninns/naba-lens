@@ -1435,3 +1435,35 @@ b03-defg-implementation-review.md).
 - Low 2: `answerInUse.source` and `answerInUse.sourceLabel`.
 - Low 3: an external assertion's excerpt never becomes the proposal's
   `limitations`; managers read it as the pending import's `sourceExcerpt`.
+
+**Review repairs, second part (10 Nov 2026):** migration
+`20261110114514_knowledge_b03_review_repairs_history_and_reader`.
+
+- **B08 M1 (history as of a time, §9.4).** Freshness at a time uses the
+  registry version and freshness policies in force then:
+  `private.knowledge_version_as_of(key, at)` (a version takes effect at
+  `greatest(created_at, effective_from)`, never backdated) and
+  `private.knowledge_policy_as_of(id, use, at)` (`created_at`). Both tables
+  are append-only, so a past answer always reads the same.
+  **Stable interface for WS3 (B08 R2):** `private.knowledge_answer_at(check,
+at) returns jsonb` (definer; callers gate; not granted to clients) returns
+  `{ checkId, at, answerInUse: null | { submissionId, answer, sentAt,
+confirmationState, withdrawn, detail, questionVersion, registryVersion,
+selectionRule, freshness: [{ use, state, nextCheckDue, basis, basisDate,
+policyId?, policyVersion? }] } }`. "Current and fresh at adoption" is
+  `answerInUse.freshness` for the use at the adoption instant.
+  `public.knowledge_slot_history` (managers and admins) returns the same.
+- **WS5 item 1:** a withdrawal reads withdrawn only while the key is in scope;
+  off the working list the B01 `unknown / not_enabled` wins (state model
+  §4.5).
+- **WS5 item 2:** `knowledge_reader_answers_v1` returns `source_origin`
+  (`legacy_fact`, `external_source`, null; null when unavailable). No
+  label or excerpt.
+- **WS5 item 3, decision to confirm:** a legacy fact's Coverage text no
+  longer becomes the proposal's `limitations` (§8.2 said it would); like an
+  external excerpt it is provenance, shown to managers as the pending
+  import's `sourceExcerpt`, and the full text stays in
+  `knowledge_legacy_narrative`. This keeps internal Coverage text out of
+  reader conditions.
+- **A37 on imports:** `knowledge_source_import` refuses imported policy
+  detail carrying `authority` or `policyScope`.

@@ -281,6 +281,31 @@ describe("withdrawals (§9.2, C-B03-3)", () => {
   })
 })
 
+describe("a withdrawn answer off the working list (WS5 item 1)", () => {
+  it("reads not_enabled once its key leaves the working list", async () => {
+    const w = await world("kn-b03-g-withdrawn-off")
+    await yes(w.staffA, w, "onsite_parking")
+    expect((await withdraw(w.manager, w, "onsite_parking")).error).toBeNull()
+    await json(w.admin, "knowledge_set_working_list", {
+      p_venue_id: w.venue,
+      p_keys: ["onsite_parking"],
+      p_enabled: false,
+      p_reason: "TEST off the list",
+    })
+    const [row] = await json<
+      { status: string; reason: string; detail: string }[]
+    >({ client: service }, "knowledge_reader_answers_v1", {
+      p_venue_id: w.venue,
+      p_keys: ["onsite_parking"],
+    })
+    expect(row).toMatchObject({
+      status: "unavailable",
+      reason: "unknown",
+      detail: "not_enabled",
+    })
+  })
+})
+
 describe("imports never displace an answer (C-B03-4)", () => {
   it("refuses a disagreeing import on a slot whose answer was withdrawn, and an adopted import creates no unit", async () => {
     const w = await world("kn-b03-g-c4")
