@@ -156,6 +156,7 @@ const FIELD_ERRORS: Record<string, [field: string, message: string]> = {
   invalid_subject: ["subject", "Choose what these photos show."],
   invalid_place_kind: ["kind", "Choose what kind of place this is."],
   invalid_label: ["label", "Enter a name of up to 80 characters."],
+  invalid_value_list: ["list", "Choose a list."],
 }
 
 function detailOf(error: DbError): Record<string, unknown> {

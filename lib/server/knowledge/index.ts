@@ -42,7 +42,11 @@ export {
   listGroupsForAssets,
   startContributionGroup,
 } from "./groups"
-export { getKnowledgeQuestion, listQuestionRegistry } from "./registry"
+export {
+  getKnowledgeQuestion,
+  getValueList,
+  listQuestionRegistry,
+} from "./registry"
 export { addPlace, listPlaces, retirePlace } from "./places"
 export { readKnowledgeAnswers, type KnowledgeReaderResult } from "./reader"
 export { knowledgeRpcFailure } from "./errors"

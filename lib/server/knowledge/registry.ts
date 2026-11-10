@@ -2,9 +2,12 @@ import "server-only"
 
 import {
   QUESTION_LIFECYCLES,
+  VALUE_LISTS,
   type KnowledgeResult,
   type QuestionLifecycle,
   type QuestionView,
+  type ValueListName,
+  type ValueListView,
 } from "@/lib/knowledge/contract"
 import type { MediaActor } from "@/lib/server/media/types"
 
@@ -68,4 +71,19 @@ export async function listQuestionRegistry(
   })
   if (error) return knowledgeRpcFailure(error, "knowledge registry")
   return { ok: true, questions: data.items }
+}
+
+/** A4, A9: one closed list's active items (empty until the owner supplies them). */
+export async function getValueList(
+  actor: MediaActor,
+  input: unknown
+): Promise<KnowledgeResult<{ valueList: ValueListView }>> {
+  const list = isObject(input) ? input.list : null
+  if (!VALUE_LISTS.includes(list as ValueListName))
+    return knowledgeInvalid({ list: "Choose a list." })
+  const { data, error } = await knowledgeRpc(actor.db, "knowledge_value_list", {
+    p_list: list as ValueListName,
+  })
+  if (error) return knowledgeRpcFailure(error, "knowledge value list")
+  return { ok: true, valueList: data }
 }
