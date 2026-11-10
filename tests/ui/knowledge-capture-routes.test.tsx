@@ -33,6 +33,9 @@ vi.mock("@/components/nabalens/app-shell", () => ({
   AppShell: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }))
 vi.mock("@/lib/auth", () => ({
+  // The capture page's capabilities read (getMediaActor): signed out here, so
+  // it answers 401 quietly and the page keeps today's no-upload form.
+  getAuthState: vi.fn(async () => ({ status: "signed_out" })),
   requireActiveStaff: vi.fn(async () => ({
     id: "s1",
     avatarPath: null,

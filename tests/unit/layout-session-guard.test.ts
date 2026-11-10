@@ -9,6 +9,8 @@ vi.mock("@/lib/auth", () => ({
     venue: null,
   }),
   uploadBlockReason: () => null,
+  // The manager layout's capabilities read: signed out, so it is a quiet 401.
+  getAuthState: async () => ({ status: "signed_out" }),
 }))
 vi.mock("@/lib/auth/manager", () => ({
   getManagerWorkspace: async () => ({

@@ -92,8 +92,12 @@ import type {
   FeedTaskSendItem,
 } from "@/lib/knowledge/contract"
 import type { ManagerOverview } from "@/lib/server/menu-photos/types"
+import { parseContributionsPage } from "@/lib/work-client/parse"
 
-const VENUE = { id: "00000000-0000-4000-8000-0000000000a1", name: "The Railway" }
+const VENUE = {
+  id: "00000000-0000-4000-8000-0000000000a1",
+  name: "The Railway",
+}
 const ACTOR = { profile: { id: "m1", role: "manager" } }
 const copy = MANAGER_COPY.uploads
 
@@ -172,7 +176,11 @@ describe("My uploads list", () => {
           photo({
             key: "p:a2",
             assetId: "a2",
-            labels: { hasLabels: true, needsLabels: false, needsAttention: false },
+            labels: {
+              hasLabels: true,
+              needsLabels: false,
+              needsAttention: false,
+            },
             menuDecisions: [
               {
                 photoId: null,
@@ -209,24 +217,30 @@ describe("My uploads list", () => {
       />
     )
     const list = screen.getByRole("list", { name: copy.title })
-    const rows = within(list).getAllByRole("listitem").filter(
-      (li) => li.parentElement === list
-    )
+    const rows = within(list)
+      .getAllByRole("listitem")
+      .filter((li) => li.parentElement === list)
     expect(rows.map((r) => within(r).getByRole("heading").textContent)).toEqual(
       ["Fish pie", "Burger"]
     )
     expect(within(rows[0]).getByText("Labels: Labelled")).toBeTruthy()
     expect(within(rows[0]).getByText("Fish pie: Waiting")).toBeTruthy()
     expect(within(rows[1]).getByText("Labels: Needs labels")).toBeTruthy()
-    expect(within(rows[1]).getByText("Burger: Accepted for menu use")).toBeTruthy()
+    expect(
+      within(rows[1]).getByText("Burger: Accepted for menu use")
+    ).toBeTruthy()
     expect(within(rows[1]).getByText("Accepted for menu use")).toBeTruthy()
     expect(screen.queryByText(/Bar at opening/)).toBeNull()
     // The thumbnail goes through the own-media route.
     expect(rows[1].querySelector("img")?.getAttribute("src")).toBe(
       "/api/media/a1/thumb"
     )
-    expect(within(rows[0]).getByRole("button", { name: copy.editLabels })).toBeTruthy()
-    expect(within(rows[1]).getByRole("button", { name: copy.addLabels })).toBeTruthy()
+    expect(
+      within(rows[0]).getByRole("button", { name: copy.editLabels })
+    ).toBeTruthy()
+    expect(
+      within(rows[1]).getByRole("button", { name: copy.addLabels })
+    ).toBeTruthy()
   })
 
   it("offers no delete anywhere", () => {
@@ -271,7 +285,9 @@ describe("My uploads list", () => {
     expect(screen.queryByRole("dialog")).toBeNull()
     expect(screen.getAllByText("Labels: Needs labels")).toHaveLength(1)
     expect(screen.getAllByText("Labels: Labelled")).toHaveLength(1)
-    expect(screen.getAllByRole("button", { name: copy.editLabels })).toHaveLength(1)
+    expect(
+      screen.getAllByRole("button", { name: copy.editLabels })
+    ).toHaveLength(1)
     expect(nav.refresh).toHaveBeenCalledTimes(1)
   })
 
@@ -314,15 +330,30 @@ describe("My uploads list", () => {
     ).toBe(managerHrefs.uploads)
   })
 
-  // Server gap: R5 feed photo rows carry no uploader role and
-  // my_contributions_feed (20261110010123_knowledge_b02a_reads.sql:421) does
-  // not filter on media_assets.uploader_role, so a manager account's
-  // staff-era uploads are listed here too (default 13 says they stay hidden).
-  it.todo(
-    "lists only manager-era uploads: needs feed photo rows to carry uploader_role, or my_contributions_feed to leave out uploader_role <> 'manager' rows for a manager caller"
-  )
+  // WS1 c1f96273 leaves a manager's staff-era uploads out of its feed and
+  // says each photo's recorded role; the view also never lists one marked
+  // otherwise (default 13).
+  it("lists only manager-era uploads", () => {
+    const parsed = parseContributionsPage({
+      items: [
+        photo({ key: "p:m1", assetId: "m1", uploaderRole: "manager" }),
+        photo({ key: "p:s1", assetId: "s1", uploaderRole: "staff" }),
+        photo({ key: "p:n1", assetId: "n1", uploaderRole: null }),
+        photo({ key: "p:u1", assetId: "u1" }),
+      ],
+      nextCursor: null,
+    })
+    expect(parsed).not.toBeNull()
+    render(<MyUploads initial={parsed} venue={VENUE} loadMore={vi.fn()} />)
+    const shown = [...document.querySelectorAll("img")]
+      .map((img) => img.getAttribute("src") ?? "")
+      .join(" ")
+    expect(shown).toContain("/api/media/m1/thumb")
+    expect(shown).not.toContain("/api/media/s1/thumb")
+    expect(shown).not.toContain("/api/media/n1/thumb")
+    expect(shown).toContain("/api/media/u1/thumb")
+  })
 })
-
 describe("My uploads page gating", () => {
   async function renderPage() {
     render(await ManagerUploadsPage())
@@ -334,7 +365,9 @@ describe("My uploads page gating", () => {
       value: page([photo()]),
     })
     await renderPage()
-    expect(screen.getByRole("heading", { level: 1, name: copy.title })).toBeTruthy()
+    expect(
+      screen.getByRole("heading", { level: 1, name: copy.title })
+    ).toBeTruthy()
     expect(screen.getByRole("button", { name: copy.addLabels })).toBeTruthy()
   })
 
@@ -415,25 +448,43 @@ describe("Overview: photos that need labels (R1)", () => {
 
   it("shows the count as a link to My uploads, in plural-aware words", () => {
     render(
-      <OverviewBody overview={overview()} now="2026-11-10T10:00:00.000Z" needsLabels={3} />
+      <OverviewBody
+        overview={overview()}
+        now="2026-11-10T10:00:00.000Z"
+        needsLabels={3}
+      />
     )
     const link = screen.getByRole("link", { name: "3 photos need labels" })
     expect(link.getAttribute("href")).toBe("/manager/uploads")
     cleanup()
     render(
-      <OverviewBody overview={overview()} now="2026-11-10T10:00:00.000Z" needsLabels={1} />
+      <OverviewBody
+        overview={overview()}
+        now="2026-11-10T10:00:00.000Z"
+        needsLabels={1}
+      />
     )
-    expect(screen.getByRole("link", { name: "1 photo needs labels" })).toBeTruthy()
+    expect(
+      screen.getByRole("link", { name: "1 photo needs labels" })
+    ).toBeTruthy()
   })
 
   it("is hidden at zero and when the read failed", () => {
     render(
-      <OverviewBody overview={overview()} now="2026-11-10T10:00:00.000Z" needsLabels={0} />
+      <OverviewBody
+        overview={overview()}
+        now="2026-11-10T10:00:00.000Z"
+        needsLabels={0}
+      />
     )
     expect(screen.queryByRole("link", { name: /need(s)? labels/ })).toBeNull()
     cleanup()
     render(
-      <OverviewBody overview={overview()} now="2026-11-10T10:00:00.000Z" needsLabels={null} />
+      <OverviewBody
+        overview={overview()}
+        now="2026-11-10T10:00:00.000Z"
+        needsLabels={null}
+      />
     )
     expect(screen.queryByRole("link", { name: /need(s)? labels/ })).toBeNull()
   })

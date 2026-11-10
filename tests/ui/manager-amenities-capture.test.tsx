@@ -36,6 +36,11 @@ const services = vi.hoisted(() => ({
   listSubmittableAssets: vi.fn(),
 }))
 vi.mock("@/lib/server/amenities", () => services)
+// R8 unavailable: the capture page keeps today's no-upload form (B02-c's
+// uploads are tested in manager-add-b02c and manager-amenities).
+vi.mock("@/app/manager/entry", () => ({
+  managerCapabilities: vi.fn(async () => null),
+}))
 vi.mock("@/app/_amenities/actions", () => ({
   listSubmittableAssetsAction: vi.fn(),
   submitFindingAction: vi.fn(),

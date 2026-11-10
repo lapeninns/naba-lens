@@ -31,9 +31,14 @@ type LoadMore = (input: {
   { ok: true; page: ContributionsFeedPage } | { ok: false; message: string }
 >
 
+// The server leaves a manager's staff-era uploads out of its feed; a row
+// that still says another role (or none, from before roles were recorded)
+// is never listed here either. An older server sends no role: kept.
 const photosOf = (page: ContributionsFeedPage | null): FeedPhotoItem[] =>
   (page?.items ?? []).filter(
-    (item): item is FeedPhotoItem => item.type === "photo"
+    (item): item is FeedPhotoItem =>
+      item.type === "photo" &&
+      (item.uploaderRole === undefined || item.uploaderRole === "manager")
   )
 
 const rowId = (key: string) => `upload-${key.replace(/[^\w-]/g, "-")}`
@@ -156,7 +161,10 @@ export function MyUploads({
           action={
             <Link
               href={managerHrefs.uploads}
-              className={buttonVariants({ variant: "secondary", size: "touch" })}
+              className={buttonVariants({
+                variant: "secondary",
+                size: "touch",
+              })}
             >
               Try again
             </Link>
