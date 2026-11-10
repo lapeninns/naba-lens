@@ -221,6 +221,16 @@ describe("withdrawals (§9.2, C-B03-3)", () => {
       (await withdraw(w.manager, w, "onsite_parking")).error?.message
     ).toBe("already_decided")
     expect([stored(), events()]).toEqual(was)
+    // Review M3: the legacy check reads show it as needing a recheck.
+    const [legacyRow] = await json<
+      { progress: string; recheck_reason: string; qualification: string }[]
+    >(w.manager, "amenity_check", { p_check_id: w.checks.onsite_parking })
+    expect(legacyRow).toMatchObject({
+      progress: "needs_recheck",
+      recheck_reason:
+        "The answer in use was withdrawn. Open the check to see why.",
+      qualification: "withdrawn",
+    })
     expect(units(w, w.staffA.id)).toBe(before)
     const [row] = await json<
       { status: string; reason: string; detail: string; value: string | null }[]
@@ -268,6 +278,31 @@ describe("withdrawals (§9.2, C-B03-3)", () => {
         p_check_id: w.checks.onsite_parking,
       })
     ).toMatchObject({ status: "available" })
+  })
+})
+
+describe("a withdrawn answer off the working list (WS5 item 1)", () => {
+  it("reads not_enabled once its key leaves the working list", async () => {
+    const w = await world("kn-b03-g-withdrawn-off")
+    await yes(w.staffA, w, "onsite_parking")
+    expect((await withdraw(w.manager, w, "onsite_parking")).error).toBeNull()
+    await json(w.admin, "knowledge_set_working_list", {
+      p_venue_id: w.venue,
+      p_keys: ["onsite_parking"],
+      p_enabled: false,
+      p_reason: "TEST off the list",
+    })
+    const [row] = await json<
+      { status: string; reason: string; detail: string }[]
+    >({ client: service }, "knowledge_reader_answers_v1", {
+      p_venue_id: w.venue,
+      p_keys: ["onsite_parking"],
+    })
+    expect(row).toMatchObject({
+      status: "unavailable",
+      reason: "unknown",
+      detail: "not_enabled",
+    })
   })
 })
 

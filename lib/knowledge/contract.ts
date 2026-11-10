@@ -127,6 +127,11 @@ export type KnowledgeReaderRow = {
   observed_at: string | null
   next_check_due: string | null
   freshness_state: string | null
+  /**
+   * WS5 item 2: an adopted import's origin (legacy_fact, external_source),
+   * null otherwise and on unavailable rows. Never a label or excerpt.
+   */
+  source_origin?: "legacy_fact" | "external_source" | null
 }
 
 // ---- Screen DTOs (§13) -------------------------------------------------------
@@ -227,6 +232,9 @@ export type KnowledgeSlotView = {
     policyMissing?: PolicyMissing[]
     /** B03-d (A25): the schedule version in use, for a schedule exception. */
     scheduleId?: string | null
+    /** Review low 2: where the answer in use came from; imports name their source. */
+    source?: FindingSource
+    sourceLabel?: string | null
   } | null
   previousAnswer: SubmitAnswer | null
   requiresConfirmation: boolean
@@ -285,6 +293,11 @@ export type PendingFindingView = {
   sourceLabel?: string
   /** B03-f (A23): imports only; false while the check has an answer in use. */
   adoptable?: boolean
+  /**
+   * Review low 3, WS5 item 3: imports only, what the source said (an external
+   * excerpt, or a legacy record's Coverage text). Internal; never limitations.
+   */
+  sourceExcerpt?: string | null
 }
 
 export type FindingSource =
@@ -545,6 +558,14 @@ export type VenueCapabilities = {
   canWithdraw?: boolean
   /** B03-g (A16): manager or admin at the venue. */
   canReadHistory?: boolean
+  /**
+   * A35: who may state a policy with authority (manager, staff holding a
+   * grant, or admin) and on which basis; only an admin states one for every
+   * venue. The server refuses any other authority or scope (A37).
+   */
+  canStatePolicy?: boolean
+  canStateOrgPolicy?: boolean
+  policyBasis?: "venue_manager" | "admin" | null
 }
 
 export type DeleteImpactKind =
@@ -745,6 +766,8 @@ export type ValueListView = {
     needsValue: boolean
     valueKind: "number" | "text" | "time" | null
   }[]
+  /** A38: retired items, never offered, so an old answer can still name them. */
+  retired?: (ValueListView["items"][number] & { retiredAt: string })[]
 }
 
 /** A33: an accessibility feature a question version asks about. */
@@ -775,6 +798,9 @@ export type FreshnessEntry = {
   nextCheckDue: string | null
   basis: "observed_on" | "stated_on" | "event_end" | null
   basisDate: string | null
+  /** The freshness policy version in force at the time read (B08 M1). */
+  policyId?: string
+  policyVersion?: number
 }
 
 /** A refused value: the field path (b03-design §14.3) and a short problem code. */
@@ -893,6 +919,10 @@ export type SlotHistoryView = {
     withdrawn: boolean
     detail: KnowledgeDetail | null
     questionVersion: number
+    /** B08 M1: the registry version in force at `at` (null before B03). */
+    registryVersion?: number | null
+    /** B08 M1: freshness as it read at `at`, under the policies then. */
+    freshness?: FreshnessEntry[]
     selectionRule:
       | "adopted"
       | "confirmation"

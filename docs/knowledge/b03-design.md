@@ -729,6 +729,18 @@ public.knowledge_recheck_tasks
   migration.
 - Rollback: stop the job; tasks stay; read-time freshness can be switched
   off per key by a version with no policy.
+- **Write-once times (B08 §6.2a).** B08's usefulness rule reads a task as
+  open at `t` when `created_at < t` and (`closed_at` is null or
+  `closed_at >= t`), so these times stay as written. Enforced since B03-e by
+  `knowledge_recheck_tasks_guard`: no delete or truncate; on an open task only
+  `state`, `closed_at`, `closed_by` and `closed_decision_id` change, and only
+  to a closed state; a closed task never changes. `created_at` is the
+  transaction time of the opening write and `closed_at` of the closing write,
+  so a `due_soon` task that gives way to an `expired` one in the same job run
+  leaves no gap. Foreign keys to the task's venue, check, closer and decision
+  are `on delete restrict`. Inserts come only from B03's definer functions (no
+  client or service-role write grant); test fixtures may insert historical
+  rows directly.
 
 ### 7.5 Tests
 
@@ -1143,6 +1155,11 @@ B01's `knowledge_commands` stays untouched.
 | A32 | WS4 K5: confirmed. `knowledge_submit` never derives `observed_on`: it is stated by the caller with its source, both or neither (A20), and never read from asset metadata or times. Recheck tasks carry no asset id; A31 is the link.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | —                                                                                                                                                                                                                             | —                                          |
 | A33 | Added in B03-c: a version field `features jsonb` (`[{ key, label, measurable }]`, at most 40, keys `[a-z_]{1,40}`, unique), returned by `knowledge_question` as `features`. Owner-supplied under OD-12, so every version 1 is empty. The value schema stays key-agnostic; the send's question check (`private.knowledge_detail_venue_problems`, with the key's latest version) refuses a feature the version does not list, and a measurement of a feature not marked `measurable`, as `not_allowed` at `detail.features.<key>` or `detail.measurements[i].feature`.                                                                                                                                                                                                                                                                                                                                                                                                                        | As `knowledge_question`                                                                                                                                                                                                       | c                                          |
 | A34 | Rule: `detail.scope` is the place the observation covers. When `entrances[]` lists at least one place, `scope` may be left out and the answer covers the listed entrances; nothing is derived or stored for it. With no entrances listed, a Yes or No still needs a `scope`. The builder's default (the first step-free entrance for Yes, the first listed for No) is also accepted, but leaving `scope` out is simpler. Confirmed: `entrances[]` takes places only (`subjectId`), so a typed "Somewhere else" can never be in it and never counts towards Yes or No (A26).                                                                                                                                                                                                                                                                                                                                                                                                                 | —                                                                                                                                                                                                                             | c                                          |
+| A35 | `my_venue_capabilities` returns `canStatePolicy` (a manager account, a staff account holding a grant, or an admin at the venue), `canStateOrgPolicy` (admin) and `policyBasis` (`venue_manager`, `admin` or null). The capture form takes the basis from `policyBasis`, never from the role.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | Anyone who reads capabilities                                                                                                                                                                                                 | A35 migration (after g)                    |
+| A36 | An incomplete policy is accepted when sent and decided by its rule (it can even be confirmed); while anything is missing it reads `not_confirmed / policy_incomplete`, the v1 reader withholds it, and `policyMissing` lists what it needs. No server change: Confirm's gating is the UI's (§5.2).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | —                                                                                                                                                                                                                             | —                                          |
+| A37 | The send checks a policy's authority against the sender (`invalid_value` paths): staff may not send `authority` (`detail.authority` `not_allowed`); `authority.basis` must be the sender's own basis (`detail.authority.basis` `not_allowed`); only an admin may set `policyScope = 'organisation'` (`detail.policyScope` `not_allowed`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Sender                                                                                                                                                                                                                        | A35 migration                              |
+| A38 | `knowledge_value_list` also returns `retired: [{ code, label, needsValue, valueKind, retiredAt }]`; `items` stays the offerable list. An old answer names a retired code from `retired`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Any active user                                                                                                                                                                                                               | A35 migration                              |
+| A39 | The legacy check reads present an incomplete policy in use like a qualified answer: `progress = 'needs_recheck'`, `recheck_reason` "The policy in use is not complete yet. Open the check to see what it still needs." and `qualification = 'policy_incomplete'` (ahead of a qualifier, as the resolver orders them). The stored row is unchanged; Reopen and the staff task list follow `qualification`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | As the legacy reads                                                                                                                                                                                                           | A35 migration                              |
 
 ### 14.3 Error codes (A17)
 
@@ -1403,3 +1420,71 @@ schema_changed`. Nothing is withdrawn and no schema version exists, so
   wider types are `StateReasonB03` and `ContributionKindB03`.
 - Decision detail is written at insert (`knowledge_decisions` stays
   append-only).
+
+**UI asks A35 to A39 (10 Nov 2026):** migration
+`20261110112949_knowledge_b03_ui_asks_a35_a39` after B03-g: the policy
+capabilities (A35), the sender's authority check (A37), retired list items
+(A38) and the legacy presentation of an incomplete policy (A39); A36 needs no
+change.
+
+**B03-d to g review repairs (10 Nov 2026):** migration
+`20261110113909_knowledge_b03defg_review_repairs` (evidence
+b03-defg-implementation-review.md).
+
+- M1: `knowledge_occurrences` expands the whole `supersedes` chain; each
+  version covers its own dates (to the day before the next version starts)
+  with its own exceptions, so earlier and past occurrences keep their times.
+- M2: a legacy dry run pins each fact's revision and the review in force per
+  key; a review added or changed afterwards makes apply refuse
+  `reconcile_source_changed`.
+- M3: the legacy check reads present a withdrawn answer as `needs_recheck`,
+  "The answer in use was withdrawn. Open the check to see why." and
+  `qualification = 'withdrawn'` (first, as the resolver orders it); Reopen
+  and the staff task list follow `qualification`.
+- Low 1: a due_soon task whose due time has passed is cancelled and an
+  expired task opens; the job closes at the same time it opens at
+  (`private.knowledge_close_rechecks` gains `p_now`).
+- Low 2: `answerInUse.source` and `answerInUse.sourceLabel`.
+- Low 3: an external assertion's excerpt never becomes the proposal's
+  `limitations`; managers read it as the pending import's `sourceExcerpt`.
+
+**Review repairs, second part (10 Nov 2026):** migration
+`20261110114514_knowledge_b03_review_repairs_history_and_reader`.
+
+- **B08 M1 (history as of a time, §9.4).** Freshness at a time uses the
+  registry version and freshness policies in force then:
+  `private.knowledge_version_as_of(key, at)` (a version takes effect at
+  `greatest(created_at, effective_from)`, never backdated) and
+  `private.knowledge_policy_as_of(id, use, at)` (`created_at`). Both tables
+  are append-only, so a past answer always reads the same.
+  **Stable interface for WS3 (B08 R2):** `private.knowledge_answer_at(check,
+at) returns jsonb` (definer; callers gate; not granted to clients) returns
+  `{ checkId, at, answerInUse: null | { submissionId, answer, sentAt,
+confirmationState, withdrawn, detail, questionVersion, registryVersion,
+selectionRule, freshness: [{ use, state, nextCheckDue, basis, basisDate,
+policyId?, policyVersion? }] } }`. "Current and fresh at adoption" is
+  `answerInUse.freshness` for the use at the adoption instant.
+  `public.knowledge_slot_history` (managers and admins) returns the same.
+- **WS5 item 1:** a withdrawal reads withdrawn only while the key is in scope;
+  off the working list the B01 `unknown / not_enabled` wins (state model
+  §4.5).
+- **WS5 item 2:** `knowledge_reader_answers_v1` returns `source_origin`
+  (`legacy_fact`, `external_source`, null; null when unavailable). No
+  label or excerpt.
+- **WS5 item 3, decision to confirm:** a legacy fact's Coverage text no
+  longer becomes the proposal's `limitations` (§8.2 said it would); like an
+  external excerpt it is provenance, shown to managers as the pending
+  import's `sourceExcerpt`, and the full text stays in
+  `knowledge_legacy_narrative`. This keeps internal Coverage text out of
+  reader conditions.
+- **A37 on imports:** `knowledge_source_import` refuses imported policy
+  detail carrying `authority` or `policyScope`.
+
+**B08 alignment (10 Nov 2026):** B08 draft 2 §6.2a reads recheck task open
+and close times as stored, write-once facts. No schema change: the B03-e
+guard already enforces them (§7.4, "Write-once times"). A security test now
+covers each case B08 names: `created_at` and `due_at` are refused on an open
+task; a closed task refuses a second closure, a new `closed_at`, a new
+`created_at` and reopening; delete and truncate are refused. B08 §5.4's
+`knowledge_submission_scored` re-creation is a WS1 item for B08-c and is not
+part of B03.

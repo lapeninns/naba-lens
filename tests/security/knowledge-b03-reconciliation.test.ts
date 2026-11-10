@@ -124,6 +124,11 @@ describe("legacy facts (§8.2)", () => {
     )
     expect(triage.find((q) => q.queue === "suggestions")?.waiting).toBe(1)
     expect(triage.find((q) => q.queue === "findings")?.waiting).toBe(0)
+    // WS5 item 3: the Coverage text is provenance, never the limitations.
+    expect(check.pending[0]).toMatchObject({
+      sourceExcerpt: "TEST two toilets downstairs",
+      limitations: null,
+    })
   })
 
   it("is confirmed onto the empty slot by a manager, the admin staying the sender", async () => {
@@ -145,6 +150,55 @@ describe("legacy facts (§8.2)", () => {
       psql(`select c.progress || ':' || (s.submitted_by = '${w.admin.id}') from public.venue_amenity_checks c
         join public.amenity_submissions s on s.id = c.current_submission_id where c.id = '${w.checks.guest_toilets}'`)
     ).toBe("complete:true")
+  })
+
+  it("name the source of an adopted import on the answer in use (review low 2)", async () => {
+    const check = await json<{
+      answerInUse: { source: string; sourceLabel: string | null }
+    }>(w.staffA, "knowledge_check", {
+      p_check_id: w.checks.guest_toilets,
+    })
+    expect(check.answerInUse).toMatchObject({
+      source: "legacy_fact",
+      sourceLabel: "Coverage (legacy record)",
+    })
+    // WS5 item 2: the reader names the origin, never the label or excerpt.
+    const [row] = await json<
+      { source_origin: string | null; limitations: string | null }[]
+    >({ client: service }, "knowledge_reader_answers_v1", {
+      p_venue_id: w.venue,
+      p_keys: ["guest_toilets"],
+    })
+    expect(row).toMatchObject({
+      source_origin: "legacy_fact",
+      limitations: null,
+    })
+  })
+
+  it("block apply when a mapping review changed after the dry run (review M2)", async () => {
+    const v = await world("kn-b03-reconcile-review")
+    const fact = randomUUID()
+    psql(`insert into public.venue_amenity_facts (id, venue_id, amenity_key, presence) values
+      ('${fact}', '${v.venue}', 'toilets', 'present')`)
+    const review = (kind: string) =>
+      json(v.admin, "knowledge_mapping_review", {
+        p_legacy_fact_id: fact,
+        p_legacy_revision: 1,
+        p_question_key: "guest_toilets",
+        p_kind: kind,
+        p_reason: "TEST",
+        p_idempotency_key: randomUUID(),
+      })
+    await review("exact")
+    await reconcile(v.admin, "legacy", "dry_run", v.venue)
+    await review("none")
+    const { error } = await reconcile(v.admin, "legacy", "apply", v.venue)
+    expect(error?.message).toBe("reconcile_source_changed")
+    expect(
+      psql(
+        `select count(*) from public.knowledge_contribution_sources where legacy_fact_id = '${fact}'`
+      )
+    ).toBe("0")
   })
 
   it("block apply when a fact changed after the dry run", async () => {
@@ -228,6 +282,12 @@ describe("external sources (§8.2)", () => {
     )
     expect(row).toMatchObject({ status: "unavailable", reason: "disputed" })
 
+    // Review low 3: the source's words stay internal, never the limitations.
+    expect(
+      psql(`select count(*) from public.knowledge_contributions x
+        join public.knowledge_contribution_sources ks on ks.contribution_id = x.id
+        where x.venue_id = '${v.venue}' and ks.source_kind = 'external_source' and x.limitations is not null`)
+    ).toBe("0")
     const no =
       psql(`select x.id from public.knowledge_contributions x join public.knowledge_contribution_sources ks
       on ks.contribution_id = x.id where x.venue_id = '${v.venue}' and x.answer = 'no'`)

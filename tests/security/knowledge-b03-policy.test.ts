@@ -346,6 +346,102 @@ describe("evidence for assets (A28, shape only)", () => {
   })
 })
 
+describe("stating a policy (A35, A37, A39)", () => {
+  const problems = (who: string, venue: string, detail: object) =>
+    JSON.parse(
+      psql(`select set_config('request.jwt.claim.sub', '${who}', false);
+        select private.knowledge_detail_venue_problems_for('${venue}', 'dogs_inside', 'policy', '[]'::jsonb,
+          'yes', '${JSON.stringify(detail)}'::jsonb)`)
+        .split("\n")
+        .pop()!
+    ) as unknown
+  const authority = {
+    basis: "venue_manager",
+    source: "in_person",
+    statedOn: "2026-11-01",
+  }
+
+  it("reports who may state a policy, and on which basis (A35)", async () => {
+    const v = await world("kn-b03-state-policy")
+    const caps = async (who: World["manager"], venue: string | null = null) =>
+      json<{
+        canStatePolicy: boolean
+        canStateOrgPolicy: boolean
+        policyBasis: string | null
+      }>(who, "my_venue_capabilities", { p_venue_id: venue })
+    expect(await caps(v.admin, v.venue)).toMatchObject({
+      canStatePolicy: true,
+      canStateOrgPolicy: true,
+      policyBasis: "admin",
+    })
+    for (const who of [v.manager, v.staffManager])
+      expect(await caps(who)).toMatchObject({
+        canStatePolicy: true,
+        canStateOrgPolicy: false,
+        policyBasis: "venue_manager",
+      })
+    expect(await caps(v.staffA)).toMatchObject({
+      canStatePolicy: false,
+      canStateOrgPolicy: false,
+      policyBasis: null,
+    })
+  })
+
+  it("accepts only the sender's own authority, and every venue only from an admin (A37)", async () => {
+    const v = await world("kn-b03-authority")
+    expect(
+      problems(v.staffA.id, v.venue, { stance: "allowed", authority })
+    ).toEqual([{ path: "detail.authority", problem: "not_allowed" }])
+    expect(
+      problems(v.staffA.id, v.venue, {
+        stance: "allowed",
+        zones: [{ label: "Bar", stance: "allowed" }],
+      })
+    ).toEqual([])
+    expect(
+      problems(v.manager.id, v.venue, {
+        stance: "allowed",
+        authority: { ...authority, basis: "admin" },
+      })
+    ).toEqual([{ path: "detail.authority.basis", problem: "not_allowed" }])
+    expect(
+      problems(v.manager.id, v.venue, {
+        stance: "allowed",
+        policyScope: "organisation",
+        authority,
+      })
+    ).toEqual([{ path: "detail.policyScope", problem: "not_allowed" }])
+    for (const who of [v.manager.id, v.staffManager.id])
+      expect(
+        problems(who, v.venue, {
+          stance: "allowed",
+          policyScope: "venue",
+          authority,
+        })
+      ).toEqual([])
+    expect(
+      problems(v.admin.id, v.venue, {
+        stance: "allowed",
+        policyScope: "organisation",
+        authority: { ...authority, basis: "admin" },
+      })
+    ).toEqual([])
+  })
+
+  it("presents an incomplete policy in use as needing a recheck on the legacy reads, stored row unchanged (A39)", async () => {
+    const v = await world("kn-b03-legacy-policy")
+    const sent = await yes(v.staffA, v, "guest_toilets")
+    attach(sent.contributionId, "policy", { stance: "conditional" })
+    expect(await legacy(v, "guest_toilets")).toMatchObject({
+      progress: "needs_recheck",
+      recheck_reason:
+        "The policy in use is not complete yet. Open the check to see what it still needs.",
+      qualification: "policy_incomplete",
+    })
+    expect(stored(v, "guest_toilets")).toBe("complete|yes")
+  })
+})
+
 describe("guards", () => {
   it("keep the new private functions from clients, and the reads STABLE definers (T9b)", () => {
     for (const fn of [
