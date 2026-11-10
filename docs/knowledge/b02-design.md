@@ -1041,6 +1041,12 @@ As built (migration `…_knowledge_b02c_manager_upload_and_labels.sql`):
   new `media_assets` select policy lets a manager account read its own
   manager-era rows. R1 and R8 follow the gates.
 - Staff, staff holding a grant and admins are unchanged.
+- Review repairs (`…_knowledge_b02c_review_repairs.sql`): the community
+  reads exclude `uploader_role = 'manager'` uploads, so they stay out of
+  Photos even after the account is converted back to staff. A manager
+  account finishes an upload only while it still manages the upload's venue.
+  After its grant ends it keeps reading its own uploads and labels and may
+  discard its own drafts, but cannot upload, stage, label or finish.
 
 ### 7.3 Checks for every batch
 
