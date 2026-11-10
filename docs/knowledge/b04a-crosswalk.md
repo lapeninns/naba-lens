@@ -5,7 +5,7 @@ enabled, no real mapping is populated and no field is switched to NabaLens.
 
 ## Objects
 
-Migration `supabase/migrations/20261110150000_menu_b04a_sources_crosswalk.sql`
+Migration `supabase/migrations/20261110200000_menu_b04a_sources_crosswalk.sql`
 (additive; sorts after every migration on the B02 integration baseline):
 
 | Object                  | Notes                                                                                                                                                                                                                                                                 |
@@ -82,7 +82,8 @@ decision rules and the manifest types and CSV export.
   afresh within the mapped item and active version, the same snapshot and
   item included. Ordinary `needs_review` rows (basis `carried`) and a
   rejection or unmatched decision on the deferred row keep their usual
-  same-item semantics.
+  same-item semantics. An explicit confirmation of a deferred row records
+  `manual`; a later matcher proposal confirmed normally records `name_candidate`.
 - **Carry.** On a newer snapshot of the same source, a confirmed row with the
   same locator and content hash becomes `carried` with the original reviewer;
   a changed hash gives `needs_review`; a missing locator gives `not_on_source`.

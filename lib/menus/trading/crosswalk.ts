@@ -4,7 +4,7 @@
 // code, Server Functions and components may all import it.
 //
 // The matcher, the snapshot validator and the content hash mirror the SQL in
-// supabase/migrations/20261110150000_menu_b04a_sources_crosswalk.sql
+// supabase/migrations/20261110200000_menu_b04a_sources_crosswalk.sql
 // (public.menu_crosswalk_propose, private.menu_snapshot_document_error,
 // private.menu_crosswalk_content_hash). The database is authoritative for
 // writes; tests/security/menus-crosswalk.test.ts pins both sides on shared
