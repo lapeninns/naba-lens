@@ -415,6 +415,103 @@ describe("visibility", () => {
     ).toEqual([])
   })
 
+  it("leaves a manager account's staff-era uploads out of its feed, label work and groups; staff unchanged", async () => {
+    const v = await world("mgr-upload-own-reads")
+    const staffEra = (
+      await insertAsset(service, { uploader: v.manager.id, venue: v.venue })
+    ).id
+    const managerEra = await readyUpload(v.manager)
+    const staffOwn = await readyUpload(v.staffA)
+    const staffOld = (
+      await insertAsset(service, { uploader: v.staffA.id, venue: v.venue })
+    ).id
+    // A label save that failed to apply, on each.
+    for (const [asset, uploader] of [
+      [staffEra, v.manager.id],
+      [managerEra, v.manager.id],
+      [staffOwn, v.staffA.id],
+    ] as const)
+      await ok(
+        service.from("media_pending_labels").insert({
+          asset_id: asset,
+          uploader_id: uploader,
+          venue_id: v.venue,
+          input: { contentTypes: ["dish"] },
+          status: "needs_attention",
+          code: "invalid",
+        })
+      )
+
+    type Feed = {
+      items: { type: string; assetId?: string; uploaderRole?: string | null }[]
+    }
+    const photos = async (who: TestIdentity) =>
+      (
+        await json<Feed>(who, "my_contributions_feed", {
+          p_cursor: null,
+          p_limit: 20,
+        })
+      ).items.filter((i) => i.type === "photo")
+
+    expect(
+      (await photos(v.manager)).map((i) => [i.assetId, i.uploaderRole])
+    ).toEqual([[managerEra, "manager"]])
+    expect(await json(v.manager, "my_label_work")).toEqual([
+      { needs_labels: 1, needs_attention: 1 },
+    ])
+
+    // Groups: the staff-era upload cannot be added, and a membership made
+    // before the account became a manager is not shown to it.
+    const g = await json<string>(v.manager, "contribution_group_start", {
+      p_key: `TEST-${randomUUID()}`,
+      p_subject_kind: "none",
+      p_subject_id: null,
+    })
+    expect(
+      await json<number>(v.manager, "contribution_group_add", {
+        p_group_id: g,
+        p_asset_ids: [managerEra],
+      })
+    ).toBe(1)
+    const e = await refused(
+      v.manager,
+      "contribution_group_add",
+      { p_group_id: g, p_asset_ids: [staffEra] },
+      "evidence_not_eligible"
+    )
+    expect(JSON.parse(e.details!)).toMatchObject({ reason: "not_own" })
+    psql(
+      `insert into public.media_contribution_group_members (group_id, venue_id, asset_id, position)
+       values ('${g}', '${v.venue}', '${staffEra}', 2)`
+    )
+    expect(
+      await json<{ asset_id: string }[]>(
+        v.manager,
+        "contribution_groups_for_assets",
+        { p_asset_ids: [staffEra, managerEra] }
+      )
+    ).toEqual([{ asset_id: managerEra, group_id: g }])
+    const group = await json<{ members: { assetId: string }[] }>(
+      v.manager,
+      "contribution_group",
+      { p_group_id: g }
+    )
+    expect(group.members.map((x) => x.assetId)).toEqual([managerEra])
+
+    // Staff: every own upload, whatever its recorded role.
+    expect(
+      (await photos(v.staffA)).map((i) => [i.assetId, i.uploaderRole]).sort()
+    ).toEqual(
+      [
+        [staffOwn, "staff"],
+        [staffOld, null],
+      ].sort()
+    )
+    expect(await json(v.staffA, "my_label_work")).toEqual([
+      { needs_labels: 2, needs_attention: 1 },
+    ])
+  })
+
   it("keeps manager-era uploads out of colleagues' Photos after the account becomes staff (OD-9)", async () => {
     const v = await world("mgr-upload-convert")
     const mine = await readyUpload(v.manager)
