@@ -134,6 +134,8 @@ const ALLOWED_PAGES = new Set([
   "/admin/knowledge/sources",
   "/admin/knowledge/runs",
   "/admin/knowledge/runs/[runId]",
+  // B03-g (§8.3): a question's schema upgrade, dry run first.
+  "/admin/knowledge/upgrades",
 ])
 
 const ALLOWED_HANDLERS = new Set([
