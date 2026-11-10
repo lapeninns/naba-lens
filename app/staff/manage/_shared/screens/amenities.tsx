@@ -5,6 +5,9 @@ import { ArrowLeftIcon } from "@phosphor-icons/react/dist/ssr"
 import { TO_CONFIRM_COPY } from "@/components/nabalens/knowledge/copy"
 import type { PolicyContext } from "@/components/nabalens/knowledge/policy-detail"
 import { questionForm } from "@/components/nabalens/knowledge/question-form"
+import type { UpcomingRead } from "@/components/nabalens/knowledge/schedule-section"
+import type { QuestionView } from "@/lib/knowledge-client/contract"
+import { londonToday } from "@/lib/server/knowledge/dates"
 import { Notice } from "@/components/nabalens/notice"
 import { OfflineNotice } from "@/components/nabalens/offline-notice"
 import { PageHeader } from "@/components/nabalens/page-header"
@@ -189,6 +192,48 @@ async function policyContextFor(
   }
 }
 
+const UPCOMING_DAYS = 91
+
+/**
+ * Upcoming (B03 UI design §5.3) for a schedule in use: the server's next
+ * dates over 13 weeks, in the venue's zone. Null when no schedule is in use.
+ */
+async function upcomingFor(
+  ctx: ManageContext,
+  view: Extract<QuestionView, { inScope: true }>
+): Promise<{
+  read: UpcomingRead
+  timezone: string
+  lastDay: string | null
+  today: string
+} | null> {
+  const answer = view.slot.answerInUse
+  const schedule = answer.answerDetail?.schedule
+  if (!answer.scheduleId && !schedule) return null
+  const today = londonToday(new Date())
+  const to = new Date(
+    Date.parse(`${today}T12:00:00Z`) + UPCOMING_DAYS * 86_400_000
+  )
+    .toISOString()
+    .slice(0, 10)
+  const result = await knowledgeServices
+    .getOccurrences(ctx.actor, { checkId: view.slot.checkId, from: today, to })
+    .catch(() => null)
+  const lastDay =
+    schedule && typeof schedule === "object" && "effectiveTo" in schedule
+      ? String((schedule as { effectiveTo?: unknown }).effectiveTo ?? "") ||
+        null
+      : null
+  return {
+    read: result?.ok
+      ? { ok: true, occurrences: result.occurrences }
+      : { ok: false, retry: !result || result.code === "unavailable" },
+    timezone: view.timezone ?? "Europe/London",
+    lastDay,
+    today,
+  }
+}
+
 export async function AmenityCheckScreen({
   ctx,
   checkId,
@@ -210,7 +255,12 @@ export async function AmenityCheckScreen({
   const hrefs = amenityHrefs(ctx.basePath)
   const inScope =
     knowledge?.ok && knowledge.view.inScope ? knowledge.view : null
-  const policy = inScope ? await policyContextFor(ctx, inScope.slot.key) : null
+  const [policy, schedule] = inScope
+    ? await Promise.all([
+        policyContextFor(ctx, inScope.slot.key),
+        upcomingFor(ctx, inScope),
+      ])
+    : [null, null]
 
   return (
     <AmenitiesFrame
@@ -244,6 +294,7 @@ export async function AmenityCheckScreen({
           inScope
         }
         policy={policy}
+        schedule={schedule}
       />
     </AmenitiesFrame>
   )

@@ -46,6 +46,12 @@ import {
   type PolicyContext,
 } from "@/components/nabalens/knowledge/policy-detail"
 import { PolicyNeedsPanel } from "@/components/nabalens/knowledge/policy-detail-fields"
+import {
+  DateChangeControl,
+  UpcomingSection,
+  type UpcomingRead,
+} from "@/components/nabalens/knowledge/schedule-section"
+import { SPORT_LINES } from "@/components/nabalens/knowledge/service-detail"
 import { findingKey, type QuestionView } from "@/lib/knowledge-client/contract"
 
 import { FINDING_SENT_PARAM } from "../capture/finding-sent"
@@ -169,6 +175,14 @@ export function AmenityCheckDetail({
     handlers: DecisionHandlers
     /** A policy question (B03-c): State the policy, and its cards' rows. */
     policy?: PolicyContext | null
+    /** A schedule in use (B03-d): Upcoming, and a change for one date. */
+    schedule?: {
+      read: UpcomingRead
+      timezone: string
+      lastDay: string | null
+      today: string
+      addException: React.ComponentProps<typeof DateChangeControl>["onAdd"]
+    } | null
   } | null
 }) {
   const { check, permissions } = detail
@@ -405,6 +419,11 @@ export function AmenityCheckDetail({
       ) : null}
 
       <CoverageSection id="amenity-status" title="Where it stands">
+        {SPORT_LINES[check.entry.key] ? (
+          <p className="text-body-touch text-ink md:text-body">
+            {SPORT_LINES[check.entry.key]}
+          </p>
+        ) : null}
         {knowledge?.view.slot.answerInUse.policyMissing?.length ? (
           <PolicyNeedsPanel
             needs={knowledge.view.slot.answerInUse.policyMissing}
@@ -546,6 +565,25 @@ export function AmenityCheckDetail({
           </p>
         ) : null}
       </CoverageSection>
+
+      {knowledge?.schedule ? (
+        <>
+          <UpcomingSection
+            read={knowledge.schedule.read}
+            timezone={knowledge.schedule.timezone}
+            lastDay={knowledge.schedule.lastDay}
+            today={knowledge.schedule.today}
+          />
+          {active && knowledge.view.slot.answerInUse.scheduleId ? (
+            <DateChangeControl
+              checkId={check.id}
+              slotRevision={knowledge.view.slot.slotRevision}
+              scheduleId={knowledge.view.slot.answerInUse.scheduleId}
+              onAdd={knowledge.schedule.addException}
+            />
+          ) : null}
+        </>
+      ) : null}
 
       <CoverageSection id="amenity-brief" title="Capture brief">
         <p className="max-w-(--size-reading) text-body-touch break-words whitespace-pre-line text-ink md:text-body">

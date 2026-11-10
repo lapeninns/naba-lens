@@ -18,9 +18,11 @@ import {
   decideFindingAction,
   resolveConflictAction,
   retirePlaceAction,
+  addScheduleExceptionAction,
 } from "@/app/_knowledge/actions"
 import { PlacesManager } from "@/components/nabalens/knowledge/places-manager"
 import type { PolicyContext } from "@/components/nabalens/knowledge/policy-detail"
+import type { UpcomingRead } from "@/components/nabalens/knowledge/schedule-section"
 import {
   AmenitiesOverview,
   AmenityCheckDetail,
@@ -73,6 +75,7 @@ export function AmenityCheckControl({
   canUpload,
   knowledge = null,
   policy = null,
+  schedule = null,
 }: {
   detail: CheckDetail
   basePath: string
@@ -80,6 +83,13 @@ export function AmenityCheckControl({
   knowledge?: Extract<QuestionView, { inScope: true }> | null
   /** A policy question (B03-c): its places and value lists. */
   policy?: PolicyContext | null
+  /** A schedule in use (B03-d): what Upcoming read. */
+  schedule?: {
+    read: UpcomingRead
+    timezone: string
+    lastDay: string | null
+    today: string
+  } | null
 }) {
   return (
     <AmenityCheckDetail
@@ -92,6 +102,9 @@ export function AmenityCheckControl({
           ? {
               view: knowledge,
               policy,
+              schedule: schedule
+                ? { ...schedule, addException: addScheduleExceptionAction }
+                : null,
               handlers: {
                 decide: decideFindingAction,
                 onResolveConflict: resolveConflictAction,

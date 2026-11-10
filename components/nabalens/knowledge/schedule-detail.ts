@@ -329,3 +329,39 @@ export function occurrenceLine(o: Occurrence, zone: string): string {
         : ""
   return `${day}, ${from} to ${to}${next}${suffix}`
 }
+
+export const DATE_CHANGE_COPY = {
+  open: "Add a change for one date",
+  title: "Add a change for one date",
+  description:
+    "For one date on the schedule in use. The rest of the schedule stays as it is.",
+  date: "Date",
+  what: "What happens",
+  kindLabel: {
+    cancelled: "Cancelled",
+    changed_window: "Different times",
+    extra: "Extra date",
+  },
+  from: "From",
+  to: "To",
+  note: "Note (internal, optional)",
+  submit: "Add change",
+  cancel: "Cancel",
+  dateRequired: "Choose the date.",
+  kindRequired: "Choose what happens on that date.",
+  timesInvalid: "Enter the times, for example 12:00 to 15:00.",
+  added: (date: string, kind: "cancelled" | "changed_window" | "extra") =>
+    `${localDateWords(date)}: ${
+      kind === "cancelled"
+        ? "cancelled"
+        : kind === "changed_window"
+          ? "times changed"
+          : "added"
+    }.`,
+  conflict:
+    "This question changed since you opened it. Nothing was changed. Reload to see the latest.",
+  lost: "We couldn't confirm the change was saved. Try again; it won't be added twice.",
+  staffLine: "Something different on a date? Report a change.",
+  tryAgain: "Try again",
+  reload: "Reload",
+} as const

@@ -113,6 +113,7 @@ import {
 import { emptyEvent } from "../../knowledge/event-detail"
 import { emptyFacility } from "../../knowledge/facility-detail"
 import {
+  DATE_CHANGE_COPY,
   firstBadWindow,
   scheduleShape,
   scheduleTouched,
@@ -1890,6 +1891,11 @@ export function CaptureForm({
           ))}
           {SPORT_LINES[slot.key] ? (
             <p className="[overflow-wrap:anywhere]">{SPORT_LINES[slot.key]}</p>
+          ) : null}
+          {knowledge.role === "staff" && slot.answerInUse.scheduleId ? (
+            <p className="[overflow-wrap:anywhere]">
+              {DATE_CHANGE_COPY.staffLine}
+            </p>
           ) : null}
         </Notice>
       ) : null}

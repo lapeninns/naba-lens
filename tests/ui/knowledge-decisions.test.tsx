@@ -1075,3 +1075,65 @@ describe("To confirm: Complete the policy (B03 UI §4.4)", () => {
     ).toBeNull()
   })
 })
+
+describe("the check page of a schedule in use (B03 UI §5.2, §5.3, §5.5)", () => {
+  async function page(answer: AnswerInUse, key = "onsite_parking") {
+    const { AmenityCheckDetail } =
+      await import("@/components/nabalens/amenities/manage")
+    const { detail, WIFI_CHECK } = await import("./amenities-manage-fixtures")
+    render(
+      <AmenityCheckDetail
+        detail={detail({
+          check: {
+            ...WIFI_CHECK,
+            entry: { ...WIFI_CHECK.entry, key },
+            progress: "complete",
+            answer: "yes",
+          },
+        })}
+        basePath="/manager"
+        handlers={{
+          assign: vi.fn(),
+          setNotes: vi.fn(),
+          archive: vi.fn(),
+          restore: vi.fn(),
+          reopen: vi.fn(),
+        }}
+        knowledge={{
+          view: view([], answer),
+          handlers: { decide: vi.fn(), onResolveConflict: vi.fn() },
+          schedule: {
+            read: { ok: true, occurrences: [] },
+            timezone: "Europe/London",
+            lastDay: null,
+            today: "2026-11-10",
+            addException: vi.fn(),
+          },
+        }}
+      />
+    )
+  }
+
+  it("shows Upcoming, and a change for one date only with the schedule in use's id", async () => {
+    await page({ ...YES, scheduleId: "5c000000-0000-4000-8000-000000000001" })
+    expect(screen.getByRole("heading", { name: "Upcoming" })).toBeTruthy()
+    expect(
+      screen.getByRole("button", { name: "Add a change for one date" })
+    ).toBeTruthy()
+    cleanup()
+    await page(YES)
+    expect(screen.getByRole("heading", { name: "Upcoming" })).toBeTruthy()
+    expect(
+      screen.queryByRole("button", { name: "Add a change for one date" })
+    ).toBeNull()
+  })
+
+  it("keeps the subscription's fixed line on its check page", async () => {
+    await page(YES, "sports_subscription")
+    expect(
+      screen.getByText(
+        "Subscriptions only. Having a subscription isn't a promise to show any particular fixture."
+      )
+    ).toBeTruthy()
+  })
+})

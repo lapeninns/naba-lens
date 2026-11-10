@@ -1738,3 +1738,20 @@ describe("knowledge capture: services and fixture showings (B03 UI §5)", () => 
     expect(input).not.toHaveProperty("observedOn")
   })
 })
+
+describe("knowledge capture: a date change is the manager's (B03 UI §5.2)", () => {
+  it("points staff at Report a change when a schedule is in use", () => {
+    setup({
+      knowledgeSlot: slot({
+        mode: "change",
+        answerInUse: {
+          ...YES,
+          scheduleId: "5c000000-0000-4000-8000-000000000001",
+        },
+      }),
+    })
+    expect(
+      screen.getByText("Something different on a date? Report a change.")
+    ).toBeTruthy()
+  })
+})
