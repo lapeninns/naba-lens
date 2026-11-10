@@ -785,6 +785,35 @@ begin
 end;
 $$;
 
+-- The same re-read for a proposal, refusing with the reason the caller's
+-- authority now gives for this action: no longer a member, staff for a
+-- manager-only field, not an admin for a source citation. A role that still
+-- allows the action but differs (its basis and output would differ) reads
+-- menu_trading_conflict, so a retry re-reads it from the start.
+create function private.menu_trading_assert_propose_role(
+  p_venue_id uuid, p_role text, p_field text, p_source boolean
+)
+returns void
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+declare
+  v_role text := private.menu_trading_role(p_venue_id, true);
+begin
+  if v_role is not distinct from p_role then
+    return;
+  elsif v_role is null then
+    raise exception 'not_venue_member' using errcode = '42501';
+  elsif v_role = 'staff' and p_field not in ('price', 'temporary_unavailability') then
+    raise exception 'staff_field_not_allowed' using errcode = '42501';
+  elsif p_source and v_role <> 'admin' then
+    raise exception 'source_mapping_admin_only' using errcode = '42501';
+  end if;
+  raise exception 'menu_trading_conflict' using errcode = '40001';
+end;
+$$;
 -- After the venue menu lock and the action's authority and catalogue
 -- re-read: the key's advisory lock, then the replay lookup.
 create function private.menu_trading_replay(p_key uuid, p_actor uuid, p_command text, p_hash text)
@@ -1653,7 +1682,7 @@ begin
     'field', p_field, 'value', p_value, 'effectiveFrom', p_effective_from, 'effectiveTo', p_effective_to,
     'observedOn', p_observed_on, 'reason', v_reason, 'source', p_source));
   v_prior := private.menu_trading_replay(p_request_key, v_uid, 'propose', v_hash);
-  perform private.menu_trading_assert_role(v_venue, v_role, 'not_venue_member');
+  perform private.menu_trading_assert_propose_role(v_venue, v_role, p_field, p_source is not null);
   if v_prior is not null then
     return v_prior;
   end if;
@@ -1835,7 +1864,7 @@ begin
   if v_line.retired_at is not null then
     raise exception 'menu_trading_line_retired' using errcode = 'P0001';
   end if;
-  perform private.menu_trading_assert_role(v_venue, v_role, 'not_venue_member');
+  perform private.menu_trading_assert_propose_role(v_venue, v_role, p_field, p_source is not null);
 
   v_head := private.menu_trading_head(v_line.id, p_field);
   insert into public.menu_trading_assertions (
@@ -2211,6 +2240,7 @@ begin
     'venue', p_venue, 'schedule', p_schedule, 'timezone', v_timezone, 'check', p_knowledge_check_id,
     'supersedes', p_supersedes));
   v_prior := private.menu_trading_replay(p_request_key, v_uid, 'schedule_add', v_hash);
+  perform private.menu_trading_assert_role(p_venue, v_role, 'not_venue_manager');
   if v_prior is not null then
     return v_prior;
   end if;
@@ -2328,6 +2358,7 @@ begin
   v_hash := private.menu_source_request_hash(jsonb_build_object(
     'schedule', p_schedule, 'localDate', p_local_date, 'kind', p_kind, 'windows', p_windows, 'note', v_note));
   v_prior := private.menu_trading_replay(p_request_key, v_uid, 'schedule_exception_add', v_hash);
+  perform private.menu_trading_assert_role(v_schedule.venue_id, v_role, 'not_venue_manager');
   if v_prior is not null then
     return v_prior;
   end if;
@@ -2582,6 +2613,7 @@ revoke all on function
   private.menu_venue_date(uuid, timestamptz),
   private.menu_trading_lock_actor(uuid),
   private.menu_trading_assert_role(uuid, text, text),
+  private.menu_trading_assert_propose_role(uuid, text, text, boolean),
   private.menu_trading_replay(uuid, uuid, text, text),
   private.menu_trading_record(uuid, uuid, text, text, uuid, jsonb),
   private.menu_trading_field_state(uuid, text, timestamptz),
