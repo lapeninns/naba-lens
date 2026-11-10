@@ -310,6 +310,88 @@ export async function expectFocusWithin(scope: Locator) {
     .toBe(true)
 }
 
+// ---- The fixed step-free entrance key (B03-A) --------------------------------
+
+/**
+ * The capture screen offers the step-free form (each listed entrance with its
+ * result) only on this key (app/staff/tasks/amenities/_capture/screen.tsx),
+ * and the database's step-free rule matches it by name, so B03-A can't use a
+ * synthetic key.
+ */
+export const STEP_FREE_KEY = "step_free_entrance"
+
+/**
+ * Set on a disposable B03 fixture lane only. B03-A appends an accessibility.v1
+ * registry version to the real step-free key, which every venue on that
+ * database then reads; the inherited baseline run never sets it.
+ */
+export const B03_DISPOSABLE_REGISTRY =
+  process.env.B03_DISPOSABLE_REGISTRY === "1"
+
+export type StepFreeVersion = {
+  version: number
+  schema: string
+  schemaVersion: number
+  lifecycle: string
+  inForce: boolean
+  question: string
+  evidenceRule: string
+  confirmation: string
+  selfConfirmation: boolean
+}
+
+function stepFreeLatest(): StepFreeVersion {
+  return JSON.parse(
+    psql(`
+      select json_build_object('version', v.version, 'schema', v.value_schema,
+        'schemaVersion', v.value_schema_version, 'lifecycle', v.lifecycle,
+        'inForce', coalesce(v.effective_from, v.created_at) <= now(),
+        'question', v.guidance ->> 'question', 'evidenceRule', v.evidence_rule,
+        'confirmation', v.confirmation, 'selfConfirmation', v.self_confirmation_allowed)
+      from public.knowledge_question_versions v
+      where v.key = ${text(STEP_FREE_KEY)} order by v.version desc limit 1`)
+  ) as StepFreeVersion
+}
+
+const isAccessibilityV1 = (v: StepFreeVersion) =>
+  v.schema === "accessibility" &&
+  v.schemaVersion === 1 &&
+  v.lifecycle === "supported" &&
+  v.inForce
+
+/**
+ * The step-free key's version in force as accessibility.v1. When the latest
+ * version isn't that already (an earlier run on the lane appended it), one
+ * version is appended: the latest row's guidance, evidence and confirmation
+ * rules, in force now. No existing row is changed; a concurrent append of
+ * the same version number is left to the other run and read back.
+ */
+export function stepFreeAccessibilityVersion(): StepFreeVersion {
+  if (!B03_DISPOSABLE_REGISTRY)
+    throw new Error(
+      "B03-A appends a registry version to step_free_entrance: disposable B03 lane only (B03_DISPOSABLE_REGISTRY=1)."
+    )
+  const latest = stepFreeLatest()
+  if (isAccessibilityV1(latest)) return latest
+  psql(`
+    insert into public.knowledge_question_versions
+    select (jsonb_populate_record(null::public.knowledge_question_versions, to_jsonb(v) || jsonb_build_object(
+      'version', v.version + 1, 'value_schema', 'accessibility', 'value_schema_version', 1,
+      'family', 'accessibility', 'lifecycle', 'supported', 'superseded_by', null,
+      'change_kind', 'schema', 'change_note', 'DEV FIXTURE B03-A disposable lane: accessibility.v1',
+      'upgrade_rules', '{}'::jsonb, 'created_at', now(), 'effective_from', now(),
+      'created_by', null))).*
+    from public.knowledge_question_versions v
+    where v.key = ${text(STEP_FREE_KEY)} order by v.version desc limit 1
+    on conflict (key, version) do nothing`)
+  const after = stepFreeLatest()
+  if (!isAccessibilityV1(after))
+    throw new Error(
+      `step_free_entrance is not accessibility.v1 in force: ${JSON.stringify(after)}`
+    )
+  return after
+}
+
 // ---- Policy value lists and a legacy statement (B03-B) -----------------------
 
 export type ValueItem = { code: string; label: string }
