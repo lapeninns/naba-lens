@@ -20,6 +20,16 @@
 -- withdrawn but never confirmed; any other caller gets invalid_price.
 -- The resolver never reads menu_entries.source_meta (§5.2 #2).
 --
+-- Source provenance (§5.2 #2). A source-mapped proposal (admin) cites a
+-- snapshot and a locator; its raw text is the priceText of the exact entry
+-- that locator names in that immutable snapshot, never caller text (a
+-- caller rawText must equal it byte for byte). The citation must be backed
+-- by the source's reviewed crosswalk head for that locator (confirmed or
+-- carried, same content hash as the cited entry) naming the line's item,
+-- variant and channel; anything else fails closed
+-- (menu_source_mapping_unverified / menu_source_mapping_mismatch). S1 is
+-- unchanged.
+--
 -- Resolution (§5.5, A1-6) at an instant t, per line and field: an assertion
 -- counts once confirmed at or before t; it starts at the later of its
 -- confirmation and venue-local midnight of effective_from, and ends at
@@ -41,10 +51,20 @@
 -- through B03's shared private.schedule_occurrences (A27) over the previous
 -- and current local dates, so a window past midnight belongs to its start
 -- date and local times hold across clock changes. A schedule linked to a
--- same-venue B03 service check (knowledge_check_id) reads that check's B03
--- status and value (a deliberate stop in effect reads No, A40) and its
--- occurrences from public.knowledge_occurrences; B03 keeps that service's
--- recheck, and no menu task is opened for it (A1-4).
+-- same-venue B03 service check (knowledge_check_id; the check's question is a
+-- service in force when linked) is read by a private B04 projection, after
+-- B04 has authorised the reader, with one explicit as-of instant: B03's own
+-- history read (private.knowledge_answer_at) and the append-only B03 rows
+-- created at or before p_at (working list, events, decisions, assets,
+-- detail corrections, schedule versions and exceptions), expanded by the
+-- shared private.schedule_occurrences with the deliberate stop's cutoff (a
+-- stop in effect reads No, A40). From the current instant on, B03's current
+-- slot status (private.knowledge_slot_state_b03) applies first. No public
+-- B03 function or grant is used or widened, and no B03 provenance leaves
+-- the projection. Gap: a submission asset that is not `ready` and not
+-- deleted by p_at has no B03 history, so a past read then returns unknown /
+-- service_history_unsupported rather than today's evidence state. B03 keeps
+-- that service's recheck, and no menu task is opened for it (A1-4).
 --
 -- Decisions (§5.4, OD-B4-3 defaults): admin, the venue's manager, or a staff
 -- account with a legacy manager grant (OD-B4-17, private.can_manage_venue)
@@ -56,16 +76,28 @@
 -- stays proposed, writes no credit input, and the command returns the line's
 -- confirmed value separately (L4).
 --
--- Lock order (§3): request key, venue menu lock (shared), line rows by id,
--- then a compare-and-set on the line revision (menu_trading_conflict, 40001).
--- Actor and venue scope are re-read before a request key replays.
+-- Lock order (§3): the caller's profile row (share, as B03 §4.4), the venue
+-- menu lock (shared, so catalogue activation is serialised), then, re-read
+-- under those locks, the action's current authority (role, field, source)
+-- and the exact active catalogue identity (item, variant, line); only then
+-- the request key (replay or record), the source's crosswalk lock
+-- (source-mapped proposals), line rows by id, and a compare-and-set on the
+-- line revision (menu_trading_conflict, 40001). A key replays only for an
+-- actor still allowed that action on a still-active target.
 --
 -- Rechecks (A1-4, A1-5): public.menu_trading_recheck_tasks; the b1 cause is
--- temporary_until_passed. private.menu_open_rechecks(p_now) is idempotent
--- (one task per subject, cause, due time and use) and closes a task only once
--- the resolver no longer reads that passed `until`; a pending or declined
--- proposal leaves it open. private.menu_open_recheck_rows(p_venue_id) is the
--- A1-5 helper for WS1's triage union. Time never moves a photo (A1-1).
+-- temporary_until_passed. private.menu_open_rechecks(p_now, p_venue_ids)
+-- runs per venue in id order under the venue menu lock (shared), then line
+-- rows by id, re-reading eligibility (live line, item and variant on the
+-- active menu) before each write. It is idempotent (one task per subject,
+-- cause, due time and use) and bounded to the named venues (null: every
+-- venue, the hourly job). A task closes only when the resolver reads the
+-- line's temporary unavailability current again for its use: a newer
+-- confirmed statement, back in service or with no passed `until`. A pending
+-- or declined proposal, a withdrawal, a dispute, an unknown and a
+-- still-passed `until` leave it open. private.menu_open_recheck_rows
+-- (p_venue_id) is the A1-5 helper for WS1's triage union. Time never moves a
+-- photo (A1-1).
 --
 -- Rollback (§13.1): revoke execute on the public functions below; the tables
 -- and their history stay.
@@ -704,8 +736,23 @@ as $$
   select (p_at at time zone private.venue_timezone(p_venue_id))::date;
 $$;
 
--- Lock order step 1: the key's advisory lock, then the replay lookup. Callers
--- have already re-read the actor's scope on the target venue.
+-- Lock order step 1 (as B03 §4.4): the caller's profile row FOR SHARE, so a
+-- role, venue or activation change of the account serialises with the
+-- command. The venue menu lock (shared) follows.
+create function private.menu_trading_lock_actor(p_uid uuid)
+returns void
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+begin
+  perform 1 from public.profiles p where p.id = p_uid for share;
+end;
+$$;
+
+-- After the venue menu lock and the action's authority and catalogue
+-- re-read: the key's advisory lock, then the replay lookup.
 create function private.menu_trading_replay(p_key uuid, p_actor uuid, p_command text, p_hash text)
 returns jsonb
 language plpgsql
@@ -898,6 +945,255 @@ begin
 end;
 $$;
 
+-- ---------------------------------------------------------------------------
+-- A linked B03 service, as of one instant (B04-02c, A1-4, A40)
+-- ---------------------------------------------------------------------------
+
+-- A B03 contribution's detail as it stood at p_at: its latest detail
+-- correction made by then, else its stored detail (as
+-- private.knowledge_answer_at reads it).
+create function private.menu_service_detail_at(p_contribution_id uuid, p_at timestamptz)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(
+    (select dc.detail from public.knowledge_detail_corrections dc
+     where dc.contribution_id = p_contribution_id and dc.created_at <= p_at
+     order by dc.created_at desc, dc.id desc limit 1),
+    (select d.detail from public.knowledge_contribution_details d
+     where d.contribution_id = p_contribution_id and d.created_at <= p_at));
+$$;
+
+-- A same-venue B03 service check as it read at p_at, for a reader B04 has
+-- already authorised. No caller check here and nothing returned beyond the
+-- state: { state: 'unknown', reason, detail } in B03's precedence,
+-- { state: 'not_offered', detail: 'service_not_offered' }, or
+-- { state: 'offered', scheduleRowId (null when none), stopAt (null when no
+-- deliberate stop) } for private.menu_service_occurrences. Built from B03's
+-- history read and the append-only rows created at or before p_at, so a
+-- later schedule version, exception, correction or stop never changes an
+-- earlier read. From the current instant on, B03's current slot status
+-- applies first. Unreconstructable evidence state in the past reads
+-- unknown / service_history_unsupported.
+create function private.menu_service_state_at(p_check_id uuid, p_venue_id uuid, p_at timestamptz)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_check public.venue_amenity_checks;
+  v_slot record;
+  v_use jsonb;
+  v_event text;
+  v_submission public.amenity_submissions;
+  v_details public.knowledge_contribution_details;
+  v_version public.knowledge_question_versions;
+  v_first public.knowledge_question_versions;
+  v_last_deleted timestamptz;
+  v_stop_at timestamptz;
+  v_schedule public.knowledge_schedules;
+  v_successor public.knowledge_contributions;
+  v_seen uuid[] := '{}';
+begin
+  select c.* into v_check from public.venue_amenity_checks c
+  where c.id = p_check_id and c.venue_id = p_venue_id;
+  if not found or p_at is null then
+    return jsonb_build_object('state', 'unknown', 'reason', 'unknown', 'detail', 'not_recorded');
+  end if;
+  -- From now on, B03's current status (evidence, dispute, progress) first.
+  if p_at >= now() then
+    select st.status, st.reason, st.detail into v_slot
+    from private.knowledge_slot_state_b03(p_venue_id, array[v_check.template_key], p_at) st;
+    if v_slot.status is distinct from 'available' then
+      return jsonb_build_object('state', 'unknown', 'reason', coalesce(v_slot.reason, 'unknown'),
+        'detail', coalesce(v_slot.detail, 'not_checked'));
+    end if;
+  end if;
+  -- In scope at p_at (a working-list row closes once; re-enabling adds one).
+  if not exists (
+    select 1 from public.knowledge_working_list w
+    where w.venue_id = p_venue_id and w.question_key = v_check.template_key
+      and w.enabled_at <= p_at and (w.disabled_at is null or w.disabled_at > p_at)) then
+    return jsonb_build_object('state', 'unknown', 'reason', 'unknown', 'detail', 'not_enabled');
+  end if;
+  -- The answer in use at p_at (B03 R-L2 history read).
+  v_use := private.knowledge_answer_at(v_check.id, p_at) -> 'answerInUse';
+  if v_use is null or jsonb_typeof(v_use) <> 'object' then
+    select e.kind into v_event from public.amenity_check_events e
+    where e.check_id = v_check.id and e.created_at <= p_at
+      and e.kind in ('submitted', 'reopened', 'evidence_lost', 'archived')
+    order by e.created_at desc, e.id desc limit 1;
+    return case v_event
+      when 'archived' then jsonb_build_object('state', 'unknown', 'reason', 'withdrawn', 'detail', 'answer_withdrawn')
+      when 'evidence_lost' then jsonb_build_object('state', 'unknown', 'reason', 'stale', 'detail', 'evidence_lost')
+      when 'reopened' then jsonb_build_object('state', 'unknown', 'reason', 'stale', 'detail', 'recheck_requested')
+      else jsonb_build_object('state', 'unknown', 'reason', 'unknown', 'detail', 'not_checked')
+    end;
+  end if;
+  select s.* into v_submission from public.amenity_submissions s
+  where s.id = (v_use ->> 'submissionId')::uuid and s.check_id = v_check.id and s.venue_id = p_venue_id;
+  if not found then
+    return jsonb_build_object('state', 'unknown', 'reason', 'unknown', 'detail', 'not_checked');
+  end if;
+  select d.* into v_details from public.knowledge_contribution_details d
+  where d.contribution_id = v_submission.source_contribution_id and d.created_at <= p_at;
+  if coalesce((v_use ->> 'withdrawn')::boolean, false) then
+    return jsonb_build_object('state', 'unknown', 'reason', 'withdrawn', 'detail', 'answer_withdrawn');
+  end if;
+  if v_use ->> 'confirmationState' = 'revoked' then
+    return jsonb_build_object('state', 'unknown', 'reason', 'withdrawn', 'detail', 'confirmation_revoked');
+  end if;
+  -- Evidence as it stood at p_at: deleted by then and not reaffirmed since.
+  select max(a.deleted_at) into v_last_deleted
+  from public.amenity_submission_assets sa
+  join public.media_assets a on a.id = sa.asset_id
+  where sa.submission_id = v_submission.id and a.deleted_at <= p_at;
+  if v_last_deleted is not null and not exists (
+    select 1 from public.knowledge_decisions d
+    where d.submission_id = v_submission.id and d.decision = 'reaffirmed'
+      and d.created_at <= p_at and d.created_at >= v_last_deleted) then
+    return jsonb_build_object('state', 'unknown', 'reason', 'withdrawn', 'detail', 'evidence_withdrawn');
+  end if;
+  if p_at < now() and exists (
+    select 1 from public.amenity_submission_assets sa
+    join public.media_assets a on a.id = sa.asset_id
+    where sa.submission_id = v_submission.id and a.upload_state <> 'ready'
+      and (a.deleted_at is null or a.deleted_at > p_at)) then
+    return jsonb_build_object('state', 'unknown', 'reason', 'unknown', 'detail', 'service_history_unsupported');
+  end if;
+  -- An undecided contribution at p_at with another answer.
+  if exists (
+    select 1 from public.knowledge_contributions x
+    where x.check_id = v_check.id and x.venue_id = p_venue_id and x.created_at <= p_at
+      and x.answer is distinct from v_submission.answer
+      and not exists (
+        select 1 from public.knowledge_decisions d
+        where d.contribution_id = x.id and d.decision in ('adopted', 'declined', 'replaced', 'seen')
+          and d.created_at <= p_at)) then
+    return jsonb_build_object('state', 'unknown', 'reason', 'disputed', 'detail', 'conflict');
+  end if;
+  if v_use ->> 'confirmationState' = 'pending' then
+    return jsonb_build_object('state', 'unknown', 'reason', 'not_confirmed', 'detail', 'pending');
+  end if;
+  -- B03-g §9.3: a schema the version in force at p_at replaced.
+  v_version := private.knowledge_version_as_of(v_check.template_key, p_at);
+  select v.* into v_first from public.knowledge_question_versions v
+  where v.key = v_check.template_key and v.version = 1;
+  if v_version.version > coalesce(v_details.question_version, 1)
+     and v_version.value_schema is distinct from coalesce(v_details.value_schema, v_first.value_schema)
+     and coalesce(v_version.upgrade_rules ->> (coalesce(v_details.value_schema, v_first.value_schema) || '@'
+       || coalesce(v_details.value_schema_version, v_first.value_schema_version)), 'needs_checking')
+       <> 'lossless' then
+    return jsonb_build_object('state', 'unknown', 'reason', 'stale', 'detail', 'schema_changed');
+  end if;
+  if v_use #>> '{freshness,0,state}' in ('expired', 'basis_missing') then
+    return jsonb_build_object('state', 'unknown', 'reason', 'stale', 'detail', v_use #>> '{freshness,0,state}');
+  end if;
+  if v_details.value_schema is distinct from 'service' then
+    return jsonb_build_object('state', 'unknown', 'reason', 'unknown', 'detail', 'not_service');
+  end if;
+  if not coalesce((v_use #>> '{stop,inEffect}')::boolean, false)
+     and private.knowledge_qualifier(v_details.value_schema, v_submission.answer, v_use -> 'detail') is not null then
+    return jsonb_build_object('state', 'unknown', 'reason', 'stale', 'detail', 'qualified_answer');
+  end if;
+  if v_use ->> 'value' = 'no' then
+    return jsonb_build_object('state', 'not_offered', 'detail', 'service_not_offered');
+  end if;
+  if v_use ->> 'value' is distinct from 'yes' then
+    return jsonb_build_object('state', 'unknown', 'reason', 'unknown', 'detail', 'not_checked');
+  end if;
+  -- A40: a deliberate stop begins at local midnight of Not offered from.
+  v_stop_at := case when v_use #>> '{stop,kind}' = 'stopped' then (v_use #>> '{stop,notOfferedFromAt}')::timestamptz end;
+  -- The submission's schedule version as it stood at p_at (A40 correction 4).
+  select s.* into v_schedule from public.knowledge_schedules s
+  where s.check_id = v_check.id and s.venue_id = p_venue_id and s.submission_id = v_submission.id
+    and s.created_at <= p_at
+  order by s.created_at desc, s.id desc limit 1;
+  -- A40 review P2 as of p_at: a stop sent without a schedule keeps the chain
+  -- of the submission it was based on, through earlier such stops (same
+  -- check and venue, bounded, cycle-safe; details as they stood at p_at).
+  if v_schedule.id is null and v_stop_at is not null then
+    select x.* into v_successor from public.knowledge_contributions x
+    where x.id = v_submission.source_contribution_id and x.check_id = v_check.id and x.venue_id = p_venue_id;
+    while v_successor.id is not null and v_successor.based_on_submission_id is not null
+          and not (v_successor.based_on_submission_id = any (v_seen))
+          and cardinality(v_seen) < 100 loop
+      v_seen := v_seen || v_successor.based_on_submission_id;
+      select s.* into v_schedule from public.knowledge_schedules s
+      where s.check_id = v_check.id and s.venue_id = p_venue_id
+        and s.submission_id = v_successor.based_on_submission_id
+        and s.created_at <= v_successor.created_at and s.created_at <= p_at
+      order by s.created_at desc, s.id desc limit 1;
+      exit when v_schedule.id is not null;
+      select x.* into v_successor
+      from public.amenity_submissions b
+      join public.knowledge_contributions x on x.id = b.source_contribution_id
+        and x.check_id = b.check_id and x.venue_id = b.venue_id
+      join public.knowledge_contribution_details kd on kd.contribution_id = x.id and kd.created_at <= p_at
+      cross join lateral (select private.menu_service_detail_at(x.id, p_at) as detail) ed
+      where b.id = v_successor.based_on_submission_id
+        and b.check_id = v_check.id and b.venue_id = p_venue_id
+        and jsonb_typeof(ed.detail -> 'schedule') is distinct from 'object'
+        and private.knowledge_service_end(b.venue_id, b.id, b.answer, kd.value_schema, ed.detail,
+          v_successor.created_at) ->> 'kind' = 'stopped';
+    end loop;
+  end if;
+  return jsonb_build_object('state', 'offered', 'scheduleRowId', v_schedule.id, 'stopAt', v_stop_at);
+end;
+$$;
+
+-- The occurrences of a B03 schedule version over p_from..p_to (at most 92
+-- local dates) as they stood at p_at: every version in its supersedes chain
+-- covers its own dates (B03 review M1), with its exceptions created at or
+-- before p_at, through the shared private.schedule_occurrences, and nothing
+-- from a deliberate stop's cutoff on (the last overnight one ends there).
+create function private.menu_service_occurrences(
+  p_schedule_id uuid, p_stop_at timestamptz, p_from date, p_to date, p_at timestamptz
+)
+returns table (local_date date, starts_at timestamptz, ends_at timestamptz, state text)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  with recursive chain as (
+    select s.id, s.supersedes, s.timezone, s.effective_from, s.effective_to, s.recurrence, s.windows,
+      null::date as next_from, 1 as depth
+    from public.knowledge_schedules s
+    where s.id = p_schedule_id and s.created_at <= p_at
+      and p_from is not null and p_to is not null and p_to >= p_from and p_to - p_from <= 91
+    union all
+    select p.id, p.supersedes, p.timezone, p.effective_from, p.effective_to, p.recurrence, p.windows,
+      least(c.effective_from, coalesce(c.next_from, c.effective_from)), c.depth + 1
+    from chain c join public.knowledge_schedules p on p.id = c.supersedes and p.created_at <= p_at
+    where c.depth < 100
+  ),
+  spans as (
+    select x.* from (
+      select c.*, case when c.next_from is null then c.effective_to
+        else least(coalesce(c.effective_to, c.next_from - 1), c.next_from - 1) end as span_to
+      from chain c
+    ) x
+    where x.span_to is null or x.span_to >= x.effective_from
+  )
+  select o.local_date, o.starts_at,
+    case when p_stop_at is null then o.ends_at else least(o.ends_at, p_stop_at) end, o.state
+  from spans sp
+  cross join lateral private.schedule_occurrences(sp.timezone, sp.effective_from, sp.span_to,
+    sp.recurrence, sp.windows,
+    (select coalesce(jsonb_agg(jsonb_strip_nulls(jsonb_build_object('localDate', to_char(e.local_date, 'YYYY-MM-DD'),
+        'kind', e.kind, 'windows', e.windows)) order by e.created_at, e.id), '[]'::jsonb)
+     from public.knowledge_schedule_exceptions e where e.schedule_id = sp.id and e.created_at <= p_at),
+    p_from, p_to) o
+  where p_stop_at is null or o.starts_at < p_stop_at
+  order by o.local_date, o.starts_at, o.ends_at;
+$$;
+
 -- A schedule at p_at (availabilityFromSchedule in availability.ts):
 --   { state: 'available' | 'cancelled', occurrence: { localDate, startsAt, endsAt, state } }
 --   { state: 'outside_window' }
@@ -905,10 +1201,11 @@ $$;
 --   { state: 'unknown', reason, detail }   (linked service not available)
 -- plus source: 'menu_schedule' or 'service'. The previous and current local
 -- dates are expanded, so a window past midnight belongs to its start date.
--- A linked schedule reads the B03 check's status and value at p_at (a
--- deliberate stop in effect reads No, A40) and its occurrences through
--- public.knowledge_occurrences, within the menu schedule's own dates; when
--- the caller may not read the check, the state is unknown.
+-- A linked schedule reads its same-venue B03 service as it stood at p_at
+-- (private.menu_service_state_at: a deliberate stop in effect reads No, A40)
+-- and that service's occurrences as they stood at p_at
+-- (private.menu_service_occurrences), within the menu schedule's own dates.
+-- The reader was authorised by the B04 read that calls this.
 create function private.menu_trading_schedule_state(p_schedule_id uuid, p_at timestamptz)
 returns jsonb
 language plpgsql
@@ -918,8 +1215,7 @@ set search_path = ''
 as $$
 declare
   v_schedule public.menu_availability_schedules;
-  v_check public.venue_amenity_checks;
-  v_slot record;
+  v_service jsonb;
   v_day date;
   v_source text;
   v_open jsonb;
@@ -951,37 +1247,23 @@ begin
     where o.starts_at <= p_at and o.ends_at > p_at;
   else
     v_source := 'service';
-    select c.* into v_check from public.venue_amenity_checks c where c.id = v_schedule.knowledge_check_id;
-    select st.status, st.reason, st.detail, st.value into v_slot
-    from private.knowledge_slot_state_b03(v_check.venue_id, array[v_check.template_key], p_at) st;
-    if v_slot.status is distinct from 'available' then
-      return jsonb_build_object('state', 'unknown', 'reason', coalesce(v_slot.reason, 'unknown'),
-        'detail', coalesce(v_slot.detail, 'not_checked'), 'source', v_source);
+    v_service := private.menu_service_state_at(v_schedule.knowledge_check_id, v_schedule.venue_id, p_at);
+    if v_service ->> 'state' <> 'offered' then
+      return v_service || jsonb_build_object('source', v_source);
     end if;
-    if v_slot.value = 'no' then
-      return jsonb_build_object('state', 'not_offered', 'detail', 'service_not_offered', 'source', v_source);
-    end if;
-    if v_slot.value is distinct from 'yes' then
-      return jsonb_build_object('state', 'unknown', 'reason', 'unknown', 'detail', 'not_checked',
-        'source', v_source);
-    end if;
-    begin
-      select
-        (array_agg(jsonb_build_object('localDate', o.local_date, 'startsAt', o.starts_at,
-            'endsAt', o.ends_at, 'state', o.state) order by o.starts_at, o.ends_at)
-          filter (where o.state <> 'cancelled'))[1],
-        (array_agg(jsonb_build_object('localDate', o.local_date, 'startsAt', o.starts_at,
-            'endsAt', o.ends_at, 'state', o.state) order by o.starts_at, o.ends_at)
-          filter (where o.state = 'cancelled'))[1]
-      into v_open, v_cancelled
-      from public.knowledge_occurrences(v_check.id, v_day - 1, v_day) o
-      where o.starts_at <= p_at and o.ends_at > p_at
-        and o.local_date >= v_schedule.effective_from
-        and (v_schedule.effective_to is null or o.local_date <= v_schedule.effective_to);
-    exception when others then
-      return jsonb_build_object('state', 'unknown', 'reason', 'unknown', 'detail', 'service_unreadable',
-        'source', v_source);
-    end;
+    select
+      (array_agg(jsonb_build_object('localDate', o.local_date, 'startsAt', o.starts_at,
+          'endsAt', o.ends_at, 'state', o.state) order by o.starts_at, o.ends_at)
+        filter (where o.state <> 'cancelled'))[1],
+      (array_agg(jsonb_build_object('localDate', o.local_date, 'startsAt', o.starts_at,
+          'endsAt', o.ends_at, 'state', o.state) order by o.starts_at, o.ends_at)
+        filter (where o.state = 'cancelled'))[1]
+    into v_open, v_cancelled
+    from private.menu_service_occurrences((v_service ->> 'scheduleRowId')::uuid,
+      (v_service ->> 'stopAt')::timestamptz, v_day - 1, v_day, p_at) o
+    where o.starts_at <= p_at and o.ends_at > p_at
+      and o.local_date >= v_schedule.effective_from
+      and (v_schedule.effective_to is null or o.local_date <= v_schedule.effective_to);
   end if;
   if v_open is not null then
     return jsonb_build_object('state', 'available', 'occurrence', v_open, 'source', v_source);
@@ -1118,10 +1400,14 @@ $$;
 -- Recheck closing (A1-4)
 -- ---------------------------------------------------------------------------
 
--- Closes a line's open temporary_until_passed tasks once the resolver no
--- longer reads that passed `until` (back in service, a new `until`, or a
--- withdrawal). A pending or declined proposal changes nothing, so the task
--- stays open. Returns the number closed.
+-- Closes a line's open temporary_until_passed tasks once the resolver reads
+-- the line's temporary unavailability current again for the task's use
+-- (b1: internal) at p_now: one confirmed value, not the statement whose
+-- `until` passed, that is back in service or temporarily unavailable with no
+-- `until` or one still ahead. A pending or declined proposal, a withdrawal
+-- (withdrawn), a dispute, nothing recorded (unknown) and a still-passed
+-- `until` (stale) close nothing. Callers hold the venue menu lock (shared)
+-- and the line row lock. Returns the number closed.
 create function private.menu_close_rechecks(p_line_id uuid, p_now timestamptz)
 returns integer
 language plpgsql
@@ -1132,20 +1418,26 @@ as $$
 declare
   v_task public.menu_trading_recheck_tasks;
   v_state jsonb;
+  v_current boolean;
   v_closed integer := 0;
 begin
   if not exists (select 1 from public.menu_trading_recheck_tasks t where t.line_id = p_line_id and t.state = 'open') then
     return 0;
   end if;
-  v_state := private.menu_trading_temporary_state(p_line_id, p_now);
+  v_state := private.menu_trading_field_state(p_line_id, 'temporary_unavailability', p_now);
+  v_current := v_state ->> 'status' = 'available' and (
+    v_state #>> '{value,state}' = 'back_in_service'
+    or (v_state #>> '{value,state}' = 'temporarily_unavailable'
+        and (jsonb_typeof(v_state #> '{value,until}') = 'null'
+             or (v_state #>> '{value,until}')::timestamptz > p_now)));
   for v_task in
     select t.* from public.menu_trading_recheck_tasks t
     where t.line_id = p_line_id and t.state = 'open' and t.cause = 'temporary_until_passed'
+      and t.use = 'internal'
     order by t.created_at, t.id
     for update
   loop
-    if not coalesce(v_state ->> 'state' = 'needs_checking'
-                    and (v_state ->> 'until')::timestamptz = v_task.due_at, false) then
+    if coalesce(v_current and (v_state ->> 'assertionId')::uuid is distinct from v_task.assertion_id, false) then
       update public.menu_trading_recheck_tasks t
       set state = 'done', closed_at = now(),
           closed_by = (select p.id from public.profiles p where p.id = auth.uid())
@@ -1170,9 +1462,14 @@ $$;
 --   temporary_unavailability: { state: 'temporarily_unavailable', until?: instant | null }
 --     or { state: 'back_in_service' }
 -- p_source (admin only, price only, p_value null): { snapshotId, locator,
--- rawText }: the price comes from rawText through the parser; an ambiguous
--- text is kept as an ambiguous proposal. Staff: price and temporary
--- unavailability reports only. The proposal supersedes the field's head.
+-- rawText? }: the price text is the priceText of the entry the locator names
+-- in that snapshot (a given rawText must equal it), read through the parser;
+-- an ambiguous text is kept as an ambiguous proposal. The source's reviewed
+-- crosswalk head for the locator must map it to this line's item, variant
+-- and channel. Staff: price and temporary unavailability reports only. The
+-- role, field, source authority and active item, variant and line are
+-- re-read under the venue menu lock before a key replays. The proposal
+-- supersedes the field's head.
 -- Returns { assertionId, lineId, lineRevision, field, state: 'proposed',
 -- value, current } where current is the field's confirmed state now (L4).
 create function public.menu_trading_propose(
@@ -1215,6 +1512,8 @@ declare
   v_value jsonb;
   v_basis text;
   v_snapshot public.menu_source_snapshots;
+  v_mapping public.menu_crosswalk_heads;
+  v_entry jsonb;
   v_locator text;
   v_raw text;
   v_today date;
@@ -1238,6 +1537,7 @@ begin
     v_venue := v_line.venue_id;
     v_item_id := v_line.item_id;
     v_variant := v_line.variant_id;
+    v_channel := v_line.channel;
   else
     if p_item is null then
       raise exception 'invalid_trading_line' using errcode = '22023';
@@ -1254,20 +1554,14 @@ begin
       raise exception 'menu_variant_not_found' using errcode = 'P0002';
     end if;
   end if;
-  -- Scope is re-read before any replay.
+  -- Locks, then the action's current authority and the exact active
+  -- catalogue identity, all before any replay.
+  perform private.menu_trading_lock_actor(v_uid);
+  perform private.lock_venue_menu(v_venue, true);
   v_role := private.menu_trading_role(v_venue, true);
   if v_role is null then
     raise exception 'not_venue_member' using errcode = '42501';
   end if;
-  v_hash := private.menu_source_request_hash(jsonb_build_object(
-    'line', p_line, 'item', p_item, 'variant', p_variant, 'portion', p_portion, 'channel', p_channel,
-    'field', p_field, 'value', p_value, 'effectiveFrom', p_effective_from, 'effectiveTo', p_effective_to,
-    'observedOn', p_observed_on, 'reason', v_reason, 'source', p_source));
-  v_prior := private.menu_trading_replay(p_request_key, v_uid, 'propose', v_hash);
-  if v_prior is not null then
-    return v_prior;
-  end if;
-
   if p_field is null or p_field not in ('price', 'availability', 'temporary_unavailability') then
     raise exception 'invalid_trading_field' using errcode = '22023';
   end if;
@@ -1282,6 +1576,18 @@ begin
   end if;
   if v_variant is not null and not private.menu_trading_item_active(v_item_id, v_variant) then
     raise exception 'menu_variant_not_on_active_menu' using errcode = 'P0001';
+  end if;
+  if p_line is not null and exists (
+    select 1 from public.menu_trading_lines l where l.id = p_line and l.retired_at is not null) then
+    raise exception 'menu_trading_line_retired' using errcode = 'P0001';
+  end if;
+  v_hash := private.menu_source_request_hash(jsonb_build_object(
+    'line', p_line, 'item', p_item, 'variant', p_variant, 'portion', p_portion, 'channel', p_channel,
+    'field', p_field, 'value', p_value, 'effectiveFrom', p_effective_from, 'effectiveTo', p_effective_to,
+    'observedOn', p_observed_on, 'reason', v_reason, 'source', p_source));
+  v_prior := private.menu_trading_replay(p_request_key, v_uid, 'propose', v_hash);
+  if v_prior is not null then
+    return v_prior;
   end if;
 
   -- The line identity (a new line only).
@@ -1315,13 +1621,13 @@ begin
   -- The value.
   if p_source is not null then
     if p_field <> 'price' or p_value is not null or jsonb_typeof(p_source) <> 'object'
-       or private.menu_json_keys(p_source) <> array['locator', 'rawText', 'snapshotId']
-       or jsonb_typeof(p_source -> 'snapshotId') <> 'string'
+       or not (private.menu_json_keys(p_source) <@ array['locator', 'rawText', 'snapshotId'])
+       or jsonb_typeof(p_source -> 'snapshotId') is distinct from 'string'
        or (p_source ->> 'snapshotId') !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-       or jsonb_typeof(p_source -> 'locator') <> 'string'
+       or jsonb_typeof(p_source -> 'locator') is distinct from 'string'
        or length(p_source ->> 'locator') not between 1 and 1152
-       or jsonb_typeof(p_source -> 'rawText') <> 'string'
-       or length(p_source ->> 'rawText') not between 1 and 80 then
+       or (p_source ? 'rawText' and (jsonb_typeof(p_source -> 'rawText') <> 'string'
+           or length(p_source ->> 'rawText') not between 1 and 80)) then
       raise exception 'invalid_trading_source' using errcode = '22023';
     end if;
     select s.* into v_snapshot from public.menu_source_snapshots s
@@ -1330,12 +1636,41 @@ begin
       raise exception 'menu_source_snapshot_not_found' using errcode = 'P0002';
     end if;
     v_locator := p_source ->> 'locator';
-    v_raw := p_source ->> 'rawText';
-    if not exists (
-      select 1 from jsonb_array_elements(v_snapshot.document) as x(e)
-      where x.e ->> 'locator' = v_locator
-         or exists (select 1 from private.menu_crosswalk_variants(x.e) v where v.locator = v_locator)) then
+    -- The exact cited occurrence in the immutable snapshot: an entry, or the
+    -- entry listing that variant locator (entry locators never contain
+    -- #variant=, so the two never collide).
+    select x.e into v_entry
+    from jsonb_array_elements(v_snapshot.document) as x(e)
+    where x.e ->> 'locator' = v_locator
+       or exists (select 1 from private.menu_crosswalk_variants(x.e) v where v.locator = v_locator)
+    limit 1;
+    if v_entry is null then
       raise exception 'menu_source_locator_not_found' using errcode = '22023';
+    end if;
+    -- The reviewed association for that locator, read under the source's
+    -- crosswalk lock (S1 lock order: venue menu, then crosswalk).
+    perform private.lock_menu_source_crosswalk(v_snapshot.source_id);
+    select h.* into v_mapping from public.menu_crosswalk_heads h
+    where h.source_id = v_snapshot.source_id and h.locator = v_locator and h.venue_id = v_venue;
+    -- An entry row names no entry locator; a variant row names its entry's.
+    if not found or v_mapping.status not in ('confirmed', 'carried')
+       or v_mapping.entry_locator is distinct from case when v_entry ->> 'locator' <> v_locator
+                                                     then v_entry ->> 'locator' end
+       or v_mapping.content_hash <> private.menu_crosswalk_content_hash(v_entry) then
+      raise exception 'menu_source_mapping_unverified' using errcode = 'P0001';
+    end if;
+    if v_mapping.item_id is distinct from v_item_id or v_mapping.variant_id is distinct from v_variant
+       or v_mapping.channel is distinct from v_channel then
+      raise exception 'menu_source_mapping_mismatch' using errcode = 'P0001';
+    end if;
+    v_raw := v_entry ->> 'priceText';
+    if v_raw is null then
+      raise exception 'menu_source_price_missing' using errcode = '22023';
+    end if;
+    -- Byte equality (no collation): caller text is never the evidence.
+    if p_source ? 'rawText'
+       and convert_to(p_source ->> 'rawText', 'UTF8') <> convert_to(v_raw, 'UTF8') then
+      raise exception 'menu_source_text_mismatch' using errcode = '22023';
     end if;
     v_parse := private.menu_parse_price(to_jsonb(v_raw), 'GBP');
     if (v_parse ->> 'ok')::boolean then
@@ -1416,8 +1751,7 @@ begin
     raise exception 'invalid_trading_reason' using errcode = '22023';
   end if;
 
-  -- Locks: venue menu (shared), then the line row.
-  perform private.lock_venue_menu(v_venue, true);
+  -- The line row, under the venue menu lock already held.
   if p_line is not null then
     select l.* into v_line from public.menu_trading_lines l where l.id = p_line for update;
   else
@@ -1483,6 +1817,9 @@ $$;
 -- (menu_trading_proposal_outdated otherwise); p_stated_on null records the
 -- venue's today as form_default, a date up to 30 days earlier is chosen
 -- (A1-2, L2). Decline: a proposed assertion. Withdraw: a confirmed one.
+-- The decider's authority, and for a confirmation the line's item and
+-- variant on the active menu, are re-read under the venue menu lock before
+-- a key replays; a decline or withdrawal stays possible off the menu.
 create function public.menu_trading_decide(
   p_assertion uuid,
   p_expected_line_revision integer,
@@ -1518,8 +1855,24 @@ begin
   if not found then
     raise exception 'menu_trading_assertion_not_found' using errcode = 'P0002';
   end if;
+  -- Locks, then the current authority and, for a confirmation, the line's
+  -- exact active item and variant, all before any replay.
+  perform private.menu_trading_lock_actor(v_uid);
+  perform private.lock_venue_menu(v_assertion.venue_id, true);
   if coalesce(private.menu_trading_role(v_assertion.venue_id, true), 'none') not in ('admin', 'manager') then
     raise exception 'not_venue_manager' using errcode = '42501';
+  end if;
+  if p_decision is null or p_decision not in ('confirmed', 'declined', 'withdrawn') then
+    raise exception 'invalid_trading_decision' using errcode = '22023';
+  end if;
+  if p_decision = 'confirmed' then
+    select l.* into v_line from public.menu_trading_lines l where l.id = v_assertion.line_id;
+    if not private.menu_trading_item_active(v_line.item_id, null) then
+      raise exception 'menu_item_not_on_active_menu' using errcode = 'P0001';
+    end if;
+    if v_line.variant_id is not null and not private.menu_trading_item_active(v_line.item_id, v_line.variant_id) then
+      raise exception 'menu_variant_not_on_active_menu' using errcode = 'P0001';
+    end if;
   end if;
   v_hash := private.menu_source_request_hash(jsonb_build_object(
     'assertion', p_assertion, 'expected', p_expected_line_revision, 'decision', p_decision,
@@ -1528,9 +1881,6 @@ begin
   if v_prior is not null then
     return v_prior;
   end if;
-  if p_decision is null or p_decision not in ('confirmed', 'declined', 'withdrawn') then
-    raise exception 'invalid_trading_decision' using errcode = '22023';
-  end if;
   if v_reason is not null and length(v_reason) > 500 then
     raise exception 'invalid_trading_reason' using errcode = '22023';
   end if;
@@ -1538,7 +1888,6 @@ begin
     raise exception 'invalid_stated_on' using errcode = '22023';
   end if;
 
-  perform private.lock_venue_menu(v_assertion.venue_id, true);
   select l.* into v_line from public.menu_trading_lines l where l.id = v_assertion.line_id for update;
   if p_expected_line_revision is null or v_line.revision <> p_expected_line_revision then
     raise exception 'menu_trading_conflict' using errcode = '40001',
@@ -1607,11 +1956,13 @@ end;
 $$;
 
 -- A manager's own statement, current at once (§5.4, §5.6): every live line
--- of the item (or of p_variant) becomes temporarily unavailable until p_until
--- (null: until further notice; else a future instant). With no line yet, the
--- plain line (p_variant, no portion, channel all) is created. One assertion
--- and one confirmation per line, stated today (form_default), lines locked
--- by id after the venue menu lock.
+-- of the item (or of p_variant) on the active menu (no variant, or a variant
+-- the active entry lists) becomes temporarily unavailable until p_until
+-- (null: until further notice; else a future instant). With no such line
+-- yet, the plain line (p_variant, no portion, channel all) is created. One
+-- assertion and one confirmation per line, stated today (form_default). The
+-- manager's authority and the active item and variant are re-read under the
+-- venue menu lock before a key replays; lines are locked by id after it.
 create function public.menu_set_temporarily_unavailable(
   p_item uuid,
   p_variant uuid,
@@ -1648,15 +1999,11 @@ begin
   if not found then
     raise exception 'menu_item_not_found' using errcode = 'P0002';
   end if;
+  perform private.menu_trading_lock_actor(v_uid);
+  perform private.lock_venue_menu(v_item.venue_id, true);
   v_role := private.menu_trading_role(v_item.venue_id, true);
   if v_role is null or v_role not in ('admin', 'manager') then
     raise exception 'not_venue_manager' using errcode = '42501';
-  end if;
-  v_hash := private.menu_source_request_hash(jsonb_build_object(
-    'item', p_item, 'variant', p_variant, 'until', p_until, 'reason', v_reason));
-  v_prior := private.menu_trading_replay(p_request_key, v_uid, 'set_temporarily_unavailable', v_hash);
-  if v_prior is not null then
-    return v_prior;
   end if;
   if p_variant is not null
      and not exists (select 1 from public.menu_variants mv where mv.id = p_variant and mv.item_id = p_item) then
@@ -1668,6 +2015,12 @@ begin
   if p_variant is not null and not private.menu_trading_item_active(p_item, p_variant) then
     raise exception 'menu_variant_not_on_active_menu' using errcode = 'P0001';
   end if;
+  v_hash := private.menu_source_request_hash(jsonb_build_object(
+    'item', p_item, 'variant', p_variant, 'until', p_until, 'reason', v_reason));
+  v_prior := private.menu_trading_replay(p_request_key, v_uid, 'set_temporarily_unavailable', v_hash);
+  if v_prior is not null then
+    return v_prior;
+  end if;
   if p_until is not null and p_until <= now() then
     raise exception 'invalid_until' using errcode = '22023';
   end if;
@@ -1677,11 +2030,11 @@ begin
   v_value := jsonb_build_object('state', 'temporarily_unavailable', 'until', private.menu_until_text(p_until));
   v_today := private.menu_venue_date(v_item.venue_id, now());
 
-  perform private.lock_venue_menu(v_item.venue_id, true);
   if not exists (
     select 1 from public.menu_trading_lines l
     where l.item_id = p_item and l.retired_at is null
-      and (p_variant is null or l.variant_id = p_variant)) then
+      and (p_variant is null or l.variant_id = p_variant)
+      and (l.variant_id is null or private.menu_trading_item_active(p_item, l.variant_id))) then
     insert into public.menu_trading_lines (venue_id, item_id, variant_id, channel, created_by)
     values (v_item.venue_id, p_item, p_variant, 'all', v_uid)
     on conflict on constraint menu_trading_lines_identity_key do nothing;
@@ -1690,6 +2043,7 @@ begin
     select l.* from public.menu_trading_lines l
     where l.item_id = p_item and l.retired_at is null
       and (p_variant is null or l.variant_id = p_variant)
+      and (l.variant_id is null or private.menu_trading_item_active(p_item, l.variant_id))
     order by l.id
     for update
   loop
@@ -1732,9 +2086,12 @@ $$;
 -- Add an availability schedule (B04-02c), admin or the venue's manager.
 -- Own schedule: p_schedule is B03's { effectiveFrom, effectiveTo?,
 -- recurrence, windows } (B03 validation and field paths). Linked:
--- p_knowledge_check_id names an active check of the same venue and
--- p_schedule is { effectiveFrom, effectiveTo? }, the dates the menu follows
--- that service. p_timezone defaults to the venue's (Europe/London, OD-16).
+-- p_knowledge_check_id names an active check of the same venue whose
+-- question is a service in force now (knowledge_check_not_service otherwise;
+-- another venue's check is knowledge_check_not_found) and p_schedule is
+-- { effectiveFrom, effectiveTo? }, the dates the menu follows that service.
+-- p_timezone defaults to the venue's (Europe/London, OD-16). Authority is
+-- re-read under the venue menu lock before a key replays.
 create function public.menu_availability_schedule_add(
   p_venue uuid,
   p_schedule jsonb,
@@ -1752,6 +2109,7 @@ as $$
 declare
   v_uid uuid := auth.uid();
   v_role text;
+  v_check public.venue_amenity_checks;
   v_timezone text;
   v_hash text;
   v_prior jsonb;
@@ -1768,6 +2126,8 @@ begin
   if p_venue is null or not exists (select 1 from public.venues v where v.id = p_venue) then
     raise exception 'venue_not_found' using errcode = 'P0002';
   end if;
+  perform private.menu_trading_lock_actor(v_uid);
+  perform private.lock_venue_menu(p_venue, true);
   v_role := private.menu_trading_role(p_venue, true);
   if v_role is null or v_role not in ('admin', 'manager') then
     raise exception 'not_venue_manager' using errcode = '42501';
@@ -1816,17 +2176,23 @@ begin
     raise exception 'invalid_value' using errcode = '22023',
       detail = jsonb_build_object('fields', v_fields)::text;
   end if;
-  if p_knowledge_check_id is not null and not exists (
-    select 1 from public.venue_amenity_checks c
-    where c.id = p_knowledge_check_id and c.venue_id = p_venue and c.status = 'active') then
-    raise exception 'knowledge_check_not_found' using errcode = 'P0002';
+  if p_knowledge_check_id is not null then
+    -- Another venue's check reads as not found (no existence oracle).
+    select c.* into v_check from public.venue_amenity_checks c
+    where c.id = p_knowledge_check_id and c.venue_id = p_venue and c.status = 'active';
+    if not found then
+      raise exception 'knowledge_check_not_found' using errcode = 'P0002';
+    end if;
+    -- Only a service question in force now carries a schedule (B03 service.v1).
+    if (private.knowledge_version_as_of(v_check.template_key, now())).value_schema is distinct from 'service' then
+      raise exception 'knowledge_check_not_service' using errcode = 'P0001';
+    end if;
   end if;
   if p_supersedes is not null and not exists (
     select 1 from public.menu_availability_schedules s where s.id = p_supersedes and s.venue_id = p_venue) then
     raise exception 'menu_schedule_not_found' using errcode = 'P0002';
   end if;
 
-  perform private.lock_venue_menu(p_venue, true);
   insert into public.menu_availability_schedules (
     venue_id, timezone, recurrence, windows, knowledge_check_id, effective_from, effective_to,
     supersedes, created_by, command_key
@@ -1879,6 +2245,8 @@ begin
   if not found then
     raise exception 'menu_schedule_not_found' using errcode = 'P0002';
   end if;
+  perform private.menu_trading_lock_actor(v_uid);
+  perform private.lock_venue_menu(v_schedule.venue_id, true);
   v_role := private.menu_trading_role(v_schedule.venue_id, true);
   if v_role is null or v_role not in ('admin', 'manager') then
     raise exception 'not_venue_manager' using errcode = '42501';
@@ -1906,7 +2274,6 @@ begin
     raise exception 'note_too_long' using errcode = '22023';
   end if;
 
-  perform private.lock_venue_menu(v_schedule.venue_id, true);
   begin
     insert into public.menu_availability_exceptions (
       schedule_id, venue_id, local_date, kind, windows, note, created_by, command_key
@@ -2039,13 +2406,19 @@ $$;
 -- ---------------------------------------------------------------------------
 
 -- The job (A1-4): runs from the same hourly scheduler as
--- private.knowledge_open_rechecks (route and schedule: WS1/WS6). b1 opens
--- temporary_until_passed for each live line whose temporary unavailability
--- reads needs_checking at p_now, due at its `until`, once per subject, cause,
--- due time and use; then closes what the resolver no longer reads so. A
+-- private.knowledge_open_rechecks (route and schedule: WS1/WS6), which calls
+-- it with p_now only (every venue). p_venue_ids bounds a run to those
+-- venues. Per venue in id order: the venue menu lock (shared, so catalogue
+-- activation and trading commands serialise with it), then the venue's
+-- lines with temporary unavailability or an open task, locked by id; under
+-- those locks each line's eligibility (live, item and variant on the active
+-- menu) and state are re-read. b1 opens temporary_until_passed for an
+-- eligible line whose temporary unavailability reads needs_checking at
+-- p_now, due at its `until`, once per subject, cause, due time and use; then
+-- closes what the resolver reads current again (menu_close_rechecks). A
 -- linked B03 service and a schedule's end open nothing here. Read-time status
 -- never waits for this job. Returns the number opened.
-create function private.menu_open_rechecks(p_now timestamptz)
+create function private.menu_open_rechecks(p_now timestamptz, p_venue_ids uuid[] default null)
 returns integer
 language plpgsql
 volatile
@@ -2053,34 +2426,44 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_line record;
+  v_venue uuid;
+  v_line public.menu_trading_lines;
   v_state jsonb;
   v_count integer;
   v_opened integer := 0;
 begin
-  for v_line in
-    select l.id, l.venue_id
-    from public.menu_trading_lines l
-    join public.menu_items i on i.id = l.item_id
-    where l.retired_at is null and i.archived_at is null
-      and exists (select 1 from public.menu_trading_assertions a
-                  where a.line_id = l.id and a.field = 'temporary_unavailability')
-    order by l.id
+  if p_now is null then
+    raise exception 'invalid_recheck_instant' using errcode = '22023';
+  end if;
+  for v_venue in
+    select distinct l.venue_id from public.menu_trading_lines l
+    where p_venue_ids is null or l.venue_id = any (p_venue_ids)
+    order by 1
   loop
-    v_state := private.menu_trading_temporary_state(v_line.id, p_now);
-    if v_state ->> 'state' = 'needs_checking' then
-      insert into public.menu_trading_recheck_tasks (venue_id, line_id, assertion_id, cause, use, due_at)
-      values (v_line.venue_id, v_line.id, (v_state ->> 'assertionId')::uuid, 'temporary_until_passed',
-        'internal', (v_state ->> 'until')::timestamptz)
-      on conflict on constraint menu_trading_recheck_tasks_once do nothing;
-      get diagnostics v_count = row_count;
-      v_opened := v_opened + v_count;
-    end if;
-  end loop;
-  for v_line in
-    select distinct t.line_id as id from public.menu_trading_recheck_tasks t where t.state = 'open' order by 1
-  loop
-    perform private.menu_close_rechecks(v_line.id, p_now);
+    perform private.lock_venue_menu(v_venue, true);
+    for v_line in
+      select l.* from public.menu_trading_lines l
+      where l.venue_id = v_venue
+        and (exists (select 1 from public.menu_trading_assertions a
+                     where a.line_id = l.id and a.field = 'temporary_unavailability')
+             or exists (select 1 from public.menu_trading_recheck_tasks t
+                        where t.line_id = l.id and t.state = 'open'))
+      order by l.id
+      for update
+    loop
+      if v_line.retired_at is null and private.menu_trading_item_active(v_line.item_id, v_line.variant_id) then
+        v_state := private.menu_trading_temporary_state(v_line.id, p_now);
+        if v_state ->> 'state' = 'needs_checking' then
+          insert into public.menu_trading_recheck_tasks (venue_id, line_id, assertion_id, cause, use, due_at)
+          values (v_line.venue_id, v_line.id, (v_state ->> 'assertionId')::uuid, 'temporary_until_passed',
+            'internal', (v_state ->> 'until')::timestamptz)
+          on conflict on constraint menu_trading_recheck_tasks_once do nothing;
+          get diagnostics v_count = row_count;
+          v_opened := v_opened + v_count;
+        end if;
+      end if;
+      perform private.menu_close_rechecks(v_line.id, p_now);
+    end loop;
   end loop;
   return v_opened;
 end;
@@ -2123,17 +2506,21 @@ revoke all on function
   private.menu_trading_role(uuid, boolean),
   private.menu_trading_item_active(uuid, uuid),
   private.menu_venue_date(uuid, timestamptz),
+  private.menu_trading_lock_actor(uuid),
   private.menu_trading_replay(uuid, uuid, text, text),
   private.menu_trading_record(uuid, uuid, text, text, uuid, jsonb),
   private.menu_trading_field_state(uuid, text, timestamptz),
   private.menu_trading_head(uuid, text),
   private.menu_trading_temporary_state(uuid, timestamptz),
+  private.menu_service_detail_at(uuid, timestamptz),
+  private.menu_service_state_at(uuid, uuid, timestamptz),
+  private.menu_service_occurrences(uuid, timestamptz, date, date, timestamptz),
   private.menu_trading_schedule_state(uuid, timestamptz),
   private.menu_trading_availability(uuid, timestamptz),
   private.menu_trading_resolution(uuid, timestamptz),
   private.menu_trading_line_json(public.menu_trading_lines, text, timestamptz),
   private.menu_close_rechecks(uuid, timestamptz),
-  private.menu_open_rechecks(timestamptz),
+  private.menu_open_rechecks(timestamptz, uuid[]),
   private.menu_open_recheck_rows(uuid)
 from public, anon, authenticated;
 

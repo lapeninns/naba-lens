@@ -623,13 +623,7 @@ describe("availability resolution with schedules and a linked B03 service", () =
       roastLine("s"),
       "2026-11-15T13:00:00Z",
       linkedSchedule,
-      () => ({
-        status: "available",
-        reason: null,
-        detail: null,
-        value: "yes",
-        occurrences: [sunday],
-      })
+      () => ({ state: "offered", occurrences: [sunday] })
     )
     expect(out).toEqual({
       state: "available",
@@ -643,35 +637,44 @@ describe("availability resolution with schedules and a linked B03 service", () =
       roastLine("s"),
       "2026-11-22T13:00:00Z",
       linkedSchedule,
-      () => ({
-        status: "available",
-        reason: null,
-        detail: null,
-        value: "no",
-        occurrences: [],
-      })
+      () => ({ state: "not_offered" })
     )
     expect(out).toEqual({ state: "not_offered", detail: "service_not_offered" })
   })
 
-  it("passes B03's unavailable reason through, and reads unknown when unreadable", () => {
+  it("passes B03's unavailable reason through, and reads not_recorded without a reading", () => {
     expect(
       resolveAvailability(
         roastLine("s"),
         "2026-11-15T13:00:00Z",
         linkedSchedule,
         () => ({
-          status: "unavailable",
+          state: "unknown",
           reason: "withdrawn",
           detail: "answer_withdrawn",
-          value: null,
-          occurrences: null,
         })
       )
     ).toEqual({
       state: "unknown",
       reason: "withdrawn",
       detail: "answer_withdrawn",
+    })
+    // A past evidence state B03 cannot rebuild is unknown, never today's.
+    expect(
+      resolveAvailability(
+        roastLine("s"),
+        "2026-11-15T13:00:00Z",
+        linkedSchedule,
+        () => ({
+          state: "unknown",
+          reason: "unknown",
+          detail: "service_history_unsupported",
+        })
+      )
+    ).toEqual({
+      state: "unknown",
+      reason: "unknown",
+      detail: "service_history_unsupported",
     })
     expect(
       resolveAvailability(
@@ -682,7 +685,7 @@ describe("availability resolution with schedules and a linked B03 service", () =
     ).toEqual({
       state: "unknown",
       reason: "unknown",
-      detail: "service_unreadable",
+      detail: "not_recorded",
     })
   })
 
@@ -692,13 +695,7 @@ describe("availability resolution with schedules and a linked B03 service", () =
       roastLine("s"),
       "2026-11-15T13:00:00Z",
       bounded,
-      () => ({
-        status: "available",
-        reason: null,
-        detail: null,
-        value: "yes",
-        occurrences: [sunday],
-      })
+      () => ({ state: "offered", occurrences: [sunday] })
     )
     expect(out).toEqual({ state: "not_offered", detail: "schedule_ended" })
   })
