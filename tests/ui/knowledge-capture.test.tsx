@@ -160,6 +160,7 @@ function setup({
   prefill = null,
   detailForm = null,
   previewSchedule,
+  openRechecks,
 }: {
   knowledgeSlot?: WorkingSlot
   submit?: ReturnType<typeof vi.fn<Submit>>
@@ -171,6 +172,7 @@ function setup({
   prefill?: KnowledgeCapture["prefill"]
   detailForm?: KnowledgeCapture["detailForm"]
   previewSchedule?: KnowledgeCapture["previewSchedule"]
+  openRechecks?: number
 } = {}) {
   const onDone = vi.fn()
   const onReload = vi.fn()
@@ -202,6 +204,7 @@ function setup({
         prefill,
         detailForm,
         previewSchedule,
+        openRechecks,
       }}
     />
   )
@@ -1753,5 +1756,44 @@ describe("knowledge capture: a date change is the manager's (B03 UI §5.2)", () 
     expect(
       screen.getByText("Something different on a date? Report a change.")
     ).toBeTruthy()
+  })
+})
+
+describe("knowledge capture: a recheck's sent notice (B03 UI §6.2)", () => {
+  it("says Recheck done only when the server closed the task", async () => {
+    const submit = vi.fn<Submit>(async () =>
+      sent({ rechecksClosed: [{ taskId: "t1", use: "internal" }] })
+    )
+    const { user } = setup({ submit })
+    await user.click(radio("Yes"))
+    await user.click(photoBox())
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    expect(await screen.findByText("Recheck done.")).toBeTruthy()
+  })
+
+  it("says the recheck stays open while the finding awaits confirmation", async () => {
+    const submit = vi.fn<Submit>(async () =>
+      sent({ outcome: "awaiting_confirmation" })
+    )
+    const { user } = setup({ submit, openRechecks: 1 })
+    await user.click(radio("Yes"))
+    await user.click(photoBox())
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    expect(
+      await screen.findByText(
+        "Recheck sent. It stays open until a manager or an admin confirms your finding."
+      )
+    ).toBeTruthy()
+    expect(screen.queryByText("Recheck done.")).toBeNull()
+  })
+
+  it("claims nothing about a recheck without one", async () => {
+    const submit = vi.fn<Submit>(async () => sent())
+    const { user } = setup({ submit })
+    await user.click(radio("Yes"))
+    await user.click(photoBox())
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    await screen.findByText(/Finding sent/)
+    expect(screen.queryByText(/Recheck/)).toBeNull()
   })
 })

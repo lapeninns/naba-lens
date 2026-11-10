@@ -69,6 +69,9 @@ async function knowledgeFor(
     .catch(() => null)
   const form = questionForm(question?.ok ? question.question : null)
   const props = fromView(view.view, draft?.ok ? draft.draft : null, role)
+  // B03-e: whether a recheck is open here, for the sent notice (§6.2). A
+  // failed read claims nothing either way.
+  props.openRechecks = await openRechecksAt(actor, checkId)
   if (form.kind === "policy") {
     // Places for Areas and the owner's lists for conditions and exceptions;
     // each reads as none when it can't be read (the editor says so).
@@ -173,6 +176,15 @@ async function knowledgeFor(
           }
   }
   return { props, capture: view.view.capture, form }
+}
+
+async function openRechecksAt(actor: MediaActor, checkId: string) {
+  try {
+    const result = await knowledgeServices.getCheckRechecks(actor, { checkId })
+    return result.ok ? result.count : 0
+  } catch {
+    return 0
+  }
 }
 
 function fromView(

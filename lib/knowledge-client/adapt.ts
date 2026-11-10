@@ -246,6 +246,7 @@ export function adaptSlot(slot: KnowledgeSlotView): WorkingSlot {
           at: slot.closedAssignment.at,
         }
       : null,
+    ...(Array.isArray(slot.freshness) ? { freshness: slot.freshness } : {}),
   }
 }
 
@@ -529,6 +530,9 @@ export function adaptSubmitted(result: ServerSubmitted): SubmittedFinding {
       : null,
     recognition: result.recognition,
     ...(result.sentAt === undefined ? {} : { sentAt: result.sentAt }),
+    ...(Array.isArray(result.rechecksClosed)
+      ? { rechecksClosed: result.rechecksClosed }
+      : {}),
   }
 }
 

@@ -58,6 +58,7 @@ import {
   captureContextLines,
   dockNote,
   policyNeedWords,
+  RECHECK_COPY,
   recognitionLine,
   replacedOwnLine,
   SEND_PROGRESS_COPY,
@@ -196,6 +197,8 @@ export type KnowledgeCapture = {
     | null
   onDiscardDraft: (() => Promise<KnowledgeResult<Record<never, never>>>) | null
   serverDraft: ServerDraft | null
+  /** B03-e: this check's open recheck tasks when the form opened. */
+  openRechecks?: number
   /** B03-d: the server's next dates for a schedule being written. */
   previewSchedule?: (input: {
     schedule: Record<string, unknown>
@@ -1448,9 +1451,17 @@ export function CaptureForm({
             venueName: knowledge?.venueName ?? "the venue",
           })
         : null
+    // B03-e (§6.2): "Recheck done." only when the server says it closed.
+    const recheck = sent.rechecksClosed?.length
+      ? [RECHECK_COPY.done]
+      : (knowledge?.openRechecks ?? 0) > 0 &&
+          sent.outcome === "awaiting_confirmation"
+        ? [RECHECK_COPY.sentOpen]
+        : []
     return {
       copy: policy ?? copy,
       extra: [
+        ...recheck,
         ...(sent.replacedOwn ? [replacedOwnLine(sent.replacedOwn.sentAt)] : []),
         ...(recognition ? [recognition] : []),
       ],

@@ -24,8 +24,10 @@ import type {
   KnowledgeAsset,
   KnowledgeErrorCode,
   KnowledgeResult,
+  FreshnessEntry,
   ObservedOnSource,
   PolicyMissing,
+  RecheckClosed,
   Recognition,
   SlotReason,
   SubmitOutcome,
@@ -40,6 +42,13 @@ export {
   UNKNOWN_PRESETS,
 } from "@/lib/knowledge/contract"
 export { SCHEDULE_EXCEPTION_KINDS, VALUE_LISTS } from "@/lib/knowledge/contract"
+export type {
+  FreshnessEntry,
+  FreshnessPreviewView,
+  RecheckCause,
+  RecheckClosed,
+  RecheckTaskView as RecheckTask,
+} from "@/lib/knowledge/contract"
 export type { ScheduleExceptionKind } from "@/lib/knowledge/contract"
 export type {
   ObservedOnSource,
@@ -235,6 +244,8 @@ export type WorkingSlot = {
     answeredBy: string | null
     at: Instant
   } | null
+  /** B03-e (A10): per use; every entry `unrated` until a rule applies. */
+  freshness?: FreshnessEntry[]
   /**
    * My latest send on this question (B02 R11), on a question read for the
    * capture screen: the base its draft saves send. Absent from an older
@@ -397,6 +408,8 @@ export type SubmittedFinding = {
   recognition: Recognition
   /** This send's time (B02 R11): the next draft base for the same form. */
   sentAt?: Instant
+  /** B03-e (A24): recheck tasks this send closed; absent before B03-e. */
+  rechecksClosed?: RecheckClosed[]
 }
 
 // ---- S4 drafts --------------------------------------------------------------------

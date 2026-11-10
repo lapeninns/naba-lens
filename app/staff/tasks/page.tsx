@@ -161,6 +161,16 @@ async function sentFinding(
   }
 }
 
+/** My open recheck tasks (B03-e); null when they can't be read. */
+async function myRechecks(actor: MediaActor) {
+  try {
+    const result = await knowledgeServices.listMyRechecks(actor)
+    return result.ok ? result.tasks : null
+  } catch {
+    return null
+  }
+}
+
 const UPLOAD_BLOCKED = {
   not_staff: "Only staff accounts can add photos.",
   no_venue: "You can't add photos until an admin assigns your venue.",
@@ -195,6 +205,7 @@ export default async function TasksPage({
     labels,
     retakes,
     entry,
+    rechecks,
   ] = await Promise.all([
     myTasks(actor).then(unwrap),
     recentColleaguePhotos(),
@@ -213,6 +224,8 @@ export default async function TasksPage({
     layout === "b02" && profile.venue && !uploadBlockReason(profile)
       ? myContributionEntry(actor, profile.venue.name)
       : null,
+    // B03-e: open rechecks on checks assigned to me; null when unreadable.
+    layout === "b02" ? myRechecks(actor) : null,
   ])
   const { reviewCount } = shell
   const blockedReason = uploadBlockReason(profile)
@@ -274,6 +287,7 @@ export default async function TasksPage({
           labelWork={labels?.status === "ok" ? labels.work : null}
           labelWorkError={labels?.status === "failed"}
           retakes={retakes}
+          rechecks={rechecks}
           alsoThisMonth={
             <Suspense fallback={<AlsoThisMonthSkeleton />}>
               <AlsoThisMonth pending={streamedPending} />

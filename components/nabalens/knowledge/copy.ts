@@ -7,6 +7,7 @@ import { ANSWER_LABEL, type SubmitAnswer } from "@/lib/amenities/contract"
 import type {
   AnswerInUse,
   QualifiedAnswer,
+  RecheckTask,
   FindingState,
   FindingSummary,
   KnowledgeAnswer,
@@ -292,8 +293,8 @@ export function answerInUseLines(
       return answer.qualified
         ? [qualifiedLine(answer.qualified)]
         : ["No answer in use: needs checking.", ...priorAnswer(answer, slot)]
-    case "policy_incomplete": // Without the list (an older server shape) it stays needs checking. // Never shown as confirmed while something is missing (§4.3).
-    {
+    case "policy_incomplete": {
+      // Without the list (an older server shape) it stays needs checking. // Never shown as confirmed while something is missing (§4.3).
       const line = policyNotConfirmedLine(answer.policyMissing)
       return line
         ? [line]
@@ -1080,3 +1081,49 @@ export function slotRow(slot: WorkingSlot): SlotRow {
     dismissable: false,
   }
 }
+
+// ---- Rechecks (B03 UI design §6.2) ------------------------------------------------------
+
+/**
+ * A recheck card's line by cause (§6.2). `previous` is the answer last in
+ * use, when there was one; `policy` words a stated-on key.
+ */
+export function recheckCauseLine(
+  task: Pick<RecheckTask, "cause" | "dueAt">,
+  {
+    previous = null,
+    policy = false,
+  }: { previous?: string | null; policy?: boolean } = {}
+): string {
+  const date = longDate(task.dueAt)
+  switch (task.cause) {
+    case "due_soon":
+      return `Due for a check by ${date}. The current answer stays in use until then.`
+    case "expired":
+      return previous
+        ? `Past its check date since ${date}. Previous answer: ${previous}.`
+        : `Past its check date since ${date}.`
+    case "basis_missing":
+      return policy
+        ? "It was sent without the date the policy was stated. Check it and add the date."
+        : "It was sent without the day it was checked. Check it and add the date."
+    case "schedule_ended":
+      return `Its last day offered was ${date}. Check whether it continues.`
+    case "temporary_until_passed":
+      return `It was temporarily unavailable until ${date}. Check whether it's back.`
+    case "evidence_lost":
+      return "Its photo was deleted. Check it again."
+    case "schema_changed":
+      return "This question now asks for more detail. Check it again."
+    case "scope_changed":
+      return "A new entrance was listed after this answer was sent. Check it."
+    default:
+      return "It needs checking again."
+  }
+}
+
+export const RECHECK_COPY = {
+  done: "Recheck done.",
+  sentOpen:
+    "Recheck sent. It stays open until a manager or an admin confirms your finding.",
+} as const

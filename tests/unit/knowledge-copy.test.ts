@@ -10,6 +10,7 @@ import {
   KNOWLEDGE_ANSWER_LABEL,
   periodMonth,
   policyNeedWords,
+  recheckCauseLine,
   policyNotConfirmedLine,
   readerLine,
   recognitionLine,
@@ -742,5 +743,40 @@ describe("what a policy still needs (B03 UI design §4.3)", () => {
       action: "View",
       needsMe: false,
     })
+  })
+})
+
+describe("recheck causes (B03 UI §6.2)", () => {
+  it("words every cause, with the date and previous answer where they apply", () => {
+    const at = "2026-11-18T00:00:00.000Z"
+    const line = (
+      cause: Parameters<typeof recheckCauseLine>[0]["cause"],
+      o = {}
+    ) => recheckCauseLine({ cause, dueAt: at }, o)
+    expect(line("due_soon")).toBe(
+      "Due for a check by 18 Nov 2026. The current answer stays in use until then."
+    )
+    expect(line("expired", { previous: "Yes" })).toBe(
+      "Past its check date since 18 Nov 2026. Previous answer: Yes."
+    )
+    expect(line("basis_missing")).toBe(
+      "It was sent without the day it was checked. Check it and add the date."
+    )
+    expect(line("basis_missing", { policy: true })).toBe(
+      "It was sent without the date the policy was stated. Check it and add the date."
+    )
+    expect(line("schedule_ended")).toBe(
+      "Its last day offered was 18 Nov 2026. Check whether it continues."
+    )
+    expect(line("temporary_until_passed")).toBe(
+      "It was temporarily unavailable until 18 Nov 2026. Check whether it's back."
+    )
+    expect(line("evidence_lost")).toBe("Its photo was deleted. Check it again.")
+    expect(line("schema_changed")).toBe(
+      "This question now asks for more detail. Check it again."
+    )
+    expect(line("scope_changed")).toBe(
+      "A new entrance was listed after this answer was sent. Check it."
+    )
   })
 })

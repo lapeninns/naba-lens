@@ -78,6 +78,7 @@ const knowledge = vi.hoisted(() => ({
   getQuestion: vi.fn(),
   listPlaces: vi.fn(),
   getValueList: vi.fn(),
+  getCheckRechecks: vi.fn(async () => ({ ok: true, count: 0, tasks: [] })),
 }))
 vi.mock("@/lib/knowledge-client/services", () => ({
   knowledgeServices: knowledge,

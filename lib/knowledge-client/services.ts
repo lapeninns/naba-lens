@@ -23,8 +23,10 @@ import type {
   KnowledgeAsset,
   KnowledgeFailure,
   KnowledgeResult,
+  FreshnessPreviewView,
   MyPending,
   Occurrence,
+  RecheckTask,
   Place,
   QuestionView,
   RegistryQuestion,
@@ -135,6 +137,20 @@ export type KnowledgeServices = {
     actor: MediaActor,
     input: { list: ValueListName }
   ): Promise<KnowledgeResult<{ items: ValueListItem[] }>>
+  /** B03-e (A11): my open recheck tasks; none before the B03-e migration. */
+  listMyRechecks(
+    actor: MediaActor
+  ): Promise<KnowledgeResult<{ tasks: RecheckTask[] }>>
+  /** B03-e: one check's open tasks (staff not assigned get the count only). */
+  getCheckRechecks(
+    actor: MediaActor,
+    input: unknown
+  ): Promise<KnowledgeResult<{ count: number; tasks: RecheckTask[] }>>
+  /** B03-e (§7.3): admin, no write: what naming check-date rules would do. */
+  previewFreshness(
+    actor: MediaActor,
+    input: unknown
+  ): Promise<KnowledgeResult<{ preview: FreshnessPreviewView }>>
   /** B03-d: the schedule in use's occurrences, from..to (≤ 92 days). */
   getOccurrences(
     actor: MediaActor,
@@ -223,6 +239,20 @@ export const knowledgeServices: KnowledgeServices = {
   addPlace: (actor, input) => server.addPlace(actor, input),
 
   retirePlace: (actor, input) => server.retirePlace(actor, input),
+
+  async listMyRechecks(actor) {
+    // Read here for the database's code: before B03-e there are no tasks.
+    const { data, error } = await knowledgeRpc(actor.db, "my_rechecks", {})
+    if (error) {
+      if (MISSING_FUNCTION.has(error.code ?? "")) return { ok: true, tasks: [] }
+      return server.knowledgeRpcFailure(error, "my rechecks")
+    }
+    return { ok: true, tasks: data.items }
+  },
+
+  getCheckRechecks: (actor, input) => server.getCheckRechecks(actor, input),
+
+  previewFreshness: (actor, input) => server.previewFreshness(actor, input),
 
   getOccurrences: (actor, input) => server.getOccurrences(actor, input),
 
