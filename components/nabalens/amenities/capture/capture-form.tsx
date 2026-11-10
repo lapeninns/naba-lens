@@ -875,6 +875,7 @@ export function CaptureForm({
   }
 
   function startWaiting() {
+    if (redaction) return
     setOutcome(null)
     setWaiting(true)
   }
@@ -1593,9 +1594,15 @@ export function CaptureForm({
       ) : null}
 
       <div className="sticky bottom-0 z-20 -mx-4 flex flex-col gap-3 border-t border-line bg-paper/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
-        {waiting || outcome?.kind === "uploads_pending" ? (
+        {/* The redaction tick only holds for the evidence it was given for,
+            so a waited-for photo would clear it and nothing could send by
+            itself: those questions are never offered the wait. */}
+        {waiting ||
+        (outcome?.kind === "uploads_pending" &&
+          !(redaction && pendingUploads === 0)) ? (
           <UploadWait
             waiting={waiting}
+            canWait={!redaction}
             count={pendingUploads}
             online={online}
             canSendWithout={
@@ -1725,6 +1732,7 @@ const FIELD_NAMES = new Set<string>([
 /** Uploads from this form aren't ready: wait for them, or send without them. */
 function UploadWait({
   waiting,
+  canWait,
   count,
   online,
   canSendWithout,
@@ -1734,6 +1742,8 @@ function UploadWait({
   onStop,
 }: {
   waiting: boolean
+  /** False on a redaction question: it is ticked and sent once the photo is ready. */
+  canWait: boolean
   count: number
   online: boolean
   canSendWithout: boolean
@@ -1765,14 +1775,16 @@ function UploadWait({
       role="status"
       action={
         <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            variant="secondary"
-            size="touch"
-            onClick={onWait}
-          >
-            {UPLOAD_WAIT_COPY.waitFor(n)}
-          </Button>
+          {canWait ? (
+            <Button
+              type="button"
+              variant="secondary"
+              size="touch"
+              onClick={onWait}
+            >
+              {UPLOAD_WAIT_COPY.waitFor(n)}
+            </Button>
+          ) : null}
           {canSendWithout ? (
             <Button
               type="button"
@@ -1787,9 +1799,11 @@ function UploadWait({
       }
     >
       <p>
-        {canSendWithout || !yesNeeds
-          ? UPLOAD_WAIT_COPY.pending(n)
-          : UPLOAD_WAIT_COPY.yesNeeds(yesNeeds, n)}
+        {!canWait
+          ? UPLOAD_WAIT_COPY.redactionFirst(n)
+          : canSendWithout || !yesNeeds
+            ? UPLOAD_WAIT_COPY.pending(n)
+            : UPLOAD_WAIT_COPY.yesNeeds(yesNeeds, n)}
       </p>
       {online ? null : <p>{UPLOAD_WAIT_COPY.offline}</p>}
     </Notice>
