@@ -85,6 +85,20 @@ describe("T-B10-08 closed (reason, detail) table (the part runnable now)", () =>
       contractBreaches: { "public / stale": 1 },
     })
   })
+
+  it("reports a use other than internal or public as a contract breach, even with a known state", () => {
+    expect(
+      countFreshness([
+        { use: "internal", state: "current" },
+        { use: "guest", state: "current" },
+        { use: "", state: "expired" },
+        { use: "guest", state: "current" },
+      ])
+    ).toEqual({
+      byUse: { internal: { current: 1 } },
+      contractBreaches: { "guest / current": 2, " / expired": 1 },
+    })
+  })
 })
 
 function walk(dir: string): string[] {
