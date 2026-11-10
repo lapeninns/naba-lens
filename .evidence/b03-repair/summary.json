@@ -1,0 +1,10 @@
+{
+  "batch": "b03-final-integration-repair",
+  "base": {"commit": "31f320e2dd9d9d44dcc868cb0c896f2b56b8c1f4", "tree": "2a76f0782b216009677a7e56188156362b0b7294"},
+  "head": {"commit": "c993272ff59377ae4c928aab831d6c04f6097533", "tree": "d9c45fc45418eb75850924bf0289487d30aa2e6b"},
+  "findings": {"1_L1_fixture": "repaired, db_unexecuted", "2_check_dates_defaults": "repaired, unit_proven", "3_state_reason_union": "repaired, typecheck_proven", "4_venue_rechecks_unavailable": "repaired, unit_proven"},
+  "checks": {"verify_change_unit_4_files_65_tests": 0, "verify_change_types": 0, "verify_change_lint_changed_files": 0, "prettier_check_changed_files": 0, "git_diff_check": 0},
+  "red_on_base": ["admin-check-dates: 3 new cases", "knowledge-services-missing: venue rechecks case"],
+  "independent_review": {"workflow": "wf_813b4040-b37", "lenses": ["page", "sql", "contract"], "findings": 0},
+  "skipped": ["security DB suite (tests/security/knowledge-b03-freshness.test.ts) - coordinator-owned DB", "browser/e2e", "lci", "push/PR/merge/deploy"]
+}

@@ -1,0 +1,10 @@
+app/admin/knowledge/check-dates/page.tsx
+components/nabalens/knowledge/copy.ts
+lib/knowledge-client/adapt.ts
+lib/knowledge-client/services.ts
+lib/knowledge/contract.ts
+tests/security/knowledge-b03-freshness.test.ts
+tests/ui/admin-check-dates.test.tsx
+tests/unit/knowledge-adapt.test.ts
+tests/unit/knowledge-b03-rechecks.test.ts
+tests/unit/knowledge-services-missing.test.ts
