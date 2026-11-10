@@ -1,6 +1,8 @@
 // What a venue manager account cannot do, through every database path a
-// signed-in client can reach: upload (reservation, signed token, direct
-// storage write, finalise), labels, staff community reads, deleting media,
+// signed-in client can reach: upload outside its managed venue or finish a
+// staff-era reservation (signed token, direct storage write, finalise),
+// label anything but its own manager-era uploads (B02-c, owner decisions Q1
+// and Q4: it uploads and labels its own at its managed venue), staff community reads, deleting media,
 // legacy coverage writes (including self-review of staff-era photos), other
 // people's profiles, menu tables, grant and account audit rows, and other
 // venues' data by guessed ids. Admin and staff regressions run alongside.
@@ -178,19 +180,24 @@ beforeAll(async () => {
 })
 
 describe("uploads", () => {
-  it("cannot reserve an upload", async () => {
+  it("reserves only at its managed venue, recorded as a manager upload (B02-c)", async () => {
     for (const who of [managerA, managerC]) {
-      await fails(
+      const [row] = await ok(
         who.client.rpc("reserve_media_asset", {
           p_client_upload_key: randomUUID(),
           p_size_bytes: 4,
           p_media_type: "image",
           p_extension: "jpg",
           p_original_filename: "TEST.jpg",
-        }),
-        "not_active_staff",
-        "42501"
+        })
       )
+      expect(row!.venue_id).toBe(venueA)
+      const { data } = await service
+        .from("media_assets")
+        .select("venue_id, uploader_role")
+        .eq("id", row!.id)
+        .single()
+      expect(data).toEqual({ venue_id: venueA, uploader_role: "manager" })
     }
   })
 
@@ -216,11 +223,12 @@ describe("uploads", () => {
     expect(direct.error).not.toBeNull()
     expect(await stored(cReservation.original_path)).toBeNull()
 
+    // Its staff-era reservation stays closed to it: finalise cannot read it.
     const finalised = await finaliseAsset(await actorFor(managerC), {
       assetId: cReservation.id,
       idempotencyKey: randomUUID(),
     })
-    expect(finalised).toMatchObject({ ok: false, status: 403 })
+    expect(finalised).toMatchObject({ ok: false, status: 404 })
     const { data } = await service
       .from("media_assets")
       .select("upload_state")
@@ -258,7 +266,7 @@ describe("uploads", () => {
 })
 
 describe("labels", () => {
-  it("save_media_labels refuses manager accounts", async () => {
+  it("save_media_labels refuses a manager account on others' and staff-era photos", async () => {
     const { data: before } = await service
       .from("media_labels")
       .select("revision")
@@ -275,8 +283,8 @@ describe("labels", () => {
           items: [{ itemId: soup, variantId: null }],
           catalogue: v1,
         }),
-        "not_active_user",
-        "42501"
+        "media_asset_not_found",
+        "P0002"
       )
     }
     const { data: after } = await service
@@ -297,7 +305,7 @@ describe("labels", () => {
     // public function passes the caller's own id as the actor.
     expect(
       psql(
-        "select pg_get_functiondef('private.save_media_labels_as'::regproc) like '%v_role not in (''staff'', ''admin'')%'"
+        "select pg_get_functiondef('private.save_media_labels_as'::regproc) like '%v_role not in (''staff'', ''admin'', ''manager'')%'"
       )
     ).toBe("t")
     expect(
@@ -374,25 +382,39 @@ describe("staff community", () => {
 })
 
 describe("direct table reads", () => {
-  it("show a manager account only its own profile and no media or menu rows", async () => {
+  it("show a manager account its own profile, its manager-era uploads and its venue's active menu only", async () => {
     for (const who of [managerA, managerC]) {
       const profiles = await ok(who.client.from("profiles").select("id"))
       expect(profiles.map((p) => p.id)).toEqual([who.id])
-      for (const table of [
-        "media_assets",
-        "media_labels",
-        "media_label_items",
-        "menu_versions",
-        "menu_sections",
-        "menu_entries",
-        "menu_items",
-      ] as const) {
+      // Staff-era uploads and colleagues' media stay hidden (B02-c).
+      const media = await ok(
+        who.client.from("media_assets").select("uploader_id, uploader_role")
+      )
+      for (const row of media)
+        expect(row).toEqual({ uploader_id: who.id, uploader_role: "manager" })
+      for (const table of ["media_labels", "media_label_items"] as const) {
         expect(
           await ok(who.client.from(table).select("*").limit(5)),
           table
         ).toEqual([])
       }
+      // The label catalogue: the managed venue's active menu, nothing else.
+      const versions = await ok(
+        who.client.from("menu_versions").select("id, venue_id, status")
+      )
+      expect(versions).toEqual([{ id: v1, venue_id: venueA, status: "active" }])
+      for (const table of ["menu_sections", "menu_entries"] as const) {
+        const rows = await ok(who.client.from(table).select("version_id"))
+        expect(rows.length, table).toBeGreaterThan(0)
+        for (const row of rows) expect(row.version_id, table).toBe(v1)
+      }
+      const items = await ok(who.client.from("menu_items").select("venue_id"))
+      for (const row of items) expect(row.venue_id).toBe(venueA)
     }
+    // The other venue's manager reads none of venue A's menu.
+    expect(
+      await ok(managerB.client.from("menu_versions").select("id"))
+    ).toEqual([])
     // Staff still read their venue's menu (regression).
     expect(
       (await ok(chefA.client.from("menu_items").select("id"))).length

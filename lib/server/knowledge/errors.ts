@@ -4,6 +4,7 @@
 // state_conflict. Nothing here maps a refusal to `unavailable`.
 
 import type {
+  DraftSentReason,
   KnowledgeErrorCode,
   KnowledgeFailure,
 } from "@/lib/knowledge/contract"
@@ -26,6 +27,7 @@ const STATUS: Record<KnowledgeErrorCode, KnowledgeFailure["status"]> = {
   already_decided: 409,
   self_confirmation_not_permitted: 403,
   draft_conflict: 409,
+  draft_already_sent: 409,
   unavailable: 503,
 }
 
@@ -60,7 +62,29 @@ const KNOWLEDGE: Record<string, Mapping> = {
     "draft_conflict",
     "This draft was saved somewhere else. Reload it before saving again.",
   ],
+  draft_already_sent: ["draft_already_sent", "This finding was already sent."],
   knowledge_venue_not_found: ["not_found", "This venue could not be found."],
+  wrong_venue: ["wrong_venue", "This is not your venue. Reload the page."],
+  contribution_group_not_found: [
+    "not_found",
+    "This group of photos could not be found. Reload the page.",
+  ],
+  contribution_subject_not_found: [
+    "not_found",
+    "What these photos show is no longer here. Choose again.",
+  ],
+  asset_in_other_group: [
+    "state_conflict",
+    "A photo is already in another group. Reload the page.",
+  ],
+  contribution_group_full: [
+    "state_conflict",
+    "A group holds at most 10 photos or videos.",
+  ],
+  media_asset_not_found: [
+    "not_found",
+    "This photo could not be found. It may have been deleted.",
+  ],
   knowledge_not_adoptable: [
     "state_conflict",
     "A Couldn't establish finding can't become the answer in use.",
@@ -90,6 +114,7 @@ const BY_SQLSTATE: Record<string, string> = {
   NLK06: "knowledge_venue_not_found",
   NLK07: "knowledge_not_adoptable",
   NLK08: "knowledge_not_current",
+  NLK09: "draft_already_sent",
 }
 
 const FIELD_ERRORS: Record<string, [field: string, message: string]> = {
@@ -113,18 +138,38 @@ const FIELD_ERRORS: Record<string, [field: string, message: string]> = {
   ],
   invalid_draft: ["payload", "This draft is too large to save."],
   invalid_cursor: ["cursor", "Reload the page."],
+  venue_required: ["venueId", "Choose a venue."],
+  invalid_group_key: ["key", "Reload the page and try again."],
+  invalid_subject: ["subject", "Choose what these photos show."],
+}
+
+function detailOf(error: DbError): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(error?.details ?? "null") as unknown
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : {}
+  } catch {
+    return {}
+  }
 }
 
 function draftRevisionOf(error: DbError): number | null {
-  try {
-    const parsed = JSON.parse(error?.details ?? "null") as unknown
-    const value =
-      parsed && typeof parsed === "object"
-        ? (parsed as { draftRevision?: unknown }).draftRevision
-        : null
-    return typeof value === "number" ? value : null
-  } catch {
-    return null
+  const value = detailOf(error).draftRevision
+  return typeof value === "number" ? value : null
+}
+
+/** draft_already_sent detail: {reason, sentAt}. */
+function alreadySentOf(error: DbError): {
+  sentReason?: DraftSentReason
+  sentAt: string | null
+} {
+  const { reason, sentAt } = detailOf(error)
+  return {
+    ...(reason === "key_sent" || reason === "newer_send"
+      ? { sentReason: reason }
+      : {}),
+    sentAt: typeof sentAt === "string" ? sentAt : null,
   }
 }
 
@@ -146,7 +191,9 @@ export function knowledgeRpcFailure(
       text,
       mapped === "draft_conflict"
         ? { draftRevision: draftRevisionOf(error) }
-        : {}
+        : mapped === "draft_already_sent"
+          ? alreadySentOf(error)
+          : {}
     )
   }
   if (message in FIELD_ERRORS) {

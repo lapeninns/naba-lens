@@ -8,12 +8,17 @@ import "server-only"
 
 export { getAmenityActor as getKnowledgeActor } from "@/lib/server/amenities/context"
 export {
+  getAssetDeleteImpact,
   getDraft,
   getKnowledgeCheck,
+  getLabelWork,
+  getManagerTriage,
   getMyPending,
   getPilotPreview,
+  getVenueCapabilities,
   getWorkingList,
   listKnowledgeAssets,
+  listMyContributions,
   listMyFindings,
   listToConfirm,
 } from "./reads"
@@ -31,5 +36,11 @@ export {
   setWorkingList,
   submitKnowledgeFinding,
 } from "./writes"
+export {
+  addToContributionGroup,
+  getContributionGroup,
+  listGroupsForAssets,
+  startContributionGroup,
+} from "./groups"
 export { readKnowledgeAnswers, type KnowledgeReaderResult } from "./reader"
 export { knowledgeRpcFailure } from "./errors"
