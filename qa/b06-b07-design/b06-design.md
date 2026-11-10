@@ -524,6 +524,26 @@ Both routes require a `provider_sync` or `website` consumer with scope for
 the venue and the destination's feed purpose. Both run one STABLE wrapper
 call in one snapshot and are gated like reads (§4.2.7).
 
+**Full-scope authorisation (first feed).** The feed and snapshot are one
+stream per `(epoch, destination, venue)`. They cannot be filtered per key:
+a filtered stream has gaps, and consumers correctly refuse gaps (B07 §4.5
+step 3). They also cannot return an item's identity to a caller who lacks
+that key, because the identity is unauthorised metadata. So, in the same
+snapshot as the stream and before any item is read into the response, the
+wrapper requires the caller's existing consumer grant to cover the stream's
+**complete field set**. That set is every field key in
+`knowledge_delivered_fields` for the destination and venue plus every field
+listed in the destination's latest manifest version. Together they bound
+every current, superseded and tombstone item and every retained identity
+the stream can return. If any key is outside the grant, both routes refuse
+`403 not_permitted` with the body of §4.7 row 1: no field key, question key,
+revision, digest, `seq`, `coveredThrough`, `fence` or count. Nothing is
+covered, so no cursor can advance. Credentials scoped to fewer keys keep
+using the existing key-scoped answers read (§4.7), and B06 widens no grant
+to make a feed work. A field later added to the manifest outside a
+consumer's grant makes that consumer's feed refuse until its grant is
+changed through the existing consumer-registry path.
+
 **Feed** `GET …/destinations/{key}/publications?venueId=&epoch=&after=&limit=`
 (limit at most 100). The feed is one stream per `(epoch, destination, venue)`
 ordered by `scope_seq` (§5.2), which is gap-free and commit-ordered under the
@@ -647,7 +667,10 @@ create table public.knowledge_publication_epochs (
   check (state <> 'pending' or (accepted_at is null and retired_at is null)),
   check (state <> 'accepted' or (accepted_at is not null and retired_at is null)),
   check (state <> 'retired' or retired_at is not null),
-  check (accepted_by is null or accepted_by <> opened_by)
+  -- Audit identities only. Authority is the existing authorised admin path,
+  -- the RB-12 external record and X1 (§5.8); opener and acceptor may be the
+  -- same admin.
+  check ((accepted_by is null) = (accepted_at is null))
 );
 create unique index knowledge_publication_epochs_one_live
   on public.knowledge_publication_epochs ((true)) where state in ('pending', 'accepted');
@@ -1133,46 +1156,89 @@ regressionLatched, fields: { fieldKey: { state: value | tombstone |
 suppressed | absent, revision, digest, payload, suppressedAsOf,
 suppressedAtCounter } } }`
 
-1. **Request order.** Before each fetch the consumer increments
-   `requestCounter` by CAS and tags the request with the new value *c*. A
-   request tagged *c* was issued after everything the record held when *c*
-   was taken. This is the only ordering of reads the consumer uses; it never
-   compares `readAt` values.
+**Monotonic record.** `requestCounter` and `appliedAtCounter` are
+high-water marks. So, within one epoch, are `snapshotRevision` and each
+field's `revision`. Every CAS writes `max(stored, new)` for them, so no
+response, however late, lowers them. Suppression is recorded beside a
+field's revision and never lowers it. Only rule 2's epoch reset replaces
+them.
+
+0. **Authoritative and cached reads.** Only an **authoritative read** can
+   change the record's positive content or its epoch. That is a fetch with
+   `cache: 'no-store'` (never Next's data cache, a CDN or any shared cache)
+   to the NabaLens origin, for the consumer's complete authorised field set,
+   tagged with a counter *c* allocated by rule 1 **immediately before** the
+   request is sent. Every other response is a **cached read**: a body from
+   the tagged `revalidate` data cache, a CDN copy, a replayed body, or a
+   fetch for a subset of fields. A cached read may only:
+   - serve a field when its epoch, field revision and digest equal the
+     record's current applied value and that value's `validUntil` has not
+     passed; and
+   - apply negatives by rule 3.
+
+   It never applies a positive, clears a suppression, advances
+   `snapshotRevision` or `appliedAtCounter`, resets or accepts an epoch, or
+   makes a field `absent`. A cached read that differs from the record in
+   any other way only triggers an authoritative read. Until that read is
+   applied, the record is served as it stands.
+1. **Request order.** Immediately before each authoritative read, the
+   consumer increments `requestCounter` by CAS and tags the request with
+   the new value *c*. Only building the request happens between the
+   allocation and the send. A request tagged *c* was issued after everything
+   the record held when *c* was taken, so its origin snapshot is later than
+   that of any response already applied. This is the only ordering of
+   reads the consumer uses; it never compares `readAt` values.
 2. **Epoch.** A response whose epoch ordinal is below the record's is
-   refused entirely. A higher ordinal resets the record: all fields are
-   replaced by the response's fields, every field absent from the response
-   becomes `absent` (its local value is cleared), suppression is cleared,
-   and `snapshotRevision` takes the response's value. An equal ordinal with
-   a different epoch ID sets `regressionLatched` (§5.8.5).
+   refused entirely, including a delayed response from the old epoch after
+   a reset. A higher ordinal resets the record, but only from an
+   authoritative read (a cached read with a higher ordinal only triggers
+   one). On reset, all fields are replaced by the response's fields, every
+   field absent from the response becomes `absent` (its local value is
+   cleared), suppression is cleared, and `snapshotRevision` takes the
+   response's value. An equal ordinal with a different epoch ID sets
+   `regressionLatched` from any read (§5.8.5).
 3. **Negatives first, always.** For every field whose eligibility is
    `withdrawn` or `settling`, or whose settled tuple is a tombstone, the
-   consumer removes the value at once, whatever the response's snapshot
-   revision: `suppressed` with `suppressedAsOf = max(previous,
-   asOfRevision)` and `suppressedAtCounter = requestCounter` at that moment
-   (or `tombstone` for a settled tombstone).
-4. **Positives only forward.** If the response's snapshot revision is below
-   the record's, no positive content is applied. If it is lower and *c* is
-   greater than `appliedAtCounter` (the request was issued after the higher
-   revision was applied), the consumer sets `regressionLatched` instead.
-   Otherwise each settled positive field is applied unless it is
-   suppressed; a suppressed field is cleared only by a settled tuple with
-   `revision > suppressedAsOf`, or by a settled tuple from a request with
-   *c* > `suppressedAtCounter`. An in-flight response issued before the
-   suppression can therefore never clear it, and an equal-revision payload
-   is never treated as a replacement publication. Then `snapshotRevision`
-   and `appliedAtCounter = c` are stored.
-5. **Completeness.** The answers read is complete for the consumer's field
-   set; a field the consumer holds that the response omits (scope removed)
-   becomes `absent`.
+   consumer removes the value at once, from any read and whatever the
+   response's snapshot revision: `suppressed` with `suppressedAsOf =
+   max(previous, asOfRevision)` and `suppressedAtCounter = requestCounter`
+   at that moment. A settled tombstone from an authoritative read with a
+   revision above the stored one becomes `tombstone` at that revision. A
+   stale negative suppresses conservatively and never lowers the stored
+   revision, digest or `snapshotRevision`.
+4. **Positives only forward, only from authoritative reads.** If the
+   response's snapshot revision is below the record's, no positive content
+   is applied. If it is lower and *c* is greater than `appliedAtCounter`
+   (the request was issued after the higher revision was applied), the
+   consumer sets `regressionLatched` instead. A settled tuple whose epoch,
+   field and revision equal the stored ones but whose digest differs also
+   sets `regressionLatched` (§5.8.5). Otherwise each settled positive field
+   with `revision` ≥ the stored revision is applied unless it is
+   suppressed. A suppressed field is cleared only by a settled tuple from an
+   authoritative read with either `revision > suppressedAsOf` or *c* >
+   `suppressedAtCounter`. Neither an in-flight response issued before the
+   suppression nor a cached body, whatever its tag, can clear it. An
+   equal-revision payload is never treated as a replacement publication.
+   Then `snapshotRevision` and `appliedAtCounter` are raised to the
+   response's value and *c* by CAS.
+5. **Completeness.** Only an authoritative read for the consumer's complete
+   authorised field set can make an omitted field `absent` (scope removed)
+   or replace an epoch. A response for fewer fields leaves the fields it
+   does not name unchanged.
 6. **Latch.** While `regressionLatched` is set the consumer applies
    negatives only, serves last-good positives until their `validUntil`, then
    nothing for migrated fields, and alerts. Only a new epoch clears it.
 
-Proof sketch for rule 4's first clause: a suppression was computed in a
-snapshot whose head for the field was `asOfRevision`. Heads only rise, so a
-settled tuple with a higher revision comes from a snapshot after that
+Proof sketch for rule 4's clearing clauses: a suppression was computed in
+a snapshot whose head for the field was `asOfRevision`. Heads only rise, so
+a settled tuple with a higher revision comes from a snapshot after that
 revision committed, which is after the suppression's snapshot, and it passed
-the live gates there.
+the live gates there. For the counter clause: *c* > `suppressedAtCounter`
+means the counter was allocated after the suppression was recorded, and the
+`no-store` origin read was sent after the allocation. Its database snapshot
+is therefore later than the snapshot that produced the suppression, and its
+settled answer passed the live gates there. A cached body carries no such
+ordering, which is why rule 0 bars it from clearing.
 
 ### 5.8 Epochs, restore and complete consumer recovery
 
@@ -1194,9 +1260,10 @@ the live gates there.
       after the backup point (B10 audit log), because the registry was
       restored with the data.
    3. Read each consumer's highest observed `(epoch, snapshotRevision)` or
-      cursor from its own records (website status route; NabaPresence via its
-      owner) into the RB-12 record. This is evidence for the acceptance
-      step, not an input to numbering.
+      cursor, and its value-free per-field states (website status route
+      `suppressedFields` and `withdrawnFields`; NabaPresence head states via
+      its owner), from its own records into the RB-12 record. This is
+      evidence for steps 5 and 7, not an input to numbering.
    4. Run `public.knowledge_publication_epoch_open('restore', p_min_ordinal,
       p_external_record)` (admin). It takes the epoch lock exclusively (so it
       waits for running drains), retires the live epoch, moves that epoch's
@@ -1205,19 +1272,47 @@ the live gates there.
       where `p_min_ordinal` is one above the highest ordinal in the RB-12
       external record, and inserts a `*` mark for every venue with a manifest
       field or a delivered-field register row.
-   5. The drain builds the new epoch from scratch: every enabled field gets
-      revision 1 from its live state, and every field in the delivered-field
-      register that is no longer enabled gets a `withdrawn` tombstone at
-      revision 1. Fields delivered after the backup point are unknown to
-      the restored register; consumers clear them by rule 5.7.2 (absent from
-      the complete reset snapshot).
-   6. The owner reviews the reset report (per destination: fields
+   5. **Reconcile post-backup eligibility before the epoch can be
+      accepted.** The restored live state can still show a field as enabled
+      and published after a later withdrawal was lost with the backup. The
+      reset drain would republish it at revision 1, and the
+      complete-snapshot omission rule cannot clear a field that is present.
+      So, while the new epoch is `pending` (nothing in it is served: reads
+      are `off` and the epoch is not accepted), the owner reconciles every
+      publication-eligibility change made after the backup point. The
+      sources are durable evidence outside the restored database (the B10
+      audit-log export, RB-12 and release records, the consumer field
+      states from step 3, the website's and NabaPresence's own records) or
+      the responsible owner. The changes covered are manifest disable or
+      drop, destination deactivation, B05 grant or rights revocation,
+      redaction-proof loss and answer withdrawal (B03-g). Each is re-applied
+      through its existing command, which writes marks. The drain rebuilds
+      those fields in the pending epoch, so a re-applied withdrawal gives
+      the field a `withdrawn` tombstone at revision 1 instead of a value.
+      A field whose post-backup eligibility cannot be resolved from that
+      evidence stays suppressed: it is set `disabled` by a new manifest
+      version for the destination (a delivered field then gets the
+      tombstone), or the destination is deactivated for the scope. It is
+      re-enabled only by a later ordinary manifest change once the evidence
+      is resolved. The reset report lists every reconciled change with its
+      evidence reference, and every field held disabled as unresolved.
+   6. The drain builds the new epoch from scratch, from the reconciled live
+      state: every enabled field gets revision 1, and every field in the
+      delivered-field register that is no longer enabled gets a `withdrawn`
+      tombstone at revision 1. Only a field whose eligibility step 5
+      verified can be published in the new epoch. Fields delivered after
+      the backup point are unknown to the restored register; consumers
+      clear them by rule 5.7.2 (absent from the complete reset snapshot).
+   7. The owner reviews the reset report (per destination: fields
       published, unavailable and withdrawn, compared with the consumer
-      high-water evidence from step 3; manifests, rights and destination
-      scopes rechecked) and runs `public.knowledge_publication_epoch_accept(
-      p_epoch_id, p_external_record)`. The acceptor must differ from the
-      opener (OD-B6-11).
-   7. Set `NABALENS_PUBLICATION_EPOCH` to the new ID, then
+      evidence from step 3; the step 5 reconciliation; manifests, rights and
+      destination scopes rechecked). After step 5 is complete, they run
+      `public.knowledge_publication_epoch_accept(p_epoch_id,
+      p_external_record)` through the existing authorised admin path, under
+      X1 with the RB-12 external evidence. No second-admin rule applies.
+      `opened_by`, `opened_at`, `accepted_by` and `accepted_at` are all
+      kept, and they may name the same admin (OD-B6-11).
+   8. Set `NABALENS_PUBLICATION_EPOCH` to the new ID, then
       `NABALENS_PUBLICATION_READS=on` (X1). Record the epoch ID and ordinal
       in the RB-12 external record.
 4. **Consumer recovery.** The website resets by rule 5.7.2 on its first
@@ -1228,13 +1323,26 @@ the live gates there.
    and never clears Google automatically (B07 §4.6). Every later cursor,
    receipt and job is scoped to the new epoch, and new revisions become
    reviewable there.
-5. **A restore without a new epoch** (a missed runbook step) fails closed:
-   the website latches on a lower revision from a request issued after it
-   applied a higher one (rule 5.7.4); NabaPresence's feed answers `409
-   cursor_ahead` and its intake halts; the worker halts the scope on
-   `revision_regressed`. None of these resumes without a new accepted epoch.
+5. **A restore without a new epoch** (a missed runbook step). The
+   deployment fence (step 2) with RB-12 step 3.1 is the control. Detection
+   afterwards is only a **backstop**. A backup taken within the same
+   accepted epoch carries the same epoch ID as the deployment setting, so
+   the fence passes, and only an observed regression reveals the restore.
+   Where a regression is observed, the system fails closed:
+   - the website latches on a lower snapshot revision from an
+     authoritative read issued after it applied a higher one, or on a
+     settled tuple with the same epoch, field and revision but a different
+     digest (rule 5.7.4);
+   - NabaPresence's feed answers `409 cursor_ahead` and its intake halts.
+     Its intake also halts `revision_conflict` on a same-epoch item whose
+     revision equals its head but whose digest differs (B07 §4.5);
+   - the worker halts the scope on `revision_regressed`.
+
+   None of these resumes without a new accepted epoch. No consumer can
+   detect a restore whose regressions it never observes.
 6. **Reset without restore.** `epoch_open('reset', …)` is the same procedure
-   without steps 3.1 to 3.3, for a deliberate full re-delivery.
+   without steps 3.1 to 3.3 and 3.5 (nothing was lost), for a deliberate
+   full re-delivery.
 
 ### 5.9 Receipts route (B06-03g)
 
@@ -1261,7 +1369,7 @@ recorded fixtures; it changes nothing in that repository.
 
 | ID      | Website deliverable                                                                                                                                                                                                                                                                                                                                                                                                |
 | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| B06-04a | `src/lib/agent/nabalens.ts` (server-only): fetch the public projection with `NABALENS_READER_CREDENTIAL` and `NABALENS_VENUE_ID` (Vercel env, server-side), `schema=1.0` first, a 3-second timeout, strict validation against the published JSON schema including the public-only details `publication_withdrawn` and `publication_settling` and the `publication`, `eligibility` and `snapshot.epoch` objects, `next: { tags: ['nabalens:<venueId>'], revalidate: 120 }`; every response goes through the applied-state record (§5.7) before anything renders |
+| B06-04a | `src/lib/agent/nabalens.ts` (server-only): fetch the public projection with `NABALENS_READER_CREDENTIAL` and `NABALENS_VENUE_ID` (Vercel env, server-side), `schema=1.0` first, a 3-second timeout, strict validation against the published JSON schema including the public-only details `publication_withdrawn` and `publication_settling` and the `publication`, `eligibility` and `snapshot.epoch` objects. Two read kinds (§5.7 rule 0). (1) The authoritative read uses `cache: 'no-store'` to the NabaLens origin for the complete manifest field set, with its request counter allocated by CAS immediately before the fetch. It is the only read that applies positives, clears suppression, makes fields `absent` or accepts a new epoch. (2) A cached read through `next: { tags: ['nabalens:<venueId>'], revalidate: 120 }` may only serve the current applied value within `validUntil` and apply negatives; any other difference triggers an authoritative read. Every response goes through the applied-state record (§5.7), and derived outputs (pages, `venue.json`, MCP) keep the tag and revalidation and render only from that record |
 | B06-04b | `config/nabalens-manifest.json`: the enabled fields and their copy, matching NabaLens's manifest; reviewed like any approved-source change                                                                                                                                                                                                                                                                         |
 | B06-04c | `agent-data.ts`: additive `facilities` in `venueInfo()` from enabled fields in the applied-state record only, plus `knowledge: { source: 'nabalens', epoch, snapshotRevision, validUntil }`; owner copy unchanged for every other field                                                                                                                                                                            |
 | B06-04d | MCP: `get_venue_info` returns the same `facilities` (one source, as today); tool names and input schemas unchanged; `AGENT_API_VERSION` `1.1.0`; `openapi.json` and `llms.txt` updated                                                                                                                                                                                                                             |
@@ -1299,7 +1407,9 @@ resurrect a withdrawn claim.
   epoch }`. It never accepts content.
 - `GET /api/nabalens/status`, the same signature over the query, answers `{
   epoch, appliedSnapshotRevision, validUntil, suppressedFields,
-  regressionLatched }` read from the applied-state record only (low 3). It
+  withdrawnFields, regressionLatched }` read from the applied-state record
+  only (low 3). `suppressedFields` and `withdrawnFields` are value-free
+  `{ fieldKey, revision }` lists, the restore evidence of §5.8 step 3.3. It
   never fetches from NabaLens, never applies anything and never changes the
   applied revision. No answer content.
 - Both routes: `Cache-Control: no-store`, no CORS, never cached by the CDN
@@ -1321,6 +1431,12 @@ resurrect a withdrawn claim.
 - **Ordering.** The website applies responses only by the rules of §5.7:
   epoch, snapshot revision, publication revision and its own request order.
   It never orders by `readAt`.
+- **Refresh.** The revalidation route (§6.3) expires the tag and schedules
+  one authoritative read. A render whose cached read differs from the
+  record, or whose record is older than 120 s, also triggers one.
+  Positives, clearing and epoch changes come only from those reads
+  (§5.7 rule 0). A body primed in Next's data cache before a withdrawal can
+  never reveal the value again.
 - **Last good snapshot.** If NabaLens fails, times out or answers
   `publication_paused`, the website may serve its last applied state until
   that state's `validUntil`, and never a snapshot older than one it has
@@ -1386,7 +1502,7 @@ The website's validator rejects any detail outside the schema, so
 | R15  | Transient digest mismatch that reverts before the drain                                                                            | Read gives `settling`; the consumer suppresses; a refetch issued after the suppression returns the same tuple settled and clears it; no new revision; no same-revision payload replaces another                  |
 | R16  | Internal note only                                                                                                                 | Mark drained; no revision, no job                                                                                                                                                                                |
 | R17  | Amenity event of kind `assigned` or `notes_updated`                                                                                | No mark                                                                                                                                                                                                          |
-| R18  | Restore a backup older than both consumer cursors and older than a post-backup tombstone, then RB-12                               | Reads paused; new epoch pending then accepted; the website resets and clears the field the backup still shows as published; NabaPresence rejects the old epoch, bootstraps, closes pre-send work for the omitted key, keeps in-flight rows, raises the review item where a confirmed value exists, and makes new revisions reviewable; no provider mutation |
+| R18  | Restore a backup older than both consumer cursors and older than a post-backup tombstone, then RB-12                               | Reads paused; new epoch pending then accepted; RB-12 step 3.5 re-applies the lost withdrawal, so the field the backup still shows as published is a tombstone at revision 1 in the new epoch; the website resets and clears it; NabaPresence rejects the old epoch, bootstraps, closes pre-send work for the omitted key, keeps in-flight rows, raises the review item where a confirmed value exists, and makes new revisions reviewable; no provider mutation |
 | R19  | R18 with an inactive destination and with a destination whose last field was dropped                                              | Their delivered fields read the tombstone at revision 1 in the new epoch; no value                                                                                                                              |
 | R20  | Restore without a new epoch                                                                                                        | Website latches; feed `409 cursor_ahead`, intake halts; worker `revision_regressed`; nothing resumes until an accepted epoch                                                                                  |
 | R21  | Old-epoch feed request, receipt or ping                                                                                            | `409 epoch_changed`; receipt `ignored_stale`; job `superseded`                                                                                                                                                  |
@@ -1396,6 +1512,14 @@ The website's validator rejects any detail outside the schema, so
 | R25  | Newer job enqueued while an older job is in `readback`                                                                             | Older job stays in `readback` until a verified snapshot ≥ its target covers it                                                                                                                                 |
 | R26  | Tuples committed in different scopes out of order (venue A seq 5 commits after venue B seq 9)                                      | Each scope's feed is gap-free; no cursor in either scope skips an item                                                                                                                                         |
 | R27  | Status route called during a refetch                                                                                               | Answers from the record only; `no-store`; the applied revision is unchanged by the call                                                                                                                         |
+| R28  | Prime Next's data cache with a positive; apply a withdrawal overlay; a later-tagged request receives the primed cached body          | Field stays suppressed and is not revealed. Only an authoritative `no-store` read with *c* > `suppressedAtCounter` and a settled positive clears it |
+| R29  | A delayed response from the old epoch arrives after a complete reset                                                              | Refused entirely; the record, its counters and revisions unchanged |
+| R30  | A stale negative (lower revision) after a higher revision was applied; a response for a subset of fields                          | Field suppressed; stored revision, digest and `snapshotRevision` not lowered; fields the subset omits unchanged, never `absent` |
+| R31  | Restore a backup in which the field is present and published; its later withdrawal (answer withdrawal; separately manifest disable and grant revocation) was lost; RB-12 replays it | Step 3.5 re-applies it; the pending epoch carries a tombstone at revision 1; after acceptance neither consumer returns it as available |
+| R32  | Restore a backup that lacks a field delivered after the backup point                                                              | Absent from the complete reset snapshot; the website makes it `absent`; NabaPresence `withdrawn_at_source` |
+| R33  | R31 with the lost eligibility evidence unresolved                                                                                 | The field is set `disabled` (or the destination deactivated) before acceptance and is never published in the new epoch. Acceptance by the opening admin is permitted, with both identities recorded |
+| R34  | Same-epoch restore observed through a tuple with an equal epoch, field and revision but a different digest                        | Website latches; NabaPresence halts `revision_conflict`; nothing resumes until a new accepted epoch |
+| R35  | A key-scoped credential requests the feed and snapshot of a stream containing an unauthorised current and superseded item; a fully scoped credential does the same | Key-scoped: `403 not_permitted`, no field identity, `seq`, `coveredThrough` or `fence`, and no cursor coverage. Fully scoped: a contiguous page and a complete scoped snapshot |
 
 ## 8. Cross-repository fixture journey (B06-06)
 
@@ -1510,7 +1634,7 @@ Compatibility:
 | OD-B6-8  | Prince of Wales claim registry precedence                                                              | Not in B06 (B10-07; inventory row 6)                                                                                        |
 | OD-B6-9  | Live withdrawal exercise on the production site                                                        | Measured on a preview deployment with fixture data; production gets readback and one correction only with explicit approval |
 | OD-B6-10 | The website's shared store with compare-and-set for the applied-state record (§5.7) and who operates it | No field is enabled on a multi-instance deployment until it exists; the fixture journey uses a single-instance store        |
-| OD-B6-11 | Who may open and who may accept a publication epoch, and the RB-12 external record that holds epoch IDs | Opener and acceptor are different admins, acceptance needs X1; until named, no epoch is accepted and nothing is served      |
+| OD-B6-11 | Who may open and who may accept a publication epoch, and the RB-12 external record that holds epoch IDs | The existing authorised admin path for both, with acceptance under X1 and the RB-12 evidence; no second-admin rule; both identities and times recorded. Until the RB-12 record is named, no epoch is accepted and nothing is served |
 
 ## 12. Integration ownership (one PR per repository per batch)
 
@@ -1584,3 +1708,19 @@ Each step is a separate request at the time; nothing here is pre-authorised.
   - Pre-application findings D4 to D10 from the first proposal folded in
     (check subject, statement triggers, per-venue lock, delivery state in
     the digest, tombstone coverage and backstop, settling, restore).
+- Draft 2, bounded repair (10 Nov 2026), for the draft-2 review (R1 to R3;
+  R4 is in B07):
+  - R1: only a fresh `no-store` origin read, with its counter allocated by
+    CAS immediately before the read, can apply positives, clear
+    suppression, make fields absent or accept an epoch. Cached bodies serve
+    the current applied value or suppress. The applied record is monotonic,
+    and a digest conflict at an equal revision latches (§5.7, §6.1, §6.3,
+    §6.4; R28 to R30).
+  - R2: RB-12 reconciles post-backup eligibility changes before the reset
+    epoch can be accepted, and unresolved fields stay disabled. Regression
+    detection is described as a backstop. The different-admin check and
+    rule are removed; the existing admin path, RB-12 and X1 remain (§5.3,
+    §5.8, OD-B6-11; R18, R31 to R34).
+  - R3: the feed and snapshot require a grant covering the stream's
+    complete field set, otherwise `403 not_permitted` with no metadata and
+    no cursor coverage (§4.8; R35).

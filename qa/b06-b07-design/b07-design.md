@@ -146,14 +146,24 @@ Five design choices:
    `confirmation_state` `confirmed` or `unresolved` with the observed
    payload, caches the snapshot, and settles `succeeded` or `ambiguous`.
 6. `auditGbpMutation` writes the audit row.
-7. **Bulk attribute children use the same lock but another ledger.**
-   `bulk-listing-runner.ts` (:395-415) takes the same per-location key
-   (`<org>:<location>:<resourceKey>`, mode `try`, busy → deferred) from its
-   baseline read through readback, but records its intents through
-   `mutation_operation`, not `gbp_management_mutation`. So the step 4 guard
-   does not see an unresolved bulk attributes write at the location. B07's
-   in-flight check adds that ledger (§6.1, §6.3); B07-00 confirms the exact
-   predicate.
+7. **Bulk attribute children use the same advisory key but another
+   ledger.** `bulk-listing-runner.ts` (:395-415) takes the same per-location
+   key (`<org>:<location>:<resourceKey>`, mode `try`; when busy, the child
+   returns to `queued` with `resource_busy`, deferred) from its baseline
+   read through readback. Its durable attempt is a
+   `bulk_listing_write_attempt` row (`0125_bulk_child_receipts.sql`, with
+   `family in ('attributes', 'place_action')`, `location_id` and `status in
+   ('validating', 'validated', 'publishing', 'succeeded', 'failed',
+   'ambiguous')`). `runGbpWrite`'s start transaction inserts it
+   (`gbp-write.ts` :1116 `store.start`, via `runBulkWrite` in
+   `bulk-families/write-attempts.ts` :305). Its receipt is in
+   `mutation_operation`, linked from `bulk_listing_child.mutation_operation_id`.
+   That start transaction never reads `gbp_management_mutation`, and the
+   step 4 guard never reads `bulk_listing_write_attempt`, so each guard is
+   blind to the other path. Once either path's send is ambiguous and its
+   advisory session has ended or been lost, the other path can take the key
+   and send while the earlier effect is unresolved. B07 closes this in both
+   directions with one shared claim fence (§6.5).
 
 ## 3. B07-00 start gate and B07-01 identity and field mapping
 
@@ -171,8 +181,14 @@ Before any B07 implementation brief, the NabaPresence owner and WS5:
    an in-flight suggestion;
 3. classify the attributes path's provider error codes into "Google refused"
    and "request did not complete" (OD-B7-8);
-4. name the exact `mutation_operation` predicate for "an unresolved bulk
-   attributes write at this location" (§2.1 item 7), used by §6.1 and §6.3;
+4. pin both actual unresolved-attempt predicates and the shared location
+   attributes claim fence of §6.5 on the then-current head: the
+   single-attribute predicate on `gbp_management_mutation` (§2.1 step 4) and
+   the bulk predicate on `bulk_listing_write_attempt` (§6.5). Confirm that
+   bulk recovery (`mutation_recover`, `bulkAttributesRecoveryAdapter`)
+   always settles the attempt row's `status`; if it does not, the bulk
+   predicate also reads the linked `mutation_operation` receipt state. The
+   fence is a B07 implementation dependency for every mapped location;
 5. record any difference as a change to this design before work starts.
 
 ### 3.1 Sub-tasks
@@ -374,7 +390,7 @@ create table nabalens_intake_cursor (
   behind_since timestamptz,
   last_success_at timestamptz,
   last_error text,
-  halted_reason text check (halted_reason in ('cursor_ahead', 'epoch_regressed', 'link_revoked')),
+  halted_reason text check (halted_reason in ('cursor_ahead', 'epoch_regressed', 'revision_conflict', 'link_revoked')),
   primary key (organisation_id, link_id),
   check ((claim_token is null) = (claim_expires_at is null))
 );
@@ -464,9 +480,10 @@ Each `nabalens_intake` job handles one link:
 
 1. **Claim** (its own short tenant transaction):
    `update nabalens_intake_cursor set claim_token = gen_random_uuid(),
-   claim_expires_at = now() + interval '2 minutes' where organisation_id =
-   $org and link_id = $link and halted_reason is null and next_attempt_at <=
-   now() and (claim_token is null or claim_expires_at < now()) returning
+   claim_expires_at = clock_timestamp() + interval '2 minutes' where
+   organisation_id = $org and link_id = $link and halted_reason is null and
+   next_attempt_at <= clock_timestamp() and (claim_token is null or
+   claim_expires_at < clock_timestamp()) returning
    claim_token, epoch_id, epoch_ordinal, feed_cursor`. No row: another
    claim is live, or the cursor is halted or backing off. A cursor with
    `epoch_id is null` goes to the bootstrap (§4.6).
@@ -474,7 +491,10 @@ Each `nabalens_intake` job handles one link:
    <epoch_id>&after=<feed_cursor>&limit=100`, within the claim's expiry
    minus a margin. `409 epoch_changed` → bootstrap (§4.6) under the same
    claim. `409 cursor_ahead` → §4.7. A network failure, timeout,
-   `publication_paused` or `5xx` → step 5.
+   `publication_paused` or `5xx` → step 5. `403 not_permitted` (the link's
+   credential does not cover the stream's complete field set, B06 §4.8) →
+   step 5 with `feed_not_permitted` and an alert. No identity was returned,
+   and the cursor stays.
 3. **Validate the page** before opening the transaction: schema-valid,
    every item for this link's destination and venue, `seq` values exactly
    `feed_cursor + 1, feed_cursor + 2, …` up to `coveredThrough` with no gap
@@ -483,7 +503,9 @@ Each `nabalens_intake` job handles one link:
 4. **Commit** in one tenant transaction:
    1. `select … from nabalens_intake_cursor where organisation_id = $org and
       link_id = $link for update`; require `claim_token = $token`,
-      `claim_expires_at > now()` (database clock), `epoch_id = page.epoch`
+      `claim_expires_at > clock_timestamp()` (read after the row lock is
+      acquired; `now()` is fixed at transaction start and is never used for
+      a lease), `epoch_id = page.epoch`
       and `feed_cursor = $old`. Any mismatch: roll back and drop the page
       (another claim owns it, or it is late).
    2. `select … from nabalens_location_link where id = $link and
@@ -492,9 +514,13 @@ Each `nabalens_intake` job handles one link:
    3. Create missing head rows for the page's keys (`insert … on conflict do
       nothing`) and lock them `for update` in `question_key` order.
    4. For each item in `seq` order:
+      - **Digest conflict** (same epoch, `publicationRevision` equal to the
+        head revision, digest different): roll back the page and set
+        `halted_reason = 'revision_conflict'` under the claim. This means a
+        same-epoch restore was observed (B06 §5.8.5).
       - **Stale or duplicate** (same epoch, `publicationRevision` ≤ head
-        revision): write an `ignored_stale` intake event and **continue**
-        with the next item.
+        revision, otherwise): write an `ignored_stale` intake event and
+        **continue** with the next item.
       - **Historic** (`superseded: true`): move the pre-send row for the key
         with a lower revision to `superseded`; advance the head to the item.
       - **Current**: move the pre-send row for the key (if lower) to
@@ -507,8 +533,9 @@ Each `nabalens_intake` job handles one link:
    5. `update nabalens_intake_cursor set feed_cursor = page.coveredThrough,
       claim_token = null, claim_expires_at = null, consecutive_failures = 0,
       behind_since = null, last_success_at = now(), last_error = null where
-      organisation_id = $org and link_id = $link and claim_token = $token`.
-      Commit.
+      organisation_id = $org and link_id = $link and claim_token = $token
+      and claim_expires_at > clock_timestamp()`. No row means the claim
+      expired during the commit: roll back the page. Otherwise commit.
 5. **Error or backoff** (its own transaction, guarded by the same claim):
    `update … set last_error = $code, consecutive_failures =
    consecutive_failures + 1, behind_since = coalesce(behind_since, now()),
@@ -550,7 +577,9 @@ ordinal and a different ID, sets `halted_reason = 'epoch_regressed'`):
    'epoch_reset'`, keep any in-flight row, evaluate the review-item rule
    (§7.5), and never clear Google.
 4. Set the cursor's `epoch_id`, `epoch_ordinal` and `feed_cursor =
-   snapshot.fence`, clear the claim, commit.
+   snapshot.fence` and clear the claim, guarded as in §4.5 step 4.5
+   (`claim_token = $token and claim_expires_at > clock_timestamp()`; no row
+   rolls back). Commit.
 
 In-flight rows from the old epoch resolve normally (§7.3); completion is
 judged against the new head (§7.6). Provider audit rows (attempts, change
@@ -559,8 +588,8 @@ sets, receipts) are never deleted or rewritten.
 ### 4.7 Halts
 
 `cursor_ahead` (the feed's high-water is below the stored cursor in the
-same epoch: a restore without a new epoch, B06 §5.8.5) and
-`epoch_regressed` set `halted_reason` under the claim, stop intake for the
+same epoch: a restore without a new epoch, B06 §5.8.5), `epoch_regressed`
+and `revision_conflict` set `halted_reason` under the claim, stop intake for the
 link and alert. Open rows stay as they are. Nothing resumes until a new
 NabaLens epoch is accepted and the cursor bootstraps; clearing a halt is an
 owner action recorded in the audit log.
@@ -598,9 +627,10 @@ the Google baseline and calls the existing `previewBusinessAttributes` /
 - `in_flight_pending`: any suggestion at the location is in flight, or any
   `gbp_management_mutation` with `resource_type = 'attributes'` at the
   location is unresolved by the §2.1 step 4 guard's predicate, or any bulk
-  attributes write at the location is unresolved in `mutation_operation`
-  (§2.1 item 7) (one Google attributes resource per location, so this
-  covers every mapped key);
+  attributes attempt at the location is unresolved by the bulk predicate on
+  `bulk_listing_write_attempt` (§6.5). There is one Google attributes
+  resource per location, so this covers every mapped key. This is an early
+  refusal; the enforcing check is the claim fence of §6.5;
 - `google_baseline_stale`: the observation used was read before the latest
   `resolved_at` of any in-flight row at the location;
 - `attribute_not_supported`: metadata refuses the mapping (the suggestion
@@ -659,12 +689,14 @@ these additions, in this order:
       in the same epoch; every mapping is the active version named in the
       entry; every suggestion is `approved` with this `change_set_id`; the
       change set is still approved, unexpired (`approval_expires_at >
-      now()`), with the same payload hash and `source_ref`; no suggestion
-      at the location is in flight; and no bulk attributes write at the
-      location is unresolved in `mutation_operation` (§2.1 item 7).
-   3. **Unchanged:** the existing-attempt `find`, the location's attributes
-      unresolved-operation guard (all attributes operations at the
-      location, not only mapped keys), and `attemptStore.start` with `on
+      now()`), with the same payload hash and `source_ref`; and no
+      suggestion at the location is in flight.
+   3. **Changed (§6.5):** the shared location attributes claim fence row
+      `for update`; then, unchanged, the existing-attempt `find`; then the
+      location's attributes unresolved-operation guard (all attributes
+      operations at the location, not only mapped keys), now evaluated over
+      both ledgers, `gbp_management_mutation` and
+      `bulk_listing_write_attempt`; then `attemptStore.start` with `on
       conflict do nothing`.
    4. `afterStart`, only when `start` created the attempt: `update
       nabalens_suggestion set status = 'sent', mutation_id = $attempt,
@@ -693,6 +725,12 @@ Consequences:
 - **Two keys, one resource.** Two change sets at one location serialise on
   the link row in step 4.1 and on the unresolved guard in step 4.3; the
   second sees an in-flight suggestion or an unresolved attempt and refuses.
+- **Bulk against single, either order.** Both claims lock the same fence
+  row before checking both ledgers (§6.5). An unresolved bulk attempt
+  refuses this claim with `google_confirmation_unresolved`. An unresolved
+  attempt from this claim defers a later bulk child (`resource_busy`). If
+  the advisory sessions are lost, simultaneous claims still serialise on
+  the fence, and only one commits a new attempt.
 - **Mapping or link change after the live reads.** The change is one
   transaction that updates the old mapping or link row; it either commits
   before step 4.1 (then 4.2 refuses `source_stale`) or waits for step 4 to
@@ -721,6 +759,63 @@ Consequences:
 5. At most one `gbp_management_mutation` attempt exists per change set
    (`0063`'s unique index), Google is called only for the attempt the
    request created, and only after the claim committed.
+6. An unresolved attributes attempt at a location in either ledger blocks a
+   new attempt from the other path. Simultaneous claims cannot both commit.
+   The guard is scoped to tenant, location and the attributes resource, and
+   terminal attempts unblock either path (§6.5).
+
+### 6.5 Shared location attributes claim fence (both directions)
+
+This is a B07 implementation dependency for every mapped location (B07-00
+item 4), in NabaPresence. It changes only the attributes claim of the two
+existing paths. It adds no other bulk family, approval flow or result code,
+and it keeps the session advisory lock and the idempotency paths.
+
+1. **Fence row.** One additive table, `location_resource_claim_fence
+   (organisation_id, location_id, resource_key)`, with a primary key on all
+   three and `resource_key` checked to `'attributes'` in this batch. It uses
+   the same tenant RLS as `bulk_listing_write_attempt`, grants select,
+   insert and update to `naba_app_runtime`, and allows no delete. The row
+   holds no state; it exists to be locked. Each claim transaction runs
+   `insert … on conflict do nothing`, then `select … for update` on
+   `(organisation_id, location_id, 'attributes')`. This is an ordinary row
+   lock in the same pooled tenant transaction that inserts the attempt, so
+   it is held until that transaction ends, whether or not the advisory
+   session survives.
+2. **Single-attribute claim** (`startGbpMutation` with `resourceType =
+   'attributes'` and `blockUnresolved`, for every caller, B07 or not):
+   after `beforeStart` (if any) and before `find`, take the fence. Then run
+   `find`, the existing guard on `gbp_management_mutation` (unchanged), the
+   bulk predicate below, and `attemptStore.start`. A bulk hit refuses with
+   the existing `409 google_confirmation_unresolved`.
+3. **Bulk attribute claim** (`runGbpWrite`'s start transaction, for
+   attributes children only). `runGbpWrite` gains one additive optional
+   `beforeStart(sql)` hook, which `runBulkWrite` passes when
+   `spec.family = 'attributes'`. In order: the fence; the existing receipt
+   and `find`/`decide` logic, unchanged; then, only when a new attempt
+   would start, the single-attribute predicate below and the bulk predicate
+   (excluding the row being re-armed, if any); then `store.start`. A hit
+   throws the error the bulk runner already maps to a deferral: the child
+   returns to `queued` with `resource_busy`, as with a busy advisory key
+   today. Readback recovery of the child's own uncertain row is unchanged.
+4. **Predicates** (tenant by RLS and an explicit `organisation_id`):
+   - single: `gbp_management_mutation where location_id = $loc and
+     resource_type = 'attributes' and (status in ('started', 'validated',
+     'ambiguous') or confirmation_state in ('pending', 'unresolved'))`,
+     which is the predicate `startGbpMutation` already uses;
+   - bulk: `bulk_listing_write_attempt where location_id = $loc and family
+     = 'attributes' and status in ('validating', 'validated', 'publishing',
+     'ambiguous')`. `succeeded` and `failed` are terminal and unblock either
+     path. B07-00 confirms this against recovery (§3.0 item 4).
+5. **Why it holds.** Both claims lock the same row before checking, and
+   each inserts its attempt in the transaction that holds the lock. Under
+   `READ COMMITTED`, each statement after the lock wait takes a new
+   snapshot, so the second claim's checks see the first claim's committed
+   attempt. Either order blocks, and two simultaneous claims with lost
+   advisory sessions cannot both commit a new attempt. Other tenants,
+   other locations and other resources (hours, place actions) take no fence
+   row in common. An existing attempt is never redispatched, and recovery
+   stays readback-only.
 
 ## 7. B07-05: delivery states, resolution and status feedback
 
@@ -910,7 +1005,7 @@ baseline (plan §12 rollback).
 | P8. Two newer revisions behind one uncertain write                                           | The first queued row `superseded` by the second; one pre-send row                                                                                                |
 | P9. Withdrawal then old-write confirmation; old-write confirmation then withdrawal           | Exactly one review item in both orders; no automatic provider write                                                                                              |
 | P10. In-flight `failed` or `rejected`                                                        | The queued row proceeds after a fresh observation; no item                                                                                                       |
-| P11. Prepare, approve or publish while any attributes write at the location is in flight, including an unresolved bulk child | `in_flight_pending` (or `google_confirmation_unresolved` at the guard)                                                                                           |
+| P11. Prepare, approve or publish while any attributes write at the location is in flight, including an unresolved bulk attempt | `in_flight_pending` (or `google_confirmation_unresolved` at the guard)                                                                                           |
 | P12. Intake and publish race on one key                                                      | Exactly one of the §6.3 outcomes; no Google call when intake wins                                                                                                |
 | P13. Two keys at one location prepared and published concurrently                           | One claim commits; the other refuses; one Google request                                                                                                         |
 | P14. Mapping version or link changed after the live reads and before the claim               | `source_stale` if the change committed first; otherwise the change waits and the row is `sent`                                                                    |
@@ -922,6 +1017,13 @@ baseline (plan §12 rollback).
 | P20. Restore without a new epoch                                                             | `cursor_ahead`; intake halts; alert                                                                                                                              |
 | P21. Receipt posted twice, or out of order, or for an old epoch                              | One event; the lower one or old epoch `ignored_stale`                                                                                                             |
 | P22. Retention reaper runs while a suggestion is in flight                                   | The referenced attempt is kept (B07-00 item 2)                                                                                                                   |
+| P23. A key-scoped credential reads a stream with an unauthorised current and superseded item; then a fully scoped one | Key-scoped: `403 not_permitted`, no identities, `feed_not_permitted`, cursor unchanged. Fully scoped: a contiguous page and a complete snapshot |
+| P24. The commit waits on the cursor lock until the claim has expired                         | The `clock_timestamp()` fence fails at 4.1 or 4.5; the page rolls back; the cursor is unchanged |
+| P25. An unresolved bulk attributes attempt, then a B07 publish at the same location          | Refused `google_confirmation_unresolved`; no attempt and no Google call |
+| P26. An unresolved B07 attempt, then a bulk attributes child at the same location            | The child is deferred `resource_busy` and returns to `queued`; no bulk attempt and no Google call |
+| P27. Simultaneous B07 and bulk claims with both advisory sessions lost                       | Both serialise on the fence row; exactly one new attempt commits |
+| P28. Scope and release: other tenant, other location, an hours write; then the blocking attempt reaches `succeeded` or `failed` | Not blocked by the fence; terminal attempts unblock either path; an ambiguous attempt is recovered by readback only, never redispatched |
+| P29. A same-epoch item at the head's revision with a different digest                        | The page rolls back; `revision_conflict` halt; alert |
 
 Where: NabaPresence's own test suites (unit, integration with its local
 stack, its Playwright e2e for the review view) with a recorded NabaLens feed
@@ -982,7 +1084,7 @@ One supported fact at one verified location, after every other gate:
 | OD-B7-6 | Who in NabaPresence may approve links and mappings                                                                              | Organisation owners and admins                                           |
 | OD-B7-7 | Whether the `nabalens_readback` job may read Google back automatically for uncertain attempts (reads only, never sends)        | Disabled; readback stays person-initiated through the existing confirm path |
 | OD-B7-8 | Which attributes-path error codes count as "Google refused" (`rejected`) rather than "did not complete" (`failed`)               | Every rejected attempt maps to `failed`; neither state is retried automatically |
-| OD-B7-9 | Who may clear an intake halt (`cursor_ahead`, `epoch_regressed`)                                                                 | Organisation owners only, after a new NabaLens epoch is accepted         |
+| OD-B7-9 | Who may clear an intake halt (`cursor_ahead`, `epoch_regressed`, `revision_conflict`)                                                                 | Organisation owners only, after a new NabaLens epoch is accepted         |
 
 ## 11. Integration ownership (one PR per repository per batch)
 
@@ -1007,7 +1109,7 @@ NabaLens gate does not qualify the NabaPresence change (plan §18).
 | Newer source dropped behind an in-flight write       | Source head; split indexes; queue behind in-flight; explicit revision conflict target (§4.3 to §4.5)                  |
 | Intake skips an item or advances on a stale claim    | Claim token with expiry, epoch and link fences; contiguity check; continue past stale items (§4.5)                    |
 | Old write confirms after the source changed          | Completion per revision; one review-item rule for both orders (§7.5, §7.6)                                            |
-| The advisory attributes lock is lost mid-write       | The send claim locks the link row in the database and keeps the unresolved guard (§6.3)                               |
+| The advisory attributes lock is lost mid-write       | The send claim locks the link row in the database; single and bulk attributes claims lock one fence row and check both ledgers (§6.3, §6.5) |
 | A NabaLens restore resurrects a withdrawn source     | Epoch-scoped identities; snapshot bootstrap treats omitted keys as withdrawn; `cursor_ahead` halt (§4.6, §4.7)        |
 
 ## 13. Changelog
@@ -1031,3 +1133,14 @@ NabaLens gate does not qualify the NabaPresence change (plan §18).
   - B07-3: intake, claim and resolution serialised on the head; explicit
     revision conflict target; one review-item rule for both orders;
     attempt-derived resolution (§4.3, §7.2 to §7.5).
+- Draft 2, bounded repair (10 Nov 2026), for the draft-2 review:
+  - R3: a feed `403 not_permitted` is handled as `feed_not_permitted`
+    without cursor coverage. Claim expiry is checked with
+    `clock_timestamp()` after the lock and again in the guarded cursor
+    update (§4.5, §4.6; P23, P24).
+  - R4: the bulk ledger is `bulk_listing_write_attempt`. One shared
+    location attributes claim fence and a two-ledger check sit in both the
+    single and the bulk claim transactions, reusing the existing refusal
+    and defer results (§2.1, §3.0, §6.1, §6.3, §6.5; P25 to P28).
+  - R2 (B07 side): `revision_conflict` halt on a same-epoch digest conflict
+    (§4.5, §4.7; P29).
