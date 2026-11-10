@@ -2,12 +2,16 @@
 // work that waits on this person becomes one card with a stable key, so the
 // lists below To do can leave it out and only count it.
 
-import { PROGRESS_LABEL, type MyAmenityTask } from "@/lib/amenities/contract"
-import type { WorkingSlot } from "@/lib/knowledge-client/contract"
+import {
+  ANSWER_LABEL,
+  PROGRESS_LABEL,
+  type MyAmenityTask,
+} from "@/lib/amenities/contract"
+import type { RecheckTask, WorkingSlot } from "@/lib/knowledge-client/contract"
 import type { LabelWork } from "@/lib/work-client/contract"
 import { orderTodo, type TodoEntry } from "@/lib/work-client/todo"
 
-import { slotRow } from "../knowledge/copy"
+import { recheckCauseLine, slotRow } from "../knowledge/copy"
 import type { MyAssignment, MyTasksView, SubmissionView } from "./types"
 
 const DUE_SOON_MS = 7 * 24 * 60 * 60 * 1000
@@ -60,6 +64,8 @@ export type NextActionInputs = {
   retakes?: readonly RetakeRequest[]
   /** Null when the labels card is hidden (can't label, or no B02 read). */
   labels?: LabelWork | null
+  /** B03-e: my open recheck tasks (on checks assigned to me). */
+  rechecks?: readonly RecheckTask[]
 }
 
 function checkFromTask(task: MyAmenityTask, action: string): CheckCard {
@@ -91,6 +97,7 @@ export function nextActions({
   slots = [],
   retakes = [],
   labels = null,
+  rechecks = [],
 }: NextActionInputs): NextAction[] {
   const { scope, assignments, needsAnotherPhoto } = tasks
   const openTaskIds = new Set(
@@ -169,6 +176,40 @@ export function nextActions({
     })
   }
 
+  // B03-e (§6.2): an open recheck task is its check's card, in due order,
+  // with the server's cause; it replaces any card the same check had above.
+  const bySlot = new Map(slots.map((slot) => [slot.checkId, slot]))
+  const ordered = [...rechecks].sort((a, b) => a.dueAt.localeCompare(b.dueAt))
+  for (const task of ordered) {
+    const key = checkKey(task.checkId)
+    const at = entries.findIndex((entry) => entry.key === key)
+    if (at >= 0 && entries[at].kind === "finding") continue
+    const slot = bySlot.get(task.checkId)
+    const previous = slot?.answerInUse.value ?? slot?.previousAnswer ?? null
+    const card: NextAction = {
+      key,
+      kind: "recheck",
+      members: 1,
+      check: {
+        checkId: task.checkId,
+        question: task.question,
+        category:
+          slot?.category ?? assigned.get(task.checkId)?.entry.category ?? "",
+        evidenceRule:
+          slot?.evidenceRule ??
+          assigned.get(task.checkId)?.entry.evidenceRule ??
+          "photo",
+        chip: PROGRESS_LABEL.needs_recheck,
+        recheckReason: recheckCauseLine(task, {
+          previous: previous ? ANSWER_LABEL[previous] : null,
+        }),
+        action: "Recheck",
+      },
+    }
+    if (at >= 0) entries.splice(at, 1)
+    entries.push(card)
+  }
+
   const pending = assignments.filter(
     (a) => isOpenAndUnfinished(a) && !replacing.has(a.requirement.id)
   )
@@ -177,7 +218,10 @@ export function nextActions({
     const key = taskKey(id)
     if (progress.overdue)
       entries.push({ key, kind: "overdue", members: 1, assignment })
-    else if (due && new Date(due.dueAt).getTime() - now.getTime() <= DUE_SOON_MS)
+    else if (
+      due &&
+      new Date(due.dueAt).getTime() - now.getTime() <= DUE_SOON_MS
+    )
       entries.push({ key, kind: "due_soon", members: 1, assignment })
   }
 

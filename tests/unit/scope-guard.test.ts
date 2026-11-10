@@ -95,6 +95,9 @@ const ALLOWED_PAGES = new Set([
   // Amenities in the workspace: the /staff/manage amenity screens for the
   // manager account's own venue (docs/plans/amenity-catalogue.md).
   "/manager/amenities",
+  // B03-b places: a venue's entrances, routes, rooms and areas, kept by its
+  // manager or an admin for the capture form's choices.
+  "/manager/amenities/places",
   "/manager/amenities/[checkId]",
   "/manager/amenities/[checkId]/capture",
   // v0.4 admin coverage oversight: the same tools for any venue, plus grants.
@@ -116,11 +119,23 @@ const ALLOWED_PAGES = new Set([
   // Never part of monthly targets (docs/plans/amenity-catalogue.md).
   "/staff/tasks/amenities/[checkId]",
   "/staff/manage/amenities",
+  "/staff/manage/amenities/places",
   "/staff/manage/amenities/[checkId]",
   "/staff/manage/amenities/[checkId]/capture",
   "/admin/coverage/[venueId]/amenities",
+  "/admin/coverage/[venueId]/amenities/places",
   "/admin/coverage/[venueId]/amenities/[checkId]",
   "/admin/coverage/[venueId]/amenities/[checkId]/capture",
+  // B03 knowledge admin (B03 UI design §6.4): what turning on a check-date
+  // rule would do, read only.
+  "/admin/knowledge/check-dates",
+  // B03-f reconciliation (§7.3, §7.4): declared sources and old-fact
+  // mappings, and dry runs whose imports managers decide one by one.
+  "/admin/knowledge/sources",
+  "/admin/knowledge/runs",
+  "/admin/knowledge/runs/[runId]",
+  // B03-g (§8.3): a question's schema upgrade, dry run first.
+  "/admin/knowledge/upgrades",
 ])
 
 const ALLOWED_HANDLERS = new Set([

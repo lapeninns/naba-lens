@@ -15,6 +15,7 @@ import {
   type MyFindingsPage as ServerFindingsPage,
   type PendingFindingView,
   type ResolveConflictResult,
+  type StateReasonB03,
   type SubmitKnowledgeResult as ServerSubmitted,
   type ToConfirmItem as ServerToConfirm,
   type WorkingListView as ServerWorkingList,
@@ -28,9 +29,12 @@ import type {
   FindingsPage,
   KnowledgeAnswer,
   NoLongerUsedReason,
+  FindingSource,
   PendingFinding,
+  PolicyNeed,
   QuestionView,
   ServerDraft,
+  QualifiedAnswer,
   SlotDetail,
   SubmittedFinding,
   ToConfirmList,
@@ -53,12 +57,73 @@ const DETAILS: readonly SlotDetail[] = [
   "declined",
   "unable_to_establish",
   "not_checked",
+  "qualified_answer",
+  "policy_incomplete",
 ]
+
+const POLICY_NEEDS: readonly PolicyNeed[] = [
+  "stance",
+  "conditions",
+  "zones",
+  "authority",
+  "stated_on",
+]
+
+/**
+ * `policyMissing` (b03-design A5), read defensively: absent stays absent, a
+ * code this build doesn't know becomes `unrecognised` (once).
+ */
+export function policyMissingOf(v: unknown): PolicyNeed[] | undefined {
+  if (!Array.isArray(v)) return undefined
+  const out: PolicyNeed[] = []
+  for (const code of v) {
+    const need = (POLICY_NEEDS as readonly unknown[]).includes(code)
+      ? (code as PolicyNeed)
+      : "unrecognised"
+    if (!out.includes(need)) out.push(need)
+  }
+  return out
+}
+
+const withPolicyMissing = (v: unknown) => {
+  const needs = policyMissingOf(v)
+  return needs ? { policyMissing: needs } : {}
+}
 
 function detailOf(slot: KnowledgeSlotView): SlotDetail | null {
   if (slot.detail && (DETAILS as readonly string[]).includes(slot.detail))
     return slot.detail as SlotDetail
+  // A newer server's reason no answer is in use: kept as unrecognised, so the
+  // screens say needs checking instead of reading it as nothing to check.
+  if (slot.detail && slot.status === "unavailable") return "unrecognised"
   return slot.reason === "not_enabled" ? "not_enabled" : null
+}
+
+const QUALIFIERS = ["conditional", "temporarily_unavailable"] as const
+
+/** `answerInUse.qualified` (b03-design §3.8), read defensively. */
+function qualifiedOf(answer: unknown): QualifiedAnswer | null {
+  if (!answer || typeof answer !== "object") return null
+  const q = (answer as { qualified?: unknown }).qualified
+  if (!q || typeof q !== "object") return null
+  const { qualifier, detail } = q as { qualifier?: unknown; detail?: unknown }
+  if (!(QUALIFIERS as readonly unknown[]).includes(qualifier)) return null
+  const availability =
+    detail && typeof detail === "object"
+      ? (detail as { availability?: unknown }).availability
+      : null
+  const field = (key: "until" | "note") => {
+    const v =
+      availability && typeof availability === "object"
+        ? (availability as Record<string, unknown>)[key]
+        : null
+    return typeof v === "string" && v ? v : null
+  }
+  return {
+    qualifier: qualifier as QualifiedAnswer["qualifier"],
+    until: field("until"),
+    note: field("note"),
+  }
 }
 
 export function adaptAnswerInUse(slot: KnowledgeSlotView): AnswerInUse {
@@ -70,6 +135,17 @@ export function adaptAnswerInUse(slot: KnowledgeSlotView): AnswerInUse {
     value: answer?.value ?? null,
     savedAt: answer?.savedAt ?? null,
     sentAt: answer?.sentAt ?? null,
+    qualified: qualifiedOf(answer),
+    ...withPolicyMissing(answer?.policyMissing),
+    ...(answer?.detail &&
+    typeof answer.detail === "object" &&
+    !Array.isArray(answer.detail)
+      ? { answerDetail: answer.detail as Record<string, unknown> }
+      : {}),
+    ...(typeof answer?.scheduleId === "string" && answer.scheduleId
+      ? { scheduleId: answer.scheduleId }
+      : {}),
+    ...withoutAdoptable(sourceOf(answer ?? {})),
     confirmation: {
       state: answer?.confirmationState ?? "not_required",
       // Managers and admins only: staff get no confirmer.
@@ -82,14 +158,13 @@ export function adaptAnswerInUse(slot: KnowledgeSlotView): AnswerInUse {
   }
 }
 
-const NO_LONGER_USED: Record<
-  NonNullable<MyFindingView["stateReason"]>,
-  NoLongerUsedReason
-> = {
+const NO_LONGER_USED: Record<StateReasonB03, NoLongerUsedReason> = {
   archived: "archived",
   replaced_by_newer: "replaced_by_newer_answer",
   reopened: "reopened",
   replaced_by_own: "replaced_by_own",
+  corrected: "corrected",
+  withdrawn: "withdrawn",
 }
 
 export function adaptFinding(view: MyFindingView): FindingSummary {
@@ -103,7 +178,7 @@ export function adaptFinding(view: MyFindingView): FindingSummary {
     state: view.state,
     noLongerUsed:
       view.state === "no_longer_used" && view.stateReason
-        ? NO_LONGER_USED[view.stateReason]
+        ? (NO_LONGER_USED[view.stateReason as StateReasonB03] ?? null)
         : null,
     stateReason: view.managerNote ?? null,
     managerNote: view.managerNote ?? null,
@@ -173,6 +248,7 @@ export function adaptSlot(slot: KnowledgeSlotView): WorkingSlot {
           at: slot.closedAssignment.at,
         }
       : null,
+    ...(Array.isArray(slot.freshness) ? { freshness: slot.freshness } : {}),
   }
 }
 
@@ -231,6 +307,46 @@ function adaptPending(
         ? { decisionId: null, note: null, at: null }
         : null,
     removedEvidence: 0,
+    ...withPolicyMissing(view.policyMissing),
+    // Only policy findings carry policyMissing; their detail is a policy.
+    ...(Array.isArray(view.policyMissing) && view.detail
+      ? { policyDetail: view.detail }
+      : {}),
+    ...sourceOf(view),
+    ...(typeof view.sourceExcerpt === "string" && view.sourceExcerpt
+      ? { sourceExcerpt: view.sourceExcerpt }
+      : {}),
+  }
+}
+
+const FINDING_SOURCES: readonly FindingSource[] = [
+  "staff_finding",
+  "manager_statement",
+  "legacy_fact",
+  "external_source",
+]
+
+const withoutAdoptable = (s: ReturnType<typeof sourceOf>) => ({
+  ...(s.source ? { source: s.source } : {}),
+  ...(s.sourceLabel ? { sourceLabel: s.sourceLabel } : {}),
+})
+
+/** B03-f: where a finding came from, read defensively (A12, A23). */
+function sourceOf(v: {
+  source?: unknown
+  sourceLabel?: unknown
+  adoptable?: unknown
+}): { source?: FindingSource; sourceLabel?: string; adoptable?: boolean } {
+  const source = (FINDING_SOURCES as readonly unknown[]).includes(v.source)
+    ? (v.source as FindingSource)
+    : undefined
+  if (!source) return {}
+  return {
+    source,
+    ...(typeof v.sourceLabel === "string" && v.sourceLabel
+      ? { sourceLabel: v.sourceLabel }
+      : {}),
+    ...(typeof v.adoptable === "boolean" ? { adoptable: v.adoptable } : {}),
   }
 }
 
@@ -268,6 +384,7 @@ function currentCard(
     disputes: false,
     detailRequest: null,
     removedEvidence: 0,
+    ...withPolicyMissing(item.policyMissing),
   }
 }
 
@@ -310,6 +427,9 @@ export function adaptCheck(
     pending: [...current, ...check.pending.map((p) => adaptPending(p, inUse))],
     permissions: check.permissions,
     history: [],
+    ...(typeof check.timezone === "string" && check.timezone
+      ? { timezone: check.timezone }
+      : {}),
   }
 }
 
@@ -335,6 +455,9 @@ export function adaptToConfirm(
       disputes: item.disputes,
       slotRevision: item.slotRevision,
       waitingSince: item.waitingSince ?? null,
+      ...withPolicyMissing(item.policyMissing),
+      // A row only says where it came from; Confirm is the card's to gate.
+      ...withoutAdoptable(sourceOf(item)),
     })),
   }
 }
@@ -417,6 +540,10 @@ export function adaptDraft(view: DraftView): ServerDraft {
       Number.isInteger(p.sentSlotRevision)
         ? p.sentSlotRevision
         : null,
+    ...(p.detail && typeof p.detail === "object" && !Array.isArray(p.detail)
+      ? { detail: p.detail as Record<string, unknown> }
+      : {}),
+    ...draftCheckedOnOf(p.checkedOn),
   }
   return {
     draftRevision: view.draftRevision,
@@ -442,6 +569,9 @@ export function adaptSubmitted(result: ServerSubmitted): SubmittedFinding {
       : null,
     recognition: result.recognition,
     ...(result.sentAt === undefined ? {} : { sentAt: result.sentAt }),
+    ...(Array.isArray(result.rechecksClosed)
+      ? { rechecksClosed: result.rechecksClosed }
+      : {}),
   }
 }
 
@@ -452,5 +582,21 @@ export function adaptDecision(
     slotRevision: result.slotRevision,
     replayed: result.replayed,
     replacedAnswer: "replacedAnswer" in result ? result.replacedAnswer : null,
+  }
+}
+
+/** A draft's Checked on, defensively (drafts are free-form JSON). */
+function draftCheckedOnOf(v: unknown): Pick<DraftPayload, "checkedOn"> {
+  if (!v || typeof v !== "object") return {}
+  const c = v as Record<string, unknown>
+  return {
+    checkedOn: {
+      date:
+        typeof c.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(c.date)
+          ? c.date
+          : null,
+      source:
+        c.source === "form_default" || c.source === "chosen" ? c.source : null,
+    },
   }
 }

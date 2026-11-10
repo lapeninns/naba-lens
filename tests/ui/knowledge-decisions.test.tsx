@@ -820,3 +820,510 @@ describe("To confirm: each finding is an article with two headed lists (MG-15)",
     }
   })
 })
+
+describe("To confirm: a policy that still needs something (B03 UI §4.4)", () => {
+  const photo = {
+    assetId: "a1",
+    kind: "photo" as const,
+    available: true,
+    thumbUrl: null,
+    previewUrl: null,
+    streamUrl: null,
+  }
+
+  it("keeps Confirm unavailable while content is missing, saying why, and still offers more detail", async () => {
+    const { user, handlers } = setup(
+      view([finding({ answer: "yes", policyMissing: ["zones", "authority"] })])
+    )
+    const confirm = screen.getByRole("button", { name: "Confirm" })
+    expect(confirm.getAttribute("aria-disabled")).toBe("true")
+    const why = document.getElementById(
+      confirm.getAttribute("aria-describedby")!
+    )
+    expect(why?.textContent).toBe(
+      "Can't confirm yet: it still needs at least one area with its rule."
+    )
+    await user.click(confirm)
+    expect(handlers.decide).not.toHaveBeenCalled()
+    expect(
+      screen.getByRole("button", { name: "Ask for more detail" })
+    ).toBeTruthy()
+  })
+
+  it("lets Confirm supply the confirmation when that's all it needs", async () => {
+    const { user, handlers } = setup(
+      view([finding({ answer: "yes", policyMissing: ["authority"] })])
+    )
+    const confirm = screen.getByRole("button", { name: "Confirm" })
+    expect(confirm.getAttribute("aria-disabled")).toBeNull()
+    await user.click(confirm)
+    await waitFor(() => expect(handlers.decide).toHaveBeenCalled())
+  })
+
+  it("says a staff photo doesn't confirm the policy", () => {
+    setup(
+      view([
+        finding({
+          answer: "yes",
+          evidence: [photo],
+          policyMissing: ["authority", "stated_on"],
+        }),
+      ])
+    )
+    expect(
+      screen.getByText(
+        "This photo shows what Sam saw. It doesn't confirm the policy."
+      )
+    ).toBeTruthy()
+  })
+
+  it("says nothing of policies on other questions", () => {
+    setup(view([finding({ answer: "yes", evidence: [photo] })]))
+    expect(screen.queryByText(/doesn't confirm the policy/)).toBeNull()
+    expect(
+      screen
+        .getByRole("button", { name: "Confirm" })
+        .getAttribute("aria-disabled")
+    ).toBeNull()
+  })
+})
+
+describe("the check page on an incomplete policy (B03 UI §4.3)", () => {
+  it("never shows it as confirmed, and lists what it still needs", async () => {
+    const { AmenityCheckDetail } =
+      await import("@/components/nabalens/amenities/manage")
+    const { detail, WIFI_CHECK } = await import("./amenities-manage-fixtures")
+    const incomplete: AnswerInUse = {
+      ...YES,
+      status: "unavailable",
+      reason: "not_confirmed",
+      detail: "policy_incomplete",
+      policyMissing: ["conditions", "stated_on"],
+    }
+    render(
+      <AmenityCheckDetail
+        detail={detail({
+          check: { ...WIFI_CHECK, progress: "complete", answer: "yes" },
+        })}
+        basePath="/manager"
+        handlers={{
+          assign: vi.fn(),
+          setNotes: vi.fn(),
+          archive: vi.fn(),
+          restore: vi.fn(),
+          reopen: vi.fn(),
+        }}
+        knowledge={{
+          view: view([], incomplete),
+          handlers: { decide: vi.fn(), onResolveConflict: vi.fn() },
+        }}
+      />
+    )
+    const note = screen.getByRole("note", {
+      name: "What this policy still needs",
+    })
+    expect(
+      within(note)
+        .getAllByRole("listitem")
+        .map((li) => li.textContent)
+    ).toEqual(["at least one condition", "the date it was stated"])
+    expect(
+      screen.getByText(
+        "Not confirmed: it still needs at least one condition and the date it was stated."
+      )
+    ).toBeTruthy()
+    expect(screen.queryByText(/^Current answer/)).toBeNull()
+  })
+})
+
+describe("a policy question's check page and cards (B03 UI §4.1, §4.4)", () => {
+  const POLICY = {
+    places: [
+      {
+        subjectId: "5a000000-0000-4000-8000-000000000001",
+        kind: "area" as const,
+        label: "⟨Back bar⟩",
+        active: true,
+      },
+    ],
+    conditionTypes: [],
+    exceptionTypes: [],
+  }
+
+  it("reads the policy's rows on its card", () => {
+    render(
+      <DecisionPanel
+        view={view([
+          finding({
+            answer: "yes",
+            policyMissing: ["authority"],
+            policyDetail: {
+              stance: "allowed",
+              zones: [
+                {
+                  subjectId: "5a000000-0000-4000-8000-000000000001",
+                  stance: "allowed",
+                },
+              ],
+            },
+          }),
+        ])}
+        handlers={{ decide: vi.fn(), onResolveConflict: vi.fn() }}
+        policy={POLICY}
+      />
+    )
+    const article = screen.getByRole("article")
+    expect(within(article).getByText("Rule")).toBeTruthy()
+    expect(within(article).getByText("Allowed")).toBeTruthy()
+    expect(within(article).getByText("⟨Back bar⟩: Allowed")).toBeTruthy()
+  })
+
+  it("offers State the policy instead of Capture myself", async () => {
+    const { AmenityCheckDetail } =
+      await import("@/components/nabalens/amenities/manage")
+    const { detail, WIFI_CHECK } = await import("./amenities-manage-fixtures")
+    const props = {
+      detail: detail({
+        check: {
+          ...WIFI_CHECK,
+          progress: "complete" as const,
+          answer: "yes" as const,
+        },
+      }),
+      basePath: "/manager",
+      canUpload: false,
+      handlers: {
+        assign: vi.fn(),
+        setNotes: vi.fn(),
+        archive: vi.fn(),
+        restore: vi.fn(),
+        reopen: vi.fn(),
+      },
+    }
+    const { unmount } = render(
+      <AmenityCheckDetail
+        {...props}
+        knowledge={{
+          view: view([], YES),
+          handlers: { decide: vi.fn(), onResolveConflict: vi.fn() },
+          policy: POLICY,
+        }}
+      />
+    )
+    const state = screen.getByRole("link", { name: "State the policy" })
+    expect(state.getAttribute("href")).toContain("/capture")
+    expect(screen.queryByRole("link", { name: "Capture myself" })).toBeNull()
+    expect(screen.queryByText(/attaches photos and videos already/)).toBeNull()
+    unmount()
+    render(
+      <AmenityCheckDetail
+        {...props}
+        knowledge={{
+          view: view([], YES),
+          handlers: { decide: vi.fn(), onResolveConflict: vi.fn() },
+        }}
+      />
+    )
+    expect(screen.getByRole("link", { name: "Capture myself" })).toBeTruthy()
+  })
+})
+
+describe("To confirm: Complete the policy (B03 UI §4.4)", () => {
+  it("links a policy that can't be confirmed yet to the editor, where the viewer states policies", () => {
+    const blocked = finding({
+      answer: "yes",
+      policyMissing: ["zones"],
+      policyDetail: { stance: "allowed" },
+    })
+    const ready = finding({
+      answer: "yes",
+      policyMissing: ["authority"],
+      policyDetail: { stance: "allowed" },
+    })
+    render(
+      <DecisionPanel
+        view={view([blocked, { ...ready, answer: "no" }])}
+        handlers={{ decide: vi.fn(), onResolveConflict: vi.fn() }}
+        completeHref={(f) =>
+          `/manager/amenities/c1/capture?complete=${f.findingRef.id}`
+        }
+      />
+    )
+    const links = screen.getAllByRole("link", { name: "Complete the policy" })
+    expect(links).toHaveLength(1)
+    expect(links[0].getAttribute("href")).toBe(
+      `/manager/amenities/c1/capture?complete=${blocked.findingRef.id}`
+    )
+    // Two findings that disagree: choosing one adopts it, so the incomplete
+    // policy can't be chosen either.
+    const [first, second] = screen.getAllByRole("button", {
+      name: "Use this answer",
+    })
+    expect(first.getAttribute("aria-disabled")).toBe("true")
+    expect(second.getAttribute("aria-disabled")).toBeNull()
+  })
+
+  it("offers no link without a place to state the policy", () => {
+    render(
+      <DecisionPanel
+        view={view([finding({ answer: "yes", policyMissing: ["zones"] })])}
+        handlers={{ decide: vi.fn(), onResolveConflict: vi.fn() }}
+      />
+    )
+    expect(
+      screen.queryByRole("link", { name: "Complete the policy" })
+    ).toBeNull()
+  })
+})
+
+describe("the check page of a schedule in use (B03 UI §5.2, §5.3, §5.5)", () => {
+  async function page(answer: AnswerInUse, key = "onsite_parking") {
+    const { AmenityCheckDetail } =
+      await import("@/components/nabalens/amenities/manage")
+    const { detail, WIFI_CHECK } = await import("./amenities-manage-fixtures")
+    render(
+      <AmenityCheckDetail
+        detail={detail({
+          check: {
+            ...WIFI_CHECK,
+            entry: { ...WIFI_CHECK.entry, key },
+            progress: "complete",
+            answer: "yes",
+          },
+        })}
+        basePath="/manager"
+        handlers={{
+          assign: vi.fn(),
+          setNotes: vi.fn(),
+          archive: vi.fn(),
+          restore: vi.fn(),
+          reopen: vi.fn(),
+        }}
+        knowledge={{
+          view: view([], answer),
+          handlers: { decide: vi.fn(), onResolveConflict: vi.fn() },
+          schedule: {
+            read: { ok: true, occurrences: [] },
+            timezone: "Europe/London",
+            lastDay: null,
+            today: "2026-11-10",
+            addException: vi.fn(),
+          },
+        }}
+      />
+    )
+  }
+
+  it("shows Upcoming, and a change for one date only with the schedule in use's id", async () => {
+    await page({ ...YES, scheduleId: "5c000000-0000-4000-8000-000000000001" })
+    expect(screen.getByRole("heading", { name: "Upcoming" })).toBeTruthy()
+    expect(
+      screen.getByRole("button", { name: "Add a change for one date" })
+    ).toBeTruthy()
+    cleanup()
+    await page(YES)
+    expect(screen.getByRole("heading", { name: "Upcoming" })).toBeTruthy()
+    expect(
+      screen.queryByRole("button", { name: "Add a change for one date" })
+    ).toBeNull()
+  })
+
+  it("keeps the subscription's fixed line on its check page", async () => {
+    await page(YES, "sports_subscription")
+    expect(
+      screen.getByText(
+        "Subscriptions only. Having a subscription isn't a promise to show any particular fixture."
+      )
+    ).toBeTruthy()
+  })
+})
+
+describe("To confirm: imports (B03 UI §7.1)", () => {
+  const imported = (over: Partial<PendingFinding> = {}) =>
+    finding({
+      answer: "yes",
+      source: "external_source",
+      sourceLabel: "⟨Source label⟩",
+      sender: { id: "a1", displayName: "⟨Admin⟩" },
+      ...over,
+    })
+
+  it("says where it came from, that it's never used unconfirmed, and offers Confirm and Don't use when it can be used", () => {
+    setup(view([imported({ adoptable: true })]))
+    const card = screen.getByRole("article", {
+      name: "Imported from ⟨Source label⟩ by ⟨Admin⟩",
+    })
+    expect(within(card).getByText("Not recorded")).toBeTruthy()
+    expect(
+      within(card).getByText(
+        "Imported records are never used until someone confirms them."
+      )
+    ).toBeTruthy()
+    expect(within(card).getByRole("button", { name: "Confirm" })).toBeTruthy()
+    expect(within(card).getByRole("button", { name: "Don't use" })).toBeTruthy()
+    expect(
+      within(card).queryByRole("button", { name: "Ask for more detail" })
+    ).toBeNull()
+    expect(
+      screen.getByText(
+        "Listed newest on-site finding first, then manager statements, other sources and the old facts list."
+      )
+    ).toBeTruthy()
+  })
+
+  it("never offers Confirm when the server says it can't be used, or doesn't say", () => {
+    for (const adoptable of [false, undefined]) {
+      render(
+        <DecisionPanel
+          view={view([imported({ adoptable })])}
+          handlers={{ decide: vi.fn(), onResolveConflict: vi.fn() }}
+          stateHref="/manager/amenities/c1/capture"
+        />
+      )
+      expect(screen.queryByRole("button", { name: "Confirm" })).toBeNull()
+      expect(
+        screen.getByText(
+          /^This import can't be used: this question already has a recorded answer/
+        )
+      ).toBeTruthy()
+      expect(
+        screen
+          .getByRole("link", { name: "State the answer" })
+          .getAttribute("href")
+      ).toBe("/manager/amenities/c1/capture")
+      cleanup()
+    }
+  })
+
+  it("can't be chosen over findings that disagree", () => {
+    setup(view([imported({ adoptable: true }), finding({ answer: "no" })]))
+    const card = screen.getByRole("article", {
+      name: "Imported from ⟨Source label⟩ by ⟨Admin⟩",
+    })
+    expect(
+      within(card).queryByRole("button", { name: "Use this answer" })
+    ).toBeNull()
+    expect(
+      within(card).getByText(
+        "An import can't replace the answer in use. Keep the answer in use, or reopen the question."
+      )
+    ).toBeTruthy()
+  })
+
+  it("asks why before not using it, recorded in the history", async () => {
+    const { user } = setup(view([imported({ adoptable: true })]))
+    await user.click(screen.getByRole("button", { name: "Don't use" }))
+    const dialog = await screen.findByRole("dialog", {
+      name: "Don't use this import?",
+    })
+    expect(
+      within(dialog).getByText("Recorded in this question's history.")
+    ).toBeTruthy()
+  })
+
+  it("names the old facts list when there's no source label", () => {
+    setup(
+      view([
+        imported({
+          source: "legacy_fact",
+          sourceLabel: undefined,
+          adoptable: true,
+        }),
+      ])
+    )
+    expect(
+      screen.getByRole("article", {
+        name: "Imported from the old facts list by ⟨Admin⟩",
+      })
+    ).toBeTruthy()
+  })
+})
+
+describe("the check page's corrections (B03 UI §8.1, §8.2)", () => {
+  async function page(corrections: {
+    canCorrect: boolean
+    canWithdraw: boolean
+  }) {
+    const { AmenityCheckDetail } =
+      await import("@/components/nabalens/amenities/manage")
+    const { detail, WIFI_CHECK } = await import("./amenities-manage-fixtures")
+    render(
+      <AmenityCheckDetail
+        detail={detail({
+          check: { ...WIFI_CHECK, progress: "complete", answer: "yes" },
+        })}
+        basePath="/manager"
+        handlers={{
+          assign: vi.fn(),
+          setNotes: vi.fn(),
+          archive: vi.fn(),
+          restore: vi.fn(),
+          reopen: vi.fn(),
+        }}
+        knowledge={{
+          view: view([], YES),
+          handlers: { decide: vi.fn(), onResolveConflict: vi.fn() },
+          corrections: {
+            ...corrections,
+            canReadHistory: false,
+            events: null,
+            withdraw: vi.fn(),
+            loadOlder: vi.fn(),
+            loadAt: vi.fn(),
+            today: "2026-11-10",
+          },
+        }}
+      />
+    )
+  }
+
+  it("offers Correct and Withdraw only to someone who may", async () => {
+    await page({ canCorrect: true, canWithdraw: true })
+    expect(
+      screen
+        .getByRole("link", { name: "Correct the answer" })
+        .getAttribute("href")
+    ).toContain("?correct=1")
+    expect(
+      screen.getByRole("button", { name: "Withdraw the answer" })
+    ).toBeTruthy()
+    cleanup()
+    await page({ canCorrect: false, canWithdraw: false })
+    expect(
+      screen.queryByRole("link", { name: "Correct the answer" })
+    ).toBeNull()
+    expect(
+      screen.queryByRole("button", { name: "Withdraw the answer" })
+    ).toBeNull()
+  })
+})
+
+describe("To confirm: what an import's source said (B03 UI §7.1)", () => {
+  it("shows the excerpt, or a legacy record's old notes", () => {
+    setup(
+      view([
+        finding({
+          answer: "yes",
+          source: "external_source",
+          sourceLabel: "⟨Source⟩",
+          sourceExcerpt: "⟨Excerpt⟩",
+          adoptable: true,
+        }),
+      ])
+    )
+    expect(screen.getByText("What the source said")).toBeTruthy()
+    expect(screen.getByText("⟨Excerpt⟩")).toBeTruthy()
+    cleanup()
+    setup(
+      view([
+        finding({
+          answer: "yes",
+          source: "legacy_fact",
+          sourceExcerpt: "⟨Coverage text⟩",
+          adoptable: true,
+        }),
+      ])
+    )
+    expect(screen.getByText("Old notes")).toBeTruthy()
+  })
+})

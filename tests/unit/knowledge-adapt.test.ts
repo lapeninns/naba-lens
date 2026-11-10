@@ -1,14 +1,17 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  adaptAnswerInUse,
   adaptCheck,
   adaptDecision,
   adaptDraft,
+  adaptFinding,
   adaptFindingsPage,
   adaptSlot,
   adaptSubmitted,
   adaptToConfirm,
   adaptWorkingList,
+  policyMissingOf,
 } from "@/lib/knowledge-client/adapt"
 import type {
   KnowledgeCheckView,
@@ -496,5 +499,272 @@ describe("knowledge adapter: the capture screen's check (F1)", () => {
         evidenceRule: "photo",
       },
     })
+  })
+})
+
+describe("adaptAnswerInUse and newer server details (B03 UI §2.5)", () => {
+  it("keeps a detail it doesn't know as unrecognised, never as nothing to check", () => {
+    const view = adaptAnswerInUse(
+      slot({ status: "unavailable", reason: "stale", detail: "basis_missing" })
+    )
+    expect(view.detail).toBe("unrecognised")
+  })
+
+  it("reads qualified_answer and its qualified object", () => {
+    const view = adaptAnswerInUse(
+      slot({
+        status: "unavailable",
+        reason: "stale",
+        detail: "qualified_answer",
+        answerInUse: {
+          ...slot().answerInUse!,
+          qualified: {
+            qualifier: "temporarily_unavailable",
+            detail: {
+              availability: {
+                state: "temporarily_unavailable",
+                until: "2026-11-20",
+              },
+            },
+          },
+        } as never,
+      })
+    )
+    expect(view.detail).toBe("qualified_answer")
+    expect(view.qualified).toEqual({
+      qualifier: "temporarily_unavailable",
+      until: "2026-11-20",
+      note: null,
+    })
+  })
+
+  it("ignores a qualified object it can't read, and its absence", () => {
+    expect(
+      adaptAnswerInUse(
+        slot({
+          answerInUse: {
+            ...slot().answerInUse!,
+            qualified: { qualifier: "something_new" },
+          } as never,
+        })
+      ).qualified
+    ).toBeNull()
+    expect(adaptAnswerInUse(slot()).qualified).toBeNull()
+  })
+})
+
+describe("policyMissing (B03-c, A5)", () => {
+  it("reads it on the answer in use, keeping policy_incomplete", () => {
+    const view = adaptAnswerInUse(
+      slot({
+        status: "unavailable",
+        reason: "not_confirmed",
+        detail: "policy_incomplete",
+        answerInUse: {
+          ...slot().answerInUse!,
+          policyMissing: ["zones", "authority"],
+        },
+      })
+    )
+    expect(view.detail).toBe("policy_incomplete")
+    expect(view.policyMissing).toEqual(["zones", "authority"])
+  })
+
+  it("keeps a code it doesn't know once as unrecognised, and leaves it out when absent", () => {
+    expect(policyMissingOf(["stance", "new_a", "new_b"])).toEqual([
+      "stance",
+      "unrecognised",
+    ])
+    expect(policyMissingOf(undefined)).toBeUndefined()
+    expect(policyMissingOf("stance")).toBeUndefined()
+    expect(adaptAnswerInUse(slot())).not.toHaveProperty("policyMissing")
+  })
+
+  it("reads it on pending findings and To confirm items", () => {
+    const view = adaptCheck(
+      check({ pending: [pending({ policyMissing: ["conditions"] })] }),
+      "The Old Crown"
+    )
+    expect(view.inScope && view.pending[0].policyMissing).toEqual([
+      "conditions",
+    ])
+    const item: ToConfirmItem = {
+      checkId: CHECK,
+      questionKey: "dogs_allowed",
+      question: "⟨Question⟩",
+      findingRef: { type: "contribution", id: "f9" },
+      kind: "finding",
+      answer: "yes",
+      senderName: "Sam",
+      sentAt: "2026-11-05T10:00:00.000Z",
+      slotRevision: 9,
+      conflict: false,
+      disputes: false,
+      policyMissing: ["stated_on"],
+    }
+    expect(adaptToConfirm([item], 1).items[0].policyMissing).toEqual([
+      "stated_on",
+    ])
+    expect(
+      adaptToConfirm([{ ...item, policyMissing: undefined }], 1).items[0]
+    ).not.toHaveProperty("policyMissing")
+  })
+})
+
+describe("a policy finding's detail (B03-c)", () => {
+  it("passes a policy finding's detail on, and no other finding's", () => {
+    const detail = { stance: "allowed" }
+    const view = adaptCheck(
+      check({
+        pending: [
+          pending({ detail, policyMissing: ["authority"] }),
+          pending({
+            findingRef: { type: "contribution", id: "f2" },
+            detail: { locations: [] },
+          }),
+        ],
+      }),
+      "The Old Crown"
+    )
+    if (!view.inScope) throw new Error("in scope")
+    expect(view.pending[0].policyDetail).toEqual(detail)
+    expect(view.pending[1]).not.toHaveProperty("policyDetail")
+  })
+})
+
+describe("schedules on the check (B03-d)", () => {
+  it("passes the schedule in use, its detail and the venue's zone on, and nothing when absent", () => {
+    const schedule = {
+      effectiveFrom: "2026-11-15",
+      recurrence: { kind: "weekly", days: ["sun"] },
+      windows: [{ start: "12:00", end: "15:00" }],
+    }
+    const view = adaptCheck(
+      check({
+        timezone: "Europe/London",
+        answerInUse: {
+          ...slot().answerInUse!,
+          detail: { schedule },
+          scheduleId: "5c000000-0000-4000-8000-000000000001",
+        },
+      }),
+      "The Old Crown"
+    )
+    if (!view.inScope) throw new Error("in scope")
+    expect(view.timezone).toBe("Europe/London")
+    expect(view.slot.answerInUse.answerDetail).toEqual({ schedule })
+    expect(view.slot.answerInUse.scheduleId).toBe(
+      "5c000000-0000-4000-8000-000000000001"
+    )
+    const plain = adaptCheck(check(), "The Old Crown")
+    if (!plain.inScope) throw new Error("in scope")
+    expect(plain).not.toHaveProperty("timezone")
+    expect(plain.slot.answerInUse).not.toHaveProperty("answerDetail")
+    expect(plain.slot.answerInUse).not.toHaveProperty("scheduleId")
+  })
+})
+
+describe("imports (B03-f, A12, A23)", () => {
+  it("reads where a finding came from, and adoptable only on the card", () => {
+    const view = adaptCheck(
+      check({
+        pending: [
+          pending({
+            source: "external_source",
+            sourceLabel: "⟨Source⟩",
+            adoptable: true,
+          }),
+          pending({
+            findingRef: { type: "contribution", id: "f2" },
+            source: "something_new" as never,
+          }),
+        ],
+      }),
+      "The Old Crown"
+    )
+    if (!view.inScope) throw new Error("in scope")
+    expect(view.pending[0]).toMatchObject({
+      source: "external_source",
+      sourceLabel: "⟨Source⟩",
+      adoptable: true,
+    })
+    expect(view.pending[1]).not.toHaveProperty("source")
+    const rows = adaptToConfirm(
+      [
+        {
+          checkId: CHECK,
+          questionKey: "onsite_parking",
+          question: "⟨Question⟩",
+          findingRef: { type: "contribution", id: "f9" },
+          kind: "finding",
+          answer: "yes",
+          senderName: null,
+          sentAt: null,
+          slotRevision: 9,
+          conflict: false,
+          disputes: false,
+          source: "legacy_fact",
+          adoptable: true,
+        },
+      ],
+      1
+    ).items
+    expect(rows[0]).toMatchObject({ source: "legacy_fact" })
+    expect(rows[0]).not.toHaveProperty("adoptable")
+  })
+})
+
+describe("corrected and withdrawn findings (B03-g, A15)", () => {
+  it("reads the new reasons and the reason given", () => {
+    const corrected = adaptFinding(
+      mine({
+        state: "no_longer_used",
+        stateReason: "corrected" as never,
+        managerNote: "⟨Reason⟩",
+      })
+    )
+    expect(corrected).toMatchObject({
+      noLongerUsed: "corrected",
+      stateReason: "⟨Reason⟩",
+    })
+    expect(
+      adaptFinding(
+        mine({ state: "no_longer_used", stateReason: "withdrawn" as never })
+      ).noLongerUsed
+    ).toBe("withdrawn")
+    expect(
+      adaptFinding(
+        mine({ state: "no_longer_used", stateReason: "something_new" as never })
+      ).noLongerUsed
+    ).toBeNull()
+  })
+})
+
+describe("answer and import sources (B03-f review low 2, WS5 item 3)", () => {
+  it("reads where the answer in use came from, and an import's excerpt", () => {
+    const inUse = adaptAnswerInUse(
+      slot({
+        answerInUse: {
+          ...slot().answerInUse!,
+          source: "external_source",
+          sourceLabel: "⟨Source⟩",
+        },
+      })
+    )
+    expect(inUse).toMatchObject({
+      source: "external_source",
+      sourceLabel: "⟨Source⟩",
+    })
+    expect(adaptAnswerInUse(slot())).not.toHaveProperty("source")
+    const view = adaptCheck(
+      check({
+        pending: [
+          pending({ source: "legacy_fact", sourceExcerpt: "⟨Old notes⟩" }),
+        ],
+      }),
+      "The Old Crown"
+    )
+    if (!view.inScope) throw new Error("in scope")
+    expect(view.pending[0].sourceExcerpt).toBe("⟨Old notes⟩")
   })
 })

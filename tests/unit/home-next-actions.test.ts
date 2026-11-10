@@ -11,12 +11,7 @@ import {
 import type { WorkingSlot } from "@/lib/knowledge-client/contract"
 import { todoBadge } from "@/lib/work-client/todo"
 
-import {
-  assignment,
-  due,
-  needsAnother,
-  tasksView,
-} from "../ui/tasks-fixtures"
+import { assignment, due, needsAnother, tasksView } from "../ui/tasks-fixtures"
 import { amenityCheck, slot } from "../ui/home-b02-fixtures"
 
 vi.mock("server-only", () => ({}))
@@ -55,7 +50,10 @@ describe("nextActions (D1 order)", () => {
       reviewCount: 2,
       amenityChecks: [
         amenityCheck("c1"),
-        amenityCheck("c2", { progress: "needs_recheck", recheckReason: "Moved" }),
+        amenityCheck("c2", {
+          progress: "needs_recheck",
+          recheckReason: "Moved",
+        }),
       ],
       retakes: [retake("p1")],
       labels: { needsLabels: 3, needsAttention: 1 },
@@ -129,7 +127,9 @@ describe("nextActions (D1 order)", () => {
       slots: [
         slot("s1", {
           assignee: { firstName: "Sam", isMe: true },
-          myLatest: { state: "awaiting_confirmation" } as WorkingSlot["myLatest"],
+          myLatest: {
+            state: "awaiting_confirmation",
+          } as WorkingSlot["myLatest"],
         }),
       ],
       amenityChecks: [amenityCheck("s1")],
@@ -165,13 +165,17 @@ describe("tasksInTodo", () => {
     const overdue = assignment({
       progress: { ...assignment().requirement.progress, overdue: true },
     })
-    const later = assignment({ due: due({ dueAt: "2027-01-01T00:00:00.000Z" }) })
+    const later = assignment({
+      due: due({ dueAt: "2027-01-01T00:00:00.000Z" }),
+    })
     const replacing = assignment()
     const actions = nextActions({
       tasks: tasksView({
         assignments: [overdue, later, replacing],
         needsAnotherPhoto: [
-          needsAnother("Blurry", { requirement: replacing.requirement as never }),
+          needsAnother("Blurry", {
+            requirement: replacing.requirement as never,
+          }),
         ],
       }),
       now: NOW,
@@ -203,5 +207,71 @@ describe("homeLayout", () => {
     expect(homeLayout("v2")).toBe("b01")
     expect(homeLayout("v3")).toBe("b02")
     expect(homeLayout(null)).toBe("b02")
+  })
+})
+
+describe("recheck tasks in To do (B03 UI §6.2)", () => {
+  const task = (checkId: string, over: Record<string, unknown> = {}) => ({
+    taskId: `t-${checkId}`,
+    checkId,
+    venueId: "v1",
+    questionKey: "onsite_parking",
+    question: `⟨Question ${checkId}⟩`,
+    cause: "expired" as const,
+    use: "internal" as const,
+    dueAt: "2026-11-18T00:00:00.000Z",
+    ...over,
+  })
+
+  it("makes each open task its check's recheck card, in due order, never twice", () => {
+    const actions = nextActions({
+      tasks: tasksView(),
+      now: NOW,
+      amenityChecks: [amenityCheck("c1"), amenityCheck("c2")],
+      rechecks: [
+        task("c2", { dueAt: "2026-11-25T00:00:00.000Z", cause: "due_soon" }),
+        task("c1"),
+      ],
+    })
+    const rechecks = actions.filter((a) => a.kind === "recheck")
+    expect(rechecks.map((a) => a.key)).toEqual([checkKey("c1"), checkKey("c2")])
+    expect(actions.filter((a) => a.key === checkKey("c1"))).toHaveLength(1)
+    const first = rechecks[0]
+    if (first.kind !== "recheck") throw new Error("recheck")
+    expect(first.check).toMatchObject({
+      question: "⟨Question c1⟩",
+      action: "Recheck",
+      recheckReason: "Past its check date since 18 Nov 2026.",
+    })
+    expect(todoBadge(actions, false)).toBe(2)
+  })
+
+  it("names the previous answer when the working list has it", () => {
+    const actions = nextActions({
+      tasks: tasksView(),
+      now: NOW,
+      slots: [slot("c1", { previousAnswer: "yes" })],
+      rechecks: [task("c1")],
+    })
+    const card = actions.find((a) => a.key === checkKey("c1"))
+    if (card?.kind !== "recheck") throw new Error("recheck")
+    expect(card.check.recheckReason).toBe(
+      "Past its check date since 18 Nov 2026. Previous answer: Yes."
+    )
+  })
+
+  it("leaves a manager's question about my finding as its own card", () => {
+    const asked = slot("c1", {
+      myLatest: { state: "needs_attention", managerNote: "⟨Note⟩" } as never,
+    })
+    const actions = nextActions({
+      tasks: tasksView(),
+      now: NOW,
+      slots: [asked],
+      rechecks: [task("c1")],
+    })
+    expect(
+      actions.filter((a) => a.key === checkKey("c1")).map((a) => a.kind)
+    ).toEqual(["finding"])
   })
 })

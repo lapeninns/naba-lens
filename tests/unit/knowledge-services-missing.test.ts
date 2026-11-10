@@ -235,3 +235,113 @@ describe("adapters for the draft-save guard (R11)", () => {
     expect("sentAt" in adaptSubmitted(base)).toBe(false)
   })
 })
+
+describe("places before the B03-b migration", () => {
+  it("reads a missing function as no places yet, not a failure", async () => {
+    rpc.knowledgeRpc.mockResolvedValueOnce({
+      data: null,
+      error: { code: "PGRST202", message: "missing" },
+    })
+    await expect(
+      knowledgeServices.listPlaces(actor, { venueId: VENUE })
+    ).resolves.toEqual({ ok: true, venueId: null, places: null })
+    expect(rpc.knowledgeRpc).toHaveBeenCalledWith(db, "knowledge_subjects", {
+      p_venue_id: VENUE,
+    })
+  })
+
+  it("returns the venue's places", async () => {
+    const items = [
+      {
+        subjectId: "5a000000-0000-4000-8000-000000000001",
+        kind: "entrance",
+        label: "⟨Main entrance⟩",
+        active: true,
+      },
+    ]
+    rpc.knowledgeRpc.mockResolvedValueOnce({
+      data: { venueId: VENUE, items },
+      error: null,
+    })
+    await expect(
+      knowledgeServices.listPlaces(actor, { venueId: VENUE })
+    ).resolves.toEqual({ ok: true, venueId: VENUE, places: items })
+  })
+
+  it("keeps any other failure a failure", async () => {
+    rpc.knowledgeRpc.mockResolvedValueOnce({
+      data: null,
+      error: { code: "42501", message: "denied" },
+    })
+    server.knowledgeRpcFailure.mockReturnValueOnce(DOWN)
+    await expect(
+      knowledgeServices.listPlaces(actor, { venueId: VENUE })
+    ).resolves.toEqual(DOWN)
+  })
+})
+
+describe("value lists before the B03-c migration", () => {
+  it("reads a missing function as no items yet, not a failure", async () => {
+    rpc.knowledgeRpc.mockResolvedValueOnce(missing("PGRST202"))
+    await expect(
+      knowledgeServices.getValueList(actor, { list: "policy_condition_types" })
+    ).resolves.toEqual({ ok: true, items: [], retired: [] })
+    expect(rpc.knowledgeRpc).toHaveBeenCalledWith(db, "knowledge_value_list", {
+      p_list: "policy_condition_types",
+    })
+  })
+
+  it("returns the list's items, and keeps any other failure a failure", async () => {
+    const items = [
+      {
+        code: "on_lead",
+        label: "⟨On a lead⟩",
+        needsValue: false,
+        valueKind: null,
+      },
+    ]
+    rpc.knowledgeRpc.mockResolvedValueOnce({
+      data: { list: "policy_condition_types", items },
+      error: null,
+    })
+    await expect(
+      knowledgeServices.getValueList(actor, { list: "policy_condition_types" })
+    ).resolves.toEqual({ ok: true, items, retired: [] })
+    rpc.knowledgeRpc.mockResolvedValueOnce({
+      data: null,
+      error: { code: "42501", message: "denied" },
+    })
+    await expect(
+      knowledgeServices.getValueList(actor, { list: "policy_exception_types" })
+    ).resolves.toEqual(DOWN)
+  })
+
+  it("refuses a list that isn't one, without a read", async () => {
+    const result = await knowledgeServices.getValueList(actor, {
+      list: "nope" as never,
+    })
+    expect(result.ok).toBe(false)
+    expect(rpc.knowledgeRpc).not.toHaveBeenCalled()
+  })
+})
+
+describe("retired value-list items (A38)", () => {
+  it("passes the retired items on beside the active ones", async () => {
+    const retired = [
+      {
+        code: "old",
+        label: "⟨Old⟩",
+        needsValue: false,
+        valueKind: null,
+        retiredAt: "2026-11-01T00:00:00.000Z",
+      },
+    ]
+    rpc.knowledgeRpc.mockResolvedValueOnce({
+      data: { list: "policy_condition_types", items: [], retired },
+      error: null,
+    })
+    await expect(
+      knowledgeServices.getValueList(actor, { list: "policy_condition_types" })
+    ).resolves.toEqual({ ok: true, items: [], retired })
+  })
+})
