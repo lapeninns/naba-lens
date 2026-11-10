@@ -53,8 +53,10 @@ import {
 } from "@/components/nabalens/knowledge/schedule-section"
 import { SPORT_LINES } from "@/components/nabalens/knowledge/service-detail"
 import { CheckDatesSection } from "@/components/nabalens/knowledge/check-dates"
+import { OldFactsSection } from "@/components/nabalens/knowledge/old-facts"
 import {
   findingKey,
+  type LegacyNarrativeItem,
   type QuestionView,
   type RecheckTask,
 } from "@/lib/knowledge-client/contract"
@@ -180,6 +182,8 @@ export function AmenityCheckDetail({
     handlers: DecisionHandlers
     /** A policy question (B03-c): State the policy, and its cards' rows. */
     policy?: PolicyContext | null
+    /** B03-f: the venue's old facts as history; null when unreadable. */
+    oldFacts?: LegacyNarrativeItem[] | null
     /** B03-e: the check's open rechecks; null when they couldn't be read. */
     rechecks?: { count: number; tasks: RecheckTask[] } | null
     /** A schedule in use (B03-d): Upcoming, and a change for one date. */
@@ -740,6 +744,10 @@ export function AmenityCheckDetail({
             {stillSaving("notes")}
           </form>
         </CoverageSection>
+      ) : null}
+
+      {knowledge && knowledge.oldFacts !== undefined ? (
+        <OldFactsSection items={knowledge.oldFacts} />
       ) : null}
 
       <SubmissionHistory

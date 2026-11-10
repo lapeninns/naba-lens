@@ -24,6 +24,7 @@ import type {
   KnowledgeFailure,
   KnowledgeResult,
   FreshnessPreviewView,
+  LegacyNarrativeItem,
   MyPending,
   Occurrence,
   RecheckTask,
@@ -146,6 +147,11 @@ export type KnowledgeServices = {
     actor: MediaActor,
     input: unknown
   ): Promise<KnowledgeResult<{ count: number; tasks: RecheckTask[] }>>
+  /** B03-f (§8.2 L5): a venue's legacy facts as narrative, for managers. */
+  getLegacyNarrative(
+    actor: MediaActor,
+    input: unknown
+  ): Promise<KnowledgeResult<{ venueId: string; items: LegacyNarrativeItem[] }>>
   /** Admins: every question with its latest version (B03-a). */
   listQuestionRegistry(
     actor: MediaActor,
@@ -261,6 +267,8 @@ export const knowledgeServices: KnowledgeServices = {
 
   listQuestionRegistry: (actor, input) =>
     server.listQuestionRegistry(actor, input),
+
+  getLegacyNarrative: (actor, input) => server.getLegacyNarrative(actor, input),
 
   getOccurrences: (actor, input) => server.getOccurrences(actor, input),
 

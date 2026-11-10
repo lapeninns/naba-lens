@@ -44,6 +44,7 @@ export {
 } from "@/lib/knowledge/contract"
 export { SCHEDULE_EXCEPTION_KINDS, VALUE_LISTS } from "@/lib/knowledge/contract"
 export type {
+  LegacyNarrativeItem,
   FindingSource,
   FreshnessEntry,
   FreshnessPreviewView,

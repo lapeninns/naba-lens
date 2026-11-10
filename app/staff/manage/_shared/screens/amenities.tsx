@@ -204,6 +204,18 @@ async function rechecksFor(ctx: ManageContext, checkId: string) {
   }
 }
 
+/** B03-f: the venue's old facts as history; null when they can't be read. */
+async function oldFactsFor(ctx: ManageContext) {
+  try {
+    const result = await knowledgeServices.getLegacyNarrative(ctx.actor, {
+      venueId: ctx.venueId,
+    })
+    return result.ok ? result.items : null
+  } catch {
+    return null
+  }
+}
+
 const UPCOMING_DAYS = 91
 
 /**
@@ -273,7 +285,12 @@ export async function AmenityCheckScreen({
         upcomingFor(ctx, inScope),
       ])
     : [null, null]
-  const rechecks = inScope ? await rechecksFor(ctx, inScope.slot.checkId) : null
+  const [rechecks, oldFacts] = inScope
+    ? await Promise.all([
+        rechecksFor(ctx, inScope.slot.checkId),
+        oldFactsFor(ctx),
+      ])
+    : [null, undefined]
 
   return (
     <AmenitiesFrame
@@ -309,6 +326,7 @@ export async function AmenityCheckScreen({
         policy={policy}
         schedule={schedule}
         rechecks={rechecks}
+        oldFacts={oldFacts}
       />
     </AmenitiesFrame>
   )
