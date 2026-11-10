@@ -370,3 +370,44 @@ describe("AmenitiesOverview: qualified answers (B03 UI §2.6)", () => {
     ).toContain("0")
   })
 })
+
+describe("Amenities overview: a withdrawn answer or an incomplete policy (B03 review M3, A39)", () => {
+  it("stays with Needs recheck, says what it is and keeps the server's reason", () => {
+    const WITHDRAWN = {
+      ...DARTS,
+      id: "c0000000-0000-4000-8000-0000000000d2",
+      entry: {
+        ...DARTS.entry,
+        key: "dogs_inside",
+        question: "⟨Withdrawn question⟩",
+      },
+      progress: "needs_recheck" as const,
+      answer: "yes" as const,
+      recheckReason: "⟨Withdrawal reason⟩",
+      qualification: "withdrawn" as const,
+    }
+    render(
+      <AmenitiesOverview
+        view={view({
+          active: [WITHDRAWN],
+          counts: { needs_capture: 0, needs_recheck: 1, complete: 0 },
+        })}
+        catalogue={CATALOGUE}
+        basePath={BASE}
+        handlers={handlers()}
+      />
+    )
+    expect(
+      screen.queryByRole("region", {
+        name: /Answered with conditions or temporarily unavailable/,
+      })
+    ).toBeNull()
+    const recheck = screen.getByRole("region", { name: "Needs recheck" })
+    expect(within(recheck).getByText("⟨Withdrawn question⟩")).toBeTruthy()
+    expect(within(recheck).getAllByText("Withdrawn").length).toBeGreaterThan(0)
+    expect(
+      within(recheck).getByText("Recheck: ⟨Withdrawal reason⟩")
+    ).toBeTruthy()
+    expect(within(recheck).queryByText(/Answer: Yes/)).toBeNull()
+  })
+})

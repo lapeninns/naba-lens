@@ -1130,10 +1130,17 @@ export function recheckCauseLine(
   {
     previous = null,
     policy = false,
-  }: { previous?: string | null; policy?: boolean } = {}
+    now = new Date(),
+  }: { previous?: string | null; policy?: boolean; now?: Date } = {}
 ): string {
   const date = longDate(task.dueAt)
-  switch (task.cause) {
+  // Review low 1: until the hourly job turns it into an expired task, a
+  // due_soon task read after its due time is already past its check date.
+  const cause =
+    task.cause === "due_soon" && Date.parse(task.dueAt) <= now.getTime()
+      ? "expired"
+      : task.cause
+  switch (cause) {
     case "due_soon":
       return `Due for a check by ${date}. The current answer stays in use until then.`
     case "expired":

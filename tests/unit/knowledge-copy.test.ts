@@ -886,3 +886,23 @@ describe("an adopted import in use (B03 UI §7.1)", () => {
     ).toEqual(["Current answer: Yes. Imported from the old facts list."])
   })
 })
+
+describe("a due-soon recheck read after its due time (B03 review low 1)", () => {
+  it("is already past its check date, never still in use", () => {
+    const task = {
+      cause: "due_soon" as const,
+      dueAt: "2026-11-08T00:00:00.000Z",
+    }
+    expect(
+      recheckCauseLine(task, {
+        previous: "Yes",
+        now: new Date("2026-11-10T12:00:00.000Z"),
+      })
+    ).toBe("Past its check date since 8 Nov 2026. Previous answer: Yes.")
+    expect(
+      recheckCauseLine(task, { now: new Date("2026-11-07T12:00:00.000Z") })
+    ).toBe(
+      "Due for a check by 8 Nov 2026. The current answer stays in use until then."
+    )
+  })
+})

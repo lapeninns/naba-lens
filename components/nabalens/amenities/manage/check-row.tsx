@@ -6,7 +6,10 @@ import {
 } from "@phosphor-icons/react/dist/ssr"
 
 import { formatDate } from "@/components/nabalens/format"
-import { LEGACY_QUALIFICATION_WORD } from "@/components/nabalens/knowledge/copy"
+import {
+  LEGACY_QUALIFICATION_WORD,
+  qualifiedInUse,
+} from "@/components/nabalens/knowledge/copy"
 import { StatusChip, type ChipTone } from "@/components/nabalens/status-chip"
 import {
   ANSWER_LABEL,
@@ -132,7 +135,9 @@ export function CheckRow({
         </p>
         {check.progress === "needs_recheck" &&
         check.recheckReason &&
-        !check.qualification ? (
+        // A withdrawn answer or an incomplete policy keeps its reason; only a
+        // qualified answer in use shows its qualifier instead (§2.6, M3).
+        !qualifiedInUse(check.qualification) ? (
           <p className="text-meta-touch break-words text-ink md:text-meta">
             Recheck: {check.recheckReason}
           </p>
