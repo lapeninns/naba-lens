@@ -65,6 +65,7 @@ const amenityActions = vi.hoisted(() => ({
 vi.mock("@/app/_amenities/actions", () => amenityActions)
 const actions = vi.hoisted(() => ({
   submitKnowledgeFindingAction: vi.fn(),
+  correctAnswerAction: vi.fn(),
   previewScheduleAction: vi.fn(),
   saveKnowledgeDraftAction: vi.fn(),
   discardKnowledgeDraftAction: vi.fn(),
@@ -83,6 +84,8 @@ const knowledge = vi.hoisted(() => ({
 vi.mock("@/lib/knowledge-client/services", () => ({
   knowledgeServices: knowledge,
 }))
+const work = vi.hoisted(() => ({ getCapabilities: vi.fn() }))
+vi.mock("@/lib/work-client/services", () => ({ workServices: work }))
 vi.mock("@/app/_media/use-media-uploader", () => ({
   useMediaUploader: () => ({}),
 }))
@@ -819,5 +822,68 @@ describe("service and fixture questions on the capture routes (B03 UI §5)", () 
     expect(knowledge.getValueList).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole("radio", { name: "Yes" }))
     expect(screen.getByText("Times are UK time.")).toBeTruthy()
+  })
+})
+
+describe("Correct the answer on the capture route (B03 UI §8.1)", () => {
+  const base = inScope()
+  if (!base.inScope) throw new Error("in scope")
+  const YES_IN_USE = {
+    ...base,
+    slot: {
+      ...base.slot,
+      answerInUse: {
+        status: "available" as const,
+        reason: null,
+        detail: null,
+        value: "yes" as const,
+        savedAt: "2026-11-03T14:05:00.000Z",
+        sentAt: null,
+        confirmation: {
+          state: "not_required" as const,
+          self: false,
+          at: null,
+          by: null,
+        },
+      },
+    },
+  }
+
+  it("gives a manager who may correct the correction form, and anyone else the reason not", async () => {
+    knowledge.getKnowledgeCheck.mockResolvedValue({
+      ok: true,
+      view: YES_IN_USE,
+    })
+    work.getCapabilities.mockResolvedValue({
+      status: "ok",
+      value: { canCorrect: true },
+    })
+    await show(
+      ManagerCapturePage({
+        params,
+        searchParams: Promise.resolve({ correct: "1" }),
+      })
+    )
+    expect(
+      screen.getByText("You're correcting the answer in use.")
+    ).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Save correction" })).toBeTruthy()
+    cleanup()
+    work.getCapabilities.mockResolvedValue({
+      status: "ok",
+      value: { canCorrect: false },
+    })
+    await show(
+      ManagerCapturePage({
+        params,
+        searchParams: Promise.resolve({ correct: "1" }),
+      })
+    )
+    expect(
+      screen.getByText(
+        "Only a manager account or an admin can correct answers. Nothing was changed."
+      )
+    ).toBeTruthy()
+    expect(screen.queryByRole("button", { name: "Save correction" })).toBeNull()
   })
 })

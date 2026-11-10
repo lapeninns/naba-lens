@@ -21,7 +21,11 @@ import {
 } from "@/components/nabalens/knowledge/question-form"
 import { QuestionFormNotice } from "@/components/nabalens/knowledge/question-form-notice"
 import { ROUTES } from "@/lib/auth/routes"
+import { correctAnswerAction } from "@/app/_knowledge/actions"
+import { CorrectionForm } from "@/components/nabalens/knowledge/correction-form"
+import { CORRECT_COPY } from "@/components/nabalens/knowledge/corrections-copy"
 import { EVENT_COPY } from "@/components/nabalens/knowledge/event-detail"
+import { workServices } from "@/lib/work-client/services"
 import { policyFromDetail } from "@/components/nabalens/knowledge/policy-detail"
 import {
   findingKey,
@@ -55,6 +59,8 @@ async function knowledgeFor(
   props: KnowledgeProps
   capture: CaptureCheck
   form: QuestionForm
+  /** B03-g: the version's material fields (the headline always counts). */
+  materialFields?: string[]
 } | null> {
   const [view, draft] = await Promise.all([
     knowledgeServices
@@ -175,7 +181,61 @@ async function knowledgeFor(
             canManagePlaces: role !== "staff",
           }
   }
-  return { props, capture: view.view.capture, form }
+  return {
+    props,
+    capture: view.view.capture,
+    form,
+    materialFields:
+      question?.ok && question.question
+        ? question.question.materialFields
+        : ["headline"],
+  }
+}
+
+const CORRECTABLE = new Set(["yes", "no", "not_applicable"])
+
+/**
+ * Whether this person may correct here (venue capabilities, never a guess)
+ * and what they start from. A staff account, even with a grant, is told.
+ */
+async function correctionFor(
+  actor: MediaActor,
+  venueId: string | null,
+  knowledge: KnowledgeProps
+): Promise<
+  | {
+      kind: "form"
+      slotRevision: number
+      before: {
+        headline: "yes" | "no" | "not_applicable"
+        detail: Record<string, unknown> | null
+      }
+    }
+  | { kind: "notice"; line: string }
+> {
+  const answer = knowledge.slot.answerInUse
+  let allowed = false
+  try {
+    const caps = await workServices.getCapabilities(actor, venueId)
+    allowed = caps.status === "ok" && caps.value.canCorrect === true
+  } catch {
+    allowed = false
+  }
+  if (!allowed) return { kind: "notice", line: CORRECT_COPY.notPermitted }
+  if (
+    !answer.value ||
+    !CORRECTABLE.has(answer.value) ||
+    answer.detail === "answer_withdrawn"
+  )
+    return { kind: "notice", line: "There's no answer in use to correct." }
+  return {
+    kind: "form",
+    slotRevision: knowledge.slot.slotRevision,
+    before: {
+      headline: answer.value as "yes" | "no" | "not_applicable",
+      detail: answer.answerDetail ?? null,
+    },
+  }
 }
 
 async function openRechecksAt(actor: MediaActor, checkId: string) {
@@ -266,7 +326,10 @@ export async function CaptureScreen({
   doneHref,
   announceSent = true,
   complete = null,
+  correct = false,
 }: {
+  /** "Correct the answer" (B03-g §8.1): `?correct=1` from the check page. */
+  correct?: boolean
   /** "Complete the policy" (B03-c §4.4): `?complete=` from To confirm. */
   complete?: string | null
   actor: MediaActor
@@ -325,6 +388,11 @@ export async function CaptureScreen({
       ? knowledge.slot.myLatest
       : null
   const legacyAnswer = knowledge ? null : (detail?.check.answer ?? null)
+  // B03-g (§8.1): a manager account or an admin corrects the answer in use.
+  const correction =
+    correct && mode !== "staff" && knowledge
+      ? await correctionFor(actor, venueId, knowledge)
+      : null
   const form = (
     <CaptureClient
       check={check}
@@ -374,7 +442,22 @@ export async function CaptureScreen({
           </span>
         }
       />
-      {open && knowledgeRead?.form.kind === "read_only" ? (
+      {correction ? (
+        correction.kind === "form" ? (
+          <CorrectionForm
+            checkId={check.id}
+            slotRevision={correction.slotRevision}
+            venueName={venue}
+            before={correction.before}
+            materialFields={knowledgeRead?.materialFields ?? ["headline"]}
+            detailForm={knowledge?.detailForm ?? null}
+            correct={correctAnswerAction}
+            doneHref={doneHref}
+          />
+        ) : (
+          <Notice tone="plain">{correction.line}</Notice>
+        )
+      ) : open && knowledgeRead?.form.kind === "read_only" ? (
         <Notice tone="plain">{knowledgeRead.form.line}</Notice>
       ) : open &&
         knowledgeRead &&

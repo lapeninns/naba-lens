@@ -18,11 +18,15 @@ export default async function AdminAmenityCapturePage({
   searchParams,
 }: {
   params: Promise<{ venueId: string; checkId: string }>
-  searchParams?: Promise<{ complete?: string | string[] }>
+  searchParams?: Promise<{
+    complete?: string | string[]
+    correct?: string | string[]
+  }>
 }) {
   const { venueId, checkId } = await params
   // "Complete the policy" (B03-c §4.4): one finding, or none.
-  const complete = (await searchParams)?.complete
+  const search = await searchParams
+  const complete = search?.complete
   const ctx = await adminVenueContext(venueId)
   const checkHref = amenityHrefs(ctx.basePath).check(checkId)
   return (
@@ -37,6 +41,7 @@ export default async function AdminAmenityCapturePage({
         backLabel="Back to the check"
         doneHref={checkHref}
         complete={typeof complete === "string" ? complete : null}
+        correct={search?.correct === "1"}
       />
     </AppShell>
   )

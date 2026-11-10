@@ -1238,3 +1238,62 @@ describe("To confirm: imports (B03 UI §7.1)", () => {
     ).toBeTruthy()
   })
 })
+
+describe("the check page's corrections (B03 UI §8.1, §8.2)", () => {
+  async function page(corrections: {
+    canCorrect: boolean
+    canWithdraw: boolean
+  }) {
+    const { AmenityCheckDetail } =
+      await import("@/components/nabalens/amenities/manage")
+    const { detail, WIFI_CHECK } = await import("./amenities-manage-fixtures")
+    render(
+      <AmenityCheckDetail
+        detail={detail({
+          check: { ...WIFI_CHECK, progress: "complete", answer: "yes" },
+        })}
+        basePath="/manager"
+        handlers={{
+          assign: vi.fn(),
+          setNotes: vi.fn(),
+          archive: vi.fn(),
+          restore: vi.fn(),
+          reopen: vi.fn(),
+        }}
+        knowledge={{
+          view: view([], YES),
+          handlers: { decide: vi.fn(), onResolveConflict: vi.fn() },
+          corrections: {
+            ...corrections,
+            canReadHistory: false,
+            events: null,
+            withdraw: vi.fn(),
+            loadOlder: vi.fn(),
+            loadAt: vi.fn(),
+            today: "2026-11-10",
+          },
+        }}
+      />
+    )
+  }
+
+  it("offers Correct and Withdraw only to someone who may", async () => {
+    await page({ canCorrect: true, canWithdraw: true })
+    expect(
+      screen
+        .getByRole("link", { name: "Correct the answer" })
+        .getAttribute("href")
+    ).toContain("?correct=1")
+    expect(
+      screen.getByRole("button", { name: "Withdraw the answer" })
+    ).toBeTruthy()
+    cleanup()
+    await page({ canCorrect: false, canWithdraw: false })
+    expect(
+      screen.queryByRole("link", { name: "Correct the answer" })
+    ).toBeNull()
+    expect(
+      screen.queryByRole("button", { name: "Withdraw the answer" })
+    ).toBeNull()
+  })
+})

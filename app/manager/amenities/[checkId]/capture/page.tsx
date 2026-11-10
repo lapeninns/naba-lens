@@ -21,11 +21,15 @@ export default async function ManagerAmenityCapturePage({
   searchParams,
 }: {
   params: Promise<{ checkId: string }>
-  searchParams?: Promise<{ complete?: string | string[] }>
+  searchParams?: Promise<{
+    complete?: string | string[]
+    correct?: string | string[]
+  }>
 }) {
   const { checkId } = await params
   // "Complete the policy" (B03-c §4.4): one finding, or none.
-  const complete = (await searchParams)?.complete
+  const search = await searchParams
+  const complete = search?.complete
   const ctx = await workspaceManagerContext()
   const checkHref = amenityHrefs(ctx.basePath).check(checkId)
   const canUpload =
@@ -43,6 +47,7 @@ export default async function ManagerAmenityCapturePage({
       backLabel="Back to the check"
       doneHref={checkHref}
       complete={typeof complete === "string" ? complete : null}
+      correct={search?.correct === "1"}
     />
   )
 }

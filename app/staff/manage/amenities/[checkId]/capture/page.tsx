@@ -20,11 +20,15 @@ export default async function ManageAmenityCapturePage({
   searchParams,
 }: {
   params: Promise<{ checkId: string }>
-  searchParams?: Promise<{ complete?: string | string[] }>
+  searchParams?: Promise<{
+    complete?: string | string[]
+    correct?: string | string[]
+  }>
 }) {
   const { checkId } = await params
   // "Complete the policy" (B03-c §4.4): one finding, or none.
-  const complete = (await searchParams)?.complete
+  const search = await searchParams
+  const complete = search?.complete
   const access = await managerAccess()
   if (!access.ok) return <NotManagerPage viewerName={access.viewerName} />
   const { ctx } = access
@@ -46,6 +50,7 @@ export default async function ManageAmenityCapturePage({
         backLabel="Back to the check"
         doneHref={checkHref}
         complete={typeof complete === "string" ? complete : null}
+        correct={search?.correct === "1"}
       />
     </AppShell>
   )

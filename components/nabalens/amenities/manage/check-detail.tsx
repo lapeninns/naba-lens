@@ -10,6 +10,7 @@ import {
   SpinnerGapIcon,
   UserMinusIcon,
   UserPlusIcon,
+  PencilSimpleIcon,
 } from "@phosphor-icons/react"
 
 import {
@@ -58,6 +59,7 @@ import {
   HistorySection,
   WithdrawControl,
 } from "@/components/nabalens/knowledge/corrections"
+import { CORRECT_COPY } from "@/components/nabalens/knowledge/corrections-copy"
 import { OldFactsSection } from "@/components/nabalens/knowledge/old-facts"
 import {
   findingKey,
@@ -536,6 +538,21 @@ export function AmenityCheckDetail({
             >
               <CameraIcon aria-hidden />
               {statesPolicy ? POLICY_COPY.statePolicy : UI_TEXT.captureMyself}
+            </Link>
+          ) : null}
+          {knowledge?.corrections?.canCorrect &&
+          active &&
+          knowledge.view.slot.answerInUse.value &&
+          knowledge.view.slot.answerInUse.detail !== "answer_withdrawn" ? (
+            <Link
+              href={`${hrefs.capture(check.id)}?correct=1`}
+              className={buttonVariants({
+                variant: "secondary",
+                size: "touch",
+              })}
+            >
+              <PencilSimpleIcon aria-hidden />
+              {CORRECT_COPY.open}
             </Link>
           ) : null}
           {knowledge?.corrections?.canWithdraw &&
