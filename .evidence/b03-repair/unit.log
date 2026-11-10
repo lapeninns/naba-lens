@@ -1,0 +1,13 @@
+
+> naba-lens@0.0.1 verify:change /Users/amankumarshrestha/.factory/workers/reliable-20261103T123907Z/team2/workspaces/worker-f3e913fc-77c9-4b3f-a599-029888a0551b
+> node scripts/verification/cli.mjs focused unit tests/ui/admin-check-dates.test.tsx tests/unit/knowledge-adapt.test.ts tests/unit/knowledge-services-missing.test.ts tests/unit/knowledge-b03-rechecks.test.ts
+
+
+ RUN  v5.0.5 /Users/amankumarshrestha/.factory/workers/reliable-20261103T123907Z/team2/workspaces/worker-f3e913fc-77c9-4b3f-a599-029888a0551b
+
+
+ Test Files  4 passed (4)
+      Tests  65 passed (65)
+   Start at  16:52:04
+   Duration  3.00s (import 68%, environment 15%, transform 10%, tests 7%)
+
