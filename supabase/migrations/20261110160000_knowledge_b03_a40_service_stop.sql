@@ -47,21 +47,30 @@
 --   its qualifier is cleared, no temporary_until_passed task; freshness and
 --   schema_changed tasks still open as for any answer (R-L1 due time kept).
 --   private.knowledge_close_rechecks closes a schedule_ended task once the
---   slot no longer reads an in-effect schedule_ended end.
+--   slot no longer reads an in-effect schedule_ended end. Review P1:
+--   private.knowledge_recheck_obsolete (immutable, no client grant) names a
+--   task whose own cause has gone (schedule_ended without that end in
+--   effect; temporary_until_passed once a deliberate stop is in effect); it
+--   closes whatever the slot's status or freshness and never holds back a
+--   freshness task with the same use and due time.
 -- * Schedules: public.knowledge_occurrences (the service wrapper) discards
 --   occurrences starting at or after a deliberate stop and clips the last
 --   overnight one to it; private.schedule_occurrences (shared with B04) is
---   unchanged. private.knowledge_schedule_create copies the replaced
---   version's exceptions up to the new effective_to when the new version
---   restates it (same submission base, timezone, effective_from, recurrence
---   and windows), so cancellations and other earlier exceptions stay.
+--   unchanged. Review P2: a deliberate stop with no schedule row of its own
+--   reads the supersedes chain of the exact submission it was based on (its
+--   latest schedule row created at or before the stop's contribution), never
+--   another schedule of the check. private.knowledge_schedule_create copies
+--   the replaced version's exceptions up to the new effective_to when the new
+--   version restates it (same submission base, timezone, effective_from,
+--   recurrence and windows), so cancellations and other earlier exceptions
+--   stay.
 -- * Not touched: the credit trigger, the evidence-withdrawn trigger, the
 --   credit functions, the B01 resolver, knowledge_adopt, knowledge_submit,
 --   private.schedule_occurrences, knowledge_check, the recheck causes.
 --
 -- Rollback: a forward migration restores the 20261110103713,
 -- 20261110110831, 20261110112949, 20261110113909, 20261110114514,
--- 20261110115911 and 20261110151000 bodies and drops the three new
+-- 20261110115911 and 20261110151000 bodies and drops the four new
 -- functions. A stored lastDayOffered then stays as inert detail.
 
 -- ---------------------------------------------------------------------------
@@ -787,7 +796,9 @@ $$;
 
 -- 20261110113909 body (review M1 chain); the service wrapper ends at a
 -- deliberate stop: no occurrence from Not offered from, and the last
--- overnight one ends then. The shared expansion is unchanged (B04).
+-- overnight one ends then. A stop without a schedule row keeps the chain of
+-- the submission it was based on (review P2). The shared expansion is
+-- unchanged (B04).
 create or replace function public.knowledge_occurrences(p_check_id uuid, p_from date, p_to date)
 returns table (local_date date, starts_at timestamptz, ends_at timestamptz, state text)
 language plpgsql
@@ -807,17 +818,6 @@ begin
   if not found or private.knowledge_basis(v_check.venue_id) is null then
     raise exception 'amenity_check_not_found' using errcode = 'P0002';
   end if;
-  v_schedule := private.knowledge_schedule_in_use(v_check.id);
-  if v_schedule.id is null then
-    if p_from is null or p_to is null or p_to < p_from or p_to - p_from > 91 then
-      raise exception 'invalid_range' using errcode = '22023';
-    end if;
-    return;
-  end if;
-  -- Review M1: every version in the supersedes chain covers its own dates,
-  -- from its effective_from to the day before the next version starts (or its
-  -- own effective_to, whichever is first), with its own exceptions, so a
-  -- change from a later date keeps earlier and past dates as they were.
   if p_from is null or p_to is null or p_to < p_from or p_to - p_from > 91 then
     raise exception 'invalid_range' using errcode = '22023';
   end if;
@@ -825,6 +825,29 @@ begin
   -- offered from, whether or not it has passed.
   v_end := private.knowledge_check_service_end(v_check.id, now());
   v_stop_at := case when v_end ->> 'kind' = 'stopped' then (v_end ->> 'notOfferedFromAt')::timestamptz end;
+  v_schedule := private.knowledge_schedule_in_use(v_check.id);
+  -- A40 review P2: a deliberate stop sent without a schedule (it falls before
+  -- an upcoming version starts) keeps the chain of the exact submission it was
+  -- based on, as that chain stood when the stop was sent, up to the stop.
+  -- Never another schedule of the check.
+  if v_schedule.id is null and v_stop_at is not null then
+    select s.* into v_schedule
+    from public.venue_amenity_checks c
+    join public.amenity_submissions cs on cs.id = c.current_submission_id
+    join public.knowledge_contributions x on x.id = cs.source_contribution_id
+    join public.knowledge_schedules s on s.check_id = c.id and s.submission_id = x.based_on_submission_id
+      and s.created_at <= x.created_at
+    where c.id = v_check.id and c.progress = 'complete'
+    order by s.created_at desc, s.id desc
+    limit 1;
+  end if;
+  if v_schedule.id is null then
+    return;
+  end if;
+  -- Review M1: every version in the supersedes chain covers its own dates,
+  -- from its effective_from to the day before the next version starts (or its
+  -- own effective_to, whichever is first), with its own exceptions, so a
+  -- change from a later date keeps earlier and past dates as they were.
   return query
     with recursive chain as (
       select s.id, s.supersedes, s.timezone, s.effective_from, s.effective_to, s.recurrence, s.windows,
@@ -1404,7 +1427,9 @@ comment on function private.knowledge_answer_at(uuid, timestamptz) is
 -- ---------------------------------------------------------------------------
 
 -- 20261110115911 body (R-L1 due time kept); schedule_ended only for an
--- in-effect schedule end without a stop date, due at its local midnight.
+-- in-effect schedule end without a stop date, due at its local midnight. An
+-- open task made obsolete by the service's end does not hold back a
+-- freshness task with the same use and due time (review P1).
 create or replace function private.knowledge_open_rechecks(p_now timestamptz)
 returns integer
 language plpgsql
@@ -1435,6 +1460,8 @@ begin
       where st.in_scope and st.current_submission_id is not null
         and st.check_progress = 'complete' and st.check_status = 'active'
     loop
+      v_end := private.knowledge_service_end(v_venue, v_row.current_submission_id, v_row.current_answer,
+        v_row.value_schema, private.knowledge_effective_detail(v_row.current_contribution_id), p_now);
       for v_entry in
         select e from jsonb_array_elements(v_row.freshness) e
         where e ->> 'state' in ('due_soon', 'expired', 'basis_missing')
@@ -1449,9 +1476,12 @@ begin
         end if;
         insert into public.knowledge_recheck_tasks (venue_id, check_id, question_key, cause, use, due_at)
         select v_venue, v_row.check_id, v_row.question_key, v_entry ->> 'state', v_entry ->> 'use', v_due
+        -- A40 review P1: a task whose own cause has gone (closed below) never
+        -- stands in for this one.
         where not exists (
           select 1 from public.knowledge_recheck_tasks t
-          where t.check_id = v_row.check_id and t.use = v_entry ->> 'use' and t.due_at = v_due and t.state = 'open')
+          where t.check_id = v_row.check_id and t.use = v_entry ->> 'use' and t.due_at = v_due and t.state = 'open'
+            and not private.knowledge_recheck_obsolete(t.cause, v_end))
         on conflict on constraint knowledge_recheck_tasks_once do nothing;
         get diagnostics v_count = row_count;
         v_opened := v_opened + v_count;
@@ -1478,8 +1508,6 @@ begin
       end if;
       -- A40 (correction 2): a schedule that ended without a stop date needs
       -- checking; a deliberate stop does not.
-      v_end := private.knowledge_service_end(v_venue, v_row.current_submission_id, v_row.current_answer,
-        v_row.value_schema, private.knowledge_effective_detail(v_row.current_contribution_id), p_now);
       if v_end ->> 'kind' = 'schedule_ended' and (v_end ->> 'inEffect')::boolean then
         insert into public.knowledge_recheck_tasks (venue_id, check_id, question_key, cause, use, due_at)
         values (v_venue, v_row.check_id, v_row.question_key, 'schedule_ended', 'internal',
@@ -1499,9 +1527,33 @@ begin
 end;
 $$;
 
+-- A40 review P1: whether an open task's own cause has gone with the service's
+-- end at the read time (p_end, from private.knowledge_service_end). A
+-- schedule_ended task is obsolete once the slot no longer reads an in-effect
+-- schedule end without a stop date; a temporary_until_passed task once a
+-- deliberate stop is in effect (it clears the qualifier). Every other cause
+-- answers to its own rules.
+create function private.knowledge_recheck_obsolete(p_cause text, p_end jsonb)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  select case p_cause
+    when 'schedule_ended' then not coalesce(p_end ->> 'kind' = 'schedule_ended'
+      and (p_end ->> 'inEffect')::boolean, false)
+    when 'temporary_until_passed' then coalesce(p_end ->> 'kind' = 'stopped'
+      and (p_end ->> 'inEffect')::boolean, false)
+    else false
+  end;
+$$;
+
 -- 20261110113909 body; a schedule_ended task stays open only while the slot
 -- reads an in-effect schedule end without a stop date (a new schedule, an
--- immediate No or a deliberate stop closes it).
+-- immediate No or a deliberate stop closes it). A40 review P1: a task whose
+-- own cause has gone (private.knowledge_recheck_obsolete) closes whatever the
+-- slot's status or freshness; freshness and schema_changed tasks keep the
+-- existing rule.
 create or replace function private.knowledge_close_rechecks(p_check_id uuid, p_decision_id uuid, p_now timestamptz)
 returns jsonb
 language plpgsql
@@ -1514,26 +1566,26 @@ declare
   v_st record;
   v_task public.knowledge_recheck_tasks;
   v_closed jsonb := '[]'::jsonb;
-  v_ended boolean;
+  v_end jsonb;
 begin
   if not exists (select 1 from public.knowledge_recheck_tasks t where t.check_id = p_check_id and t.state = 'open') then
     return v_closed;
   end if;
   select c.* into v_check from public.venue_amenity_checks c where c.id = p_check_id;
   select st.* into v_st from private.knowledge_slot_state_b03(v_check.venue_id, array[v_check.template_key], p_now) st;
-  v_ended := coalesce((select e ->> 'kind' = 'schedule_ended' and (e ->> 'inEffect')::boolean
-    from (select private.knowledge_service_end(v_check.venue_id, v_st.current_submission_id, v_st.current_answer,
-      v_st.value_schema, private.knowledge_effective_detail(v_st.current_contribution_id), p_now) as e) x), false);
+  v_end := private.knowledge_service_end(v_check.venue_id, v_st.current_submission_id, v_st.current_answer,
+    v_st.value_schema, private.knowledge_effective_detail(v_st.current_contribution_id), p_now);
   for v_task in
     select t.* from public.knowledge_recheck_tasks t
     where t.check_id = p_check_id and t.state = 'open'
     order by t.created_at, t.id
     for update
   loop
-    if v_st.status = 'available'
-       and coalesce((select e ->> 'state' from jsonb_array_elements(v_st.freshness) e where e ->> 'use' = v_task.use),
-         'unrated') in ('current', 'unrated')
-       and (v_task.cause <> 'schedule_ended' or not v_ended) then
+    if private.knowledge_recheck_obsolete(v_task.cause, v_end)
+       or (v_st.status = 'available'
+         and coalesce((select e ->> 'state' from jsonb_array_elements(v_st.freshness) e where e ->> 'use' = v_task.use),
+           'unrated') in ('current', 'unrated')
+         and v_task.cause <> 'schedule_ended') then
       update public.knowledge_recheck_tasks t
       set state = 'done', closed_at = now(), closed_by = (select p.id from public.profiles p where p.id = auth.uid()),
           closed_decision_id = p_decision_id
@@ -1561,6 +1613,7 @@ revoke all on function
   private.knowledge_slot_json(public.venue_amenity_checks, uuid, text),
   private.knowledge_answer_at(uuid, timestamptz),
   private.knowledge_open_rechecks(timestamptz),
+  private.knowledge_recheck_obsolete(text, jsonb),
   private.knowledge_close_rechecks(uuid, uuid, timestamptz)
 from public, anon, authenticated;
 revoke all on private.amenity_check_rows_presented from public, anon, authenticated;

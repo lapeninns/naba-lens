@@ -1594,10 +1594,18 @@ lastDayOffered, notOfferedFrom, notOfferedFromAt, inEffect }` or null:
   `schema_changed` tasks still apply (R-L1 due time kept). A schedule that
   ends without a stop date reads Not offered and opens one `schedule_ended`
   task due at local midnight; a new Offered schedule, an immediate No or a
-  deliberate stop closes it.
+  deliberate stop closes it. A task whose own cause has gone (a
+  `schedule_ended` task once no schedule end without a stop date is in
+  effect, a `temporary_until_passed` task once a deliberate stop is in
+  effect) closes whatever the slot's status or freshness, and never holds
+  back a freshness task with the same use and due time (A40 review P1).
 - **Schedules:** `knowledge_occurrences` lists nothing from a deliberate
   stop and ends the last overnight window at it; the shared expansion (B04)
-  is unchanged. A new schedule version that restates the one it replaces
+  is unchanged. A deliberate stop sent without a schedule (it falls before
+  an upcoming version starts) keeps the supersedes chain of the exact
+  submission it was based on, as it stood when the stop was sent, each
+  version with its own dates and exceptions; never another schedule of the
+  check (A40 review P2). A new schedule version that restates the one it replaces
   (same base submission, timezone, `effective_from`, recurrence and windows)
   keeps its exceptions up to its `effective_to`.
 - **Defaults, owner to confirm:** no latest date for a stop; a past date is
