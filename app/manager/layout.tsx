@@ -1,12 +1,19 @@
 import { ManagerShell } from "@/components/nabalens/manager/manager-shell"
 import { VenueAccessUnavailablePage } from "@/components/nabalens/manager/venue-access-unavailable"
+import { AddHost } from "@/app/staff/_shell/add-host"
 import { SessionGuardHost } from "@/components/nabalens/session-guard-host"
 import { getLoginCaptchaConfig } from "@/lib/auth/captcha"
 import { getManagerWorkspace } from "@/lib/auth/manager"
+import { contributionEntry } from "@/lib/config/contribution-entry"
 import { knowledgeServices } from "@/lib/knowledge-client/services"
 import { getAmenityActor } from "@/lib/server/amenities"
 
+import { managerAddEntry } from "./entry"
 import { loadManagerOverview } from "./load-overview"
+
+// With Add on, its finaliseUpload Server Action decodes HEIC/images; the same
+// bound as the staff layout, below MEDIA_LIMITS.staleProcessingMinutes.
+export const maxDuration = 120
 
 /**
  * Early gate for /manager: non-manager accounts are redirected to their own
@@ -17,6 +24,10 @@ import { loadManagerOverview } from "./load-overview"
  * overview's `pendingPhotos`; when that read fails the badge is left out and
  * the page shows the failure. An ended session is met in place (Sign in
  * again over the page) rather than by losing the page.
+ *
+ * With the shared entry on for the venue, the shell sits in Add's host (B02-c):
+ * Add shows once R8, read alongside the page, says this account can upload.
+ * With the entry off the workspace is as it was, without the host.
  */
 /** Amenity findings waiting for this manager; undefined when unreadable. */
 async function confirmCount(): Promise<number | undefined> {
@@ -44,20 +55,37 @@ export default async function ManagerLayout({
     confirmCount(),
   ])
   const captcha = getLoginCaptchaConfig()
+  const { venue } = workspace
+  const shell = (
+    <ManagerShell
+      venueName={venue.name}
+      userName={workspace.profile.displayName}
+      reviewCount={read?.ok ? read.overview.pendingPhotos : undefined}
+      confirmCount={toConfirm}
+      loadedAt={new Date().toISOString()}
+    >
+      {children}
+    </ManagerShell>
+  )
   return (
     <SessionGuardHost
       captchaRequired={captcha.enabled}
       captchaSiteKey={captcha.siteKey}
     >
-      <ManagerShell
-        venueName={workspace.venue.name}
-        userName={workspace.profile.displayName}
-        reviewCount={read?.ok ? read.overview.pendingPhotos : undefined}
-        confirmCount={toConfirm}
-        loadedAt={new Date().toISOString()}
-      >
-        {children}
-      </ManagerShell>
+      {contributionEntry(venue.id) === "b02" ? (
+        <AddHost
+          blocked={null}
+          captchaRequired={captcha.enabled}
+          captchaSiteKey={captcha.siteKey}
+          entry={managerAddEntry(venue.id, venue.name)}
+          venueName={venue.name}
+          role="manager"
+        >
+          {shell}
+        </AddHost>
+      ) : (
+        shell
+      )}
     </SessionGuardHost>
   )
 }

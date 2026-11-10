@@ -38,6 +38,8 @@ export function EntrySheet({
   step,
   onPhotos,
   onUnavailable,
+  hrefs,
+  role,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -45,6 +47,9 @@ export function EntrySheet({
   step: EntryStep
   onPhotos: () => void
   onUnavailable: () => void
+  /** Another workspace's destinations; staff pages' by default. */
+  hrefs?: EntryHrefs
+  role?: "staff" | "manager"
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -67,6 +72,8 @@ export function EntrySheet({
               onPhotos={onPhotos}
               onNavigate={() => onOpenChange(false)}
               onUnavailable={onUnavailable}
+              hrefs={hrefs}
+              role={role}
             />
           </React.Suspense>
         ) : null}
@@ -86,12 +93,16 @@ function EntryChoices({
   onPhotos,
   onNavigate,
   onUnavailable,
+  hrefs,
+  role,
 }: {
   entry: Promise<EntryMenu | null>
   step: EntryStep
   onPhotos: () => void
   onNavigate: () => void
   onUnavailable: () => void
+  hrefs?: EntryHrefs
+  role?: "staff" | "manager"
 }) {
   const menu = React.use(entry)
   const pathname = usePathname()
@@ -104,7 +115,8 @@ function EntryChoices({
   return (
     <EntryFlow
       menu={menu}
-      hrefs={staffEntryHrefs(entryFrom(pathname))}
+      hrefs={hrefs ?? staffEntryHrefs(entryFrom(pathname))}
+      role={role}
       initialStep={step}
       onPhotos={onPhotos}
       onNavigate={onNavigate}

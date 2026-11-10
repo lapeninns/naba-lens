@@ -50,6 +50,7 @@ import {
   type SetSubject,
 } from "@/components/nabalens/shell/photo-sets"
 import { LeaveGuard } from "@/components/nabalens/shell/leave-guard"
+import { MANAGER_ENTRY_HREFS } from "@/components/nabalens/shell/manager-entry"
 import {
   AddSheet,
   type AddBlocked,
@@ -58,7 +59,7 @@ import { useObjectUrl } from "@/components/nabalens/use-upload-queue"
 import { MEDIA_LIMITS } from "@/lib/config/media"
 import type { WorkFocus } from "@/lib/config/work-roles"
 import { dishName } from "@/lib/menus/dish-name"
-import type { EntryMenu } from "@/lib/work-client/entry"
+import type { EntryIntent, EntryMenu } from "@/lib/work-client/entry"
 import type {
   LabelCatalogue,
   MediaLabelSummary,
@@ -115,6 +116,12 @@ function onMenu(catalogue: LabelCatalogue, preset: AddLabelPreset) {
  * the Add sheet first and from md the upload dialog opens straight away. A
  * blocked account sees why instead. The database repeats the block check, so
  * this is display only.
+ *
+ * A manager account's workspace (`role="manager"`) has Add only once the
+ * entry's read says it can upload: until then, and when the read fails, its
+ * pages see no Add at all. A finalise the server refused (403) ends Add for
+ * the visit: the queue stays reachable to remove what didn't finish, and
+ * new uploads aren't offered.
  */
 export function AddHost({
   blocked,
@@ -122,6 +129,7 @@ export function AddHost({
   captchaSiteKey,
   entry = null,
   venueName = null,
+  role = "staff",
   children,
 }: {
   blocked: AddBlocked | null
@@ -134,6 +142,7 @@ export function AddHost({
   entry?: Promise<EntryMenu | null> | null
   /** The person's venue, for the Add sheet's context lines with the entry on. */
   venueName?: string | null
+  role?: "staff" | "manager"
   children: React.ReactNode
 }) {
   const router = useRouter()
@@ -176,14 +185,16 @@ export function AddHost({
   // Sets of photos of one subject (B02-05): on where the shared entry is
   // and the person can upload (R8, read with the entry's choices); off for
   // the rest of the visit once the database says it has no groups.
-  const [setsOn, setSetsOn] = React.useState(false)
+  const [intents, setIntents] = React.useState<readonly EntryIntent[] | null>(
+    null
+  )
   const [setsMissing, setSetsMissing] = React.useState(false)
   React.useEffect(() => {
     if (!entry) return
     let live = true
     entry.then(
       (menu) => {
-        if (live) setSetsOn(menu?.intents.includes("photos") ?? false)
+        if (live) setIntents(menu?.intents ?? null)
       },
       () => {}
     )
@@ -191,7 +202,15 @@ export function AddHost({
       live = false
     }
   }, [entry])
+  const setsOn = intents?.includes("photos") ?? false
   const groupsOn = setsOn && !setsMissing
+  // A manager account's Add exists only while R8 says it can upload.
+  const offered = role === "staff" || setsOn
+  // The server refused to finish an upload (403): no new ones this visit.
+  const [ended, setEnded] = React.useState(false)
+  const sheetBlocked: AddBlocked | null =
+    blocked ??
+    (ended ? { reason: "access_ended", venueName: venueName ?? "" } : null)
   const groupsOnRef = React.useRef(groupsOn)
   React.useLayoutEffect(() => {
     groupsOnRef.current = groupsOn
@@ -464,6 +483,13 @@ export function AddHost({
   const value = React.useMemo(
     () => ({
       openAdd: (opts: OpenAddOptions = {}) => {
+        if (ended) {
+          sheetOwner.current = null
+          pickerOwner.current = null
+          if (waiting > 0) setUploadOpen(true)
+          else setSheetOpen(true)
+          return
+        }
         // Waiting files (unfinished, or needing the person): Add shows that
         // queue at every width, so a hidden run is never out of reach. A
         // source still opens its picker straight away. A dish and a ready
@@ -527,9 +553,12 @@ export function AddHost({
       failed: busy.failed + busy.stopped,
       refreshSignal,
       holds,
+      intents,
     }),
     [
       blocked,
+      ended,
+      intents,
       entry,
       showAdd,
       waiting,
@@ -578,13 +607,18 @@ export function AddHost({
           .getSession()
           .then(({ data }) => data.session?.user.id ?? null)
           .catch(() => null))
-      return uploader(file, {
-        ...context,
-        ...(purpose && purpose !== "general" ? { purpose } : {}),
-        ...(account ? { account } : {}),
-      })
+      try {
+        return await uploader(file, {
+          ...context,
+          ...(purpose && purpose !== "general" ? { purpose } : {}),
+          ...(account ? { account } : {}),
+        })
+      } catch (error) {
+        if (role === "manager" && refusedFinalise(error)) setEnded(true)
+        throw error
+      }
     },
-    [uploader, supabase]
+    [uploader, supabase, role]
   )
 
   const refreshAfterLabels = React.useCallback(() => {
@@ -696,78 +730,85 @@ export function AddHost({
   return (
     <SessionGuardProvider value={guard}>
       <LeaveGuard>
-        <AddProvider value={value}>
+        <AddProvider value={offered ? value : null}>
           {children}
-          {picker.inputs}
-          {entry ? (
-            <EntrySheet
-              open={entryStep !== null}
-              onOpenChange={closeEntry}
-              entry={entry}
-              step={entryStep ?? "choose"}
-              onPhotos={entryPhotos}
-              onUnavailable={entryUnavailable}
-            />
+          {/* A manager account without R8's upload: nothing of Add at all. */}
+          {offered ? (
+            <>
+              {picker.inputs}
+              {entry ? (
+                <EntrySheet
+                  open={entryStep !== null}
+                  onOpenChange={closeEntry}
+                  entry={entry}
+                  step={entryStep ?? "choose"}
+                  onPhotos={entryPhotos}
+                  onUnavailable={entryUnavailable}
+                  hrefs={role === "manager" ? MANAGER_ENTRY_HREFS : undefined}
+                  role={role}
+                />
+              ) : null}
+              {entry ? (
+                <GuideStep
+                  open={guideOpen}
+                  onOpenChange={setGuideOpen}
+                  source={guide?.source ?? "camera"}
+                  imagesOnly={guide?.imagesOnly ?? false}
+                  onFiles={(files) => {
+                    setGuideOpen(false)
+                    claim(files, guide?.owner ?? null)
+                    queueFiles(files)
+                  }}
+                />
+              ) : null}
+              <AddSheet
+                open={sheetOpen}
+                onOpenChange={closeSheet}
+                blocked={sheetBlocked}
+                context={
+                  entry && venueName
+                    ? { venueName, audience: ENTRY_COPY.photosAudience }
+                    : null
+                }
+                maxFiles={MEDIA_LIMITS.maxBatchFiles}
+                imagesOnly={imagesOnly}
+                onFiles={queueFiles}
+              />
+              <UploadDialog
+                open={uploadOpen}
+                onOpenChange={closeUpload}
+                uploader={upload}
+                limits={MEDIA_LIMITS}
+                imagesOnly={imagesOnly}
+                initialFiles={pickedFiles}
+                onPick={picked}
+                onUploaded={() => {
+                  setRefreshSignal((signal) => signal + 1)
+                  router.refresh()
+                }}
+                onReady={handleReady}
+                purposeOf={(file) =>
+                  fileOwners.current.get(file)?.purpose ?? "general"
+                }
+                labels={labels}
+                startOnPick
+                keepRunningWhenClosed
+                onBusyChange={setBusy}
+                onHoldsChange={holdsChanged}
+                onUnfinished={(file, reason) =>
+                  fileOwners.current.get(file)?.onUnfinished?.(reason, file)
+                }
+                onReserved={reservedForSet}
+                setOf={groupsOn ? setOf : undefined}
+                addMoreLabel={
+                  groupsOn && addingToSet ? ENTRY_COPY.addMoreToSet : undefined
+                }
+              />
+              <p role="status" className="sr-only">
+                {attentionSaid}
+              </p>
+            </>
           ) : null}
-          {entry ? (
-            <GuideStep
-              open={guideOpen}
-              onOpenChange={setGuideOpen}
-              source={guide?.source ?? "camera"}
-              imagesOnly={guide?.imagesOnly ?? false}
-              onFiles={(files) => {
-                setGuideOpen(false)
-                claim(files, guide?.owner ?? null)
-                queueFiles(files)
-              }}
-            />
-          ) : null}
-          <AddSheet
-            open={sheetOpen}
-            onOpenChange={closeSheet}
-            blocked={blocked}
-            context={
-              entry && venueName
-                ? { venueName, audience: ENTRY_COPY.photosAudience }
-                : null
-            }
-            maxFiles={MEDIA_LIMITS.maxBatchFiles}
-            imagesOnly={imagesOnly}
-            onFiles={queueFiles}
-          />
-          <UploadDialog
-            open={uploadOpen}
-            onOpenChange={closeUpload}
-            uploader={upload}
-            limits={MEDIA_LIMITS}
-            imagesOnly={imagesOnly}
-            initialFiles={pickedFiles}
-            onPick={picked}
-            onUploaded={() => {
-              setRefreshSignal((signal) => signal + 1)
-              router.refresh()
-            }}
-            onReady={handleReady}
-            purposeOf={(file) =>
-              fileOwners.current.get(file)?.purpose ?? "general"
-            }
-            labels={labels}
-            startOnPick
-            keepRunningWhenClosed
-            onBusyChange={setBusy}
-            onHoldsChange={holdsChanged}
-            onUnfinished={(file, reason) =>
-              fileOwners.current.get(file)?.onUnfinished?.(reason, file)
-            }
-            onReserved={reservedForSet}
-            setOf={groupsOn ? setOf : undefined}
-            addMoreLabel={
-              groupsOn && addingToSet ? ENTRY_COPY.addMoreToSet : undefined
-            }
-          />
-          <p role="status" className="sr-only">
-            {attentionSaid}
-          </p>
         </AddProvider>
       </LeaveGuard>
     </SessionGuardProvider>
@@ -786,6 +827,16 @@ function subjectOf(opts: OpenAddOptions): SetSubject | null {
       }),
     }
   return opts.subject ? { ...opts.subject } : null
+}
+
+/** The queue's error for a finalise the server refused (403). */
+function refusedFinalise(error: unknown): boolean {
+  return (
+    !!error &&
+    typeof error === "object" &&
+    "error" in error &&
+    (error as { error?: { code?: unknown } }).error?.code === "finalise_refused"
+  )
 }
 
 /** `1 photo needs attention. Open Add.` */

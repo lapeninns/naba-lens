@@ -6,6 +6,7 @@ import { PlusIcon } from "@phosphor-icons/react"
 
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import type { EntryIntent } from "@/lib/work-client/entry"
 
 import type { PhotoSource } from "../photo-source"
 import type { UploadPurpose } from "../upload-queue"
@@ -133,6 +134,11 @@ type AddContextValue = {
    * saved), and who is signed in: an own upload missing from them has stopped.
    */
   holds?: { assetIds: ReadonlySet<string>; account: string | null }
+  /**
+   * The shared entry's choices once read (R8), or null before then or with
+   * the entry off: a dish button needs "dish".
+   */
+  intents?: readonly EntryIntent[] | null
 }
 
 const AddContext = React.createContext<AddContextValue | null>(null)
@@ -206,6 +212,11 @@ export function useAddActive(): number | null {
  */
 export function useAddFailed(): number | null {
   return React.useContext(AddContext)?.failed ?? null
+}
+
+/** Add offers dish photos (R8 says the person can upload and label). */
+export function useAddDish(): boolean {
+  return React.useContext(AddContext)?.intents?.includes("dish") ?? false
 }
 
 export function useAddRefreshSignal(): number {

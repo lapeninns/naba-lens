@@ -14,6 +14,7 @@ import type {
 } from "@/lib/server/menu-photos/types"
 
 import { MANAGER_COPY } from "../copy"
+import { ManagerDishButtons } from "./dish-buttons"
 
 const HEADLINE: Record<MenuItemStatus, { word: string; tone: ChipTone }> = {
   covered: { word: MANAGER_COPY.menu.status.covered, tone: "positive" },
@@ -63,7 +64,8 @@ export function MenuItemChips({ item }: { item: ManagerMenuItem }) {
 /**
  * One active-menu item on Menu: the menu photo's thumbnail, the name (never
  * truncated) and options, the headline state and secondary chips. The whole
- * row opens the item.
+ * row opens the item. While the workspace's Add offers dishes (B02-c), the
+ * row also has the dish's photo buttons, as on Our menu.
  */
 export function MenuItemRow({
   item,
@@ -73,6 +75,7 @@ export function MenuItemRow({
   href: string
 }) {
   const variants = item.variants.map((v) => v.name).join(", ")
+  const nameId = `menu-item-${item.itemId}-name`
   return (
     <article className="relative grid min-h-16 grid-cols-[3.5rem_minmax(0,1fr)] gap-3 py-3">
       {item.preferred ? (
@@ -89,7 +92,7 @@ export function MenuItemRow({
         </span>
       )}
       <div className="grid min-w-0 content-start gap-1">
-        <h3 className="text-item-title break-words text-ink">
+        <h3 id={nameId} className="text-item-title break-words text-ink">
           <Link
             href={href}
             className="rounded-control outline-none after:absolute after:inset-0 after:content-[''] hover:underline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
@@ -105,6 +108,7 @@ export function MenuItemRow({
           <MenuItemChips item={item} />
         </p>
       </div>
+      <ManagerDishButtons item={item} describedBy={nameId} />
     </article>
   )
 }

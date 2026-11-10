@@ -7,7 +7,7 @@ import { LayoutOfflineShell } from "../offline-notice"
 import { ProfileAvatar } from "../profile-avatar"
 import { MANAGER_COPY } from "./copy"
 import { managerHrefs } from "./hrefs"
-import { ManagerNav } from "./manager-nav"
+import { ManagerAddButton, ManagerNav } from "./manager-nav"
 import { ReviewCountProvider } from "./review-count"
 
 const FOCUS =
@@ -16,9 +16,9 @@ const FOCUS =
 /**
  * Page frame of the venue manager workspace: the wordmark, the venue's name,
  * Overview · Review · Menu · Amenities at every width (a row under the
- * header from md, a bottom tab bar on phones), Account and Log out. It has no
- * Add, upload, Photos, People or Me: a manager account reviews and does not
- * contribute (amenity evidence goes through the check's Capture myself page).
+ * header from md, a bottom tab bar on phones), Account and Log out. Add shows
+ * only inside the workspace's Add host, once R8 says this account can upload
+ * (B02-c); there is no Photos, People or Me.
  * The Review badge count lives in a ReviewCountProvider, so Review can move
  * it as decisions land.
  */
@@ -72,6 +72,7 @@ export function ManagerShell({
               {venueName}
             </p>
             <div className="ml-auto flex flex-none items-center gap-2">
+              <ManagerAddButton />
               <span className="hidden max-w-48 truncate text-meta text-ink-muted lg:inline">
                 {userName}
               </span>

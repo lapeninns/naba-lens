@@ -5,6 +5,7 @@ import { managerTriageSurface } from "@/lib/config/manager-triage"
 import { getAmenityActor } from "@/lib/server/amenities"
 import { removeMediaAsset } from "@/lib/server/lifecycle/remove"
 import { getMediaActor } from "@/lib/server/media/context"
+import { UPLOADER_ROLES } from "@/lib/server/media/roles"
 import type {
   AssetGroup,
   DeleteImpact,
@@ -78,9 +79,12 @@ const field = (input: unknown, key: string): unknown =>
     ? (input as Record<string, unknown>)[key]
     : undefined
 
-/** The uploader, while groups are on for their venue (contributionEntry). */
+/**
+ * The uploader (staff, or a manager account at its venue), while groups are
+ * on for their venue (contributionEntry). The database checks the venue.
+ */
 async function setUploader() {
-  const auth = await getMediaActor("staff")
+  const auth = await getMediaActor(UPLOADER_ROLES)
   if (!auth.ok)
     return {
       ok: false as const,

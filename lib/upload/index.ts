@@ -1,6 +1,6 @@
 // Browser upload transport. Client-only: import from "use client" modules.
 export { guardBeforeUnload } from "./before-unload"
-export { ReservationGoneError } from "./errors"
+export { FinaliseRefusedError, ReservationGoneError } from "./errors"
 export {
   DEFAULT_IMAGE_TYPES,
   DEFAULT_VIDEO_TYPES,

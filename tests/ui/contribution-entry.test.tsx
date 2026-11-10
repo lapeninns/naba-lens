@@ -234,7 +234,6 @@ describe("manager account entry (§5.3)", () => {
     render(
       <ManagerEntrySection
         menu={{ ...MENU, intents: ["question", "change"], tasks: [] }}
-        basePath="/manager"
       />
     )
     const items = screen.getAllByRole("listitem").map((li) => li.textContent)

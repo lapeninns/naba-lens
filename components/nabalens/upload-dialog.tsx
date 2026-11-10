@@ -336,7 +336,7 @@ function rowState(
         suffix: null,
         detail: item.stopped
           ? item.error
-          : item.retryable === false
+          : item.retryable === false && !item.refused
             ? cannotUse(item.error)
             : item.error,
       }

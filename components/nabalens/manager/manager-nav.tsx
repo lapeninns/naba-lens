@@ -13,6 +13,7 @@ import { UI_TEXT, amenityHrefs } from "@/lib/amenities/contract"
 import { cn } from "@/lib/utils"
 
 import { SectionTabs } from "../section-tabs"
+import { AddTrigger, useAddContext } from "../shell/add-context"
 import { TabBadge } from "../shell/tab-badge"
 import { TAB_ITEM } from "../shell/tab-item"
 import { TO_CONFIRM_COPY } from "../knowledge/copy"
@@ -50,7 +51,9 @@ const ITEMS: {
 /**
  * Overview · Review · Menu · Amenities. `tabs` is the row under the header
  * from md; `bar` is the phone tab bar pinned to the bottom. Both name the same
- * nav, and CSS shows one. There is no Add slot: managers do not upload.
+ * nav, and CSS shows one. The phone bar has Add in the middle while the
+ * workspace's Add is on (R8 says this account can upload); from md it is
+ * ManagerAddButton in the header.
  */
 export function ManagerNav({
   kind,
@@ -64,6 +67,7 @@ export function ManagerNav({
   confirmCount?: number
 }) {
   const active = managerSectionFor(usePathname() ?? "") ?? ""
+  const add = useAddContext()
   const shared = useReviewCount().count ?? reviewCount
   const count = shared && shared > 0 ? shared : undefined
   const confirm = confirmCount && confirmCount > 0 ? confirmCount : undefined
@@ -96,11 +100,11 @@ export function ManagerNav({
       data-slot="tabbar"
       className="fixed inset-x-0 bottom-0 z-40 grid auto-cols-fr grid-flow-col bg-surface px-1 pb-[env(safe-area-inset-bottom,0px)] shadow-[0_-1px_0_var(--line)] md:hidden"
     >
-      {ITEMS.map((item) => {
+      {ITEMS.flatMap((item, index) => {
         const Icon = item.icon
         const current = active === item.id
         const badge = badgeFor(item.id)
-        return (
+        const link = (
           <Link
             key={item.id}
             href={item.href}
@@ -121,7 +125,19 @@ export function ManagerNav({
             ) : null}
           </Link>
         )
+        return add && index === 2
+          ? [<AddTrigger key="add" kind="tab" />, link]
+          : [link]
       })}
     </nav>
   )
+}
+
+/** "Add photos" in the header from md, while the workspace's Add is on. */
+export function ManagerAddButton() {
+  return useAddContext() ? (
+    <div className="hidden md:block">
+      <AddTrigger kind="bar" />
+    </div>
+  ) : null
 }

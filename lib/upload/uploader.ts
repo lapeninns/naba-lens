@@ -1,7 +1,12 @@
 // Browser upload orchestration: preflight -> reserve -> transfer -> finalise.
 // Client-only; reserve/finalise are injected (server actions in the app).
 
-import { AbortedError, ReservationGoneError, TransferError } from "./errors"
+import {
+  AbortedError,
+  FinaliseRefusedError,
+  ReservationGoneError,
+  TransferError,
+} from "./errors"
 import { preflight } from "./preflight"
 import { signedPut, type XhrLike } from "./signed-put"
 import { SUPABASE_TUS_CHUNK_SIZE, tusTransfer, type TusAdapters } from "./tus"
@@ -201,6 +206,12 @@ export function createUploader(options: CreateUploaderOptions): MediaUploader {
           retryable: false,
         })
       } catch (error) {
+        if (error instanceof FinaliseRefusedError)
+          return fail({
+            code: "finalise_refused",
+            message: error.message,
+            retryable: false,
+          })
         return fail({
           code: "finalise_failed",
           message: networkOr(

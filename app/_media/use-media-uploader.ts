@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/browser"
 import { getSupabasePublicEnv } from "@/lib/supabase/env"
 import {
   createUploader,
+  FinaliseRefusedError,
   guardBeforeUnload,
   localUploadKeyStore,
   ReservationGoneError,
@@ -40,7 +41,13 @@ export function useMediaUploader(): Uploader {
       },
       finalise: async (input) => {
         const result = await finaliseUpload(input)
-        if (!result.ok) throw new Error(result.message)
+        if (!result.ok) {
+          // 403: the server won't finish this upload (access ended); a 503
+          // or any other failure stays retryable.
+          throw result.status === 403
+            ? new FinaliseRefusedError(result.message)
+            : new Error(result.message)
+        }
         return result.result
       },
       supabaseUrl: url,

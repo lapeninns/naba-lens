@@ -225,7 +225,8 @@ describe("set Server Functions", () => {
         subject: { kind: "task", id: ITEM },
       })
     ).toEqual({ status: "ok", groupId: GROUP })
-    expect(auth.getMediaActor).toHaveBeenCalledWith("staff")
+    // Staff, and a manager account at its venue (B02-c).
+    expect(auth.getMediaActor).toHaveBeenCalledWith(["staff", "manager"])
 
     rpc.knowledgeRpc.mockResolvedValueOnce({ data: 2, error: null })
     expect(await addToPhotoSet({ groupId: GROUP, assetIds: [A1, A2] })).toEqual(

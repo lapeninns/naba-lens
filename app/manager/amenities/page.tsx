@@ -57,7 +57,5 @@ export default async function ManagerAmenitiesPage() {
 
 async function ManagerEntry({ ctx }: { ctx: Workspace }) {
   const entry = await managerEntry(ctx)
-  return entry ? (
-    <ManagerEntrySection menu={entry} basePath={ctx.basePath} />
-  ) : null
+  return entry ? <ManagerEntrySection menu={entry} /> : null
 }

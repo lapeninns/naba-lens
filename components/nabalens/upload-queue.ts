@@ -56,6 +56,11 @@ export type QueueItem = {
    * fail again, so the person can only remove it.
    */
   retryable?: boolean
+  /**
+   * The server refused to finish it (`retryable` is false): `error` is the
+   * server's own reason, shown as it is.
+   */
+  refused?: boolean
   /** When this attempt started processing (ms since epoch). */
   processingAt?: number
   /**
@@ -531,6 +536,9 @@ export class UploadQueue {
           status: "failed",
           error: errorMessage(error),
           ...(isRetryable(error) ? {} : { retryable: false }),
+          ...(errorDetail(error)?.code === "finalise_refused"
+            ? { refused: true }
+            : {}),
         })
       }
     } finally {

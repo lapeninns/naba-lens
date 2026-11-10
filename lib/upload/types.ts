@@ -93,6 +93,8 @@ export type UploadErrorCode =
   | "reservation_gone"
   | "transfer_failed"
   | "finalise_failed"
+  /** The server refused to finish the upload (403); Retry can't help. */
+  | "finalise_refused"
   | "processing_failed"
 
 export type UploadError = {
