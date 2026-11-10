@@ -5,6 +5,7 @@ import {
   type LibraryLabelFilters,
 } from "@/lib/menus/types"
 import { tryLoadLabelSummaries } from "@/lib/server/labels"
+import { readAllPages } from "@/lib/server/pages"
 
 import type {
   Db,
@@ -457,21 +458,39 @@ export function listLibrary(
   )
 }
 
-/** Filter options for the admin library: every venue and every staff member. */
+/**
+ * Filter options for the admin library: every venue and every staff member,
+ * read in pages (one request stops at `max_rows`). A failed read leaves that
+ * list empty, as it always has.
+ */
 export async function libraryFilterOptions(actor: MediaActor) {
   if (actor.profile.role !== "admin") return { venues: [], staff: [] }
   const [venues, staff] = await Promise.all([
-    actor.db.from("venues").select("id, name").order("name"),
-    actor.db
-      .from("profiles")
-      .select("id, display_name")
-      .eq("role", "staff")
-      .order("display_name"),
+    readAllPages<{ id: string; name: string }>((from, to) =>
+      actor.db
+        .from("venues")
+        .select("id, name")
+        .order("name")
+        .order("id")
+        .range(from, to)
+    ),
+    readAllPages<{ id: string; display_name: string }>((from, to) =>
+      actor.db
+        .from("profiles")
+        .select("id, display_name")
+        .eq("role", "staff")
+        .order("display_name")
+        .order("id")
+        .range(from, to)
+    ),
   ])
   return {
     // Inactive venues and staff keep their retained media, so they stay listed.
-    venues: (venues.data ?? []).map((v) => ({ id: v.id, name: v.name })),
-    staff: (staff.data ?? []).map((p) => ({
+    venues: (venues.ok ? venues.rows : []).map((v) => ({
+      id: v.id,
+      name: v.name,
+    })),
+    staff: (staff.ok ? staff.rows : []).map((p) => ({
       id: p.id,
       name: p.display_name,
     })),
