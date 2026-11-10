@@ -5,14 +5,12 @@
 // read becomes null and the screen keeps its B01 behaviour. The server's own
 // shapes are lib/knowledge/contract's and are re-exported here.
 
-import type {
-  DeleteImpactEffect,
-  DeleteImpactKind,
-  GroupSubjectKind,
-  TriageQueue,
+import {
+  TRIAGE_QUEUES,
+  type DeleteImpactEffect,
+  type DeleteImpactKind,
+  type GroupSubjectKind,
 } from "@/lib/knowledge/contract"
-
-import { TRIAGE_QUEUES } from "@/lib/knowledge/contract"
 
 export { TRIAGE_QUEUES }
 export type {

@@ -126,6 +126,9 @@ const ALLOWED_PAGES = new Set([
   "/admin/coverage/[venueId]/amenities/places",
   "/admin/coverage/[venueId]/amenities/[checkId]",
   "/admin/coverage/[venueId]/amenities/[checkId]/capture",
+  // B03 knowledge admin (B03 UI design §6.4): what turning on a check-date
+  // rule would do, read only.
+  "/admin/knowledge/check-dates",
 ])
 
 const ALLOWED_HANDLERS = new Set([

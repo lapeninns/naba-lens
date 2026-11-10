@@ -1188,3 +1188,38 @@ export const CHECK_DATES_COPY = {
     n === 1 ? "1 recheck is open." : `${n} rechecks are open.`,
   rechecksFailed: "Open rechecks couldn't be loaded.",
 } as const
+
+// ---- Admin: what enabling check dates would do (B03 UI design §6.4) ----------------
+
+const plural = (n: number, one: string, many: string) =>
+  `${n} ${n === 1 ? one : many}`
+
+export const FRESHNESS_PREVIEW_COPY = {
+  title: "Check dates",
+  intro:
+    "This changes nothing. Turning a rule on is an owner decision and a release step.",
+  question: "Question",
+  internal: "Rule for staff and internal tools (optional)",
+  public: "Rule for guests (optional)",
+  ruleHelp: "The rule's id, for example ⟨offering_90⟩.",
+  show: "Show what it would do",
+  use: { internal: "For staff and internal tools", public: "For guests" },
+  expired: (n: number) =>
+    `${plural(n, "answer", "answers")} would be past their check date`,
+  basisMissing: (n: number) =>
+    `${n} would be not in use because they have no check date`,
+  rechecks: (n: number) => `${plural(n, "recheck", "rechecks")} would open`,
+  answers: (n: number) => `${plural(n, "answer", "answers")} in use`,
+  none: "No venue has an answer to this question.",
+  failed: "We couldn't work out what this rule would do.",
+  tryAgain: "Try again",
+  noRegistry: "The question list couldn't be read.",
+  aVenue: "A venue",
+} as const
+
+/** The recheck tasks a preview row would open: due soon, expired, no date. */
+export const previewRechecks = (item: {
+  dueSoon: number
+  expired: number
+  basisMissing: number
+}) => item.dueSoon + item.expired + item.basisMissing

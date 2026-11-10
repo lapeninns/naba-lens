@@ -146,6 +146,11 @@ export type KnowledgeServices = {
     actor: MediaActor,
     input: unknown
   ): Promise<KnowledgeResult<{ count: number; tasks: RecheckTask[] }>>
+  /** Admins: every question with its latest version (B03-a). */
+  listQuestionRegistry(
+    actor: MediaActor,
+    input: unknown
+  ): Promise<KnowledgeResult<{ questions: RegistryQuestion[] }>>
   /** B03-e (§7.3): admin, no write: what naming check-date rules would do. */
   previewFreshness(
     actor: MediaActor,
@@ -253,6 +258,9 @@ export const knowledgeServices: KnowledgeServices = {
   getCheckRechecks: (actor, input) => server.getCheckRechecks(actor, input),
 
   previewFreshness: (actor, input) => server.previewFreshness(actor, input),
+
+  listQuestionRegistry: (actor, input) =>
+    server.listQuestionRegistry(actor, input),
 
   getOccurrences: (actor, input) => server.getOccurrences(actor, input),
 
