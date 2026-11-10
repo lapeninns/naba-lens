@@ -1,0 +1,181 @@
+{
+  "note": "Outage and billing cases. Default status map: 429 is not billed, 451 is a refusal, anything else unclear is unknown_outcome.",
+  "cases": [
+    {
+      "id": "t-dns",
+      "recorded": {
+        "kind": "failure",
+        "stage": "dns",
+        "bytesWritten": null,
+        "timedOut": false
+      },
+      "expect": {
+        "outcome": "retryable_not_sent",
+        "cost": "release",
+        "retry": true
+      }
+    },
+    {
+      "id": "t-connect-refused",
+      "recorded": {
+        "kind": "failure",
+        "stage": "connect",
+        "bytesWritten": null,
+        "timedOut": false
+      },
+      "expect": {
+        "outcome": "retryable_not_sent",
+        "cost": "release",
+        "retry": true
+      }
+    },
+    {
+      "id": "t-tls-unknown-bytes",
+      "recorded": {
+        "kind": "failure",
+        "stage": "tls",
+        "bytesWritten": null,
+        "timedOut": false
+      },
+      "expect": {
+        "outcome": "unknown_outcome",
+        "cost": "hold",
+        "retry": false
+      }
+    },
+    {
+      "id": "t-tls-zero-bytes",
+      "recorded": {
+        "kind": "failure",
+        "stage": "tls",
+        "bytesWritten": 0,
+        "timedOut": false
+      },
+      "expect": {
+        "outcome": "retryable_not_sent",
+        "cost": "release",
+        "retry": true
+      }
+    },
+    {
+      "id": "t-partial-write-timeout",
+      "recorded": {
+        "kind": "failure",
+        "stage": "write",
+        "bytesWritten": 512,
+        "timedOut": true
+      },
+      "expect": {
+        "outcome": "unknown_outcome",
+        "cost": "hold",
+        "retry": false
+      }
+    },
+    {
+      "id": "t-partial-write-reset",
+      "recorded": {
+        "kind": "failure",
+        "stage": "write",
+        "bytesWritten": 1,
+        "timedOut": false
+      },
+      "expect": {
+        "outcome": "unknown_outcome",
+        "cost": "hold",
+        "retry": false
+      }
+    },
+    {
+      "id": "t-timeout-after-send",
+      "recorded": {
+        "kind": "failure",
+        "stage": "await_response",
+        "bytesWritten": 4096,
+        "timedOut": true
+      },
+      "expect": {
+        "outcome": "timeout_after_send",
+        "cost": "hold",
+        "retry": false
+      }
+    },
+    {
+      "id": "t-reset-after-send",
+      "recorded": {
+        "kind": "failure",
+        "stage": "await_response",
+        "bytesWritten": 4096,
+        "timedOut": false
+      },
+      "expect": {
+        "outcome": "unknown_outcome",
+        "cost": "hold",
+        "retry": false
+      }
+    },
+    {
+      "id": "t-rate-limited",
+      "recorded": {
+        "kind": "response",
+        "status": 429,
+        "body": ""
+      },
+      "expect": {
+        "outcome": "retryable_not_billed",
+        "cost": "release",
+        "retry": true
+      }
+    },
+    {
+      "id": "t-server-error",
+      "recorded": {
+        "kind": "response",
+        "status": 500,
+        "body": ""
+      },
+      "expect": {
+        "outcome": "unknown_outcome",
+        "cost": "hold",
+        "retry": false
+      }
+    },
+    {
+      "id": "t-refused",
+      "recorded": {
+        "kind": "response",
+        "status": 451,
+        "body": ""
+      },
+      "expect": {
+        "outcome": "provider_refused",
+        "cost": "charge",
+        "retry": false
+      }
+    },
+    {
+      "id": "t-cancelled-in-flight",
+      "recorded": {
+        "kind": "cancelled",
+        "bytesWritten": 2048
+      },
+      "expect": {
+        "outcome": "cancelled_in_flight",
+        "cost": "hold",
+        "retry": false
+      }
+    },
+    {
+      "id": "t-malformed",
+      "recorded": {
+        "kind": "response",
+        "status": 200,
+        "body": "not json"
+      },
+      "expect": {
+        "outcome": "invalid_output",
+        "cost": "charge",
+        "retry": false
+      }
+    }
+  ]
+}

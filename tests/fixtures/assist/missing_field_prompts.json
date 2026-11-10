@@ -1,0 +1,66 @@
+{
+  "note": "Synthetic notes only.",
+  "fieldNames": ["fee", "hours", "location", "limitations"],
+  "noteText": "There is a fee of £2 for the car park after 6pm, round the back.",
+  "cases": [
+    {
+      "id": "j4-fee",
+      "recorded": {
+        "kind": "response",
+        "status": 200,
+        "body": "{\"fields\":[{\"field\":\"fee\",\"quote\":\"a fee of £2\"},{\"field\":\"location\",\"quote\":\"round the back\"}]}"
+      },
+      "expect": {
+        "outcome": "ok"
+      }
+    },
+    {
+      "id": "j4-not-substring",
+      "recorded": {
+        "kind": "response",
+        "status": 200,
+        "body": "{\"fields\":[{\"field\":\"fee\",\"quote\":\"costs £5\"}]}"
+      },
+      "expect": {
+        "outcome": "invalid_output",
+        "issues": ["not_substring"]
+      }
+    },
+    {
+      "id": "j4-unknown-field",
+      "recorded": {
+        "kind": "response",
+        "status": 200,
+        "body": "{\"fields\":[{\"field\":\"policy\",\"quote\":\"round the back\"}]}"
+      },
+      "expect": {
+        "outcome": "invalid_output",
+        "issues": ["out_of_set"]
+      }
+    },
+    {
+      "id": "j4-value",
+      "recorded": {
+        "kind": "response",
+        "status": 200,
+        "body": "{\"fields\":[{\"field\":\"fee\",\"quote\":\"a fee of £2\",\"value\":200}]}"
+      },
+      "expect": {
+        "outcome": "invalid_output",
+        "issues": ["extra_field"]
+      }
+    },
+    {
+      "id": "j4-confirm-request",
+      "recorded": {
+        "kind": "response",
+        "status": 200,
+        "body": "{\"fields\":[],\"confirmed\":true}"
+      },
+      "expect": {
+        "outcome": "invalid_output",
+        "issues": ["extra_field"]
+      }
+    }
+  ]
+}

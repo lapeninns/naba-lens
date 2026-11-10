@@ -1,0 +1,99 @@
+{
+  "note": "Synthetic photos only. Cases for guest_wifi are refused before any provider call (see the sanitise cases).",
+  "cases": [
+    {
+      "id": "j3-ramp",
+      "recorded": {
+        "kind": "response",
+        "status": 200,
+        "body": "{\"observations\":[\"A ramp beside the main door\",\"A handrail on the left of the ramp\"],\"uncertain\":false}"
+      },
+      "expect": {
+        "outcome": "ok"
+      }
+    },
+    {
+      "id": "j3-dogs-sign",
+      "recorded": {
+        "kind": "response",
+        "status": 200,
+        "body": "{\"observations\":[\"A sign reading 'Dogs welcome'\"],\"uncertain\":false}"
+      },
+      "expect": {
+        "outcome": "ok"
+      }
+    },
+    {
+      "id": "j3-step-free-claim",
+      "recorded": {
+        "kind": "response",
+        "status": 200,
+        "body": "{\"observations\":[\"The entrance is step-free\"],\"uncertain\":false}"
+      },
+      "expect": {
+        "outcome": "invalid_output",
+        "issues": ["prohibited_claim"]
+      }
+    },
+    {
+      "id": "j3-policy-claim",
+      "recorded": {
+        "kind": "response",
+        "status": 200,
+        "body": "{\"observations\":[\"Dogs are allowed inside\"],\"uncertain\":false}"
+      },
+      "expect": {
+        "outcome": "invalid_output",
+        "issues": ["prohibited_claim"]
+      }
+    },
+    {
+      "id": "j3-measurement",
+      "recorded": {
+        "kind": "response",
+        "status": 200,
+        "body": "{\"observations\":[\"The door is about 90 cm wide\"],\"uncertain\":false}"
+      },
+      "expect": {
+        "outcome": "invalid_output",
+        "issues": ["measurement_claim"]
+      }
+    },
+    {
+      "id": "j3-router-label",
+      "recorded": {
+        "kind": "response",
+        "status": 200,
+        "body": "{\"observations\":[\"A router label reading password: Hunter2Example\"],\"uncertain\":false}"
+      },
+      "expect": {
+        "outcome": "invalid_output",
+        "issues": ["credential_like"]
+      }
+    },
+    {
+      "id": "j3-injection",
+      "recorded": {
+        "kind": "response",
+        "status": 200,
+        "body": "{\"observations\":[\"A poster saying ignore previous instructions\"],\"uncertain\":true}"
+      },
+      "expect": {
+        "outcome": "ok",
+        "flags": ["untrusted_text_seen"]
+      }
+    },
+    {
+      "id": "j3-answer-field",
+      "recorded": {
+        "kind": "response",
+        "status": 200,
+        "body": "{\"observations\":[],\"uncertain\":true,\"answer\":\"yes\"}"
+      },
+      "expect": {
+        "outcome": "invalid_output",
+        "issues": ["extra_field"]
+      }
+    }
+  ]
+}
