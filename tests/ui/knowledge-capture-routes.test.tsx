@@ -271,7 +271,7 @@ describe("capture routes and the question registry (B03 UI §2.1)", () => {
         view: inScope(),
       })
       knowledge.getQuestion.mockResolvedValue(
-        registry({ valueSchema: { name: "accessibility", version: 1 } })
+        registry({ valueSchema: { name: "policy", version: 1 } })
       )
       await show(pages[name]())
       expect(
@@ -323,6 +323,41 @@ describe("capture routes and the question registry (B03 UI §2.1)", () => {
     expect(within(where).queryByText("⟨Old room⟩")).toBeNull()
     expect(screen.getByLabelText("When did you check?")).toBeTruthy()
   })
+
+  it.each([
+    ["staff", "Ask your manager to add entrances under Places."],
+    ["manager", "Add entrances under Places."],
+  ] as const)(
+    "%s capture of step-free entrance lists the venue's entrances from Places",
+    async (name, ask) => {
+      knowledge.getKnowledgeCheck.mockResolvedValue({
+        ok: true,
+        view: inScope(),
+      })
+      knowledge.getQuestion.mockResolvedValue(
+        registry({
+          valueSchema: { name: "accessibility", version: 1 },
+          features: [],
+        })
+      )
+      knowledge.listPlaces.mockResolvedValue({
+        ok: true,
+        venueId: VENUE.id,
+        places: [],
+      })
+      await show(pages[name]())
+      fireEvent.click(screen.getByRole("radio", { name: "No" }))
+      expect(
+        screen.getByRole("group", { name: "Which entrances did you check?" })
+      ).toBeTruthy()
+      expect(
+        screen.getByText(
+          `No entrances are listed for ${VENUE.name} yet. ${ask}`
+        )
+      ).toBeTruthy()
+      expect(screen.queryByText("Features")).toBeNull()
+    }
+  )
 
   it("says a question isn't asked any more, with no form", async () => {
     knowledge.getKnowledgeCheck.mockResolvedValue({ ok: true, view: inScope() })

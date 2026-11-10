@@ -1178,6 +1178,243 @@ describe("knowledge capture: facility detail and Checked on (B03-b)", () => {
   })
 })
 
+describe("knowledge capture: accessibility detail (B03 UI §3.2, §3.3)", () => {
+  const MAIN = {
+    subjectId: "5a000000-0000-4000-8000-000000000011",
+    kind: "entrance" as const,
+    label: "⟨Main entrance⟩",
+    active: true,
+  }
+  const SIDE = {
+    subjectId: "5a000000-0000-4000-8000-000000000012",
+    kind: "entrance" as const,
+    label: "⟨Side door⟩",
+    active: true,
+  }
+  const TOILET = {
+    subjectId: "5a000000-0000-4000-8000-000000000013",
+    kind: "facility_point" as const,
+    label: "⟨Ground floor toilet⟩",
+    active: true,
+  }
+  const stepFreeForm = (
+    places = [MAIN, SIDE, TOILET],
+    canManagePlaces = false
+  ) => ({
+    schema: "accessibility" as const,
+    places,
+    features: [],
+    stepFree: true,
+    canManagePlaces,
+  })
+  const otherForm = (features: { key: string; label: string }[] = []) => ({
+    schema: "accessibility" as const,
+    places: [MAIN, TOILET],
+    features: features.map((f) => ({ ...f, measurable: false })),
+    stepFree: false,
+    canManagePlaces: false,
+  })
+  const stepFreeSlot = () => slot({ key: "step_free_entrance" })
+  const entrance = (label: string, value: string) =>
+    within(screen.getByRole("group", { name: label })).getByRole("radio", {
+      name: value,
+    })
+
+  it("lists only Places entrances for step-free, and a Yes needs one marked step-free", async () => {
+    const submit = vi.fn<Submit>(async () => sent())
+    const { user } = setup({
+      submit,
+      knowledgeSlot: stepFreeSlot(),
+      detailForm: stepFreeForm(),
+    })
+    await user.click(radio("Yes"))
+    const group = screen.getByRole("group", {
+      name: "Which entrances did you check?",
+    })
+    expect(
+      within(group).getByRole("group", { name: "⟨Main entrance⟩" })
+    ).toBeTruthy()
+    expect(within(group).queryByText("⟨Ground floor toilet⟩")).toBeNull()
+    expect(
+      screen.queryByRole("group", { name: /What did you check/ })
+    ).toBeNull()
+    expect(screen.queryByText("Features")).toBeNull()
+    await user.click(photoBox())
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    expect(submit).not.toHaveBeenCalled()
+    expect(
+      screen.getByText(
+        "To answer Yes, mark at least one entrance as step-free."
+      )
+    ).toBeTruthy()
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        entrance("⟨Main entrance⟩", "Step-free")
+      )
+    )
+    await user.click(entrance("⟨Main entrance⟩", "Step-free"))
+    expect(
+      screen.getByText(
+        "Yes says ⟨Main entrance⟩ is step-free. It says nothing about the others."
+      )
+    ).toBeTruthy()
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    const input = lastInput(submit)
+    expect(input.detail).toMatchObject({
+      entrances: [
+        { subjectId: MAIN.subjectId, stepFree: "yes" },
+        { subjectId: SIDE.subjectId, stepFree: "not_checked" },
+      ],
+    })
+    expect(input.detail).not.toHaveProperty("scope")
+    expect(input.detail).not.toHaveProperty("features")
+  })
+
+  it("says to ask a manager when no entrances are listed, and refuses a No", async () => {
+    const submit = vi.fn<Submit>(async () => sent())
+    const { user } = setup({
+      submit,
+      knowledgeSlot: stepFreeSlot(),
+      detailForm: stepFreeForm([TOILET]),
+    })
+    await user.click(radio("No"))
+    expect(
+      screen.getByText(
+        "No entrances are listed for The Old Crown yet. Ask your manager to add entrances under Places."
+      )
+    ).toBeTruthy()
+    await user.type(screen.getByLabelText(/Reason/), "⟨Reason⟩")
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    expect(submit).not.toHaveBeenCalled()
+    expect(
+      screen.getByText(
+        "No needs The Old Crown's entrances to be listed first. Ask your manager to add them under Places, or send Couldn't establish."
+      )
+    ).toBeTruthy()
+  })
+
+  it("tells a manager to add entrances under Places", async () => {
+    const { user } = setup({
+      role: "manager",
+      knowledgeSlot: stepFreeSlot(),
+      detailForm: stepFreeForm([], true),
+    })
+    await user.click(radio("No"))
+    expect(
+      screen.getByText(
+        "No entrances are listed for The Old Crown yet. Add entrances under Places."
+      )
+    ).toBeTruthy()
+  })
+
+  it("asks no detail for Couldn't establish", async () => {
+    const { user } = setup({
+      knowledgeSlot: stepFreeSlot(),
+      detailForm: stepFreeForm(),
+    })
+    await user.click(radio("Couldn't establish"))
+    expect(
+      screen.queryByRole("group", { name: "Which entrances did you check?" })
+    ).toBeNull()
+    expect(screen.getByLabelText("When did you check?")).toBeTruthy()
+  })
+
+  it("needs what was checked on any other question, and sends every feature, untouched as Not checked", async () => {
+    const submit = vi.fn<Submit>(async () => sent())
+    const { user } = setup({
+      submit,
+      detailForm: otherForm([
+        { key: "grab_rails", label: "⟨Grab rails⟩" },
+        { key: "alarm_cord", label: "⟨Alarm cord⟩" },
+      ]),
+    })
+    await user.click(radio("Yes"))
+    await user.click(photoBox())
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    expect(submit).not.toHaveBeenCalled()
+    expect(
+      screen.getByText("Choose what you checked, or name it.")
+    ).toBeTruthy()
+    const scope = screen.getByRole("group", {
+      name: "What did you check? (required)",
+    })
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        within(scope).getByRole("radio", { name: "⟨Main entrance⟩" })
+      )
+    )
+    await user.click(
+      within(scope).getByRole("radio", { name: "⟨Ground floor toilet⟩" })
+    )
+    await user.click(
+      within(screen.getByRole("group", { name: "⟨Grab rails⟩" })).getByRole(
+        "radio",
+        { name: "Yes" }
+      )
+    )
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    expect(lastInput(submit).detail).toMatchObject({
+      scope: { subjectId: TOILET.subjectId },
+      features: { grab_rails: "yes", alarm_cord: "not_checked" },
+    })
+  })
+
+  it("shows no features section when the version lists none", async () => {
+    const { user } = setup({ detailForm: otherForm() })
+    await user.click(radio("No"))
+    expect(
+      screen.getByRole("group", { name: "What did you check? (required)" })
+    ).toBeTruthy()
+    expect(screen.queryByText("Features")).toBeNull()
+  })
+
+  it("puts the server's entrance error on the entrances", async () => {
+    const submit = vi.fn<Submit>(async () => ({
+      ok: false as const,
+      code: "invalid_input" as const,
+      status: 400 as const,
+      message: "Check the highlighted answers.",
+      fieldErrors: {
+        "detail.entrances": "Mark every listed entrance.",
+      },
+    }))
+    const { user } = setup({
+      submit,
+      knowledgeSlot: stepFreeSlot(),
+      detailForm: stepFreeForm(),
+    })
+    await user.click(radio("Yes"))
+    await user.click(entrance("⟨Side door⟩", "Step-free"))
+    await user.click(photoBox())
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    expect(await screen.findByText("Mark every listed entrance.")).toBeTruthy()
+  })
+
+  it("saves the entrances with the account draft and keeps them on this device", async () => {
+    const { user, saveDraft } = setup({
+      knowledgeSlot: stepFreeSlot(),
+      detailForm: stepFreeForm(),
+    })
+    await user.click(radio("Yes"))
+    await user.click(entrance("⟨Main entrance⟩", "Step-free"))
+    await user.click(screen.getByRole("button", { name: "Save for later" }))
+    expect(saveDraft.mock.lastCall?.[0].payload).toMatchObject({
+      detail: {
+        entrances: [
+          { subjectId: MAIN.subjectId, stepFree: "yes" },
+          { subjectId: SIDE.subjectId, stepFree: "not_checked" },
+        ],
+      },
+    })
+    cleanup()
+    setup({ knowledgeSlot: stepFreeSlot(), detailForm: stepFreeForm() })
+    await waitFor(() =>
+      expect(
+        (entrance("⟨Main entrance⟩", "Step-free") as HTMLInputElement).checked
+      ).toBe(true)
+    )
+  })
+})
 describe("knowledge capture: a qualified answer's reason (B03 UI §2.6)", () => {
   it("doesn't say a manager asked for the recheck", () => {
     render(

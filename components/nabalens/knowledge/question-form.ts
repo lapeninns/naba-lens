@@ -4,6 +4,7 @@
 // guess, so an older form can't send into a newer question.
 
 import type {
+  QuestionFeature,
   QuestionLifecycle,
   RegistryQuestion,
   ValueSchemaName,
@@ -14,6 +15,8 @@ export type QuestionForm =
   | { kind: "b01" }
   /** The B01 form plus the facility detail and Checked on (B03-b). */
   | { kind: "facility" }
+  /** The B01 form plus what was checked, the version's features, and Checked on. */
+  | { kind: "accessibility"; features: QuestionFeature[] }
   /** A schema or version this build has no form for. */
   | { kind: "unknown"; schema: string; version: number }
   /** The question isn't asked any more (registry lifecycle). */
@@ -50,6 +53,8 @@ export function questionForm(question: RegistryQuestion | null): QuestionForm {
   const { name, version } = question.valueSchema
   if (B01_FORMS.has(`${name}@${version}`)) return { kind: "b01" }
   if (name === "facility" && version === 1) return { kind: "facility" }
+  if (name === "accessibility" && version === 1)
+    return { kind: "accessibility", features: question.features ?? [] }
   return { kind: "unknown", schema: name as ValueSchemaName, version }
 }
 

@@ -35,7 +35,6 @@ import {
   type UnknownPreset,
   type KnowledgeFailure,
   type KnowledgeResult,
-  type Place,
   type SaveDraftInput,
   type ServerDraft,
   type SubmitKnowledgeInput,
@@ -73,14 +72,25 @@ import {
 } from "../../knowledge/checked-on"
 import { CheckedOnField } from "../../knowledge/checked-on-field"
 import {
-  emptyFacility,
-  facilityDetail,
-  facilityErrors,
-  facilityFieldErrors,
-  facilityFromDetail,
-  facilityTouched,
-  type FacilityField,
-} from "../../knowledge/facility-detail"
+  emptyAccess,
+  firstBadMeasurement,
+} from "../../knowledge/accessibility-detail"
+import { AccessDetailFields } from "../../knowledge/accessibility-detail-fields"
+import {
+  detailErrorsFor,
+  detailFieldErrors,
+  detailToSend,
+  draftDetail,
+  hasDetailErrors,
+  NO_DETAIL_ERRORS,
+  partsFromDetail,
+  partsTouched,
+  showsAccess,
+  showsFacility,
+  type DetailErrors,
+  type DetailForm,
+} from "../../knowledge/detail-form"
+import { emptyFacility } from "../../knowledge/facility-detail"
 import { FacilityDetailFields } from "../../knowledge/facility-detail-fields"
 import { Notice } from "../../notice"
 import { useOnline } from "../../offline-notice"
@@ -163,9 +173,9 @@ export type KnowledgeCapture = {
   } | null
   /**
    * B03-b: the question's version has a detail form this build renders
-   * (only facility so far), with the venue's active places for it.
+   * (facility or accessibility), with the venue's active places for it.
    */
-  detailForm?: { schema: "facility"; places: Place[] } | null
+  detailForm?: DetailForm | null
 }
 
 type Outcome =
@@ -268,7 +278,7 @@ function isDirty(draft: CaptureDraft): boolean {
     draft.redactionConfirmed ||
     draft.uploadsPending?.count ||
     Object.values(draft.wifi).some(Boolean) ||
-    (draft.facility && facilityTouched(draft.facility)) ||
+    partsTouched(draft) ||
     draft.checkedOn?.source === "chosen"
   )
 }
@@ -342,7 +352,7 @@ function fromServerDraft(server: ServerDraft): CaptureDraft {
     sentSlotRevision: payload.sentSlotRevision,
     wifi: { ...payload.wifi },
     assetIds: [...server.assetIds],
-    ...(payload.detail ? { facility: facilityFromDetail(payload.detail) } : {}),
+    ...(payload.detail ? partsFromDetail(payload.detail) : {}),
     ...(payload.checkedOn ? { checkedOn: payload.checkedOn } : {}),
   }
 }
@@ -476,12 +486,11 @@ export function CaptureForm({
     () => new Map()
   )
   const [errors, setErrors] = React.useState<CaptureErrors>({})
-  // B03-b detail forms: facility and Checked on errors, and why a reopened
+  // B03-b detail forms: detail and Checked on errors, and why a reopened
   // draft's Checked on was cleared.
   const detailForm = knowledge?.detailForm ?? null
-  const [detailErrors, setDetailErrors] = React.useState<
-    Partial<Record<FacilityField, string>>
-  >({})
+  const [detailErrors, setDetailErrors] =
+    React.useState<DetailErrors>(NO_DETAIL_ERRORS)
   const [checkedOnErr, setCheckedOnErr] = React.useState<string | undefined>()
   const [checkedOnNotice, setCheckedOnNotice] = React.useState<string | null>(
     null
@@ -947,25 +956,27 @@ export function CaptureForm({
         })
       : validateDraft({ ...common, revision: check.revision })
     setExtraErrors([])
-    // B03-b detail forms: the facility detail and Checked on, checked here
-    // (the database checks them again against the question's version).
+    // B03-b detail forms: the detail and Checked on, checked here (the
+    // database checks them again against the question's version).
     const today = londonToday()
-    const facility = draft.facility ?? emptyFacility()
     const checkedOnValue = draft.checkedOn ?? newCheckedOn(today)
-    const facilityErrs =
-      detailForm && draft.answer === "yes" ? facilityErrors(facility) : {}
+    const detailErrs = detailForm
+      ? detailErrorsFor(detailForm, draft, draft.answer, {
+          venueName: knowledge?.venueName ?? "",
+          today,
+        })
+      : NO_DETAIL_ERRORS
     const checkedOnErrNow =
       detailForm && draft.answer
         ? (checkedOnError(checkedOnValue, today) ?? undefined)
         : undefined
-    const detailBad =
-      Object.values(facilityErrs).some(Boolean) || Boolean(checkedOnErrNow)
+    const detailBad = hasDetailErrors(detailErrs) || Boolean(checkedOnErrNow)
     if (detailForm) {
-      setDetailErrors(facilityErrs)
+      setDetailErrors(detailErrs)
       setCheckedOnErr(checkedOnErrNow)
     }
     if (detailForm && checked.ok && !detailBad) {
-      const detail = draft.answer === "yes" ? facilityDetail(facility) : null
+      const detail = detailToSend(detailForm, draft, draft.answer)
       Object.assign(checked.input, {
         ...(detail ? { detail } : {}),
         observedOn: checkedOnValue.date!,
@@ -990,7 +1001,7 @@ export function CaptureForm({
       setErrors(errs)
       setOutcome(null)
       if (Object.values(errs).some(Boolean)) focusFirstInvalid(errs)
-      else focusDetailError(facilityErrs, checkedOnErrNow)
+      else focusDetailError(detailErrs, checkedOnErrNow)
       return
     }
     if (waitable) {
@@ -1147,16 +1158,22 @@ export function CaptureForm({
   }
 
   /** Focus the first invalid control; its message is in its description. */
-  /** The first invalid detail control: Checked on, else the facility field. */
-  function focusDetailError(
-    facilityErrs: Partial<Record<FacilityField, string>>,
-    checkedOn: string | undefined
-  ) {
+  /**
+   * The first invalid detail control: Checked on, else the accessibility
+   * section's, else the facility field.
+   */
+  function focusDetailError(errs: DetailErrors, checkedOn: string | undefined) {
     requestAnimationFrame(() => {
       if (checkedOn) {
         document.getElementById(`${ids}-checked-on`)?.focus()
         return
       }
+      const access = accessTarget(errs.access)
+      if (access) {
+        access.focus()
+        return
+      }
+      const facilityErrs = errs.facility
       const field = (
         [
           "locations",
@@ -1181,6 +1198,32 @@ export function CaptureForm({
                 : null
       target?.focus()
     })
+  }
+
+  /** The accessibility control an error belongs to, in screen order. */
+  function accessTarget(errs: DetailErrors["access"]): HTMLElement | null {
+    const first = (prefix: string) =>
+      document.querySelector<HTMLElement>(
+        `input[name^="${ids}-access-${prefix}"]`
+      )
+    if (errs.entrances) return first("entrance-")
+    if (errs.scope) {
+      const typed = document.getElementById(`${ids}-access-scope-label`)
+      return typed ?? first("scope")
+    }
+    if (errs.features) return first("feature-")
+    if (errs.measurements) {
+      const bad = firstBadMeasurement(
+        draft.access ?? emptyAccess(),
+        londonToday()
+      )
+      return (
+        (bad &&
+          document.getElementById(`${ids}-access-m${bad.index}-${bad.part}`)) ||
+        document.getElementById(`${ids}-access-m0-feature`)
+      )
+    }
+    return null
   }
 
   function focusFirstInvalid(errs: CaptureErrors) {
@@ -1331,8 +1374,8 @@ export function CaptureForm({
       const known: CaptureErrors = {}
       const other: string[] = []
       // B03-b: detail paths and the observation date go to their fields.
-      const detailErrs = facilityFieldErrors(result.fieldErrors)
-      if (Object.keys(detailErrs).length) setDetailErrors(detailErrs)
+      const detailErrs = detailFieldErrors(result.fieldErrors)
+      if (hasDetailErrors(detailErrs)) setDetailErrors(detailErrs)
       const observed =
         result.fieldErrors.observedOn ?? result.fieldErrors.observedOnSource
       if (observed) setCheckedOnErr(observed)
@@ -1405,7 +1448,7 @@ export function CaptureForm({
           sentSlotRevision: draft.attempted ? draft.sentSlotRevision : null,
           ...(detailForm
             ? {
-                detail: draft.facility ? facilityDetail(draft.facility) : null,
+                detail: draftDetail(detailForm, draft),
                 checkedOn: draft.checkedOn ?? null,
               }
             : {}),
@@ -1821,17 +1864,38 @@ export function CaptureForm({
         />
       ) : null}
 
-      {detailForm && answer === "yes" ? (
+      {detailForm?.schema === "accessibility" &&
+      showsAccess(detailForm, answer) ? (
+        <AccessDetailFields
+          id={`${ids}-access`}
+          value={draft.access ?? emptyAccess()}
+          onChange={(next) => {
+            edit((d) => ({ ...d, access: next }))
+            setDetailErrors((e) => ({ ...e, access: {} }))
+          }}
+          answer={answer}
+          stepFree={detailForm.stepFree}
+          places={detailForm.places}
+          features={detailForm.features}
+          venueName={knowledge?.venueName ?? ""}
+          canManagePlaces={detailForm.canManagePlaces}
+          errors={detailErrors.access}
+          today={londonToday()}
+          disabled={locked}
+        />
+      ) : null}
+      {detailForm && showsFacility(detailForm, answer) ? (
         <FacilityDetailFields
           id={`${ids}-facility`}
           value={draft.facility ?? emptyFacility()}
           onChange={(next) => {
             edit((d) => ({ ...d, facility: next }))
-            setDetailErrors({})
+            setDetailErrors((e) => ({ ...e, facility: {} }))
           }}
           places={detailForm.places}
           venueName={knowledge?.venueName ?? ""}
-          errors={detailErrors}
+          errors={detailErrors.facility}
+          showWhere={detailForm.schema === "facility"}
           disabled={locked}
         />
       ) : null}

@@ -5,6 +5,10 @@ import {
   type UnknownPreset,
 } from "@/lib/knowledge-client/contract"
 
+import {
+  accessFromDraft,
+  type AccessDraft,
+} from "../../knowledge/accessibility-detail"
 import type { CheckedOn } from "../../knowledge/checked-on"
 import {
   emptyFacility,
@@ -75,11 +79,12 @@ export type CaptureDraft = {
    */
   uploadsPending?: { count: number; after: string | null } | null
   /**
-   * B03-b detail forms only: the facility detail as typed, and Checked on
-   * (the form's date is stamped at the first edit, so a later reopen can tell
-   * it from a chosen one). Absent on every other form.
+   * B03-b detail forms only: the facility and accessibility details as
+   * typed, and Checked on (the form's date is stamped at the first edit, so a
+   * later reopen can tell it from a chosen one). Absent on every other form.
    */
   facility?: FacilityDraft | null
+  access?: AccessDraft | null
   checkedOn?: CheckedOn | null
 }
 
@@ -222,6 +227,9 @@ export function loadDraft(owner: DraftOwner): CaptureDraft | null {
       ...uploadsPending(d.uploadsPending),
       ...(d.facility && typeof d.facility === "object"
         ? { facility: facilityFromDraft(d.facility) }
+        : {}),
+      ...(d.access && typeof d.access === "object"
+        ? { access: accessFromDraft(d.access) }
         : {}),
       ...checkedOnOf(d.checkedOn),
     }

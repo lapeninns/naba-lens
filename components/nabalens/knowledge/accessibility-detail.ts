@@ -156,27 +156,37 @@ export function accessErrors(
     }
   } else if (ctx.answer && ctx.answer !== "unknown" && !hasScope(draft))
     errors.scope = ACCESS_COPY.scopeRequired
-  for (const m of draft.measurements) {
-    const n = Number(m.value.trim())
-    const problem = !m.feature
-      ? ACCESS_COPY.measureFeature
-      : !m.value.trim() || !Number.isFinite(n) || n < 0 || n > 100000
-        ? ACCESS_COPY.measureNumber
-        : !m.unit
-          ? ACCESS_COPY.measureUnit
-          : !m.measuredOn
-            ? ACCESS_COPY.measureDate
-            : m.measuredOn > ctx.today
-              ? ACCESS_COPY.measureFuture
-              : !m.method
-                ? ACCESS_COPY.measureMethod
-                : null
-    if (problem) {
-      errors.measurements = problem
-      break
-    }
-  }
+  const bad = firstBadMeasurement(draft, ctx.today)
+  if (bad) errors.measurements = bad.message
   return errors
+}
+
+/** A measurement's controls, as the fields name them. */
+export type MeasurementPart = "feature" | "value" | "unit" | "date" | "method"
+
+/** The first measurement with a problem, which control, and what to say. */
+export function firstBadMeasurement(
+  draft: AccessDraft,
+  today: string
+): { index: number; part: MeasurementPart; message: string } | null {
+  for (const [index, m] of draft.measurements.entries()) {
+    const n = Number(m.value.trim())
+    const found: [MeasurementPart, string] | null = !m.feature
+      ? ["feature", ACCESS_COPY.measureFeature]
+      : !m.value.trim() || !Number.isFinite(n) || n < 0 || n > 100000
+        ? ["value", ACCESS_COPY.measureNumber]
+        : !m.unit
+          ? ["unit", ACCESS_COPY.measureUnit]
+          : !m.measuredOn
+            ? ["date", ACCESS_COPY.measureDate]
+            : m.measuredOn > today
+              ? ["date", ACCESS_COPY.measureFuture]
+              : !m.method
+                ? ["method", ACCESS_COPY.measureMethod]
+                : null
+    if (found) return { index, part: found[0], message: found[1] }
+  }
+  return null
 }
 
 /** The line shown before sending, for step-free; null otherwise. */
@@ -256,20 +266,29 @@ export function accessFromDetail(detail: unknown): AccessDraft {
       )
         draft.entrances[item.subjectId] = item.stepFree as FeatureValue
   if (Array.isArray(detail.measurements))
-    draft.measurements = detail.measurements.filter(isRecord).map((m) => ({
-      feature: typeof m.feature === "string" ? m.feature : "",
-      value: typeof m.value === "number" ? String(m.value) : "",
-      unit:
-        m.unit === "mm" || m.unit === "cm" || m.unit === "degrees"
-          ? m.unit
-          : "",
-      measuredOn: typeof m.measuredOn === "string" ? m.measuredOn : "",
-      method:
-        m.method === "tape" || m.method === "gauge" || m.method === "other"
-          ? m.method
-          : "",
-    }))
+    draft.measurements = detail.measurements
+      .filter(isRecord)
+      .map((m) =>
+        measurementOf(m, typeof m.value === "number" ? String(m.value) : "")
+      )
   return draft
+}
+
+function measurementOf(
+  m: Record<string, unknown>,
+  value: string
+): MeasurementDraft {
+  return {
+    feature: typeof m.feature === "string" ? m.feature : "",
+    value,
+    unit:
+      m.unit === "mm" || m.unit === "cm" || m.unit === "degrees" ? m.unit : "",
+    measuredOn: typeof m.measuredOn === "string" ? m.measuredOn : "",
+    method:
+      m.method === "tape" || m.method === "gauge" || m.method === "other"
+        ? m.method
+        : "",
+  }
 }
 
 /** The section a server error path belongs to (b03-design §14.3). */
@@ -297,4 +316,25 @@ export function scopeName(scope: PlaceRef, places: Place[]): string {
   return (
     places.find((p) => p.subjectId === scope.subjectId)?.label ?? "that place"
   )
+}
+
+/** A device draft's accessibility part (the form's own model), defensively. */
+export function accessFromDraft(v: unknown): AccessDraft {
+  const draft = emptyAccess()
+  if (!isRecord(v)) return draft
+  const { scope, features } = accessFromDetail({
+    scope: v.scope,
+    features: v.features,
+  })
+  draft.scope = scope
+  draft.features = features
+  if (Array.isArray(v.measurements))
+    draft.measurements = v.measurements
+      .filter(isRecord)
+      .map((m) => measurementOf(m, typeof m.value === "string" ? m.value : ""))
+  if (isRecord(v.entrances))
+    for (const [id, value] of Object.entries(v.entrances))
+      if (FEATURE_VALUES.includes(value))
+        draft.entrances[id] = value as FeatureValue
+  return draft
 }

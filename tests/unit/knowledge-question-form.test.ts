@@ -71,7 +71,19 @@ describe("questionForm", () => {
     ).toEqual({ kind: "facility" })
   })
 
-  it("never renders a form for a schema or version it doesn't know", () => {
+  it("gives accessibility version 1 its detail form, with the version's features", () => {
+    const features = [
+      { key: "grab_rails", label: "⟨Grab rails⟩", measurable: false },
+    ]
+    expect(
+      questionForm(
+        question({
+          family: "accessibility",
+          valueSchema: { name: "accessibility", version: 1 },
+          features,
+        })
+      )
+    ).toEqual({ kind: "accessibility", features })
     expect(
       questionForm(
         question({
@@ -79,7 +91,18 @@ describe("questionForm", () => {
           valueSchema: { name: "accessibility", version: 1 },
         })
       )
-    ).toEqual({ kind: "unknown", schema: "accessibility", version: 1 })
+    ).toEqual({ kind: "accessibility", features: [] })
+  })
+
+  it("never renders a form for a schema or version it doesn't know", () => {
+    expect(
+      questionForm(
+        question({
+          family: "policy",
+          valueSchema: { name: "policy", version: 1 },
+        })
+      )
+    ).toEqual({ kind: "unknown", schema: "policy", version: 1 })
     expect(
       questionForm(question({ valueSchema: { name: "presence", version: 2 } }))
     ).toEqual({ kind: "unknown", schema: "presence", version: 2 })

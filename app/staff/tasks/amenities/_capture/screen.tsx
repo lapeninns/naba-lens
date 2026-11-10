@@ -62,16 +62,26 @@ async function knowledgeFor(
     .catch(() => null)
   const form = questionForm(question?.ok ? question.question : null)
   const props = fromView(view.view, draft?.ok ? draft.draft : null, role)
-  if (form.kind === "facility") {
-    // The venue's places for "Where is it?"; none when they can't be read
-    // (the person can still name a place).
-    const places = await knowledgeServices
+  if (form.kind === "facility" || form.kind === "accessibility") {
+    // The venue's places for "Where is it?" and "What did you check?"; none
+    // when they can't be read (the person can still name a place, and
+    // step-free entrance says to add entrances under Places).
+    const result = await knowledgeServices
       .listPlaces(actor, { venueId: view.view.venue.id })
       .catch(() => null)
-    props.detailForm = {
-      schema: "facility",
-      places: places?.ok ? (places.places ?? []).filter((p) => p.active) : [],
-    }
+    const places = result?.ok
+      ? (result.places ?? []).filter((p) => p.active)
+      : []
+    props.detailForm =
+      form.kind === "facility"
+        ? { schema: "facility", places }
+        : {
+            schema: "accessibility",
+            places,
+            features: form.features,
+            stepFree: view.view.slot.key === "step_free_entrance",
+            canManagePlaces: role !== "staff",
+          }
   }
   return { props, capture: view.view.capture, form }
 }
