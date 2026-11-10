@@ -376,14 +376,16 @@ function ContributionItem({
   )
 }
 
-function titleOf(row: PhotoContributionRow | TaskSendContributionRow): string {
+export function titleOf(
+  row: PhotoContributionRow | TaskSendContributionRow
+): string {
   const copy = MY_CONTRIBUTIONS_COPY
   if (row.type === "task_send") return row.title || copy.taskPhoto
   if (row.items.length > 0) return row.items.join(", ")
   return row.mediaType === "video" ? copy.video : copy.photo
 }
 
-function PhotoLines({ row }: { row: PhotoContributionRow }) {
+export function PhotoLines({ row }: { row: PhotoContributionRow }) {
   const copy = MY_CONTRIBUTIONS_COPY
   return (
     <ul className="grid gap-1 text-body [overflow-wrap:anywhere] text-ink">

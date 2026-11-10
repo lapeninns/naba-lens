@@ -7,6 +7,7 @@ import {
   HourglassIcon,
   ImageSquareIcon,
   ImagesIcon,
+  PencilSimpleIcon,
   ShieldCheckIcon,
   UserIcon,
 } from "@phosphor-icons/react/dist/ssr"
@@ -72,12 +73,32 @@ function ConfirmRow({ count }: { count: number | null }) {
   )
 }
 
+/**
+ * This manager account's uploads that need labels (R1): one row linking to
+ * My uploads, shown only above zero.
+ */
+function NeedsLabelsRow({ count }: { count: number | null }) {
+  if (!count || count <= 0) return null
+  return (
+    <ul className={ROW_LIST}>
+      <li data-tally="needs-labels">
+        <Row
+          href={managerHrefs.uploads}
+          icon={<PencilSimpleIcon />}
+          title={MANAGER_COPY.overview.needsLabels(count)}
+        />
+      </li>
+    </ul>
+  )
+}
+
 export function OverviewBody({
   overview,
   now,
   staffTargets,
   confirmCount = 0,
   triage,
+  needsLabels = null,
 }: {
   overview: ManagerOverview
   staffTargets?: React.ReactNode
@@ -90,10 +111,17 @@ export function OverviewBody({
    * waiting photos tally, which it carries itself.
    */
   triage?: React.ReactNode
+  /** R1: this manager account's uploads that need labels; null hides the row. */
+  needsLabels?: number | null
 }) {
   const copy = MANAGER_COPY.overview
   const venueName = overview.venueName
-  const confirm = triage ?? <ConfirmRow count={confirmCount} />
+  const confirm = (
+    <>
+      {triage ?? <ConfirmRow count={confirmCount} />}
+      <NeedsLabelsRow count={needsLabels} />
+    </>
+  )
 
   if (overview.menuState === "no_menu") {
     return (

@@ -19,6 +19,7 @@ import { getManagerCompletionRoster } from "@/lib/server/coverage/venue"
 import type { TriageRow } from "@/lib/work-client/contract"
 import { workServices } from "@/lib/work-client/services"
 
+import { managerNeedsLabels } from "./entry"
 import { failedRead, isRefusal, loadManagerOverview } from "./load-overview"
 
 export const metadata = { title: "Overview · Naba-Lens" }
@@ -73,9 +74,10 @@ export default async function ManagerOverviewPage() {
       return <VenueAccessUnavailable reason="no_grant" refreshShell />
     failedRead(read.code, "the overview", ROUTES.managerHome)
   }
-  const [team, triage] = await Promise.all([
+  const [team, triage, needsLabels] = await Promise.all([
     getManagerCompletionRoster(read.ctx),
     readTriage(),
+    managerNeedsLabels(workspace.venue.id),
   ])
   const confirmCount = triage ? null : await countToConfirm()
   if (!team.ok && isRefusal(team.code)) {
@@ -91,6 +93,7 @@ export default async function ManagerOverviewPage() {
         overview={read.overview}
         now={now}
         confirmCount={confirmCount}
+        needsLabels={needsLabels}
         triage={
           triage ? (
             <TriageCard

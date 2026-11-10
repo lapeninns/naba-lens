@@ -50,6 +50,37 @@ export const managerAddEntry = cache(
   }
 )
 
+/**
+ * Whether this manager account's own uploads are on (B02-c): the same
+ * switches as Add, the shared entry for the venue and R8's canUpload. An R8
+ * read that fails counts as off.
+ */
+export const managerUploadsOn = cache(
+  async (venueId: string): Promise<boolean> => {
+    if (contributionEntry(venueId) !== "b02") return false
+    const capabilities = await managerCapabilities(venueId)
+    return capabilities?.canUpload === true
+  }
+)
+
+/**
+ * R1: how many of this account's uploads need labels (the server counts a
+ * manager account's manager-era uploads only); null when uploads are off or
+ * the read fails, so the overview never waits on it.
+ */
+export async function managerNeedsLabels(
+  venueId: string
+): Promise<number | null> {
+  try {
+    if (!(await managerUploadsOn(venueId))) return null
+    const auth = await getMediaActor("manager")
+    if (!auth.ok) return null
+    const read = await workServices.getLabelWork(auth.actor)
+    return read.status === "ok" ? read.value.needsLabels : null
+  } catch {
+    return null
+  }
+}
 async function managerWorkingList() {
   try {
     const auth = await getMediaActor("manager")
