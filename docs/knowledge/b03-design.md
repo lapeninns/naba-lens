@@ -1334,3 +1334,38 @@ expired` or `basis_missing`. Precedence for an otherwise available slot:
   `rechecks` summary, so B02 screens are unchanged.
 - `private.knowledge_slot_state_b03` gained `p_now` (default `now()`) so
   K2 and the job can read at a given time.
+
+**B03-f as built (10 Nov 2026):** reconciliation (§8, A12, A13, A23).
+
+- Admin only: `knowledge_source_declare`, `knowledge_source_retire`,
+  `knowledge_source_import` (what a source said at one revision; a revision
+  imports once; each line is validated as a finding under the key's latest
+  version, with paths under `assertions[i]`), `knowledge_mapping_review`
+  (for the fact's current revision only), `knowledge_reconcile` (dry run,
+  then apply within 24 hours with the same source revisions, else
+  `reconcile_source_changed`; without a dry run `reconcile_dry_run_required`,
+  both NLK12), `knowledge_sources`, `knowledge_legacy_mappings`,
+  `knowledge_reconciliation_runs` and `knowledge_reconciliation_run`.
+  Managers and admins: `knowledge_legacy_narrative`.
+- A proposal is a finding awaiting confirmation, sent by the admin who ran
+  the apply; it never completes at import. An agreeing import is recorded as
+  `seen`; a disagreeing one leaves the slot disputed. Confirming or choosing
+  an import while the check has a stored current submission is
+  `import_slot_has_answer` (NLK14). Pending findings and to-confirm items
+  carry `source`, and imports also `sourceLabel` and `adoptable`. The
+  manager triage read has a `suggestions` row; `findings` no longer counts
+  imports. TypeScript adds a separate `suggestions` summary beside B02's
+  queues.
+- **Decision to confirm (basis):** §8.2 named additive `contributor_basis`
+  values `legacy_fact` and `external_source`. Adoption copies that basis
+  into `amenity_submissions.submitter_basis`, whose check is a released
+  constraint (T11a), so the import keeps `contributor_basis = 'admin'` (the
+  admin did run it) and its origin is recorded in
+  `knowledge_contribution_sources`. No released constraint changes.
+- **Decision to confirm (evidence):** an imported Yes keeps the key's
+  evidence rule, so it can be confirmed only with evidence. A legacy fact's
+  own ready photos and videos are attached as its evidence; an external
+  source has none, so its Yes stays a suggestion a manager can decline or
+  answer afresh. Owner to confirm with OD-17 and OD-19.
+- `knowledge_write_commands.venue_id` became nullable for an
+  organisation-wide source.

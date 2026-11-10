@@ -272,7 +272,16 @@ export type PendingFindingView = {
   observedOn?: string | null
   /** B03-c (A5): policy findings only, as if adopted (content, not who confirms). */
   policyMissing?: PolicyMissing[]
+  /** B03-f (A12): where the finding came from. */
+  source?: FindingSource
+  /** B03-f: imports only, the source's label. */
+  sourceLabel?: string
+  /** B03-f (A23): imports only; false while the check has an answer in use. */
+  adoptable?: boolean
 }
+
+export type FindingSource =
+  "staff_finding" | "manager_statement" | "legacy_fact" | "external_source"
 
 export type KnowledgeCheckView = KnowledgeSlotView & {
   permissions: {
@@ -319,6 +328,10 @@ export type ToConfirmItem = {
   waitingSince?: string
   /** B03-c (A5): policy items only. */
   policyMissing?: PolicyMissing[]
+  /** B03-f (A12, A23): the source; imports also carry their label and adoptable. */
+  source?: FindingSource
+  sourceLabel?: string
+  adoptable?: boolean
 }
 
 /**
@@ -393,7 +406,7 @@ export type LabelWork = { needsLabels: number; needsAttention: number }
 export const TRIAGE_QUEUES = ["menu_photos", "findings", "checklist"] as const
 export type TriageQueue = (typeof TRIAGE_QUEUES)[number]
 /** B03-e (§7.4): open recheck tasks, returned beside the B02 queues. */
-export type TriageRow = TriageQueue | "rechecks"
+export type TriageRow = TriageQueue | "rechecks" | "suggestions"
 
 /**
  * R3. One manager queue. A queue the caller can't act on is `available: false`
@@ -831,6 +844,113 @@ export type RecheckTaskView = {
   dueAt: string
 }
 
+// ---- Reconciliation (B03-f, b03-design §8, A13) -------------------------------
+
+export const SOURCE_KINDS = [
+  "venue_website",
+  "google_business_profile",
+  "booking_site",
+  "operator_document",
+  "other",
+] as const
+export type SourceKind = (typeof SOURCE_KINDS)[number]
+export type MappingKind = "exact" | "candidate" | "none"
+
+export type SourceView = {
+  sourceId: string
+  kind: SourceKind
+  label: string
+  venueId: string | null
+  declaredAt: string
+  declaredBy: string
+  retiredAt: string | null
+  latestRevision: string | null
+}
+
+export type SourceAssertionInput = {
+  venueId: string
+  questionKey: string
+  headline: KnowledgeAnswer
+  detail?: KnowledgeDetail
+  excerpt?: string
+}
+
+export type LegacyMappingsView = {
+  items: {
+    legacyFactId: string
+    legacyRevision: number
+    legacyKey: string
+    venueId: string
+    presence: "present" | "absent" | "unknown"
+    mappings: {
+      questionKey: string
+      kind: MappingKind
+      reason: string
+      reviewedBy: string
+      reviewedAt: string
+    }[]
+  }[]
+  nextCursor: string | null
+}
+
+export type ReconcileCounts = {
+  candidates: number
+  proposals: number
+  corroborating: number
+  conflicting: number
+  alreadyApplied: number
+  skipped: number
+}
+
+export type ReconcileProposal = {
+  venueId: string
+  questionKey: string
+  answer: KnowledgeAnswer
+  state: "proposal" | "corroborates" | "conflicts"
+  source: string
+  legacyFactId: string | null
+  legacyRevision: number | null
+  assertionId: string | null
+}
+
+export type ReconcileResult = {
+  runId: string
+  mode: "dry_run" | "apply"
+  counts: ReconcileCounts
+  wouldCreate?: ReconcileProposal[]
+  dryRunId?: string
+  created?: number
+  conflicts: Pick<
+    ReconcileProposal,
+    "venueId" | "questionKey" | "answer" | "source"
+  >[]
+  sourceRevisions: Record<string, string | number>
+}
+
+export type ReconciliationRunView = {
+  runId: string
+  kind: "legacy" | "external"
+  mode: "dry_run" | "apply"
+  venueId: string | null
+  dryRunId: string | null
+  startedAt: string
+  counts: ReconcileCounts
+  wouldCreate: ReconcileProposal[]
+  conflicts: ReconcileResult["conflicts"]
+  sourceRevisions: Record<string, string | number>
+}
+
+/** §8.2 L5: a legacy fact as narrative, never a knowledge confirmation. */
+export type LegacyNarrativeItem = {
+  legacyKey: string
+  label: string
+  presence: "present" | "absent" | "unknown"
+  facts: string | null
+  policy: string | null
+  savedAsConfirmedAt: string | null
+  updatedAt: string
+}
+
 /** B03-e (§7.3): what naming a policy would do, per venue and use. */
 export type FreshnessPreviewView = {
   key: string
@@ -882,7 +1002,9 @@ export const KNOWLEDGE_SQLSTATES = {
   NLK07: "knowledge_not_adoptable",
   NLK08: "knowledge_not_current",
   NLK09: "draft_already_sent",
+  NLK12: "reconcile_source_changed",
   NLK13: "place_exists",
+  NLK14: "import_slot_has_answer",
 } as const
 
 // ---- RPC signatures ------------------------------------------------------------
@@ -1048,6 +1170,75 @@ export type KnowledgeRpcs = {
   knowledge_value_list: {
     args: { p_list: ValueListName }
     returns: ValueListView
+  }
+  knowledge_source_declare: {
+    args: {
+      p_kind: SourceKind
+      p_label: string
+      p_venue_id: string | null
+      p_idempotency_key: string
+    }
+    returns: { sourceId: string; replayed: boolean }
+  }
+  knowledge_source_retire: {
+    args: { p_source_id: string; p_reason: string; p_idempotency_key: string }
+    returns: { sourceId: string; retired: true; replayed: boolean }
+  }
+  knowledge_source_import: {
+    args: {
+      p_source_id: string
+      p_source_revision: string
+      p_retrieved_at: string
+      p_assertions: SourceAssertionInput[]
+      p_idempotency_key: string
+    }
+    returns: { sourceId: string; imported: number; replayed: boolean }
+  }
+  knowledge_mapping_review: {
+    args: {
+      p_legacy_fact_id: string
+      p_legacy_revision: number
+      p_question_key: string
+      p_kind: MappingKind
+      p_reason: string
+      p_idempotency_key: string
+    }
+    returns: { mappingId: string; replayed: boolean }
+  }
+  knowledge_reconcile: {
+    args: {
+      p_kind: "legacy" | "external"
+      p_mode: "dry_run" | "apply"
+      p_venue_id: string | null
+    }
+    returns: ReconcileResult
+  }
+  knowledge_sources: {
+    args: { p_include_retired: boolean }
+    returns: { items: SourceView[] }
+  }
+  knowledge_legacy_mappings: {
+    args: { p_venue_id: string | null; p_cursor: string | null }
+    returns: LegacyMappingsView
+  }
+  knowledge_reconciliation_runs: {
+    args: { p_cursor: string | null }
+    returns: {
+      items: Pick<
+        ReconciliationRunView,
+        "runId" | "kind" | "mode" | "venueId" | "startedAt" | "counts"
+      >[] &
+        { startedBy: string }[]
+      nextCursor: string | null
+    }
+  }
+  knowledge_reconciliation_run: {
+    args: { p_run_id: string }
+    returns: ReconciliationRunView
+  }
+  knowledge_legacy_narrative: {
+    args: { p_venue_id: string | null }
+    returns: { venueId: string; items: LegacyNarrativeItem[] }
   }
   my_rechecks: {
     args: Record<string, never>

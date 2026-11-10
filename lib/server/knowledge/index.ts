@@ -55,5 +55,17 @@ export {
 } from "./schedule-services"
 export { expandScheduleOccurrences } from "./schedules"
 export { getCheckRechecks, listMyRechecks, previewFreshness } from "./rechecks"
+export {
+  declareSource,
+  getLegacyNarrative,
+  getReconciliationRun,
+  importSourceAssertions,
+  listLegacyMappings,
+  listReconciliationRuns,
+  listSources,
+  reconcile,
+  retireSource,
+  reviewMapping,
+} from "./reconciliation"
 export { readKnowledgeAnswers, type KnowledgeReaderResult } from "./reader"
 export { knowledgeRpcFailure } from "./errors"

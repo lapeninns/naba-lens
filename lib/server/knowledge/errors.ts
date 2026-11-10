@@ -121,6 +121,24 @@ const KNOWLEDGE: Record<string, Mapping> = {
     "state_conflict",
     "This date already has a change. Reload the page.",
   ],
+  reconcile_source_changed: [
+    "state_conflict",
+    "A source changed since the dry run. Run the dry run again.",
+  ],
+  reconcile_dry_run_required: [
+    "state_conflict",
+    "Run a dry run for this scope first.",
+  ],
+  import_slot_has_answer: [
+    "state_conflict",
+    "This question already has an answer in use, so an imported suggestion can't replace it.",
+  ],
+  knowledge_source_not_found: ["not_found", "This source could not be found."],
+  legacy_fact_not_found: [
+    "not_found",
+    "This legacy record could not be found.",
+  ],
+  knowledge_run_not_found: ["not_found", "This run could not be found."],
 }
 
 const BY_SQLSTATE: Record<string, string> = {
@@ -131,7 +149,9 @@ const BY_SQLSTATE: Record<string, string> = {
   NLK07: "knowledge_not_adoptable",
   NLK08: "knowledge_not_current",
   NLK09: "draft_already_sent",
+  NLK12: "reconcile_source_changed",
   NLK13: "place_exists",
+  NLK14: "import_slot_has_answer",
 }
 
 const FIELD_ERRORS: Record<string, [field: string, message: string]> = {
@@ -163,6 +183,8 @@ const FIELD_ERRORS: Record<string, [field: string, message: string]> = {
   invalid_value_list: ["list", "Choose a list."],
   invalid_range: ["to", "Choose up to 92 days."],
   invalid_timezone: ["timezone", "Reload the page and try again."],
+  invalid_source_kind: ["kind", "Choose what kind of source this is."],
+  invalid_mapping_kind: ["kind", "Choose exact, candidate or none."],
 }
 
 function detailOf(error: DbError): Record<string, unknown> {
