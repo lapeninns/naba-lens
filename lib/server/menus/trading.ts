@@ -97,6 +97,10 @@ const CODES: Record<string, [MenuFailure["status"], string]> = {
     "This availability schedule could not be found.",
   ],
   knowledge_check_not_found: [404, "This venue service could not be found."],
+  knowledge_check_not_service: [
+    409,
+    "A menu can follow only a venue service with times.",
+  ],
   menu_source_snapshot_not_found: [
     404,
     "This source snapshot could not be found.",
@@ -145,6 +149,19 @@ const CODES: Record<string, [MenuFailure["status"], string]> = {
   menu_source_locator_not_found: [
     400,
     "That entry is not in the source snapshot.",
+  ],
+  menu_source_price_missing: [400, "That source entry has no price."],
+  menu_source_text_mismatch: [
+    400,
+    "The price text does not match the source entry.",
+  ],
+  menu_source_mapping_unverified: [
+    409,
+    "That source entry has no reviewed match. Review it in the crosswalk first.",
+  ],
+  menu_source_mapping_mismatch: [
+    409,
+    "That source entry is matched to another dish, option or channel.",
   ],
   invalid_effective_dates: [
     400,
@@ -271,7 +288,9 @@ function portionArg(
 /**
  * A staff report, a manager's or admin's statement, or (admin) a price read
  * from a menu source. It stays proposed until a decision; the result carries
- * the line's confirmed value separately (L4).
+ * the line's confirmed value separately (L4). A source price is the cited
+ * snapshot entry's own price text (rawText, when given, must equal it), and
+ * the source's reviewed crosswalk must map that entry to this line.
  */
 export async function proposeTradingValue(
   actor: MediaActor,
@@ -282,7 +301,7 @@ export async function proposeTradingValue(
     effectiveTo?: string | null
     observedOn?: string | null
     reason?: string | null
-    source?: { snapshotId: string; locator: string; rawText: string } | null
+    source?: { snapshotId: string; locator: string; rawText?: string } | null
     requestKey: string
   }
 ): Promise<Outcome<TradingProposeResult>> {
@@ -318,20 +337,26 @@ export async function proposeTradingValue(
   const proposal = input.proposal
   if (!isObject(proposal) || !oneOf(TRADING_FIELDS, proposal.field))
     return fail(400, CODES.invalid_trading_field[1])
-  const source = input.source ?? null
+  let source: Record<string, string> | null = null
   let value: Record<string, unknown> | null = null
-  if (source) {
+  if (input.source) {
+    const { snapshotId, locator, rawText } = input.source
     if (
       proposal.field !== "price" ||
-      !isUuid(source.snapshotId) ||
-      typeof source.locator !== "string" ||
-      [...source.locator].length < 1 ||
-      [...source.locator].length > TRADING_LIMITS.sourceLocatorMax ||
-      typeof source.rawText !== "string" ||
-      [...source.rawText].length < 1 ||
-      [...source.rawText].length > TRADING_LIMITS.rawTextMax
+      !isUuid(snapshotId) ||
+      typeof locator !== "string" ||
+      [...locator].length < 1 ||
+      [...locator].length > TRADING_LIMITS.sourceLocatorMax ||
+      (rawText !== undefined &&
+        (typeof rawText !== "string" ||
+          [...rawText].length < 1 ||
+          [...rawText].length > TRADING_LIMITS.rawTextMax))
     )
       return fail(400, CODES.invalid_trading_source[1])
+    source =
+      rawText === undefined
+        ? { snapshotId, locator }
+        : { snapshotId, locator, rawText }
   } else if (proposal.field === "price") {
     const currency = proposal.currency ?? "GBP"
     const text = priceInputText(proposal.amount)

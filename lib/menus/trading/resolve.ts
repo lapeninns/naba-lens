@@ -237,7 +237,7 @@ export function resolveTemporary(
 /**
  * private.menu_trading_availability: temporary unavailability first, then the
  * confirmed availability assertion (always, not offered, or its schedule).
- * `linked` supplies B03's reading of a linked service for a schedule id.
+ * `linked` supplies a linked service as it stood at `at`, for a schedule id.
  */
 export function resolveAvailability(
   records: LineRecords,

@@ -4,9 +4,10 @@
 // private.schedule_occurrences, b03-design A27) over the previous and current
 // local dates, so a window past midnight belongs to its start date and local
 // times hold across clock changes. A schedule linked to a B03 service check
-// takes that service's B03 status, value and occurrences as input: B03 owns
-// them, its deliberate stop and its recheck. Mirrors
-// private.menu_trading_schedule_state. Pure.
+// takes that service as it stood at the instant read as input (the private
+// B04 projection private.menu_service_state_at and
+// private.menu_service_occurrences): B03 owns its status, deliberate stop
+// and recheck. Mirrors private.menu_trading_schedule_state. Pure.
 
 import {
   expandScheduleOccurrences,
@@ -40,19 +41,18 @@ export type LinkedMenuSchedule = {
 export type MenuSchedule = LocalMenuSchedule | LinkedMenuSchedule
 
 /**
- * What B03 says about the linked service at the instant read: its status
- * (private.knowledge_slot_state_b03: status, reason, detail, value; a
- * deliberate stop in effect reads value 'no') and its occurrences over the
- * previous and current local dates (public.knowledge_occurrences, which ends
- * them at a deliberate stop), or null when the reader may not read them.
+ * The linked service as it stood at the instant read, with every B03 record
+ * made by then and none made later: B03's unavailable status in its
+ * precedence (private.menu_service_state_at; unknown /
+ * service_history_unsupported when a past evidence state cannot be rebuilt),
+ * a No (a deliberate stop in effect), or offered with its occurrences over
+ * the previous and current local dates (private.menu_service_occurrences,
+ * ended at a deliberate stop). Null: no such check of the schedule's venue.
  */
-export type LinkedService = {
-  status: string
-  reason: string | null
-  detail: string | null
-  value: string | null
-  occurrences: Occurrence[] | null
-}
+export type LinkedService =
+  | { state: "unknown"; reason: string; detail: string }
+  | { state: "not_offered" }
+  | { state: "offered"; occurrences: Occurrence[] }
 
 export type ScheduleState =
   | {
@@ -165,32 +165,18 @@ export function scheduleStateAt(
       return {
         state: "unknown",
         reason: "unknown",
-        detail: "service_unreadable",
+        detail: "not_recorded",
         source,
       }
-    if (linked.status !== "available")
+    if (linked.state === "unknown")
       return {
         state: "unknown",
-        reason: linked.reason ?? "unknown",
-        detail: linked.detail ?? "not_checked",
+        reason: linked.reason,
+        detail: linked.detail,
         source,
       }
-    if (linked.value === "no")
+    if (linked.state === "not_offered")
       return { state: "not_offered", detail: "service_not_offered", source }
-    if (linked.value !== "yes")
-      return {
-        state: "unknown",
-        reason: "unknown",
-        detail: "not_checked",
-        source,
-      }
-    if (linked.occurrences === null)
-      return {
-        state: "unknown",
-        reason: "unknown",
-        detail: "service_unreadable",
-        source,
-      }
     found = pick(
       linked.occurrences.filter(
         (o) =>
