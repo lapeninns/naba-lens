@@ -12,12 +12,16 @@ import { beforeAll, describe, expect, it } from "vitest"
 
 import { sha256Hex } from "../../lib/menus/import"
 import {
+  CROSSWALK_LOCATOR_BYTES_MAX,
+  CROSSWALK_LOCATOR_MAX,
   DEFAULT_FIELD_AUTHORITY,
   MENU_FIELDS,
+  SNAPSHOT_LIMITS,
   contentHashInput,
   proposeCrosswalk,
   snapshotDocumentError,
   variantLocators,
+  websiteLocators,
   type CatalogueEntry,
   type CrosswalkHead,
   type SnapshotEntry,
@@ -539,6 +543,18 @@ describe("sources and snapshots (§4.3, §4.5)", () => {
       [{ ...ok1, labels: ["GF", ""] }],
       [ok1, { ...ok1, name: "B" }],
       [{ ...ok1, name: "🍛".repeat(120) }],
+      // Locator bounds: 900 characters and 1200 UTF-8 bytes.
+      [{ ...ok1, locator: "x".repeat(900) }],
+      [{ ...ok1, locator: "x".repeat(901) }],
+      [{ ...ok1, locator: "🍛".repeat(300) }],
+      [{ ...ok1, locator: `${"🍛".repeat(300)}x` }],
+      [{ ...ok1, locator: "é".repeat(601) }],
+      [{ ...ok1, locator: ` ${"x".repeat(10)}` }],
+      // A generated menu.json locator for a name of 100 literal #.
+      websiteLocators([
+        { file: "menu.json", name: `Dish${"#".repeat(100)}` },
+        { file: "menu.json", name: `Dish${"#".repeat(100)}` },
+      ]).map((locator) => ({ locator, name: `Dish${"#".repeat(100)}` })),
     ]
     for (const [n, document] of documents.entries()) {
       const expected = snapshotDocumentError(document)
@@ -1077,6 +1093,167 @@ describe("variant transitions: retained, removed and remapped (§4.2 #5, #6)", (
     )
   })
 
+  it("moves a retained variant's open review to new evidence while its entry is still pending, as the TypeScript matcher does", async () => {
+    const source = await declare(
+      venueA,
+      "venue_website",
+      `TEST site ${randomUUID()}`
+    )
+    const kormaId = A("mains--korma").itemId
+    const [kChicken, kLamb] = A("mains--korma").variants.map(
+      (v) => v.variantId!
+    )
+    const s1 = await snapshot(source, "r1", [korma])
+    await ok(propose(s1))
+    await ok(
+      decide(headAt(source, korma.locator), "confirmed", { item: kormaId })
+    )
+    await ok(propose(s1))
+    await ok(
+      decide(headAt(source, chickenAt), "confirmed", {
+        item: kormaId,
+        variant: kChicken,
+      })
+    )
+    await ok(
+      decide(headAt(source, lambAt), "confirmed", {
+        item: kormaId,
+        variant: kLamb,
+      })
+    )
+
+    // S2 changes the price: the entry and its retained variants need review.
+    const s2Entry: SnapshotEntry = { ...korma, priceText: "11" }
+    await ok(propose(await snapshot(source, "r2", [s2Entry])))
+    const chickenS2 = headAt(source, chickenAt)
+    expect(chickenS2).toMatchObject({
+      status: "needs_review",
+      variant_id: kChicken,
+    })
+    expect(headAt(source, korma.locator).status).toBe("needs_review")
+    type Row = {
+      id: string
+      seq: number
+      snapshot_id: string
+      status: string
+      content_hash: string
+      evidence: { entry: { priceText?: string } }
+      reviewed_by: string | null
+      supersedes: string | null
+    }
+    const history = () =>
+      rows<Row>(`select r.id, r.seq, r.snapshot_id, r.status, r.content_hash, r.evidence,
+          r.reviewed_by, r.supersedes
+        from public.menu_crosswalk r
+        where r.source_id = ${literal(source)} and r.locator = ${literal(chickenAt)}
+        order by r.seq`)
+    const historyS2 = history()
+
+    // S3 changes the price again before anyone reviews Korma.
+    const s3Entry: SnapshotEntry = { ...korma, priceText: "12" }
+    const before = heads(source)
+    const seq = lastSeq()
+    const s3 = await snapshot(source, "r3", [s3Entry])
+    await ok(propose(s3))
+    const s3Hash = await sha256Hex(contentHashInput(s3Entry))
+    const expected = proposeCrosswalk({
+      snapshotId: s3,
+      sourceKind: "venue_website",
+      entries: [s3Entry],
+      contentHashes: [s3Hash],
+      catalogue: catalogueA(),
+      heads: asTsHeads(before),
+    })
+    expect(rowsFrom(source, s3, seq)).toEqual(
+      expected.rows.map((r) => [
+        r.locator,
+        r.status,
+        r.itemId,
+        r.variantId,
+        r.candidates,
+        r.contentHash,
+      ])
+    )
+    const chickenS3 = headAt(source, chickenAt)
+    expect(chickenS3).toMatchObject({
+      status: "needs_review",
+      item_id: kormaId,
+      variant_id: kChicken,
+      candidates: [kChicken],
+      content_hash: s3Hash,
+      snapshot_id: s3,
+      revision: chickenS2.revision + 1,
+    })
+    expect(headAt(source, lambAt)).toMatchObject({
+      status: "needs_review",
+      content_hash: s3Hash,
+      snapshot_id: s3,
+    })
+    expect(headAt(source, korma.locator).status).toBe("proposed")
+    // One new row on S3's evidence; the S1 decision and S2 review are intact.
+    const historyS3 = history()
+    expect(historyS3.slice(0, historyS2.length)).toEqual(historyS2)
+    expect(historyS3).toHaveLength(historyS2.length + 1)
+    expect(historyS3.at(-1)).toMatchObject({
+      id: chickenS3.row_id,
+      snapshot_id: s3,
+      status: "needs_review",
+      content_hash: s3Hash,
+      evidence: { entry: { priceText: "12" } },
+      reviewed_by: null,
+      supersedes: chickenS2.row_id,
+    })
+    expect(
+      historyS2.some((r) => r.status === "confirmed" && r.reviewed_by)
+    ).toBe(true)
+    expect(historyS2.at(-1)).toMatchObject({
+      status: "needs_review",
+      evidence: { entry: { priceText: "11" } },
+    })
+
+    // S3 again adds no variant row.
+    const retry = await ok<{ counts: Record<string, number> }>(propose(s3))
+    expect(retry.counts).toMatchObject({
+      proposed: 0,
+      ambiguous: 0,
+      carried: 0,
+      needsReview: 0,
+      notOnSource: 0,
+    })
+    expect(headAt(source, chickenAt)).toMatchObject({
+      row_id: chickenS3.row_id,
+      revision: chickenS3.revision,
+    })
+
+    // The S2 decision is stale against S3, and the S3 row still needs its
+    // entry confirmed first.
+    await fails(
+      decide(chickenS2, "confirmed", { item: kormaId, variant: kChicken }),
+      "crosswalk_stale",
+      "40001"
+    )
+    await fails(
+      decide(chickenS3, "confirmed", { item: kormaId, variant: kChicken }),
+      "crosswalk_parent_not_confirmed",
+      "P0001"
+    )
+    // With the entry confirmed on S3, the S3 row is current evidence.
+    await ok(
+      decide(headAt(source, korma.locator), "confirmed", { item: kormaId })
+    )
+    await ok(
+      decide(headAt(source, chickenAt), "confirmed", {
+        item: kormaId,
+        variant: kChicken,
+      })
+    )
+    expect(headAt(source, chickenAt)).toMatchObject({
+      status: "confirmed",
+      snapshot_id: s3,
+      content_hash: s3Hash,
+    })
+  })
+
   it("re-proposes variant rows inside the item an entry is remapped to in the same snapshot", async () => {
     const source = await declare(
       venueA,
@@ -1179,6 +1356,94 @@ describe("variant locators: duplicates and literal suffixes (§4.3)", () => {
         .map((h) => h.locator)
         .sort()
     ).toEqual([...variantLocators(fixtures[0]!)].sort())
+  })
+
+  it("ingests and persists the longest admitted entry and variant locators", async () => {
+    const hashes = `Dish${"#".repeat(100)}`
+    const [generated] = websiteLocators([{ file: "menu.json", name: hashes }])
+    expect(generated).toHaveLength(319)
+    const entries: SnapshotEntry[] = [
+      {
+        locator: generated!,
+        name: hashes,
+        variants: ["Regular", "Regular", "#".repeat(80)],
+      },
+      {
+        locator: "x".repeat(SNAPSHOT_LIMITS.locatorMax),
+        name: "Long",
+        variants: Array(12).fill("#".repeat(80)),
+      },
+      {
+        locator: "🍛".repeat(SNAPSHOT_LIMITS.locatorBytesMax / 4),
+        name: "Wide",
+        variants: Array(12).fill("🍛".repeat(80)),
+      },
+    ]
+    expect(snapshotDocumentError(entries)).toBeNull()
+    const items = [
+      A("sides--chips").itemId,
+      A("sides--rice").itemId,
+      A("starters--chicken-tikka").itemId,
+    ]
+    const source = await declare(
+      venueA,
+      "venue_website",
+      `TEST site ${randomUUID()}`
+    )
+    const snap = await snapshot(source, "r1", entries)
+    await ok(propose(snap))
+    for (const [n, entry] of entries.entries()) {
+      expect(headAt(source, entry.locator).entry_locator).toBeNull()
+      await ok(
+        decide(headAt(source, entry.locator), "confirmed", { item: items[n] })
+      )
+    }
+    await ok(propose(snap))
+    for (const entry of entries) {
+      const derived = rows<{ locator: string }>(`select v.locator
+        from private.menu_crosswalk_variants(${literal(JSON.stringify(entry))}::jsonb) v
+        order by v.ord`).map((r) => r.locator)
+      expect(derived).toEqual(variantLocators(entry))
+      expect(
+        heads(source)
+          .filter((h) => h.entry_locator === entry.locator)
+          .map((h) => h.locator)
+          .sort()
+      ).toEqual([...variantLocators(entry)].sort())
+    }
+    expect(
+      rows(`select max(length(r.locator)) as chars, max(octet_length(r.locator)) as bytes,
+          max(length(r.entry_locator)) as entry_chars,
+          max(octet_length(r.entry_locator)) as entry_bytes
+        from public.menu_crosswalk r where r.source_id = ${literal(source)}`)
+    ).toEqual([
+      {
+        chars: CROSSWALK_LOCATOR_MAX,
+        bytes: CROSSWALK_LOCATOR_BYTES_MAX,
+        entry_chars: SNAPSHOT_LIMITS.locatorMax,
+        entry_bytes: SNAPSHOT_LIMITS.locatorBytesMax,
+      },
+    ])
+
+    // One character or byte past either bound is refused for any role.
+    const insert = (locator: string, entryLocator: string) =>
+      psql(`insert into public.menu_crosswalk (venue_id, source_id, snapshot_id, locator,
+          entry_locator, content_hash, status, basis, proposed_by)
+        select r.venue_id, r.source_id, r.snapshot_id, ${literal(locator)},
+          ${literal(entryLocator)}, r.content_hash, 'proposed', 'manual', r.proposed_by
+        from public.menu_crosswalk r where r.source_id = ${literal(source)} limit 1`)
+    expect(() => insert(`${"x".repeat(CROSSWALK_LOCATOR_MAX)}y`, "e")).toThrow(
+      /menu_crosswalk_locator_check/
+    )
+    expect(() =>
+      insert(`${variantLocators(entries[2]!).at(-1)}y`, "e")
+    ).toThrow(/menu_crosswalk_locator_check/)
+    expect(() =>
+      insert("l", "x".repeat(SNAPSHOT_LIMITS.locatorMax + 1))
+    ).toThrow(/menu_crosswalk_entry_locator_check/)
+    expect(() => insert("l", `${entries[2]!.locator}y`)).toThrow(
+      /menu_crosswalk_entry_locator_check/
+    )
   })
 })
 

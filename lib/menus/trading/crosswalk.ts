@@ -160,9 +160,23 @@ export const MENU_SOURCE_LIMITS = {
   authorityReasonMax: 500,
 } as const
 
+/**
+ * Entry locators: 900 characters and 1200 UTF-8 bytes. A generated locator
+ * (`websiteLocators`) used to be admitted when its unencoded form fit 300
+ * characters; `locatorPart` turns a `%` or `#` into three characters and
+ * leaves every other character alone, so such an input now encodes to at most
+ * 3 × 300 = 900 characters (888 in fact: the `#name=` delimiter is not
+ * encoded) and at most 4 × 300 = 1200 bytes (an encoded `%23` is 3 bytes, a
+ * character never more than 4). Every input admitted before encoding is
+ * admitted with its encoded locator, and none changes identity. 1200 bytes is
+ * also what a 300-character locator could already take, so the index keys of
+ * `menu_crosswalk` and `menu_crosswalk_heads` stay within the same byte
+ * envelope (see `CROSSWALK_LOCATOR_BYTES_MAX`).
+ */
 export const SNAPSHOT_LIMITS = {
   maxEntries: 2000,
-  locatorMax: 300,
+  locatorMax: 900,
+  locatorBytesMax: 1200,
   nameMax: 120,
   sectionMax: 120,
   descriptionMax: 600,
@@ -277,6 +291,11 @@ export function snapshotDocumentError(document: unknown): SnapshotIssue | null {
         path: `${p}.locator`,
         message: `1 to ${L.locatorMax} characters, no outer spaces`,
       }
+    if (utf8.encode(e.locator as string).length > L.locatorBytesMax)
+      return {
+        path: `${p}.locator`,
+        message: `At most ${L.locatorBytesMax} bytes`,
+      }
     if ((e.locator as string).includes(VARIANT_LOCATOR_MARK))
       return {
         path: `${p}.locator`,
@@ -390,12 +409,23 @@ export const variantLocators = (entry: SnapshotEntry): string[] =>
 /**
  * The longest crosswalk locator (`menu_crosswalk.locator`): an entry locator,
  * `#variant=`, a variant name whose every character is encoded to three, and
- * the largest repeat suffix.
+ * the largest repeat suffix: 900 + 9 + 240 + 3 = 1152 characters.
  */
 export const CROSSWALK_LOCATOR_MAX =
   SNAPSHOT_LIMITS.locatorMax +
   VARIANT_LOCATOR_MARK.length +
   3 * SNAPSHOT_LIMITS.variantMax +
+  `#${SNAPSHOT_LIMITS.maxVariants}`.length
+
+/**
+ * The same in UTF-8 bytes: 1200 + 9 + 4 × 80 (a variant character is at most
+ * 4 bytes, encoded or not) + 3 = 1532. With the source id and sequence this
+ * is well inside a btree index key (about 2700 bytes on an 8 kB page).
+ */
+export const CROSSWALK_LOCATOR_BYTES_MAX =
+  SNAPSHOT_LIMITS.locatorBytesMax +
+  VARIANT_LOCATOR_MARK.length +
+  4 * SNAPSHOT_LIMITS.variantMax +
   `#${SNAPSHOT_LIMITS.maxVariants}`.length
 
 /**
@@ -541,8 +571,9 @@ function keysOf(name: string, aliases: string[] | undefined): Set<string> {
  * - Variants are matched only inside the item the entry is confirmed to
  *   (§4.2 #5), so a variant name is never matched across items. A variant the
  *   snapshot lists is on the source even while its entry awaits review: a
- *   mapping it had goes to `needs_review` on this snapshot's evidence, and
- *   only a variant the snapshot no longer lists becomes `not_on_source`.
+ *   mapping it had, or a review still open on other content, goes to
+ *   `needs_review` on this snapshot's evidence, and only a variant the
+ *   snapshot no longer lists becomes `not_on_source`.
  * - An entry row already written from this snapshot is skipped; a variant row
  *   is skipped only while it is from this snapshot and inside the item its
  *   entry is mapped to now. Running the matcher again after confirming (or
@@ -658,11 +689,14 @@ export function proposeCrosswalk(input: ProposeInput): ProposeResult {
         head?.snapshotId === input.snapshotId && head.contentHash === hash
       if (!parentItem) {
         // The entry is not mapped: a mapping (or a removal) the variant had is
-        // reviewed again on this snapshot's evidence; nothing is proposed.
+        // reviewed again on this snapshot's evidence, as is a review still
+        // open on older evidence; nothing is proposed.
         if (
           head &&
           !current &&
-          (isMapped(head.status) || head.status === "not_on_source")
+          (isMapped(head.status) ||
+            head.status === "not_on_source" ||
+            (head.status === "needs_review" && head.contentHash !== hash))
         )
           write(reviewRow(head, locator, entry.locator, hash))
         continue

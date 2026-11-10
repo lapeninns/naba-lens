@@ -11,6 +11,7 @@ import { describe, expect, it, vi } from "vitest"
 import { sha256Hex } from "../../lib/menus/import"
 import {
   CROSSWALK_BASES,
+  CROSSWALK_LOCATOR_BYTES_MAX,
   CROSSWALK_LOCATOR_MAX,
   CROSSWALK_REVIEW_STATUSES,
   CROSSWALK_STATUSES,
@@ -21,6 +22,7 @@ import {
   MENU_FIELDS,
   MENU_SOURCE_KINDS,
   NABALENS_FIELDS_NOW,
+  SNAPSHOT_LIMITS,
   contentHashInput,
   crosswalkDecisionError,
   crosswalkProvenanceError,
@@ -692,26 +694,126 @@ describe("variant transitions: retained, removed and remapped", () => {
       variantId: KORMA_LAMB,
       candidates: [KORMA_LAMB],
     })
-    // Chicken is open already (needs review from S2) and is not re-proposed
-    // until its entry is mapped again.
-    expect(byLocator(s3.rows)[chickenAt]).toBeUndefined()
+    // Chicken is open already (needs review from S2); S3 lists other content,
+    // so its review moves to S3's evidence, keeping its mapping as candidate.
+    expect(byLocator(s3.rows)[chickenAt]).toMatchObject({
+      status: "needs_review",
+      variantId: KORMA_CHICKEN,
+      candidates: [KORMA_CHICKEN],
+      contentHash: byLocator(s3.rows)[korma.locator].contentHash,
+    })
     const h3 = headsAfter(
       s3.rows,
       S3,
       { [korma.locator]: { itemId: KORMA } },
       h2
     )
-    const again = proposeCrosswalk(
-      await input([korma], { snapshotId: S3, heads: h3 })
+    // Once the entry is mapped again both variants are current and await
+    // the reviewer.
+    expect(
+      proposeCrosswalk(await input([korma], { snapshotId: S3, heads: h3 }))
+    ).toEqual({ rows: [], skipped: 3 })
+    expect(
+      crosswalkProvenanceError(
+        byLocator(h3)[chickenAt],
+        confirmTo(KORMA, KORMA_CHICKEN),
+        await snapshotOf([korma])
+      )
+    ).toBeNull()
+  })
+
+  it("moves a retained variant's open review to new evidence while its entry is still pending", async () => {
+    const heads = await mapped()
+    const s2Entry: SnapshotEntry = { ...korma, priceText: "11" }
+    const s3Entry: SnapshotEntry = { ...korma, priceText: "12" }
+    const s2 = proposeCrosswalk(
+      await input([s2Entry], { snapshotId: S2, heads })
     )
-    expect(again.rows).toMatchObject([
+    const h2 = headsAfter(s2.rows, S2, {}, heads)
+    const chickenS2 = { ...byLocator(h2)[chickenAt] }
+    expect(chickenS2).toMatchObject({
+      status: "needs_review",
+      snapshotId: S2,
+      variantId: KORMA_CHICKEN,
+    })
+    expect(byLocator(h2)[korma.locator].status).toBe("needs_review")
+
+    // S3 changes the price again; nobody has reviewed Korma yet.
+    const s3 = proposeCrosswalk(
+      await input([s3Entry], { snapshotId: S3, heads: h2 })
+    )
+    const [s3Hash] = (await snapshotOf([s3Entry])).contentHashes
+    expect(s3.rows.filter((r) => r.locator === chickenAt)).toEqual([
       {
         locator: chickenAt,
-        status: "proposed",
+        entryLocator: korma.locator,
+        status: "needs_review",
+        basis: "carried",
+        itemId: KORMA,
         variantId: KORMA_CHICKEN,
-        contentHash: byLocator(s3.rows)[korma.locator].contentHash,
+        channel: "all",
+        candidates: [KORMA_CHICKEN],
+        candidateCount: 1,
+        contentHash: s3Hash,
       },
     ])
+    expect(byLocator(s3.rows)[lambAt]).toMatchObject({
+      status: "needs_review",
+      contentHash: s3Hash,
+    })
+    // The entry is open again (matched afresh), never confirmed by tooling.
+    expect(byLocator(s3.rows)[korma.locator]).toMatchObject({
+      status: "proposed",
+      itemId: KORMA,
+    })
+    // The S2 head the run read is untouched.
+    expect(byLocator(h2)[chickenAt]).toEqual(chickenS2)
+
+    const h3 = headsAfter(s3.rows, S3, {}, h2)
+    const current = await snapshotOf([s3Entry])
+    // A decision on the S2 evidence is refused against S3...
+    expect(
+      crosswalkProvenanceError(
+        chickenS2,
+        confirmTo(KORMA, KORMA_CHICKEN),
+        current
+      )
+    ).toBe("crosswalk_not_on_source")
+    // ...the S3 head is current evidence, but still needs its entry first.
+    expect(
+      crosswalkProvenanceError(
+        byLocator(h3)[chickenAt],
+        confirmTo(KORMA, KORMA_CHICKEN),
+        current
+      )
+    ).toBeNull()
+    expect(
+      crosswalkDecisionError(
+        h3,
+        chickenAt,
+        confirmTo(KORMA, KORMA_CHICKEN),
+        variantOf
+      )
+    ).toBe("crosswalk_parent_not_confirmed")
+    const confirmed = headsAfter(
+      [],
+      S3,
+      { [korma.locator]: { itemId: KORMA } },
+      h3
+    )
+    expect(
+      crosswalkDecisionError(
+        confirmed,
+        chickenAt,
+        confirmTo(KORMA, KORMA_CHICKEN),
+        variantOf
+      )
+    ).toBeNull()
+
+    // S3 again: nothing new for the entry or its variants.
+    expect(
+      proposeCrosswalk(await input([s3Entry], { snapshotId: S3, heads: h3 }))
+    ).toEqual({ rows: [], skipped: 1 })
   })
 
   it("re-proposes variant rows inside the item an entry is mapped to again in the same snapshot", async () => {
@@ -940,11 +1042,26 @@ describe("snapshot documents", () => {
     ],
     [
       [{ name: "A" }],
-      { path: "[0].locator", message: "1 to 300 characters, no outer spaces" },
+      { path: "[0].locator", message: "1 to 900 characters, no outer spaces" },
     ],
     [
       [{ ...ok, locator: " a" }],
-      { path: "[0].locator", message: "1 to 300 characters, no outer spaces" },
+      { path: "[0].locator", message: "1 to 900 characters, no outer spaces" },
+    ],
+    // The locator bounds: 900 characters and 1200 UTF-8 bytes.
+    [[{ ...ok, locator: "x".repeat(900) }], null],
+    [
+      [{ ...ok, locator: "x".repeat(901) }],
+      { path: "[0].locator", message: "1 to 900 characters, no outer spaces" },
+    ],
+    [[{ ...ok, locator: "🍛".repeat(300) }], null],
+    [
+      [{ ...ok, locator: `${"🍛".repeat(300)}x` }],
+      { path: "[0].locator", message: "At most 1200 bytes" },
+    ],
+    [
+      [{ ...ok, locator: "é".repeat(601) }],
+      { path: "[0].locator", message: "At most 1200 bytes" },
     ],
     [
       [{ ...ok, locator: "a#variant=b" }],
@@ -1078,18 +1195,93 @@ describe("locators and content hash (§4.3)", () => {
     expect(new Set(variants).size).toBe(variants.length)
   })
 
+  it("admits the encoded locator of a menu.json name of 100 literal #", () => {
+    const name = `Dish${"#".repeat(100)}`
+    const raw = `menu.json#name=${name}`
+    // Admitted before encoding: 119 characters.
+    expect(raw).toHaveLength(119)
+    const [locator, again] = websiteLocators([
+      { file: "menu.json", name },
+      { file: "menu.json", name },
+    ])
+    expect(locator).toBe(`menu.json#name=Dish${"%23".repeat(100)}`)
+    expect(locator).toHaveLength(319)
+    expect(again).toBe(`${locator}#2`)
+    const entry: SnapshotEntry = {
+      locator,
+      name,
+      variants: ["Regular", "Regular", "#".repeat(80)],
+    }
+    expect(snapshotDocumentError([entry, { locator: again, name }])).toBeNull()
+    const variants = variantLocators(entry)
+    expect(variants).toEqual([
+      `${locator}#variant=Regular`,
+      `${locator}#variant=Regular#2`,
+      `${locator}#variant=${"%23".repeat(80)}`,
+    ])
+    for (const v of variants) {
+      expect([...v].length).toBeLessThanOrEqual(CROSSWALK_LOCATOR_MAX)
+      expect(new TextEncoder().encode(v).length).toBeLessThanOrEqual(
+        CROSSWALK_LOCATOR_BYTES_MAX
+      )
+    }
+  })
+
+  it("admits every generated locator whose unencoded form fit 300 characters", () => {
+    // All-# components: the most characters encoding can add (888).
+    const sources = [
+      { file: "#".repeat(293), name: "#" },
+      { file: "#".repeat(282), category: "#", name: "#" },
+    ]
+    const unencoded = sources.map(
+      (s) =>
+        `${s.file}${s.category ? `#category=${s.category}` : ""}#name=${s.name}`
+    )
+    expect(unencoded.map((l) => l.length)).toEqual([300, 300])
+    const hashes = websiteLocators(sources)
+    expect(hashes.map((l) => l.length)).toEqual([888, 868])
+    // Four-byte characters: the most bytes (no character is encoded).
+    const wide = websiteLocators([{ file: "🍛".repeat(293), name: "🍛" }])
+    expect(new TextEncoder().encode(wide[0]).length).toBe(1182)
+    expect(
+      snapshotDocumentError(
+        [...hashes, ...wide].map((locator) => ({ locator, name: "N" }))
+      )
+    ).toBeNull()
+  })
+
   it("bounds the longest variant locator as the migration does", () => {
     const worst: SnapshotEntry = {
-      locator: "x".repeat(300),
+      locator: "x".repeat(900),
       name: "N",
       variants: Array(12).fill("#".repeat(80)),
     }
     expect(snapshotDocumentError([worst])).toBeNull()
     const lengths = variantLocators(worst).map((l) => [...l].length)
     expect(Math.max(...lengths)).toBe(CROSSWALK_LOCATOR_MAX)
-    expect(CROSSWALK_LOCATOR_MAX).toBe(552)
+    expect(CROSSWALK_LOCATOR_MAX).toBe(1152)
+    const widest: SnapshotEntry = {
+      locator: "🍛".repeat(300),
+      name: "N",
+      variants: Array(12).fill("🍛".repeat(80)),
+    }
+    expect(snapshotDocumentError([widest])).toBeNull()
+    const bytes = variantLocators(widest).map(
+      (l) => new TextEncoder().encode(l).length
+    )
+    expect(Math.max(...bytes)).toBe(CROSSWALK_LOCATOR_BYTES_MAX)
+    expect(CROSSWALK_LOCATOR_BYTES_MAX).toBe(1532)
     expect(MIGRATION).toContain(
-      `locator text not null check (length(locator) between 1 and ${CROSSWALK_LOCATOR_MAX})`
+      `locator text not null check (length(locator) between 1 and ${CROSSWALK_LOCATOR_MAX} and octet_length(locator) <= ${CROSSWALK_LOCATOR_BYTES_MAX})`
+    )
+    expect(MIGRATION).toContain(
+      `or (length(entry_locator) between 1 and ${SNAPSHOT_LIMITS.locatorMax} and octet_length(entry_locator) <= ${SNAPSHOT_LIMITS.locatorBytesMax})`
+    )
+    expect(MIGRATION).toContain(
+      `private.menu_snapshot_text_ok(v_entry -> 'locator', ${SNAPSHOT_LIMITS.locatorMax}, false)`
+    )
+    expect(MIGRATION).toContain(
+      `octet_length(v_entry ->> 'locator') > ${SNAPSHOT_LIMITS.locatorBytesMax}`
     )
     expect(MIGRATION).toContain(
       "select replace(replace(p_text, '%', '%25'), '#', '%23');"
