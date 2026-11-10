@@ -70,9 +70,27 @@ describe("capture: after a successful send", () => {
     )
   })
 
-  it("returns a manager or admin to the check page unchanged", () => {
+  it("returns a manager or admin to the check page naming the check (CA-15)", () => {
     sendFrom(`/manager/amenities/${CHECK_ID}`)
-    expect(push).toHaveBeenCalledWith(`/manager/amenities/${CHECK_ID}`)
+    expect(push).toHaveBeenCalledWith(
+      `/manager/amenities/${CHECK_ID}?${FINDING_SENT_PARAM}=${CHECK_ID}`
+    )
+  })
+
+  it("goes back to another `from` origin as it is", () => {
+    render(
+      <CaptureClient
+        check={CHECK}
+        viewerId="me"
+        initialAssets={{ ok: true, assets: [] }}
+        canUpload={false}
+        canAttachLegacy={false}
+        doneHref="/staff/menu"
+        announceSent={false}
+      />
+    )
+    fireEvent.click(screen.getByRole("button", { name: "Send" }))
+    expect(push).toHaveBeenCalledWith("/staff/menu")
   })
 
   it("keeps any query and hash on the href", () => {

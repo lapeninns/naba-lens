@@ -207,6 +207,7 @@ describe("Our menu (staff)", () => {
         itemName: "Soup",
         variantName: null,
       },
+      // B02-05: the guidance step before the camera, where the entry is on.
     })
   })
 

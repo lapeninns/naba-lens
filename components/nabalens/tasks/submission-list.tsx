@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils"
 
 import { formatDate } from "../format"
+import { COMPLETION_ONLY } from "./copy"
 import { EvidenceThumb } from "./evidence-thumb"
 import {
   LateAcceptanceChip,
@@ -99,7 +100,7 @@ export function SubmissionRow({
       {submission.completionTarget ? (
         <p className="text-meta text-ink-muted">
           {submission.requirement
-            ? "Counts for this checklist item."
+            ? COMPLETION_ONLY
             : "Coverage photo history."}
         </p>
       ) : !submission.countsTowardMonthly ? (

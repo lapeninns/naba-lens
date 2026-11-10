@@ -15,6 +15,13 @@ import { cn } from "@/lib/utils"
 
 const THUMB = "aspect-[4/3] w-full rounded-control bg-media-placeholder"
 
+export const PREVIEW_UNAVAILABLE = "Preview unavailable"
+
+/** A photo whose preview can't be shown (deleted, or its route refused it). */
+export function PreviewUnavailable({ className }: { className?: string }) {
+  return <Unavailable className={className} />
+}
+
 function Unavailable({ className }: { className?: string }) {
   return (
     <span
@@ -24,7 +31,7 @@ function Unavailable({ className }: { className?: string }) {
       )}
     >
       <ImageIcon className="size-6" aria-hidden />
-      Preview unavailable
+      {PREVIEW_UNAVAILABLE}
     </span>
   )
 }

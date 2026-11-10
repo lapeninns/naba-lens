@@ -529,7 +529,19 @@ export function UploadLabelPanel({
                   size="icon-sm"
                   className="shrink-0 text-current"
                   aria-label={`Remove ${name}`}
-                  onClick={() => removePreset(chip.key)}
+                  onClick={(e) => {
+                    // As the label field does: the neighbour chip's button,
+                    // else the field's search, never the page.
+                    const li = e.currentTarget.closest("li")
+                    const neighbour = (
+                      li?.nextElementSibling ?? li?.previousElementSibling
+                    )?.querySelector("button")
+                    const search = li
+                      ?.closest("section")
+                      ?.querySelector<HTMLInputElement>("input[role=combobox]")
+                    removePreset(chip.key)
+                    ;(neighbour ?? search)?.focus()
+                  }}
                 >
                   <XIcon aria-hidden />
                 </Button>
@@ -596,7 +608,7 @@ export function UploadLabelPanel({
       <div className="grid gap-3">
         <Button
           type="button"
-          variant="link"
+          variant="row-link"
           className="w-fit text-label"
           aria-expanded={detailsOpen}
           aria-controls={`${uid}-details`}

@@ -6,7 +6,12 @@
 //                                          \             \
 //                                           +--> failed <-+   (retry() -> queued,
 //                                                              unless not retryable)
-//   selected|queued|uploading|processing --cancel()--> cancelled (retry() -> queued)
+//   selected|queued|uploading --cancel()--> cancelled (retry() -> queued)
+//
+// A file that is processing can't be cancelled: the server finishes it either
+// way. One still processing after the server's stale-claim window can be
+// retried: finalise is asked again under the same key, and the server waits
+// for or takes over the first claim, so nothing is saved twice.
 //
 // The queue pauses while the device is offline or the session has ended: queued
 // files wait instead of starting. A transfer that fails while offline goes back
@@ -51,6 +56,13 @@ export type QueueItem = {
    * fail again, so the person can only remove it.
    */
   retryable?: boolean
+  /**
+   * The server refused to finish it (`retryable` is false): `error` is the
+   * server's own reason, shown as it is.
+   */
+  refused?: boolean
+  /** When this attempt started processing (ms since epoch). */
+  processingAt?: number
   /**
    * Server asset ID, from the reservation on (when the uploader reports it),
    * so labels can be sent before the file is done.
@@ -121,6 +133,14 @@ export type QueueSummary = {
 export type QueuePause = "offline" | "signed-out" | null
 
 export const SIGNED_OUT_MESSAGE = "Sign in again, then tap Retry."
+
+/** After this long processing, the row says it is still working. */
+export const STILL_PROCESSING_MS = 30_000
+/**
+ * The server treats a finalise claim this old as crashed (its stale-claim
+ * window, 2 minutes): from then on Retry is offered.
+ */
+export const STALLED_PROCESSING_MS = 120_000
 
 /**
  * Thrown by an uploader when the request failed because the person is no
@@ -362,7 +382,7 @@ export class UploadQueue {
       this.update(id, { status: "cancelled", error: null, stopped: false })
       return
     }
-    if (item.status === "uploading" || item.status === "processing") {
+    if (item.status === "uploading") {
       this.runIds.set(id, (this.runIds.get(id) ?? 0) + 1)
       this.controllers.get(id)?.abort()
       this.controllers.delete(id)
@@ -378,10 +398,16 @@ export class UploadQueue {
     }
   }
 
-  retry(id: string) {
+  retry(id: string, now = Date.now()) {
     const item = this.items.find((i) => i.id === id)
-    if (!item || (item.status !== "failed" && item.status !== "cancelled"))
-      return
+    if (!item) return
+    if (item.status === "processing") {
+      if (!stalled(item, now)) return
+      // The old run's reply, if it ever comes, is ignored; its key is freed.
+      this.runIds.set(id, (this.runIds.get(id) ?? 0) + 1)
+      this.controllers.get(id)?.abort()
+      this.controllers.delete(id)
+    } else if (item.status !== "failed" && item.status !== "cancelled") return
     if (item.retryable === false) return
     this.update(id, {
       status: "queued",
@@ -389,6 +415,7 @@ export class UploadQueue {
       progress: 0,
       stopped: false,
       retryable: undefined,
+      processingAt: undefined,
     })
     this.pump()
   }
@@ -460,7 +487,12 @@ export class UploadQueue {
         }
       },
       onProcessing: () => {
-        if (current()) this.update(id, { status: "processing", progress: 1 })
+        if (current())
+          this.update(id, {
+            status: "processing",
+            progress: 1,
+            processingAt: Date.now(),
+          })
       },
       onReserved: (assetId, resumed) => {
         if (!current()) return
@@ -504,6 +536,9 @@ export class UploadQueue {
           status: "failed",
           error: errorMessage(error),
           ...(isRetryable(error) ? {} : { retryable: false }),
+          ...(errorDetail(error)?.code === "finalise_refused"
+            ? { refused: true }
+            : {}),
         })
       }
     } finally {
@@ -539,6 +574,15 @@ function isRetryableTransfer(error: unknown): boolean {
   const detail = errorDetail(error)
   if (!detail || typeof detail.code !== "string") return true
   return TRANSFER_CODES.has(detail.code) && detail.retryable !== false
+}
+
+/** Processing for longer than the server's stale-claim window. */
+export function stalled(item: QueueItem, now: number): boolean {
+  return (
+    item.status === "processing" &&
+    item.processingAt !== undefined &&
+    now - item.processingAt >= STALLED_PROCESSING_MS
+  )
 }
 
 /** False only when the uploader says so (e.g. the file could not be processed). */

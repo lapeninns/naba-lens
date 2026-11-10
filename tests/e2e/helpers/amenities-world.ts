@@ -192,11 +192,17 @@ export const CORE_QUESTIONS = CORE_CHECK_KEYS.map(question)
 export async function seedPhoto(
   uploader: Pick<Person, "id">,
   venue: Pick<Venue, "id">,
-  label: string
+  label: string,
+  options: {
+    uploaderRole?: "staff" | "manager"
+    purpose?: "general" | "amenity"
+  } = {}
 ): Promise<string> {
   const [id] = await seedImages(uploader, venue, 1, {
     prefix: `DEV-FIXTURE-amenity-${label}`,
     colour: "#4b7bc9",
+    uploaderRole: options.uploaderRole,
+    purpose: options.purpose,
   })
   return id!
 }

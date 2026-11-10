@@ -54,7 +54,8 @@ export function AmenitiesOverviewControl({
       toConfirmFailed={toConfirmFailed}
       handlers={{
         enable: () => enableAmenitiesAction({ venueId }),
-        addChecks: (keys) => addChecksAction({ venueId, keys }),
+        addChecks: (keys, idempotencyKey) =>
+          addChecksAction({ venueId, keys, idempotencyKey }),
         restore: (input) => restoreCheckAction(input),
       }}
     />

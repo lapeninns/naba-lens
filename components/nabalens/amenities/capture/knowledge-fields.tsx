@@ -19,12 +19,16 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 import { ReasonField } from "../../coverage/reason-dialog"
-import { UNKNOWN_PRESET_LABEL, dateAndTime } from "../../knowledge/copy"
+import {
+  SEND_PROGRESS_COPY,
+  UNKNOWN_PRESET_LABEL,
+  dateAndTime,
+} from "../../knowledge/copy"
 import { Notice } from "../../notice"
 import { FieldMessage, LABEL } from "./field-parts"
 
 const RADIO_ROW =
-  "flex min-h-11 cursor-pointer items-center gap-3 text-body-touch text-ink has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus md:min-h-8 md:text-body"
+  "flex min-h-11 cursor-pointer items-center gap-3 text-body-touch text-ink has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus md:text-body"
 
 /** Couldn't establish: why (a preset) and what was tried. */
 export function UnknownFields({
@@ -49,6 +53,7 @@ export function UnknownFields({
   return (
     <div className="flex min-w-0 flex-col gap-4">
       <fieldset
+        id={`${id}-preset-group`}
         className="grid gap-1"
         disabled={disabled}
         aria-describedby={presetError ? `${id}-preset-error` : undefined}
@@ -191,7 +196,12 @@ export function ChangeReasonField({
   )
 }
 
-/** "Discard this draft?": shared by the capture form and Me. */
+/**
+ * "Discard this draft?": shared by the capture form and Me. It stays open and
+ * busy until the server answers (HM-08), so a second tap can't discard twice;
+ * the caller says the outcome. When the discard removes what opened it, the
+ * dialog goes with it and the caller places focus.
+ */
 export function DiscardDraftDialog({
   open,
   onOpenChange,
@@ -201,8 +211,35 @@ export function DiscardDraftDialog({
   onOpenChange: (open: boolean) => void
   onDiscard: () => Promise<void> | void
 }) {
+  const [busy, setBusy] = React.useState(false)
+  const mounted = React.useRef(true)
+  React.useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+    }
+  }, [])
+
+  async function discard() {
+    if (busy) return
+    setBusy(true)
+    try {
+      await onDiscard()
+    } finally {
+      if (mounted.current) {
+        setBusy(false)
+        onOpenChange(false)
+      }
+    }
+  }
+
   return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
+    <AlertDialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!busy || next) onOpenChange(next)
+      }}
+    >
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Discard this draft?</AlertDialogTitle>
@@ -215,14 +252,17 @@ export function DiscardDraftDialog({
             type="button"
             variant="danger-quiet"
             size="touch"
-            onClick={() => {
-              onOpenChange(false)
-              void onDiscard()
-            }}
+            aria-disabled={busy || undefined}
+            aria-busy={busy || undefined}
+            onClick={() => void discard()}
           >
-            Discard
+            {busy ? "Discarding…" : "Discard"}
           </Button>
-          <AlertDialogCancel variant="primary" size="touch">
+          <AlertDialogCancel
+            variant="primary"
+            size="touch"
+            aria-disabled={busy || undefined}
+          >
             Keep draft
           </AlertDialogCancel>
         </AlertDialogFooter>
@@ -234,6 +274,7 @@ export function DiscardDraftDialog({
 export function DraftRestoredNotice({
   savedAt,
   nearPurge,
+  attempted = false,
   onDiscard,
   disabled,
 }: {
@@ -241,6 +282,8 @@ export function DraftRestoredNotice({
   savedAt: string | null
   /** Saved 80 days ago or more: drafts are deleted after 90. */
   nearPurge: boolean
+  /** Its send never had a definite answer: it may have arrived (CA-05). */
+  attempted?: boolean
   onDiscard: () => Promise<void> | void
   disabled: boolean
 }) {
@@ -262,10 +305,15 @@ export function DraftRestoredNotice({
       }
     >
       <p>
-        {savedAt
-          ? `You saved this on ${dateAndTime(savedAt)}. It hasn't been sent.`
-          : "Restored from this phone. It hasn't been sent."}
+        {attempted
+          ? savedAt
+            ? `You saved this on ${dateAndTime(savedAt)}.`
+            : "Restored from this phone."
+          : savedAt
+            ? `You saved this on ${dateAndTime(savedAt)}. It hasn't been sent.`
+            : "Restored from this phone. It hasn't been sent."}
       </p>
+      {attempted ? <p>{SEND_PROGRESS_COPY.lastSendUnsure}</p> : null}
       {nearPurge ? <p>Saved drafts are deleted after 90 days.</p> : null}
       <DiscardDraftDialog
         open={open}

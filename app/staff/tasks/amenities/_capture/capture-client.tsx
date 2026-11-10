@@ -18,10 +18,7 @@ import {
   type AssetsResult,
   type KnowledgeCapture,
 } from "@/components/nabalens/amenities/capture"
-import {
-  findingSentHref,
-  STAFF_HOME_PATH,
-} from "@/components/nabalens/amenities/capture/finding-sent"
+import { findingSentHref } from "@/components/nabalens/amenities/capture/finding-sent"
 import {
   useAddQueue,
   useAddRefreshSignal,
@@ -59,6 +56,8 @@ export function CaptureClient({
   canUpload,
   canAttachLegacy,
   doneHref,
+  announceSent = true,
+  uploadRefused = false,
   knowledge = null,
 }: {
   check: CaptureCheck
@@ -69,6 +68,13 @@ export function CaptureClient({
   canAttachLegacy: boolean
   /** Home for staff, the check page for managers and admins. */
   doneHref: string
+  /**
+   * Add the sent check to `doneHref`: Home and the check pages name it in a
+   * focused notice (CA-15). Off when staff go back to another origin.
+   */
+  announceSent?: boolean
+  /** A manager account that can't upload: Yes says why before it is chosen. */
+  uploadRefused?: boolean
   /** Set for a working-list question: send through the knowledge path. */
   knowledge?: KnowledgeProps | null
 }) {
@@ -96,12 +102,10 @@ export function CaptureClient({
       onReload={() => router.refresh()}
       onDone={() =>
         router.push(
-          // Home says which check was sent; check pages show it themselves.
-          doneHref === STAFF_HOME_PATH
-            ? findingSentHref(doneHref, check.id)
-            : doneHref
+          announceSent ? findingSentHref(doneHref, check.id) : doneHref
         )
       }
+      uploadRefused={uploadRefused}
       signInHref={loginHref(pathname)}
       pageHref={pathname}
       knowledge={

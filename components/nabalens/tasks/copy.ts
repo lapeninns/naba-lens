@@ -31,13 +31,18 @@ export function requirementKindLabel(kind: string): string {
   return REQUIREMENT_KIND_LABEL[kind as RequirementKind] ?? "Task"
 }
 
+/** A photo for a checklist item at a completion-target venue. */
+export const COMPLETION_ONLY =
+  "Counts for this checklist item, not your monthly target."
+
 /** Why one photo cannot be sent, as shown under its tile. */
 const INELIGIBLE_COPY: Partial<Record<AssetIneligibleReason, string>> = {
   not_found: "This photo is no longer available.",
   not_ready: "Still processing. It can't count until it's ready.",
   evidence_removed: "This photo was deleted or is no longer available.",
   not_image: "Videos don't count toward photo tasks.",
-  wrong_venue: "Taken at a different venue.",
+  // The venue it was uploaded for: where it was taken isn't known.
+  wrong_venue: "Uploaded for a different venue.",
   uploader_inactive: "This photo's uploader is no longer active.",
   already_submitted: "Already sent for this task.",
   declined_here: "Needs another photo here. Send a different one.",
@@ -73,7 +78,7 @@ const FAILURE_COPY: Record<CoverageErrorCode, FailureCopy> = {
   },
   wrong_venue: {
     message:
-      "These photos were taken at a different venue, so they can't count here.",
+      "These photos were uploaded for a different venue, so they can't count here.",
     action: null,
   },
   not_found: {

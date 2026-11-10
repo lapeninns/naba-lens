@@ -1,15 +1,16 @@
 "use client"
 
 import Link from "next/link"
-import { LockIcon } from "@phosphor-icons/react"
+import { ChatCircleTextIcon, LockIcon } from "@phosphor-icons/react"
 
-import { buttonVariants } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 import { GUIDE_PATH } from "../guide/task-photo-guide"
 import { Notice } from "../notice"
 import { PhotoSourceActions, LIBRARY_LABEL } from "../photo-source"
 import { useAdd } from "../shell/add-context"
+import { ENTRY_COPY } from "../shell/entry-copy"
 
 /**
  * Home's invitation to add photos: a question that follows the person's work
@@ -20,6 +21,7 @@ export function ContributeCard({
   prompt,
   blocked,
   fallbackHref = "/staff",
+  canAnswer = false,
 }: {
   /** homePrompt(work role); the general question when there is none. */
   prompt: string
@@ -27,6 +29,11 @@ export function ContributeCard({
   blocked: string | null
   /** Outside the staff layout (previews), where photos are added instead. */
   fallbackHref?: string
+  /**
+   * The shared entry offers "Answer a venue question" (B02-02, §3.3): the
+   * venue has a working list this person can answer.
+   */
+  canAnswer?: boolean
 }) {
   const openAdd = useAdd()
   return (
@@ -52,11 +59,24 @@ export function ContributeCard({
             {blocked}
           </Notice>
         ) : openAdd ? (
-          <PhotoSourceActions
-            layout="row"
-            libraryVariant="secondary"
-            onChoose={(source) => openAdd({ source })}
-          />
+          <div className="flex flex-col gap-2">
+            <PhotoSourceActions
+              layout="row"
+              libraryVariant="secondary"
+              onChoose={(source) => openAdd({ source })}
+            />
+            {canAnswer ? (
+              <Button
+                type="button"
+                variant="secondary"
+                size="touch"
+                onClick={() => openAdd({ entry: "question" })}
+              >
+                <ChatCircleTextIcon data-icon="inline-start" aria-hidden />
+                {ENTRY_COPY.intents.question}
+              </Button>
+            ) : null}
+          </div>
         ) : (
           <Link
             href={fallbackHref}

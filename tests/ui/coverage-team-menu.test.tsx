@@ -537,8 +537,9 @@ describe("TeamRoster", () => {
       /Someone else changed this a moment ago/
     )
     expect(onStale).toHaveBeenCalledTimes(1)
-    const notice = text.closest<HTMLElement>('[data-slot="notice"]')!
-    expect(notice.getAttribute("role")).toBe("status")
+    // The notice's one live region (MG-14) is what takes focus.
+    const notice = text.closest<HTMLElement>('[role="status"]')!
+    expect(notice).toBeTruthy()
     expect(screen.queryByRole("alert")).toBeNull()
     await waitFor(() => expect(document.activeElement).toBe(notice))
   })

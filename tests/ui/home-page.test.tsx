@@ -6,6 +6,8 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { tasksView } from "./tasks-fixtures"
 
 vi.mock("server-only", () => ({}))
+// The B01 Home and badge; the B02 layout is tested in home-b02.test.tsx.
+vi.stubEnv("NABALENS_HOME_LAYOUT", "b01")
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
   redirect: vi.fn(),

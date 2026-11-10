@@ -1,5 +1,6 @@
 import { PageHeader } from "@/components/nabalens/page-header"
 import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton"
+import { homeLayout } from "@/lib/config/home-layout"
 
 /** Static card shapes where Home's feed will be (no shimmer). */
 const CARD = "grid gap-3 rounded-card bg-surface p-4 shadow-card"
@@ -24,7 +25,7 @@ export default function TasksLoading() {
           <Skeleton shape="line" />
           <Skeleton className="h-15 rounded-control" />
         </div>
-        {/* Your photos for the month */}
+        {/* Your photos for the month (This month on B02) */}
         <div className={CARD}>
           <Skeleton shape="title" />
           <Skeleton className="h-12 w-1/2" />
@@ -32,7 +33,7 @@ export default function TasksLoading() {
         </div>
       </SkeletonRegion>
       <h2 className="mt-3 px-1 pt-2 font-display text-section-title text-ink">
-        All tasks
+        {homeLayout() === "b02" ? "Other tasks this month" : "All tasks"}
       </h2>
       <SkeletonRegion
         label="Loading tasks…"

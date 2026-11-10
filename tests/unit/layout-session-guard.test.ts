@@ -9,6 +9,8 @@ vi.mock("@/lib/auth", () => ({
     venue: null,
   }),
   uploadBlockReason: () => null,
+  // The manager layout's capabilities read: signed out, so it is a quiet 401.
+  getAuthState: async () => ({ status: "signed_out" }),
 }))
 vi.mock("@/lib/auth/manager", () => ({
   getManagerWorkspace: async () => ({
@@ -23,6 +25,10 @@ vi.mock("@/app/manager/load-overview", () => ({
     overview: { pendingPhotos: 3 },
   }),
 }))
+const entry = vi.hoisted(() => ({
+  managerAddEntry: vi.fn(() => Promise.resolve(null)),
+}))
+vi.mock("@/app/manager/entry", () => entry)
 vi.mock("@/lib/auth/captcha", () => ({
   getLoginCaptchaConfig: () => ({ enabled: true, siteKey: "site-key" }),
 }))
@@ -49,17 +55,55 @@ describe("manager and admin pages meet an ended session in place", () => {
   })
 
   it("the manager layout wraps the workspace shell in the session guard", async () => {
-    expect(await ManagerLayout({ children: "PAGE" })).toMatchObject({
-      type: SessionGuardHost,
-      props: {
-        captchaRequired: true,
-        captchaSiteKey: "site-key",
-        children: {
-          type: ManagerShell,
-          props: { venueName: "Lakeside", reviewCount: 3, children: "PAGE" },
+    vi.stubEnv("NABALENS_CONTRIBUTION_ENTRY", "b01")
+    try {
+      // The entry off: today's workspace, with no Add host and no R8 read.
+      expect(await ManagerLayout({ children: "PAGE" })).toMatchObject({
+        type: SessionGuardHost,
+        props: {
+          captchaRequired: true,
+          captchaSiteKey: "site-key",
+          children: {
+            type: ManagerShell,
+            props: { venueName: "Lakeside", reviewCount: 3, children: "PAGE" },
+          },
         },
-      },
-    })
+      })
+      expect(entry.managerAddEntry).not.toHaveBeenCalled()
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it("with the entry on, the shell sits in a manager Add host fed R8's read in flight", async () => {
+    vi.stubEnv("NABALENS_CONTRIBUTION_ENTRY", "b02")
+    try {
+      const tree = await ManagerLayout({ children: "PAGE" })
+      expect(tree).toMatchObject({
+        type: SessionGuardHost,
+        props: {
+          children: {
+            type: AddHost,
+            props: {
+              blocked: null,
+              captchaRequired: true,
+              captchaSiteKey: "site-key",
+              venueName: "Lakeside",
+              role: "manager",
+              children: {
+                type: ManagerShell,
+                props: { venueName: "Lakeside", children: "PAGE" },
+              },
+            },
+          },
+        },
+      })
+      expect(entry.managerAddEntry).toHaveBeenCalledWith("v1", "Lakeside")
+      // A promise: the page never waits for the capabilities read.
+      expect(tree.props.children.props.entry).toBeInstanceOf(Promise)
+    } finally {
+      vi.unstubAllEnvs()
+    }
   })
 })
 

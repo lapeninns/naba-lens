@@ -680,7 +680,8 @@ describe("AmenityFactForm", () => {
     expect(onSaved).toHaveBeenCalledWith(
       "Facts saved: Present. You can confirm the item now."
     )
-    expect(screen.queryByRole("status")).toBeNull()
+    // The notice's live region stays mounted (MG-14); it says nothing.
+    expect(screen.queryByRole("status")?.textContent ?? "").toBe("")
     await user.click(screen.getByRole("button", { name: "Cancel" }))
     expect(onCancel).toHaveBeenCalled()
   })

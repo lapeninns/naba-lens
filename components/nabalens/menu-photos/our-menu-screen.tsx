@@ -6,6 +6,8 @@ import { ArrowClockwiseIcon } from "@phosphor-icons/react"
 
 import { ERROR_COPY, ErrorState } from "@/components/nabalens/error-state"
 import { EmptyState } from "@/components/nabalens/empty-state"
+import { PhotoTips } from "@/components/nabalens/guide/photo-tips"
+import { GUIDE_PATH } from "@/components/nabalens/guide/task-photo-guide"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { Card } from "@/components/nabalens/common-room/card"
 import { ProgressSegments } from "@/components/nabalens/common-room/progress-segments"
@@ -161,6 +163,7 @@ export function OurMenuScreen({
           className="sr-only"
         />
         <p className="text-body text-ink-muted">{OUR_MENU_COPY.howItCounts}</p>
+        {canAdd ? <PhotoTips guideHref={GUIDE_PATH} /> : null}
       </Card>
       <OurMenuFilters
         basePath={basePath}

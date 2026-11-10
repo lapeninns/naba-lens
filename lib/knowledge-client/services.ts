@@ -1,7 +1,10 @@
 import "server-only"
 
+import type { ToConfirmItem } from "@/lib/knowledge/contract"
 import * as server from "@/lib/server/knowledge"
+import { knowledgeInvalid } from "@/lib/server/knowledge/errors"
 import { knowledgeRpc } from "@/lib/server/knowledge/rpc"
+import { isObject, isUuid, parseCheckId } from "@/lib/server/knowledge/validate"
 import type { MediaActor } from "@/lib/server/media/types"
 
 import {
@@ -108,6 +111,26 @@ const DECIDE = {
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null
 
+/**
+ * To confirm, read here rather than through server.listToConfirm for the same
+ * reason as the working list: before the migrations nothing waits, as on
+ * main, rather than a list that couldn't be loaded.
+ */
+async function readToConfirm(
+  actor: MediaActor,
+  venueId: string | null
+): Promise<KnowledgeResult<{ count: number; items: ToConfirmItem[] }>> {
+  const { data, error } = await knowledgeRpc(actor.db, "knowledge_to_confirm", {
+    p_venue_id: venueId,
+  })
+  if (error) {
+    if (MISSING_FUNCTION.has(error.code ?? ""))
+      return { ok: true, count: 0, items: [] }
+    return server.knowledgeRpcFailure(error, "knowledge to confirm")
+  }
+  return { ok: true, count: data.count, items: data.items }
+}
+
 const UNKNOWN_DECISION: KnowledgeFailure = {
   ok: false,
   code: "invalid_input",
@@ -137,15 +160,25 @@ export const knowledgeServices: KnowledgeServices = {
   },
 
   async getKnowledgeCheck(actor, input) {
-    const result = await server.getKnowledgeCheck(actor, {
-      checkId: input.checkId,
-    })
-    if (!result.ok) return result
-    const check = result.check
+    const checkId = parseCheckId({ checkId: input.checkId })
+    if (!checkId.ok) return checkId
+    // Read here for the database's code, as the working list: before the
+    // migrations no question is on a working list, so the page behaves as on
+    // main (not in scope) instead of failing.
+    const { data: check, error } = await knowledgeRpc(
+      actor.db,
+      "knowledge_check",
+      { p_check_id: checkId.value }
+    )
+    if (error) {
+      if (MISSING_FUNCTION.has(error.code ?? ""))
+        return { ok: true, view: { inScope: false } }
+      return server.knowledgeRpcFailure(error, "knowledge check")
+    }
     // Answers in use that need a decision are listed for deciders only.
     const toConfirm =
       check.inScope && check.permissions.canConfirm
-        ? await server.listToConfirm(actor, { venueId: check.venueId })
+        ? await readToConfirm(actor, check.venueId)
         : null
     return {
       ok: true,
@@ -191,7 +224,10 @@ export const knowledgeServices: KnowledgeServices = {
   },
 
   async listToConfirm(actor, input) {
-    const result = await server.listToConfirm(actor, input)
+    const venueId = isObject(input) ? (input.venueId ?? null) : null
+    if (venueId !== null && !isUuid(venueId))
+      return knowledgeInvalid({ venueId: "Choose a venue." })
+    const result = await readToConfirm(actor, venueId)
     if (!result.ok) return result
     return { ok: true, view: adaptToConfirm(result.items, result.count) }
   },

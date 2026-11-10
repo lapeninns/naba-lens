@@ -14,6 +14,7 @@ import { plural } from "@/components/nabalens/coverage/copy"
 import {
   useAdd,
   type AddLabelPreset,
+  type OpenAddOptions,
 } from "@/components/nabalens/shell/add-context"
 import { StatusChip } from "@/components/nabalens/status-chip"
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -46,6 +47,7 @@ export function OurMenuItemRow({
   const nameId = `${id}-name`
   const variants = item.variants.map((v) => v.name).join(", ")
   const waiting = item.review?.candidates ?? 0
+  const mine = item.myWaiting ?? 0
 
   return (
     <article
@@ -101,6 +103,11 @@ export function OurMenuItemRow({
               {plural(waiting, "photo")} to review
             </span>
           ) : null}
+          {mine > 0 ? (
+            <span className="text-meta text-ink-muted">
+              {OUR_MENU_COPY.myWaiting(mine)}
+            </span>
+          ) : null}
         </p>
       </div>
       {(canAdd && openAdd) || reviewHref ? (
@@ -118,41 +125,11 @@ export function OurMenuItemRow({
             </Link>
           ) : null}
           {canAdd && openAdd ? (
-            <>
-              {/* The row's lead action, grey: a list of dishes must not
-                  turn every row blue (one blue action per screen). */}
-              <Button
-                variant="secondary"
-                size="sm"
-                aria-describedby={nameId}
-                // openAdd clicks the camera input inside this click handler.
-                onClick={() =>
-                  openAdd({
-                    source: "camera",
-                    imagesOnly: true,
-                    preset: dishPreset(item),
-                  })
-                }
-              >
-                <CameraPlusIcon data-icon="inline-start" aria-hidden />
-                {OUR_MENU_COPY.takePhoto}
-              </Button>
-              <Button
-                variant="quiet"
-                size="sm"
-                aria-describedby={nameId}
-                onClick={() =>
-                  openAdd({
-                    source: "library",
-                    imagesOnly: true,
-                    preset: dishPreset(item),
-                  })
-                }
-              >
-                <ImagesIcon data-icon="inline-start" aria-hidden />
-                {OUR_MENU_COPY.choosePhoto}
-              </Button>
-            </>
+            <DishAddButtons
+              openAdd={openAdd}
+              item={item}
+              describedBy={nameId}
+            />
           ) : null}
         </div>
       ) : null}
@@ -160,8 +137,61 @@ export function OurMenuItemRow({
   )
 }
 
+/**
+ * "Take a photo of this dish" (the camera) and "Choose from photos" (the
+ * library): Add with the dish as a label preset, after the guidance step.
+ */
+export function DishAddButtons({
+  openAdd,
+  item,
+  describedBy,
+}: {
+  openAdd: (opts?: OpenAddOptions) => void
+  item: { itemId: string; name: string }
+  /** The row's name. */
+  describedBy: string
+}) {
+  return (
+    <>
+      {/* The row's lead action, grey: a list of dishes must not
+          turn every row blue (one blue action per screen). */}
+      <Button
+        variant="secondary"
+        size="sm"
+        aria-describedby={describedBy}
+        // openAdd clicks the camera input inside this click handler.
+        onClick={() =>
+          openAdd({
+            source: "camera",
+            imagesOnly: true,
+            preset: dishPreset(item),
+          })
+        }
+      >
+        <CameraPlusIcon data-icon="inline-start" aria-hidden />
+        {OUR_MENU_COPY.takePhoto}
+      </Button>
+      <Button
+        variant="quiet"
+        size="sm"
+        aria-describedby={describedBy}
+        onClick={() =>
+          openAdd({
+            source: "library",
+            imagesOnly: true,
+            preset: dishPreset(item),
+          })
+        }
+      >
+        <ImagesIcon data-icon="inline-start" aria-hidden />
+        {OUR_MENU_COPY.choosePhoto}
+      </Button>
+    </>
+  )
+}
+
 /** The dish as Add's label preset: the dish itself, no variant chosen. */
-function dishPreset(item: OurMenuItem): AddLabelPreset {
+function dishPreset(item: { itemId: string; name: string }): AddLabelPreset {
   return {
     itemId: item.itemId,
     variantId: null,

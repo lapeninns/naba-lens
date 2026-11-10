@@ -584,7 +584,9 @@ describe("NeedsAttention on Me", () => {
     // A's discard ends; B is still loading its labels, so it stays busy.
     await act(async () => discardDone(DISCARDED))
     const fixB = within(list()).getByRole("button", { name: "Fix labels" })
-    expect((fixB as HTMLButtonElement).disabled).toBe(true)
+    // aria-disabled, so the pressed button keeps focus; it says it's working.
+    expect(fixB.getAttribute("aria-disabled")).toBe("true")
+    expect(within(list()).getByText(ATTENTION_COPY.working)).toBeTruthy()
     await act(async () => contextDone())
     expect(
       await screen.findByRole("dialog", { name: "Fix labels" })
@@ -924,7 +926,14 @@ describe("Needs attention: honest about what is on the photo", () => {
       <NeedsAttention api={calls} onDiscarded={onDiscarded} />
     )
     await discardRow(user, (await screen.findAllByRole("listitem"))[0])
-    await waitFor(() => expect(container.textContent).toBe(""))
+    // The last row left: the heading stays to take focus and say so once.
+    await waitFor(() => expect(screen.queryByRole("list")).toBeNull())
+    expect(container.querySelector("[role=status]")?.textContent).toBe(
+      ATTENTION_COPY.discarded
+    )
+    expect(document.activeElement).toBe(
+      screen.getByRole("heading", { name: ATTENTION_COPY.heading })
+    )
     expect(onDiscarded).toHaveBeenCalledWith([row(1).assetId])
   })
 })

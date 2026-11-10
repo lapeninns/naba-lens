@@ -2,7 +2,13 @@
 // Me "Your findings" (B01-06, design §4.5): rows, one action each, drafts,
 // closed assignments, a venue move, Show more on the server's cursor, and the
 // empty, failed and partial states.
-import { cleanup, render, screen, within } from "@testing-library/react"
+import {
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
@@ -227,8 +233,12 @@ describe("Your findings", () => {
     expect(
       window.localStorage.getItem("nabalens.amenity-draft.v2:u1:c-draft")
     ).toBeNull()
-    // Focus goes to the heading, which can take it (L2).
-    expect(document.activeElement?.id).toBe("your-findings-heading")
+    // Focus goes to the heading, which can take it (L2), and the outcome is
+    // said once (HM-08).
+    await waitFor(() =>
+      expect(document.activeElement?.id).toBe("your-findings-heading")
+    )
+    expect(screen.getByRole("status").textContent).toBe("Draft discarded.")
     expect(
       screen.queryByRole("heading", { level: 3, name: "Is there a lift?" })
     ).toBeNull()
@@ -342,5 +352,122 @@ describe("Your findings", () => {
       screen.getByRole("link", { name: "Try again" }).getAttribute("href")
     ).toBe("/staff")
     expect(screen.queryByText(YOUR_FINDINGS_COPY.empty)).toBeNull()
+  })
+})
+
+describe("Your findings: focus, busy discard and refresh (B02-06)", () => {
+  function deferred<T>() {
+    let resolve!: (value: T) => void
+    const promise = new Promise<T>((r) => (resolve = r))
+    return { promise, resolve }
+  }
+
+  it("Show more keeps focus while loading, and a failure focuses Try again (HM-06)", async () => {
+    let fail!: (e: Error) => void
+    const loadMore = vi.fn(
+      () => new Promise<never>((_, reject) => (fail = reject))
+    )
+    render(
+      <YourFindings
+        initial={page([CURRENT], { nextCursor: "opaque" })}
+        venue={HERE}
+        loadMore={loadMore}
+      />
+    )
+    const more = screen.getByRole("button", { name: "Show more" })
+    await userEvent.click(more)
+    const loading = screen.getByRole("button", {
+      name: YOUR_FINDINGS_COPY.loading,
+    })
+    expect(loading.getAttribute("aria-disabled")).toBe("true")
+    expect(loading.hasAttribute("disabled")).toBe(false)
+    expect(document.activeElement).toBe(loading)
+    await userEvent.click(loading)
+    expect(loadMore).toHaveBeenCalledTimes(1)
+    fail(new Error("offline"))
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole("button", { name: "Try again" })
+      )
+    )
+  })
+
+  it("a last page of rows already shown moves focus to the heading (HM-06)", async () => {
+    const loadMore = vi.fn(async () => ({
+      ok: true as const,
+      page: page([CURRENT]),
+    }))
+    render(
+      <YourFindings
+        initial={page([CURRENT], { nextCursor: "opaque" })}
+        venue={HERE}
+        loadMore={loadMore}
+      />
+    )
+    await userEvent.click(screen.getByRole("button", { name: "Show more" }))
+    await waitFor(() =>
+      expect(document.activeElement?.id).toBe("your-findings-heading")
+    )
+  })
+
+  it("the discard dialog stays open and busy until the server answers (HM-08)", async () => {
+    const answer = deferred<{ ok: true }>()
+    const discardDraft = vi.fn(() => answer.promise)
+    render(
+      <YourFindings
+        initial={page([{ ...DRAFT, sendable: false }])}
+        venue={HERE}
+        loadMore={noLoad}
+        onDiscardDraft={discardDraft}
+      />
+    )
+    await userEvent.click(
+      screen.getByRole("button", { name: "Discard draft: Is there a lift?" })
+    )
+    await userEvent.click(screen.getByRole("button", { name: "Discard" }))
+    const busy = screen.getByRole("button", { name: "Discarding…" })
+    expect(busy.getAttribute("aria-busy")).toBe("true")
+    await userEvent.click(busy)
+    expect(discardDraft).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole("alertdialog")).toBeTruthy()
+    expect(screen.queryByText("Draft discarded.")).toBeNull()
+    answer.resolve({ ok: true })
+    await waitFor(() =>
+      expect(screen.getByRole("status").textContent).toBe("Draft discarded.")
+    )
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull())
+  })
+
+  it("shows a refreshed first page, not the rows first loaded (HM-09)", () => {
+    const { rerender } = render(
+      <YourFindings initial={page([CURRENT])} venue={HERE} loadMore={noLoad} />
+    )
+    expect(rowOf("Is there Wi-Fi?")).toBeTruthy()
+    rerender(
+      <YourFindings initial={page([ASKED])} venue={HERE} loadMore={noLoad} />
+    )
+    expect(rowOf("Is the entrance step-free?")).toBeTruthy()
+    expect(
+      screen.queryByRole("heading", { level: 3, name: "Is there Wi-Fi?" })
+    ).toBeNull()
+  })
+
+  it("keeps loaded pages when the parent re-renders the same first page (HM-09)", async () => {
+    const loadMore = vi.fn(async () => ({
+      ok: true as const,
+      page: page([LEGACY]),
+    }))
+    const ui = () => (
+      <YourFindings
+        initial={page([CURRENT], { nextCursor: "opaque" })}
+        venue={HERE}
+        loadMore={loadMore}
+      />
+    )
+    const { rerender } = render(ui())
+    await userEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(rowOf("Is there a garden?")).toBeTruthy()
+    rerender(ui())
+    expect(rowOf("Is there a garden?")).toBeTruthy()
   })
 })

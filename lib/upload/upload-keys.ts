@@ -43,7 +43,9 @@ export type LocalUploadKeyStoreOptions = {
 }
 
 export const UPLOAD_KEYS_STORAGE_KEY = "nabalens-upload-keys"
-const DEFAULT_MAX_AGE_MS = 20 * 60 * 60 * 1000
+/** How long a stored key is kept after its last use (20 h). */
+export const UPLOAD_KEY_MAX_AGE_MS = 20 * 60 * 60 * 1000
+const DEFAULT_MAX_AGE_MS = UPLOAD_KEY_MAX_AGE_MS
 const MAX_ENTRIES = 50
 
 type Entries = Record<string, { key: string; at: number }>

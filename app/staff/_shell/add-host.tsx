@@ -3,6 +3,7 @@
 import * as React from "react"
 import { useRouter } from "next/navigation"
 
+import { addToPhotoSet, startPhotoSet } from "@/app/_media/actions"
 import { useMediaUploader } from "@/app/_media/use-media-uploader"
 import { UploadDialog } from "@/components/nabalens"
 import {
@@ -10,7 +11,10 @@ import {
   UploadLabelPanel,
   type CatalogueProp,
 } from "@/components/nabalens/labels"
-import type { UploadBusy } from "@/components/nabalens/upload-dialog"
+import type {
+  PhotoSetRef,
+  UploadBusy,
+} from "@/components/nabalens/upload-dialog"
 import {
   sameLabelChoice,
   type UploadLabelFixProps,
@@ -31,8 +35,18 @@ import {
   type AddLabelPreset,
   type AddReadyListener,
   type OpenAddOptions,
+  type UnfinishedReason,
 } from "@/components/nabalens/shell/add-context"
+import { ENTRY_COPY } from "@/components/nabalens/shell/entry-copy"
+import type { EntryStep } from "@/components/nabalens/shell/entry-flow"
+import { EntrySheet } from "@/components/nabalens/shell/entry-sheet"
+import {
+  PhotoSets,
+  sessionSetKeys,
+  type SetSubject,
+} from "@/components/nabalens/shell/photo-sets"
 import { LeaveGuard } from "@/components/nabalens/shell/leave-guard"
+import { MANAGER_ENTRY_HREFS } from "@/components/nabalens/shell/manager-entry"
 import {
   AddSheet,
   type AddBlocked,
@@ -41,6 +55,7 @@ import { useObjectUrl } from "@/components/nabalens/use-upload-queue"
 import { MEDIA_LIMITS } from "@/lib/config/media"
 import type { WorkFocus } from "@/lib/config/work-roles"
 import { dishName } from "@/lib/menus/dish-name"
+import type { EntryIntent, EntryMenu } from "@/lib/work-client/entry"
 import type {
   LabelCatalogue,
   MediaLabelSummary,
@@ -62,9 +77,15 @@ type PickOwner = {
   onReady: ((assetIds: string[]) => boolean | void) | null
   /** Told once files are actually picked. */
   onPicked: ((files?: File[]) => void) | null
+  /** Told of each file that ended without becoming ready, and why. */
+  onUnfinished: ((reason: UnfinishedReason, file: File) => void) | null
   preset: AddLabelPreset | null
   /** Fixed at reservation; "amenity" keeps the files out of the community. */
   purpose: UploadPurpose
+  /** What the files show, for a set of them (B02-05). */
+  subject: SetSubject | null
+  /** The set these files make, once picked while sets are on. */
+  set: string | null
 }
 
 /** The catalogue item for a preset, when this menu still offers it. */
@@ -91,16 +112,33 @@ function onMenu(catalogue: LabelCatalogue, preset: AddLabelPreset) {
  * the Add sheet first and from md the upload dialog opens straight away. A
  * blocked account sees why instead. The database repeats the block check, so
  * this is display only.
+ *
+ * A manager account's workspace (`role="manager"`) has Add only once the
+ * entry's read says it can upload: until then, and when the read fails, its
+ * pages see no Add at all. A finalise the server refused (403) ends Add for
+ * the visit: the queue stays reachable to remove what didn't finish, and
+ * new uploads aren't offered.
  */
 export function AddHost({
   blocked,
   captchaRequired,
   captchaSiteKey,
+  entry = null,
+  venueName = null,
+  role = "staff",
   children,
 }: {
   blocked: AddBlocked | null
   captchaRequired: boolean
   captchaSiteKey: string | null
+  /**
+   * The shared entry's choices (B02-02), read on the server; none keeps
+   * today's Add exactly (the entry is off for the venue).
+   */
+  entry?: Promise<EntryMenu | null> | null
+  /** The person's venue, for the Add sheet's context lines with the entry on. */
+  venueName?: string | null
+  role?: "staff" | "manager"
   children: React.ReactNode
 }) {
   const router = useRouter()
@@ -139,6 +177,73 @@ export function AddHost({
   // Labels changed while the venue is unknown (see PanelHost), by queue file.
   const heldLabels = React.useRef(new Map<string, HeldLabels>())
   const readyListeners = React.useRef(new Set<AddReadyListener>())
+
+  // Sets of photos of one subject (B02-05): on where the shared entry is
+  // and the person can upload (R8, read with the entry's choices); off for
+  // the rest of the visit once the database says it has no groups.
+  const [intents, setIntents] = React.useState<readonly EntryIntent[] | null>(
+    null
+  )
+  const [setsMissing, setSetsMissing] = React.useState(false)
+  React.useEffect(() => {
+    if (!entry) return
+    let live = true
+    entry.then(
+      (menu) => {
+        if (live) setIntents(menu?.intents ?? null)
+      },
+      () => {}
+    )
+    return () => {
+      live = false
+    }
+  }, [entry])
+  const setsOn = intents?.includes("photos") ?? false
+  const groupsOn = setsOn && !setsMissing
+  // A manager account's Add exists only while R8 says it can upload.
+  const offered = role === "staff" || setsOn
+  // The server refused to finish an upload (403): no new ones this visit.
+  const [ended, setEnded] = React.useState(false)
+  const sheetBlocked: AddBlocked | null =
+    blocked ??
+    (ended ? { reason: "access_ended", venueName: venueName ?? "" } : null)
+  const groupsOnRef = React.useRef(groupsOn)
+  React.useLayoutEffect(() => {
+    groupsOnRef.current = groupsOn
+  }, [groupsOn])
+  const [photoSets] = React.useState(
+    () =>
+      new PhotoSets(
+        { start: startPhotoSet, add: addToPhotoSet },
+        sessionSetKeys(),
+        { onMissing: () => setSetsMissing(true) }
+      )
+  )
+  // Files that have been through claim, with an owner or none.
+  const claimedFiles = React.useRef(new WeakSet<File>())
+  // The latest pick that made a set: the upload dialog's own next pick
+  // ("Add more to this set"), and a later Add call for the same subject,
+  // join it. Any other Add call ends it.
+  const setOwner = React.useRef<PickOwner | null>(null)
+  const [addingToSet, setAddingToSet] = React.useState(false)
+
+  // The Add queue's unfinished server assets: any other own upload the
+  // server still has uploading has stopped (see useUploadStopped).
+  const [heldIds, setHeldIds] = React.useState<ReadonlySet<string>>(
+    () => new Set()
+  )
+  const holdsChanged = React.useCallback((assetIds: string[]) => {
+    setHeldIds((current) =>
+      current.size === assetIds.length &&
+      assetIds.every((id) => current.has(id))
+        ? current
+        : new Set(assetIds)
+    )
+  }, [])
+  const holds = React.useMemo(
+    () => ({ assetIds: heldIds, account: userId ?? null }),
+    [heldIds, userId]
+  )
 
   const waiting =
     busy.active +
@@ -215,19 +320,37 @@ export function AddHost({
       : { state: "error", message: labelContext.message }
 
   /** These files were picked for `owner`'s Add call. */
-  const claim = React.useCallback((files: File[], owner: PickOwner | null) => {
-    if (!owner || files.length === 0) return
-    if (owner.onReady || owner.preset || owner.purpose !== "general")
-      for (const file of files) fileOwners.current.set(file, owner)
-    owner.onPicked?.(files)
-  }, [])
+  const claim = React.useCallback(
+    (files: File[], owner: PickOwner | null) => {
+      for (const file of files) claimedFiles.current.add(file)
+      if (!owner || files.length === 0) return
+      if (owner.subject && !owner.set && groupsOnRef.current)
+        owner.set = photoSets.open(owner.subject)
+      if (owner.set) {
+        setOwner.current = owner
+        setAddingToSet(true)
+      }
+      if (
+        owner.onReady ||
+        owner.onUnfinished ||
+        owner.preset ||
+        owner.purpose !== "general" ||
+        owner.set
+      )
+        for (const file of files) fileOwners.current.set(file, owner)
+      owner.onPicked?.(files)
+    },
+    [photoSets]
+  )
 
   /** Every pick (the dialog's own, or files handed to it). */
   const picked = React.useCallback(
     (files: File[]) => {
       if (files.length === 0) return
       setCatalogueWanted(true)
-      const owner = sheetOwner.current
+      // Files from Add's own pickers were claimed as they were picked.
+      if (files.every((file) => claimedFiles.current.has(file))) return
+      const owner = sheetOwner.current ?? setOwner.current
       sheetOwner.current = null
       claim(files, owner)
     },
@@ -260,6 +383,23 @@ export function AddHost({
   const closeUpload = React.useCallback((open: boolean) => {
     if (!open) sheetOwner.current = null
     setUploadOpen(open)
+  }, [])
+
+  // Each photo of a set joins its group as soon as the server reserved it.
+  const reservedForSet = React.useCallback(
+    (file: File, assetId: string) => {
+      const set = fileOwners.current.get(file)?.set
+      if (set) photoSets.reserved(set, assetId)
+    },
+    [photoSets]
+  )
+  // A set's one notice. Evidence for a question isn't reviewed photo by
+  // photo, so its set is grouped without one.
+  const setOf = React.useCallback((file: File): PhotoSetRef | null => {
+    const owner = fileOwners.current.get(file)
+    return owner?.set && owner.subject && owner.subject.kind !== "question"
+      ? { id: owner.set, subject: owner.subject.name }
+      : null
   }, [])
 
   const onReady = React.useCallback((listener: AddReadyListener) => {
@@ -299,19 +439,80 @@ export function AddHost({
       listener(assetIds, "discarded")
   }, [])
 
+  // Today's Add without a source: the queue while files wait, the sheet on
+  // phones (and when blocked), the upload dialog from md.
+  const showAdd = React.useCallback(
+    (dialog = false) => {
+      const phone = !window.matchMedia("(min-width: 48rem)").matches
+      if (waiting > 0 && !blocked) setUploadOpen(true)
+      else if (blocked || (phone && !dialog)) setSheetOpen(true)
+      else {
+        setPickedFiles(undefined)
+        setUploadOpen(true)
+      }
+    },
+    [waiting, blocked]
+  )
+
+  // The shared entry's step, while it is open (B02-02).
+  const [entryStep, setEntryStep] = React.useState<EntryStep | null>(null)
+  const closeEntry = React.useCallback((open: boolean) => {
+    if (!open) setEntryStep(null)
+  }, [])
+  const entryPhotos = React.useCallback(() => {
+    setEntryStep(null)
+    showAdd()
+  }, [showAdd])
+  const entryUnavailable = React.useCallback(() => {
+    setEntryStep(null)
+    // Without the entry, Add is today's Add; a question has no fallback.
+    if (entryStep === "choose") showAdd()
+  }, [entryStep, showAdd])
+
   const value = React.useMemo(
     () => ({
       openAdd: (opts: OpenAddOptions = {}) => {
+        if (ended) {
+          sheetOwner.current = null
+          pickerOwner.current = null
+          if (waiting > 0) setUploadOpen(true)
+          else setSheetOpen(true)
+          return
+        }
         // Waiting files (unfinished, or needing the person): Add shows that
         // queue at every width, so a hidden run is never out of reach. A
         // source still opens its picker straight away. A dish and a ready
         // listener belong to the files this call picks, never to the queue
         // (see picked and handleReady).
+        // The same subject again joins its set; any other call ends it.
+        const subject = subjectOf(opts)
+        const current = setOwner.current
+        const joins =
+          subject !== null &&
+          current?.subject?.kind === subject.kind &&
+          current.subject.id === subject.id
+            ? current.set
+            : null
+        if (!joins) {
+          setOwner.current = null
+          setAddingToSet(false)
+        }
         const owner: PickOwner = {
           onReady: opts.onReady ?? null,
           onPicked: opts.onPicked ?? null,
+          onUnfinished: opts.onUnfinished ?? null,
           preset: opts.preset ?? null,
           purpose: opts.purpose ?? "general",
+          subject,
+          set: joins,
+        }
+        if (opts.entry && !opts.source) {
+          if (entry && !blocked && waiting === 0) {
+            sheetOwner.current = null
+            setEntryStep(opts.entry)
+            return
+          }
+          if (opts.entry === "question") return
         }
         const toPicker = !!opts.source && !blocked
         pickerOwner.current = toPicker ? owner : null
@@ -324,33 +525,52 @@ export function AddHost({
           openPicker(opts.source, { imagesOnly: only })
           return
         }
-        const phone = !window.matchMedia("(min-width: 48rem)").matches
-        if (waiting > 0 && !blocked) setUploadOpen(true)
-        else if (blocked || (phone && !opts.dialog)) setSheetOpen(true)
-        else {
-          setPickedFiles(undefined)
-          setUploadOpen(true)
-        }
+        showAdd(opts.dialog)
       },
       onReady,
       labelled,
       discarded,
       busy: waiting > 0 ? { count: waiting, words: busyWords } : null,
       active: busy.active,
+      failed: busy.failed + busy.stopped,
       refreshSignal,
+      holds,
+      intents,
     }),
     [
       blocked,
+      ended,
+      intents,
+      entry,
+      showAdd,
       waiting,
       busy.active,
+      busy.failed,
+      busy.stopped,
       busyWords,
       refreshSignal,
       onReady,
       labelled,
       discarded,
       openPicker,
+      holds,
     ]
   )
+
+  // With Add closed, a file that newly needs the person is said once, in
+  // one polite region for the whole app (the Add button's name alone is
+  // never announced).
+  const needing = busy.failed + busy.stopped + (busy.attention ?? 0)
+  const addShown = sheetOpen || uploadOpen
+  const [attentionSaid, setAttentionSaid] = React.useState("")
+  const [needingBefore, setNeedingBefore] = React.useState(needing)
+  if (needing !== needingBefore) {
+    setNeedingBefore(needing)
+    setAttentionSaid(
+      !addShown && needing > needingBefore ? needsAttentionWords(needing) : ""
+    )
+  }
+  if (addShown && attentionSaid) setAttentionSaid("")
 
   // Resume keys belong to the signed-in account (audit finding 15).
   const accountRef = React.useRef(userId)
@@ -369,13 +589,18 @@ export function AddHost({
           .getSession()
           .then(({ data }) => data.session?.user.id ?? null)
           .catch(() => null))
-      return uploader(file, {
-        ...context,
-        ...(purpose && purpose !== "general" ? { purpose } : {}),
-        ...(account ? { account } : {}),
-      })
+      try {
+        return await uploader(file, {
+          ...context,
+          ...(purpose && purpose !== "general" ? { purpose } : {}),
+          ...(account ? { account } : {}),
+        })
+      } catch (error) {
+        if (role === "manager" && refusedFinalise(error)) setEnded(true)
+        throw error
+      }
     },
-    [uploader, supabase]
+    [uploader, supabase, role]
   )
 
   const refreshAfterLabels = React.useCallback(() => {
@@ -487,42 +712,107 @@ export function AddHost({
   return (
     <SessionGuardProvider value={guard}>
       <LeaveGuard>
-        <AddProvider value={value}>
+        <AddProvider value={offered ? value : null}>
           {children}
-          {picker.inputs}
-          <AddSheet
-            open={sheetOpen}
-            onOpenChange={closeSheet}
-            blocked={blocked}
-            maxFiles={MEDIA_LIMITS.maxBatchFiles}
-            imagesOnly={imagesOnly}
-            onFiles={queueFiles}
-          />
-          <UploadDialog
-            open={uploadOpen}
-            onOpenChange={closeUpload}
-            uploader={upload}
-            limits={MEDIA_LIMITS}
-            imagesOnly={imagesOnly}
-            initialFiles={pickedFiles}
-            onPick={picked}
-            onUploaded={() => {
-              setRefreshSignal((signal) => signal + 1)
-              router.refresh()
-            }}
-            onReady={handleReady}
-            purposeOf={(file) =>
-              fileOwners.current.get(file)?.purpose ?? "general"
-            }
-            labels={labels}
-            startOnPick
-            keepRunningWhenClosed
-            onBusyChange={setBusy}
-          />
+          {/* A manager account without R8's upload: nothing of Add at all. */}
+          {offered ? (
+            <>
+              {picker.inputs}
+              {entry ? (
+                <EntrySheet
+                  open={entryStep !== null}
+                  onOpenChange={closeEntry}
+                  entry={entry}
+                  step={entryStep ?? "choose"}
+                  onPhotos={entryPhotos}
+                  onUnavailable={entryUnavailable}
+                  hrefs={role === "manager" ? MANAGER_ENTRY_HREFS : undefined}
+                  role={role}
+                />
+              ) : null}
+              <AddSheet
+                open={sheetOpen}
+                onOpenChange={closeSheet}
+                blocked={sheetBlocked}
+                context={
+                  entry && venueName
+                    ? { venueName, audience: ENTRY_COPY.photosAudience }
+                    : null
+                }
+                maxFiles={MEDIA_LIMITS.maxBatchFiles}
+                imagesOnly={imagesOnly}
+                onFiles={queueFiles}
+              />
+              <UploadDialog
+                open={uploadOpen}
+                onOpenChange={closeUpload}
+                uploader={upload}
+                limits={MEDIA_LIMITS}
+                imagesOnly={imagesOnly}
+                initialFiles={pickedFiles}
+                onPick={picked}
+                onUploaded={() => {
+                  setRefreshSignal((signal) => signal + 1)
+                  router.refresh()
+                }}
+                onReady={handleReady}
+                purposeOf={(file) =>
+                  fileOwners.current.get(file)?.purpose ?? "general"
+                }
+                labels={labels}
+                startOnPick
+                keepRunningWhenClosed
+                onBusyChange={setBusy}
+                onHoldsChange={holdsChanged}
+                onUnfinished={(file, reason) =>
+                  fileOwners.current.get(file)?.onUnfinished?.(reason, file)
+                }
+                onReserved={reservedForSet}
+                setOf={groupsOn ? setOf : undefined}
+                addMoreLabel={
+                  groupsOn && addingToSet ? ENTRY_COPY.addMoreToSet : undefined
+                }
+              />
+              <p role="status" className="sr-only">
+                {attentionSaid}
+              </p>
+            </>
+          ) : null}
         </AddProvider>
       </LeaveGuard>
     </SessionGuardProvider>
   )
+}
+
+/** What an Add call's files show: Our menu's dish, or the call's subject. */
+function subjectOf(opts: OpenAddOptions): SetSubject | null {
+  if (opts.preset)
+    return {
+      kind: "menu_item",
+      id: opts.preset.itemId,
+      name: dishName({
+        name: opts.preset.itemName,
+        variantName: opts.preset.variantName,
+      }),
+    }
+  return opts.subject ? { ...opts.subject } : null
+}
+
+/** The queue's error for a finalise the server refused (403). */
+function refusedFinalise(error: unknown): boolean {
+  return (
+    !!error &&
+    typeof error === "object" &&
+    "error" in error &&
+    (error as { error?: { code?: unknown } }).error?.code === "finalise_refused"
+  )
+}
+
+/** `1 photo needs attention. Open Add.` */
+export function needsAttentionWords(count: number) {
+  return count === 1
+    ? "1 photo needs attention. Open Add."
+    : `${count} photos need attention. Open Add.`
 }
 
 /** A file's labels changed in the field, and what the sheet had then. */
@@ -747,4 +1037,3 @@ function assetOf(
     labels,
   }
 }
-

@@ -26,9 +26,17 @@ export function orderAmenityTasks(
 
 /**
  * Staff Home: amenity checks assigned to me that still need capturing, recheck
- * first with the manager's reason. Nothing to do renders nothing.
+ * first with the manager's reason. Nothing to do renders nothing. `heading`
+ * renames the section, so Home has one "Amenity checks" when the working list
+ * is shown too (HM-11).
  */
-export function AmenityTaskList({ tasks }: { tasks: MyAmenityTask[] }) {
+export function AmenityTaskList({
+  tasks,
+  heading = UI_TEXT.staffSection,
+}: {
+  tasks: MyAmenityTask[]
+  heading?: string
+}) {
   if (tasks.length === 0) return null
   const ordered = orderAmenityTasks(tasks)
   return (
@@ -41,11 +49,11 @@ export function AmenityTaskList({ tasks }: { tasks: MyAmenityTask[] }) {
           id="amenity-checks-heading"
           className="flex items-center gap-2 font-display text-section-title [overflow-wrap:anywhere] text-ink"
         >
-          {UI_TEXT.staffSection}
+          {heading}
           <CountBadge count={tasks.length} label="to capture" />
         </h2>
       </div>
-      <ul aria-label={UI_TEXT.staffSection} className="grid gap-(--gutter)">
+      <ul aria-label={heading} className="grid gap-(--gutter)">
         {ordered.map((task) => {
           const recheck = task.progress === "needs_recheck"
           return (

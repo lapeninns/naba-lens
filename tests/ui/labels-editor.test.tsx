@@ -419,7 +419,7 @@ describe("LabelEditorDialog: saving one file", () => {
     )
     await user.click(screen.getByRole("button", { name: "Save labels" }))
 
-    const problem = await screen.findByText(/^An admin changed these labels/)
+    const problem = await screen.findByText(/^Someone changed these labels/)
     await waitFor(() =>
       expect(document.activeElement).toBe(problem.closest("[tabindex]"))
     )

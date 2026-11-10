@@ -22,6 +22,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 
 import { LabelEditorHost } from "@/app/_labels/label-editor-host"
+import { readDeleteEvidence } from "@/app/_media/actions"
 import { fetchMediaPage } from "@/app/_media/fetch-page"
 import { MediaGallery } from "@/app/_media/media-gallery"
 import {
@@ -315,7 +316,12 @@ function MilestoneTile({
         {MILESTONES[milestone]}
       </StatusChip>
       {detail ? (
-        <span className="truncate text-meta text-ink-muted">{detail}</span>
+        <span
+          title={detail}
+          className="line-clamp-2 text-meta [overflow-wrap:anywhere] text-ink-muted"
+        >
+          {detail}
+        </span>
       ) : null}
     </li>
   )
@@ -529,7 +535,7 @@ function BetterPhotoRow({
 
 /** Which §3 state shape draws each milestone (the word stays MILESTONES'). */
 const MILESTONE_STATE: Record<Milestone, string> = {
-  saved: "saved",
+  saved: "portfolio_saved",
   label: "needs_labels",
   accepted: "accepted",
   better: "needs_another_photo",
@@ -815,6 +821,7 @@ export function StaffPortfolio({
           const dishes = accepted.get(item.id)
           return dishes ? { kind: "menu", dishes } : undefined
         }}
+        readDeleteEvidence={readDeleteEvidence}
         refreshSignal={addRefreshSignal + labelSaves}
         canLabel
         showLabelBadge

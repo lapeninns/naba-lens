@@ -24,14 +24,21 @@ import { DueLine } from "./status-badges"
 import type { MyAssignment, RequirementKind } from "./types"
 
 /** Back link to Home, sized for touch (the thread's "‹ Home"). */
-export function BackToTasks({ href }: { href: string }) {
+export function BackToTasks({
+  href,
+  label = "Home",
+}: {
+  href: string
+  /** Where `href` goes, when it isn't Home (`?from=`). */
+  label?: string
+}) {
   return (
     <Link
       href={href}
       className="-ml-1 inline-flex min-h-11 items-center gap-1.5 self-start rounded-control px-1 text-label text-ink outline-none hover:underline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
     >
       <CaretLeftIcon className="size-5" weight="bold" aria-hidden />
-      Home
+      {label}
     </Link>
   )
 }
