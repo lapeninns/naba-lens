@@ -9,7 +9,7 @@ import { join } from "node:path"
 import { test } from "node:test"
 import { fileURLToPath, pathToFileURL } from "node:url"
 import * as realStack from "../../scripts/ci/stack.mjs"
-import { NO_HORIZONTAL_OVERFLOW } from "./fixture.ts"
+import { CARD_GEOMETRY, CONTROL_IN_VIEW, homeAfterSend, NO_HORIZONTAL_OVERFLOW, SENT } from "./fixture.ts"
 import { bounded, candidateMigrationsDigest, parse, requireCanonicalRoot, validatedStackEnvironment, verifyStack } from "./run.mjs"
 
 const RUNNER = fileURLToPath(new URL("./run.mjs", import.meta.url))
@@ -37,6 +37,36 @@ test("the overflow check is callable source for the installed evaluator", async 
     delete globalThis.document
     delete globalThis.window
   }
+})
+
+test("the geometry checks are callable sources that take their one argument", async () => {
+  const evaluation = join(process.env.B01_E2E_HOME ?? homedir(), "node_modules", "@e2e-dev", "web", "dist", "evaluation.js")
+  const { compileEvaluation } = await import(pathToFileURL(evaluation).href)
+  // Parsed and invoked with the argument: each reaches its own lookup and
+  // reports the missing page element, rather than failing to compile or call.
+  globalThis.document = { querySelector: () => null, querySelectorAll: () => [] }
+  try {
+    const cards = await compileEvaluation(CARD_GEOMETRY, true)({ questions: ["Q?"], alignTo: null })
+    assert.deepEqual(cards, { ok: false, message: 'No "Amenity checks" list.' })
+    const control = await compileEvaluation(CONTROL_IN_VIEW, true)("Submit finding")
+    assert.deepEqual(control, { ok: false, message: '0 buttons read "Submit finding".' })
+  } finally {
+    delete globalThis.document
+  }
+})
+
+test("the Home notice copy and destination are the candidate's", () => {
+  const source = (path) => spawnSync("git", ["-C", REPO, "show", `${CANDIDATE}:${path}`], { encoding: "utf8" }).stdout
+  const copy = source("components/nabalens/knowledge/copy.ts")
+  for (const { title, body } of Object.values(SENT)) {
+    assert.ok(copy.includes(`title: "${title}"`), title)
+    assert.ok(copy.includes(`body: "${body}"`), body)
+  }
+  assert.ok(copy.includes("couldn't-establish ${unknown === 1 ? \"finding\" : \"findings\"} recorded. ${unknown === 1 ? \"It doesn't\""))
+  const sent = source("components/nabalens/amenities/capture/finding-sent.ts")
+  assert.match(sent, /FINDING_SENT_PARAM = "finding_sent"/)
+  assert.match(sent, /STAFF_HOME_PATH = "\/staff\/tasks"/)
+  assert.equal(homeAfterSend("0b1c2d3e-0000-4000-8000-000000000000"), "/staff/tasks?finding_sent=0b1c2d3e-0000-4000-8000-000000000000")
 })
 
 test("an inherited NABALENS_WS_ROOT is rejected before anything runs", () => {

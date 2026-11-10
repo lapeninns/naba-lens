@@ -11,10 +11,11 @@ app code, tests or manifests, and it is not meant to be merged.
 | --- | --- |
 | `run.mjs` | Entry point: guards, `spare6` lock, seed, bounded app start and stop, e2e invocation, summary |
 | `seed.ts` | Creates one disposable world with the repository's own helpers (`tests/e2e/helpers/amenities-world.ts`, `stack.ts`) |
-| `fixture.ts` | Target guards, world loading, fixture sign-in, read-only DB read-back and copy helpers |
+| `fixture.ts` | Target guards, world loading, fixture sign-in, read-only DB read-back, copy helpers and page-geometry sources |
+| `home.ts` | `expectSentOnHome`: the Staff Home destination and status notice after a successful send |
 | `e2e.config.ts` | Runner config. `B01_SUITE` selects one suite, which writes to `.results/<B01_RUN_ID>/<suite>/` |
 | `journey.e2e.ts` | Desktop 1280x800: eight serial tests, one `agent.act` with assertions right after it |
-| `narrow.e2e.ts` | Phone 390x844: home list and sticky-dock send, overflow checks, one vision `agent.assert` |
+| `narrow.e2e.ts` | Phone 390x844: card geometry for all four cards, one vision `agent.assert` per screenful of cards, sticky-dock send, overflow checks |
 | `reader.e2e.ts` | Internal reader over real HTTP (`GET /api/knowledge/v1/venues/{id}/answers`) |
 
 ## Coverage
@@ -34,6 +35,22 @@ app code, tests or manifests, and it is not meant to be merged.
 
 Uploads, public providers, the Wi-Fi question content and staff contact are
 out of scope.
+
+After a successful staff send the app returns to Staff Home at
+`/staff/tasks?finding_sent=<check id>`. The tests wait for that exact URL and
+check the `status` notice that contains the question: its title, then the
+question followed by the outcome body (`fixture.ts` `SENT`). Manager B's
+send-and-confirm returns to `/manager/amenities/<check id>`, where "Where it
+stands" shows the current answer and its save date.
+
+The narrow vision judgment only covers cards that are on screen when it runs.
+Each pass scrolls the next unjudged card to the top of the viewport, checks
+that it is wholly on screen and clear of fixed chrome such as the tab bar, and
+then names only those cards in the assertion. Width, escape and clipping
+checks for all four cards are deterministic and do not depend on the model.
+Before the tap, Submit finding must be in its sticky dock, inside the
+viewport, and the topmost element at its centre and at the middle of each edge. The test does not rely on the
+tap scrolling it into view.
 
 ## Prerequisites (coordinator)
 

@@ -2,12 +2,15 @@ import { describe, test } from '@e2e-dev/web';
 import { expect } from 'e2e';
 
 import { db, longDate, periodMonth, QUESTION, sessionCookies, world, type Person, type PilotKey } from './fixture';
+import { expectSentOnHome } from './home';
 
 // B01-07 knowledge path, desktop (1280x800), one serial story on venue A
 // plus the self-confirmation on venue B. Each member signs in as the person
 // it needs; app.clearState() drops the previous person's session first.
 // Exact assertions pin every critical outcome on screen and in the database;
 // the one agent.act (the straightforward answer) is checked right after.
+// A staff send returns to Home for that check (expectSentOnHome); a manager's
+// returns to the check's manager page.
 
 type App = { clearState(): Promise<void>; open(path?: string): Promise<void> };
 type Cookies = { setCookies(cookies: Awaited<ReturnType<typeof sessionCookies>>): Promise<void> };
@@ -80,8 +83,8 @@ describe('B01 knowledge path on the enabled working list', { serial: true }, () 
     await expect(screen.getByRole('radio', 'No one could say for sure')).toBeChecked();
     await expect(screen.getByLabel('What did you try?')).toHaveValue(tried);
     await screen.getByRole('button', 'Submit finding').tap();
-    await expect(screen.getByText('Recorded: couldn\'t establish. The question stays open.')).toBeVisible();
-    await expect(screen.getByText('Couldn\'t-establish findings don\'t count toward targets.')).toBeVisible();
+    await expectSentOnHome(browser, screen, check, QUESTION.onsite_parking, 'unknown');
+    await expect(screen.getByText('1 couldn\'t-establish finding recorded. It doesn\'t count toward targets.')).toBeVisible();
 
     // Sent: recorded, never adopted, never a submission (no credit).
     expect(db.drafts(check)).toBe(0);
@@ -113,8 +116,8 @@ describe('B01 knowledge path on the enabled working list', { serial: true }, () 
     await agent.act('Answer this question with No, type {reason} in the Reason box, then press "Submit finding".', {
       params: { reason: why },
     });
-    await expect(screen.getByText('Finding sent. It\'s now the venue\'s answer.')).toBeVisible();
-    await expect(screen.getByText(`Counted in your ${periodMonth(w.targetPeriod)} target.`)).toBeVisible();
+    const sent = await expectSentOnHome(browser, screen, check, QUESTION.guest_toilets, 'current');
+    await expect(sent.getByText(`Counted in your ${periodMonth(w.targetPeriod)} target.`)).toBeVisible();
 
     expect(db.contributions(check)).toEqual([{ by: w.staffA.id, kind: 'finding', answer: 'no', outcome: 'current' }]);
     expect(db.submissions(check)).toEqual([{ answer: 'no', by: w.staffA.id }]);
@@ -138,7 +141,7 @@ describe('B01 knowledge path on the enabled working list', { serial: true }, () 
     await screen.getByRole('radio', 'No').check();
     await screen.getByLabel('Reason').fill(reason('two steps at every entrance'));
     await screen.getByRole('button', 'Submit finding').tap();
-    await expect(screen.getByText('Finding sent. Your manager confirms it before it\'s used.')).toBeVisible();
+    await expectSentOnHome(browser, screen, check, QUESTION.step_free_entrance, 'pending');
 
     expect(db.contributions(check)).toEqual([{ by: w.staffA.id, kind: 'finding', answer: 'no', outcome: 'awaiting_confirmation' }]);
     expect(db.submissions(check)).toEqual([]);
@@ -193,9 +196,7 @@ describe('B01 knowledge path on the enabled working list', { serial: true }, () 
     await screen.getByRole('radio', 'Not applicable').check();
     await screen.getByLabel('Reason').fill(changed);
     await screen.getByRole('button', 'Send change report').tap();
-    await expect(
-      screen.getByText('Change report sent. Until your manager decides, the recorded answer is marked as being checked.'),
-    ).toBeVisible();
+    await expectSentOnHome(browser, screen, check, QUESTION.guest_toilets, 'changeReport');
     expect(db.slot(w.venueA.id, 'guest_toilets')).toMatchObject({ status: 'unavailable', reason: 'disputed', detail: 'conflict', open_dispute: true });
     await app.open('/staff/tasks');
     await expect(
@@ -269,15 +270,21 @@ describe('B01 knowledge path on the enabled working list', { serial: true }, () 
     await screen.getByLabel('Reason').fill(reason('a step at the only entrance'));
     await screen.getByRole('radio', 'I confirm it now').check();
     await screen.getByRole('button', 'Submit and confirm').tap();
-    await expect(screen.getByText('Finding sent and confirmed by you. It\'s now the venue\'s answer.')).toBeVisible();
+    // Back on the check's manager page, which shows the answer now in use.
+    await expect(browser).toHaveURL(`/manager/amenities/${check}`, { timeout: 30000 });
 
     expect(db.contributions(check)).toEqual([{ by: w.managerB.id, kind: 'finding', answer: 'no', outcome: 'current' }]);
-    expect(db.slot(w.venueB.id, 'step_free_entrance')).toMatchObject({
+    const slot = db.slot(w.venueB.id, 'step_free_entrance');
+    expect(slot).toMatchObject({
       status: 'available',
       value: 'no',
       source_basis: 'venue_manager',
       confirmation_state: 'confirmed',
+      confirmation_basis: 'venue_manager',
       confirmation_self: true,
     });
+    expect(typeof slot.saved_at).toBe('string');
+    const stands = screen.getByRole('region', 'Where it stands');
+    await expect(stands.getByText(`Current answer: No. Recorded ${longDate(String(slot.saved_at))}.`)).toBeVisible();
   });
 });

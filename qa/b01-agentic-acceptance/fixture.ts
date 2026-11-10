@@ -271,8 +271,151 @@ export function periodMonth(period: string): string {
 }
 
 /**
- * True when nothing overflows the viewport horizontally. A function expression,
- * not a call: browser.evaluate wraps the source and invokes it itself.
+ * Where a successful staff send lands: Home with the sent check, as
+ * capture-client.tsx onDone() builds it with findingSentHref().
  */
+export function homeAfterSend(checkId: string): string {
+  return `/staff/tasks?finding_sent=${encodeURIComponent(checkId)}`
+}
+
+/**
+ * Home's notice after a send (finding-sent-notice.tsx): its title, then the
+ * question followed by this body, as copy.ts sentCopy() words each outcome.
+ */
+export const SENT = {
+  unknown: {
+    title: "Recorded",
+    body: "You couldn't establish the answer. The question stays open.",
+  },
+  current: { title: "Finding sent", body: "It's now the venue's answer." },
+  pending: {
+    title: "Finding sent",
+    body: "Your manager confirms it before it's used.",
+  },
+  changeReport: {
+    title: "Change report sent",
+    body: "Until your manager decides, the recorded answer is marked as being checked.",
+  },
+} as const
+export type SentOutcome = keyof typeof SENT
+
+// ---- Page geometry (browser.evaluate sources) ----------------------------------
+// Each is a function expression, not a call: browser.evaluate wraps the source
+// and invokes it itself, with its one JSON argument where it takes one.
+
+/** True when nothing overflows the viewport horizontally. */
 export const NO_HORIZONTAL_OVERFLOW =
   "() => document.documentElement.scrollWidth <= window.innerWidth"
+
+export type CardGeometry = {
+  question: string
+  /** Viewport-relative top, for ordering the cards as they appear. */
+  top: number
+  /** Inside the list and the viewport, left to right. */
+  fitsWidth: boolean
+  /** Wholly between the top and bottom of the viewport. */
+  onScreen: boolean
+  /** Fixed or sticky chrome (the tab bar) that overlaps the card. */
+  coveredBy: string[]
+  /** Descendants whose box reaches outside the card. */
+  escapes: string[]
+  /** Non-inline descendants whose content is wider than their box. */
+  clipped: string[]
+}
+
+/**
+ * Measures the Home "Amenity checks" cards named by `questions` (the card
+ * whose h3 reads the question exactly). With `alignTo`, first scrolls the
+ * window, instantly, so that card's top sits 16px below the viewport's top.
+ * Argument: { questions: string[], alignTo: string | null }.
+ */
+export const CARD_GEOMETRY = `(arg) => {
+  const list = document.querySelector('ul[aria-label="Amenity checks"]')
+  if (!list) throw new Error('No "Amenity checks" list.')
+  const cards = Array.from(list.querySelectorAll(':scope > li'))
+  const card = (question) => {
+    const found = cards.filter((li) => (li.querySelector('h3')?.textContent ?? '').trim() === question)
+    if (found.length !== 1) throw new Error(found.length + ' cards read "' + question + '".')
+    return found[0]
+  }
+  if (arg.alignTo) {
+    const top = card(arg.alignTo).getBoundingClientRect().top
+    window.scrollTo({ top: window.scrollY + top - 16, behavior: 'instant' })
+  }
+  const vw = document.documentElement.clientWidth
+  const vh = window.innerHeight
+  const describe = (el) => el.tagName.toLowerCase() + (el.getAttribute('data-slot') ? '[data-slot=' + el.getAttribute('data-slot') + ']' : '')
+  const sized = (r) => r.width > 1 && r.height > 1
+  const chrome = Array.from(document.querySelectorAll('body *')).filter((el) => {
+    const s = getComputedStyle(el)
+    return (s.position === 'fixed' || s.position === 'sticky') && s.display !== 'none' && s.visibility !== 'hidden'
+  })
+  const lb = list.getBoundingClientRect()
+  return arg.questions.map((question) => {
+    const el = card(question)
+    const r = el.getBoundingClientRect()
+    const inner = Array.from(el.querySelectorAll('*'))
+    const coveredBy = chrome.filter((c) => {
+      if (c.contains(el) || el.contains(c)) return false
+      const b = c.getBoundingClientRect()
+      return sized(b) && b.left < r.right && b.right > r.left && b.top < r.bottom && b.bottom > r.top
+    }).map(describe)
+    const escapes = inner.filter((c) => {
+      const b = c.getBoundingClientRect()
+      return sized(b) && (b.left < r.left - 0.5 || b.right > r.right + 0.5 || b.top < r.top - 0.5 || b.bottom > r.bottom + 0.5)
+    }).map(describe)
+    const clipped = [el, ...inner].filter((c) => {
+      if (!(c instanceof HTMLElement) || getComputedStyle(c).display === 'inline') return false
+      return sized(c.getBoundingClientRect()) && c.scrollWidth > c.clientWidth + 1
+    }).map(describe)
+    return {
+      question,
+      top: r.top,
+      fitsWidth: r.left >= Math.max(0, lb.left) - 0.5 && r.right <= Math.min(vw, lb.right) + 0.5,
+      onScreen: r.top >= 0 && r.bottom <= vh,
+      coveredBy,
+      escapes,
+      clipped,
+    }
+  })
+}`
+
+export type ControlInView = {
+  /** Inside a position: sticky ancestor (the capture form's dock). */
+  docked: boolean
+  /** The control's whole box is inside the viewport. */
+  inViewport: boolean
+  /** What its centre and edges hit: "self", or the first thing covering it. */
+  topmost: string
+}
+
+/**
+ * Where the one button named exactly `arg` (its text) is, without scrolling.
+ * Argument: the button's text.
+ */
+export const CONTROL_IN_VIEW = `(name) => {
+  const found = Array.from(document.querySelectorAll('button')).filter((b) => (b.textContent ?? '').trim() === name)
+  if (found.length !== 1) throw new Error(found.length + ' buttons read "' + name + '".')
+  const button = found[0]
+  let docked = false
+  for (let el = button.parentElement; el; el = el.parentElement) {
+    if (getComputedStyle(el).position === 'sticky') { docked = true; break }
+  }
+  const r = button.getBoundingClientRect()
+  const inViewport = r.width > 0 && r.height > 0 && r.top >= 0 && r.left >= 0 &&
+    r.bottom <= window.innerHeight && r.right <= document.documentElement.clientWidth
+  // The centre and the middle of each edge (2px in, clear of the rounded
+  // corners): the whole box, not just its middle, must clear the tab bar.
+  const cx = r.left + r.width / 2
+  const cy = r.top + r.height / 2
+  const points = [[cx, cy], [cx, r.top + 2], [cx, r.bottom - 2], [r.left + 2, cy], [r.right - 2, cy]]
+  let topmost = inViewport ? 'self' : 'nothing'
+  for (const [x, y] of inViewport ? points : []) {
+    const hit = document.elementFromPoint(x, y)
+    if (hit && button.contains(hit)) continue
+    topmost = !hit ? 'nothing' :
+      hit.tagName.toLowerCase() + (hit.closest('[data-slot]') ? ' in [data-slot=' + hit.closest('[data-slot]').getAttribute('data-slot') + ']' : '')
+    break
+  }
+  return { docked, inViewport, topmost }
+}`
