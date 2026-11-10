@@ -211,6 +211,13 @@ export type KnowledgeSlotView = {
     detail?: KnowledgeDetail | null
     detailRecorded?: boolean
     observedOn?: string | null
+    /**
+     * B03-c (§3.8): a qualified answer's real value. When set, the B01 fields
+     * read as needs checking unless another reason applies (A22).
+     */
+    qualified?: QualifiedAnswer | null
+    /** B03-c (A5): policy keys only; empty means complete. */
+    policyMissing?: PolicyMissing[]
   } | null
   previousAnswer: SubmitAnswer | null
   requiresConfirmation: boolean
@@ -261,6 +268,8 @@ export type PendingFindingView = {
   /** B03-b: structured detail and observation date, null when none. */
   detail?: KnowledgeDetail | null
   observedOn?: string | null
+  /** B03-c (A5): policy findings only, as if adopted (content, not who confirms). */
+  policyMissing?: PolicyMissing[]
 }
 
 export type KnowledgeCheckView = KnowledgeSlotView & {
@@ -304,6 +313,8 @@ export type ToConfirmItem = {
    * Always returned once the B02 migration is applied.
    */
   waitingSince?: string
+  /** B03-c (A5): policy items only. */
+  policyMissing?: PolicyMissing[]
 }
 
 /**
@@ -622,6 +633,13 @@ export type QuestionView = {
   sensitivity: "ordinary" | "sensitive_claim" | "restricted_detail"
   freshness: { internal: string | null; public: string | null }
   publishableFields: string[]
+  /**
+   * K3 (A30): whether an answer may be illustrated publicly. Every version 1
+   * is "never". Returned from B03-c.
+   */
+  publicMedia?: "never" | "with_grant"
+  /** A33: the accessibility features this version asks about (empty on v1). */
+  features?: QuestionFeature[]
   /** Fields whose change invalidates a confirmation; the headline always does. */
   materialFields: string[]
   requiresZones: boolean
@@ -669,6 +687,41 @@ export type KnowledgeDetail = Record<string, unknown>
 
 export const OBSERVED_ON_SOURCES = ["form_default", "chosen"] as const
 export type ObservedOnSource = (typeof OBSERVED_ON_SOURCES)[number]
+
+/** B03-c (§3.8): a Yes narrowed by its detail. */
+export type QualifiedAnswer = {
+  qualifier: "conditional" | "temporarily_unavailable"
+  detail: KnowledgeDetail
+}
+
+/** B03-c (A5): what a policy answer still needs, in this order. */
+export type PolicyMissing =
+  "stance" | "conditions" | "zones" | "authority" | "stated_on"
+
+export const VALUE_LISTS = [
+  "policy_condition_types",
+  "policy_exception_types",
+  "broadcasters",
+] as const
+export type ValueListName = (typeof VALUE_LISTS)[number]
+
+/** A4, A9: one closed list, active items in the owner's order. */
+export type ValueListView = {
+  list: ValueListName
+  items: {
+    code: string
+    label: string
+    needsValue: boolean
+    valueKind: "number" | "text" | "time" | null
+  }[]
+}
+
+/** A33: an accessibility feature a question version asks about. */
+export type QuestionFeature = {
+  key: string
+  label: string
+  measurable: boolean
+}
 
 export type FreshnessEntry = {
   use: "internal" | "public"
@@ -929,6 +982,10 @@ export type KnowledgeRpcs = {
   knowledge_registry: {
     args: { p_lifecycle: QuestionLifecycle[] | null }
     returns: { items: QuestionView[] }
+  }
+  knowledge_value_list: {
+    args: { p_list: ValueListName }
+    returns: ValueListView
   }
   knowledge_subjects: {
     args: { p_venue_id: string | null }

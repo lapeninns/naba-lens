@@ -1,8 +1,11 @@
 // The value validator for B03 question schemas (docs/knowledge/b03-design.md
-// §3.3, §4). Mirrors private.knowledge_validate_value and
-// private.knowledge_detail_problems: the same schemas, the same field paths
-// and problem codes in the same order; a shared fixture set runs through
-// both. Checks that need the venue (places, entrances) are the database's.
+// §3.3, §4, §5.1). Mirrors private.knowledge_validate_value,
+// private.knowledge_detail_problems and private.knowledge_policy_problems:
+// the same schemas, the same field paths and problem codes in the same order;
+// a shared fixture set runs through both. Checks that need the venue or the
+// question (places, entrances, a version's features) are the database's.
+// Policy condition and exception types come from the value lists (A4), which
+// the caller passes; both are empty until the owner supplies them (OD-14).
 
 import type { WifiMetadata } from "@/lib/amenities/contract"
 import type {
@@ -31,6 +34,38 @@ const SUPPORTED: Record<string, true> = {
   "connectivity.wifi@1": true,
   "facility@1": true,
   "accessibility@1": true,
+  "policy@1": true,
+}
+
+/** Active codes of the policy value lists (public.knowledge_value_list). */
+export type PolicyValueLists = {
+  conditionTypes: readonly string[]
+  exceptionTypes: readonly string[]
+}
+const NO_LISTS: PolicyValueLists = { conditionTypes: [], exceptionTypes: [] }
+
+const POLICY_KEYS = [
+  "stance",
+  "zones",
+  "conditions",
+  "exceptions",
+  "policyScope",
+  "authority",
+]
+const STANCES = [
+  "allowed",
+  "not_allowed",
+  "conditional",
+  "not_applicable",
+  "unknown",
+]
+/** The B01 answer a stance is stored as (Conditional is a qualified Yes). */
+const STANCE_HEADLINE: Record<string, string> = {
+  allowed: "yes",
+  conditional: "yes",
+  not_allowed: "no",
+  not_applicable: "not_applicable",
+  unknown: "unknown",
 }
 
 const FACILITY_KEYS = [
@@ -143,12 +178,14 @@ function detailProblems(
       add("detail.availability", "invalid")
     else {
       if (!has(v, "state")) add("detail.availability.state", "required")
-      else if (v.state === "temporarily_unavailable")
-        // Refused until the consumers show it as qualified (§3.8 gate, B03-c).
-        add("detail.availability.state", "not_allowed")
       else if (
         typeof v.state !== "string" ||
-        !["available", "on_request", "seasonal"].includes(v.state)
+        ![
+          "available",
+          "on_request",
+          "seasonal",
+          "temporarily_unavailable",
+        ].includes(v.state)
       )
         add("detail.availability.state", "invalid")
       if (has(v, "until") && !safeDate(v.until))
@@ -285,6 +322,129 @@ function detailProblems(
   return out
 }
 
+/** private.knowledge_policy_problems (§5.1). */
+function policyProblems(
+  headline: unknown,
+  detail: unknown,
+  lists: PolicyValueLists,
+  now: Date
+): ValueFieldProblem[] {
+  const out: ValueFieldProblem[] = []
+  const add = (path: string, problem: Problem) => out.push({ path, problem })
+  if (!isRecord(detail)) return [{ path: "detail", problem: "invalid" }]
+  for (const key of Object.keys(detail).sort())
+    if (!POLICY_KEYS.includes(key)) add(`detail.${key}`, "not_allowed")
+
+  if (has(detail, "stance")) {
+    const stance = detail.stance
+    if (typeof stance !== "string" || !STANCES.includes(stance))
+      add("detail.stance", "invalid")
+    else if (
+      HEADLINES.includes(headline as Headline) &&
+      STANCE_HEADLINE[stance] !== headline
+    )
+      add("detail.stance", "invalid")
+  }
+
+  if (has(detail, "zones")) {
+    const list = detail.zones
+    if (!Array.isArray(list) || list.length > MAX_ITEMS)
+      add("detail.zones", "invalid")
+    else
+      list.forEach((item: unknown, i) => {
+        const path = `detail.zones[${i}]`
+        if (!isRecord(item)) {
+          add(path, "invalid")
+          return
+        }
+        const { stance, ...ref } = item
+        const problem = placeRefProblem(ref)
+        if (problem) add(path, problem)
+        if (!has(item, "stance")) add(`${path}.stance`, "required")
+        else if (
+          typeof stance !== "string" ||
+          !["allowed", "not_allowed", "conditional"].includes(stance)
+        )
+          add(`${path}.stance`, "invalid")
+      })
+  }
+
+  for (const key of ["conditions", "exceptions"] as const)
+    if (has(detail, key)) {
+      const codes =
+        key === "conditions" ? lists.conditionTypes : lists.exceptionTypes
+      const allowed =
+        key === "conditions" ? ["type", "note", "value"] : ["type", "note"]
+      const list = detail[key]
+      if (!Array.isArray(list) || list.length > MAX_ITEMS)
+        add(`detail.${key}`, "invalid")
+      else
+        list.forEach((item: unknown, i) => {
+          const path = `detail.${key}[${i}]`
+          if (!isRecord(item) || !onlyKeys(item, allowed)) {
+            add(path, "invalid")
+            return
+          }
+          if (!has(item, "type")) add(`${path}.type`, "required")
+          else if (typeof item.type !== "string" || !codes.includes(item.type))
+            add(`${path}.type`, "invalid")
+          if (
+            has(item, "value") &&
+            typeof item.value !== "string" &&
+            typeof item.value !== "number"
+          )
+            add(`${path}.value`, "invalid")
+          else if (typeof item.value === "string" && chars(item.value) > 200)
+            add(`${path}.value`, "too_long")
+          if (has(item, "note") && typeof item.note !== "string")
+            add(`${path}.note`, "invalid")
+          else if (typeof item.note === "string" && chars(item.note) > 500)
+            add(`${path}.note`, "too_long")
+        })
+    }
+
+  if (
+    has(detail, "policyScope") &&
+    (typeof detail.policyScope !== "string" ||
+      !["venue", "organisation"].includes(detail.policyScope))
+  )
+    add("detail.policyScope", "invalid")
+
+  if (has(detail, "authority")) {
+    const v = detail.authority
+    if (
+      !isRecord(v) ||
+      !onlyKeys(v, ["basis", "statedOn", "source", "reference"])
+    )
+      add("detail.authority", "invalid")
+    else {
+      if (
+        has(v, "basis") &&
+        (typeof v.basis !== "string" ||
+          !["venue_manager", "admin"].includes(v.basis))
+      )
+        add("detail.authority.basis", "invalid")
+      if (has(v, "statedOn")) {
+        const date = safeDate(v.statedOn)
+        if (!date) add("detail.authority.statedOn", "invalid")
+        else if (date > londonToday(now))
+          add("detail.authority.statedOn", "out_of_range")
+      }
+      if (
+        has(v, "source") &&
+        (typeof v.source !== "string" ||
+          !["in_person", "written_policy"].includes(v.source))
+      )
+        add("detail.authority.source", "invalid")
+      if (has(v, "reference") && typeof v.reference !== "string")
+        add("detail.authority.reference", "invalid")
+      else if (typeof v.reference === "string" && chars(v.reference) > 200)
+        add("detail.authority.reference", "too_long")
+    }
+  }
+  return out
+}
+
 function wifiDetail(v: unknown, now: Date): WifiMetadata | null {
   if (!isRecord(v)) return null
   if (Object.keys(v).some((k) => !WIFI_KEYS.includes(k))) return null
@@ -304,7 +464,8 @@ export function validateKnowledgeValue(
   version: number,
   headline: unknown,
   detail: unknown,
-  now: Date = new Date()
+  now: Date = new Date(),
+  lists: PolicyValueLists = NO_LISTS
 ): ValidatedValue {
   if (!SUPPORTED[`${schema}@${version}`])
     return { ok: false, reason: "unknown_value_schema" }
@@ -322,16 +483,25 @@ export function validateKnowledgeValue(
     else if (schema === "connectivity.wifi") {
       normalised = wifiDetail(given, now)
       if (!normalised) fields.push({ path: "detail", problem: "invalid" })
+    } else if (schema === "policy") {
+      fields.push(...policyProblems(headline, given, lists, now))
+      normalised = given as Record<string, unknown>
     } else {
       fields.push(...detailProblems(schema, given, now))
       normalised = given as Record<string, unknown>
     }
   }
-  // An accessibility answer other than Unknown says where it applies (§4.3).
+  // An accessibility answer other than Unknown says where it applies (§4.3),
+  // unless it lists entrances, which it then covers (A34).
+  const entrances =
+    isRecord(given) && Array.isArray(given.entrances)
+      ? given.entrances.length
+      : 0
   if (
     schema === "accessibility" &&
     headline !== "unknown" &&
-    (given === null || !hasKey(given, "scope"))
+    (given === null || !hasKey(given, "scope")) &&
+    entrances === 0
   )
     fields.push({ path: "detail.scope", problem: "required" })
 

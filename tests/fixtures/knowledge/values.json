@@ -1,5 +1,5 @@
 {
-  "note": "Shared by tests/unit/knowledge-registry.test.ts (TypeScript validator) and tests/security/knowledge-registry.test.ts (private.knowledge_validate_value). Dates are in the past or far future so the result does not depend on today. jsonNull: the database receives jsonb 'null' (TypeScript receives null).",
+  "note": "Shared by tests/unit/knowledge-registry.test.ts (TypeScript validator) and tests/security/knowledge-registry.test.ts (private.knowledge_validate_value). Dates are in the past or far future so the result does not depend on today. jsonNull: the database receives jsonb 'null' (TypeScript receives null). Policy condition and exception types: the value lists are empty until the owner supplies them (OD-14), so every type is refused on both sides.",
   "cases": [
     {
       "name": "presence yes",
@@ -214,7 +214,7 @@
     },
     {
       "name": "schema not built yet",
-      "schema": "policy",
+      "schema": "service",
       "version": 1,
       "headline": "yes",
       "detail": null,
@@ -364,10 +364,6 @@
           {
             "path": "detail.locations[3]",
             "problem": "invalid"
-          },
-          {
-            "path": "detail.availability.state",
-            "problem": "not_allowed"
           },
           {
             "path": "detail.availability.until",
@@ -728,6 +724,260 @@
       "detail": null,
       "expect": {
         "unknownSchema": true
+      }
+    },
+    {
+      "name": "facility temporarily unavailable (B03-c)",
+      "schema": "facility",
+      "version": 1,
+      "headline": "yes",
+      "detail": {
+        "availability": {
+          "state": "temporarily_unavailable",
+          "until": "2026-12-01"
+        }
+      },
+      "expect": {
+        "ok": true,
+        "detail": {
+          "availability": {
+            "state": "temporarily_unavailable",
+            "until": "2026-12-01"
+          }
+        }
+      }
+    },
+    {
+      "name": "accessibility entrances without a scope (A34)",
+      "schema": "accessibility",
+      "version": 1,
+      "headline": "no",
+      "detail": {
+        "entrances": [
+          {
+            "subjectId": "0d2d3c1e-5a6b-4c7d-8e9f-0a1b2c3d4e5f",
+            "stepFree": "no"
+          }
+        ]
+      },
+      "expect": {
+        "ok": true,
+        "detail": {
+          "entrances": [
+            {
+              "subjectId": "0d2d3c1e-5a6b-4c7d-8e9f-0a1b2c3d4e5f",
+              "stepFree": "no"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "accessibility empty entrances still need a scope",
+      "schema": "accessibility",
+      "version": 1,
+      "headline": "yes",
+      "detail": {
+        "entrances": []
+      },
+      "expect": {
+        "fields": [
+          {
+            "path": "detail.scope",
+            "problem": "required"
+          }
+        ]
+      }
+    },
+    {
+      "name": "policy conditional with zones and authority",
+      "schema": "policy",
+      "version": 1,
+      "headline": "yes",
+      "detail": {
+        "stance": "conditional",
+        "zones": [
+          {
+            "label": "Bar",
+            "stance": "allowed"
+          },
+          {
+            "subjectId": "0d2d3c1e-5a6b-4c7d-8e9f-0a1b2c3d4e5f",
+            "stance": "not_allowed"
+          }
+        ],
+        "policyScope": "venue",
+        "authority": {
+          "basis": "venue_manager",
+          "source": "in_person",
+          "statedOn": "2026-11-01",
+          "reference": "Sign at the door"
+        }
+      },
+      "expect": {
+        "ok": true,
+        "detail": {
+          "stance": "conditional",
+          "zones": [
+            {
+              "label": "Bar",
+              "stance": "allowed"
+            },
+            {
+              "subjectId": "0d2d3c1e-5a6b-4c7d-8e9f-0a1b2c3d4e5f",
+              "stance": "not_allowed"
+            }
+          ],
+          "policyScope": "venue",
+          "authority": {
+            "basis": "venue_manager",
+            "source": "in_person",
+            "statedOn": "2026-11-01",
+            "reference": "Sign at the door"
+          }
+        }
+      }
+    },
+    {
+      "name": "policy shape problems in order",
+      "schema": "policy",
+      "version": 1,
+      "headline": "no",
+      "detail": {
+        "x": 1,
+        "stance": "allowed",
+        "zones": [
+          {
+            "stance": "maybe"
+          },
+          "z",
+          {
+            "label": "a"
+          }
+        ],
+        "conditions": [
+          {
+            "type": "on_lead"
+          },
+          {
+            "note": 5,
+            "value": {}
+          },
+          {
+            "type": "x",
+            "extra": 1
+          }
+        ],
+        "exceptions": "x",
+        "policyScope": "world",
+        "authority": {
+          "statedOn": "2999-01-01",
+          "source": "phone",
+          "basis": "owner",
+          "reference": 5
+        }
+      },
+      "expect": {
+        "fields": [
+          {
+            "path": "detail.x",
+            "problem": "not_allowed"
+          },
+          {
+            "path": "detail.stance",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.zones[0]",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.zones[0].stance",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.zones[1]",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.zones[2].stance",
+            "problem": "required"
+          },
+          {
+            "path": "detail.conditions[0].type",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.conditions[1].type",
+            "problem": "required"
+          },
+          {
+            "path": "detail.conditions[1].value",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.conditions[1].note",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.conditions[2]",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.exceptions",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.policyScope",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.authority.basis",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.authority.statedOn",
+            "problem": "out_of_range"
+          },
+          {
+            "path": "detail.authority.source",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.authority.reference",
+            "problem": "invalid"
+          }
+        ]
+      }
+    },
+    {
+      "name": "policy authority not an object",
+      "schema": "policy",
+      "version": 1,
+      "headline": "unknown",
+      "detail": {
+        "stance": "unknown",
+        "authority": "x"
+      },
+      "expect": {
+        "fields": [
+          {
+            "path": "detail.authority",
+            "problem": "invalid"
+          }
+        ]
+      }
+    },
+    {
+      "name": "policy with jsonb null detail",
+      "schema": "policy",
+      "version": 1,
+      "headline": "yes",
+      "detail": null,
+      "jsonNull": true,
+      "expect": {
+        "ok": true,
+        "detail": null
       }
     }
   ]
