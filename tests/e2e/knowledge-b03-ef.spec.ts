@@ -2,31 +2,59 @@ import { randomUUID } from "node:crypto"
 
 import { expect, test, type Locator, type Page } from "@playwright/test"
 
-import { KNOWLEDGE_FAILURE_COPY } from "../../components/nabalens/knowledge/copy"
-import { RECONCILE_COPY } from "../../components/nabalens/knowledge/reconcile-copy"
-import { amenityHrefs, staffCaptureHref } from "../../lib/amenities/contract"
 import {
+  dateAndTime,
+  KNOWLEDGE_FAILURE_COPY,
+  LEGACY_QUALIFICATION_WORD,
+  longDate,
+} from "../../components/nabalens/knowledge/copy"
+import {
+  AT_DATE_COPY,
+  CORRECT_COPY,
+  WITHDRAW_COPY,
+  whenWords,
+} from "../../components/nabalens/knowledge/corrections-copy"
+import { RECONCILE_COPY } from "../../components/nabalens/knowledge/reconcile-copy"
+import { MANAGER_COPY } from "../../components/nabalens/manager/copy"
+import {
+  amenityHrefs,
+  ANSWER_LABEL,
+  staffCaptureHref,
+} from "../../lib/amenities/contract"
+import {
+  amenityOk,
   captureForm,
+  checkItem,
+  checkState,
+  legacyManagerGrant,
   provisionAmenitiesWorld,
   question,
   seedPhoto,
+  seedVideo,
   sessionOf,
 } from "./helpers/amenities-world"
 import {
+  addStaff,
   attachFactPhoto,
   bumpLegacyRevision,
+  confirmFinding,
+  detailCorrections,
+  holdServerAction,
   importLegacy,
   importOf,
   knowledgeCall,
   knowledgeChecks,
+  knowledgeOk,
   legacyRevision,
+  londonWallClock,
   mappingsOf,
   reviewMapping,
   runsAt,
+  secondAfter,
   seedLegacyFact,
+  sendFinding,
   slotRead,
   slotRevision,
-  holdServerAction,
   uuid,
 } from "./helpers/knowledge-b03-ef-world"
 import { psql } from "./helpers/stack"
@@ -45,6 +73,7 @@ const DESK = { viewport: { width: 1280, height: 800 } }
 const PHONE = { viewport: { width: 390, height: 844 } }
 
 const MANAGER = amenityHrefs("/manager")
+const LEGACY_MANAGE = amenityHrefs("/staff/manage")
 const adminHrefs = (venueId: string) =>
   amenityHrefs(`/admin/coverage/${venueId}`)
 
@@ -87,6 +116,34 @@ async function expectNone(page: Page, secrets: string[], label: string) {
   const html = await page.content()
   for (const secret of secrets)
     expect(html, `${label} leaks ${secret}`).not.toContain(secret)
+}
+
+/** History (CoverageSection id amenity-history), for readers allowed it. */
+const history = (page: Page) => page.locator("#amenity-history")
+/** See the answer on a date (CoverageSection id amenity-at-date). */
+const atDate = (page: Page) => page.locator("#amenity-at-date")
+
+/**
+ * The /manager check's not-found screen (tests/e2e/amenities-isolation.spec):
+ * the shared "This check isn't here", or the workspace's own not-found.
+ */
+const managerNotFound = (page: Page): Locator =>
+  page
+    .getByRole("heading", { name: "This check isn't here", exact: true })
+    .or(page.getByText(MANAGER_COPY.notFound.title, { exact: true }))
+    .first()
+
+/**
+ * Asks "See the answer on a date" for an instant, typed as its London date
+ * and HH:MM:SS; returns the words the result names it by.
+ */
+async function answerOn(page: Page, iso: string): Promise<string> {
+  const { date, time } = londonWallClock(iso)
+  const section = atDate(page)
+  await section.getByLabel(AT_DATE_COPY.date, { exact: true }).fill(date)
+  await section.getByLabel(AT_DATE_COPY.time, { exact: true }).fill(time)
+  await section.getByRole("button", { name: AT_DATE_COPY.show }).click()
+  return whenWords(date, time)
 }
 
 test.describe("knowledge B03 E and F", () => {
@@ -473,5 +530,511 @@ test.describe("knowledge B03 E and F", () => {
     expect(held.count(), "one dry run request").toBe(1)
     expect(runsAt(w.venueA)).toBe(runsBefore + 1)
     await held.dispose()
+  })
+
+  test("B03-F correction and withdrawal keep authorized historical answers", async ({
+    browser,
+  }) => {
+    const w = await provisionAmenitiesWorld()
+    const ADMIN = adminHrefs(w.venueA.id)
+    // step_free_entrance needs a manager's confirmation (rule v1), so a
+    // material correction has to be confirmed again.
+    const KEY = "step_free_entrance"
+    const a = (await knowledgeChecks(w, w.venueA, [KEY]))[KEY]!
+    const b = (await knowledgeChecks(w, w.venueB, [KEY]))[KEY]!
+    // staffA sent the answer; staffA2 holds a legacy grant (history only);
+    // the reader is ordinary staff who sent nothing here.
+    await legacyManagerGrant(w, w.staffA2, w.venueA)
+    const reader = addStaff(w, w.venueA, "B03F Reader")
+
+    // Recorded history: staffA's Yes, confirmed by venue A's manager.
+    const video = await seedVideo(w.staffA, w.venueA, `b03f-${w.tag}`)
+    const sent = await sendFinding(
+      await sessionOf(w.staffA),
+      w.venueA,
+      a,
+      KEY,
+      "yes",
+      { assets: [video] }
+    )
+    expect(sent.outcome).toBe("awaiting_confirmation")
+    await confirmFinding(
+      await sessionOf(w.managerA),
+      w.venueA,
+      KEY,
+      sent.contributionId
+    )
+    const NOTE = `DEV FIXTURE B03-F private manager note ${w.tag}`
+    await amenityOk(await sessionOf(w.managerA), "amenity_set_check_notes", {
+      p_check_id: a,
+      p_notes: NOTE,
+      p_revision: checkState(a).revision,
+    })
+    const first = slotRead(w.venueA, a)
+    expect(first).toMatchObject({ currentAnswer: "yes", progress: "complete" })
+    const firstConfirmed = first.decisions.find(
+      (d) => d.decision === "confirmed"
+    )!
+    expect(firstConfirmed).toMatchObject({
+      decidedBy: w.managerA.id,
+      basis: "venue_manager",
+      submissionId: first.currentSubmissionId,
+    })
+
+    // Venue B holds its own, different answer for the same question.
+    const B_REASON = `DEV FIXTURE B03-F venue B has steps at every door ${w.tag}`
+    const sentB = await sendFinding(
+      await sessionOf(w.staffB),
+      w.venueB,
+      b,
+      KEY,
+      "no",
+      { reason: B_REASON }
+    )
+    await confirmFinding(
+      await sessionOf(w.managerB),
+      w.venueB,
+      KEY,
+      sentB.contributionId
+    )
+    const venueBSlot = slotRead(w.venueB, b)
+    expect(venueBSlot.currentAnswer).toBe("no")
+
+    const CORRECTION_REASON = `DEV FIXTURE B03-F ramp removed ${w.tag}`
+    const WITHDRAW_REASON = `DEV FIXTURE B03-F entrance under works ${w.tag}`
+    const venueASecrets = [
+      w.venueA.name,
+      NOTE,
+      video,
+      w.staffA.name,
+      CORRECTION_REASON,
+      WITHDRAW_REASON,
+    ]
+
+    // ---- 1. Capability boundaries, before anything changes.
+    const manager = await signedInPage(browser, w.managerA, DESK)
+    await manager.goto(MANAGER.check(a))
+    await expect(
+      whereItStands(manager).getByRole("link", { name: CORRECT_COPY.open })
+    ).toBeVisible()
+    await expect(
+      whereItStands(manager).getByRole("button", { name: WITHDRAW_COPY.open })
+    ).toBeVisible()
+    await expect(history(manager)).toBeVisible()
+    await expect(atDate(manager)).toBeVisible()
+
+    const admin = await signedInPage(browser, w.admin, DESK)
+    await admin.goto(ADMIN.check(a))
+    await expect(
+      whereItStands(admin).getByRole("link", { name: CORRECT_COPY.open })
+    ).toBeVisible()
+    await expect(
+      whereItStands(admin).getByRole("button", { name: WITHDRAW_COPY.open })
+    ).toBeVisible()
+    await expect(history(admin)).toBeVisible()
+
+    // A staff account with a legacy grant reads history but cannot correct
+    // or withdraw, even by opening the correction URL directly.
+    const legacy = await signedInPage(browser, w.staffA2, DESK)
+    await legacy.goto(LEGACY_MANAGE.check(a))
+    await expect(history(legacy)).toBeVisible()
+    await expect(atDate(legacy)).toBeVisible()
+    await expect(
+      legacy.getByRole("link", { name: CORRECT_COPY.open })
+    ).toHaveCount(0)
+    await expect(
+      legacy.getByRole("button", { name: WITHDRAW_COPY.open })
+    ).toHaveCount(0)
+    await legacy.goto(`${LEGACY_MANAGE.capture(a)}?correct=1`)
+    await expect(
+      legacy.getByText(CORRECT_COPY.notPermitted, { exact: true })
+    ).toBeVisible()
+    await expect(
+      legacy.getByRole("button", { name: CORRECT_COPY.save })
+    ).toHaveCount(0)
+
+    // Ordinary staff at 390: no history, correction or withdrawal anywhere.
+    const staff = await signedInPage(browser, reader, PHONE)
+    for (const path of [
+      staffCaptureHref(a),
+      `${staffCaptureHref(a)}?correct=1`,
+    ]) {
+      await staff.goto(path)
+      await expect(
+        staff.getByRole("heading", {
+          level: 1,
+          name: question(KEY),
+          exact: true,
+        })
+      ).toBeVisible()
+      await expect(history(staff)).toHaveCount(0)
+      await expect(atDate(staff)).toHaveCount(0)
+      await expect(
+        staff.getByRole("link", { name: CORRECT_COPY.open })
+      ).toHaveCount(0)
+      await expect(
+        staff.getByRole("button", { name: CORRECT_COPY.save })
+      ).toHaveCount(0)
+      await expect(
+        staff.getByRole("button", { name: WITHDRAW_COPY.open })
+      ).toHaveCount(0)
+    }
+    await staff.goto(LEGACY_MANAGE.check(a))
+    await expect(history(staff)).toHaveCount(0)
+    await expectNone(staff, [NOTE, video], "staff /staff/manage check")
+
+    // Venue B's manager: venue A's check, correction and history are not
+    // there, and nothing of venue A shows.
+    const managerB = await signedInPage(browser, w.managerB, DESK)
+    for (const path of [MANAGER.check(a), `${MANAGER.capture(a)}?correct=1`]) {
+      await managerB.goto(path)
+      await expect(managerNotFound(managerB), `manager B ${path}`).toBeVisible()
+      await expect(history(managerB)).toHaveCount(0)
+      await expectNone(managerB, venueASecrets, `manager B ${path}`)
+    }
+
+    // Denied mutations and history reads in each person's own session.
+    const quiet = slotRead(w.venueA, a)
+    for (const [person, readsHistory] of [
+      [w.staffA2, true],
+      [reader, false],
+      [w.managerB, false],
+      [w.staffB, false],
+    ] as const) {
+      const db = await sessionOf(person)
+      const correct = await knowledgeCall(db, "knowledge_correct", {
+        p_check_id: a,
+        p_slot_revision: slotRevision(w.venueA, KEY),
+        p_idempotency_key: randomUUID(),
+        p_headline: "no",
+        p_detail: null,
+        p_reason: `DEV FIXTURE B03-F denied ${w.tag}`,
+      })
+      expect(correct.error, `${person.name} correct`).not.toBeNull()
+      const withdraw = await knowledgeCall(db, "knowledge_withdraw", {
+        p_check_id: a,
+        p_slot_revision: slotRevision(w.venueA, KEY),
+        p_idempotency_key: randomUUID(),
+        p_reason: `DEV FIXTURE B03-F denied ${w.tag}`,
+      })
+      expect(withdraw.error, `${person.name} withdraw`).not.toBeNull()
+      const read = await knowledgeCall(db, "knowledge_slot_history", {
+        p_check_id: a,
+        p_at: new Date().toISOString(),
+      })
+      if (readsHistory) expect(read.error, `${person.name} history`).toBeNull()
+      else {
+        expect(read.error, `${person.name} history`).not.toBeNull()
+        expect(JSON.stringify(read.data ?? null)).not.toContain(video)
+      }
+    }
+    expect(slotRead(w.venueA, a), "denied attempts change nothing").toEqual(
+      quiet
+    )
+
+    // ---- 2. Manager correction at 1280: What changes, then a held save.
+    await manager.goto(MANAGER.check(a))
+    await whereItStands(manager)
+      .getByRole("link", { name: CORRECT_COPY.open })
+      .click()
+    await expect(manager).toHaveURL(/\/capture\?correct=1$/)
+    const correction = manager.getByRole("form", { name: CORRECT_COPY.open })
+    await correction
+      .getByRole("radio", { name: ANSWER_LABEL.no, exact: true })
+      .check()
+    const why = correction.getByLabel(`${CORRECT_COPY.why} (required)`)
+    await why.fill(CORRECTION_REASON)
+    const changes = correction.getByRole("region", {
+      name: CORRECT_COPY.whatChanges,
+    })
+    await expect(changes.getByRole("listitem")).toHaveCount(1)
+    await expect(changes.getByRole("listitem")).toContainText(
+      `Answer · ${CORRECT_COPY.material}`
+    )
+    await expect(changes.getByRole("listitem")).toContainText(
+      `${CORRECT_COPY.before}: ${ANSWER_LABEL.yes}`
+    )
+    await expect(changes.getByRole("listitem")).toContainText(
+      `${CORRECT_COPY.after}: ${ANSWER_LABEL.no}`
+    )
+    await expect(
+      changes.getByText(CORRECT_COPY.materialLine, { exact: true })
+    ).toBeVisible()
+
+    const beforeCorrection = slotRead(w.venueA, a)
+    const heldCorrection = await holdServerAction(manager, (body) =>
+      body.includes(CORRECTION_REASON)
+    )
+    const save = correction.getByRole("button", { name: CORRECT_COPY.save })
+    await save.click()
+    await heldCorrection.arrived
+    await expect(save).toBeDisabled()
+    await expect(save).toHaveAttribute("aria-busy", "true")
+    await expect(
+      correction.getByRole("radio", { name: ANSWER_LABEL.no, exact: true })
+    ).toBeDisabled()
+    await expect(why).toBeDisabled()
+    expect(slotRead(w.venueA, a), "nothing saved while held").toEqual(
+      beforeCorrection
+    )
+    heldCorrection.release()
+    await expect(
+      manager.getByText(CORRECT_COPY.doneMaterial, { exact: true })
+    ).toBeVisible()
+    const back = manager.getByRole("link", { name: "Back to the check" })
+    await expect(back).toBeVisible()
+    // The saved form is gone: focus must land somewhere usable, not the body.
+    await expect
+      .soft(manager.locator("body"), "focus after the correction is saved")
+      .not.toBeFocused()
+    expect(heldCorrection.count(), "one correction request").toBe(1)
+    await heldCorrection.dispose()
+
+    await expect
+      .poll(
+        () =>
+          slotRead(w.venueA, a).decisions.filter(
+            (d) => d.decision === "corrected"
+          ).length
+      )
+      .toBe(1)
+    const corrected = slotRead(w.venueA, a)
+    const correctionRow = corrected.decisions.find(
+      (d) => d.decision === "corrected"
+    )!
+    expect(correctionRow).toMatchObject({
+      decidedBy: w.managerA.id,
+      basis: "venue_manager",
+      detail: {
+        before: { headline: "yes" },
+        after: { headline: "no" },
+        material: true,
+        selectionRule: "correction",
+      },
+    })
+    expect(corrected.currentAnswer).toBe("no")
+    expect(corrected.currentSubmissionId).not.toBe(first.currentSubmissionId)
+    expect(
+      corrected.decisions.filter(
+        (d) =>
+          d.decision === "confirmed" &&
+          d.submissionId === corrected.currentSubmissionId
+      ),
+      "a material correction waits for confirmation"
+    ).toEqual([])
+    // Headline-only: the material path adds a submission, never an overlay.
+    expect(detailCorrections(w.venueA, a)).toBe(0)
+
+    await back.focus()
+    await manager.keyboard.press("Enter")
+    await expect(manager).toHaveURL(new RegExp(`${MANAGER.check(a)}(\\?|$)`))
+    await expect(whereItStands(manager)).toContainText(
+      `Recorded answer: ${ANSWER_LABEL.no}. Awaiting confirmation.`
+    )
+    await expect(
+      toConfirm(manager).getByRole("heading", {
+        name: "Answer in use, not confirmed",
+      })
+    ).toBeVisible()
+
+    // ---- 3. Admin confirms the corrected answer through the To confirm card.
+    await admin.goto(ADMIN.check(a))
+    const unconfirmed = toConfirm(admin)
+      .getByRole("article")
+      .filter({
+        has: admin.getByRole("heading", {
+          name: "Answer in use, not confirmed",
+        }),
+      })
+    await unconfirmed
+      .getByRole("button", { name: "Confirm", exact: true })
+      .click()
+    await expect(
+      toConfirm(admin).getByText(
+        `Confirmed. This is now the answer for ${w.venueA.name}.`,
+        { exact: true }
+      )
+    ).toBeVisible()
+    await expect
+      .poll(
+        () =>
+          slotRead(w.venueA, a).decisions.filter(
+            (d) =>
+              d.decision === "confirmed" &&
+              d.submissionId === corrected.currentSubmissionId
+          ).length
+      )
+      .toBe(1)
+    const reconfirmed = slotRead(w.venueA, a).decisions.find(
+      (d) =>
+        d.decision === "confirmed" &&
+        d.submissionId === corrected.currentSubmissionId
+    )!
+    expect(reconfirmed).toMatchObject({ decidedBy: w.admin.id, basis: "admin" })
+
+    // ---- 4. Admin withdraws, with the real response held.
+    await admin.goto(ADMIN.check(a))
+    await expect(whereItStands(admin)).toContainText(
+      `Current answer: ${ANSWER_LABEL.no}.`
+    )
+    await whereItStands(admin)
+      .getByRole("button", { name: WITHDRAW_COPY.open })
+      .click()
+    const dialog = admin.getByRole("dialog", { name: WITHDRAW_COPY.title })
+    await expect(dialog).toContainText(WITHDRAW_COPY.body(ANSWER_LABEL.no))
+    const reason = dialog.getByLabel(WITHDRAW_COPY.why, { exact: true })
+    await reason.fill(WITHDRAW_REASON)
+    const beforeWithdraw = slotRead(w.venueA, a)
+    const heldWithdraw = await holdServerAction(admin, (body) =>
+      body.includes(WITHDRAW_REASON)
+    )
+    await dialog.getByRole("button", { name: WITHDRAW_COPY.confirm }).click()
+    await heldWithdraw.arrived
+    const withdrawing = dialog.getByRole("button", {
+      name: WITHDRAW_COPY.pending,
+    })
+    await expect(withdrawing).toBeDisabled()
+    await expect(withdrawing).toHaveAttribute("aria-busy", "true")
+    await expect(dialog.getByRole("button", { name: "Cancel" })).toBeDisabled()
+    await expect(reason).toBeDisabled()
+    expect(slotRead(w.venueA, a), "nothing withdrawn while held").toEqual(
+      beforeWithdraw
+    )
+    heldWithdraw.release()
+    await expect(dialog).toBeHidden()
+    // WithdrawControl's declared focus target is Where it stands' heading.
+    await expect
+      .soft(admin.locator("#amenity-status-title"), "focus after withdrawal")
+      .toBeFocused()
+    await expect
+      .poll(
+        () =>
+          slotRead(w.venueA, a).decisions.filter(
+            (d) => d.decision === "withdrawn"
+          ).length
+      )
+      .toBe(1)
+    expect(heldWithdraw.count(), "one withdrawal request").toBe(1)
+    await heldWithdraw.dispose()
+    const withdrawnSlot = slotRead(w.venueA, a)
+    const withdrawal = withdrawnSlot.decisions.find(
+      (d) => d.decision === "withdrawn"
+    )!
+    expect(withdrawal).toMatchObject({ decidedBy: w.admin.id, basis: "admin" })
+    // A withdrawal is a decision only: the stored answer stays as it was.
+    expect(withdrawnSlot.currentSubmissionId).toBe(
+      beforeWithdraw.currentSubmissionId
+    )
+    expect(withdrawnSlot.revision).toBe(beforeWithdraw.revision)
+
+    const withdrawnLine = `Withdrawn by an admin on ${longDate(withdrawal.at)}.`
+    await expect(whereItStands(admin)).toContainText(withdrawnLine)
+    await expect(whereItStands(admin)).toContainText(
+      `Previous answer: ${ANSWER_LABEL.no}.`
+    )
+    await expect(
+      whereItStands(admin).getByRole("button", { name: WITHDRAW_COPY.open })
+    ).toHaveCount(0)
+    await expect(
+      whereItStands(admin).getByRole("link", { name: CORRECT_COPY.open })
+    ).toHaveCount(0)
+
+    // ---- 5. History: who (and in what role) did what, and when.
+    await manager.goto(MANAGER.check(a))
+    await expect(whereItStands(manager)).toContainText(withdrawnLine)
+    const line = (page: Page, text: string, at: string) =>
+      history(page)
+        .getByRole("listitem")
+        .filter({ hasText: text })
+        .filter({ hasText: dateAndTime(at) })
+    // The first confirmation adopted the finding too, so its line may read
+    // "In use. Confirmed by …"; the later lines carry the actor's role.
+    await expect(
+      line(
+        manager,
+        `Confirmed by ${w.managerA.name}`,
+        firstConfirmed.at
+      ).first()
+    ).toBeVisible()
+    for (const [text, at] of [
+      [
+        `Corrected by ${w.managerA.name} (venue manager): ${ANSWER_LABEL.yes} → ${ANSWER_LABEL.no}. Needs confirming again.`,
+        correctionRow.at,
+      ],
+      [`Confirmed by ${w.admin.name} (admin).`, reconfirmed.at],
+      [`Withdrawn by ${w.admin.name} (admin).`, withdrawal.at],
+    ] as const)
+      await expect(line(manager, text, at), text).toHaveCount(1)
+
+    // ---- 6. Answer on a date: the earlier Yes, then the withdrawn No.
+    const earlier = secondAfter(firstConfirmed.at)
+    expect(Date.parse(earlier)).toBeLessThan(Date.parse(correctionRow.at))
+    const later = secondAfter(withdrawal.at)
+    for (const page of [manager, legacy]) {
+      if (page === legacy) await legacy.goto(LEGACY_MANAGE.check(a))
+      const then = await answerOn(page, earlier)
+      await expect(
+        atDate(page).getByText(AT_DATE_COPY.was(then, ANSWER_LABEL.yes), {
+          exact: true,
+        })
+      ).toBeVisible()
+      await expect(
+        atDate(page).getByText(AT_DATE_COPY.confirmed, { exact: true })
+      ).toBeVisible()
+    }
+    const now = await answerOn(manager, later)
+    await expect(
+      atDate(manager).getByText(AT_DATE_COPY.was(now, ANSWER_LABEL.no), {
+        exact: true,
+      })
+    ).toBeVisible()
+    await expect(
+      atDate(manager).getByText(AT_DATE_COPY.withdrawn, { exact: true })
+    ).toBeVisible()
+    // The same instant read in the manager's own session.
+    const snapshot = await knowledgeOk<{
+      answerInUse: { answer: string; confirmationState: string } | null
+    }>(await sessionOf(w.managerA), "knowledge_slot_history", {
+      p_check_id: a,
+      p_at: earlier,
+    })
+    expect(snapshot.answerInUse).toMatchObject({
+      answer: "yes",
+      confirmationState: "confirmed",
+    })
+
+    // ---- 7. Staff read at 390 and the legacy list fallback agree.
+    await staff.goto(staffCaptureHref(a))
+    await expect(
+      staff.getByText(`${withdrawnLine} Previous answer: ${ANSWER_LABEL.no}.`, {
+        exact: true,
+      })
+    ).toBeVisible()
+    await expect(history(staff)).toHaveCount(0)
+    await expect(atDate(staff)).toHaveCount(0)
+    await expectNone(
+      staff,
+      [NOTE, CORRECTION_REASON, WITHDRAW_REASON, w.admin.name, B_REASON],
+      "staff 390 after withdrawal"
+    )
+    await manager.goto(MANAGER.list)
+    await expect(
+      checkItem(manager.getByRole("main"), KEY)
+        .filter({
+          hasText: `Answer: ${LEGACY_QUALIFICATION_WORD.withdrawn}`,
+        })
+        .first()
+    ).toBeVisible()
+
+    // ---- 8. Still nothing for venue B's people, and venue B's answer stands.
+    for (const path of [MANAGER.check(a), `${MANAGER.capture(a)}?correct=1`]) {
+      await managerB.goto(path)
+      await expect(managerNotFound(managerB), `manager B ${path}`).toBeVisible()
+      await expectNone(managerB, venueASecrets, `manager B ${path}`)
+    }
+    await managerB.goto(MANAGER.check(b))
+    await expect(whereItStands(managerB)).toContainText(`${ANSWER_LABEL.no}.`)
+    await expectNone(managerB, venueASecrets, "manager B own check")
+    expect(slotRead(w.venueB, b), "venue B untouched").toEqual(venueBSlot)
   })
 })
