@@ -16,6 +16,7 @@ import { psql } from "./coverage-fixtures"
 import {
   call,
   json,
+  service,
   slotRevision,
   submit,
   world,
@@ -32,6 +33,9 @@ let delisted: World
 let lapsed: World
 let corrected: World
 let imported: World
+let importedNa: World
+let importedLegacy: World
+let staffReason: World
 
 function attach(contributionId: string, schema: string, detail: object) {
   psql(`insert into public.knowledge_contribution_details
@@ -68,16 +72,29 @@ const WITHHELD = {
 }
 
 beforeAll(async () => {
-  ;[w, disputed, withdrawnAt, delisted, lapsed, corrected, imported] =
-    await Promise.all([
-      world("kn-b03-api"),
-      world("kn-b03-api-dispute"),
-      world("kn-b03-api-withdraw"),
-      world("kn-b03-api-delisted"),
-      world("kn-b03-api-lapsed"),
-      world("kn-b03-api-correct"),
-      world("kn-b03-api-import"),
-    ])
+  ;[
+    w,
+    disputed,
+    withdrawnAt,
+    delisted,
+    lapsed,
+    corrected,
+    imported,
+    importedNa,
+    importedLegacy,
+    staffReason,
+  ] = await Promise.all([
+    world("kn-b03-api"),
+    world("kn-b03-api-dispute"),
+    world("kn-b03-api-withdraw"),
+    world("kn-b03-api-delisted"),
+    world("kn-b03-api-lapsed"),
+    world("kn-b03-api-correct"),
+    world("kn-b03-api-import"),
+    world("kn-b03-api-import-na"),
+    world("kn-b03-api-import-legacy"),
+    world("kn-b03-api-staff-reason"),
+  ])
   vi.stubEnv("KNOWLEDGE_READER_ENABLED", "true")
   vi.stubEnv(
     "KNOWLEDGE_READER_CONSUMERS",
@@ -95,6 +112,9 @@ beforeAll(async () => {
           lapsed.venue,
           corrected.venue,
           imported.venue,
+          importedNa.venue,
+          importedLegacy.venue,
+          staffReason.venue,
         ],
         audiences: ["internal"],
         purposes: ["operations_lookup"],
@@ -282,78 +302,226 @@ describe("internal reader over B03-e to B03-g answers", () => {
 })
 
 // B03-f imports (review lows 2 and 3, b03-defg-implementation-review.md): an
-// adopted external import's excerpt is the source's own words and stays in
-// its internal provenance, never in reader output; and the reader reports
-// where the answer came from. Both fail until WS1's repair lands (the excerpt
-// moves out of limitations; the wrapper gains source_origin).
+// adopted import's excerpt is the source's own words and stays in its
+// internal provenance, never in reader output; and the reader reports where
+// the answer came from. An imported No or Not applicable is stored with the
+// reason 'Imported from <source label>' (legacy and external alike); the
+// reader withholds that reason by the import's source row
+// (20261110171000), so the label never reaches a condition. Assertions name
+// the field or sentinel, never the whole response.
+type ReaderRow = {
+  status: string
+  value: string | null
+  reason_text: string | null
+  source_origin: string | null
+}
+
+const projection = (at: World, key: string) =>
+  json<ReaderRow[]>({ client: service }, "knowledge_reader_answers_v1", {
+    p_venue_id: at.venue,
+    p_keys: [key],
+  }).then((rows) => rows[0])
+
+/** Field paths of every string in a JSON value that contains the needle. */
+function pathsWith(value: unknown, needle: string, at = "$"): string[] {
+  if (typeof value === "string") return value.includes(needle) ? [at] : []
+  if (Array.isArray(value))
+    return value.flatMap((v, i) => pathsWith(v, needle, `${at}.${i}`))
+  if (value && typeof value === "object")
+    return Object.entries(value).flatMap(([k, v]) =>
+      pathsWith(v, needle, `${at}.${k}`)
+    )
+  return []
+}
+
+/** The stored import reason and its submission copy are kept, unread. */
+function storedImportReason(at: World, key: string) {
+  return psql(`select (x.reason = left('Imported from ' || ks.source_label, 500))
+      || ':' || (s.reason is not distinct from x.reason)
+    from public.venue_amenity_checks c
+    join public.amenity_submissions s on s.id = c.current_submission_id
+    join public.knowledge_contributions x on x.id = s.source_contribution_id
+    join public.knowledge_contribution_sources ks on ks.contribution_id = x.id
+    where c.id = '${at.checks[key]}'`)
+}
+
+async function confirmImport(v: World, key: string) {
+  const id = psql(
+    `select x.id from public.knowledge_contributions x where x.check_id = '${v.checks[key]}'`
+  )
+  const decided = await call(v.manager, "knowledge_decide", {
+    p_target_type: "contribution",
+    p_target_id: id,
+    p_decision: "confirm",
+    p_slot_revision: slotRevision(v.venue, key),
+    p_idempotency_key: crypto.randomUUID(),
+    p_note: null,
+  })
+  expect(decided.error).toBeNull()
+}
+
+async function adoptedExternal(
+  v: World,
+  headline: "no" | "not_applicable",
+  label: string,
+  excerpt: string
+) {
+  const source = await json<{ sourceId: string }>(
+    v.admin,
+    "knowledge_source_declare",
+    {
+      p_kind: "venue_website",
+      p_label: label,
+      p_venue_id: v.venue,
+      p_idempotency_key: crypto.randomUUID(),
+    }
+  )
+  await json(v.admin, "knowledge_source_import", {
+    p_source_id: source.sourceId,
+    p_source_revision: "r1",
+    p_retrieved_at: new Date(Date.now() - 3_600_000).toISOString(),
+    p_assertions: [
+      { venueId: v.venue, questionKey: "guest_toilets", headline, excerpt },
+    ],
+    p_idempotency_key: crypto.randomUUID(),
+  })
+  for (const mode of ["dry_run", "apply"])
+    await json(v.admin, "knowledge_reconcile", {
+      p_kind: "external",
+      p_mode: mode,
+      p_venue_id: v.venue,
+    })
+  await confirmImport(v, "guest_toilets")
+  return one(v, "guest_toilets")
+}
+
+// The legacy path: an absent Coverage fact with an exact mapping imports No.
+async function adoptedLegacy(v: World, excerpt: string) {
+  const fact = crypto.randomUUID()
+  psql(`insert into public.venue_amenity_facts (id, venue_id, amenity_key, presence, facts) values
+    ('${fact}', '${v.venue}', 'toilets', 'absent', '${excerpt.replace(/'/g, "''")}')`)
+  await json(v.admin, "knowledge_mapping_review", {
+    p_legacy_fact_id: fact,
+    p_legacy_revision: 1,
+    p_question_key: "guest_toilets",
+    p_kind: "exact",
+    p_reason: "TEST reviewed",
+    p_idempotency_key: crypto.randomUUID(),
+  })
+  for (const mode of ["dry_run", "apply"])
+    await json(v.admin, "knowledge_reconcile", {
+      p_kind: "legacy",
+      p_mode: mode,
+      p_venue_id: v.venue,
+    })
+  await confirmImport(v, "guest_toilets")
+  return one(v, "guest_toilets")
+}
+
 describe("internal reader over adopted B03-f imports", () => {
   const EXCERPT = "TEST excerpt: no customer toilets, ask at the bar"
+  const LABEL = "TEST website B03 reader sentinel"
+  const NA_EXCERPT = "TEST excerpt: toilets not applicable here"
+  const NA_LABEL = "TEST website B03 reader na sentinel"
+  const LEGACY_EXCERPT = "TEST legacy excerpt: no toilets on site"
+  const LEGACY_LABEL = "Coverage (legacy record)"
 
-  async function adoptedImport() {
-    const v = imported
-    const source = await json<{ sourceId: string }>(
-      v.admin,
-      "knowledge_source_declare",
-      {
-        p_kind: "venue_website",
-        p_label: "TEST website",
-        p_venue_id: v.venue,
-        p_idempotency_key: crypto.randomUUID(),
-      }
-    )
-    await json(v.admin, "knowledge_source_import", {
-      p_source_id: source.sourceId,
-      p_source_revision: "r1",
-      p_retrieved_at: new Date(Date.now() - 3_600_000).toISOString(),
-      p_assertions: [
-        {
-          venueId: v.venue,
-          questionKey: "guest_toilets",
-          headline: "no",
-          excerpt: EXCERPT,
-        },
-      ],
-      p_idempotency_key: crypto.randomUUID(),
-    })
-    for (const mode of ["dry_run", "apply"])
-      await json(v.admin, "knowledge_reconcile", {
-        p_kind: "external",
-        p_mode: mode,
-        p_venue_id: v.venue,
-      })
-    const id = psql(
-      `select x.id from public.knowledge_contributions x where x.check_id = '${v.checks.guest_toilets}'`
-    )
-    const decided = await call(v.manager, "knowledge_decide", {
-      p_target_type: "contribution",
-      p_target_id: id,
-      p_decision: "confirm",
-      p_slot_revision: slotRevision(v.venue, "guest_toilets"),
-      p_idempotency_key: crypto.randomUUID(),
-      p_note: null,
-    })
-    expect(decided.error).toBeNull()
-    return one(v, "guest_toilets")
-  }
-
-  let adopted: Awaited<ReturnType<typeof adoptedImport>>
+  type Read = Awaited<ReturnType<typeof one>>
+  let adopted: Read
+  let adoptedNa: Read
+  let legacy: Read
 
   beforeAll(async () => {
-    adopted = await adoptedImport()
-    expect(adopted.answer).toMatchObject({
-      status: "available",
-      value: { type: "yes_no_na", answer: "no" },
-    })
+    ;[adopted, adoptedNa, legacy] = await Promise.all([
+      adoptedExternal(imported, "no", LABEL, EXCERPT),
+      adoptedExternal(importedNa, "not_applicable", NA_LABEL, NA_EXCERPT),
+      adoptedLegacy(importedLegacy, LEGACY_EXCERPT),
+    ])
   })
 
-  it("never returns the source's excerpt", () => {
-    expect(adopted.raw).not.toContain(EXCERPT)
-    expect(adopted.raw).not.toContain("TEST website")
+  const cases = () =>
+    [
+      [
+        "external No",
+        imported,
+        adopted,
+        "no",
+        "external_source",
+        LABEL,
+        EXCERPT,
+      ],
+      [
+        "external Not applicable",
+        importedNa,
+        adoptedNa,
+        "not_applicable",
+        "external_source",
+        NA_LABEL,
+        NA_EXCERPT,
+      ],
+      [
+        "legacy No",
+        importedLegacy,
+        legacy,
+        "no",
+        "legacy_fact",
+        LEGACY_LABEL,
+        LEGACY_EXCERPT,
+      ],
+    ] as const
+
+  it("reads the structured answer and its origin, with no conditions", () => {
+    for (const [name, , read, answer, origin] of cases()) {
+      expect(read.answer.status, name).toBe("available")
+      expect(read.answer.value, name).toEqual({ type: "yes_no_na", answer })
+      expect(read.answer.provenance?.sourceKind, name).toBe(origin)
+      expect(read.answer.conditions, name).toEqual([])
+    }
   })
 
-  it("reports the answer's origin as external_source", () => {
-    expect(adopted.answer.provenance).toMatchObject({
-      sourceKind: "external_source",
-    })
+  it("never returns the source's label, excerpt or generated reason over HTTP", () => {
+    for (const [name, , read, , , label, excerpt] of cases()) {
+      const body = JSON.parse(read.raw)
+      for (const needle of [label, excerpt, "Imported from"])
+        expect(pathsWith(body, needle), `${name}: ${needle}`).toEqual([])
+    }
+  })
+
+  it("withholds the generated reason in the service-only projection", async () => {
+    for (const [name, at, , answer, origin, label, excerpt] of cases()) {
+      const row = await projection(at, "guest_toilets")
+      expect(row.status, name).toBe("available")
+      expect(row.value, name).toBe(answer)
+      expect(row.source_origin, name).toBe(origin)
+      expect(row.reason_text, name).toBeNull()
+      for (const needle of [label, excerpt, "Imported from"])
+        expect(pathsWith(row, needle), `${name}: ${needle}`).toEqual([])
+    }
+  })
+
+  it("keeps the stored import reason and its submission copy", () => {
+    for (const [name, at] of cases())
+      expect(storedImportReason(at, "guest_toilets"), name).toBe("true:true")
+  })
+
+  it("still reads an ordinary staff No's reason as a condition", async () => {
+    const REASON = "TEST staff reason: checked every floor"
+    const sent = await submit(
+      staffReason.staffA,
+      staffReason,
+      "guest_toilets",
+      {
+        answer: "no",
+        reason: REASON,
+      }
+    )
+    const row = await projection(staffReason, "guest_toilets")
+    expect(row.status).toBe("available")
+    expect(row.source_origin).toBeNull()
+    expect(row.reason_text).toBe(REASON)
+    const { answer } = await one(staffReason, "guest_toilets")
+    expect(answer.value).toEqual({ type: "yes_no_na", answer: "no" })
+    expect(answer.provenance?.contributionId).toBe(sent.contributionId)
+    expect(answer.conditions).toEqual([{ kind: "reason", text: REASON }])
   })
 })

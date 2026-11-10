@@ -15,6 +15,7 @@ import {
   call,
   decide,
   json,
+  refused,
   service,
   submit,
   world,
@@ -328,17 +329,16 @@ describe("recheck tasks (§7.4, A11, A24)", () => {
       available: true,
       waiting: 1,
     })
-    expect(
-      (
-        await json<{ queue: string; available: boolean }[]>(
-          w.staffA,
-          "manager_triage_summary",
-          {
-            p_venue_id: null,
-          }
-        )
-      ).find((q) => q.queue === "rechecks")
-    ).toMatchObject({ available: false })
+    // Triage is a manager read: staff without a grant are refused at the
+    // venue scope (B02 private.manager_read_venue), as knowledge-b02-reads
+    // asserts, never shown an unavailable queue.
+    await refused(
+      w.staffA,
+      "manager_triage_summary",
+      { p_venue_id: null },
+      "not_venue_manager",
+      "42501"
+    )
   })
 
   it("stay open while the new answer waits, and close when it is confirmed (M4)", async () => {

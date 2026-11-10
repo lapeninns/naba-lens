@@ -43,37 +43,65 @@ describe("version 1 restates today (no behaviour change)", () => {
     ).toEqual({ catalogue: 39, questions: 39, versions: 39, mismatched: 0 })
   })
 
+  // Compared key by key against the latest rule that existed when version 1
+  // was written, so a rule another fixture adds (before or after B03-a)
+  // never changes the expected count.
   it("restates every knowledge rule, and confirmation none where no rule exists (drift guard)", () => {
     expect(
-      q(`select json_build_object(
-        'ruled', (select count(*) from public.knowledge_question_versions v
-          join lateral (select r.* from public.knowledge_question_rules r
-            where r.question_key = v.key order by r.rule_version desc limit 1) r on true
-          where v.rule_version = r.rule_version and v.confirmation = r.confirmation
-            and v.self_confirmation_allowed = r.self_confirmation_allowed),
-        'rules', (select count(distinct question_key) from public.knowledge_question_rules),
-        'unruled_not_none', (select count(*) from public.knowledge_question_versions v
-          where v.rule_version is null
-            and (v.confirmation <> 'none' or v.self_confirmation_allowed)))`)
-    ).toEqual({ ruled: 7, rules: 7, unruled_not_none: 0 })
+      q(`with v1 as (
+          select v.*, r.rule_version as base_rule_version, r.confirmation as base_confirmation,
+            r.self_confirmation_allowed as base_self
+          from public.knowledge_question_versions v
+          left join lateral (select x.* from public.knowledge_question_rules x
+            where x.question_key = v.key and x.created_at <= v.created_at
+            order by x.rule_version desc limit 1) r on true
+          where v.version = 1)
+        select json_build_object(
+          'versions', (select count(*) from v1),
+          'ruled_mismatched', (select count(*) from v1 where base_rule_version is not null
+            and (rule_version is distinct from base_rule_version
+              or confirmation is distinct from base_confirmation
+              or self_confirmation_allowed is distinct from base_self)),
+          'unruled_mismatched', (select count(*) from v1 where base_rule_version is null
+            and (rule_version is not null or confirmation <> 'none' or self_confirmation_allowed)))`)
+    ).toMatchObject({
+      versions: 39,
+      ruled_mismatched: 0,
+      unruled_mismatched: 0,
+    })
+    // Both branches are exercised: B01's seven pilot rules are restated, and
+    // at least one key has no rule.
+    expect(
+      q(`select json_build_object('pilot', (select count(*) from public.knowledge_question_versions v
+          where v.version = 1 and v.rule_version is not null and v.key in
+            ('onsite_parking', 'step_free_entrance', 'guest_toilets', 'guest_wifi',
+             'dogs_inside', 'dogs_outside', 'sports_screen')),
+        'anyUnruled', exists (select 1 from public.knowledge_question_versions v
+          where v.version = 1 and v.rule_version is null))`)
+    ).toEqual({ pilot: 7, anyUnruled: true })
   })
 
   it("applies none of the §3.4 proposals yet", () => {
+    // Version 1 only: later versions (B03-c onwards, and fixtures) never
+    // stand in for the initial baseline.
     expect(
-      q(`select json_build_object(
-        'lifecycles', (select json_agg(distinct lifecycle) from public.knowledge_question_versions),
+      q(`with v1 as (select * from public.knowledge_question_versions where version = 1)
+        select json_build_object(
+        'lifecycles', (select json_agg(distinct lifecycle) from v1),
+        'changeKinds', (select json_agg(distinct change_kind) from v1),
         'schemas', (select json_object_agg(value_schema, n) from (
-          select value_schema, count(*) as n from public.knowledge_question_versions group by 1) s),
+          select value_schema, count(*) as n from v1 group by 1) s),
         'families', (select json_object_agg(family, n) from (
-          select family, count(*) as n from public.knowledge_question_versions group by 1) f),
-        'freshness', (select count(*) from public.knowledge_question_versions
+          select family, count(*) as n from v1 group by 1) f),
+        'freshness', (select count(*) from v1
           where freshness <> '{"internal": null, "public": null}'::jsonb),
-        'publishable', (select count(*) from public.knowledge_question_versions
+        'publishable', (select count(*) from v1
           where cardinality(publishable_fields) > 0),
-        'restricted', (select json_agg(key) from public.knowledge_question_versions
-          where sensitivity <> 'ordinary')))`)
+        'restricted', (select json_agg(key) from v1
+          where sensitivity <> 'ordinary'))`)
     ).toEqual({
       lifecycles: ["supported"],
+      changeKinds: ["initial"],
       schemas: { presence: 38, "connectivity.wifi": 1 },
       families: { presence: 38, connectivity: 1 },
       freshness: 0,

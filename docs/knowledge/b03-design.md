@@ -1612,3 +1612,17 @@ lastDayOffered, notOfferedFrom, notOfferedFromAt, inEffect }` or null:
   refused (choose today, a No); stops apply to `service.v1` only; a
   correction that keeps a stop date already past is refused (send No);
   reconciliation still compares the stored headline.
+
+**Reader import text boundary (10 Nov 2026):** migration
+`20261110171000_knowledge_b03_reader_import_text_boundary` (after
+`20261110170000`, before B04), from the retained-stack database triage. An
+imported No or Not applicable is stored with the reason "Imported from
+<source label>" (legacy and external), and the v1 reader forwarded it as a
+condition. `knowledge_reader_answers_v1` (same signature, columns, grants,
+stable definer) now joins the current contribution's
+`knowledge_contribution_sources` row once in the same statement: when it
+exists, `reason_text` is null and `source_origin` is its kind. Stored
+reasons, labels and excerpts are unchanged and stay on admin provenance
+reads; ordinary staff reasons, redaction, freshness and the A40 stop are
+unchanged. Tests: `knowledge-reader-b03` (external No and Not applicable,
+legacy No, projection and HTTP, staff reason control).

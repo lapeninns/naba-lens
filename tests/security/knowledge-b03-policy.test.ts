@@ -201,12 +201,15 @@ describe("policy answers (§5.2, A5)", () => {
         )
       )
     ).toEqual(["conditions", "authority"])
+    // A39: the legacy reads give the incomplete policy the same precedence
+    // over its conditional qualifier; the stored row is unchanged.
     expect(await legacy(v, "onsite_parking")).toMatchObject({
       progress: "needs_recheck",
       recheck_reason:
-        "The answer in use has conditions. Open the check to see them.",
-      qualification: "conditional",
+        "The policy in use is not complete yet. Open the check to see what it still needs.",
+      qualification: "policy_incomplete",
     })
+    expect(stored(v, "onsite_parking")).toBe("complete|yes")
   })
 
   it("needs an admin for an organisation-scope policy; a staff photo never confirms it (§5.3, §5.4)", async () => {
@@ -271,7 +274,7 @@ describe("policy answers (§5.2, A5)", () => {
 })
 
 describe("registry and lists (A4, A30, A33)", () => {
-  it("serve empty value lists to any active account, and refuse an unknown list", async () => {
+  it("serve empty value lists (with no retired labels, A38) to any active account, and refuse an unknown list", async () => {
     for (const list of [
       "policy_condition_types",
       "policy_exception_types",
@@ -282,6 +285,7 @@ describe("registry and lists (A4, A30, A33)", () => {
       ).toEqual({
         list,
         items: [],
+        retired: [],
       })
     await refused(
       w.staffA,
@@ -445,7 +449,8 @@ describe("stating a policy (A35, A37, A39)", () => {
 describe("guards", () => {
   it("keep the new private functions from clients, and the reads STABLE definers (T9b)", () => {
     for (const fn of [
-      "private.knowledge_slot_state_b03(uuid,text[])",
+      // B03-e re-created it with a defaulted p_now; the identity has three.
+      "private.knowledge_slot_state_b03(uuid,text[],timestamptz)",
       "private.knowledge_policy_complete(uuid)",
       "private.knowledge_policy_missing_for(uuid,text,boolean)",
       "private.knowledge_evidence_for_assets(uuid[],timestamptz)",
