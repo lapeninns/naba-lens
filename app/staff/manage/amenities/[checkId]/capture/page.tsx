@@ -17,10 +17,14 @@ export const maxDuration = 120
 /** "Capture myself": the venue manager captures a check with the staff form. */
 export default async function ManageAmenityCapturePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ checkId: string }>
+  searchParams?: Promise<{ complete?: string | string[] }>
 }) {
   const { checkId } = await params
+  // "Complete the policy" (B03-c §4.4): one finding, or none.
+  const complete = (await searchParams)?.complete
   const access = await managerAccess()
   if (!access.ok) return <NotManagerPage viewerName={access.viewerName} />
   const { ctx } = access
@@ -41,6 +45,7 @@ export default async function ManageAmenityCapturePage({
         backHref={checkHref}
         backLabel="Back to the check"
         doneHref={checkHref}
+        complete={typeof complete === "string" ? complete : null}
       />
     </AppShell>
   )

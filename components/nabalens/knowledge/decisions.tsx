@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
   ArrowClockwiseIcon,
@@ -8,6 +9,7 @@ import {
   ChatCircleTextIcon,
   CheckIcon,
   EyeIcon,
+  PencilSimpleIcon,
   ShieldCheckIcon,
   XIcon,
 } from "@phosphor-icons/react"
@@ -26,7 +28,7 @@ import {
 import { Notice } from "@/components/nabalens/notice"
 import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { StatusChip } from "@/components/nabalens/status-chip"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
@@ -58,7 +60,7 @@ import {
   policyPhotoLine,
   UNKNOWN_PRESET_LABEL,
 } from "./copy"
-import { policyFacts, type PolicyContext } from "./policy-detail"
+import { POLICY_COPY, policyFacts, type PolicyContext } from "./policy-detail"
 
 type InScope = Extract<QuestionView, { inScope: true }>
 type Decision = KnowledgeResult<DecisionResult>
@@ -365,11 +367,17 @@ export function DecisionPanel({
   handlers,
   onReopen,
   policy = null,
+  completeHref,
 }: {
   view: InScope
   handlers: DecisionHandlers
   /** Opens the check's existing reopen dialog. */
   onReopen?: () => void
+  /**
+   * "Complete the policy" (§4.4): the editor prefilled from a policy finding
+   * that can't be confirmed yet. Only where the viewer states policies.
+   */
+  completeHref?: (finding: PendingFinding) => string
   /** A policy question: what its cards' rows are read with (B03 UI §4.4). */
   policy?: PolicyContext | null
 }) {
@@ -563,21 +571,47 @@ export function DecisionPanel({
         </>
       )
     }
-    if (conflict)
-      return permissions.canConfirm ? (
-        <Button
-          variant="secondary"
-          size="touch"
-          disabled={decision.pending}
-          onClick={() => setAsk({ kind: "choose", finding })}
+    const complete =
+      completeHref && policyConfirmBlock(finding.policyMissing) ? (
+        <Link
+          href={completeHref(finding)}
+          className={buttonVariants({ variant: "secondary", size: "touch" })}
         >
-          <CheckIcon aria-hidden />
-          Use this answer
-        </Button>
+          <PencilSimpleIcon aria-hidden />
+          {POLICY_COPY.completePolicy}
+        </Link>
       ) : null
+    if (conflict) {
+      // Choosing adopts it too: a policy that still needs content can't be
+      // chosen any more than confirmed (§4.4).
+      const blocked = policyConfirmBlock(finding.policyMissing)
+      return (
+        <>
+          {complete}
+          {permissions.canConfirm ? (
+            <Button
+              variant="secondary"
+              size="touch"
+              disabled={decision.pending}
+              aria-disabled={blocked ? true : undefined}
+              aria-describedby={
+                blocked ? `${cardId(finding)}-policy` : undefined
+              }
+              onClick={() => {
+                if (!blocked) setAsk({ kind: "choose", finding })
+              }}
+            >
+              <CheckIcon aria-hidden />
+              Use this answer
+            </Button>
+          ) : null}
+        </>
+      )
+    }
     return (
       <>
         {detail}
+        {complete}
         {permissions.canDecline ? (
           <Button
             variant="secondary"

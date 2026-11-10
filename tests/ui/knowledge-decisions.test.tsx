@@ -1027,3 +1027,51 @@ describe("a policy question's check page and cards (B03 UI §4.1, §4.4)", () =>
     expect(screen.getByRole("link", { name: "Capture myself" })).toBeTruthy()
   })
 })
+
+describe("To confirm: Complete the policy (B03 UI §4.4)", () => {
+  it("links a policy that can't be confirmed yet to the editor, where the viewer states policies", () => {
+    const blocked = finding({
+      answer: "yes",
+      policyMissing: ["zones"],
+      policyDetail: { stance: "allowed" },
+    })
+    const ready = finding({
+      answer: "yes",
+      policyMissing: ["authority"],
+      policyDetail: { stance: "allowed" },
+    })
+    render(
+      <DecisionPanel
+        view={view([blocked, { ...ready, answer: "no" }])}
+        handlers={{ decide: vi.fn(), onResolveConflict: vi.fn() }}
+        completeHref={(f) =>
+          `/manager/amenities/c1/capture?complete=${f.findingRef.id}`
+        }
+      />
+    )
+    const links = screen.getAllByRole("link", { name: "Complete the policy" })
+    expect(links).toHaveLength(1)
+    expect(links[0].getAttribute("href")).toBe(
+      `/manager/amenities/c1/capture?complete=${blocked.findingRef.id}`
+    )
+    // Two findings that disagree: choosing one adopts it, so the incomplete
+    // policy can't be chosen either.
+    const [first, second] = screen.getAllByRole("button", {
+      name: "Use this answer",
+    })
+    expect(first.getAttribute("aria-disabled")).toBe("true")
+    expect(second.getAttribute("aria-disabled")).toBeNull()
+  })
+
+  it("offers no link without a place to state the policy", () => {
+    render(
+      <DecisionPanel
+        view={view([finding({ answer: "yes", policyMissing: ["zones"] })])}
+        handlers={{ decide: vi.fn(), onResolveConflict: vi.fn() }}
+      />
+    )
+    expect(
+      screen.queryByRole("link", { name: "Complete the policy" })
+    ).toBeNull()
+  })
+})

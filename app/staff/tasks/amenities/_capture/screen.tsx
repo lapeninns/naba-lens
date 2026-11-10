@@ -21,7 +21,9 @@ import {
 } from "@/components/nabalens/knowledge/question-form"
 import { QuestionFormNotice } from "@/components/nabalens/knowledge/question-form-notice"
 import { ROUTES } from "@/lib/auth/routes"
+import { policyFromDetail } from "@/components/nabalens/knowledge/policy-detail"
 import {
+  findingKey,
   knowledgeAssetsResult,
   type CaptureCheck,
   type QuestionView,
@@ -45,7 +47,9 @@ async function knowledgeFor(
   role: KnowledgeProps["role"],
   venueName: string,
   /** An admin capturing: states a policy as admin (B03-c). */
-  admin = false
+  admin = false,
+  /** "Complete the policy" (§4.4): the pending policy finding to start from. */
+  complete: string | null = null
 ): Promise<{
   props: KnowledgeProps
   capture: CaptureCheck
@@ -89,6 +93,26 @@ async function knowledgeFor(
       basis: admin ? "admin" : role === "manager" ? "venue_manager" : null,
       canStateOrgPolicy: admin,
     }
+    // A manager or an admin completing someone's policy finding starts from
+    // it; an id that isn't a pending policy finding here is ignored.
+    const from =
+      role === "manager" && complete
+        ? view.view.pending.find(
+            (p) =>
+              findingKey(p.findingRef) === complete &&
+              p.policyDetail !== undefined
+          )
+        : undefined
+    if (from)
+      props.prefill = {
+        answer: from.answer,
+        unknownPreset: from.unknownPreset,
+        policy: policyFromDetail(from.policyDetail, {
+          requiresZones: form.requiresZones,
+        }),
+        completesFrom:
+          from.sender?.displayName?.split(" ")[0] ?? "a former team member",
+      }
   }
   if (form.kind === "facility" || form.kind === "accessibility") {
     // The venue's places for "Where is it?" and "What did you check?"; none
@@ -192,7 +216,10 @@ export async function CaptureScreen({
   backLabel,
   doneHref,
   announceSent = true,
+  complete = null,
 }: {
+  /** "Complete the policy" (B03-c §4.4): `?complete=` from To confirm. */
+  complete?: string | null
   actor: MediaActor
   checkId: string
   mode: "staff" | "manager" | "admin"
@@ -219,7 +246,14 @@ export async function CaptureScreen({
     mode === "staff"
       ? await staffReads(actor, checkId, venue)
       : await Promise.all([
-          knowledgeFor(actor, checkId, "manager", venue, mode === "admin"),
+          knowledgeFor(
+            actor,
+            checkId,
+            "manager",
+            venue,
+            mode === "admin",
+            complete
+          ),
           getCheck(actor, { checkId }),
           listSubmittableAssets(actor, { checkId }),
         ])

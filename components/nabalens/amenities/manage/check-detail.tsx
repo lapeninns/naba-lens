@@ -46,7 +46,7 @@ import {
   type PolicyContext,
 } from "@/components/nabalens/knowledge/policy-detail"
 import { PolicyNeedsPanel } from "@/components/nabalens/knowledge/policy-detail-fields"
-import type { QuestionView } from "@/lib/knowledge-client/contract"
+import { findingKey, type QuestionView } from "@/lib/knowledge-client/contract"
 
 import { FINDING_SENT_PARAM } from "../capture/finding-sent"
 import {
@@ -395,6 +395,12 @@ export function AmenityCheckDetail({
           handlers={knowledge.handlers}
           onReopen={canReopen ? () => setReopenOpen(true) : undefined}
           policy={knowledge.policy ?? null}
+          completeHref={
+            statesPolicy
+              ? (finding) =>
+                  `${hrefs.capture(check.id)}?complete=${encodeURIComponent(findingKey(finding.findingRef))}`
+              : undefined
+          }
         />
       ) : null}
 

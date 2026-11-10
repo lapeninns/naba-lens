@@ -99,6 +99,7 @@ import {
   firstBadZone,
   POLICY_COPY,
   policyNeeds,
+  type PolicyDraft,
   policySentCopy,
   stanceAnswer,
 } from "../../knowledge/policy-detail"
@@ -187,6 +188,13 @@ export type KnowledgeCapture = {
   prefill?: {
     answer: KnowledgeAnswer | null
     unknownPreset: UnknownPreset | null
+    /**
+     * B03-c "Complete the policy" (§4.4): someone else's policy finding to
+     * start from, and its sender's first name. Sending it states the policy
+     * as the manager's or admin's own.
+     */
+    policy?: PolicyDraft | null
+    completesFrom?: string | null
   } | null
   /**
    * B03-b: the question's version has a detail form this build renders
@@ -490,7 +498,15 @@ export function CaptureForm({
       newKey,
       knowledge ? knowledge.slot.slotRevision : check.revision
     ),
-    ...(knowledge?.prefill ?? {}),
+    ...(knowledge?.prefill
+      ? {
+          answer: knowledge.prefill.answer,
+          unknownPreset: knowledge.prefill.unknownPreset,
+          ...(knowledge.prefill.policy
+            ? { policy: knowledge.prefill.policy }
+            : {}),
+        }
+      : {}),
   }))
   const [restored, setRestored] = React.useState(false)
   const [assets, setAssets] = React.useState<SubmittableAsset[]>(() =>
@@ -1804,6 +1820,11 @@ export function CaptureForm({
               {line}
             </p>
           ))}
+        </Notice>
+      ) : null}
+      {knowledge?.prefill?.completesFrom ? (
+        <Notice tone="plain" role="note">
+          {POLICY_COPY.completesFrom(knowledge.prefill.completesFrom)}
         </Notice>
       ) : null}
       {knowledge?.respondsTo ? (

@@ -697,3 +697,85 @@ describe("capture routes on a working-list question (G2)", () => {
     ).toBeNull()
   })
 })
+
+describe("Complete the policy (B03 UI §4.4)", () => {
+  const registry = {
+    ok: true,
+    question: {
+      key: "step_free_entrance",
+      lifecycle: "supported",
+      supersededBy: null,
+      valueSchema: { name: "policy", version: 1 },
+      requiresZones: false,
+    },
+  }
+  const pendingPolicy = {
+    findingRef: { type: "contribution" as const, id: "f-policy" },
+    kind: "finding" as const,
+    answer: "yes" as const,
+    finding: null,
+    limitations: null,
+    reason: null,
+    unknownPreset: null,
+    triedText: null,
+    changeReason: null,
+    sender: { id: "s1", displayName: "Sam Lee" },
+    senderIsAssignee: false,
+    mine: false,
+    sentAt: "2026-11-05T10:00:00.000Z",
+    evidence: [],
+    wifi: null,
+    disputes: false,
+    detailRequest: null,
+    removedEvidence: 0,
+    policyMissing: ["authority" as const, "stated_on" as const],
+    policyDetail: { stance: "not_allowed" },
+  }
+
+  beforeEach(() => {
+    knowledge.getQuestion.mockResolvedValue(registry)
+    knowledge.listPlaces.mockResolvedValue({
+      ok: true,
+      venueId: VENUE.id,
+      places: [],
+    })
+    knowledge.getValueList.mockResolvedValue({ ok: true, items: [] })
+    knowledge.getKnowledgeCheck.mockResolvedValue({
+      ok: true,
+      view: { ...inScope(), pending: [pendingPolicy] },
+    })
+  })
+
+  it("starts the manager's statement from the finding named in the link", async () => {
+    await show(
+      ManagerCapturePage({
+        params,
+        searchParams: Promise.resolve({ complete: "contribution:f-policy" }),
+      })
+    )
+    expect(
+      screen.getByText(
+        "Starting from Sam's finding. When you send it, it's your statement of the policy."
+      )
+    ).toBeTruthy()
+    expect(
+      (screen.getByRole("radio", { name: "Not allowed" }) as HTMLInputElement)
+        .checked
+    ).toBe(true)
+    expect(screen.getByText("You, as venue manager")).toBeTruthy()
+  })
+
+  it("ignores a link that names no pending policy finding", async () => {
+    await show(
+      ManagerCapturePage({
+        params,
+        searchParams: Promise.resolve({ complete: "contribution:other" }),
+      })
+    )
+    expect(screen.queryByText(/Starting from/)).toBeNull()
+    expect(
+      (screen.getByRole("radio", { name: "Not allowed" }) as HTMLInputElement)
+        .checked
+    ).toBe(false)
+  })
+})

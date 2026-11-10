@@ -140,6 +140,9 @@ export const POLICY_COPY = {
     "A photo can show what's there, such as a sign or a bowl. It doesn't confirm the policy.",
   needsTitle: "What this policy still needs",
   statePolicy: "State the policy",
+  completePolicy: "Complete the policy",
+  completesFrom: (name: string) =>
+    `Starting from ${name}'s finding. When you send it, it's your statement of the policy.`,
   nothingMissing: "Nothing is missing.",
 } as const
 
