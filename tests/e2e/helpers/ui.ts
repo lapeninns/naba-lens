@@ -79,7 +79,6 @@ export function todoCheck(page: Page, question: string) {
     .filter({
       has: page.getByRole("heading", { level: 3, name: question, exact: true }),
     })
-    .filter({ has: page.getByRole("link", { name, exact: true }) })
   return { card, start: card.getByRole("link", { name, exact: true }) }
 }
 

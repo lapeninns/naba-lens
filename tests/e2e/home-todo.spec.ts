@@ -84,7 +84,7 @@ const manageLink = (page: Page) =>
 
 /** "Home , 103 things to do": browsers may put a space either side of the comma. */
 const homeName = (count: string) =>
-  new RegExp(`^Home ?, ?${count} things? to do$`)
+  new RegExp(`^Home ?, ?${count} ${count === "1" ? "thing" : "things"} to do$`)
 const manageName = (count: string) =>
   new RegExp(`^Manage ?, ?${count} to review$`)
 
