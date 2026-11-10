@@ -214,7 +214,7 @@ export function HistorySection({
               key={e.eventId}
               id={`history-${e.eventId}`}
               tabIndex={-1}
-              className="grid gap-0.5 rounded-control outline-none focus-visible:outline-2 focus-visible:outline-focus"
+              className="grid gap-0.5 rounded-control outline-none focus-visible:outline-2 focus-visible:outline-focus focus-visible:outline-solid"
             >
               <span className="text-body-touch [overflow-wrap:anywhere] text-ink md:text-body">
                 {eventLine(e)}
