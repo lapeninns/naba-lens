@@ -373,10 +373,21 @@ function localDbUrl(): string {
 
 /** Runs SQL as postgres on the LOCAL stack (psql). Values must be test-made UUIDs. */
 export function localSql(sql: string): string {
+  // SQL goes through stdin, not `-c`: a 1,005-person fixture is larger than
+  // Linux allows for one process argument (spawnSync E2BIG). A `-c` command
+  // ran all its statements in one transaction; --single-transaction keeps that.
   return execFileSync(
     "psql",
-    [localDbUrl(), "-v", "ON_ERROR_STOP=1", "-At", "-c", sql],
-    { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }
+    [
+      localDbUrl(),
+      "-v",
+      "ON_ERROR_STOP=1",
+      "--single-transaction",
+      "-At",
+      "-f",
+      "-",
+    ],
+    { encoding: "utf8", input: sql, stdio: ["pipe", "pipe", "pipe"] }
   ).trim()
 }
 
