@@ -40,6 +40,10 @@ const dateTime = new Intl.DateTimeFormat("en-GB", {
   hourCycle: "h23",
   timeZone: "Europe/London",
 })
+const yearOnly = new Intl.DateTimeFormat("en-GB", {
+  year: "numeric",
+  timeZone: "Europe/London",
+})
 const monthName = new Intl.DateTimeFormat("en-GB", {
   month: "long",
   timeZone: "Europe/London",
@@ -50,10 +54,22 @@ function parse(iso: string): Date | null {
   return Number.isNaN(date.getTime()) ? null : date
 }
 
-/** "3 Nov" */
-export function shortDate(iso: string): string {
+/** "3 Nov", or "3 Nov 2025" when it isn't this London year (CA-29). */
+export function shortDate(iso: string, now: Date = new Date()): string {
   const date = parse(iso)
-  return date ? dayMonth.format(date) : "an unknown date"
+  if (!date) return "an unknown date"
+  return yearOnly.format(date) === yearOnly.format(now)
+    ? dayMonth.format(date)
+    : dayMonthYear.format(date)
+}
+
+/**
+ * Whether instant `a` is after `b`. Compared as instants, never as text: the
+ * RPCs may write the same moment as `Z` or `+00:00` and with different
+ * fraction lengths (HM-24).
+ */
+export function isAfter(a: string, b: string): boolean {
+  return Date.parse(a) > Date.parse(b)
 }
 
 /** "3 Nov 2026" */
@@ -427,7 +443,7 @@ export function sentNoticeFor(
   const latest = slot.myLatest
   const draft = slot.myDraft
   const sentAt = latest?.sentAt ?? latest?.savedAt ?? null
-  if (draft && (!latest || !sentAt || draft.savedAt > sentAt))
+  if (draft && (!latest || !sentAt || isAfter(draft.savedAt, sentAt)))
     return { ...DRAFT_SAVED, extra: null }
   if (!latest?.answer) return null
   // Recognition only when it is real; nothing is promised (§2.4).
@@ -505,7 +521,7 @@ export const KNOWLEDGE_FAILURE_COPY = {
   },
   decision: {
     stale:
-      "This check changed since you opened it. Reload to see the latest; nothing was decided.",
+      "This check changed. The page now shows the latest; check whether your decision is there.",
     alreadyDecided:
       "Someone already decided this finding. Reload to see the result.",
     selfNotPermitted:
@@ -556,26 +572,57 @@ export function toConfirmLine(rows: readonly ToConfirmRow[]): string {
 
 // ---- Evidence that isn't ready yet (§4.2, G4) ----------------------------------------
 
-const photos = (n: number) => (n === 1 ? "your photo" : `your ${n} photos`)
+/** What the uploads still saving are: photos, videos, or both or unknown. */
+export type UploadKinds = "photo" | "video" | "mixed"
+
+/** "photo", "videos", "photo or video", "photos and videos" */
+export function uploadNoun(n: number, kinds: UploadKinds = "mixed"): string {
+  if (kinds === "photo") return n === 1 ? "photo" : "photos"
+  if (kinds === "video") return n === 1 ? "video" : "videos"
+  return n === 1 ? "photo or video" : "photos and videos"
+}
+
+const yours = (n: number, kinds: UploadKinds) =>
+  n === 1 ? `your ${uploadNoun(1, kinds)}` : `your ${n} ${uploadNoun(n, kinds)}`
 
 export const UPLOAD_WAIT_COPY = {
-  pending: (n: number) =>
+  pending: (n: number, kinds: UploadKinds = "photo") =>
     n === 1
-      ? "Your photo is still saving. Wait for it, or send without it."
-      : `Your ${n} photos are still saving. Wait for them, or send without them.`,
-  yesNeeds: (rule: string, n: number) =>
-    `Yes needs evidence: ${rule}. Wait for ${photos(n)} to finish saving.`,
+      ? `Your ${uploadNoun(1, kinds)} is still saving. Wait for it, or send without it.`
+      : `Your ${n} ${uploadNoun(n, kinds)} are still saving. Wait for them, or send without them.`,
+  yesNeeds: (rule: string, n: number, kinds: UploadKinds = "photo") =>
+    `Yes needs evidence: ${rule}. Wait for ${yours(n, kinds)} to finish saving.`,
   waitFor: (n: number) => (n === 1 ? "Wait for it" : "Wait for them"),
   sendWithout: (n: number) =>
     n === 1 ? "Send without it" : "Send without them",
-  waiting: (n: number) =>
-    `Waiting for ${photos(n)} to finish saving. It sends by itself when ready.`,
-  primary: (n: number) => `Waiting for ${n} ${n === 1 ? "photo" : "photos"}…`,
+  waiting: (n: number, kinds: UploadKinds = "photo") =>
+    `Waiting for ${yours(n, kinds)} to finish saving. It sends by itself when ready; keep this page open.`,
+  primary: (n: number, kinds: UploadKinds = "photo") =>
+    `Waiting for ${n} ${uploadNoun(n, kinds)}…`,
   stop: "Stop waiting and edit",
-  offline:
-    "You're offline. Your photo will finish saving when you're back online; then you can send.",
-  failed: "This photo couldn't be processed. Add it again or choose another.",
+  // A closed tab doesn't resume an upload (UP-01): only this page finishes it.
+  offline: (n: number, kinds: UploadKinds = "photo") =>
+    `You're offline. Keep this page open: ${yours(n, kinds)} ${n === 1 ? "finishes" : "finish"} saving when you're back online; then you can send.`,
+  // Add stopped without a ready upload: failed, cancelled or removed there.
+  failed: (n: number, kinds: UploadKinds = "photo") =>
+    n === 1
+      ? `Your ${uploadNoun(1, kinds)} didn't finish saving. Add it again or choose another.`
+      : `Your ${n} ${uploadNoun(n, kinds)} didn't finish saving. Add them again or choose others.`,
 } as const
+
+// ---- Sending (§8.1 rule 5, CA-05, CA-24) -----------------------------------------------
+
+export const SEND_PROGRESS_COPY = {
+  sending: "Sending…",
+  /** After 15 s without a reply. */
+  slow: "Still sending; keep this page open.",
+  /** A restored draft whose send never had a definite answer. */
+  lastSendUnsure:
+    "Your last send may not have arrived. Send again; nothing is sent twice.",
+} as const
+
+/** How long a send goes without a reply before the screen says so. */
+export const SLOW_SEND_MS = 15_000
 
 // ---- Capture context (§4.2) ----------------------------------------------------------
 

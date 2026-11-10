@@ -21,6 +21,7 @@ function AssetTile({
   checked,
   blocked,
   note,
+  describedBy,
   onToggle,
   disabled,
 }: {
@@ -28,6 +29,7 @@ function AssetTile({
   checked: boolean
   blocked: boolean
   note: string | null
+  describedBy?: string
   onToggle: () => void
   disabled: boolean
 }) {
@@ -61,14 +63,18 @@ function AssetTile({
             <CheckCircleIcon weight="fill" className="size-6" aria-hidden />
           </span>
         ) : null}
-        <span className="flex min-h-11 items-center gap-2 text-meta-touch md:min-h-0 md:text-meta">
+        <span className="flex min-h-11 items-center gap-2 text-meta-touch md:text-meta">
           <input
             type="checkbox"
             checked={checked}
             disabled={disabled || (blocked && !checked)}
             onChange={onToggle}
             aria-label={assetLabel(asset)}
-            aria-describedby={note ? noteId : undefined}
+            aria-describedby={
+              [note ? noteId : null, describedBy ?? null]
+                .filter(Boolean)
+                .join(" ") || undefined
+            }
             className="size-5 shrink-0 accent-primary md:size-4"
           />
           <span className="min-w-0 break-words">
@@ -104,6 +110,7 @@ function AssetGrid({
   flagged: ReadonlyMap<string, string>
   full: boolean
   disabled: boolean
+  describedBy?: string
   onToggle: (assetId: string) => void
 }) {
   return (
@@ -120,6 +127,7 @@ function AssetGrid({
             checked={checked}
             blocked={rest.full || rest.flagged.has(asset.assetId)}
             note={rest.flagged.get(asset.assetId) ?? null}
+            describedBy={rest.describedBy}
             disabled={rest.disabled}
             onToggle={() => rest.onToggle(asset.assetId)}
           />
@@ -140,6 +148,7 @@ export function EvidencePicker({
   flagged,
   maxSelected,
   disabled,
+  describedBy,
   onToggle,
 }: {
   assets: SubmittableAsset[]
@@ -147,6 +156,8 @@ export function EvidencePicker({
   flagged: ReadonlyMap<string, string>
   maxSelected: number
   disabled: boolean
+  /** The evidence error, read with every tile (CA-13). */
+  describedBy?: string
   onToggle: (assetId: string) => void
 }) {
   const own = assets.filter((a) => a.source === "own")
@@ -156,6 +167,7 @@ export function EvidencePicker({
     flagged,
     full: selected.length >= maxSelected,
     disabled,
+    describedBy,
     onToggle,
   }
   return (

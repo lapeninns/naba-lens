@@ -56,9 +56,12 @@ import {
   dockNote,
   recognitionLine,
   replacedOwnLine,
+  SEND_PROGRESS_COPY,
   sentCopy,
+  SLOW_SEND_MS,
   UPLOAD_WAIT_COPY,
   type SentCopy,
+  type UploadKinds,
 } from "../../knowledge/copy"
 import { Notice } from "../../notice"
 import { useOnline } from "../../offline-notice"
@@ -216,7 +219,7 @@ function fromKnowledge(result: KnowledgeResult<SubmittedFinding>): Sent {
 }
 
 const inputClass =
-  "block min-h-12 w-full min-w-0 rounded-control border border-line-control bg-panel px-3 py-2 text-body-touch text-ink outline-none focus-visible:border-focus focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-1 focus-visible:outline-focus disabled:cursor-not-allowed disabled:bg-well aria-invalid:border-negative md:min-h-9 md:text-body"
+  "block min-h-12 w-full min-w-0 rounded-control border border-line-control bg-panel px-3 py-2 text-body-touch text-ink outline-none focus-visible:border-focus focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-1 focus-visible:outline-focus disabled:cursor-not-allowed disabled:bg-well aria-invalid:border-negative md:text-body"
 
 function isDirty(draft: CaptureDraft): boolean {
   return Boolean(
@@ -230,8 +233,57 @@ function isDirty(draft: CaptureDraft): boolean {
     draft.confirmOwn !== null ||
     draft.assetIds.length ||
     draft.redactionConfirmed ||
+    draft.uploadsPending?.count ||
     Object.values(draft.wifi).some(Boolean)
   )
+}
+
+/** What a pick is: photos, videos, or both (or unknown, without the files). */
+function kindsOf(files: File[] | undefined): UploadKinds {
+  if (!files?.length) return "mixed"
+  const videos = files.filter((f) => f.type.startsWith("video/")).length
+  return videos === 0 ? "photo" : videos === files.length ? "video" : "mixed"
+}
+
+function mergeKinds(a: UploadKinds | null, b: UploadKinds): UploadKinds {
+  return a === null || a === b ? b : "mixed"
+}
+
+/** The newest upload listed now, as an instant to compare later ones with. */
+function newestListed(assets: SubmittableAsset[]): string | null {
+  let newest: string | null = null
+  for (const a of assets)
+    if (newest === null || Date.parse(a.createdAt) > Date.parse(newest))
+      newest = a.createdAt
+  return newest
+}
+
+/** Fields in screen order: a failed check focuses the first invalid one. */
+const FIELD_ORDER: CaptureField[] = [
+  "changeReason",
+  "answer",
+  "unknownPreset",
+  "triedText",
+  "finding",
+  "limitations",
+  "reason",
+  "assetIds",
+  "redactionConfirmed",
+  "wifi.testSpot",
+  "wifi.testedOn",
+  "wifi.downloadMbps",
+  "wifi.uploadMbps",
+  "confirmOwn",
+]
+
+/** The id suffix of a field's control, where it isn't the field's name. */
+const FIELD_ELEMENT: Partial<Record<CaptureField, string>> = {
+  triedText: "unknown-tried",
+  redactionConfirmed: "redaction",
+  "wifi.testSpot": "wifi-spot",
+  "wifi.testedOn": "wifi-date",
+  "wifi.downloadMbps": "wifi-down",
+  "wifi.uploadMbps": "wifi-up",
 }
 
 function sameIds(a: string[], b: string[]) {
@@ -384,6 +436,19 @@ export function CaptureForm({
   const [extraErrors, setExtraErrors] = React.useState<string[]>([])
   const [outcome, setOutcome] = React.useState<Outcome | null>(null)
   const [sending, setSending] = React.useState(false)
+  // A send with no reply for SLOW_SEND_MS says so (CA-24).
+  const [slowSend, setSlowSend] = React.useState(false)
+  // The restored draft's send never had a definite answer (CA-05).
+  const [lastSendUnsure, setLastSendUnsure] = React.useState(false)
+  // A send that left late uploads out: the form stays locked until the
+  // person chooses Done or a deliberate second send with them (CA-09).
+  const [afterSend, setAfterSend] = React.useState<{
+    draft: CaptureDraft
+    missed: string[]
+  } | null>(null)
+  const doneRef = React.useRef<HTMLButtonElement>(null)
+  const stopRef = React.useRef<HTMLButtonElement>(null)
+  const evidenceHeadingRef = React.useRef<HTMLHeadingElement>(null)
   const [uploadNote, setUploadNote] = React.useState<string | null>(null)
   const [uploadOpen, setUploadOpen] = React.useState(false)
   const [pickedFiles, setPickedFiles] = React.useState<File[] | undefined>()
@@ -420,6 +485,9 @@ export function CaptureForm({
   // Uploads picked here that aren't ready yet (knowledge evidence must be
   // ready to attach), and whether the person chose to wait for them.
   const [pendingUploads, setPendingUploads] = React.useState(0)
+  const [pendingKinds, setPendingKinds] = React.useState<UploadKinds | null>(
+    null
+  )
   const [waiting, setWaiting] = React.useState(false)
   // Counts finished asset reads, so the wait re-checks after each (L3).
   const [assetReads, setAssetReads] = React.useState(0)
@@ -468,6 +536,21 @@ export function CaptureForm({
     setDraft((current) =>
       reconcileDraft(stored ?? fromServer ?? current, revision, newKey)
     )
+    setLastSendUnsure(Boolean((stored ?? fromServer)?.attempted))
+    // Uploads still saving when the person left: newer unticked ones listed
+    // now finished after they went, and aren't attached by themselves.
+    const left = stored?.uploadsPending
+    if (left && initialAssets.ok) {
+      const after = left.after ? Date.parse(left.after) : -Infinity
+      const finished = initialAssets.assets.filter(
+        (a) =>
+          a.source === "own" &&
+          !stored.assetIds.includes(a.assetId) &&
+          Date.parse(a.createdAt) > after
+      ).length
+      const n = Math.min(finished, left.count)
+      if (n > 0) setUploadNote(finishedNote(n))
+    }
     if (stored && isDirty(stored))
       setRestoredFrom({ savedAt: null, nearPurge: false })
     else if (serverDraft)
@@ -478,8 +561,28 @@ export function CaptureForm({
           80 * 86_400_000,
       })
     setRestored(true)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- newKey is a stable factory
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- newKey is a stable factory; initialAssets is the page's first read
   }, [owner, revision, serverDraft])
+
+  // This device's copy remembers uploads still saving, for the next visit.
+  React.useEffect(() => {
+    if (!restored) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- mirrors the pending count into the stored draft
+    setDraft((d) => {
+      const current = d.uploadsPending ?? null
+      if (pendingUploads === 0)
+        return current ? { ...d, uploadsPending: undefined } : d
+      if (current?.count === pendingUploads) return d
+      return {
+        ...d,
+        uploadsPending: {
+          count: pendingUploads,
+          after: current ? current.after : newestListed(assets),
+        },
+      }
+    })
+    if (pendingUploads === 0) setPendingKinds(null)
+  }, [pendingUploads, assets, restored])
 
   // A re-read brings the account draft's current revision (CA-02).
   React.useEffect(() => {
@@ -662,6 +765,7 @@ export function CaptureForm({
     onFiles: (files) => {
       arrivals.current = newArrivals()
       setPendingUploads((n) => n + files.length)
+      setPendingKinds((k) => mergeKinds(k, kindsOf(files)))
       setPickedFiles(files)
       setUploadOpen(true)
     },
@@ -678,6 +782,8 @@ export function CaptureForm({
           if (!mounted.current) return
           arrivals.current = newArrivals()
           setPendingUploads((n) => n + (files?.length ?? 0))
+          if (files?.length)
+            setPendingKinds((k) => mergeKinds(k, kindsOf(files)))
         },
         // Once per upload, as soon as that upload is ready (not when the
         // whole pick settles): each is added to the evidence, never
@@ -718,8 +824,12 @@ export function CaptureForm({
   }: { ignorePending?: boolean; fromWait?: boolean } = {}) {
     if (inFlight.current) return
     // A save still on its way finishes first, so this send's removal of the
-    // account draft comes after it (CA-01).
-    if (saving.current) await saving.current
+    // account draft comes after it (CA-01). Another send queued behind the
+    // same save may have gone (or succeeded) meanwhile (L-a).
+    if (saving.current) {
+      await saving.current
+      if (inFlight.current || sentOk.current) return
+    }
     // Only evidence still listed is sent (a deleted upload drops out).
     const common = {
       draft: { ...draft, assetIds: selected, redactionConfirmed },
@@ -759,6 +869,7 @@ export function CaptureForm({
       }
       setErrors(checked.errors)
       setOutcome(null)
+      focusFirstInvalid(checked.errors)
       return
     }
     if (waitable) {
@@ -838,6 +949,7 @@ export function CaptureForm({
       return
     }
     if (result.ok) {
+      setLastSendUnsure(false)
       setDraft(emptyDraft(newKey, revision))
       setOutcome({
         kind: "sent",
@@ -850,11 +962,14 @@ export function CaptureForm({
           : {}),
       })
       const sentIds = new Set(checked.input.assetIds)
-      const missed = [...late.current].filter((id) => !sentIds.has(id)).length
+      const missed = [...late.current].filter((id) => !sentIds.has(id))
       late.current.clear()
-      // Stay, so the person learns those uploads are not in the answer.
-      if (missed > 0) {
-        setUploadNote(lateNote(missed))
+      // Stay, locked, so the person learns those uploads are not in the
+      // answer, and sending them is a deliberate second send (CA-09).
+      if (missed.length > 0) {
+        setUploadNote(lateNote(missed.length))
+        setAfterSend({ draft: sentDraft, missed })
+        requestAnimationFrame(() => doneRef.current?.focus())
         return
       }
       onDone()
@@ -877,6 +992,60 @@ export function CaptureForm({
   function startWaiting() {
     setOutcome(null)
     setWaiting(true)
+    // Wait for it goes with its notice: the next control is Stop (CA-17).
+    requestAnimationFrame(() => stopRef.current?.focus())
+  }
+
+  /**
+   * A deliberate second send after late uploads were left out (CA-09): the
+   * answer just sent, as a new finding with a new key, with those uploads
+   * selected once they are listed.
+   */
+  function sendAgainWithLate() {
+    if (!afterSend) return
+    const { draft: was, missed } = afterSend
+    setAfterSend(null)
+    setUploadNote(null)
+    setOutcome(null)
+    sentOk.current = false
+    setDraft({
+      ...was,
+      idempotencyKey: newKey(),
+      attempted: false,
+      revision,
+      sentSlotRevision: null,
+      redactionConfirmed: false,
+      redactionAssetIds: [],
+    })
+    void reloadAssets(missed)
+    requestAnimationFrame(() =>
+      answerGroupRef.current?.querySelector<HTMLInputElement>("input")?.focus()
+    )
+  }
+
+  /** Focus the first invalid control; its message is in its description. */
+  function focusFirstInvalid(errs: CaptureErrors) {
+    const field = FIELD_ORDER.find((name) => errs[name])
+    if (!field) return
+    requestAnimationFrame(() => {
+      const byId = (suffix: string) =>
+        document.getElementById(`${ids}-${suffix}`)
+      const firstInput = (root: Element | null | undefined) =>
+        root?.querySelector<HTMLElement>("input:not(:disabled)") ?? null
+      const target: HTMLElement | null =
+        field === "answer"
+          ? firstInput(answerGroupRef.current)
+          : field === "confirmOwn"
+            ? firstInput(selfConfirmRef.current)
+            : field === "unknownPreset"
+              ? firstInput(byId("unknown-preset-group"))
+              : field === "assetIds"
+                ? (evidenceHeadingRef.current?.parentElement?.querySelector<HTMLElement>(
+                    'input[type="checkbox"]:not(:disabled)'
+                  ) ?? evidenceHeadingRef.current)
+                : byId(FIELD_ELEMENT[field] ?? field)
+      target?.focus()
+    })
   }
 
   function stopWaiting() {
@@ -1186,22 +1355,56 @@ export function CaptureForm({
   React.useEffect(() => {
     if (addActive !== 0 || pendingUploads === 0) return
     const timer = window.setTimeout(() => {
+      const message = UPLOAD_WAIT_COPY.failed(
+        pendingUploads,
+        pendingKinds ?? "mixed"
+      )
       setPendingUploads(0)
-      setUploadNote(UPLOAD_WAIT_COPY.failed)
+      setUploadNote(message)
       if (waiting) {
         setWaiting(false)
-        setOutcome({ kind: "failed", message: UPLOAD_WAIT_COPY.failed })
+        setOutcome({ kind: "failed", message })
       }
     }, 2000)
     return () => window.clearTimeout(timer)
-  }, [addActive, pendingUploads, waiting])
+  }, [addActive, pendingUploads, pendingKinds, waiting])
+
+  // Slow is said, not hidden: after SLOW_SEND_MS without a reply (CA-24).
+  React.useEffect(() => {
+    if (!sending) return
+    const timer = window.setTimeout(() => setSlowSend(true), SLOW_SEND_MS)
+    return () => {
+      window.clearTimeout(timer)
+      setSlowSend(false)
+    }
+  }, [sending])
+
+  // The rule line changes with every answer and tick; only a change of "met"
+  // is announced (CA-18).
+  const [ruleAnnouncement, setRuleAnnouncement] = React.useState("")
+  const lastRuleMet = React.useRef(ruleMet)
+  React.useEffect(() => {
+    if (lastRuleMet.current === ruleMet) return
+    lastRuleMet.current = ruleMet
+    setRuleAnnouncement(
+      ruleMet
+        ? `Evidence rule met: ${EVIDENCE_RULE_LABEL[rule]}.`
+        : `Evidence rule not met: ${EVIDENCE_RULE_LABEL[rule]}.`
+    )
+  }, [ruleMet, rule])
 
   const errorId = (field: CaptureField) =>
     errors[field] ? `${ids}-${field}-error` : undefined
 
   const answer = draft.answer
-  // Read-only while sending, and while waiting for uploads to send by itself.
-  const locked = sending || waiting
+  // Read-only while sending, while waiting for uploads to send by itself, and
+  // after a send that left late uploads out.
+  const locked = sending || waiting || afterSend !== null
+  // Submit and Save keep focus while busy: aria-disabled with a guard, never
+  // `disabled`, which drops focus to the page (CA-14).
+  const submitBlocked = locked || savingNow
+  const waitKinds = pendingKinds ?? "photo"
+  const unsure = lastSendUnsure && draft.attempted && !outcome && !sending
   const missing = missingEvidenceText(rule, kinds)
   const canUpload = upload !== null
   const today = londonToday()
@@ -1213,6 +1416,7 @@ export function CaptureForm({
       className="flex min-w-0 flex-col gap-6"
       onSubmit={(event) => {
         event.preventDefault()
+        if (submitBlocked) return
         void send()
       }}
     >
@@ -1243,9 +1447,14 @@ export function CaptureForm({
         <DraftRestoredNotice
           savedAt={restoredFrom.savedAt}
           nearPurge={restoredFrom.nearPurge}
+          attempted={unsure}
           onDiscard={discardServerDraft}
           disabled={locked}
         />
+      ) : unsure ? (
+        <Notice tone="attention" role="note">
+          {SEND_PROGRESS_COPY.lastSendUnsure}
+        </Notice>
       ) : null}
       <section
         aria-labelledby={`${ids}-brief`}
@@ -1405,13 +1614,18 @@ export function CaptureForm({
         className="flex min-w-0 flex-col gap-3"
       >
         <h2
+          ref={evidenceHeadingRef}
           id={`${ids}-evidence`}
-          className="font-display text-section-title-touch text-ink md:text-section-title"
+          tabIndex={-1}
+          aria-describedby={errorId("assetIds")}
+          className="font-display text-section-title-touch text-ink outline-none md:text-section-title"
         >
           Evidence
         </h2>
+        <p aria-live="polite" className="sr-only">
+          {ruleAnnouncement}
+        </p>
         <p
-          aria-live="polite"
           data-testid="evidence-rule-status"
           className={cn(
             "flex items-start gap-1.5 text-body-touch md:text-body-sm",
@@ -1441,7 +1655,8 @@ export function CaptureForm({
             <PhotoSourceActions
               layout="row"
               className="sm:max-w-xl"
-              libraryVariant={assets.length === 0 ? "primary" : "secondary"}
+              // Submit is the screen's only primary (CA-23).
+              libraryVariant="secondary"
               disabled={locked}
               onChoose={choose}
             />
@@ -1472,6 +1687,7 @@ export function CaptureForm({
             flagged={flagged}
             maxSelected={maxSelected}
             disabled={locked}
+            describedBy={errorId("assetIds")}
             onToggle={toggle}
           />
         ) : listError ? null : (
@@ -1516,6 +1732,7 @@ export function CaptureForm({
         <div className="flex flex-col gap-1.5">
           <label className="flex min-h-13 cursor-pointer items-start gap-3 rounded-control border border-line-control bg-panel px-4 py-3 text-body-touch has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus md:min-h-11 md:text-body-sm">
             <input
+              id={`${ids}-redaction`}
               type="checkbox"
               checked={redactionConfirmed}
               disabled={locked}
@@ -1592,77 +1809,115 @@ export function CaptureForm({
         />
       ) : null}
 
-      <div className="sticky bottom-0 z-20 -mx-4 flex flex-col gap-3 border-t border-line bg-paper/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
-        {waiting || outcome?.kind === "uploads_pending" ? (
-          <UploadWait
-            waiting={waiting}
-            count={pendingUploads}
-            online={online}
-            canSendWithout={
-              outcome?.kind === "uploads_pending" && outcome.canSendWithout
-            }
-            yesNeeds={answer === "yes" ? EVIDENCE_RULE_LABEL[rule] : null}
-            onWait={startWaiting}
-            onSendWithout={() => void send({ ignorePending: true })}
-            onStop={stopWaiting}
-          />
-        ) : null}
-        <OutcomeMessage
-          outcome={outcome}
-          extra={extraErrors}
-          sending={sending}
+      {/* Notices sit in the page flow; only the buttons stay sticky, so a
+          notice never covers the fields it is about on a phone (CA-22). */}
+      {waiting || outcome?.kind === "uploads_pending" ? (
+        <UploadWait
+          waiting={waiting}
+          count={pendingUploads}
+          kinds={waitKinds}
           online={online}
-          onRetry={() => void send()}
-          onReload={onReload}
-          signInHref={signInHref}
-          pageHref={pageHref}
-          venueName={knowledge?.venueName ?? null}
+          canSendWithout={
+            outcome?.kind === "uploads_pending" && outcome.canSendWithout
+          }
+          yesNeeds={answer === "yes" ? EVIDENCE_RULE_LABEL[rule] : null}
+          stopRef={stopRef}
+          onWait={startWaiting}
+          onSendWithout={() => void send({ ignorePending: true })}
+          onStop={stopWaiting}
         />
-        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:flex-wrap">
-          {knowledge?.saveDraft ? (
+      ) : null}
+      {sending && slowSend ? (
+        <Notice tone="info" role="status">
+          {SEND_PROGRESS_COPY.slow}
+        </Notice>
+      ) : null}
+      <OutcomeMessage
+        outcome={outcome}
+        extra={extraErrors}
+        sending={sending}
+        online={online}
+        onRetry={() => void send()}
+        onReload={onReload}
+        signInHref={signInHref}
+        pageHref={pageHref}
+        venueName={knowledge?.venueName ?? null}
+      />
+      {knowledge && slot && dockNote(slot, knowledge.role) ? (
+        <p className={MUTED}>{dockNote(slot, knowledge.role)}</p>
+      ) : null}
+
+      <div className="sticky bottom-0 z-20 -mx-4 flex flex-col gap-3 border-t border-line bg-paper/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
+        {afterSend ? (
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:flex-wrap">
             <Button
               type="button"
               variant="secondary"
               size="touch"
-              disabled={locked || savingNow}
-              aria-busy={savingNow || undefined}
-              onClick={() => void saveForLater()}
+              onClick={sendAgainWithLate}
             >
-              {savingNow ? "Saving…" : "Save for later"}
+              {afterSend.missed.length === 1
+                ? "Send again with the new photo"
+                : "Send again with the new photos"}
             </Button>
-          ) : null}
-          <Button
-            type="submit"
-            size="touch"
-            disabled={locked || savingNow}
-            aria-busy={sending || waiting || undefined}
-            className="sm:self-start"
-          >
-            {sending || waiting ? (
-              <SpinnerGapIcon
-                data-icon="inline-start"
-                className="motion-safe:animate-spin"
-                aria-hidden
-              />
-            ) : (
-              <PaperPlaneTiltIcon data-icon="inline-start" aria-hidden />
-            )}
-            {waiting
-              ? UPLOAD_WAIT_COPY.primary(pendingUploads)
-              : !knowledge
-                ? UI_TEXT.submit
-                : findingKind === "detail"
-                  ? "Send detail"
-                  : findingKind === "change_report"
-                    ? "Send change report"
-                    : askConfirmOwn && draft.confirmOwn === true
-                      ? "Submit and confirm"
-                      : UI_TEXT.submit}
-          </Button>
-        </div>
-        {knowledge && slot && dockNote(slot, knowledge.role) ? (
-          <p className={MUTED}>{dockNote(slot, knowledge.role)}</p>
-        ) : null}
+            <Button
+              ref={doneRef}
+              type="button"
+              size="touch"
+              className="sm:self-start"
+              onClick={onDone}
+            >
+              Done
+            </Button>
+          </div>
+        ) : (
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:flex-wrap">
+            {knowledge?.saveDraft ? (
+              <Button
+                type="button"
+                variant="secondary"
+                size="touch"
+                aria-disabled={submitBlocked || undefined}
+                aria-busy={savingNow || undefined}
+                onClick={() => {
+                  if (!submitBlocked) void saveForLater()
+                }}
+              >
+                {savingNow ? "Saving…" : "Save for later"}
+              </Button>
+            ) : null}
+            <Button
+              type="submit"
+              size="touch"
+              aria-disabled={submitBlocked || undefined}
+              aria-busy={sending || waiting || undefined}
+              className="sm:self-start"
+            >
+              {sending || waiting ? (
+                <SpinnerGapIcon
+                  data-icon="inline-start"
+                  className="motion-safe:animate-spin"
+                  aria-hidden
+                />
+              ) : (
+                <PaperPlaneTiltIcon data-icon="inline-start" aria-hidden />
+              )}
+              {waiting
+                ? UPLOAD_WAIT_COPY.primary(pendingUploads, waitKinds)
+                : sending
+                  ? SEND_PROGRESS_COPY.sending
+                  : !knowledge
+                    ? UI_TEXT.submit
+                    : findingKind === "detail"
+                      ? "Send detail"
+                      : findingKind === "change_report"
+                        ? "Send change report"
+                        : askConfirmOwn && draft.confirmOwn === true
+                          ? "Submit and confirm"
+                          : UI_TEXT.submit}
+            </Button>
+          </div>
+        )}
       </div>
 
       {canUpload && !upload.addQueue ? (
@@ -1702,6 +1957,13 @@ function arrivalNote({ selected, waiting }: Arrivals): string | null {
   )
 }
 
+/** Uploads that finished after the person left the form (CA-10). */
+function finishedNote(n: number) {
+  return n === 1
+    ? "1 upload finished after you left; tick it to add it."
+    : `${n} uploads finished after you left; tick them to add them.`
+}
+
 /** Uploads ready after the answer was sent: saved, not in the answer. */
 function lateNote(n: number) {
   return n === 1
@@ -1726,19 +1988,23 @@ const FIELD_NAMES = new Set<string>([
 function UploadWait({
   waiting,
   count,
+  kinds,
   online,
   canSendWithout,
   yesNeeds,
+  stopRef,
   onWait,
   onSendWithout,
   onStop,
 }: {
   waiting: boolean
   count: number
+  kinds: UploadKinds
   online: boolean
   canSendWithout: boolean
   /** The evidence rule, in words, when only the unready uploads meet it. */
   yesNeeds: string | null
+  stopRef: React.Ref<HTMLButtonElement>
   onWait: () => void
   onSendWithout: () => void
   onStop: () => void
@@ -1750,13 +2016,19 @@ function UploadWait({
         tone="info"
         role="status"
         action={
-          <Button type="button" variant="quiet" size="touch" onClick={onStop}>
+          <Button
+            ref={stopRef}
+            type="button"
+            variant="quiet"
+            size="touch"
+            onClick={onStop}
+          >
             {UPLOAD_WAIT_COPY.stop}
           </Button>
         }
       >
-        <p>{UPLOAD_WAIT_COPY.waiting(n)}</p>
-        {online ? null : <p>{UPLOAD_WAIT_COPY.offline}</p>}
+        <p>{UPLOAD_WAIT_COPY.waiting(n, kinds)}</p>
+        {online ? null : <p>{UPLOAD_WAIT_COPY.offline(n, kinds)}</p>}
       </Notice>
     )
   return (
@@ -1788,10 +2060,10 @@ function UploadWait({
     >
       <p>
         {canSendWithout || !yesNeeds
-          ? UPLOAD_WAIT_COPY.pending(n)
-          : UPLOAD_WAIT_COPY.yesNeeds(yesNeeds, n)}
+          ? UPLOAD_WAIT_COPY.pending(n, kinds)
+          : UPLOAD_WAIT_COPY.yesNeeds(yesNeeds, n, kinds)}
       </p>
-      {online ? null : <p>{UPLOAD_WAIT_COPY.offline}</p>}
+      {online ? null : <p>{UPLOAD_WAIT_COPY.offline(n, kinds)}</p>}
     </Notice>
   )
 }
@@ -1987,7 +2259,7 @@ function OutcomeMessage({
         >
           {online
             ? "Your draft is kept. Check your connection and try again; nothing is recorded twice."
-            : "You're offline. We'll try when you're back online. Your draft is kept; nothing is recorded twice."}
+            : "You're offline. Keep this page open; it sends again when you're back online. Your draft is kept; nothing is recorded twice."}
         </Notice>
       )
     case "reload":

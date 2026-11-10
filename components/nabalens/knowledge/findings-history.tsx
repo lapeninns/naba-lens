@@ -34,6 +34,7 @@ export const YOUR_FINDINGS_COPY = {
   loading: "Loading your findings…",
   failed: "We couldn't load your findings.",
   discardFailed: "We couldn't discard this draft. Try again.",
+  discarded: "Draft discarded.",
   moved: (venue: string) => `You've moved to ${venue}; this stays as it was.`,
   draftElsewhere: (oldVenue: string, venue: string) =>
     `This draft is for ${oldVenue}. You can't send it now that you work at ${venue}.`,
@@ -55,6 +56,21 @@ function rowKey(finding: FindingSummary): string {
 }
 
 const rowId = (key: string) => `finding-${key.replace(/[^\w-]/g, "-")}`
+
+/** What the server's first page says; a refresh that changes it re-seeds. */
+function pageSignature(page: FindingsPage | null): string {
+  if (!page) return ""
+  return JSON.stringify([
+    page.items.map((item) => [
+      rowKey(item),
+      item.state,
+      item.sentAt,
+      item.savedAt,
+    ]),
+    page.nextCursor,
+    page.hiddenEarlierVenues.map((v) => v.name),
+  ])
+}
 
 /**
  * Me's "Your findings" (B01-06, design §4.5): what I sent about my venue and
@@ -89,10 +105,28 @@ export function YourFindings({
     "idle"
   )
   const [focusKey, setFocusKey] = React.useState<string | null>(null)
+  const [announcement, setAnnouncement] = React.useState("")
+  const retryRef = React.useRef<HTMLButtonElement>(null)
+
+  // A refresh (after a delete or a label change on Me) brings a new first
+  // page: show it, not the rows first loaded (HM-09).
+  const signature = pageSignature(initial)
+  const [seeded, setSeeded] = React.useState(signature)
+  if (signature !== seeded) {
+    setSeeded(signature)
+    setItems(initial?.items ?? [])
+    setCursor(initial?.nextCursor ?? null)
+    setHidden(initial?.hiddenEarlierVenues ?? [])
+    setStatus("idle")
+  }
 
   React.useEffect(() => {
     if (focusKey) document.getElementById(rowId(focusKey))?.focus()
   }, [focusKey])
+
+  React.useEffect(() => {
+    if (status === "failed") retryRef.current?.focus()
+  }, [status])
 
   async function more() {
     if (!cursor || status === "loading") return
@@ -104,7 +138,7 @@ export function YourFindings({
       result = null
     }
     if (!result?.ok) {
-      // Keep what is loaded; the retry sits under it.
+      // Keep what is loaded; the retry sits under it and takes focus.
       setStatus("failed")
       return
     }
@@ -114,8 +148,13 @@ export function YourFindings({
     setCursor(result.page.nextCursor)
     setHidden(result.page.hiddenEarlierVenues)
     setStatus("idle")
-    // The button may go: move to the first new row.
+    // The button may go: move to the first new row, else the heading when
+    // the button went with nothing new (HM-06).
     if (fresh[0]) setFocusKey(rowKey(fresh[0]))
+    else if (!result.page.nextCursor)
+      requestAnimationFrame(() =>
+        document.getElementById(YOUR_FINDINGS_HEADING_ID)?.focus()
+      )
   }
 
   const asked = items.filter((item) => item.state === "needs_attention").length
@@ -202,9 +241,13 @@ export function YourFindings({
                             setItems((current) =>
                               current.filter((item) => rowKey(item) !== key)
                             )
-                            document
-                              .getElementById(YOUR_FINDINGS_HEADING_ID)
-                              ?.focus()
+                            setAnnouncement(YOUR_FINDINGS_COPY.discarded)
+                            // After the row and its dialog are gone.
+                            requestAnimationFrame(() =>
+                              document
+                                .getElementById(YOUR_FINDINGS_HEADING_ID)
+                                ?.focus()
+                            )
                             return true
                           }
                         : undefined
@@ -224,6 +267,7 @@ export function YourFindings({
               tone="negative"
               action={
                 <Button
+                  ref={retryRef}
                   type="button"
                   variant="secondary"
                   size="touch"
@@ -242,7 +286,8 @@ export function YourFindings({
               size="touch"
               className="justify-self-start max-sm:w-full"
               aria-busy={status === "loading"}
-              disabled={status === "loading"}
+              // aria-disabled keeps focus on it while loading (HM-06).
+              aria-disabled={status === "loading" || undefined}
               onClick={() => void more()}
             >
               {status === "loading" ? YOUR_FINDINGS_COPY.loading : "Show more"}
@@ -250,6 +295,9 @@ export function YourFindings({
           ) : null}
         </>
       )}
+      <p role="status" className="sr-only">
+        {announcement}
+      </p>
     </section>
   )
 }
