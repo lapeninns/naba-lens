@@ -136,7 +136,13 @@ function toEntry(
   }
 }
 
-/** Every staff and venue manager account (not admins), by name. One organisation: no pagination. */
+/** PostgREST answers at most `max_rows` (1000) rows per request, silently. */
+export const DIRECTORY_PAGE = 1000
+
+/**
+ * Every staff and venue manager account (not admins), by name, then id. Read
+ * in pages: one request would stop at `max_rows` without saying so.
+ */
 export async function listStaffDirectory(
   ctx: AccountsContext
 ): Promise<
@@ -145,14 +151,20 @@ export async function listStaffDirectory(
   const auth = await requireAdminCaller(ctx.caller)
   if (!auth.ok) return auth
 
-  const { data, error } = await ctx.caller
-    .from("profiles")
-    .select(PROFILE_COLUMNS)
-    .in("role", LISTED_ROLES)
-    .order("display_name", { ascending: true })
-    .order("id", { ascending: true })
-  if (error) return dbFailed()
-  const rows = data as ProfileRow[]
+  const rows: ProfileRow[] = []
+  for (let from = 0; ; from += DIRECTORY_PAGE) {
+    const { data, error } = await ctx.caller
+      .from("profiles")
+      .select(PROFILE_COLUMNS)
+      .in("role", LISTED_ROLES)
+      .order("display_name", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, from + DIRECTORY_PAGE - 1)
+    if (error) return dbFailed()
+    const page = (data ?? []) as ProfileRow[]
+    rows.push(...page)
+    if (page.length < DIRECTORY_PAGE) break
+  }
 
   // Auth and Storage in parallel; Auth is bounded and may degrade.
   const [users, avatarUrls] = await Promise.all([
