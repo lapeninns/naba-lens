@@ -17,7 +17,8 @@
 -- and their history stay.
 --
 -- Mirrored in TypeScript by lib/menus/trading/crosswalk.ts (matcher, snapshot
--- validator, content hash); tests/security/menus-crosswalk.test.ts pins both.
+-- validator, content hash, variant locators, decision provenance);
+-- tests/security/menus-crosswalk.test.ts pins both.
 
 -- ---------------------------------------------------------------------------
 -- Closed sets and pure helpers
@@ -217,6 +218,61 @@ as $$
   select encode(sha256(convert_to(p_request::text, 'UTF8')), 'hex');
 $$;
 
+-- One component of a generated locator, as locatorPart in crosswalk.ts: % and
+-- # percent-encoded, so a name never contains the # that starts a delimiter or
+-- a repeat suffix.
+create function private.menu_locator_part(p_text text)
+returns text
+language sql
+immutable
+set search_path = ''
+as $$
+  select replace(replace(p_text, '%', '%25'), '#', '%23');
+$$;
+
+-- An entry's variants in list order, as variantOccurrences in crosswalk.ts:
+-- each name, its catalogue key lower(btrim(name)), its occurrence among the
+-- entry's variants with that key, and its locator: the entry locator,
+-- #variant=, the encoded name and #<n> from the second occurrence on. Distinct
+-- occurrences always get distinct locators.
+create function private.menu_crosswalk_variants(p_entry jsonb)
+returns table (ord bigint, name text, name_key text, occurrence bigint, locator text)
+language sql
+immutable
+set search_path = ''
+as $$
+  select o.n, o.v, o.k, o.c,
+    (p_entry ->> 'locator') || '#variant=' || private.menu_locator_part(o.v)
+      || case when o.c > 1 then '#' || o.c::text else '' end
+  from (
+    select x.n, x.v, lower(btrim(x.v)) as k,
+      row_number() over (partition by lower(btrim(x.v)) order by x.n) as c
+    from jsonb_array_elements_text(coalesce(p_entry -> 'variants', '[]'::jsonb))
+      with ordinality as x(v, n)
+  ) o
+  order by o.n;
+$$;
+
+-- The entry of a snapshot document a crosswalk locator stands for, or null
+-- when the document does not list it: the entry itself, or for a variant row
+-- (p_entry_locator set) its entry when that lists this variant occurrence.
+-- crosswalkOccurrence in crosswalk.ts.
+create function private.menu_crosswalk_occurrence(
+  p_document jsonb, p_locator text, p_entry_locator text
+)
+returns jsonb
+language sql
+immutable
+set search_path = ''
+as $$
+  select x.e
+  from jsonb_array_elements(p_document) as x(e)
+  where x.e ->> 'locator' = coalesce(p_entry_locator, p_locator)
+    and (p_entry_locator is null or exists (
+      select 1 from private.menu_crosswalk_variants(x.e) as v where v.locator = p_locator))
+  limit 1;
+$$;
+
 -- ---------------------------------------------------------------------------
 -- Tables
 -- ---------------------------------------------------------------------------
@@ -321,7 +377,9 @@ create table public.menu_crosswalk (
   venue_id uuid not null,
   source_id uuid not null,
   snapshot_id uuid not null,
-  locator text not null check (length(locator) between 1 and 400),
+  -- An entry locator (300), #variant= (9), an encoded variant name (3 x 80)
+  -- and a repeat suffix (#12): CROSSWALK_LOCATOR_MAX in crosswalk.ts.
+  locator text not null check (length(locator) between 1 and 552),
   -- Set on variant rows: the locator of the source entry the variant is part of.
   entry_locator text check (entry_locator is null or length(entry_locator) between 1 and 300),
   content_hash text not null check (content_hash ~ '^[0-9a-f]{64}$'),
@@ -426,6 +484,24 @@ create table public.menu_source_commands (
 comment on table public.menu_source_commands is
   'Append-only record of each B04-a command and its first result, replayed for the same key, actor, command and request hash.';
 
+-- The snapshots the matcher has run on. A decision needs the source's newest
+-- snapshot here (§4.2 #6): rows written from an older one are not decided
+-- until the matcher has compared them with the newest.
+create table public.menu_crosswalk_runs (
+  snapshot_id uuid primary key,
+  source_id uuid not null,
+  venue_id uuid not null,
+  run_by uuid not null references public.profiles (id) on delete restrict,
+  run_at timestamptz not null default now(),
+  constraint menu_crosswalk_runs_snapshot_fkey foreign key (snapshot_id, source_id)
+    references public.menu_source_snapshots (id, source_id) on delete restrict,
+  constraint menu_crosswalk_runs_source_fkey foreign key (source_id, venue_id)
+    references public.menu_sources (id, venue_id) on delete restrict
+);
+
+comment on table public.menu_crosswalk_runs is
+  'Append-only: the first matcher run on each snapshot. A source whose newest snapshot has no run awaits reconciliation; its rows cannot be decided.';
+
 -- ---------------------------------------------------------------------------
 -- Guards
 -- ---------------------------------------------------------------------------
@@ -435,7 +511,8 @@ declare
   t text;
 begin
   foreach t in array array[
-    'menu_source_snapshots', 'menu_field_authority', 'menu_crosswalk', 'menu_source_commands'
+    'menu_source_snapshots', 'menu_field_authority', 'menu_crosswalk', 'menu_source_commands',
+    'menu_crosswalk_runs'
   ] loop
     execute format(
       'create trigger %I before update or delete on public.%I for each row execute function private.append_only_guard()',
@@ -530,12 +607,14 @@ create trigger menu_crosswalk_heads_no_truncate
 
 revoke all on
   public.menu_sources, public.menu_source_snapshots, public.menu_field_authority,
-  public.menu_crosswalk, public.menu_crosswalk_heads, public.menu_source_commands
+  public.menu_crosswalk, public.menu_crosswalk_heads, public.menu_source_commands,
+  public.menu_crosswalk_runs
 from public, anon, authenticated, service_role;
 
 grant select on
   public.menu_sources, public.menu_source_snapshots, public.menu_field_authority,
-  public.menu_crosswalk, public.menu_crosswalk_heads, public.menu_source_commands
+  public.menu_crosswalk, public.menu_crosswalk_heads, public.menu_source_commands,
+  public.menu_crosswalk_runs
 to service_role;
 
 alter table public.menu_sources enable row level security;
@@ -544,6 +623,7 @@ alter table public.menu_field_authority enable row level security;
 alter table public.menu_crosswalk enable row level security;
 alter table public.menu_crosswalk_heads enable row level security;
 alter table public.menu_source_commands enable row level security;
+alter table public.menu_crosswalk_runs enable row level security;
 
 -- ---------------------------------------------------------------------------
 -- Seed: §4.4 design defaults for every existing venue (rows, no switch)
@@ -867,10 +947,16 @@ $$;
 --      NabaLens-lineage source proposes by exact source key; any source gets
 --      name and alias candidates from the active version, and several
 --      candidates, or a name the source repeats, make the row ambiguous.
---   2. Variant rows, only for entries mapped to an item, matched only among
---      that item's variants on the active version.
---   3. not_on_source rows for locators the snapshot no longer lists; a mapped
---      variant whose entry is listed but no longer mapped needs review.
+--   2. Variant rows. Every variant the snapshot lists is on the source. While
+--      its entry is not mapped, a mapped or removed variant head needs review
+--      on this snapshot's evidence and nothing is proposed. Under an entry
+--      mapped to an item, a head from this snapshot inside that item is
+--      skipped; a mapped head is carried or needs review as entries are; a
+--      rejected or unmatched head with the same hash and item keeps its
+--      decision; anything else is matched afresh among that item's variants
+--      on the active version.
+--   3. not_on_source rows for every locator the snapshot no longer lists.
+-- The run is recorded in menu_crosswalk_runs; decisions need it.
 create function public.menu_crosswalk_propose(p_snapshot uuid, p_request_key uuid)
 returns jsonb
 language plpgsql
@@ -902,12 +988,11 @@ declare
   v_single boolean;
   v_listed text[] := '{}';
   v_variant record;
-  v_vkey text;
-  v_vseen text[];
-  v_repeat integer;
-  v_vlocator text;
   v_vhead public.menu_crosswalk_heads;
   v_parent public.menu_crosswalk_heads;
+  v_parent_item uuid;
+  v_current boolean;
+  v_same_item boolean;
   n_proposed integer := 0;
   n_ambiguous integer := 0;
   n_carried integer := 0;
@@ -1077,54 +1162,38 @@ begin
     end if;
   end loop;
 
-  -- 2. Variant rows of entries mapped to an item.
+  -- 2. Variant rows: every listed variant, matched only inside its entry's item.
   for v_entry in
     select x.e from jsonb_array_elements(v_snapshot.document) with ordinality as x(e, n) order by x.n
   loop
     v_locator := v_entry ->> 'locator';
+    v_content := private.menu_crosswalk_content_hash(v_entry);
     select h.* into v_parent
     from public.menu_crosswalk_heads h
     where h.source_id = v_source.id and h.locator = v_locator;
-    if not found or v_parent.status not in ('confirmed', 'carried') or v_parent.variant_id is not null then
-      continue;
-    end if;
-    v_content := private.menu_crosswalk_content_hash(v_entry);
-    v_vseen := '{}';
+    v_parent_item := case
+      when found and v_parent.status in ('confirmed', 'carried') and v_parent.variant_id is null
+        then v_parent.item_id
+    end;
     for v_variant in
-      select x.v as name from jsonb_array_elements_text(coalesce(v_entry -> 'variants', '[]'::jsonb))
-        with ordinality as x(v, n) order by x.n
+      select v.* from private.menu_crosswalk_variants(v_entry) as v order by v.ord
     loop
-      v_vkey := lower(btrim(v_variant.name));
-      v_vseen := v_vseen || v_vkey;
-      v_repeat := cardinality(array_positions(v_vseen, v_vkey));
-      v_vlocator := v_locator || '#variant=' || v_variant.name
-        || case when v_repeat > 1 then '#' || v_repeat else '' end;
-      v_listed := v_listed || v_vlocator;
+      v_listed := v_listed || v_variant.locator;
       select h.* into v_vhead
       from public.menu_crosswalk_heads h
-      where h.source_id = v_source.id and h.locator = v_vlocator
+      where h.source_id = v_source.id and h.locator = v_variant.locator
       for update;
       v_has_head := found;
+      -- Written from this snapshot's evidence already.
+      v_current := v_has_head and v_vhead.snapshot_id = p_snapshot and v_vhead.content_hash = v_content;
 
-      if v_has_head and v_vhead.snapshot_id = p_snapshot then
-        n_skipped := n_skipped + 1;
-        continue;
-      end if;
-
-      if v_has_head and v_vhead.status in ('confirmed', 'carried') then
-        if v_vhead.content_hash = v_content and v_vhead.item_id = v_parent.item_id then
-          select r.reviewed_by, r.reviewed_at into v_reviewer, v_reviewed_at
-          from public.menu_crosswalk r where r.id = v_vhead.row_id;
+      if v_parent_item is null then
+        -- The entry is not mapped: a mapping (or a removal) the variant had is
+        -- reviewed again on this snapshot's evidence; nothing is proposed.
+        if v_has_head and not v_current
+           and v_vhead.status in ('confirmed', 'carried', 'not_on_source') then
           perform private.menu_crosswalk_append(
-            v_source.venue_id, v_source.id, p_snapshot, v_vlocator, v_locator, v_content,
-            v_vhead.item_id, v_vhead.variant_id, v_vhead.channel, 'carried', 'carried', '{}'::uuid[],
-            jsonb_build_object('entry', private.menu_crosswalk_entry_evidence(v_entry),
-              'variant', v_variant.name),
-            v_uid, v_reviewer, v_reviewed_at, null);
-          n_carried := n_carried + 1;
-        else
-          perform private.menu_crosswalk_append(
-            v_source.venue_id, v_source.id, p_snapshot, v_vlocator, v_locator, v_content,
+            v_source.venue_id, v_source.id, p_snapshot, v_variant.locator, v_locator, v_content,
             v_vhead.item_id, v_vhead.variant_id, v_vhead.channel, 'needs_review', 'carried',
             case when v_vhead.variant_id is null then '{}'::uuid[] else array[v_vhead.variant_id] end,
             jsonb_build_object('entry', private.menu_crosswalk_entry_evidence(v_entry),
@@ -1135,23 +1204,56 @@ begin
         continue;
       end if;
 
-      if v_has_head and v_vhead.status in ('unmatched', 'rejected') and v_vhead.content_hash = v_content then
+      v_same_item := v_has_head and v_vhead.item_id is not distinct from v_parent_item;
+      if v_current and v_same_item then
         n_skipped := n_skipped + 1;
         continue;
       end if;
 
-      -- Only the variants of the mapped item, on the active version.
+      if v_has_head and v_vhead.status in ('confirmed', 'carried') then
+        if v_vhead.content_hash = v_content and v_same_item then
+          select r.reviewed_by, r.reviewed_at into v_reviewer, v_reviewed_at
+          from public.menu_crosswalk r where r.id = v_vhead.row_id;
+          perform private.menu_crosswalk_append(
+            v_source.venue_id, v_source.id, p_snapshot, v_variant.locator, v_locator, v_content,
+            v_vhead.item_id, v_vhead.variant_id, v_vhead.channel, 'carried', 'carried', '{}'::uuid[],
+            jsonb_build_object('entry', private.menu_crosswalk_entry_evidence(v_entry),
+              'variant', v_variant.name),
+            v_uid, v_reviewer, v_reviewed_at, null);
+          n_carried := n_carried + 1;
+        else
+          perform private.menu_crosswalk_append(
+            v_source.venue_id, v_source.id, p_snapshot, v_variant.locator, v_locator, v_content,
+            v_vhead.item_id, v_vhead.variant_id, v_vhead.channel, 'needs_review', 'carried',
+            case when v_vhead.variant_id is null then '{}'::uuid[] else array[v_vhead.variant_id] end,
+            jsonb_build_object('entry', private.menu_crosswalk_entry_evidence(v_entry),
+              'variant', v_variant.name),
+            v_uid, null, null, null);
+          n_review := n_review + 1;
+        end if;
+        continue;
+      end if;
+
+      if v_has_head and v_vhead.status in ('unmatched', 'rejected') and v_vhead.content_hash = v_content
+         and v_same_item then
+        n_skipped := n_skipped + 1;
+        continue;
+      end if;
+
+      -- New, removed and back, decided on other content, or proposed inside
+      -- another item (the entry was mapped again): matched afresh, only among
+      -- the variants of the mapped item on the active version.
       select coalesce(array_agg(ev.variant_id order by ev.position), '{}') into v_ids
       from public.menu_entry_variants ev
       join public.menu_entries e on e.id = ev.entry_id
       where e.version_id = v_version
-        and e.item_id = v_parent.item_id
-        and lower(btrim(ev.name)) = v_vkey;
+        and e.item_id = v_parent_item
+        and lower(btrim(ev.name)) = v_variant.name_key;
       v_count := cardinality(v_ids);
-      v_single := v_count = 1 and v_repeat = 1;
+      v_single := v_count = 1 and v_variant.occurrence = 1;
       perform private.menu_crosswalk_append(
-        v_source.venue_id, v_source.id, p_snapshot, v_vlocator, v_locator, v_content,
-        v_parent.item_id, case when v_single then v_ids[1] end, 'all',
+        v_source.venue_id, v_source.id, p_snapshot, v_variant.locator, v_locator, v_content,
+        v_parent_item, case when v_single then v_ids[1] end, 'all',
         case when v_count = 0 or v_single then 'proposed' else 'ambiguous' end,
         'name_candidate', v_ids[1:20],
         jsonb_build_object('entry', private.menu_crosswalk_entry_evidence(v_entry),
@@ -1165,31 +1267,22 @@ begin
     end loop;
   end loop;
 
-  -- 3. Locators the snapshot no longer lists.
+  -- 3. Locators the snapshot no longer lists, entries and variants alike.
   for v_head in
     select h.* from public.menu_crosswalk_heads h
     where h.source_id = v_source.id
       and h.status <> 'not_on_source'
-      and h.snapshot_id <> p_snapshot
       and not (h.locator = any (v_listed))
     order by h.locator collate "C"
     for update
   loop
-    if v_head.entry_locator is not null and v_head.entry_locator = any (v_listed) then
-      select h.* into v_parent
-      from public.menu_crosswalk_heads h
-      where h.source_id = v_source.id and h.locator = v_head.entry_locator;
-      if not (found and v_parent.status in ('confirmed', 'carried')) then
-        if v_head.status in ('confirmed', 'carried') then
-          perform private.menu_crosswalk_requeue(v_head, p_snapshot, 'needs_review', v_uid);
-          n_review := n_review + 1;
-        end if;
-        continue;
-      end if;
-    end if;
     perform private.menu_crosswalk_requeue(v_head, p_snapshot, 'not_on_source', v_uid);
     n_gone := n_gone + 1;
   end loop;
+
+  insert into public.menu_crosswalk_runs (snapshot_id, source_id, venue_id, run_by)
+  values (p_snapshot, v_source.id, v_source.venue_id, v_uid)
+  on conflict (snapshot_id) do nothing;
 
   v_result := jsonb_build_object(
     'snapshotId', p_snapshot,
@@ -1206,6 +1299,12 @@ $$;
 -- OD-B4-2. p_row must be the row in force for its locator and p_expected its
 -- head revision. Enforces §4.2 #3: one identity per source entry, one source
 -- entry per (item, variant, channel), both refused with crosswalk_conflict.
+-- Only current source evidence is decided (§4.2 #2, #6): while the source's
+-- newest snapshot awaits the matcher, every decision is
+-- crosswalk_reconcile_pending; a row whose entry or variant that snapshot does
+-- not list (a not_on_source row included) is crosswalk_not_on_source, as is a
+-- confirmation whose content hash is not the listed entry's. A replayed
+-- request key returns its first result before any of this.
 create function public.menu_crosswalk_decide(
   p_row uuid, p_expected integer, p_status text, p_item uuid, p_variant uuid, p_channel text,
   p_reason text, p_request_key uuid
@@ -1226,6 +1325,8 @@ declare
   v_head public.menu_crosswalk_heads;
   v_parent public.menu_crosswalk_heads;
   v_child public.menu_crosswalk_heads;
+  v_latest public.menu_source_snapshots;
+  v_entry jsonb;
   v_version uuid;
   v_basis text;
   v_item uuid;
@@ -1266,6 +1367,22 @@ begin
      or v_head.revision <> p_expected then
     raise exception 'crosswalk_stale' using errcode = '40001',
       detail = jsonb_build_object('rowId', v_head.row_id, 'revision', v_head.revision)::text;
+  end if;
+
+  -- Snapshots are recorded under the source's crosswalk lock, so the newest
+  -- cannot change before this decision commits.
+  select s.* into v_latest
+  from public.menu_source_snapshots s
+  where s.source_id = v_row.source_id
+  order by s.seq desc
+  limit 1;
+  if not exists (select 1 from public.menu_crosswalk_runs cr where cr.snapshot_id = v_latest.id) then
+    raise exception 'crosswalk_reconcile_pending' using errcode = 'P0001';
+  end if;
+  v_entry := private.menu_crosswalk_occurrence(v_latest.document, v_head.locator, v_head.entry_locator);
+  if v_head.status = 'not_on_source' or v_entry is null
+     or (p_status = 'confirmed' and private.menu_crosswalk_content_hash(v_entry) <> v_head.content_hash) then
+    raise exception 'crosswalk_not_on_source' using errcode = 'P0001';
   end if;
 
   if p_status = 'confirmed' then
@@ -1333,7 +1450,9 @@ begin
       raise exception 'invalid_crosswalk_decision' using errcode = '22023';
     end if;
     -- A rejected row keeps what was rejected; an unmatched entry maps nothing.
-    v_item := case when p_status = 'rejected' then v_row.item_id end;
+    -- A variant row keeps the item it was matched inside, so the matcher can
+    -- tell a decision under this item from one under an item mapped since.
+    v_item := case when p_status = 'rejected' or v_row.entry_locator is not null then v_row.item_id end;
     v_variant := case when p_status = 'rejected' then v_row.variant_id end;
     v_basis := case when p_status = 'rejected' and v_row.basis <> 'carried' then v_row.basis else 'manual' end;
   end if;
@@ -1594,6 +1713,23 @@ begin
             where snap.source_id = s.id
             order by snap.seq desc
             limit 1),
+          -- The rows, outcomes and price text of this source stand for the
+          -- newest snapshot the matcher has run on, not a newer one.
+          'reconciledSnapshot', (
+            select jsonb_build_object('revision', snap.source_revision, 'capturedAt', snap.captured_at,
+                'retrievedAt', snap.retrieved_at, 'entryCount', snap.entry_count)
+              || case when v_admin then jsonb_build_object('snapshotId', snap.id) else '{}'::jsonb end
+            from public.menu_source_snapshots snap
+            join public.menu_crosswalk_runs cr on cr.snapshot_id = snap.id
+            where snap.source_id = s.id
+            order by snap.seq desc
+            limit 1),
+          'reconciliationPending', coalesce((
+            select not exists (select 1 from public.menu_crosswalk_runs cr where cr.snapshot_id = snap.id)
+            from public.menu_source_snapshots snap
+            where snap.source_id = s.id
+            order by snap.seq desc
+            limit 1), false),
           'counts', coalesce((
             select jsonb_object_agg(c.status, c.n)
             from (
@@ -1635,7 +1771,111 @@ begin
         limit 5000
       ) x
     ), '[]'::jsonb) end,
-    'reviewTruncated', (select count(*) > 5000 from review)
+    'reviewTruncated', (select count(*) > 5000 from review),
+    -- Where public.menu_crosswalk_rows continues a truncated review list.
+    'reviewNext', (
+      select jsonb_build_object('sourceId', x.source_id, 'locator', x.locator)
+      from (
+        select rv.source_id, rv.locator from review rv
+        order by rv.declared_at, rv.source_id, rv.locator collate "C"
+        offset 4999 limit 1
+      ) x
+      where (select count(*) > 5000 from review))
+  ) into v_result;
+  return v_result;
+end;
+$$;
+
+-- One page of a venue's crosswalk rows in force (admin only), in the
+-- manifest's review order: source declared_at, source id, locator in "C"
+-- order. p_statuses defaults to the review list (open and removed rows); with
+-- ('confirmed', 'carried') it finds the current mappings, each with its row id
+-- and revision, so a reviewer can reject one before choosing another (§4.2
+-- #3). p_source and p_item narrow the page. The cursor (p_after_source,
+-- p_after_locator) is the previous page's `next`, or the manifest's
+-- reviewNext; it is the last row returned, and the page starts after it.
+-- p_limit: 1 to 1000 rows, default 100. One STABLE statement.
+create function public.menu_crosswalk_rows(
+  p_venue uuid,
+  p_statuses text[],
+  p_source uuid,
+  p_item uuid,
+  p_after_source uuid,
+  p_after_locator text,
+  p_limit integer
+)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_statuses text[] := coalesce(p_statuses,
+    array['proposed', 'ambiguous', 'needs_review', 'not_on_source']);
+  v_limit integer := greatest(1, least(coalesce(p_limit, 100), 1000));
+  v_after_at timestamptz;
+  v_result jsonb;
+begin
+  perform private.assert_active_admin();
+  if p_venue is null or not exists (select 1 from public.venues v where v.id = p_venue) then
+    raise exception 'venue_not_found' using errcode = 'P0002';
+  end if;
+  if cardinality(v_statuses) = 0 or array_position(v_statuses, null) is not null
+     or not (v_statuses <@ array['proposed', 'ambiguous', 'confirmed', 'unmatched', 'not_on_source',
+                                 'needs_review', 'rejected', 'carried']) then
+    raise exception 'invalid_crosswalk_status' using errcode = '22023';
+  end if;
+  if p_source is not null
+     and not exists (select 1 from public.menu_sources s where s.id = p_source and s.venue_id = p_venue) then
+    raise exception 'menu_source_not_found' using errcode = 'P0002';
+  end if;
+  if (p_after_source is null) <> (p_after_locator is null) then
+    raise exception 'invalid_crosswalk_cursor' using errcode = '22023';
+  end if;
+  if p_after_source is not null then
+    select s.declared_at into v_after_at
+    from public.menu_sources s
+    where s.id = p_after_source and s.venue_id = p_venue;
+    if not found then
+      raise exception 'invalid_crosswalk_cursor' using errcode = '22023';
+    end if;
+  end if;
+
+  with page as (
+    select h.row_id, h.revision, h.source_id, h.locator, h.entry_locator, h.status, h.item_id,
+      h.variant_id, h.channel, h.candidates, r.basis, r.evidence, r.proposed_at, r.reviewed_by,
+      r.reviewed_at, r.reason,
+      row_number() over (order by s.declared_at, s.id, h.locator collate "C") as n
+    from public.menu_crosswalk_heads h
+    join public.menu_crosswalk r on r.id = h.row_id
+    join public.menu_sources s on s.id = h.source_id
+    where s.venue_id = p_venue
+      and h.status = any (v_statuses)
+      and (p_source is null or h.source_id = p_source)
+      and (p_item is null or h.item_id = p_item)
+      and (p_after_source is null
+        or (s.declared_at, s.id) > (v_after_at, p_after_source)
+        or (s.id = p_after_source and h.locator collate "C" > p_after_locator collate "C"))
+    order by s.declared_at, s.id, h.locator collate "C"
+    limit v_limit + 1
+  )
+  select jsonb_build_object(
+    'venueId', p_venue,
+    'rows', coalesce((
+      select jsonb_agg(jsonb_build_object(
+          'rowId', x.row_id, 'revision', x.revision, 'sourceId', x.source_id, 'locator', x.locator,
+          'entryLocator', x.entry_locator, 'status', x.status, 'basis', x.basis, 'itemId', x.item_id,
+          'variantId', x.variant_id, 'channel', x.channel, 'candidates', to_jsonb(x.candidates),
+          'evidence', x.evidence, 'proposedAt', x.proposed_at, 'reviewedBy', x.reviewed_by,
+          'reviewedAt', x.reviewed_at, 'reason', x.reason)
+        order by x.n)
+      from page x
+      where x.n <= v_limit), '[]'::jsonb),
+    'next', (
+      select jsonb_build_object('sourceId', x.source_id, 'locator', x.locator)
+      from page x
+      where x.n = v_limit and exists (select 1 from page y where y.n > v_limit))
   ) into v_result;
   return v_result;
 end;
@@ -1654,6 +1894,9 @@ revoke all on function
   private.menu_snapshot_list_ok(jsonb, integer, integer),
   private.menu_snapshot_document_error(jsonb),
   private.menu_source_request_hash(jsonb),
+  private.menu_locator_part(text),
+  private.menu_crosswalk_variants(jsonb),
+  private.menu_crosswalk_occurrence(jsonb, text, text),
   private.menu_sources_guard(),
   private.menu_crosswalk_heads_guard(),
   private.menu_source_replay(uuid, uuid, text, text),
@@ -1670,7 +1913,8 @@ revoke all on function
   public.menu_crosswalk_propose(uuid, uuid),
   public.menu_crosswalk_decide(uuid, integer, text, uuid, uuid, text, text, uuid),
   public.menu_set_field_authority(uuid, text, text, text, uuid, text, uuid),
-  public.menu_manifest(uuid)
+  public.menu_manifest(uuid),
+  public.menu_crosswalk_rows(uuid, text[], uuid, uuid, uuid, text, integer)
 from public, anon, service_role;
 
 grant execute on function
@@ -1679,5 +1923,6 @@ grant execute on function
   public.menu_crosswalk_propose(uuid, uuid),
   public.menu_crosswalk_decide(uuid, integer, text, uuid, uuid, text, text, uuid),
   public.menu_set_field_authority(uuid, text, text, text, uuid, text, uuid),
-  public.menu_manifest(uuid)
+  public.menu_manifest(uuid),
+  public.menu_crosswalk_rows(uuid, text[], uuid, uuid, uuid, text, integer)
 to authenticated;

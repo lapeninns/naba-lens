@@ -321,17 +321,28 @@ export function snapshotDocumentError(document: unknown): SnapshotIssue | null {
 }
 
 /**
+ * One component of a generated locator: `%` and `#` percent-encoded
+ * (`private.menu_locator_part`), so a name never contains the `#` that starts
+ * a delimiter (`#category=`, `#name=`, `#variant=`) or a repeat suffix (`#2`).
+ * Generated locators are therefore distinct for distinct occurrences, whatever
+ * the source names contain.
+ */
+export const locatorPart = (s: string) =>
+  s.replace(/%/g, "%25").replace(/#/g, "%23")
+
+/**
  * Locators for sources without stable ids (§4.3): the document reference plus
  * the item's name within its category, with `#2`, `#3`… when a category
  * repeats a name. `file` may carry a menu prefix (for example
  * `takeaway/curries.json`) so one dish listed on two menus gets two locators.
+ * Each component is encoded with `locatorPart`.
  */
 export function websiteLocators(
   entries: { file: string; category?: string | null; name: string }[]
 ): string[] {
   const counts = new Map<string, number>()
   return entries.map(({ file, category, name }) => {
-    const base = `${file}${category ? `#category=${category}` : ""}#name=${name}`
+    const base = `${locatorPart(file)}${category ? `#category=${locatorPart(category)}` : ""}#name=${locatorPart(name)}`
     const n = (counts.get(base) ?? 0) + 1
     counts.set(base, n)
     return n > 1 ? `${base}#${n}` : base
@@ -342,18 +353,65 @@ export function websiteLocators(
 export const variantNameKey = (s: string) =>
   s.replace(/^ +| +$/g, "").toLowerCase()
 
+/** One variant an entry lists, as `private.menu_crosswalk_variants`. */
+export type VariantOccurrence = {
+  name: string
+  /** `variantNameKey(name)`. */
+  key: string
+  /** 1 for the first variant with this key in the entry, 2 for the next… */
+  occurrence: number
+  locator: string
+}
+
 /**
- * Locators of an entry's variants: the entry locator, `#variant=` and the
- * variant name, with `#2`… when the entry repeats a variant name.
+ * An entry's variants in list order with their locators: the entry locator,
+ * `#variant=`, the encoded variant name, and `#2`… when the entry repeats a
+ * variant name.
  */
-export function variantLocators(entry: SnapshotEntry): string[] {
+export function variantOccurrences(entry: SnapshotEntry): VariantOccurrence[] {
   const counts = new Map<string, number>()
-  return (entry.variants ?? []).map((v) => {
-    const key = variantNameKey(v)
-    const n = (counts.get(key) ?? 0) + 1
-    counts.set(key, n)
-    return `${entry.locator}${VARIANT_LOCATOR_MARK}${v}${n > 1 ? `#${n}` : ""}`
+  return (entry.variants ?? []).map((name) => {
+    const key = variantNameKey(name)
+    const occurrence = (counts.get(key) ?? 0) + 1
+    counts.set(key, occurrence)
+    return {
+      name,
+      key,
+      occurrence,
+      locator: `${entry.locator}${VARIANT_LOCATOR_MARK}${locatorPart(name)}${occurrence > 1 ? `#${occurrence}` : ""}`,
+    }
   })
+}
+
+/** The locators of an entry's variants (see `variantOccurrences`). */
+export const variantLocators = (entry: SnapshotEntry): string[] =>
+  variantOccurrences(entry).map((v) => v.locator)
+
+/**
+ * The longest crosswalk locator (`menu_crosswalk.locator`): an entry locator,
+ * `#variant=`, a variant name whose every character is encoded to three, and
+ * the largest repeat suffix.
+ */
+export const CROSSWALK_LOCATOR_MAX =
+  SNAPSHOT_LIMITS.locatorMax +
+  VARIANT_LOCATOR_MARK.length +
+  3 * SNAPSHOT_LIMITS.variantMax +
+  `#${SNAPSHOT_LIMITS.maxVariants}`.length
+
+/**
+ * The entry of `entries` a crosswalk locator stands for (its index), or -1
+ * when the snapshot does not list it: the entry itself, or for a variant row
+ * the entry of `entryLocator` when it lists this variant occurrence. As
+ * `private.menu_crosswalk_occurrence`.
+ */
+export function crosswalkOccurrence(
+  entries: SnapshotEntry[],
+  locator: string,
+  entryLocator: string | null
+): number {
+  const i = entries.findIndex((e) => e.locator === (entryLocator ?? locator))
+  if (i < 0 || entryLocator === null) return i
+  return variantLocators(entries[i]).includes(locator) ? i : -1
 }
 
 const jsonText = (v: string | null | undefined) =>
@@ -472,8 +530,8 @@ function keysOf(name: string, aliases: string[] | undefined): Set<string> {
 
 /**
  * Proposals for one snapshot, in the order `menu_crosswalk_propose` writes
- * them: every entry row, then variant rows of entries mapped to an item, then
- * `not_on_source` rows for locators the snapshot no longer lists.
+ * them: every entry row, then variant rows, then `not_on_source` rows for
+ * locators the snapshot no longer lists.
  *
  * - An identical locator and content hash carries a confirmed row (`carried`,
  *   reviewer kept); any other change sends it to `needs_review` (§4.2 #6).
@@ -481,9 +539,14 @@ function keysOf(name: string, aliases: string[] | undefined): Set<string> {
  *   and aliases give candidates. Several candidates, or a name the source
  *   repeats, make the row `ambiguous` with every candidate listed (§4.2 #4).
  * - Variants are matched only inside the item the entry is confirmed to
- *   (§4.2 #5), so a variant name is never matched across items.
- * - A locator already proposed from this snapshot is skipped, so running the
- *   matcher again after confirming items adds only the variant rows.
+ *   (§4.2 #5), so a variant name is never matched across items. A variant the
+ *   snapshot lists is on the source even while its entry awaits review: a
+ *   mapping it had goes to `needs_review` on this snapshot's evidence, and
+ *   only a variant the snapshot no longer lists becomes `not_on_source`.
+ * - An entry row already written from this snapshot is skipped; a variant row
+ *   is skipped only while it is from this snapshot and inside the item its
+ *   entry is mapped to now. Running the matcher again after confirming (or
+ *   correcting) entries adds or re-proposes only the variant rows.
  */
 export function proposeCrosswalk(input: ProposeInput): ProposeResult {
   const heads = new Map(input.heads.map((h) => [h.locator, h]))
@@ -575,79 +638,82 @@ export function proposeCrosswalk(input: ProposeInput): ProposeResult {
     })
   })
 
-  // 2. Variant rows, only inside the item the entry is mapped to.
+  // 2. Variant rows. Every variant the snapshot lists is on the source whether
+  // or not its entry is mapped; proposals are made only inside the item the
+  // entry is mapped to.
   const listed = new Set(input.entries.map((e) => e.locator))
   input.entries.forEach((entry, i) => {
-    const parent = heads.get(entry.locator)
-    if (!parent || !isMapped(parent.status) || parent.variantId) return
     const hash = input.contentHashes[i]
-    const item = catalogue.find((c) => c.itemId === parent.itemId)
-    const keyCounts = new Map<string, number>()
-    variantLocators(entry).forEach((locator, k) => {
+    const parent = heads.get(entry.locator)
+    const parentItem =
+      parent && isMapped(parent.status) && !parent.variantId
+        ? parent.itemId
+        : null
+    const item = catalogue.find((c) => c.itemId === parentItem)
+    for (const { key, occurrence, locator } of variantOccurrences(entry)) {
       listed.add(locator)
-      const name = entry.variants![k]
-      const key = variantNameKey(name)
-      const repeat = (keyCounts.get(key) ?? 0) + 1
-      keyCounts.set(key, repeat)
       const head = heads.get(locator)
-      if (head?.snapshotId === input.snapshotId) return void skipped++
-      if (
-        fromMapped(
-          head,
-          locator,
-          entry.locator,
-          hash,
-          head?.itemId === parent.itemId
+      // Written from this snapshot's evidence already.
+      const current =
+        head?.snapshotId === input.snapshotId && head.contentHash === hash
+      if (!parentItem) {
+        // The entry is not mapped: a mapping (or a removal) the variant had is
+        // reviewed again on this snapshot's evidence; nothing is proposed.
+        if (
+          head &&
+          !current &&
+          (isMapped(head.status) || head.status === "not_on_source")
         )
-      )
-        return
-      if (head && isDecidedAway(head.status) && head.contentHash === hash)
-        return void skipped++
+          write(reviewRow(head, locator, entry.locator, hash))
+        continue
+      }
+      const sameItem = head?.itemId === parentItem
+      if (current && sameItem) {
+        skipped++
+        continue
+      }
+      if (fromMapped(head, locator, entry.locator, hash, sameItem)) continue
+      if (
+        head &&
+        isDecidedAway(head.status) &&
+        head.contentHash === hash &&
+        sameItem
+      ) {
+        skipped++
+        continue
+      }
+      // New, removed and back, decided on other content, or proposed inside
+      // another item (the entry was mapped again): matched afresh.
       const ids = (item?.variants ?? [])
         .filter((v) => variantNameKey(v.name) === key)
         .map((v) => v.variantId)
-      const single = ids.length === 1 && repeat === 1
+      const single = ids.length === 1 && occurrence === 1
       write({
         locator,
         entryLocator: entry.locator,
         status: ids.length === 0 || single ? "proposed" : "ambiguous",
         basis: "name_candidate",
-        itemId: parent.itemId,
+        itemId: parentItem,
         variantId: single ? ids[0] : null,
         channel: "all",
         candidates: ids.slice(0, CROSSWALK_MAX_CANDIDATES),
         candidateCount: ids.length,
         contentHash: hash,
       })
-    })
+    }
   })
 
-  // 3. Locators the snapshot no longer lists.
+  // 3. Locators the snapshot no longer lists, entries and variants alike.
   const remaining = [...heads.values()]
-    .filter(
-      (h) =>
-        h.status !== "not_on_source" &&
-        h.snapshotId !== input.snapshotId &&
-        !listed.has(h.locator)
-    )
+    .filter((h) => h.status !== "not_on_source" && !listed.has(h.locator))
     .sort((a, b) =>
       a.locator < b.locator ? -1 : a.locator > b.locator ? 1 : 0
     )
-  for (const h of remaining) {
-    const parent = h.entryLocator ? heads.get(h.entryLocator) : undefined
-    const parentListed = h.entryLocator ? listed.has(h.entryLocator) : false
-    // A variant whose entry is still listed but no longer mapped is looked at
-    // again with its entry; one whose entry is mapped left the source.
-    if (parentListed && !(parent && isMapped(parent.status))) {
-      if (isMapped(h.status))
-        write(reviewRow(h, h.locator, h.entryLocator, h.contentHash))
-      continue
-    }
+  for (const h of remaining)
     write({
       ...mappedRow(h, h.locator, h.entryLocator, h.contentHash),
       status: "not_on_source",
     })
-  }
   return { rows, skipped }
 }
 
@@ -666,6 +732,7 @@ export type CrosswalkDecision =
 
 export type CrosswalkDecisionError =
   | "crosswalk_conflict"
+  | "crosswalk_not_on_source"
   | "crosswalk_parent_not_confirmed"
   | "crosswalk_variant_required"
   | "crosswalk_variant_wrong_item"
@@ -673,7 +740,8 @@ export type CrosswalkDecisionError =
 /**
  * Why the database would refuse this decision on `locator`, from the heads of
  * the same source, or null. `variantItem` names a variant's item (null when
- * unknown). Checks that need the database (venue, active menu) are not here.
+ * unknown). Checks that need the database (venue, active menu, the source's
+ * newest snapshot: `crosswalkProvenanceError`) are not here.
  */
 export function crosswalkDecisionError(
   heads: CrosswalkHead[],
@@ -681,9 +749,11 @@ export function crosswalkDecisionError(
   decision: CrosswalkDecision,
   variantItem: (variantId: string) => string | null
 ): CrosswalkDecisionError | null {
-  if (decision.status !== "confirmed") return null
   const head = heads.find((h) => h.locator === locator)
   if (!head) return null
+  // A removed entry is never decided on its last-known evidence.
+  if (head.status === "not_on_source") return "crosswalk_not_on_source"
+  if (decision.status !== "confirmed") return null
   if (decision.variantId && variantItem(decision.variantId) !== decision.itemId)
     return "crosswalk_variant_wrong_item"
   if (head.entryLocator) {
@@ -712,6 +782,46 @@ export function crosswalkDecisionError(
       h.channel === decision.channel
   )
   return taken ? "crosswalk_conflict" : null
+}
+
+/** The source's newest snapshot, as `menu_crosswalk_decide` reads it. */
+export type CurrentSnapshot = {
+  /** The matcher has run on it (`menu_crosswalk_runs`). */
+  processed: boolean
+  entries: SnapshotEntry[]
+  /** `contentHashes[i]` is SHA-256 hex of `contentHashInput(entries[i])`. */
+  contentHashes: string[]
+}
+
+/**
+ * The provenance rule of `menu_crosswalk_decide` (§4.2 #2, #6): a decision is
+ * refused while the source's newest snapshot awaits the matcher
+ * (`crosswalk_reconcile_pending`), and for a row whose entry or variant that
+ * snapshot does not list (`crosswalk_not_on_source`). A confirmation also
+ * needs the row's content hash to be the listed entry's.
+ */
+export function crosswalkProvenanceError(
+  head: Pick<
+    CrosswalkHead,
+    "locator" | "entryLocator" | "status" | "contentHash"
+  >,
+  decision: Pick<CrosswalkDecision, "status">,
+  current: CurrentSnapshot
+): "crosswalk_reconcile_pending" | "crosswalk_not_on_source" | null {
+  if (!current.processed) return "crosswalk_reconcile_pending"
+  const i = crosswalkOccurrence(
+    current.entries,
+    head.locator,
+    head.entryLocator
+  )
+  if (
+    head.status === "not_on_source" ||
+    i < 0 ||
+    (decision.status === "confirmed" &&
+      current.contentHashes[i] !== head.contentHash)
+  )
+    return "crosswalk_not_on_source"
+  return null
 }
 
 /**
@@ -759,6 +869,15 @@ export type ManifestFieldRow = {
   approvedAt?: string | null
 }
 
+export type ManifestSnapshot = {
+  /** Admin view only. */
+  snapshotId?: string
+  revision: string
+  capturedAt: string | null
+  retrievedAt: string
+  entryCount: number
+}
+
 export type ManifestSource = {
   sourceId: string
   kind: MenuSourceKind
@@ -767,14 +886,17 @@ export type ManifestSource = {
   locator?: string | null
   declaredAt: string
   retiredAt: string | null
-  latestSnapshot: {
-    /** Admin view only. */
-    snapshotId?: string
-    revision: string
-    capturedAt: string | null
-    retrievedAt: string
-    entryCount: number
-  } | null
+  latestSnapshot: ManifestSnapshot | null
+  /**
+   * The newest snapshot the matcher has run on: the crosswalk rows, outcomes
+   * and price text of this source stand for it.
+   */
+  reconciledSnapshot: ManifestSnapshot | null
+  /**
+   * The latest snapshot awaits the matcher; until it runs, no row of this
+   * source can be decided (`crosswalk_reconcile_pending`).
+   */
+  reconciliationPending: boolean
   /** Rows in force by status. */
   counts: Partial<Record<CrosswalkStatus, number>>
 }
@@ -810,6 +932,9 @@ export type ManifestReviewRow = {
   proposedAt: string
 }
 
+/** Where the next page of `menu_crosswalk_rows` starts: after this row. */
+export type CrosswalkRowsCursor = { sourceId: string; locator: string }
+
 export type MenuManifest = {
   schema: "1.0"
   venueId: string
@@ -818,9 +943,40 @@ export type MenuManifest = {
   fields: ManifestFieldRow[]
   sources: ManifestSource[]
   entries: ManifestEntry[]
-  /** Admin view only (null for managers): open and removed rows to review. */
+  /**
+   * Admin view only (null for managers): the first
+   * `MANIFEST_REVIEW_LIMIT` open and removed rows to review.
+   */
   review: ManifestReviewRow[] | null
   reviewTruncated: boolean
+  /**
+   * Admin view only: when the review list is truncated, the cursor that
+   * `menu_crosswalk_rows` continues it from (null otherwise).
+   */
+  reviewNext: CrosswalkRowsCursor | null
+}
+
+export const MANIFEST_REVIEW_LIMIT = 5000
+
+/** `menu_crosswalk_rows` with no statuses: the manifest's review list. */
+export const CROSSWALK_REVIEW_STATUSES: readonly CrosswalkStatus[] = [
+  "proposed",
+  "ambiguous",
+  "needs_review",
+  "not_on_source",
+]
+
+/** Page sizes of `menu_crosswalk_rows`. */
+export const CROSSWALK_ROWS_PAGE = { default: 100, max: 1000 } as const
+
+/**
+ * A row in force (admin). Confirmed and carried rows carry their reviewer, so
+ * a reviewer can find a current mapping and its revision to reject it.
+ */
+export type CrosswalkRow = ManifestReviewRow & {
+  reviewedBy: string | null
+  reviewedAt: string | null
+  reason: string | null
 }
 
 const csvCell = (v: string) => {
