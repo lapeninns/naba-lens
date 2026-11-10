@@ -85,6 +85,8 @@ export const IMPORT_COPY = {
   title: (label: string | null, by: string | null) =>
     `Imported from ${label ?? "the old facts list"}${by ? ` by ${by}` : ""}`,
   checkedOn: "Not recorded",
+  sourceSaid: "What the source said",
+  oldNotes: "Old notes",
   never: "Imported records are never used until someone confirms them.",
   notAdoptable:
     "This import can't be used: this question already has a recorded answer (in use, withdrawn or past its check date). To change the answer, send a new finding or state it as a manager or an admin.",
@@ -1134,6 +1136,17 @@ function FindingCard({
                   : null}
                 {isImport(finding) ? (
                   <Fact term="Checked on">{IMPORT_COPY.checkedOn}</Fact>
+                ) : null}
+                {isImport(finding) && finding.sourceExcerpt ? (
+                  <Fact
+                    term={
+                      finding.source === "legacy_fact"
+                        ? IMPORT_COPY.oldNotes
+                        : IMPORT_COPY.sourceSaid
+                    }
+                  >
+                    {finding.sourceExcerpt}
+                  </Fact>
                 ) : null}
                 {finding.changeReason ? (
                   <Fact term="What changed">{finding.changeReason}</Fact>

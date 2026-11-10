@@ -739,3 +739,32 @@ describe("corrected and withdrawn findings (B03-g, A15)", () => {
     ).toBeNull()
   })
 })
+
+describe("answer and import sources (B03-f review low 2, WS5 item 3)", () => {
+  it("reads where the answer in use came from, and an import's excerpt", () => {
+    const inUse = adaptAnswerInUse(
+      slot({
+        answerInUse: {
+          ...slot().answerInUse!,
+          source: "external_source",
+          sourceLabel: "⟨Source⟩",
+        },
+      })
+    )
+    expect(inUse).toMatchObject({
+      source: "external_source",
+      sourceLabel: "⟨Source⟩",
+    })
+    expect(adaptAnswerInUse(slot())).not.toHaveProperty("source")
+    const view = adaptCheck(
+      check({
+        pending: [
+          pending({ source: "legacy_fact", sourceExcerpt: "⟨Old notes⟩" }),
+        ],
+      }),
+      "The Old Crown"
+    )
+    if (!view.inScope) throw new Error("in scope")
+    expect(view.pending[0].sourceExcerpt).toBe("⟨Old notes⟩")
+  })
+})

@@ -869,3 +869,20 @@ describe("legacy qualifications (A19, A39, review M3)", () => {
     expect(qualifiedInUse(null)).toBe(false)
   })
 })
+
+describe("an adopted import in use (B03 UI §7.1)", () => {
+  it("names its source and no person", () => {
+    expect(
+      answerInUseLines(
+        { ...YES, source: "external_source", sourceLabel: "⟨Source⟩" },
+        slot()
+      )
+    ).toEqual(["Current answer: Yes. Imported from ⟨Source⟩."])
+    expect(
+      answerInUseLines(
+        { ...YES, source: "legacy_fact", sourceLabel: null },
+        slot()
+      )
+    ).toEqual(["Current answer: Yes. Imported from the old facts list."])
+  })
+})

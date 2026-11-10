@@ -265,8 +265,15 @@ export function answerInUseLines(
   const recorded = answer.savedAt
     ? ` Recorded ${longDate(answer.savedAt)}.`
     : ""
-  if (answer.status === "available")
-    return value ? [`Current answer: ${value}.${recorded}`] : ["To check."]
+  if (answer.status === "available") {
+    if (!value) return ["To check."]
+    // B03-f (§7.1): an adopted import names its source, never a person.
+    if (answer.source === "external_source" || answer.source === "legacy_fact")
+      return [
+        `Current answer: ${value}. Imported from ${answer.sourceLabel ?? "the old facts list"}.`,
+      ]
+    return [`Current answer: ${value}.${recorded}`]
+  }
   switch (answer.detail) {
     case "conflict":
       return [

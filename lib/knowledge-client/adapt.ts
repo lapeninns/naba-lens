@@ -145,6 +145,7 @@ export function adaptAnswerInUse(slot: KnowledgeSlotView): AnswerInUse {
     ...(typeof answer?.scheduleId === "string" && answer.scheduleId
       ? { scheduleId: answer.scheduleId }
       : {}),
+    ...withoutAdoptable(sourceOf(answer ?? {})),
     confirmation: {
       state: answer?.confirmationState ?? "not_required",
       // Managers and admins only: staff get no confirmer.
@@ -312,6 +313,9 @@ function adaptPending(
       ? { policyDetail: view.detail }
       : {}),
     ...sourceOf(view),
+    ...(typeof view.sourceExcerpt === "string" && view.sourceExcerpt
+      ? { sourceExcerpt: view.sourceExcerpt }
+      : {}),
   }
 }
 

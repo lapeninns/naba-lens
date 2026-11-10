@@ -171,6 +171,10 @@ export type AnswerInUse = {
   answerDetail?: Record<string, unknown>
   /** B03-d (A25): the schedule version in use, for a date change. */
   scheduleId?: string
+  /** B03-f (review low 2): where the answer in use came from. */
+  source?: FindingSource
+  /** Imports only: the source's label (null for the old facts list). */
+  sourceLabel?: string | null
   confirmation: {
     state: ConfirmationState
     self: boolean
@@ -325,6 +329,8 @@ export type PendingFinding = {
   source?: FindingSource
   /** B03-f: imports only, the source's label. */
   sourceLabel?: string
+  /** B03-f (WS5 item 3): imports only, what the source said. Internal. */
+  sourceExcerpt?: string
   /**
    * B03-f (A23): imports only; whether it may be confirmed. Missing is read as
    * false, so Confirm is never offered on a guess.

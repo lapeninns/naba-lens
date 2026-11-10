@@ -1297,3 +1297,33 @@ describe("the check page's corrections (B03 UI §8.1, §8.2)", () => {
     ).toBeNull()
   })
 })
+
+describe("To confirm: what an import's source said (B03 UI §7.1)", () => {
+  it("shows the excerpt, or a legacy record's old notes", () => {
+    setup(
+      view([
+        finding({
+          answer: "yes",
+          source: "external_source",
+          sourceLabel: "⟨Source⟩",
+          sourceExcerpt: "⟨Excerpt⟩",
+          adoptable: true,
+        }),
+      ])
+    )
+    expect(screen.getByText("What the source said")).toBeTruthy()
+    expect(screen.getByText("⟨Excerpt⟩")).toBeTruthy()
+    cleanup()
+    setup(
+      view([
+        finding({
+          answer: "yes",
+          source: "legacy_fact",
+          sourceExcerpt: "⟨Coverage text⟩",
+          adoptable: true,
+        }),
+      ])
+    )
+    expect(screen.getByText("Old notes")).toBeTruthy()
+  })
+})

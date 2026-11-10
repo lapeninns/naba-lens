@@ -119,6 +119,7 @@ export function AmenitiesOverview({
   const hrefs = amenityHrefs(basePath)
   const action = useAmenityAction()
   const [pickerOpen, setPickerOpen] = React.useState(false)
+  const [show, setShow] = React.useState<"all" | "findings" | "imports">("all")
   const venue = view.venue.name
   const rootRef = React.useRef<HTMLDivElement>(null)
   const noticeRef = React.useRef<HTMLDivElement>(null)
@@ -253,9 +254,21 @@ export function AmenitiesOverview({
       ? Math.max(0, view.counts[progress] - qualified.length)
       : view.counts[progress]
 
+  // B03-f (§7.1): imports and findings can be shown apart; the server's
+  // order is kept either way.
+  const isImportRow = (row: ToConfirmRow) =>
+    row.source === "legacy_fact" || row.source === "external_source"
+  const hasImports = (toConfirm?.items ?? []).some(isImportRow)
+  const shownRows = (toConfirm?.items ?? []).filter((row) =>
+    !hasImports || show === "all"
+      ? true
+      : show === "imports"
+        ? isImportRow(row)
+        : !isImportRow(row)
+  )
   // One row per question: its findings are decided together.
   const confirmGroups = new Map<string, ToConfirmRow[]>()
-  for (const row of toConfirm?.items ?? [])
+  for (const row of shownRows)
     confirmGroups.set(row.checkId, [
       ...(confirmGroups.get(row.checkId) ?? []),
       row,
@@ -332,6 +345,38 @@ export function AmenitiesOverview({
           title={TO_CONFIRM_COPY.title}
           count={confirmCount}
         >
+          {hasImports ? (
+            <fieldset className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1">
+              <legend className="sr-only">Show</legend>
+              <span
+                aria-hidden
+                className="text-label-touch text-ink md:text-label"
+              >
+                Show:
+              </span>
+              {(
+                [
+                  ["all", "All"],
+                  ["findings", "Findings"],
+                  ["imports", "Imports"],
+                ] as const
+              ).map(([value, label]) => (
+                <label
+                  key={value}
+                  className="flex min-h-11 cursor-pointer items-center gap-2 text-body-touch text-ink md:text-body"
+                >
+                  <input
+                    type="radio"
+                    name="amenities-to-confirm-show"
+                    className="size-5 shrink-0 accent-primary"
+                    checked={show === value}
+                    onChange={() => setShow(value)}
+                  />
+                  {label}
+                </label>
+              ))}
+            </fieldset>
+          ) : null}
           <ul className="grid min-w-0 divide-y divide-line">
             {[...confirmGroups].map(([checkId, rows]) => (
               <li key={checkId}>
