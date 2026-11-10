@@ -33,6 +33,10 @@ import {
   type CaptureCheck,
   type QuestionView,
 } from "@/lib/knowledge-client/contract"
+import {
+  needsEntranceLabels,
+  withEntranceLabels,
+} from "@/lib/knowledge-client/adapt"
 import { knowledgeServices } from "@/lib/knowledge-client/services"
 import { getCheck, listSubmittableAssets } from "@/lib/server/amenities"
 import type { MediaActor } from "@/lib/server/media/types"
@@ -75,6 +79,7 @@ async function knowledgeFor(
     .catch(() => null)
   const form = questionForm(question?.ok ? question.question : null)
   const props = fromView(view.view, draft?.ok ? draft.draft : null, role)
+  let placesRead: Parameters<typeof withEntranceLabels>[2] = null
   // B03-e: whether a recheck is open here, for the sent notice (§6.2). A
   // failed read claims nothing either way.
   props.openRechecks = await openRechecksAt(actor, checkId)
@@ -181,6 +186,7 @@ async function knowledgeFor(
     const result = await knowledgeServices
       .listPlaces(actor, { venueId: view.view.venue.id })
       .catch(() => null)
+    placesRead = result?.ok ? result : null
     const places = result?.ok
       ? (result.places ?? []).filter((p) => p.active)
       : []
@@ -194,6 +200,22 @@ async function knowledgeFor(
             stepFree: view.view.slot.key === "step_free_entrance",
             canManagePlaces: role !== "staff",
           }
+  }
+  // A step-free Yes names its entrances (UI §3.5), from the read above when
+  // there was one; unreadable, it names no place.
+  if (needsEntranceLabels(props.slot.answerInUse)) {
+    placesRead ??= await knowledgeServices
+      .listPlaces(actor, { venueId: view.view.venue.id })
+      .then((result) => (result.ok ? result : null))
+      .catch(() => null)
+    props.slot = {
+      ...props.slot,
+      answerInUse: withEntranceLabels(
+        props.slot.answerInUse,
+        view.view.venue.id,
+        placesRead
+      ),
+    }
   }
   return {
     props,

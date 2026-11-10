@@ -28,6 +28,10 @@ import {
   listCatalogue,
 } from "@/lib/server/amenities"
 import { isUuid } from "@/lib/server/coverage/validate"
+import {
+  needsEntranceLabels,
+  withEntranceLabels,
+} from "@/lib/knowledge-client/adapt"
 import { knowledgeServices } from "@/lib/knowledge-client/services"
 
 import { type ManageContext } from "../context"
@@ -205,6 +209,29 @@ async function policyContextFor(
   }
 }
 
+/**
+ * A step-free Yes in use names its entrances (B03 UI design §3.5): one read
+ * of this venue's places, only then. Unreadable, it names no place.
+ */
+async function withAnswerEntrances(
+  ctx: ManageContext,
+  view: Extract<QuestionView, { inScope: true }>
+): Promise<Extract<QuestionView, { inScope: true }>> {
+  const answer = view.slot.answerInUse
+  if (!needsEntranceLabels(answer)) return view
+  const read = await knowledgeServices
+    .listPlaces(ctx.actor, { venueId: ctx.venueId })
+    .then((result) => (result.ok ? result : null))
+    .catch(() => null)
+  return {
+    ...view,
+    slot: {
+      ...view.slot,
+      answerInUse: withEntranceLabels(answer, view.venue.id, read),
+    },
+  }
+}
+
 /** B03-e: a check's open rechecks; null when they can't be read. */
 async function rechecksFor(ctx: ManageContext, checkId: string) {
   try {
@@ -333,7 +360,9 @@ export async function AmenityCheckScreen({
   if (detail.check.venueId !== ctx.venueId) notFound()
   const hrefs = amenityHrefs(ctx.basePath)
   const inScope =
-    knowledge?.ok && knowledge.view.inScope ? knowledge.view : null
+    knowledge?.ok && knowledge.view.inScope
+      ? await withAnswerEntrances(ctx, knowledge.view)
+      : null
   const [policy, schedule] = inScope
     ? await Promise.all([
         policyContextFor(ctx, inScope.slot.key),

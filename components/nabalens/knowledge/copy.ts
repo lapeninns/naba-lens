@@ -28,6 +28,7 @@ import type {
 } from "@/lib/knowledge-client/contract"
 
 import type { ChipStateKey } from "../status-chip"
+import { checkedByViewer, stepFreeAnswerWords } from "./entrance-answer"
 
 // ---- Dates --------------------------------------------------------------------
 
@@ -285,9 +286,23 @@ function withdrawnLines(
   return value ? [head, `Previous answer: ${value}.`] : [head]
 }
 
+/**
+ * The day a step-free Yes was checked (B03 UI design §3.5): "You checked on"
+ * only when the answer in use is the viewer's own finding, else no name (D3).
+ */
+export function stepFreeCheckedOnLine(
+  answer: AnswerInUse,
+  mine: boolean
+): string | null {
+  if (!stepFreeAnswerWords(answer) || !answer.observedOn) return null
+  const day = longDate(answer.observedOn)
+  return mine ? `You checked on ${day}.` : `Checked on ${day}.`
+}
+
 export function answerInUseLines(
   answer: AnswerInUse,
-  slot: Pick<WorkingSlot, "previousAnswer" | "latestAttempt">
+  slot: Pick<WorkingSlot, "previousAnswer" | "latestAttempt"> &
+    Partial<Pick<WorkingSlot, "myLatest">>
 ): string[] {
   const value = inUseWord(answer)
   const recorded = answer.savedAt
@@ -300,6 +315,14 @@ export function answerInUseLines(
       return [
         `Current answer: ${value}. Imported from ${answer.sourceLabel ?? "the old facts list"}.`,
       ]
+    // A step-free Yes says where (§2.3 S1) and the day it was checked when
+    // known, else when it was recorded (§2.2, §3.5).
+    const stepFree = stepFreeAnswerWords(answer)
+    if (stepFree)
+      return [
+        `Current answer: ${stepFree}.`,
+        stepFreeCheckedOnLine(answer, checkedByViewer(slot)) ?? recorded.trim(),
+      ].filter(Boolean)
     return [`Current answer: ${value}.${recorded}`]
   }
   switch (answer.detail) {
@@ -929,7 +952,7 @@ export function captureContextLines({
       ? `, recorded ${longDate(answer.savedAt)}`
       : ""
     lines.push(
-      `Current answer: ${inUseWord(answer)}${recorded}. If you send a different answer, it's marked as being checked until your manager decides. It isn't replaced unless your manager confirms your change.`
+      `Current answer: ${stepFreeAnswerWords(answer) ?? inUseWord(answer)}${recorded}. If you send a different answer, it's marked as being checked until your manager decides. It isn't replaced unless your manager confirms your change.`
     )
   } else if (answer.reason === "disputed" || answer.detail === "pending") {
     lines.push(
@@ -1004,6 +1027,8 @@ export type SlotRow = {
   /** The row needs this person (counted in the section badge). */
   needsMe: boolean
   dismissable: boolean
+  /** A step-free Yes's place, for the row link's name (§2.3 S1). */
+  answerName?: string
 }
 
 export function slotRow(slot: WorkingSlot): SlotRow {
@@ -1108,14 +1133,17 @@ export function slotRow(slot: WorkingSlot): SlotRow {
       needsMe: true,
       dismissable: false,
     }
-  if (answer.status === "available")
+  if (answer.status === "available") {
+    const stepFree = stepFreeAnswerWords(answer)
     return {
       chip: { state: "current_answer" },
       status: answerInUseLines(answer, slot).join(" "),
       action: slot.mode === "change" ? "Report a change" : "View",
       needsMe: false,
       dismissable: false,
+      ...(stepFree ? { answerName: stepFree } : {}),
     }
+  }
   if (answer.reason === "disputed" || answer.detail === "pending")
     return {
       chip: { state: "awaiting_confirmation" },

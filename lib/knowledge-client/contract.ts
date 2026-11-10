@@ -176,6 +176,22 @@ export type AnswerInUse = {
   policyMissing?: PolicyNeed[]
   /** B03-b: the answer's structured detail as recorded; absent when none. */
   answerDetail?: Record<string, unknown>
+  /**
+   * B03-b (§7.2): the day its sender says they checked (London date,
+   * YYYY-MM-DD). Absent when not recorded; never a save or send time.
+   */
+  observedOn?: string
+  /**
+   * `step_free_entrance` Yes with recorded detail (UI §3.5): the place ids
+   * saved as Step-free, in order. Empty when the detail names none, which
+   * the screens never word as a Yes for the venue. Absent otherwise.
+   */
+  stepFreeEntranceIds?: string[]
+  /**
+   * Those places' labels from the same venue's Places read, in the same
+   * order; set only when every id was found. Absent: say no place.
+   */
+  entranceLabels?: string[]
   /** B03-d (A25): the schedule version in use, for a date change. */
   scheduleId?: string
   /** B03-f (review low 2): where the answer in use came from. */

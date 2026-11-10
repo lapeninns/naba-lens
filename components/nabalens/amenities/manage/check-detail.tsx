@@ -38,7 +38,12 @@ import {
   type DecisionHandlers,
 } from "@/components/nabalens/knowledge/decisions"
 import {
+  stepFreeAnswerWords,
+  stepFreeCoversLine,
+} from "@/components/nabalens/knowledge/entrance-answer"
+import {
   answerInUseLines,
+  longDate,
   managerSentNoticeFor,
   LEGACY_QUALIFICATION_WORD,
   qualifiedInUse,
@@ -398,6 +403,10 @@ export function AmenityCheckDetail({
     permissions.canReopen &&
     active &&
     (check.progress === "complete" || Boolean(check.qualification))
+  // A step-free Yes in use (B03 UI design §3.5): where, then Checked on and
+  // Recorded as their own rows.
+  const inUse = knowledge?.view.slot.answerInUse ?? null
+  const stepFree = inUse ? stepFreeAnswerWords(inUse) : null
   const muted = "text-body-touch text-ink-muted md:text-body-sm"
   const stillSaving = (...keys: Write[]) =>
     still && busy && keys.includes(busy) ? (
@@ -483,18 +492,22 @@ export function AmenityCheckDetail({
               Answer
             </dt>
             <dd className="text-body-touch text-ink md:text-body">
-              {knowledge
-                ? answerInUseLines(
-                    knowledge.view.slot.answerInUse,
-                    knowledge.view.slot
-                  ).map((line) => (
-                    <span key={line} className="block">
-                      {line}
-                    </span>
-                  ))
-                : check.qualification
-                  ? LEGACY_QUALIFICATION_WORD[check.qualification]
-                  : ANSWER_LABEL[check.answer]}
+              {stepFree ? (
+                <span className="block">{`Current answer: ${stepFree}.`}</span>
+              ) : knowledge ? (
+                answerInUseLines(
+                  knowledge.view.slot.answerInUse,
+                  knowledge.view.slot
+                ).map((line) => (
+                  <span key={line} className="block">
+                    {line}
+                  </span>
+                ))
+              ) : check.qualification ? (
+                LEGACY_QUALIFICATION_WORD[check.qualification]
+              ) : (
+                ANSWER_LABEL[check.answer]
+              )}
               {answered ? (
                 <span className="block text-meta-touch text-ink-muted md:text-meta">
                   {answered}
@@ -502,6 +515,28 @@ export function AmenityCheckDetail({
               ) : null}
             </dd>
           </div>
+          {stepFree && inUse ? (
+            <>
+              <div className="grid gap-1">
+                <dt className="text-meta-touch text-ink-muted md:text-meta">
+                  Checked on
+                </dt>
+                <dd className="text-body-touch text-ink md:text-body">
+                  {inUse.observedOn
+                    ? longDate(inUse.observedOn)
+                    : "Not recorded"}
+                </dd>
+              </div>
+              <div className="grid gap-1">
+                <dt className="text-meta-touch text-ink-muted md:text-meta">
+                  Recorded
+                </dt>
+                <dd className="text-body-touch text-ink md:text-body">
+                  {inUse.savedAt ? longDate(inUse.savedAt) : "Not recorded"}
+                </dd>
+              </div>
+            </>
+          ) : null}
           <div className="grid gap-1">
             <dt className="text-meta-touch text-ink-muted md:text-meta">
               Evidence needed
@@ -519,6 +554,11 @@ export function AmenityCheckDetail({
             </dd>
           </div>
         </dl>
+        {inUse && stepFreeCoversLine(inUse) ? (
+          <p className="text-body-touch text-ink-muted md:text-body-sm">
+            {stepFreeCoversLine(inUse)}
+          </p>
+        ) : null}
         {check.progress === "needs_recheck" &&
         check.recheckReason &&
         !qualifiedInUse(check.qualification) ? (

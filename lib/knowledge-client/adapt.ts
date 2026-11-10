@@ -32,6 +32,7 @@ import type {
   KnowledgeAnswer,
   NoLongerUsedReason,
   FindingSource,
+  Place,
   PendingFinding,
   PolicyNeed,
   QuestionView,
@@ -161,8 +162,86 @@ function stateReasonActor(view: MyFindingView) {
     : {}
 }
 
+/** A real calendar date as YYYY-MM-DD, or undefined. */
+function calendarDateOf(v: unknown): string | undefined {
+  if (typeof v !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return undefined
+  const [y, m, d] = v.split("-").map(Number)
+  const date = new Date(Date.UTC(y!, m! - 1, d!))
+  return date.toISOString().slice(0, 10) === v ? v : undefined
+}
+
+const STEP_FREE_KEY = "step_free_entrance"
+
+/**
+ * A step-free entrance Yes with recorded detail (UI §3.3, §3.5): the place
+ * ids saved as Step-free. Undefined for any other key, headline or an answer
+ * from before the question had detail, which keep their earlier words.
+ */
+function stepFreeEntranceIdsOf(
+  key: string,
+  value: unknown,
+  detail: unknown
+): string[] | undefined {
+  if (key !== STEP_FREE_KEY || value !== "yes") return undefined
+  if (!detail || typeof detail !== "object" || Array.isArray(detail))
+    return undefined
+  const entrances = (detail as { entrances?: unknown }).entrances
+  const ids: string[] = []
+  for (const item of Array.isArray(entrances) ? entrances : []) {
+    if (!item || typeof item !== "object") continue
+    const { subjectId, stepFree } = item as Record<string, unknown>
+    if (
+      stepFree === "yes" &&
+      typeof subjectId === "string" &&
+      subjectId &&
+      !ids.includes(subjectId)
+    )
+      ids.push(subjectId)
+  }
+  return ids
+}
+
+/** A step-free Yes in use whose entrances still need their labels. */
+export function needsEntranceLabels(answer: AnswerInUse): boolean {
+  return (
+    answer.status === "available" &&
+    !answer.qualified &&
+    (answer.stepFreeEntranceIds?.length ?? 0) > 0 &&
+    !answer.entranceLabels
+  )
+}
+
+/**
+ * The saved entrances' labels from the venue's own Places read. Every id
+ * must be there for that venue; otherwise nothing is set and the screens
+ * name no place (never a guess, never a Yes for the whole venue).
+ */
+export function withEntranceLabels(
+  answer: AnswerInUse,
+  venueId: string,
+  read: { venueId: string | null; places: readonly Place[] | null } | null
+): AnswerInUse {
+  if (!needsEntranceLabels(answer)) return answer
+  if (!read?.places || read.venueId !== venueId) return answer
+  const labels: string[] = []
+  for (const id of answer.stepFreeEntranceIds!) {
+    const place = read.places.find(
+      (p) => p.subjectId === id && p.kind === "entrance"
+    )
+    if (!place?.label) return answer
+    labels.push(place.label)
+  }
+  return { ...answer, entranceLabels: labels }
+}
+
 export function adaptAnswerInUse(slot: KnowledgeSlotView): AnswerInUse {
   const answer = slot.answerInUse
+  const observedOn = calendarDateOf(answer?.observedOn)
+  const stepFreeEntranceIds = stepFreeEntranceIdsOf(
+    slot.questionKey,
+    answer?.value,
+    answer?.detail
+  )
   return {
     status: slot.status,
     reason: slot.reason,
@@ -177,6 +256,8 @@ export function adaptAnswerInUse(slot: KnowledgeSlotView): AnswerInUse {
     !Array.isArray(answer.detail)
       ? { answerDetail: answer.detail as Record<string, unknown> }
       : {}),
+    ...(observedOn ? { observedOn } : {}),
+    ...(stepFreeEntranceIds ? { stepFreeEntranceIds } : {}),
     ...(typeof answer?.scheduleId === "string" && answer.scheduleId
       ? { scheduleId: answer.scheduleId }
       : {}),

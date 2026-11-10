@@ -22,6 +22,7 @@ import { HomeOverview } from "@/components/nabalens/tasks/home-overview"
 import { requireActiveStaff, uploadBlockReason } from "@/lib/auth"
 import { homeLayout } from "@/lib/config/home-layout"
 import { homePrompt } from "@/lib/config/work-roles"
+import { withWorkingListEntrances } from "@/lib/knowledge-client/entrances"
 import { knowledgeServices } from "@/lib/knowledge-client/services"
 import { getCheck } from "@/lib/server/amenities"
 import { getCoverageActor, getOurMenu } from "@/lib/server/coverage"
@@ -227,6 +228,10 @@ export default async function TasksPage({
     // B03-e: open rechecks on checks assigned to me; null when unreadable.
     layout === "b02" ? myRechecks(actor) : null,
   ])
+  // A step-free Yes names its entrances on Home and To do (B03 UI §3.5).
+  const listed = workingList
+    ? await withWorkingListEntrances(actor, workingList)
+    : workingList
   const { reviewCount } = shell
   const blockedReason = uploadBlockReason(profile)
 
@@ -268,8 +273,8 @@ export default async function TasksPage({
     ourMenu,
     amenityTasks,
     findingSent,
-    workingList: workingList ?? null,
-    workingListError: workingList === undefined,
+    workingList: listed ?? null,
+    workingListError: listed === undefined,
     onDismissClosed: dismissClosedAssignmentAction,
   }
 
