@@ -111,6 +111,32 @@ describe("Amenities overview: To confirm", () => {
   })
 })
 
+describe("To confirm order (B02 R4)", () => {
+  it("keeps the server's waiting order: a withdrawal after a later-sent finding sorts after it", () => {
+    // Its answer was sent first, but its evidence was withdrawn after the
+    // pending finding was sent; the server orders by waitingSince.
+    const pending = row({
+      sentAt: "2026-11-05T10:00:00.000Z",
+      waitingSince: "2026-11-05T10:00:00.000Z",
+    })
+    const withdrawn = row({
+      checkId: STEP_FREE_CHECK.id,
+      question: STEP_FREE_CHECK.entry.question,
+      kind: "evidence_removed",
+      sender: null,
+      sentAt: "2026-11-01T09:00:00.000Z",
+      waitingSince: "2026-11-06T09:00:00.000Z",
+    })
+    overview({ count: 2, items: [pending, withdrawn] })
+    const group = screen.getByRole("region", { name: /To confirm/ })
+    const links = within(group).getAllByRole("link")
+    expect(links.map((link) => link.textContent)).toEqual([
+      expect.stringContaining(DARTS.entry.question),
+      expect.stringContaining(STEP_FREE_CHECK.entry.question),
+    ])
+  })
+})
+
 describe("manager workspace: findings to confirm", () => {
   it("badges the Amenities tab with the count, in words", () => {
     render(

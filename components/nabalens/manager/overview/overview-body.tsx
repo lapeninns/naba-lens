@@ -77,6 +77,7 @@ export function OverviewBody({
   now,
   staffTargets,
   confirmCount = 0,
+  triage,
 }: {
   overview: ManagerOverview
   staffTargets?: React.ReactNode
@@ -84,10 +85,15 @@ export function OverviewBody({
   now: string
   /** Amenity findings waiting for a decision (0 when none or unreadable). */
   confirmCount?: number | null
+  /**
+   * The Triage card (B02 §6.2). It replaces the To confirm row and the own
+   * waiting photos tally, which it carries itself.
+   */
+  triage?: React.ReactNode
 }) {
   const copy = MANAGER_COPY.overview
   const venueName = overview.venueName
-  const confirm = <ConfirmRow count={confirmCount} />
+  const confirm = triage ?? <ConfirmRow count={confirmCount} />
 
   if (overview.menuState === "no_menu") {
     return (
@@ -181,7 +187,7 @@ export function OverviewBody({
           },
         ]
       : []),
-    ...(overview.ownWaitingPhotos > 0
+    ...(overview.ownWaitingPhotos > 0 && !triage
       ? [
           {
             key: "own",

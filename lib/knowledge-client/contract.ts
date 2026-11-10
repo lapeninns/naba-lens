@@ -377,6 +377,11 @@ export type ToConfirmRow = {
   /** It disputes the answer in use (readers are told it's being checked). */
   disputes: boolean
   slotRevision: number
+  /**
+   * When it started waiting, and the list's order (B02 R4): the send time, or
+   * the withdrawal or revoke time. Null before the B02 migrations.
+   */
+  waitingSince?: Instant | null
 }
 
 export type ToConfirmList = { items: ToConfirmRow[]; count: number }

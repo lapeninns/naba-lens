@@ -9,7 +9,14 @@ import type { CoverageFailure } from "@/lib/server/coverage/types"
 import { periodKeyOf, periodView } from "@/lib/server/coverage/time"
 
 import { currentStaffShell } from "../../_shell/shell-status"
-import { readVenueCoverage, unexpected, type ManageContext } from "./context"
+import { triageConfirmCount } from "@/components/nabalens/manager/overview/triage-card"
+
+import {
+  readVenueCoverage,
+  readVenueTriage,
+  unexpected,
+  type ManageContext,
+} from "./context"
 
 /** "November 2026" in UK time, for the scope line. */
 export function currentMonthLabel(): string {
@@ -45,9 +52,10 @@ export async function ManageFrame({
   pendingReview?: number
   children: React.ReactNode
 }) {
-  const [shell, read] = await Promise.all([
+  const [shell, read, triage] = await Promise.all([
     ctx.mode === "manager" ? currentStaffShell() : null,
     pendingReview === undefined ? readVenueCoverage(ctx) : null,
+    ctx.mode === "workspace" ? null : readVenueTriage(ctx),
   ])
   let reviewCount = pendingReview
   if (read) {
@@ -68,6 +76,7 @@ export async function ManageFrame({
           basePath={ctx.basePath}
           active={section}
           pendingReview={reviewCount}
+          confirmCount={triage ? triageConfirmCount(triage) : null}
           label={
             ctx.mode === "admin"
               ? `Coverage for ${ctx.venue.name}`

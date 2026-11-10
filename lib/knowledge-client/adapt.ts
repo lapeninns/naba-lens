@@ -117,7 +117,7 @@ export function adaptFinding(view: MyFindingView): FindingSummary {
   }
 }
 
-function adaptClosed(
+export function adaptClosed(
   view: ClosedAssignmentView,
   venueName: string
 ): FindingSummary {
@@ -334,6 +334,7 @@ export function adaptToConfirm(
       conflict: item.conflict,
       disputes: item.disputes,
       slotRevision: item.slotRevision,
+      waitingSince: item.waitingSince ?? null,
     })),
   }
 }

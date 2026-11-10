@@ -4,7 +4,7 @@
 import { readdirSync, readFileSync, statSync } from "node:fs"
 import { join, relative } from "node:path"
 
-import { cleanup, render } from "@testing-library/react"
+import { cleanup, render, within } from "@testing-library/react"
 import type * as React from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -89,6 +89,7 @@ vi.mock("@/lib/knowledge-client/services", () => ({
 const work = vi.hoisted(() => ({
   getLabelWork: vi.fn(),
   getCapabilities: vi.fn(),
+  getContributions: vi.fn(),
 }))
 vi.mock("@/lib/work-client/services", () => ({ workServices: work }))
 
@@ -118,6 +119,8 @@ beforeEach(() => {
     tasks: [check("c1"), check("c2")],
   })
   knowledge.getWorkingList.mockResolvedValue({ ok: true, view: null })
+  // The database predates My contributions unless a test says otherwise.
+  work.getContributions.mockResolvedValue({ status: "missing" })
   knowledge.listMyFindings.mockResolvedValue({
     ok: true,
     page: { items: [], nextCursor: null, hiddenEarlierVenues: [] },
@@ -430,6 +433,90 @@ describe("Me: Your findings (B01-06)", () => {
     knowledge.listMyFindings.mockRejectedValue(new Error("down"))
     const { queryByRole } = render(await StaffPage())
     expect(queryByRole("region", { name: /Your findings/ })).toBeNull()
+  })
+})
+
+describe("Me: My contributions (B02 §6.1)", () => {
+  const FEED = {
+    items: [
+      {
+        type: "photo",
+        key: "p:a1",
+        at: "2026-11-06T10:00:00.000Z",
+        assetId: "a1",
+        venueId: "v1",
+        venueName: "TEST Inn",
+        mediaType: "image",
+        uploadState: "ready",
+        sentAt: "2026-11-06T10:00:00.000Z",
+        labels: { hasLabels: true, needsLabels: false, needsAttention: false },
+        menuDecisions: [],
+        menuUseAccepted: false,
+      },
+    ],
+    nextCursor: null,
+  }
+  const draft = {
+    findingRef: null,
+    checkId: "c2",
+    question: "Is there step-free access?",
+    venue: { id: "v1", name: "TEST Inn" },
+    answer: null,
+    kind: "draft",
+    state: "saved",
+    noLongerUsed: null,
+    stateReason: null,
+    managerNote: null,
+    detailRequestId: null,
+    unknownPreset: null,
+    answeredBy: null,
+    sentAt: null,
+    savedAt: "2026-11-07T09:00:00.000Z",
+    decidedAt: null,
+    recognition: { kind: "pending" },
+    sendable: true,
+  }
+
+  afterEach(() => vi.unstubAllEnvs())
+
+  it("replaces the Your findings heading, with B01's drafts above the feed", async () => {
+    work.getContributions.mockResolvedValue({ status: "ok", value: FEED })
+    knowledge.listMyFindings.mockResolvedValue({
+      ok: true,
+      page: { items: [draft], nextCursor: null, hiddenEarlierVenues: [] },
+    })
+    const { getByRole, queryByRole } = render(await StaffPage())
+    const region = getByRole("region", { name: "My contributions" })
+    expect(queryByRole("region", { name: /Your findings/ })).toBeNull()
+    const lists = within(region).getAllByRole("list")
+    expect(lists[0].getAttribute("aria-label")).toBe("Drafts")
+    expect(
+      within(lists[0]).getByRole("heading", { name: draft.question })
+    ).toBeTruthy()
+    expect(within(region).getByText("Upload: Saved")).toBeTruthy()
+    expect(work.getContributions).toHaveBeenCalledWith(ACTOR)
+  })
+
+  it("keeps B01's Your findings when the database predates the feed", async () => {
+    knowledge.listMyFindings.mockResolvedValue({
+      ok: true,
+      page: { items: [draft], nextCursor: null, hiddenEarlierVenues: [] },
+    })
+    const { getByRole, queryByRole } = render(await StaffPage())
+    expect(getByRole("region", { name: "Your findings" })).toBeTruthy()
+    expect(queryByRole("region", { name: /My contributions/ })).toBeNull()
+  })
+
+  it("switched to b01, never reads the feed", async () => {
+    vi.stubEnv("NABALENS_MY_CONTRIBUTIONS", "b01")
+    work.getContributions.mockResolvedValue({ status: "ok", value: FEED })
+    knowledge.listMyFindings.mockResolvedValue({
+      ok: true,
+      page: { items: [draft], nextCursor: null, hiddenEarlierVenues: [] },
+    })
+    const { getByRole } = render(await StaffPage())
+    expect(getByRole("region", { name: "Your findings" })).toBeTruthy()
+    expect(work.getContributions).not.toHaveBeenCalled()
   })
 })
 

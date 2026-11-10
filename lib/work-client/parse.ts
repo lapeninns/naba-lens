@@ -1,3 +1,8 @@
+import type {
+  ContributionsFeedItem,
+  ContributionsFeedPage,
+} from "@/lib/knowledge/contract"
+
 import {
   ACCOUNT_KINDS,
   IMPACT_EFFECTS,
@@ -141,4 +146,69 @@ export function parseDeleteImpact(value: unknown): DeleteImpact | null {
     })
   }
   return { status: "known", items }
+}
+
+const FEED_TYPES = ["photo", "task_send", "finding", "assignment_closed"]
+const UPLOAD_STATES = ["uploading", "processing", "ready", "failed"]
+const SEND_STATES = ["submitted", "accepted", "needs_another_photo"]
+const DECISION_STATES = ["accepted", "better_photo_requested", "needs_recheck"]
+
+const text = (value: unknown): value is string => typeof value === "string"
+
+// Each type's fields the rows read; a row missing one can't be worded.
+function feedItemReadable(raw: Json): boolean {
+  switch (raw.type) {
+    case "photo":
+      return (
+        text(raw.assetId) &&
+        text(raw.venueName) &&
+        oneOf(UPLOAD_STATES, raw.uploadState) !== null &&
+        record(raw.labels) !== null &&
+        Array.isArray(raw.menuDecisions) &&
+        raw.menuDecisions.every((entry) => {
+          const decision = record(entry)
+          return (
+            decision !== null &&
+            text(decision.itemName) &&
+            oneOf(DECISION_STATES, decision.state) !== null
+          )
+        })
+      )
+    case "task_send":
+      return (
+        text(raw.venueName) &&
+        oneOf(SEND_STATES, raw.state) !== null &&
+        typeof raw.revision === "number"
+      )
+    case "finding":
+      return (
+        record(raw.findingRef) !== null &&
+        text(raw.checkId) &&
+        text(raw.question) &&
+        text(raw.state)
+      )
+    default:
+      return text(raw.checkId) && text(raw.question)
+  }
+}
+
+/**
+ * R5 page. Null when the page or a row of a known type is unreadable; a row
+ * of a type this client doesn't know is dropped. The server's order is kept.
+ */
+export function parseContributionsPage(
+  value: unknown
+): ContributionsFeedPage | null {
+  const raw = record(value)
+  if (!raw || !Array.isArray(raw.items)) return null
+  if (raw.nextCursor !== null && !text(raw.nextCursor)) return null
+  const items: ContributionsFeedItem[] = []
+  for (const entry of raw.items) {
+    const item = record(entry)
+    if (!item || !text(item.key) || instant(item.at) === null) return null
+    if (oneOf(FEED_TYPES, item.type) === null) continue
+    if (!feedItemReadable(item)) return null
+    items.push(item as unknown as ContributionsFeedItem)
+  }
+  return { items, nextCursor: raw.nextCursor as string | null }
 }

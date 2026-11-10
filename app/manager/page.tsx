@@ -1,5 +1,8 @@
+import { managerHrefs } from "@/components/nabalens/manager/hrefs"
+import { MANAGER_COPY } from "@/components/nabalens/manager/copy"
 import { OverviewBody } from "@/components/nabalens/manager/overview/overview-body"
 import { TeamCompletionTargets } from "@/components/nabalens/manager/overview/team-completion-targets"
+import { TriageCard } from "@/components/nabalens/manager/overview/triage-card"
 import { VenueAccessUnavailable } from "@/components/nabalens/manager/venue-access-unavailable"
 import { Notice } from "@/components/nabalens/notice"
 import {
@@ -8,9 +11,13 @@ import {
 } from "@/components/nabalens/offline-notice"
 import { getManagerWorkspace } from "@/lib/auth/manager"
 import { ROUTES } from "@/lib/auth/routes"
+import { amenityHrefs } from "@/lib/amenities/contract"
+import { managerTriageSurface } from "@/lib/config/manager-triage"
 import { knowledgeServices } from "@/lib/knowledge-client/services"
 import { getAmenityActor } from "@/lib/server/amenities"
 import { getManagerCompletionRoster } from "@/lib/server/coverage/venue"
+import type { TriageRow } from "@/lib/work-client/contract"
+import { workServices } from "@/lib/work-client/services"
 
 import { failedRead, isRefusal, loadManagerOverview } from "./load-overview"
 
@@ -34,6 +41,22 @@ async function countToConfirm(): Promise<number | null> {
   }
 }
 
+/**
+ * The Triage queues (R3) when switched on; null keeps B01's rows (switched
+ * off, the database predates B02, or the read failed and they have their own).
+ */
+async function readTriage(): Promise<TriageRow[] | null> {
+  if (managerTriageSurface() !== "b02") return null
+  try {
+    const auth = await getAmenityActor()
+    if (!auth.ok) return null
+    const result = await workServices.getTriage(auth.actor)
+    return result.status === "ok" ? result.value : null
+  } catch {
+    return null
+  }
+}
+
 export default async function ManagerOverviewPage() {
   const workspace = await getManagerWorkspace()
   // After a grant ends mid-session the layout is not re-rendered on client
@@ -50,10 +73,11 @@ export default async function ManagerOverviewPage() {
       return <VenueAccessUnavailable reason="no_grant" refreshShell />
     failedRead(read.code, "the overview", ROUTES.managerHome)
   }
-  const [team, confirmCount] = await Promise.all([
+  const [team, triage] = await Promise.all([
     getManagerCompletionRoster(read.ctx),
-    countToConfirm(),
+    readTriage(),
   ])
+  const confirmCount = triage ? null : await countToConfirm()
   if (!team.ok && isRefusal(team.code)) {
     return <VenueAccessUnavailable reason="no_grant" refreshShell />
   }
@@ -67,6 +91,22 @@ export default async function ManagerOverviewPage() {
         overview={read.overview}
         now={now}
         confirmCount={confirmCount}
+        triage={
+          triage ? (
+            <TriageCard
+              rows={triage}
+              hrefs={{
+                menu_photos: managerHrefs.review(),
+                findings: `${amenityHrefs(managerHrefs.overview).list}#amenities-to-confirm`,
+                checklist: managerHrefs.review(),
+              }}
+              ownWaiting={(n) => ({
+                text: MANAGER_COPY.overview.ownWaiting(n),
+                href: managerHrefs.review({ status: "mine" }),
+              })}
+            />
+          ) : undefined
+        }
         staffTargets={
           team.ok ? (
             <TeamCompletionTargets roster={team.roster} />

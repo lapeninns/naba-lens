@@ -1,6 +1,7 @@
 import "server-only"
 
 import type {
+  ContributionsFeedPage,
   KnowledgeFailure,
   KnowledgeRpcName,
   KnowledgeRpcs,
@@ -17,6 +18,7 @@ import type {
 } from "./contract"
 import {
   parseCapabilities,
+  parseContributionsPage,
   parseDeleteImpact,
   parseLabelWork,
   parseTriage,
@@ -41,6 +43,9 @@ const UNREADABLE: KnowledgeFailure = {
   status: 503,
   message: "This couldn't be loaded. Try again.",
 }
+
+/** R5's page size; the server's cursor is passed back untouched. */
+export const CONTRIBUTIONS_PAGE = 20
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -77,6 +82,11 @@ export type WorkServices = {
     actor: MediaActor,
     venueId?: string | null
   ): Promise<WorkRead<TriageRow[]>>
+  /** R5. The caller's photos, task sends and findings, 20 a page. */
+  getContributions(
+    actor: MediaActor,
+    cursor?: string | null
+  ): Promise<WorkRead<ContributionsFeedPage>>
   /** R9. The uploader's own photo only. */
   getDeleteImpact(
     actor: MediaActor,
@@ -105,6 +115,26 @@ export const workServices: WorkServices = {
       "manager triage",
       parseTriage
     ),
+
+  getContributions(actor, cursor = null) {
+    if (cursor !== null && (typeof cursor !== "string" || cursor.length > 512))
+      return Promise.resolve({
+        status: "failed",
+        failure: {
+          ok: false,
+          code: "invalid_input",
+          status: 400,
+          message: "This list couldn't be continued. Reload the page.",
+        },
+      })
+    return read(
+      actor,
+      "my_contributions_feed",
+      { p_cursor: cursor, p_limit: CONTRIBUTIONS_PAGE },
+      "my contributions",
+      parseContributionsPage
+    )
+  },
 
   async getDeleteImpact(actor, assetId) {
     if (!UUID.test(assetId))

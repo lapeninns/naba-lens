@@ -49,13 +49,13 @@ type Discard = (input: {
   checkId: string
 }) => Promise<KnowledgeResult<Record<never, never>>>
 
-function rowKey(finding: FindingSummary): string {
+export function rowKey(finding: FindingSummary): string {
   return finding.findingRef
     ? findingKey(finding.findingRef)
     : `${finding.kind}:${finding.checkId}:${finding.sentAt ?? finding.savedAt ?? ""}`
 }
 
-const rowId = (key: string) => `finding-${key.replace(/[^\w-]/g, "-")}`
+export const rowId = (key: string) => `finding-${key.replace(/[^\w-]/g, "-")}`
 
 /** What the server's first page says; a refresh that changes it re-seeds. */
 function pageSignature(page: FindingsPage | null): string {
@@ -302,17 +302,20 @@ export function YourFindings({
   )
 }
 
-function FindingRow({
+export function FindingRow({
   id,
   finding,
   venue,
   onDiscard,
+  children,
 }: {
   id: string
   finding: FindingSummary
   venue: { id: string; name: string } | null
   /** Resolves false when the draft couldn't be discarded. */
   onDiscard?: () => Promise<boolean>
+  /** Lines under the send time (My contributions). */
+  children?: React.ReactNode
 }) {
   const [confirming, setConfirming] = React.useState(false)
   const [discardFailed, setDiscardFailed] = React.useState(false)
@@ -361,6 +364,7 @@ function FindingRow({
           : findingExplanation(finding)}
       </p>
       {when ? <p className="text-meta text-ink-muted">{when}</p> : null}
+      {children}
       {credit ? <p className="text-meta text-ink-muted">{credit}</p> : null}
       {elsewhere && !draft && venue ? (
         <p className="text-meta text-ink-muted">
