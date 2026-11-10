@@ -9,7 +9,10 @@
 // Each case compares the credit function's definition, the venue's photo
 // rows, heads and events, and the monthly counts before and after. Real
 // signed-in identities through PostgREST; psql (postgres, local only) reads
-// state back and runs the private job. Synthetic menu and prices.
+// state back and runs the private job, bounded to this suite's synthetic
+// venue (never across the retained baseline). The `until` deadline is an
+// hour ahead and read with an explicit as-of instant, never by waiting for
+// the clock. Synthetic menu and prices.
 import { randomUUID } from "node:crypto"
 
 import { beforeAll, describe, expect, it } from "vitest"
@@ -53,7 +56,6 @@ async function ok<T = Record<string, unknown>>(
   return data as T
 }
 const literal = (text: string) => `'${text.replace(/'/g, "''")}'`
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 const CREDIT_MD5 = "b78b9daeb8ede1fec0b7224d99348659"
 const MONTH = `date_trunc('month', now() at time zone 'Europe/London')::date`
@@ -258,9 +260,12 @@ describe("C-B04-1: trading proposals and decisions leave credit unchanged", () =
 
 describe("C-B04-4 (b1): a passed until, job stopped then run twice", () => {
   it("leaves photos, heads, events and counts unchanged and opens exactly one task per line", async () => {
+    // An hour ahead, so it is still in the future when the statement is
+    // made; every later read and run names an explicit instant past it.
     const until = psql(
-      `select to_json(date_trunc('second', now()) + interval '2 seconds') #>> '{}'`
+      `select to_json(date_trunc('second', now()) + interval '1 hour') #>> '{}'`
     )
+    const afterUntil = new Date(Date.parse(until) + 1000).toISOString()
     const line = (
       await propose(manager, {
         p_item: pie,
@@ -280,22 +285,13 @@ describe("C-B04-4 (b1): a passed until, job stopped then run twice", () => {
     )
     expect(set.lines.map((l) => l.lineId)).toContain(line)
     const before = creditState()
-    for (let i = 0; i < 50; i++) {
-      if (
-        psql(`select clock_timestamp() > ${literal(until)}::timestamptz`) ===
-        "t"
-      )
-        break
-      await sleep(200)
-    }
 
-    // Job stopped: the read says needs_checking; nothing else moved.
-    const view = await ok<{
-      lines: { lineId: string; availability: { state: string } }[]
-    }>(rpc(staff, "menu_trading_lines_for_item", { p_item: pie }))
-    expect(view.lines.find((l) => l.lineId === line)!.availability.state).toBe(
-      "needs_checking"
+    // Job stopped: read as of a second past `until`, the line needs checking;
+    // nothing else moved.
+    const view = await ok<{ availability: { state: string } }>(
+      rpc(manager, "menu_trading_history", { p_line: line, p_at: afterUntil })
     )
+    expect(view.availability.state).toBe("needs_checking")
     expect(
       psql(
         `select count(*) from public.menu_trading_recheck_tasks where line_id = ${literal(line)}`
@@ -303,9 +299,13 @@ describe("C-B04-4 (b1): a passed until, job stopped then run twice", () => {
     ).toBe("0")
     expect(creditState()).toEqual(before)
 
-    // Run twice: one task per line, nothing else moved.
-    psql(`select private.menu_open_rechecks(now())`)
-    psql(`select private.menu_open_rechecks(now())`)
+    // Run twice as of a minute past `until`, bounded to this suite's venue:
+    // one task per line, nothing else moved.
+    const runJob = () =>
+      psql(`select private.menu_open_rechecks(${literal(until)}::timestamptz + interval '1 minute',
+        array[${literal(venue)}]::uuid[])`)
+    runJob()
+    runJob()
     expect(
       psql(`select string_agg(cause || ':' || state, ',') from public.menu_trading_recheck_tasks
         where line_id = ${literal(line)}`)

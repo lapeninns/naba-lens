@@ -8,8 +8,9 @@
 // conflicting values, schedules over the shared B03 occurrence fixtures, a
 // linked B03 service read as of one instant (with a deliberate stop),
 // rechecks with the job stopped and run twice, authority and catalogue
-// re-read under the venue menu lock (demotion, inactive targets, activation
-// and job races), source snapshot provenance, and the T9b catalogue
+// re-read under the venue menu lock (demotion, grant-only revocation, retired
+// lines, inactive targets, activation and job races), source snapshot
+// provenance and its exact priced scope (½ Pint and Pint), and the T9b catalogue
 // assertions. Every command runs as a real signed-in identity through
 // PostgREST, or as one in a psql transaction that always rolls back; psql
 // (postgres, local only) reads state back and sets up history rows.
@@ -53,7 +54,6 @@ import {
 import { legacyStaffGrant, makeManager, psql } from "./coverage-fixtures"
 import { photo, world, type World } from "./knowledge-fixtures"
 import {
-  createDraft,
   item,
   menu,
   publishMenu,
@@ -140,10 +140,14 @@ end $probe$`)
 
 /** One psql script in one session; returns its printed lines. */
 function psqlScript(sql: string): string[] {
-  return execFileSync("psql", [localDbUrl(), "-X", "-qAt", "-v", "ON_ERROR_STOP=1"], {
-    encoding: "utf8",
-    input: sql,
-  })
+  return execFileSync(
+    "psql",
+    [localDbUrl(), "-X", "-qAt", "-v", "ON_ERROR_STOP=1"],
+    {
+      encoding: "utf8",
+      input: sql,
+    }
+  )
     .split("\n")
     .filter((line) => line.length > 0)
 }
@@ -169,7 +173,9 @@ function psqlBackground(name: string, sql: string): Promise<string> {
     child.stderr.on("data", (d: Buffer) => (err += d.toString()))
     child.on("error", reject)
     child.on("close", (code) =>
-      code === 0 ? resolve(out.trim()) : reject(new Error(err || `psql ${code}`))
+      code === 0
+        ? resolve(out.trim())
+        : reject(new Error(err || `psql ${code}`))
     )
     child.stdin.end(sql)
   })
@@ -180,7 +186,8 @@ async function untilSleeping(name: string) {
   for (let i = 0; i < 200; i++) {
     if (
       psql(`select exists (select 1 from pg_stat_activity
-        where application_name = ${literal(name)} and wait_event = 'PgSleep')`) === "t"
+        where application_name = ${literal(name)} and wait_event = 'PgSleep')`) ===
+      "t"
     )
       return
     await sleep(25)
@@ -1192,9 +1199,13 @@ describe("source snapshot provenance (§5.2 #2)", () => {
     propose(admin, {
       ...a,
       field: "price",
-      source: rawText === undefined ? { snapshotId, locator } : { snapshotId, locator, rawText },
+      source:
+        rawText === undefined
+          ? { snapshotId, locator }
+          : { snapshotId, locator, rawText },
     })
-  const chicken = () => curry().variants.find((v) => v.name === "Chicken")!.variantId
+  const chicken = () =>
+    curry().variants.find((v) => v.name === "Chicken")!.variantId
   const lamb = () => curry().variants.find((v) => v.name === "Lamb")!.variantId
 
   beforeAll(async () => {
@@ -1243,26 +1254,38 @@ describe("source snapshot provenance (§5.2 #2)", () => {
     await review(source.sourceId, "menu.json#Pie", pie())
     await review(source.sourceId, "menu.json#Curry", curry().itemId)
     await review(source.sourceId, CHICKEN, curry().itemId, chicken())
-    await review(source.sourceId, "menu.json#Roast", docA.byKey["mains--roast"]!.itemId)
+    await review(
+      source.sourceId,
+      "menu.json#Roast",
+      docA.byKey["mains--roast"]!.itemId
+    )
   })
 
   it("takes the price text from the cited entry, not the caller, and records it", async () => {
-    const fixed = await ok<Proposed>(
-      cite({ item: fish(), portion: { label: "Large" } }, FISH)
-    )
-    expect(fixed.value).toEqual({ kind: "fixed", amountMinor: 1450, currency: "GBP" })
+    const fixed = await ok<Proposed>(cite({ item: fish() }, FISH))
+    expect(fixed.value).toEqual({
+      kind: "fixed",
+      amountMinor: 1450,
+      currency: "GBP",
+    })
     expect(fixed.current).toMatchObject({ detail: "not_recorded" })
     expect(
       rows(`select basis, snapshot_id as "snapshotId", source_locator as "locator", raw_text as "rawText"
         from public.menu_trading_assertions where id = ${literal(fixed.assertionId)}`)
-    ).toEqual([{ basis: "source_mapping", snapshotId, locator: FISH, rawText: "£14.50" }])
+    ).toEqual([
+      { basis: "source_mapping", snapshotId, locator: FISH, rawText: "£14.50" },
+    ])
     // The same text, given byte for byte, is accepted.
-    await ok(cite({ item: fish(), portion: { label: "Large" } }, FISH, "£14.50"))
+    await ok(cite({ item: fish() }, FISH, "£14.50"))
     // Only admins see the source text.
     const lineA = await ok<{
       lines: { lineId: string; pending: Record<string, unknown>[] }[]
     }>(linesFor(admin, fish()))
-    expect(lineA.lines.find((l) => l.lineId === fixed.lineId)!.pending[0]).toMatchObject({
+    expect(
+      lineA.lines
+        .find((l) => l.lineId === fixed.lineId)!
+        .pending.find((p) => p.assertionId === fixed.assertionId)
+    ).toMatchObject({
       rawText: "£14.50",
       sourceLocator: FISH,
     })
@@ -1271,7 +1294,7 @@ describe("source snapshot provenance (§5.2 #2)", () => {
   it("refuses a valid locator with other text: caller text is never evidence", async () => {
     for (const text of ["£1.00", "14.50", "£14.50 ", "£14.5"])
       await fails(
-        cite({ item: fish(), portion: { label: "Large" } }, FISH, text),
+        cite({ item: fish() }, FISH, text),
         "menu_source_text_mismatch",
         "22023"
       )
@@ -1289,7 +1312,11 @@ describe("source snapshot provenance (§5.2 #2)", () => {
 
   it("refuses an entry reviewed for another item, variant or channel", async () => {
     // Fish's entry cited for the pie.
-    await fails(cite({ item: pie() }, FISH), "menu_source_mapping_mismatch", "P0001")
+    await fails(
+      cite({ item: pie() }, FISH),
+      "menu_source_mapping_mismatch",
+      "P0001"
+    )
     // Fish's entry (channel all) cited for a takeaway line.
     await fails(
       cite({ item: fish(), channel: "takeaway" }, FISH),
@@ -1308,10 +1335,19 @@ describe("source snapshot provenance (§5.2 #2)", () => {
       "menu_source_mapping_mismatch",
       "P0001"
     )
-    // The variant row for its own line is accepted, with the entry's text.
-    expect(
-      (await ok<Proposed>(cite({ item: curry().itemId, variant: chicken() }, CHICKEN))).value
-    ).toEqual({ kind: "fixed", amountMinor: 1395, currency: "GBP" })
+    // The variant row for its own line: the snapshot's one price is the
+    // curry entry's, never evidence for one of its variants. Nor for a
+    // portion the source does not name.
+    await fails(
+      cite({ item: curry().itemId, variant: chicken() }, CHICKEN),
+      "menu_source_price_scope_unverified",
+      "P0001"
+    )
+    await fails(
+      cite({ item: fish(), portion: { label: "Large" } }, FISH),
+      "menu_source_price_scope_unverified",
+      "P0001"
+    )
   })
 
   it("fails closed on an unreviewed entry, and keeps an ambiguous text unconfirmable", async () => {
@@ -1320,29 +1356,471 @@ describe("source snapshot provenance (§5.2 #2)", () => {
       "menu_source_mapping_unverified",
       "P0001"
     )
-    const ambiguous = await ok<Proposed>(
-      cite({ item: pie(), portion: { label: "Small" } }, "menu.json#Pie")
-    )
+    const ambiguous = await ok<Proposed>(cite({ item: pie() }, "menu.json#Pie"))
     expect(ambiguous.value).toEqual({ kind: "ambiguous", form: "from" })
     await fails(
-      decide(admin, ambiguous.assertionId, lineRevision(ambiguous.lineId), "confirmed"),
+      decide(
+        admin,
+        ambiguous.assertionId,
+        lineRevision(ambiguous.lineId),
+        "confirmed"
+      ),
       "invalid_price",
       "22023"
     )
     await ok(
-      decide(admin, ambiguous.assertionId, lineRevision(ambiguous.lineId), "declined")
+      decide(
+        admin,
+        ambiguous.assertionId,
+        lineRevision(ambiguous.lineId),
+        "declined"
+      )
     )
     // A manual proposal keeps exact GBP minor units.
     expect(
       (
         await ok<Proposed>(
-          propose(managerA, { item: pie(), portion: { label: "Small" }, field: "price", value: gbp("9.95") })
+          propose(managerA, {
+            item: pie(),
+            portion: { label: "Small" },
+            field: "price",
+            value: gbp("9.95"),
+          })
         )
       ).value
     ).toEqual({ kind: "fixed", amountMinor: 995, currency: "GBP" })
   })
 })
 
+// ---------------------------------------------------------------------------
+// Authority, line eligibility and priced scope re-read before a replay
+// (a separate synthetic venue, so its retirements and activations touch no
+// other block's fixtures)
+// ---------------------------------------------------------------------------
+
+/** Waits (bounded) until a session running `fn` waits on a lock. */
+async function untilLockWaiting(fn: string) {
+  for (let i = 0; i < 200; i++) {
+    if (
+      psql(`select exists (select 1 from pg_stat_activity
+        where wait_event_type = 'Lock' and query ilike ${literal(`%${fn}%`)})`) ===
+      "t"
+    )
+      return
+    await sleep(25)
+  }
+  throw new Error(`no session running ${fn} waited on a lock`)
+}
+
+describe("current authority, live line and priced scope before a replay", () => {
+  let venueG: string
+  let managerG: TestIdentity
+  let holderG: TestIdentity
+  let holderG2: TestIdentity
+  let grantG: string
+  let grantG2: string
+  let versionG: string
+  let docG: Awaited<ReturnType<typeof readDocument>>
+  const G = (key: string) => docG.byKey[key]!.itemId
+  const aleVariant = (name: string) =>
+    docG.byKey["drinks--ale"]!.variants.find((v) => v.name === name)!.variantId
+  const setTemporary = (who: TestIdentity, itemId: string, key: string) =>
+    rpc(who, "menu_set_temporarily_unavailable", {
+      p_item: itemId,
+      p_variant: null,
+      p_until: null,
+      p_reason: null,
+      p_request_key: key,
+    })
+  const commandCount = () =>
+    psql(
+      `select count(*) from public.menu_trading_commands where venue_id = ${literal(venueG)}`
+    )
+
+  beforeAll(async () => {
+    venueG = (await createVenue(service, "trading-g")).id
+    ;[managerG, holderG, holderG2] = await Promise.all([
+      createIdentity(service, {
+        label: "tr-mgr-g",
+        role: "staff",
+        venueId: venueG,
+      }),
+      createIdentity(service, {
+        label: "tr-holder-g",
+        role: "staff",
+        venueId: venueG,
+      }),
+      createIdentity(service, {
+        label: "tr-holder-g2",
+        role: "staff",
+        venueId: venueG,
+      }),
+    ])
+    await makeManager(admin, managerG, venueG)
+    grantG = await legacyStaffGrant(service, admin, holderG.id, venueG)
+    grantG2 = await legacyStaffGrant(service, admin, holderG2.id, venueG)
+    versionG = await publishMenu(
+      admin,
+      venueG,
+      menu("TEST trading G", [
+        section("mains", "Mains", [
+          item("mains--bubble", "Bubble"),
+          item("mains--toast", "Toast"),
+        ]),
+        section(
+          "drinks",
+          "Drinks",
+          [item("drinks--ale", "Ale", { variants: ["½ Pint", "Pint"] })],
+          "drinks"
+        ),
+      ])
+    )
+    docG = await readDocument(service, versionG)
+  })
+
+  it("refuses a replay on a retired line: tuple proposal, decision and item-wide statement", async () => {
+    const pkey = randomUUID()
+    const args = {
+      item: G("mains--bubble"),
+      field: "price",
+      value: gbp(5),
+      key: pkey,
+    }
+    const p = await ok<Proposed>(propose(managerG, args))
+    const revision = lineRevision(p.lineId)
+    const dkey = randomUUID()
+    await ok(
+      decide(managerG, p.assertionId, revision, "confirmed", { key: dkey })
+    )
+    const skey = randomUUID()
+    const set = await ok<{ lines: { lineId: string }[] }>(
+      setTemporary(managerG, G("mains--bubble"), skey)
+    )
+    expect(set.lines.map((l) => l.lineId)).toEqual([p.lineId])
+    // No b1 command retires a line; set up on this suite's line by id.
+    psql(`update public.menu_trading_lines
+      set retired_at = now(), retired_by = ${literal(admin.id)}, revision = revision + 1, updated_at = now()
+      where id = ${literal(p.lineId)} and venue_id = ${literal(venueG)}`)
+    const before = commandCount()
+
+    await fails(propose(managerG, args), "menu_trading_line_retired", "P0001")
+    await fails(
+      decide(managerG, p.assertionId, revision, "confirmed", { key: dkey }),
+      "menu_trading_line_retired",
+      "P0001"
+    )
+    await fails(
+      setTemporary(managerG, G("mains--bubble"), skey),
+      "menu_trading_line_retired",
+      "P0001"
+    )
+    await fails(
+      propose(managerG, { line: p.lineId, field: "price", value: gbp(6) }),
+      "menu_trading_line_retired",
+      "P0001"
+    )
+    expect(commandCount()).toBe(before)
+    expect(
+      psql(
+        `select count(*) from public.menu_trading_decisions where line_id = ${literal(p.lineId)}`
+      )
+    ).toBe("2")
+  })
+
+  it("refuses a replay after a grant-only revocation; the holder keeps only staff reports", async () => {
+    const akey = randomUUID()
+    const args = {
+      item: G("mains--toast"),
+      channel: "takeaway",
+      field: "availability",
+      value: { state: "always" },
+      key: akey,
+    }
+    const a = await ok<Proposed>(propose(holderG, args))
+    const revision = lineRevision(a.lineId)
+    const ckey = randomUUID()
+    await ok(
+      decide(holderG, a.assertionId, revision, "confirmed", { key: ckey })
+    )
+    const skey = randomUUID()
+    await ok(setTemporary(holderG, G("mains--toast"), skey))
+    const profile = () =>
+      psql(
+        `select role || ':' || venue_id || ':' || active from public.profiles where id = ${literal(holderG.id)}`
+      )
+    const profileBefore = profile()
+
+    await ok(
+      rpc(admin, "revoke_venue_manager", {
+        p_grant_id: grantG,
+        p_reason: "TEST grant-only revocation",
+      })
+    )
+    // Only the grant changed: the profile is the same staff account.
+    expect(profile()).toBe(profileBefore)
+    await fails(propose(holderG, args), "staff_field_not_allowed", "42501")
+    await fails(
+      decide(holderG, a.assertionId, revision, "confirmed", { key: ckey }),
+      "not_venue_manager",
+      "42501"
+    )
+    await fails(
+      setTemporary(holderG, G("mains--toast"), skey),
+      "not_venue_manager",
+      "42501"
+    )
+    expect(
+      (
+        await ok<Proposed>(
+          propose(holderG, {
+            item: G("mains--toast"),
+            field: "price",
+            value: gbp(4),
+          })
+        )
+      ).state
+    ).toBe("proposed")
+  })
+
+  it("waits for an uncommitted grant revocation and re-reads it before deciding", async () => {
+    const p = await ok<Proposed>(
+      propose(managerG, {
+        item: G("drinks--ale"),
+        field: "price",
+        value: gbp("5.00"),
+      })
+    )
+    const name = `b04-revoke-${randomUUID().slice(0, 8)}`
+    const revocation = psqlBackground(
+      name,
+      `begin;
+${as(admin)}
+select public.revoke_venue_manager(${literal(grantG2)}, 'TEST revoke in flight');
+reset role;
+select pg_sleep(1.5);
+commit;`
+    )
+    await untilSleeping(name)
+    // The decision waits on the holder's grant row, then reads it revoked.
+    await fails(
+      decide(holderG2, p.assertionId, lineRevision(p.lineId), "confirmed"),
+      "not_venue_manager",
+      "42501"
+    )
+    await revocation
+    expect(
+      psql(
+        `select count(*) from public.menu_trading_decisions where assertion_id = ${literal(p.assertionId)}`
+      )
+    ).toBe("0")
+  })
+
+  it("prices only the scope the cited entry is: a ½ Pint entry stays distinct from the Pint, nothing inherited", async () => {
+    const source = await ok<{ sourceId: string }>(
+      rpc(admin, "menu_declare_source", {
+        p_venue: venueG,
+        p_kind: "venue_website",
+        p_label: `TEST trading G site ${randomUUID()}`,
+        p_locator: null,
+        p_request_key: randomUUID(),
+      })
+    )
+    const snapshotId = (
+      await ok<{ snapshotId: string }>(
+        rpc(admin, "menu_record_snapshot", {
+          p_source: source.sourceId,
+          p_revision: "g1",
+          p_sha256: "d".repeat(64),
+          p_captured_at: null,
+          p_document: [
+            {
+              locator: "g.json#Ale",
+              name: "Ale",
+              variants: ["½ Pint", "Pint"],
+              priceText: "5.80",
+            },
+            {
+              locator: "g.json#Ale half",
+              name: "Ale ½ Pint",
+              priceText: "£3.20",
+            },
+            {
+              locator: "g.json#Ale pint",
+              name: "Ale Pint",
+              priceText: "£5.80",
+            },
+          ],
+          p_request_key: randomUUID(),
+        })
+      )
+    ).snapshotId
+    await ok(
+      rpc(admin, "menu_crosswalk_propose", {
+        p_snapshot: snapshotId,
+        p_request_key: randomUUID(),
+      })
+    )
+    const review = async (
+      locator: string,
+      variantId: string | null,
+      channel: string
+    ) => {
+      const h = rows<{
+        row_id: string
+        revision: number
+      }>(`select h.row_id, h.revision
+        from public.menu_crosswalk_heads h
+        where h.source_id = ${literal(source.sourceId)} and h.locator = ${literal(locator)}`)[0]!
+      await ok(
+        rpc(admin, "menu_crosswalk_decide", {
+          p_row: h.row_id,
+          p_expected: h.revision,
+          p_status: "confirmed",
+          p_item: G("drinks--ale"),
+          p_variant: variantId,
+          p_channel: channel,
+          p_reason: null,
+          p_request_key: randomUUID(),
+        })
+      )
+    }
+    const half = aleVariant("½ Pint")
+    const pint = aleVariant("Pint")
+    await review("g.json#Ale half", half, "all")
+    await review("g.json#Ale pint", pint, "all")
+    // The entry listing both variants, reviewed as the takeaway Pint.
+    await review("g.json#Ale", pint, "takeaway")
+    const cite = (a: Omit<ProposeArgs, "field" | "source">, locator: string) =>
+      propose(admin, { ...a, field: "price", source: { snapshotId, locator } })
+
+    const halfPrice = await ok<Proposed>(
+      cite({ item: G("drinks--ale"), variant: half }, "g.json#Ale half")
+    )
+    const pintPrice = await ok<Proposed>(
+      cite({ item: G("drinks--ale"), variant: pint }, "g.json#Ale pint")
+    )
+    expect(halfPrice.value).toEqual({
+      kind: "fixed",
+      amountMinor: 320,
+      currency: "GBP",
+    })
+    expect(pintPrice.value).toEqual({
+      kind: "fixed",
+      amountMinor: 580,
+      currency: "GBP",
+    })
+    expect(halfPrice.lineId).not.toBe(pintPrice.lineId)
+    // The stored evidence names the exact priced entry for each line.
+    expect(
+      rows(`select l.variant_id as "variantId", a.source_locator as "locator", a.raw_text as "rawText"
+        from public.menu_trading_assertions a join public.menu_trading_lines l on l.id = a.line_id
+        where a.id in (${literal(halfPrice.assertionId)}, ${literal(pintPrice.assertionId)})
+        order by a.raw_text`)
+    ).toEqual([
+      { variantId: half, locator: "g.json#Ale half", rawText: "£3.20" },
+      { variantId: pint, locator: "g.json#Ale pint", rawText: "£5.80" },
+    ])
+
+    // The Pint's entry cited for the ½ Pint line: another variant.
+    await fails(
+      cite({ item: G("drinks--ale"), variant: half }, "g.json#Ale pint"),
+      "menu_source_mapping_mismatch",
+      "P0001"
+    )
+    // One price for an entry listing two variants is not the Pint's price.
+    await fails(
+      cite(
+        { item: G("drinks--ale"), variant: pint, channel: "takeaway" },
+        "g.json#Ale"
+      ),
+      "menu_source_price_scope_unverified",
+      "P0001"
+    )
+    // A portion the source does not name inherits nothing.
+    await fails(
+      cite(
+        { item: G("drinks--ale"), variant: pint, portion: { label: "Jug" } },
+        "g.json#Ale pint"
+      ),
+      "menu_source_price_scope_unverified",
+      "P0001"
+    )
+    expect(
+      psql(`select count(*) from public.menu_trading_lines
+        where item_id = ${literal(G("drinks--ale"))} and portion_label = 'Jug'`)
+    ).toBe("0")
+  })
+
+  it("waits for an activation in progress, then refuses a replay for an item it took off the menu", async () => {
+    const pkey = randomUUID()
+    const args = {
+      item: G("mains--toast"),
+      field: "price",
+      value: gbp(6),
+      key: pkey,
+    }
+    const p = await ok<Proposed>(propose(managerG, args))
+    const revision = lineRevision(p.lineId)
+    const dkey = randomUUID()
+    await ok(
+      decide(managerG, p.assertionId, revision, "confirmed", { key: dkey })
+    )
+
+    // An activation holds the venue menu lock exclusively: a command waits.
+    const name = `b04-activate-${randomUUID().slice(0, 8)}`
+    const activation = psqlBackground(
+      name,
+      `begin;
+select private.lock_venue_menu(${literal(venueG)}, false);
+select pg_sleep(1.5);
+commit;`
+    )
+    await untilSleeping(name)
+    const waiting = ok<Proposed>(
+      propose(managerG, {
+        item: G("mains--toast"),
+        field: "price",
+        value: gbp(7),
+      })
+    )
+    await untilLockWaiting("menu_trading_propose")
+    await activation
+    expect((await waiting).state).toBe("proposed")
+
+    // A real activation drops the toast: its replays are refused.
+    versionG = await publishMenu(
+      admin,
+      venueG,
+      menu("TEST trading G v2", [
+        section("mains", "Mains", [
+          item("mains--bubble", "Bubble", { itemId: G("mains--bubble") }),
+        ]),
+        section(
+          "drinks",
+          "Drinks",
+          [
+            item("drinks--ale", "Ale", {
+              itemId: G("drinks--ale"),
+              variants: docG.byKey["drinks--ale"]!.variants,
+            }),
+          ],
+          "drinks"
+        ),
+      ]),
+      versionG
+    )
+    await fails(
+      propose(managerG, args),
+      "menu_item_not_on_active_menu",
+      "P0001"
+    )
+    await fails(
+      decide(managerG, p.assertionId, revision, "confirmed", { key: dkey }),
+      "menu_item_not_on_active_menu",
+      "P0001"
+    )
+  })
+})
 // ---------------------------------------------------------------------------
 // Resolution through the read path (B04-02b, §5.5)
 // ---------------------------------------------------------------------------
@@ -2032,9 +2510,7 @@ commit;`
       })
     )
     await confirm(managerR, a)
-    const later = psql(
-      `select to_json(now() + interval '3 days') #>> '{}'`
-    )
+    const later = psql(`select to_json(now() + interval '3 days') #>> '{}'`)
     runJob(`${literal(later)}::timestamptz`, [venueR])
     expect(openTasks(a.lineId)).toEqual([])
     expect(await availabilityAt(a.lineId, later)).toMatchObject({
@@ -2416,6 +2892,7 @@ describe("catalogue assertions (T9b) and privileges", () => {
       "private.menu_service_state_at(uuid,uuid,timestamptz)",
       "private.menu_service_occurrences(uuid,timestamptz,date,date,timestamptz)",
       "private.menu_trading_lock_actor(uuid)",
+      "private.menu_trading_assert_role(uuid,text,text)",
       "private.menu_close_rechecks(uuid,timestamptz)",
       "private.menu_trading_field_state(uuid,text,timestamptz)",
       "private.menu_parse_price(jsonb,text)",
@@ -2436,8 +2913,12 @@ describe("catalogue assertions (T9b) and privileges", () => {
     ).toEqual([])
     // WS1/WS6's hourly route calls the job with p_now only: every venue.
     expect(
-      psql(`select pg_get_function_arguments('private.menu_open_rechecks(timestamptz,uuid[])'::regprocedure)`)
-    ).toBe("p_now timestamp with time zone, p_venue_ids uuid[] DEFAULT NULL::uuid[]")
+      psql(
+        `select pg_get_function_arguments('private.menu_open_rechecks(timestamptz,uuid[])'::regprocedure)`
+      )
+    ).toBe(
+      "p_now timestamp with time zone, p_venue_ids uuid[] DEFAULT NULL::uuid[]"
+    )
   })
 
   it("writes no catalogue, label or photo table from any B04-b1 function", () => {
