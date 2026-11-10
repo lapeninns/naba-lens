@@ -624,20 +624,31 @@ the `epoch_regressed` halt through §4.5 step 6; a revoked link persists
 The snapshot is read from an epoch NabaLens accepted only after its
 rebuild settled (B06 §5.8 step 3.7), so each item is that field's final
 settled head in the new epoch, at revision 1 or higher; the bootstrap
-replaces an older-epoch head whatever either revision is. After a restore
-two cases follow (P19a, P19b):
+replaces an older-epoch head whatever either revision is. Whether a key
+is present or omitted is the actual snapshot's outcome: NabaLens omits a
+key only when its reconciled rebuild left it no non-shadow head, judged
+from both the restored manifest and the restored delivered-field register
+(B06 §5.8 step 3.6), and NabaPresence never infers it from restore
+history. After a restore three cases follow (P19a, P19b, P19c):
 
 - a key **present** in the snapshot as a settled `withdrawn` tombstone
   (a restored field whose lost withdrawal RB-12 replayed) is applied by
   step 2: the head becomes that tombstone, old-epoch pre-send rows close
   `superseded` / `epoch_reset`, and the review-item rule is evaluated;
-- a key the link holds but the snapshot **omits** (a field first delivered
-  after the backup point and missing from the restored register) is
+- a key the link holds but the snapshot **omits** (for example a field
+  added to the manifest and first delivered after the backup point, so
+  absent from both the restored manifest and the restored register) is
   handled by step 3: a `withdrawn` head at revision 0, pre-send rows close
   `withdrawn_at_source` / `epoch_reset`, and the review-item rule is
-  evaluated.
+  evaluated;
+- a key **present** with a settled published or unavailable head although
+  the restored register lacked it (enabled in the restored manifest and
+  still eligible, backed up before its first drain) is applied by step 2
+  like any present item: the old-epoch head is replaced, old-epoch
+  pre-send rows close `superseded` / `epoch_reset`, the review-item rule is
+  evaluated, and its new revision is reviewable.
 
-In both, in-flight rows are kept, provider audit history is untouched and
+In every case, in-flight rows are kept, provider audit history is untouched and
 no provider mutation happens during the reset.
 
 In-flight rows from the old epoch resolve normally (§7.3); completion is
@@ -884,7 +895,10 @@ and it keeps the session advisory lock and the idempotency paths.
    again there. The refusal is thrown inside the claim transaction, so it
    rolls back everything that transaction wrote, including an intent
    receipt `beginIntent` inserted in it. No attempt row is inserted, the
-   refused transaction commits no intent, and the provider is not called.
+   refused transaction commits no intent, and nothing after the refusal
+   calls the provider (on the re-arm path the child's own-attempt recovery
+   readback has already run, before the second `claim()`, and is
+   unchanged).
    On the first claim that leaves no receipt at all. On the **re-arm
    path** (the second `claim()`), the first claim already committed the
    intent receipt, still `sent` and unlinked, before the child's own row
@@ -1128,7 +1142,8 @@ baseline (plan §12 rollback).
 | P17. Settling or withdrawn-overlay item at the head of a page                                | The page ends before it; the cursor stays; the next drain settles it and intake proceeds                                                                         |
 | P18. NabaLens outage at intake                                                               | Cursor kept; backoff; "Intake behind" and an alert after 30 minutes; review continues                                                                            |
 | P19a. NabaLens epoch reset after a restore older than the cursor; a key present in the backup and the restored register whose post-backup withdrawal was lost and replayed (including after a private early build: value at revision 1, then tombstone at revision 2) | `epoch_changed`; bootstrap from the accepted, settled snapshot; the key's head is the present `withdrawn` tombstone at its final revision; old-epoch pre-send rows closed `superseded` / `epoch_reset`; in-flight rows kept; provider audit history unchanged; review item where confirmed; no provider mutation during the reset; new revisions reviewable |
-| P19b. The same reset; a key first delivered after the backup point, missing from the restored register and omitted from the snapshot | A `withdrawn` head at revision 0 in the new epoch; pre-send rows closed `withdrawn_at_source` / `epoch_reset`; in-flight rows kept; provider audit history unchanged; review item where confirmed; no provider mutation during the reset |
+| P19b. The same reset; a key added to the manifest and first delivered after the backup point, absent from both the restored manifest and the restored register, so with no non-shadow head after the rebuild and omitted from the snapshot | A `withdrawn` head at revision 0 in the new epoch; pre-send rows closed `withdrawn_at_source` / `epoch_reset`; in-flight rows kept; provider audit history unchanged; review item where confirmed; no provider mutation during the reset |
+| P19c. The same reset; a key enabled in the restored manifest and still eligible but backed up before its first drain (no restored register row), delivered after the backup point | The key is present in the accepted snapshot with its settled new-epoch head (first tuple revision 1, final revision 1 or higher); step 2 replaces the old-epoch head with it; old-epoch pre-send rows closed `superseded` / `epoch_reset`; in-flight rows kept; provider audit history unchanged; the review-item rule is evaluated (no item while the head is published); the new revision is reviewable; no `withdrawn` revision-0 head and no provider mutation during the reset |
 | P20. Restore without a new epoch                                                             | `cursor_ahead`; intake halts; alert                                                                                                                              |
 | P21. Receipt posted twice, or out of order, or for an old epoch                              | One event; the lower one or old epoch `ignored_stale`                                                                                                             |
 | P22. Retention reaper runs while a suggestion is in flight                                   | The referenced attempt is kept (B07-00 item 2)                                                                                                                   |
@@ -1143,7 +1158,7 @@ baseline (plan §12 rollback).
 | P26. An unresolved B07 attempt, then a bulk attributes child at the same location            | The child's claim throws `AttributesClaimBusyError` at `beforeStart`; `runBulkWrite` maps it to `{ kind: "deferred", code: "resource_busy" }` and the child returns to `queued` with `resource_busy` (not `failed`); no bulk attempt row, no new committed intent receipt (the provisional one rolled back; for the re-arm path see P26c), no Google call |
 | P26a. P26, then the B07 attempt reaches `succeeded` or `failed`, and the runner claims the queued child again | The fence check passes; the child's attempt starts and is sent once |
 | P26b. Mapping scope: an ordinary pre-receipt `ApiError` from the claim of an attributes or another bulk family; a busy advisory key | Unchanged: the `ApiError` still settles `failed` through `outcomeOfThrownWrite`; the busy key still defers `resource_busy` through the advisory callback; only the typed refusal takes the new branch |
-| P26c. Re-arm path: the child's own uncertain row is read back and settled `failed`; a B07 attempt claims the fence before the second `claim()`; that claim is refused | The child returns to `queued` with `resource_busy`; no new attempt and no Google call; the receipt committed by the first claim is linked to the child's own settled row (reporting its failure), not left `sent` without an attempt; the next run claims under a new intent, finds the child's own `failed` row by its idempotency key and re-arms it (once neither predicate holds), never answering idempotently from the linked receipt |
+| P26c. Re-arm path: the child's own uncertain row is read back and settled `failed`; a B07 attempt claims the fence before the second `claim()`; that claim is refused | The child returns to `queued` with `resource_busy`; no new attempt. The child's own-attempt recovery readback before the second `claim()` is expected and may call Google; the refused re-arm makes no new provider mutation and no further provider call after the refusal; the receipt committed by the first claim is linked to the child's own settled row (reporting its failure), not left `sent` without an attempt; the next run claims under a new intent, finds the child's own `failed` row by its idempotency key and re-arms it (once neither predicate holds), never answering idempotently from the linked receipt |
 | P27. Simultaneous B07 and bulk claims with both advisory sessions lost                       | Both serialise on the fence row; exactly one new attempt commits; a losing bulk child returns to `queued` with `resource_busy` as P26 |
 | P28. Scope and release: other tenant, other location, an hours write; then the blocking attempt reaches `succeeded` or `failed` | Not blocked by the fence; terminal attempts unblock either path; an ambiguous attempt is recovered by readback only, never redispatched; a bulk child's own uncertain row is read back and an idempotent replay answers from its receipt, neither meeting the refusal |
 | P29. A same-epoch item at the head's revision with a different digest                        | The page rolls back; `revision_conflict` halt; alert |
@@ -1288,3 +1303,18 @@ NabaLens gate does not qualify the NabaPresence change (plan §18).
     intent, and `runBulkWrite` maps it explicitly to `deferred` /
     `resource_busy` before the generic adapter (§3.0, §6.3, §6.5, §9; P25
     to P28, P26a, P26b).
+- Draft 2, third bounded repair (10 Nov 2026), for the static review of
+  `f32c9973` (R2 B07 side and the R4 fixture wording):
+  - R2: reset omission is the actual snapshot outcome, decided by NabaLens
+    from the reconciled rebuild (no non-shadow head), not from the
+    restored register alone. P19b now uses a key absent from both the
+    restored manifest and register; P19c adds the counterexample of a
+    still-eligible key enabled in the restored manifest but missing from
+    the register, which is present and applied as a present head (§4.6;
+    P19b, P19c).
+  - R4: P26c and §6.5 item 3 scope the provider assertion to the refusal:
+    the existing own-attempt recovery readback before the second `claim()`
+    is allowed; the refused re-arm makes no new provider mutation and no
+    provider call after the refusal. The two-phase fence, receipt linkage,
+    `resource_busy` mapping, P26's zero-dispatch first claim and P26a's
+    retry are unchanged.
