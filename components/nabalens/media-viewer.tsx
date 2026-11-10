@@ -26,7 +26,9 @@ import { formatBytes, formatDate, formatTime } from "./format"
 import { isEmptyLabelSummary, LabelSummary } from "./labels"
 import { Notice } from "./notice"
 import { ProfileAvatar } from "./profile-avatar"
+import { useAdd } from "./shell/add-context"
 import type { MediaItem } from "./types"
+import { OPEN_ADD, stoppedText, useUploadStopped } from "./upload-stopped"
 
 export const PREVIEW_UNAVAILABLE = "Preview unavailable in this browser"
 
@@ -74,14 +76,17 @@ function uploadedAt(iso: string) {
 function StageMessage({
   icon,
   children,
+  action,
 }: {
   icon: React.ReactNode
   children: React.ReactNode
+  action?: React.ReactNode
 }) {
   return (
     <div className="flex w-full flex-col items-center justify-center gap-3 px-4 py-16 text-center text-on-viewer-muted">
       {icon}
       <p className="text-body">{children}</p>
+      {action}
     </div>
   )
 }
@@ -98,11 +103,38 @@ function Unavailable({
   )
 }
 
-function Preview({ item, label }: { item: MediaItem; label: string }) {
+function Preview({
+  item,
+  label,
+  stopped = false,
+  onOpenAdd,
+}: {
+  item: MediaItem
+  label: string
+  /** An own upload nothing is sending any more (see useUploadStopped). */
+  stopped?: boolean
+  onOpenAdd?: () => void
+}) {
   // Track the URL that failed so a re-signed URL gets a fresh attempt.
   const [failedUrl, setFailedUrl] = React.useState<string | null>(null)
   const failed = failedUrl !== null && failedUrl === item.previewUrl
 
+  if (stopped) {
+    return (
+      <StageMessage
+        icon={<ImageBrokenIcon className="size-8" aria-hidden />}
+        action={
+          onOpenAdd ? (
+            <Button type="button" variant="secondary" onClick={onOpenAdd}>
+              {OPEN_ADD}
+            </Button>
+          ) : null
+        }
+      >
+        {stoppedText(item.mediaType, item.createdAt)}
+      </StageMessage>
+    )
+  }
   if (item.uploadState === "uploading" || item.uploadState === "processing") {
     return (
       <StageMessage
@@ -206,6 +238,9 @@ export function MediaViewer({
   removed = false,
 }: MediaViewerProps) {
   const labelsTermId = React.useId()
+  const isStopped = useUploadStopped()
+  const openAdd = useAdd()
+  const stopped = !removed && !!item && (isStopped?.(item) ?? false)
 
   const ready = item?.uploadState === "ready"
   const downloadable = !removed && ready && getDownloadHref
@@ -256,7 +291,20 @@ export function MediaViewer({
                   <span>Close</span>
                 </DialogClose>
               </div>
-              <Preview key={item.id} item={item} label={label} />
+              <Preview
+                key={item.id}
+                item={item}
+                label={label}
+                stopped={stopped}
+                onOpenAdd={
+                  openAdd
+                    ? () => {
+                        onOpenChange(false)
+                        openAdd()
+                      }
+                    : undefined
+                }
+              />
             </div>
             <aside
               aria-label="Details"

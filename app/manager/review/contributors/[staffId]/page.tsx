@@ -7,6 +7,10 @@ import {
 } from "@/app/manager/review/_shared/review-page"
 import { managerHrefs } from "@/components/nabalens/manager/hrefs"
 import { REVIEW_COPY } from "@/components/nabalens/manager/review/review-copy"
+import {
+  OfflineNotice,
+  OFFLINE_BANNER_CLASS,
+} from "@/components/nabalens/offline-notice"
 import { buttonVariants } from "@/components/ui/button"
 import { requireManagerVenue } from "@/lib/auth/manager"
 import { getManagerPhotoCtx } from "@/lib/server/menu-photos"
@@ -30,6 +34,10 @@ export default async function ManagerContributorPage({
     failedRead(scope.code, "a contributor", managerHrefs.contributor(staffId))
   return (
     <div className="grid gap-6">
+      <OfflineNotice
+        className={OFFLINE_BANNER_CLASS}
+        loadedAt={new Date().toISOString()}
+      />
       <Link
         href={managerHrefs.review()}
         className={buttonVariants({

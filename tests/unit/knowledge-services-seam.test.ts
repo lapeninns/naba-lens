@@ -65,37 +65,26 @@ describe("knowledge services seam", () => {
   })
 
   it("reads To confirm for the check page only when the caller decides", async () => {
+    const CHECK = "8a000000-0000-4000-8000-000000000001"
+    const VENUE = "9b000000-0000-4000-8000-000000000001"
     const view = {
-      checkId: "c1",
-      venueId: "v1",
-      inScope: true,
-      status: "available",
-      reason: null,
-      detail: null,
-      answerInUse: null,
-      pending: [],
+      checkId: CHECK,
+      venueId: VENUE,
+      inScope: false,
       permissions: { canConfirm: false },
     }
-    server.getKnowledgeCheck.mockResolvedValue({ ok: true, check: view })
-    await knowledgeServices.getKnowledgeCheck(actor, {
-      checkId: "c1",
+    const db = {} as MediaActor["db"]
+    const withDb = { db } as MediaActor
+    rpc.knowledgeRpc.mockResolvedValue({ data: view, error: null })
+    await knowledgeServices.getKnowledgeCheck(withDb, {
+      checkId: CHECK,
       venueName: "The Old Crown",
     })
-    expect(server.getKnowledgeCheck).toHaveBeenCalledWith(actor, {
-      checkId: "c1",
+    expect(rpc.knowledgeRpc).toHaveBeenCalledTimes(1)
+    expect(rpc.knowledgeRpc).toHaveBeenCalledWith(db, "knowledge_check", {
+      p_check_id: CHECK,
     })
-    expect(server.listToConfirm).not.toHaveBeenCalled()
-
-    server.getKnowledgeCheck.mockResolvedValue({
-      ok: true,
-      check: { ...view, permissions: { canConfirm: true } },
-    })
-    server.listToConfirm.mockResolvedValue({ ok: true, count: 0, items: [] })
-    await knowledgeServices.getKnowledgeCheck(actor, {
-      checkId: "c1",
-      venueName: "The Old Crown",
-    })
-    expect(server.listToConfirm).toHaveBeenCalledWith(actor, { venueId: "v1" })
+    // A decider on an in-scope question: tests/unit/knowledge-services-missing.test.ts.
   })
 })
 

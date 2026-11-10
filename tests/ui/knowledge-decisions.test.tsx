@@ -165,7 +165,7 @@ function setup(
   return { user: userEvent.setup(), handlers, onReopen }
 }
 
-const card = (name: RegExp | string) => screen.getByRole("listitem", { name })
+const card = (name: RegExp | string) => screen.getByRole("article", { name })
 
 beforeEach(() => {
   n = 0
@@ -589,7 +589,7 @@ describe("To confirm: refusals (§6.6)", () => {
     ],
     [
       "revision_conflict",
-      "This check changed since you opened it. Reload to see the latest; nothing was decided.",
+      "This check changed. The page now shows the latest; check whether your decision is there.",
     ],
     [
       "self_confirmation_not_permitted",
@@ -798,5 +798,25 @@ describe("To confirm: the recorded time of an answer in use (X-07)", () => {
     setup(view([{ ...current, recordedAt: null, sentAt: "" }], YES))
     expect(screen.queryByText(/^Recorded/)).toBeNull()
     expect(screen.queryByText(/an unknown time/)).toBeNull()
+  })
+})
+
+describe("To confirm: each finding is an article with two headed lists (MG-15)", () => {
+  it("names the article and heads In use now and This finding over their own lists", () => {
+    setup(view([finding()]))
+    const article = card("Finding from Sam Lee")
+    expect(article.closest("li")).toBeTruthy()
+    const groups = within(article).getAllByRole("heading", { level: 4 })
+    expect(groups.map((h) => h.textContent)).toEqual([
+      "In use now",
+      "This finding",
+    ])
+    for (const heading of groups) {
+      const list = heading.nextElementSibling
+      expect(list?.tagName).toBe("DL")
+      expect(
+        within(list as HTMLElement).getAllByRole("term").length
+      ).toBeGreaterThan(0)
+    }
   })
 })

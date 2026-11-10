@@ -51,6 +51,8 @@ export const MANAGER_COPY = {
       `${plural(n, "item")} ${n === 1 ? "needs" : "need"} a new decision after a menu or label change`,
     ownWaiting: (n: number) =>
       `${n} of your earlier photos ${n === 1 ? "is" : "are"} waiting for an admin`,
+    needsLabels: (n: number) =>
+      `${plural(n, "photo")} ${n === 1 ? "needs" : "need"} labels`,
     reviewPhotos: "Review photos",
     quietTitle: "Nothing waiting for review",
     quietBody: (n: number) =>
@@ -177,6 +179,16 @@ export const MANAGER_COPY = {
   notFoundItem: {
     title: "This item isn't on your current menu",
     back: "Go to Menu",
+  },
+  uploads: {
+    title: "My uploads",
+    summary: "Photos and videos you've added, with their labels and review.",
+    empty: "Photos and videos you add show here.",
+    missing: "Your uploads can't be shown here yet.",
+    failed: "We couldn't load your uploads.",
+    loading: "Loading your uploads…",
+    addLabels: "Add labels",
+    editLabels: "Edit labels",
   },
   accountPage: {
     title: "Account",

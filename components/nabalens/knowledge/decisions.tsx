@@ -916,120 +916,132 @@ function FindingCard({
     finding.kind === "answer_unconfirmed" || finding.kind === "evidence_removed"
   const differs =
     !isCurrent && answer.value !== null && finding.answer !== answer.value
+  // An article with two headed lists, so a screen reader reads the
+  // comparison as two named groups of facts, not flat text (MG-15).
   return (
-    <li
-      aria-labelledby={titleId}
-      className="grid min-w-0 gap-3 rounded-card bg-surface p-4 shadow-card"
-    >
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <h3
-          id={titleId}
-          className="text-item-title [overflow-wrap:anywhere] text-ink"
-        >
-          {isCurrent
-            ? KIND_TITLE[finding.kind]
-            : `${KIND_TITLE[finding.kind]} from ${sender}${finding.senderIsAssignee ? " (assigned)" : ""}`}
-        </h3>
-        <StatusChip state="awaiting_confirmation" />
-      </div>
-      {isCurrent ? (
-        finding.recordedAt ? (
-          <p className="text-meta-touch text-ink-muted md:text-meta">
-            Recorded {dateAndTime(finding.recordedAt)}
-          </p>
-        ) : null
-      ) : finding.sentAt ? (
-        <p className="text-meta-touch text-ink-muted md:text-meta">
-          Sent {dateAndTime(finding.sentAt)}
-        </p>
-      ) : null}
-      {finding.kind === "answer_unconfirmed" ? (
-        <p className="text-body-touch text-ink md:text-body">
-          This answer is recorded but not confirmed, so readers are told
-          it&apos;s awaiting confirmation.
-        </p>
-      ) : null}
-      {finding.kind === "evidence_removed" ? (
-        <p className="text-body-touch text-ink md:text-body">
-          {finding.removedEvidence === 0
-            ? "Evidence attached to this answer was deleted."
-            : finding.removedEvidence === 1
-              ? "1 photo attached to this answer was deleted."
-              : `${finding.removedEvidence} photos attached to this answer were deleted.`}{" "}
-          Readers aren&apos;t given the answer until you decide.
-        </p>
-      ) : null}
-      <dl className="grid gap-3 md:grid-cols-2">
-        <div className="grid content-start gap-3 rounded-control bg-well p-3">
-          <p className="text-label-touch text-ink md:text-label">In use now</p>
-          <Fact term="Answer">
-            {answer.value ? ANSWER_LABEL[answer.value] : "None"}
-            {answer.savedAt ? `, recorded ${longDate(answer.savedAt)}` : ""}
-          </Fact>
-          {answer.value ? (
-            <Fact term="Confirmation">{confirmationText(answer)}</Fact>
-          ) : null}
+    <li className="min-w-0">
+      <article
+        aria-labelledby={titleId}
+        className="grid min-w-0 gap-3 rounded-card bg-surface p-4 shadow-card"
+      >
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <h3
+            id={titleId}
+            className="text-item-title [overflow-wrap:anywhere] text-ink"
+          >
+            {isCurrent
+              ? KIND_TITLE[finding.kind]
+              : `${KIND_TITLE[finding.kind]} from ${sender}${finding.senderIsAssignee ? " (assigned)" : ""}`}
+          </h3>
+          <StatusChip state="awaiting_confirmation" />
         </div>
-        {isCurrent ? null : (
-          <div className="grid content-start gap-3 rounded-control bg-well p-3">
-            <p className="text-label-touch text-ink md:text-label">
-              This finding
+        {isCurrent ? (
+          finding.recordedAt ? (
+            <p className="text-meta-touch text-ink-muted md:text-meta">
+              Recorded {dateAndTime(finding.recordedAt)}
             </p>
-            <Fact term="Answer" different={differs}>
-              {KNOWLEDGE_ANSWER_LABEL[finding.answer]}
-            </Fact>
-            {finding.changeReason ? (
-              <Fact term="What changed">{finding.changeReason}</Fact>
-            ) : null}
-            {finding.finding ? (
-              <Fact term="What they found">{finding.finding}</Fact>
-            ) : null}
-            {finding.limitations ? (
-              <Fact term="Limitations">{finding.limitations}</Fact>
-            ) : null}
-            {finding.reason ? (
-              <Fact term="Reason">{finding.reason}</Fact>
-            ) : null}
-            {finding.unknownPreset ? (
-              <Fact term="Why they couldn't establish it">
-                {UNKNOWN_PRESET_LABEL[finding.unknownPreset]}
+          ) : null
+        ) : finding.sentAt ? (
+          <p className="text-meta-touch text-ink-muted md:text-meta">
+            Sent {dateAndTime(finding.sentAt)}
+          </p>
+        ) : null}
+        {finding.kind === "answer_unconfirmed" ? (
+          <p className="text-body-touch text-ink md:text-body">
+            This answer is recorded but not confirmed, so readers are told
+            it&apos;s awaiting confirmation.
+          </p>
+        ) : null}
+        {finding.kind === "evidence_removed" ? (
+          <p className="text-body-touch text-ink md:text-body">
+            {finding.removedEvidence === 0
+              ? "Evidence attached to this answer was deleted."
+              : finding.removedEvidence === 1
+                ? "1 photo attached to this answer was deleted."
+                : `${finding.removedEvidence} photos attached to this answer were deleted.`}{" "}
+            Readers aren&apos;t given the answer until you decide.
+          </p>
+        ) : null}
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid content-start gap-3 rounded-control bg-well p-3">
+            <h4 className="text-label-touch text-ink md:text-label">
+              In use now
+            </h4>
+            <dl className="grid gap-3">
+              <Fact term="Answer">
+                {answer.value ? ANSWER_LABEL[answer.value] : "None"}
+                {answer.savedAt ? `, recorded ${longDate(answer.savedAt)}` : ""}
               </Fact>
-            ) : null}
-            {finding.triedText ? (
-              <Fact term="What they tried">{finding.triedText}</Fact>
-            ) : null}
+              {answer.value ? (
+                <Fact term="Confirmation">{confirmationText(answer)}</Fact>
+              ) : null}
+            </dl>
           </div>
-        )}
-      </dl>
-      {finding.evidence.length > 0 ? (
-        <ul
-          aria-label="Evidence"
-          className="grid grid-cols-3 gap-2 sm:grid-cols-4"
-        >
-          {finding.evidence.map((item, i) => (
-            <li key={item.assetId}>
-              <EvidenceTile
-                item={item}
-                label={`${item.kind === "video" ? "Video" : "Photo"} ${i + 1} from ${sender}`}
-              />
-            </li>
-          ))}
-        </ul>
-      ) : null}
-      {finding.detailRequest ? (
-        <p className="text-body-touch text-ink-muted md:text-body-sm">
-          {finding.detailRequest.at
-            ? `You asked for more detail on ${longDate(finding.detailRequest.at)}`
-            : "You asked for more detail"}
-          {finding.detailRequest.note ? `: ${finding.detailRequest.note}` : "."}
-        </p>
-      ) : null}
-      {note ? (
-        <p className="text-body-touch text-ink md:text-body">{note}</p>
-      ) : null}
-      <div className="flex flex-wrap gap-2 *:flex-auto sm:*:flex-none">
-        {actions}
-      </div>
+          {isCurrent ? null : (
+            <div className="grid content-start gap-3 rounded-control bg-well p-3">
+              <h4 className="text-label-touch text-ink md:text-label">
+                This finding
+              </h4>
+              <dl className="grid gap-3">
+                <Fact term="Answer" different={differs}>
+                  {KNOWLEDGE_ANSWER_LABEL[finding.answer]}
+                </Fact>
+                {finding.changeReason ? (
+                  <Fact term="What changed">{finding.changeReason}</Fact>
+                ) : null}
+                {finding.finding ? (
+                  <Fact term="What they found">{finding.finding}</Fact>
+                ) : null}
+                {finding.limitations ? (
+                  <Fact term="Limitations">{finding.limitations}</Fact>
+                ) : null}
+                {finding.reason ? (
+                  <Fact term="Reason">{finding.reason}</Fact>
+                ) : null}
+                {finding.unknownPreset ? (
+                  <Fact term="Why they couldn't establish it">
+                    {UNKNOWN_PRESET_LABEL[finding.unknownPreset]}
+                  </Fact>
+                ) : null}
+                {finding.triedText ? (
+                  <Fact term="What they tried">{finding.triedText}</Fact>
+                ) : null}
+              </dl>
+            </div>
+          )}
+        </div>
+        {finding.evidence.length > 0 ? (
+          <ul
+            aria-label="Evidence"
+            className="grid grid-cols-3 gap-2 sm:grid-cols-4"
+          >
+            {finding.evidence.map((item, i) => (
+              <li key={item.assetId}>
+                <EvidenceTile
+                  item={item}
+                  label={`${item.kind === "video" ? "Video" : "Photo"} ${i + 1} from ${sender}`}
+                />
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {finding.detailRequest ? (
+          <p className="text-body-touch text-ink-muted md:text-body-sm">
+            {finding.detailRequest.at
+              ? `You asked for more detail on ${longDate(finding.detailRequest.at)}`
+              : "You asked for more detail"}
+            {finding.detailRequest.note
+              ? `: ${finding.detailRequest.note}`
+              : "."}
+          </p>
+        ) : null}
+        {note ? (
+          <p className="text-body-touch text-ink md:text-body">{note}</p>
+        ) : null}
+        <div className="flex flex-wrap gap-2 *:flex-auto sm:*:flex-none">
+          {actions}
+        </div>
+      </article>
     </li>
   )
 }

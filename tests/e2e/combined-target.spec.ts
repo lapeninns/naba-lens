@@ -69,7 +69,7 @@ test("a staff target combines distinct menu items and completed amenity checks",
     await expect(
       staff.getByRole("progressbar", { name: "4 of 5 items completed" })
     ).toBeVisible()
-    await staff.getByRole("link", { name: "See this month's target" }).click()
+    await staff.getByRole("link", { name: "See this month" }).click()
     await expect(
       staff.getByRole("heading", { name: "Monthly target", exact: true })
     ).toBeVisible()

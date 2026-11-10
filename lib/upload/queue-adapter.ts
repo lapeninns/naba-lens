@@ -57,9 +57,11 @@ export function toQueueUploader(
     account: signedIn,
   }: QueueUploaderOptions = {}
 ): Uploader {
-  // Keys of files in flight in this tab: the same file added twice must not
-  // share one reservation.
-  const inUse = new Set<string>()
+  // Keys of files in flight in this tab, with the run holding each: the same
+  // file added twice must not share one reservation. A run the queue gave up
+  // on (aborted, e.g. a finalise retried after its stale window) frees its key
+  // at once, so the retry is not refused while the old reply is still out.
+  const inUse = new Map<string, AbortSignal>()
 
   return async (
     file: File,
@@ -93,7 +95,12 @@ export function toQueueUploader(
         retryable: true,
       })
     }
-    inUse.add(idempotencyKey)
+    inUse.set(idempotencyKey, context.signal)
+    const release = () => {
+      if (inUse.get(idempotencyKey) === context.signal)
+        inUse.delete(idempotencyKey)
+    }
+    context.signal?.addEventListener("abort", release, { once: true })
     await keys?.set(file, idempotencyKey, scope).catch(() => {})
 
     let result: Awaited<ReturnType<UploadFn>>
@@ -117,7 +124,8 @@ export function toQueueUploader(
         },
       })
     } finally {
-      inUse.delete(idempotencyKey)
+      context.signal?.removeEventListener("abort", release)
+      release()
     }
 
     // Finished either way: choosing this file again starts a new upload.

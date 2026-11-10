@@ -91,9 +91,10 @@ export function ReasonField({
       />
       <div className="flex items-start gap-3">
         {error ? (
+          // Read through the field's aria-describedby; a failed check
+          // focuses the field instead of announcing an alert (CA-13).
           <p
             id={`${id}-error`}
-            role="alert"
             className="flex items-start gap-1.5 text-meta font-bold text-warn-fg"
           >
             <WarningCircleIcon aria-hidden className="mt-px size-4 shrink-0" />
@@ -164,6 +165,13 @@ export function ReasonDialog({
   const [fieldError, setFieldError] = React.useState<string | null>(null)
   const sessionEnded = useSessionEndedCatch()
 
+  /** The reason field, once it shows its error (CA-13). */
+  function focusReason() {
+    requestAnimationFrame(() =>
+      document.getElementById(`${id}-reason`)?.focus()
+    )
+  }
+
   function close(next: boolean) {
     if (pending) return
     if (!next) {
@@ -179,6 +187,7 @@ export function ReasonDialog({
     const trimmed = reason.trim()
     if (!trimmed) {
       setFieldError(emptyError)
+      focusReason()
       return
     }
     setPending(true)
@@ -189,6 +198,7 @@ export function ReasonDialog({
       if (!outcome.ok && !("reported" in outcome)) {
         setError(outcome.error)
         setFieldError(outcome.fieldError ?? null)
+        if (outcome.fieldError) focusReason()
         return
       }
       reportedRef.current = !outcome.ok || reportFocusOnSuccess === true

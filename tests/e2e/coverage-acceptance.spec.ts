@@ -897,9 +897,9 @@ test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () =
     )
     const staffPage = await signedInPage(browser, w.staffA)
     await expect(staffPage).toHaveURL(STAFF_LANDING)
-    // Home also raises it on the To do card; the task list row must carry it.
+    // Home raises it on its To do card only (one home per piece of work).
     const listed = staffPage
-      .getByRole("list", { name: "Assigned tasks" })
+      .getByRole("region", { name: /^To do/ })
       .getByRole("listitem")
       .filter({ hasText: title })
     await expect(listed.getByText("Overdue", { exact: true })).toBeVisible()

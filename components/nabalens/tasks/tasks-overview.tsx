@@ -19,6 +19,7 @@ import { AssignmentList } from "./assignment-list"
 import { ColleaguePosts } from "./colleague-posts"
 import { FirstRunEntry } from "./first-run-entry"
 import { MonthlyProgressCard } from "./monthly-progress-card"
+import { PhotosSentNotice } from "./photos-sent-notice"
 import { TODO_HEADING_ID, todoItems, TodoSection } from "./todo-list"
 import type { CoverageScope, MyTasksView } from "./types"
 
@@ -39,7 +40,7 @@ export type JustSent =
 export const RULE_SENTENCE =
   "Ready photos are already in Photos and on your profile. Review decides whether they count, not whether they are shared."
 
-function sentNotice(justSent: JustSent) {
+export function sentNotice(justSent: JustSent) {
   const task = justSent.taskTitle ?? "this month's photos"
   return justSent.kind === "replaced"
     ? `Your new photo for ${task} is waiting for review.`
@@ -140,9 +141,7 @@ export function TasksOverview({
       />
 
       {justSent ? (
-        <Notice tone="positive" role="status">
-          {sentNotice(justSent)}
-        </Notice>
+        <PhotosSentNotice>{sentNotice(justSent)}</PhotosSentNotice>
       ) : null}
 
       {sent ? (
@@ -179,7 +178,11 @@ export function TasksOverview({
         <WorkingListSection list={workingList} onDismiss={onDismissClosed} />
       ) : null}
 
-      <AmenityTaskList tasks={offList} />
+      {/* Two lists of checks can share this screen: name them apart (HM-11). */}
+      <AmenityTaskList
+        tasks={offList}
+        heading={workingList ? "Other amenity checks" : undefined}
+      />
 
       <div className="mt-3 grid gap-(--gutter)">
         <MonthlyProgressCard

@@ -7,6 +7,7 @@ import {
   ArrowCounterClockwiseIcon,
   CameraIcon,
   FloppyDiskIcon,
+  SpinnerGapIcon,
   UserMinusIcon,
   UserPlusIcon,
 } from "@phosphor-icons/react"
@@ -18,6 +19,7 @@ import {
 } from "@/components/nabalens/coverage"
 import { Notice } from "@/components/nabalens/notice"
 import { OptionSelect } from "@/components/nabalens/option-select"
+import { useStillWaiting } from "@/components/nabalens/use-still-waiting"
 import { Button, buttonVariants } from "@/components/ui/button"
 import {
   ANSWER_LABEL,
@@ -34,9 +36,17 @@ import {
   DecisionPanel,
   type DecisionHandlers,
 } from "@/components/nabalens/knowledge/decisions"
-import { answerInUseLines } from "@/components/nabalens/knowledge/copy"
+import {
+  answerInUseLines,
+  managerSentNoticeFor,
+} from "@/components/nabalens/knowledge/copy"
 import type { QuestionView } from "@/lib/knowledge-client/contract"
 
+import { FINDING_SENT_PARAM } from "../capture/finding-sent"
+import {
+  FindingSentNotice,
+  type FindingSentCopy,
+} from "../capture/finding-sent-notice"
 import { EventHistory, SubmissionHistory, peopleIndex } from "./check-history"
 import { ProgressChip, answeredText } from "./check-row"
 import { ReopenDialog, type ReopenOutcome } from "./reopen-dialog"
@@ -44,31 +54,82 @@ import { useAmenityAction } from "./use-amenity-action"
 
 type RevisionResult = AmenityResult<{ revision: number }>
 
+/** Every check write carries a request key (MG-01). */
+type Keyed<T> = T & { idempotencyKey: string }
+
+type Write = "assign" | "unassign" | "notes" | "archive" | "restore" | "reopen"
+
+export const SAVING = "Saving…"
+export const STILL_SAVING = "Still saving; keep this page open."
+
 export type CheckDetailHandlers = {
-  assign: (input: {
-    checkId: string
-    assigneeId: string | null
-    revision: number
-  }) => Promise<RevisionResult>
-  setNotes: (input: {
-    checkId: string
-    notes: string
-    revision: number
-  }) => Promise<RevisionResult>
-  archive: (input: {
-    checkId: string
-    revision: number
-  }) => Promise<RevisionResult>
-  restore: (input: {
-    checkId: string
-    revision: number
-  }) => Promise<RevisionResult>
-  reopen: (input: {
-    checkId: string
-    revision: number
-    preset: ReopenPreset
-    reason?: string
-  }) => Promise<RevisionResult>
+  assign: (
+    input: Keyed<{
+      checkId: string
+      assigneeId: string | null
+      revision: number
+    }>
+  ) => Promise<RevisionResult>
+  setNotes: (
+    input: Keyed<{
+      checkId: string
+      notes: string
+      revision: number
+    }>
+  ) => Promise<RevisionResult>
+  archive: (
+    input: Keyed<{
+      checkId: string
+      revision: number
+    }>
+  ) => Promise<RevisionResult>
+  restore: (
+    input: Keyed<{
+      checkId: string
+      revision: number
+    }>
+  ) => Promise<RevisionResult>
+  reopen: (
+    input: Keyed<{
+      checkId: string
+      revision: number
+      preset: ReopenPreset
+      reason?: string
+    }>
+  ) => Promise<RevisionResult>
+}
+
+const NOTES_DRAFT_PREFIX = "nabalens.amenity-notes."
+
+function readNotesDraft(checkId: string): string | null {
+  try {
+    return window.sessionStorage.getItem(NOTES_DRAFT_PREFIX + checkId)
+  } catch {
+    return null
+  }
+}
+
+const noSubscription = () => () => {}
+
+/** Where focus goes when the sent notice is dismissed. */
+const CHECK_TOP_ID = "amenity-check"
+
+/** A check off the working list, complete after the send. */
+const LEGACY_SENT: FindingSentCopy = {
+  title: "Finding sent",
+  body: "The check is complete.",
+  tone: "positive",
+}
+
+/** Null clears the draft. */
+function writeNotesDraft(checkId: string, notes: string | null) {
+  try {
+    if (notes === null)
+      window.sessionStorage.removeItem(NOTES_DRAFT_PREFIX + checkId)
+    else window.sessionStorage.setItem(NOTES_DRAFT_PREFIX + checkId, notes)
+  } catch {
+    // Storage unavailable (private mode, quota): the draft lives on screen only.
+  }
 }
 
 /**
@@ -77,7 +138,9 @@ export type CheckDetailHandlers = {
  * change. Each write sends the revision the page was read at. A re-read
  * (after any write) keeps the notice; the assignee and notes drafts follow
  * what is saved unless the manager has unsaved changes in them, so typed
- * notes survive a revision conflict.
+ * notes survive a revision conflict. Unsaved notes are also kept in this
+ * tab's sessionStorage per check until saved, so a reload or a session-ended
+ * sign-in brings them back (MG-09).
  *
  * `canUpload` is false for viewers who can only attach media already on
  * Naba-Lens (manager accounts, admins): Capture myself is then a secondary
@@ -110,6 +173,22 @@ export function AmenityCheckDetail({
     savedAssigneeId
   )
   const [notes, setNotes] = React.useState(savedNotes)
+  // The server renders no draft (sessionStorage is the browser's); the
+  // stored one is restored once, after hydration.
+  const storedNotes = React.useSyncExternalStore(
+    noSubscription,
+    () => readNotesDraft(check.id),
+    () => null
+  )
+  const [restored, setRestored] = React.useState(false)
+  if (!restored && storedNotes !== null) {
+    setRestored(true)
+    if (storedNotes.trim() !== savedNotes) setNotes(storedNotes)
+  }
+  function editNotes(value: string) {
+    setNotes(value)
+    writeNotesDraft(check.id, value.trim() === savedNotes ? null : value)
+  }
   // What the drafts were last reset to, to tell an unsaved edit from a
   // value that is simply behind the page after a re-read.
   const [base, setBase] = React.useState({
@@ -128,6 +207,19 @@ export function AmenityCheckDetail({
       setNotes(savedNotes)
   }
   const [reopenOpen, setReopenOpen] = React.useState(false)
+  // The write in flight, so only its button says it is saving.
+  const [busy, setBusy] = React.useState<Write | null>(null)
+  const still = useStillWaiting(busy !== null)
+  // Each write's outcome takes focus: the button that acted is often gone
+  // (Archive becomes Restore) or disabled (Assign, Save notes) once it lands.
+  const noticeRef = React.useRef<HTMLDivElement>(null)
+  const focusOutcome = React.useRef(false)
+  const reopenLanded = React.useRef(false)
+  React.useEffect(() => {
+    if (!action.notice || !focusOutcome.current) return
+    focusOutcome.current = false
+    noticeRef.current?.focus()
+  }, [action.notice])
   const active = check.status === "active"
   const revision = check.revision
   const people = peopleIndex(detail.assigneeOptions, [
@@ -136,19 +228,47 @@ export function AmenityCheckDetail({
     ...detail.events.map((e) => e.actor),
   ])
 
+  /**
+   * One check write, keyed per intent: the same write with the same input
+   * (a retry or a second tap) reuses its key until a reply settles it.
+   */
+  async function write<I extends { checkId: string }, T extends object>(
+    key: Write,
+    input: I,
+    call: (input: Keyed<I>) => Promise<AmenityResult<T>>,
+    success: string
+  ) {
+    setBusy(key)
+    // Reopen's dialog hands focus to the notice as it closes instead.
+    focusOutcome.current = key !== "reopen"
+    try {
+      return await action.runKeyed(
+        `amenity-check:${input.checkId}:${key}`,
+        input,
+        (idempotencyKey) => call({ ...input, idempotencyKey }),
+        success
+      )
+    } finally {
+      setBusy(null)
+    }
+  }
+
   async function assign(next: string | null) {
     if (next == null) {
-      await action.run(
-        () =>
-          handlers.assign({ checkId: check.id, assigneeId: null, revision }),
+      await write(
+        "unassign",
+        { checkId: check.id, assigneeId: null, revision },
+        handlers.assign,
         "Unassigned."
       )
       return
     }
     if (next === check.assignee?.id) return
     const name = people.get(next) ?? "them"
-    await action.run(
-      () => handlers.assign({ checkId: check.id, assigneeId: next, revision }),
+    await write(
+      "assign",
+      { checkId: check.id, assigneeId: next, revision },
+      handlers.assign,
       `Assigned to ${name}.`
     )
   }
@@ -159,41 +279,98 @@ export function AmenityCheckDetail({
       action.setFieldErrors({ notes: `Use up to ${LIMITS.notes} characters.` })
       return
     }
-    await action.run(
-      () =>
-        handlers.setNotes({ checkId: check.id, notes: notes.trim(), revision }),
+    const result = await write(
+      "notes",
+      { checkId: check.id, notes: notes.trim(), revision },
+      handlers.setNotes,
       "Notes saved."
     )
+    if (result.ok) writeNotesDraft(check.id, null)
   }
 
   async function reopen(input: {
     preset: ReopenPreset
     reason?: string
   }): Promise<ReopenOutcome> {
-    const result = await action.run(
-      () => handlers.reopen({ checkId: check.id, revision, ...input }),
+    const result = await write(
+      "reopen",
+      { checkId: check.id, revision, ...input },
+      handlers.reopen,
       knowledge
         ? "Reopened. The answer is no longer in use; staff see it as Needs recheck."
         : "Reopened: staff will see it as Needs recheck."
     )
-    if (result.ok) return { ok: true }
+    if (result.ok) {
+      reopenLanded.current = true
+      return { ok: true }
+    }
     if (result.code === "invalid_input" || result.code === "network")
       return {
         ok: false,
         error: result.message,
         fieldErrors: "fieldErrors" in result ? result.fieldErrors : undefined,
       }
+    reopenLanded.current = true
     return { ok: false, error: result.message, close: true }
   }
 
   const answered = answeredText(check)
+  // "Capture myself" came back here naming this check (CA-15): say what
+  // happened to the finding, from this page's read, never the URL alone.
+  const sentId = React.useSyncExternalStore(
+    noSubscription,
+    () => new URLSearchParams(window.location.search).get(FINDING_SENT_PARAM),
+    () => null
+  )
+  const sent =
+    sentId !== check.id
+      ? null
+      : knowledge
+        ? managerSentNoticeFor(knowledge.view.slot)
+        : check.progress === "complete"
+          ? LEGACY_SENT
+          : null
   const canReopen =
     permissions.canReopen && active && check.progress === "complete"
   const muted = "text-body-touch text-ink-muted md:text-body-sm"
+  const stillSaving = (...keys: Write[]) =>
+    still && busy && keys.includes(busy) ? (
+      <p role="status" className={muted}>
+        {STILL_SAVING}
+      </p>
+    ) : null
+  /** The pressed button's icon and label while its write runs. */
+  const label = (key: Write, icon: React.ReactNode, text: string) =>
+    busy === key ? (
+      <>
+        <SpinnerGapIcon aria-hidden className="animate-spin" />
+        {SAVING}
+      </>
+    ) : (
+      <>
+        {icon}
+        {text}
+      </>
+    )
 
   return (
-    <div className="grid min-w-0 gap-6 md:gap-8">
-      <CoverageNotice notice={action.notice} onDismiss={action.dismiss} />
+    <div
+      id={CHECK_TOP_ID}
+      tabIndex={-1}
+      className="grid min-w-0 gap-6 outline-none md:gap-8"
+    >
+      {sent ? (
+        <FindingSentNotice
+          question={check.entry.question}
+          returnFocusId={CHECK_TOP_ID}
+          copy={sent}
+        />
+      ) : null}
+      <CoverageNotice
+        ref={noticeRef}
+        notice={action.notice}
+        onDismiss={action.dismiss}
+      />
 
       {knowledge ? (
         <DecisionPanel
@@ -292,15 +469,17 @@ export function AmenityCheckDetail({
               variant="secondary"
               size="touch"
               onClick={() =>
-                action.run(
-                  () => handlers.archive({ checkId: check.id, revision }),
+                write(
+                  "archive",
+                  { checkId: check.id, revision },
+                  handlers.archive,
                   "Archived. Restore it from the Archived list at any time."
                 )
               }
               disabled={action.pending}
+              aria-busy={busy === "archive" || undefined}
             >
-              <ArchiveIcon aria-hidden />
-              {UI_TEXT.archive}
+              {label("archive", <ArchiveIcon aria-hidden />, UI_TEXT.archive)}
             </Button>
           ) : null}
           {permissions.canRestore && !active ? (
@@ -308,18 +487,25 @@ export function AmenityCheckDetail({
               variant="secondary"
               size="touch"
               onClick={() =>
-                action.run(
-                  () => handlers.restore({ checkId: check.id, revision }),
+                write(
+                  "restore",
+                  { checkId: check.id, revision },
+                  handlers.restore,
                   "Restored."
                 )
               }
               disabled={action.pending}
+              aria-busy={busy === "restore" || undefined}
             >
-              <ArrowCounterClockwiseIcon aria-hidden />
-              {UI_TEXT.restore}
+              {label(
+                "restore",
+                <ArrowCounterClockwiseIcon aria-hidden />,
+                UI_TEXT.restore
+              )}
             </Button>
           ) : null}
         </div>
+        {stillSaving("archive", "restore")}
         {permissions.canSubmit && active && !canUpload ? (
           <p className={muted}>
             {UI_TEXT.captureMyself} attaches photos and videos already on
@@ -391,9 +577,9 @@ export function AmenityCheckDetail({
                   !assigneeId ||
                   assigneeId === check.assignee?.id
                 }
+                aria-busy={busy === "assign" || undefined}
               >
-                <UserPlusIcon aria-hidden />
-                {UI_TEXT.assign}
+                {label("assign", <UserPlusIcon aria-hidden />, UI_TEXT.assign)}
               </Button>
               {check.assignee ? (
                 <Button
@@ -401,12 +587,17 @@ export function AmenityCheckDetail({
                   size="touch"
                   onClick={() => assign(null)}
                   disabled={action.pending}
+                  aria-busy={busy === "unassign" || undefined}
                 >
-                  <UserMinusIcon aria-hidden />
-                  {UI_TEXT.unassign}
+                  {label(
+                    "unassign",
+                    <UserMinusIcon aria-hidden />,
+                    UI_TEXT.unassign
+                  )}
                 </Button>
               ) : null}
             </div>
+            {stillSaving("assign", "unassign")}
             <p className={muted}>
               Only active staff at this venue can be assigned. Anyone can be
               changed later; their submissions are kept.
@@ -427,7 +618,7 @@ export function AmenityCheckDetail({
               label="Notes for this venue"
               help="Kept with this check, for whoever manages the venue."
               value={notes}
-              onChange={setNotes}
+              onChange={editNotes}
               error={action.fieldErrors.notes}
               required={false}
               maxLength={LIMITS.notes}
@@ -441,11 +632,12 @@ export function AmenityCheckDetail({
                 disabled={
                   action.pending || notes.trim() === (check.notes ?? "")
                 }
+                aria-busy={busy === "notes" || undefined}
               >
-                <FloppyDiskIcon aria-hidden />
-                Save notes
+                {label("notes", <FloppyDiskIcon aria-hidden />, "Save notes")}
               </Button>
             </div>
+            {stillSaving("notes")}
           </form>
         </CoverageSection>
       ) : null}
@@ -460,6 +652,11 @@ export function AmenityCheckDetail({
           question={check.entry.question}
           onConfirm={reopen}
           knowledge={knowledge !== null}
+          returnFocus={() => {
+            if (!reopenLanded.current) return null
+            reopenLanded.current = false
+            return noticeRef.current
+          }}
         />
       ) : null}
     </div>

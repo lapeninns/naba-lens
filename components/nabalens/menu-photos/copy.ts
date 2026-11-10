@@ -33,6 +33,11 @@ export const OUR_MENU_COPY = {
   clear: "Clear search",
   hasPhoto: "Has an accepted photo",
   recheck: "Being checked after a menu change",
+  /** UP-25: the person's own photos of this dish still to be decided. */
+  myWaiting: (n: number) =>
+    n === 1
+      ? "Your photo is waiting for review"
+      : `${n} of your photos are waiting for review`,
   noMatches: "No dishes match",
   noMatchesText: "Try another word, or clear the search.",
   allCovered: "Every dish here has an accepted photo.",

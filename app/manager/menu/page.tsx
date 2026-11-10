@@ -3,6 +3,10 @@ import {
   menuHref,
   parseMenuFilter,
 } from "@/components/nabalens/manager/menu/menu-query"
+import {
+  OfflineNotice,
+  OFFLINE_BANNER_CLASS,
+} from "@/components/nabalens/offline-notice"
 import { requireManagerVenue } from "@/lib/auth/manager"
 import { listManagerMenuItems } from "@/lib/server/menu-photos"
 
@@ -46,13 +50,17 @@ export default async function ManagerMenuPage({
     items = { items: page.items, nextCursor: page.nextCursor }
   }
 
+  const now = new Date().toISOString()
   return (
-    <MenuScreen
-      overview={overview}
-      filter={filter}
-      items={items}
-      loadItems={loadMenuItemsPageAction}
-      now={new Date().toISOString()}
-    />
+    <>
+      <OfflineNotice className={OFFLINE_BANNER_CLASS} loadedAt={now} />
+      <MenuScreen
+        overview={overview}
+        filter={filter}
+        items={items}
+        loadItems={loadMenuItemsPageAction}
+        now={now}
+      />
+    </>
   )
 }

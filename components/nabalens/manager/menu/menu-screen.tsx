@@ -14,6 +14,7 @@ import { MANAGER_COPY } from "../copy"
 import { managerHrefs } from "../hrefs"
 import { ActivationBanner, menuMeta } from "../overview/activation-banner"
 import { WorkspacePending } from "../workspace-pending"
+import { ManagerPhotoTips } from "./dish-buttons"
 import { MenuFilters } from "./menu-filters"
 import { MenuList, type LoadMenuItems } from "./menu-list"
 import type { MenuFilter } from "./menu-query"
@@ -80,6 +81,7 @@ export function MenuScreen({
     <div className="grid gap-5">
       {header}
       <ActivationBanner overview={overview} now={now} />
+      <ManagerPhotoTips />
       <MenuFilters filter={filter} overview={overview} />
       {items.items.length === 0 ? (
         <EmptyState

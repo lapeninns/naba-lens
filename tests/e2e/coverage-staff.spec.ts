@@ -327,10 +327,7 @@ async function staffJourney(
   setup: Setup,
   browser: Browser
 ) {
-  const { label } = londonMonth()
-  const monthly = page.getByRole("region", {
-    name: `Your photos for ${label}`,
-  })
+  const monthly = page.getByRole("region", { name: "This month" })
   const assigned = page.getByRole("list", { name: "Assigned tasks" })
 
   // Landing: Home with the month's target and the assigned task.
@@ -458,10 +455,7 @@ test.describe("coverage: staff tasks journey (WS5)", () => {
     const setupList = page.getByRole("list", { name: "Profile setup" })
     await expect(setupList).toContainText("Team (FOH or BOH)")
     await expect(setupList).toContainText("Ask an admin to set your team.")
-    const { label } = londonMonth()
-    const monthly = page.getByRole("region", {
-      name: `Your photos for ${label}`,
-    })
+    const monthly = page.getByRole("region", { name: "This month" })
     await expect(monthly).toBeVisible()
     await expect(monthly.getByText("Target met")).toHaveCount(0)
     await expect(page.getByText("Needs setup").first()).toBeVisible()

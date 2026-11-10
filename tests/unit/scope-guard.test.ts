@@ -90,6 +90,8 @@ const ALLOWED_PAGES = new Set([
   "/manager/menu",
   "/manager/menu/[itemId]",
   "/manager/account",
+  // A manager account's own uploads to label later (B02-c), while Add is on.
+  "/manager/uploads",
   // Amenities in the workspace: the /staff/manage amenity screens for the
   // manager account's own venue (docs/plans/amenity-catalogue.md).
   "/manager/amenities",

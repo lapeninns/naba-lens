@@ -775,17 +775,16 @@ describe("knowledge capture: evidence that isn't ready yet (D2, G4)", () => {
     await user.click(screen.getByRole("button", { name: "Wait for it" }))
     expect(
       screen.getByText(
-        "Waiting for your photo to finish saving. It sends by itself when ready."
+        "Waiting for your photo to finish saving. It sends by itself when ready; keep this page open."
       )
     ).toBeTruthy()
     expect(radio("No").matches(":disabled")).toBe(true)
+    // aria-disabled, so it keeps focus (CA-14).
     expect(
-      (
-        screen.getByRole("button", {
-          name: "Waiting for 1 photo…",
-        }) as HTMLButtonElement
-      ).disabled
-    ).toBe(true)
+      screen
+        .getByRole("button", { name: "Waiting for 1 photo…" })
+        .getAttribute("aria-disabled")
+    ).toBe("true")
     expect(submit).not.toHaveBeenCalled()
     await ready()
     expect(submit).toHaveBeenCalledTimes(1)
@@ -921,18 +920,16 @@ describe("knowledge capture: a send removes the saved draft (CA-01, CA-02, CA-04
     await user.click(radio("Yes"))
     await user.click(photoBox())
     await user.click(screen.getByRole("button", { name: "Save for later" }))
-    // Saving: neither button can start another request.
+    // Saving: neither button can start another request, and neither drops
+    // focus (aria-disabled, CA-14).
     expect(
-      (screen.getByRole("button", { name: "Saving…" }) as HTMLButtonElement)
-        .disabled
-    ).toBe(true)
-    expect(
-      (
-        screen.getByRole("button", {
-          name: "Submit finding",
-        }) as HTMLButtonElement
-      ).disabled
-    ).toBe(true)
+      screen
+        .getByRole("button", { name: "Saving…" })
+        .getAttribute("aria-disabled")
+    ).toBe("true")
+    const submitButton = screen.getByRole("button", { name: "Submit finding" })
+    expect(submitButton.getAttribute("aria-disabled")).toBe("true")
+    await user.click(submitButton)
     expect(submit).not.toHaveBeenCalled()
     await act(async () =>
       pending.resolve({
@@ -989,7 +986,7 @@ describe("knowledge capture: a send removes the saved draft (CA-01, CA-02, CA-04
     await user.click(radio("No"))
     await user.click(screen.getByRole("button", { name: "Save for later" }))
     expect(status()).toContain(
-      "This draft was also saved on another device. Save for later again to replace that copy with this one."
+      "This draft was saved again since you opened it. Save for later again to replace that copy with this one."
     )
     expect(status()).not.toContain("The newer version is shown")
     await user.click(screen.getByRole("button", { name: "Save for later" }))

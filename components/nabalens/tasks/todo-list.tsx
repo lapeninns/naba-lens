@@ -12,6 +12,7 @@ import type { WorkingSlot } from "@/lib/knowledge-client/contract"
 import { cn } from "@/lib/utils"
 
 import { orderAmenityTasks } from "../amenities/capture/amenity-task-list"
+import { formatDate } from "../format"
 import { Notice } from "../notice"
 import { CountBadge, StatusChip as StateChip } from "../status-chip"
 import { EvidenceThumb } from "./evidence-thumb"
@@ -28,7 +29,7 @@ import type {
 
 const DUE_SOON_MS = 7 * 24 * 60 * 60 * 1000
 
-const thingsToDo = (count: number) =>
+export const thingsToDo = (count: number) =>
   count === 1 ? "thing to do" : "things to do"
 
 /** To do's heading: focusable, for a notice above it that goes away. */
@@ -126,14 +127,14 @@ export function todoCount(items: TodoItem[]): number {
   return count
 }
 
-type Tone = "warn" | "info"
+export type Tone = "warn" | "info"
 
 /**
  * The first item is the lead card (DESIGN.md §4): a 4px bar along the top in
  * its tone and the page's one blue action. The rest are plain cards with a
  * 4px bar on the left and a grey action.
  */
-function cardClass(primary: boolean, tone?: Tone) {
+export function cardClass(primary: boolean, tone?: Tone) {
   return cn(
     "relative grid min-w-0 gap-3 rounded-card bg-surface p-4 shadow-card",
     primary &&
@@ -151,7 +152,7 @@ function cardClass(primary: boolean, tone?: Tone) {
   )
 }
 
-function titleClass(primary: boolean) {
+export function titleClass(primary: boolean) {
   return cn(
     "[overflow-wrap:anywhere] text-ink",
     primary ? "font-display text-card-title" : "text-item-title"
@@ -159,7 +160,7 @@ function titleClass(primary: boolean) {
 }
 
 /** Kicker on the left, state chip on the right (the lead card's top row). */
-function TopRow({
+export function TopRow({
   kicker,
   chip,
 }: {
@@ -181,7 +182,7 @@ function TopRow({
   )
 }
 
-function action(primary: boolean) {
+export function action(primary: boolean) {
   return buttonVariants({
     variant: primary ? "primary" : "secondary",
     size: primary ? "lg" : "touch",
@@ -193,7 +194,7 @@ function reviewerName(submission: SubmissionView): string {
   return submission.decision?.decidedBy.displayName ?? "Your reviewer"
 }
 
-function ReplaceCard({
+export function ReplaceCard({
   submission,
   closed,
   tasksPath,
@@ -220,7 +221,7 @@ function ReplaceCard({
         <EvidenceThumb
           thumbnailUrl={submission.asset.thumbnailUrl}
           previewUrl={submission.asset.previewUrl}
-          label={`${title}: photo sent ${submission.submittedAt.slice(0, 10)}`}
+          label={`${title}: photo sent ${formatDate(submission.submittedAt)}`}
           className="size-18 rounded-control bg-media-placeholder"
         />
         <div className="min-w-0">
@@ -245,7 +246,7 @@ function ReplaceCard({
   )
 }
 
-function ReviewCard({
+export function ReviewCard({
   count,
   venueName,
   primary,
@@ -281,7 +282,7 @@ function ReviewCard({
   )
 }
 
-function TaskCard({
+export function TaskCard({
   kind,
   assignment,
   tasksPath,
@@ -381,7 +382,7 @@ function AmenityCard({
  * My finding that a manager asked more about (design §5.2): its own card,
  * since it waits on me and nobody else.
  */
-function AttentionCard({
+export function AttentionCard({
   slot,
   primary,
 }: {
@@ -412,7 +413,7 @@ function AttentionCard({
   )
 }
 /** Part of To do couldn't be read: say so, never claim there is nothing. */
-function ReadFailed({
+export function ReadFailed({
   retryHref,
   children,
 }: {

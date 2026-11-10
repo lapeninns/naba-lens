@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 
 import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import type { Notice } from "@/components/nabalens/coverage"
+import { useRequestIds } from "@/components/nabalens/coverage/use-request-id"
 import type { AmenityFailure, AmenityResult } from "@/lib/amenities/contract"
 
 /** After an amenity write whose reply was lost: the server may have applied it. */
@@ -41,9 +42,15 @@ export function failureText(failure: AmenityFailure): string {
  * errors. A stale revision or a refusal re-reads the page instead of retrying
  * over someone else's change; success re-reads it too, so counts and history
  * follow the write.
+ *
+ * `runKeyed` also sends a request key: one per intent (scope and payload),
+ * kept until a reply settles it, so a retry after a lost reply replays the
+ * first result instead of meeting the person's own change as a conflict
+ * (MG-01). A changed payload is a new intent with a new key.
  */
 export function useAmenityAction() {
   const router = useRouter()
+  const requestIds = useRequestIds()
   const [pending, setPending] = React.useState(false)
   const [notice, setNotice] = React.useState<Notice | null>(null)
   const sessionEnded = useSessionEndedCatch()
@@ -54,13 +61,16 @@ export function useAmenityAction() {
   const run = React.useCallback(
     async <T extends object>(
       call: () => Promise<AmenityResult<T>>,
-      success: string | ((result: { ok: true } & T) => string)
+      success: string | ((result: { ok: true } & T) => string),
+      settle?: () => void
     ): Promise<AmenityOutcome<T>> => {
       setPending(true)
       setNotice(null)
       setFieldErrors({})
       try {
         const result = await call()
+        // Any reply is final for its key; only a lost reply keeps it.
+        settle?.()
         if (!result.ok) {
           const stale = STALE.has(result.code)
           setNotice({
@@ -91,8 +101,22 @@ export function useAmenityAction() {
     [router, sessionEnded]
   )
 
+  const runKeyed = React.useCallback(
+    <T extends object>(
+      scope: string,
+      payload: object,
+      call: (idempotencyKey: string) => Promise<AmenityResult<T>>,
+      success: string | ((result: { ok: true } & T) => string)
+    ): Promise<AmenityOutcome<T>> => {
+      const key = requestIds.requestIdFor(scope, payload)
+      return run(() => call(key), success, () => requestIds.settle(scope))
+    },
+    [requestIds, run]
+  )
+
   return {
     run,
+    runKeyed,
     pending,
     notice,
     fieldErrors,

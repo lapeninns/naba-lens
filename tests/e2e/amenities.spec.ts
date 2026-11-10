@@ -65,7 +65,7 @@ async function openStaffCheck(page: Page, key: string, id: string) {
 
 /**
  * The check page states progress, answer, and who answered and when, as
- * "Answered by <name> on 7 Nov 2026" under the answer (answeredText in
+ * "Recorded by <name> on 7 Nov 2026" under the answer (answeredText in
  * components/nabalens/amenities/manage/check-row.tsx).
  */
 async function expectAnswered(
@@ -84,7 +84,7 @@ async function expectAnswered(
     main
       .getByText(
         new RegExp(
-          `^Answered by ${escape(by.name)} on \\d{1,2} [A-Za-z]+ \\d{4}$`
+          `^Recorded by ${escape(by.name)} on \\d{1,2} [A-Za-z]+ \\d{4}$`
         )
       )
       .first()

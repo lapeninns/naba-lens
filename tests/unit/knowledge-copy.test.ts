@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
 
 import {
   answerInUseLines,
@@ -29,6 +29,16 @@ import {
 } from "@/lib/knowledge-client/contract"
 
 import { tasksView } from "../ui/tasks-fixtures"
+
+// Short dates add the year outside the current London year (CA-29): these
+// expectations are written in 2026.
+beforeAll(() => {
+  vi.useFakeTimers({ toFake: ["Date"] })
+  vi.setSystemTime(new Date("2026-11-10T12:00:00.000Z"))
+})
+afterAll(() => {
+  vi.useRealTimers()
+})
 
 const NONE: AnswerInUse = {
   status: "unavailable",

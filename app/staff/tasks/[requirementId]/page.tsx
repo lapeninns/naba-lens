@@ -28,6 +28,7 @@ import { periodKeyOf } from "@/lib/server/coverage/time"
 
 import { staffShellStatus } from "../../_shell/shell-status"
 import { TASKS_PATH, unwrap } from "../result"
+import { backFrom } from "../back-from"
 import { TaskSubmit } from "../task-submit"
 
 const monthFormatter = new Intl.DateTimeFormat("en-GB", {
@@ -54,7 +55,10 @@ export default async function TaskPage({
   searchParams,
 }: {
   params: Promise<{ requirementId: string }>
-  searchParams: Promise<{ replaces?: string | string[] }>
+  searchParams: Promise<{
+    replaces?: string | string[]
+    from?: string | string[]
+  }>
 }) {
   const profile = await requireActiveStaff()
   const [{ requirementId }, search] = await Promise.all([params, searchParams])
@@ -75,6 +79,7 @@ export default async function TaskPage({
   const replacing = assignment.canSubmit ? open : null
   const closedRequest = !assignment.canSubmit && requested ? open : null
   const currentPeriod = periodKeyOf(new Date())
+  const back = backFrom(search.from, `${TASKS_PATH}/${requirementId}`)
 
   return (
     <AppShell
@@ -84,7 +89,7 @@ export default async function TaskPage({
       userName={profile.displayName}
     >
       <div className="mx-auto flex w-full max-w-(--size-feed) flex-col gap-(--gutter) pb-4">
-        <BackToTasks href={TASKS_PATH} />
+        <BackToTasks {...back} />
         <OfflineNotice />
         {replacing || closedRequest ? (
           <PageHeader

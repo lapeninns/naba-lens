@@ -43,7 +43,10 @@ const actions = vi.hoisted(() => ({
 vi.mock("@/app/_amenities/actions", () => actions)
 
 afterEach(cleanup)
-beforeEach(() => refresh.mockReset())
+beforeEach(() => {
+  refresh.mockReset()
+  sessionStorage.clear()
+})
 
 const ok = async () => ({ ok: true as const, revision: 4 })
 
@@ -82,7 +85,7 @@ describe("AmenityCheckDetail: status and actions", () => {
     expect(within(status).getByText("Photo and video")).toBeTruthy()
     expect(within(status).getByText("Complete")).toBeTruthy()
     expect(
-      within(status).getByText("Answered by TEST Sam on 4 Nov 2026")
+      within(status).getByText("Recorded by TEST Sam on 4 Nov 2026")
     ).toBeTruthy()
     const capture = screen.getByRole("link", { name: UI_TEXT.captureMyself })
     expect(capture.getAttribute("href")).toBe(
@@ -168,6 +171,7 @@ describe("AmenityCheckDetail: status and actions", () => {
     )
     await user.click(screen.getByRole("button", { name: UI_TEXT.archive }))
     expect(h.archive).toHaveBeenCalledWith({
+      idempotencyKey: expect.any(String),
       checkId: WIFI_CHECK.id,
       revision: WIFI_CHECK.revision,
     })
@@ -188,6 +192,7 @@ describe("AmenityCheckDetail: status and actions", () => {
     expect(screen.getByText("Archived")).toBeTruthy()
     await user.click(screen.getByRole("button", { name: UI_TEXT.restore }))
     expect(h.restore).toHaveBeenCalledWith({
+      idempotencyKey: expect.any(String),
       checkId: ARCHIVED.id,
       revision: ARCHIVED.revision,
     })
@@ -215,6 +220,7 @@ describe("AmenityCheckDetail: assigning and notes", () => {
     await user.click(options[1])
     await user.click(screen.getByRole("button", { name: UI_TEXT.assign }))
     expect(h.assign).toHaveBeenCalledWith({
+      idempotencyKey: expect.any(String),
       checkId: WIFI_CHECK.id,
       assigneeId: "1a2b3c4d-1111-4aaa-8bbb-000000000001",
       revision: WIFI_CHECK.revision,
@@ -223,6 +229,7 @@ describe("AmenityCheckDetail: assigning and notes", () => {
 
     await user.click(screen.getByRole("button", { name: UI_TEXT.unassign }))
     expect(h.assign).toHaveBeenLastCalledWith({
+      idempotencyKey: expect.any(String),
       checkId: WIFI_CHECK.id,
       assigneeId: null,
       revision: WIFI_CHECK.revision,
@@ -262,6 +269,7 @@ describe("AmenityCheckDetail: assigning and notes", () => {
     )
     await user.click(screen.getByRole("button", { name: "Save notes" }))
     expect(h.setNotes).toHaveBeenCalledWith({
+      idempotencyKey: expect.any(String),
       checkId: WIFI_CHECK.id,
       notes: "Key is behind the bar",
       revision: WIFI_CHECK.revision,
@@ -328,6 +336,7 @@ describe("AmenityCheckControl: a re-read after a write", () => {
     })
     await user.click(screen.getByRole("button", { name: "Save notes" }))
     expect(actions.setCheckNotesAction).toHaveBeenLastCalledWith({
+      idempotencyKey: expect.any(String),
       checkId: WIFI_CHECK.id,
       notes: "My unsaved note",
       revision: 9,
@@ -379,6 +388,7 @@ describe("AmenityCheckDetail: reopening", () => {
       within(dialog).getByRole("button", { name: UI_TEXT.reopen })
     )
     expect(h.reopen).toHaveBeenCalledWith({
+      idempotencyKey: expect.any(String),
       checkId: WIFI_CHECK.id,
       revision: WIFI_CHECK.revision,
       preset: "other",
@@ -402,6 +412,7 @@ describe("AmenityCheckDetail: reopening", () => {
       within(dialog).getByRole("button", { name: UI_TEXT.reopen })
     )
     expect(h.reopen).toHaveBeenCalledWith({
+      idempotencyKey: expect.any(String),
       checkId: WIFI_CHECK.id,
       revision: WIFI_CHECK.revision,
       preset: "credentials_visible",
@@ -486,9 +497,12 @@ describe("AmenityCheckDetail: history", () => {
     const history = screen.getByRole("region", { name: "History" })
     const items = within(history).getAllByRole("listitem")
     expect(items[0].textContent).toMatch(/Assigned to TEST Sam/)
-    expect(items[0].textContent).toMatch(/TEST Manager · 3 Nov 2026/)
+    // MG-30: the time is named as when the change was recorded.
+    expect(items[0].textContent).toMatch(
+      /Recorded by TEST Manager · 3 Nov 2026/
+    )
     expect(items[1].textContent).toMatch(/Added when Amenities were enabled/)
-    expect(items[1].textContent).toMatch(/System/)
+    expect(items[1].textContent).toMatch(/Recorded · \d/)
   })
 })
 

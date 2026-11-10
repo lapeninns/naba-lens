@@ -51,6 +51,8 @@ function withQuery(
 export const managerHrefs = {
   overview: "/manager",
   account: "/manager/account",
+  /** The manager account's own uploads (B02-c); no nav tab. */
+  uploads: "/manager/uploads",
   review: (q?: ReviewQuery) => withQuery("/manager/review", q),
   contributor: (id: string) =>
     `/manager/review/contributors/${encodeURIComponent(id)}`,

@@ -22,6 +22,18 @@ export class ReservationGoneError extends Error {
   }
 }
 
+/**
+ * Thrown by a `finalise` implementation when the server refused to finish
+ * the upload (403): retrying the same file cannot succeed, for example after
+ * a manager account's venue access ended.
+ */
+export class FinaliseRefusedError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "FinaliseRefusedError"
+  }
+}
+
 /** Thrown by a transport when the request finally failed. */
 export class TransferError extends Error {
   constructor(

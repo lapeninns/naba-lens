@@ -11,7 +11,6 @@ import {
 import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
 import { Notice } from "@/components/nabalens/notice"
 import { OFFLINE_COPY, useOnline } from "@/components/nabalens/offline-notice"
-import { formatTime } from "@/components/nabalens/format"
 import { Button, buttonVariants } from "@/components/ui/button"
 import {
   Dialog,
@@ -46,11 +45,22 @@ export function preparationSummary(runs: PreparationRunView[]): string {
   return `This month is prepared: ${parts.join(", ")}.`
 }
 
+/**
+ * Prepare month's own offline outcome: about this request, never the age of
+ * the page (no time is known for that here).
+ */
+export function prepareOfflineText(month: string, sent: boolean) {
+  return sent
+    ? `We couldn't confirm ${month} was prepared. Try again; nothing is sent twice.`
+    : `You're offline, so ${month} wasn't prepared. Try again when you have a signal.`
+}
+
 type Outcome =
   | { kind: "done"; copied: number; placeholders: number }
   | { kind: "already" }
   | { kind: "failed"; copied: number; considered: number; placeholders: number }
-  | { kind: "offline"; at: Date }
+  /** `sent`: the request went out but no answer came back. */
+  | { kind: "offline"; sent: boolean }
   | { kind: "refused"; text: string }
 
 function outcomeOf(runs: PreparationRunView[]): Outcome {
@@ -115,7 +125,7 @@ export function PrepareMonthButton({
   async function prepare() {
     if (pending) return
     if (!online) {
-      setOutcome({ kind: "offline", at: new Date() })
+      setOutcome({ kind: "offline", sent: false })
       return
     }
     setPending(true)
@@ -133,7 +143,7 @@ export function PrepareMonthButton({
       setOutcome(
         ended
           ? { kind: "refused", text: ended }
-          : { kind: "offline", at: new Date() }
+          : { kind: "offline", sent: true }
       )
     } finally {
       setPending(false)
@@ -208,7 +218,7 @@ export function PrepareMonthButton({
                 </Button>
               }
             >
-              {OFFLINE_COPY.body(formatTime(outcome.at))}
+              {prepareOfflineText(month, outcome.sent)}
             </Notice>
           ) : outcome?.kind === "refused" ? (
             <Notice tone="negative" title={`Preparing ${month} didn't finish`}>

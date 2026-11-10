@@ -35,10 +35,12 @@ import {
 } from "@/components/ui/dialog"
 import { Progress } from "@/components/ui/progress"
 import { guardBeforeUnload } from "@/lib/upload/before-unload"
+import { unconfirmedMessage } from "@/lib/upload/uploader"
 import { cn } from "@/lib/utils"
 
 import { Notice } from "./notice"
 import { PhotoSourceActions, photoInputProps } from "./photo-source"
+import { ENTRY_COPY } from "./shell/entry-copy"
 import { useLeaveGuard } from "./shell/leave-guard"
 import {
   SignInAgainSheet,
@@ -62,9 +64,12 @@ import {
   type RejectedFile,
   SessionExpiredError,
   SIGNED_OUT_MESSAGE,
+  STALLED_PROCESSING_MS,
+  STILL_PROCESSING_MS,
   type Uploader,
   type UploadPurpose,
 } from "./upload-queue"
+import { useStillWaiting } from "./use-still-waiting"
 import { useObjectUrl, useUploadQueue } from "./use-upload-queue"
 
 type UploadDialogProps = {
@@ -127,7 +132,79 @@ type UploadDialogProps = {
   purpose?: UploadPurpose
   /** Each file's purpose when one queue holds both (Add). Default `purpose`. */
   purposeOf?: (file: File) => UploadPurpose
+  /**
+   * The server assets this queue holds and has not finished (reserved, not
+   * yet saved), whenever they change: any other upload of the person's that
+   * the server still has uploading has stopped.
+   */
+  onHoldsChange?: (assetIds: string[]) => void
+  /**
+   * Called once per file that ends without becoming ready, and why: it
+   * failed, was cancelled, or was removed (or cleared) from the queue.
+   */
+  onUnfinished?: (file: File, reason: UploadUnfinishedReason) => void
+  /** Called once per file when the server has reserved it, with its asset ID. */
+  onReserved?: (file: File, assetId: string) => void
+  /**
+   * The set a file was picked into (several photos of one subject, B02-05),
+   * or null: a set whose files have all ended gets one notice, with a line
+   * for each file that didn't finish.
+   */
+  setOf?: (file: File) => PhotoSetRef | null
+  /** The footer's "Add more", when the next pick joins a set. */
+  addMoreLabel?: string
 }
+
+/** A set of files picked together, and the subject its notice names. */
+export type PhotoSetRef = { id: string; subject: string }
+
+export type SetNotice = { id: string; text: string; unfinished: string[] }
+
+/**
+ * One notice per set of two or more files once none is still saving: how
+ * many were saved, then each file that didn't finish with what its row says.
+ * A set with nothing saved has no notice; its rows say why.
+ */
+export function setNotices(
+  items: readonly QueueItem[],
+  setOf: (file: File) => PhotoSetRef | null,
+  detailOf: (item: QueueItem) => string | null
+): SetNotice[] {
+  const sets = new Map<string, { subject: string; items: QueueItem[] }>()
+  for (const item of items) {
+    const set = setOf(item.file)
+    if (!set) continue
+    const entry = sets.get(set.id) ?? { subject: set.subject, items: [] }
+    entry.items.push(item)
+    sets.set(set.id, entry)
+  }
+  const notices: SetNotice[] = []
+  for (const [id, set] of sets) {
+    if (set.items.length < 2) continue
+    if (
+      set.items.some((item) =>
+        ["selected", "queued", "uploading", "processing"].includes(item.status)
+      )
+    )
+      continue
+    const saved = set.items.filter((item) => item.status === "done").length
+    if (saved === 0) continue
+    notices.push({
+      id,
+      text: ENTRY_COPY.setSaved(saved, set.subject),
+      unfinished: set.items
+        .filter((item) => item.status !== "done")
+        .map((item) => {
+          const detail = detailOf(item)
+          return detail ? `${item.file.name}: ${detail}` : item.file.name
+        }),
+    })
+  }
+  return notices
+}
+
+/** Why a queued file never became ready. */
+export type UploadUnfinishedReason = "failed" | "cancelled" | "removed"
 
 export type UploadBusy = {
   active: number
@@ -163,6 +240,27 @@ function sheetTitle(items: readonly QueueItem[]) {
 
 const plural = (n: number, one: string, many: string) =>
   `${n} ${n === 1 ? one : many}`
+
+export const STILL_PROCESSING =
+  "Still processing; this can take up to 2 minutes; you can leave this screen."
+export const STILL_SAVING_LABELS = "Still saving; keep this page open."
+
+/**
+ * True once `ms` have passed since `since` (null: not started). Timed from
+ * the queue's own clock, so a row shown again later is already past it.
+ */
+function useAfter(since: number | null, ms: number) {
+  const [passed, setPassed] = React.useState<number | null>(null)
+  React.useEffect(() => {
+    if (since === null) return
+    const timer = window.setTimeout(
+      () => setPassed(since),
+      Math.max(0, since + ms - Date.now())
+    )
+    return () => window.clearTimeout(timer)
+  }, [since, ms])
+  return since !== null && passed === since
+}
 
 /**
  * The footer of a screen's own dialog (no labels): what is uploaded, then what
@@ -238,7 +336,7 @@ function rowState(
         suffix: null,
         detail: item.stopped
           ? item.error
-          : item.retryable === false
+          : item.retryable === false && !item.refused
             ? cannotUse(item.error)
             : item.error,
       }
@@ -338,25 +436,50 @@ function QueueRow({
   const statusId = `${item.id}-status`
   const look = state.word ? WORD_LOOK[state.word] : null
   const StatusIcon = look?.icon
+  // Slow is said: a long finalise, then Retry once the server would take
+  // its claim over; a label save with no answer yet.
+  const processingSince =
+    item.status === "processing" ? (item.processingAt ?? null) : null
+  const processingLong = useAfter(processingSince, STILL_PROCESSING_MS)
+  const processingStalled = useAfter(processingSince, STALLED_PROCESSING_MS)
+  const labelsSlow = useStillWaiting(
+    item.status === "done" && labels.kind === "saving"
+  )
+  const detail = processingStalled
+    ? unconfirmedMessage(item.kind)
+    : processingLong
+      ? STILL_PROCESSING
+      : labelsSlow
+        ? STILL_SAVING_LABELS
+        : state.detail
   const retryable =
     (item.status === "failed" && item.retryable !== false) ||
-    item.status === "cancelled"
+    item.status === "cancelled" ||
+    processingStalled
   const removable =
     item.status === "selected" ||
     item.status === "failed" ||
     item.status === "cancelled"
   return (
     <li
-      className="flex min-w-0 items-center gap-3 rounded-card bg-surface p-3 shadow-card"
+      data-row-id={item.id}
+      className="flex min-w-0 flex-wrap items-center gap-3 rounded-card bg-surface p-3 shadow-card"
       aria-describedby={statusId}
     >
       <FileThumb item={item} />
       <div className="grid min-w-0 flex-1 gap-0.5">
-        <p className="truncate text-label text-ink">{item.file.name}</p>
+        <p
+          title={item.file.name}
+          className="line-clamp-2 text-label [overflow-wrap:anywhere] text-ink"
+        >
+          {item.file.name}
+        </p>
         <p
           id={statusId}
+          // Takes focus when the action pressed in this row goes away.
+          tabIndex={-1}
           className={cn(
-            "font-mono text-meta-strong [overflow-wrap:anywhere] tabular-nums",
+            "font-mono text-meta-strong [overflow-wrap:anywhere] tabular-nums outline-none",
             look?.tone ?? "text-ink-muted"
           )}
         >
@@ -369,15 +492,17 @@ function QueueRow({
           ) : null}
           {[state.word, state.suffix].filter(Boolean).join(" · ")}
         </p>
-        {state.detail ? (
+        {detail ? (
           <p className="text-body [overflow-wrap:anywhere] text-ink-muted">
-            {state.detail}
+            {detail}
           </p>
         ) : null}
         {item.status === "uploading" || item.status === "processing" ? (
           <Progress
             value={item.status === "processing" ? null : percent}
-            aria-label={`${item.file.name} ${state.detail ?? ""}`.trim()}
+            // The value carries the percentage; a name that changed with it
+            // would be read twice and keep changing.
+            aria-label={item.file.name}
             tone="neutral"
             className="mt-1.5"
           />
@@ -390,7 +515,7 @@ function QueueRow({
         ) : null}
         {labels.kind === "retry" && item.status === "done" ? (
           <Button
-            variant="link"
+            variant="row-link"
             size="touch"
             className="justify-self-start"
             onClick={onRetryLabels}
@@ -400,7 +525,7 @@ function QueueRow({
           </Button>
         ) : labels.kind === "attention" && item.status === "done" ? (
           <Button
-            variant="link"
+            variant="row-link"
             size="touch"
             className="justify-self-start"
             onClick={onFixLabels}
@@ -410,7 +535,13 @@ function QueueRow({
           </Button>
         ) : null}
       </div>
-      <div className="flex shrink-0 items-center gap-1">
+      <div
+        className={cn(
+          "flex shrink-0 items-center gap-1",
+          // Below 400 px two actions leave the name a sliver: own line.
+          retryable && "max-[25rem]:basis-full max-[25rem]:justify-end"
+        )}
+      >
         {item.status === "queued" || item.status === "uploading" ? (
           <Button
             variant="ghost"
@@ -464,6 +595,11 @@ export function UploadDialog({
   onPick,
   purpose = "general",
   purposeOf,
+  onHoldsChange,
+  onUnfinished,
+  onReserved,
+  setOf,
+  addMoreLabel = "Add more",
 }: UploadDialogProps) {
   const guard = useSessionGuard()
   const isSignedIn = guard?.isSignedIn
@@ -510,7 +646,32 @@ export function UploadDialog({
   // while the menu loads, or a choice not finished) are lost on leaving too.
   const unsavedLabels = Math.max(unstoredLabels, panelPending ? 1 : 0)
 
-  useLeaveGuard(summary.active, queue.cancelAll, unsavedLabels)
+  // Processing files finish on the server whether the person stays or not.
+  const processing = items.filter((i) => i.status === "processing").length
+  useLeaveGuard(
+    summary.active - processing,
+    queue.cancelAll,
+    unsavedLabels,
+    processing
+  )
+
+  const holds = items
+    .filter((i) => i.assetId && i.status !== "done")
+    .map((i) => i.assetId!)
+    .join(" ")
+  React.useEffect(() => {
+    onHoldsChange?.(holds ? holds.split(" ") : [])
+  }, [holds, onHoldsChange])
+  // Each file once, as soon as the server has reserved it.
+  const reservedSeen = React.useRef(new Set<string>())
+  React.useEffect(() => {
+    if (!onReserved) return
+    for (const item of items) {
+      if (!item.assetId || reservedSeen.current.has(item.id)) continue
+      reservedSeen.current.add(item.id)
+      onReserved(item.file, item.assetId)
+    }
+  }, [items, onReserved])
   const unstoredRef = React.useRef(unsavedLabels)
   React.useEffect(() => {
     unstoredRef.current = unsavedLabels
@@ -590,6 +751,40 @@ export function UploadDialog({
   const fileInput = React.useRef<HTMLInputElement>(null)
   const cameraInput = React.useRef<HTMLInputElement>(null)
   const limitsId = React.useId()
+  const listRef = React.useRef<HTMLUListElement>(null)
+  const titleRef = React.useRef<HTMLHeadingElement>(null)
+  // The row whose first action (or status, after Fix labels) takes focus on
+  // the next render or when the sheet shows again.
+  const focusRow = React.useRef<string | null>(null)
+  const statusAfterFix = React.useRef<string | null>(null)
+  React.useEffect(() => {
+    const id = focusRow.current
+    if (!id) return
+    focusRow.current = null
+    const row = rowOf(id)
+    ;(row?.querySelector("button") ?? row)?.focus()
+  })
+
+  function rowOf(id: string) {
+    return Array.from(
+      listRef.current?.querySelectorAll<HTMLElement>("[data-row-id]") ?? []
+    ).find((row) => row.dataset.rowId === id)
+  }
+
+  /** The row is about to go: focus the next row's first action, or the title. */
+  function focusPast(id: string) {
+    const rows = Array.from(
+      listRef.current?.querySelectorAll<HTMLElement>("[data-row-id]") ?? []
+    )
+    const at = rows.findIndex((row) => row.dataset.rowId === id)
+    const next = at < 0 ? undefined : (rows[at + 1] ?? rows[at - 1])
+    ;(next?.querySelector("button") ?? titleRef.current)?.focus()
+  }
+
+  /** The pressed action goes away but the row stays: focus its status. */
+  function focusStatus(id: string) {
+    document.getElementById(`${id}-status`)?.focus()
+  }
 
   // Report each file as soon as it is ready; a slow video holds back nothing.
   const reported = React.useRef(new Set<string>())
@@ -615,6 +810,22 @@ export function UploadDialog({
       return next
     })
   }, [signedOut, items, onUploaded, onReady])
+
+  // Each file that ends without becoming ready, once, and why.
+  const ended = React.useRef(new Set<string>())
+  const unfinished = React.useCallback(
+    (item: QueueItem, reason: UploadUnfinishedReason) => {
+      if (item.status === "done" || ended.current.has(item.id)) return
+      ended.current.add(item.id)
+      onUnfinished?.(item.file, reason)
+    },
+    [onUnfinished]
+  )
+  React.useEffect(() => {
+    for (const item of items)
+      if (item.status === "failed" || item.status === "cancelled")
+        unfinished(item, item.status)
+  }, [items, unfinished])
 
   const queuedInitial = React.useRef<File[] | null>(null)
   React.useEffect(() => {
@@ -655,6 +866,7 @@ export function UploadDialog({
   }
 
   function remove(item: QueueItem) {
+    unfinished(item, "removed")
     labels.discard(item)
     reported.current.delete(item.id)
     queue.remove(item.id)
@@ -674,6 +886,9 @@ export function UploadDialog({
   )
 
   function clearQueue() {
+    for (const item of items) unfinished(item, "removed")
+    ended.current.clear()
+    reservedSeen.current.clear()
     queue.reset()
     labels.reset()
     reported.current.clear()
@@ -729,6 +944,13 @@ export function UploadDialog({
   const saved = items.filter(
     (i) => i.status === "done" && ["none", "saved"].includes(viewOf(i).kind)
   ).length
+  const notices = setOf
+    ? setNotices(
+        items,
+        setOf,
+        (item) => rowState(item, viewOf(item), pause).detail
+      )
+    : []
   const attention = items.filter(
     (i) =>
       i.status === "failed" ||
@@ -756,9 +978,16 @@ export function UploadDialog({
 
   const uploadDialog = (
     <Dialog open={open && fixing === null} onOpenChange={handleOpenChange}>
-      <DialogContent className="md:max-w-lg">
+      <DialogContent
+        className="md:max-w-lg"
+        initialFocus={() => {
+          const id = statusAfterFix.current
+          statusAfterFix.current = null
+          return (id && document.getElementById(`${id}-status`)) || true
+        }}
+      >
         <DialogHeader>
-          <DialogTitle>
+          <DialogTitle ref={titleRef} tabIndex={-1} className="outline-none">
             {startOnPick && items.length > 0
               ? sheetTitle(items)
               : imagesOnly
@@ -879,6 +1108,7 @@ export function UploadDialog({
         {items.length > 0 ? (
           // Each file as a white row on the grey canvas (Common Room queue).
           <ul
+            ref={listRef}
             aria-label="Files"
             className="-mx-1 grid gap-2 rounded-card bg-bg p-1.5"
           >
@@ -898,17 +1128,31 @@ export function UploadDialog({
                   )}
                   labels={view}
                   onRemove={() => {
+                    focusPast(item.id)
                     forget([item.id])
                     remove(item)
                   }}
                   onCancel={() => {
+                    // Started on pick: a cancelled file just leaves the list;
+                    // otherwise it stays, with Retry in place of Cancel.
+                    if (startOnPick) focusPast(item.id)
+                    else focusRow.current = item.id
+                    unfinished(item, "cancelled")
                     queue.cancel(item.id)
-                    // Started on pick: a cancelled file just leaves the list.
                     if (startOnPick) remove(item)
                   }}
-                  onRetry={() => queue.retry(item.id)}
-                  onRetryLabels={() => labels.retry(item.id)}
-                  onFixLabels={() => setFixing(item.id)}
+                  onRetry={() => {
+                    focusStatus(item.id)
+                    queue.retry(item.id)
+                  }}
+                  onRetryLabels={() => {
+                    focusStatus(item.id)
+                    labels.retry(item.id)
+                  }}
+                  onFixLabels={() => {
+                    statusAfterFix.current = item.id
+                    setFixing(item.id)
+                  }}
                 />
               )
             })}
@@ -946,9 +1190,23 @@ export function UploadDialog({
               {plural(savingLabels, "photo", "photos")} still saving labels
             </p>
           ) : null}
+          {notices.map((notice) => (
+            <div key={notice.id} className="grid gap-1">
+              <p className="text-ink">{notice.text}</p>
+              {notice.unfinished.length > 0 ? (
+                <ul className="grid gap-0.5 [overflow-wrap:anywhere] text-ink-muted">
+                  {notice.unfinished.map((line, i) => (
+                    <li key={`${notice.id}-${i}`}>{line}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          ))}
         </div>
 
-        <DialogFooter>
+        {/* Sticky, as in the label editor: on phones the actions stay in
+            reach below long rows and the labels panel. */}
+        <DialogFooter className="sticky bottom-0 mx-0 mb-0 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] md:mx-0 md:mb-0 md:pb-4">
           {items.length > 0 && status ? (
             <p
               role="status"
@@ -1019,7 +1277,7 @@ export function UploadDialog({
                   onClick={() => fileInput.current?.click()}
                 >
                   <PlusIcon data-icon="inline-start" aria-hidden />
-                  Add more
+                  {addMoreLabel}
                 </Button>
               ) : null}
               {!startOnPick && settled && retryableFailed > 0 ? (

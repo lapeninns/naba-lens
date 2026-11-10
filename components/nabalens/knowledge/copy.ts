@@ -40,6 +40,10 @@ const dateTime = new Intl.DateTimeFormat("en-GB", {
   hourCycle: "h23",
   timeZone: "Europe/London",
 })
+const yearOnly = new Intl.DateTimeFormat("en-GB", {
+  year: "numeric",
+  timeZone: "Europe/London",
+})
 const monthName = new Intl.DateTimeFormat("en-GB", {
   month: "long",
   timeZone: "Europe/London",
@@ -50,10 +54,22 @@ function parse(iso: string): Date | null {
   return Number.isNaN(date.getTime()) ? null : date
 }
 
-/** "3 Nov" */
-export function shortDate(iso: string): string {
+/** "3 Nov", or "3 Nov 2025" when it isn't this London year (CA-29). */
+export function shortDate(iso: string, now: Date = new Date()): string {
   const date = parse(iso)
-  return date ? dayMonth.format(date) : "an unknown date"
+  if (!date) return "an unknown date"
+  return yearOnly.format(date) === yearOnly.format(now)
+    ? dayMonth.format(date)
+    : dayMonthYear.format(date)
+}
+
+/**
+ * Whether instant `a` is after `b`. Compared as instants, never as text: the
+ * RPCs may write the same moment as `Z` or `+00:00` and with different
+ * fraction lengths (HM-24).
+ */
+export function isAfter(a: string, b: string): boolean {
+  return Date.parse(a) > Date.parse(b)
 }
 
 /** "3 Nov 2026" */
@@ -424,6 +440,23 @@ export const DRAFT_SAVED: SentCopy = {
 }
 
 /**
+ * Save for later refused or overtaken (§8.10 L-b). Never names a device: the
+ * other send or save may have been from this phone.
+ */
+export const DRAFT_SAVE_COPY = {
+  alreadySent: "This finding was already sent.",
+  newerSend: (sentAt: string | null) =>
+    sentAt
+      ? `You sent a finding on ${dateAndTime(sentAt)}. Start a new draft to change it.`
+      : "You sent a finding since. Start a new draft to change it.",
+  startNew: "Start a new draft",
+  conflictGone:
+    "This draft was sent or discarded since you opened it. Save for later again to keep this version.",
+  conflictSaved:
+    "This draft was saved again since you opened it. Save for later again to replace that copy with this one.",
+} as const
+
+/**
  * Home's notice after a send (§4.3), from the person's latest finding as the
  * server has it now, so a reload stays truthful. Null when there is nothing
  * of theirs to announce.
@@ -434,7 +467,7 @@ export function sentNoticeFor(
   const latest = slot.myLatest
   const draft = slot.myDraft
   const sentAt = latest?.sentAt ?? latest?.savedAt ?? null
-  if (draft && (!latest || !sentAt || draft.savedAt > sentAt))
+  if (draft && (!latest || !sentAt || isAfter(draft.savedAt, sentAt)))
     return { ...DRAFT_SAVED, extra: null }
   if (!latest?.answer) return null
   // Recognition only when it is real; nothing is promised (§2.4).
@@ -469,6 +502,42 @@ export function sentNoticeFor(
         }),
         extra,
       }
+    default:
+      return null
+  }
+}
+
+/**
+ * A manager's or admin's own finding, named on the check page after "Capture
+ * myself" (CA-15): the same outcomes staff are told. Null without a sent
+ * finding of theirs, so the notice never rests on the URL alone.
+ */
+export function managerSentNoticeFor(
+  slot: Pick<WorkingSlot, "myLatest" | "answerInUse" | "requiresConfirmation">
+): SentCopy | null {
+  const latest = slot.myLatest
+  if (!latest?.answer) return null
+  const base = {
+    answer: latest.answer,
+    compared: "none" as const,
+    changeReport: false,
+  }
+  switch (latest.state) {
+    case "current":
+      return sentCopy({
+        ...base,
+        outcome: "current",
+        selfConfirmed:
+          slot.requiresConfirmation && slot.answerInUse.confirmation.self,
+      })
+    case "submitted":
+      return sentCopy({ ...base, outcome: "recorded" })
+    case "awaiting_confirmation":
+      return sentCopy({
+        ...base,
+        outcome: "awaiting_confirmation",
+        leftForOthers: true,
+      })
     default:
       return null
   }
@@ -512,7 +581,7 @@ export const KNOWLEDGE_FAILURE_COPY = {
   },
   decision: {
     stale:
-      "This check changed since you opened it. Reload to see the latest; nothing was decided.",
+      "This check changed. The page now shows the latest; check whether your decision is there.",
     alreadyDecided:
       "Someone already decided this finding. Reload to see the result.",
     selfNotPermitted:
@@ -563,26 +632,86 @@ export function toConfirmLine(rows: readonly ToConfirmRow[]): string {
 
 // ---- Evidence that isn't ready yet (§4.2, G4) ----------------------------------------
 
-const photos = (n: number) => (n === 1 ? "your photo" : `your ${n} photos`)
+/** What the uploads still saving are: photos, videos, or both or unknown. */
+export type UploadKinds = "photo" | "video" | "mixed"
+
+/** "photo", "videos", "photo or video", "photos and videos" */
+export function uploadNoun(n: number, kinds: UploadKinds = "mixed"): string {
+  if (kinds === "photo") return n === 1 ? "photo" : "photos"
+  if (kinds === "video") return n === 1 ? "video" : "videos"
+  return n === 1 ? "photo or video" : "photos and videos"
+}
+
+const yours = (n: number, kinds: UploadKinds) =>
+  n === 1 ? `your ${uploadNoun(1, kinds)}` : `your ${n} ${uploadNoun(n, kinds)}`
 
 export const UPLOAD_WAIT_COPY = {
-  pending: (n: number) =>
+  pending: (n: number, kinds: UploadKinds = "photo") =>
     n === 1
-      ? "Your photo is still saving. Wait for it, or send without it."
-      : `Your ${n} photos are still saving. Wait for them, or send without them.`,
-  yesNeeds: (rule: string, n: number) =>
-    `Yes needs evidence: ${rule}. Wait for ${photos(n)} to finish saving.`,
+      ? `Your ${uploadNoun(1, kinds)} is still saving. Wait for it, or send without it.`
+      : `Your ${n} ${uploadNoun(n, kinds)} are still saving. Wait for them, or send without them.`,
+  yesNeeds: (rule: string, n: number, kinds: UploadKinds = "photo") =>
+    `Yes needs evidence: ${rule}. Wait for ${yours(n, kinds)} to finish saving.`,
   waitFor: (n: number) => (n === 1 ? "Wait for it" : "Wait for them"),
   sendWithout: (n: number) =>
     n === 1 ? "Send without it" : "Send without them",
-  waiting: (n: number) =>
-    `Waiting for ${photos(n)} to finish saving. It sends by itself when ready.`,
-  primary: (n: number) => `Waiting for ${n} ${n === 1 ? "photo" : "photos"}…`,
+  waiting: (n: number, kinds: UploadKinds = "photo") =>
+    `Waiting for ${yours(n, kinds)} to finish saving. It sends by itself when ready; keep this page open.`,
+  primary: (n: number, kinds: UploadKinds = "photo") =>
+    `Waiting for ${n} ${uploadNoun(n, kinds)}…`,
   stop: "Stop waiting and edit",
-  offline:
-    "You're offline. Your photo will finish saving when you're back online; then you can send.",
-  failed: "This photo couldn't be processed. Add it again or choose another.",
+  // A closed tab doesn't resume an upload (UP-01): only this page finishes it.
+  offline: (n: number, kinds: UploadKinds = "photo") =>
+    `You're offline. Keep this page open: ${yours(n, kinds)} ${n === 1 ? "finishes" : "finish"} saving when you're back online; then you can send.`,
+  // Add stopped without a ready upload: failed, cancelled or removed there.
+  failed: (n: number, kinds: UploadKinds = "photo") =>
+    n === 1
+      ? `Your ${uploadNoun(1, kinds)} didn't finish saving. Add it again or choose another.`
+      : `Your ${n} ${uploadNoun(n, kinds)} didn't finish saving. Add them again or choose others.`,
+  // The same, when Add said why (CA-11).
+  unfinished: (
+    n: number,
+    kinds: UploadKinds,
+    reason: "failed" | "cancelled" | "removed"
+  ) => {
+    const what =
+      n === 1
+        ? `Your ${uploadNoun(1, kinds)}`
+        : `Your ${n} ${uploadNoun(n, kinds)}`
+    const was = n === 1 ? "was" : "were"
+    const how =
+      reason === "failed"
+        ? "failed to save"
+        : reason === "cancelled"
+          ? `${was} cancelled in Add`
+          : `${was} removed from Add`
+    return n === 1
+      ? `${what} ${how}. Add it again or choose another.`
+      : `${what} ${how}. Add them again or choose others.`
+  },
 } as const
+
+/**
+ * Under the Wi-Fi redaction tick while uploads from the form are saving: the
+ * tick vouches for the exact photos sent, so it waits for them.
+ */
+export function redactionWaitLine(n: number, kinds: UploadKinds = "photo") {
+  return `Tick this when ${yours(n, kinds)} ${n === 1 ? "has" : "have"} finished saving: it covers every photo and video you send.`
+}
+
+// ---- Sending (§8.1 rule 5, CA-05, CA-24) -----------------------------------------------
+
+export const SEND_PROGRESS_COPY = {
+  sending: "Sending…",
+  /** After 15 s without a reply. */
+  slow: "Still sending; keep this page open.",
+  /** A restored draft whose send never had a definite answer. */
+  lastSendUnsure:
+    "Your last send may not have arrived. Send again; nothing is sent twice.",
+} as const
+
+/** How long a send goes without a reply before the screen says so. */
+export const SLOW_SEND_MS = 15_000
 
 // ---- Capture context (§4.2) ----------------------------------------------------------
 

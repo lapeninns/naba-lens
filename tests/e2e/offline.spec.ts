@@ -12,8 +12,8 @@ import { provisionWorld, signedInPage, type World } from "./helpers/world"
 test.skip(({ browserName }) => browserName !== "chromium", "Chromium only")
 test.describe.configure({ mode: "serial" })
 
-const BODY =
-  /^What you see was last updated at \d{1,2}:\d{2}(\s?[ap]m)?\. Nothing is sent twice when you try again\.$/i
+// The page's server render time, then when the connection dropped (X-01).
+const BODY = /^Loaded at \d{2}:\d{2}\. You've been offline since \d{2}:\d{2}\.$/
 
 let world: World
 let staff: Page

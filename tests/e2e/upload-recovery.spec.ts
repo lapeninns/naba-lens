@@ -348,7 +348,7 @@ test.describe("upload recovery in the real UI", () => {
         const tile = await staffTile(portfolio, name, staff.id)
         await expect(tile).toBeVisible()
         await expect(tile).not.toHaveAccessibleName(
-          /(Uploading|Processing|Failed)$/
+          /(Uploading|Stopped|Processing|Failed)$/
         )
       }
     }
@@ -489,17 +489,21 @@ test.describe("upload recovery in the real UI", () => {
     expect(rows.map((r) => r.original_filename)).not.toContain("eleventh.jpg")
     await dialog.getByRole("button", { name: "Done" }).click()
 
-    // Until cleanup, the portfolio lists them as unfinished, never ready.
+    // Until cleanup, the portfolio lists them as unfinished, never ready:
+    // stopped, since nothing on this device is sending them any more.
     const portfolio = page.getByRole("list", { name: "Your portfolio" })
     await page.reload()
     await expect(
-      portfolio.getByRole("button", { name: /^Photo, uploaded .*Uploading$/ })
+      portfolio.getByRole("button", { name: /^Photo, uploaded .*Stopped$/ })
     ).toHaveCount(2)
     for (const r of cancelled) {
       await expect(
         portfolio.locator(`button[data-media-id="${r.id}"]`)
-      ).toHaveAccessibleName(/Uploading$/)
+      ).toHaveAccessibleName(/Stopped$/)
     }
+    await expect(
+      portfolio.getByRole("button", { name: "Open Add" })
+    ).toHaveCount(2)
 
     // Cleanup (24 h window) removes the abandoned reservations.
     const { error } = await admin.rpc("prepare_media_cleanup", {
@@ -620,8 +624,9 @@ test.describe("upload recovery in the real UI", () => {
     await page.unroute(TUS)
 
     // --- 3. A reload mid-transfer ends it. The portfolio shows the upload as
-    // unfinished (server state), and choosing the same file again resumes
-    // the same asset from the stored offset.
+    // stopped (the server still has it uploading, nothing here sends it) with
+    // what to do, and choosing the same file again resumes the same asset
+    // from the stored offset.
     storage.reset()
     let held = false
     await page.route(TUS, async (route) => {
@@ -648,15 +653,20 @@ test.describe("upload recovery in the real UI", () => {
     const portfolio = page.getByRole("list", { name: "Your portfolio" })
     await expect(
       portfolio.locator(`button[data-media-id="${unfinished.id}"]`)
-    ).toHaveAccessibleName(/^Video, uploaded .*Uploading$/)
+    ).toHaveAccessibleName(/^Video, uploaded .*Stopped$/)
     await expect(
-      portfolio.getByRole("button", { name: /^Video, uploaded .*Uploading$/ })
+      portfolio.getByRole("button", { name: /^Video, uploaded .*Stopped$/ })
     ).toHaveCount(1)
+    await expect(
+      portfolio.getByText(
+        "Stopped. Choose the same video again from Add to finish it; it continues where it stopped."
+      )
+    ).toBeVisible()
     // A fresh context (another device or browser) shows the same states.
     const other = await signIn(browser, staff, baseURL!)
     const otherPortfolio = other.getByRole("list", { name: "Your portfolio" })
     await expect(
-      otherPortfolio.getByRole("button", { name: /Uploading$/ })
+      otherPortfolio.getByRole("button", { name: /Stopped$/ })
     ).toHaveCount(1)
     await expect(
       otherPortfolio.getByRole("button", { name: /^Video, uploaded / })
@@ -675,7 +685,7 @@ test.describe("upload recovery in the real UI", () => {
     expect(rows[2]).toMatchObject({ id: unfinished.id, upload_state: "ready" })
     await dialog.getByRole("button", { name: "Done" }).click()
     await expect(
-      portfolio.getByRole("button", { name: /Uploading$/ })
+      portfolio.getByRole("button", { name: /(Uploading|Stopped)$/ })
     ).toHaveCount(0)
     await page.context().close()
   })

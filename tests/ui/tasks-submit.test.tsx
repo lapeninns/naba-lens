@@ -619,7 +619,11 @@ describe("SubmitPhotosPanel", () => {
     setup({
       photos: [photo({ countsTowardMonthly: false, completionTarget: true })],
     })
-    expect(screen.getByText("Checklist item only")).toBeTruthy()
+    expect(
+      screen.getByText(
+        "Counts for this checklist item, not your monthly target."
+      )
+    ).toBeTruthy()
     expect(screen.queryByText("Task only (from an earlier month)")).toBeNull()
   })
 
