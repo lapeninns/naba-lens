@@ -26,7 +26,11 @@ import {
 // key. A stale revision is `revision_conflict` with nothing recorded; a
 // repeated key returns the first result with `replayed: true`.
 
-/** S3. Sends a finding, change report or requested detail. */
+/**
+ * S3. Sends a finding, change report or requested detail. With `detail`,
+ * `observedOn` or `observedOnSource` (B03-b) it calls the 19-argument
+ * overload, whose result adds detail, observedOn and rechecksClosed.
+ */
 export async function submitKnowledgeFinding(
   actor: MediaActor,
   input: unknown
@@ -51,6 +55,14 @@ export async function submitKnowledgeFinding(
     p_internal_metadata: p.wifi,
     p_redaction_confirmed: p.redactionConfirmed,
     p_confirm_own: p.confirmOwn,
+    // B03-b: the 19-argument overload, only when detail or a date was sent.
+    ...(p.detail === undefined
+      ? {}
+      : {
+          p_detail: p.detail,
+          p_observed_on: p.observedOn ?? null,
+          p_observed_on_source: p.observedOnSource ?? null,
+        }),
   })
   if (error) return knowledgeRpcFailure(error, "knowledge submit")
   const { contributionId, ...rest } = data

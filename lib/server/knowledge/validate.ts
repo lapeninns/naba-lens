@@ -7,12 +7,14 @@ import {
   DECISIONS,
   KNOWLEDGE_ANSWERS,
   KNOWLEDGE_LIMITS as LIMITS,
+  OBSERVED_ON_SOURCES,
   UNKNOWN_PRESETS,
   type ContributionKind,
   type Decision,
   type FindingRef,
   type KnowledgeAnswer,
   type KnowledgeFailure,
+  type ObservedOnSource,
   type UnknownPreset,
 } from "@/lib/knowledge/contract"
 import { parseWifi } from "@/lib/server/amenities/validate"
@@ -25,6 +27,7 @@ import {
 } from "@/lib/server/coverage/validate"
 
 import { knowledgeFailure, knowledgeInvalid } from "./errors"
+import { londonToday, safeDate } from "./values"
 
 export { intInRange, isObject, isUuid }
 
@@ -95,6 +98,74 @@ export type ParsedKnowledgeSubmit = {
   wifi: WifiMetadata | null
   redactionConfirmed: boolean | null
   confirmOwn: boolean
+  /**
+   * B03-b. Present (with the two date fields) only when the caller sent any
+   * of them; the shape is checked against the question by the database.
+   */
+  detail?: Record<string, unknown> | null
+  observedOn?: string | null
+  observedOnSource?: ObservedOnSource | null
+}
+
+/** YYYY-MM-DD, `days` before `date`. */
+function daysBefore(date: string, days: number): string {
+  const d = new Date(`${date}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() - days)
+  return d.toISOString().slice(0, 10)
+}
+
+type Observation = Pick<
+  ParsedKnowledgeSubmit,
+  "detail" | "observedOn" | "observedOnSource"
+>
+
+/** Detail and observation date (§4.4, §7.2, A20); both date fields together. */
+function parseObservation(
+  input: Record<string, unknown>,
+  errors: Record<string, string>,
+  now: Date
+): Observation {
+  const { detail, observedOn, observedOnSource } = input
+  if (
+    detail === undefined &&
+    observedOn === undefined &&
+    observedOnSource === undefined
+  )
+    return {}
+  const out: Observation = {
+    detail: null,
+    observedOn: null,
+    observedOnSource: null,
+  }
+  if (detail !== undefined && detail !== null) {
+    if (
+      !isObject(detail) ||
+      new TextEncoder().encode(JSON.stringify(detail)).length > LIMITS.detail
+    )
+      errors.detail = "These details are too long. Shorten them."
+    else out.detail = detail
+  }
+  if (observedOn !== undefined && observedOn !== null) {
+    const date = safeDate(observedOn)
+    const today = londonToday(now)
+    if (
+      !date ||
+      date > today ||
+      date < daysBefore(today, LIMITS.observedOnDays)
+    )
+      errors.observedOn = `Choose a date in the last ${LIMITS.observedOnDays} days.`
+    else out.observedOn = date
+  }
+  if (observedOnSource !== undefined && observedOnSource !== null) {
+    if (oneOf(OBSERVED_ON_SOURCES, observedOnSource))
+      out.observedOnSource = observedOnSource
+    else errors.observedOnSource = "Reload the page and try again."
+  }
+  if (out.observedOn && !out.observedOnSource && !errors.observedOnSource)
+    errors.observedOnSource = "Reload the page and try again."
+  if (out.observedOnSource && !out.observedOn && !errors.observedOn)
+    errors.observedOn = "Choose the date you checked."
+  return out
 }
 
 /**
@@ -171,6 +242,7 @@ export function parseKnowledgeSubmit(
       "Confirm the Wi-Fi password and join QR code are covered."
   if (input.confirmOwn !== undefined && typeof input.confirmOwn !== "boolean")
     errors.confirmOwn = "Reload the page and try again."
+  const observation = parseObservation(input, errors, now)
   if (Object.keys(errors).length) return knowledgeInvalid(errors)
 
   let wifi: WifiMetadata | null = null
@@ -196,6 +268,7 @@ export function parseKnowledgeSubmit(
     wifi,
     redactionConfirmed: typeof redaction === "boolean" ? redaction : null,
     confirmOwn: input.confirmOwn === true,
+    ...observation,
   })
 }
 

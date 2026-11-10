@@ -27,6 +27,13 @@ export const CONTRIBUTION_KINDS = [
   "detail",
 ] as const
 export type ContributionKind = (typeof CONTRIBUTION_KINDS)[number]
+/**
+ * B03-g: a "correction" contribution is recorded by knowledge_correct only and
+ * is adopted at once, so it is never pending; the corrector's own history and
+ * feed can show it. Screens widen their kind maps with this when they adopt
+ * B03-g (kept separate so existing exhaustive maps still compile).
+ */
+export type ContributionKindB03 = ContributionKind | "correction"
 
 /** Couldn't establish: why not (WS2 §3.4). "other" needs the tried text only. */
 export const UNKNOWN_PRESETS = [
@@ -69,6 +76,11 @@ export const KNOWLEDGE_LIMITS = {
   maxPageSize: 20,
   /** Bytes of the draft payload as JSON text. */
   draftPayload: 16384,
+  /** Bytes of a finding's structured detail as JSON text (B03-b). */
+  detail: 16384,
+  /** An observation date is today or up to this many days back (OD-15 default). */
+  observedOnDays: 30,
+  placeLabel: 80,
 } as const
 
 // ---- Resolver state (§5.2) ---------------------------------------------------
@@ -115,6 +127,11 @@ export type KnowledgeReaderRow = {
   observed_at: string | null
   next_check_due: string | null
   freshness_state: string | null
+  /**
+   * WS5 item 2: an adopted import's origin (legacy_fact, external_source),
+   * null otherwise and on unavailable rows. Never a label or excerpt.
+   */
+  source_origin?: "legacy_fact" | "external_source" | null
 }
 
 // ---- Screen DTOs (§13) -------------------------------------------------------
@@ -147,12 +164,23 @@ export type MyFindingView = {
   sentAt: string
   decidedAt?: string | null
   state: ContributionState
-  stateReason?:
-    "archived" | "replaced_by_newer" | "reopened" | "replaced_by_own" | null
+  /** B03-g (A15) adds corrected and withdrawn; readers keep a fallback. */
+  stateReason?: StateReasonB03 | null
   managerNote?: string | null
+  /**
+   * B03 (UI §8.2): for the corrected and withdrawn reasons, the basis of
+   * whoever took the answer out of use, and when. Never a name.
+   */
+  stateReasonBasis?: ActorBasis | null
+  stateReasonAt?: string | null
   detailRequestId?: string | null
   recognition: Recognition
 }
+
+/** The basis a manager-side action was taken on; staff words name only this. */
+export type ActorBasis = "venue_manager" | "admin"
+
+export type AnswerWithdrawal = { at: string; basis: ActorBasis }
 
 export type ClosedAssignmentView = {
   kind: "assignment_closed"
@@ -183,6 +211,10 @@ export type KnowledgeSlotView = {
   progress: CheckProgress
   checkStatus: CheckStatus
   answerInUse: {
+    /**
+     * The value as read: A40 reads a service's stored Yes as No once its end
+     * (`stop`) is in effect. The stored headline is not returned separately.
+     */
     value: SubmitAnswer
     available: boolean
     reason: SlotReason | null
@@ -198,6 +230,38 @@ export type KnowledgeSlotView = {
     confirmedAt?: string | null
     /** The confirmer was also the person who sent the finding. */
     confirmedSelf?: boolean | null
+    /**
+     * B03-b: the answer's structured detail (null when none was recorded),
+     * whether a detail row exists, and the observation date. Always returned
+     * once the B03-b migration is applied.
+     */
+    detail?: KnowledgeDetail | null
+    detailRecorded?: boolean
+    observedOn?: string | null
+    /**
+     * B03-c (§3.8): a qualified answer's real value. When set, the B01 fields
+     * read as needs checking unless another reason applies (A22).
+     */
+    qualified?: QualifiedAnswer | null
+    /** B03-c (A5): policy keys only; empty means complete. */
+    policyMissing?: PolicyMissing[]
+    /** B03-d (A25): the schedule version in use, for a schedule exception. */
+    scheduleId?: string | null
+    /** Review low 2: where the answer in use came from; imports name their source. */
+    source?: FindingSource
+    sourceLabel?: string | null
+    /**
+     * Staff withdrawal line (UI §8.2, D-B3-18): set while the answer reads
+     * withdrawn. When, and whether a manager or an admin acted; never who or
+     * why.
+     */
+    withdrawal?: AnswerWithdrawal | null
+    /**
+     * A40: how a service in use ends (a stop date, or a schedule's last day),
+     * whether or not that has happened yet; null otherwise. Display it from
+     * here, never by reading the detail.
+     */
+    stop?: ServiceEnd | null
   } | null
   previousAnswer: SubmitAnswer | null
   requiresConfirmation: boolean
@@ -217,6 +281,8 @@ export type KnowledgeSlotView = {
     answeredBy: string | null
     at: string
   } | null
+  /** A10: one entry per use; `unrated` until B03-e. Returned from B03-b. */
+  freshness?: FreshnessEntry[]
 }
 
 export type PendingFindingView = {
@@ -243,7 +309,26 @@ export type PendingFindingView = {
   } | null
   wifi: WifiMetadata | null
   evidence: { assetId: string; kind: "photo" | "video"; available: boolean }[]
+  /** B03-b: structured detail and observation date, null when none. */
+  detail?: KnowledgeDetail | null
+  observedOn?: string | null
+  /** B03-c (A5): policy findings only, as if adopted (content, not who confirms). */
+  policyMissing?: PolicyMissing[]
+  /** B03-f (A12): where the finding came from. */
+  source?: FindingSource
+  /** B03-f: imports only, the source's label. */
+  sourceLabel?: string
+  /** B03-f (A23): imports only; false while the check has an answer in use. */
+  adoptable?: boolean
+  /**
+   * Review low 3, WS5 item 3: imports only, what the source said (an external
+   * excerpt, or a legacy record's Coverage text). Internal; never limitations.
+   */
+  sourceExcerpt?: string | null
 }
+
+export type FindingSource =
+  "staff_finding" | "manager_statement" | "legacy_fact" | "external_source"
 
 export type KnowledgeCheckView = KnowledgeSlotView & {
   permissions: {
@@ -260,6 +345,8 @@ export type KnowledgeCheckView = KnowledgeSlotView & {
    * Always returned once the B02 migration is applied.
    */
   mySentAt?: string | null
+  /** B03-d (A6): the venue's IANA timezone for schedules (OD-16 default). */
+  timezone?: string
 }
 
 export type WorkingListView = {
@@ -286,6 +373,12 @@ export type ToConfirmItem = {
    * Always returned once the B02 migration is applied.
    */
   waitingSince?: string
+  /** B03-c (A5): policy items only. */
+  policyMissing?: PolicyMissing[]
+  /** B03-f (A12, A23): the source; imports also carry their label and adoptable. */
+  source?: FindingSource
+  sourceLabel?: string
+  adoptable?: boolean
 }
 
 /**
@@ -359,6 +452,8 @@ export type LabelWork = { needsLabels: number; needsAttention: number }
 
 export const TRIAGE_QUEUES = ["menu_photos", "findings", "checklist"] as const
 export type TriageQueue = (typeof TRIAGE_QUEUES)[number]
+/** B03-e (§7.4): open recheck tasks, returned beside the B02 queues. */
+export type TriageRow = TriageQueue | "rechecks" | "suggestions"
 
 /**
  * R3. One manager queue. A queue the caller can't act on is `available: false`
@@ -483,6 +578,21 @@ export type VenueCapabilities = {
   canDecideOwnMenuPhoto: boolean
   canReviewChecklist: boolean
   canBeAssigned: boolean
+  /** B03-b (A1): manager or admin at the venue. */
+  canManagePlaces?: boolean
+  /** B03-g (A1, §9.1): a manager account or an admin, never staff with a grant. */
+  canCorrect?: boolean
+  canWithdraw?: boolean
+  /** B03-g (A16): manager or admin at the venue. */
+  canReadHistory?: boolean
+  /**
+   * A35: who may state a policy with authority (manager, staff holding a
+   * grant, or admin) and on which basis; only an admin states one for every
+   * venue. The server refuses any other authority or scope (A37).
+   */
+  canStatePolicy?: boolean
+  canStateOrgPolicy?: boolean
+  policyBasis?: "venue_manager" | "admin" | null
 }
 
 export type DeleteImpactKind =
@@ -549,6 +659,221 @@ export type ContributionGroupView = {
     mine: boolean
   }[]
 }
+// ---- B03-a question registry (docs/knowledge/b03-design.md §3) --------------
+
+export const QUESTION_LIFECYCLES = [
+  "supported",
+  "presence_only",
+  "unsupported",
+  "superseded",
+  "retired",
+] as const
+export type QuestionLifecycle = (typeof QUESTION_LIFECYCLES)[number]
+
+export type QuestionFamily =
+  | "presence"
+  | "facility"
+  | "accessibility"
+  | "policy"
+  | "service"
+  | "schedule_event"
+  | "connectivity"
+
+export type ValueSchemaName =
+  | "presence"
+  | "facility"
+  | "accessibility"
+  | "policy"
+  | "service"
+  | "schedule_event"
+  | "connectivity.wifi"
+
+/** One version of a question: what it asks and the rules it is answered under. */
+export type QuestionView = {
+  key: string
+  family: QuestionFamily
+  subjectType: "venue"
+  ownerRole: "venue_manager" | "admin"
+  version: number
+  latestVersion: number
+  catalogueVersion: number
+  /** The knowledge_question_rules version it restates; null when none exists. */
+  ruleVersion: number | null
+  valueSchema: { name: ValueSchemaName; version: number }
+  guidance: {
+    question: string
+    captureBrief: string
+    staffHelp: string | null
+    publicLabel: string | null
+  }
+  evidenceRule: "photo" | "video" | "either" | "both" | "none"
+  confirmation: "none" | "venue_manager" | "admin" | "policy_authority"
+  selfConfirmationAllowed: boolean
+  sensitivity: "ordinary" | "sensitive_claim" | "restricted_detail"
+  freshness: { internal: string | null; public: string | null }
+  publishableFields: string[]
+  /**
+   * K3 (A30): whether an answer may be illustrated publicly. Every version 1
+   * is "never". Returned from B03-c.
+   */
+  publicMedia?: "never" | "with_grant"
+  /** A33: the accessibility features this version asks about (empty on v1). */
+  features?: QuestionFeature[]
+  /** Fields whose change invalidates a confirmation; the headline always does. */
+  materialFields: string[]
+  requiresZones: boolean
+  lifecycle: QuestionLifecycle
+  supersededBy: string[] | null
+  effectiveFrom: string | null
+  changeKind: "initial" | "wording" | "rule" | "schema" | "lifecycle"
+  changeNote: string | null
+}
+
+/**
+ * A registry item: the question's latest version, with the check-date rules
+ * in force now. `effectiveFreshness` is the freshness of the version in force
+ * (one takes effect at the later of when it was added and its effectiveFrom),
+ * null when none is in force yet. Absent from a database before
+ * 20261110170000, so a caller can tell "none in force" from "not sent".
+ */
+export type RegistryItemView = QuestionView & {
+  effectiveFreshness?: QuestionView["freshness"] | null
+}
+
+// ---- Places and structured detail (B03-b, b03-design §4) ----------------------
+
+export const PLACE_KINDS = [
+  "entrance",
+  "route",
+  "area",
+  "room",
+  "facility_point",
+] as const
+export type PlaceKind = (typeof PLACE_KINDS)[number]
+
+/**
+ * A place at a venue. Staff get active places only, without the who and
+ * when; managers and admins also get retired places, `addedBy` (a first
+ * name for managers, the full name for admins) and the dates.
+ */
+export type SubjectView = {
+  subjectId: string
+  kind: PlaceKind
+  label: string
+  active: boolean
+  addedOn?: string
+  addedBy?: string
+  retiredOn?: string | null
+}
+
+/** A place a finding names: a known place, or a label as written (A3). */
+export type PlaceRef = { subjectId: string } | { label: string }
+
+/**
+ * Structured detail as the database stored it (facility and accessibility
+ * shapes, b03-design §4.2, §4.3). Read-only to the server.
+ */
+export type KnowledgeDetail = Record<string, unknown>
+
+export const OBSERVED_ON_SOURCES = ["form_default", "chosen"] as const
+export type ObservedOnSource = (typeof OBSERVED_ON_SOURCES)[number]
+
+/**
+ * A40: a service.v1 Yes may carry `detail.lastDayOffered` (YYYY-MM-DD,
+ * venue-local, inclusive): the service is Not offered from the next day. Only
+ * on a Yes; with a schedule it equals `schedule.effectiveTo`. A stop from
+ * today is a No instead. Sends and corrections refuse a date before the
+ * venue's today (`out_of_range`); imports refuse the field.
+ *
+ * The end of a service in use, derived when read and never stored.
+ * `stopped`: the deliberate stop (`detail.lastDayOffered`), which opens no
+ * recheck. `schedule_ended`: no stop date, but the schedule has a last day;
+ * a `schedule_ended` recheck opens once it is in effect. `notOfferedFromAt`
+ * is local midnight of `notOfferedFrom`; `inEffect` once that has passed.
+ */
+export type ServiceEnd = {
+  kind: "stopped" | "schedule_ended"
+  lastDayOffered: string
+  notOfferedFrom: string
+  notOfferedFromAt: string
+  inEffect: boolean
+}
+
+/** B03-c (§3.8): a Yes narrowed by its detail. */
+export type QualifiedAnswer = {
+  qualifier: "conditional" | "temporarily_unavailable"
+  detail: KnowledgeDetail
+}
+
+/** B03-c (A5): what a policy answer still needs, in this order. */
+export type PolicyMissing =
+  "stance" | "conditions" | "zones" | "authority" | "stated_on"
+
+export const VALUE_LISTS = [
+  "policy_condition_types",
+  "policy_exception_types",
+  "broadcasters",
+] as const
+export type ValueListName = (typeof VALUE_LISTS)[number]
+
+/** A4, A9: one closed list, active items in the owner's order. */
+export type ValueListView = {
+  list: ValueListName
+  items: {
+    code: string
+    label: string
+    needsValue: boolean
+    valueKind: "number" | "text" | "time" | null
+  }[]
+  /** A38: retired items, never offered, so an old answer can still name them. */
+  retired?: (ValueListView["items"][number] & { retiredAt: string })[]
+}
+
+/** A33: an accessibility feature a question version asks about. */
+export type QuestionFeature = {
+  key: string
+  label: string
+  measurable: boolean
+}
+
+/** B03-d (§6.1): one occurrence of a schedule; instants are UTC. */
+export type OccurrenceRow = {
+  local_date: string
+  starts_at: string
+  ends_at: string
+  state: "scheduled" | "cancelled" | "changed" | "extra"
+}
+
+export const SCHEDULE_EXCEPTION_KINDS = [
+  "cancelled",
+  "changed_window",
+  "extra",
+] as const
+export type ScheduleExceptionKind = (typeof SCHEDULE_EXCEPTION_KINDS)[number]
+
+export type FreshnessEntry = {
+  use: "internal" | "public"
+  state: "current" | "due_soon" | "expired" | "basis_missing" | "unrated"
+  nextCheckDue: string | null
+  basis: "observed_on" | "stated_on" | "event_end" | null
+  basisDate: string | null
+  /** The freshness policy version in force at the time read (B08 M1). */
+  policyId?: string
+  policyVersion?: number
+}
+
+/** A refused value: the field path (b03-design §14.3) and a short problem code. */
+export type ValueFieldProblem = {
+  path: string
+  problem:
+    | "required"
+    | "not_allowed"
+    | "invalid"
+    | "too_long"
+    | "out_of_range"
+    | "no_entrances_listed"
+    | "unknown_subject"
+}
 // ---- Command results -----------------------------------------------------------
 
 export type SubmitKnowledgeResult = {
@@ -566,6 +891,11 @@ export type SubmitKnowledgeResult = {
    * Always returned once the B02 migration is applied.
    */
   sentAt?: string
+  /** B03-b, when detail or an observation date was sent. */
+  detail?: KnowledgeDetail | null
+  observedOn?: string | null
+  /** A24: the recheck tasks this send closed (none on a replay). */
+  rechecksClosed?: RecheckClosed[]
 }
 
 export type DecideResult = {
@@ -574,6 +904,8 @@ export type DecideResult = {
   replacedAnswer: SubmitAnswer | null
   slotRevision: number
   replayed: boolean
+  /** B03-e (A24): the recheck tasks this decision closed. */
+  rechecksClosed?: RecheckClosed[]
 }
 
 export type ResolveConflictResult = {
@@ -581,6 +913,252 @@ export type ResolveConflictResult = {
   settled: number
   slotRevision: number
   replayed: boolean
+  /** B03-e (A24): the recheck tasks this decision closed. */
+  rechecksClosed?: RecheckClosed[]
+}
+
+export type RecheckClosed = { taskId: string; use: "internal" | "public" }
+
+export type RecheckCause =
+  | "due_soon"
+  | "expired"
+  | "basis_missing"
+  | "schedule_ended"
+  | "temporary_until_passed"
+  | "evidence_lost"
+  | "schema_changed"
+  | "scope_changed"
+
+/** B03-e (A11): an open recheck task; its assignee is the check's. */
+export type RecheckTaskView = {
+  taskId: string
+  checkId: string
+  venueId: string
+  questionKey: string
+  question: string
+  cause: RecheckCause
+  use: "internal" | "public"
+  dueAt: string
+}
+
+// ---- Corrections and history (B03-g, b03-design §9, A15, A16) -------------------
+
+/**
+ * B03-g (A15): stateReason also reads "corrected" or "withdrawn" when a
+ * material correction or a withdrawal took the author's answer out of use
+ * (managerNote carries the reason). MyFindingView.stateReason carries it.
+ */
+export type StateReasonB03 = StateReasonB01 | "corrected" | "withdrawn"
+
+/** The B01 reasons an author's finding is no longer used. */
+export type StateReasonB01 =
+  "archived" | "replaced_by_newer" | "reopened" | "replaced_by_own"
+
+export type CorrectionValue = {
+  headline: SubmitAnswer
+  detail: KnowledgeDetail | null
+}
+
+export type CorrectResult = {
+  decisionId: string
+  /** False: a detail fix on the answer in use; no new submission. */
+  material: boolean
+  submissionId: string | null
+  slotRevision: number
+  replayed: boolean
+  rechecksClosed?: RecheckClosed[]
+}
+
+export type SlotHistoryView = {
+  checkId: string
+  at: string
+  answerInUse: {
+    submissionId: string
+    /** The stored headline. */
+    answer: SubmitAnswer
+    /** A40: the value as it read at `at` (No once a service's end was in effect). */
+    value?: SubmitAnswer
+    /** A40: the service's end as it stood at `at`, or null. */
+    stop?: ServiceEnd | null
+    sentAt: string
+    confirmationState: ConfirmationState
+    withdrawn: boolean
+    detail: KnowledgeDetail | null
+    questionVersion: number
+    /** B08 M1: the registry version in force at `at` (null before B03). */
+    registryVersion?: number | null
+    /**
+     * B08 M1: freshness as it read at `at`, under the policies then. Computed
+     * even when `withdrawn` is true and without scope: read `withdrawn` first.
+     * A history read; B08 scoring uses stored facts instead (B08 §6.2a).
+     */
+    freshness?: FreshnessEntry[]
+    selectionRule:
+      | "adopted"
+      | "confirmation"
+      | "conflict_choice"
+      | "correction"
+      | "withdrawal"
+  } | null
+}
+
+export type SlotEventView = {
+  eventId: number
+  at: string
+  kind: string
+  actor: { id: string; name: string | null; basis: string | null } | null
+  answer: KnowledgeAnswer | null
+  before: CorrectionValue | null
+  after: CorrectionValue | null
+  material: boolean | null
+  selectionRule: string | null
+  reason: string | null
+}
+
+// ---- Reconciliation (B03-f, b03-design §8, A13) -------------------------------
+
+export const SOURCE_KINDS = [
+  "venue_website",
+  "google_business_profile",
+  "booking_site",
+  "operator_document",
+  "other",
+] as const
+export type SourceKind = (typeof SOURCE_KINDS)[number]
+export type MappingKind = "exact" | "candidate" | "none"
+
+export type SourceView = {
+  sourceId: string
+  kind: SourceKind
+  label: string
+  venueId: string | null
+  declaredAt: string
+  declaredBy: string
+  retiredAt: string | null
+  latestRevision: string | null
+}
+
+export type SourceAssertionInput = {
+  venueId: string
+  questionKey: string
+  headline: KnowledgeAnswer
+  detail?: KnowledgeDetail
+  excerpt?: string
+}
+
+export type LegacyMappingsView = {
+  items: {
+    legacyFactId: string
+    legacyRevision: number
+    legacyKey: string
+    venueId: string
+    presence: "present" | "absent" | "unknown"
+    mappings: {
+      questionKey: string
+      kind: MappingKind
+      reason: string
+      reviewedBy: string
+      reviewedAt: string
+    }[]
+  }[]
+  nextCursor: string | null
+}
+
+export type ReconcileCounts = {
+  candidates: number
+  proposals: number
+  corroborating: number
+  conflicting: number
+  alreadyApplied: number
+  skipped: number
+}
+
+export type ReconcileProposal = {
+  venueId: string
+  questionKey: string
+  answer: KnowledgeAnswer
+  state: "proposal" | "corroborates" | "conflicts"
+  source: string
+  legacyFactId: string | null
+  legacyRevision: number | null
+  assertionId: string | null
+}
+
+export type ReconcileResult = {
+  runId: string
+  mode: "dry_run" | "apply"
+  counts: ReconcileCounts
+  wouldCreate?: ReconcileProposal[]
+  dryRunId?: string
+  created?: number
+  conflicts: Pick<
+    ReconcileProposal,
+    "venueId" | "questionKey" | "answer" | "source"
+  >[]
+  sourceRevisions: Record<string, string | number>
+}
+
+export type ReconciliationRunView = {
+  runId: string
+  kind: "legacy" | "external"
+  mode: "dry_run" | "apply"
+  venueId: string | null
+  dryRunId: string | null
+  startedAt: string
+  counts: ReconcileCounts
+  wouldCreate: ReconcileProposal[]
+  conflicts: ReconcileResult["conflicts"]
+  sourceRevisions: Record<string, string | number>
+}
+
+/** §8.2 L5: a legacy fact as narrative, never a knowledge confirmation. */
+export type LegacyNarrativeItem = {
+  legacyKey: string
+  label: string
+  presence: "present" | "absent" | "unknown"
+  facts: string | null
+  policy: string | null
+  savedAsConfirmedAt: string | null
+  updatedAt: string
+}
+
+/**
+ * A44: a legacy fact whose latest review for its current revision maps it to
+ * the question, with that review's kind. Unreviewed facts are only in the
+ * venue-wide narrative.
+ */
+export type QuestionLegacyNarrativeItem = LegacyNarrativeItem & {
+  mappingKind: MappingKind
+}
+
+/**
+ * A42: the latest version of a freshness policy for one use. Durations are
+ * ISO 8601 ("P90D"); `maxAge` is null for `event_end`.
+ */
+export type FreshnessPolicyView = {
+  policyId: string
+  version: number
+  claimClass:
+    "fixture" | "offering" | "schedule" | "policy" | "accessibility" | "event"
+  use: "internal" | "public"
+  maxAge: string | null
+  recheckLead: string | null
+  basis: "observed_on" | "stated_on" | "event_end"
+  note: string | null
+  createdAt: string
+}
+
+/** B03-e (§7.3): what naming a policy would do, per venue and use. */
+export type FreshnessPreviewView = {
+  key: string
+  items: {
+    venueId: string
+    use: "internal" | "public"
+    answers: number
+    dueSoon: number
+    expired: number
+    basisMissing: number
+  }[]
 }
 
 // ---- Errors (§4.1) -------------------------------------------------------------
@@ -596,6 +1174,8 @@ export type KnowledgeErrorCode =
   | "self_confirmation_not_permitted"
   | "draft_conflict"
   | "draft_already_sent"
+  /** A43: NLK14, an import decided on a check that has a recorded answer. */
+  | "import_slot_has_answer"
 
 export type KnowledgeFailure = Omit<AmenityFailure, "code"> & {
   code: KnowledgeErrorCode
@@ -604,6 +1184,8 @@ export type KnowledgeFailure = Omit<AmenityFailure, "code"> & {
   /** draft_already_sent: why, and the send time (the next draft base). */
   sentReason?: DraftSentReason
   sentAt?: string | null
+  /** place_exists: the active place with the same kind and label. */
+  subjectId?: string
 }
 
 export type KnowledgeResult<T> = ({ ok: true } & T) | KnowledgeFailure
@@ -619,6 +1201,9 @@ export const KNOWLEDGE_SQLSTATES = {
   NLK07: "knowledge_not_adoptable",
   NLK08: "knowledge_not_current",
   NLK09: "draft_already_sent",
+  NLK12: "reconcile_source_changed",
+  NLK13: "place_exists",
+  NLK14: "import_slot_has_answer",
 } as const
 
 // ---- RPC signatures ------------------------------------------------------------
@@ -640,6 +1225,10 @@ type SubmitArgs = {
   p_internal_metadata: WifiMetadata | null
   p_redaction_confirmed: boolean | null
   p_confirm_own: boolean
+  /** B03-b: present (all three) selects the 19-argument overload. */
+  p_detail?: KnowledgeDetail | null
+  p_observed_on?: string | null
+  p_observed_on_source?: ObservedOnSource | null
 }
 
 export type KnowledgeRpcs = {
@@ -730,7 +1319,7 @@ export type KnowledgeRpcs = {
   manager_triage_summary: {
     args: { p_venue_id: string | null }
     returns: {
-      queue: TriageQueue
+      queue: TriageRow
       available: boolean
       waiting: number | null
       oldest_waiting_at: string | null
@@ -768,6 +1357,196 @@ export type KnowledgeRpcs = {
   contribution_group: {
     args: { p_group_id: string }
     returns: ContributionGroupView
+  }
+  knowledge_question: {
+    args: { p_key: string; p_version: number | null }
+    returns: QuestionView
+  }
+  knowledge_registry: {
+    args: { p_lifecycle: QuestionLifecycle[] | null }
+    returns: { items: RegistryItemView[] }
+  }
+  knowledge_value_list: {
+    args: { p_list: ValueListName }
+    returns: ValueListView
+  }
+  knowledge_correct: {
+    args: {
+      p_check_id: string
+      p_slot_revision: number
+      p_idempotency_key: string
+      p_headline: SubmitAnswer
+      p_detail: KnowledgeDetail | null
+      p_reason: string
+    }
+    returns: CorrectResult
+  }
+  knowledge_withdraw: {
+    args: {
+      p_check_id: string
+      p_slot_revision: number
+      p_idempotency_key: string
+      p_reason: string
+    }
+    returns: { decisionId: string; slotRevision: number; replayed: boolean }
+  }
+  knowledge_upgrade_run: {
+    args: { p_key: string; p_mode: "dry_run" | "apply" }
+    returns: Record<string, unknown> & {
+      runId: string
+      mode: "dry_run" | "apply"
+    }
+  }
+  knowledge_slot_history: {
+    args: { p_check_id: string; p_at: string }
+    returns: SlotHistoryView
+  }
+  knowledge_slot_events: {
+    args: { p_check_id: string; p_cursor: string | null; p_limit: number }
+    returns: { items: SlotEventView[]; nextCursor: string | null }
+  }
+  knowledge_source_declare: {
+    args: {
+      p_kind: SourceKind
+      p_label: string
+      p_venue_id: string | null
+      p_idempotency_key: string
+    }
+    returns: { sourceId: string; replayed: boolean }
+  }
+  knowledge_source_retire: {
+    args: { p_source_id: string; p_reason: string; p_idempotency_key: string }
+    returns: { sourceId: string; retired: true; replayed: boolean }
+  }
+  knowledge_source_import: {
+    args: {
+      p_source_id: string
+      p_source_revision: string
+      p_retrieved_at: string
+      p_assertions: SourceAssertionInput[]
+      p_idempotency_key: string
+    }
+    returns: { sourceId: string; imported: number; replayed: boolean }
+  }
+  knowledge_mapping_review: {
+    args: {
+      p_legacy_fact_id: string
+      p_legacy_revision: number
+      p_question_key: string
+      p_kind: MappingKind
+      p_reason: string
+      p_idempotency_key: string
+    }
+    returns: { mappingId: string; replayed: boolean }
+  }
+  knowledge_reconcile: {
+    args: {
+      p_kind: "legacy" | "external"
+      p_mode: "dry_run" | "apply"
+      p_venue_id: string | null
+    }
+    returns: ReconcileResult
+  }
+  knowledge_sources: {
+    args: { p_include_retired: boolean }
+    returns: { items: SourceView[] }
+  }
+  knowledge_legacy_mappings: {
+    args: { p_venue_id: string | null; p_cursor: string | null }
+    returns: LegacyMappingsView
+  }
+  knowledge_reconciliation_runs: {
+    args: { p_cursor: string | null }
+    returns: {
+      items: Pick<
+        ReconciliationRunView,
+        "runId" | "kind" | "mode" | "venueId" | "startedAt" | "counts"
+      >[] &
+        { startedBy: string }[]
+      nextCursor: string | null
+    }
+  }
+  knowledge_reconciliation_run: {
+    args: { p_run_id: string }
+    returns: ReconciliationRunView
+  }
+  knowledge_legacy_narrative: {
+    args: { p_venue_id: string | null }
+    returns: { venueId: string; items: LegacyNarrativeItem[] }
+  }
+  knowledge_legacy_narrative_for_question: {
+    args: { p_question_key: string; p_venue_id: string | null }
+    returns: {
+      venueId: string
+      questionKey: string
+      items: QuestionLegacyNarrativeItem[]
+    }
+  }
+  my_rechecks: {
+    args: Record<string, never>
+    returns: { items: RecheckTaskView[] }
+  }
+  knowledge_check_rechecks: {
+    args: { p_check_id: string }
+    returns: { count: number; items: RecheckTaskView[] }
+  }
+  knowledge_venue_rechecks: {
+    args: { p_venue_id: string | null }
+    returns: { venueId: string; count: number; items: RecheckTaskView[] }
+  }
+  knowledge_freshness_policies: {
+    args: Record<string, never>
+    returns: { items: FreshnessPolicyView[] }
+  }
+  knowledge_freshness_preview: {
+    args: {
+      p_key: string
+      p_policy: { internal?: string | null; public?: string | null }
+    }
+    returns: FreshnessPreviewView
+  }
+  knowledge_occurrences: {
+    args: { p_check_id: string; p_from: string; p_to: string }
+    returns: OccurrenceRow[]
+  }
+  knowledge_schedule_preview: {
+    args: {
+      p_schedule: Record<string, unknown>
+      p_timezone: string | null
+      p_from: string
+      p_to: string
+    }
+    returns: OccurrenceRow[]
+  }
+  knowledge_schedule_exception: {
+    args: {
+      p_check_id: string
+      p_slot_revision: number
+      p_idempotency_key: string
+      p_schedule_id: string
+      p_local_date: string
+      p_kind: ScheduleExceptionKind
+      p_windows: { start: string; end: string }[] | null
+      p_note: string | null
+    }
+    returns: { exceptionId: string; slotRevision: number; replayed: boolean }
+  }
+  knowledge_subjects: {
+    args: { p_venue_id: string | null }
+    returns: { venueId: string; items: SubjectView[] }
+  }
+  knowledge_subject_add: {
+    args: {
+      p_venue_id: string | null
+      p_kind: PlaceKind
+      p_label: string
+      p_idempotency_key: string
+    }
+    returns: { subjectId: string; replayed: boolean }
+  }
+  knowledge_subject_retire: {
+    args: { p_subject_id: string; p_reason: string; p_idempotency_key: string }
+    returns: { subjectId: string; retired: true; replayed: boolean }
   }
 }
 export type KnowledgeRpcName = keyof KnowledgeRpcs

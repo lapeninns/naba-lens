@@ -183,6 +183,29 @@ describe("one snapshot per B02 read (T9b)", () => {
   })
 })
 
+describe("one snapshot per B03 read (T9b)", () => {
+  it("keeps the registry reads STABLE and definer", () => {
+    const rows = JSON.parse(
+      psql(`select json_agg(json_build_object(
+          'name', p.oid::regprocedure::text, 'volatility', p.provolatile, 'definer', p.prosecdef)
+          order by p.oid::regprocedure::text)
+        from pg_proc p
+        join pg_namespace n on n.oid = p.pronamespace
+        where (n.nspname = 'public' and p.proname in ('knowledge_question', 'knowledge_registry'))
+          or (n.nspname = 'private' and p.proname = 'knowledge_question_json')`)
+    ) as { name: string; volatility: string; definer: boolean }[]
+    expect(rows.map((r) => r.name)).toEqual([
+      "knowledge_question(text,integer)",
+      "knowledge_registry(text[])",
+      "private.knowledge_question_json(text,integer)",
+    ])
+    for (const fn of rows) {
+      expect(fn.volatility, fn.name).toBe("s")
+      expect(fn.definer, fn.name).toBe(true)
+    }
+  })
+})
+
 describe("confirmation basis (WS5)", () => {
   it("refuses a confirmed decision with a self or rule basis, or without a person", () => {
     const def = psql(`select pg_get_constraintdef(c.oid) from pg_constraint c

@@ -2,6 +2,10 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
 
 import {
   answerInUseLines,
+  LEGACY_QUALIFICATION_WORD,
+  qualifiedInUse,
+  checkDateBasis,
+  checkDateLine,
   captureContextLines,
   dateAndTime,
   dockNote,
@@ -9,6 +13,9 @@ import {
   FINDING_STATE_CHIP,
   KNOWLEDGE_ANSWER_LABEL,
   periodMonth,
+  policyNeedWords,
+  recheckCauseLine,
+  policyNotConfirmedLine,
   readerLine,
   recognitionLine,
   replacedOwnLine,
@@ -24,6 +31,7 @@ import {
   knowledgeAssetsResult,
   type KnowledgeErrorCode,
   type AnswerInUse,
+  type FreshnessEntry,
   type FindingSummary,
   type WorkingSlot,
 } from "@/lib/knowledge-client/contract"
@@ -194,6 +202,31 @@ describe("the venue's answer", () => {
       )
     ).toEqual(["To check. Last try: couldn't establish (couldn't get to it)."])
     expect(lines(NONE)).toEqual(["To check."])
+  })
+
+  it("reads a detail it doesn't know as needs checking, never blank or Yes", () => {
+    // A newer server's resolver details (B03 qualified answers, check dates).
+    for (const detail of [
+      "qualified_answer",
+      "basis_missing",
+      "schema_changed",
+      "policy_incomplete",
+    ]) {
+      const answer = {
+        ...YES,
+        status: "unavailable",
+        reason: "stale",
+        detail,
+      } as unknown as AnswerInUse
+      expect(lines(answer, { previousAnswer: "yes" })).toEqual([
+        "No answer in use: needs checking.",
+        "Previous answer: Yes.",
+      ])
+      expect(lines(answer)).toEqual(["No answer in use: needs checking."])
+      const row = slotRow(slot({ answerInUse: answer, previousAnswer: "yes" }))
+      expect(row.status).toContain("No answer in use: needs checking.")
+      expect(row.status).not.toMatch(/Current answer: Yes/)
+    }
   })
 
   it("tells managers what readers get", () => {
@@ -553,5 +586,394 @@ describe("slotRow: an assignee who already sent (HM-01, HM-02)", () => {
       amenity && "checks" in amenity ? amenity.checks.map((c) => c.id) : []
     ).toEqual(["c-open"])
     expect(todoCount(items)).toBe(1)
+  })
+})
+
+describe("qualified answers (B03 UI design §2.5)", () => {
+  const COND: AnswerInUse = {
+    ...YES,
+    status: "unavailable",
+    reason: "stale",
+    detail: "qualified_answer",
+    qualified: { qualifier: "conditional", until: null, note: null },
+  }
+  const AWAY: AnswerInUse = {
+    ...COND,
+    qualified: {
+      qualifier: "temporarily_unavailable",
+      until: "2026-11-20",
+      note: null,
+    },
+  }
+  const lines = (answer: AnswerInUse, over: Partial<WorkingSlot> = {}) =>
+    answerInUseLines(answer, slot({ previousAnswer: "yes", ...over }))
+
+  it("shows the qualifier only for a qualified_answer status, never a bare Yes", () => {
+    expect(lines(COND)).toEqual(["Current answer: Allowed with conditions."])
+    expect(lines(AWAY)).toEqual(["Temporarily unavailable until 20 Nov 2026."])
+    expect(
+      lines({
+        ...AWAY,
+        qualified: { ...AWAY.qualified!, until: null, note: "⟨Note⟩" },
+      })
+    ).toEqual(["Temporarily unavailable: ⟨Note⟩"])
+    expect(lines(COND).join(" ")).not.toMatch(/\bYes\b/)
+  })
+
+  it("keeps needs checking when the qualified object is missing", () => {
+    expect(lines({ ...COND, qualified: null })).toEqual([
+      "No answer in use: needs checking.",
+      "Previous answer: Yes.",
+    ])
+  })
+
+  it("lets any other status win, with the qualified answer as the previous answer", () => {
+    // A qualified answer that is also past its check date.
+    expect(lines({ ...COND, detail: "expired" })).toEqual([
+      "No answer in use: it needs checking again.",
+      "Previous answer: Allowed with conditions.",
+    ])
+    expect(
+      lines({ ...AWAY, reason: "withdrawn", detail: "answer_withdrawn" })
+    ).toEqual([
+      "Withdrawn by a manager or an admin.",
+      "Previous answer: Temporarily unavailable.",
+    ])
+    expect(lines({ ...COND, reason: "disputed", detail: "conflict" })).toEqual([
+      "Recorded answer: Allowed with conditions. Being checked: a finding disagrees with it.",
+    ])
+    for (const detail of ["expired", "answer_withdrawn", "conflict"] as const)
+      expect(lines({ ...COND, detail }).join(" ")).not.toMatch(
+        /Current answer|\bYes\b/
+      )
+  })
+
+  it("a staff row says Check again for an assignee and is never To do", () => {
+    const mine = slotRow(
+      slot({
+        answerInUse: COND,
+        progress: "needs_recheck",
+        assignee: { firstName: "⟨Name⟩", isMe: true },
+      })
+    )
+    expect(mine).toMatchObject({
+      chip: { word: "Allowed with conditions", tone: "attention" },
+      status: "Current answer: Allowed with conditions. Assigned to you.",
+      action: "Check again",
+      needsMe: false,
+    })
+    const theirs = slotRow(slot({ answerInUse: AWAY, mode: "change" }))
+    expect(theirs).toMatchObject({
+      chip: { word: "Temporarily unavailable" },
+      action: "Report a change",
+      needsMe: false,
+    })
+    // Another status wins: no qualifier chip.
+    const expired = slotRow(
+      slot({
+        answerInUse: { ...COND, detail: "expired" },
+        previousAnswer: "yes",
+      })
+    )
+    expect(expired.chip).not.toMatchObject({ word: "Allowed with conditions" })
+    expect(expired.status).toContain(
+      "Previous answer: Allowed with conditions."
+    )
+  })
+
+  it("the change-mode capture context names the qualifier, not Yes", () => {
+    const text = captureContextLines({
+      venueName: "⟨Venue⟩",
+      slot: slot({ answerInUse: COND, mode: "change" }),
+      role: "staff",
+    }).join(" ")
+    expect(text).toContain("Current answer: Allowed with conditions")
+    expect(text).not.toMatch(/Current answer: Yes/)
+  })
+})
+
+describe("what a policy still needs (B03 UI design §4.3)", () => {
+  it("words each code in the server's order, and a code it doesn't know", () => {
+    expect(
+      policyNeedWords([
+        "stance",
+        "conditions",
+        "zones",
+        "authority",
+        "stated_on",
+        "unrecognised",
+      ])
+    ).toEqual([
+      "a rule (not Couldn't establish)",
+      "at least one condition",
+      "at least one area with its rule",
+      "confirmation by a venue manager, with where it was stated",
+      "the date it was stated",
+      "something this screen can't name; reload to see it",
+    ])
+    expect(policyNeedWords(["authority"], { admin: true })).toEqual([
+      "confirmation by an admin, with where it was stated",
+    ])
+  })
+
+  it("says Not confirmed with what's missing, and nothing when complete", () => {
+    expect(policyNotConfirmedLine(["zones", "stated_on"])).toBe(
+      "Not confirmed: it still needs at least one area with its rule and the date it was stated."
+    )
+    expect(policyNotConfirmedLine([])).toBeNull()
+    expect(policyNotConfirmedLine(undefined)).toBeNull()
+  })
+
+  it("never shows an incomplete policy in use as an answer", () => {
+    const answer: AnswerInUse = {
+      ...YES,
+      status: "unavailable",
+      reason: "not_confirmed",
+      detail: "policy_incomplete",
+      policyMissing: ["authority"],
+    }
+    expect(answerInUseLines(answer, slot())).toEqual([
+      "Not confirmed: it still needs confirmation by a venue manager, with where it was stated.",
+    ])
+    expect(
+      answerInUseLines({ ...answer, policyMissing: undefined }, slot())
+    ).toEqual(["No answer in use: needs checking."])
+    expect(
+      slotRow(
+        slot({
+          answerInUse: answer,
+          progress: "needs_recheck",
+          assignee: { firstName: "⟨Name⟩", isMe: true },
+        })
+      )
+    ).toMatchObject({
+      chip: { state: "not_confirmed" },
+      action: "View",
+      needsMe: false,
+    })
+  })
+})
+
+describe("recheck causes (B03 UI §6.2)", () => {
+  it("words every cause, with the date and previous answer where they apply", () => {
+    const at = "2026-11-18T00:00:00.000Z"
+    const line = (
+      cause: Parameters<typeof recheckCauseLine>[0]["cause"],
+      o = {}
+    ) => recheckCauseLine({ cause, dueAt: at }, o)
+    expect(line("due_soon")).toBe(
+      "Due for a check by 18 Nov 2026. The current answer stays in use until then."
+    )
+    expect(line("expired", { previous: "Yes" })).toBe(
+      "Past its check date since 18 Nov 2026. Previous answer: Yes."
+    )
+    expect(line("basis_missing")).toBe(
+      "It was sent without the day it was checked. Check it and add the date."
+    )
+    expect(line("basis_missing", { policy: true })).toBe(
+      "It was sent without the date the policy was stated. Check it and add the date."
+    )
+    expect(line("schedule_ended")).toBe(
+      "Its last day offered was 18 Nov 2026. Check whether it continues."
+    )
+    expect(line("temporary_until_passed")).toBe(
+      "It was temporarily unavailable until 18 Nov 2026. Check whether it's back."
+    )
+    expect(line("evidence_lost")).toBe("Its photo was deleted. Check it again.")
+    expect(line("schema_changed")).toBe(
+      "This question now asks for more detail. Check it again."
+    )
+    expect(line("scope_changed")).toBe(
+      "A new entrance was listed after this answer was sent. Check it."
+    )
+  })
+})
+
+describe("check dates (B03 UI design §6.1)", () => {
+  const entry = (over: Partial<FreshnessEntry> = {}): FreshnessEntry => ({
+    use: "internal",
+    state: "current",
+    nextCheckDue: "2027-02-08",
+    basis: "observed_on",
+    basisDate: "2026-11-10",
+    ...over,
+  })
+
+  it("words each state for staff and internal tools, and never the public use", () => {
+    expect(checkDateLine(entry())).toBe(
+      "For staff and internal tools: up to date. Next check due 8 Feb 2027."
+    )
+    expect(checkDateLine(entry({ state: "due_soon" }))).toBe(
+      "For staff and internal tools: due for a check by 8 Feb 2027."
+    )
+    expect(checkDateLine(entry({ state: "expired" }))).toBe(
+      "For staff and internal tools: past its check date since 8 Feb 2027. Not in use for this until it's checked again."
+    )
+    expect(checkDateLine(entry({ state: "basis_missing" }))).toBe(
+      "For staff and internal tools: not in use, because it was sent without the day it was checked."
+    )
+    expect(
+      checkDateLine(entry({ state: "basis_missing" }), { policy: true })
+    ).toBe(
+      "For staff and internal tools: not in use, because it was sent without the date the policy was stated."
+    )
+    expect(checkDateLine(entry({ use: "public" }))).toBeNull()
+    expect(checkDateLine(entry({ state: "unrated" }))).toBeNull()
+  })
+
+  it("says what it counts from", () => {
+    expect(checkDateBasis(entry())).toBe(
+      "Counted from the day it was checked (10 Nov 2026)"
+    )
+    expect(checkDateBasis(entry({ basis: "stated_on" }))).toBe(
+      "Counted from the day the policy was stated (10 Nov 2026)"
+    )
+    expect(checkDateBasis(entry({ basis: "event_end" }))).toBe(
+      "Ends when the event ends"
+    )
+  })
+})
+
+describe("an author's answer that was corrected or withdrawn (B03 UI §8.2, A15)", () => {
+  it("says a manager or an admin took it out of use, with their reason and no name", () => {
+    expect(
+      findingExplanation(
+        finding({
+          state: "no_longer_used",
+          noLongerUsed: "corrected",
+          stateReason: "⟨Reason⟩",
+        })
+      )
+    ).toBe("No longer in use: a manager or an admin corrected it. ⟨Reason⟩")
+    expect(
+      findingExplanation(
+        finding({
+          state: "no_longer_used",
+          noLongerUsed: "withdrawn",
+          stateReason: null,
+        })
+      )
+    ).toBe("No longer in use: a manager or an admin withdrew it.")
+  })
+
+  it("names an admin or a manager from the read's basis, never a person", () => {
+    expect(
+      findingExplanation(
+        finding({
+          state: "no_longer_used",
+          noLongerUsed: "withdrawn",
+          stateReason: "⟨Reason⟩",
+          stateReasonBasis: "admin",
+          stateReasonAt: "2026-11-08T09:30:00.000Z",
+        })
+      )
+    ).toBe("No longer in use: an admin withdrew it. ⟨Reason⟩")
+    expect(
+      findingExplanation(
+        finding({
+          state: "no_longer_used",
+          noLongerUsed: "corrected",
+          stateReason: null,
+          stateReasonBasis: "venue_manager",
+          stateReasonAt: "2026-11-08T09:30:00.000Z",
+        })
+      )
+    ).toBe("No longer in use: a manager corrected it.")
+  })
+})
+
+describe("a withdrawn answer's line (B03 UI §2.2, §8.2, D-B3-18)", () => {
+  const WITHDRAWN: AnswerInUse = {
+    ...YES,
+    status: "unavailable",
+    reason: "withdrawn",
+    detail: "answer_withdrawn",
+  }
+
+  it("names the role from the actor's basis and the withdrawal's own date", () => {
+    expect(
+      answerInUseLines(
+        {
+          ...WITHDRAWN,
+          withdrawal: { at: "2026-11-08T09:30:00.000Z", basis: "admin" },
+        },
+        slot()
+      )
+    ).toEqual(["Withdrawn by an admin on 8 Nov 2026.", "Previous answer: Yes."])
+    expect(
+      answerInUseLines(
+        {
+          ...WITHDRAWN,
+          withdrawal: {
+            at: "2026-11-08T09:30:00.000Z",
+            basis: "venue_manager",
+          },
+        },
+        slot()
+      )[0]
+    ).toBe("Withdrawn by a manager on 8 Nov 2026.")
+  })
+
+  it("without the read's withdrawal, says a manager or an admin and no date", () => {
+    // The save date (3 Nov) never stands in for the withdrawal's.
+    const text = answerInUseLines(WITHDRAWN, slot())
+    expect(text).toEqual([
+      "Withdrawn by a manager or an admin.",
+      "Previous answer: Yes.",
+    ])
+    expect(text.join(" ")).not.toMatch(/Nov|Recorded/)
+  })
+})
+
+describe("legacy qualifications (A19, A39, review M3)", () => {
+  it("words each, and keeps only a qualified answer in use apart from rechecks", () => {
+    expect(LEGACY_QUALIFICATION_WORD).toEqual({
+      conditional: "Allowed with conditions",
+      temporarily_unavailable: "Temporarily unavailable",
+      policy_incomplete: "Not confirmed",
+      withdrawn: "Withdrawn",
+    })
+    expect(qualifiedInUse("conditional")).toBe(true)
+    expect(qualifiedInUse("temporarily_unavailable")).toBe(true)
+    expect(qualifiedInUse("policy_incomplete")).toBe(false)
+    expect(qualifiedInUse("withdrawn")).toBe(false)
+    expect(qualifiedInUse(null)).toBe(false)
+  })
+})
+
+describe("an adopted import in use (B03 UI §7.1)", () => {
+  it("names its source and no person", () => {
+    expect(
+      answerInUseLines(
+        { ...YES, source: "external_source", sourceLabel: "⟨Source⟩" },
+        slot()
+      )
+    ).toEqual(["Current answer: Yes. Imported from ⟨Source⟩."])
+    expect(
+      answerInUseLines(
+        { ...YES, source: "legacy_fact", sourceLabel: null },
+        slot()
+      )
+    ).toEqual(["Current answer: Yes. Imported from the old facts list."])
+  })
+})
+
+describe("a due-soon recheck read after its due time (B03 review low 1)", () => {
+  it("is already past its check date, never still in use", () => {
+    const task = {
+      cause: "due_soon" as const,
+      dueAt: "2026-11-08T00:00:00.000Z",
+    }
+    expect(
+      recheckCauseLine(task, {
+        previous: "Yes",
+        now: new Date("2026-11-10T12:00:00.000Z"),
+      })
+    ).toBe("Past its check date since 8 Nov 2026. Previous answer: Yes.")
+    expect(
+      recheckCauseLine(task, { now: new Date("2026-11-07T12:00:00.000Z") })
+    ).toBe(
+      "Due for a check by 8 Nov 2026. The current answer stays in use until then."
+    )
   })
 })

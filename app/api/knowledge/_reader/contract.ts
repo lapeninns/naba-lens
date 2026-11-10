@@ -37,10 +37,23 @@ export const LIMITS = {
   sourceTimeoutMs: 5000,
 } as const
 
+/**
+ * Each detail belongs to exactly one reason; a pair outside this table breaks
+ * the resolver contract and fails closed. The B03 details are exactly those
+ * the final B03 resolver view emits (b03-design §3.8, §5.2, §7.3, §9.2, §9.3);
+ * recheck causes such as temporary_until_passed are not slot details.
+ */
 export const UNAVAILABLE_DETAILS = {
   unknown: ["not_checked", "unable_to_establish", "not_enabled"],
-  not_confirmed: ["pending", "declined"],
-  stale: ["expired", "recheck_requested", "evidence_lost"],
+  not_confirmed: ["pending", "declined", "policy_incomplete"],
+  stale: [
+    "expired",
+    "recheck_requested",
+    "evidence_lost",
+    "qualified_answer",
+    "basis_missing",
+    "schema_changed",
+  ],
   disputed: ["conflict"],
   withdrawn: ["answer_withdrawn", "confirmation_revoked", "evidence_withdrawn"],
 } as const satisfies Record<string, readonly string[]>
@@ -60,6 +73,8 @@ export const SOURCE_KINDS = {
 } as const
 /** Submissions saved before B01 never recorded their author's role. */
 export const UNRECORDED_SOURCE_KIND = "observation"
+/** Import origins (B03-f), reported as the sourceKind of an adopted import. */
+export const SOURCE_ORIGINS = ["legacy_fact", "external_source"] as const
 
 export type ReaderAnswer = {
   key: string

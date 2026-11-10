@@ -100,6 +100,7 @@ vi.mock("@/lib/server/amenities", () => amenities)
 const knowledge = vi.hoisted(() => ({
   getWorkingList: vi.fn(),
   getMyPending: vi.fn(),
+  listMyRechecks: vi.fn(async () => ({ ok: true, tasks: [] })),
 }))
 vi.mock("@/lib/knowledge-client/services", () => ({
   knowledgeServices: knowledge,

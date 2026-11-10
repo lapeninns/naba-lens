@@ -55,6 +55,7 @@ export function checkSummary(row: CheckRow): CheckSummary {
     notes: row.notes,
     revision: row.revision,
     updatedAt: row.updated_at,
+    ...(row.qualification ? { qualification: row.qualification } : {}),
   }
 }
 
@@ -84,7 +85,10 @@ export function venueLists(rows: CheckRow[]) {
   return { active, archived, recentlyCompleted, counts }
 }
 
-/** Assigned to the caller, active and not complete. */
+/**
+ * Assigned to the caller, active and not complete. A qualified answer is
+ * stored complete, so it is never a task (A21).
+ */
 export function myTasks(rows: CheckRow[], userId: string): CheckSummary[] {
   return rows
     .map(checkSummary)
@@ -92,6 +96,7 @@ export function myTasks(rows: CheckRow[], userId: string): CheckSummary[] {
       (c) =>
         c.status === "active" &&
         c.progress !== "complete" &&
+        !c.qualification &&
         c.assignee?.id === userId
     )
     .sort(byPosition)
@@ -174,6 +179,7 @@ export function submissionViews(
       evidence: bySubmission.get(row.id) ?? [],
       wifi: wifiFrom(row.internal_metadata),
       isCurrent: row.id === currentId,
+      ...(row.qualification ? { qualification: row.qualification } : {}),
     }))
 }
 
@@ -213,7 +219,11 @@ export function checkPermissions(
     canAssign: manages && active,
     canArchive: manages && active,
     canRestore: manages && !active,
-    canReopen: manages && active && row.progress === "complete",
+    // A qualified answer reads needs_recheck but is stored complete (A19).
+    canReopen:
+      manages &&
+      active &&
+      (row.progress === "complete" || Boolean(row.qualification)),
     canSubmit: active && (manages || assigned),
     canAttachLegacy:
       manages &&

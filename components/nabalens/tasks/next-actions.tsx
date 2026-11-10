@@ -12,7 +12,11 @@ import { CHECKS_SHOWN, todoBadge } from "@/lib/work-client/todo"
 
 import { useAdd, useAddFailed, type OpenAddOptions } from "../shell/add-context"
 import { CountBadge } from "../status-chip"
-import type { CheckCard as CheckCardData, NextAction, RetakeRequest } from "./next-actions-model"
+import type {
+  CheckCard as CheckCardData,
+  NextAction,
+  RetakeRequest,
+} from "./next-actions-model"
 import { SetupChecklist, setupHasAction } from "./setup-checklist"
 import { StatusChip } from "./status-badges"
 import {
@@ -39,6 +43,7 @@ export type NextActionErrors = {
   review?: boolean
   labels?: boolean
   retakes?: boolean
+  rechecks?: boolean
 }
 
 const READ_FAILED: Record<keyof NextActionErrors, string> = {
@@ -46,6 +51,7 @@ const READ_FAILED: Record<keyof NextActionErrors, string> = {
   amenity: "We couldn't check your amenity checks.",
   labels: "We couldn't check which photos need labels.",
   retakes: "We couldn't check requests for a better photo.",
+  rechecks: "We couldn't check your rechecks.",
 }
 
 const checkLinkId = (checkId: string) => `todo-check-${checkId}`
@@ -262,8 +268,9 @@ export function NextActions({
   const folded = !expanded && checks.length > CHECKS_SHOWN
   const hidden = new Set(folded ? checks.slice(CHECKS_SHOWN) : [])
   const lastShown = folded ? checks[CHECKS_SHOWN - 1] : null
-  const failures = (Object.keys(READ_FAILED) as (keyof NextActionErrors)[])
-    .filter((read) => errors[read])
+  const failures = (
+    Object.keys(READ_FAILED) as (keyof NextActionErrors)[]
+  ).filter((read) => errors[read])
 
   function showAll() {
     const next = checks[CHECKS_SHOWN]
@@ -308,7 +315,9 @@ export function NextActions({
           />
         )
       case "finding":
-        return <AttentionCard key={item.key} slot={item.slot} primary={primary} />
+        return (
+          <AttentionCard key={item.key} slot={item.slot} primary={primary} />
+        )
       case "recheck":
       case "check":
         return (

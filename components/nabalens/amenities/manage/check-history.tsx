@@ -35,7 +35,13 @@ function Fact({ term, children }: { term: string; children: React.ReactNode }) {
   )
 }
 
-function SubmissionCard({ submission }: { submission: SubmissionView }) {
+function SubmissionCard({
+  submission,
+  notConfirmed,
+}: {
+  submission: SubmissionView
+  notConfirmed: boolean
+}) {
   const by = nameOf(submission.submittedBy)
   const titleId = `submission-${submission.id}`
   return (
@@ -52,7 +58,11 @@ function SubmissionCard({ submission }: { submission: SubmissionView }) {
             {ANSWER_LABEL[submission.answer]}
           </h3>
           {submission.isCurrent ? (
-            <StatusChip tone="positive">Current answer</StatusChip>
+            notConfirmed ? (
+              <StatusChip state="not_confirmed" />
+            ) : (
+              <StatusChip tone="positive">Current answer</StatusChip>
+            )
           ) : null}
           <p className="text-meta-touch text-ink-muted md:text-meta">
             Sent by {by} · {whenText(submission.submittedAt)}
@@ -117,8 +127,11 @@ function SubmissionCard({ submission }: { submission: SubmissionView }) {
 
 export function SubmissionHistory({
   submissions,
+  currentNotConfirmed = false,
 }: {
   submissions: SubmissionView[]
+  /** The current one is an incomplete policy (B03 UI §4.3). */
+  currentNotConfirmed?: boolean
 }) {
   return (
     <CoverageSection
@@ -133,7 +146,11 @@ export function SubmissionHistory({
       ) : (
         <ul className="grid gap-3">
           {submissions.map((submission) => (
-            <SubmissionCard key={submission.id} submission={submission} />
+            <SubmissionCard
+              key={submission.id}
+              submission={submission}
+              notConfirmed={currentNotConfirmed}
+            />
           ))}
         </ul>
       )}

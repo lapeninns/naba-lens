@@ -514,6 +514,8 @@ describe("admins manage manager accounts", () => {
     })
     expect(isActiveManager(m.id)).toBe("t")
     expect(await canManage(m, venueA)).toBe(false)
+    // Still admitted as a manager account, but with no effective grant there
+    // is no venue to upload to (B02 W3).
     await fails(
       m.client.rpc("reserve_media_asset", {
         p_client_upload_key: randomUUID(),
@@ -522,8 +524,8 @@ describe("admins manage manager accounts", () => {
         p_extension: "jpg",
         p_original_filename: "TEST.jpg",
       }),
-      "not_active_staff",
-      "42501"
+      "venue_unavailable",
+      "P0001"
     )
     // The admin can regrant without another conversion.
     await grantManager(admin, m.id, venueA)

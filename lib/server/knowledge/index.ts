@@ -42,5 +42,44 @@ export {
   listGroupsForAssets,
   startContributionGroup,
 } from "./groups"
+export {
+  getKnowledgeQuestion,
+  getValueList,
+  listQuestionRegistry,
+} from "./registry"
+export { addPlace, listPlaces, retirePlace } from "./places"
+export {
+  addScheduleException,
+  getOccurrences,
+  previewSchedule,
+} from "./schedule-services"
+export { expandScheduleOccurrences } from "./schedules"
+export {
+  getCheckRechecks,
+  listFreshnessPolicies,
+  listMyRechecks,
+  listVenueRechecks,
+  previewFreshness,
+} from "./rechecks"
+export {
+  correctAnswer,
+  getSlotHistory,
+  listSlotEvents,
+  runSchemaUpgrade,
+  withdrawAnswer,
+} from "./corrections"
+export {
+  declareSource,
+  getLegacyNarrative,
+  getQuestionLegacyNarrative,
+  getReconciliationRun,
+  importSourceAssertions,
+  listLegacyMappings,
+  listReconciliationRuns,
+  listSources,
+  reconcile,
+  retireSource,
+  reviewMapping,
+} from "./reconciliation"
 export { readKnowledgeAnswers, type KnowledgeReaderResult } from "./reader"
 export { knowledgeRpcFailure } from "./errors"

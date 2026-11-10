@@ -1,0 +1,527 @@
+{
+  "note": "Shared by tests/unit/knowledge-b03-schedules.test.ts (expandScheduleOccurrences) and tests/security/knowledge-b03-schedules.test.ts (private.schedule_occurrences). Instants are UTC. B04 reuses this expansion (b03-design A27).",
+  "cases": [
+    {
+      "name": "weekly roast across the October clock change, with a cancelled, a changed and an extra date, ending on effectiveTo",
+      "input": {
+        "timezone": "Europe/London",
+        "effectiveFrom": "2026-10-01",
+        "effectiveTo": "2026-11-22",
+        "recurrence": {
+          "kind": "weekly",
+          "days": ["sun"]
+        },
+        "windows": [
+          {
+            "start": "12:00",
+            "end": "15:00"
+          }
+        ],
+        "exceptions": [
+          {
+            "localDate": "2026-11-08",
+            "kind": "cancelled"
+          },
+          {
+            "localDate": "2026-11-15",
+            "kind": "changed_window",
+            "windows": [
+              {
+                "start": "13:00",
+                "end": "16:00"
+              }
+            ]
+          },
+          {
+            "localDate": "2026-11-11",
+            "kind": "extra",
+            "windows": [
+              {
+                "start": "18:00",
+                "end": "20:00"
+              }
+            ]
+          }
+        ],
+        "from": "2026-10-18",
+        "to": "2026-11-30"
+      },
+      "expect": {
+        "occurrences": [
+          {
+            "state": "scheduled",
+            "endsAt": "2026-10-18T14:00:00.000Z",
+            "startsAt": "2026-10-18T11:00:00.000Z",
+            "localDate": "2026-10-18"
+          },
+          {
+            "state": "scheduled",
+            "endsAt": "2026-10-25T15:00:00.000Z",
+            "startsAt": "2026-10-25T12:00:00.000Z",
+            "localDate": "2026-10-25"
+          },
+          {
+            "state": "scheduled",
+            "endsAt": "2026-11-01T15:00:00.000Z",
+            "startsAt": "2026-11-01T12:00:00.000Z",
+            "localDate": "2026-11-01"
+          },
+          {
+            "state": "cancelled",
+            "endsAt": "2026-11-08T15:00:00.000Z",
+            "startsAt": "2026-11-08T12:00:00.000Z",
+            "localDate": "2026-11-08"
+          },
+          {
+            "state": "extra",
+            "endsAt": "2026-11-11T20:00:00.000Z",
+            "startsAt": "2026-11-11T18:00:00.000Z",
+            "localDate": "2026-11-11"
+          },
+          {
+            "state": "changed",
+            "endsAt": "2026-11-15T16:00:00.000Z",
+            "startsAt": "2026-11-15T13:00:00.000Z",
+            "localDate": "2026-11-15"
+          },
+          {
+            "state": "scheduled",
+            "endsAt": "2026-11-22T15:00:00.000Z",
+            "startsAt": "2026-11-22T12:00:00.000Z",
+            "localDate": "2026-11-22"
+          }
+        ]
+      }
+    },
+    {
+      "name": "window past midnight into the spring gap; windows in start order",
+      "input": {
+        "timezone": "Europe/London",
+        "effectiveFrom": "2026-03-01",
+        "recurrence": {
+          "kind": "weekly",
+          "days": ["sat"]
+        },
+        "windows": [
+          {
+            "start": "23:00",
+            "end": "02:00"
+          },
+          {
+            "start": "01:30",
+            "end": "03:00"
+          }
+        ],
+        "exceptions": [],
+        "from": "2026-03-28",
+        "to": "2026-03-28"
+      },
+      "expect": {
+        "occurrences": [
+          {
+            "state": "scheduled",
+            "endsAt": "2026-03-28T03:00:00.000Z",
+            "startsAt": "2026-03-28T01:30:00.000Z",
+            "localDate": "2026-03-28"
+          },
+          {
+            "state": "scheduled",
+            "endsAt": "2026-03-29T01:00:00.000Z",
+            "startsAt": "2026-03-28T23:00:00.000Z",
+            "localDate": "2026-03-28"
+          }
+        ]
+      }
+    },
+    {
+      "name": "a window in the spring gap starts at the offset before the change",
+      "input": {
+        "timezone": "Europe/London",
+        "effectiveFrom": "2026-03-01",
+        "recurrence": {
+          "kind": "dated",
+          "dates": ["2026-03-29"]
+        },
+        "windows": [
+          {
+            "start": "01:30",
+            "end": "04:00"
+          }
+        ],
+        "from": "2026-03-29",
+        "to": "2026-03-29"
+      },
+      "expect": {
+        "occurrences": [
+          {
+            "state": "scheduled",
+            "endsAt": "2026-03-29T03:00:00.000Z",
+            "startsAt": "2026-03-29T01:30:00.000Z",
+            "localDate": "2026-03-29"
+          }
+        ]
+      }
+    },
+    {
+      "name": "an autumn repeated hour reads as the offset after the change",
+      "input": {
+        "timezone": "Europe/London",
+        "effectiveFrom": "2026-10-01",
+        "recurrence": {
+          "kind": "dated",
+          "dates": ["2026-10-25"]
+        },
+        "windows": [
+          {
+            "start": "01:00",
+            "end": "01:30"
+          }
+        ],
+        "from": "2026-10-25",
+        "to": "2026-10-25"
+      },
+      "expect": {
+        "occurrences": [
+          {
+            "state": "scheduled",
+            "endsAt": "2026-10-25T01:30:00.000Z",
+            "startsAt": "2026-10-25T01:00:00.000Z",
+            "localDate": "2026-10-25"
+          }
+        ]
+      }
+    },
+    {
+      "name": "monthly, last Friday",
+      "input": {
+        "timezone": "Europe/London",
+        "effectiveFrom": "2026-01-01",
+        "recurrence": {
+          "kind": "monthly",
+          "nth": -1,
+          "day": "fri"
+        },
+        "windows": [
+          {
+            "start": "19:00",
+            "end": "23:00"
+          }
+        ],
+        "from": "2026-01-01",
+        "to": "2026-03-31"
+      },
+      "expect": {
+        "occurrences": [
+          {
+            "state": "scheduled",
+            "endsAt": "2026-01-30T23:00:00.000Z",
+            "startsAt": "2026-01-30T19:00:00.000Z",
+            "localDate": "2026-01-30"
+          },
+          {
+            "state": "scheduled",
+            "endsAt": "2026-02-27T23:00:00.000Z",
+            "startsAt": "2026-02-27T19:00:00.000Z",
+            "localDate": "2026-02-27"
+          },
+          {
+            "state": "scheduled",
+            "endsAt": "2026-03-27T23:00:00.000Z",
+            "startsAt": "2026-03-27T19:00:00.000Z",
+            "localDate": "2026-03-27"
+          }
+        ]
+      }
+    },
+    {
+      "name": "monthly, second Tuesday, from an effectiveFrom inside the range",
+      "input": {
+        "timezone": "Europe/London",
+        "effectiveFrom": "2026-02-01",
+        "recurrence": {
+          "kind": "monthly",
+          "nth": 2,
+          "day": "tue"
+        },
+        "windows": [
+          {
+            "start": "19:00",
+            "end": "23:00"
+          }
+        ],
+        "from": "2026-01-01",
+        "to": "2026-03-31"
+      },
+      "expect": {
+        "occurrences": [
+          {
+            "state": "scheduled",
+            "endsAt": "2026-02-10T23:00:00.000Z",
+            "startsAt": "2026-02-10T19:00:00.000Z",
+            "localDate": "2026-02-10"
+          },
+          {
+            "state": "scheduled",
+            "endsAt": "2026-03-10T23:00:00.000Z",
+            "startsAt": "2026-03-10T19:00:00.000Z",
+            "localDate": "2026-03-10"
+          }
+        ]
+      }
+    },
+    {
+      "name": "another timezone",
+      "input": {
+        "timezone": "America/New_York",
+        "effectiveFrom": "2026-11-01",
+        "recurrence": {
+          "kind": "weekly",
+          "days": ["mon", "wed"]
+        },
+        "windows": [
+          {
+            "start": "09:00",
+            "end": "10:00"
+          }
+        ],
+        "from": "2026-10-31",
+        "to": "2026-11-04"
+      },
+      "expect": {
+        "occurrences": [
+          {
+            "state": "scheduled",
+            "endsAt": "2026-11-02T15:00:00.000Z",
+            "startsAt": "2026-11-02T14:00:00.000Z",
+            "localDate": "2026-11-02"
+          },
+          {
+            "state": "scheduled",
+            "endsAt": "2026-11-04T15:00:00.000Z",
+            "startsAt": "2026-11-04T14:00:00.000Z",
+            "localDate": "2026-11-04"
+          }
+        ]
+      }
+    },
+    {
+      "name": "no occurrence after effectiveTo",
+      "input": {
+        "timezone": "Europe/London",
+        "effectiveFrom": "2026-10-01",
+        "effectiveTo": "2026-10-31",
+        "recurrence": {
+          "kind": "weekly",
+          "days": ["sun"]
+        },
+        "windows": [
+          {
+            "start": "12:00",
+            "end": "15:00"
+          }
+        ],
+        "from": "2026-11-01",
+        "to": "2026-11-30"
+      },
+      "expect": {
+        "occurrences": []
+      }
+    },
+    {
+      "name": "range over 92 days",
+      "input": {
+        "timezone": "Europe/London",
+        "effectiveFrom": "2026-01-01",
+        "recurrence": {
+          "kind": "weekly",
+          "days": ["sun"]
+        },
+        "windows": [
+          {
+            "start": "12:00",
+            "end": "15:00"
+          }
+        ],
+        "from": "2026-01-01",
+        "to": "2026-04-03"
+      },
+      "expect": {
+        "reason": "invalid_range"
+      }
+    },
+    {
+      "name": "exactly 92 days",
+      "input": {
+        "timezone": "Europe/London",
+        "effectiveFrom": "2026-01-01",
+        "recurrence": {
+          "kind": "monthly",
+          "nth": 1,
+          "day": "thu"
+        },
+        "windows": [
+          {
+            "start": "12:00",
+            "end": "15:00"
+          }
+        ],
+        "from": "2026-01-01",
+        "to": "2026-04-02"
+      },
+      "expect": {
+        "occurrences": [
+          {
+            "state": "scheduled",
+            "endsAt": "2026-01-01T15:00:00.000Z",
+            "startsAt": "2026-01-01T12:00:00.000Z",
+            "localDate": "2026-01-01"
+          },
+          {
+            "state": "scheduled",
+            "endsAt": "2026-02-05T15:00:00.000Z",
+            "startsAt": "2026-02-05T12:00:00.000Z",
+            "localDate": "2026-02-05"
+          },
+          {
+            "state": "scheduled",
+            "endsAt": "2026-03-05T15:00:00.000Z",
+            "startsAt": "2026-03-05T12:00:00.000Z",
+            "localDate": "2026-03-05"
+          },
+          {
+            "state": "scheduled",
+            "endsAt": "2026-04-02T14:00:00.000Z",
+            "startsAt": "2026-04-02T11:00:00.000Z",
+            "localDate": "2026-04-02"
+          }
+        ]
+      }
+    },
+    {
+      "name": "unknown timezone",
+      "input": {
+        "timezone": "Mars/Base",
+        "effectiveFrom": "2026-01-01",
+        "recurrence": {
+          "kind": "weekly",
+          "days": ["sun"]
+        },
+        "windows": [
+          {
+            "start": "12:00",
+            "end": "15:00"
+          }
+        ],
+        "from": "2026-01-01",
+        "to": "2026-01-02"
+      },
+      "expect": {
+        "reason": "invalid_timezone"
+      }
+    },
+    {
+      "name": "shape problems",
+      "input": {
+        "timezone": "Europe/London",
+        "effectiveFrom": "2026-01-01",
+        "recurrence": {
+          "kind": "weekly",
+          "days": ["sun", "sun"]
+        },
+        "windows": [
+          {
+            "start": "12:00",
+            "end": "12:00"
+          },
+          {
+            "start": "9:00",
+            "end": "10:00"
+          }
+        ],
+        "exceptions": [
+          {
+            "localDate": "2026-02-30",
+            "kind": "extra"
+          },
+          {
+            "localDate": "2026-01-04",
+            "kind": "cancelled",
+            "windows": []
+          },
+          {
+            "localDate": "2026-01-05",
+            "kind": "extra",
+            "windows": []
+          }
+        ],
+        "from": "2026-01-01",
+        "to": "2026-01-02"
+      },
+      "expect": {
+        "fields": [
+          {
+            "path": "schedule.recurrence.days",
+            "problem": "invalid"
+          },
+          {
+            "path": "schedule.windows[0]",
+            "problem": "invalid"
+          },
+          {
+            "path": "schedule.windows[1]",
+            "problem": "invalid"
+          },
+          {
+            "path": "exceptions[0]",
+            "problem": "invalid"
+          },
+          {
+            "path": "exceptions[1]",
+            "problem": "invalid"
+          },
+          {
+            "path": "exceptions[2].windows",
+            "problem": "invalid"
+          }
+        ]
+      }
+    },
+    {
+      "name": "monthly shape problems",
+      "input": {
+        "timezone": "Europe/London",
+        "effectiveFrom": "2026-01-01",
+        "effectiveTo": "2025-12-31",
+        "recurrence": {
+          "kind": "monthly",
+          "nth": 6,
+          "day": "funday"
+        },
+        "windows": [
+          {
+            "start": "12:00",
+            "end": "15:00"
+          }
+        ],
+        "from": "2026-01-01",
+        "to": "2026-01-02"
+      },
+      "expect": {
+        "fields": [
+          {
+            "path": "schedule.effectiveTo",
+            "problem": "out_of_range"
+          },
+          {
+            "path": "schedule.recurrence.nth",
+            "problem": "invalid"
+          },
+          {
+            "path": "schedule.recurrence.day",
+            "problem": "invalid"
+          }
+        ]
+      }
+    }
+  ]
+}

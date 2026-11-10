@@ -137,6 +137,10 @@ describe("/manager/amenities", () => {
     expect(
       screen.getByRole("heading", { level: 1, name: UI_TEXT.navTab })
     ).toBeTruthy()
+    // The way to the venue's places (B03-b).
+    expect(
+      screen.getByRole("link", { name: /^Places at / }).getAttribute("href")
+    ).toBe("/manager/amenities/places")
     // The workspace layout has its own nav: no coverage tabs or staff shell.
     expect(screen.queryByRole("navigation")).toBeNull()
     expect(screen.queryByRole("main")).toBeNull()

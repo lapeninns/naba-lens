@@ -237,7 +237,22 @@ export type CheckSummary = {
   notes: string | null
   revision: number
   updatedAt: Instant
+  /**
+   * B03-c (§3.8, A19): set when the stored answer is a qualified Yes. The
+   * check then reads needs_recheck with a reason for the qualifier; the
+   * stored row is still complete. Absent otherwise.
+   */
+  qualification?: Qualification
 }
+
+/** A Yes narrowed by its knowledge detail (b03-design §3.8). */
+export type Qualification =
+  | "conditional"
+  | "temporarily_unavailable"
+  /** A39: a policy answer in use that is not complete yet. */
+  | "policy_incomplete"
+  /** Review M3: the answer in use was withdrawn (b03-design §9.2). */
+  | "withdrawn"
 
 export type EvidenceItem = {
   assetId: string
@@ -264,6 +279,8 @@ export type SubmissionView = {
   /** Only for the submitter, the venue's manager and admins. */
   wifi: WifiMetadata | null
   isCurrent: boolean
+  /** B03-c: set when this answer is a qualified Yes (§3.8). */
+  qualification?: Qualification
 }
 
 export type CheckEventView = {
@@ -509,6 +526,8 @@ export type CheckRow = {
   notes: string | null
   revision: number
   updated_at: string
+  /** B03-c: amenity_checks_for_venue and amenity_check only (A19). */
+  qualification?: Qualification | null
 }
 
 export type SubmissionRow = {
@@ -525,6 +544,8 @@ export type SubmissionRow = {
   evidence_rule: EvidenceRule
   /** Null unless the caller is the submitter, the venue's manager or an admin. */
   internal_metadata: Record<string, unknown> | null
+  /** B03-c (§3.8). */
+  qualification?: Qualification | null
 }
 
 export type SubmissionAssetRow = {

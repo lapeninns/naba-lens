@@ -1723,7 +1723,7 @@ describe("menu activation", () => {
 })
 
 describe("manager denials still hold", () => {
-  it("manager denied coverage writes still; manager not admitted to save_media_labels", async () => {
+  it("manager denied coverage writes still; manager cannot relabel its own staff-era photo", async () => {
     const w = await world("mgrph-deny", { tikka: ["mains--tikka"] })
     await fails(
       w.mgr.client.rpc("save_coverage_requirement", {
@@ -1739,21 +1739,38 @@ describe("manager denials still hold", () => {
       "not_venue_manager",
       "42501"
     )
-    const { data: label } = await service
-      .from("media_labels")
-      .select("revision")
-      .eq("asset_id", w.history.tikka!)
-      .single()
+    // w.history.tikka is this account's own photo, uploaded and labelled
+    // while it was staff. A manager account labels only its manager-era
+    // uploads (B02 W4), so the save is refused at the asset and changes
+    // nothing.
+    const labelState = async () => {
+      const label = await service
+        .from("media_labels")
+        .select("*")
+        .eq("asset_id", w.history.tikka!)
+        .single()
+      const items = await service
+        .from("media_label_items")
+        .select("*")
+        .eq("asset_id", w.history.tikka!)
+        .order("id")
+      if (label.error) throw label.error
+      if (items.error) throw items.error
+      return { label: label.data, items: items.data }
+    }
+    const before = await labelState()
+    expect(before.items).toHaveLength(1)
     await fails(
       saveLabels(w.mgr, {
         asset: w.history.tikka!,
-        revision: label!.revision,
+        revision: before.label.revision,
         items: [],
         catalogue: w.version,
       }),
-      "not_active_user",
-      "42501"
+      "media_asset_not_found",
+      "P0002"
     )
+    expect(await labelState()).toEqual(before)
   })
 })
 
