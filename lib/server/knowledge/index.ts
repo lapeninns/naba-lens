@@ -36,5 +36,11 @@ export {
   setWorkingList,
   submitKnowledgeFinding,
 } from "./writes"
+export {
+  addToContributionGroup,
+  getContributionGroup,
+  listGroupsForAssets,
+  startContributionGroup,
+} from "./groups"
 export { readKnowledgeAnswers, type KnowledgeReaderResult } from "./reader"
 export { knowledgeRpcFailure } from "./errors"

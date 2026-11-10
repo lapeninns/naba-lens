@@ -17,6 +17,7 @@ import {
   type VenueCapabilities,
   type WorkingListView,
 } from "@/lib/knowledge/contract"
+import { redactError } from "@/lib/server/log/redact"
 import { mediaRoutes } from "@/lib/server/media/library"
 import type { MediaActor } from "@/lib/server/media/types"
 
@@ -257,7 +258,44 @@ export async function listMyContributions(
     { p_cursor: cursor.value, p_limit: 20 }
   )
   if (error) return knowledgeRpcFailure(error, "my contributions")
-  return { ok: true, page: data }
+  return { ok: true, page: await withGroupIds(actor, data) }
+}
+
+/**
+ * Photo rows gain their contribution group (W1). A failed lookup leaves
+ * groupId out rather than failing the page.
+ */
+async function withGroupIds(
+  actor: MediaActor,
+  page: ContributionsFeedPage
+): Promise<ContributionsFeedPage> {
+  const photos = page.items.flatMap((i) =>
+    i.type === "photo" ? [i.assetId] : []
+  )
+  if (photos.length === 0) return page
+  const { data, error } = await knowledgeRpc(
+    actor.db,
+    "contribution_groups_for_assets",
+    { p_asset_ids: photos }
+  )
+  if (error) {
+    console.error(
+      "[knowledge] contribution groups for my contributions failed",
+      {
+        error: redactError(
+          new Error(`${error.code || "unknown"}: ${error.message ?? ""}`)
+        ),
+      }
+    )
+    return page
+  }
+  const byAsset = new Map(data.map((r) => [r.asset_id, r.group_id]))
+  return {
+    ...page,
+    items: page.items.map((i) =>
+      i.type === "photo" ? { ...i, groupId: byAsset.get(i.assetId) ?? null } : i
+    ),
+  }
 }
 
 /** R8. What the caller may do at the venue (an admin names one). */

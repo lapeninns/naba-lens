@@ -65,6 +65,22 @@ const KNOWLEDGE: Record<string, Mapping> = {
   draft_already_sent: ["draft_already_sent", "This finding was already sent."],
   knowledge_venue_not_found: ["not_found", "This venue could not be found."],
   wrong_venue: ["wrong_venue", "This is not your venue. Reload the page."],
+  contribution_group_not_found: [
+    "not_found",
+    "This group of photos could not be found. Reload the page.",
+  ],
+  contribution_subject_not_found: [
+    "not_found",
+    "What these photos show is no longer here. Choose again.",
+  ],
+  asset_in_other_group: [
+    "state_conflict",
+    "A photo is already in another group. Reload the page.",
+  ],
+  contribution_group_full: [
+    "state_conflict",
+    "A group holds at most 10 photos or videos.",
+  ],
   media_asset_not_found: [
     "not_found",
     "This photo could not be found. It may have been deleted.",
@@ -123,6 +139,8 @@ const FIELD_ERRORS: Record<string, [field: string, message: string]> = {
   invalid_draft: ["payload", "This draft is too large to save."],
   invalid_cursor: ["cursor", "Reload the page."],
   venue_required: ["venueId", "Choose a venue."],
+  invalid_group_key: ["key", "Reload the page and try again."],
+  invalid_subject: ["subject", "Choose what these photos show."],
 }
 
 function detailOf(error: DbError): Record<string, unknown> {

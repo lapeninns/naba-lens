@@ -404,6 +404,8 @@ export type FeedPhotoItem = FeedKeys & {
   menuDecisions: FeedMenuDecision[]
   /** R7: a live accepted menu decision. The only use claim in B02. */
   menuUseAccepted: boolean
+  /** W1: the photo's contribution group; left out if it could not be read. */
+  groupId?: string | null
 }
 
 /** R5 `task_send`: one of the caller's own task photo sends. */
@@ -490,6 +492,43 @@ export type AssetDeleteImpact = { assetId: string; impacts: DeleteImpactItem[] }
 
 /** R11. Why a draft save was refused as already sent. */
 export type DraftSentReason = "key_sent" | "newer_send"
+// ---- B02-b contribution groups (docs/knowledge/b02-design.md W1) -------------
+
+export const GROUP_SUBJECT_KINDS = [
+  "menu_item",
+  "task",
+  "question",
+  "none",
+] as const
+export type GroupSubjectKind = (typeof GROUP_SUBJECT_KINDS)[number]
+
+/** OD-7 default (owner to confirm): one group per asset, at most 10 members. */
+export const GROUP_LIMITS = { maxMembers: 10, maxLookup: 100 } as const
+
+/**
+ * One group with the members the viewer may already see, each with its own
+ * state. A group adds no state, visibility or credit.
+ */
+export type ContributionGroupView = {
+  groupId: string
+  venueId: string
+  createdAt: string
+  /** The viewer started it. */
+  mine: boolean
+  subject: {
+    kind: GroupSubjectKind
+    /** Menu item, task (coverage requirement) or check id; null for "none". */
+    id: string | null
+    name: string | null
+  }
+  members: {
+    assetId: string
+    position: number
+    mediaType: "image" | "video"
+    uploadState: "uploading" | "processing" | "ready" | "failed"
+    mine: boolean
+  }[]
+}
 // ---- Command results -----------------------------------------------------------
 
 export type SubmitKnowledgeResult = {
@@ -689,6 +728,26 @@ export type KnowledgeRpcs = {
   my_asset_delete_impact: {
     args: { p_asset_id: string }
     returns: AssetDeleteImpact
+  }
+  contribution_group_start: {
+    args: {
+      p_key: string
+      p_subject_kind: GroupSubjectKind
+      p_subject_id: string | null
+    }
+    returns: string
+  }
+  contribution_group_add: {
+    args: { p_group_id: string; p_asset_ids: string[] }
+    returns: number
+  }
+  contribution_groups_for_assets: {
+    args: { p_asset_ids: string[] }
+    returns: { asset_id: string; group_id: string }[]
+  }
+  contribution_group: {
+    args: { p_group_id: string }
+    returns: ContributionGroupView
   }
 }
 export type KnowledgeRpcName = keyof KnowledgeRpcs

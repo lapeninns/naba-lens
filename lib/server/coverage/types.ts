@@ -647,7 +647,8 @@ export type OurMenuItem = {
   review: { candidates: number; oldestCandidateAt: Instant | null } | null
   /**
    * The caller's own photos of this item waiting for a decision or a recheck
-   * (any viewer, own photos only). Always set by listOurMenuItems.
+   * (any viewer, own photos only). Set by listOurMenuItems; left out when
+   * that count could not be read, so the list still loads.
    */
   myWaiting?: number
 }
