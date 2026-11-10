@@ -6,10 +6,22 @@
 // privacy (V11), one-winner decisions and request-key replay, the
 // local-midnight cutover and history through the read path, withdrawn and
 // conflicting values, schedules over the shared B03 occurrence fixtures, a
-// linked B03 service with a deliberate stop, rechecks with the job stopped and
-// run twice, and the T9b catalogue assertions. Every command runs as a real
-// signed-in identity through PostgREST; psql (postgres, local only) reads
-// state back, sets up history rows and tries direct writes. Synthetic values.
+// linked B03 service read as of one instant (with a deliberate stop),
+// rechecks with the job stopped and run twice, authority and catalogue
+// re-read under the venue menu lock (demotion, inactive targets, activation
+// and job races), source snapshot provenance, and the T9b catalogue
+// assertions. Every command runs as a real signed-in identity through
+// PostgREST, or as one in a psql transaction that always rolls back; psql
+// (postgres, local only) reads state back and sets up history rows.
+//
+// Fixture safety: every row is in this suite's synthetic venues. Direct
+// writes against the guards name exact fixture ids and run inside a block
+// that always raises, so nothing commits even if a guard regressed
+// (including TRUNCATE). The private job runs bounded to this suite's venues
+// or inside a rolled-back transaction, never across the retained baseline.
+// Temporary `until` deadlines are an hour ahead and read with an explicit
+// as-of instant, never by waiting for the clock.
+import { execFileSync, spawn } from "node:child_process"
 import { randomUUID } from "node:crypto"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
@@ -39,13 +51,9 @@ import {
   type TestIdentity,
 } from "../support/identities"
 import { legacyStaffGrant, makeManager, psql } from "./coverage-fixtures"
+import { photo, world, type World } from "./knowledge-fixtures"
 import {
-  decide as decideKnowledge,
-  world,
-  yes,
-  type World,
-} from "./knowledge-fixtures"
-import {
+  createDraft,
   item,
   menu,
   publishMenu,
@@ -94,6 +102,97 @@ function rows<T = Record<string, unknown>>(sql: string): T[] {
 const literal = (text: string) => `'${text.replace(/'/g, "''")}'`
 const sqlJson = (value: unknown) => `${literal(JSON.stringify(value))}::jsonb`
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+function localDbUrl(): string {
+  const url = process.env.NABALENS_TEST_DB_URL
+  if (!url || !/^postgresql:\/\/[^@]+@(127\.0\.0\.1|localhost):/.test(url)) {
+    throw new Error("Run through `pnpm test:security <workdir>` (local DB).")
+  }
+  return url
+}
+
+/**
+ * Tries one direct write against a guard and returns the error message it
+ * raised ("allowed" if none). The write runs inside a block that always
+ * raises afterwards, so the transaction rolls back whatever the guard did:
+ * a regressed guard (even on TRUNCATE) never changes a row.
+ */
+function denial(sql: string): string {
+  try {
+    psql(`do $probe$
+declare v_message text;
+begin
+  begin
+    ${sql};
+  exception when others then
+    v_message := sqlerrm;
+  end;
+  raise exception 'probe_result:%', coalesce(v_message, 'allowed');
+end $probe$`)
+  } catch (e) {
+    const text = `${(e as { stderr?: unknown }).stderr ?? ""} ${(e as Error).message}`
+    const m = /probe_result:(\S+)/.exec(text)
+    if (m) return m[1]!
+    throw e
+  }
+  throw new Error("probe block did not raise")
+}
+
+/** One psql script in one session; returns its printed lines. */
+function psqlScript(sql: string): string[] {
+  return execFileSync("psql", [localDbUrl(), "-X", "-qAt", "-v", "ON_ERROR_STOP=1"], {
+    encoding: "utf8",
+    input: sql,
+  })
+    .split("\n")
+    .filter((line) => line.length > 0)
+}
+
+/** Switches a psql transaction to a signed-in caller (role authenticated). */
+const as = (who: { id: string }) => `reset role;
+set local "request.jwt.claims" to ${literal(JSON.stringify({ sub: who.id, role: "authenticated" }))};
+set local role authenticated;`
+
+/**
+ * Runs a psql script in a background session named `name` (its
+ * application_name); resolves with its output when the session ends.
+ */
+function psqlBackground(name: string, sql: string): Promise<string> {
+  const url = localDbUrl()
+  return new Promise((resolve, reject) => {
+    const child = spawn("psql", [url, "-X", "-qAt", "-v", "ON_ERROR_STOP=1"], {
+      env: { ...process.env, PGAPPNAME: name },
+    })
+    let out = ""
+    let err = ""
+    child.stdout.on("data", (d: Buffer) => (out += d.toString()))
+    child.stderr.on("data", (d: Buffer) => (err += d.toString()))
+    child.on("error", reject)
+    child.on("close", (code) =>
+      code === 0 ? resolve(out.trim()) : reject(new Error(err || `psql ${code}`))
+    )
+    child.stdin.end(sql)
+  })
+}
+
+/** Waits (bounded) until the background session is inside pg_sleep. */
+async function untilSleeping(name: string) {
+  for (let i = 0; i < 200; i++) {
+    if (
+      psql(`select exists (select 1 from pg_stat_activity
+        where application_name = ${literal(name)} and wait_event = 'PgSleep')`) === "t"
+    )
+      return
+    await sleep(25)
+  }
+  throw new Error(`background session ${name} never reached its sleep`)
+}
+
+/** The private job, bounded to the given synthetic venues. */
+const runJob = (atSql: string, venues: string[]) =>
+  psql(
+    `select private.menu_open_rechecks(${atSql}, ${literal(`{${venues.join(",")}}`)}::uuid[])`
+  )
 
 const today = () =>
   psql(`select ((now() at time zone 'Europe/London')::date)::text`)
@@ -396,11 +495,50 @@ describe("TS/SQL parity of the price parser and value schema", () => {
 
 describe("structural venue scope and stable identity (B04-02a)", () => {
   let base: Proposed
+  let baseKey: string
+  let decision: Decided
+  let scheduleId: string
+  let exceptionId: string
 
   beforeAll(async () => {
+    baseKey = randomUUID()
     base = await ok<Proposed>(
-      propose(managerA, { item: fish(), field: "price", value: gbp("12.00") })
+      propose(managerA, {
+        item: fish(),
+        field: "price",
+        value: gbp("12.00"),
+        key: baseKey,
+      })
     )
+    decision = await confirm(managerA, base)
+    scheduleId = (
+      await ok<{ scheduleId: string }>(
+        rpc(managerA, "menu_availability_schedule_add", {
+          p_venue: venueA,
+          p_schedule: {
+            effectiveFrom: today(),
+            recurrence: { kind: "weekly", days: ["mon"] },
+            windows: [{ start: "09:00", end: "10:00" }],
+          },
+          p_timezone: null,
+          p_knowledge_check_id: null,
+          p_supersedes: null,
+          p_request_key: randomUUID(),
+        })
+      )
+    ).scheduleId
+    exceptionId = (
+      await ok<{ exceptionId: string }>(
+        rpc(managerA, "menu_availability_exception_add", {
+          p_schedule: scheduleId,
+          p_local_date: dayOffset(14),
+          p_kind: "cancelled",
+          p_windows: null,
+          p_note: null,
+          p_request_key: randomUUID(),
+        })
+      )
+    ).exceptionId
   })
 
   const insertLine = (venue: string, itemId: string, extra = "") =>
@@ -434,27 +572,57 @@ describe("structural venue scope and stable identity (B04-02a)", () => {
   })
 
   it("keeps a line's identity, never deletes it, and moves its revision by one", () => {
-    for (const sql of [
-      `update public.menu_trading_lines set channel = 'takeaway' where id = ${literal(base.lineId)}`,
-      `update public.menu_trading_lines set revision = revision + 2 where id = ${literal(base.lineId)}`,
-      `delete from public.menu_trading_lines where id = ${literal(base.lineId)}`,
-      `truncate public.menu_trading_lines cascade`,
-    ])
-      expect(() => psql(sql), sql).toThrow()
+    const line = literal(base.lineId)
+    const revision = lineRevision(base.lineId)
+    for (const [sql, message] of [
+      [
+        `update public.menu_trading_lines set channel = 'takeaway' where id = ${line}`,
+        "menu_trading_line_immutable",
+      ],
+      [
+        `update public.menu_trading_lines set revision = revision + 2 where id = ${line}`,
+        "menu_trading_line_immutable",
+      ],
+      [
+        `delete from public.menu_trading_lines where id = ${line}`,
+        "menu_trading_line_immutable",
+      ],
+      // Contained: the probe block always rolls back.
+      [`truncate public.menu_trading_lines cascade`, "audit_append_only"],
+    ] as const)
+      expect(denial(sql), sql).toBe(message)
+    expect(lineRevision(base.lineId)).toBe(revision)
   })
 
   it("keeps history append-only for every role", () => {
+    // The fixture rows, exactly as written.
+    const counts = () =>
+      psql(`select md5(concat_ws('|',
+        (select to_jsonb(a)::text from public.menu_trading_assertions a where a.id = ${literal(base.assertionId)}),
+        (select to_jsonb(d)::text from public.menu_trading_decisions d where d.id = ${literal(decision.decisionId)}),
+        (select to_jsonb(s)::text from public.menu_availability_schedules s where s.id = ${literal(scheduleId)}),
+        (select to_jsonb(e)::text from public.menu_availability_exceptions e where e.id = ${literal(exceptionId)}),
+        (select to_jsonb(c)::text from public.menu_trading_commands c where c.request_key = ${literal(baseKey)})))`)
+    const before = counts()
+    expect(before).not.toBe(psql(`select md5('')`))
     for (const sql of [
-      "update public.menu_trading_assertions set reason = 'x'",
-      "delete from public.menu_trading_assertions",
-      "update public.menu_trading_decisions set reason = 'x'",
-      "delete from public.menu_trading_decisions",
-      "update public.menu_availability_schedules set timezone = 'UTC'",
-      "delete from public.menu_availability_exceptions",
-      "update public.menu_trading_commands set result = '{}'",
-      "truncate public.menu_trading_assertions cascade",
+      `update public.menu_trading_assertions set reason = 'x' where id = ${literal(base.assertionId)}`,
+      `delete from public.menu_trading_assertions where id = ${literal(base.assertionId)}`,
+      `update public.menu_trading_decisions set reason = 'x' where id = ${literal(decision.decisionId)}`,
+      `delete from public.menu_trading_decisions where id = ${literal(decision.decisionId)}`,
+      `update public.menu_availability_schedules set timezone = 'UTC' where id = ${literal(scheduleId)}`,
+      `delete from public.menu_availability_schedules where id = ${literal(scheduleId)}`,
+      `update public.menu_availability_exceptions set note = 'x' where id = ${literal(exceptionId)}`,
+      `delete from public.menu_availability_exceptions where id = ${literal(exceptionId)}`,
+      `update public.menu_trading_commands set result = '{}' where request_key = ${literal(baseKey)}`,
+      `delete from public.menu_trading_commands where request_key = ${literal(baseKey)}`,
+      // Contained: the probe block always rolls back.
+      `truncate public.menu_trading_assertions cascade`,
+      `truncate public.menu_trading_decisions`,
+      `truncate public.menu_trading_commands`,
     ])
-      expect(() => psql(sql), sql).toThrow()
+      expect(denial(sql), sql).toBe("audit_append_only")
+    expect(counts()).toBe(before)
   })
 
   it("gives clients no table access: RLS on, no policies, no grants", () => {
@@ -913,115 +1081,6 @@ describe("decisions (B04-02d)", () => {
     ).toBe("0")
   })
 
-  it("keeps a source-mapped price a proposal citing its snapshot, and never confirms an ambiguous one", async () => {
-    const source = await ok<{ sourceId: string }>(
-      rpc(admin, "menu_declare_source", {
-        p_venue: venueA,
-        p_kind: "venue_website",
-        p_label: `TEST trading site ${randomUUID()}`,
-        p_locator: null,
-        p_request_key: randomUUID(),
-      })
-    )
-    const document = [
-      { locator: "menu.json#Fish", name: "Fish", priceText: "£14.50" },
-      { locator: "menu.json#Pie", name: "Pie", priceText: "from 9.95" },
-    ]
-    const snap = await ok<{ snapshotId: string }>(
-      rpc(admin, "menu_record_snapshot", {
-        p_source: source.sourceId,
-        p_revision: "r1",
-        p_sha256: "b".repeat(64),
-        p_captured_at: null,
-        p_document: document,
-        p_request_key: randomUUID(),
-      })
-    )
-    const fixed = await ok<Proposed>(
-      propose(admin, {
-        item: fish(),
-        portion: { label: "Large" },
-        field: "price",
-        source: {
-          snapshotId: snap.snapshotId,
-          locator: "menu.json#Fish",
-          rawText: "£14.50",
-        },
-      })
-    )
-    expect(fixed.value).toEqual({
-      kind: "fixed",
-      amountMinor: 1450,
-      currency: "GBP",
-    })
-    expect(fixed.current).toMatchObject({ detail: "not_recorded" })
-    expect(
-      rows(`select basis, snapshot_id as "snapshotId", source_locator as "locator", raw_text as "rawText"
-        from public.menu_trading_assertions where id = ${literal(fixed.assertionId)}`)
-    ).toEqual([
-      {
-        basis: "source_mapping",
-        snapshotId: snap.snapshotId,
-        locator: "menu.json#Fish",
-        rawText: "£14.50",
-      },
-    ])
-    const ambiguous = await ok<Proposed>(
-      propose(admin, {
-        item: pie(),
-        portion: { label: "Small" },
-        field: "price",
-        source: {
-          snapshotId: snap.snapshotId,
-          locator: "menu.json#Pie",
-          rawText: "from 9.95",
-        },
-      })
-    )
-    expect(ambiguous.value).toEqual({ kind: "ambiguous", form: "from" })
-    await fails(
-      decide(
-        admin,
-        ambiguous.assertionId,
-        lineRevision(ambiguous.lineId),
-        "confirmed"
-      ),
-      "invalid_price",
-      "22023"
-    )
-    await ok(
-      decide(
-        admin,
-        ambiguous.assertionId,
-        lineRevision(ambiguous.lineId),
-        "declined"
-      )
-    )
-    await fails(
-      propose(admin, {
-        item: fish(),
-        field: "price",
-        source: {
-          snapshotId: snap.snapshotId,
-          locator: "menu.json#Nope",
-          rawText: "1.00",
-        },
-      }),
-      "menu_source_locator_not_found",
-      "22023"
-    )
-    // Only admins see the source text.
-    const lineA = await ok<{
-      lines: { lineId: string; pending: Record<string, unknown>[] }[]
-    }>(linesFor(admin, fish()))
-    expect(
-      lineA.lines.find((l) => l.lineId === fixed.lineId)!.pending[0]
-    ).toMatchObject({
-      rawText: "£14.50",
-      sourceLocator: "menu.json#Fish",
-    })
-  })
-
   it("refuses direct ambiguous, over-precise, negative and foreign prices with invalid_price", async () => {
     for (const value of [
       gbp("MP"),
@@ -1089,6 +1148,198 @@ describe("decisions (B04-02d)", () => {
       "invalid_observed_on",
       "22023"
     )
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Source snapshot provenance (§5.2 #2, §4.3 crosswalk)
+// ---------------------------------------------------------------------------
+
+describe("source snapshot provenance (§5.2 #2)", () => {
+  let snapshotId: string
+  const FISH = "menu.json#Fish"
+  const CHICKEN = "menu.json#Curry#variant=Chicken"
+
+  const head = (sourceId: string, locator: string) =>
+    rows<{ row_id: string; revision: number }>(`select h.row_id, h.revision
+      from public.menu_crosswalk_heads h
+      where h.source_id = ${literal(sourceId)} and h.locator = ${literal(locator)}`)[0]!
+  const review = (
+    sourceId: string,
+    locator: string,
+    itemId: string,
+    variantId: string | null = null
+  ) => {
+    const h = head(sourceId, locator)
+    return ok(
+      rpc(admin, "menu_crosswalk_decide", {
+        p_row: h.row_id,
+        p_expected: h.revision,
+        p_status: "confirmed",
+        p_item: itemId,
+        p_variant: variantId,
+        p_channel: "all",
+        p_reason: null,
+        p_request_key: randomUUID(),
+      })
+    )
+  }
+  const cite = (
+    a: Omit<ProposeArgs, "field" | "source">,
+    locator: string,
+    rawText?: string
+  ) =>
+    propose(admin, {
+      ...a,
+      field: "price",
+      source: rawText === undefined ? { snapshotId, locator } : { snapshotId, locator, rawText },
+    })
+  const chicken = () => curry().variants.find((v) => v.name === "Chicken")!.variantId
+  const lamb = () => curry().variants.find((v) => v.name === "Lamb")!.variantId
+
+  beforeAll(async () => {
+    const source = await ok<{ sourceId: string }>(
+      rpc(admin, "menu_declare_source", {
+        p_venue: venueA,
+        p_kind: "venue_website",
+        p_label: `TEST trading site ${randomUUID()}`,
+        p_locator: null,
+        p_request_key: randomUUID(),
+      })
+    )
+    const document = [
+      { locator: FISH, name: "Fish", priceText: "£14.50" },
+      { locator: "menu.json#Pie", name: "Pie", priceText: "from 9.95" },
+      {
+        locator: "menu.json#Curry",
+        name: "Curry",
+        variants: ["Chicken", "Lamb"],
+        priceText: "13.95",
+      },
+      { locator: "menu.json#Cider", name: "Cider", priceText: "4.30" },
+      { locator: "menu.json#Roast", name: "Roast" },
+    ]
+    snapshotId = (
+      await ok<{ snapshotId: string }>(
+        rpc(admin, "menu_record_snapshot", {
+          p_source: source.sourceId,
+          p_revision: "r1",
+          p_sha256: "c".repeat(64),
+          p_captured_at: null,
+          p_document: document,
+          p_request_key: randomUUID(),
+        })
+      )
+    ).snapshotId
+    await ok(
+      rpc(admin, "menu_crosswalk_propose", {
+        p_snapshot: snapshotId,
+        p_request_key: randomUUID(),
+      })
+    )
+    // Reviewed: Fish, Pie, Curry (and its Chicken variant), Roast. Cider
+    // stays unreviewed.
+    await review(source.sourceId, FISH, fish())
+    await review(source.sourceId, "menu.json#Pie", pie())
+    await review(source.sourceId, "menu.json#Curry", curry().itemId)
+    await review(source.sourceId, CHICKEN, curry().itemId, chicken())
+    await review(source.sourceId, "menu.json#Roast", docA.byKey["mains--roast"]!.itemId)
+  })
+
+  it("takes the price text from the cited entry, not the caller, and records it", async () => {
+    const fixed = await ok<Proposed>(
+      cite({ item: fish(), portion: { label: "Large" } }, FISH)
+    )
+    expect(fixed.value).toEqual({ kind: "fixed", amountMinor: 1450, currency: "GBP" })
+    expect(fixed.current).toMatchObject({ detail: "not_recorded" })
+    expect(
+      rows(`select basis, snapshot_id as "snapshotId", source_locator as "locator", raw_text as "rawText"
+        from public.menu_trading_assertions where id = ${literal(fixed.assertionId)}`)
+    ).toEqual([{ basis: "source_mapping", snapshotId, locator: FISH, rawText: "£14.50" }])
+    // The same text, given byte for byte, is accepted.
+    await ok(cite({ item: fish(), portion: { label: "Large" } }, FISH, "£14.50"))
+    // Only admins see the source text.
+    const lineA = await ok<{
+      lines: { lineId: string; pending: Record<string, unknown>[] }[]
+    }>(linesFor(admin, fish()))
+    expect(lineA.lines.find((l) => l.lineId === fixed.lineId)!.pending[0]).toMatchObject({
+      rawText: "£14.50",
+      sourceLocator: FISH,
+    })
+  })
+
+  it("refuses a valid locator with other text: caller text is never evidence", async () => {
+    for (const text of ["£1.00", "14.50", "£14.50 ", "£14.5"])
+      await fails(
+        cite({ item: fish(), portion: { label: "Large" } }, FISH, text),
+        "menu_source_text_mismatch",
+        "22023"
+      )
+    await fails(
+      cite({ item: fish() }, "menu.json#Nope"),
+      "menu_source_locator_not_found",
+      "22023"
+    )
+    await fails(
+      cite({ item: docA.byKey["mains--roast"]!.itemId }, "menu.json#Roast"),
+      "menu_source_price_missing",
+      "22023"
+    )
+  })
+
+  it("refuses an entry reviewed for another item, variant or channel", async () => {
+    // Fish's entry cited for the pie.
+    await fails(cite({ item: pie() }, FISH), "menu_source_mapping_mismatch", "P0001")
+    // Fish's entry (channel all) cited for a takeaway line.
+    await fails(
+      cite({ item: fish(), channel: "takeaway" }, FISH),
+      "menu_source_mapping_mismatch",
+      "P0001"
+    )
+    // Chicken's variant row cited for the lamb line, and the curry entry
+    // (no variant) cited for the chicken line.
+    await fails(
+      cite({ item: curry().itemId, variant: lamb() }, CHICKEN),
+      "menu_source_mapping_mismatch",
+      "P0001"
+    )
+    await fails(
+      cite({ item: curry().itemId, variant: chicken() }, "menu.json#Curry"),
+      "menu_source_mapping_mismatch",
+      "P0001"
+    )
+    // The variant row for its own line is accepted, with the entry's text.
+    expect(
+      (await ok<Proposed>(cite({ item: curry().itemId, variant: chicken() }, CHICKEN))).value
+    ).toEqual({ kind: "fixed", amountMinor: 1395, currency: "GBP" })
+  })
+
+  it("fails closed on an unreviewed entry, and keeps an ambiguous text unconfirmable", async () => {
+    await fails(
+      cite({ item: cider() }, "menu.json#Cider"),
+      "menu_source_mapping_unverified",
+      "P0001"
+    )
+    const ambiguous = await ok<Proposed>(
+      cite({ item: pie(), portion: { label: "Small" } }, "menu.json#Pie")
+    )
+    expect(ambiguous.value).toEqual({ kind: "ambiguous", form: "from" })
+    await fails(
+      decide(admin, ambiguous.assertionId, lineRevision(ambiguous.lineId), "confirmed"),
+      "invalid_price",
+      "22023"
+    )
+    await ok(
+      decide(admin, ambiguous.assertionId, lineRevision(ambiguous.lineId), "declined")
+    )
+    // A manual proposal keeps exact GBP minor units.
+    expect(
+      (
+        await ok<Proposed>(
+          propose(managerA, { item: pie(), portion: { label: "Small" }, field: "price", value: gbp("9.95") })
+        )
+      ).value
+    ).toEqual({ kind: "fixed", amountMinor: 995, currency: "GBP" })
   })
 })
 
@@ -1286,6 +1537,7 @@ describe("resolution through the read path (§5.5, §5.2 #6–7)", () => {
     expect(
       rows(`select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
         where (p.proname like 'menu\\_trading%' or p.proname like 'menu\\_availability%'
+          or p.proname like 'menu\\_service%'
           or p.proname in ('menu_set_temporarily_unavailable', 'menu_open_rechecks', 'menu_open_recheck_rows',
             'menu_close_rechecks', 'menu_parse_price'))
           and p.prosrc ilike '%source_meta%'`)
@@ -1491,25 +1743,75 @@ describe("availability schedules (B04-02c)", () => {
 
 const openTasks = (line: string) =>
   rows<{
+    id: string
     cause: string
     state: string
     dueAt: string
-  }>(`select cause, state, to_json(due_at) #>> '{}' as "dueAt"
-    from public.menu_trading_recheck_tasks where line_id = ${literal(line)} order by created_at`)
+  }>(`select id, cause, state, to_json(due_at) #>> '{}' as "dueAt"
+    from public.menu_trading_recheck_tasks where line_id = ${literal(line)} order by created_at, id`)
 
-async function waitUntil(instant: string) {
-  for (let i = 0; i < 50; i++) {
-    if (
-      psql(`select clock_timestamp() > ${literal(instant)}::timestamptz`) ===
-      "t"
-    )
-      return
-    await sleep(200)
-  }
-  throw new Error(`database clock did not pass ${instant}`)
-}
+/** An `until` an hour ahead: never passed by the time the test reads it. */
+const untilAhead = () =>
+  psql(
+    `select to_json(date_trunc('second', now()) + interval '1 hour') #>> '{}'`
+  )
+const plusSeconds = (instant: string, seconds: number) =>
+  new Date(Date.parse(instant) + seconds * 1000).toISOString()
 
 describe("temporary unavailability and the b1 recheck foundation (A1-4, A1-5)", () => {
+  let venueR: string
+  let managerR: TestIdentity
+  let staffR: TestIdentity
+  let docR: Awaited<ReturnType<typeof readDocument>>
+  const R = (key: string) => docR.byKey[key]!.itemId
+  /** The job as of one minute past `until`, bounded to this block's venue. */
+  const jobAfter = (until: string) =>
+    runJob(`${literal(until)}::timestamptz + interval '1 minute'`, [venueR])
+  const availabilityAt = async (line: string, at: string | null) =>
+    (await ok<HistoryView>(history(managerR, line, at))).availability
+  const setUntil = (itemId: string, until: string | null) =>
+    ok<{ lines: { lineId: string; assertionId: string }[] }>(
+      rpc(managerR, "menu_set_temporarily_unavailable", {
+        p_item: itemId,
+        p_variant: null,
+        p_until: until,
+        p_reason: null,
+        p_request_key: randomUUID(),
+      })
+    )
+
+  beforeAll(async () => {
+    venueR = (await createVenue(service, "trading-r")).id
+    ;[managerR, staffR] = await Promise.all([
+      createIdentity(service, {
+        label: "tr-mgr-r",
+        role: "staff",
+        venueId: venueR,
+      }),
+      createIdentity(service, {
+        label: "tr-staff-r",
+        role: "staff",
+        venueId: venueR,
+      }),
+    ])
+    await legacyStaffGrant(service, admin, managerR.id, venueR)
+    docR = await readDocument(
+      service,
+      await publishMenu(
+        admin,
+        venueR,
+        menu("TEST trading R", [
+          section("mains", "Mains", [
+            item("mains--pie", "Pie"),
+            item("mains--fish", "Fish"),
+            item("mains--soup", "Soup"),
+            item("mains--stew", "Stew"),
+          ]),
+        ])
+      )
+    )
+  })
+
   it("is a manager's statement, current at once, on every live line of the item", async () => {
     await fails(
       rpc(staffA, "menu_set_temporarily_unavailable", {
@@ -1555,36 +1857,26 @@ describe("temporary unavailability and the b1 recheck foundation (A1-4, A1-5)", 
       })
   })
 
-  it("reads needs_checking once `until` passes with the job stopped; two runs open one task; a pending or declined report leaves it open", async () => {
-    const until = psql(
-      `select to_json(date_trunc('second', now()) + interval '2 seconds') #>> '{}'`
-    )
-    const set = await ok<{ lines: { lineId: string }[] }>(
-      rpc(managerA, "menu_set_temporarily_unavailable", {
-        p_item: pie(),
-        p_variant: null,
-        p_until: until,
-        p_reason: null,
-        p_request_key: randomUUID(),
-      })
-    )
+  it("reads needs_checking past `until` with the job stopped; bounded runs open one task; only a newer current statement closes it", async () => {
+    const until = untilAhead()
+    const set = await setUntil(R("mains--pie"), until)
     const line = set.lines[0]!.lineId
-    await waitUntil(until)
-    // Job stopped: the read already says needs_checking and no task exists.
-    const read = await ok<{
-      lines: { lineId: string; availability: Record<string, unknown> }[]
-    }>(linesFor(staffA, pie()))
-    expect(
-      read.lines.find((l) => l.lineId === line)!.availability
-    ).toMatchObject({
+    const expired = set.lines[0]!.assertionId
+    // Now: unavailable until then. As of one second past it: needs_checking,
+    // with no job and no task (an explicit as-of read, never a clock wait).
+    expect(await availabilityAt(line, null)).toMatchObject({
+      state: "temporarily_unavailable",
+    })
+    expect(await availabilityAt(line, plusSeconds(until, 1))).toMatchObject({
       state: "needs_checking",
       reason: "stale",
       detail: "recheck_requested",
     })
     expect(openTasks(line)).toEqual([])
 
-    expect(psql(`select private.menu_open_rechecks(now())`)).not.toBe("0")
-    expect(psql(`select private.menu_open_rechecks(now())`)).toBe("0")
+    // Two bounded runs: one task, due at `until`.
+    jobAfter(until)
+    jobAfter(until)
     const tasks = openTasks(line)
     expect(tasks).toHaveLength(1)
     expect(tasks[0]).toMatchObject({
@@ -1593,59 +1885,132 @@ describe("temporary unavailability and the b1 recheck foundation (A1-4, A1-5)", 
     })
     expect(Date.parse(tasks[0]!.dueAt)).toBe(Date.parse(until))
     expect(
-      rows(`select task_id from private.menu_open_recheck_rows(${literal(venueA)})
-      where task_id in (select id from public.menu_trading_recheck_tasks where line_id = ${literal(line)})`)
+      rows(`select task_id from private.menu_open_recheck_rows(${literal(venueR)})
+        where task_id = ${literal(tasks[0]!.id)}`)
     ).toHaveLength(1)
     expect(
       rows(`select * from private.menu_open_recheck_rows(${literal(venueB)})`)
     ).toEqual([])
 
-    // A staff report (pending), then its decline: still open.
+    // A pending staff report, its decline, and a withdrawal of the passed
+    // statement read nothing current: the task stays open, also after a run.
     const report = await ok<Proposed>(
-      propose(staffA, {
+      propose(staffR, {
         line,
         field: "temporary_unavailability",
         value: { state: "back_in_service" },
       })
     )
-    psql(`select private.menu_open_rechecks(now())`)
+    jobAfter(until)
     expect(openTasks(line).map((t) => t.state)).toEqual(["open"])
     await ok(
-      decide(managerA, report.assertionId, lineRevision(line), "declined")
+      decide(managerR, report.assertionId, lineRevision(line), "declined")
     )
-    psql(`select private.menu_open_rechecks(now())`)
+    jobAfter(until)
+    expect(openTasks(line).map((t) => t.state)).toEqual(["open"])
+    await ok(decide(managerR, expired, lineRevision(line), "withdrawn"))
+    expect(await availabilityAt(line, plusSeconds(until, 1))).toMatchObject({
+      state: "unknown",
+    })
+    jobAfter(until)
     expect(openTasks(line).map((t) => t.state)).toEqual(["open"])
 
-    // A confirmed return to service closes it, in the decision itself.
+    // A newer confirmed return to service closes it, in the decision itself.
     const back = await ok<Proposed>(
-      propose(managerA, {
+      propose(managerR, {
         line,
         field: "temporary_unavailability",
         value: { state: "back_in_service" },
       })
     )
-    await confirm(managerA, back)
+    await confirm(managerR, back)
     expect(openTasks(line).map((t) => t.state)).toEqual(["done"])
     expect(
-      rows(`select task_id from private.menu_open_recheck_rows(${literal(venueA)})
-      where task_id in (select id from public.menu_trading_recheck_tasks where line_id = ${literal(line)})`)
+      rows(`select task_id from private.menu_open_recheck_rows(${literal(venueR)})
+        where task_id = ${literal(tasks[0]!.id)}`)
     ).toEqual([])
-    expect(() =>
-      psql(
-        `update public.menu_trading_recheck_tasks set state = 'open' where line_id = ${literal(line)}`
+    // Closed once: the task cannot be reopened or deleted (contained probes).
+    const task = literal(tasks[0]!.id)
+    expect(
+      denial(
+        `update public.menu_trading_recheck_tasks set state = 'open', closed_at = null where id = ${task}`
       )
-    ).toThrow()
-    expect(() =>
-      psql(
-        `delete from public.menu_trading_recheck_tasks where line_id = ${literal(line)}`
-      )
-    ).toThrow()
+    ).toBe("menu_trading_recheck_task_immutable")
+    expect(
+      denial(`delete from public.menu_trading_recheck_tasks where id = ${task}`)
+    ).toBe("menu_trading_recheck_task_immutable")
+    expect(denial(`truncate public.menu_trading_recheck_tasks`)).toBe(
+      "audit_append_only"
+    )
+    expect(openTasks(line).map((t) => t.state)).toEqual(["done"])
+  })
+
+  it("closes on a newer statement with no `until`, and opens nothing for an item off the active menu", async () => {
+    const until = untilAhead()
+    const line = (await setUntil(R("mains--fish"), until)).lines[0]!.lineId
+    jobAfter(until)
+    expect(openTasks(line).map((t) => t.state)).toEqual(["open"])
+    await setUntil(R("mains--fish"), null)
+    expect(openTasks(line).map((t) => t.state)).toEqual(["done"])
+
+    // The stew leaves the active menu: the job's eligibility re-read skips it.
+    const stewUntil = untilAhead()
+    const stewLine = (await setUntil(R("mains--stew"), stewUntil)).lines[0]!
+      .lineId
+    const active = rows<{ id: string }>(`select id from public.menu_versions
+      where venue_id = ${literal(venueR)} and status = 'active'`)[0]!.id
+    await publishMenu(
+      admin,
+      venueR,
+      menu("TEST trading R v2", [
+        section("mains", "Mains", [
+          item("mains--pie", "Pie", { itemId: R("mains--pie") }),
+          item("mains--fish", "Fish", { itemId: R("mains--fish") }),
+          item("mains--soup", "Soup", { itemId: R("mains--soup") }),
+        ]),
+      ]),
+      active
+    )
+    jobAfter(stewUntil)
+    expect(openTasks(stewLine)).toEqual([])
+  })
+
+  it("serialises the job with a confirmation: a run during an uncommitted confirmation waits for the line and re-reads it", async () => {
+    const until = untilAhead()
+    const line = (await setUntil(R("mains--soup"), until)).lines[0]!.lineId
+    const back = await ok<Proposed>(
+      propose(managerR, {
+        line,
+        field: "temporary_unavailability",
+        value: { state: "back_in_service" },
+      })
+    )
+    const name = `b04-confirm-${randomUUID().slice(0, 8)}`
+    const confirmation = psqlBackground(
+      name,
+      `begin;
+${as(managerR)}
+select public.menu_trading_decide(${literal(back.assertionId)}, ${lineRevision(line)}, 'confirmed',
+  null, null, gen_random_uuid()) is not null;
+reset role;
+select pg_sleep(1.5);
+commit;`
+    )
+    await untilSleeping(name)
+    // The confirmation holds the line row; the run (as of past `until`) waits
+    // for it, then reads the committed return to service: no task.
+    jobAfter(until)
+    await confirmation
+    expect(openTasks(line)).toEqual([])
+    expect(
+      await availabilityAt(line, plusSeconds(until, 61))
+    ).not.toMatchObject({ state: "needs_checking" })
   })
 
   it("opens no menu task for a schedule's end", async () => {
     const ended = await ok<{ scheduleId: string }>(
-      rpc(managerA, "menu_availability_schedule_add", {
-        p_venue: venueA,
+      rpc(managerR, "menu_availability_schedule_add", {
+        p_venue: venueR,
         p_schedule: {
           effectiveFrom: today(),
           effectiveTo: today(),
@@ -1659,32 +2024,28 @@ describe("temporary unavailability and the b1 recheck foundation (A1-4, A1-5)", 
       })
     )
     const a = await ok<Proposed>(
-      propose(managerA, {
-        item: curry().itemId,
+      propose(managerR, {
+        item: R("mains--pie"),
         channel: "takeaway",
         field: "availability",
         value: { state: "scheduled", scheduleId: ended.scheduleId },
       })
     )
-    await confirm(managerA, a)
-    psql(`select private.menu_open_rechecks(now() + interval '3 days')`)
+    await confirm(managerR, a)
+    const later = psql(
+      `select to_json(now() + interval '3 days') #>> '{}'`
+    )
+    runJob(`${literal(later)}::timestamptz`, [venueR])
     expect(openTasks(a.lineId)).toEqual([])
-    expect(
-      (
-        await ok<HistoryView>(
-          history(
-            managerA,
-            a.lineId,
-            new Date(Date.now() + 3 * 86_400_000).toISOString()
-          )
-        )
-      ).availability
-    ).toMatchObject({ state: "not_offered", detail: "schedule_ended" })
+    expect(await availabilityAt(a.lineId, later)).toMatchObject({
+      state: "not_offered",
+      detail: "schedule_ended",
+    })
   })
 })
 
 // ---------------------------------------------------------------------------
-// A linked B03 service (A40 deliberate stop; A1-4 no double tasks)
+// A linked B03 service, read as of one instant (A40 deliberate stop; A1-4)
 // ---------------------------------------------------------------------------
 
 const WEEKLY = {
@@ -1696,30 +2057,27 @@ const addDays = (date: string, n: number) =>
     .toISOString()
     .slice(0, 10)
 
-/** A staff Yes on a service key with this detail (as the B03 A40 suite). */
-async function serviceYes(w: World, key: string, detail: object) {
-  const sent = await yes(w.staffA, w, key)
-  psql(`insert into public.knowledge_contribution_details
-      (contribution_id, venue_id, question_version, value_schema, value_schema_version, detail, request_hash)
-    select x.id, x.venue_id, 1, 'service', 1, ${sqlJson(detail)}, encode(sha256(x.id::text::bytea), 'hex')
-    from public.knowledge_contributions x where x.id = ${literal(sent.contributionId)}`)
-  if (sent.outcome === "awaiting_confirmation")
-    expect(
-      (
-        await decideKnowledge(
-          w.manager,
-          w,
-          key,
-          { type: "contribution", id: sent.contributionId },
-          "confirm"
-        )
-      ).error
-    ).toBeNull()
-}
-
 describe("a schedule linked to a same-venue B03 service (B04-02c)", () => {
-  it("consumes B03's occurrences and its deliberate stop, refuses exceptions and other venues, and opens no menu task", async () => {
-    const w = await world("menu-trading-linked")
+  const KEY = "guest_toilets"
+  let w: World
+  let other: World
+  let roast: string
+  let asset: string
+  let start: string
+
+  const link = (who: TestIdentity, venue: string, check: string) =>
+    rpc(who, "menu_availability_schedule_add", {
+      p_venue: venue,
+      p_schedule: { effectiveFrom: start },
+      p_timezone: null,
+      p_knowledge_check_id: check,
+      p_supersedes: null,
+      p_request_key: randomUUID(),
+    })
+
+  beforeAll(async () => {
+    w = await world("menu-trading-linked")
+    other = await world("menu-trading-linked-b")
     const version = await publishMenu(
       w.admin,
       w.venue,
@@ -1727,97 +2085,238 @@ describe("a schedule linked to a same-venue B03 service (B04-02c)", () => {
         section("sunday", "Sunday", [item("sunday--roast", "Roast")]),
       ])
     )
-    const roast = (await readDocument(service, version)).byKey["sunday--roast"]!
+    roast = (await readDocument(service, version)).byKey["sunday--roast"]!
       .itemId
-    const start = psql(
-      `select ((now() at time zone 'Europe/London')::date)::text`
-    )
-    const last = addDays(start, 30)
-    await serviceYes(w, "guest_toilets", {
-      lastDayOffered: last,
-      schedule: {
-        effectiveFrom: addDays(start, -7),
-        effectiveTo: last,
-        ...WEEKLY,
-      },
-    })
-    const add = (venue: string, check: string) =>
-      rpc(w.manager, "menu_availability_schedule_add", {
-        p_venue: venue,
-        p_schedule: { effectiveFrom: start },
-        p_timezone: null,
-        p_knowledge_check_id: check,
-        p_supersedes: null,
-        p_request_key: randomUUID(),
-      })
-    const linked = await ok<{ scheduleId: string }>(
-      add(w.venue, w.checks.guest_toilets!)
-    )
+    asset = await photo(w.staffA.id, w.venue)
+    start = psql(`select ((now() at time zone 'Europe/London')::date)::text`)
+  })
+
+  it("links only an active service question of the same venue: a non-service check and another venue's real check are refused", async () => {
+    // Every registry key is a presence question outside a scoped version.
     await fails(
-      add(w.venue, randomUUID()),
+      link(w.manager, w.venue, w.checks[KEY]!),
+      "knowledge_check_not_service",
+      "P0001"
+    )
+    // A real check of another venue reads as not found.
+    await fails(
+      link(w.manager, w.venue, other.checks[KEY]!),
       "knowledge_check_not_found",
       "P0002"
     )
     await fails(
-      rpc(w.manager, "menu_availability_exception_add", {
-        p_schedule: linked.scheduleId,
-        p_local_date: start,
-        p_kind: "cancelled",
-        p_windows: null,
-        p_note: null,
-        p_request_key: randomUUID(),
-      }),
-      "menu_schedule_linked",
-      "P0001"
+      link(w.manager, other.venue, other.checks[KEY]!),
+      "not_venue_manager",
+      "42501"
     )
-    const a = await ok<Proposed>(
-      propose(w.manager, {
-        item: roast,
-        field: "availability",
-        value: { state: "scheduled", scheduleId: linked.scheduleId },
-      })
-    )
-    await confirm(w.manager, a)
+  })
 
-    // The next Sunday before the stop, at 12:30 local, and the first instant after it.
+  it("reads the service as of each instant: later exceptions, versions and stops never change an earlier read; a transferred reader B04 allows reads it; the stop holds; no menu task", () => {
+    const check = w.checks[KEY]!
+    // The next Sunday after today and its local instants.
     let sunday = addDays(start, 1)
     while (new Date(`${sunday}T12:00:00Z`).getUTCDay() !== 0)
       sunday = addDays(sunday, 1)
     const dayMs = Date.parse(`${sunday}T00:00:00Z`)
-    const lunch = new Date(
-      localInstant(dayMs + 12.5 * 3_600_000, "Europe/London")
-    ).toISOString()
-    const evening = new Date(
-      localInstant(dayMs + 18 * 3_600_000, "Europe/London")
-    ).toISOString()
-    expect(
-      (await ok<HistoryView>(history(w.manager, a.lineId, lunch))).availability
-    ).toMatchObject({
+    const at = (days: number, hours: number) =>
+      new Date(
+        localInstant(
+          dayMs + days * 86_400_000 + hours * 3_600_000,
+          "Europe/London"
+        )
+      ).toISOString()
+    const lunch = at(0, 12.5)
+    const afternoon = at(0, 14)
+    const evening = at(0, 18.5)
+    const nextEvening = at(7, 18.5)
+
+    const revision = `reset role;
+do $$ begin perform set_config('b04.rev', private.knowledge_slot_revision(${literal(w.venue)}, ${literal(KEY)})::text, true); end $$;`
+    const read = (who: TestIdentity, instant: string) => `${as(who)}
+select (public.menu_trading_history(current_setting('b04.line')::uuid, ${literal(instant)}::timestamptz)
+  -> 'availability')::text;
+reset role;`
+    const lineRead = (who: TestIdentity) => `${as(who)}
+select jsonb_build_object('view', x.v ->> 'view', 'availability',
+  (select l -> 'availability' from jsonb_array_elements(x.v -> 'lines') l
+   where l ->> 'lineId' = current_setting('b04.line')))::text
+from (select public.menu_trading_lines_for_item(${literal(roast)}) as v) x;
+reset role;`
+    const latestSchedule = `(select s.id from public.knowledge_schedules s
+      where s.check_id = ${literal(check)} order by s.created_at desc, s.id desc limit 1)`
+
+    // One transaction, always rolled back: the service registry version and
+    // every row below never reach the shared stack. Later facts are dated
+    // after the earlier reads' instant, as B03 history records them.
+    const out = psqlScript(`begin;
+insert into public.knowledge_question_versions (key, version, catalogue_version, rule_version, value_schema,
+  value_schema_version, guidance, evidence_rule, confirmation, self_confirmation_allowed, sensitivity, freshness,
+  publishable_fields, material_fields, requires_zones, lifecycle, change_kind, change_note, family, subject_type,
+  owner_role, features, public_media, upgrade_rules)
+select v.key, v.version + 1, v.catalogue_version, v.rule_version, 'service', 1, v.guidance, v.evidence_rule,
+  v.confirmation, v.self_confirmation_allowed, v.sensitivity,
+  jsonb_build_object('internal', null, 'public', null),
+  v.publishable_fields, v.material_fields, v.requires_zones, v.lifecycle, 'schema',
+  'TEST B04 rollback-scoped service version', 'service', v.subject_type, v.owner_role, v.features, v.public_media,
+  v.upgrade_rules
+from public.knowledge_question_versions v where v.key = ${literal(KEY)} order by v.version desc limit 1;
+${revision}
+${as(w.staffA)}
+do $$ declare r jsonb; begin
+  r := public.knowledge_submit(p_check_id => ${literal(check)},
+    p_slot_revision => current_setting('b04.rev')::bigint, p_idempotency_key => gen_random_uuid(),
+    p_kind => 'finding', p_answer => 'yes', p_finding => null, p_limitations => null, p_reason => null,
+    p_unknown_preset => null, p_tried_text => null, p_change_reason => null, p_responds_to => null,
+    p_asset_ids => array[${literal(asset)}]::uuid[], p_internal_metadata => null, p_redaction_confirmed => null,
+    p_confirm_own => false,
+    p_detail => ${sqlJson({ schedule: { effectiveFrom: start, ...WEEKLY } })},
+    p_observed_on => null, p_observed_on_source => null);
+  perform set_config('b04.c', r ->> 'contributionId', true);
+  perform set_config('b04.waits', (r ->> 'outcome' = 'awaiting_confirmation')::text, true);
+end $$;
+reset role;
+select current_setting('b04.waits')::boolean as waits \\gset
+\\if :waits
+${revision}
+${as(w.manager)}
+do $$ begin
+  perform public.knowledge_decide('contribution', current_setting('b04.c')::uuid, 'confirm',
+    current_setting('b04.rev')::bigint, gen_random_uuid(), null);
+end $$;
+reset role;
+\\endif
+${as(w.manager)}
+do $$ declare s jsonb; p jsonb; begin
+  s := public.menu_availability_schedule_add(${literal(w.venue)}, ${sqlJson({ effectiveFrom: start })}, null,
+    ${literal(check)}, null, gen_random_uuid());
+  p := public.menu_trading_propose(null, ${literal(roast)}, null, null, null, 'availability',
+    jsonb_build_object('state', 'scheduled', 'scheduleId', s ->> 'scheduleId'), null, null, null, null, null,
+    gen_random_uuid());
+  perform set_config('b04.line', p ->> 'lineId', true);
+  perform public.menu_trading_decide((p ->> 'assertionId')::uuid, (p ->> 'lineRevision')::integer, 'confirmed',
+    null, null, gen_random_uuid());
+end $$;
+reset role;
+${read(w.manager, lunch)}
+${read(w.manager, afternoon)}
+${read(w.manager, evening)}
+reset role;
+update public.profiles set venue_id = ${literal(other.venue)} where id = ${literal(w.staffA.id)};
+${as(w.staffA)}
+do $$ begin
+  perform public.knowledge_occurrences(${literal(check)}, current_date, current_date);
+  perform set_config('b04.b03', 'readable', true);
+exception when others then
+  perform set_config('b04.b03', sqlerrm, true);
+end $$;
+select to_json(current_setting('b04.b03'))::text;
+reset role;
+${lineRead(w.staffA)}
+${lineRead(w.manager)}
+reset role;
+insert into public.knowledge_schedule_exceptions (schedule_id, venue_id, local_date, kind, created_by, created_at)
+select s.id, s.venue_id, ${literal(sunday)}, 'cancelled', ${literal(w.manager.id)}, ${literal(at(0, 13.5))}
+from public.knowledge_schedules s where s.id = ${latestSchedule};
+insert into public.knowledge_schedules (venue_id, question_key, check_id, contribution_id, submission_id, supersedes,
+  timezone, effective_from, effective_to, recurrence, windows, created_at)
+select s.venue_id, s.question_key, s.check_id, s.contribution_id, s.submission_id, s.id, s.timezone,
+  s.effective_from, s.effective_to, s.recurrence, '[{"start": "18:00", "end": "20:00"}]'::jsonb,
+  ${literal(at(0, 14.5))}
+from public.knowledge_schedules s where s.id = ${latestSchedule};
+insert into public.knowledge_detail_corrections (contribution_id, venue_id, detail, decision_id, created_at)
+select x.id, x.venue_id,
+  coalesce(d.detail, '{}'::jsonb) || jsonb_build_object('lastDayOffered', ${literal(sunday)}),
+  (select k.id from public.knowledge_decisions k where k.check_id = ${literal(check)}
+   order by k.created_at, k.id limit 1),
+  ${literal(at(0, 15.5))}
+from public.venue_amenity_checks c
+join public.amenity_submissions sub on sub.id = c.current_submission_id
+join public.knowledge_contributions x on x.id = sub.source_contribution_id
+left join public.knowledge_contribution_details d on d.contribution_id = x.id
+where c.id = ${literal(check)};
+${read(w.manager, lunch)}
+${read(w.manager, afternoon)}
+${read(w.manager, evening)}
+${read(w.manager, nextEvening)}
+reset role;
+select to_json(private.menu_open_rechecks(${literal(nextEvening)}::timestamptz + interval '1 day',
+  array[${literal(w.venue)}]::uuid[]))::text;
+select to_json((select count(*) from public.menu_trading_recheck_tasks t
+  where t.line_id = current_setting('b04.line')::uuid))::text;
+rollback;
+`).map((line) => JSON.parse(line) as unknown)
+
+    const [
+      lunchBefore,
+      afternoonBefore,
+      eveningBefore,
+      b03Public,
+      transferred,
+      manager,
+      lunchAfter,
+      afternoonAfter,
+      eveningAfter,
+      nextEveningAfter,
+      ,
+      menuTasks,
+    ] = out as [
+      Record<string, unknown>,
+      Record<string, unknown>,
+      Record<string, unknown>,
+      string,
+      { view: string; availability: Record<string, unknown> },
+      { view: string; availability: Record<string, unknown> },
+      Record<string, unknown>,
+      Record<string, unknown>,
+      Record<string, unknown>,
+      Record<string, unknown>,
+      number,
+      number,
+    ]
+    expect(out).toHaveLength(12)
+    expect(lunchBefore).toMatchObject({
       state: "available",
       source: "service",
       occurrence: { localDate: sunday },
     })
-    expect(
-      (await ok<HistoryView>(history(w.manager, a.lineId, evening)))
-        .availability
-    ).toMatchObject({
+    expect(afternoonBefore).toMatchObject({
+      state: "available",
+      source: "service",
+    })
+    expect(eveningBefore).toMatchObject({
       state: "outside_window",
       source: "service",
     })
-    const stopAt = psql(
-      `select to_json((${literal(addDays(last, 1))}::date)::timestamp at time zone 'Europe/London') #>> '{}'`
-    )
-    expect(
-      (await ok<HistoryView>(history(w.manager, a.lineId, stopAt))).availability
-    ).toMatchObject({
+
+    // B03's public read refuses the moved staff member; B04 still lets them
+    // read the line (they labelled at this venue) and reads the service for
+    // them exactly as for the manager.
+    expect(b03Public).toBe("amenity_check_not_found")
+    expect(transferred.view).toBe("staff")
+    expect(manager.view).toBe("manager")
+    expect(transferred.availability).toEqual(manager.availability)
+    expect(transferred.availability).toMatchObject({ source: "service" })
+    expect(JSON.stringify(transferred)).not.toContain("unreadable")
+
+    // The earlier read is unchanged after the later exception, version and
+    // stop; each later fact applies from when it was recorded.
+    expect(lunchAfter).toEqual(lunchBefore)
+    expect(afternoonAfter).toMatchObject({
+      state: "cancelled",
+      source: "service",
+    })
+    expect(eveningAfter).toMatchObject({
+      state: "available",
+      source: "service",
+      occurrence: { localDate: sunday },
+    })
+    expect(nextEveningAfter).toMatchObject({
       state: "not_offered",
       detail: "service_not_offered",
+      source: "service",
     })
-    // B03 keeps the service's recheck: no menu task for this line, before or after the stop.
-    psql(
-      `select private.menu_open_rechecks(${literal(stopAt)}::timestamptz + interval '1 day')`
-    )
-    expect(openTasks(a.lineId)).toEqual([])
+    // B03 keeps the service's recheck: the bounded run opens no menu task.
+    expect(menuTasks).toBe(0)
   })
 })
 
@@ -1861,6 +2360,9 @@ describe("catalogue assertions (T9b) and privileges", () => {
   it("keeps the read helpers STABLE (one snapshot) and the A1-5 helper's shape", () => {
     const stable = [
       "menu_open_recheck_rows",
+      "menu_service_detail_at",
+      "menu_service_occurrences",
+      "menu_service_state_at",
       "menu_trading_availability",
       "menu_trading_field_state",
       "menu_trading_head",
@@ -1887,7 +2389,7 @@ describe("catalogue assertions (T9b) and privileges", () => {
     )
     expect(
       psql(
-        `select provolatile || ':' || prosecdef from pg_proc where oid = 'private.menu_open_rechecks(timestamptz)'::regprocedure`
+        `select provolatile || ':' || prosecdef from pg_proc where oid = 'private.menu_open_rechecks(timestamptz,uuid[])'::regprocedure`
       )
     ).toBe("v:true")
   })
@@ -1909,8 +2411,11 @@ describe("catalogue assertions (T9b) and privileges", () => {
         fn
       ).toBe("false:true:false")
     for (const fn of [
-      "private.menu_open_rechecks(timestamptz)",
+      "private.menu_open_rechecks(timestamptz,uuid[])",
       "private.menu_open_recheck_rows(uuid)",
+      "private.menu_service_state_at(uuid,uuid,timestamptz)",
+      "private.menu_service_occurrences(uuid,timestamptz,date,date,timestamptz)",
+      "private.menu_trading_lock_actor(uuid)",
       "private.menu_close_rechecks(uuid,timestamptz)",
       "private.menu_trading_field_state(uuid,text,timestamptz)",
       "private.menu_parse_price(jsonb,text)",
@@ -1922,10 +2427,24 @@ describe("catalogue assertions (T9b) and privileges", () => {
       ).toBe("false:false")
   })
 
+  it("reads a linked service only through private B04 projections, never a public B03 read", () => {
+    expect(
+      rows(`select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+        where (p.proname like 'menu\\_trading%' or p.proname like 'menu\\_availability%'
+          or p.proname like 'menu\\_service%')
+          and p.prosrc ~* 'public\\.knowledge_'`)
+    ).toEqual([])
+    // WS1/WS6's hourly route calls the job with p_now only: every venue.
+    expect(
+      psql(`select pg_get_function_arguments('private.menu_open_rechecks(timestamptz,uuid[])'::regprocedure)`)
+    ).toBe("p_now timestamp with time zone, p_venue_ids uuid[] DEFAULT NULL::uuid[]")
+  })
+
   it("writes no catalogue, label or photo table from any B04-b1 function", () => {
     expect(
       rows(`select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
         where (p.proname like 'menu\\_trading%' or p.proname like 'menu\\_availability%'
+          or p.proname like 'menu\\_service%'
           or p.proname in ('menu_set_temporarily_unavailable', 'menu_open_rechecks', 'menu_close_rechecks'))
           and p.prosrc ~* '(insert into|update|delete from)\\s+public\\.(menu_items|menu_variants|menu_versions|menu_entries|menu_entry_variants|menu_item_photos|menu_item_photo_events|menu_item_photo_heads|media_label_items)'`)
     ).toEqual([])
