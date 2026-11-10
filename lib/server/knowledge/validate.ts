@@ -292,6 +292,12 @@ export type ParsedDraft = {
   payload: Record<string, unknown>
   assetIds: string[]
   idempotencyKey: string
+  /**
+   * The send time the form loaded (`mySentAt`) or last made (`sentAt`); null
+   * when there was none. Undefined: an older client, which saves without the
+   * newer-send test.
+   */
+  baseSentAt?: string | null
 }
 
 export function parseDraft(input: unknown): Parsed<ParsedDraft> {
@@ -316,12 +322,20 @@ export function parseDraft(input: unknown): Parsed<ParsedDraft> {
     return knowledgeInvalid({
       assetIds: `Choose up to ${LIMITS.maxAssets} photos or videos.`,
     })
+  const base = input.baseSentAt
+  if (
+    base !== undefined &&
+    base !== null &&
+    (typeof base !== "string" || Number.isNaN(Date.parse(base)))
+  )
+    return knowledgeInvalid({ baseSentAt: "Reload the page and try again." })
   return ok({
     checkId: input.checkId,
     draftRevision: revision as number | null,
     payload: input.payload,
     assetIds,
     idempotencyKey: input.idempotencyKey,
+    ...(base === undefined ? {} : { baseSentAt: base }),
   })
 }
 
@@ -362,6 +376,25 @@ export function parseCursor(v: unknown): Parsed<string | null> {
   if (v === undefined || v === null || v === "") return ok(null)
   if (typeof v !== "string" || !CURSOR.test(v))
     return knowledgeInvalid({ cursor: "Reload the page." })
+  return ok(v)
+}
+
+const FEED_CURSOR =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z\|[ptcse]:[0-9a-f-]{1,36}$/
+
+/** A previous My contributions page's `nextCursor`, or none. */
+export function parseFeedCursor(v: unknown): Parsed<string | null> {
+  if (v === undefined || v === null || v === "") return ok(null)
+  if (typeof v !== "string" || !FEED_CURSOR.test(v))
+    return knowledgeInvalid({ cursor: "Reload the page." })
+  return ok(v)
+}
+
+/** `venueId` when given (admins name one); none means the caller's own. */
+export function optionalVenueId(input: unknown): Parsed<string | null> {
+  const v = isObject(input) ? (input.venueId ?? null) : null
+  if (v !== null && !isUuid(v))
+    return knowledgeInvalid({ venueId: "Choose a venue." })
   return ok(v)
 }
 

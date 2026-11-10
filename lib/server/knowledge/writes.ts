@@ -123,7 +123,11 @@ export async function resolveConflict(
   return { ok: true, ...data }
 }
 
-/** S4. Saves the caller's draft; `draftRevision` null creates it. */
+/**
+ * S4. Saves the caller's draft; `draftRevision` null creates it. With
+ * `baseSentAt` (B02 R11) a save of work already sent is refused
+ * `draft_already_sent` with the send's `sentAt`, the next base.
+ */
 export async function saveDraft(
   actor: MediaActor,
   input: unknown
@@ -137,6 +141,7 @@ export async function saveDraft(
     p_payload: p.payload,
     p_asset_ids: p.assetIds,
     p_idempotency_key: p.idempotencyKey,
+    ...(p.baseSentAt === undefined ? {} : { p_base_sent_at: p.baseSentAt }),
   })
   if (error) return knowledgeRpcFailure(error, "knowledge save draft")
   return { ok: true, ...data }

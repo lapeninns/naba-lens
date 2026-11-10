@@ -704,6 +704,8 @@ export type MyMenuPhotoState = {
   isPrimary: boolean
   /** The reviewer's note: what a better photo needs (or an accept note). */
   reason: string | null
+  /** When the reviewer decided (or asked for a better photo); always read. */
+  decidedAt?: string
   /**
    * Better photo requested only: the dish (and variant) is on the caller's
    * current venue's active food or drinks menu, so a retake can be labelled

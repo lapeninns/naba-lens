@@ -1,15 +1,21 @@
 import "server-only"
 
-import type {
-  DraftView,
-  KnowledgeAsset,
-  KnowledgeCheckView,
-  KnowledgeResult,
-  MyFindingsPage,
-  MyPending,
-  PilotPreviewRow,
-  ToConfirmItem,
-  WorkingListView,
+import {
+  TRIAGE_QUEUES,
+  type AssetDeleteImpact,
+  type ContributionsFeedPage,
+  type DraftView,
+  type KnowledgeAsset,
+  type KnowledgeCheckView,
+  type KnowledgeResult,
+  type LabelWork,
+  type MyFindingsPage,
+  type MyPending,
+  type PilotPreviewRow,
+  type ToConfirmItem,
+  type TriageQueueSummary,
+  type VenueCapabilities,
+  type WorkingListView,
 } from "@/lib/knowledge/contract"
 import { mediaRoutes } from "@/lib/server/media/library"
 import type { MediaActor } from "@/lib/server/media/types"
@@ -24,8 +30,10 @@ import {
   isObject,
   isUuid,
   NOT_FOUND,
+  optionalVenueId,
   parseCheckId,
   parseCursor,
+  parseFeedCursor,
   parsePeriod,
 } from "./validate"
 
@@ -187,4 +195,102 @@ export async function getPilotPreview(
   )
   if (error) return knowledgeRpcFailure(error, "knowledge pilot preview")
   return { ok: true, rows: data }
+}
+
+// ---- B02 reads (docs/knowledge/b02-design.md §3, §3a) ----------------------
+
+/** R1. The caller's photos needing labels and label saves needing attention. */
+export async function getLabelWork(
+  actor: MediaActor
+): Promise<KnowledgeResult<{ work: LabelWork }>> {
+  const { data, error } = await knowledgeRpc(actor.db, "my_label_work", {})
+  if (error) return knowledgeRpcFailure(error, "label work")
+  const row = data[0]
+  return {
+    ok: true,
+    work: {
+      needsLabels: row?.needs_labels ?? 0,
+      needsAttention: row?.needs_attention ?? 0,
+    },
+  }
+}
+
+/** R3. One row per manager queue, in a fixed order (default: their venue). */
+export async function getManagerTriage(
+  actor: MediaActor,
+  input: unknown
+): Promise<KnowledgeResult<{ queues: TriageQueueSummary[] }>> {
+  const venueId = optionalVenueId(input)
+  if (!venueId.ok) return venueId
+  const { data, error } = await knowledgeRpc(
+    actor.db,
+    "manager_triage_summary",
+    { p_venue_id: venueId.value }
+  )
+  if (error) return knowledgeRpcFailure(error, "manager triage")
+  const rows = new Map(data.map((r) => [r.queue, r]))
+  return {
+    ok: true,
+    queues: TRIAGE_QUEUES.map((queue) => {
+      const r = rows.get(queue)
+      return {
+        queue,
+        available: r?.available ?? false,
+        waiting: r?.waiting ?? null,
+        oldestWaitingAt: r?.oldest_waiting_at ?? null,
+        ownWaiting: r?.own_waiting ?? null,
+      }
+    }),
+  }
+}
+
+/** R5. The caller's photos, task sends and findings, newest first, 20 a page. */
+export async function listMyContributions(
+  actor: MediaActor,
+  input: unknown
+): Promise<KnowledgeResult<{ page: ContributionsFeedPage }>> {
+  const cursor = parseFeedCursor(isObject(input) ? input.cursor : null)
+  if (!cursor.ok) return cursor
+  const { data, error } = await knowledgeRpc(
+    actor.db,
+    "my_contributions_feed",
+    { p_cursor: cursor.value, p_limit: 20 }
+  )
+  if (error) return knowledgeRpcFailure(error, "my contributions")
+  return { ok: true, page: data }
+}
+
+/** R8. What the caller may do at the venue (an admin names one). */
+export async function getVenueCapabilities(
+  actor: MediaActor,
+  input: unknown
+): Promise<KnowledgeResult<{ capabilities: VenueCapabilities }>> {
+  const venueId = optionalVenueId(input)
+  if (!venueId.ok) return venueId
+  const { data, error } = await knowledgeRpc(
+    actor.db,
+    "my_venue_capabilities",
+    { p_venue_id: venueId.value }
+  )
+  if (error) return knowledgeRpcFailure(error, "venue capabilities")
+  return { ok: true, capabilities: data }
+}
+
+/** R9. What deleting one of the caller's own photos would do. Advisory. */
+export async function getAssetDeleteImpact(
+  actor: MediaActor,
+  input: unknown
+): Promise<KnowledgeResult<{ impact: AssetDeleteImpact }>> {
+  if (!isObject(input) || !isUuid(input.assetId))
+    return knowledgeFailure(
+      "not_found",
+      "This photo could not be found. It may have been deleted."
+    )
+  const { data, error } = await knowledgeRpc(
+    actor.db,
+    "my_asset_delete_impact",
+    { p_asset_id: input.assetId }
+  )
+  if (error) return knowledgeRpcFailure(error, "delete impact")
+  return { ok: true, impact: data }
 }
