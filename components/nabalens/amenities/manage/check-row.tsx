@@ -6,7 +6,7 @@ import {
 } from "@phosphor-icons/react/dist/ssr"
 
 import { formatDate } from "@/components/nabalens/format"
-import { QUALIFIER_WORD } from "@/components/nabalens/knowledge/copy"
+import { LEGACY_QUALIFICATION_WORD } from "@/components/nabalens/knowledge/copy"
 import { StatusChip, type ChipTone } from "@/components/nabalens/status-chip"
 import {
   ANSWER_LABEL,
@@ -48,7 +48,7 @@ export function ProgressChip({
     return (
       <StatusChip tone="attention">
         <WarningIcon aria-hidden />
-        {QUALIFIER_WORD[check.qualification]}
+        {LEGACY_QUALIFICATION_WORD[check.qualification]}
       </StatusChip>
     )
   const Icon = PROGRESS_ICON[check.progress]
@@ -120,7 +120,7 @@ export function CheckRow({
           <span>
             Answer:{" "}
             {check.qualification
-              ? QUALIFIER_WORD[check.qualification]
+              ? LEGACY_QUALIFICATION_WORD[check.qualification]
               : ANSWER_LABEL[check.answer]}
           </span>
           {answered ? (

@@ -3,7 +3,11 @@
 // copy. "Couldn't establish" is the staff word for an `unknown` finding; it is
 // never "Needs verification" (legacy facts) or "To check" (never answered).
 
-import { ANSWER_LABEL, type SubmitAnswer } from "@/lib/amenities/contract"
+import {
+  ANSWER_LABEL,
+  type Qualification,
+  type SubmitAnswer,
+} from "@/lib/amenities/contract"
 import type {
   AnswerInUse,
   FreshnessEntry,
@@ -144,6 +148,22 @@ export const QUALIFIER_WORD: Record<QualifiedAnswer["qualifier"], string> = {
 }
 
 /** "Temporarily unavailable until 3 Nov 2026." / "Allowed with conditions." */
+/**
+ * The legacy check reads' qualification (A19, A39, review M3): a qualified
+ * answer still in use, or one presented as needs recheck because it isn't
+ * (an incomplete policy, a withdrawn answer).
+ */
+export const LEGACY_QUALIFICATION_WORD: Record<Qualification, string> = {
+  conditional: "Allowed with conditions",
+  temporarily_unavailable: "Temporarily unavailable",
+  policy_incomplete: "Not confirmed",
+  withdrawn: "Withdrawn",
+}
+
+/** A qualified answer still in use: its own group, never a recheck (§2.6). */
+export const qualifiedInUse = (q: Qualification | null | undefined) =>
+  q === "conditional" || q === "temporarily_unavailable"
+
 export function qualifiedLine(q: QualifiedAnswer): string {
   if (q.qualifier === "temporarily_unavailable") {
     if (q.until) return `Temporarily unavailable until ${longDate(q.until)}.`

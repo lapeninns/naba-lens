@@ -188,12 +188,15 @@ function TypeSelect({
   label,
   value,
   items,
+  retiredItems = [],
   onChange,
 }: {
   id: string
   label: string
   value: string
   items: readonly ValueListItem[]
+  /** A38: retired items, named on an old answer, never offered. */
+  retiredItems?: readonly ValueListItem[]
   onChange: (code: string) => void
 }) {
   const retired = value && !items.some((t) => t.code === value)
@@ -215,7 +218,7 @@ function TypeSelect({
           </option>
         ))}
         {retired ? (
-          <option value={value}>{listLabel(value, items)}</option>
+          <option value={value}>{listLabel(value, items, retiredItems)}</option>
         ) : null}
       </select>
     </div>
@@ -259,6 +262,7 @@ export function PolicyDetailFields({
   places,
   conditionTypes,
   exceptionTypes,
+  retiredTypes = [],
   requiresZones,
   basis,
   canStateOrgPolicy,
@@ -273,6 +277,8 @@ export function PolicyDetailFields({
   places: Place[]
   conditionTypes: readonly ValueListItem[]
   exceptionTypes: readonly ValueListItem[]
+  /** A38: retired types an old answer may still name. */
+  retiredTypes?: readonly ValueListItem[]
   requiresZones: boolean
   /** The account's basis for a statement; null for a staff observation. */
   basis: PolicyBasis | null
@@ -425,6 +431,7 @@ export function PolicyDetailFields({
                     label={COPY.conditionType}
                     value={c.type}
                     items={conditionTypes}
+                    retiredItems={retiredTypes}
                     onChange={(type) => setRow("conditions", i, { type })}
                   />
                   {item?.needsValue || c.value ? (
@@ -490,6 +497,7 @@ export function PolicyDetailFields({
                   label={COPY.exceptionType}
                   value={x.type}
                   items={exceptionTypes}
+                  retiredItems={retiredTypes}
                   onChange={(type) => setRow("exceptions", i, { type })}
                 />
                 <NoteInput

@@ -99,6 +99,8 @@ export function AmenityCheckControl({
     canCorrect: boolean
     canWithdraw: boolean
     canReadHistory: boolean
+    /** A35: may state a policy here. */
+    canStatePolicy?: boolean
     events: { items: SlotEventView[]; nextCursor: string | null } | null
     today: string
   } | null

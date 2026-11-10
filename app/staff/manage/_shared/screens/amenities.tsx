@@ -190,6 +190,10 @@ async function policyContextFor(
       places: places?.ok ? (places.places ?? []) : [],
       conditionTypes: conditions?.ok ? conditions.items : [],
       exceptionTypes: exceptions?.ok ? exceptions.items : [],
+      retiredTypes: [
+        ...((conditions?.ok ? conditions.retired : null) ?? []),
+        ...((exceptions?.ok ? exceptions.retired : null) ?? []),
+      ],
     }
   } catch {
     return null
@@ -221,6 +225,7 @@ async function correctionsFor(ctx: ManageContext, checkId: string) {
       canCorrect = false,
       canWithdraw = false,
       canReadHistory = false,
+      canStatePolicy = false,
     } = caps.value
     let events: { items: SlotEventView[]; nextCursor: string | null } | null =
       null
@@ -236,6 +241,7 @@ async function correctionsFor(ctx: ManageContext, checkId: string) {
       canCorrect,
       canWithdraw,
       canReadHistory,
+      canStatePolicy,
       events,
       today: londonToday(new Date()),
     }

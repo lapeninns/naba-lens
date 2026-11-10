@@ -83,6 +83,13 @@ export function parseCapabilities(value: unknown): VenueCapabilities | null {
     canCorrect: allowed(raw.canCorrect),
     canWithdraw: allowed(raw.canWithdraw),
     canReadHistory: allowed(raw.canReadHistory),
+    // A35: who may state a policy with authority, on which basis.
+    canStatePolicy: allowed(raw.canStatePolicy),
+    canStateOrgPolicy: allowed(raw.canStateOrgPolicy),
+    policyBasis:
+      raw.policyBasis === "venue_manager" || raw.policyBasis === "admin"
+        ? raw.policyBasis
+        : null,
   }
 }
 

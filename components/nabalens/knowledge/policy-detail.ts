@@ -429,9 +429,15 @@ export function policyFieldErrors(
 /** A list item's label, an old answer's retired code included (§4.2). */
 export function listLabel(
   code: string,
-  items: readonly ValueListItem[]
+  items: readonly ValueListItem[],
+  retired: readonly ValueListItem[] = []
 ): string {
-  return items.find((t) => t.code === code)?.label ?? POLICY_COPY.retired(code)
+  const active = items.find((t) => t.code === code)
+  if (active) return active.label
+  // A38: a retired item keeps its label; an unknown code is named as it is.
+  return POLICY_COPY.retired(
+    retired.find((t) => t.code === code)?.label ?? code
+  )
 }
 
 /** "⟨Back bar⟩" for an area's place, from the venue's places when known. */
@@ -541,6 +547,8 @@ export type PolicyContext = {
   places: Place[]
   conditionTypes: ValueListItem[]
   exceptionTypes: ValueListItem[]
+  /** A38: retired types, so an old answer still names them. */
+  retiredTypes?: ValueListItem[]
 }
 
 /**
@@ -572,7 +580,7 @@ export function policyFacts(
       term: "Conditions",
       value: policy.conditions
         .map((c) =>
-          [listLabel(c.type, ctx.conditionTypes), c.value]
+          [listLabel(c.type, ctx.conditionTypes, ctx.retiredTypes), c.value]
             .filter(Boolean)
             .join(": ")
         )
@@ -582,7 +590,7 @@ export function policyFacts(
     rows.push({
       term: "Exceptions",
       value: policy.exceptions
-        .map((e) => listLabel(e.type, ctx.exceptionTypes))
+        .map((e) => listLabel(e.type, ctx.exceptionTypes, ctx.retiredTypes))
         .join("; "),
     })
   if (isRecord(detail) && "policyScope" in detail)

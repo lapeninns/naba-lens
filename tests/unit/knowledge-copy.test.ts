@@ -2,6 +2,8 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
 
 import {
   answerInUseLines,
+  LEGACY_QUALIFICATION_WORD,
+  qualifiedInUse,
   checkDateBasis,
   checkDateLine,
   captureContextLines,
@@ -849,5 +851,21 @@ describe("an author's answer that was corrected or withdrawn (B03 UI §8.2, A15)
         })
       )
     ).toBe("No longer in use: a manager or an admin withdrew it.")
+  })
+})
+
+describe("legacy qualifications (A19, A39, review M3)", () => {
+  it("words each, and keeps only a qualified answer in use apart from rechecks", () => {
+    expect(LEGACY_QUALIFICATION_WORD).toEqual({
+      conditional: "Allowed with conditions",
+      temporarily_unavailable: "Temporarily unavailable",
+      policy_incomplete: "Not confirmed",
+      withdrawn: "Withdrawn",
+    })
+    expect(qualifiedInUse("conditional")).toBe(true)
+    expect(qualifiedInUse("temporarily_unavailable")).toBe(true)
+    expect(qualifiedInUse("policy_incomplete")).toBe(false)
+    expect(qualifiedInUse("withdrawn")).toBe(false)
+    expect(qualifiedInUse(null)).toBe(false)
   })
 })

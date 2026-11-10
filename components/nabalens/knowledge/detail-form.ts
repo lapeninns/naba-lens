@@ -78,6 +78,8 @@ export type DetailForm =
       places: Place[]
       conditionTypes: ValueListItem[]
       exceptionTypes: ValueListItem[]
+      /** A38: retired condition and exception types, for old answers' names. */
+      retiredTypes?: ValueListItem[]
       requiresZones: boolean
       /** The account's basis for a statement; null for a staff observation. */
       basis: PolicyBasis | null

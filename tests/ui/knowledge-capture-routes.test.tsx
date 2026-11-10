@@ -887,3 +887,64 @@ describe("Correct the answer on the capture route (B03 UI §8.1)", () => {
     expect(screen.queryByRole("button", { name: "Save correction" })).toBeNull()
   })
 })
+
+describe("policy capabilities on the capture route (A35)", () => {
+  const registry = {
+    ok: true,
+    question: {
+      key: "step_free_entrance",
+      lifecycle: "supported",
+      supersededBy: null,
+      valueSchema: { name: "policy", version: 1 },
+      requiresZones: false,
+    },
+  }
+
+  beforeEach(() => {
+    knowledge.getKnowledgeCheck.mockResolvedValue({ ok: true, view: inScope() })
+    knowledge.getQuestion.mockResolvedValue(registry)
+    knowledge.listPlaces.mockResolvedValue({
+      ok: true,
+      venueId: VENUE.id,
+      places: [],
+    })
+    knowledge.getValueList.mockResolvedValue({
+      ok: true,
+      items: [],
+      retired: [],
+    })
+  })
+
+  it("states on the basis the server gives, and observes where it says no", async () => {
+    work.getCapabilities.mockResolvedValue({
+      status: "ok",
+      value: {
+        canStatePolicy: true,
+        canStateOrgPolicy: true,
+        policyBasis: "admin",
+      },
+    })
+    await show(pages.manager())
+    fireEvent.click(screen.getByRole("radio", { name: "Allowed" }))
+    expect(screen.getByText("You, as admin")).toBeTruthy()
+    expect(screen.getByRole("group", { name: "Applies to" })).toBeTruthy()
+    cleanup()
+    work.getCapabilities.mockResolvedValue({
+      status: "ok",
+      value: {
+        canStatePolicy: false,
+        canStateOrgPolicy: false,
+        policyBasis: null,
+      },
+    })
+    await show(pages.manager())
+    expect(screen.getByRole("group", { name: "The rule you saw" })).toBeTruthy()
+  })
+
+  it("keeps the role's default when the capabilities can't be read", async () => {
+    work.getCapabilities.mockRejectedValue(new Error("down"))
+    await show(pages.manager())
+    fireEvent.click(screen.getByRole("radio", { name: "Allowed" }))
+    expect(screen.getByText("You, as venue manager")).toBeTruthy()
+  })
+})

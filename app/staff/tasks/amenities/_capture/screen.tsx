@@ -92,16 +92,30 @@ async function knowledgeFor(
         .getValueList(actor, { list: "policy_exception_types" })
         .catch(() => null),
     ])
+    // A35: who states a policy, on which basis, from the venue's
+    // capabilities; unreadable, the role's default (the server checks the
+    // authority again, A37).
+    const caps = await policyCapabilities(actor, view.view.venue.id)
     props.detailForm = {
       schema: "policy",
       places: result?.ok ? (result.places ?? []).filter((p) => p.active) : [],
       conditionTypes: conditions?.ok ? conditions.items : [],
       exceptionTypes: exceptions?.ok ? exceptions.items : [],
+      retiredTypes: [
+        ...((conditions?.ok ? conditions.retired : null) ?? []),
+        ...((exceptions?.ok ? exceptions.retired : null) ?? []),
+      ],
       requiresZones: form.requiresZones,
-      // Staff observe; a manager or an admin states it, on their own basis
-      // (A35: until the server says canStatePolicy and canStateOrgPolicy).
-      basis: admin ? "admin" : role === "manager" ? "venue_manager" : null,
-      canStateOrgPolicy: admin,
+      basis: caps
+        ? caps.canStatePolicy
+          ? (caps.policyBasis ?? null)
+          : null
+        : admin
+          ? "admin"
+          : role === "manager"
+            ? "venue_manager"
+            : null,
+      canStateOrgPolicy: caps ? caps.canStateOrgPolicy === true : admin,
     }
     // A manager or an admin completing someone's policy finding starts from
     // it; an id that isn't a pending policy finding here is ignored.
@@ -189,6 +203,16 @@ async function knowledgeFor(
       question?.ok && question.question
         ? question.question.materialFields
         : ["headline"],
+  }
+}
+
+/** A35: the venue's policy capabilities; null when they can't be read. */
+async function policyCapabilities(actor: MediaActor, venueId: string) {
+  try {
+    const caps = await workServices.getCapabilities(actor, venueId)
+    return caps.status === "ok" ? caps.value : null
+  } catch {
+    return null
   }
 }
 

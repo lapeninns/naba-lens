@@ -36,6 +36,7 @@ import {
   shortDate,
   TO_CONFIRM_COPY,
   toConfirmLine,
+  qualifiedInUse,
 } from "@/components/nabalens/knowledge/copy"
 import { StatusChip } from "@/components/nabalens/status-chip"
 import type {
@@ -236,12 +237,15 @@ export function AmenitiesOverview({
   // A qualified answer reads needs recheck but is an answer in use (§2.6):
   // it gets its own group and count, never the recheck ones.
   const qualified = view.active
-    .filter((check) => check.qualification)
+    .filter((check) => qualifiedInUse(check.qualification))
     .sort(byPosition)
   const groups = PROGRESS_ORDER.map((progress) => ({
     progress,
     checks: view.active
-      .filter((check) => check.progress === progress && !check.qualification)
+      .filter(
+        (check) =>
+          check.progress === progress && !qualifiedInUse(check.qualification)
+      )
       .sort(byPosition),
   }))
   const countOf = (progress: CheckProgress) =>

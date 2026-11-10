@@ -2124,6 +2124,7 @@ export function CaptureForm({
           places={policyForm.places}
           conditionTypes={policyForm.conditionTypes}
           exceptionTypes={policyForm.exceptionTypes}
+          retiredTypes={policyForm.retiredTypes}
           requiresZones={policyForm.requiresZones}
           basis={policyForm.basis}
           canStateOrgPolicy={policyForm.canStateOrgPolicy}

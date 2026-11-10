@@ -144,7 +144,13 @@ export type KnowledgeServices = {
   getValueList(
     actor: MediaActor,
     input: { list: ValueListName }
-  ): Promise<KnowledgeResult<{ items: ValueListItem[] }>>
+  ): Promise<
+    KnowledgeResult<{
+      items: ValueListItem[]
+      /** A38: never offered, but an old answer still names them. */
+      retired: ValueListItem[]
+    }>
+  >
   /** B03-e (A11): my open recheck tasks; none before the B03-e migration. */
   listMyRechecks(
     actor: MediaActor
@@ -382,10 +388,11 @@ export const knowledgeServices: KnowledgeServices = {
       { p_list: input.list }
     )
     if (error) {
-      if (MISSING_FUNCTION.has(error.code ?? "")) return { ok: true, items: [] }
+      if (MISSING_FUNCTION.has(error.code ?? ""))
+        return { ok: true, items: [], retired: [] }
       return server.knowledgeRpcFailure(error, "knowledge value list")
     }
-    return { ok: true, items: data.items }
+    return { ok: true, items: data.items, retired: data.retired ?? [] }
   },
 
   async getQuestion(actor, input) {

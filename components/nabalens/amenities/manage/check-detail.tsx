@@ -38,9 +38,10 @@ import {
   type DecisionHandlers,
 } from "@/components/nabalens/knowledge/decisions"
 import {
-  QUALIFIER_WORD,
   answerInUseLines,
   managerSentNoticeFor,
+  LEGACY_QUALIFICATION_WORD,
+  qualifiedInUse,
 } from "@/components/nabalens/knowledge/copy"
 import {
   POLICY_COPY,
@@ -195,6 +196,8 @@ export function AmenityCheckDetail({
       canCorrect: boolean
       canWithdraw: boolean
       canReadHistory: boolean
+      /** A35: may state a policy here; unread is the earlier default. */
+      canStatePolicy?: boolean
       events: { items: SlotEventView[]; nextCursor: string | null } | null
       withdraw: React.ComponentProps<typeof WithdrawControl>["onWithdraw"]
       loadOlder: React.ComponentProps<typeof HistorySection>["loadOlder"]
@@ -371,7 +374,9 @@ export function AmenityCheckDetail({
   const notConfirmed =
     knowledge?.view.slot.answerInUse.detail === "policy_incomplete"
   // On a policy question a manager or an admin states the policy (§4.1).
-  const statesPolicy = Boolean(knowledge?.policy)
+  const statesPolicy =
+    Boolean(knowledge?.policy) &&
+    knowledge?.corrections?.canStatePolicy !== false
   // "Capture myself" came back here naming this check (CA-15): say what
   // happened to the finding, from this page's read, never the URL alone.
   const sentId = React.useSyncExternalStore(
@@ -488,7 +493,7 @@ export function AmenityCheckDetail({
                     </span>
                   ))
                 : check.qualification
-                  ? QUALIFIER_WORD[check.qualification]
+                  ? LEGACY_QUALIFICATION_WORD[check.qualification]
                   : ANSWER_LABEL[check.answer]}
               {answered ? (
                 <span className="block text-meta-touch text-ink-muted md:text-meta">
@@ -516,7 +521,7 @@ export function AmenityCheckDetail({
         </dl>
         {check.progress === "needs_recheck" &&
         check.recheckReason &&
-        !check.qualification ? (
+        !qualifiedInUse(check.qualification) ? (
           <Notice tone="attention" role="note" title="Recheck reason">
             <span className="break-words">{check.recheckReason}</span>
           </Notice>
@@ -669,7 +674,9 @@ export function AmenityCheckDetail({
             ? `Assigned to ${check.assignee.displayName ?? "a former team member"}.`
             : "No one is assigned."}
         </p>
-        {check.qualification && permissions.canAssign && active ? (
+        {qualifiedInUse(check.qualification) &&
+        permissions.canAssign &&
+        active ? (
           <p className="text-body-touch text-ink-muted md:text-body-sm">
             Assigning doesn&apos;t change the answer in use. Whoever you assign
             is asked to look again; what they send goes through this

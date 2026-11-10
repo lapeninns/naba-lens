@@ -275,3 +275,20 @@ describe("a policy finding's rows on a To confirm card (§4.4)", () => {
     ).toEqual([{ term: "Rule", value: "Allowed" }])
   })
 })
+
+describe("retired list items (A38)", () => {
+  it("names a retired item by its label, and an unknown code as it is", () => {
+    const retired = [
+      {
+        code: "old",
+        label: "⟨Old condition⟩",
+        needsValue: false,
+        valueKind: null,
+      },
+    ]
+    expect(listLabel("old", [LEAD], retired)).toBe(
+      "⟨Old condition⟩ (no longer offered)"
+    )
+    expect(listLabel("gone", [LEAD], retired)).toBe("gone (no longer offered)")
+  })
+})

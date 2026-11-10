@@ -29,6 +29,9 @@ const CAPS = {
   canCorrect: false,
   canWithdraw: false,
   canReadHistory: false,
+  canStatePolicy: false,
+  canStateOrgPolicy: false,
+  policyBasis: null,
 }
 
 describe("parseCapabilities (R8)", () => {
@@ -310,5 +313,30 @@ describe("entryIntents (§4.1)", () => {
 
   it("is null when capabilities couldn't be read", () => {
     expect(entryIntents(null, all)).toBeNull()
+  })
+})
+
+describe("A35 policy capabilities", () => {
+  it("reads who may state a policy, for every venue, and on which basis", () => {
+    expect(
+      parseCapabilities({
+        ...CAPS,
+        accountKind: "staff_with_grant",
+        canStatePolicy: true,
+        canStateOrgPolicy: false,
+        policyBasis: "venue_manager",
+      })
+    ).toMatchObject({
+      canStatePolicy: true,
+      canStateOrgPolicy: false,
+      policyBasis: "venue_manager",
+    })
+    expect(
+      parseCapabilities({
+        ...CAPS,
+        canStatePolicy: "yes",
+        policyBasis: "owner",
+      })
+    ).toMatchObject({ canStatePolicy: false, policyBasis: null })
   })
 })
