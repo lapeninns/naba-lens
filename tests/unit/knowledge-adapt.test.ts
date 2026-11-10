@@ -630,3 +630,35 @@ describe("a policy finding's detail (B03-c)", () => {
     expect(view.pending[1]).not.toHaveProperty("policyDetail")
   })
 })
+
+describe("schedules on the check (B03-d)", () => {
+  it("passes the schedule in use, its detail and the venue's zone on, and nothing when absent", () => {
+    const schedule = {
+      effectiveFrom: "2026-11-15",
+      recurrence: { kind: "weekly", days: ["sun"] },
+      windows: [{ start: "12:00", end: "15:00" }],
+    }
+    const view = adaptCheck(
+      check({
+        timezone: "Europe/London",
+        answerInUse: {
+          ...slot().answerInUse!,
+          detail: { schedule },
+          scheduleId: "5c000000-0000-4000-8000-000000000001",
+        },
+      }),
+      "The Old Crown"
+    )
+    if (!view.inScope) throw new Error("in scope")
+    expect(view.timezone).toBe("Europe/London")
+    expect(view.slot.answerInUse.answerDetail).toEqual({ schedule })
+    expect(view.slot.answerInUse.scheduleId).toBe(
+      "5c000000-0000-4000-8000-000000000001"
+    )
+    const plain = adaptCheck(check(), "The Old Crown")
+    if (!plain.inScope) throw new Error("in scope")
+    expect(plain).not.toHaveProperty("timezone")
+    expect(plain.slot.answerInUse).not.toHaveProperty("answerDetail")
+    expect(plain.slot.answerInUse).not.toHaveProperty("scheduleId")
+  })
+})

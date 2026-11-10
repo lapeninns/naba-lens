@@ -117,3 +117,15 @@ export async function addPlaceAction(input: unknown) {
 export async function retirePlaceAction(input: unknown) {
   return write(k.retirePlace, input)
 }
+
+// ---- Schedules (B03-d) ------------------------------------------------------------
+
+/** The next dates a schedule being written would give; nothing is saved. */
+export async function previewScheduleAction(input: unknown) {
+  return read(k.previewSchedule, input)
+}
+
+/** A manager's or an admin's change for one date on the schedule in use. */
+export async function addScheduleExceptionAction(input: unknown) {
+  return write(k.addScheduleException, input)
+}

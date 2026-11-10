@@ -135,6 +135,14 @@ export function adaptAnswerInUse(slot: KnowledgeSlotView): AnswerInUse {
     sentAt: answer?.sentAt ?? null,
     qualified: qualifiedOf(answer),
     ...withPolicyMissing(answer?.policyMissing),
+    ...(answer?.detail &&
+    typeof answer.detail === "object" &&
+    !Array.isArray(answer.detail)
+      ? { answerDetail: answer.detail as Record<string, unknown> }
+      : {}),
+    ...(typeof answer?.scheduleId === "string" && answer.scheduleId
+      ? { scheduleId: answer.scheduleId }
+      : {}),
     confirmation: {
       state: answer?.confirmationState ?? "not_required",
       // Managers and admins only: staff get no confirmer.
@@ -381,6 +389,9 @@ export function adaptCheck(
     pending: [...current, ...check.pending.map((p) => adaptPending(p, inUse))],
     permissions: check.permissions,
     history: [],
+    ...(typeof check.timezone === "string" && check.timezone
+      ? { timezone: check.timezone }
+      : {}),
   }
 }
 

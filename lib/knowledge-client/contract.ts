@@ -39,7 +39,8 @@ export {
   KNOWLEDGE_ANSWERS,
   UNKNOWN_PRESETS,
 } from "@/lib/knowledge/contract"
-export { VALUE_LISTS } from "@/lib/knowledge/contract"
+export { SCHEDULE_EXCEPTION_KINDS, VALUE_LISTS } from "@/lib/knowledge/contract"
+export type { ScheduleExceptionKind } from "@/lib/knowledge/contract"
 export type {
   ObservedOnSource,
   PolicyMissing,
@@ -142,6 +143,10 @@ export type AnswerInUse = {
   qualified?: QualifiedAnswer | null
   /** B03-c: policy keys only; empty means complete. Absent elsewhere. */
   policyMissing?: PolicyNeed[]
+  /** B03-b: the answer's structured detail as recorded; absent when none. */
+  answerDetail?: Record<string, unknown>
+  /** B03-d (A25): the schedule version in use, for a date change. */
+  scheduleId?: string
   confirmation: {
     state: ConfirmationState
     self: boolean
@@ -336,7 +341,18 @@ export type QuestionView =
       pending: PendingFinding[]
       permissions: KnowledgePermissions
       history: KnowledgeEventLine[]
+      /** B03-d (A6): the venue's IANA timezone for schedules. */
+      timezone?: string
     }
+
+/** B03-d (§6.1): one occurrence of a schedule, read from the server. */
+export type Occurrence = {
+  localDate: string
+  /** UTC instants, ISO 8601. */
+  startsAt: string
+  endsAt: string
+  state: "scheduled" | "cancelled" | "changed" | "extra"
+}
 
 // ---- S3 submit ------------------------------------------------------------------
 

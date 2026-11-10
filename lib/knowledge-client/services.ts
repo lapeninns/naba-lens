@@ -24,6 +24,7 @@ import type {
   KnowledgeFailure,
   KnowledgeResult,
   MyPending,
+  Occurrence,
   Place,
   QuestionView,
   RegistryQuestion,
@@ -134,6 +135,27 @@ export type KnowledgeServices = {
     actor: MediaActor,
     input: { list: ValueListName }
   ): Promise<KnowledgeResult<{ items: ValueListItem[] }>>
+  /** B03-d: the schedule in use's occurrences, from..to (≤ 92 days). */
+  getOccurrences(
+    actor: MediaActor,
+    input: unknown
+  ): Promise<KnowledgeResult<{ occurrences: Occurrence[] }>>
+  /** B03-d (A8): what a schedule being written would give; nothing saved. */
+  previewSchedule(
+    actor: MediaActor,
+    input: unknown
+  ): Promise<KnowledgeResult<{ occurrences: Occurrence[] }>>
+  /** B03-d (A7): a manager's or an admin's change for one date. Keyed. */
+  addScheduleException(
+    actor: MediaActor,
+    input: unknown
+  ): Promise<
+    KnowledgeResult<{
+      exceptionId: string
+      slotRevision: number
+      replayed: boolean
+    }>
+  >
 }
 
 /** A registry key, as the server checks it. */
@@ -201,6 +223,13 @@ export const knowledgeServices: KnowledgeServices = {
   addPlace: (actor, input) => server.addPlace(actor, input),
 
   retirePlace: (actor, input) => server.retirePlace(actor, input),
+
+  getOccurrences: (actor, input) => server.getOccurrences(actor, input),
+
+  previewSchedule: (actor, input) => server.previewSchedule(actor, input),
+
+  addScheduleException: (actor, input) =>
+    server.addScheduleException(actor, input),
 
   async getValueList(actor, input) {
     if (!(VALUE_LISTS as readonly string[]).includes(input.list))
