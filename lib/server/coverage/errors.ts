@@ -251,3 +251,44 @@ export function coverageRpcFailure(
     )
   return unavailableFailure(context, error)
 }
+
+// Scoring policy assignment (B08). Checked before the shared coverage codes.
+const SCORING_FAILURES: Record<string, () => CoverageFailure> = {
+  scoring_policy_not_found: () =>
+    invalid({ policy: "Choose a registered scoring policy." }),
+  scoring_month_not_assignable: () =>
+    invalid({
+      startsOn:
+        "A new scoring policy can start only from next month. Only a venue's first enrolment can start this month, with owner approval.",
+    }),
+  scoring_approval_required: () =>
+    failure(
+      "not_permitted",
+      "Starting a policy this month needs a recorded owner approval for this request."
+    ),
+  scoring_approval_mismatch: () =>
+    failure(
+      "not_permitted",
+      "The recorded owner approval does not match this venue, month, policy, target or reason."
+    ),
+  scoring_assignment_exists: () =>
+    failure(
+      "state_conflict",
+      "This venue already has a scoring policy from that month. Reload to see it."
+    ),
+  scoring_month_closed: () =>
+    failure(
+      "state_conflict",
+      "That month is closed, so its scoring policy and target cannot change."
+    ),
+}
+
+export function scoringRpcFailure(
+  error: DbError,
+  context: string
+): CoverageFailure {
+  const message = error?.message ?? ""
+  return Object.hasOwn(SCORING_FAILURES, message)
+    ? SCORING_FAILURES[message]()
+    : coverageRpcFailure(error, context)
+}
