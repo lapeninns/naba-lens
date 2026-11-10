@@ -31,11 +31,15 @@ import type {
 } from "@/lib/knowledge/contract"
 
 export {
+  PLACE_KINDS,
   CONTRIBUTION_KINDS as FINDING_KINDS,
   KNOWLEDGE_ANSWERS,
   UNKNOWN_PRESETS,
 } from "@/lib/knowledge/contract"
 export type {
+  ObservedOnSource,
+  PlaceKind,
+  SubjectView as Place,
   QuestionView as RegistryQuestion,
   QuestionLifecycle,
   ValueSchemaName,

@@ -24,6 +24,7 @@ import type {
   KnowledgeFailure,
   KnowledgeResult,
   MyPending,
+  Place,
   QuestionView,
   RegistryQuestion,
   ResolveConflictInput,
@@ -104,6 +105,24 @@ export type KnowledgeServices = {
     actor: MediaActor,
     input: { key: string; version?: number | null }
   ): Promise<KnowledgeResult<{ question: RegistryQuestion | null }>>
+  /**
+   * A venue's places (B03-b). `places` is null before the places migration,
+   * so the screen says they aren't available instead of failing.
+   */
+  listPlaces(
+    actor: MediaActor,
+    input: { venueId: string | null }
+  ): Promise<
+    KnowledgeResult<{ venueId: string | null; places: Place[] | null }>
+  >
+  addPlace(
+    actor: MediaActor,
+    input: unknown
+  ): Promise<KnowledgeResult<{ subjectId: string; replayed: boolean }>>
+  retirePlace(
+    actor: MediaActor,
+    input: unknown
+  ): Promise<KnowledgeResult<{ subjectId: string; replayed: boolean }>>
 }
 
 /** A registry key, as the server checks it. */
@@ -154,6 +173,24 @@ const UNKNOWN_DECISION: KnowledgeFailure = {
 }
 
 export const knowledgeServices: KnowledgeServices = {
+  async listPlaces(actor, input) {
+    // Read here for the database's code, as the working list: before the
+    // places migration the function doesn't exist.
+    const { data, error } = await knowledgeRpc(actor.db, "knowledge_subjects", {
+      p_venue_id: input.venueId,
+    })
+    if (error) {
+      if (MISSING_FUNCTION.has(error.code ?? ""))
+        return { ok: true, venueId: null, places: null }
+      return server.knowledgeRpcFailure(error, "knowledge places")
+    }
+    return { ok: true, venueId: data.venueId, places: data.items }
+  },
+
+  addPlace: (actor, input) => server.addPlace(actor, input),
+
+  retirePlace: (actor, input) => server.retirePlace(actor, input),
+
   async getQuestion(actor, input) {
     if (!QUESTION_KEY.test(input.key))
       return {

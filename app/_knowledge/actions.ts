@@ -81,7 +81,9 @@ export async function loadMoreContributionsAction(
     : {
         ok: false,
         message:
-          result.status === "failed" ? result.failure.message : "Reload the page.",
+          result.status === "failed"
+            ? result.failure.message
+            : "Reload the page.",
       }
 }
 
@@ -102,4 +104,16 @@ export async function decideFindingAction(input: unknown) {
 
 export async function resolveConflictAction(input: unknown) {
   return write(k.resolveConflict, input)
+}
+
+// ---- Places (B03-b) --------------------------------------------------------------
+
+/** A venue's manager or an admin; the database checks the venue. Keyed. */
+export async function addPlaceAction(input: unknown) {
+  return write(k.addPlace, input)
+}
+
+/** Retires a place with a reason; answers that named it keep it. Keyed. */
+export async function retirePlaceAction(input: unknown) {
+  return write(k.retirePlace, input)
 }

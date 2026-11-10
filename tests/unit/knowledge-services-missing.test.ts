@@ -235,3 +235,47 @@ describe("adapters for the draft-save guard (R11)", () => {
     expect("sentAt" in adaptSubmitted(base)).toBe(false)
   })
 })
+
+describe("places before the B03-b migration", () => {
+  it("reads a missing function as no places yet, not a failure", async () => {
+    rpc.knowledgeRpc.mockResolvedValueOnce({
+      data: null,
+      error: { code: "PGRST202", message: "missing" },
+    })
+    await expect(
+      knowledgeServices.listPlaces(actor, { venueId: VENUE })
+    ).resolves.toEqual({ ok: true, venueId: null, places: null })
+    expect(rpc.knowledgeRpc).toHaveBeenCalledWith(db, "knowledge_subjects", {
+      p_venue_id: VENUE,
+    })
+  })
+
+  it("returns the venue's places", async () => {
+    const items = [
+      {
+        subjectId: "5a000000-0000-4000-8000-000000000001",
+        kind: "entrance",
+        label: "⟨Main entrance⟩",
+        active: true,
+      },
+    ]
+    rpc.knowledgeRpc.mockResolvedValueOnce({
+      data: { venueId: VENUE, items },
+      error: null,
+    })
+    await expect(
+      knowledgeServices.listPlaces(actor, { venueId: VENUE })
+    ).resolves.toEqual({ ok: true, venueId: VENUE, places: items })
+  })
+
+  it("keeps any other failure a failure", async () => {
+    rpc.knowledgeRpc.mockResolvedValueOnce({
+      data: null,
+      error: { code: "42501", message: "denied" },
+    })
+    server.knowledgeRpcFailure.mockReturnValueOnce(DOWN)
+    await expect(
+      knowledgeServices.listPlaces(actor, { venueId: VENUE })
+    ).resolves.toEqual(DOWN)
+  })
+})

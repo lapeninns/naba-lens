@@ -14,9 +14,12 @@ import {
   setCheckNotesAction,
 } from "@/app/_amenities/actions"
 import {
+  addPlaceAction,
   decideFindingAction,
   resolveConflictAction,
+  retirePlaceAction,
 } from "@/app/_knowledge/actions"
+import { PlacesManager } from "@/components/nabalens/knowledge/places-manager"
 import {
   AmenitiesOverview,
   AmenityCheckDetail,
@@ -27,6 +30,7 @@ import type {
   VenueAmenitiesView,
 } from "@/lib/amenities/contract"
 import type {
+  Place,
   QuestionView,
   ToConfirmList,
 } from "@/lib/knowledge-client/contract"
@@ -96,6 +100,28 @@ export function AmenityCheckControl({
         archive: (input) => archiveCheckAction(input),
         restore: (input) => restoreCheckAction(input),
         reopen: (input) => reopenCheckAction(input),
+      }}
+    />
+  )
+}
+
+export function PlacesControl({
+  venueId,
+  venueName,
+  places,
+}: {
+  venueId: string
+  venueName: string
+  places: Place[]
+}) {
+  return (
+    <PlacesManager
+      venueId={venueId}
+      venueName={venueName}
+      places={places}
+      handlers={{
+        add: (input) => addPlaceAction(input),
+        retire: (input) => retirePlaceAction(input),
       }}
     />
   )

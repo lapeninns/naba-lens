@@ -27,6 +27,7 @@ import { ManageFrame, NotManagerPage } from "../frame"
 import {
   AmenitiesOverviewControl,
   AmenityCheckControl,
+  PlacesControl,
 } from "./amenities-controls"
 
 /**
@@ -132,6 +133,14 @@ export async function AmenitiesScreen({ ctx }: { ctx: ManageContext }) {
       pendingReview={ctx.coverage?.summary.pendingReview}
     >
       <OfflineNotice loadedAt={new Date().toISOString()} />
+      <div>
+        <Link
+          href={placesHref(ctx.basePath)}
+          className={buttonVariants({ variant: "secondary", size: "sm" })}
+        >
+          Places at {venue}
+        </Link>
+      </div>
       <AmenitiesOverviewControl
         view={view}
         catalogue={catalogue?.ok ? catalogue.options : null}
@@ -195,6 +204,50 @@ export async function AmenityCheckScreen({
           knowledge?.ok && knowledge.view.inScope ? knowledge.view : null
         }
       />
+    </AmenitiesFrame>
+  )
+}
+
+/** `{basePath}/amenities/places` (B03 UI design §3.6). */
+export function placesHref(basePath: string) {
+  return `${basePath}/amenities/places`
+}
+
+/**
+ * The venue's places, for its manager or an admin (B03 UI design §3.6).
+ * Before the places migration the list isn't there, and the page says so.
+ */
+export async function PlacesScreen({ ctx }: { ctx: ManageContext }) {
+  const result = await knowledgeServices.listPlaces(ctx.actor, {
+    venueId: ctx.venueId,
+  })
+  const title = `Places at ${ctx.venue.name}`
+  if (!result.ok) return amenityFailed(ctx, result as AmenityFailure, title)
+  return (
+    <AmenitiesFrame
+      ctx={ctx}
+      title={title}
+      pendingReview={ctx.coverage?.summary.pendingReview}
+    >
+      <OfflineNotice loadedAt={new Date().toISOString()} />
+      <div>
+        <Link
+          href={amenityHrefs(ctx.basePath).list}
+          className={buttonVariants({ variant: "link", size: "sm" })}
+        >
+          <ArrowLeftIcon aria-hidden />
+          All amenities
+        </Link>
+      </div>
+      {result.places ? (
+        <PlacesControl
+          venueId={ctx.venueId}
+          venueName={ctx.venue.name}
+          places={result.places}
+        />
+      ) : (
+        <Notice tone="plain">Places aren&apos;t available yet.</Notice>
+      )}
     </AmenitiesFrame>
   )
 }
