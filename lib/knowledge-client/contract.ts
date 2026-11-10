@@ -457,7 +457,8 @@ export function knowledgeAssetsResult(
       code === "already_decided" ||
       code === "self_confirmation_not_permitted" ||
       code === "draft_conflict" ||
-      code === "draft_already_sent"
+      code === "draft_already_sent" ||
+      code === "import_slot_has_answer"
         ? "state_conflict"
         : code,
   }

@@ -28,6 +28,7 @@ const STATUS: Record<KnowledgeErrorCode, KnowledgeFailure["status"]> = {
   self_confirmation_not_permitted: 403,
   draft_conflict: 409,
   draft_already_sent: 409,
+  import_slot_has_answer: 409,
   unavailable: 503,
 }
 
@@ -65,6 +66,10 @@ const KNOWLEDGE: Record<string, Mapping> = {
   draft_already_sent: ["draft_already_sent", "This finding was already sent."],
   knowledge_venue_not_found: ["not_found", "This venue could not be found."],
   wrong_venue: ["wrong_venue", "This is not your venue. Reload the page."],
+  knowledge_question_not_found: [
+    "not_found",
+    "This question could not be found.",
+  ],
   contribution_group_not_found: [
     "not_found",
     "This group of photos could not be found. Reload the page.",
@@ -105,6 +110,38 @@ const KNOWLEDGE: Record<string, Mapping> = {
     "invalid_input",
     "A question has no knowledge rule yet, so it can't be added.",
   ],
+  place_exists: [
+    "state_conflict",
+    "This place is already listed. Choose it from the list.",
+  ],
+  knowledge_subject_not_found: [
+    "not_found",
+    "This place could not be found. Reload the page.",
+  ],
+  schedule_exception_exists: [
+    "state_conflict",
+    "This date already has a change. Reload the page.",
+  ],
+  reconcile_source_changed: [
+    "state_conflict",
+    "A source changed since the dry run. Run the dry run again.",
+  ],
+  reconcile_dry_run_required: [
+    "state_conflict",
+    "Run a dry run for this scope first.",
+  ],
+  // A43: its own code, with the approved copy (UI design §7.1, §10): any
+  // recorded answer counts, including a withdrawn or expired one.
+  import_slot_has_answer: [
+    "import_slot_has_answer",
+    "This import can't be used: this question already has a recorded answer (in use, withdrawn or past its check date). Nothing was changed.",
+  ],
+  knowledge_source_not_found: ["not_found", "This source could not be found."],
+  legacy_fact_not_found: [
+    "not_found",
+    "This legacy record could not be found.",
+  ],
+  knowledge_run_not_found: ["not_found", "This run could not be found."],
 }
 
 const BY_SQLSTATE: Record<string, string> = {
@@ -115,6 +152,9 @@ const BY_SQLSTATE: Record<string, string> = {
   NLK07: "knowledge_not_adoptable",
   NLK08: "knowledge_not_current",
   NLK09: "draft_already_sent",
+  NLK12: "reconcile_source_changed",
+  NLK13: "place_exists",
+  NLK14: "import_slot_has_answer",
 }
 
 const FIELD_ERRORS: Record<string, [field: string, message: string]> = {
@@ -141,6 +181,17 @@ const FIELD_ERRORS: Record<string, [field: string, message: string]> = {
   venue_required: ["venueId", "Choose a venue."],
   invalid_group_key: ["key", "Reload the page and try again."],
   invalid_subject: ["subject", "Choose what these photos show."],
+  invalid_place_kind: ["kind", "Choose what kind of place this is."],
+  invalid_label: ["label", "Enter a name of up to 80 characters."],
+  invalid_value_list: ["list", "Choose a list."],
+  invalid_range: ["to", "Choose up to 92 days."],
+  invalid_timezone: ["timezone", "Reload the page and try again."],
+  invalid_source_kind: ["kind", "Choose what kind of source this is."],
+  invalid_mapping_kind: ["kind", "Choose exact, candidate or none."],
+  nothing_to_correct: [
+    "headline",
+    "Nothing has changed. Change the answer or its details.",
+  ],
 }
 
 function detailOf(error: DbError): Record<string, unknown> {
@@ -159,6 +210,12 @@ function draftRevisionOf(error: DbError): number | null {
   return typeof value === "number" ? value : null
 }
 
+/** place_exists detail: {subjectId}, the active place to choose instead. */
+function existingPlaceOf(error: DbError): { subjectId?: string } {
+  const { subjectId } = detailOf(error)
+  return typeof subjectId === "string" ? { subjectId } : {}
+}
+
 /** draft_already_sent detail: {reason, sentAt}. */
 function alreadySentOf(error: DbError): {
   sentReason?: DraftSentReason
@@ -171,6 +228,30 @@ function alreadySentOf(error: DbError): {
       : {}),
     sentAt: typeof sentAt === "string" ? sentAt : null,
   }
+}
+
+const PROBLEM_TEXT: Record<string, string> = {
+  required: "Fill this in.",
+  not_allowed: "This isn't allowed here.",
+  invalid: "Check this value.",
+  too_long: "This is too long.",
+  out_of_range: "This is out of range.",
+  no_entrances_listed:
+    "Add the venue's entrances under Places first, or send Couldn't establish.",
+  unknown_subject: "Choose a place at this venue.",
+}
+
+/** invalid_value detail: { fields: [{ path, problem }] }, keyed by path (b03-design §14.3). */
+function valueFieldErrors(error: DbError): Record<string, string> {
+  const fields = detailOf(error).fields
+  const out: Record<string, string> = {}
+  if (Array.isArray(fields))
+    for (const f of fields)
+      if (f && typeof f === "object" && typeof f.path === "string")
+        out[f.path] =
+          PROBLEM_TEXT[String((f as { problem?: unknown }).problem)] ??
+          PROBLEM_TEXT.invalid!
+  return out
 }
 
 /**
@@ -193,9 +274,18 @@ export function knowledgeRpcFailure(
         ? { draftRevision: draftRevisionOf(error) }
         : mapped === "draft_already_sent"
           ? alreadySentOf(error)
-          : {}
+          : message === "place_exists"
+            ? existingPlaceOf(error)
+            : {}
     )
   }
+  if (message === "invalid_value")
+    return knowledgeInvalid(valueFieldErrors(error))
+  if (message === "unknown_value_schema")
+    return knowledgeInvalid(
+      {},
+      "This answer's format isn't supported here. Reload the page."
+    )
   if (message in FIELD_ERRORS) {
     const [field, text] = FIELD_ERRORS[message]!
     return knowledgeInvalid({ [field]: text })

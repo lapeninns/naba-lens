@@ -1,0 +1,1261 @@
+{
+  "note": "Shared by tests/unit/knowledge-registry.test.ts (TypeScript validator) and tests/security/knowledge-registry.test.ts (private.knowledge_validate_value). Dates are in the past or far future so the result does not depend on today. jsonNull: the database receives jsonb 'null' (TypeScript receives null). Policy condition and exception types: the value lists are empty until the owner supplies them (OD-14), so every type is refused on both sides.",
+  "cases": [
+    {
+      "name": "presence yes",
+      "schema": "presence",
+      "version": 1,
+      "headline": "yes",
+      "detail": null,
+      "expect": {
+        "ok": true,
+        "detail": null
+      }
+    },
+    {
+      "name": "presence unknown with empty detail",
+      "schema": "presence",
+      "version": 1,
+      "headline": "unknown",
+      "detail": {},
+      "expect": {
+        "ok": true,
+        "detail": null
+      }
+    },
+    {
+      "name": "presence not applicable",
+      "schema": "presence",
+      "version": 1,
+      "headline": "not_applicable",
+      "detail": null,
+      "expect": {
+        "ok": true,
+        "detail": null
+      }
+    },
+    {
+      "name": "presence with detail",
+      "schema": "presence",
+      "version": 1,
+      "headline": "no",
+      "detail": {
+        "x": 1
+      },
+      "expect": {
+        "fields": [
+          {
+            "path": "detail",
+            "problem": "not_allowed"
+          }
+        ]
+      }
+    },
+    {
+      "name": "headline outside the set",
+      "schema": "presence",
+      "version": 1,
+      "headline": "maybe",
+      "detail": null,
+      "expect": {
+        "fields": [
+          {
+            "path": "headline",
+            "problem": "not_allowed"
+          }
+        ]
+      }
+    },
+    {
+      "name": "headline missing",
+      "schema": "presence",
+      "version": 1,
+      "headline": null,
+      "detail": null,
+      "expect": {
+        "fields": [
+          {
+            "path": "headline",
+            "problem": "required"
+          }
+        ]
+      }
+    },
+    {
+      "name": "wifi notes",
+      "schema": "connectivity.wifi",
+      "version": 1,
+      "headline": "yes",
+      "detail": {
+        "testSpot": "Back bar",
+        "testedOn": "2026-11-01",
+        "downloadMbps": 50,
+        "uploadMbps": 10
+      },
+      "expect": {
+        "ok": true,
+        "detail": {
+          "testSpot": "Back bar",
+          "testedOn": "2026-11-01",
+          "downloadMbps": 50,
+          "uploadMbps": 10
+        }
+      }
+    },
+    {
+      "name": "wifi without notes",
+      "schema": "connectivity.wifi",
+      "version": 1,
+      "headline": "no",
+      "detail": null,
+      "expect": {
+        "ok": true,
+        "detail": null
+      }
+    },
+    {
+      "name": "wifi extra key",
+      "schema": "connectivity.wifi",
+      "version": 1,
+      "headline": "yes",
+      "detail": {
+        "testSpot": "Bar",
+        "testedOn": "2026-11-01",
+        "downloadMbps": 5,
+        "uploadMbps": 1,
+        "password": "x"
+      },
+      "expect": {
+        "fields": [
+          {
+            "path": "detail",
+            "problem": "invalid"
+          }
+        ]
+      }
+    },
+    {
+      "name": "wifi speed as text",
+      "schema": "connectivity.wifi",
+      "version": 1,
+      "headline": "yes",
+      "detail": {
+        "testSpot": "Bar",
+        "testedOn": "2026-11-01",
+        "downloadMbps": "50",
+        "uploadMbps": 1
+      },
+      "expect": {
+        "fields": [
+          {
+            "path": "detail",
+            "problem": "invalid"
+          }
+        ]
+      }
+    },
+    {
+      "name": "wifi test in the future",
+      "schema": "connectivity.wifi",
+      "version": 1,
+      "headline": "yes",
+      "detail": {
+        "testSpot": "Bar",
+        "testedOn": "2999-01-01",
+        "downloadMbps": 5,
+        "uploadMbps": 1
+      },
+      "expect": {
+        "fields": [
+          {
+            "path": "detail",
+            "problem": "invalid"
+          }
+        ]
+      }
+    },
+    {
+      "name": "wifi missing spot and headline",
+      "schema": "connectivity.wifi",
+      "version": 1,
+      "headline": null,
+      "detail": {
+        "testedOn": "2026-11-01",
+        "downloadMbps": 5,
+        "uploadMbps": 1
+      },
+      "expect": {
+        "fields": [
+          {
+            "path": "headline",
+            "problem": "required"
+          },
+          {
+            "path": "detail",
+            "problem": "invalid"
+          }
+        ]
+      }
+    },
+    {
+      "name": "wifi detail not an object",
+      "schema": "connectivity.wifi",
+      "version": 1,
+      "headline": "yes",
+      "detail": [1],
+      "expect": {
+        "fields": [
+          {
+            "path": "detail",
+            "problem": "invalid"
+          }
+        ]
+      }
+    },
+    {
+      "name": "unknown version",
+      "schema": "presence",
+      "version": 2,
+      "headline": "yes",
+      "detail": null,
+      "expect": {
+        "unknownSchema": true
+      }
+    },
+    {
+      "name": "presence with jsonb null detail",
+      "schema": "presence",
+      "version": 1,
+      "headline": "yes",
+      "detail": null,
+      "jsonNull": true,
+      "expect": {
+        "ok": true,
+        "detail": null
+      }
+    },
+    {
+      "name": "facility with every part",
+      "schema": "facility",
+      "version": 1,
+      "headline": "yes",
+      "detail": {
+        "locations": [
+          {
+            "label": "Back bar"
+          },
+          {
+            "subjectId": "0d2d3c1e-5a6b-4c7d-8e9f-0a1b2c3d4e5f"
+          }
+        ],
+        "availability": {
+          "state": "on_request",
+          "until": "2026-12-31",
+          "note": "Ask at the bar"
+        },
+        "fees": {
+          "kind": "charged",
+          "amount": {
+            "value": 2.5,
+            "currency": "GBP"
+          },
+          "unit": "per hour"
+        },
+        "limitations": "Upstairs only",
+        "howToRequest": "Ask staff"
+      },
+      "expect": {
+        "ok": true,
+        "detail": {
+          "locations": [
+            {
+              "label": "Back bar"
+            },
+            {
+              "subjectId": "0d2d3c1e-5a6b-4c7d-8e9f-0a1b2c3d4e5f"
+            }
+          ],
+          "availability": {
+            "state": "on_request",
+            "until": "2026-12-31",
+            "note": "Ask at the bar"
+          },
+          "fees": {
+            "kind": "charged",
+            "amount": {
+              "value": 2.5,
+              "currency": "GBP"
+            },
+            "unit": "per hour"
+          },
+          "limitations": "Upstairs only",
+          "howToRequest": "Ask staff"
+        }
+      }
+    },
+    {
+      "name": "facility shape problems in order",
+      "schema": "facility",
+      "version": 1,
+      "headline": "yes",
+      "detail": {
+        "bogus": 1,
+        "Zed": 2,
+        "locations": [
+          {
+            "label": "  "
+          },
+          {
+            "subjectId": "X"
+          },
+          {
+            "label": "a",
+            "subjectId": "0d2d3c1e-5a6b-4c7d-8e9f-0a1b2c3d4e5f"
+          },
+          "x"
+        ],
+        "availability": {
+          "state": "temporarily_unavailable",
+          "until": "2026-02-30"
+        },
+        "fees": {
+          "kind": "free",
+          "amount": {
+            "value": 1,
+            "currency": "GBP"
+          },
+          "unit": 5
+        },
+        "limitations": 5,
+        "howToRequest": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      },
+      "expect": {
+        "fields": [
+          {
+            "path": "detail.Zed",
+            "problem": "not_allowed"
+          },
+          {
+            "path": "detail.bogus",
+            "problem": "not_allowed"
+          },
+          {
+            "path": "detail.locations[0]",
+            "problem": "required"
+          },
+          {
+            "path": "detail.locations[1]",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.locations[2]",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.locations[3]",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.availability.until",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.fees.amount",
+            "problem": "not_allowed"
+          },
+          {
+            "path": "detail.fees.unit",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.limitations",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.howToRequest",
+            "problem": "too_long"
+          }
+        ]
+      }
+    },
+    {
+      "name": "facility scalar parts",
+      "schema": "facility",
+      "version": 1,
+      "headline": "no",
+      "detail": {
+        "locations": "x",
+        "availability": "x",
+        "fees": {
+          "amount": 7
+        }
+      },
+      "expect": {
+        "fields": [
+          {
+            "path": "detail.locations",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.availability",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.fees.kind",
+            "problem": "required"
+          },
+          {
+            "path": "detail.fees.amount",
+            "problem": "not_allowed"
+          }
+        ]
+      }
+    },
+    {
+      "name": "facility charged amounts",
+      "schema": "facility",
+      "version": 1,
+      "headline": "yes",
+      "detail": {
+        "fees": {
+          "kind": "charged",
+          "amount": 7,
+          "unit": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        "availability": {
+          "note": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        }
+      },
+      "expect": {
+        "fields": [
+          {
+            "path": "detail.availability.state",
+            "problem": "required"
+          },
+          {
+            "path": "detail.availability.note",
+            "problem": "too_long"
+          },
+          {
+            "path": "detail.fees.amount",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.fees.unit",
+            "problem": "too_long"
+          }
+        ]
+      }
+    },
+    {
+      "name": "facility amount out of range",
+      "schema": "facility",
+      "version": 1,
+      "headline": "yes",
+      "detail": {
+        "fees": {
+          "kind": "charged",
+          "amount": {
+            "value": 100001,
+            "currency": "GBP"
+          }
+        },
+        "availability": {
+          "state": "paused"
+        }
+      },
+      "expect": {
+        "fields": [
+          {
+            "path": "detail.availability.state",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.fees.amount",
+            "problem": "out_of_range"
+          }
+        ]
+      }
+    },
+    {
+      "name": "facility detail not an object",
+      "schema": "facility",
+      "version": 1,
+      "headline": "yes",
+      "detail": [1],
+      "expect": {
+        "fields": [
+          {
+            "path": "detail",
+            "problem": "invalid"
+          }
+        ]
+      }
+    },
+    {
+      "name": "accessibility with every part",
+      "schema": "accessibility",
+      "version": 1,
+      "headline": "yes",
+      "detail": {
+        "scope": {
+          "label": "Main door"
+        },
+        "features": {
+          "ramp": "yes",
+          "handrail": "not_checked"
+        },
+        "measurements": [
+          {
+            "feature": "threshold",
+            "value": 12,
+            "unit": "mm",
+            "measuredOn": "2026-11-01",
+            "method": "tape"
+          }
+        ],
+        "entrances": [
+          {
+            "subjectId": "0d2d3c1e-5a6b-4c7d-8e9f-0a1b2c3d4e5f",
+            "stepFree": "yes"
+          }
+        ]
+      },
+      "expect": {
+        "ok": true,
+        "detail": {
+          "scope": {
+            "label": "Main door"
+          },
+          "features": {
+            "ramp": "yes",
+            "handrail": "not_checked"
+          },
+          "measurements": [
+            {
+              "feature": "threshold",
+              "value": 12,
+              "unit": "mm",
+              "measuredOn": "2026-11-01",
+              "method": "tape"
+            }
+          ],
+          "entrances": [
+            {
+              "subjectId": "0d2d3c1e-5a6b-4c7d-8e9f-0a1b2c3d4e5f",
+              "stepFree": "yes"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "accessibility answer without a scope",
+      "schema": "accessibility",
+      "version": 1,
+      "headline": "no",
+      "detail": null,
+      "expect": {
+        "fields": [
+          {
+            "path": "detail.scope",
+            "problem": "required"
+          }
+        ]
+      }
+    },
+    {
+      "name": "accessibility missing headline and scope",
+      "schema": "accessibility",
+      "version": 1,
+      "headline": null,
+      "detail": {},
+      "expect": {
+        "fields": [
+          {
+            "path": "headline",
+            "problem": "required"
+          },
+          {
+            "path": "detail.scope",
+            "problem": "required"
+          }
+        ]
+      }
+    },
+    {
+      "name": "accessibility unknown needs no scope",
+      "schema": "accessibility",
+      "version": 1,
+      "headline": "unknown",
+      "detail": null,
+      "expect": {
+        "ok": true,
+        "detail": null
+      }
+    },
+    {
+      "name": "accessibility shape problems in order",
+      "schema": "accessibility",
+      "version": 1,
+      "headline": "yes",
+      "detail": {
+        "scope": {
+          "label": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        "features": {
+          "Ramp": "yes",
+          "step": "maybe"
+        },
+        "measurements": [
+          {
+            "value": "x"
+          },
+          {
+            "feature": "t",
+            "value": -1,
+            "unit": "in",
+            "measuredOn": "2026-02-30",
+            "method": "laser"
+          },
+          {
+            "feature": "t",
+            "value": 1,
+            "unit": "mm",
+            "measuredOn": "2999-01-01",
+            "method": "tape"
+          },
+          5
+        ],
+        "entrances": [
+          {
+            "subjectId": "0d2d3c1e-5a6b-4c7d-8e9f-0a1b2c3d4e5f",
+            "stepFree": "maybe"
+          },
+          {
+            "subjectId": "bad"
+          }
+        ]
+      },
+      "expect": {
+        "fields": [
+          {
+            "path": "detail.scope",
+            "problem": "too_long"
+          },
+          {
+            "path": "detail.features.Ramp",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.features.step",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.measurements[0].feature",
+            "problem": "required"
+          },
+          {
+            "path": "detail.measurements[0].unit",
+            "problem": "required"
+          },
+          {
+            "path": "detail.measurements[0].measuredOn",
+            "problem": "required"
+          },
+          {
+            "path": "detail.measurements[0].method",
+            "problem": "required"
+          },
+          {
+            "path": "detail.measurements[0].value",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.measurements[1].value",
+            "problem": "out_of_range"
+          },
+          {
+            "path": "detail.measurements[1].unit",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.measurements[1].method",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.measurements[1].measuredOn",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.measurements[2].measuredOn",
+            "problem": "out_of_range"
+          },
+          {
+            "path": "detail.measurements[3]",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.entrances[0].stepFree",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.entrances[1]",
+            "problem": "invalid"
+          }
+        ]
+      }
+    },
+    {
+      "name": "accessibility version 2 not built",
+      "schema": "accessibility",
+      "version": 2,
+      "headline": "yes",
+      "detail": null,
+      "expect": {
+        "unknownSchema": true
+      }
+    },
+    {
+      "name": "facility temporarily unavailable (B03-c)",
+      "schema": "facility",
+      "version": 1,
+      "headline": "yes",
+      "detail": {
+        "availability": {
+          "state": "temporarily_unavailable",
+          "until": "2026-12-01"
+        }
+      },
+      "expect": {
+        "ok": true,
+        "detail": {
+          "availability": {
+            "state": "temporarily_unavailable",
+            "until": "2026-12-01"
+          }
+        }
+      }
+    },
+    {
+      "name": "accessibility entrances without a scope (A34)",
+      "schema": "accessibility",
+      "version": 1,
+      "headline": "no",
+      "detail": {
+        "entrances": [
+          {
+            "subjectId": "0d2d3c1e-5a6b-4c7d-8e9f-0a1b2c3d4e5f",
+            "stepFree": "no"
+          }
+        ]
+      },
+      "expect": {
+        "ok": true,
+        "detail": {
+          "entrances": [
+            {
+              "subjectId": "0d2d3c1e-5a6b-4c7d-8e9f-0a1b2c3d4e5f",
+              "stepFree": "no"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "accessibility empty entrances still need a scope",
+      "schema": "accessibility",
+      "version": 1,
+      "headline": "yes",
+      "detail": {
+        "entrances": []
+      },
+      "expect": {
+        "fields": [
+          {
+            "path": "detail.scope",
+            "problem": "required"
+          }
+        ]
+      }
+    },
+    {
+      "name": "policy conditional with zones and authority",
+      "schema": "policy",
+      "version": 1,
+      "headline": "yes",
+      "detail": {
+        "stance": "conditional",
+        "zones": [
+          {
+            "label": "Bar",
+            "stance": "allowed"
+          },
+          {
+            "subjectId": "0d2d3c1e-5a6b-4c7d-8e9f-0a1b2c3d4e5f",
+            "stance": "not_allowed"
+          }
+        ],
+        "policyScope": "venue",
+        "authority": {
+          "basis": "venue_manager",
+          "source": "in_person",
+          "statedOn": "2026-11-01",
+          "reference": "Sign at the door"
+        }
+      },
+      "expect": {
+        "ok": true,
+        "detail": {
+          "stance": "conditional",
+          "zones": [
+            {
+              "label": "Bar",
+              "stance": "allowed"
+            },
+            {
+              "subjectId": "0d2d3c1e-5a6b-4c7d-8e9f-0a1b2c3d4e5f",
+              "stance": "not_allowed"
+            }
+          ],
+          "policyScope": "venue",
+          "authority": {
+            "basis": "venue_manager",
+            "source": "in_person",
+            "statedOn": "2026-11-01",
+            "reference": "Sign at the door"
+          }
+        }
+      }
+    },
+    {
+      "name": "policy shape problems in order",
+      "schema": "policy",
+      "version": 1,
+      "headline": "no",
+      "detail": {
+        "x": 1,
+        "stance": "allowed",
+        "zones": [
+          {
+            "stance": "maybe"
+          },
+          "z",
+          {
+            "label": "a"
+          }
+        ],
+        "conditions": [
+          {
+            "type": "on_lead"
+          },
+          {
+            "note": 5,
+            "value": {}
+          },
+          {
+            "type": "x",
+            "extra": 1
+          }
+        ],
+        "exceptions": "x",
+        "policyScope": "world",
+        "authority": {
+          "statedOn": "2999-01-01",
+          "source": "phone",
+          "basis": "owner",
+          "reference": 5
+        }
+      },
+      "expect": {
+        "fields": [
+          {
+            "path": "detail.x",
+            "problem": "not_allowed"
+          },
+          {
+            "path": "detail.stance",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.zones[0]",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.zones[0].stance",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.zones[1]",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.zones[2].stance",
+            "problem": "required"
+          },
+          {
+            "path": "detail.conditions[0].type",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.conditions[1].type",
+            "problem": "required"
+          },
+          {
+            "path": "detail.conditions[1].value",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.conditions[1].note",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.conditions[2]",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.exceptions",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.policyScope",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.authority.basis",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.authority.statedOn",
+            "problem": "out_of_range"
+          },
+          {
+            "path": "detail.authority.source",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.authority.reference",
+            "problem": "invalid"
+          }
+        ]
+      }
+    },
+    {
+      "name": "policy authority not an object",
+      "schema": "policy",
+      "version": 1,
+      "headline": "unknown",
+      "detail": {
+        "stance": "unknown",
+        "authority": "x"
+      },
+      "expect": {
+        "fields": [
+          {
+            "path": "detail.authority",
+            "problem": "invalid"
+          }
+        ]
+      }
+    },
+    {
+      "name": "policy with jsonb null detail",
+      "schema": "policy",
+      "version": 1,
+      "headline": "yes",
+      "detail": null,
+      "jsonNull": true,
+      "expect": {
+        "ok": true,
+        "detail": null
+      }
+    },
+    {
+      "name": "schema not built yet",
+      "schema": "connectivity.wifi",
+      "version": 2,
+      "headline": "yes",
+      "detail": null,
+      "expect": {
+        "unknownSchema": true
+      }
+    },
+    {
+      "name": "service offered with a schedule, channels and fees (B03-d)",
+      "schema": "service",
+      "version": 1,
+      "headline": "yes",
+      "detail": {
+        "schedule": {
+          "effectiveFrom": "2026-11-01",
+          "recurrence": {
+            "kind": "weekly",
+            "days": ["sun"]
+          },
+          "windows": [
+            {
+              "start": "12:00",
+              "end": "15:00"
+            }
+          ]
+        },
+        "channels": ["Phone", "Walk in"],
+        "fees": {
+          "kind": "free"
+        },
+        "limitations": "Sundays only"
+      },
+      "expect": {
+        "ok": true,
+        "detail": {
+          "schedule": {
+            "effectiveFrom": "2026-11-01",
+            "recurrence": {
+              "kind": "weekly",
+              "days": ["sun"]
+            },
+            "windows": [
+              {
+                "start": "12:00",
+                "end": "15:00"
+              }
+            ]
+          },
+          "channels": ["Phone", "Walk in"],
+          "fees": {
+            "kind": "free"
+          },
+          "limitations": "Sundays only"
+        }
+      }
+    },
+    {
+      "name": "service temporarily unavailable",
+      "schema": "service",
+      "version": 1,
+      "headline": "yes",
+      "detail": {
+        "availability": {
+          "state": "temporarily_unavailable",
+          "note": "Kitchen refit"
+        }
+      },
+      "expect": {
+        "ok": true,
+        "detail": {
+          "availability": {
+            "state": "temporarily_unavailable",
+            "note": "Kitchen refit"
+          }
+        }
+      }
+    },
+    {
+      "name": "service shape problems in order",
+      "schema": "service",
+      "version": 1,
+      "headline": "yes",
+      "detail": {
+        "locations": [],
+        "bogus": 1,
+        "schedule": {
+          "effectiveFrom": "2026-11-01",
+          "recurrence": {
+            "kind": "weekly",
+            "days": []
+          },
+          "windows": [
+            {
+              "start": "25:00",
+              "end": "01:00"
+            }
+          ],
+          "extra": 1
+        },
+        "channels": ["", "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", 5],
+        "fees": {
+          "kind": "sometimes"
+        },
+        "broadcasters": ["sky"]
+      },
+      "expect": {
+        "fields": [
+          {
+            "path": "detail.bogus",
+            "problem": "not_allowed"
+          },
+          {
+            "path": "detail.locations",
+            "problem": "not_allowed"
+          },
+          {
+            "path": "detail.schedule.extra",
+            "problem": "not_allowed"
+          },
+          {
+            "path": "detail.schedule.recurrence.days",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.schedule.windows[0]",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.channels[0]",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.channels[1]",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.channels[2]",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.fees.kind",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.broadcasters[0]",
+            "problem": "invalid"
+          }
+        ]
+      }
+    },
+    {
+      "name": "service schedule missing parts",
+      "schema": "service",
+      "version": 1,
+      "headline": "yes",
+      "detail": {
+        "schedule": {}
+      },
+      "expect": {
+        "fields": [
+          {
+            "path": "detail.schedule.effectiveFrom",
+            "problem": "required"
+          },
+          {
+            "path": "detail.schedule.recurrence",
+            "problem": "required"
+          },
+          {
+            "path": "detail.schedule.windows",
+            "problem": "required"
+          }
+        ]
+      }
+    },
+    {
+      "name": "fixture showing committed",
+      "schema": "schedule_event",
+      "version": 1,
+      "headline": "yes",
+      "detail": {
+        "event": {
+          "title": "Six Nations: England v Wales",
+          "localDate": "2026-11-14",
+          "start": "16:45",
+          "end": "19:00"
+        }
+      },
+      "expect": {
+        "ok": true,
+        "detail": {
+          "event": {
+            "title": "Six Nations: England v Wales",
+            "localDate": "2026-11-14",
+            "start": "16:45",
+            "end": "19:00"
+          }
+        }
+      }
+    },
+    {
+      "name": "fixture showing cancelled",
+      "schema": "schedule_event",
+      "version": 1,
+      "headline": "no",
+      "detail": {
+        "cancelled": true,
+        "event": {
+          "title": "Quiz",
+          "localDate": "2026-11-14"
+        }
+      },
+      "expect": {
+        "ok": true,
+        "detail": {
+          "cancelled": true,
+          "event": {
+            "title": "Quiz",
+            "localDate": "2026-11-14"
+          }
+        }
+      }
+    },
+    {
+      "name": "schedule event problems in order",
+      "schema": "schedule_event",
+      "version": 1,
+      "headline": "yes",
+      "detail": {
+        "x": 1,
+        "event": {
+          "title": " ",
+          "localDate": "2026-02-30",
+          "start": "16:45"
+        },
+        "cancelled": true,
+        "limitations": 5
+      },
+      "expect": {
+        "fields": [
+          {
+            "path": "detail.x",
+            "problem": "not_allowed"
+          },
+          {
+            "path": "detail.event.title",
+            "problem": "required"
+          },
+          {
+            "path": "detail.event.localDate",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.event.window[0]",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.cancelled",
+            "problem": "invalid"
+          },
+          {
+            "path": "detail.limitations",
+            "problem": "invalid"
+          }
+        ]
+      }
+    },
+    {
+      "name": "committed event needs the event",
+      "schema": "schedule_event",
+      "version": 1,
+      "headline": "yes",
+      "detail": {
+        "limitations": "x"
+      },
+      "expect": {
+        "fields": [
+          {
+            "path": "detail.event",
+            "problem": "required"
+          }
+        ]
+      }
+    }
+  ]
+}
