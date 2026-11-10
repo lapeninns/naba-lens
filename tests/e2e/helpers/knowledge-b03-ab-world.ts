@@ -360,12 +360,24 @@ export async function sendStatement(
   detail: Record<string, unknown>,
   assetIds: string[]
 ): Promise<string> {
+  const out = await submitYes(who, venue, check, detail, assetIds, false)
+  return out.contributionId
+}
+
+async function submitYes(
+  who: Pick<Person, "email">,
+  venue: Pick<Venue, "id">,
+  check: { id: string; key: string },
+  detail: Record<string, unknown> | null,
+  assetIds: string[],
+  confirmOwn: boolean
+) {
   const revision = Number(
     psql(
       `select private.knowledge_slot_revision(${uuid(venue.id)}, ${synthetic(check.key)})`
     )
   )
-  const out = await knowledgeRpc<{ contributionId: string }>(
+  return knowledgeRpc<{ contributionId: string; outcome: string }>(
     await sessionOf(who),
     "knowledge_submit",
     {
@@ -384,13 +396,85 @@ export async function sendStatement(
       p_asset_ids: assetIds,
       p_internal_metadata: null,
       p_redaction_confirmed: false,
-      p_confirm_own: false,
+      p_confirm_own: confirmOwn,
       p_detail: detail,
       p_observed_on: null,
       p_observed_on_source: null,
     }
   )
+}
+
+/**
+ * The scoped policy-security pattern (tests/security/knowledge-b03-policy)
+ * on a synthetic slot: a manager's plain Yes, sent with no detail and
+ * confirmed by them in their own session, so it is the answer in use; then
+ * `detail` is attached to that adopted contribution as a policy.v1 row.
+ * Returns the contribution id.
+ */
+export async function adoptWithPolicyDetail(
+  manager: Pick<Person, "email">,
+  venue: Pick<Venue, "id">,
+  check: { id: string; key: string },
+  detail: Record<string, unknown>,
+  assetIds: string[]
+): Promise<string> {
+  const out = await submitYes(manager, venue, check, null, assetIds, true)
+  if (out.outcome !== "current")
+    throw new Error(`plain Yes not adopted: ${out.outcome}`)
+  psql(`
+    insert into public.knowledge_contribution_details
+      (contribution_id, venue_id, question_version, value_schema, value_schema_version, detail, request_hash)
+    select x.id, x.venue_id, 1, 'policy', 1, ${text(JSON.stringify(detail))}::jsonb,
+      encode(sha256('DEV FIXTURE B03-B'::bytea), 'hex')
+    from public.knowledge_contributions x
+    where x.id = ${uuid(out.contributionId)} and x.question_key = ${synthetic(check.key)}`)
   return out.contributionId
+}
+
+/** Who may state a policy, from the caller's own capabilities (A35). */
+export async function policyCapabilities(
+  who: Pick<Person, "email">,
+  venue: Pick<Venue, "id"> | null
+) {
+  const caps = await knowledgeRpc<{
+    canStatePolicy: boolean
+    canStateOrgPolicy: boolean
+    policyBasis: string | null
+  }>(await sessionOf(who), "my_venue_capabilities", {
+    p_venue_id: venue?.id ?? null,
+  })
+  return {
+    canStatePolicy: caps.canStatePolicy,
+    canStateOrgPolicy: caps.canStateOrgPolicy,
+    policyBasis: caps.policyBasis,
+  }
+}
+
+/** One check as the legacy read presents it, in `who`'s own session (A39). */
+export async function legacyCheck(
+  who: Pick<Person, "email">,
+  venue: Pick<Venue, "id">,
+  key: string
+) {
+  const rows = await knowledgeRpc<
+    {
+      template_key: string
+      progress: string
+      answer: string
+      recheck_reason: string | null
+      qualification: string | null
+    }[]
+  >(await sessionOf(who), "amenity_checks_for_venue", {
+    p_venue_id: venue.id,
+    p_include_archived: false,
+  })
+  const row = rows.find((r) => r.template_key === key)
+  if (!row) throw new Error(`no legacy row for ${key}`)
+  return {
+    progress: row.progress,
+    recheckReason: row.recheck_reason,
+    qualification: row.qualification,
+  }
 }
 
 /** What the answer in use at a check still needs to be a complete policy. */
