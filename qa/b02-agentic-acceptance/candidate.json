@@ -1,0 +1,8 @@
+{
+  "comment": "The one B02 head this harness accepts. The coordinator replaces all five values together when the final head lands (README.md, 'Updating the pinned head'). Nothing reads a head from the caller.",
+  "commit": "5ed8178bacd791ccf50e351c1d9a6830aac0624d",
+  "tree": "cc82d2ac6f9d5a0c9ded305b32e767e4f1447ea1",
+  "migrationsDigest": "476ef09b2d1ca851df2fc3c818811b5b379c068c8d7e80dce4591e1e3a882e28",
+  "migrationCount": 48,
+  "latestMigration": "20261110095910"
+}

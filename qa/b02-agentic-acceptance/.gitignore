@@ -1,0 +1,3 @@
+# Per-run world files, generated media, app log and e2e reports (private).
+.results/
+.e2e/
