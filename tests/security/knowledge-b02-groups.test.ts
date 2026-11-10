@@ -6,8 +6,17 @@ import { randomUUID } from "node:crypto"
 
 import { beforeAll, describe, expect, it } from "vitest"
 
-import { markReady } from "../support/identities"
-import { createRequirement, insertAsset, ok, psql } from "./coverage-fixtures"
+import { createIdentity, markReady } from "../support/identities"
+import {
+  assign,
+  createRequirement,
+  insertAsset,
+  legacyStaffGrant,
+  ok,
+  psql,
+  requirementProgress,
+  submit as submitCoverage,
+} from "./coverage-fixtures"
 import {
   call,
   count,
@@ -89,6 +98,26 @@ async function communityVisible(who: World["staffA"], ids: string[]) {
   })
   return new Set(rows.map((r) => r.id))
 }
+
+/** The task ids `who` may read through the coverage_requirements policy. */
+async function readableTasks(who: World["staffA"], ids: string[]) {
+  const { data, error } = await who.client
+    .from("coverage_requirements")
+    .select("id")
+    .in("id", ids)
+  expect(error).toBeNull()
+  return (data ?? []).map((r) => r.id).sort()
+}
+
+const scope = async (who: World["staffA"]) =>
+  (
+    await json<{ role: string; manager_venue_id: string | null }[]>(
+      who,
+      "coverage_access_scope"
+    )
+  )[0]!
+
+const noSubject = { kind: "none", id: null, name: null }
 
 describe("contribution groups (W1)", () => {
   let w: World
@@ -370,6 +399,167 @@ describe("contribution groups (W1)", () => {
         p_asset_ids: [general],
       })
     ).toEqual([{ asset_id: general, group_id: g }])
+  })
+
+  it("names a task subject to the venue's effective manager account, never through another venue's or an ineffective grant", async () => {
+    const title = "TEST reviewer group task"
+    const task = await createRequirement(w.admin, w.venue, { title })
+    await assign(w.admin, task, [w.staffA.id])
+    const general = await photo(w.staffA.id, w.venue)
+    await submitCoverage(w.staffA, [general], task)
+    const g = await start(w.staffA, key(), "task", task)
+    await add(w.staffA, g, [general])
+
+    // The manager account is not the venue's current staff and has no photos
+    // on the task, so the table policy shows it no row; its effective grant
+    // opens the venue's progress read, which lists the task.
+    expect(await scope(w.manager)).toMatchObject({
+      role: "manager",
+      manager_venue_id: w.venue,
+    })
+    expect(await readableTasks(w.manager, [task])).toEqual([])
+    expect(
+      (await requirementProgress(w.manager, w.venue)).map(
+        (r) => r.requirement_id
+      )
+    ).toContain(task)
+    const managed = await view(w.manager, g)
+    expect(managed.subject).toEqual({ kind: "task", id: task, name: title })
+    expect(managed.members.map((m) => m.assetId)).toEqual([general])
+
+    // Another venue's effective grant, and an open grant for this venue held
+    // by staff assigned elsewhere (not effective). Photos still shows each the
+    // general member, so the group reads, but it names no subject.
+    const stray = await createIdentity(service, {
+      label: "kn-b02-groups-stray",
+      role: "staff",
+      venueId: other.venue,
+    })
+    await legacyStaffGrant(service, w.admin, stray.id, w.venue)
+    for (const [who, managerVenue] of [
+      [other.staffManager, other.venue],
+      [stray, null],
+    ] as const) {
+      expect((await scope(who)).manager_venue_id, who.id).toBe(managerVenue)
+      await refused(
+        who,
+        "coverage_requirement_progress",
+        { p_venue_id: w.venue, p_include_closed: false },
+        "not_venue_manager",
+        "42501"
+      )
+      expect(await readableTasks(who, [task]), who.id).toEqual([])
+      expect([...(await communityVisible(who, [general]))], who.id).toEqual([
+        general,
+      ])
+      const seen = await view(who, g)
+      expect(
+        seen.members.map((m) => m.assetId),
+        who.id
+      ).toEqual([general])
+      expect(seen.subject, who.id).toEqual(noSubject)
+      expect(JSON.stringify(seen), who.id).not.toContain(task)
+      expect(JSON.stringify(seen), who.id).not.toContain(title)
+    }
+    // Another venue's manager account sees no member, so no group.
+    await refused(
+      other.manager,
+      "contribution_group",
+      { p_group_id: g },
+      "contribution_group_not_found",
+      "P0002"
+    )
+  })
+
+  it("names a task to a transferred author only through their own photos on that task, at the group's venue", async () => {
+    const mover = await createIdentity(service, {
+      label: "kn-b02-groups-mover",
+      role: "staff",
+      venueId: w.venue,
+    })
+    const ownTitle = "TEST own-history group task"
+    const otherTitle = "TEST unrelated group task"
+    const own = await createRequirement(w.admin, w.venue, { title: ownTitle })
+    const unrelated = await createRequirement(w.admin, w.venue, {
+      title: otherTitle,
+    })
+    await assign(w.admin, own, [mover.id])
+    const submitted = await photo(mover.id, w.venue)
+    await submitCoverage(mover, [submitted], own)
+    const loose = await photo(mover.id, w.venue)
+    const gOwn = await start(mover, key(), "task", own)
+    await add(mover, gOwn, [submitted])
+    const gUnrelated = await start(mover, key(), "task", unrelated)
+    await add(mover, gUnrelated, [loose])
+    const ownNamed = { kind: "task", id: own, name: ownTitle }
+
+    // As the venue's current staff, the mover reads both tasks.
+    expect((await view(mover, gOwn)).subject).toEqual(ownNamed)
+    expect((await view(mover, gUnrelated)).subject).toEqual({
+      kind: "task",
+      id: unrelated,
+      name: otherTitle,
+    })
+
+    await ok(
+      service
+        .from("profiles")
+        .update({ venue_id: other.venue })
+        .eq("id", mover.id)
+    )
+
+    // After the transfer the task policy shows the mover only the task their
+    // own photos are on. The old venue's progress read refuses them: it has
+    // no own-photo arm.
+    expect(await readableTasks(mover, [own, unrelated])).toEqual([own])
+    await refused(
+      mover,
+      "coverage_requirement_progress",
+      { p_venue_id: w.venue, p_include_closed: false },
+      "not_venue_manager",
+      "42501"
+    )
+    const kept = await view(mover, gOwn)
+    expect(kept.subject).toEqual(ownNamed)
+    expect(kept.members.map((m) => m.assetId)).toEqual([submitted])
+    const lost = await view(mover, gUnrelated)
+    expect(lost.subject).toEqual(noSubject)
+    expect(lost.members.map((m) => m.assetId)).toEqual([loose])
+
+    // The task must be at the group's venue. contribution_group_start only
+    // names subjects at the caller's venue, so psql writes this group: at the
+    // mover's new venue, naming the old venue's task they have photos on.
+    const misplaced = psql(
+      `with g as (
+         insert into public.media_contribution_groups
+           (venue_id, created_by, subject_kind, subject_id, client_group_key)
+         values ('${other.venue}', '${mover.id}', 'task', '${own}', '${key()}')
+         returning id)
+       select id from g`
+    )
+    expect(await view(mover, misplaced)).toMatchObject({
+      venueId: other.venue,
+      mine: true,
+      subject: noSubject,
+      members: [],
+    })
+
+    // The mover's new colleague sees both general members, as Photos shows
+    // them, and neither task.
+    expect(await readableTasks(other.staffA, [own, unrelated])).toEqual([])
+    expect(
+      [...(await communityVisible(other.staffA, [submitted, loose]))].sort()
+    ).toEqual([submitted, loose].sort())
+    for (const [g, member] of [
+      [gOwn, submitted],
+      [gUnrelated, loose],
+    ] as const) {
+      const seen = await view(other.staffA, g)
+      expect(seen.members.map((m) => m.assetId)).toEqual([member])
+      expect(seen.subject).toEqual(noSubject)
+      for (const hidden of [own, unrelated, ownTitle, otherTitle])
+        expect(JSON.stringify(seen)).not.toContain(hidden)
+    }
   })
 
   it("keeps each member's own state, and hides a deleted member", async () => {
