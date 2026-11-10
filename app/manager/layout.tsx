@@ -54,6 +54,7 @@ export default async function ManagerLayout({
         userName={workspace.profile.displayName}
         reviewCount={read?.ok ? read.overview.pendingPhotos : undefined}
         confirmCount={toConfirm}
+        loadedAt={new Date().toISOString()}
       >
         {children}
       </ManagerShell>

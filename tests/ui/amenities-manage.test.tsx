@@ -161,7 +161,7 @@ describe("AmenitiesOverview: lists", () => {
       within(recent).getByRole("link", { name: WIFI_CHECK.entry.question })
     ).toBeTruthy()
     expect(
-      within(recent).getByText("Answered by TEST Sam on 4 Nov 2026")
+      within(recent).getByText("Recorded by TEST Sam on 4 Nov 2026")
     ).toBeTruthy()
   })
 

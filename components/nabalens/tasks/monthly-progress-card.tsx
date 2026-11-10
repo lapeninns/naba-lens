@@ -44,6 +44,16 @@ export function MonthlyProgressCard({
     (monthly?.period.label ?? periodLabel) +
     (showVenue && monthly ? ` at ${monthly.venue.name}` : "")
   const headingId = `monthly-${monthly?.period.key ?? "none"}-${monthly?.venue.id ?? "none"}`
+  const also = pendingLines(alsoPending)
+  const alsoLines =
+    also.length > 0 ? (
+      // Separate from the bar and its number: these aren't counted.
+      <div className="grid gap-1 border-t border-line pt-3 text-meta text-ink-muted">
+        {also.map((line) => (
+          <p key={line}>{line}</p>
+        ))}
+      </div>
+    ) : null
 
   if (!monthly) {
     return (
@@ -60,6 +70,7 @@ export function MonthlyProgressCard({
         <p className="text-body text-ink-muted">
           There&apos;s no photo target for you this month.
         </p>
+        {alsoLines}
       </section>
     )
   }
@@ -70,7 +81,8 @@ export function MonthlyProgressCard({
   const count = completion?.total ?? monthly.accepted
   const unit = completion ? "completed" : "accepted"
   const remaining = target ? Math.max(0, target - count) : null
-  const also = pendingLines(alsoPending)
+  // A target row without a number reads as a count alone: no bar, no "of".
+  const hasTarget = typeof target === "number" && target > 0
 
   return (
     <section
@@ -116,22 +128,24 @@ export function MonthlyProgressCard({
             </span>
             <span className="font-display text-section-title text-ink-muted">
               {" "}
-              of {target} {unit}
+              {hasTarget ? `of ${target} ${unit}` : unit}
             </span>
           </p>
-          <div
-            role="progressbar"
-            aria-valuemin={0}
-            aria-valuemax={target ?? 0}
-            aria-valuenow={Math.min(count, target ?? 0)}
-            aria-label={`${count} of ${target} ${completion ? "items completed" : "photos accepted"}`}
-          >
-            <PhotoSegments
-              accepted={count}
-              pending={completion ? 0 : monthly.pending}
-              target={target ?? 0}
-            />
-          </div>
+          {hasTarget ? (
+            <div
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={target}
+              aria-valuenow={Math.min(count, target)}
+              aria-label={`${count} of ${target} ${completion ? "items completed" : "photos accepted"}`}
+            >
+              <PhotoSegments
+                accepted={count}
+                pending={completion ? 0 : monthly.pending}
+                target={target}
+              />
+            </div>
+          ) : null}
           {remaining ? (
             <p className="text-body text-ink">
               {completion
@@ -181,14 +195,7 @@ export function MonthlyProgressCard({
         </ul>
       )}
 
-      {also.length > 0 ? (
-        // Separate from the bar and its number: these aren't counted.
-        <div className="grid gap-1 border-t border-line pt-3 text-meta text-ink-muted">
-          {also.map((line) => (
-            <p key={line}>{line}</p>
-          ))}
-        </div>
-      ) : null}
+      {alsoLines}
 
       {monthly.due ? (
         <div className="grid gap-1">

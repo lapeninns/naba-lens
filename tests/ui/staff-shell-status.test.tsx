@@ -127,6 +127,7 @@ describe("staffShellStatus", () => {
     expect(await staffShellStatus(ACTOR as never, PROFILE)).toEqual({
       canManage: false,
       todoCount: 2,
+      todoUnknown: false,
       reviewCount: undefined,
       avatarUrl: `/api/avatars/${PROFILE.id}`,
     })
@@ -166,6 +167,7 @@ describe("staffShellStatus", () => {
       knowledge.getWorkingList.mockImplementation(impl)
       expect(await staffShellStatus(ACTOR as never, PROFILE)).toMatchObject({
         todoCount: undefined,
+        todoUnknown: true,
       })
     }
   )
@@ -224,6 +226,7 @@ describe("staffShellStatus", () => {
     expect(await staffShellStatus(ACTOR as never, PROFILE)).toEqual({
       canManage: true,
       todoCount: undefined,
+      todoUnknown: true,
       reviewCount: 3,
       avatarUrl: `/api/avatars/${PROFILE.id}`,
     })
@@ -334,6 +337,7 @@ describe("currentStaffShell", () => {
     expect(await currentStaffShell()).toEqual({
       canManage: false,
       todoCount: 2,
+      todoUnknown: false,
       reviewCount: undefined,
       avatarUrl: `/api/avatars/${PROFILE.id}`,
     })
@@ -347,11 +351,13 @@ describe("currentStaffShell", () => {
         throw new Error("down")
       },
     ],
-  ])("never fails when the account read is %s", async (_, impl) => {
+  ])("never fails when the account read is %s", async (how, impl) => {
     coverage.getCoverageActor.mockImplementationOnce(async () => impl())
     expect(await currentStaffShell()).toEqual({
       canManage: false,
       todoCount: undefined,
+      // A refusal is no account to count for; a failure is a count unknown.
+      todoUnknown: how === "throws",
       reviewCount: undefined,
       avatarUrl: null,
     })

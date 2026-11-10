@@ -19,6 +19,7 @@ import { AssignmentList } from "./assignment-list"
 import { ColleaguePosts } from "./colleague-posts"
 import { FirstRunEntry } from "./first-run-entry"
 import { MonthlyProgressCard } from "./monthly-progress-card"
+import { PhotosSentNotice } from "./photos-sent-notice"
 import { TODO_HEADING_ID, todoItems, TodoSection } from "./todo-list"
 import type { CoverageScope, MyTasksView } from "./types"
 
@@ -140,9 +141,7 @@ export function TasksOverview({
       />
 
       {justSent ? (
-        <Notice tone="positive" role="status">
-          {sentNotice(justSent)}
-        </Notice>
+        <PhotosSentNotice>{sentNotice(justSent)}</PhotosSentNotice>
       ) : null}
 
       {sent ? (

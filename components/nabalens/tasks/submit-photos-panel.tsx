@@ -27,6 +27,7 @@ import type { OpenAddOptions } from "../shell/add-context"
 import type { UploadLimits } from "../types"
 import { UploadDialog } from "../upload-dialog"
 import type { Uploader } from "../upload-queue"
+import { useStillWaiting } from "../use-still-waiting"
 import {
   failureCopy,
   NETWORK_FAILURE,
@@ -164,6 +165,8 @@ export function SubmitPhotosPanel({
     undefined
   )
   const [sending, setSending] = React.useState(false)
+  const stillSending = useStillWaiting(sending)
+  const offlineNoteId = React.useId()
   const [outcome, setOutcome] = React.useState<Outcome | null>(null)
   const [uploadNote, setUploadNote] = React.useState<string | null>(null)
   const sessionEnded = useSessionEndedCatch()
@@ -231,6 +234,9 @@ export function SubmitPhotosPanel({
         const ready = new Set(
           result.items.filter((p) => p.eligible).map((p) => p.assetId)
         )
+        const reasonOf = new Map(
+          result.items.map((p) => [p.assetId, p.eligible ? null : p.reason])
+        )
         const picked = select.filter((id) => ready.has(id))
         setSelected((current) => {
           const next = [...current]
@@ -247,7 +253,18 @@ export function SubmitPhotosPanel({
           if (picked.includes(id)) {
             tally.selected.add(id)
             tally.waiting.delete(id)
-          } else if (!tally.selected.has(id)) tally.waiting.add(id)
+            tally.blocked.delete(id)
+          } else if (!tally.selected.has(id)) {
+            // Only a photo still processing is waiting; one that is ready
+            // but can't be sent here says why under its tile.
+            const reason = reasonOf.get(id)
+            if (reason === undefined || reason === "not_ready") {
+              tally.waiting.add(id)
+            } else {
+              tally.waiting.delete(id)
+              tally.blocked.add(id)
+            }
+          }
         }
         setUploadNote(arrivalNote(tally))
       } catch {
@@ -575,6 +592,7 @@ export function SubmitPhotosPanel({
             onClick={() => void send()}
             disabled={count === 0 || sending || !online}
             aria-busy={sending}
+            aria-describedby={!online && !sending ? offlineNoteId : undefined}
             className="w-full md:w-auto md:justify-self-start"
           >
             {sending ? (
@@ -594,6 +612,16 @@ export function SubmitPhotosPanel({
                   ? "Select photos to send"
                   : `Send ${plural(count, "photo", "photos")}`}
           </Button>
+          {!online && !sending ? (
+            <p id={offlineNoteId} className="text-meta text-ink-muted">
+              {OFFLINE_SEND}
+            </p>
+          ) : null}
+          {stillSending ? (
+            <p role="status" className="text-meta text-ink-muted">
+              {STILL_SENDING}
+            </p>
+          ) : null}
         </div>
       </ActionDock>
 
@@ -612,14 +640,27 @@ export function SubmitPhotosPanel({
   )
 }
 
-type Arrivals = { selected: Set<string>; waiting: Set<string> }
+export const OFFLINE_SEND = "You're offline. Send when you have a signal."
+export const STILL_SENDING = "Still sending; keep this page open."
+
+type Arrivals = {
+  selected: Set<string>
+  /** Still processing: they can be sent once ready. */
+  waiting: Set<string>
+  /** Ready, but not sendable here (another venue, already sent…). */
+  blocked: Set<string>
+}
 
 function newArrivals(): Arrivals {
-  return { selected: new Set(), waiting: new Set() }
+  return { selected: new Set(), waiting: new Set(), blocked: new Set() }
 }
 
 /** "2 new photos selected. 1 new photo isn't ready to send yet." */
-function arrivalNote({ selected, waiting }: Arrivals): string | null {
+export function arrivalNote({
+  selected,
+  waiting,
+  blocked,
+}: Arrivals): string | null {
   return (
     [
       selected.size
@@ -627,6 +668,9 @@ function arrivalNote({ selected, waiting }: Arrivals): string | null {
         : null,
       waiting.size
         ? `${plural(waiting.size, "new photo isn't", "new photos aren't")} ready to send yet.`
+        : null,
+      blocked.size
+        ? `${plural(blocked.size, "new photo", "new photos")} can't be sent here; see the reason under ${blocked.size === 1 ? "it" : "each"}.`
         : null,
     ]
       .filter(Boolean)

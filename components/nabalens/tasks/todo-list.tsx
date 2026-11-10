@@ -12,6 +12,7 @@ import type { WorkingSlot } from "@/lib/knowledge-client/contract"
 import { cn } from "@/lib/utils"
 
 import { orderAmenityTasks } from "../amenities/capture/amenity-task-list"
+import { formatDate } from "../format"
 import { Notice } from "../notice"
 import { CountBadge, StatusChip as StateChip } from "../status-chip"
 import { EvidenceThumb } from "./evidence-thumb"
@@ -220,7 +221,7 @@ function ReplaceCard({
         <EvidenceThumb
           thumbnailUrl={submission.asset.thumbnailUrl}
           previewUrl={submission.asset.previewUrl}
-          label={`${title}: photo sent ${submission.submittedAt.slice(0, 10)}`}
+          label={`${title}: photo sent ${formatDate(submission.submittedAt)}`}
           className="size-18 rounded-control bg-media-placeholder"
         />
         <div className="min-w-0">

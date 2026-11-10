@@ -73,7 +73,8 @@ export const REVIEW_COPY = {
   allSections: "All sections",
   contributorLabel: "Contributor",
   allContributors: "Everyone",
-  removeItemFilter: (item: string) => `Stop showing only ${item}`,
+  // The name starts with the visible text, so voice control can say it.
+  removeItemFilter: (item: string) => `Showing: ${item}. Remove filter`,
   showingItem: (item: string) => `Showing: ${item}`,
   showingThisItem: "Showing: one item",
   loadMore: "Show more",

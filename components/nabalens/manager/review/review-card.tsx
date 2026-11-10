@@ -73,6 +73,7 @@ export function ReviewCard({
   onOpenPreview,
   onRefresh,
   showItemLink = true,
+  headingLevel = 3,
 }: {
   card: ListCard
   scope: ReviewScope
@@ -83,6 +84,8 @@ export function ReviewCard({
   onOpenPreview: (trigger: HTMLElement) => void
   onRefresh: () => void
   showItemLink?: boolean
+  /** 2 for a card on its own; 3 under its item's group heading. */
+  headingLevel?: 2 | 3
 }) {
   const id = React.useId()
   const titleId = `${id}-title`
@@ -91,6 +94,7 @@ export function ReviewCard({
   const waited = card.state === null ? waitingFor(card.uploadedAt, now) : null
   const chip = CONTRIBUTOR_CHIP[card.contributor.status]
   const label = REVIEW_COPY.photoBy(card.contributor.name)
+  const Heading = headingLevel === 2 ? "h2" : "h3"
 
   if (card.settled) {
     return (
@@ -153,7 +157,7 @@ export function ReviewCard({
             </StatusChip>
           ) : null}
         </div>
-        <h3 id={titleId} className="text-item-title break-words text-ink">
+        <Heading id={titleId} className="text-item-title break-words text-ink">
           {card.item ? (
             showItemLink ? (
               <Link
@@ -168,7 +172,7 @@ export function ReviewCard({
           ) : (
             REVIEW_COPY.noMenuItem
           )}
-        </h3>
+        </Heading>
         <dl className="grid gap-1.5 text-body">
           <div className="flex flex-wrap gap-x-2">
             <dt className="sr-only">Staff label</dt>
@@ -229,7 +233,7 @@ export function ReviewCard({
           >
             <span>{error.text}</span>
             {error.refresh ? (
-              <Button type="button" variant="link" onClick={onRefresh}>
+              <Button type="button" variant="row-link" onClick={onRefresh}>
                 {REVIEW_COPY.refresh}
               </Button>
             ) : null}

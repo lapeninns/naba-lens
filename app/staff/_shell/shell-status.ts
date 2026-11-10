@@ -116,6 +116,8 @@ export type StaffShellStatus = {
    * smaller number.
    */
   todoCount: number | undefined
+  /** The count above couldn't be read: the badge says so ("?"). */
+  todoUnknown: boolean
   /** Only for a venue manager; none when the read fails. */
   reviewCount: number | undefined
   avatarUrl: string | null
@@ -140,8 +142,11 @@ export async function staffShellStatus(
     ])
   const view = tasks?.ok ? tasks.tasks : null
   const reviewKnown = !canManage || reviewCount !== undefined
+  const known =
+    !!view && !!amenityTasks && reviewKnown && workingList !== undefined
   return {
     canManage,
+    todoUnknown: !known,
     todoCount:
       view && amenityTasks && reviewKnown && workingList !== undefined
         ? todoCount(
@@ -162,6 +167,7 @@ export async function staffShellStatus(
 const NO_STATUS: StaffShellStatus = {
   canManage: false,
   todoCount: undefined,
+  todoUnknown: false,
   reviewCount: undefined,
   avatarUrl: null,
 }
@@ -178,6 +184,6 @@ export const currentStaffShell = cache(async (): Promise<StaffShellStatus> => {
     if (!auth.ok) return NO_STATUS
     return await staffShellStatus(auth.actor, auth.actor.profile)
   } catch {
-    return NO_STATUS
+    return { ...NO_STATUS, todoUnknown: true }
   }
 })

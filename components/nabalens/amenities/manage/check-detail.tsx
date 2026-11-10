@@ -7,6 +7,7 @@ import {
   ArrowCounterClockwiseIcon,
   CameraIcon,
   FloppyDiskIcon,
+  SpinnerGapIcon,
   UserMinusIcon,
   UserPlusIcon,
 } from "@phosphor-icons/react"
@@ -18,6 +19,7 @@ import {
 } from "@/components/nabalens/coverage"
 import { Notice } from "@/components/nabalens/notice"
 import { OptionSelect } from "@/components/nabalens/option-select"
+import { useStillWaiting } from "@/components/nabalens/use-still-waiting"
 import { Button, buttonVariants } from "@/components/ui/button"
 import {
   ANSWER_LABEL,
@@ -43,6 +45,11 @@ import { ReopenDialog, type ReopenOutcome } from "./reopen-dialog"
 import { useAmenityAction } from "./use-amenity-action"
 
 type RevisionResult = AmenityResult<{ revision: number }>
+
+type Write = "assign" | "unassign" | "notes" | "archive" | "restore" | "reopen"
+
+export const SAVING = "Saving…"
+export const STILL_SAVING = "Still saving; keep this page open."
 
 export type CheckDetailHandlers = {
   assign: (input: {
@@ -128,6 +135,19 @@ export function AmenityCheckDetail({
       setNotes(savedNotes)
   }
   const [reopenOpen, setReopenOpen] = React.useState(false)
+  // The write in flight, so only its button says it is saving.
+  const [busy, setBusy] = React.useState<Write | null>(null)
+  const still = useStillWaiting(busy !== null)
+  // Each write's outcome takes focus: the button that acted is often gone
+  // (Archive becomes Restore) or disabled (Assign, Save notes) once it lands.
+  const noticeRef = React.useRef<HTMLDivElement>(null)
+  const focusOutcome = React.useRef(false)
+  const reopenLanded = React.useRef(false)
+  React.useEffect(() => {
+    if (!action.notice || !focusOutcome.current) return
+    focusOutcome.current = false
+    noticeRef.current?.focus()
+  }, [action.notice])
   const active = check.status === "active"
   const revision = check.revision
   const people = peopleIndex(detail.assigneeOptions, [
@@ -136,9 +156,25 @@ export function AmenityCheckDetail({
     ...detail.events.map((e) => e.actor),
   ])
 
+  async function write<T extends object>(
+    key: Write,
+    call: () => Promise<AmenityResult<T>>,
+    success: string
+  ) {
+    setBusy(key)
+    // Reopen's dialog hands focus to the notice as it closes instead.
+    focusOutcome.current = key !== "reopen"
+    try {
+      return await action.run(call, success)
+    } finally {
+      setBusy(null)
+    }
+  }
+
   async function assign(next: string | null) {
     if (next == null) {
-      await action.run(
+      await write(
+        "unassign",
         () =>
           handlers.assign({ checkId: check.id, assigneeId: null, revision }),
         "Unassigned."
@@ -147,7 +183,8 @@ export function AmenityCheckDetail({
     }
     if (next === check.assignee?.id) return
     const name = people.get(next) ?? "them"
-    await action.run(
+    await write(
+      "assign",
       () => handlers.assign({ checkId: check.id, assigneeId: next, revision }),
       `Assigned to ${name}.`
     )
@@ -159,7 +196,8 @@ export function AmenityCheckDetail({
       action.setFieldErrors({ notes: `Use up to ${LIMITS.notes} characters.` })
       return
     }
-    await action.run(
+    await write(
+      "notes",
       () =>
         handlers.setNotes({ checkId: check.id, notes: notes.trim(), revision }),
       "Notes saved."
@@ -170,19 +208,24 @@ export function AmenityCheckDetail({
     preset: ReopenPreset
     reason?: string
   }): Promise<ReopenOutcome> {
-    const result = await action.run(
+    const result = await write(
+      "reopen",
       () => handlers.reopen({ checkId: check.id, revision, ...input }),
       knowledge
         ? "Reopened. The answer is no longer in use; staff see it as Needs recheck."
         : "Reopened: staff will see it as Needs recheck."
     )
-    if (result.ok) return { ok: true }
+    if (result.ok) {
+      reopenLanded.current = true
+      return { ok: true }
+    }
     if (result.code === "invalid_input" || result.code === "network")
       return {
         ok: false,
         error: result.message,
         fieldErrors: "fieldErrors" in result ? result.fieldErrors : undefined,
       }
+    reopenLanded.current = true
     return { ok: false, error: result.message, close: true }
   }
 
@@ -190,10 +233,33 @@ export function AmenityCheckDetail({
   const canReopen =
     permissions.canReopen && active && check.progress === "complete"
   const muted = "text-body-touch text-ink-muted md:text-body-sm"
+  const stillSaving = (...keys: Write[]) =>
+    still && busy && keys.includes(busy) ? (
+      <p role="status" className={muted}>
+        {STILL_SAVING}
+      </p>
+    ) : null
+  /** The pressed button's icon and label while its write runs. */
+  const label = (key: Write, icon: React.ReactNode, text: string) =>
+    busy === key ? (
+      <>
+        <SpinnerGapIcon aria-hidden className="animate-spin" />
+        {SAVING}
+      </>
+    ) : (
+      <>
+        {icon}
+        {text}
+      </>
+    )
 
   return (
     <div className="grid min-w-0 gap-6 md:gap-8">
-      <CoverageNotice notice={action.notice} onDismiss={action.dismiss} />
+      <CoverageNotice
+        ref={noticeRef}
+        notice={action.notice}
+        onDismiss={action.dismiss}
+      />
 
       {knowledge ? (
         <DecisionPanel
@@ -292,15 +358,16 @@ export function AmenityCheckDetail({
               variant="secondary"
               size="touch"
               onClick={() =>
-                action.run(
+                write(
+                  "archive",
                   () => handlers.archive({ checkId: check.id, revision }),
                   "Archived. Restore it from the Archived list at any time."
                 )
               }
               disabled={action.pending}
+              aria-busy={busy === "archive" || undefined}
             >
-              <ArchiveIcon aria-hidden />
-              {UI_TEXT.archive}
+              {label("archive", <ArchiveIcon aria-hidden />, UI_TEXT.archive)}
             </Button>
           ) : null}
           {permissions.canRestore && !active ? (
@@ -308,18 +375,24 @@ export function AmenityCheckDetail({
               variant="secondary"
               size="touch"
               onClick={() =>
-                action.run(
+                write(
+                  "restore",
                   () => handlers.restore({ checkId: check.id, revision }),
                   "Restored."
                 )
               }
               disabled={action.pending}
+              aria-busy={busy === "restore" || undefined}
             >
-              <ArrowCounterClockwiseIcon aria-hidden />
-              {UI_TEXT.restore}
+              {label(
+                "restore",
+                <ArrowCounterClockwiseIcon aria-hidden />,
+                UI_TEXT.restore
+              )}
             </Button>
           ) : null}
         </div>
+        {stillSaving("archive", "restore")}
         {permissions.canSubmit && active && !canUpload ? (
           <p className={muted}>
             {UI_TEXT.captureMyself} attaches photos and videos already on
@@ -391,9 +464,9 @@ export function AmenityCheckDetail({
                   !assigneeId ||
                   assigneeId === check.assignee?.id
                 }
+                aria-busy={busy === "assign" || undefined}
               >
-                <UserPlusIcon aria-hidden />
-                {UI_TEXT.assign}
+                {label("assign", <UserPlusIcon aria-hidden />, UI_TEXT.assign)}
               </Button>
               {check.assignee ? (
                 <Button
@@ -401,12 +474,17 @@ export function AmenityCheckDetail({
                   size="touch"
                   onClick={() => assign(null)}
                   disabled={action.pending}
+                  aria-busy={busy === "unassign" || undefined}
                 >
-                  <UserMinusIcon aria-hidden />
-                  {UI_TEXT.unassign}
+                  {label(
+                    "unassign",
+                    <UserMinusIcon aria-hidden />,
+                    UI_TEXT.unassign
+                  )}
                 </Button>
               ) : null}
             </div>
+            {stillSaving("assign", "unassign")}
             <p className={muted}>
               Only active staff at this venue can be assigned. Anyone can be
               changed later; their submissions are kept.
@@ -441,11 +519,12 @@ export function AmenityCheckDetail({
                 disabled={
                   action.pending || notes.trim() === (check.notes ?? "")
                 }
+                aria-busy={busy === "notes" || undefined}
               >
-                <FloppyDiskIcon aria-hidden />
-                Save notes
+                {label("notes", <FloppyDiskIcon aria-hidden />, "Save notes")}
               </Button>
             </div>
+            {stillSaving("notes")}
           </form>
         </CoverageSection>
       ) : null}
@@ -460,6 +539,11 @@ export function AmenityCheckDetail({
           question={check.entry.question}
           onConfirm={reopen}
           knowledge={knowledge !== null}
+          returnFocus={() => {
+            if (!reopenLanded.current) return null
+            reopenLanded.current = false
+            return noticeRef.current
+          }}
         />
       ) : null}
     </div>

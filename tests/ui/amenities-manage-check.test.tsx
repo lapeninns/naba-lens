@@ -82,7 +82,7 @@ describe("AmenityCheckDetail: status and actions", () => {
     expect(within(status).getByText("Photo and video")).toBeTruthy()
     expect(within(status).getByText("Complete")).toBeTruthy()
     expect(
-      within(status).getByText("Answered by TEST Sam on 4 Nov 2026")
+      within(status).getByText("Recorded by TEST Sam on 4 Nov 2026")
     ).toBeTruthy()
     const capture = screen.getByRole("link", { name: UI_TEXT.captureMyself })
     expect(capture.getAttribute("href")).toBe(
@@ -486,9 +486,12 @@ describe("AmenityCheckDetail: history", () => {
     const history = screen.getByRole("region", { name: "History" })
     const items = within(history).getAllByRole("listitem")
     expect(items[0].textContent).toMatch(/Assigned to TEST Sam/)
-    expect(items[0].textContent).toMatch(/TEST Manager · 3 Nov 2026/)
+    // MG-30: the time is named as when the change was recorded.
+    expect(items[0].textContent).toMatch(
+      /Recorded by TEST Manager · 3 Nov 2026/
+    )
     expect(items[1].textContent).toMatch(/Added when Amenities were enabled/)
-    expect(items[1].textContent).toMatch(/System/)
+    expect(items[1].textContent).toMatch(/Recorded · \d/)
   })
 })
 

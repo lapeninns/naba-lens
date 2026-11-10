@@ -7,6 +7,7 @@ import {
 } from "@phosphor-icons/react"
 
 import { ReasonField } from "@/components/nabalens/coverage"
+import { useStillWaiting } from "@/components/nabalens/use-still-waiting"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -36,6 +37,9 @@ export type ReopenOutcome =
 
 export const OTHER_REASON_REQUIRED = "Say what needs rechecking."
 
+const SAVING = "Saving…"
+const STILL_SAVING = "Still saving; keep this page open."
+
 /**
  * Reopens a complete check for staff to recapture. A preset is required;
  * free text is required for Other and optional otherwise. The current answer
@@ -47,6 +51,7 @@ export function ReopenDialog({
   question,
   onConfirm,
   knowledge = false,
+  returnFocus,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -57,11 +62,17 @@ export function ReopenDialog({
     preset: ReopenPreset
     reason?: string
   }) => Promise<ReopenOutcome>
+  /**
+   * Where focus goes as the dialog closes, when the trigger may be gone (a
+   * reopened check has no Reopen button); null keeps the default.
+   */
+  returnFocus?: () => HTMLElement | null
 }) {
   const id = React.useId()
   const [preset, setPreset] = React.useState<ReopenPreset | null>(null)
   const [reason, setReason] = React.useState("")
   const [pending, setPending] = React.useState(false)
+  const still = useStillWaiting(pending)
   const [error, setError] = React.useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = React.useState<
     Partial<Record<string, string>>
@@ -114,7 +125,7 @@ export function ReopenDialog({
   const presetError = fieldErrors.preset
   return (
     <Dialog open={open} onOpenChange={close}>
-      <DialogContent>
+      <DialogContent finalFocus={() => returnFocus?.() ?? true}>
         <form onSubmit={submit} className="grid gap-4" noValidate>
           <DialogHeader>
             <DialogTitle>Reopen this check</DialogTitle>
@@ -134,7 +145,7 @@ export function ReopenDialog({
             {REOPEN_PRESETS.map((value) => (
               <label
                 key={value}
-                className="flex min-h-11 items-center gap-3 text-body-touch text-ink md:min-h-8 md:text-body"
+                className="flex min-h-11 items-center gap-3 text-body-touch text-ink md:text-body"
               >
                 <input
                   type="radio"
@@ -177,6 +188,14 @@ export function ReopenDialog({
               {error}
             </p>
           ) : null}
+          {still ? (
+            <p
+              role="status"
+              className="text-body-touch text-ink-muted md:text-body-sm"
+            >
+              {STILL_SAVING}
+            </p>
+          ) : null}
           <DialogFooter>
             <Button
               type="button"
@@ -198,7 +217,7 @@ export function ReopenDialog({
               ) : (
                 <ArrowCounterClockwiseIcon aria-hidden />
               )}
-              {UI_TEXT.reopen}
+              {pending ? SAVING : UI_TEXT.reopen}
             </Button>
           </DialogFooter>
         </form>

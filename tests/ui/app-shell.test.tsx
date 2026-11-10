@@ -199,9 +199,10 @@ describe("AppShell offline notice", () => {
     const [alert] = offlineAlerts()
     expect(alert).toBeTruthy()
     expect(within(alert).getByText("You're offline")).toBeTruthy()
-    expect(alert.textContent).toMatch(
-      /What you see was last updated at \d{1,2}:\d{2}(\s?[ap]m)?\. Nothing is sent twice when you try again\./i
-    )
+    // Rendered in the browser, the shell has no server render time: it
+    // never claims one (X-01), and says only when the connection dropped.
+    expect(alert.textContent).toMatch(/You've been offline since \d{2}:\d{2}\./)
+    expect(alert.textContent).not.toMatch(/Loaded at|last updated/)
     // Above the page content, inside main.
     const main = screen.getByRole("main")
     expect(main.contains(alert)).toBe(true)

@@ -519,6 +519,7 @@ export function ReviewList({
                       }}
                       onRefresh={() => router.refresh()}
                       showItemLink={showItemLinks}
+                      headingLevel={2}
                     />
                   </li>
                 )
@@ -565,7 +566,7 @@ export function ReviewList({
                         })}
                         scroll={false}
                         className={buttonVariants({
-                          variant: "link",
+                          variant: "row-link",
                           className: "justify-self-start",
                         })}
                       >

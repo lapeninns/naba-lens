@@ -4,7 +4,7 @@ import { CheckIcon, InfoIcon, ProhibitIcon } from "@phosphor-icons/react"
 
 import { cn } from "@/lib/utils"
 
-import { formatDateTime, ineligibleCopy } from "./copy"
+import { COMPLETION_ONLY, formatDateTime, ineligibleCopy } from "./copy"
 import { EvidenceImage } from "./evidence-image"
 import type { AssetIneligibleReason, SubmittablePhoto } from "./types"
 
@@ -56,7 +56,7 @@ export function PhotoPicker({
             : photo.live
               ? "Waiting for review on another task. Sending it here moves it."
               : !monthly && photo.completionTarget
-                ? "Checklist item only"
+                ? COMPLETION_ONLY
                 : !monthly && !photo.countsTowardMonthly
                   ? "Task only (from an earlier month)"
                   : null

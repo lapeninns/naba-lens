@@ -1,5 +1,7 @@
 "use client"
 
+import * as React from "react"
+
 import type { Option } from "@/components/nabalens/types"
 import type {
   Page,
@@ -41,6 +43,9 @@ export function ReviewScreen({
   defaultStatus?: QueueStatus
   itemName?: string | null
 }) {
+  // A filter tap answers at once: the pill turns, and the list says it is
+  // updating until the new view arrives.
+  const [updating, startTransition] = React.useTransition()
   return (
     <div className="grid gap-6">
       <ReviewFilters
@@ -52,14 +57,17 @@ export function ReviewScreen({
         fixedContributorId={fixedContributorId}
         defaultStatus={defaultStatus}
         itemName={itemName}
+        startTransition={startTransition}
       />
-      <ReviewList
-        initial={initial}
-        view={view}
-        scope={scope}
-        venueName={venueName}
-        now={now}
-      />
+      <div aria-busy={updating || undefined} className="grid">
+        <ReviewList
+          initial={initial}
+          view={view}
+          scope={scope}
+          venueName={venueName}
+          now={now}
+        />
+      </div>
     </div>
   )
 }

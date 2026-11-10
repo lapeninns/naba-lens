@@ -13,9 +13,9 @@ import { UI_TEXT, amenityHrefs } from "@/lib/amenities/contract"
 import { cn } from "@/lib/utils"
 
 import { SectionTabs } from "../section-tabs"
+import { TabBadge } from "../shell/tab-badge"
 import { TAB_ITEM } from "../shell/tab-item"
 import { TO_CONFIRM_COPY } from "../knowledge/copy"
-import { CountBadge } from "../status-chip"
 import { MANAGER_COPY } from "./copy"
 import { managerHrefs, managerSectionFor, type ManagerSection } from "./hrefs"
 import { useReviewCount } from "./review-count"
@@ -117,12 +117,7 @@ export function ManagerNav({
             <Icon aria-hidden className="size-[26px]" />
             {item.label}
             {badge ? (
-              <CountBadge
-                count={badge.value}
-                label={badge.label}
-                tone="warn"
-                className="absolute top-1 left-[calc(50%+6px)] ring-2 ring-surface"
-              />
+              <TabBadge count={badge.value} label={badge.label} />
             ) : null}
           </Link>
         )

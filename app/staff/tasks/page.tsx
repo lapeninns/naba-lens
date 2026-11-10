@@ -107,6 +107,16 @@ async function ourMenuProgress(
 }
 
 /**
+ * When the working list can't be read, a complete check may still have a
+ * newer finding of mine waiting: say it was sent, never that it is complete.
+ */
+const SENT_NEUTRAL: FindingSentCopy = {
+  title: "Sent",
+  body: "",
+  tone: "positive",
+}
+
+/**
  * The amenity check named by `?finding_sent=<id>`, as the database has it now:
  * the notice is never shown on the word of the URL alone. A working-list
  * question says what happened to my latest finding (design §4.3); any other
@@ -118,9 +128,8 @@ async function sentFinding(
 ): Promise<string | { question: string; copy: FindingSentCopy } | null> {
   const checkId = first(params[FINDING_SENT_PARAM])
   if (!checkId) return null
-  const slot = (await myWorkingList(actor))?.slots.find(
-    (item) => item.checkId === checkId
-  )
+  const list = await myWorkingList(actor)
+  const slot = list?.slots.find((item) => item.checkId === checkId)
   if (slot) {
     const copy = sentNoticeFor(slot)
     return copy ? { question: slot.question, copy } : null
@@ -129,10 +138,14 @@ async function sentFinding(
     const result = await getCheck(actor, { checkId })
     if (!result.ok) return null
     const { check } = result.detail
-    return check.progress === "complete" &&
-      check.answeredBy?.id === actor.profile.id
-      ? check.entry.question
-      : null
+    if (
+      check.progress !== "complete" ||
+      check.answeredBy?.id !== actor.profile.id
+    )
+      return null
+    return list === undefined
+      ? { question: check.entry.question, copy: SENT_NEUTRAL }
+      : check.entry.question
   } catch {
     return null
   }

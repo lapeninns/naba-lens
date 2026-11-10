@@ -85,9 +85,14 @@ const amenities = vi.hoisted(() => ({
 }))
 vi.mock("@/lib/server/amenities", () => amenities)
 // No working list at this venue: the legacy screens, counts and badge.
+// `fail` makes the read fail instead.
+const workingList = vi.hoisted(() => ({ fail: false }))
 vi.mock("@/lib/knowledge-client/services", () => ({
   knowledgeServices: {
-    getWorkingList: async () => ({ ok: true, view: null }),
+    getWorkingList: async () =>
+      workingList.fail
+        ? { ok: false, code: "unavailable" }
+        : { ok: true, view: null },
   },
 }))
 
@@ -317,6 +322,21 @@ describe("Home: Finding sent", () => {
     expect(notice).toBeTruthy()
     expect(notice.textContent).toContain("Is there step-free access?")
     expect(screen.getByRole("button", { name: "Dismiss" })).toBeTruthy()
+  })
+
+  it("says only Sent, never complete, when the working list can't be read (HM-16)", async () => {
+    setup()
+    amenities.getMyAmenityTasks.mockResolvedValue({ ok: true, tasks: [] })
+    amenities.getCheck.mockResolvedValue(sentCheck())
+    workingList.fail = true
+    try {
+      await home({ finding_sent: "c1" })
+    } finally {
+      workingList.fail = false
+    }
+    const notice = screen.getByText("Sent").closest<HTMLElement>('[role="status"]')!
+    expect(notice.textContent).toContain("Is there step-free access?")
+    expect(notice.textContent).not.toContain("complete")
   })
 
   it.each([

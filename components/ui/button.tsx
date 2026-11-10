@@ -20,6 +20,10 @@ const DANGER_QUIET =
   "bg-transparent text-warn-fg hover:bg-warn-bg disabled:text-ink-muted aria-disabled:text-ink-muted"
 const LINK =
   "h-auto min-h-0 border-0 bg-transparent px-0 font-bold text-ink underline decoration-[1.5px] underline-offset-4 hover:decoration-[3px] max-md:min-h-11"
+// A link-style action in a row or notice: looks like `link` but keeps the
+// 44px target at every width, since tablets and laptops are touched too.
+const ROW_LINK =
+  "h-auto min-h-11 border-0 bg-transparent px-0 font-bold text-ink underline decoration-[1.5px] underline-offset-4 hover:decoration-[3px]"
 
 /*
  * Sizes (DESIGN.md §2): button 52px, XL 60px, sm 44px (the target floor, for
@@ -42,6 +46,7 @@ const buttonVariants = cva(
         "danger-quiet": DANGER_QUIET,
         destructive: DANGER_QUIET,
         link: LINK,
+        "row-link": ROW_LINK,
       },
       size: {
         default: "min-h-13 px-5 py-2",
@@ -60,6 +65,10 @@ const buttonVariants = cva(
       {
         variant: "link",
         className: "h-auto min-h-0 px-0 py-0 md:h-auto md:min-h-0",
+      },
+      {
+        variant: "row-link",
+        className: "h-auto min-h-11 px-0 py-0",
       },
     ],
     defaultVariants: {
