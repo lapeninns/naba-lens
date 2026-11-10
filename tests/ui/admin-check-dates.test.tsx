@@ -296,6 +296,82 @@ describe("admin check dates preview", () => {
     expect(knowledge.previewFreshness).not.toHaveBeenCalled()
   })
 
+  it("passes over a skipped version to the one in force", async () => {
+    knowledge.listQuestionRegistry.mockResolvedValue({
+      ok: true,
+      questions: [
+        {
+          key: "guest_wifi",
+          version: 3,
+          guidance: { question: "⟨Wi-Fi question⟩" },
+          effectiveFrom: "2999-01-01T00:00:00.000Z",
+          freshness: { internal: "offering_90", public: "offering_public" },
+        },
+      ],
+    })
+    knowledge.getQuestion.mockImplementation(
+      async (_actor: unknown, { version }: { version: number }) =>
+        version === 2
+          ? {
+              ok: false,
+              code: "not_found",
+              status: 404,
+              message: "This question could not be found.",
+            }
+          : {
+              ok: true,
+              question: {
+                key: "guest_wifi",
+                version: 1,
+                effectiveFrom: null,
+                freshness: { internal: "fixture_365", public: null },
+              },
+            }
+    )
+    knowledge.previewFreshness.mockResolvedValue({
+      ok: true,
+      preview: { key: "guest_wifi", items: [] },
+    })
+    await show({ key: "guest_wifi" })
+    expect(knowledge.getQuestion.mock.calls.map((c) => c[1])).toEqual([
+      { key: "guest_wifi", version: 2 },
+      { key: "guest_wifi", version: 1 },
+    ])
+    expect(
+      (
+        screen.getByLabelText(
+          "Rule for staff and internal tools (optional)"
+        ) as HTMLSelectElement
+      ).value
+    ).toBe("fixture_365")
+    expect(knowledge.previewFreshness).toHaveBeenCalledWith(expect.anything(), {
+      key: "guest_wifi",
+      policy: { internal: "fixture_365", public: null },
+    })
+    expect(
+      screen.queryByText(
+        "This question's rules in force couldn't be read. Choose the rules to preview, or reload the page."
+      )
+    ).toBeNull()
+    // A read that fails outright, or no registry function, is not a skip.
+    for (const failed of [
+      () => Promise.reject(new Error("down")),
+      async () => ({ ok: true, question: null }),
+    ]) {
+      cleanup()
+      vi.clearAllMocks()
+      knowledge.getQuestion.mockImplementation(failed)
+      await show({ key: "guest_wifi" })
+      expect(knowledge.getQuestion).toHaveBeenCalledTimes(1)
+      expect(
+        screen.getByText(
+          "This question's rules in force couldn't be read. Choose the rules to preview, or reload the page."
+        )
+      ).toBeTruthy()
+      expect(knowledge.previewFreshness).not.toHaveBeenCalled()
+    }
+  })
+
   it("reads no earlier version when the latest is in force", async () => {
     knowledge.listQuestionRegistry.mockResolvedValue({
       ok: true,

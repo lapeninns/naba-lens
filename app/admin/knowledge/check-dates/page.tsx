@@ -59,7 +59,9 @@ const NO_RULES: Rules = { internal: null, public: null }
  * The question's check-date rules in force now. The registry lists each
  * question's latest version, which may only take effect later; earlier
  * versions are read until one is in force (a version is never backdated, so
- * one with no or a past effective date is). Null when a read fails.
+ * one with no or a past effective date is). Version numbers may be skipped,
+ * so a version the registry says doesn't exist is passed over. Null when a
+ * read fails.
  */
 async function rulesInForce(
   actor: MediaActor,
@@ -74,6 +76,7 @@ async function rulesInForce(
     const read = await knowledgeServices
       .getQuestion(actor, { key: latest.key, version })
       .catch(() => null)
+    if (read && !read.ok && read.code === "not_found") continue
     if (!read?.ok || !read.question) return null
     if (inForce(read.question)) return read.question.freshness
   }
