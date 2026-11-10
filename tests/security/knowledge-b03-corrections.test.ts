@@ -221,6 +221,16 @@ describe("withdrawals (§9.2, C-B03-3)", () => {
       (await withdraw(w.manager, w, "onsite_parking")).error?.message
     ).toBe("already_decided")
     expect([stored(), events()]).toEqual(was)
+    // Review M3: the legacy check reads show it as needing a recheck.
+    const [legacyRow] = await json<
+      { progress: string; recheck_reason: string; qualification: string }[]
+    >(w.manager, "amenity_check", { p_check_id: w.checks.onsite_parking })
+    expect(legacyRow).toMatchObject({
+      progress: "needs_recheck",
+      recheck_reason:
+        "The answer in use was withdrawn. Open the check to see why.",
+      qualification: "withdrawn",
+    })
     expect(units(w, w.staffA.id)).toBe(before)
     const [row] = await json<
       { status: string; reason: string; detail: string; value: string | null }[]

@@ -192,6 +192,67 @@ describe("the schedule in use (A7, A25)", () => {
   })
 })
 
+describe("a changed schedule (review M1)", () => {
+  it("keeps the earlier version's times and exceptions before the new one starts", async () => {
+    const v = await world("kn-b03-schedules-change")
+    const first = await yes(v.staffA, v, "guest_toilets")
+    attach(first.contributionId, { schedule: SCHEDULE })
+    const s1 = scheduleOf(first.contributionId)
+    expect(
+      (
+        await call(v.manager, "knowledge_schedule_exception", {
+          p_check_id: v.checks.guest_toilets,
+          p_slot_revision: slotRevision(v.venue, "guest_toilets"),
+          p_idempotency_key: randomUUID(),
+          p_schedule_id: s1,
+          p_local_date: "2026-11-08",
+          p_kind: "cancelled",
+          p_windows: null,
+          p_note: null,
+        })
+      ).error
+    ).toBeNull()
+    const second = await yes(v.staffA, v, "guest_toilets")
+    attach(second.contributionId, {
+      schedule: {
+        ...SCHEDULE,
+        effectiveFrom: "2026-11-15",
+        windows: [{ start: "13:00", end: "16:00" }],
+      },
+    })
+    if (second.outcome === "awaiting_confirmation")
+      expect(
+        (
+          await decide(
+            v.manager,
+            v,
+            "guest_toilets",
+            { type: "contribution", id: second.contributionId },
+            "confirm"
+          )
+        ).error
+      ).toBeNull()
+    type Row = { local_date: string; starts_at: string; state: string }
+    const rows = await json<Row[]>(v.staffA, "knowledge_occurrences", {
+      p_check_id: v.checks.guest_toilets,
+      p_from: "2026-11-01",
+      p_to: "2026-11-22",
+    })
+    expect(
+      rows.map((r) => [
+        r.local_date,
+        new Date(r.starts_at).toISOString().slice(11, 16),
+        r.state,
+      ])
+    ).toEqual([
+      ["2026-11-01", "12:00", "scheduled"],
+      ["2026-11-08", "12:00", "cancelled"],
+      ["2026-11-15", "13:00", "scheduled"],
+      ["2026-11-22", "13:00", "scheduled"],
+    ])
+  })
+})
+
 describe("single-date exceptions (A7)", () => {
   const exception = (
     who: World["manager"],

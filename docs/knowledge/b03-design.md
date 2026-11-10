@@ -1414,3 +1414,24 @@ schema_changed`. Nothing is withdrawn and no schema version exists, so
 capabilities (A35), the sender's authority check (A37), retired list items
 (A38) and the legacy presentation of an incomplete policy (A39); A36 needs no
 change.
+
+**B03-d to g review repairs (10 Nov 2026):** migration
+`20261110113909_knowledge_b03defg_review_repairs` (evidence
+b03-defg-implementation-review.md).
+
+- M1: `knowledge_occurrences` expands the whole `supersedes` chain; each
+  version covers its own dates (to the day before the next version starts)
+  with its own exceptions, so earlier and past occurrences keep their times.
+- M2: a legacy dry run pins each fact's revision and the review in force per
+  key; a review added or changed afterwards makes apply refuse
+  `reconcile_source_changed`.
+- M3: the legacy check reads present a withdrawn answer as `needs_recheck`,
+  "The answer in use was withdrawn. Open the check to see why." and
+  `qualification = 'withdrawn'` (first, as the resolver orders it); Reopen
+  and the staff task list follow `qualification`.
+- Low 1: a due_soon task whose due time has passed is cancelled and an
+  expired task opens; the job closes at the same time it opens at
+  (`private.knowledge_close_rechecks` gains `p_now`).
+- Low 2: `answerInUse.source` and `answerInUse.sourceLabel`.
+- Low 3: an external assertion's excerpt never becomes the proposal's
+  `limitations`; managers read it as the pending import's `sourceExcerpt`.

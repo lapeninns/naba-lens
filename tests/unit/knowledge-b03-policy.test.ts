@@ -112,6 +112,17 @@ describe("legacy check views for a qualified answer (A19, A21)", () => {
     })
   })
 
+  it("treat a withdrawn answer in use the same way (review M3)", () => {
+    const withdrawn = row({
+      progress: "needs_recheck",
+      recheck_reason:
+        "The answer in use was withdrawn. Open the check to see why.",
+      qualification: "withdrawn",
+    })
+    expect(checkPermissions(withdrawn, manager).canReopen).toBe(true)
+    expect(myTasks([withdrawn], USER)).toEqual([])
+  })
+
   it("never make a qualified answer a staff task", () => {
     expect(myTasks([qualified], USER)).toEqual([])
     expect(myTasks([row({ progress: "needs_recheck" })], USER)).toHaveLength(1)

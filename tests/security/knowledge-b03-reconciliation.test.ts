@@ -147,6 +147,44 @@ describe("legacy facts (§8.2)", () => {
     ).toBe("complete:true")
   })
 
+  it("name the source of an adopted import on the answer in use (review low 2)", async () => {
+    const check = await json<{
+      answerInUse: { source: string; sourceLabel: string | null }
+    }>(w.staffA, "knowledge_check", {
+      p_check_id: w.checks.guest_toilets,
+    })
+    expect(check.answerInUse).toMatchObject({
+      source: "legacy_fact",
+      sourceLabel: "Coverage (legacy record)",
+    })
+  })
+
+  it("block apply when a mapping review changed after the dry run (review M2)", async () => {
+    const v = await world("kn-b03-reconcile-review")
+    const fact = randomUUID()
+    psql(`insert into public.venue_amenity_facts (id, venue_id, amenity_key, presence) values
+      ('${fact}', '${v.venue}', 'toilets', 'present')`)
+    const review = (kind: string) =>
+      json(v.admin, "knowledge_mapping_review", {
+        p_legacy_fact_id: fact,
+        p_legacy_revision: 1,
+        p_question_key: "guest_toilets",
+        p_kind: kind,
+        p_reason: "TEST",
+        p_idempotency_key: randomUUID(),
+      })
+    await review("exact")
+    await reconcile(v.admin, "legacy", "dry_run", v.venue)
+    await review("none")
+    const { error } = await reconcile(v.admin, "legacy", "apply", v.venue)
+    expect(error?.message).toBe("reconcile_source_changed")
+    expect(
+      psql(
+        `select count(*) from public.knowledge_contribution_sources where legacy_fact_id = '${fact}'`
+      )
+    ).toBe("0")
+  })
+
   it("block apply when a fact changed after the dry run", async () => {
     await reconcile(w.admin, "legacy", "dry_run", w.venue)
     psql(
@@ -228,6 +266,12 @@ describe("external sources (§8.2)", () => {
     )
     expect(row).toMatchObject({ status: "unavailable", reason: "disputed" })
 
+    // Review low 3: the source's words stay internal, never the limitations.
+    expect(
+      psql(`select count(*) from public.knowledge_contributions x
+        join public.knowledge_contribution_sources ks on ks.contribution_id = x.id
+        where x.venue_id = '${v.venue}' and ks.source_kind = 'external_source' and x.limitations is not null`)
+    ).toBe("0")
     const no =
       psql(`select x.id from public.knowledge_contributions x join public.knowledge_contribution_sources ks
       on ks.contribution_id = x.id where x.venue_id = '${v.venue}' and x.answer = 'no'`)

@@ -251,6 +251,8 @@ export type Qualification =
   | "temporarily_unavailable"
   /** A39: a policy answer in use that is not complete yet. */
   | "policy_incomplete"
+  /** Review M3: the answer in use was withdrawn (b03-design §9.2). */
+  | "withdrawn"
 
 export type EvidenceItem = {
   assetId: string

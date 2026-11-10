@@ -227,6 +227,9 @@ export type KnowledgeSlotView = {
     policyMissing?: PolicyMissing[]
     /** B03-d (A25): the schedule version in use, for a schedule exception. */
     scheduleId?: string | null
+    /** Review low 2: where the answer in use came from; imports name their source. */
+    source?: FindingSource
+    sourceLabel?: string | null
   } | null
   previousAnswer: SubmitAnswer | null
   requiresConfirmation: boolean
@@ -285,6 +288,8 @@ export type PendingFindingView = {
   sourceLabel?: string
   /** B03-f (A23): imports only; false while the check has an answer in use. */
   adoptable?: boolean
+  /** Review low 3: external imports only, what the source said (internal). */
+  sourceExcerpt?: string | null
 }
 
 export type FindingSource =
