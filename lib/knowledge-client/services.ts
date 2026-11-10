@@ -25,6 +25,7 @@ import type {
   KnowledgeResult,
   MyPending,
   QuestionView,
+  RegistryQuestion,
   ResolveConflictInput,
   SaveDraftInput,
   ServerDraft,
@@ -95,7 +96,18 @@ export type KnowledgeServices = {
     actor: MediaActor,
     input: unknown
   ): Promise<KnowledgeResult<{ assets: KnowledgeAsset[] }>>
+  /**
+   * A question's registry version (B03-a), the latest unless `version` is
+   * given. Null before the registry exists, so the page keeps today's form.
+   */
+  getQuestion(
+    actor: MediaActor,
+    input: { key: string; version?: number | null }
+  ): Promise<KnowledgeResult<{ question: RegistryQuestion | null }>>
 }
+
+/** A registry key, as the server checks it. */
+const QUESTION_KEY = /^[a-z0-9_]{1,40}$/
 
 /** PostgREST and Postgres "no such function": the schema predates B01. */
 const MISSING_FUNCTION = new Set(["PGRST202", "42883"])
@@ -142,6 +154,27 @@ const UNKNOWN_DECISION: KnowledgeFailure = {
 }
 
 export const knowledgeServices: KnowledgeServices = {
+  async getQuestion(actor, input) {
+    if (!QUESTION_KEY.test(input.key))
+      return {
+        ok: false,
+        code: "not_found",
+        status: 404,
+        message: "This question could not be found.",
+      }
+    // Read here for the database's code: before the B03-a migration there is
+    // no registry, and the page behaves as before it (today's form).
+    const { data, error } = await knowledgeRpc(actor.db, "knowledge_question", {
+      p_key: input.key,
+      p_version: input.version ?? null,
+    })
+    if (error) {
+      if (MISSING_FUNCTION.has(error.code ?? ""))
+        return { ok: true, question: null }
+      return server.knowledgeRpcFailure(error, "knowledge question")
+    }
+    return { ok: true, question: data }
+  },
   async getWorkingList(actor) {
     // Read here, not through server.getWorkingList, to see the database's
     // code: before the B01 migrations the function doesn't exist, and that

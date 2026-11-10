@@ -68,6 +68,7 @@ const knowledge = vi.hoisted(() => ({
   getKnowledgeCheck: vi.fn(),
   getDraft: vi.fn(),
   listKnowledgeAssets: vi.fn(),
+  getQuestion: vi.fn(),
 }))
 vi.mock("@/lib/knowledge-client/services", () => ({
   knowledgeServices: knowledge,
@@ -222,6 +223,86 @@ beforeEach(() => {
   services.listSubmittableAssets.mockResolvedValue({ ok: true, assets: [] })
   knowledge.listKnowledgeAssets.mockResolvedValue({ ok: true, assets: [] })
   knowledge.getDraft.mockResolvedValue({ ok: true, draft: null })
+  knowledge.getQuestion.mockResolvedValue({ ok: true, question: null })
+})
+
+describe("capture routes and the question registry (B03 UI §2.1)", () => {
+  const registry = (over: Record<string, unknown>) => ({
+    ok: true,
+    question: {
+      key: "step_free_entrance",
+      lifecycle: "supported",
+      supersededBy: null,
+      valueSchema: { name: "presence", version: 1 },
+      ...over,
+    },
+  })
+
+  it.each(Object.keys(pages) as (keyof typeof pages)[])(
+    "%s capture keeps today's form for a version 1 schema, reading the question's key",
+    async (name) => {
+      knowledge.getKnowledgeCheck.mockResolvedValue({
+        ok: true,
+        view: inScope(),
+      })
+      knowledge.getQuestion.mockResolvedValue(registry({}))
+      await show(pages[name]())
+      expect(knowledge.getQuestion).toHaveBeenCalledWith(expect.anything(), {
+        key: "step_free_entrance",
+      })
+      expect(
+        screen.getByRole("radio", { name: "Couldn't establish" })
+      ).toBeTruthy()
+    }
+  )
+
+  it.each(Object.keys(pages) as (keyof typeof pages)[])(
+    "%s capture shows a notice and no form for a schema this build doesn't know",
+    async (name) => {
+      knowledge.getKnowledgeCheck.mockResolvedValue({
+        ok: true,
+        view: inScope(),
+      })
+      knowledge.getQuestion.mockResolvedValue(
+        registry({ valueSchema: { name: "accessibility", version: 1 } })
+      )
+      await show(pages[name]())
+      expect(
+        screen.getByText(
+          "This question has a newer form than this screen knows. Reload to get it."
+        )
+      ).toBeTruthy()
+      expect(screen.getByRole("button", { name: "Reload" })).toBeTruthy()
+      expect(screen.queryByRole("radio")).toBeNull()
+      expect(screen.queryByRole("button", { name: /Submit/ })).toBeNull()
+      expect(
+        screen.queryByRole("button", { name: "Save for later" })
+      ).toBeNull()
+    }
+  )
+
+  it("says a question isn't asked any more, with no form", async () => {
+    knowledge.getKnowledgeCheck.mockResolvedValue({ ok: true, view: inScope() })
+    knowledge.getQuestion.mockResolvedValue(registry({ lifecycle: "retired" }))
+    await show(pages.staff())
+    expect(
+      screen.getByText(
+        "This question isn't asked any more. Its earlier answers are kept."
+      )
+    ).toBeTruthy()
+    expect(screen.queryByRole("radio")).toBeNull()
+  })
+
+  it("keeps today's form when the registry read fails or doesn't exist yet", async () => {
+    knowledge.getKnowledgeCheck.mockResolvedValue({ ok: true, view: inScope() })
+    knowledge.getQuestion.mockRejectedValueOnce(new Error("network"))
+    await show(pages.staff())
+    expect(screen.getByRole("button", { name: "Submit finding" })).toBeTruthy()
+    cleanup()
+    knowledge.getQuestion.mockResolvedValueOnce({ ok: true, question: null })
+    await show(pages.staff())
+    expect(screen.getByRole("button", { name: "Submit finding" })).toBeTruthy()
+  })
 })
 
 describe("capture routes on a working-list question (G2)", () => {

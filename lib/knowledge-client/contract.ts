@@ -36,6 +36,11 @@ export {
   UNKNOWN_PRESETS,
 } from "@/lib/knowledge/contract"
 export type {
+  QuestionView as RegistryQuestion,
+  QuestionLifecycle,
+  ValueSchemaName,
+} from "@/lib/knowledge/contract"
+export type {
   ConfirmationState,
   FindingRef,
   KnowledgeAnswer,

@@ -15,6 +15,11 @@ import {
 } from "@/lib/amenities/contract"
 import { answerInUseLines } from "@/components/nabalens/knowledge/copy"
 import { LatestFinding } from "@/components/nabalens/knowledge/latest-finding"
+import {
+  questionForm,
+  type QuestionForm,
+} from "@/components/nabalens/knowledge/question-form"
+import { QuestionFormNotice } from "@/components/nabalens/knowledge/question-form-notice"
 import { ROUTES } from "@/lib/auth/routes"
 import {
   knowledgeAssetsResult,
@@ -39,7 +44,11 @@ async function knowledgeFor(
   checkId: string,
   role: KnowledgeProps["role"],
   venueName: string
-): Promise<{ props: KnowledgeProps; capture: CaptureCheck } | null> {
+): Promise<{
+  props: KnowledgeProps
+  capture: CaptureCheck
+  form: QuestionForm
+} | null> {
   const [view, draft] = await Promise.all([
     knowledgeServices
       .getKnowledgeCheck(actor, { checkId, venueName })
@@ -47,9 +56,14 @@ async function knowledgeFor(
     knowledgeServices.getDraft(actor, { checkId }).catch(() => null),
   ])
   if (!view?.ok || !view.view.inScope) return null
+  // Which form this build may render for the question's registry version.
+  const question = await knowledgeServices
+    .getQuestion(actor, { key: view.view.slot.key })
+    .catch(() => null)
   return {
     props: fromView(view.view, draft?.ok ? draft.draft : null, role),
     capture: view.view.capture,
+    form: questionForm(question?.ok ? question.question : null),
   }
 }
 
@@ -230,7 +244,9 @@ export async function CaptureScreen({
           </span>
         }
       />
-      {open ? (
+      {open && knowledgeRead && knowledgeRead.form.kind !== "b01" ? (
+        <QuestionFormNotice form={knowledgeRead.form} />
+      ) : open ? (
         latest ? (
           <LatestFinding
             finding={latest}
