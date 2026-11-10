@@ -40,6 +40,7 @@ import {
 import { cn } from "@/lib/utils"
 
 import { formatDate, formatTime } from "../format"
+import { useStillWaiting } from "../use-still-waiting"
 import { buildCatalogueIndex } from "./catalogue-search"
 import {
   EMPTY_COMMON,
@@ -170,7 +171,6 @@ function countText(eff: EffectiveLabels) {
 }
 
 const STILL_SAVING = "Still saving; keep this page open."
-const STILL_SAVING_MS = 15_000
 
 /**
  * Who changed the labels isn't known (an admin, a manager, or the person's
@@ -361,15 +361,8 @@ function LabelEditor({
     false
   )
   const [announcement, setAnnouncement] = React.useState("")
-  // A save with no answer after 15 s says so, once, in the same region.
-  React.useEffect(() => {
-    if (!pending) return
-    const timer = window.setTimeout(
-      () => setAnnouncement(STILL_SAVING),
-      STILL_SAVING_MS
-    )
-    return () => window.clearTimeout(timer)
-  }, [pending])
+  // A save with no answer after 15 s says so, in the same region.
+  const slowSave = useStillWaiting(pending)
   const [confirmOpen, setConfirmOpen] = React.useState(false)
   const [focusTarget, setFocusTarget] = React.useState<{ id: string } | null>(
     null
@@ -1187,7 +1180,7 @@ function LabelEditor({
               aria-live="polite"
               className="text-body font-bold text-ink empty:hidden"
             >
-              {announcement}
+              {slowSave ? STILL_SAVING : announcement}
             </p>
           </div>
 

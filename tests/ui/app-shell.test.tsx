@@ -137,7 +137,12 @@ describe("AppShell staff navigation", () => {
     const add = nav("Staff", "tabbar").getByRole("button", {
       name: "Add, 2 in progress, 1 failed",
     })
-    expect(add.querySelector("[data-slot=add-busy]")?.textContent).toBe("3")
+    // The shared tab badge, hidden from the name (the name says it all).
+    const badge = add.querySelector("[data-slot=add-busy]")!
+    expect(badge.getAttribute("aria-hidden")).toBe("true")
+    expect(badge.querySelector("[data-slot=count]")?.textContent).toMatch(
+      /\b3\b/
+    )
     expect(
       screen.getByRole("button", {
         name: "Add photos, 2 in progress, 1 failed",

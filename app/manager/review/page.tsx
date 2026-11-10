@@ -3,6 +3,10 @@ import {
   type ReviewSearch,
 } from "@/app/manager/review/_shared/review-page"
 import { REVIEW_COPY } from "@/components/nabalens/manager/review/review-copy"
+import {
+  OfflineNotice,
+  OFFLINE_BANNER_CLASS,
+} from "@/components/nabalens/offline-notice"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { requireManagerVenue } from "@/lib/auth/manager"
 import { ROUTES } from "@/lib/auth/routes"
@@ -27,6 +31,10 @@ export default async function ManagerReviewPage({
   if (!scope.ok) failedRead(scope.code, "Review", ROUTES.managerReview)
   return (
     <div className="grid gap-6">
+      <OfflineNotice
+        className={OFFLINE_BANNER_CLASS}
+        loadedAt={new Date().toISOString()}
+      />
       <PageHeader
         scope={venue.name}
         venueScope

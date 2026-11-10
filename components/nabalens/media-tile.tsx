@@ -202,7 +202,7 @@ export function MediaTile({
     <span
       data-slot="tile-dishes"
       title={dishes}
-      className="truncate text-meta text-ink"
+      className="line-clamp-2 text-meta [overflow-wrap:anywhere] text-ink"
     >
       <span className="sr-only">Labelled: </span>
       {dishes}
@@ -250,10 +250,16 @@ export function MediaTile({
       {showAttribution ? (
         <figcaption className="grid min-w-0 px-px">
           {dishLine}
-          <span className="truncate text-label text-ink">
+          <span
+            title={item.contributorName}
+            className="line-clamp-2 text-label [overflow-wrap:anywhere] text-ink"
+          >
             {item.contributorName}
           </span>
-          <span className="truncate text-meta text-ink-muted">
+          <span
+            title={`${item.venueName} · ${formatDate(item.createdAt)}`}
+            className="line-clamp-2 text-meta [overflow-wrap:anywhere] text-ink-muted"
+          >
             {item.venueName} · {formatDate(item.createdAt)}
           </span>
         </figcaption>

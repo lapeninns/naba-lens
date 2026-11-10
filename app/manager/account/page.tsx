@@ -1,5 +1,9 @@
 import { ManagerAccountForm } from "@/components/nabalens/manager/account-form"
 import { MANAGER_COPY } from "@/components/nabalens/manager/copy"
+import {
+  OfflineNotice,
+  OFFLINE_BANNER_CLASS,
+} from "@/components/nabalens/offline-notice"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { requireManagerVenue } from "@/lib/auth/manager"
 
@@ -12,6 +16,10 @@ export default async function ManagerAccountPage() {
   const copy = MANAGER_COPY.accountPage
   return (
     <div className="grid gap-(--gutter)">
+      <OfflineNotice
+        className={OFFLINE_BANNER_CLASS}
+        loadedAt={new Date().toISOString()}
+      />
       <PageHeader
         title={copy.title}
         summary={copy.summary}

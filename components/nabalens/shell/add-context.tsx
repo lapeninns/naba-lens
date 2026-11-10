@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils"
 
 import type { PhotoSource } from "../photo-source"
 import type { UploadPurpose } from "../upload-queue"
+import { TabBadge } from "./tab-badge"
 import { TAB_ITEM } from "./tab-item"
 
 /**
@@ -180,17 +181,16 @@ export function AddTrigger({ kind }: { kind: "tab" | "bar" }) {
   // a count on the trigger, and the words after its name. The name is set
   // whole because Chrome inserts a space before an sr-only suffix.
   const busyName = busy ? `${label}, ${busy.words}` : undefined
+  // The shared tab badge: anchored to the icon and capped at "9+" on the
+  // phone bar. Its own words are hidden: the button's name already says them.
   const badge = busy ? (
-    <span
-      aria-hidden
-      data-slot="add-busy"
-      className={cn(
-        "inline-grid h-[26px] min-w-[26px] place-items-center rounded-round bg-ink px-[7px] font-mono text-[1.0625rem] leading-none font-bold text-surface tabular-nums",
-        kind === "tab" &&
-          "absolute top-1 left-[calc(50%+12px)] ring-2 ring-surface"
-      )}
-    >
-      {busy.count}
+    <span aria-hidden data-slot="add-busy" className="contents">
+      <TabBadge
+        count={busy.count}
+        label="in Add"
+        placement={kind === "tab" ? "tab" : "inline"}
+        className="bg-ink"
+      />
     </span>
   ) : null
   const content =

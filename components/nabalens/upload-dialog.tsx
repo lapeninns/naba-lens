@@ -68,6 +68,7 @@ import {
   type Uploader,
   type UploadPurpose,
 } from "./upload-queue"
+import { useStillWaiting } from "./use-still-waiting"
 import { useObjectUrl, useUploadQueue } from "./use-upload-queue"
 
 type UploadDialogProps = {
@@ -176,8 +177,6 @@ const plural = (n: number, one: string, many: string) =>
 export const STILL_PROCESSING =
   "Still processing; this can take up to 2 minutes; you can leave this screen."
 export const STILL_SAVING_LABELS = "Still saving; keep this page open."
-/** A label save without an answer this long says so. */
-const STILL_SAVING_MS = 15_000
 
 /**
  * True once `ms` have passed since `since` (null: not started). Timed from
@@ -194,20 +193,6 @@ function useAfter(since: number | null, ms: number) {
     return () => window.clearTimeout(timer)
   }, [since, ms])
   return since !== null && passed === since
-}
-
-/** True once `on` has held for `ms` without a break. */
-function useHeldFor(on: boolean, ms: number) {
-  const [held, setHeld] = React.useState(false)
-  React.useEffect(() => {
-    if (!on) return
-    const timer = window.setTimeout(() => setHeld(true), ms)
-    return () => {
-      window.clearTimeout(timer)
-      setHeld(false)
-    }
-  }, [on, ms])
-  return on && held
 }
 
 /**
@@ -390,9 +375,8 @@ function QueueRow({
     item.status === "processing" ? (item.processingAt ?? null) : null
   const processingLong = useAfter(processingSince, STILL_PROCESSING_MS)
   const processingStalled = useAfter(processingSince, STALLED_PROCESSING_MS)
-  const labelsSlow = useHeldFor(
-    item.status === "done" && labels.kind === "saving",
-    STILL_SAVING_MS
+  const labelsSlow = useStillWaiting(
+    item.status === "done" && labels.kind === "saving"
   )
   const detail = processingStalled
     ? unconfirmedMessage(item.kind)
@@ -464,7 +448,7 @@ function QueueRow({
         ) : null}
         {labels.kind === "retry" && item.status === "done" ? (
           <Button
-            variant="link"
+            variant="row-link"
             size="touch"
             className="justify-self-start"
             onClick={onRetryLabels}
@@ -474,7 +458,7 @@ function QueueRow({
           </Button>
         ) : labels.kind === "attention" && item.status === "done" ? (
           <Button
-            variant="link"
+            variant="row-link"
             size="touch"
             className="justify-self-start"
             onClick={onFixLabels}

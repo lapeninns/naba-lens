@@ -15,10 +15,14 @@ export const OFFLINE_COPY = {
   offlineSince: (time: string) => `You've been offline since ${time}.`,
   loadedOffline: "This page was loaded offline; it may be out of date.",
   action: "Try again",
-  /** Still used by Prepare month's own offline outcome. */
-  body: (time: string) =>
-    `What you see was last updated at ${time}. Nothing is sent twice when you try again.`,
 } as const
+
+/**
+ * The banner's place at the top of a page: edge to edge under the bar on
+ * phones, a card in the page column from md (Common Room).
+ */
+export const OFFLINE_BANNER_CLASS =
+  "-mx-(--page-gutter) -mt-4 mb-3 rounded-none md:mx-0 md:mt-0 md:mb-8 md:rounded-card"
 
 /** What the banner can truthfully say about the page's age. */
 type OfflineTimes = {
@@ -160,9 +164,7 @@ export function OfflineShell({
         {/* Mounted only while it shows: OfflineNotice needs the app router. */}
         {online || pageNotices > 0 ? null : (
           <PageNotices value={null}>
-            {/* Common Room offline banner: edge to edge under the bar on
-                phones, a card in the page column from md. */}
-            <OfflineNotice className="-mx-(--page-gutter) -mt-4 mb-3 rounded-none md:mx-0 md:mt-0 md:mb-8 md:rounded-card" />
+            <OfflineNotice className={OFFLINE_BANNER_CLASS} />
           </PageNotices>
         )}
         {children}

@@ -5,6 +5,10 @@ import { ItemWaiting } from "@/components/nabalens/manager/menu/item-waiting"
 import { ItemWaitingReview } from "@/components/nabalens/manager/menu/item-waiting-review"
 import { managerHrefs } from "@/components/nabalens/manager/hrefs"
 import { backHref } from "@/components/nabalens/manager/menu/menu-query"
+import {
+  OfflineNotice,
+  OFFLINE_BANNER_CLASS,
+} from "@/components/nabalens/offline-notice"
 import { requireManagerVenue } from "@/lib/auth/manager"
 import { isUuid } from "@/lib/server/coverage/validate"
 import {
@@ -51,29 +55,33 @@ export default async function ManagerMenuItemPage({
   const { detail } = read
   if (!detail) notFound()
 
+  const now = new Date().toISOString()
   return (
-    <ItemDetail
-      detail={detail}
-      backHref={back}
-      decide={decideMenuPhotoAction}
-      history={
-        history.ok
-          ? { items: history.items, nextCursor: history.nextCursor }
-          : null
-      }
-      loadEvents={loadItemEventsAction}
-      waiting={
-        detail.waiting.items.length > 0 ? (
-          <ItemWaitingReview
-            itemId={detail.item.itemId}
-            initial={detail.waiting}
-            venueName={venue.name}
-            now={new Date().toISOString()}
-          />
-        ) : (
-          <ItemWaiting item={detail.item} waiting={detail.waiting} />
-        )
-      }
-    />
+    <>
+      <OfflineNotice className={OFFLINE_BANNER_CLASS} loadedAt={now} />
+      <ItemDetail
+        detail={detail}
+        backHref={back}
+        decide={decideMenuPhotoAction}
+        history={
+          history.ok
+            ? { items: history.items, nextCursor: history.nextCursor }
+            : null
+        }
+        loadEvents={loadItemEventsAction}
+        waiting={
+          detail.waiting.items.length > 0 ? (
+            <ItemWaitingReview
+              itemId={detail.item.itemId}
+              initial={detail.waiting}
+              venueName={venue.name}
+              now={now}
+            />
+          ) : (
+            <ItemWaiting item={detail.item} waiting={detail.waiting} />
+          )
+        }
+      />
+    </>
   )
 }

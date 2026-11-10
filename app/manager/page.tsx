@@ -2,6 +2,10 @@ import { OverviewBody } from "@/components/nabalens/manager/overview/overview-bo
 import { TeamCompletionTargets } from "@/components/nabalens/manager/overview/team-completion-targets"
 import { VenueAccessUnavailable } from "@/components/nabalens/manager/venue-access-unavailable"
 import { Notice } from "@/components/nabalens/notice"
+import {
+  OfflineNotice,
+  OFFLINE_BANNER_CLASS,
+} from "@/components/nabalens/offline-notice"
 import { getManagerWorkspace } from "@/lib/auth/manager"
 import { ROUTES } from "@/lib/auth/routes"
 import { knowledgeServices } from "@/lib/knowledge-client/services"
@@ -53,18 +57,24 @@ export default async function ManagerOverviewPage() {
   if (!team.ok && isRefusal(team.code)) {
     return <VenueAccessUnavailable reason="no_grant" refreshShell />
   }
+  // The layout's time stops describing a page once it is navigated to, so
+  // each page says when it was rendered itself.
+  const now = new Date().toISOString()
   return (
-    <OverviewBody
-      overview={read.overview}
-      now={new Date().toISOString()}
-      confirmCount={confirmCount}
-      staffTargets={
-        team.ok ? (
-          <TeamCompletionTargets roster={team.roster} />
-        ) : (
-          <Notice role="status">Staff targets couldn’t be loaded.</Notice>
-        )
-      }
-    />
+    <>
+      <OfflineNotice className={OFFLINE_BANNER_CLASS} loadedAt={now} />
+      <OverviewBody
+        overview={read.overview}
+        now={now}
+        confirmCount={confirmCount}
+        staffTargets={
+          team.ok ? (
+            <TeamCompletionTargets roster={team.roster} />
+          ) : (
+            <Notice role="status">Staff targets couldn’t be loaded.</Notice>
+          )
+        }
+      />
+    </>
   )
 }

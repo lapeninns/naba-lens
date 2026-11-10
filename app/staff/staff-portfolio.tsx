@@ -315,7 +315,12 @@ function MilestoneTile({
         {MILESTONES[milestone]}
       </StatusChip>
       {detail ? (
-        <span className="truncate text-meta text-ink-muted">{detail}</span>
+        <span
+          title={detail}
+          className="line-clamp-2 text-meta [overflow-wrap:anywhere] text-ink-muted"
+        >
+          {detail}
+        </span>
       ) : null}
     </li>
   )

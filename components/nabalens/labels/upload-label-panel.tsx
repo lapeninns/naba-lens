@@ -608,7 +608,7 @@ export function UploadLabelPanel({
       <div className="grid gap-3">
         <Button
           type="button"
-          variant="link"
+          variant="row-link"
           className="w-fit text-label"
           aria-expanded={detailsOpen}
           aria-controls={`${uid}-details`}
