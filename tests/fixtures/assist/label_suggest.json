@@ -215,6 +215,19 @@
         "outcome": "invalid_output",
         "issues": ["wrong_type"]
       }
+    },
+    {
+      "id": "j1-not-food-with-candidates",
+      "imageRef": "synthetic:car park, model still names a dish",
+      "recorded": {
+        "kind": "response",
+        "status": 200,
+        "body": "{\"candidates\":[{\"code\":\"c01\",\"variantCode\":null,\"fit\":\"possible\"}],\"contentType\":\"venue\",\"notFood\":true}"
+      },
+      "expect": {
+        "outcome": "invalid_output",
+        "issues": ["inconsistent_not_food"]
+      }
     }
   ]
 }

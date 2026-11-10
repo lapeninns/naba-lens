@@ -9,7 +9,7 @@ import {
 } from "@/lib/menus/types"
 
 import type { CandidateCodes } from "./codes"
-import { looksLikeCredential } from "./sanitise"
+import { looksLikeCredential, redactText } from "./sanitise"
 import type { ValidationIssue, ValidationResult } from "./types"
 
 type Obj = Record<string, unknown>
@@ -148,6 +148,8 @@ export function validateLabelSuggest(
   if (root.contentType !== null)
     out.contentType = c.oneOf(root.contentType, "$.contentType", CONTENT_TYPES)
   out.notFood = c.boolean(root.notFood, "$.notFood")
+  // Menu suggestions for a photo called "not food" would contradict themselves.
+  if (out.notFood && list.length > 0) c.fail("$", "inconsistent_not_food")
   return c.result(out)
 }
 
@@ -278,6 +280,9 @@ export function validateEvidenceDescribe(
     const text = c.text(o, path, 120, { untrusted: true })
     if (text === null) return
     if (looksLikeCredential(text)) return c.fail(path, "credential_like")
+    const { removed } = redactText(text)
+    if (removed.email + removed.url + removed.phone > 0)
+      return c.fail(path, "contact_or_link")
     if (MEASUREMENT.test(text)) return c.fail(path, "measurement_claim")
     if (PROHIBITED_CLAIM.test(text)) return c.fail(path, "prohibited_claim")
     observations.push(text)

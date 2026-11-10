@@ -80,6 +80,24 @@ describe("attempt outcomes (B09-03c, review L2)", () => {
     expect(mayRetry("retryable_not_sent", policy)).toBe(false)
   })
 
+  it("allows exactly maxRetries retries (inclusive boundary)", () => {
+    const allowed = (attemptsSoFar: number, maxRetries: number) =>
+      mayRetry("retryable_not_sent", {
+        attemptsSoFar,
+        maxRetries,
+        providerIdempotent: false,
+      })
+    // One retry: the first attempt may be retried, the retry may not.
+    expect(allowed(0, 1)).toBe(true)
+    expect(allowed(1, 1)).toBe(false)
+    // Two retries: attempts one and two may be retried, the third may not.
+    expect(allowed(0, 2)).toBe(true)
+    expect(allowed(1, 2)).toBe(true)
+    expect(allowed(2, 2)).toBe(false)
+    // No retry budget at all.
+    expect(allowed(0, 0)).toBe(false)
+  })
+
   it("holds the worst case for unknown outcomes and releases for unsent ones", () => {
     expect(costActionFor("unknown_outcome")).toBe("hold")
     expect(costActionFor("retryable_not_sent")).toBe("release")
@@ -111,6 +129,7 @@ describe("attempt outcomes (B09-03c, review L2)", () => {
             images: [],
             context: { job: "evidence_describe" },
             idempotencyKey: c.id,
+            requester: "staff",
             attemptsSoFar: 0,
           },
           provider

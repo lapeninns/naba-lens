@@ -9,7 +9,7 @@ import {
 import type { TransportEvent } from "@/lib/server/assist/outcomes"
 import { buildPrompt, escapeData } from "@/lib/server/assist/prompt"
 import { createFixtureProvider } from "@/lib/server/assist/providers/fixture"
-import type { AssistJobKey } from "@/lib/server/assist/types"
+import type { AssistJobKey, AssistRequester } from "@/lib/server/assist/types"
 import type { LabelSuggestion } from "@/lib/server/assist/validate"
 
 import evidence from "../fixtures/assist/evidence_describe.json"
@@ -29,6 +29,9 @@ function jobOf(key: AssistJobKey) {
   return lookup.job
 }
 
+const requesterFor = (key: AssistJobKey) =>
+  key === "menu_import_draft" ? ("admin" as const) : ("staff" as const)
+
 async function run(key: AssistJobKey, c: Case, context: OutputContext) {
   const provider = createFixtureProvider({
     [c.id]: c.recorded as TransportEvent,
@@ -40,6 +43,7 @@ async function run(key: AssistJobKey, c: Case, context: OutputContext) {
       images: [],
       context,
       idempotencyKey: c.id,
+      requester: requesterFor(key),
       attemptsSoFar: 0,
     },
     provider
@@ -146,6 +150,7 @@ describe("untrusted content framing (B09-02c)", () => {
       blocks: [{ label: "NOTE", content: "x" }],
       images: [],
       idempotencyKey: "k",
+      requester: "staff" as const,
       attemptsSoFar: 0,
     }
     const mismatch = await runOfflineAttempt(
@@ -183,6 +188,7 @@ describe("untrusted content framing (B09-02c)", () => {
         images: [],
         context: { job: "evidence_describe" },
         idempotencyKey: "k",
+        requester: "staff",
         attemptsSoFar: 0,
       },
       real
@@ -190,4 +196,56 @@ describe("untrusted content framing (B09-02c)", () => {
     expect(result.outcome).toBe("refused")
     expect(result.issues[0]?.code).toBe("job_not_signed_off")
   })
+})
+
+describe("requester roles (B09-01c)", () => {
+  const contexts: Record<AssistJobKey, OutputContext> = {
+    label_suggest: { job: "label_suggest", codes: buildCandidateCodes([]) },
+    menu_import_draft: { job: "menu_import_draft", maxPage: 1 },
+    evidence_describe: { job: "evidence_describe" },
+    missing_field_prompts: {
+      job: "missing_field_prompts",
+      fieldNames: ["fee"],
+      note: "x",
+    },
+  }
+  const expected: Record<AssistJobKey, Record<AssistRequester, boolean>> = {
+    label_suggest: { staff: true, manager: true, admin: false },
+    menu_import_draft: { staff: false, manager: false, admin: true },
+    evidence_describe: { staff: true, manager: true, admin: false },
+    missing_field_prompts: { staff: true, manager: true, admin: false },
+  }
+  for (const key of Object.keys(expected) as AssistJobKey[]) {
+    for (const requester of ["staff", "manager", "admin"] as const) {
+      const allowed = expected[key][requester]
+      it(`${key}: ${requester} is ${allowed ? "allowed" : "refused"}`, async () => {
+        const provider = createFixtureProvider({})
+        const result = await runOfflineAttempt(
+          {
+            job: jobOf(key),
+            blocks: [],
+            images: [],
+            context: contexts[key],
+            idempotencyKey: "roles",
+            requester,
+            attemptsSoFar: 0,
+          },
+          provider
+        )
+        if (allowed) {
+          expect(result.issues).not.toContainEqual({
+            path: "$",
+            code: "requester_not_allowed",
+          })
+          expect(provider.received).toHaveLength(1)
+        } else {
+          expect(result.outcome).toBe("refused")
+          expect(result.issues).toEqual([
+            { path: "$", code: "requester_not_allowed" },
+          ])
+          expect(provider.received).toHaveLength(0)
+        }
+      })
+    }
+  }
 })

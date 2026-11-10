@@ -2,8 +2,8 @@
 // provider, classification, validation and code mapping. No database writes;
 // the runner and ledger arrive with B09-m1.
 
-import type { AssistJobDefinition } from "./types"
-import { mayRunOn } from "./catalogue"
+import type { AssistJobDefinition, AssistRequester } from "./types"
+import { mayRequest, mayRunOn } from "./catalogue"
 import type { CandidateCodes } from "./codes"
 import {
   classifyAttempt,
@@ -39,6 +39,7 @@ export type OfflineAttempt = {
   images: readonly ProviderImage[]
   context: OutputContext
   idempotencyKey: string
+  requester: AssistRequester
   attemptsSoFar: number
   signal?: AbortSignal
 }
@@ -105,6 +106,8 @@ export async function runOfflineAttempt(
     versions,
   })
   if (attempt.context.job !== job.key) return refused("context_mismatch")
+  if (!mayRequest(job, attempt.requester))
+    return refused("requester_not_allowed")
   if (!mayRunOn(job, provider.id)) return refused("job_not_signed_off")
   if (attempt.images.length > job.limits.maxImages)
     return refused("too_many_images")

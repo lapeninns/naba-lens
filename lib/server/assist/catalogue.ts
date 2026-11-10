@@ -2,6 +2,7 @@ import type {
   AssistJobDefinition,
   AssistJobKey,
   AssistJobLimits,
+  AssistRequester,
 } from "./types"
 import { ASSIST_JOB_KEYS } from "./types"
 
@@ -135,6 +136,14 @@ export type JobLookup =
 export function getAssistJob(key: unknown, version: number): JobLookup {
   const job = ASSIST_JOBS.find((j) => j.key === key && j.version === version)
   return job ? { ok: true, job } : { ok: false, reason: "assist_job_unknown" }
+}
+
+/** Only the roles a job version names may request it (B09-01c). */
+export function mayRequest(
+  job: AssistJobDefinition,
+  requester: AssistRequester
+): boolean {
+  return job.requesters.includes(requester)
 }
 
 /** A version without owner sign-off may run only on the offline fixture provider. */

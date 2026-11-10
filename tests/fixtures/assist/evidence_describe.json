@@ -94,6 +94,42 @@
         "outcome": "invalid_output",
         "issues": ["extra_field"]
       }
+    },
+    {
+      "id": "j3-url",
+      "recorded": {
+        "kind": "response",
+        "status": 200,
+        "body": "{\"observations\":[\"A poster showing www.example.com\"],\"uncertain\":false}"
+      },
+      "expect": {
+        "outcome": "invalid_output",
+        "issues": ["contact_or_link"]
+      }
+    },
+    {
+      "id": "j3-email",
+      "recorded": {
+        "kind": "response",
+        "status": 200,
+        "body": "{\"observations\":[\"A card reading bookings@example.com\"],\"uncertain\":false}"
+      },
+      "expect": {
+        "outcome": "invalid_output",
+        "issues": ["contact_or_link"]
+      }
+    },
+    {
+      "id": "j3-phone",
+      "recorded": {
+        "kind": "response",
+        "status": 200,
+        "body": "{\"observations\":[\"A sign with the number 07700 900123\"],\"uncertain\":false}"
+      },
+      "expect": {
+        "outcome": "invalid_output",
+        "issues": ["contact_or_link"]
+      }
     }
   ]
 }

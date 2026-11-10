@@ -93,6 +93,10 @@ export function costActionFor(
 }
 
 export type RetryPolicy = {
+  /**
+   * Attempts made before the one that just ended (0 for the first attempt),
+   * which is also the number of retries already used.
+   */
   attemptsSoFar: number
   maxRetries: number
   /** OD-B9-8: whether the provider's idempotency guarantee is accepted. */
@@ -103,7 +107,7 @@ export function mayRetry(
   outcome: AttemptOutcome,
   policy: RetryPolicy
 ): boolean {
-  if (policy.attemptsSoFar > policy.maxRetries) return false
+  if (policy.attemptsSoFar >= policy.maxRetries) return false
   if (outcome === "retryable_not_sent" || outcome === "retryable_not_billed")
     return true
   if (outcome === "unknown_outcome" || outcome === "timeout_after_send")
