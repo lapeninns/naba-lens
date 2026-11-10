@@ -427,6 +427,11 @@ describe("tradingRpcFailure", () => {
       404,
       "proposal",
     ],
+    [
+      { message: "menu_source_price_scope_unverified", code: "P0001" },
+      409,
+      "not this option or portion",
+    ],
     [{ message: "idempotency_key_reused", code: "22023" }, 400, "Reload"],
     [{ message: "something_else", code: "40001" }, 409, "changed elsewhere"],
   ] as const)("%j", (error, status, text) => {
