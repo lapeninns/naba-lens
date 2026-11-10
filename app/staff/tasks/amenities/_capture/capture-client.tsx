@@ -114,7 +114,7 @@ export function CaptureClient({
           ? {
               ...knowledge,
               submit: submitKnowledgeFindingAction,
-              previewSchedule: previewScheduleAction,
+              loadNextDates: previewScheduleAction,
               // Drafts are the author's own: staff only.
               saveDraft:
                 knowledge.role === "staff" ? saveKnowledgeDraftAction : null,

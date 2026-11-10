@@ -159,7 +159,7 @@ function setup({
   discardDraft = vi.fn<DiscardDraft>(async () => ({ ok: true })),
   prefill = null,
   detailForm = null,
-  previewSchedule,
+  loadNextDates,
   openRechecks,
 }: {
   knowledgeSlot?: WorkingSlot
@@ -171,7 +171,7 @@ function setup({
   discardDraft?: ReturnType<typeof vi.fn<DiscardDraft>>
   prefill?: KnowledgeCapture["prefill"]
   detailForm?: KnowledgeCapture["detailForm"]
-  previewSchedule?: KnowledgeCapture["previewSchedule"]
+  loadNextDates?: KnowledgeCapture["loadNextDates"]
   openRechecks?: number
 } = {}) {
   const onDone = vi.fn()
@@ -203,7 +203,7 @@ function setup({
         serverDraft,
         prefill,
         detailForm,
-        previewSchedule,
+        loadNextDates,
         openRechecks,
       }}
     />
@@ -1636,7 +1636,7 @@ describe("knowledge capture: services and fixture showings (B03 UI §5)", () => 
     const { user } = setup({
       submit,
       detailForm: service(),
-      previewSchedule: preview,
+      loadNextDates: preview,
     })
     await user.click(radio("Yes"))
     expect(screen.getByText("Times are UK time.")).toBeTruthy()

@@ -200,7 +200,7 @@ export type KnowledgeCapture = {
   /** B03-e: this check's open recheck tasks when the form opened. */
   openRechecks?: number
   /** B03-d: the server's next dates for a schedule being written. */
-  previewSchedule?: (input: {
+  loadNextDates?: (input: {
     schedule: Record<string, unknown>
     timezone: string
     from: string
@@ -2157,7 +2157,7 @@ export function CaptureForm({
             }
             timezone={detailForm.timezone}
             today={londonToday()}
-            preview={knowledge?.previewSchedule ?? NO_PREVIEW}
+            preview={knowledge?.loadNextDates ?? NO_PREVIEW}
           />
           <ServiceExtraFields
             id={`${ids}-service`}
