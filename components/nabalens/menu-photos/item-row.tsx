@@ -46,6 +46,7 @@ export function OurMenuItemRow({
   const nameId = `${id}-name`
   const variants = item.variants.map((v) => v.name).join(", ")
   const waiting = item.review?.candidates ?? 0
+  const mine = item.myWaiting ?? 0
 
   return (
     <article
@@ -99,6 +100,11 @@ export function OurMenuItemRow({
           {item.review && waiting > 0 ? (
             <span className="text-meta text-ink-muted">
               {plural(waiting, "photo")} to review
+            </span>
+          ) : null}
+          {mine > 0 ? (
+            <span className="text-meta text-ink-muted">
+              {OUR_MENU_COPY.myWaiting(mine)}
             </span>
           ) : null}
         </p>
