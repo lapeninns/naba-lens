@@ -5,12 +5,12 @@ import {
   TRIAGE_QUEUES,
   type AccountKind,
   type DeleteImpact,
-  type DeleteImpactItem,
-  type ImpactEffect,
-  type ImpactKind,
+  type DeleteImpactEffect,
+  type DeleteImpactKind,
+  type ImpactLine,
   type LabelWork,
   type TriageQueue,
-  type TriageQueueName,
+  type TriageRow,
   type VenueCapabilities,
 } from "./contract"
 
@@ -54,14 +54,16 @@ export function parseCapabilities(value: unknown): VenueCapabilities | null {
   const raw = record(value)
   if (!raw) return null
   const accountKind = oneOf<AccountKind>(ACCOUNT_KINDS, raw.accountKind)
-  if (!accountKind || typeof raw.venueId !== "string" || !raw.venueId)
-    return null
+  // A staff member with no current venue has none.
+  const venueId =
+    typeof raw.venueId === "string" && raw.venueId ? raw.venueId : null
+  if (!accountKind || (raw.venueId !== null && venueId === null)) return null
   const selfConfirm: Record<string, boolean> = {}
   for (const [key, flag] of Object.entries(record(raw.canSelfConfirm) ?? {}))
     selfConfirm[key] = allowed(flag)
   return {
     accountKind,
-    venueId: raw.venueId,
+    venueId,
     canUpload: allowed(raw.canUpload),
     canLabel: allowed(raw.canLabel),
     canSendFindings: allowed(raw.canSendFindings),
@@ -88,13 +90,13 @@ export function parseLabelWork(value: unknown): LabelWork | null {
  * R3 rows. Null when the read is unusable as a whole; a row for a queue this
  * client doesn't know is dropped, and each known queue appears at most once.
  */
-export function parseTriage(value: unknown): TriageQueue[] | null {
+export function parseTriage(value: unknown): TriageRow[] | null {
   if (!Array.isArray(value)) return null
-  const rows = new Map<TriageQueueName, TriageQueue>()
+  const rows = new Map<TriageQueue, TriageRow>()
   for (const item of value) {
     const raw = record(item)
     if (!raw) return null
-    const queue = oneOf<TriageQueueName>(TRIAGE_QUEUES, raw.queue)
+    const queue = oneOf<TriageQueue>(TRIAGE_QUEUES, raw.queue)
     if (!queue || rows.has(queue)) continue
     if (raw.available !== true) {
       rows.set(queue, { queue, available: false })
@@ -117,12 +119,12 @@ export function parseTriage(value: unknown): TriageQueue[] | null {
 export function parseDeleteImpact(value: unknown): DeleteImpact | null {
   const raw = record(value)
   if (!raw || !Array.isArray(raw.impacts)) return null
-  const items: DeleteImpactItem[] = []
+  const items: ImpactLine[] = []
   for (const entry of raw.impacts) {
     const item = record(entry)
     if (!item) return null
-    const kind = oneOf<ImpactKind>(IMPACT_KINDS, item.kind)
-    const effect = oneOf<ImpactEffect>(IMPACT_EFFECTS, item.effect)
+    const kind = oneOf<DeleteImpactKind>(IMPACT_KINDS, item.kind)
+    const effect = oneOf<DeleteImpactEffect>(IMPACT_EFFECTS, item.effect)
     if (!kind || !effect) return { status: "unknown" }
     if (
       typeof item.venueName !== "string" ||

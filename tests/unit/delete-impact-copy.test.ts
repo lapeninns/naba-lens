@@ -4,12 +4,12 @@ import {
   DELETE_IMPACT_UNCHECKED,
   deleteWarning,
 } from "@/components/nabalens/delete-impact/copy"
-import type { DeleteImpactItem } from "@/lib/work-client/contract"
+import type { ImpactLine } from "@/lib/work-client/contract"
 
 const VENUE = "The Old Crown"
 const QUESTION = "Is there step-free access?"
 
-function item(over: Partial<DeleteImpactItem>): DeleteImpactItem {
+function item(over: Partial<ImpactLine>): ImpactLine {
   return {
     kind: "answer_in_use",
     effect: "none",
@@ -20,7 +20,7 @@ function item(over: Partial<DeleteImpactItem>): DeleteImpactItem {
   }
 }
 
-function warn(...items: DeleteImpactItem[]) {
+function warn(...items: ImpactLine[]) {
   return deleteWarning({ status: "known", items })
 }
 

@@ -49,7 +49,13 @@ describe("parseCapabilities (R8)", () => {
     })
   })
 
-  it("is null without a known account kind or venue", () => {
+  it("accepts a staff member with no current venue", () => {
+    expect(parseCapabilities({ ...CAPS, venueId: null })).toMatchObject({
+      venueId: null,
+    })
+  })
+
+  it("is null without a known account kind or a readable venue", () => {
     expect(parseCapabilities({ ...CAPS, accountKind: "owner" })).toBeNull()
     expect(parseCapabilities({ ...CAPS, venueId: "" })).toBeNull()
     expect(parseCapabilities(null)).toBeNull()

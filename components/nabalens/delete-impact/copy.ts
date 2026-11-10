@@ -3,12 +3,12 @@
 // dialog opened; items that aren't the person's own carry only the venue and
 // the question.
 
-import type { DeleteImpact, DeleteImpactItem } from "@/lib/work-client/contract"
+import type { DeleteImpact, ImpactLine } from "@/lib/work-client/contract"
 
 export const DELETE_IMPACT_UNCHECKED =
   "We couldn't check whether this photo is evidence for a venue answer."
 
-function line(item: DeleteImpactItem): string | null {
+function line(item: ImpactLine): string | null {
   const q = `“${item.question}”`
   const venue = item.venueName
   switch (item.effect) {
