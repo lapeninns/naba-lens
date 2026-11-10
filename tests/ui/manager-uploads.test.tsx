@@ -93,6 +93,7 @@ import type {
 } from "@/lib/knowledge/contract"
 import type { ManagerOverview } from "@/lib/server/menu-photos/types"
 import { parseContributionsPage } from "@/lib/work-client/parse"
+import { PREVIEW_UNAVAILABLE } from "@/components/nabalens/coverage/evidence-image"
 
 const VENUE = {
   id: "00000000-0000-4000-8000-0000000000a1",
@@ -487,5 +488,22 @@ describe("Overview: photos that need labels (R1)", () => {
       />
     )
     expect(screen.queryByRole("link", { name: /need(s)? labels/ })).toBeNull()
+  })
+})
+
+describe("My uploads: a thumbnail that can't load", () => {
+  it("shows the existing Preview unavailable state instead", () => {
+    render(
+      <MyUploads
+        initial={page([photo({ key: "p:x1", assetId: "x1" })])}
+        venue={VENUE}
+        loadMore={vi.fn()}
+      />
+    )
+    const img = document.querySelector('img[src="/api/media/x1/thumb"]')!
+    expect(img).toBeTruthy()
+    fireEvent.error(img)
+    expect(document.querySelector('img[src="/api/media/x1/thumb"]')).toBeNull()
+    expect(screen.getByText(PREVIEW_UNAVAILABLE)).toBeTruthy()
   })
 })

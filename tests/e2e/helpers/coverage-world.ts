@@ -137,7 +137,9 @@ async function derivative(colour: string) {
  * derivative keys but never finishes, so a denial is about readiness rather
  * than a missing file. `uploadedAt` moves the asset's immutable upload time for
  * month-boundary cases; the guard trigger is bypassed for this fixture write
- * only.
+ * only. `uploaderRole` records the role a real reservation would (B02-c:
+ * "manager" for a manager account's own upload); left out, the role stays
+ * null, as for an upload reserved before B02-c (a manager's staff era).
  */
 export async function seedImages(
   uploader: Pick<Person, "id">,
@@ -148,6 +150,9 @@ export async function seedImages(
     uploadedAt?: string
     colour?: string
     state?: "ready" | "processing"
+    uploaderRole?: "staff" | "manager"
+    /** "amenity": evidence, kept out of Photos and never labelled. */
+    purpose?: "general" | "amenity"
   } = {}
 ): Promise<string[]> {
   const admin = provisioner()
@@ -163,6 +168,7 @@ export async function seedImages(
       media_type: "image",
       original_path: `${prefix}/original.jpg`,
       original_filename: `${options.prefix ?? "DEV-FIXTURE-coverage"}-${String(i + 1).padStart(2, "0")}.jpg`,
+      ...(options.purpose ? { purpose: options.purpose } : {}),
     })
     if (insert.error) throw insert.error
     for (const kind of ["thumb", "preview"]) {
@@ -196,7 +202,20 @@ export async function seedImages(
     ids.push(id)
   }
   if (options.uploadedAt) setUploadedAt(ids, options.uploadedAt)
+  if (options.uploaderRole) setUploaderRole(ids, options.uploaderRole)
   return ids
+}
+
+/** The role fixed at reservation; its guard trigger is bypassed for this fixture write only. */
+export function setUploaderRole(assetIds: string[], role: "staff" | "manager") {
+  if (!assetIds.every((id) => UUID.test(id))) throw new Error("not a uuid")
+  psql(`
+    begin;
+    set local session_replication_role = replica;
+    update public.media_assets set uploader_role = '${role}'::public.app_role
+    where id in (${assetIds.map((id) => `'${id}'`).join(", ")});
+    commit;
+  `)
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/

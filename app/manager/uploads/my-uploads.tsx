@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import { ImageSquareIcon, VideoCameraIcon } from "@phosphor-icons/react"
 
 import { LabelEditorHost } from "@/app/_labels/label-editor-host"
+import { PreviewUnavailable } from "@/components/nabalens/coverage/evidence-image"
 import {
   MY_CONTRIBUTIONS_COPY,
   PhotoLines,
@@ -292,6 +293,12 @@ function UploadRow({
 function Thumb({ row }: { row: PhotoContributionRow }) {
   const [failed, setFailed] = React.useState(false)
   const show = row.mediaType === "image" && row.upload === "saved" && !failed
+  // A thumbnail the route refuses (e.g. one this account may no longer
+  // read) says so, as evidence images do, rather than a bare icon.
+  if (failed)
+    return (
+      <PreviewUnavailable className="size-16 shrink-0 rounded-control px-1 text-center text-[0.6875rem] leading-tight" />
+    )
   return (
     <span
       aria-hidden
