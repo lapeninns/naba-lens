@@ -645,8 +645,12 @@ history. After a restore three cases follow (P19a, P19b, P19c):
   the restored register lacked it (enabled in the restored manifest and
   still eligible, backed up before its first drain) is applied by step 2
   like any present item: the old-epoch head is replaced, old-epoch
-  pre-send rows close `superseded` / `epoch_reset`, the review-item rule is
-  evaluated, and its new revision is reviewable.
+  pre-send rows close `superseded` / `epoch_reset`, and the review-item
+  rule is evaluated. A present published head is reviewable only as §4.4
+  allows (a Yes or No with an active mapping becomes `awaiting_review`,
+  with `behind_in_flight` while a row is in flight; Not applicable, a
+  qualified answer or no active mapping is `unsupported`). A present `unavailable` head is head-only and creates no
+  reviewable row.
 
 In every case, in-flight rows are kept, provider audit history is untouched and
 no provider mutation happens during the reset.
@@ -1318,3 +1322,9 @@ NabaLens gate does not qualify the NabaPresence change (plan §18).
     provider call after the refusal. The two-phase fence, receipt linkage,
     `resource_busy` mapping, P26's zero-dispatch first claim and P26a's
     retry are unchanged.
+- Draft 2, fourth bounded repair (10 Nov 2026), for the final static review
+  of `b6c4dd5a` (B07 wording only): §4.6's present-head case now says a
+  present published head is reviewable only as §4.4 allows and a present
+  `unavailable` head is head-only with no reviewable row. Step 2's
+  `superseded` / `epoch_reset` closeout, step 3, in-flight preservation,
+  P19a to P19c and P26c are unchanged.

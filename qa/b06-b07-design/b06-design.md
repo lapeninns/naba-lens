@@ -1263,8 +1263,8 @@ verified higher-epoch reset replaces these values.
       | `settled` value, its `validUntil` still in the future | `value` at the tuple's revision and digest with its payload; renderable only until that `validUntil`; no fence |
       | `settled` value whose `validUntil` has passed | never installs a renderable value: `absent`, no payload; the tuple's revision and digest recorded as the new epoch's high-water; `omittedAtCounter = k` |
       | `settled` tombstone | `tombstone` at the tuple's revision and digest, value-free; `suppressedAsOf` = that revision and `suppressedAtCounter = k` (as rule 3 records for a tombstone) |
-      | `settling` or `withdrawn_overlay` | value-free `suppressed`; no revision, digest or payload; `suppressedAsOf` = the overlay's `eligibility.asOfRevision` and `suppressedAtCounter = k` |
-      | `not_permitted` | `absent`, no revision, digest or payload; `omittedAtCounter = k` |
+      | `settling` or `withdrawn_overlay` | value-free `suppressed`, no payload; `revision` and `digest` = the overlay's `publication.revision` and `publication.digest` (the stored tuple's authorized identity, §4.7 rows 3 and 5) recorded as the new epoch's per-field high-water; `suppressedAsOf` = the overlay's `eligibility.asOfRevision` and `suppressedAtCounter = k` |
+      | `not_permitted` | `absent`, no revision, digest or payload (the answer carries no per-field identity, §4.5); `omittedAtCounter = k` |
    3. *Keys held outside the request set.* A field the record held that
       is not in this request's configured set (the website's manifest no
       longer lists it) becomes `absent`, with no revision, digest or
@@ -1276,8 +1276,15 @@ verified higher-epoch reset replaces these values.
    `absent` field (including an expired positive) only through the
    omission clause, that is by an authoritative read issued after the
    reset (counter above *k*) that returns it settled, eligible and
-   unexpired. A delayed response from the old epoch is still refused by
-   its lower ordinal.
+   unexpired. Because a field initialized from an overlay keeps the
+   tuple's revision and digest (none of the old epoch's identity or
+   payload), rule 4's existing identity checks guard it before any fence
+   clause: a settled tuple below that revision is never applied, whatever
+   the response's snapshot revision or counter, and one at that revision
+   with a different digest sets `regressionLatched` and shows nothing. Only
+   the same identity, or a higher revision, can then pass the fence. A
+   delayed response from the old epoch is still refused by its lower
+   ordinal.
 3. **Negatives first, always.** For every field whose eligibility is
    `withdrawn` or `settling`, or whose settled tuple is a tombstone, the
    consumer removes the value at once, from any read and whatever the
@@ -1566,11 +1573,22 @@ refused.
       `NABALENS_PUBLICATION_READS=on` (X1). Record the epoch ID and ordinal
       in the RB-12 external record.
 4. **Consumer recovery.** Consumers see the new epoch only after the
-   settled rebuild was accepted (step 3.7), so the complete snapshot they
-   reset from carries each field's final settled head, whatever its
-   revision. Consumers apply the snapshot's actual outcome per field
-   (step 3.6), never an assumption drawn from the restored register. Three
-   restore cases differ:
+   settled rebuild was accepted (step 3.7). The two consumers reset from
+   different reads:
+   - NabaPresence bootstraps from the destination **snapshot route**
+     (§4.8, B07 §4.6). It carries each field's final settled head, whatever
+     its revision, and returns `409 settling` instead of any unsettled or
+     overlaid head, so it contains settled heads only.
+   - The website resets from its complete authoritative **answers read**
+     (§5.7 rule 2). That read applies §4.7 at read time, so after
+     acceptance it can return a value-free `settling` or
+     `withdrawn_overlay` for a delivered field (§4.7) as well as settled
+     outcomes and `not_permitted`; rule 2's table initializes each.
+
+   Consumers apply the read's actual outcome per field (step 3.6), never an
+   assumption drawn from the restored register. Three restore cases differ
+   (stated for the settled outcomes; on the website an overlay returned
+   for any of these fields is applied by rule 2's overlay row instead):
    - **A field present in the backup and in the delivered-field register**
      whose withdrawal was lost and replayed by step 3.5 is a settled
      `withdrawn` tombstone in the new epoch (revision 1, or higher after a
@@ -1593,14 +1611,18 @@ refused.
      by its outcome (rule 5.7.2: a value only while its `validUntil` holds).
      NabaPresence applies the present head as in the first case: the
      old-epoch head is replaced, old-epoch pre-send rows close `superseded`
-     / `epoch_reset`, the review-item rule is evaluated, and the new
-     revision is reviewable.
+     / `epoch_reset`, and the review-item rule is evaluated. A present
+     published head is reviewable only as B07 §4.4 allows: a Yes or No
+     with an active mapping becomes `awaiting_review` (with
+     `behind_in_flight` while a row is in flight), while Not applicable, a
+     qualified answer or no active mapping is `unsupported`. A present `unavailable` head is head-only and
+     creates no reviewable row.
 
    In every case NabaPresence bootstraps under its live claim fence, keeps
    in-flight attempts and provider audit rows, and makes no provider
    mutation during the reset; it never clears Google automatically (B07
    §4.6). Every later cursor, receipt and job is scoped to the new epoch,
-   and new revisions become reviewable there.
+   and new revisions there become reviewable as B07 §4.4 allows.
 5. **A restore without a new epoch** (a missed runbook step). The
    deployment fence (step 2) with RB-12 step 3.1 is the control. Detection
    afterwards is only a **backstop**. A backup taken within the same
@@ -1744,7 +1766,7 @@ resurrect a withdrawn claim.
 | V02 venue                      | Old Crown credential at another venue's ID, similar names, the two White Horse venues: same `404`                                                                                                                                                                                                                           | NabaLens security                                |
 | V11 privacy                    | Exact key sets for the public body, answer, provenance, freshness, publication and eligibility; negative assertions over body, stored payloads, feed items, website page HTML, website JSON, MCP output, NabaLens and website logs: staff names, IDs and emails, finding and limitation text, Wi-Fi strings and test notes, asset IDs, storage paths, contribution IDs, save times | Both repositories plus the journey               |
 | V12 reader                     | Public conditions 1 to 6 each failing alone (a never-delivered field reads `not_permitted`; a delivered field reads the withdrawal overlay, then the tombstone); `shadow` returns `not_permitted`; `1.0` vs `1.1` qualified answer; limiter across two simulated instances; failed-auth bucket on the platform header with a spoofed `x-forwarded-for`; each row of §4.7; an unauthorised caller never sees a tombstone revision; `publication_paused` outside an accepted epoch | NabaLens unit and security                       |
-| V13 website                    | Old and new compatible versions (`1.0` client against a `1.1` server); invalidation; expired snapshot; outage; correction; removal; page, JSON and MCP agree on one snapshot revision; a replayed old ping changes nothing; schema fixtures with `publication_withdrawn` and `publication_settling` validate; each rule of §5.7 including a delayed older positive after a withdrawal overlay, a delayed older complete omission after a suppression and a same-revision positive after a current scope omission (R30a to R30c); epoch reset clears omitted fields; a mixed higher-epoch reset initializes each field by its outcome, an expired positive stays unavailable and a partial reset response is refused (R37a to R37d); latch; status route `no-store` and read-only | Website Jest with recorded fixtures; the journey |
+| V13 website                    | Old and new compatible versions (`1.0` client against a `1.1` server); invalidation; expired snapshot; outage; correction; removal; page, JSON and MCP agree on one snapshot revision; a replayed old ping changes nothing; schema fixtures with `publication_withdrawn` and `publication_settling` validate; each rule of §5.7 including a delayed older positive after a withdrawal overlay, a delayed older complete omission after a suppression and a same-revision positive after a current scope omission (R30a to R30c); epoch reset clears omitted fields; a mixed higher-epoch reset initializes each field by its outcome, an overlay keeps its tuple revision and digest value-free, an expired positive stays unavailable and a partial reset response is refused (R37a to R37d); latch; status route `no-store` and read-only | Website Jest with recorded fixtures; the journey |
 | Ordering                       | Digest change at equal answer revision bumps the publication revision; internal-only change does not; tombstone survives disable and re-enable; stale receipt `ignored_stale`; two workers never deliver the same job at once (lease)                                                                                       | NabaLens security                                |
 | Producer isolation             | A raising projection, digest, drain or apply function never aborts capture, manager decision, amenity submit, media deletion (with the evidence-lost credit trigger), the recheck job or a definition change; existing trigger effects match the baseline; a forced mark failure commits the writer with one warning      | NabaLens security (database)                     |
 | Producer, ordering and recovery repairs | Cases R1 to R37d (§7.3)                                                                                                                                                                                                                                                                                       | NabaLens security (database), website Jest, journey |
@@ -1809,7 +1831,7 @@ The website's validator rejects any detail outside the schema, so
 | R34  | Same-epoch restore observed through a tuple with an equal epoch, field and revision but a different digest                        | Website latches; NabaPresence halts `revision_conflict`; nothing resumes until a new accepted epoch |
 | R35  | A key-scoped credential requests the feed and snapshot of a stream containing an unauthorised current and superseded item; a fully scoped credential does the same | Key-scoped: `403 not_permitted`, no field identity, `seq`, `coveredThrough` or `fence`, and no cursor coverage. Fully scoped: a contiguous page and a complete scoped snapshot |
 | R36  | R31b with `epoch_accept` called (i) while the reconciliation command (`knowledge_publication_reconcile` after the replayed withdrawal) is still uncommitted; (ii) after it committed but before any drain of its mark, while the early build's revision-1 value is the head; (iii) with a head that cannot settle (a drain in step (c) raises); (iv) with a register-only field that has no head because its venue's drain fails; (v) with routine sweep and backstop marks visible; (vi) with a capture committing on a scope venue between (c) and (d) | (i) accept waits on the shared epoch lock, then proceeds as (ii); (ii) accept drains the mark itself and accepts only with the revision-2 tombstone as the head, never the revision-1 value; (iii) and (iv) refuse `rebuild_unsettled`, roll back and change nothing, with reads off and the deployment setting unchanged; (v) the marks are drained in (c) and do not by themselves refuse acceptance; (vi) clause 4 sees `settling`, acceptance refuses `rebuild_unsettled` and rolls back, and a retry succeeds |
-| R37a | Mixed higher-epoch reset. The website record is at epoch 1 with fields P, T, N, O and X, some with epoch-1 revisions, suppression and omission fences, and `regressionLatched` set. The configured set is now {P, T, N, O} (X dropped from the website manifest). An authoritative complete read tagged *c* = 30 returns the epoch-2 envelope (snapshot revision 4, `complete: true`) with one outcome per key: P a settled positive at revision 1 with `validUntil` in the future; T a settled tombstone at revision 2; N `not_permitted`; O `settling` with `asOfRevision` 3. Variant: O is `withdrawn_overlay` with `asOfRevision` 3 | One CAS (*k* = `requestCounter` then): epoch 2, `snapshotRevision` 4, `appliedAtCounter` 30, latch cleared; no epoch-1 revision, digest, payload or fence survives. P `value` at revision 1; T `tombstone` at revision 2, value-free, `suppressedAsOf` 2, `suppressedAtCounter` *k*; N `absent`, no revision, `omittedAtCounter` *k*; O `suppressed`, value-free, no revision, `suppressedAsOf` 3, `suppressedAtCounter` *k* (same in the variant); X `absent`, `omittedAtCounter` *k*. Then an epoch-2 read issued before the reset (counter ≤ *k*) returning O settled at revision 3 is refused (equal revision, counter not above *k*); a read issued after it returning O settled at revision 3, or N settled, shows the field |
+| R37a | Mixed higher-epoch reset. The website record is at epoch 1 with fields P, T, N, O and X, some with epoch-1 revisions, suppression and omission fences, and `regressionLatched` set. The configured set is now {P, T, N, O} (X dropped from the website manifest). An authoritative complete read tagged *c* = 30 returns the epoch-2 envelope (snapshot revision 4, `complete: true`) with one outcome per key: P a settled positive at revision 1 with `validUntil` in the future; T a settled tombstone at revision 2; N `not_permitted`; O `settling` with `asOfRevision` 3 and `publication` revision 3, digest *d*. Variant: O is `withdrawn_overlay` with `asOfRevision` 3 and the same `publication` revision 3, digest *d*. Every step below runs for both O variants. After the reset, three separate branches start from the same post-reset record: (i) an authoritative complete epoch-2 read issued after the reset (counter above *k*) with snapshot revision 4, and again with 5, returning O settled, eligible and unexpired at revision 2; (ii) such a read returning O settled at revision 3 with digest *d′* ≠ *d*; (iii) epoch-2 reads returning O settled, eligible and unexpired at revision 3 with digest *d*, first one issued before the reset (counter ≤ *k*), then one issued after it | One CAS (*k* = `requestCounter` then): epoch 2, `snapshotRevision` 4, `appliedAtCounter` 30, latch cleared; no epoch-1 revision, digest, payload or fence survives. P `value` at revision 1; T `tombstone` at revision 2, value-free, `suppressedAsOf` 2, `suppressedAtCounter` *k*; N `absent`, no revision or digest, `omittedAtCounter` *k*; O `suppressed`, value-free with no payload, revision 3 and digest *d* recorded as its epoch-2 high-water, `suppressedAsOf` 3, `suppressedAtCounter` *k* (same in the variant); X `absent`, `omittedAtCounter` *k*. (i) Refused for O at both watermarks (revision 2 below the stored 3; the counter does not help): O stays `suppressed` and value-free with revision 3, digest *d* and its fence; no latch. (ii) `regressionLatched` is set (same epoch, field and revision, different digest); O stays `suppressed`, no value or payload is exposed, and only negatives apply until a new epoch. (iii) The pre-reset-issued read is refused (equal revision, counter not above *k*); the read issued after it passes rule 4's identity checks (revision 3 = stored, digest *d* = stored) and the explicit-negative counter clause (counter above *k*), so O shows its value. A read issued after the reset returning N settled shows N |
 | R37b | R37a, but P's `validUntil` has passed when the reset is applied | P never becomes renderable: `absent`, no payload, revision 1 and its digest recorded as the epoch-2 high-water, `omittedAtCounter` *k*; the other fields as R37a. An epoch-2 response issued at a counter ≤ *k* cannot show P; a fresh authoritative read (counter above *k*) returning P settled with a future `validUntil` populates it |
 | R37c | R37a's response with, in turn: N left out; N present twice; O's `publication` naming epoch 1; an extra unrequested key | Each is partial or malformed for reset: refused as a whole and treated as an outage for that read; nothing applied, negatives included; the record keeps epoch 1, its `snapshotRevision`, fields, fences and latch, with only the `requestCounter` rule 1 allocated before sending; last-good rules serve it; a later valid reset applies as R37a |
 | R37d | After R37a, delayed epoch-1 responses arrive: a positive for P, a negative for T, and a complete response omitting N; then R30a to R30c are run within epoch 2 | Every epoch-1 response is refused entirely (as R29), changing no field, counter or revision; R30a to R30c give exactly their §7.3 outcomes in epoch 2 |
@@ -2063,3 +2085,24 @@ Each step is a separate request at the time; nothing here is pre-authorised.
     register. R18b and R32 use a field absent from both; R18c adds a
     still-eligible manifest-only field that is present in the accepted
     snapshot (§5.8 steps 3.6 and 4; R18b, R18c, R32).
+- Draft 2, fourth bounded repair (10 Nov 2026), for the final static review
+  of `b6c4dd5a` (one correction and two clarifications):
+  - Overlay identity at reset: a `settling` or `withdrawn_overlay` outcome
+    in a valid higher-epoch reset initializes a value-free `suppressed`
+    field that keeps the overlay's `publication.revision` and
+    `publication.digest` as its per-field high-water beside
+    `suppressedAsOf` and `suppressedAtCounter`; the old epoch's identity
+    and payload are still discarded and `not_permitted` stays without
+    per-field identity. Rule 4 applies unchanged: a lower field revision is
+    never applied, an equal revision with a different digest latches, and
+    only the same identity (counter above *k*) or a higher revision passes
+    the fence. No API field, ordering mechanism or grant is added (§5.7
+    rule 2; R37a).
+  - Consumer read paths: the settled-only reset snapshot of §5.8 step 4
+    is NabaPresence's snapshot route; the website resets from the answers
+    read, which can return value-free overlays after acceptance (§5.8
+    step 4).
+  - Reviewability: a present published head is reviewable only as B07
+    §4.4 allows, and a present `unavailable` head is head-only (§5.8
+    step 4). Epoch-reset closeout and in-flight preservation are
+    unchanged.
