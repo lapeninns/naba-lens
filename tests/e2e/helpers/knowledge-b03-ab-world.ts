@@ -276,10 +276,7 @@ export function londonDaysAgo(days: number): string {
 async function within<T>(promise: Promise<T>, ms: number, what: string) {
   let timer: ReturnType<typeof setTimeout> | undefined
   const deadline = new Promise<never>((_, reject) => {
-    timer = setTimeout(
-      () => reject(new Error(`${what} within ${ms} ms`)),
-      ms
-    )
+    timer = setTimeout(() => reject(new Error(`${what} within ${ms} ms`)), ms)
   })
   try {
     return await Promise.race([promise, deadline])
@@ -292,13 +289,14 @@ async function within<T>(promise: Promise<T>, ms: number, what: string) {
  * Holds the next real knowledge submit (a server action POST from `path`
  * whose body carries `marker`) while `held` runs: the request reaches the
  * server and its real response is delivered only after. Later submits pass
- * through; `held` gets how many submits left the page.
+ * through but are counted; `held` gets how many submits left the page, and
+ * the hold fails unless exactly one had once the held route settled.
  *
  * `send` is started, not awaited, so it can never wait on the release. The
  * submit must arrive within `arrivalMs`, and a failed `send` or route fetch
  * fails the hold at once. Whatever happens, the hold is then released, the
- * held route settled and only this handler removed; the first failure is the
- * one thrown.
+ * held route settled and only this handler removed, each within `settleMs`;
+ * the first failure is the one thrown.
  */
 export async function holdNextSubmit(
   page: Page,
@@ -338,10 +336,14 @@ export async function holdNextSubmit(
       try {
         response = await route.fetch()
       } catch (cause) {
+        const failure = new Error(
+          `held submit to ${path}: route.fetch failed`,
+          { cause }
+        )
+        // Published first: the abort below can hang too.
+        fail(failure)
         await route.abort().catch(() => {})
-        throw new Error(`held submit to ${path}: route.fetch failed`, {
-          cause,
-        })
+        throw failure
       }
       arrived()
       await gate
@@ -381,7 +383,17 @@ export async function holdNextSubmit(
       await within(settled, settleMs, `held submit to ${path} did not settle`)
         .then((cause) => cause && keep(cause))
         .catch(keep)
-    await page.unroute(matcher, handler).catch(keep)
+    const unrouting = page.unroute(matcher, handler)
+    unrouting.catch(() => {})
+    await within(
+      unrouting,
+      settleMs,
+      `unroute for ${path} did not finish`
+    ).catch(keep)
+    // A second submit can still leave the page while the held one is being
+    // fulfilled, after `held` last counted.
+    if (submits !== 1)
+      keep(new Error(`${submits} submits to ${path} left the page; expected 1`))
     if (sending)
       await within(sending, settleMs, `send for ${path} did not finish`).catch(
         keep

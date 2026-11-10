@@ -181,6 +181,8 @@ test.describe("B03 venue knowledge: scoped answers and policy authority", () => 
     await narrow.context().close()
 
     // ---- Empty-place venue: No without an entrance is refused -------------
+    const emptyBefore = storedCheck(emptyId)
+    const emptyDecisionsBefore = decisionsAt(w.venueB, emptyId)
     const empty = await signedInPage(browser, w.staffB, PHONE(375, 812))
     await empty.goto(staffCaptureHref(emptyId))
     const e = capture(empty)
@@ -206,6 +208,10 @@ test.describe("B03 venue knowledge: scoped answers and policy authority", () => 
     )
     expect(contributionsAt(w.venueB, emptyId), "no contribution").toEqual([])
     expect(storedCheck(emptyId).submission).toBeNull()
+    expect(storedCheck(emptyId), "check unchanged").toEqual(emptyBefore)
+    expect(decisionsAt(w.venueB, emptyId), "no decision").toEqual(
+      emptyDecisionsBefore
+    )
     await empty.context().close()
 
     // ---- 375 px: staff choose Checked on and one entrance, and submit ------
@@ -338,5 +344,7 @@ test.describe("B03 venue knowledge: scoped answers and policy authority", () => 
     expect(storedCheck(otherId)).toEqual(otherBefore)
     expect(contributionsAt(w.venueA, otherId)).toEqual(otherContributionsBefore)
     expect(contributionsAt(w.venueB, emptyId)).toEqual([])
+    expect(storedCheck(emptyId)).toEqual(emptyBefore)
+    expect(decisionsAt(w.venueB, emptyId)).toEqual(emptyDecisionsBefore)
   })
 })
