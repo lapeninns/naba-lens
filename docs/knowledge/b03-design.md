@@ -729,6 +729,18 @@ public.knowledge_recheck_tasks
   migration.
 - Rollback: stop the job; tasks stay; read-time freshness can be switched
   off per key by a version with no policy.
+- **Write-once times (B08 §6.2a).** B08's usefulness rule reads a task as
+  open at `t` when `created_at < t` and (`closed_at` is null or
+  `closed_at >= t`), so these times stay as written. Enforced since B03-e by
+  `knowledge_recheck_tasks_guard`: no delete or truncate; on an open task only
+  `state`, `closed_at`, `closed_by` and `closed_decision_id` change, and only
+  to a closed state; a closed task never changes. `created_at` is the
+  transaction time of the opening write and `closed_at` of the closing write,
+  so a `due_soon` task that gives way to an `expired` one in the same job run
+  leaves no gap. Foreign keys to the task's venue, check, closer and decision
+  are `on delete restrict`. Inserts come only from B03's definer functions (no
+  client or service-role write grant); test fixtures may insert historical
+  rows directly.
 
 ### 7.5 Tests
 
@@ -1467,3 +1479,12 @@ policyId?, policyVersion? }] } }`. "Current and fresh at adoption" is
   reader conditions.
 - **A37 on imports:** `knowledge_source_import` refuses imported policy
   detail carrying `authority` or `policyScope`.
+
+**B08 alignment (10 Nov 2026):** B08 draft 2 §6.2a reads recheck task open
+and close times as stored, write-once facts. No schema change: the B03-e
+guard already enforces them (§7.4, "Write-once times"). A security test now
+covers each case B08 names: `created_at` and `due_at` are refused on an open
+task; a closed task refuses a second closure, a new `closed_at`, a new
+`created_at` and reopening; delete and truncate are refused. B08 §5.4's
+`knowledge_submission_scored` re-creation is a WS1 item for B08-c and is not
+part of B03.

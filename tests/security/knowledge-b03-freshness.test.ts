@@ -321,6 +321,43 @@ describe("recheck tasks (§7.4, A11, A24)", () => {
     ])
       expect(() => psql(sql), sql).toThrow()
   })
+
+  it("keep task times write-once for scoring history (B08 §6.2a)", () => {
+    const id = psql(`insert into public.knowledge_recheck_tasks
+        (venue_id, check_id, question_key, cause, use, due_at, created_at)
+      values ('${w.venue}', '${w.checks.onsite_parking}', 'onsite_parking', 'scope_changed', 'internal',
+        '2026-10-01 00:00+00', '2026-10-01 00:00+00')
+      returning id`)
+    const times = () =>
+      psql(
+        `select created_at || '|' || state || '|' || coalesce(closed_at::text, '') from public.knowledge_recheck_tasks where id = '${id}'`
+      )
+    const opened = times()
+    // An open task: only the closing columns may change.
+    for (const sql of [
+      `update public.knowledge_recheck_tasks set created_at = now() where id = '${id}'`,
+      `update public.knowledge_recheck_tasks set due_at = now() where id = '${id}'`,
+      `delete from public.knowledge_recheck_tasks where id = '${id}'`,
+    ])
+      expect(() => psql(sql), sql).toThrow()
+    expect(times()).toBe(opened)
+    psql(
+      `update public.knowledge_recheck_tasks set state = 'cancelled', closed_at = '2026-10-15 00:00+00' where id = '${id}'`
+    )
+    const closed = times()
+    expect(closed.split("|")[0]).toBe(opened.split("|")[0])
+    // A closed task never changes again and is never removed.
+    for (const sql of [
+      `update public.knowledge_recheck_tasks set state = 'done' where id = '${id}'`,
+      `update public.knowledge_recheck_tasks set closed_at = now() where id = '${id}'`,
+      `update public.knowledge_recheck_tasks set created_at = now() where id = '${id}'`,
+      `update public.knowledge_recheck_tasks set state = 'open', closed_at = null where id = '${id}'`,
+      `delete from public.knowledge_recheck_tasks where id = '${id}'`,
+      `truncate public.knowledge_recheck_tasks`,
+    ])
+      expect(() => psql(sql), sql).toThrow()
+    expect(times()).toBe(closed)
+  })
 })
 
 describe("WS4 asks (A29, A31)", () => {
