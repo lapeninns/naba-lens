@@ -65,6 +65,10 @@ const KNOWLEDGE: Record<string, Mapping> = {
   draft_already_sent: ["draft_already_sent", "This finding was already sent."],
   knowledge_venue_not_found: ["not_found", "This venue could not be found."],
   wrong_venue: ["wrong_venue", "This is not your venue. Reload the page."],
+  knowledge_question_not_found: [
+    "not_found",
+    "This question could not be found.",
+  ],
   contribution_group_not_found: [
     "not_found",
     "This group of photos could not be found. Reload the page.",
@@ -173,6 +177,30 @@ function alreadySentOf(error: DbError): {
   }
 }
 
+const PROBLEM_TEXT: Record<string, string> = {
+  required: "Fill this in.",
+  not_allowed: "This isn't allowed here.",
+  invalid: "Check this value.",
+  too_long: "This is too long.",
+  out_of_range: "This is out of range.",
+  no_entrances_listed:
+    "Add the venue's entrances under Places first, or send Couldn't establish.",
+  unknown_subject: "Choose a place at this venue.",
+}
+
+/** invalid_value detail: { fields: [{ path, problem }] }, keyed by path (b03-design §14.3). */
+function valueFieldErrors(error: DbError): Record<string, string> {
+  const fields = detailOf(error).fields
+  const out: Record<string, string> = {}
+  if (Array.isArray(fields))
+    for (const f of fields)
+      if (f && typeof f === "object" && typeof f.path === "string")
+        out[f.path] =
+          PROBLEM_TEXT[String((f as { problem?: unknown }).problem)] ??
+          PROBLEM_TEXT.invalid!
+  return out
+}
+
 /**
  * `context` names the operation in the redacted server log for unexpected
  * failures; expected failures are not logged.
@@ -196,6 +224,13 @@ export function knowledgeRpcFailure(
           : {}
     )
   }
+  if (message === "invalid_value")
+    return knowledgeInvalid(valueFieldErrors(error))
+  if (message === "unknown_value_schema")
+    return knowledgeInvalid(
+      {},
+      "This answer's format isn't supported here. Reload the page."
+    )
   if (message in FIELD_ERRORS) {
     const [field, text] = FIELD_ERRORS[message]!
     return knowledgeInvalid({ [field]: text })

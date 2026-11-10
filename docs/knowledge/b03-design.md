@@ -1129,7 +1129,7 @@ None of these is retryable; only `unavailable` (503) is.
 **Field path format:** a dot path from the value's root, with array indexes
 in brackets, for example `headline`, `detail.entrances`,
 `detail.entrances[0].stepFree`, `detail.schedule.windows[1].end`. `problem`
-is a short code (`required`, `not_allowed`, `too_long`, `out_of_range`,
+is a short code (`required`, `not_allowed`, `invalid`, `too_long`, `out_of_range`,
 `no_entrances_listed`, `unknown_subject`). The TypeScript mapper keys
 `fieldErrors` by the path.
 

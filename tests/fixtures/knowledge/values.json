@@ -1,0 +1,163 @@
+{
+  "note": "Shared by tests/unit/knowledge-registry.test.ts (TypeScript validator) and tests/security/knowledge-registry.test.ts (private.knowledge_validate_value). Dates are in the past or far future so the result does not depend on today.",
+  "cases": [
+    {
+      "name": "presence yes",
+      "schema": "presence",
+      "version": 1,
+      "headline": "yes",
+      "detail": null,
+      "expect": { "ok": true, "detail": null }
+    },
+    {
+      "name": "presence unknown with empty detail",
+      "schema": "presence",
+      "version": 1,
+      "headline": "unknown",
+      "detail": {},
+      "expect": { "ok": true, "detail": null }
+    },
+    {
+      "name": "presence not applicable",
+      "schema": "presence",
+      "version": 1,
+      "headline": "not_applicable",
+      "detail": null,
+      "expect": { "ok": true, "detail": null }
+    },
+    {
+      "name": "presence with detail",
+      "schema": "presence",
+      "version": 1,
+      "headline": "no",
+      "detail": { "x": 1 },
+      "expect": { "fields": [{ "path": "detail", "problem": "not_allowed" }] }
+    },
+    {
+      "name": "headline outside the set",
+      "schema": "presence",
+      "version": 1,
+      "headline": "maybe",
+      "detail": null,
+      "expect": { "fields": [{ "path": "headline", "problem": "not_allowed" }] }
+    },
+    {
+      "name": "headline missing",
+      "schema": "presence",
+      "version": 1,
+      "headline": null,
+      "detail": null,
+      "expect": { "fields": [{ "path": "headline", "problem": "required" }] }
+    },
+    {
+      "name": "wifi notes",
+      "schema": "connectivity.wifi",
+      "version": 1,
+      "headline": "yes",
+      "detail": {
+        "testSpot": "Back bar",
+        "testedOn": "2026-11-01",
+        "downloadMbps": 50,
+        "uploadMbps": 10
+      },
+      "expect": {
+        "ok": true,
+        "detail": {
+          "testSpot": "Back bar",
+          "testedOn": "2026-11-01",
+          "downloadMbps": 50,
+          "uploadMbps": 10
+        }
+      }
+    },
+    {
+      "name": "wifi without notes",
+      "schema": "connectivity.wifi",
+      "version": 1,
+      "headline": "no",
+      "detail": null,
+      "expect": { "ok": true, "detail": null }
+    },
+    {
+      "name": "wifi extra key",
+      "schema": "connectivity.wifi",
+      "version": 1,
+      "headline": "yes",
+      "detail": {
+        "testSpot": "Bar",
+        "testedOn": "2026-11-01",
+        "downloadMbps": 5,
+        "uploadMbps": 1,
+        "password": "x"
+      },
+      "expect": { "fields": [{ "path": "detail", "problem": "invalid" }] }
+    },
+    {
+      "name": "wifi speed as text",
+      "schema": "connectivity.wifi",
+      "version": 1,
+      "headline": "yes",
+      "detail": {
+        "testSpot": "Bar",
+        "testedOn": "2026-11-01",
+        "downloadMbps": "50",
+        "uploadMbps": 1
+      },
+      "expect": { "fields": [{ "path": "detail", "problem": "invalid" }] }
+    },
+    {
+      "name": "wifi test in the future",
+      "schema": "connectivity.wifi",
+      "version": 1,
+      "headline": "yes",
+      "detail": {
+        "testSpot": "Bar",
+        "testedOn": "2999-01-01",
+        "downloadMbps": 5,
+        "uploadMbps": 1
+      },
+      "expect": { "fields": [{ "path": "detail", "problem": "invalid" }] }
+    },
+    {
+      "name": "wifi missing spot and headline",
+      "schema": "connectivity.wifi",
+      "version": 1,
+      "headline": null,
+      "detail": {
+        "testedOn": "2026-11-01",
+        "downloadMbps": 5,
+        "uploadMbps": 1
+      },
+      "expect": {
+        "fields": [
+          { "path": "headline", "problem": "required" },
+          { "path": "detail", "problem": "invalid" }
+        ]
+      }
+    },
+    {
+      "name": "wifi detail not an object",
+      "schema": "connectivity.wifi",
+      "version": 1,
+      "headline": "yes",
+      "detail": [1],
+      "expect": { "fields": [{ "path": "detail", "problem": "invalid" }] }
+    },
+    {
+      "name": "schema not built yet",
+      "schema": "policy",
+      "version": 1,
+      "headline": "yes",
+      "detail": null,
+      "expect": { "unknownSchema": true }
+    },
+    {
+      "name": "unknown version",
+      "schema": "presence",
+      "version": 2,
+      "headline": "yes",
+      "detail": null,
+      "expect": { "unknownSchema": true }
+    }
+  ]
+}

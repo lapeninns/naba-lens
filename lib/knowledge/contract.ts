@@ -543,6 +543,81 @@ export type ContributionGroupView = {
     mine: boolean
   }[]
 }
+// ---- B03-a question registry (docs/knowledge/b03-design.md §3) --------------
+
+export const QUESTION_LIFECYCLES = [
+  "supported",
+  "presence_only",
+  "unsupported",
+  "superseded",
+  "retired",
+] as const
+export type QuestionLifecycle = (typeof QUESTION_LIFECYCLES)[number]
+
+export type QuestionFamily =
+  | "presence"
+  | "facility"
+  | "accessibility"
+  | "policy"
+  | "service"
+  | "schedule_event"
+  | "connectivity"
+
+export type ValueSchemaName =
+  | "presence"
+  | "facility"
+  | "accessibility"
+  | "policy"
+  | "service"
+  | "schedule_event"
+  | "connectivity.wifi"
+
+/** One version of a question: what it asks and the rules it is answered under. */
+export type QuestionView = {
+  key: string
+  family: QuestionFamily
+  subjectType: "venue"
+  ownerRole: "venue_manager" | "admin"
+  version: number
+  latestVersion: number
+  catalogueVersion: number
+  /** The knowledge_question_rules version it restates; null when none exists. */
+  ruleVersion: number | null
+  valueSchema: { name: ValueSchemaName; version: number }
+  guidance: {
+    question: string
+    captureBrief: string
+    staffHelp: string | null
+    publicLabel: string | null
+  }
+  evidenceRule: "photo" | "video" | "either" | "both" | "none"
+  confirmation: "none" | "venue_manager" | "admin" | "policy_authority"
+  selfConfirmationAllowed: boolean
+  sensitivity: "ordinary" | "sensitive_claim" | "restricted_detail"
+  freshness: { internal: string | null; public: string | null }
+  publishableFields: string[]
+  /** Fields whose change invalidates a confirmation; the headline always does. */
+  materialFields: string[]
+  requiresZones: boolean
+  lifecycle: QuestionLifecycle
+  supersededBy: string[] | null
+  effectiveFrom: string | null
+  changeKind: "initial" | "wording" | "rule" | "schema" | "lifecycle"
+  changeNote: string | null
+}
+
+/** A refused value: the field path (b03-design §14.3) and a short problem code. */
+export type ValueFieldProblem = {
+  path: string
+  problem:
+    | "required"
+    | "not_allowed"
+    | "invalid"
+    | "too_long"
+    | "out_of_range"
+    | "no_entrances_listed"
+    | "unknown_subject"
+}
 // ---- Command results -----------------------------------------------------------
 
 export type SubmitKnowledgeResult = {
@@ -762,6 +837,14 @@ export type KnowledgeRpcs = {
   contribution_group: {
     args: { p_group_id: string }
     returns: ContributionGroupView
+  }
+  knowledge_question: {
+    args: { p_key: string; p_version: number | null }
+    returns: QuestionView
+  }
+  knowledge_registry: {
+    args: { p_lifecycle: QuestionLifecycle[] | null }
+    returns: { items: QuestionView[] }
   }
 }
 export type KnowledgeRpcName = keyof KnowledgeRpcs

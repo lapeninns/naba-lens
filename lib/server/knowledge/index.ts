@@ -42,5 +42,6 @@ export {
   listGroupsForAssets,
   startContributionGroup,
 } from "./groups"
+export { getKnowledgeQuestion, listQuestionRegistry } from "./registry"
 export { readKnowledgeAnswers, type KnowledgeReaderResult } from "./reader"
 export { knowledgeRpcFailure } from "./errors"
