@@ -1,18 +1,29 @@
 import {
   discardKnowledgeDraftAction,
   listMyFindingsAction,
+  loadMoreContributionsAction,
 } from "@/app/_knowledge/actions"
 import { AppShell } from "@/components/nabalens"
 import { YourFindings } from "@/components/nabalens/knowledge/findings-history"
+import { MyContributions } from "@/components/nabalens/knowledge/my-contributions"
 import { requireActiveStaff, uploadBlockReason } from "@/lib/auth"
+import {
+  myContributionsSurface,
+  type MyContributionsSurface,
+} from "@/lib/config/my-contributions"
 import { workRoleLabel } from "@/lib/config/work-roles"
+import type { ContributionsFeedPage } from "@/lib/knowledge/contract"
 import { listMyMenuPhotoDecisions } from "@/lib/server/coverage"
 import type { MyMenuPhotoState } from "@/lib/server/coverage/types"
 import { getMediaActor } from "@/lib/server/media/context"
 import { listOwnMedia, listOwnMediaByIds } from "@/lib/server/media/library"
 import type { MediaActor, MediaItemView } from "@/lib/server/media/types"
-import type { FindingsPage } from "@/lib/knowledge-client/contract"
+import type {
+  FindingSummary,
+  FindingsPage,
+} from "@/lib/knowledge-client/contract"
 import { knowledgeServices } from "@/lib/knowledge-client/services"
+import { workServices } from "@/lib/work-client/services"
 
 import { myWorkingList, staffShellStatus } from "./_shell/shell-status"
 import { StaffPortfolio } from "./staff-portfolio"
@@ -86,6 +97,44 @@ async function yourFindings(
   return { show: history || onList, page }
 }
 
+type History =
+  | { kind: "b01"; show: boolean; page: FindingsPage | null }
+  | {
+      kind: "b02"
+      show: boolean
+      page: ContributionsFeedPage | null
+      drafts: FindingSummary[] | null
+    }
+
+/**
+ * Me's history: My contributions (B02 §6.1) when switched on and the
+ * database has its read; otherwise B01's "Your findings". Shown, as B01, when
+ * there is history or my venue has questions to answer.
+ */
+async function history(
+  actor: MediaActor,
+  surface: MyContributionsSurface
+): Promise<History> {
+  if (surface === "b01") return { kind: "b01", ...(await yourFindings(actor)) }
+  const [feed, findings, list] = await Promise.all([
+    (async () => workServices.getContributions(actor))().catch(() => null),
+    (async () => knowledgeServices.listMyFindings(actor, {}))().catch(
+      () => null
+    ),
+    myWorkingList(actor),
+  ])
+  if (feed?.status === "missing")
+    return { kind: "b01", ...(await yourFindings(actor)) }
+  const page = feed?.status === "ok" ? feed.value : null
+  // The feed doesn't page drafts; they stay B01's.
+  const drafts = findings?.ok
+    ? findings.page.items.filter((item) => item.state === "saved")
+    : null
+  const onList = (list?.slots.length ?? 0) > 0
+  const sent = (page?.items.length ?? 0) > 0 || (drafts?.length ?? 0) > 0
+  return { kind: "b02", show: sent || onList, page, drafts }
+}
+
 /** Staff home: own profile, Upload action and newest-first own gallery. */
 export default async function StaffPage({
   searchParams,
@@ -100,13 +149,17 @@ export default async function StaffPage({
     staffShellStatus(auth.actor, profile),
     searchParams ?? Promise.resolve({} as SearchParams),
     menuPhotoDecisions(auth.actor),
-    yourFindings(auth.actor),
+    history(auth.actor, myContributionsSurface()),
   ])
   if (!page.ok) throw new Error(page.message)
   const blocked = uploadBlockReason(profile)
   // A failed count read keeps the row (Manage re-reads it) without a number.
   const { canManage, reviewCount, avatarUrl: avatar } = shell
   const work = profile.work ?? null
+  const venue =
+    profile.venueId && profile.venue
+      ? { id: profile.venueId, name: profile.venue.name }
+      : null
 
   return (
     <AppShell
@@ -140,19 +193,30 @@ export default async function StaffPage({
         menuPhotos={menuPhotos.states}
         menuPhotoItems={menuPhotos.items}
         findings={
-          findings.show ? (
+          !findings.show ? null : findings.kind === "b02" ? (
+            <MyContributions
+              initial={findings.page}
+              drafts={findings.drafts}
+              venue={venue}
+              offMenuPhotoIds={menuPhotos.states.flatMap((state) =>
+                state.state === "better_photo_requested" &&
+                state.canRetake === false
+                  ? [state.photoId]
+                  : []
+              )}
+              loadMore={loadMoreContributionsAction}
+              onDiscardDraft={discardKnowledgeDraftAction}
+              viewerId={profile.id}
+            />
+          ) : (
             <YourFindings
               initial={findings.page}
-              venue={
-                profile.venueId && profile.venue
-                  ? { id: profile.venueId, name: profile.venue.name }
-                  : null
-              }
+              venue={venue}
               loadMore={listMyFindingsAction}
               onDiscardDraft={discardKnowledgeDraftAction}
               viewerId={profile.id}
             />
-          ) : null
+          )
         }
       />
     </AppShell>

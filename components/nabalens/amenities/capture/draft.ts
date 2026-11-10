@@ -62,6 +62,12 @@ export type CaptureDraft = {
    * the chosen evidence is exactly this set (see `redactionHolds`).
    */
   redactionAssetIds: string[]
+  /**
+   * Uploads picked here that weren't ready yet, and the newest upload listed
+   * when they were picked: coming back, a newer unticked upload is one that
+   * finished after the person left (CA-10). This device only.
+   */
+  uploadsPending?: { count: number; after: string | null } | null
 }
 
 /** A v4 UUID; falls back to getRandomValues where randomUUID is missing (http on a LAN). */
@@ -137,6 +143,19 @@ export function reconcileDraft(
 
 const str = (value: unknown) => (typeof value === "string" ? value : "")
 
+function uploadsPending(value: unknown): Pick<CaptureDraft, "uploadsPending"> {
+  if (!value || typeof value !== "object") return {}
+  const v = value as Record<string, unknown>
+  if (typeof v.count !== "number" || !Number.isInteger(v.count) || v.count < 1)
+    return {}
+  return {
+    uploadsPending: {
+      count: v.count,
+      after: typeof v.after === "string" ? v.after : null,
+    },
+  }
+}
+
 /** The stored draft, or null when there is none or it is unreadable. */
 export function loadDraft(owner: DraftOwner): CaptureDraft | null {
   try {
@@ -187,6 +206,7 @@ export function loadDraft(owner: DraftOwner): CaptureDraft | null {
       },
       redactionConfirmed: d.redactionConfirmed === true,
       redactionAssetIds: strings(d.redactionAssetIds),
+      ...uploadsPending(d.uploadsPending),
     }
   } catch {
     return null

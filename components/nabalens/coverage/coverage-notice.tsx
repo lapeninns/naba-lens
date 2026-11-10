@@ -14,7 +14,9 @@ const TONE = {
 
 /**
  * Polite live region for the outcome of the last coverage action. With `ref`
- * the notice can take focus, for when the control that acted has gone.
+ * the notice can take focus, for when the control that acted has gone. The
+ * wrapper is the only live region and stays mounted, so the outcome is read
+ * once: a status inside it would be a second, nested region.
  */
 export function CoverageNotice({
   notice,
@@ -26,12 +28,15 @@ export function CoverageNotice({
   ref?: React.Ref<HTMLDivElement>
 }) {
   return (
-    <div aria-live="polite" className="empty:hidden">
+    <div
+      ref={ref}
+      tabIndex={ref ? -1 : undefined}
+      role="status"
+      className="rounded-card outline-none empty:hidden focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-focus focus-visible:outline-solid"
+    >
       {notice ? (
         <NoticeBox
-          ref={ref}
-          tabIndex={ref ? -1 : undefined}
-          role="status"
+          role="none"
           tone={TONE[notice.tone]}
           action={
             <Button variant="quiet" size="sm" onClick={onDismiss}>

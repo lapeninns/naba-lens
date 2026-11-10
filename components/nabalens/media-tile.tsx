@@ -9,6 +9,7 @@ import {
   WarningCircleIcon,
 } from "@phosphor-icons/react"
 
+import { Button } from "@/components/ui/button"
 import { dishName } from "@/lib/menus/dish-name"
 import { cn } from "@/lib/utils"
 
@@ -16,7 +17,14 @@ import { Post } from "./common-room/post"
 import { formatDate, formatDuration, UPLOAD_STATE_LABEL } from "./format"
 import { labelBadgeText } from "./labels"
 import { ProfileAvatar } from "./profile-avatar"
+import { useAdd } from "./shell/add-context"
 import type { MediaItem } from "./types"
+import {
+  OPEN_ADD,
+  STOPPED_WORD,
+  stoppedText,
+  useUploadStopped,
+} from "./upload-stopped"
 
 /**
  * The dishes and drinks a file is labelled with, as cards show them under
@@ -70,7 +78,8 @@ function describe(
   item: MediaItem,
   showAttribution: boolean,
   showFileName: boolean,
-  labelText: string | null
+  labelText: string | null,
+  stopped = false
 ) {
   const kind = item.mediaType === "video" ? "Video" : "Photo"
   const parts: string[] = []
@@ -85,7 +94,8 @@ function describe(
     parts.push(kind)
   }
   parts.push(`uploaded ${formatDate(item.createdAt)}`)
-  if (item.uploadState !== "ready")
+  if (stopped) parts.push(STOPPED_WORD)
+  else if (item.uploadState !== "ready")
     parts.push(UPLOAD_STATE_LABEL[item.uploadState])
   // The visible duration badge must be part of the name (WCAG 2.5.3).
   if (item.mediaType === "video" && item.durationSeconds)
@@ -99,7 +109,14 @@ function describe(
  * What sits inside a tile or post's media button: the thumbnail (or a quiet
  * icon while there is none) and the chips laid on it, each on the plate.
  */
-function TileMedia({ item }: { item: MediaItem }) {
+function TileMedia({
+  item,
+  stopped = false,
+}: {
+  item: MediaItem
+  /** An own upload nothing is sending any more (see useUploadStopped). */
+  stopped?: boolean
+}) {
   // Track the URL that failed so a refreshed signed URL gets a fresh attempt.
   const [failedUrl, setFailedUrl] = React.useState<string | null>(null)
   const showThumb = item.thumbnailUrl && item.thumbnailUrl !== failedUrl
@@ -119,8 +136,10 @@ function TileMedia({ item }: { item: MediaItem }) {
         />
       ) : (
         <span className="absolute inset-0 grid place-items-center text-ink-muted">
-          {item.uploadState === "uploading" ||
-          item.uploadState === "processing" ? (
+          {stopped ? (
+            <WarningCircleIcon className="size-7 text-warn-fg" aria-hidden />
+          ) : item.uploadState === "uploading" ||
+            item.uploadState === "processing" ? (
             <SpinnerGapIcon
               className="size-7 motion-safe:animate-spin"
               aria-hidden
@@ -147,10 +166,10 @@ function TileMedia({ item }: { item: MediaItem }) {
         <TileBadge className="pointer-events-none absolute top-1.5 left-1.5">
           {item.uploadState === "processing" ? (
             <SpinnerGapIcon aria-hidden className="motion-safe:animate-spin" />
-          ) : item.uploadState === "failed" ? (
+          ) : item.uploadState === "failed" || stopped ? (
             <WarningCircleIcon aria-hidden />
           ) : null}
-          {UPLOAD_STATE_LABEL[item.uploadState]}
+          {stopped ? STOPPED_WORD : UPLOAD_STATE_LABEL[item.uploadState]}
         </TileBadge>
       ) : null}
     </>
@@ -172,6 +191,8 @@ export function MediaTile({
   showFileName = false,
   className,
 }: MediaTileProps) {
+  const stopped = useUploadStopped()?.(item) ?? false
+  const openAdd = useAdd()
   const labelled = showLabelBadge && item.uploadState === "ready"
   const labelText = labelled ? labelBadgeText(item.labels) : null
   // Which dish a card shows is how files are found in folders and on Me,
@@ -181,7 +202,7 @@ export function MediaTile({
     <span
       data-slot="tile-dishes"
       title={dishes}
-      className="truncate text-meta text-ink"
+      className="line-clamp-2 text-meta [overflow-wrap:anywhere] text-ink"
     >
       <span className="sr-only">Labelled: </span>
       {dishes}
@@ -190,7 +211,7 @@ export function MediaTile({
 
   return (
     <figure
-      data-state={item.uploadState}
+      data-state={stopped ? "stopped" : item.uploadState}
       className={cn("group/tile grid min-w-0 content-start gap-1.5", className)}
     >
       {/* The labels badge sits outside the button (aria-hidden; its text is
@@ -201,15 +222,21 @@ export function MediaTile({
           type="button"
           onClick={() => onOpen(item)}
           data-media-id={item.id}
-          aria-label={describe(item, showAttribution, showFileName, labelText)}
+          aria-label={describe(
+            item,
+            showAttribution,
+            showFileName,
+            labelText,
+            stopped
+          )}
           className={cn(
             MEDIA_BUTTON,
             "aspect-square rounded-control focus-visible:outline-offset-2",
-            item.uploadState === "failed" &&
+            (item.uploadState === "failed" || stopped) &&
               "shadow-[inset_0_0_0_2px_var(--warn-fg)]"
           )}
         >
-          <TileMedia item={item} />
+          <TileMedia item={item} stopped={stopped} />
         </button>
         {item.uploadState === "ready" && labelText ? (
           <span
@@ -223,15 +250,38 @@ export function MediaTile({
       {showAttribution ? (
         <figcaption className="grid min-w-0 px-px">
           {dishLine}
-          <span className="truncate text-label text-ink">
+          <span
+            title={item.contributorName}
+            className="line-clamp-2 text-label [overflow-wrap:anywhere] text-ink"
+          >
             {item.contributorName}
           </span>
-          <span className="truncate text-meta text-ink-muted">
+          <span
+            title={`${item.venueName} · ${formatDate(item.createdAt)}`}
+            className="line-clamp-2 text-meta [overflow-wrap:anywhere] text-ink-muted"
+          >
             {item.venueName} · {formatDate(item.createdAt)}
           </span>
         </figcaption>
       ) : dishLine ? (
         <figcaption className="grid min-w-0 px-px">{dishLine}</figcaption>
+      ) : null}
+      {stopped ? (
+        <div className="grid min-w-0 justify-items-start gap-1.5 px-px">
+          <p className="text-meta [overflow-wrap:anywhere] text-ink">
+            {stoppedText(item.mediaType, item.createdAt)}
+          </p>
+          {openAdd ? (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => openAdd()}
+            >
+              {OPEN_ADD}
+            </Button>
+          ) : null}
+        </div>
       ) : null}
     </figure>
   )

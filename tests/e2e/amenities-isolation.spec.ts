@@ -42,7 +42,7 @@ const NOT_FOUND_HEADING = {
   // the /manager amenity pages share the screen inside the workspace layout.
   manage: "This check isn't here",
   // app/staff/tasks/amenities/[checkId]/not-found.tsx
-  staff: "This check isn't yours",
+  staff: "We can't find this question for your venue.",
 } as const
 
 /**

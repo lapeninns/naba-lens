@@ -27,6 +27,10 @@ const actions = vi.hoisted(() => ({
   loadMenuItemsPageAction: vi.fn(),
   loadItemEventsAction: vi.fn(),
 }))
+// Contribution sets (B02-05) are off here: the cards show as before.
+vi.mock("@/app/_media/actions", () => ({
+  readPhotoSets: vi.fn(async () => ({ status: "missing" })),
+}))
 vi.mock("@/app/manager/actions", () => actions)
 
 import {
@@ -882,6 +886,34 @@ describe("ReviewScreen", () => {
     expect(nav.replace).toHaveBeenCalledWith("/manager/review", {
       scroll: false,
     })
+  })
+
+  it("names the item chip starting with its visible text (MG-16)", () => {
+    renderScreen([card()], {
+      view: { ...VIEW, itemId: SOUP },
+      itemName: "Soup",
+    })
+    expect(
+      screen.getByRole("button", { name: "Showing: Soup. Remove filter" })
+    ).toBeTruthy()
+  })
+
+  it("wraps the status pills rather than scrolling them (MG-25)", () => {
+    renderScreen([card()])
+    const status = screen.getByRole("group", { name: REVIEW_COPY.statusLabel })
+    expect(status.className).not.toMatch(/overflow-x-auto/)
+    expect(status.firstElementChild?.className).toMatch(/flex-wrap/)
+  })
+
+  it("gives a card outside an item group an h2 (MG-17)", () => {
+    renderScreen([card({ item: null })])
+    const list = screen.getByRole("list", { name: REVIEW_COPY.listLabel })
+    expect(
+      within(list).getByRole("heading", {
+        level: 2,
+        name: REVIEW_COPY.noMenuItem,
+      })
+    ).toBeTruthy()
   })
 
   it("the badge count settles by one after a decision leaves the queue", async () => {

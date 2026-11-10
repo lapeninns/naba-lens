@@ -49,10 +49,15 @@ import { useAmenityAction } from "./use-amenity-action"
 
 export type AmenitiesOverviewHandlers = {
   enable: () => Promise<AmenityResult<{ created: number }>>
-  addChecks: (keys: string[]) => Promise<AmenityResult<{ checkIds: string[] }>>
+  /** `idempotencyKey`: one per intent, reused on a retry (MG-10). */
+  addChecks: (
+    keys: string[],
+    idempotencyKey: string
+  ) => Promise<AmenityResult<{ checkIds: string[] }>>
   restore: (input: {
     checkId: string
     revision: number
+    idempotencyKey: string
   }) => Promise<AmenityResult<{ revision: number }>>
 }
 
@@ -110,8 +115,35 @@ export function AmenitiesOverview({
   const action = useAmenityAction()
   const [pickerOpen, setPickerOpen] = React.useState(false)
   const venue = view.venue.name
+  const rootRef = React.useRef<HTMLDivElement>(null)
+  const noticeRef = React.useRef<HTMLDivElement>(null)
+  // Restore moves the row out of the archive, taking its button with it:
+  // focus follows the check to its new row once the page re-reads, or the
+  // notice when the restore didn't land.
+  const [restored, setRestored] = React.useState<string | null>(null)
+  const focusNotice = React.useRef(false)
+  const restoring = React.useRef(false)
+  React.useEffect(() => {
+    if (!restored) return
+    const link = rootRef.current?.querySelector<HTMLElement>(
+      `li[data-check-id="${restored}"]:not([data-archived]) a`
+    )
+    if (!link) return
+    setRestored(null)
+    link.focus()
+  }, [restored, view])
+  React.useEffect(() => {
+    if (!action.notice || !focusNotice.current) return
+    focusNotice.current = false
+    // A restore that landed moves focus to its row instead.
+    if (restoring.current && action.notice.tone === "success") return
+    noticeRef.current?.focus()
+  }, [action.notice])
 
   async function enable() {
+    // Enable is replaced by the checks once it lands.
+    focusNotice.current = true
+    restoring.current = false
     await action.run(handlers.enable, (r) =>
       r.created > 0
         ? `Amenities are on for ${venue}: ${plural(r.created, "core check")} added.`
@@ -120,8 +152,10 @@ export function AmenitiesOverview({
   }
 
   async function add(keys: string[]): Promise<AddOutcome> {
-    const result = await action.run(
-      () => handlers.addChecks(keys),
+    const result = await action.runKeyed(
+      `amenity-venue:${view.venue.id}:add`,
+      { keys },
+      (idempotencyKey) => handlers.addChecks(keys, idempotencyKey),
       (r) => `${plural(r.checkIds.length, "check")} added.`
     )
     if (result.ok) return { ok: true }
@@ -140,19 +174,29 @@ export function AmenitiesOverview({
   }
 
   async function restore(check: CheckSummary) {
-    await action.run(
-      () => handlers.restore({ checkId: check.id, revision: check.revision }),
+    focusNotice.current = true
+    restoring.current = true
+    const input = { checkId: check.id, revision: check.revision }
+    const result = await action.runKeyed(
+      `amenity-check:${check.id}:restore`,
+      input,
+      (idempotencyKey) => handlers.restore({ ...input, idempotencyKey }),
       `Restored “${check.entry.question}”.`
     )
+    if (result.ok) setRestored(check.id)
   }
 
   const notice = (
-    <CoverageNotice notice={action.notice} onDismiss={action.dismiss} />
+    <CoverageNotice
+      ref={noticeRef}
+      notice={action.notice}
+      onDismiss={action.dismiss}
+    />
   )
 
   if (!view.enabled) {
     return (
-      <div className="grid gap-4">
+      <div ref={rootRef} className="grid gap-4">
         {notice}
         {view.canEnable ? (
           <Notice
@@ -202,7 +246,7 @@ export function AmenitiesOverview({
   const confirmCount = toConfirm?.count ?? 0
 
   return (
-    <div className="grid gap-6 md:gap-8">
+    <div ref={rootRef} className="grid gap-6 md:gap-8">
       {notice}
       <Tally>
         {confirmCount > 0 ? (

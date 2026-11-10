@@ -106,7 +106,12 @@ test.describe("Home: truthful To do and badges", () => {
       p_assignee_id: w.staffA.id,
       p_revision: checkState(toilets).revision,
     })
-    const photo = await seedPhoto(w.staffA, w.venueA, `home-todo-${w.tag}`)
+    // Amenity evidence, as a capture upload is: never labelled, so the B02
+    // Home's labels card (R1 counts general photos only) doesn't join these
+    // counts, which follow the checks alone.
+    const photo = await seedPhoto(w.staffA, w.venueA, `home-todo-${w.tag}`, {
+      purpose: "amenity",
+    })
 
     const page = await signedInPage(browser, w.staffA, PHONE)
     await expect(page).toHaveURL(STAFF_LANDING)

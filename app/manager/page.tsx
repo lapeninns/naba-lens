@@ -1,13 +1,25 @@
+import { managerHrefs } from "@/components/nabalens/manager/hrefs"
+import { MANAGER_COPY } from "@/components/nabalens/manager/copy"
 import { OverviewBody } from "@/components/nabalens/manager/overview/overview-body"
 import { TeamCompletionTargets } from "@/components/nabalens/manager/overview/team-completion-targets"
+import { TriageCard } from "@/components/nabalens/manager/overview/triage-card"
 import { VenueAccessUnavailable } from "@/components/nabalens/manager/venue-access-unavailable"
 import { Notice } from "@/components/nabalens/notice"
+import {
+  OfflineNotice,
+  OFFLINE_BANNER_CLASS,
+} from "@/components/nabalens/offline-notice"
 import { getManagerWorkspace } from "@/lib/auth/manager"
 import { ROUTES } from "@/lib/auth/routes"
+import { amenityHrefs } from "@/lib/amenities/contract"
+import { managerTriageSurface } from "@/lib/config/manager-triage"
 import { knowledgeServices } from "@/lib/knowledge-client/services"
 import { getAmenityActor } from "@/lib/server/amenities"
 import { getManagerCompletionRoster } from "@/lib/server/coverage/venue"
+import type { TriageRow } from "@/lib/work-client/contract"
+import { workServices } from "@/lib/work-client/services"
 
+import { managerNeedsLabels } from "./entry"
 import { failedRead, isRefusal, loadManagerOverview } from "./load-overview"
 
 export const metadata = { title: "Overview · Naba-Lens" }
@@ -30,6 +42,22 @@ async function countToConfirm(): Promise<number | null> {
   }
 }
 
+/**
+ * The Triage queues (R3) when switched on; null keeps B01's rows (switched
+ * off, the database predates B02, or the read failed and they have their own).
+ */
+async function readTriage(): Promise<TriageRow[] | null> {
+  if (managerTriageSurface() !== "b02") return null
+  try {
+    const auth = await getAmenityActor()
+    if (!auth.ok) return null
+    const result = await workServices.getTriage(auth.actor)
+    return result.status === "ok" ? result.value : null
+  } catch {
+    return null
+  }
+}
+
 export default async function ManagerOverviewPage() {
   const workspace = await getManagerWorkspace()
   // After a grant ends mid-session the layout is not re-rendered on client
@@ -46,25 +74,50 @@ export default async function ManagerOverviewPage() {
       return <VenueAccessUnavailable reason="no_grant" refreshShell />
     failedRead(read.code, "the overview", ROUTES.managerHome)
   }
-  const [team, confirmCount] = await Promise.all([
+  const [team, triage, needsLabels] = await Promise.all([
     getManagerCompletionRoster(read.ctx),
-    countToConfirm(),
+    readTriage(),
+    managerNeedsLabels(workspace.venue.id),
   ])
+  const confirmCount = triage ? null : await countToConfirm()
   if (!team.ok && isRefusal(team.code)) {
     return <VenueAccessUnavailable reason="no_grant" refreshShell />
   }
+  // The layout's time stops describing a page once it is navigated to, so
+  // each page says when it was rendered itself.
+  const now = new Date().toISOString()
   return (
-    <OverviewBody
-      overview={read.overview}
-      now={new Date().toISOString()}
-      confirmCount={confirmCount}
-      staffTargets={
-        team.ok ? (
-          <TeamCompletionTargets roster={team.roster} />
-        ) : (
-          <Notice role="status">Staff targets couldn’t be loaded.</Notice>
-        )
-      }
-    />
+    <>
+      <OfflineNotice className={OFFLINE_BANNER_CLASS} loadedAt={now} />
+      <OverviewBody
+        overview={read.overview}
+        now={now}
+        confirmCount={confirmCount}
+        needsLabels={needsLabels}
+        triage={
+          triage ? (
+            <TriageCard
+              rows={triage}
+              hrefs={{
+                menu_photos: managerHrefs.review(),
+                findings: `${amenityHrefs(managerHrefs.overview).list}#amenities-to-confirm`,
+                checklist: managerHrefs.review(),
+              }}
+              ownWaiting={(n) => ({
+                text: MANAGER_COPY.overview.ownWaiting(n),
+                href: managerHrefs.review({ status: "mine" }),
+              })}
+            />
+          ) : undefined
+        }
+        staffTargets={
+          team.ok ? (
+            <TeamCompletionTargets roster={team.roster} />
+          ) : (
+            <Notice role="status">Staff targets couldn’t be loaded.</Notice>
+          )
+        }
+      />
+    </>
   )
 }

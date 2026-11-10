@@ -65,7 +65,7 @@ async function openStaffCheck(page: Page, key: string, id: string) {
 
 /**
  * The check page states progress, answer, and who answered and when, as
- * "Answered by <name> on 7 Nov 2026" under the answer (answeredText in
+ * "Recorded by <name> on 7 Nov 2026" under the answer (answeredText in
  * components/nabalens/amenities/manage/check-row.tsx).
  */
 async function expectAnswered(
@@ -84,7 +84,7 @@ async function expectAnswered(
     main
       .getByText(
         new RegExp(
-          `^Answered by ${escape(by.name)} on \\d{1,2} [A-Za-z]+ \\d{4}$`
+          `^Recorded by ${escape(by.name)} on \\d{1,2} [A-Za-z]+ \\d{4}$`
         )
       )
       .first()
@@ -366,9 +366,17 @@ test.describe("amenity checks", () => {
   }) => {
     const w = await provisionAmenitiesWorld()
     const id = await readyCheck(w, w.venueA, "guest_toilets", null)
-    // The manager's own photo, as if uploaded while still a staff account
-    // (manager accounts do not upload); the fixture seeds it as theirs.
-    const photo = await seedPhoto(w.managerA, w.venueA, `toilets-${w.tag}`)
+    // The manager account's own upload (B02-c: recorded as "manager"), and
+    // one from its staff era (no role recorded), which stays hidden from it
+    // and is never offered as evidence (WS1 default 13).
+    const photo = await seedPhoto(w.managerA, w.venueA, `toilets-${w.tag}`, {
+      uploaderRole: "manager",
+    })
+    const staffEra = await seedPhoto(
+      w.managerA,
+      w.venueA,
+      `toilets-staff-era-${w.tag}`
+    )
 
     const manager = await signedInPage(browser, w.managerA)
     await manager.goto(MANAGER.check(id))
@@ -381,6 +389,9 @@ test.describe("amenity checks", () => {
     )
     const form = captureForm(manager)
     await form.answer("yes")
+    // The picker has loaded once the manager-era photo is listed.
+    await expect(form.evidence(photo)).toHaveCount(1)
+    await expect(form.evidence(staffEra)).toHaveCount(0)
     await form.attach(photo)
     await submitAndComplete(manager, id)
     expect(checkState(id)).toMatchObject({

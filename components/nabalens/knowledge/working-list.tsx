@@ -34,10 +34,13 @@ function rank(slot: WorkingSlot, row: SlotRow): number {
 export function WorkingListSection({
   list,
   onDismiss,
+  inTodo = 0,
 }: {
   list: WorkingList
   /** S13: hides a closed-assignment row for this person. Best effort. */
   onDismiss?: (input: { eventId: number }) => Promise<unknown>
+  /** Questions left out of this list because they are in To do. */
+  inTodo?: number
 }) {
   const [dismissed, setDismissed] = React.useState<ReadonlySet<number>>(
     () => new Set()
@@ -81,6 +84,9 @@ export function WorkingListSection({
         <p className="max-w-(--size-reading) text-body text-ink-muted">
           Questions about {list.venue.name}. Anyone working here can help answer
           them.
+          {inTodo > 0
+            ? ` ${inTodo} more ${inTodo === 1 ? "is" : "are"} in To do.`
+            : null}
         </p>
       </div>
       <ul aria-label="Amenity checks" className="grid gap-(--gutter)">

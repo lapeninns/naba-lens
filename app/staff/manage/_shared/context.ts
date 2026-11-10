@@ -19,6 +19,9 @@ import { isUuid } from "@/lib/server/coverage/validate"
 import { getVenueCoverage } from "@/lib/server/coverage/venue"
 import { getMediaActor } from "@/lib/server/media/context"
 import type { MediaActor } from "@/lib/server/media/types"
+import { managerTriageSurface } from "@/lib/config/manager-triage"
+import type { TriageRow } from "@/lib/work-client/contract"
+import { workServices } from "@/lib/work-client/services"
 
 import { currentStaffShell } from "../../_shell/shell-status"
 
@@ -145,6 +148,26 @@ export const readVenueCoverage = cache(
     if (ctx.coverage) return { ok: true, coverage: ctx.coverage }
     const result = await getVenueCoverage(ctx.actor, { venueId: ctx.venueId })
     return result.ok ? { ok: true, coverage: result.coverage } : result
+  }
+)
+
+/**
+ * The venue's Triage queues (R3), read once per request for the Overview card
+ * and the To confirm badge (F7 parity). Null when switched off or unreadable:
+ * the pages then stay as in B01. Only an admin names the venue.
+ */
+export const readVenueTriage = cache(
+  async (ctx: ManageContext): Promise<TriageRow[] | null> => {
+    if (managerTriageSurface() !== "b02") return null
+    try {
+      const result = await workServices.getTriage(
+        ctx.actor,
+        ctx.mode === "admin" ? ctx.venueId : null
+      )
+      return result.status === "ok" ? result.value : null
+    } catch {
+      return null
+    }
   }
 )
 

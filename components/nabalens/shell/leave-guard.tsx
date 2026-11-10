@@ -15,17 +15,29 @@ import {
 import { Button } from "@/components/ui/button"
 import { leaveDeliberately } from "@/lib/upload/before-unload"
 
-type Entry = { active: number; labels: number; stop: () => void }
+type Entry = {
+  active: number
+  labels: number
+  /** Files processing on the server: saved whether or not the person stays. */
+  finishing: number
+  stop: () => void
+}
 type Register = (id: string, entry: Entry | null) => void
 
 const LeaveContext = React.createContext<Register | null>(null)
 
 /**
  * Tells the staff layout's leave guard how many uploads this queue is running
- * or holding, how many files have labels the server does not have yet, and how
+ * or holding (that leaving would stop), how many files have labels the server
+ * does not have yet, how many are processing (finishing either way), and how
  * to stop the uploads. Outside the guard it does nothing.
  */
-export function useLeaveGuard(active: number, stop: () => void, labels = 0) {
+export function useLeaveGuard(
+  active: number,
+  stop: () => void,
+  labels = 0,
+  finishing = 0
+) {
   const register = React.useContext(LeaveContext)
   const id = React.useId()
   const stopRef = React.useRef(stop)
@@ -36,32 +48,43 @@ export function useLeaveGuard(active: number, stop: () => void, labels = 0) {
     if (!register) return
     register(
       id,
-      active > 0 || labels > 0
-        ? { active, labels, stop: () => stopRef.current() }
+      active > 0 || labels > 0 || finishing > 0
+        ? { active, labels, finishing, stop: () => stopRef.current() }
         : null
     )
     return () => register(id, null)
-  }, [register, id, active, labels])
+  }, [register, id, active, labels, finishing])
 }
 
 /**
  * Copy for S6/S20 leaving while uploads run, or while labels the server does
  * not have yet would be lost.
  */
-export function leaveCopy(kind: "logout" | "leave", count: number, labels = 0) {
+export function leaveCopy(
+  kind: "logout" | "leave",
+  count: number,
+  labels = 0,
+  finishing = 0
+) {
   const uploads =
     count === 0
       ? null
       : count === 1
         ? "Leave now and 1 upload stops. Finished photos stay uploaded."
         : `Leave now and ${count} uploads stop. Finished photos stay uploaded.`
+  const finished =
+    finishing === 0
+      ? null
+      : finishing === 1
+        ? "1 photo is finishing and will still be saved."
+        : `${finishing} photos are finishing and will still be saved.`
   const unsaved =
     labels === 0
       ? null
       : `Labels for ${labels} ${labels === 1 ? "photo" : "photos"} haven't saved yet.`
   return {
     title: kind === "logout" ? "Log out now?" : "Leave now?",
-    body: [uploads, unsaved].filter(Boolean).join(" "),
+    body: [uploads, finished, unsaved].filter(Boolean).join(" "),
     leave: kind === "logout" ? "Log out anyway" : "Leave anyway",
     stay: count > 0 ? "Keep uploading" : "Stay",
   }
@@ -75,6 +98,7 @@ type Pending =
       kind: "logout"
       count: number
       labels: number
+      finishing: number
       form: HTMLFormElement
       submitter: HTMLElement | null
     }
@@ -82,6 +106,7 @@ type Pending =
       kind: "leave"
       count: number
       labels: number
+      finishing: number
       anchor: HTMLAnchorElement
       href: string
     }
@@ -110,11 +135,13 @@ export function LeaveGuard({ children }: { children: React.ReactNode }) {
     const running = () => {
       let count = 0
       let labels = 0
+      let finishing = 0
       for (const entry of entries.current.values()) {
         count += entry.active
         labels += entry.labels
+        finishing += entry.finishing
       }
-      return { count, labels }
+      return { count, labels, finishing }
     }
 
     // Window capture runs before React's root listeners, so stopping here
@@ -124,7 +151,8 @@ export function LeaveGuard({ children }: { children: React.ReactNode }) {
       const form = event.target
       if (!(form instanceof HTMLFormElement) || !form.matches("[data-logout]"))
         return
-      const { count, labels } = running()
+      // Only files that would stop ask first; processing ones finish anyway.
+      const { count, labels, finishing } = running()
       if (count === 0 && labels === 0) return
       event.preventDefault()
       event.stopPropagation()
@@ -133,6 +161,7 @@ export function LeaveGuard({ children }: { children: React.ReactNode }) {
         kind: "logout",
         count,
         labels,
+        finishing,
         form,
         submitter: event.submitter,
       })
@@ -151,7 +180,7 @@ export function LeaveGuard({ children }: { children: React.ReactNode }) {
       const url = new URL(anchor.href, window.location.href)
       if (url.origin !== window.location.origin || isStaffPath(url.pathname))
         return
-      const { count, labels } = running()
+      const { count, labels, finishing } = running()
       if (count === 0 && labels === 0) return
       event.preventDefault()
       event.stopPropagation()
@@ -160,6 +189,7 @@ export function LeaveGuard({ children }: { children: React.ReactNode }) {
         kind: "leave",
         count,
         labels,
+        finishing,
         anchor,
         href: url.pathname + url.search + url.hash,
       })
@@ -202,7 +232,7 @@ export function LeaveGuard({ children }: { children: React.ReactNode }) {
   }
 
   const copy = pending
-    ? leaveCopy(pending.kind, pending.count, pending.labels)
+    ? leaveCopy(pending.kind, pending.count, pending.labels, pending.finishing)
     : null
 
   return (

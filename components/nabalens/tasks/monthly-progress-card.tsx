@@ -11,6 +11,83 @@ import { DueLine, StatusChip } from "./status-badges"
 import type { MonthlyProgress } from "./types"
 
 /**
+ * What a needs-setup month is missing, and what counts so far. Shared with
+ * Home's This month card.
+ */
+export function TargetSetup({ monthly }: { monthly: MonthlyProgress }) {
+  const completion = monthly.completionProgress
+  const count = completion?.total ?? monthly.accepted
+  return (
+    <div className="grid gap-1 text-body text-ink">
+      {monthly.setupMissing.includes("target") ? (
+        <p>Your target appears here once your manager sets it.</p>
+      ) : null}
+      {monthly.setupMissing.includes("team") ? (
+        <p>
+          Your team (FOH or BOH) isn&apos;t set yet, so this month
+          can&apos;t be completed. Ask an admin to set it.
+        </p>
+      ) : null}
+      <p className="text-meta text-ink-muted">
+        {completion
+          ? completionBreakdown(completion)
+          : `${plural(count, "photo", "photos")} accepted so far.`}
+      </p>
+    </div>
+  )
+}
+
+/**
+ * The target line ("{n} of {target} completed/accepted"), its bar and what is
+ * left. Shared with Home's This month card, so both say the same.
+ */
+export function TargetProgress({ monthly }: { monthly: MonthlyProgress }) {
+  const target = monthly.targetCount
+  const completion = monthly.completionProgress
+  const count = completion?.total ?? monthly.accepted
+  const unit = completion ? "completed" : "accepted"
+  const remaining = target ? Math.max(0, target - count) : null
+  // A target row without a number reads as a count alone: no bar, no "of".
+  const hasTarget = typeof target === "number" && target > 0
+  return (
+    <div className="grid gap-3">
+      <p className="flex flex-wrap items-baseline gap-x-2">
+        <span className="font-display text-count text-ink tabular-nums">
+          {count}
+        </span>
+        <span className="font-display text-section-title text-ink-muted">
+          {" "}
+          {hasTarget ? `of ${target} ${unit}` : unit}
+        </span>
+      </p>
+      {hasTarget ? (
+        <div
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={target}
+          aria-valuenow={Math.min(count, target)}
+          aria-label={`${count} of ${target} ${completion ? "items completed" : "photos accepted"}`}
+        >
+          <PhotoSegments
+            accepted={count}
+            pending={completion ? 0 : monthly.pending}
+            target={target}
+          />
+        </div>
+      ) : null}
+      {remaining ? (
+        <p className="text-body text-ink">
+          {completion
+            ? plural(remaining, "more completion", "more completions")
+            : plural(remaining, "more photo", "more photos")}{" "}
+          to go.
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
+/**
  * This month's target. A missing target or incomplete profile shows
  * Needs setup and never reads as complete; overdue is shown for follow-up and
  * sending stays available.
@@ -44,6 +121,16 @@ export function MonthlyProgressCard({
     (monthly?.period.label ?? periodLabel) +
     (showVenue && monthly ? ` at ${monthly.venue.name}` : "")
   const headingId = `monthly-${monthly?.period.key ?? "none"}-${monthly?.venue.id ?? "none"}`
+  const also = pendingLines(alsoPending)
+  const alsoLines =
+    also.length > 0 ? (
+      // Separate from the bar and its number: these aren't counted.
+      <div className="grid gap-1 border-t border-line pt-3 text-meta text-ink-muted">
+        {also.map((line) => (
+          <p key={line}>{line}</p>
+        ))}
+      </div>
+    ) : null
 
   if (!monthly) {
     return (
@@ -60,17 +147,13 @@ export function MonthlyProgressCard({
         <p className="text-body text-ink-muted">
           There&apos;s no photo target for you this month.
         </p>
+        {alsoLines}
       </section>
     )
   }
 
   const needsSetup = monthly.status === "needs_setup"
-  const target = monthly.targetCount
   const completion = monthly.completionProgress
-  const count = completion?.total ?? monthly.accepted
-  const unit = completion ? "completed" : "accepted"
-  const remaining = target ? Math.max(0, target - count) : null
-  const also = pendingLines(alsoPending)
 
   return (
     <section
@@ -92,55 +175,9 @@ export function MonthlyProgressCard({
       </CardHead>
 
       {needsSetup ? (
-        <div className="grid gap-1 text-body text-ink">
-          {monthly.setupMissing.includes("target") ? (
-            <p>Your target appears here once your manager sets it.</p>
-          ) : null}
-          {monthly.setupMissing.includes("team") ? (
-            <p>
-              Your team (FOH or BOH) isn&apos;t set yet, so this month
-              can&apos;t be completed. Ask an admin to set it.
-            </p>
-          ) : null}
-          <p className="text-meta text-ink-muted">
-            {completion
-              ? completionBreakdown(completion)
-              : `${plural(count, "photo", "photos")} accepted so far.`}
-          </p>
-        </div>
+        <TargetSetup monthly={monthly} />
       ) : (
-        <div className="grid gap-3">
-          <p className="flex flex-wrap items-baseline gap-x-2">
-            <span className="font-display text-count text-ink tabular-nums">
-              {count}
-            </span>
-            <span className="font-display text-section-title text-ink-muted">
-              {" "}
-              of {target} {unit}
-            </span>
-          </p>
-          <div
-            role="progressbar"
-            aria-valuemin={0}
-            aria-valuemax={target ?? 0}
-            aria-valuenow={Math.min(count, target ?? 0)}
-            aria-label={`${count} of ${target} ${completion ? "items completed" : "photos accepted"}`}
-          >
-            <PhotoSegments
-              accepted={count}
-              pending={completion ? 0 : monthly.pending}
-              target={target ?? 0}
-            />
-          </div>
-          {remaining ? (
-            <p className="text-body text-ink">
-              {completion
-                ? plural(remaining, "more completion", "more completions")
-                : plural(remaining, "more photo", "more photos")}{" "}
-              to go.
-            </p>
-          ) : null}
-        </div>
+        <TargetProgress monthly={monthly} />
       )}
 
       {completion ? (
@@ -181,14 +218,7 @@ export function MonthlyProgressCard({
         </ul>
       )}
 
-      {also.length > 0 ? (
-        // Separate from the bar and its number: these aren't counted.
-        <div className="grid gap-1 border-t border-line pt-3 text-meta text-ink-muted">
-          {also.map((line) => (
-            <p key={line}>{line}</p>
-          ))}
-        </div>
-      ) : null}
+      {alsoLines}
 
       {monthly.due ? (
         <div className="grid gap-1">

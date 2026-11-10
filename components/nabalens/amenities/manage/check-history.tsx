@@ -55,7 +55,7 @@ function SubmissionCard({ submission }: { submission: SubmissionView }) {
             <StatusChip tone="positive">Current answer</StatusChip>
           ) : null}
           <p className="text-meta-touch text-ink-muted md:text-meta">
-            {by} · {whenText(submission.submittedAt)}
+            Sent by {by} · {whenText(submission.submittedAt)}
           </p>
         </header>
         <dl className="grid gap-3">
@@ -148,6 +148,14 @@ function isPreset(value: unknown): value is ReopenPreset {
   )
 }
 
+/** Who recorded a history event and when; the time is the change's own. */
+export function eventByline(event: CheckEventView): string {
+  const when = whenText(event.at)
+  return event.actor
+    ? `Recorded by ${nameOf(event.actor)} · ${when}`
+    : `Recorded · ${when}`
+}
+
 /** One history line, from the event kind and its detail. */
 export function eventText(
   event: CheckEventView,
@@ -220,8 +228,7 @@ export function EventHistory({
                 </p>
               ) : null}
               <p className="text-meta-touch text-ink-muted md:text-meta">
-                {event.actor ? nameOf(event.actor) : "System"} ·{" "}
-                {whenText(event.at)}
+                {eventByline(event)}
               </p>
             </li>
           ))}

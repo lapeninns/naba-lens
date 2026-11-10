@@ -532,3 +532,26 @@ export function announcement(
       return a.moved(targetName)
   }
 }
+
+/** Consecutive cards of one contribution set (B02-05), or one card alone. */
+export type SetRun<T> = { groupId: string | null; cards: T[] }
+
+/**
+ * Adjacent cards in the same set make one run; the order never changes, so
+ * a set split by another photo shows as two runs. A run of one is a card.
+ */
+export function setRuns<T>(
+  cards: readonly T[],
+  groupOf: (card: T) => string | null
+): SetRun<T>[] {
+  const runs: SetRun<T>[] = []
+  for (const card of cards) {
+    const groupId = groupOf(card)
+    const last = runs[runs.length - 1]
+    if (groupId && last?.groupId === groupId) last.cards.push(card)
+    else runs.push({ groupId, cards: [card] })
+  }
+  return runs.map((run) =>
+    run.cards.length > 1 ? run : { groupId: null, cards: run.cards }
+  )
+}
