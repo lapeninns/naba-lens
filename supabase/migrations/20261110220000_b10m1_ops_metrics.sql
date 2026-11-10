@@ -101,6 +101,7 @@ declare
   v_key text;
   v_value jsonb;
   v_number numeric;
+  v_max numeric;
 begin
   if v_fields is null or p_counts is null or jsonb_typeof(p_counts) <> 'object' then
     return false;
@@ -110,9 +111,11 @@ begin
       return false;
     end if;
     v_number := (v_value #>> '{}')::numeric;
-    if v_number <> trunc(v_number) or v_number < 0
-       or v_number > case when v_key = 'bytes_verified'
-                          then 9007199254740991 else 2147483647 end then
+    -- The bound is set before the IF: a bare CASE inside an IF condition ends
+    -- that condition at the CASE's own THEN.
+    v_max := case when v_key = 'bytes_verified'
+                  then 9007199254740991 else 2147483647 end;
+    if v_number <> trunc(v_number) or v_number < 0 or v_number > v_max then
       return false;
     end if;
   end loop;
@@ -301,7 +304,9 @@ begin
     'availability', 'available', 'scope', 'global', 'jobs', v_items));
 
   -- M-JB-2 (global): failed and partial receipts in 24 h, and the failures
-  -- since the last ok receipt.
+  -- since the last ok receipt. Receipts are ordered by (finished_at,
+  -- started_at, run_id) for both the latest receipt and the streak, so equal
+  -- finish times have one fixed order.
   select jsonb_agg(jsonb_build_object(
       'job', j.job,
       'failed24h', s.failed_24h,
@@ -314,9 +319,11 @@ begin
     into v_items
   from private.ops_jobs() j
   left join lateral (
-    select max(r.finished_at) as last_ok
+    select r.finished_at, r.started_at, r.run_id
     from private.ops_job_runs r
     where r.job = j.job and r.outcome = 'ok' and r.finished_at <= p_now
+    order by r.finished_at desc, r.started_at desc, r.run_id desc
+    limit 1
   ) o on true
   left join lateral (
     select r.outcome, r.error_code, r.finished_at
@@ -332,7 +339,8 @@ begin
       (count(*) filter (
         where r.outcome = 'partial' and r.finished_at > p_now - interval '24 hours'))::integer as partial_24h,
       (count(*) filter (
-        where r.outcome <> 'ok' and (o.last_ok is null or r.finished_at > o.last_ok)))::integer as consecutive
+        where r.outcome <> 'ok' and (o.run_id is null
+          or (r.finished_at, r.started_at, r.run_id) > (o.finished_at, o.started_at, o.run_id))))::integer as consecutive
     from private.ops_job_runs r
     where r.job = j.job and r.finished_at <= p_now
   ) s on true;
@@ -462,6 +470,8 @@ begin
     'availability', 'available', 'scope', 'venue', 'totals', v_totals, 'venues', v_items));
 
   -- M-UP-6: labels kept as needs_attention, and pending labels older than 30 min.
+  -- Seven days here and in M-WD-4 is 168 h of elapsed time: '7 days' would
+  -- follow the session time zone's calendar across a DST change.
   select coalesce(jsonb_agg(jsonb_build_object(
       'venueId', x.venue_id,
       'needsAttention', x.attention,
@@ -479,7 +489,7 @@ begin
     select l.venue_id,
       (count(*) filter (where l.status = 'needs_attention'))::integer as attention,
       (count(*) filter (
-        where l.status = 'needs_attention' and l.updated_at < p_now - interval '7 days'))::integer as attention_old,
+        where l.status = 'needs_attention' and l.updated_at < p_now - interval '168 hours'))::integer as attention_old,
       min(l.updated_at) filter (where l.status = 'needs_attention') as attention_oldest,
       (count(*) filter (
         where l.status = 'pending' and l.updated_at < p_now - interval '30 minutes'))::integer as stale_pending,
@@ -525,7 +535,7 @@ begin
     select e.venue_id, count(*)::integer as events, count(distinct e.check_id)::integer as checks
     from public.amenity_check_events e
     where e.kind = 'evidence_lost'
-      and e.created_at > p_now - interval '7 days' and e.created_at <= p_now
+      and e.created_at > p_now - interval '168 hours' and e.created_at <= p_now
       and (p_venue_id is null or e.venue_id = p_venue_id)
     group by e.venue_id
   ) x;
