@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest"
 
-import { parseResolverRow, toAnswer } from "@/app/api/knowledge/_reader/answers"
+import {
+  parseResolverRow,
+  snapshotEtag,
+  toAnswer,
+} from "@/app/api/knowledge/_reader/answers"
 import {
   credentialDigest,
   parseRegistry,
@@ -218,5 +222,28 @@ describe("a response mixing B03 details with plain answers", () => {
     const res = await get()
     expect(res.status).toBe(500)
     expect((await res.json()).error.code).toBe("internal_error")
+  })
+})
+
+describe("snapshot ETag across B03 details", () => {
+  it("changes when only the detail changes at the same revision", () => {
+    const base = { venueId: VENUE, audience: "internal", schema: "1.0" }
+    const qualified = read(
+      withheld("guest_toilets", "stale", "qualified_answer")
+    )!
+    const expired = read(withheld("guest_toilets", "stale", "expired"))!
+    expect(qualified.revision).toBe(expired.revision)
+    expect(snapshotEtag({ ...base, answers: [qualified] })).not.toBe(
+      snapshotEtag({ ...base, answers: [expired] })
+    )
+  })
+
+  it("changes when only the reason changes at the same revision", () => {
+    const base = { venueId: VENUE, audience: "internal", schema: "1.0" }
+    const stale = read(withheld("guest_toilets", "stale", "recheck_requested"))!
+    const pending = read(withheld("guest_toilets", "not_confirmed", "pending"))!
+    expect(snapshotEtag({ ...base, answers: [stale] })).not.toBe(
+      snapshotEtag({ ...base, answers: [pending] })
+    )
   })
 })
