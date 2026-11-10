@@ -1457,15 +1457,14 @@ b03-defg-implementation-review.md).
   `greatest(created_at, effective_from)`, never backdated) and
   `private.knowledge_policy_as_of(id, use, at)` (`created_at`). Both tables
   are append-only, so a past answer always reads the same.
-  **History read (superseded wording, see R-L2 below):** `private.knowledge_answer_at(check,
-at) returns jsonb` (definer; callers gate; not granted to clients) returns
+  **History read (R-L2):** `private.knowledge_answer_at(check, at) returns
+jsonb` (definer; callers gate; not granted to clients) returns
   `{ checkId, at, answerInUse: null | { submissionId, answer, sentAt,
 confirmationState, withdrawn, detail, questionVersion, registryVersion,
 selectionRule, freshness: [{ use, state, nextCheckDue, basis, basisDate,
-policyId?, policyVersion? }] } }`. "Current and fresh at adoption" is
-  `answerInUse.freshness` for the use at the adoption instant (B08 R2
-  no longer reads this; see R-L2).
-  `public.knowledge_slot_history` (managers and admins) returns the same.
+policyId?, policyVersion? }] } }`: what the check showed at `at`, for
+  display and audit. `public.knowledge_slot_history` (managers and admins)
+  returns the same. B08 R2 does not read it (R-L2 below).
 - **WS5 item 1:** a withdrawal reads withdrawn only while the key is in scope;
   off the working list the B01 `unknown / not_enabled` wins (state model
   §4.5).
@@ -1502,7 +1501,9 @@ part of B03.
 - **R-L2:** `private.knowledge_answer_at` and `knowledge_slot_history` are the
   history read: what a check showed at a time, for display and audit. B08 R2
   does not use them; it reads stored, write-once facts (B08 §6.2a, §7.4
-  "Write-once times"), so there is one R2 definition. The "stable interface
-  for WS3 (B08 R2)" wording in "Review repairs, second part" is replaced by
-  this. `freshness` is computed for the answer in use even when `withdrawn`
-  is true, and scope is not applied: consumers read `withdrawn` first.
+  "Write-once times"), so there is one R2 definition. The earlier "stable
+  interface for WS3 (B08 R2)" label, here, in the 20261110114514 header and
+  in the WS1 repairs handoff, is withdrawn; the database comment on
+  `private.knowledge_answer_at` now says history read. `freshness` is
+  computed for the answer in use even when `withdrawn` is true, and scope is
+  not applied: consumers read `withdrawn` first.

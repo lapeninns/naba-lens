@@ -197,7 +197,16 @@ describe("freshness as it read at a time (B08 M1)", () => {
         `select has_function_privilege('authenticated', 'private.knowledge_schema_change_due(text,timestamptz)', 'execute')`
       )
     ).toBe("f")
-  })})
+  })
+
+  it("labels the answer at a time as the history read, not B08 R2 (review R-L2)", () => {
+    expect(
+      psql(
+        `select left(obj_description('private.knowledge_answer_at(uuid,timestamptz)'::regprocedure, 'pg_proc'), 12)`
+      )
+    ).toBe("History read")
+  })
+})
 
 describe("recheck tasks (§7.4, A11, A24)", () => {
   let w: World

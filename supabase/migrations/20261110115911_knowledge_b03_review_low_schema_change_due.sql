@@ -10,6 +10,11 @@
 --   rule as knowledge_version_as_of. Null before the registry existed.
 -- * Nothing else in knowledge_open_rechecks changes; the body is the one
 --   from 20261110113909 with that single expression replaced.
+-- * R-L2: private.knowledge_answer_at is the history read (what a check
+--   showed at a time, for display and audit), not the B08 R2 interface that
+--   the 20261110114514 header called it; B08 R2 reads stored, write-once
+--   facts (B08 §6.2a). Recorded as a comment on the function; its body is
+--   unchanged.
 -- * Not touched: the credit trigger, the evidence-withdrawn trigger, the credit
 --   functions, the B01 resolver, knowledge_adopt.
 --
@@ -119,3 +124,6 @@ revoke all on function
   private.knowledge_schema_change_due(text, timestamptz),
   private.knowledge_open_rechecks(timestamptz)
 from public, anon, authenticated;
+
+comment on function private.knowledge_answer_at(uuid, timestamptz) is
+  'History read (b03-design R-L2): the answer in use at p_at, for display and audit. Callers gate. freshness ignores withdrawn and scope: read withdrawn first. B08 R2 does not use this; it reads stored, write-once facts (B08 §6.2a).';
