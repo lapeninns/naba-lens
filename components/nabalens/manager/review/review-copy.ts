@@ -97,6 +97,8 @@ export const REVIEW_COPY = {
   movedFrom: (item: string) => `Moved from ${item}`,
   reason: "Reason",
   groupHeading: (item: string, n: number) => `${item} · ${plural(n, "photo")}`,
+  /** Photos sent together as one set (B02-05); each keeps its own decision. */
+  set: (n: number) => `A set of ${n} photos. Each is decided on its own.`,
   moreOfItem: (n: number, item: string) =>
     `+${plural(n, "more photo")} of ${item}`,
   ownPhoto: "This is your photo. Another reviewer decides on it.",

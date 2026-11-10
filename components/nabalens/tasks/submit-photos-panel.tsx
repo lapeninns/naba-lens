@@ -311,6 +311,11 @@ export function SubmitPhotosPanel({
       addQueue.openAdd({
         source,
         imagesOnly: true,
+        // Several photos picked for the task make one set (B02-05).
+        subject:
+          requirementId && taskTitle
+            ? { kind: "task", id: requirementId, name: taskTitle }
+            : null,
         // Once per photo, as soon as that photo is ready (not when the whole
         // pick settles): each one is added to the selection, never replacing
         // it. False after unmount ("the screen is gone"): Add keeps the photo

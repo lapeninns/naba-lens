@@ -8,6 +8,7 @@
 import type {
   DeleteImpactEffect,
   DeleteImpactKind,
+  GroupSubjectKind,
   TriageQueue,
 } from "@/lib/knowledge/contract"
 
@@ -68,3 +69,23 @@ export type ImpactLine = {
 /** R9 read: `unknown` when an item uses a kind or effect this client can't word. */
 export type DeleteImpact =
   { status: "known"; items: ImpactLine[] } | { status: "unknown" }
+
+/** W1: which group a listed photo is in (photos the caller may already see). */
+export type AssetGroup = { assetId: string; groupId: string }
+
+/** W1: what a set of photos is of; `id` is null for "Just photos". */
+export type GroupSubjectRef = {
+  kind: GroupSubjectKind
+  id: string | null
+}
+
+/**
+ * A contribution-group call as Add and Review need it (W1). `missing`: the
+ * database predates groups, or they are switched off, so photos stay single;
+ * `failed` with `retry` when a later try may work (the service was down, or
+ * the session needs signing in again).
+ */
+export type PhotoSetReply<T> =
+  | ({ status: "ok" } & T)
+  | { status: "missing" }
+  | { status: "failed"; retry: boolean }

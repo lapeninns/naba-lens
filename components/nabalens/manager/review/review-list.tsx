@@ -9,6 +9,7 @@ import {
 } from "@phosphor-icons/react"
 
 import { useSessionEndedCatch } from "@/components/nabalens/session-guard-host"
+import { readPhotoSets } from "@/app/_media/actions"
 import { loadReviewPageAction } from "@/app/manager/actions"
 import { failureText } from "@/components/nabalens/coverage/copy"
 import { EvidenceThumb } from "@/components/nabalens/coverage/evidence-image"
@@ -21,6 +22,7 @@ import { EmptyState } from "@/components/nabalens/empty-state"
 import { LoadMoreButton } from "@/components/nabalens/load-more-button"
 import { Notice } from "@/components/nabalens/notice"
 import { buttonVariants } from "@/components/ui/button"
+import { GROUP_LIMITS } from "@/lib/knowledge/contract"
 import type {
   DecisionOutcome,
   Page,
@@ -39,6 +41,7 @@ import {
   ownPhotoBlocked,
   pendingDelta,
   PICKER_ACTIONS,
+  setRuns,
   staleLabelOf,
   type CardAction,
   type ListCard,
@@ -174,6 +177,36 @@ export function ReviewList({
   const [dialog, setDialog] = React.useState<DialogState | null>(null)
   const [preview, setPreview] = React.useState<number | null>(null)
   const sessionEnded = useSessionEndedCatch()
+
+  // Which set each shown photo is in (B02-05), looked up once per photo.
+  // Unreadable, or groups missing: the cards show as they always have.
+  const [sets, setSets] = React.useState<ReadonlyMap<string, string>>(
+    () => new Map()
+  )
+  const lookedUp = React.useRef(new Set<string>())
+  const setsOff = React.useRef(false)
+  React.useEffect(() => {
+    if (setsOff.current) return
+    const fresh = [...new Set(cards.map((card) => card.asset.assetId))].filter(
+      (id) => !lookedUp.current.has(id)
+    )
+    if (fresh.length === 0) return
+    for (const id of fresh) lookedUp.current.add(id)
+    for (let at = 0; at < fresh.length; at += GROUP_LIMITS.maxLookup) {
+      const assetIds = fresh.slice(at, at + GROUP_LIMITS.maxLookup)
+      void readPhotoSets({ assetIds })
+        .then((reply) => {
+          if (reply.status === "missing") setsOff.current = true
+          if (reply.status !== "ok" || reply.groups.length === 0) return
+          setSets((current) => {
+            const next = new Map(current)
+            for (const g of reply.groups) next.set(g.assetId, g.groupId)
+            return next
+          })
+        })
+        .catch(() => {})
+    }
+  }, [cards])
 
   const cardsRef = React.useRef(cards)
   React.useEffect(() => {
@@ -476,6 +509,23 @@ export function ReviewList({
     />
   )
 
+  // A card under its item's heading.
+  const itemCard = (card: ListCard) => (
+    <ReviewCard
+      card={card}
+      scope={scope}
+      now={now}
+      error={errors[card.key]}
+      actions={actionsFor(card)}
+      onOpenPreview={(trigger) => {
+        previewTriggerRef.current = trigger
+        setPreview(cards.indexOf(card))
+      }}
+      onRefresh={() => router.refresh()}
+      showItemLink={showItemLinks}
+    />
+  )
+
   const subject = dialog?.card ?? null
   const askDialog = dialog?.kind === "ask"
   const followUp =
@@ -540,23 +590,37 @@ export function ReviewList({
                       aria-label={`Photos of ${group.name ?? ""}`}
                       className="grid gap-(--gutter)"
                     >
-                      {group.cards.map((card) => (
-                        <li key={card.key}>
-                          <ReviewCard
-                            card={card}
-                            scope={scope}
-                            now={now}
-                            error={errors[card.key]}
-                            actions={actionsFor(card)}
-                            onOpenPreview={(trigger) => {
-                              previewTriggerRef.current = trigger
-                              setPreview(cards.indexOf(card))
-                            }}
-                            onRefresh={() => router.refresh()}
-                            showItemLink={showItemLinks}
-                          />
-                        </li>
-                      ))}
+                      {setRuns(
+                        group.cards,
+                        (card) => sets.get(card.asset.assetId) ?? null
+                      ).map((run) => {
+                        const card = run.cards[0]
+                        if (!run.groupId)
+                          return <li key={card.key}>{itemCard(card)}</li>
+                        const setId = `review-set-${card.key}`
+                        return (
+                          <li key={setId}>
+                            <section
+                              aria-labelledby={setId}
+                              className="grid gap-3 rounded-card border border-line p-3"
+                            >
+                              {/* A label, not a heading: each card's own
+                                  heading stays one level under the item's. */}
+                              <p
+                                id={setId}
+                                className="text-label [overflow-wrap:anywhere] text-ink"
+                              >
+                                {REVIEW_COPY.set(run.cards.length)}
+                              </p>
+                              <ul className="grid gap-(--gutter)">
+                                {run.cards.map((member) => (
+                                  <li key={member.key}>{itemCard(member)}</li>
+                                ))}
+                              </ul>
+                            </section>
+                          </li>
+                        )
+                      })}
                     </ul>
                     {!view.itemId && total > shown ? (
                       <Link

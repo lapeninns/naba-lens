@@ -332,7 +332,7 @@ test("c menu changed mid-upload: Needs attention, Fix labels re-picks and saves 
 // ---------------------------------------------------------------------------
 
 for (const width of [360, 412]) {
-  test(`d @${width}: known dish from Our menu in at most 2 taps and 1 modal (J5)`, async ({
+  test(`d @${width}: known dish from Our menu in at most 3 taps and 2 modals (J5, B02-05 guidance)`, async ({
     browser,
   }) => {
     test.setTimeout(180_000)
@@ -345,9 +345,19 @@ for (const width of [360, 412]) {
     const taps = new TapCounter()
     const photo = await syntheticJpeg(`${unique(`d${width}`)}.jpg`)
 
+    // B02-05: "What a useful photo shows" comes first; its primary action
+    // is the camera, so the step costs one tap and one modal.
+    await taps.tap(
+      dish.getByRole("button", { name: "Take a photo of this dish" }),
+      "Take a photo of this dish"
+    )
+    const guide = page.getByRole("dialog", {
+      name: "What a useful photo shows",
+    })
+    await expect(guide).toBeVisible()
     const input = await pickFiles(
       page,
-      dish.getByRole("button", { name: "Take a photo of this dish" }),
+      guide.getByRole("button", { name: "Take a photo" }),
       [photo.path],
       taps
     )
@@ -362,8 +372,8 @@ for (const width of [360, 412]) {
     await expect(sheet).toBeHidden()
 
     const modals = await modalsOpened(page)
-    expect(taps.taps, taps.steps.join(" > ")).toBeLessThanOrEqual(2)
-    expect(modals.count, modals.names.join(", ")).toBeLessThanOrEqual(1)
+    expect(taps.taps, taps.steps.join(" > ")).toBeLessThanOrEqual(3)
+    expect(modals.count, modals.names.join(", ")).toBeLessThanOrEqual(2)
     const id = await assetIdFor(photo.name)
     await expect
       .poll(() => labelsOn(id), { timeout: 90_000 })

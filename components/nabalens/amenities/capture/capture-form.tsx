@@ -807,6 +807,14 @@ export function CaptureForm({
         source,
         // Amenity evidence, never in the organisation community.
         purpose: "amenity",
+        // A working-list question's evidence picked together is one set.
+        subject: knowledge
+          ? {
+              kind: "question",
+              id: knowledge.slot.checkId,
+              name: knowledge.slot.question,
+            }
+          : null,
         onPicked: (files) => {
           if (!mounted.current) return
           arrivals.current = newArrivals()

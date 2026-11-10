@@ -32,6 +32,11 @@ export const ENTRY_COPY = {
   },
   back: "Back",
   cancel: "Cancel",
+  // B02-05 (§7): several photos of one subject, and capture guidance.
+  guideTitle: "What a useful photo shows",
+  addMoreToSet: "Add more to this set",
+  setSaved: (n: number, subject: string) =>
+    `${n} ${n === 1 ? "photo" : "photos"} of ${subject} saved. Each is reviewed on its own.`,
 } as const
 
 /** The back link on a capture page opened with `from`. */

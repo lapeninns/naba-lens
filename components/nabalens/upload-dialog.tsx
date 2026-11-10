@@ -40,6 +40,7 @@ import { cn } from "@/lib/utils"
 
 import { Notice } from "./notice"
 import { PhotoSourceActions, photoInputProps } from "./photo-source"
+import { ENTRY_COPY } from "./shell/entry-copy"
 import { useLeaveGuard } from "./shell/leave-guard"
 import {
   SignInAgainSheet,
@@ -142,6 +143,64 @@ type UploadDialogProps = {
    * failed, was cancelled, or was removed (or cleared) from the queue.
    */
   onUnfinished?: (file: File, reason: UploadUnfinishedReason) => void
+  /** Called once per file when the server has reserved it, with its asset ID. */
+  onReserved?: (file: File, assetId: string) => void
+  /**
+   * The set a file was picked into (several photos of one subject, B02-05),
+   * or null: a set whose files have all ended gets one notice, with a line
+   * for each file that didn't finish.
+   */
+  setOf?: (file: File) => PhotoSetRef | null
+  /** The footer's "Add more", when the next pick joins a set. */
+  addMoreLabel?: string
+}
+
+/** A set of files picked together, and the subject its notice names. */
+export type PhotoSetRef = { id: string; subject: string }
+
+export type SetNotice = { id: string; text: string; unfinished: string[] }
+
+/**
+ * One notice per set of two or more files once none is still saving: how
+ * many were saved, then each file that didn't finish with what its row says.
+ * A set with nothing saved has no notice; its rows say why.
+ */
+export function setNotices(
+  items: readonly QueueItem[],
+  setOf: (file: File) => PhotoSetRef | null,
+  detailOf: (item: QueueItem) => string | null
+): SetNotice[] {
+  const sets = new Map<string, { subject: string; items: QueueItem[] }>()
+  for (const item of items) {
+    const set = setOf(item.file)
+    if (!set) continue
+    const entry = sets.get(set.id) ?? { subject: set.subject, items: [] }
+    entry.items.push(item)
+    sets.set(set.id, entry)
+  }
+  const notices: SetNotice[] = []
+  for (const [id, set] of sets) {
+    if (set.items.length < 2) continue
+    if (
+      set.items.some((item) =>
+        ["selected", "queued", "uploading", "processing"].includes(item.status)
+      )
+    )
+      continue
+    const saved = set.items.filter((item) => item.status === "done").length
+    if (saved === 0) continue
+    notices.push({
+      id,
+      text: ENTRY_COPY.setSaved(saved, set.subject),
+      unfinished: set.items
+        .filter((item) => item.status !== "done")
+        .map((item) => {
+          const detail = detailOf(item)
+          return detail ? `${item.file.name}: ${detail}` : item.file.name
+        }),
+    })
+  }
+  return notices
 }
 
 /** Why a queued file never became ready. */
@@ -538,6 +597,9 @@ export function UploadDialog({
   purposeOf,
   onHoldsChange,
   onUnfinished,
+  onReserved,
+  setOf,
+  addMoreLabel = "Add more",
 }: UploadDialogProps) {
   const guard = useSessionGuard()
   const isSignedIn = guard?.isSignedIn
@@ -600,6 +662,16 @@ export function UploadDialog({
   React.useEffect(() => {
     onHoldsChange?.(holds ? holds.split(" ") : [])
   }, [holds, onHoldsChange])
+  // Each file once, as soon as the server has reserved it.
+  const reservedSeen = React.useRef(new Set<string>())
+  React.useEffect(() => {
+    if (!onReserved) return
+    for (const item of items) {
+      if (!item.assetId || reservedSeen.current.has(item.id)) continue
+      reservedSeen.current.add(item.id)
+      onReserved(item.file, item.assetId)
+    }
+  }, [items, onReserved])
   const unstoredRef = React.useRef(unsavedLabels)
   React.useEffect(() => {
     unstoredRef.current = unsavedLabels
@@ -816,6 +888,7 @@ export function UploadDialog({
   function clearQueue() {
     for (const item of items) unfinished(item, "removed")
     ended.current.clear()
+    reservedSeen.current.clear()
     queue.reset()
     labels.reset()
     reported.current.clear()
@@ -871,6 +944,13 @@ export function UploadDialog({
   const saved = items.filter(
     (i) => i.status === "done" && ["none", "saved"].includes(viewOf(i).kind)
   ).length
+  const notices = setOf
+    ? setNotices(
+        items,
+        setOf,
+        (item) => rowState(item, viewOf(item), pause).detail
+      )
+    : []
   const attention = items.filter(
     (i) =>
       i.status === "failed" ||
@@ -1110,6 +1190,18 @@ export function UploadDialog({
               {plural(savingLabels, "photo", "photos")} still saving labels
             </p>
           ) : null}
+          {notices.map((notice) => (
+            <div key={notice.id} className="grid gap-1">
+              <p className="text-ink">{notice.text}</p>
+              {notice.unfinished.length > 0 ? (
+                <ul className="grid gap-0.5 [overflow-wrap:anywhere] text-ink-muted">
+                  {notice.unfinished.map((line, i) => (
+                    <li key={`${notice.id}-${i}`}>{line}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          ))}
         </div>
 
         {/* Sticky, as in the label editor: on phones the actions stay in
@@ -1185,7 +1277,7 @@ export function UploadDialog({
                   onClick={() => fileInput.current?.click()}
                 >
                   <PlusIcon data-icon="inline-start" aria-hidden />
-                  Add more
+                  {addMoreLabel}
                 </Button>
               ) : null}
               {!startOnPick && settled && retryableFailed > 0 ? (

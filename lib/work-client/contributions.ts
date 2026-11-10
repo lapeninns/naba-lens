@@ -42,6 +42,10 @@ export type PhotoContributionRow = {
   reviews: MenuReviewLine[]
   /** R7, OD-6: the only use claim. Never a revision for a menu photo. */
   menuUseAccepted: boolean
+  /** W1: the photo's contribution group; null when single or unknown. */
+  groupId: string | null
+  /** Loaded rows next to this one in the same group, itself included. */
+  setSize: number | null
 }
 
 export type TaskSendContributionRow = {
@@ -66,9 +70,7 @@ export type FindingContributionRow = {
 }
 
 export type ContributionRow =
-  | PhotoContributionRow
-  | TaskSendContributionRow
-  | FindingContributionRow
+  PhotoContributionRow | TaskSendContributionRow | FindingContributionRow
 
 const UPLOAD: Record<FeedPhotoItem["uploadState"], UploadDimension> = {
   uploading: "saving",
@@ -122,6 +124,8 @@ function photoRow(
         offMenu.has(decision.photoId),
     })),
     menuUseAccepted: item.menuUseAccepted === true,
+    groupId: item.groupId ?? null,
+    setSize: null,
   }
 }
 
@@ -140,6 +144,30 @@ function taskSendRow(item: FeedTaskSendItem): TaskSendContributionRow {
         ? { number: item.revision, replacesSentAt: item.replacesSentAt }
         : null,
   }
+}
+
+/**
+ * "One of a set of {n}" (§6.1, §7): photo rows next to each other in the
+ * server's order with the same group. Counted from the loaded rows only;
+ * rows are never merged or moved.
+ */
+function withSetSizes(rows: ContributionRow[]): ContributionRow[] {
+  const sizes = new Map<number, number>()
+  let start = 0
+  for (let i = 1; i <= rows.length; i++) {
+    const group = (row: ContributionRow | undefined) =>
+      row?.type === "photo" ? row.groupId : null
+    const current = group(rows[start])
+    if (i < rows.length && current && group(rows[i]) === current) continue
+    if (current && i - start > 1)
+      for (let at = start; at < i; at++) sizes.set(at, i - start)
+    start = i
+  }
+  return rows.map((row, index) =>
+    row.type === "photo" && sizes.has(index)
+      ? { ...row, setSize: sizes.get(index)! }
+      : row
+  )
 }
 
 /**
@@ -184,7 +212,7 @@ export function contributionRows(
   // A finding that my newer one replaced is the next older finding of mine
   // on the same question; only rows already loaded can say so, and an
   // unknown time is left out.
-  return rows.map((row, index) => {
+  return withSetSizes(rows).map((row, index) => {
     if (row.type !== "finding" || !row.finding.findingRef) return row
     const earlier = rows
       .slice(index + 1)

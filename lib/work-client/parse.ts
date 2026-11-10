@@ -9,6 +9,7 @@ import {
   IMPACT_KINDS,
   TRIAGE_QUEUES,
   type AccountKind,
+  type AssetGroup,
   type DeleteImpact,
   type DeleteImpactEffect,
   type DeleteImpactKind,
@@ -211,4 +212,41 @@ export function parseContributionsPage(
     items.push(item as unknown as ContributionsFeedItem)
   }
   return { items, nextCursor: raw.nextCursor as string | null }
+}
+
+// ---- W1 contribution groups -----------------------------------------------------
+
+const GROUP_UUID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** `contribution_group_start`: the group's id. */
+export function parseGroupId(value: unknown): { groupId: string } | null {
+  return typeof value === "string" && GROUP_UUID.test(value)
+    ? { groupId: value }
+    : null
+}
+
+/** `contribution_group_add`: how many members the group has now. */
+export function parseGroupMembers(value: unknown): { members: number } | null {
+  const members = count(value)
+  return members === null ? null : { members }
+}
+
+/**
+ * `contribution_groups_for_assets` rows (or camelCased ones). Null when the
+ * read is unusable as a whole; an asset appears at most once.
+ */
+export function parseAssetGroups(value: unknown): AssetGroup[] | null {
+  if (!Array.isArray(value)) return null
+  const groups = new Map<string, string>()
+  for (const entry of value) {
+    const raw = record(entry)
+    if (!raw) return null
+    const assetId = raw.asset_id ?? raw.assetId
+    const groupId = raw.group_id ?? raw.groupId
+    if (typeof assetId !== "string" || typeof groupId !== "string") return null
+    if (!GROUP_UUID.test(assetId) || !GROUP_UUID.test(groupId)) return null
+    if (!groups.has(assetId)) groups.set(assetId, groupId)
+  }
+  return [...groups].map(([assetId, groupId]) => ({ assetId, groupId }))
 }

@@ -85,6 +85,7 @@ describe("Our menu dish row: Take a photo of this dish", () => {
       source: "camera",
       imagesOnly: true,
       preset: PRESET,
+      guide: true,
     })
   })
 
@@ -97,6 +98,7 @@ describe("Our menu dish row: Take a photo of this dish", () => {
       source: "library",
       imagesOnly: true,
       preset: PRESET,
+      guide: true,
     })
   })
 

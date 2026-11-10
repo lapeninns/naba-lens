@@ -24,7 +24,8 @@ export const MY_CONTRIBUTIONS_HEADING_ID = "my-contributions-heading"
 
 export const MY_CONTRIBUTIONS_COPY = {
   title: "My contributions",
-  intro: "Photos, task photos and findings you've sent, and what happened to them.",
+  intro:
+    "Photos, task photos and findings you've sent, and what happened to them.",
   empty: "Photos, task photos and findings you send show here.",
   drafts: "Drafts",
   draftsFailed: "We couldn't load your drafts.",
@@ -59,6 +60,7 @@ export const MY_CONTRIBUTIONS_COPY = {
   },
   offMenu: "This item isn't on the current menu, so no new photo is needed",
   menuUse: "Accepted for menu use",
+  oneOfSet: (n: number) => `One of a set of ${n}`,
   taskReview: (row: TaskSendContributionRow) =>
     row.review === "waiting"
       ? "Review: Waiting"
@@ -258,7 +260,10 @@ export function MyContributions({
           action={
             <Link
               href={retryHref}
-              className={buttonVariants({ variant: "secondary", size: "touch" })}
+              className={buttonVariants({
+                variant: "secondary",
+                size: "touch",
+              })}
             >
               Try again
             </Link>
@@ -380,6 +385,7 @@ function PhotoLines({ row }: { row: PhotoContributionRow }) {
   const copy = MY_CONTRIBUTIONS_COPY
   return (
     <ul className="grid gap-1 text-body [overflow-wrap:anywhere] text-ink">
+      {row.setSize ? <li>{copy.oneOfSet(row.setSize)}</li> : null}
       <li>{copy.upload[row.upload]}</li>
       {row.labels ? <li>{copy.labels[row.labels]}</li> : null}
       {row.reviews.map((line) => (

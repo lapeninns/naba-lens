@@ -28,6 +28,10 @@ const actions = vi.hoisted(() => ({
   loadMenuItemsPageAction: vi.fn(),
   loadItemEventsAction: vi.fn(),
 }))
+// Contribution sets (B02-05) are off here: the cards show as before.
+vi.mock("@/app/_media/actions", () => ({
+  readPhotoSets: vi.fn(async () => ({ status: "missing" })),
+}))
 vi.mock("@/app/manager/actions", () => actions)
 
 const server = vi.hoisted(() => ({

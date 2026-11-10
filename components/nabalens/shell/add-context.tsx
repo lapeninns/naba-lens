@@ -76,6 +76,26 @@ export type OpenAddOptions = {
    * and why: it failed, was cancelled, or was removed from Add.
    */
   onUnfinished?: (reason: UnfinishedReason, file: File) => void
+  /**
+   * What the files picked from this call show, besides a dish preset: a
+   * task or a working-list question. Several picked together, or added with
+   * "Add more to this set", become one set (B02-05) where the shared entry
+   * is on; each photo keeps its own state.
+   */
+  subject?: AddSubject | null
+  /**
+   * With `source`: show "What a useful photo shows" before the picker (a
+   * dish or drink) where the shared entry is on. The picker is its primary
+   * action, so it costs one tap.
+   */
+  guide?: boolean
+}
+
+/** A subject Add can make a set of photos for, named for its notice. */
+export type AddSubject = {
+  kind: "task" | "question"
+  id: string
+  name: string
 }
 
 /** Why a picked file never became ready. */

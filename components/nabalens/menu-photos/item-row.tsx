@@ -137,6 +137,7 @@ export function OurMenuItemRow({
                     source: "camera",
                     imagesOnly: true,
                     preset: dishPreset(item),
+                    guide: true,
                   })
                 }
               >
@@ -152,6 +153,7 @@ export function OurMenuItemRow({
                     source: "library",
                     imagesOnly: true,
                     preset: dishPreset(item),
+                    guide: true,
                   })
                 }
               >

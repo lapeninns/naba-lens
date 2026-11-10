@@ -3,6 +3,7 @@
 import * as React from "react"
 import { useRouter } from "next/navigation"
 
+import { addToPhotoSet, startPhotoSet } from "@/app/_media/actions"
 import { useMediaUploader } from "@/app/_media/use-media-uploader"
 import { UploadDialog } from "@/components/nabalens"
 import {
@@ -10,7 +11,10 @@ import {
   UploadLabelPanel,
   type CatalogueProp,
 } from "@/components/nabalens/labels"
-import type { UploadBusy } from "@/components/nabalens/upload-dialog"
+import type {
+  PhotoSetRef,
+  UploadBusy,
+} from "@/components/nabalens/upload-dialog"
 import {
   sameLabelChoice,
   type UploadLabelFixProps,
@@ -25,7 +29,10 @@ import type {
 } from "@/components/nabalens/upload-queue"
 import { SessionGuardProvider } from "@/components/nabalens/session-guard"
 import { useBrowserSessionGuard } from "@/components/nabalens/session-guard-host"
-import { usePhotoSource } from "@/components/nabalens/photo-source"
+import {
+  usePhotoSource,
+  type PhotoSource,
+} from "@/components/nabalens/photo-source"
 import {
   AddProvider,
   type AddLabelPreset,
@@ -36,6 +43,12 @@ import {
 import { ENTRY_COPY } from "@/components/nabalens/shell/entry-copy"
 import type { EntryStep } from "@/components/nabalens/shell/entry-flow"
 import { EntrySheet } from "@/components/nabalens/shell/entry-sheet"
+import { GuideStep } from "@/components/nabalens/shell/guide-step"
+import {
+  PhotoSets,
+  sessionSetKeys,
+  type SetSubject,
+} from "@/components/nabalens/shell/photo-sets"
 import { LeaveGuard } from "@/components/nabalens/shell/leave-guard"
 import {
   AddSheet,
@@ -72,6 +85,10 @@ type PickOwner = {
   preset: AddLabelPreset | null
   /** Fixed at reservation; "amenity" keeps the files out of the community. */
   purpose: UploadPurpose
+  /** What the files show, for a set of them (B02-05). */
+  subject: SetSubject | null
+  /** The set these files make, once picked while sets are on. */
+  set: string | null
 }
 
 /** The catalogue item for a preset, when this menu still offers it. */
@@ -155,6 +172,52 @@ export function AddHost({
   // Labels changed while the venue is unknown (see PanelHost), by queue file.
   const heldLabels = React.useRef(new Map<string, HeldLabels>())
   const readyListeners = React.useRef(new Set<AddReadyListener>())
+
+  // Sets of photos of one subject (B02-05): on where the shared entry is
+  // and the person can upload (R8, read with the entry's choices); off for
+  // the rest of the visit once the database says it has no groups.
+  const [setsOn, setSetsOn] = React.useState(false)
+  const [setsMissing, setSetsMissing] = React.useState(false)
+  React.useEffect(() => {
+    if (!entry) return
+    let live = true
+    entry.then(
+      (menu) => {
+        if (live) setSetsOn(menu?.intents.includes("photos") ?? false)
+      },
+      () => {}
+    )
+    return () => {
+      live = false
+    }
+  }, [entry])
+  const groupsOn = setsOn && !setsMissing
+  const groupsOnRef = React.useRef(groupsOn)
+  React.useLayoutEffect(() => {
+    groupsOnRef.current = groupsOn
+  }, [groupsOn])
+  const [photoSets] = React.useState(
+    () =>
+      new PhotoSets(
+        { start: startPhotoSet, add: addToPhotoSet },
+        sessionSetKeys(),
+        { onMissing: () => setSetsMissing(true) }
+      )
+  )
+  // Files that have been through claim, with an owner or none.
+  const claimedFiles = React.useRef(new WeakSet<File>())
+  // The latest pick that made a set: the upload dialog's own next pick
+  // ("Add more to this set"), and a later Add call for the same subject,
+  // join it. Any other Add call ends it.
+  const setOwner = React.useRef<PickOwner | null>(null)
+  const [addingToSet, setAddingToSet] = React.useState(false)
+  // "What a useful photo shows" before a dish's picker (B02-05).
+  const [guide, setGuide] = React.useState<{
+    owner: PickOwner
+    source: PhotoSource
+    imagesOnly: boolean
+  } | null>(null)
+  const [guideOpen, setGuideOpen] = React.useState(false)
 
   // The Add queue's unfinished server assets: any other own upload the
   // server still has uploading has stopped (see useUploadStopped).
@@ -249,24 +312,37 @@ export function AddHost({
       : { state: "error", message: labelContext.message }
 
   /** These files were picked for `owner`'s Add call. */
-  const claim = React.useCallback((files: File[], owner: PickOwner | null) => {
-    if (!owner || files.length === 0) return
-    if (
-      owner.onReady ||
-      owner.onUnfinished ||
-      owner.preset ||
-      owner.purpose !== "general"
-    )
-      for (const file of files) fileOwners.current.set(file, owner)
-    owner.onPicked?.(files)
-  }, [])
+  const claim = React.useCallback(
+    (files: File[], owner: PickOwner | null) => {
+      for (const file of files) claimedFiles.current.add(file)
+      if (!owner || files.length === 0) return
+      if (owner.subject && !owner.set && groupsOnRef.current)
+        owner.set = photoSets.open(owner.subject)
+      if (owner.set) {
+        setOwner.current = owner
+        setAddingToSet(true)
+      }
+      if (
+        owner.onReady ||
+        owner.onUnfinished ||
+        owner.preset ||
+        owner.purpose !== "general" ||
+        owner.set
+      )
+        for (const file of files) fileOwners.current.set(file, owner)
+      owner.onPicked?.(files)
+    },
+    [photoSets]
+  )
 
   /** Every pick (the dialog's own, or files handed to it). */
   const picked = React.useCallback(
     (files: File[]) => {
       if (files.length === 0) return
       setCatalogueWanted(true)
-      const owner = sheetOwner.current
+      // Files from Add's own pickers were claimed as they were picked.
+      if (files.every((file) => claimedFiles.current.has(file))) return
+      const owner = sheetOwner.current ?? setOwner.current
       sheetOwner.current = null
       claim(files, owner)
     },
@@ -299,6 +375,23 @@ export function AddHost({
   const closeUpload = React.useCallback((open: boolean) => {
     if (!open) sheetOwner.current = null
     setUploadOpen(open)
+  }, [])
+
+  // Each photo of a set joins its group as soon as the server reserved it.
+  const reservedForSet = React.useCallback(
+    (file: File, assetId: string) => {
+      const set = fileOwners.current.get(file)?.set
+      if (set) photoSets.reserved(set, assetId)
+    },
+    [photoSets]
+  )
+  // A set's one notice. Evidence for a question isn't reviewed photo by
+  // photo, so its set is grouped without one.
+  const setOf = React.useCallback((file: File): PhotoSetRef | null => {
+    const owner = fileOwners.current.get(file)
+    return owner?.set && owner.subject && owner.subject.kind !== "question"
+      ? { id: owner.set, subject: owner.subject.name }
+      : null
   }, [])
 
   const onReady = React.useCallback((listener: AddReadyListener) => {
@@ -376,12 +469,27 @@ export function AddHost({
         // source still opens its picker straight away. A dish and a ready
         // listener belong to the files this call picks, never to the queue
         // (see picked and handleReady).
+        // The same subject again joins its set; any other call ends it.
+        const subject = subjectOf(opts)
+        const current = setOwner.current
+        const joins =
+          subject !== null &&
+          current?.subject?.kind === subject.kind &&
+          current.subject.id === subject.id
+            ? current.set
+            : null
+        if (!joins) {
+          setOwner.current = null
+          setAddingToSet(false)
+        }
         const owner: PickOwner = {
           onReady: opts.onReady ?? null,
           onPicked: opts.onPicked ?? null,
           onUnfinished: opts.onUnfinished ?? null,
           preset: opts.preset ?? null,
           purpose: opts.purpose ?? "general",
+          subject,
+          set: joins,
         }
         if (opts.entry && !opts.source) {
           if (entry && !blocked && waiting === 0) {
@@ -396,6 +504,13 @@ export function AddHost({
         sheetOwner.current = toPicker ? null : owner
         const only = opts.imagesOnly ?? false
         setImagesOnly(only)
+        if (opts.source && !blocked && opts.guide && entry) {
+          // The guidance step opens the picker from its own button.
+          pickerOwner.current = null
+          setGuide({ owner, source: opts.source, imagesOnly: only })
+          setGuideOpen(true)
+          return
+        }
         if (opts.source && !blocked) {
           // Synchronous: the picker needs this click's user activation. The
           // accept list is set for this call before the click.
@@ -594,6 +709,19 @@ export function AddHost({
               onUnavailable={entryUnavailable}
             />
           ) : null}
+          {entry ? (
+            <GuideStep
+              open={guideOpen}
+              onOpenChange={setGuideOpen}
+              source={guide?.source ?? "camera"}
+              imagesOnly={guide?.imagesOnly ?? false}
+              onFiles={(files) => {
+                setGuideOpen(false)
+                claim(files, guide?.owner ?? null)
+                queueFiles(files)
+              }}
+            />
+          ) : null}
           <AddSheet
             open={sheetOpen}
             onOpenChange={closeSheet}
@@ -631,6 +759,11 @@ export function AddHost({
             onUnfinished={(file, reason) =>
               fileOwners.current.get(file)?.onUnfinished?.(reason, file)
             }
+            onReserved={reservedForSet}
+            setOf={groupsOn ? setOf : undefined}
+            addMoreLabel={
+              groupsOn && addingToSet ? ENTRY_COPY.addMoreToSet : undefined
+            }
           />
           <p role="status" className="sr-only">
             {attentionSaid}
@@ -639,6 +772,20 @@ export function AddHost({
       </LeaveGuard>
     </SessionGuardProvider>
   )
+}
+
+/** What an Add call's files show: Our menu's dish, or the call's subject. */
+function subjectOf(opts: OpenAddOptions): SetSubject | null {
+  if (opts.preset)
+    return {
+      kind: "menu_item",
+      id: opts.preset.itemId,
+      name: dishName({
+        name: opts.preset.itemName,
+        variantName: opts.preset.variantName,
+      }),
+    }
+  return opts.subject ? { ...opts.subject } : null
 }
 
 /** `1 photo needs attention. Open Add.` */
