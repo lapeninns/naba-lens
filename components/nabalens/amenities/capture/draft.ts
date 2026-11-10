@@ -10,6 +10,11 @@ import {
   type AccessDraft,
 } from "../../knowledge/accessibility-detail"
 import type { CheckedOn } from "../../knowledge/checked-on"
+import { eventFromDraft, type EventDraft } from "../../knowledge/event-detail"
+import {
+  serviceFromDraft,
+  type ServiceDraft,
+} from "../../knowledge/service-detail"
 import {
   policyFromDraft,
   type PolicyDraft,
@@ -90,6 +95,8 @@ export type CaptureDraft = {
   facility?: FacilityDraft | null
   access?: AccessDraft | null
   policy?: PolicyDraft | null
+  service?: ServiceDraft | null
+  event?: EventDraft | null
   checkedOn?: CheckedOn | null
 }
 
@@ -239,6 +246,12 @@ export function loadDraft(owner: DraftOwner): CaptureDraft | null {
       ...(d.policy && typeof d.policy === "object"
         ? { policy: policyFromDraft(d.policy) }
         : {}),
+      ...(d.service && typeof d.service === "object"
+        ? { service: serviceFromDraft(d.service) }
+        : {}),
+      ...(d.event && typeof d.event === "object"
+        ? { event: eventFromDraft(d.event) }
+        : {}),
       ...checkedOnOf(d.checkedOn),
     }
   } catch {
@@ -299,9 +312,12 @@ function facilityFromDraft(v: unknown): FacilityDraft {
     availability:
       d.availability === "available" ||
       d.availability === "on_request" ||
-      d.availability === "seasonal"
+      d.availability === "seasonal" ||
+      d.availability === "temporarily_unavailable"
         ? d.availability
         : null,
+    until: str(d.until),
+    availabilityNote: str(d.availabilityNote),
     fees: {
       kind:
         kind === "free" || kind === "charged" || kind === "not_recorded"

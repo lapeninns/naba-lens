@@ -78,13 +78,15 @@ describe("facility detail", () => {
     expect(
       facilityFromDetail({
         locations: [{ subjectId: SUBJECT }, { other: 1 }],
-        availability: { state: "temporarily_unavailable" },
+        availability: { state: "temporarily_unavailable", until: "2026-12-01" },
         fees: { kind: "charged", amount: { value: 2, currency: "GBP" } },
         limitations: "⟨L⟩",
       })
     ).toEqual(
       draft({
         locations: [{ subjectId: SUBJECT }],
+        availability: "temporarily_unavailable",
+        until: "2026-12-01",
         fees: { kind: "charged", amount: "2", unit: "" },
         limitations: "⟨L⟩",
       })
@@ -105,5 +107,36 @@ describe("facility detail", () => {
       fees: "This is out of range.",
       availability: "This isn't allowed here.",
     })
+  })
+})
+
+describe("temporarily unavailable (B03 UI §5.4)", () => {
+  it("needs the day it's back or a note, and sends only what was given", () => {
+    const away = {
+      ...emptyFacility(),
+      availability: "temporarily_unavailable" as const,
+    }
+    expect(facilityErrors(away).availability).toBe(
+      "Add the day it's back, or say what's happening."
+    )
+    expect(facilityErrors({ ...away, until: "2026-12-01" })).toEqual({})
+    expect(facilityDetail({ ...away, until: "2026-12-01" })).toEqual({
+      availability: { state: "temporarily_unavailable", until: "2026-12-01" },
+    })
+    expect(
+      facilityDetail({ ...away, availabilityNote: " ⟨Heater broken⟩ " })
+    ).toEqual({
+      availability: {
+        state: "temporarily_unavailable",
+        note: "⟨Heater broken⟩",
+      },
+    })
+    expect(
+      facilityDetail({
+        ...emptyFacility(),
+        availability: "seasonal",
+        until: "2026-12-01",
+      })
+    ).toEqual({ availability: { state: "seasonal" } })
   })
 })

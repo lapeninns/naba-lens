@@ -106,7 +106,7 @@ describe("questionForm", () => {
     ).toEqual({ kind: "policy", requiresZones: true })
   })
 
-  it("never renders a form for a schema or version it doesn't know", () => {
+  it("gives service and dated event version 1 their forms", () => {
     expect(
       questionForm(
         question({
@@ -114,7 +114,26 @@ describe("questionForm", () => {
           valueSchema: { name: "service", version: 1 },
         })
       )
-    ).toEqual({ kind: "unknown", schema: "service", version: 1 })
+    ).toEqual({ kind: "service" })
+    expect(
+      questionForm(
+        question({
+          family: "schedule_event",
+          valueSchema: { name: "schedule_event", version: 1 },
+        })
+      )
+    ).toEqual({ kind: "schedule_event" })
+  })
+
+  it("never renders a form for a schema or version it doesn't know", () => {
+    expect(
+      questionForm(
+        question({
+          family: "policy",
+          valueSchema: { name: "policy", version: 2 },
+        })
+      )
+    ).toEqual({ kind: "unknown", schema: "policy", version: 2 })
     expect(
       questionForm(question({ valueSchema: { name: "presence", version: 2 } }))
     ).toEqual({ kind: "unknown", schema: "presence", version: 2 })

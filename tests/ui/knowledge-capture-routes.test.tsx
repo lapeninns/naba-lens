@@ -65,6 +65,7 @@ const amenityActions = vi.hoisted(() => ({
 vi.mock("@/app/_amenities/actions", () => amenityActions)
 const actions = vi.hoisted(() => ({
   submitKnowledgeFindingAction: vi.fn(),
+  previewScheduleAction: vi.fn(),
   saveKnowledgeDraftAction: vi.fn(),
   discardKnowledgeDraftAction: vi.fn(),
   listKnowledgeAssetsAction: vi.fn(),
@@ -272,7 +273,7 @@ describe("capture routes and the question registry (B03 UI §2.1)", () => {
         view: inScope(),
       })
       knowledge.getQuestion.mockResolvedValue(
-        registry({ valueSchema: { name: "service", version: 1 } })
+        registry({ valueSchema: { name: "policy", version: 2 } })
       )
       await show(pages[name]())
       expect(
@@ -777,5 +778,45 @@ describe("Complete the policy (B03 UI §4.4)", () => {
       (screen.getByRole("radio", { name: "Not allowed" }) as HTMLInputElement)
         .checked
     ).toBe(false)
+  })
+})
+
+describe("service and fixture questions on the capture routes (B03 UI §5)", () => {
+  const registry = (name: string, key = "step_free_entrance") => ({
+    ok: true,
+    question: {
+      key,
+      lifecycle: "supported",
+      supersededBy: null,
+      valueSchema: { name, version: 1 },
+      requiresZones: false,
+    },
+  })
+
+  it("gives staff the page without the form on a fixture showing", async () => {
+    knowledge.getKnowledgeCheck.mockResolvedValue({ ok: true, view: inScope() })
+    knowledge.getQuestion.mockResolvedValue(registry("schedule_event"))
+    await show(pages.staff())
+    expect(
+      screen.getByText("Your manager commits to showing a fixture.")
+    ).toBeTruthy()
+    expect(screen.queryByRole("radio")).toBeNull()
+  })
+
+  it("gives a manager the fixture form, and reads the broadcasters list only for subscriptions", async () => {
+    knowledge.getKnowledgeCheck.mockResolvedValue({
+      ok: true,
+      view: { ...inScope(), timezone: "Europe/London" },
+    })
+    knowledge.getQuestion.mockResolvedValue(registry("schedule_event"))
+    await show(pages.manager())
+    fireEvent.click(screen.getByRole("radio", { name: "Yes" }))
+    expect(screen.getByLabelText("Fixture")).toBeTruthy()
+    cleanup()
+    knowledge.getQuestion.mockResolvedValue(registry("service"))
+    await show(pages.staff())
+    expect(knowledge.getValueList).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole("radio", { name: "Yes" }))
+    expect(screen.getByText("Times are UK time.")).toBeTruthy()
   })
 })

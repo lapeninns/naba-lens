@@ -28,6 +28,7 @@ const AVAILABILITY: FacilityAvailability[] = [
   "available",
   "on_request",
   "seasonal",
+  "temporarily_unavailable",
 ]
 const FEES: FacilityFeeKind[] = ["not_recorded", "free", "charged"]
 
@@ -47,6 +48,7 @@ export function FacilityDetailFields({
   errors,
   disabled,
   showWhere = true,
+  showHowToRequest = true,
 }: {
   id: string
   value: FacilityDraft
@@ -58,6 +60,8 @@ export function FacilityDetailFields({
   disabled?: boolean
   /** Accessibility answers ask what was checked instead (B03 UI §3.2). */
   showWhere?: boolean
+  /** A service records fees and availability only (b03-design §6). */
+  showHowToRequest?: boolean
 }) {
   const [label, setLabel] = React.useState("")
   const set = (patch: Partial<FacilityDraft>) =>
@@ -206,6 +210,40 @@ export function FacilityDetailFields({
               {COPY.availabilityLabel[state]}
             </label>
           ))}
+          {value.availability === "temporarily_unavailable" ? (
+            <div className="grid gap-3 min-[400px]:grid-cols-2">
+              <div className="grid min-w-0 gap-1.5">
+                <label htmlFor={`${id}-until`} className={LABEL}>
+                  {COPY.until}
+                </label>
+                <input
+                  id={`${id}-until`}
+                  type="date"
+                  value={value.until}
+                  className={INPUT}
+                  aria-invalid={errors.availability ? true : undefined}
+                  aria-describedby={describedBy(
+                    errors.availability && `${id}-availability-error`
+                  )}
+                  onChange={(e) => set({ until: e.currentTarget.value })}
+                />
+              </div>
+              <div className="grid min-w-0 gap-1.5">
+                <label htmlFor={`${id}-availability-note`} className={LABEL}>
+                  {COPY.availabilityNote}
+                </label>
+                <input
+                  id={`${id}-availability-note`}
+                  value={value.availabilityNote}
+                  maxLength={FACILITY_LIMITS.availabilityNote}
+                  className={INPUT}
+                  onChange={(e) =>
+                    set({ availabilityNote: e.currentTarget.value })
+                  }
+                />
+              </div>
+            </div>
+          ) : null}
           <FieldMessage
             id={`${id}-availability-error`}
             error={errors.availability}
@@ -300,31 +338,33 @@ export function FacilityDetailFields({
             FACILITY_LIMITS.howToRequest,
           ],
         ] as const
-      ).map(([field, title, help, max]) => (
-        <div key={field} className="grid min-w-0 gap-1.5">
-          <label htmlFor={`${id}-${field}`} className={LABEL}>
-            {title}
-          </label>
-          <textarea
-            id={`${id}-${field}`}
-            rows={3}
-            maxLength={max}
-            disabled={disabled}
-            value={value[field]}
-            className={INPUT}
-            aria-invalid={errors[field] ? true : undefined}
-            aria-describedby={describedBy(
-              `${id}-${field}-help`,
-              errors[field] && `${id}-${field}-error`
-            )}
-            onChange={(e) => set({ [field]: e.currentTarget.value })}
-          />
-          <p id={`${id}-${field}-help`} className={MUTED}>
-            {help}
-          </p>
-          <FieldMessage id={`${id}-${field}-error`} error={errors[field]} />
-        </div>
-      ))}
+      )
+        .filter(() => showHowToRequest)
+        .map(([field, title, help, max]) => (
+          <div key={field} className="grid min-w-0 gap-1.5">
+            <label htmlFor={`${id}-${field}`} className={LABEL}>
+              {title}
+            </label>
+            <textarea
+              id={`${id}-${field}`}
+              rows={3}
+              maxLength={max}
+              disabled={disabled}
+              value={value[field]}
+              className={INPUT}
+              aria-invalid={errors[field] ? true : undefined}
+              aria-describedby={describedBy(
+                `${id}-${field}-help`,
+                errors[field] && `${id}-${field}-error`
+              )}
+              onChange={(e) => set({ [field]: e.currentTarget.value })}
+            />
+            <p id={`${id}-${field}-help`} className={MUTED}>
+              {help}
+            </p>
+            <FieldMessage id={`${id}-${field}-error`} error={errors[field]} />
+          </div>
+        ))}
     </div>
   )
 }

@@ -6,12 +6,16 @@
 
 import type { PlaceRef } from "@/lib/knowledge/contract"
 
-export type FacilityAvailability = "available" | "on_request" | "seasonal"
+export type FacilityAvailability =
+  "available" | "on_request" | "seasonal" | "temporarily_unavailable"
 export type FacilityFeeKind = "not_recorded" | "free" | "charged"
 
 export type FacilityDraft = {
   locations: PlaceRef[]
   availability: FacilityAvailability | null
+  /** Temporarily unavailable (§5.4): the day it's back, and an internal note. */
+  until: string
+  availabilityNote: string
   fees: { kind: FacilityFeeKind; amount: string; unit: string }
   limitations: string
   howToRequest: string
@@ -25,6 +29,7 @@ export const FACILITY_LIMITS = {
   unit: 40,
   limitations: 2000,
   howToRequest: 500,
+  availabilityNote: 500,
   amountMax: 100000,
   locations: 20,
 } as const
@@ -44,7 +49,11 @@ export const FACILITY_COPY = {
     available: "Available",
     on_request: "On request",
     seasonal: "Seasonal",
+    temporarily_unavailable: "Temporarily unavailable",
   } satisfies Record<FacilityAvailability, string>,
+  until: "Back on (optional)",
+  availabilityNote: "What's happening (internal)",
+  untilOrNote: "Add the day it's back, or say what's happening.",
   fees: "Fees",
   feesHelp:
     "Leave as Not recorded unless you know. Don't guess from a sign you couldn't read.",
@@ -67,6 +76,8 @@ export function emptyFacility(): FacilityDraft {
   return {
     locations: [],
     availability: null,
+    until: "",
+    availabilityNote: "",
     fees: { kind: "not_recorded", amount: "", unit: "" },
     limitations: "",
     howToRequest: "",
@@ -78,6 +89,8 @@ export function facilityTouched(draft: FacilityDraft): boolean {
   return (
     draft.locations.length > 0 ||
     draft.availability !== null ||
+    draft.until !== "" ||
+    draft.availabilityNote.trim() !== "" ||
     draft.fees.kind !== "not_recorded" ||
     draft.limitations.trim() !== "" ||
     draft.howToRequest.trim() !== ""
@@ -100,6 +113,14 @@ export function facilityErrors(
   const errors: Partial<Record<FacilityField, string>> = {}
   if (draft.locations.length > FACILITY_LIMITS.locations)
     errors.locations = `Choose up to ${FACILITY_LIMITS.locations} places.`
+  if (draft.availability === "temporarily_unavailable") {
+    if (!draft.until && !draft.availabilityNote.trim())
+      errors.availability = FACILITY_COPY.untilOrNote
+    else if (
+      chars(draft.availabilityNote.trim()) > FACILITY_LIMITS.availabilityNote
+    )
+      errors.availability = `Use up to ${FACILITY_LIMITS.availabilityNote} characters.`
+  }
   if (draft.fees.kind === "charged") {
     const amount = amountOf(draft.fees.amount)
     if (
@@ -123,7 +144,17 @@ export function facilityDetail(
 ): Record<string, unknown> | null {
   const out: Record<string, unknown> = {}
   if (draft.locations.length) out.locations = draft.locations
-  if (draft.availability) out.availability = { state: draft.availability }
+  if (draft.availability) {
+    const note = draft.availabilityNote.trim()
+    out.availability =
+      draft.availability === "temporarily_unavailable"
+        ? {
+            state: draft.availability,
+            ...(draft.until ? { until: draft.until } : {}),
+            ...(note ? { note } : {}),
+          }
+        : { state: draft.availability }
+  }
   if (draft.fees.kind !== "not_recorded") {
     const fees: Record<string, unknown> = { kind: draft.fees.kind }
     if (draft.fees.kind === "charged") {
@@ -155,9 +186,20 @@ export function facilityFromDetail(detail: unknown): FacilityDraft {
         isRecord(ref) &&
         (typeof ref.subjectId === "string" || typeof ref.label === "string")
     )
-  const state = isRecord(detail.availability) ? detail.availability.state : null
-  if (state === "available" || state === "on_request" || state === "seasonal")
+  const availability = isRecord(detail.availability)
+    ? detail.availability
+    : null
+  const state = availability?.state
+  if (
+    state === "available" ||
+    state === "on_request" ||
+    state === "seasonal" ||
+    state === "temporarily_unavailable"
+  )
     draft.availability = state
+  if (typeof availability?.until === "string") draft.until = availability.until
+  if (typeof availability?.note === "string")
+    draft.availabilityNote = availability.note
   if (isRecord(detail.fees)) {
     const kind = detail.fees.kind
     if (kind === "free" || kind === "charged" || kind === "not_recorded")

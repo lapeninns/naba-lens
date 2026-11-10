@@ -321,11 +321,11 @@ export function occurrenceLine(o: Occurrence, zone: string): string {
   ).formatToParts(new Date(o.endsAt))
   const ymd = `${endDate.find((p) => p.type === "year")?.value}-${endDate.find((p) => p.type === "month")?.value}-${endDate.find((p) => p.type === "day")?.value}`
   const next = ymd !== o.localDate ? " (ends the next day)" : ""
-  const tag =
+  const suffix =
     o.state === "changed"
       ? " (different times)"
       : o.state === "extra"
         ? " (extra date)"
         : ""
-  return `${day}, ${from} to ${to}${next}${tag}`
+  return `${day}, ${from} to ${to}${next}${suffix}`
 }

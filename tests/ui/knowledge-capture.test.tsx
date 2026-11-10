@@ -159,6 +159,7 @@ function setup({
   discardDraft = vi.fn<DiscardDraft>(async () => ({ ok: true })),
   prefill = null,
   detailForm = null,
+  previewSchedule,
 }: {
   knowledgeSlot?: WorkingSlot
   submit?: ReturnType<typeof vi.fn<Submit>>
@@ -169,6 +170,7 @@ function setup({
   discardDraft?: ReturnType<typeof vi.fn<DiscardDraft>>
   prefill?: KnowledgeCapture["prefill"]
   detailForm?: KnowledgeCapture["detailForm"]
+  previewSchedule?: KnowledgeCapture["previewSchedule"]
 } = {}) {
   const onDone = vi.fn()
   const onReload = vi.fn()
@@ -199,6 +201,7 @@ function setup({
         serverDraft,
         prefill,
         detailForm,
+        previewSchedule,
       }}
     />
   )
@@ -1612,5 +1615,126 @@ describe("knowledge capture: a qualified answer's reason (B03 UI §2.6)", () => 
     )
     expect(screen.getByText("This answer needs checking")).toBeTruthy()
     expect(screen.queryByText("Your manager asked for a recheck")).toBeNull()
+  })
+})
+
+describe("knowledge capture: services and fixture showings (B03 UI §5)", () => {
+  const service = (over: Record<string, unknown> = {}) => ({
+    schema: "service" as const,
+    timezone: "Europe/London",
+    channels: false,
+    broadcasters: null,
+    ...over,
+  })
+
+  it("asks When for Offered, previews through the server, and sends it with Checked on", async () => {
+    const submit = vi.fn<Submit>(async () => sent())
+    const preview = vi.fn(async () => ({ ok: true as const, occurrences: [] }))
+    const { user } = setup({
+      submit,
+      detailForm: service(),
+      previewSchedule: preview,
+    })
+    await user.click(radio("Yes"))
+    expect(screen.getByText("Times are UK time.")).toBeTruthy()
+    expect(
+      screen.getByText("Fix the highlighted times to see the dates.")
+    ).toBeTruthy()
+    await user.type(screen.getByLabelText("Starts on"), "2026-11-15")
+    await user.click(screen.getByRole("checkbox", { name: "Sunday" }))
+    await user.type(screen.getByLabelText("From"), "12:00")
+    await user.type(screen.getByLabelText("To"), "15:00")
+    await waitFor(() => expect(preview).toHaveBeenCalled(), { timeout: 2000 })
+    expect(screen.queryByText("Where is it?")).toBeNull()
+    expect(screen.queryByLabelText("How to ask for it")).toBeNull()
+    await user.click(photoBox())
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    expect(lastInput(submit)).toMatchObject({
+      answer: "yes",
+      detail: {
+        schedule: {
+          effectiveFrom: "2026-11-15",
+          recurrence: { kind: "weekly", days: ["sun"] },
+          windows: [{ start: "12:00", end: "15:00" }],
+        },
+      },
+      observedOnSource: "form_default",
+    })
+  })
+
+  it("stops a half-written When and focuses its first gap", async () => {
+    const submit = vi.fn<Submit>(async () => sent())
+    const { user } = setup({ submit, detailForm: service() })
+    await user.click(radio("Yes"))
+    await user.click(screen.getByRole("checkbox", { name: "Sunday" }))
+    await user.click(photoBox())
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    expect(submit).not.toHaveBeenCalled()
+    expect(screen.getByText("Choose the day it starts.")).toBeTruthy()
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByLabelText("Starts on"))
+    )
+  })
+
+  it("needs the day it's back or a note when temporarily unavailable", async () => {
+    const submit = vi.fn<Submit>(async () => sent())
+    const { user } = setup({ submit, detailForm: service() })
+    await user.click(radio("Yes"))
+    await user.click(screen.getByText("Availability", { selector: "summary" }))
+    await user.click(
+      screen.getByRole("radio", { name: "Temporarily unavailable" })
+    )
+    await user.click(photoBox())
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    expect(submit).not.toHaveBeenCalled()
+    expect(
+      screen.getByText("Add the day it's back, or say what's happening.")
+    ).toBeTruthy()
+  })
+
+  it("says no broadcaster list is set up, and the subscription line", async () => {
+    const { user } = setup({
+      knowledgeSlot: slot({ key: "sports_subscription" }),
+      detailForm: service({ broadcasters: [] }),
+    })
+    expect(
+      screen.getByText(
+        "Subscriptions only. Having a subscription isn't a promise to show any particular fixture."
+      )
+    ).toBeTruthy()
+    await user.click(radio("Yes"))
+    expect(
+      screen.getByText("No broadcaster list is set up yet. Ask an admin.")
+    ).toBeTruthy()
+  })
+
+  it("commits a manager to one showing, with no Checked on", async () => {
+    const submit = vi.fn<Submit>(async () => sent())
+    const { user } = setup({
+      submit,
+      role: "manager",
+      knowledgeSlot: slot({ key: "sports_fixture_showing" }),
+      detailForm: {
+        schema: "schedule_event",
+        committedBy: "You, as venue manager",
+      },
+    })
+    expect(
+      screen.getByText(
+        "One fixture, on one date. It promises nothing about other fixtures."
+      )
+    ).toBeTruthy()
+    await user.click(radio("Yes"))
+    expect(screen.queryByLabelText("When did you check?")).toBeNull()
+    expect(screen.getByText("You, as venue manager")).toBeTruthy()
+    await user.type(screen.getByLabelText("Fixture"), "⟨Fixture⟩")
+    await user.type(screen.getByLabelText("Date"), "2026-11-21")
+    await user.click(photoBox())
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    const input = lastInput(submit)
+    expect(input.detail).toEqual({
+      event: { title: "⟨Fixture⟩", localDate: "2026-11-21" },
+    })
+    expect(input).not.toHaveProperty("observedOn")
   })
 })

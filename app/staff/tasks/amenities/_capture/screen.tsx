@@ -21,6 +21,7 @@ import {
 } from "@/components/nabalens/knowledge/question-form"
 import { QuestionFormNotice } from "@/components/nabalens/knowledge/question-form-notice"
 import { ROUTES } from "@/lib/auth/routes"
+import { EVENT_COPY } from "@/components/nabalens/knowledge/event-detail"
 import { policyFromDetail } from "@/components/nabalens/knowledge/policy-detail"
 import {
   findingKey,
@@ -113,6 +114,42 @@ async function knowledgeFor(
         completesFrom:
           from.sender?.displayName?.split(" ")[0] ?? "a former team member",
       }
+  }
+  if (form.kind === "service") {
+    // Subscriptions read the owner's broadcasters list (A9); none when it
+    // can't be read, which the form says.
+    const key = view.view.slot.key
+    const broadcasters =
+      key === "sports_subscription"
+        ? await knowledgeServices
+            .getValueList(actor, { list: "broadcasters" })
+            .catch(() => null)
+        : null
+    props.detailForm = {
+      schema: "service",
+      timezone: view.view.timezone ?? "Europe/London",
+      channels: key === "takeaway_service",
+      broadcasters:
+        key === "sports_subscription"
+          ? broadcasters?.ok
+            ? broadcasters.items
+            : []
+          : null,
+    }
+  }
+  if (form.kind === "schedule_event") {
+    // Only a manager or an admin commits to a showing (§5.5); staff get the
+    // page without the form.
+    if (role === "staff")
+      return {
+        props,
+        capture: view.view.capture,
+        form: { kind: "read_only", line: EVENT_COPY.staffReadOnly },
+      }
+    props.detailForm = {
+      schema: "schedule_event",
+      committedBy: admin ? "You, as admin" : "You, as venue manager",
+    }
   }
   if (form.kind === "facility" || form.kind === "accessibility") {
     // The venue's places for "Where is it?" and "What did you check?"; none
@@ -325,10 +362,12 @@ export async function CaptureScreen({
           </span>
         }
       />
-      {open &&
-      knowledgeRead &&
-      (knowledgeRead.form.kind === "unknown" ||
-        knowledgeRead.form.kind === "not_asked") ? (
+      {open && knowledgeRead?.form.kind === "read_only" ? (
+        <Notice tone="plain">{knowledgeRead.form.line}</Notice>
+      ) : open &&
+        knowledgeRead &&
+        (knowledgeRead.form.kind === "unknown" ||
+          knowledgeRead.form.kind === "not_asked") ? (
         <QuestionFormNotice form={knowledgeRead.form} />
       ) : open ? (
         latest ? (

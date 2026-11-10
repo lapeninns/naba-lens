@@ -35,6 +35,7 @@ import {
   type UnknownPreset,
   type KnowledgeFailure,
   type KnowledgeResult,
+  type Occurrence,
   type SaveDraftInput,
   type ServerDraft,
   type SubmitKnowledgeInput,
@@ -89,6 +90,7 @@ import {
   policyOf,
   showsAccess,
   showsFacility,
+  showsService,
   usesCheckedOn,
   type DetailErrors,
   type DetailForm,
@@ -108,7 +110,19 @@ import {
   PolicyNeedsPanel,
   PolicyRuleField,
 } from "../../knowledge/policy-detail-fields"
+import { emptyEvent } from "../../knowledge/event-detail"
 import { emptyFacility } from "../../knowledge/facility-detail"
+import {
+  firstBadWindow,
+  scheduleShape,
+  scheduleTouched,
+} from "../../knowledge/schedule-detail"
+import {
+  ScheduleFields,
+  SchedulePreview,
+} from "../../knowledge/schedule-fields"
+import { emptyService, SPORT_LINES } from "../../knowledge/service-detail"
+import { EventFields, ServiceExtraFields } from "../../knowledge/service-fields"
 import { FacilityDetailFields } from "../../knowledge/facility-detail-fields"
 import { Notice } from "../../notice"
 import { useOnline } from "../../offline-notice"
@@ -181,6 +195,13 @@ export type KnowledgeCapture = {
     | null
   onDiscardDraft: (() => Promise<KnowledgeResult<Record<never, never>>>) | null
   serverDraft: ServerDraft | null
+  /** B03-d: the server's next dates for a schedule being written. */
+  previewSchedule?: (input: {
+    schedule: Record<string, unknown>
+    timezone: string
+    from: string
+    to: string
+  }) => Promise<KnowledgeResult<{ occurrences: Occurrence[] }>>
   /**
    * "Change my finding" (§4.6): start from my undecided finding's answer.
    * A draft on this device or the account still wins.
@@ -202,6 +223,16 @@ export type KnowledgeCapture = {
    */
   detailForm?: DetailForm | null
 }
+
+/** Without a preview read the editor says the dates couldn't be shown. */
+const NO_PREVIEW = async (): Promise<
+  KnowledgeResult<{ occurrences: Occurrence[] }>
+> => ({
+  ok: false,
+  code: "unavailable",
+  status: 503,
+  message: "No preview here.",
+})
 
 type Outcome =
   | { kind: "retry" }
@@ -1205,7 +1236,11 @@ export function CaptureForm({
         document.getElementById(`${ids}-checked-on`)?.focus()
         return
       }
-      const access = accessTarget(errs.access) ?? policyTarget(errs.policy)
+      const access =
+        accessTarget(errs.access) ??
+        policyTarget(errs.policy) ??
+        serviceTarget(errs.service) ??
+        eventTarget(errs.event)
       if (access) {
         access.focus()
         return
@@ -1260,6 +1295,39 @@ export function CaptureForm({
         document.getElementById(`${ids}-access-m0-feature`)
       )
     }
+    return null
+  }
+
+  /** The When or service control an error belongs to, in screen order. */
+  function serviceTarget(errs: DetailErrors["service"]): HTMLElement | null {
+    const byId = (suffix: string) => document.getElementById(`${ids}-${suffix}`)
+    if (errs.effectiveFrom) return byId("schedule-from")
+    if (errs.effectiveTo) return byId("schedule-to")
+    if (errs.recurrence)
+      return (
+        document.querySelector<HTMLElement>(
+          `input[name="${ids}-schedule-day"]`
+        ) ??
+        byId("schedule-nth") ??
+        byId("schedule-date0") ??
+        byId("schedule-add-date")
+      )
+    if (errs.windows) {
+      const bad = firstBadWindow((draft.service ?? emptyService()).schedule)
+      return (
+        (bad && byId(`schedule-w${bad.index}-${bad.part}`)) ??
+        byId("schedule-add-time")
+      )
+    }
+    if (errs.channels) return byId("service-channel0")
+    return null
+  }
+
+  /** The fixture control an error belongs to. */
+  function eventTarget(errs: DetailErrors["event"]): HTMLElement | null {
+    if (errs.title) return document.getElementById(`${ids}-event-title`)
+    if (errs.localDate) return document.getElementById(`${ids}-event-date`)
+    if (errs.window) return document.getElementById(`${ids}-event-start`)
     return null
   }
 
@@ -1820,6 +1888,9 @@ export function CaptureForm({
               {line}
             </p>
           ))}
+          {SPORT_LINES[slot.key] ? (
+            <p className="[overflow-wrap:anywhere]">{SPORT_LINES[slot.key]}</p>
+          ) : null}
         </Notice>
       ) : null}
       {knowledge?.prefill?.completesFrom ? (
@@ -2044,6 +2115,60 @@ export function CaptureForm({
           disabled={locked}
         />
       ) : null}
+      {detailForm?.schema === "service" && showsService(detailForm, answer) ? (
+        <>
+          <ScheduleFields
+            id={`${ids}-schedule`}
+            value={(draft.service ?? emptyService()).schedule}
+            onChange={(schedule) => {
+              edit((d) => ({
+                ...d,
+                service: { ...(d.service ?? emptyService()), schedule },
+              }))
+              setDetailErrors((e) => ({ ...e, service: {} }))
+            }}
+            errors={detailErrors.service}
+            timezone={detailForm.timezone}
+            disabled={locked}
+          />
+          <SchedulePreview
+            id={`${ids}-schedule-preview`}
+            schedule={
+              draft.service && scheduleTouched(draft.service.schedule)
+                ? scheduleShape(draft.service.schedule)
+                : null
+            }
+            timezone={detailForm.timezone}
+            today={londonToday()}
+            preview={knowledge?.previewSchedule ?? NO_PREVIEW}
+          />
+          <ServiceExtraFields
+            id={`${ids}-service`}
+            value={draft.service ?? emptyService()}
+            onChange={(service) => {
+              edit((d) => ({ ...d, service }))
+              setDetailErrors((e) => ({ ...e, service: {} }))
+            }}
+            channels={detailForm.channels}
+            broadcasters={detailForm.broadcasters}
+            errors={detailErrors.service}
+            disabled={locked}
+          />
+        </>
+      ) : null}
+      {detailForm?.schema === "schedule_event" && answer === "yes" ? (
+        <EventFields
+          id={`${ids}-event`}
+          value={draft.event ?? emptyEvent()}
+          onChange={(event) => {
+            edit((d) => ({ ...d, event }))
+            setDetailErrors((e) => ({ ...e, event: {} }))
+          }}
+          committedBy={detailForm.committedBy}
+          errors={detailErrors.event}
+          disabled={locked}
+        />
+      ) : null}
       {detailForm && showsFacility(detailForm, answer) ? (
         <FacilityDetailFields
           id={`${ids}-facility`}
@@ -2052,10 +2177,11 @@ export function CaptureForm({
             edit((d) => ({ ...d, facility: next }))
             setDetailErrors((e) => ({ ...e, facility: {} }))
           }}
-          places={detailForm.places}
+          places={"places" in detailForm ? detailForm.places : []}
           venueName={knowledge?.venueName ?? ""}
           errors={detailErrors.facility}
           showWhere={detailForm.schema === "facility"}
+          showHowToRequest={detailForm.schema !== "service"}
           disabled={locked}
         />
       ) : null}

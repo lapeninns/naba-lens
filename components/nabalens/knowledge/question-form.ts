@@ -19,6 +19,12 @@ export type QuestionForm =
   | { kind: "accessibility"; features: QuestionFeature[] }
   /** The policy editor (statements) or observation form (staff), B03-c. */
   | { kind: "policy"; requiresZones: boolean }
+  /** A service: When, and the fields it shares with a facility (B03-d). */
+  | { kind: "service" }
+  /** A dated event such as a fixture showing (B03-d). */
+  | { kind: "schedule_event" }
+  /** A form this person can't send here (staff on a fixture showing, §5.5). */
+  | { kind: "read_only"; line: string }
   /** A schema or version this build has no form for. */
   | { kind: "unknown"; schema: string; version: number }
   /** The question isn't asked any more (registry lifecycle). */
@@ -57,6 +63,9 @@ export function questionForm(question: RegistryQuestion | null): QuestionForm {
   if (name === "facility" && version === 1) return { kind: "facility" }
   if (name === "accessibility" && version === 1)
     return { kind: "accessibility", features: question.features ?? [] }
+  if (name === "service" && version === 1) return { kind: "service" }
+  if (name === "schedule_event" && version === 1)
+    return { kind: "schedule_event" }
   if (name === "policy" && version === 1)
     return { kind: "policy", requiresZones: question.requiresZones === true }
   return { kind: "unknown", schema: name as ValueSchemaName, version }

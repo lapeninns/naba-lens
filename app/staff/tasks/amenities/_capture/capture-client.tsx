@@ -10,6 +10,7 @@ import { useMediaUploader } from "@/app/_media/use-media-uploader"
 import {
   discardKnowledgeDraftAction,
   listKnowledgeAssetsAction,
+  previewScheduleAction,
   saveKnowledgeDraftAction,
   submitKnowledgeFindingAction,
 } from "@/app/_knowledge/actions"
@@ -113,6 +114,7 @@ export function CaptureClient({
           ? {
               ...knowledge,
               submit: submitKnowledgeFindingAction,
+              previewSchedule: previewScheduleAction,
               // Drafts are the author's own: staff only.
               saveDraft:
                 knowledge.role === "staff" ? saveKnowledgeDraftAction : null,

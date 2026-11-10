@@ -89,14 +89,21 @@ describe("FacilityDetailFields", () => {
     expect(screen.getByLabelText("Name the place")).toBeTruthy()
   })
 
-  it("offers no temporarily unavailable yet, and fees default to not recorded", async () => {
+  it("offers temporarily unavailable with its day back and note, and fees default to not recorded", async () => {
     const user = userEvent.setup()
     render(<Harness />)
     await user.click(screen.getByText("Availability", { selector: "summary" }))
     expect(
-      screen.getAllByRole("radio", { name: /Available|On request|Seasonal/ })
-    ).toHaveLength(3)
-    expect(screen.queryByRole("radio", { name: /Temporarily/ })).toBeNull()
+      screen.getAllByRole("radio", {
+        name: /Available|On request|Seasonal|Temporarily unavailable/,
+      })
+    ).toHaveLength(4)
+    expect(screen.queryByLabelText("Back on (optional)")).toBeNull()
+    await user.click(
+      screen.getByRole("radio", { name: "Temporarily unavailable" })
+    )
+    expect(screen.getByLabelText("Back on (optional)")).toBeTruthy()
+    expect(screen.getByLabelText("What's happening (internal)")).toBeTruthy()
     await user.click(screen.getByText("Fees", { selector: "summary" }))
     expect(
       (screen.getByRole("radio", { name: "Not recorded" }) as HTMLInputElement)
