@@ -65,7 +65,7 @@ describe("version 1 restates today (no behaviour change)", () => {
         'schemas', (select json_object_agg(value_schema, n) from (
           select value_schema, count(*) as n from public.knowledge_question_versions group by 1) s),
         'families', (select json_object_agg(family, n) from (
-          select family, count(*) as n from public.knowledge_questions group by 1) f),
+          select family, count(*) as n from public.knowledge_question_versions group by 1) f),
         'freshness', (select count(*) from public.knowledge_question_versions
           where freshness <> '{"internal": null, "public": null}'::jsonb),
         'publishable', (select count(*) from public.knowledge_question_versions
@@ -117,6 +117,8 @@ describe("tables", () => {
       `delete from public.knowledge_question_versions where key = 'darts'`,
       `delete from public.knowledge_questions where key = 'darts'`,
       `update public.knowledge_questions set key = 'darts2' where key = 'darts'`,
+      // B03-b: a question row is only its key; nothing on it changes.
+      `update public.knowledge_questions set created_at = now() where key = 'darts'`,
     ])
       expect(() => psql(sql), sql).toThrow()
     expect(
@@ -207,6 +209,8 @@ describe("value validator (shared fixtures)", () => {
     version: number
     headline: string | null
     detail: unknown
+    /** The database receives jsonb 'null' rather than SQL null. */
+    jsonNull?: boolean
     expect:
       | { ok: true; detail: unknown }
       | { fields: { path: string; problem: string }[] }
@@ -225,7 +229,7 @@ describe("value validator (shared fixtures)", () => {
 
   it.each(cases.map((c) => [c.name, c] as const))("%s", (_, c) => {
     const sql = `select private.knowledge_validate_value(${lit(c.schema)}, ${c.version},
-      ${lit(c.headline)}, ${c.detail === null ? "null" : `${lit(JSON.stringify(c.detail))}::jsonb`})`
+      ${lit(c.headline)}, ${c.jsonNull ? "'null'::jsonb" : c.detail === null ? "null" : `${lit(JSON.stringify(c.detail))}::jsonb`})`
     if ("ok" in c.expect) {
       expect(JSON.parse(psql(sql))).toEqual({
         headline: c.headline,

@@ -109,6 +109,14 @@ const KNOWLEDGE: Record<string, Mapping> = {
     "invalid_input",
     "A question has no knowledge rule yet, so it can't be added.",
   ],
+  place_exists: [
+    "state_conflict",
+    "This place is already listed. Choose it from the list.",
+  ],
+  knowledge_subject_not_found: [
+    "not_found",
+    "This place could not be found. Reload the page.",
+  ],
 }
 
 const BY_SQLSTATE: Record<string, string> = {
@@ -119,6 +127,7 @@ const BY_SQLSTATE: Record<string, string> = {
   NLK07: "knowledge_not_adoptable",
   NLK08: "knowledge_not_current",
   NLK09: "draft_already_sent",
+  NLK13: "place_exists",
 }
 
 const FIELD_ERRORS: Record<string, [field: string, message: string]> = {
@@ -145,6 +154,8 @@ const FIELD_ERRORS: Record<string, [field: string, message: string]> = {
   venue_required: ["venueId", "Choose a venue."],
   invalid_group_key: ["key", "Reload the page and try again."],
   invalid_subject: ["subject", "Choose what these photos show."],
+  invalid_place_kind: ["kind", "Choose what kind of place this is."],
+  invalid_label: ["label", "Enter a name of up to 80 characters."],
 }
 
 function detailOf(error: DbError): Record<string, unknown> {
@@ -161,6 +172,12 @@ function detailOf(error: DbError): Record<string, unknown> {
 function draftRevisionOf(error: DbError): number | null {
   const value = detailOf(error).draftRevision
   return typeof value === "number" ? value : null
+}
+
+/** place_exists detail: {subjectId}, the active place to choose instead. */
+function existingPlaceOf(error: DbError): { subjectId?: string } {
+  const { subjectId } = detailOf(error)
+  return typeof subjectId === "string" ? { subjectId } : {}
 }
 
 /** draft_already_sent detail: {reason, sentAt}. */
@@ -221,7 +238,9 @@ export function knowledgeRpcFailure(
         ? { draftRevision: draftRevisionOf(error) }
         : mapped === "draft_already_sent"
           ? alreadySentOf(error)
-          : {}
+          : message === "place_exists"
+            ? existingPlaceOf(error)
+            : {}
     )
   }
   if (message === "invalid_value")
