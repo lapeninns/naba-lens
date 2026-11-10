@@ -59,6 +59,7 @@ import {
   lockedRun,
   outgoing,
   outwardFailure,
+  groupProof,
   ownedProcesses,
   parse,
   pinnedMigrations,
@@ -66,6 +67,8 @@ import {
   playwrightEnv,
   prepareRunRoot,
   probeGroup,
+  processTable,
+  provenOwned,
   psqlLedger,
   readJson,
   readPrivateJson,
@@ -74,6 +77,9 @@ import {
   requireCanonicalRoot,
   requireDistinctIdentities,
   requireFreePort,
+  requireLaneClear,
+  requireLaunchOutput,
+  requireNoQualificationBlocker,
   requireNoReceipt,
   requirePlaywright,
   requirePrivateChain,
@@ -93,6 +99,7 @@ import {
   suiteFiles,
   suitesFrom,
   summarise,
+  terminateProvenGroup,
   SUITES,
   TOTAL_INSTANCES,
   Uncertain,
@@ -117,8 +124,8 @@ const REPO = fileURLToPath(new URL("../..", import.meta.url))
 
 /** The exact application candidate this harness must accept (split contract), never the harness snapshot. */
 const PINNED = {
-  commit: "1c5389497f15d4aec04bad77568223ec82537cd1",
-  tree: "bb009c741c3269dc367e8788b4e2eba64968a316",
+  commit: "c467182323b9db4cbeb330db8248b3dd26042400",
+  tree: "e2594b345e920f0e8baef81553d23fffe29ac697",
   migrationsDigest: "22f8296906983c88bc214c08c28b8c669914f41a321e16f7af0360bfe8359caf",
   migrationCount: 49,
   latestMigration: "20261110095911",
@@ -151,7 +158,7 @@ const sink = () => {
 
 // ---- The pin ------------------------------------------------------------------------
 
-test("candidate.json pins exactly the 1c538949 application, its tree and its 49-migration digest", () => {
+test("candidate.json pins exactly the c4671823 application, its tree and its 49-migration digest", () => {
   assert.deepEqual({ ...loadPin() }, PINNED)
   assert.notEqual(loadPin().commit, HARNESS_SNAPSHOT)
   const fromGit = commitMigrations(REPO, PINNED.commit)
@@ -317,7 +324,7 @@ test("the runner refuses a non-candidate checkout before any lock or write", () 
   const env = { PATH: process.env.PATH, HOME: process.env.HOME, B02_CHECKOUT: REPO, B02_RUN_ID: id }
   const r = spawnSync(process.execPath, [RUNNER, "run", "--build"], { env, encoding: "utf8" })
   assert.equal(r.status, 1)
-  assert.match(r.stderr, /not the pinned candidate 1c5389497f15d4aec04bad77568223ec82537cd1/)
+  assert.match(r.stderr, /not the pinned candidate c467182323b9db4cbeb330db8248b3dd26042400/)
   assert.equal(existsSync(join(HARNESS, ".results", id)), false)
   const missing = spawnSync(process.execPath, [RUNNER, "seed"], { env: { ...env, B02_CHECKOUT: "" }, encoding: "utf8" })
   assert.equal(missing.status, 1)
@@ -1546,7 +1553,7 @@ test("the summary counts only fully passing selected suites; a partial run is ne
 
 test("the charters config is pinned by its exact reviewed bytes: the integrated config passes, any other bytes are refused", () => {
   // The independently reviewed config, as integrated.
-  assert.equal(CHARTERS_CONFIG_SHA256, "d9e6284d5225ba9388dad843c4b6a43111e319b5ffea5ce00a226fcfca25313f")
+  assert.equal(CHARTERS_CONFIG_SHA256, "3721d32a79310184caecf5f1ccf2974412eb8655aaf58f15387a673a2c1b50e6")
   assert.deepEqual({ ...REVIEWED_CHARTERS_CONFIG }, { dir: HARNESS, sha256: CHARTERS_CONFIG_SHA256 })
   assert.equal(sha(readFileSync(join(HARNESS, "charters.config.ts"))), CHARTERS_CONFIG_SHA256)
   assert.equal(requireReviewedChartersConfig(), join(HARNESS, "charters.config.ts"))
@@ -1563,7 +1570,7 @@ test("the charters config is pinned by its exact reviewed bytes: the integrated 
     Buffer.alloc(0),
   ]) {
     writeFileSync(join(dir, "charters.config.ts"), altered)
-    assert.throws(() => requireReviewedChartersConfig(reviewed), /is not the independently reviewed config \(sha256 [0-9a-f]{64}, reviewed d9e6284d/)
+    assert.throws(() => requireReviewedChartersConfig(reviewed), /is not the independently reviewed config \(sha256 [0-9a-f]{64}, reviewed 3721d32a/)
   }
   // A link to the reviewed bytes, or a file others may write, is refused too.
   rmSync(join(dir, "charters.config.ts"))
@@ -1738,8 +1745,13 @@ const SCRATCH = temp("b02-scratch-")
 after(() => rmSync(SCRATCH, { recursive: true, force: true }))
 /** No listener on any port (lsof would see the machine's real ports). */
 const noListeners = () => []
-/** A supervisor with offline scratch and listeners, everything else as given. */
-const supervise = (opts) => createSupervisor({ scratchRoot: SCRATCH, listeners: noListeners, log: quiet, ...opts })
+/**
+ * A supervisor with offline scratch and listeners, everything else as given. A
+ * test's fake stack stands in for the proven stop (the offline table cannot prove
+ * ownership), looked up at call time so a test may replace it.
+ */
+const supervise = (opts) =>
+  createSupervisor({ scratchRoot: SCRATCH, listeners: noListeners, log: quiet, ...(opts.stack ? { terminate: (pgid) => opts.stack.terminateGroup(pgid) } : {}), ...opts })
 
 test("probeGroup is the kernel's answer: absent only on ESRCH, ambiguous on EPERM", () => {
   const raise = (code) => () => {
@@ -2322,7 +2334,10 @@ function offlineRun(world, phases = {}, { stack = world.ctx.stack } = {}) {
     runSuite: async (c, suite) => (calls.push(suite), { ok: true, exit: 0, settled: true, problems: [], counts: { passed: expectedInstances(suite) } }),
     verifyServerOwner: () => {},
     lockDir,
+    laneRoot: root,
     receiptPath: join(root, "spare6.b02-acceptance.receipt.json"),
+    blockerPath: join(root, "spare6.qualification.blocker.json"),
+    terminate: (pgid) => stack.terminateGroup(pgid),
     results: join(root, ".results"),
     table: noEscapes,
     listeners: noListeners,
@@ -2585,7 +2600,7 @@ const scenario = JSON.parse(fs.readFileSync(path.join(__dirname, "scenario.json"
 const suite = process.env.B02_SUITE
 const s = scenario[suite] || {}
 record(process.argv[2])
-if (process.argv[2] === "list") { process.stdout.write(JSON.stringify({ pairs: s.pairs })); process.exit(s.listExit || 0) }
+if (process.argv[2] === "list") { if (s.createOnList) fs.mkdirSync(s.createOnList, { recursive: true }); process.stdout.write(JSON.stringify({ pairs: s.pairs })); process.exit(s.listExit || 0) }
 const runRoot = path.dirname(process.env.B02_RUN_DIR)
 const out = path.join(runRoot, suite)
 fs.mkdirSync(out, { recursive: true, mode: 0o700 })
@@ -2616,7 +2631,7 @@ const fs = require("fs"), path = require("path")
 ${RECORDED_ENV}
 const s = JSON.parse(fs.readFileSync(path.join(__dirname, "scenario.json"), "utf8"))
 record(process.argv.includes("--list") ? "list" : "run")
-if (process.argv.includes("--list")) { if (s.alterOnList) fs.appendFileSync(s.alterOnList, "\\n// altered\\n"); process.stdout.write(JSON.stringify(s.listing)); process.exit(s.listExit || 0) }
+if (process.argv.includes("--list")) { if (s.leaveOnList) fs.writeFileSync(s.leaveOnList, "left by the collection\\n"); if (s.alterOnList) fs.appendFileSync(s.alterOnList, "\\n// altered\\n"); process.stdout.write(JSON.stringify(s.listing)); process.exit(s.listExit || 0) }
 if (s.report) fs.writeFileSync(process.env.PLAYWRIGHT_JSON_OUTPUT_FILE, JSON.stringify(s.report).split("__NOW__").join(new Date().toISOString()))
 if (s.linkSuiteTo) { const out = path.dirname(process.env.PLAYWRIGHT_JSON_OUTPUT_FILE); fs.rmSync(out, { recursive: true }); fs.symlinkSync(s.linkSuiteTo, out) }
 process.exit(s.exit || 0)
@@ -3024,4 +3039,181 @@ test("late app output after app.log is closed is dropped, never a crash", async 
   assert.equal(statSync(join(dir, "app.log")).mode & 0o777, 0o600)
   assert.throws(() => privateStream(join(dir, "app.log")), /EEXIST/)
   rmSync(dir, { recursive: true, force: true })
+})
+
+// ---- The shared lane guard, proven signals and launch output ----------------------------------------------
+
+test("the lane is clear only with a proven root and no blocker or receipt; the blocker is read, never changed", () => {
+  const root = temp("b02-lane-")
+  const paths = { root, receiptPath: join(root, "spare6.b02-acceptance.receipt.json"), blockerPath: join(root, "spare6.qualification.blocker.json") }
+  chmodSync(root, 0o755)
+  requireLaneClear(paths)
+  // Another qualification's blocker, as the B10 runner writes it: refused with its own state, and left byte for byte.
+  const bytes = JSON.stringify({ state: "settlement_pending", stack: "nabalens-ws-spare6", phase: "security-tests", runnerPid: 4242, nonce: "n" }) + "\n"
+  writeFileSync(paths.blockerPath, bytes, { mode: 0o600 })
+  assert.throws(() => requireLaneClear(paths), /spare6 is blocked by another qualification's lane blocker at .*settlement_pending for security-tests, runner pid 4242/)
+  assert.throws(() => requireNoQualificationBlocker(paths.blockerPath), /lane blocker/)
+  assert.equal(readFileSync(paths.blockerPath, "utf8"), bytes)
+  assert.equal(statSync(paths.blockerPath).mode & 0o777, 0o600)
+  rmSync(paths.blockerPath)
+  // Anything at the path counts, and a link is never followed.
+  symlinkSync(join(root, "elsewhere.json"), paths.blockerPath)
+  assert.throws(() => requireLaneClear(paths), /lane blocker at .*\(a link\)/)
+  rmSync(paths.blockerPath)
+  mkdirSync(paths.blockerPath)
+  assert.throws(() => requireLaneClear(paths), /lane blocker at .*\(not a file\)/)
+  rmSync(paths.blockerPath, { recursive: true })
+  writeFileSync(paths.blockerPath, "not json")
+  assert.throws(() => requireLaneClear(paths), /lane blocker at .*\(unreadable\)/)
+  rmSync(paths.blockerPath)
+  // A B02 receipt of any run blocks too.
+  writeFileSync(paths.receiptPath, JSON.stringify({ state: "blocked", runId: "earlier" }))
+  assert.throws(() => requireLaneClear(paths), /blocked by an earlier B02 run's receipt .*blocked receipt of run earlier/)
+  rmSync(paths.receiptPath)
+  requireLaneClear(paths)
+  // The root itself: writable by others, a link, or guard paths outside it.
+  chmodSync(root, 0o777)
+  assert.throws(() => requireLaneClear(paths), /writable by others \(mode 777\)/)
+  chmodSync(root, 0o755)
+  const link = join(temp("b02-lane-link-"), "nabalens-ws")
+  symlinkSync(root, link)
+  assert.throws(() => requireLaneClear({ root: link, receiptPath: join(link, "r.json"), blockerPath: join(link, "b.json") }), /must be a real directory, not a link/)
+  assert.throws(() => requireLaneClear({ ...paths, blockerPath: join(tmpdir(), "spare6.qualification.blocker.json") }), /must sit directly in the lane root/)
+  rmSync(dirname(link), { recursive: true, force: true })
+  rmSync(root, { recursive: true, force: true })
+})
+
+test("locked run: a lane blocker refuses the run before its receipt, and one appearing mid-run stops the next phase", async () => {
+  const world = productWorld()
+  const off = offlineRun(world)
+  const { blockerPath, receiptPath } = off.overrides
+  const bytes = JSON.stringify({ state: "settlement_pending", phase: "apply", runnerPid: 4242 }) + "\n"
+  writeFileSync(blockerPath, bytes, { mode: 0o600 })
+  await assert.rejects(off.run("guard-lane-before"), /spare6 is blocked by another qualification's lane blocker/)
+  assert.deepEqual(off.calls, [])
+  assert.equal(existsSync(receiptPath), false, "no receipt is created while the lane is held")
+  assert.equal(existsSync(join(off.overrides.results, "guard-lane-before")), false)
+  rmSync(blockerPath)
+  // Appearing after the seed: the build never starts; this run settles and clears only its own receipt.
+  const seed = off.overrides.seed
+  off.overrides.seed = async (c, sup) => {
+    await seed(c, sup)
+    writeFileSync(blockerPath, bytes, { mode: 0o600 })
+  }
+  assert.equal(await off.run("guard-lane-during"), 1)
+  assert.deepEqual(off.calls, ["seed"])
+  const summary = off.summaryOf("guard-lane-during")
+  assert.match(summary.error, /lane blocker/)
+  assert.equal(summary.settlement.settled, true)
+  assert.equal(existsSync(receiptPath), false)
+  assert.equal(readFileSync(blockerPath, "utf8"), bytes, "the other qualification's blocker is left as it was")
+  off.cleanup()
+  world.cleanup()
+})
+
+test("groupProof: a signal needs every member proven by a live leader that is the runner's child or by the private path", () => {
+  const runner = 100
+  const marker = "/tmp/nb02-abcdef"
+  const leader = { pid: 10, ppid: runner, pgid: 10 }
+  const child = { pid: 11, ppid: 10, pgid: 10 }
+  const marked = { pid: 12, ppid: 1, pgid: 10, command: `node TMPDIR=${marker}` }
+  assert.equal(groupProof([leader, child], 10, 10, [marker], runner), "proven")
+  assert.equal(groupProof([marked], 10, 10, [marker], runner), "proven", "leader gone: the private path still proves it")
+  // Leader gone and an unmarked member: the id may have been reused.
+  assert.equal(groupProof([{ pid: 13, ppid: 1, pgid: 10 }], 10, 10, [marker], runner), "not proven this run's")
+  // A stranger now leading a reused id is not the runner's child.
+  assert.equal(groupProof([{ pid: 10, ppid: 1, pgid: 10 }, { pid: 14, ppid: 10, pgid: 10 }], 10, 10, [marker], runner), "not proven this run's")
+  assert.equal(groupProof([leader, { pid: 15, ppid: 1, pgid: 10 }], 10, 10, [marker], runner), "not proven this run's (mixed membership)")
+  // An escaped group is proven through the owner's proven processes.
+  assert.equal(groupProof([leader, { pid: 20, ppid: 10, pgid: 20 }], 20, 10, [marker], runner), "proven")
+  assert.equal(groupProof([leader], 30, 10, [marker], runner), "no visible member")
+  assert.equal(groupProof(null, 10, 10, [marker], runner), "the process table could not be read")
+  assert.deepEqual([...provenOwned([leader, child, { pid: 16, ppid: 1, pgid: 10 }], 10, [], runner)].sort(), [10, 11])
+})
+
+test("terminateProvenGroup proves ownership immediately before each signal, the SIGKILL escalation included", async () => {
+  const run = async ({ alive, proofs }) => {
+    const sent = []
+    let probes = 0
+    const probe = () => (alive(probes++, sent) ? "alive" : "absent")
+    const said = await terminateProvenGroup(4242, () => proofs.shift() ?? "proven", { signal: (pid, name) => sent.push([pid, name]), probe, graceMs: 30, killMs: 30 })
+    return { said, sent }
+  }
+  // Already gone: nothing is signalled.
+  assert.deepEqual(await run({ alive: () => false, proofs: [] }), { said: "absent", sent: [] })
+  // Not proven: nothing is signalled.
+  assert.deepEqual(await run({ alive: () => true, proofs: ["not proven this run's"] }), { said: "SIGTERM withheld: not proven this run's", sent: [] })
+  // SIGTERM is ignored and the id is reused before escalation: SIGKILL is withheld.
+  assert.deepEqual(await run({ alive: () => true, proofs: ["proven", "not proven this run's"] }), { said: "SIGKILL withheld: not proven this run's", sent: [[-4242, "SIGTERM"]] })
+  // Proven both times: SIGTERM, then SIGKILL, each to the group.
+  const both = await run({ alive: (n, sent) => sent.length < 2, proofs: [] })
+  assert.deepEqual(both, { said: "absent", sent: [[-4242, "SIGTERM"], [-4242, "SIGKILL"]] })
+  // SIGTERM is enough: no escalation.
+  assert.deepEqual(await run({ alive: (n, sent) => sent.length < 1, proofs: [] }), { said: "absent", sent: [[-4242, "SIGTERM"]] })
+})
+
+const psReadable = processTable([]) !== null
+test("supervisor, live stop: a child ignoring SIGTERM is escalated only after a fresh ps proof, then proven gone", { skip: !psReadable && "ps -E is unavailable" }, async () => {
+  const sent = []
+  const sup = createSupervisor({ scratchRoot: SCRATCH, listeners: noListeners, log: quiet, signal: (pid, name) => (sent.push(name), process.kill(pid, name)), graceMs: 300, killMs: 2000, absenceMs: 2000 })
+  const r = await sup.run("seed", "/bin/sh", ["-c", "trap '' TERM; sleep 30 & wait"], {}, 300)
+  const { pgid } = sup.report().groups[0]
+  assert.deepEqual([r.code, r.settled], [124, true], JSON.stringify(sup.report().reasons))
+  assert.deepEqual(sent, ["SIGTERM", "SIGKILL"])
+  assert.equal(groupAlive(pgid), false)
+  // A stranger's group (not this runner's child, no private path) is never signalled by the live stop.
+  const stranger = spawnSync(process.execPath, ["-e", "const c=require('child_process').spawn('sleep',['30'],{detached:true,stdio:'ignore'});c.unref();console.log(c.pid)"], { encoding: "utf8" })
+  const other = Number(stranger.stdout.trim())
+  try {
+    const none = []
+    const said = await terminateProvenGroup(other, () => groupProof(processTable([]), other, other, []), { signal: (pid, name) => none.push(name), graceMs: 50, killMs: 50 })
+    assert.equal(said, "SIGTERM withheld: not proven this run's")
+    assert.deepEqual(none, [])
+    assert.equal(groupAlive(other), true)
+  } finally {
+    process.kill(-other, "SIGKILL")
+  }
+})
+
+test("launch output: after collection the suite's output is still absent (e2e) or empty (charters), inside the private chain", async () => {
+  const root = temp("b02-launch-")
+  const { runRoot } = prepareRunRoot("guard-launch", join(root, ".results"))
+  assert.equal(requireLaunchOutput(runRoot, "staff", join(runRoot, "staff")), join(runRoot, "staff"))
+  assert.throws(() => requireLaunchOutput(runRoot, "staff", join(runRoot, "manager")), /is not staff's output/)
+  mkdirSync(join(runRoot, "staff"), { mode: 0o700 })
+  assert.throws(() => requireLaunchOutput(runRoot, "staff", join(runRoot, "staff")), /already exists/)
+  mkdirSync(join(runRoot, "charters"), { mode: 0o700 })
+  assert.equal(requireLaunchOutput(runRoot, "charters", join(runRoot, "charters")), join(runRoot, "charters"))
+  writeFileSync(join(runRoot, "charters", "report.json"), "{}")
+  assert.throws(() => requireLaunchOutput(runRoot, "charters", join(runRoot, "charters")), /not empty after collection \(report\.json\)/)
+  rmSync(join(runRoot, "charters"), { recursive: true })
+  symlinkSync(temp("b02-launch-elsewhere-"), join(runRoot, "charters"))
+  assert.throws(() => requireLaunchOutput(runRoot, "charters", join(runRoot, "charters")), /real directory, not a link/)
+  rmSync(root, { recursive: true, force: true })
+
+  // Through the wrappers: a collection that creates or fills the output never reaches the run.
+  const fake = fakeE2E()
+  const checkout = temp("b02-pw-")
+  const pw = fakePlaywright(checkout)
+  const stack = recordingStack()
+  const wrapRoot = temp("b02-wrap-")
+  const context = (id) => {
+    const { runRoot: rr, world } = prepareRunRoot(id, join(wrapRoot, ".results"))
+    return { rr, c: { id, runRoot: rr, runDir: world, stackEnv: STACK_VALUES.env, secrets: STACK_VALUES.secrets, checkout, e2eInstall: fake.install, e2e: resolveE2E(fake.install, {}) } }
+  }
+  {
+    const { rr, c } = context("guard-launch-e2e")
+    fake.set({ manager: { pairs: pairsOf("manager"), report: e2eReport("manager"), createOnList: join(rr, "manager") } })
+    await assert.rejects(runE2E(c, "manager", supervise({ table: noEscapes, stack })), /manager already exists; a suite writes into a new directory/)
+    assert.deepEqual(fake.invocations().map((i) => i.kind), ["list"])
+  }
+  {
+    const { rr, c } = context("guard-launch-pw")
+    pw.set({ listing: pwReport({ listing: true }), leaveOnList: join(rr, "charters", "stale.json") })
+    await assert.rejects(runCharters(c, supervise({ table: noEscapes, stack })), /not empty after collection \(stale\.json\)/)
+    assert.deepEqual(pw.invocations().map((i) => i.kind), ["list"])
+  }
+  rmSync(wrapRoot, { recursive: true, force: true })
+  rmSync(checkout, { recursive: true, force: true })
+  rmSync(fake.dir, { recursive: true, force: true })
 })

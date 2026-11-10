@@ -116,6 +116,16 @@ export const LOCK_DIR = "/tmp/nabalens-ws/spare6.lock"
  * refuses spare6 until the coordinator inspects it, cleans up and removes it.
  */
 export const RECEIPT = "/tmp/nabalens-ws/spare6.b02-acceptance.receipt.json"
+/**
+ * The shared lane blocker beside the canonical lock. Other spare6
+ * qualification runners create it while a child of theirs may still use the
+ * stack, and leave it when that child's settlement is unproven. This harness
+ * only reads it: any entry at the path (file, link or directory) refuses
+ * spare6, and only its owner or the coordinator removes it.
+ */
+export const QUALIFICATION_BLOCKER = "/tmp/nabalens-ws/spare6.qualification.blocker.json"
+/** The canonical root holding spare6's workdir, lock, receipt and blocker. */
+export const LANE_ROOT = dirname(STACK.workdir)
 export const APP = `http://127.0.0.1:${STACK.appPort}`
 
 const frozen = (value) => Object.freeze(Object.assign(Object.create(null), value))
@@ -789,6 +799,22 @@ export function prepareRunRoot(id, results = RESULTS) {
   return { runRoot, world }
 }
 
+/**
+ * Immediately before a suite launches, after its collection: the run's
+ * private chain still holds, and the suite's output is exactly what the
+ * collection had to leave, still absent for an e2e suite (its runner creates
+ * it) or the empty private directory made for the charters. Anything a
+ * collection child created, linked or left there refuses the launch.
+ */
+export function requireLaunchOutput(runRoot, suite, out) {
+  if (!isSuite(suite) || out !== join(runRoot, suite)) fail(`${String(out)} is not ${String(suite)}'s output in this run.`)
+  if (PLAN[suite].kind === "e2e") return freshOutput(runRoot, suite)
+  requirePrivateChain(dirname(runRoot), out)
+  const left = readdirSync(out)
+  if (left.length) fail(`${relative(HARNESS, out)} is not empty after collection (${left.slice(0, 5).join(", ")}); a suite launches only into new output.`)
+  return out
+}
+
 /** A suite's output directory: inside the private run, and new (no earlier report can be read as this run's). */
 export function freshOutput(runRoot, suite) {
   if (!isSuite(suite)) fail(`${String(suite)} is not a suite.`)
@@ -846,6 +872,58 @@ export function requireNoReceipt(path = RECEIPT) {
     `${STACK.name} is blocked by an earlier B02 run's receipt at ${path} (${detail}). The coordinator inspects its recorded process groups, ` +
       "cleans up and removes it; no run starts while it remains."
   )
+}
+
+/**
+ * The canonical root as it physically is: a real directory (never a link) this
+ * user owns that nobody else may write, resolving to its own physical path, so
+ * no one else can place, swap or remove a guard file in it.
+ */
+export function requireLaneRoot(root = LANE_ROOT) {
+  let stat
+  try {
+    stat = lstatSync(root)
+  } catch (error) {
+    fail(`The lane root ${root} cannot be inspected (${error.code}); the coordinator must check it.`)
+  }
+  if (stat.isSymbolicLink() || !stat.isDirectory()) fail(`The lane root ${root} must be a real directory, not a link.`)
+  const uid = ownUid()
+  if (uid !== undefined && stat.uid !== uid) fail(`The lane root ${root} belongs to another user.`)
+  if (stat.mode & 0o022) fail(`The lane root ${root} is writable by others (mode ${(stat.mode & 0o777).toString(8)}).`)
+  const parent = real(dirname(root))
+  if (!parent || real(root) !== join(parent, basename(root))) fail(`The lane root ${root} does not resolve to its own physical path.`)
+}
+
+/** Refuses while anything (a file, link or directory) is at the shared lane blocker path; it is never followed, changed or removed here. */
+export function requireNoQualificationBlocker(path = QUALIFICATION_BLOCKER) {
+  let stat
+  try {
+    stat = lstatSync(path)
+  } catch (error) {
+    if (error.code === "ENOENT") return
+    fail(`The lane blocker path ${path} cannot be inspected (${error.code}); the coordinator must check it.`)
+  }
+  let detail = stat.isSymbolicLink() ? "a link" : stat.isFile() ? "unreadable" : "not a file"
+  if (stat.isFile()) {
+    const read = readJson(path, 1024 * 1024)
+    if (read.value) detail = `${read.value.state ?? "unknown state"} for ${read.value.phase ?? "an unknown phase"}, runner pid ${read.value.runnerPid ?? "unknown"}`
+  }
+  fail(
+    `${STACK.name} is blocked by another qualification's lane blocker at ${path} (${detail}). Its owner or the coordinator settles that run ` +
+      "and removes it; no B02 run starts while it remains."
+  )
+}
+
+/**
+ * The lane is clear for a new run: the canonical root is proven, and neither
+ * the shared blocker nor any B02 receipt is there. Both paths must sit
+ * directly in that root, so the checked root is the one that holds them.
+ */
+export function requireLaneClear({ root = LANE_ROOT, receiptPath = RECEIPT, blockerPath = QUALIFICATION_BLOCKER } = {}) {
+  if (dirname(receiptPath) !== root || dirname(blockerPath) !== root) fail("The receipt and the lane blocker must sit directly in the lane root.")
+  requireLaneRoot(root)
+  requireNoQualificationBlocker(blockerPath)
+  requireNoReceipt(receiptPath)
 }
 
 /**
@@ -974,13 +1052,13 @@ export function processTable(markers = []) {
  * group is proven empty its id may be reused, so `group: false` drops that
  * seed and only the private path proves ownership.
  */
-export function ownedProcesses(rows, pgid, markers = [], { group = true } = {}) {
+export function ownedProcesses(rows, pgid, markers = [], { group = true, roots = [] } = {}) {
   const children = new Map()
   for (const row of rows) {
     if (!children.has(row.ppid)) children.set(row.ppid, [])
     children.get(row.ppid).push(row)
   }
-  const queue = rows.filter((row) => (group && row.pgid === pgid) || isMarked(row, markers))
+  const queue = rows.filter((row) => (group && row.pgid === pgid) || roots.includes(row.pid) || isMarked(row, markers))
   const owned = new Set(queue.map((row) => row.pid))
   while (queue.length) {
     const row = queue.shift()
@@ -991,6 +1069,59 @@ export function ownedProcesses(rows, pgid, markers = [], { group = true } = {}) 
     }
   }
   return owned
+}
+
+/**
+ * What a child is proven to own when a signal is about to be sent, from one
+ * fresh table: its leader only while that leader is still this runner's own
+ * child (a live child's pid cannot be anyone else's), every process carrying
+ * its private path, and their current children. Sharing the child's group id
+ * proves nothing here: once the leader is gone that id can be reused.
+ */
+export function provenOwned(rows, pgid, markers = [], runnerPid = process.pid) {
+  const roots = rows.filter((row) => row.pid === pgid && row.pgid === pgid && row.ppid === runnerPid).map((row) => row.pid)
+  return ownedProcesses(rows, pgid, markers, { group: false, roots })
+}
+
+/** "proven" when `rows` show group `pgid` with members, every one proven owned by the child leading `ownerPgid`; otherwise why not. */
+export function groupProof(rows, pgid, ownerPgid, markers = [], runnerPid = process.pid) {
+  if (!rows) return "the process table could not be read"
+  const members = rows.filter((row) => row.pgid === pgid)
+  if (members.length === 0) return "no visible member"
+  const owned = provenOwned(rows, ownerPgid, markers, runnerPid)
+  const ours = members.filter((row) => owned.has(row.pid)).length
+  return ours === members.length ? "proven" : ours ? "not proven this run's (mixed membership)" : "not proven this run's"
+}
+
+export const GRACE_MS = 5_000
+export const KILL_MS = 5_000
+
+/**
+ * Stops group `pgid`: SIGTERM, then SIGKILL after `graceMs`. Each signal is
+ * sent only when `prove()` answers "proven" from a process table read
+ * immediately before it, so an escalation never reaches a group whose id was
+ * reused meanwhile. A group already absent is never signalled. Resolves
+ * "absent", "signalled" (the absence check that follows decides) or why a
+ * signal was withheld or failed.
+ */
+export async function terminateProvenGroup(pgid, prove, { signal = process.kill.bind(process), probe = probeGroup, graceMs = GRACE_MS, killMs = KILL_MS } = {}) {
+  for (const [name, wait] of [
+    ["SIGTERM", graceMs],
+    ["SIGKILL", killMs],
+  ]) {
+    if (probe(pgid) === "absent") return "absent"
+    const proof = prove()
+    if (proof !== "proven") return `${name} withheld: ${proof}`
+    try {
+      signal(-pgid, name)
+    } catch (error) {
+      if (error.code === "ESRCH") return "absent"
+      return `${name} failed (${error.code ?? error.message})`
+    }
+    const deadline = Date.now() + wait
+    while (probe(pgid) !== "absent" && Date.now() < deadline) await sleep(50)
+  }
+  return probe(pgid) === "absent" ? "absent" : "signalled"
 }
 
 /** Every owned process (ownedProcesses) that has left group `pgid`, pid -> pgid. */
@@ -1044,9 +1175,12 @@ const CAPTURE_LIMIT = 16 * 1024 * 1024
  * evidence, output that never closes) is uncertain and recorded with the
  * group's identity in the receipt. A child is never awaited past a timeout or
  * an interrupt: its result is the bounded stop's verdict, whether or not its
- * leader ever exits. A group other than the child's own is signalled only
- * when every member is freshly proven this child's (ownedProcesses); a mixed
- * or unproven group is left alone and uncertain. Once interrupted, or once
+ * leader ever exits. Every signal, the SIGKILL escalation included, is sent
+ * only when a process table read immediately before it shows every member of
+ * that group proven this child's (groupProof, terminateProvenGroup); a mixed
+ * or unproven group is left alone and uncertain. stack.mjs's terminateGroup,
+ * which escalates without looking again, is never used; `terminate` replaces
+ * the proven stop only in the offline tests. Once interrupted, or once
  * any settlement is uncertain, no phase or child starts again (ensureActive),
  * and interrupt() resolves only when every group has been stopped and
  * checked. settle() is the one teardown: it stops what still runs, sweeps the
@@ -1056,6 +1190,11 @@ const CAPTURE_LIMIT = 16 * 1024 * 1024
 export function createSupervisor({
   stack,
   receipt = null,
+  terminate = null,
+  signal = process.kill.bind(process),
+  runnerPid = process.pid,
+  graceMs = GRACE_MS,
+  killMs = KILL_MS,
   probe = probeGroup,
   table = processTable,
   listeners: listenersOf = listenersOrNull,
@@ -1121,6 +1260,8 @@ export function createSupervisor({
    * every one of its members owned by this child; anything else is uncertain
    * and never signalled.
    */
+  const proveGroup = (entry, pgid) => () => groupProof(table(entry.markers), pgid, entry.pgid, entry.markers, runnerPid)
+  const stopGroup = (entry, pgid) => (terminate ? terminate(pgid) : terminateProvenGroup(pgid, proveGroup(entry, pgid), { signal, probe, graceMs, killMs }))
   const stopEscaped = async (entry) => {
     const states = []
     const seeds = { group: entry.ownAbsent !== true }
@@ -1137,19 +1278,17 @@ export function createSupervisor({
         states.push([pgid, "unknown"])
         continue
       }
-      const members = rows.filter((row) => row.pgid === pgid)
-      if (members.length === 0) {
+      const proof = groupProof(rows, pgid, entry.pgid, entry.markers, runnerPid)
+      if (proof === "no visible member") {
         states.push([pgid, probe(pgid) === "absent" ? "absent" : "not proven this run's (no visible member)"])
         continue
       }
-      const owned = ownedProcesses(rows, entry.pgid, entry.markers, seeds)
-      const ours = members.filter((row) => owned.has(row.pid)).length
-      if (ours !== members.length) {
-        states.push([pgid, ours ? "not proven this run's (mixed membership)" : "not proven this run's"])
+      if (proof !== "proven") {
+        states.push([pgid, proof])
         continue
       }
       try {
-        if ((await within(Promise.resolve().then(() => stack.terminateGroup(pgid)), stopHelperMs)) === DEADLINE) states.push([pgid, "stop helper did not return"])
+        if ((await within(Promise.resolve().then(() => stopGroup(entry, pgid)), stopHelperMs)) === DEADLINE) states.push([pgid, "stop helper did not return"])
       } catch {
         // The probe below decides.
       }
@@ -1188,7 +1327,9 @@ export function createSupervisor({
       if (probe(entry.pgid) === "absent") helper = "not needed (already absent)"
       else {
         try {
-          if ((await within(Promise.resolve().then(() => stack.terminateGroup(entry.pgid)), stopHelperMs)) === DEADLINE) helper = "did not return"
+          const said = await within(Promise.resolve().then(() => stopGroup(entry, entry.pgid)), stopHelperMs)
+          if (said === DEADLINE) helper = "did not return"
+          else if (typeof said === "string" && said !== "absent" && said !== "signalled") helper = `returned (${said})`
         } catch {
           helper = "threw"
         }
@@ -2267,7 +2408,7 @@ export function suiteFiles(suite, dir = HARNESS) {
  * coordinator verifies and updates this pin when it integrates a reviewed
  * journey candidate.
  */
-export const CHARTERS_CONFIG_SHA256 = "d9e6284d5225ba9388dad843c4b6a43111e319b5ffea5ce00a226fcfca25313f"
+export const CHARTERS_CONFIG_SHA256 = "3721d32a79310184caecf5f1ccf2974412eb8655aaf58f15387a673a2c1b50e6"
 export const REVIEWED_CHARTERS_CONFIG = Object.freeze({ dir: HARNESS, sha256: CHARTERS_CONFIG_SHA256 })
 
 /**
@@ -2316,7 +2457,7 @@ const tool = (checkout, name) => join(checkout, "node_modules", ".bin", name)
  */
 async function check({ suites = [...SUITES], requireFiles = false, requireCleanHarness = false } = {}) {
   requireCanonicalRoot()
-  requireNoReceipt()
+  requireLaneClear()
   const pin = loadPin()
   const checkout = process.env.B02_CHECKOUT
   verifyCheckout(checkout, pin)
@@ -2349,6 +2490,9 @@ async function check({ suites = [...SUITES], requireFiles = false, requireCleanH
 async function recheck(ctx, label, d) {
   requireCanonicalRoot()
   d.verifyLockOwner(label, d.lockDir)
+  // This run's own receipt exists by now; the shared blocker must still be absent.
+  requireLaneRoot(d.laneRoot)
+  requireNoQualificationBlocker(d.blockerPath)
   const pin = loadPin()
   if (JSON.stringify(pin) !== JSON.stringify(ctx.pin)) fail("candidate.json changed during the run.")
   const harness = harnessState()
@@ -2524,6 +2668,7 @@ export async function runE2E(ctx, suite, sup) {
     return combine(suite, listed, { ok: false, problems: collection.problems.map((p) => `collection: ${p}`), counts: { expected: expectedInstances(suite) } }, `e2e list ${suite}`)
   }
   sup.ensureActive(`e2e ${suite}`)
+  requireLaunchOutput(ctx.runRoot, suite, out)
   const startedAtMs = Date.now()
   const r = await sup.run(`e2e ${suite}`, e2e.entry, ["run", "--config", CONFIG, ...E2E_RUN_ARGS], { cwd: HARNESS, env: e2eEnv(process.env, ctx, suite) }, SUITE_MS, { secrets: ctx.secrets })
   if (!r.settled) return combine(suite, r, unsettledVerdict(suite, "report.json"), "e2e")
@@ -2566,7 +2711,7 @@ export async function runCharters(ctx, sup) {
   }
   sup.ensureActive("charters")
   requireReviewedChartersConfig(reviewed)
-  requirePrivateChain(results, out)
+  requireLaunchOutput(ctx.runRoot, "charters", out)
   const reportFile = join(out, "report.json")
   const startedAtMs = Date.now()
   const r = await sup.run("playwright charters", pw.bin, ["test", "--config", config, ...CHARTER_ARGS(out)], { cwd: HARNESS, env: playwrightEnv(process.env, ctx, reportFile) }, CHARTERS_MS, {
@@ -2642,7 +2787,10 @@ const LIVE = Object.freeze({
   verifyLockOwner,
   verifyServerOwner,
   lockDir: LOCK_DIR,
+  laneRoot: LANE_ROOT,
   receiptPath: RECEIPT,
+  blockerPath: QUALIFICATION_BLOCKER,
+  terminate: null,
   results: RESULTS,
   probe: probeGroup,
   table: processTable,
@@ -2665,11 +2813,18 @@ const LIVE = Object.freeze({
  */
 async function underLock(ctx, label, suites, seedOnly, d) {
   d.verifyLockOwner(label, d.lockDir)
-  requireNoReceipt(d.receiptPath)
+  requireLaneClear({ root: d.laneRoot, receiptPath: d.receiptPath, blockerPath: d.blockerPath })
   const receipt = createReceipt(d.receiptPath, receiptIdentity(ctx, label))
+  // Before every phase: no new phase while settlement is in doubt, while the lock is not this run's, or while another qualification holds the lane.
+  const gate = (phase) => {
+    sup.ensureActive(phase)
+    d.verifyLockOwner(label, d.lockDir)
+    requireNoQualificationBlocker(d.blockerPath)
+  }
   const sup = createSupervisor({
     stack: ctx.stack,
     receipt,
+    terminate: d.terminate,
     probe: d.probe,
     table: d.table,
     listeners: d.listeners,
@@ -2711,25 +2866,20 @@ async function underLock(ctx, label, suites, seedOnly, d) {
       harnessTree: ctx.harness.tree,
       pid: process.pid,
     })
-    sup.ensureActive("seed")
-    d.verifyLockOwner(label, d.lockDir)
+    gate("seed")
     await d.seed(ctx, sup)
     if (!seedOnly) {
-      sup.ensureActive("build")
-      d.verifyLockOwner(label, d.lockDir)
+      gate("build")
       d.verifyInputs(ctx)
       evidence.build = await d.build(ctx, sup)
-      sup.ensureActive("scan")
-      d.verifyLockOwner(label, d.lockDir)
+      gate("scan")
       evidence.scan = await d.scan(ctx, sup)
-      sup.ensureActive("app")
-      d.verifyLockOwner(label, d.lockDir)
+      gate("app")
       d.verifyInputs(ctx)
       const app = await d.startApp(ctx, sup)
       for (const suite of suites) {
         // An unsettled suite (or any uncertain group) stops the sequence here: ensureActive refuses.
-        sup.ensureActive(suite)
-        d.verifyLockOwner(label, d.lockDir)
+        gate(suite)
         d.verifyServerOwner(STACK.appPort, app.pid)
         say(`${PLAN[suite].kind} ${suite}`)
         results[suite] = await d.runSuite(ctx, suite, sup)

@@ -1,9 +1,9 @@
-# B02 agentic acceptance (candidate 1c538949)
+# B02 agentic acceptance (candidate c4671823)
 
 This is a standalone acceptance harness for B02-01 through B02-06. It runs
 against exact application candidate
-`1c5389497f15d4aec04bad77568223ec82537cd1` (tree
-`bb009c741c3269dc367e8788b4e2eba64968a316`, 49 migrations to
+`c467182323b9db4cbeb330db8248b3dd26042400` (tree
+`e2594b345e920f0e8baef81553d23fffe29ac697`, 49 migrations to
 `20261110095911`, digest
 `22f8296906983c88bc214c08c28b8c669914f41a321e16f7af0360bfe8359caf`) on the
 coordinator-owned `spare6` stack only. It never accepts the harness snapshot
@@ -254,6 +254,25 @@ ids, states, names and counts only.
 `list` and `check` take no lock and write nothing. `seed` and `run` apply
 every guard below before the lock, and again under it before the seed.
 
+**Lane.** `spare6` is shared with other qualifications, so two guard files
+sit beside its canonical lock in `/tmp/nabalens-ws`:
+
+- `spare6.qualification.blocker.json` belongs to the other qualification
+  runners (B10 writes it while a child of its own may still use the stack and
+  leaves it when that child's settlement is unproven). This harness only reads
+  it. Any entry at that path (a file, link or directory) refuses `spare6`,
+  and the refusal names its state, phase and runner pid when it is readable.
+  It is never followed, changed or removed here.
+- `spare6.b02-acceptance.receipt.json` is this harness's own receipt
+  ("Settlement and the blocking receipt"). The other runners check it.
+
+`check`, and `seed` or `run` under the lock before the receipt is created,
+require the lane root to be a real directory this user owns that nobody else
+may write, resolving to its own physical path, and both guard paths to be
+absent. Under the lock the blocker is checked again before the seed, the build,
+the scan, the app and every suite, so a blocker that appears mid-run stops the
+next phase. The run then settles as usual and clears only its own receipt.
+
 **Pin.** `candidate.json` has exactly its five keys. The candidate commit's
 own git tree has the pinned migration digest (the same algorithm as
 `stack.mjs`), 49 files and latest `20261110095911`.
@@ -383,10 +402,18 @@ report is read only up to 64 MiB, and only if the chain still holds after the
 read with the same file in place. A replaced parent fails the suite, and
 nothing is read, written or scrubbed through it.
 
+**Launch output.** Each suite is collected first and launched second. After
+the collection and immediately before the launch (`requireLaunchOutput`), the
+private chain is checked again and the suite's output must still be exactly
+what collection may leave: absent for an e2e suite, whose runner creates it,
+and the empty private directory the harness made for the charters. A
+directory a collection child created, a file it left or a link in its place
+refuses the launch, so no earlier or foreign file can be read as this run's.
+
 **Charters.** `charters.config.ts` must be the independently reviewed config,
 by its exact bytes. Its sha256 must be `CHARTERS_CONFIG_SHA256`
-(`d9e6284d5225ba9388dad843c4b6a43111e319b5ffea5ce00a226fcfca25313f`, the
-config as integrated). It must also be a regular file of this user's that
+(`3721d32a79310184caecf5f1ccf2974412eb8655aaf58f15387a673a2c1b50e6`, the
+reviewed journey checkpoint `e2a1e48d`'s config, as integrated). It must also be a regular file of this user's that
 nobody else may write, read without following a link. This is checked at the
 guards, before `list`, before the collection and again before the run. On any
 other bytes, Playwright is never started, so it never loads the config. A
@@ -394,10 +421,7 @@ source reading cannot prove there is no server: one can arrive through a
 spread, a helper or a plugin, and the installed JSON reporter does not
 serialise plugin servers. Collection (`--list`) and the report must still show
 no `webServer`, and there is never a second server. The coordinator updates
-the pin when it integrates a reviewed journey candidate. Candidate `e2a1e48d`'s
-config has sha256
-`3721d32a79310184caecf5f1ccf2974412eb8655aaf58f15387a673a2c1b50e6`. It is not
-accepted until the pin is changed to it.
+the pin when it integrates a reviewed journey candidate.
 
 ### Settlement and the blocking receipt
 
@@ -414,7 +438,14 @@ leaves the table reader: only two flags are kept, "carries this child's
 private path" and "is the app command on port 3646". A group counts as settled
 only when all of these hold:
 
-- the stop helper (`stack.terminateGroup`) has returned;
+- the stop has returned. `run.mjs` sends the signals itself
+  (`terminateProvenGroup`): SIGTERM, then SIGKILL after 5 s. Each signal,
+  the SIGKILL escalation included, is sent only after a process table read
+  immediately before it shows the group's every member proven this child's
+  (`groupProof`). Otherwise the signal is withheld and the group is
+  uncertain. `stack.mjs`'s `terminateGroup` is never used, because it
+  escalates without looking again, and a group id that emptied after SIGTERM
+  could be reused before its SIGKILL;
 - the kernel then shows the group empty: `kill(-pgid, 0)` fails with ESRCH,
   checked by `run.mjs` itself;
 - every escaped group this child owns is gone. Playwright starts each browser
@@ -423,13 +454,14 @@ only when all of these hold:
   current ancestry, or by the private path. The second catches a child that
   detached with its own stdio and lost its parent before any poll. Each such
   group is recorded in the receipt;
-- an escaped group is signalled only after a fresh table, read just before
-  the signal, shows every one of its members owned. Owned means a member of
-  the child's own group, a process carrying its private path, or a current
-  child of an owned process. A pid recorded earlier proves nothing by itself.
-  Once the child's own group is proven empty, its id may be reused, so it is
-  never signalled again and ancestry from it no longer counts: only the
-  private path proves ownership.
+- any group, the child's own or an escaped one, is signalled only after a
+  fresh table, read just before each signal, shows every one of its members
+  proven owned. Proven owned means the child's leader while it is still this
+  runner's own child (a live child's pid cannot be anyone else's), a process
+  carrying its private path, or a current child of a proven process. Sharing
+  the child's group id proves nothing on its own, and a pid recorded earlier
+  proves nothing by itself. Once the child's own group is proven empty, its id
+  may be reused, so it is never signalled again.
   A group with any other member is "not proven this run's (mixed
   membership)". A group with no visible member is "not proven this run's".
   Both are left alone and uncertain, never killed;
@@ -485,9 +517,10 @@ is released last. An interrupted run exits 130 and never qualifies.
 `/tmp/nabalens-ws/spare6.b02-acceptance.receipt.json`, beside the canonical
 lock.
 
-- **Creation.** Under the lock, before any child starts, the run creates it
-  exclusively, privately (0600) and durably, without following links. It
-  records:
+- **Creation.** Under the lock, once the lane is clear (no blocker, no
+  receipt, a proven lane root) and before any child starts, the run creates
+  it exclusively (`O_EXCL`), privately (0600) and durably (file and directory
+  fsync), without following links. It records:
   - the run id, lock label, runner pid, ppid, pgid, uid, host and node
     version;
   - the harness and candidate identities, the e2e identity and the run
@@ -616,18 +649,18 @@ Run these from this directory, using the project's Node. Node 24.18.0 was
 used for the offline checks.
 
 ```sh
-# Offline: guard tests and collection of the files present (no stack needed).
+# Offline: guard tests and collection (no stack needed; nothing is contacted).
 node --test run.test.mjs
-node run.mjs list                    # awaiting partner files are listed, not failures
-B02_CHECKOUT=<checkout> node run.mjs list --require-all   # after integration: all 20, charters included
+B02_CHECKOUT=<checkout> node run.mjs list --require-all   # all 20, charters included
 
-# Coordinator, on the clean candidate checkout after
+# Coordinator only, when it authorises the live run. The full preflight
+# (owner, lane, verified DB + Storage backup, reset) is in the programme's
+# B02 harness-ready evidence; in short, on a clean candidate checkout:
 #   node <checkout>/scripts/ci/stack.mjs reset spare6 --from <checkout>
 env -u NABALENS_WS_ROOT B02_CHECKOUT=<checkout> node run.mjs check
-env -u NABALENS_WS_ROOT B02_CHECKOUT=<checkout> B02_RUN_ID=b02-1c53-<yyyymmdd-hhmm> \
+env -u NABALENS_WS_ROOT B02_CHECKOUT=<checkout> B02_RUN_ID=b02-c467-<yyyymmdd-hhmm> \
   node run.mjs run --build > <private-log> 2>&1
 ```
-
 The exit code is 0 only when every selected suite passed, every group
 settled, the artifact scrub is clean, the summary was written and no error
 occurred. It is 130 after an interrupt and 1 otherwise. A blocked receipt is
@@ -665,18 +698,20 @@ any mismatch.
 
 ## Offline checks run for this commit
 
-- `node --test run.test.mjs`: 81 of 81 passed. They used temporary git
-  repos, fake `psql`, fake `supabase status` answers, fake e2e, Playwright,
-  `next` and scanner executables, a fake stack object, injected process
-  tables and listeners, and short-lived local process groups only.
-- `tsc --noEmit -p tsconfig.json` and `eslint` on the four changed files ran
-  with the main checkout's `node_modules`. They found no new error.
-  `fixture.ts`'s `readOnly` reports the same TS2769 at the base commit
-  (`763cdb66`), because Next's `ProcessEnv` requires `NODE_ENV`.
-- `node run.mjs list` was not rerun for this repair, and nothing in it
-  collected. The coordinator runs final collection against the integrated
-  files.
-
+- `node --test run.test.mjs`: 87 of 87 passed, none skipped (Node 24.16.0).
+  They used temporary git repos, fake `psql`, fake `supabase status`
+  answers, fake e2e, Playwright, `next` and scanner executables, a fake stack
+  object, injected process tables and listeners, and short-lived local
+  process groups. One test uses the real `ps -E` reader and real signals on
+  its own short-lived group (it is skipped where `ps -E` is unavailable).
+  `check`'s refusal test reads the real lane root and guard paths with
+  `lstat` only.
+- `B02_CHECKOUT=<clean c4671823 checkout> node run.mjs list --require-all`:
+  exit 0, 20 of 20 collected (4 + 8 + 2 + 1x4 + 2), e2e 0.16.0, the
+  candidate's Playwright 1.64.1, with listEnv's placeholders only.
+- Not run: `tsc` and `eslint`, and Prettier (this worktree has no
+  `node_modules`, and the repository's Prettier config needs its Tailwind
+  plugin). Only `.mjs` and JSON files changed.
 ## Limitations
 
 - Nothing was executed against a DB, app, browser, model or the real
@@ -692,11 +727,13 @@ any mismatch.
   `TMPDIR` in `ps -E`, or by a Chromium profile under it. A process that clears
   its whole environment and carries no such path in its arguments is not
   found that way. It is still caught as output that never closes, if it kept
-  the pipe, but not if it closed its stdio as well. The offline tests inject
-  the process table and listeners, because `ps` is unavailable in their
-  sandbox and the machine's real ports are not this run's. The real `ps -E`
-  reader, the fresh `supabase status` and the physical `/tmp` chain run only
-  in the coordinator's environment.
+  the pipe, but not if it closed its stdio as well. Most offline tests inject
+  the process table and listeners, because the machine's real ports are not
+  this run's. The fresh `supabase status` and the physical `/tmp` chain run
+  only in the coordinator's environment.
+- A process that clears its environment and leaves this child's group is not
+  proven this run's, so a signal to its group is withheld and the run is
+  uncertain (receipt blocked) rather than killing something unproven.
 - Fixture sign-in mints a local magic-link token with the service key and
   posts it to the app's real `/auth/confirm/verify`. Inbox delivery and
   interactive sign-in are outside the run.
