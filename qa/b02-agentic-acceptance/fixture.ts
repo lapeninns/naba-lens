@@ -125,6 +125,11 @@ export type World = {
   staffFoh: Person
   /** Staff suite (scopes.staff): bartender (A dish or drink). */
   staffBar: Person
+  /**
+   * Staff suite (scopes.staff): a BOH Curry Chef whose only To do is one open
+   * replacement request (seeded.replacement), assigned to this person alone.
+   */
+  staffReplacement: Person
   /** Layout suite (scopes.layout), one per viewport so each target has its own state. */
   staffLayout: Record<LayoutTarget, Person>
   /** Active menu items by short name, per manager-suite venue. */
@@ -143,6 +148,14 @@ export type World = {
     revokedAsset: string
     /** staffSet's ready photo with no labels (Home's labels card), at scopes.staff. */
     unlabelledAsset: string
+    /**
+     * staffReplacement's open request for another photo, made the way the
+     * candidate's tests/e2e/home-todo.spec.ts makes one: a venue-specific
+     * coverage requirement assigned to that person alone, one submitted photo,
+     * and a reviewer's needs_another_photo decision with `reason`. `itemId` and
+     * `revision` are the decided item as read back after the review.
+     */
+    replacement: { requirementId: string; itemId: string; title: string; reason: string; revision: number }
   }
   /**
    * Server-side To do members each staffLayout persona starts with: that many
@@ -162,6 +175,8 @@ export type World = {
     recover: string
     bar: string
     layout: string
+    /** A run-tagged synthetic JPEG for staffReplacement's replacement photo. */
+    replacement: string
   }
 }
 
@@ -337,6 +352,10 @@ export function world(): World {
   for (const name of ["staff", "layout", "recovery"] as const) {
     if (!w.scopes?.[name]?.venue?.id) throw new Error(`world.json has no ${name} scope.`)
   }
+  const replacement = w.seeded?.replacement
+  if (!w.staffReplacement?.id || !replacement?.itemId || !Number.isInteger(replacement.revision) || !w.media?.replacement) {
+    throw new Error("world.json has no replacement request (staffReplacement, seeded.replacement, media.replacement).")
+  }
   cachedWorld = w
   return w
 }
@@ -429,6 +448,20 @@ export function pgEnv(): Record<string, string> {
   }
 }
 
+/** A failed read-only query; `pgError` is psql's first stderr line (no SQL, no URL). */
+export class ReadOnlyError extends Error {
+  readonly pgError: string
+  constructor(pgError: string) {
+    super(`Read-only query failed: ${pgError || "psql exited non-zero"}`)
+    this.pgError = pgError
+  }
+}
+/**
+ * contribution_group's exact not-found answer as psql reports it from stdin
+ * with VERBOSITY verbose (20261110095910_knowledge_b02c_group_visibility_repair.sql:98).
+ */
+export const GROUP_NOT_FOUND = /^(?:psql:[^\n]*?: )?ERROR: {2}P0002: contribution_group_not_found$/
+
 /** One read-only query on spare6 (default_transaction_read_only), SQL on stdin. */
 export function readOnly(sql: string): string {
   const env = { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", ...pgEnv() }
@@ -441,7 +474,7 @@ export function readOnly(sql: string): string {
     }).trim()
   } catch (error) {
     const stderr = String((error as { stderr?: unknown }).stderr ?? "").trim().split("\n")[0] ?? ""
-    throw new Error(`Read-only query failed: ${stderr || "psql exited non-zero"}`)
+    throw new ReadOnlyError(stderr)
   }
 }
 export const json = <T>(sql: string): T => JSON.parse(readOnly(sql) || "null") as T
@@ -471,6 +504,22 @@ export type Asset = {
   role: string | null
   venue: string
   deleted: boolean
+  /** media_assets.media_type. */
+  mediaType: "image" | "video"
+}
+/**
+ * public.contribution_group(uuid) as the viewer sees it (security definer,
+ * visibility decided per member): the safe fields only.
+ */
+export type GroupRead = {
+  groupId: string
+  venueId: string
+  /** The viewer created the group. */
+  mine: boolean
+  /** "none" (id and name null) when the viewer may not read the task it names. */
+  subject: { kind: "menu_item" | "task" | "question" | "none"; id: string | null; name: string | null }
+  /** Only the members the viewer may see, by position. */
+  members: { assetId: string; position: number; mediaType: "image" | "video"; uploadState: string; mine: boolean }[]
 }
 export type Group = {
   id: string
@@ -494,9 +543,37 @@ export const db = {
   assets(uploaderId: string, prefix: string): Asset[] {
     return json<Asset[]>(`select coalesce(json_agg(json_build_object(
         'id', id, 'filename', original_filename, 'state', upload_state, 'role', uploader_role,
-        'venue', venue_id, 'deleted', deleted_at is not null) order by created_at, id), '[]')
+        'venue', venue_id, 'deleted', deleted_at is not null, 'mediaType', media_type) order by created_at, id), '[]')
       from public.media_assets where uploader_id = ${uuid(uploaderId)}
         and starts_with(original_filename, ${text(prefix)})`)
+  },
+  /**
+   * One contribution group exactly as `viewerId` reads it through the
+   * candidate's public.contribution_group(uuid), as the authenticated viewer
+   * (asUser). null only for its exact not-found answer (P0002
+   * contribution_group_not_found: no such group, or none of it visible); any
+   * other error (not_active_user, permission, syntax) fails the assertion.
+   * groupsOf() stays the privileged read-back of what was persisted.
+   */
+  groupFor(viewerId: string, groupId: string): GroupRead | null {
+    let out: string
+    try {
+      out = asUser(viewerId, `\\set VERBOSITY verbose\nselect public.contribution_group(${uuid(groupId)})::text;`)
+    } catch (error) {
+      if (error instanceof ReadOnlyError && GROUP_NOT_FOUND.test(error.pgError)) return null
+      throw error
+    }
+    const g = JSON.parse(out) as Record<string, unknown> & { subject?: GroupRead["subject"]; members?: GroupRead["members"] }
+    if (typeof g.groupId !== "string" || !Array.isArray(g.members) || typeof g.subject !== "object" || g.subject === null) {
+      throw new Error("contribution_group returned an unexpected shape.")
+    }
+    return {
+      groupId: g.groupId,
+      venueId: String(g.venueId),
+      mine: g.mine === true,
+      subject: { kind: g.subject.kind, id: g.subject.id ?? null, name: g.subject.name ?? null },
+      members: g.members.map((m) => ({ assetId: m.assetId, position: m.position, mediaType: m.mediaType, uploadState: m.uploadState, mine: m.mine === true })),
+    }
   },
   /** Every group holding any of `assetIds`, with all its members and each member's asset state. */
   groupsOf(assetIds: string[]): Group[] {

@@ -1,52 +1,85 @@
 // Offline guard tests for run.mjs and fixture.ts: no database, app, browser,
-// model, network or stack lock. Temporary git repositories, fake psql and
-// short-lived local processes only.
+// model, network, real stack or real lock. Temporary git repositories, fake
+// psql, fake e2e, Playwright, next and bundle-scanner executables, a fake
+// stack object and short-lived local process groups only.
 //   node --test qa/b02-agentic-acceptance/run.test.mjs
 // Uses this repository as a stand-in checkout where only git objects are
 // needed (it contains the pinned candidate commit) and its
-// scripts/ci/stack.mjs for the process-group helpers.
+// scripts/ci/stack.mjs for the real process-group helpers.
 import assert from "node:assert/strict"
 import { spawnSync } from "node:child_process"
+import { createHash } from "node:crypto"
 import {
   chmodSync,
+  copyFileSync,
   existsSync,
+  linkSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
+  realpathSync,
+  renameSync,
   rmSync,
   statSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs"
-import { homedir, tmpdir } from "node:os"
-import { join } from "node:path"
+import { tmpdir } from "node:os"
+import { dirname, join } from "node:path"
 import { test } from "node:test"
 import { fileURLToPath, pathToFileURL } from "node:url"
 
 import * as realStack from "../../scripts/ci/stack.mjs"
 import {
-  bounded,
+  APP,
   buildEnv,
+  CHARTER_TITLES,
+  combine,
   commitMigrations,
+  createReceipt,
+  createSupervisor,
+  declaresWebServer,
+  escapedDescendants,
+  privateStream,
   e2eEnv,
+  E2E_INSTALL,
   expectedInstances,
   freshOutput,
+  gitEnv,
   HARNESS,
   isSuite,
   JOURNAL,
   lineRedactor,
   listEnv,
+  liveModelWork,
   loadPin,
+  lockedRun,
+  outgoing,
+  outwardFailure,
   parse,
+  pinnedMigrations,
   PLAN,
   playwrightEnv,
   prepareRunRoot,
+  probeGroup,
+  psqlLedger,
   readJson,
   redact,
+  registerSecrets,
   requireCanonicalRoot,
+  requireDistinctIdentities,
   requireFreePort,
+  requireNoReceipt,
   requireNoWebServer,
+  requirePlaywright,
+  resolveE2E,
+  runCharters,
+  runE2E,
   runId,
+  scanEnv,
+  scanOutcome,
   scrubArtifacts,
   secretsOf,
   seedEnv,
@@ -64,14 +97,16 @@ import {
   verifyCheckout,
   verifyLockOwner,
   verifyPinnedMigrations,
+  verifyProductInputs,
   verifyServerOwner,
   verifyStack,
+  VIEWPORTS,
+  writeSummary,
 } from "./run.mjs"
 
 const RUNNER = fileURLToPath(new URL("./run.mjs", import.meta.url))
 const FIXTURE = pathToFileURL(fileURLToPath(new URL("./fixture.ts", import.meta.url))).href
 const REPO = fileURLToPath(new URL("../..", import.meta.url))
-const E2E = join(process.env.B02_E2E_HOME ?? homedir(), "node_modules", ".bin", "e2e")
 
 /** The exact application candidate this harness must accept (split contract), never the harness snapshot. */
 const PINNED = {
@@ -83,9 +118,29 @@ const PINNED = {
 }
 const HARNESS_SNAPSHOT = "2bfd50909d7773c5631c677910f94ad6e09ca63e"
 
-const temp = (prefix = "b02-guard-") => mkdtempSync(join(tmpdir(), prefix))
+const temp = (prefix = "b02-guard-") => realpathSync(mkdtempSync(join(tmpdir(), prefix)))
 let fixtureImports = 0
 const freshFixture = () => import(`${FIXTURE}?case=${++fixtureImports}`)
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+async function waitFor(predicate, ms = 20_000) {
+  const deadline = Date.now() + ms
+  while (!predicate()) {
+    if (Date.now() > deadline) throw new Error("timed out waiting")
+    await sleep(5)
+  }
+}
+const groupAlive = (pid) => {
+  try {
+    process.kill(-pid, 0)
+    return true
+  } catch (error) {
+    return error.code === "EPERM"
+  }
+}
+const sink = () => {
+  let text = ""
+  return { write: (t) => (text += t), text: () => text }
+}
 
 // ---- The pin ------------------------------------------------------------------------
 
@@ -93,7 +148,10 @@ test("candidate.json pins exactly the 1c538949 application, its tree and its 49-
   assert.deepEqual({ ...loadPin() }, PINNED)
   assert.notEqual(loadPin().commit, HARNESS_SNAPSHOT)
   const fromGit = commitMigrations(REPO, PINNED.commit)
-  assert.deepEqual(fromGit, { digest: PINNED.migrationsDigest, count: 49, latest: PINNED.latestMigration })
+  assert.deepEqual({ digest: fromGit.digest, count: fromGit.count, latest: fromGit.latest }, { digest: PINNED.migrationsDigest, count: 49, latest: PINNED.latestMigration })
+  assert.equal(fromGit.files.length, 49)
+  assert.equal(fromGit.files.at(-1), "20261110095911_knowledge_b02c_manager_reservation_replay_scope.sql")
+  assert.deepEqual(fromGit.versions, fromGit.files.map((f) => f.split("_")[0]))
   const tree = spawnSync("git", ["-C", REPO, "rev-parse", `${PINNED.commit}^{tree}`], { encoding: "utf8" }).stdout.trim()
   assert.equal(tree, PINNED.tree)
   assert.equal(verifyPinnedMigrations(REPO, loadPin()), PINNED.migrationsDigest)
@@ -129,19 +187,27 @@ test("loadPin refuses malformed pins and unknown keys; fixture.pin() agrees", as
 
 // ---- The candidate checkout -------------------------------------------------------------
 
-function gitRepo() {
+const GITIGNORE = ".env*\n!.env.example\n.next/\nnode_modules/\n"
+/** A clean temporary candidate at its own pin: two migrations, plus `files`. */
+function gitRepo(files = {}) {
   const dir = temp("b02-checkout-")
   const g = (...args) => {
-    const r = spawnSync("git", ["-C", dir, "-c", "user.name=guard", "-c", "user.email=guard@example.invalid", ...args], { encoding: "utf8" })
+    const r = spawnSync("git", ["-C", dir, "-c", "user.name=guard", "-c", "user.email=guard@example.invalid", ...args], { encoding: "utf8", env: gitEnv() })
     assert.equal(r.status, 0, r.stderr)
     return r.stdout.trim()
   }
   g("init", "-q")
-  mkdirSync(join(dir, "supabase", "migrations"), { recursive: true })
-  writeFileSync(join(dir, "supabase", "migrations", "20260101000000_one.sql"), "select 1;\n")
-  writeFileSync(join(dir, "supabase", "migrations", "20260102000000_two.sql"), "select 2;\n")
-  writeFileSync(join(dir, ".gitignore"), ".env*\n!.env.example\n.next/\n")
-  writeFileSync(join(dir, ".env.example"), "EXAMPLE=1\n")
+  const all = {
+    "supabase/migrations/20260101000000_one.sql": "select 1;\n",
+    "supabase/migrations/20260102000000_two.sql": "select 2;\n",
+    ".gitignore": GITIGNORE,
+    ".env.example": "EXAMPLE=1\n",
+    ...files,
+  }
+  for (const [path, content] of Object.entries(all)) {
+    mkdirSync(dirname(join(dir, path)), { recursive: true })
+    writeFileSync(join(dir, path), content)
+  }
   g("add", "-A")
   g("commit", "-q", "-m", "candidate")
   const commit = g("rev-parse", "HEAD")
@@ -180,6 +246,65 @@ test("verifyCheckout accepts only the clean pinned worktree root", () => {
   rmSync(dir, { recursive: true, force: true })
 })
 
+function withEnv(values, fn) {
+  const saved = {}
+  for (const k of Object.keys(values)) saved[k] = process.env[k]
+  for (const [k, v] of Object.entries(values)) {
+    if (v === undefined) delete process.env[k]
+    else process.env[k] = v
+  }
+  const restore = () => {
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k]
+      else process.env[k] = v
+    }
+  }
+  return Promise.resolve()
+    .then(fn)
+    .finally(restore)
+}
+
+test("git identity checks ignore an inherited repository, work tree, index and configuration", async () => {
+  const pinned = gitRepo()
+  const other = gitRepo({ "other.txt": "not the candidate\n" })
+  assert.notEqual(other.pin.commit, pinned.pin.commit)
+  const selectPinned = { GIT_DIR: join(pinned.dir, ".git"), GIT_WORK_TREE: pinned.dir, GIT_INDEX_FILE: join(pinned.dir, ".git", "index") }
+  // The hazard: an inherited selection makes another checkout answer as the pin.
+  const naive = spawnSync("git", ["-C", other.dir, "rev-parse", "HEAD"], { encoding: "utf8", env: { ...process.env, ...selectPinned } })
+  assert.equal(naive.stdout.trim(), pinned.pin.commit)
+  await withEnv(selectPinned, () => {
+    assert.throws(() => verifyCheckout(other.dir, pinned.pin), /not the pinned candidate/)
+    assert.throws(() => pinnedMigrations(other.dir, pinned.pin), /fatal|failed|digest/)
+    verifyCheckout(pinned.dir, pinned.pin)
+  })
+  // A global or injected excludesFile would hide an untracked file from status.
+  const dir = temp()
+  writeFileSync(join(dir, "ignore"), "stray.txt\n")
+  writeFileSync(join(dir, "gitconfig"), `[core]\n\texcludesFile = ${join(dir, "ignore")}\n`)
+  writeFileSync(join(pinned.dir, "stray.txt"), "x")
+  const hidden = spawnSync("git", ["-C", pinned.dir, "status", "--porcelain", "--untracked-files=all"], {
+    encoding: "utf8",
+    env: { ...process.env, GIT_CONFIG_GLOBAL: join(dir, "gitconfig") },
+  })
+  assert.equal(hidden.stdout.trim(), "")
+  const injected = { GIT_CONFIG_GLOBAL: join(dir, "gitconfig"), GIT_CONFIG_COUNT: "1", GIT_CONFIG_KEY_0: "core.excludesFile", GIT_CONFIG_VALUE_0: join(dir, "ignore"), XDG_CONFIG_HOME: dir }
+  await withEnv(injected, () => assert.throws(() => verifyCheckout(pinned.dir, pinned.pin), /untracked/))
+  const env = gitEnv({ ...process.env, ...selectPinned, ...injected, GIT_OBJECT_DIRECTORY: "/x", GIT_CEILING_DIRECTORIES: "/" })
+  assert.deepEqual(Object.keys(env).filter((k) => k.startsWith("GIT_")).sort(), ["GIT_CONFIG_GLOBAL", "GIT_CONFIG_NOSYSTEM", "GIT_NO_REPLACE_OBJECTS", "GIT_OPTIONAL_LOCKS", "GIT_TERMINAL_PROMPT"])
+  assert.equal(env.GIT_CONFIG_GLOBAL, "/dev/null")
+  assert.equal(env.XDG_CONFIG_HOME, undefined)
+  for (const r of [pinned, other]) rmSync(r.dir, { recursive: true, force: true })
+  rmSync(dir, { recursive: true, force: true })
+})
+
+test("the product and harness identities stay distinct", () => {
+  const { dir, pin } = gitRepo()
+  requireDistinctIdentities({ commit: "a".repeat(40), tree: "b".repeat(40), root: REPO }, dir, pin)
+  assert.throws(() => requireDistinctIdentities({ commit: pin.commit, tree: "b".repeat(40), root: REPO }, dir, pin), /never qualifies itself/)
+  assert.throws(() => requireDistinctIdentities({ commit: "a".repeat(40), tree: "b".repeat(40), root: dir }, dir, pin), /is the harness checkout/)
+  rmSync(dir, { recursive: true, force: true })
+})
+
 test("the runner refuses a non-candidate checkout before any lock or write", () => {
   const id = `guard-${process.pid}-head`
   const env = { PATH: process.env.PATH, HOME: process.env.HOME, B02_CHECKOUT: REPO, B02_RUN_ID: id }
@@ -196,6 +321,7 @@ test("the runner refuses a non-candidate checkout before any lock or write", () 
 
 const SPEC = {
   name: "spare6",
+  block: 646,
   project: "nabalens-ws-spare6",
   workdir: "/tmp/nabalens-ws/spare6",
   apiPort: 64621,
@@ -203,12 +329,12 @@ const SPEC = {
   mailpitPort: 64624,
   appPort: 3646,
 }
-const goodStatus = () => ({
+const goodStatus = (pin = PINNED, from = REPO) => ({
   state: "running",
   project: SPEC.project,
   workdir: SPEC.workdir,
-  migrations: { applied: PINNED.migrationCount, latest: PINNED.latestMigration, matchesRecordedFiles: true },
-  lastReset: { from: REPO, commit: PINNED.commit, dirty: false, migrationsDigest: PINNED.migrationsDigest },
+  migrations: { applied: pin.migrationCount, latest: pin.latestMigration, matchesRecordedFiles: true },
+  lastReset: { from, commit: pin.commit, dirty: false, migrationsDigest: pin.migrationsDigest },
 })
 const checkStack = (status, spec = SPEC, pin = PINNED) => verifyStack({ statusOf: () => status }, spec, REPO, pin)
 
@@ -273,8 +399,9 @@ test("the stack environment is read fresh, validated, narrowed to four values an
 
 // ---- Child environments ------------------------------------------------------------------
 
+const STACK_VALUES = validatedStackEnvironment({ stackEnv: () => stackEnvOf() }, SPEC)
 const ctx = {
-  stackEnv: validatedStackEnvironment({ stackEnv: () => stackEnvOf() }, SPEC).env,
+  stackEnv: STACK_VALUES.env,
   checkout: "/abs/candidate",
   id: "guard-run",
   runDir: "/abs/harness/.results/guard-run/world",
@@ -288,25 +415,31 @@ const BASE = {
   NABALENS_HOME_LAYOUT_B01_VENUES: "venue-1",
   NEXT_PUBLIC_SUPABASE_URL: "https://prod.example.invalid",
   CI: "1",
+  GIT_DIR: "/elsewhere/.git",
+  B02_E2E_HOME: "/elsewhere",
   PLAYWRIGHT_BROWSERS_PATH: "/browsers",
 }
 const keys = (env) => Object.keys(env).sort()
 const RUN = ["APP_URL", "B02_RUN_DIR", "B02_RUN_ID", "B02_STACK"]
 
-test("each child gets only what it needs: seed, build, server, e2e and Playwright", () => {
+test("each child gets only what it needs: seed, build, scan, server, e2e and Playwright", () => {
   assert.deepEqual(keys(seedEnv(BASE, ctx)), [...RUN, "B02_CHECKOUT", "B02_VIA_RUNNER", "E2E_DB_URL", "E2E_ISOLATED_STACK", "HOME", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "NEXT_PUBLIC_SUPABASE_URL", "PATH", "SUPABASE_SERVICE_ROLE_KEY"].sort())
   const build = buildEnv(BASE, ctx)
   assert.deepEqual(keys(build), ["HOME", "NABALENS_CONTRIBUTION_ENTRY", "NABALENS_HOME_LAYOUT", "NABALENS_MANAGER_TRIAGE", "NABALENS_MY_CONTRIBUTIONS", "NEXT_PUBLIC_SITE_URL", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "NEXT_PUBLIC_SUPABASE_URL", "NEXT_TELEMETRY_DISABLED", "PATH"])
   assert.equal(build.NEXT_PUBLIC_SUPABASE_URL, "http://127.0.0.1:64621")
   assert.equal(build.NEXT_PUBLIC_SITE_URL, "http://127.0.0.1:3646")
+  for (const name of ["NABALENS_CONTRIBUTION_ENTRY", "NABALENS_HOME_LAYOUT", "NABALENS_MANAGER_TRIAGE", "NABALENS_MY_CONTRIBUTIONS"]) assert.equal(build[name], "b02")
+  assert.equal(build.SUPABASE_SERVICE_ROLE_KEY, undefined, "the build never sees the service key")
+  assert.deepEqual(keys(scanEnv(BASE, ctx)), ["HOME", "PATH", "SUPABASE_SERVICE_ROLE_KEY"])
   assert.deepEqual(keys(serverEnv(BASE, ctx)), [...keys(build), "SUPABASE_SERVICE_ROLE_KEY"].sort())
   const e2e = e2eEnv(BASE, ctx, "staff")
   assert.deepEqual(keys(e2e), [...RUN, "B02_SUITE", "E2E_DB_URL", "HOME", "NEXT_PUBLIC_SUPABASE_URL", "PATH", "PLAYWRIGHT_BROWSERS_PATH", "SUPABASE_SERVICE_ROLE_KEY"].sort())
   const pw = playwrightEnv(BASE, ctx, "/abs/report.json")
   assert.deepEqual(keys(pw), [...keys(e2e), "B02_CHECKOUT", "PLAYWRIGHT_JSON_OUTPUT_FILE"].sort())
   assert.equal(pw.B02_SUITE, "charters")
-  for (const env of [seedEnv(BASE, ctx), build, serverEnv(BASE, ctx), e2e, pw, listEnv("staff", BASE)]) {
-    for (const leaked of ["DATABASE_URL", "VERCEL_TOKEN", "SUPABASE_JWT_SECRET", "NABALENS_HOME_LAYOUT_B01_VENUES", "CI", "SUPABASE_DB_URL", "MAILPIT_URL", "E2E_SUPABASE_WORKDIR"]) {
+  assert.deepEqual(keys(playwrightEnv(BASE, ctx, null)), [...keys(e2e), "B02_CHECKOUT"].sort())
+  for (const env of [seedEnv(BASE, ctx), build, scanEnv(BASE, ctx), serverEnv(BASE, ctx), e2e, pw, listEnv("staff", BASE)]) {
+    for (const leaked of ["DATABASE_URL", "VERCEL_TOKEN", "SUPABASE_JWT_SECRET", "NABALENS_HOME_LAYOUT_B01_VENUES", "CI", "SUPABASE_DB_URL", "MAILPIT_URL", "E2E_SUPABASE_WORKDIR", "GIT_DIR", "B02_E2E_HOME"]) {
       assert.equal(env[leaked], undefined, leaked)
     }
     assert.ok(!Object.values(env).includes("https://prod.example.invalid"))
@@ -344,15 +477,17 @@ test("suite selection is exact own-name membership, never an inherited property"
   assert.deepEqual(suitesFrom({}), ["staff", "manager", "recovery", "layout", "charters"])
 })
 
-test("the e2e config refuses inherited suite names before collecting anything", { skip: !existsSync(E2E) && "no standalone e2e" }, () => {
+const realE2E = existsSync(E2E_INSTALL.bin)
+
+test("the e2e config refuses inherited suite names before collecting anything", { skip: !realE2E && "no standalone e2e" }, () => {
   for (const name of ["toString", "__proto__", "constructor"]) {
-    const r = spawnSync(E2E, ["list", "--config", join(HARNESS, "e2e.config.ts"), "--reporter", "json"], { cwd: HARNESS, encoding: "utf8", env: listEnv(name) })
+    const r = spawnSync(E2E_INSTALL.bin, ["list", "--config", join(HARNESS, "e2e.config.ts"), "--reporter", "json"], { cwd: HARNESS, encoding: "utf8", env: listEnv(name) })
     assert.notEqual(r.status, 0, name)
     assert.match(r.stdout + r.stderr, /B02_SUITE must be staff, manager, recovery or layout/, name)
   }
 })
 
-test("the plan is the fixed 4 + 8 + 2 + 1x4 + 2 = 20 instances, matching the e2e config", () => {
+test("the plan is the fixed 4 + 8 + 2 + 1x4 + 2 = 20 instances, matching the e2e config, fixture and charters config", async () => {
   assert.deepEqual(SUITES, ["staff", "manager", "recovery", "layout", "charters"])
   assert.deepEqual(SUITES.map(expectedInstances), [4, 8, 2, 4, 2])
   assert.equal(TOTAL_INSTANCES, 20)
@@ -362,6 +497,17 @@ test("the plan is the fixed 4 + 8 + 2 + 1x4 + 2 = 20 instances, matching the e2e
   const config = readFileSync(join(HARNESS, "e2e.config.ts"), "utf8")
   for (const s of SUITES.filter((name) => PLAN[name].kind === "e2e")) assert.ok(config.includes(`${s}: { tests: '${PLAN[s].file}'`), s)
   assert.ok(!/charters:\s*\{/.test(config), "the charters are not an e2e suite")
+  assert.match(config, /model: chatgpt\('gpt-6-luna'\)/)
+  assert.match(config, /trace: 'off'/)
+  assert.match(config, /video: 'off'/)
+  assert.match(config, /cache: 'off'/)
+  const fixture = await freshFixture()
+  assert.deepEqual(Object.fromEntries(Object.entries(VIEWPORTS).map(([k, v]) => [k, { ...v }])), fixture.VIEWPORT)
+  // The two charter titles and the project, exactly as the partner config declares them.
+  const charters = readFileSync(join(HARNESS, "charters.config.ts"), "utf8")
+  for (const title of CHARTER_TITLES) assert.ok(charters.includes(JSON.stringify(title)), title)
+  assert.match(charters, /projects: \[\{ name: "chromium-desktop" \}\]/)
+  assert.equal(PLAN.charters.project, "chromium-desktop")
 })
 
 test("run ids are one plain segment; the default is generated in that form", () => {
@@ -372,20 +518,71 @@ test("run ids are one plain segment; the default is generated in that form", () 
   assert.match(runId({}, new Date("2026-11-10T18:00:00.000Z")), /^b02-2026-11-10T18-00-00-000Z$/)
 })
 
+// ---- The reviewed e2e installation -------------------------------------------------------------
+
+/** A fake installation shaped like the reviewed one: root/package.json, root/dist/cli/bin.js, a bin link. */
+function fakeInstall({ version = "0.16.0", script = "#!/usr/bin/env node\nprocess.exit(0)\n" } = {}) {
+  const dir = temp("b02-e2e-")
+  const root = join(dir, "e2e")
+  mkdirSync(join(root, "dist", "cli"), { recursive: true })
+  writeFileSync(join(root, "package.json"), JSON.stringify({ name: "e2e", version }))
+  writeFileSync(join(root, "dist", "cli", "bin.js"), script, { mode: 0o755 })
+  mkdirSync(join(dir, "bin"))
+  symlinkSync(join(root, "dist", "cli", "bin.js"), join(dir, "bin", "e2e"))
+  return { dir, install: { ...E2E_INSTALL, bin: join(dir, "bin", "e2e"), root } }
+}
+
+test("the live e2e command is the reviewed standalone installation, never one chosen by the environment", () => {
+  if (realE2E) {
+    const identity = resolveE2E(E2E_INSTALL, {})
+    assert.equal(identity.entry, join(E2E_INSTALL.root, "dist", "cli", "bin.js"))
+    assert.equal(identity.version, "0.16.0")
+    assert.match(identity.entrySha256, /^[0-9a-f]{64}$/)
+    assert.ok(!JSON.stringify(identity).includes("token"))
+  }
+  assert.throws(() => resolveE2E(E2E_INSTALL, { B02_E2E_HOME: "/elsewhere" }), /B02_E2E_HOME is not accepted/)
+  assert.throws(() => resolveE2E(E2E_INSTALL, { B02_E2E_HOME: "" }), /B02_E2E_HOME is not accepted/)
+  const good = fakeInstall()
+  assert.equal(resolveE2E(good.install, {}).version, "0.16.0")
+  // A substituted executable behind the reviewed bin path is refused without being run.
+  const marker = join(good.dir, "ran")
+  writeFileSync(join(good.dir, "impostor.js"), `#!/usr/bin/env node\nrequire("fs").writeFileSync(${JSON.stringify(marker)}, "x")\n`, { mode: 0o755 })
+  rmSync(good.install.bin)
+  symlinkSync(join(good.dir, "impostor.js"), good.install.bin)
+  assert.throws(() => resolveE2E(good.install, {}), /resolves to .*impostor\.js, not the reviewed installation's/)
+  assert.equal(existsSync(marker), false, "the substituted executable must never run")
+  // Another version, a missing bin, a writable entry and a linked root are refused.
+  assert.throws(() => resolveE2E(fakeInstall({ version: "0.17.0" }).install, {}), /not the reviewed e2e@0\.16\.0/)
+  assert.throws(() => resolveE2E({ ...good.install, bin: join(good.dir, "missing") }, {}), /No standalone e2e/)
+  const writable = fakeInstall()
+  chmodSync(join(writable.install.root, "dist", "cli", "bin.js"), 0o777)
+  assert.throws(() => resolveE2E(writable.install, {}), /writable by others/)
+  const linked = fakeInstall()
+  symlinkSync(linked.install.root, join(linked.dir, "linked-root"))
+  assert.throws(() => resolveE2E({ ...linked.install, root: join(linked.dir, "linked-root") }, {}), /resolves to|not a link/)
+})
+
 // ---- Paths, journal and world binding -------------------------------------------------------
 
-test("a run's output directory is created exclusively in a real .results; suite output must be new", () => {
+test("a run's output directory is created exclusively and privately in a real .results; suite output must be new", () => {
   const root = temp()
   const results = join(root, ".results")
+  mkdirSync(results, { mode: 0o755 })
+  chmodSync(results, 0o755)
   const { runRoot, world } = prepareRunRoot("guard-a", results)
+  assert.equal(statSync(results).mode & 0o777, 0o700, ".results is made private")
   assert.equal(statSync(runRoot).mode & 0o777, 0o700)
   assert.ok(existsSync(world))
   assert.throws(() => prepareRunRoot("guard-a", results), /already exists/)
   assert.throws(() => prepareRunRoot("..", results), /not a run id/)
   mkdirSync(join(runRoot, "staff"))
   assert.throws(() => freshOutput(runRoot, "staff"), /already exists/)
+  symlinkSync(root, join(runRoot, "manager"))
+  assert.throws(() => freshOutput(runRoot, "manager"), /already exists/, "a dangling or real link is never reused as output")
   assert.equal(freshOutput(runRoot, "layout"), join(runRoot, "layout"))
   assert.throws(() => freshOutput(runRoot, "toString"), /not a suite/)
+  chmodSync(runRoot, 0o755)
+  assert.throws(() => freshOutput(runRoot, "layout"), /not private/)
   const elsewhere = join(root, "elsewhere")
   mkdirSync(elsewhere)
   const linked = join(root, "linked")
@@ -409,7 +606,7 @@ test("the journal header is written once, durably, and seed lines append to it",
   assert.equal(lines[0].runId, "guard-j")
   fixture.writeDurable(dir, "world.json", { ok: true })
   assert.deepEqual(JSON.parse(readFileSync(join(dir, "world.json"), "utf8")), { ok: true })
-  assert.equal(spawnSync("ls", ["-A", dir], { encoding: "utf8" }).stdout.includes(".tmp"), false)
+  assert.equal(readdirSync(dir).some((name) => name.endsWith(".tmp")), false)
   rmSync(dir, { recursive: true, force: true })
 })
 
@@ -419,20 +616,6 @@ const TARGET_ENV = {
   NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:64621",
   E2E_DB_URL: "postgresql://postgres:dummy-db-password@127.0.0.1:64622/postgres",
 }
-function withEnv(values, fn) {
-  const saved = {}
-  for (const k of Object.keys(values)) saved[k] = process.env[k]
-  Object.assign(process.env, values)
-  const restore = () => {
-    for (const [k, v] of Object.entries(saved)) {
-      if (v === undefined) delete process.env[k]
-      else process.env[k] = v
-    }
-  }
-  return Promise.resolve()
-    .then(fn)
-    .finally(restore)
-}
 /** A world directory of this harness for run `id`, removed afterwards. */
 function worldOf(id, world, header = { runId: id, candidate: PINNED.commit }) {
   const dir = join(HARNESS, ".results", id, "world")
@@ -441,6 +624,8 @@ function worldOf(id, world, header = { runId: id, candidate: PINNED.commit }) {
   if (world) writeFileSync(join(dir, "world.json"), JSON.stringify(world))
   return dir
 }
+const UUID1 = "00000000-0000-4000-8000-000000000001"
+const UUID2 = "00000000-0000-4000-8000-000000000002"
 const goodWorld = (id) => ({
   runId: id,
   tag: "a1b2c3",
@@ -451,9 +636,12 @@ const goodWorld = (id) => ({
   appUrl: "http://127.0.0.1:3646",
   complete: true,
   scopes: { staff: { venue: { id: "s" } }, layout: { venue: { id: "l" } }, recovery: { venue: { id: "r" } } },
+  staffReplacement: { id: UUID1, email: "e2e-b02-curry-chef-a1b2c3@nabalens.test", name: "DEV FIXTURE B02 Curry Chef a1b2c3" },
+  seeded: { replacement: { requirementId: UUID2, itemId: UUID1, title: "DEV FIXTURE B02 replacement shelf a1b2c3", reason: "out of focus", revision: 2 } },
+  media: { replacement: "/abs/b02-replacement-a1b2c3.jpg" },
 })
 
-test("world() loads only this run's complete world for the pinned candidate", async () => {
+test("world() loads only this run's complete world for the pinned candidate, with the shared replacement request", async () => {
   const id = `guard-${process.pid}-w`
   const other = `guard-${process.pid}-o`
   const dir = worldOf(id, goodWorld(id))
@@ -470,7 +658,12 @@ test("world() loads only this run's complete world for the pinned candidate", as
       await withEnv({ ...TARGET_ENV, B02_RUN_ID: id, B02_RUN_DIR: dir, ...overrides }, async () => {
         const fixture = await freshFixture()
         if (message) assert.throws(() => fixture.world(), message)
-        else assert.equal(fixture.world().runId, id)
+        else {
+          const w = fixture.world()
+          assert.equal(w.runId, id)
+          assert.equal(w.seeded.replacement.revision, 2)
+          assert.equal(w.staffReplacement.id, UUID1)
+        }
       })
     }
     const mutated = [
@@ -483,6 +676,9 @@ test("world() loads only this run's complete world for the pinned candidate", as
       [(w) => (w.stack = "spare5"), /another stack/],
       [(w) => delete w.scopes.recovery, /no recovery scope/],
       [(w) => (w.tag = "x"), /fixture tag/],
+      [(w) => delete w.staffReplacement, /no replacement request/],
+      [(w) => (w.seeded.replacement.revision = "2"), /no replacement request/],
+      [(w) => delete w.media.replacement, /no replacement request/],
     ]
     for (const [mutate, message] of mutated) {
       const w = goodWorld(id)
@@ -512,7 +708,7 @@ test("a symlinked run directory is refused by runDir()", async () => {
   const id = `guard-${process.pid}-l`
   const outside = temp()
   mkdirSync(join(outside, "world"))
-  mkdirSync(join(HARNESS, ".results"), { recursive: true })
+  mkdirSync(join(HARNESS, ".results"), { recursive: true, mode: 0o700 })
   symlinkSync(outside, join(HARNESS, ".results", id))
   try {
     await withEnv({ ...TARGET_ENV, B02_RUN_ID: id, B02_RUN_DIR: join(HARNESS, ".results", id, "world") }, async () => {
@@ -525,16 +721,24 @@ test("a symlinked run directory is refused by runDir()", async () => {
   }
 })
 
+/** A fake psql that records its arguments, PG* environment and stdin, then answers `stdout` or fails with `stderr`. */
+function fakePsql(dir, { stdout = "", stderr = "", status = 0 } = {}) {
+  const psql = join(dir, "psql")
+  writeFileSync(
+    psql,
+    `#!/bin/sh\nprintf '%s\\n' "$@" > '${dir}/args'\nenv | grep '^PG' | sort > '${dir}/env'\ncat > '${dir}/stdin'\nprintf '%s' '${stdout}'\nprintf '%s' '${stderr}' >&2\nexit ${status}\n`
+  )
+  chmodSync(psql, 0o755)
+  return psql
+}
+
 test("read-only psql gets the database through libpq variables, never the URL on its command line", async () => {
   const dir = temp()
-  const psql = join(dir, "psql")
-  writeFileSync(psql, `#!/bin/sh\nprintf '%s\\n' "$@" > '${dir}/args'\nenv | grep '^PG' | sort > '${dir}/env'\ncat > '${dir}/stdin'\necho '["00000000-0000-4000-8000-000000000001"]'\n`)
-  chmodSync(psql, 0o755)
+  fakePsql(dir, { stdout: `["${UUID1}"]` })
   await withEnv({ ...TARGET_ENV, PATH: `${dir}:${process.env.PATH}` }, async () => {
     const fixture = await freshFixture()
-    const viewer = "00000000-0000-4000-8000-000000000002"
-    const seen = fixture.db.communityReadable(viewer, ["00000000-0000-4000-8000-000000000001"])
-    assert.deepEqual(seen, ["00000000-0000-4000-8000-000000000001"])
+    const seen = fixture.db.communityReadable(UUID2, [UUID1])
+    assert.deepEqual(seen, [UUID1])
     const args = readFileSync(join(dir, "args"), "utf8")
     assert.equal(args, "-X\n-qAt\n-v\nON_ERROR_STOP=1\n")
     const env = readFileSync(join(dir, "env"), "utf8")
@@ -542,14 +746,59 @@ test("read-only psql gets the database through libpq variables, never the URL on
     const sql = readFileSync(join(dir, "stdin"), "utf8")
     assert.match(sql, /set local role authenticated/)
     assert.match(sql, /json_agg\(x\.id order by x\.id\)/)
-    assert.equal(fixture.db.drafts(viewer, viewer), NaN) // the fake answers JSON, not a count
+    assert.equal(fixture.db.drafts(UUID2, UUID2), NaN) // the fake answers JSON, not a count
     assert.match(readFileSync(join(dir, "stdin"), "utf8"), /and user_id = '00000000-0000-4000-8000-000000000002'::uuid/)
+    fixture.db.assets(UUID2, "DEV-FIXTURE-b02")
+    assert.match(readFileSync(join(dir, "stdin"), "utf8"), /'mediaType', media_type/)
     for (const key of Object.keys(fixture.pgEnv())) assert.ok(key.startsWith("PG"))
   })
   await withEnv({ ...TARGET_ENV, E2E_DB_URL: "postgresql://postgres@db.example.invalid:64622/postgres" }, async () => {
     const fixture = await freshFixture()
     assert.throws(() => fixture.readOnly("select 1"), /spare6's database/)
   })
+  rmSync(dir, { recursive: true, force: true })
+})
+
+test("db.groupFor reads contribution_group as the viewer: safe fields, null only for its exact not-found answer", async () => {
+  const dir = temp()
+  const raw = {
+    groupId: UUID1,
+    venueId: UUID2,
+    createdAt: "2026-11-10T12:00:00+00:00",
+    mine: false,
+    subject: { kind: "task", id: UUID2, name: "Shelf" },
+    members: [{ assetId: UUID1, position: 1, mediaType: "video", uploadState: "ready", mine: false }],
+  }
+  fakePsql(dir, { stdout: `f\n${JSON.stringify(raw)}` })
+  await withEnv({ ...TARGET_ENV, PATH: `${dir}:${process.env.PATH}` }, async () => {
+    const fixture = await freshFixture()
+    const group = fixture.db.groupFor(UUID2, UUID1)
+    assert.deepEqual(group, {
+      groupId: UUID1,
+      venueId: UUID2,
+      mine: false,
+      subject: { kind: "task", id: UUID2, name: "Shelf" },
+      members: [{ assetId: UUID1, position: 1, mediaType: "video", uploadState: "ready", mine: false }],
+    })
+    const sql = readFileSync(join(dir, "stdin"), "utf8")
+    assert.match(sql, /set local role authenticated;/)
+    assert.match(sql, /"sub":"00000000-0000-4000-8000-000000000002"/)
+    assert.match(sql, /select public\.contribution_group\('00000000-0000-4000-8000-000000000001'::uuid\)::text;/)
+    assert.match(sql, /\\set VERBOSITY verbose/)
+    assert.throws(() => fixture.db.groupFor("not-a-uuid", UUID1), /not a uuid/)
+  })
+  fakePsql(dir, { stderr: "psql:<stdin>:5: ERROR:  P0002: contribution_group_not_found", status: 3 })
+  await withEnv({ ...TARGET_ENV, PATH: `${dir}:${process.env.PATH}` }, async () => {
+    const fixture = await freshFixture()
+    assert.equal(fixture.db.groupFor(UUID2, UUID1), null)
+  })
+  for (const stderr of ["psql:<stdin>:5: ERROR:  P0001: not_active_user", "psql:<stdin>:5: ERROR:  42501: permission denied for function contribution_group", "ERROR:  P0002: contribution_group_not_found_elsewhere"]) {
+    fakePsql(dir, { stderr, status: 3 })
+    await withEnv({ ...TARGET_ENV, PATH: `${dir}:${process.env.PATH}` }, async () => {
+      const fixture = await freshFixture()
+      assert.throws(() => fixture.db.groupFor(UUID2, UUID1), /Read-only query failed/, stderr)
+    })
+  }
   rmSync(dir, { recursive: true, force: true })
 })
 
@@ -560,15 +809,26 @@ test("the charters' Playwright comes from the candidate checkout", async () => {
   writeFileSync(join(entry, "index.mjs"), "export {}\n")
   await withEnv({ B02_CHECKOUT: dir }, async () => {
     const fixture = await freshFixture()
-    assert.equal(fixture.candidatePlaywrightTest(), pathToFileURL(join(realpathOf(dir), "node_modules", "@playwright", "test", "index.mjs")).href)
+    assert.equal(fixture.candidatePlaywrightTest(), pathToFileURL(join(dir, "node_modules", "@playwright", "test", "index.mjs")).href)
   })
   await withEnv({ B02_CHECKOUT: "relative" }, async () => {
     const fixture = await freshFixture()
     assert.throws(() => fixture.candidatePlaywrightTest(), /B02_CHECKOUT/)
   })
+  // The runner's own resolution: CLI and package inside the checkout's node_modules, never outside.
+  writeFileSync(join(entry, "package.json"), JSON.stringify({ name: "@playwright/test", version: "1.64.1" }))
+  mkdirSync(join(dir, "node_modules", ".bin"))
+  writeFileSync(join(entry, "cli.js"), "#!/usr/bin/env node\n", { mode: 0o755 })
+  symlinkSync(join(entry, "cli.js"), join(dir, "node_modules", ".bin", "playwright"))
+  assert.deepEqual({ ...requirePlaywright(dir) }, { bin: join(entry, "cli.js"), version: "1.64.1" })
+  const outside = temp()
+  writeFileSync(join(outside, "cli.js"), "#!/usr/bin/env node\n", { mode: 0o755 })
+  rmSync(join(dir, "node_modules", ".bin", "playwright"))
+  symlinkSync(join(outside, "cli.js"), join(dir, "node_modules", ".bin", "playwright"))
+  assert.throws(() => requirePlaywright(dir), /playwright CLI inside its own node_modules/)
   rmSync(dir, { recursive: true, force: true })
+  rmSync(outside, { recursive: true, force: true })
 })
-const realpathOf = (p) => spawnSync("realpath", [p], { encoding: "utf8" }).stdout.trim()
 
 // ---- Lock and server owner ---------------------------------------------------------------------
 
@@ -613,9 +873,11 @@ test("the app port must be free before start and served only by this run's proce
   await assert.rejects(requireFreePort(3646, () => [], async () => true), /already listens/)
 })
 
-// ---- Redaction ----------------------------------------------------------------------------------
+// ---- Redaction and private output ----------------------------------------------------------------
 
 const SECRETS = secretsOf({ SERVICE: "service-role-secret-value", DB: "postgresql://postgres:pw-secret-1@127.0.0.1:64622/postgres", SHORT: "postgres" })
+const MARKER = "fake-credential-marker-0123456789"
+registerSecrets([...SECRETS, { name: "MARKER", value: MARKER }, ...STACK_VALUES.secrets])
 
 test("redaction replaces every credential value, including across chunk boundaries and long lines", () => {
   assert.deepEqual(SECRETS.map((s) => s.name), ["DB", "SERVICE"])
@@ -634,52 +896,147 @@ test("redaction replaces every credential value, including across chunk boundari
   assert.ok(out.startsWith("start [redacted:SERVICE] end\npartial [redacted:DB] tail"))
 })
 
-test("artifact scrub redacts text in place, flags binary hits and symlinks, and makes everything private", () => {
+test("a malformed report holding a credential fails, says nothing of its content, and is scrubbed in place", () => {
+  const root = temp()
+  mkdirSync(join(root, "staff"), { mode: 0o700 })
+  writeFileSync(join(root, "staff", "report.json"), `{ "token": "${MARKER}" `)
+  const read = readJson(join(root, "staff", "report.json"))
+  assert.deepEqual(read, { problem: "malformed" })
+  const secrets = [{ name: "MARKER", value: MARKER }]
+  const found = scrubArtifacts(root, secrets)
+  assert.deepEqual(found.redacted, [{ file: "staff/report.json", secret: "MARKER" }])
+  assert.ok(!readFileSync(join(root, "staff", "report.json"), "utf8").includes(MARKER))
+  // Links, special files and oversized reports are refused without being followed.
+  symlinkSync(join(root, "staff", "report.json"), join(root, "linked.json"))
+  assert.deepEqual(readJson(join(root, "linked.json")), { problem: "a link" })
+  assert.deepEqual(readJson(join(root, "staff")), { problem: "not a regular file" })
+  writeFileSync(join(root, "big.json"), "[1]")
+  assert.deepEqual(readJson(join(root, "big.json"), 2), { problem: "larger than 2 bytes" })
+  rmSync(root, { recursive: true, force: true })
+})
+
+test("artifact scrub redacts text in place, flags binary hits, links and unsafe files, and makes everything private", () => {
   const root = temp()
   mkdirSync(join(root, "staff", "artifacts"), { recursive: true })
   writeFileSync(join(root, "staff", "report.json"), JSON.stringify({ message: "auth service-role-secret-value failed" }), { mode: 0o644 })
   writeFileSync(join(root, "staff", "artifacts", "shot.png"), Buffer.concat([Buffer.from([0x89, 0, 1]), Buffer.from("service-role-secret-value")]))
+  writeFileSync(join(root, "staff", "artifacts", "latin1.txt"), Buffer.concat([Buffer.from([0xe9, 0xff]), Buffer.from("service-role-secret-value")]))
   writeFileSync(join(root, "app.log"), "nothing to see\n")
   symlinkSync("/etc/hosts", join(root, "staff", "link"))
+  const outside = temp()
+  writeFileSync(join(outside, "shared.txt"), "service-role-secret-value")
+  linkSync(join(outside, "shared.txt"), join(root, "staff", "hardlink.txt"))
   const found = scrubArtifacts(root, SECRETS)
   assert.deepEqual(found.redacted, [{ file: "staff/report.json", secret: "SERVICE" }])
-  assert.deepEqual(found.binary, [{ file: "staff/artifacts/shot.png", secret: "SERVICE" }])
+  assert.deepEqual(found.binary.sort((a, b) => a.file.localeCompare(b.file)), [
+    { file: "staff/artifacts/latin1.txt", secret: "SERVICE" },
+    { file: "staff/artifacts/shot.png", secret: "SERVICE" },
+  ])
   assert.deepEqual(found.symlinks, ["staff/link"])
+  assert.deepEqual(found.unsafe, ["staff/hardlink.txt has other hard links"])
+  assert.equal(readFileSync(join(outside, "shared.txt"), "utf8"), "service-role-secret-value", "a hard-linked file outside is never rewritten")
   assert.equal(JSON.parse(readFileSync(join(root, "staff", "report.json"), "utf8")).message, "auth [redacted:SERVICE] failed")
   assert.equal(statSync(join(root, "staff", "report.json")).mode & 0o777, 0o600)
   assert.equal(statSync(join(root, "staff")).mode & 0o777, 0o700)
-  const summary = summarise({ id: "x", pin: PINNED, harness: {}, suites: [], results: {}, scrub: found })
+  const summary = summarise({ id: "x", pin: PINNED, harness: {}, suites: [], results: {}, scrub: found, settlement: { settled: true, reasons: [] } })
   assert.equal(summary.ok, false)
-  assert.deepEqual(summary.scrub.problems, ["credential value in binary staff/artifacts/shot.png", "symlink staff/link"])
+  assert.deepEqual(summary.scrub.problems, [
+    "credential value in binary staff/artifacts/latin1.txt",
+    "credential value in binary staff/artifacts/shot.png",
+    "symlink staff/link",
+    "unsafe output: staff/hardlink.txt has other hard links",
+  ])
+  // A linked run directory is not walked at all.
+  const linkedRoot = join(outside, "linked-run")
+  symlinkSync(root, linkedRoot)
+  assert.deepEqual(scrubArtifacts(linkedRoot, SECRETS).unsafe, ["the run directory is not a real directory"])
+  rmSync(root, { recursive: true, force: true })
+  rmSync(outside, { recursive: true, force: true })
+})
+
+test("the summary is created exclusively in the private run directory, redacted, and a preexisting link is never followed", () => {
+  const root = temp()
+  const results = join(root, ".results")
+  const { runRoot } = prepareRunRoot("guard-s", results)
+  const summary = { note: `contains ${MARKER} and service-role-secret-value` }
+  assert.deepEqual(writeSummary(runRoot, summary, SECRETS), { ok: true })
+  const text = readFileSync(join(runRoot, "summary.json"), "utf8")
+  assert.ok(!text.includes(MARKER) && !text.includes("service-role-secret-value"))
+  assert.equal(statSync(join(runRoot, "summary.json")).mode & 0o777, 0o600)
+  assert.equal(writeSummary(runRoot, summary, SECRETS).ok, false, "never overwritten")
+  // A preexisting summary link: refused, and its external target stays unchanged.
+  const other = prepareRunRoot("guard-t", results).runRoot
+  const external = join(root, "external.json")
+  writeFileSync(external, "original\n")
+  symlinkSync(external, join(other, "summary.json"))
+  const refused = writeSummary(other, summary, SECRETS)
+  assert.equal(refused.ok, false)
+  assert.match(refused.problem, /summary\.json was not written \(EEXIST\)/)
+  assert.equal(readFileSync(external, "utf8"), "original\n")
+  assert.ok(lstatSync(join(other, "summary.json")).isSymbolicLink())
+  assert.deepEqual(scrubArtifacts(other, SECRETS).symlinks, ["summary.json"])
+  // A run directory that is not private is refused before anything is written.
+  chmodSync(other, 0o755)
+  assert.match(writeSummary(other, summary, SECRETS).problem, /not private/)
   rmSync(root, { recursive: true, force: true })
 })
 
 // ---- Report validation ---------------------------------------------------------------------------
 
 const START = Date.parse("2026-11-10T19:00:00.000Z")
+const sha = (text) => createHash("sha256").update(text).digest("hex")
+const testIdOf = (file, titlePath) => [file, ...titlePath].map(encodeURIComponent).join("::")
+const titleOf = (suite, k) => [`B02 ${suite}`, `case ${k}`]
 const agentStep = (api, overrides = {}) => ({
+  id: `step-${api}`,
+  index: 1,
   kind: "agent",
   api,
+  label: api,
   status: "passed",
-  metrics: { modelCalls: 2, actionSteps: 1 },
-  cache: { mode: "missed", replayedActions: 0, totalActions: 1 },
+  metrics: { modelCalls: 2, actionSteps: 1, observationBytes: 10, contextBytes: 10, ledgerBytes: 10 },
+  model: {
+    provider: "chatgpt.responses",
+    model: "gpt-6-luna",
+    endpoint: "provider-default",
+    adapterVersion: "executor/e2e-default-agent@2",
+    policyVersion: "e2e-default-agent/2",
+    calls: 2,
+    tokenAccounting: "provider",
+    inputTokens: 1000,
+    outputTokens: 50,
+    peakTokensPerCall: 600,
+  },
+  events: [],
+  artifacts: [],
   ...overrides,
 })
-function e2eReport(suite, { serial = false, agent = true } = {}) {
+/** The collection e2e list reports for a suite, matching e2eReport's results. */
+const pairsOf = (suite) =>
+  Object.entries(PLAN[suite].targets).flatMap(([target, n]) =>
+    Array.from({ length: n }, (_, k) => ({ file: PLAN[suite].file, title: titleOf(suite, k)[1], titlePath: titleOf(suite, k), kind: "test", tags: [], target, disposition: "run" }))
+  )
+/** A report-1 document shaped like the installed runner's (report-v1.schema.json). */
+function e2eReport(suite, { serial = false, agent = true, startedAt = new Date(START + 1000).toISOString() } = {}) {
   const plan = PLAN[suite]
   const results = []
   const groups = new Map()
   let i = 0
   for (const [targetId, n] of Object.entries(plan.targets)) {
     for (let k = 0; k < n; k++) {
-      const testId = `t${i}`
-      const steps = [{ kind: "assertion", api: "expect", status: "passed" }]
+      const titlePath = titleOf(suite, k)
+      const testId = testIdOf(plan.file, titlePath)
+      const steps = [{ id: "s0", index: 0, kind: "assertion", api: "expect", status: "passed", events: [], artifacts: [] }]
       if (plan.agent && agent && k === 0) steps.push(agentStep(plan.agent.api))
-      const base = { id: `r${i}`, testId, kind: "test", titlePath: [`B02 ${suite}`, `case ${k}`], file: plan.file, targetId, repeat: 0, selected: true, status: "passed" }
+      const base = { id: sha(`${suite}-${targetId}-${k}`), testId, kind: "test", declarationIndex: k, titlePath, file: plan.file, targetId, platform: "web", repeat: 0, selected: true, status: "passed" }
       if (serial) {
-        const id = `g-${targetId}`
-        if (!groups.has(id)) groups.set(id, { id, targetId, status: "passed", attempts: [{ status: "passed", members: [] }] })
-        groups.get(id).attempts[0].members.push({ testId, status: "passed", steps })
+        const id = sha(`group-${suite}-${targetId}`)
+        if (!groups.has(id)) {
+          groups.set(id, { id, serialId: `serial::${plan.file}::B02`, declarationIndex: 0, file: plan.file, titlePath: [`B02 ${suite}`], targetId, platform: "web", repeat: 0, memberTestIds: [], status: "passed", attempts: [{ id: "a", index: 0, status: "passed", members: [] }] })
+        }
+        const group = groups.get(id)
+        group.memberTestIds.push(testId)
+        group.attempts[0].members.push({ id: `${id}:member:${k}`, index: k, testId, status: "passed", steps })
         results.push({ ...base, serialGroupId: id, attempts: [] })
       } else {
         results.push({ ...base, attempts: [{ id: `a${i}`, index: 0, status: "passed", steps }] })
@@ -692,8 +1049,10 @@ function e2eReport(suite, { serial = false, agent = true } = {}) {
     run: {
       status: "passed",
       exitCode: 0,
-      startedAt: new Date(START + 1000).toISOString(),
-      project: { id: `nabalens-b02-agentic-${suite}` },
+      runner: { name: "e2e", version: "0.16.0" },
+      startedAt,
+      project: { id: `nabalens-b02-agentic-${suite}`, configDigest: "c".repeat(64) },
+      targets: Object.keys(plan.targets).map((id, index) => ({ id, index, platform: "web", baseOrigin: APP, environment: "test", engine: { name: "web", version: "0.11.1", spiVersion: 1 } })),
       errors: [],
       summary: { discovered: i, selected: i, executed: i, passed: i, failed: 0, flaky: 0, skipped: 0 },
       results,
@@ -702,9 +1061,10 @@ function e2eReport(suite, { serial = false, agent = true } = {}) {
     },
   }
 }
-const verdict = (report, suite) => validateE2EReport(report, suite, { startedAtMs: START })
-const fails = (report, suite, message) => {
-  const v = verdict(report, suite)
+const RUNNER_ID = { name: "e2e", version: "0.16.0" }
+const verdict = (report, suite, options = {}) => validateE2EReport(report, suite, { startedAtMs: START, collected: pairsOf(suite), runner: RUNNER_ID, ...options })
+const fails = (report, suite, message, options) => {
+  const v = verdict(report, suite, options)
   assert.equal(v.ok, false, `expected a failure matching ${message}`)
   assert.ok(v.problems.some((p) => message.test(p)), `${message} not in ${JSON.stringify(v.problems)}`)
 }
@@ -714,15 +1074,47 @@ test("well-formed reports pass, plain or serial, with live agent work where the 
     for (const serial of [false, true]) {
       const v = verdict(e2eReport(suite, { serial }), suite)
       assert.deepEqual(v.problems, [], `${suite} serial=${serial}`)
-      assert.equal(v.counts.passed, expectedInstances(suite))
+      assert.equal(v.counts.reportedPassed, expectedInstances(suite))
     }
   }
-  assert.deepEqual(verdict(e2eReport("layout"), "layout").counts.agentSteps, { "agent.assert:passed": 4 })
+  const layout = verdict(e2eReport("layout"), "layout").counts
+  assert.deepEqual(layout.agentSteps, { "agent.assert:passed": 4 })
+  assert.equal(layout.modelCalls, 8)
+  assert.equal(layout.stepTokens, 4200)
+  assert.deepEqual(Object.keys(layout.live).sort(), ["desktop", "phone-320", "phone-375", "phone-390"])
   assert.throws(() => validateE2EReport({}, "charters"), /not an e2e suite/)
   assert.throws(() => validateE2EReport({}, "toString"), /not an e2e suite/)
 })
 
-test("missing, malformed or foreign reports fail", () => {
+test("every outgoing string is redacted before it is cut: diagnostics, outer failures and the CLI's stderr", () => {
+  // A long string with the marker straddling the cut never leaks a fragment of it.
+  const text = `${"x".repeat(1990)}${MARKER} tail`
+  const out = outgoing(text)
+  assert.ok(!out.includes(MARKER.slice(0, 8)), "redacted first, then cut")
+  assert.match(out, /x\[redacted:… \(12 more characters\)$/)
+  assert.match(outgoing(`short ${MARKER}`), /^short \[redacted:MARKER\]$/)
+  assert.equal(outwardFailure(new Error(`boom ${MARKER}`)), "b02: boom [redacted:MARKER]")
+  // A report that names the credential: every diagnostic is redacted and bounded.
+  const report = e2eReport("manager")
+  report.run.status = `failed ${MARKER}`
+  report.run.errors.push({ code: MARKER })
+  for (let i = 0; i < 100; i++) report.run.results.push({ kind: MARKER })
+  const v = validateE2EReport(report, "manager", { startedAtMs: START })
+  assert.ok(v.problems.length <= 41)
+  assert.match(v.problems.at(-1), /more problems/)
+  assert.ok(v.problems.every((p) => !p.includes(MARKER)))
+  assert.ok(v.problems.some((p) => p.includes("[redacted:MARKER]")))
+  // The CLI's own outer failure path: a marker in the environment-derived error never reaches stderr.
+  const r = spawnSync(process.execPath, ["--input-type=module", "-e", `
+    import { registerSecrets, outwardFailure } from ${JSON.stringify(pathToFileURL(RUNNER).href)}
+    registerSecrets([{ name: "MARKER", value: ${JSON.stringify(MARKER)} }])
+    try { throw new Error("stack status failed: token ${MARKER}") } catch (error) { console.error(outwardFailure(error)); process.exitCode = 1 }
+  `], { encoding: "utf8" })
+  assert.equal(r.status, 1)
+  assert.equal(r.stderr.trim(), "b02: stack status failed: token [redacted:MARKER]")
+})
+
+test("missing, malformed, stale or foreign reports fail", () => {
   const dir = temp()
   assert.deepEqual(readJson(join(dir, "report.json")), { problem: "missing" })
   writeFileSync(join(dir, "report.json"), "{ not json")
@@ -733,12 +1125,13 @@ test("missing, malformed or foreign reports fail", () => {
   const foreign = e2eReport("manager")
   foreign.run.project.id = "nabalens-b02-agentic-staff"
   fails(foreign, "manager", /belongs to project/)
-  const stale = e2eReport("manager")
-  stale.run.startedAt = new Date(START - 60_000).toISOString()
-  fails(stale, "manager", /predates/)
+  fails(e2eReport("manager", { startedAt: new Date(START - 60_000).toISOString() }), "manager", /predates/)
   const noDate = e2eReport("manager")
   delete noDate.run.startedAt
   fails(noDate, "manager", /predates/)
+  const otherRunner = e2eReport("manager")
+  otherRunner.run.runner.version = "0.15.0"
+  fails(otherRunner, "manager", /not the reviewed e2e 0\.16\.0/)
   rmSync(dir, { recursive: true, force: true })
 })
 
@@ -751,6 +1144,7 @@ test("a failed, errored, skipped, flaky, retried or unselected result fails even
     [
       (r) => {
         r.run.results[1].status = "skipped"
+        r.run.results[1].skip = { cause: "explicit", reason: "x" }
         r.run.summary.skipped = 1
         r.run.summary.passed--
       },
@@ -758,14 +1152,16 @@ test("a failed, errored, skipped, flaky, retried or unselected result fails even
     ],
     [(r) => (r.run.summary.skipped = 1), /summary skipped is 1/],
     [(r) => (r.run.results[0].status = "flaky"), /is flaky/],
-    [(r) => r.run.results[0].attempts.unshift({ status: "failed", steps: [] }), /one attempt/],
+    [(r) => r.run.results[0].attempts.unshift({ index: 0, status: "failed", steps: [] }), /one attempt/],
+    [(r) => (r.run.results[0].attempts[0].index = 1), /one attempt/],
     [(r) => (r.run.results[0].selected = false), /not selected/],
     [(r) => (r.run.results[0].kind = "setup"), /setup result/],
     [(r) => (r.run.results[0].repeat = 1), /repeat 1/],
     [(r) => r.run.results.pop(), /7 results, expected 8/],
-    [(r) => r.run.results.push({ ...r.run.results[0], id: "extra", titlePath: ["extra"] }), /9 results/],
+    [(r) => r.run.results.push({ ...r.run.results[0], id: sha("extra"), titlePath: ["extra"], testId: testIdOf("manager.e2e.ts", ["extra"]) }), /9 results/],
     [(r) => (r.run.results[1].titlePath = r.run.results[0].titlePath), /appears twice/],
     [(r) => (r.run.results[0].file = "staff.e2e.ts"), /not manager\.e2e\.ts/],
+    [(r) => (r.run.results[0].file = "nested/manager.e2e.ts"), /not manager\.e2e\.ts/],
     [(r) => (r.run.results[0].targetId = "toString"), /unplanned target/],
     [(r) => delete r.run.summary, /summary is missing/],
     [(r) => delete r.run.results, /results are missing/],
@@ -779,66 +1175,162 @@ test("a failed, errored, skipped, flaky, retried or unselected result fails even
   serial.run.serialGroups[0].attempts[0].members[3].status = "skipped"
   fails(serial, "manager", /did not pass as a serial member/)
   const regrouped = e2eReport("manager", { serial: true })
-  regrouped.run.serialGroups[0].attempts.unshift({ status: "failed", members: [] })
+  regrouped.run.serialGroups[0].attempts.unshift({ index: 0, status: "failed", members: [] })
   fails(regrouped, "manager", /after 2 attempts/)
   const orphan = e2eReport("manager", { serial: true })
   orphan.run.serialGroups = []
   fails(orphan, "manager", /missing serial group/)
 })
 
+test("result identities are bound to the plan and the collection: titles, ids, targets and origin", () => {
+  // A substituted title (consistent id and path) was never collected for this suite.
+  const substituted = e2eReport("manager")
+  substituted.run.results[2].titlePath = ["B02 manager", "a different test"]
+  substituted.run.results[2].testId = testIdOf("manager.e2e.ts", substituted.run.results[2].titlePath)
+  fails(substituted, "manager", /was not collected for this suite/)
+  fails(substituted, "manager", /collected .*case 2.* has no result/)
+  // Unsupported identities: a non-hash id, or a testId that does not name the title path.
+  const badId = e2eReport("manager")
+  badId.run.results[0].id = "r0"
+  fails(badId, "manager", /unsupported result identity/)
+  const badTestId = e2eReport("manager")
+  badTestId.run.results[0].testId = testIdOf("manager.e2e.ts", ["B02 manager", "case 5"])
+  fails(badTestId, "manager", /unsupported result identity/)
+  const undecodable = e2eReport("manager")
+  undecodable.run.results[0].testId = "manager.e2e.ts::%E0%A4%A"
+  fails(undecodable, "manager", /unsupported result identity/)
+  // The runner-owned origin, and exactly the planned targets.
+  const origin = e2eReport("manager")
+  origin.run.targets[0].baseOrigin = "http://127.0.0.1:3000"
+  fails(origin, "manager", /baseOrigin http:\/\/127\.0\.0\.1:3000, not http:\/\/127\.0\.0\.1:3646/)
+  const extraTarget = e2eReport("manager")
+  extraTarget.run.targets.push({ ...extraTarget.run.targets[0], id: "phone-320", index: 1 })
+  fails(extraTarget, "manager", /target phone-320 is not planned/)
+  const noTarget = e2eReport("layout")
+  noTarget.run.targets.pop()
+  fails(noTarget, "layout", /planned target desktop is not in the report/)
+})
+
+test("serial groups count only through their own linked, passing members on the same target", () => {
+  // A serial result pointing at another target's group is refused, and its steps do not count.
+  const crossed = e2eReport("layout", { serial: true })
+  const desktopGroup = crossed.run.serialGroups.find((g) => g.targetId === "desktop")
+  const at320 = crossed.run.results.find((r) => r.targetId === "phone-320")
+  const own320 = crossed.run.serialGroups.find((g) => g.targetId === "phone-320")
+  at320.serialGroupId = desktopGroup.id
+  fails(crossed, "layout", /names serial group .* on target desktop/)
+  fails(crossed, "layout", /no passed live agent\.assert with model calls and tokens at phone-320/)
+  fails(crossed, "layout", new RegExp(`serial group ${own320.id} is not linked to any selected result`))
+  // An orphan group with otherwise qualifying model metrics is refused and adds no live work.
+  const orphan = e2eReport("staff", { agent: false, serial: true })
+  orphan.run.usage.modelTokens = 999
+  const testId = testIdOf("staff.e2e.ts", ["B02 staff", "orphan"])
+  orphan.run.serialGroups.push({
+    ...structuredClone(orphan.run.serialGroups[0]),
+    id: sha("orphan"),
+    memberTestIds: [testId],
+    attempts: [{ id: "o", index: 0, status: "passed", members: [{ id: "o:0", index: 0, testId, status: "passed", steps: [agentStep("agent.act")] }] }],
+  })
+  fails(orphan, "staff", /is not linked to any selected result/)
+  fails(orphan, "staff", /no passed live agent\.act with model calls and tokens/)
+  // Duplicate members, and members that are not exactly the linked results.
+  const duplicate = e2eReport("manager", { serial: true })
+  duplicate.run.serialGroups[0].attempts[0].members.push({ ...duplicate.run.serialGroups[0].attempts[0].members[0] })
+  fails(duplicate, "manager", /repeats a member in one attempt/)
+  fails(duplicate, "manager", /appears 2 times in its serial group's attempt/)
+  const declared = e2eReport("manager", { serial: true })
+  declared.run.serialGroups[0].memberTestIds.push(testIdOf("manager.e2e.ts", ["B02 manager", "ghost"]))
+  fails(declared, "manager", /members are not exactly its linked results/)
+  const twice = e2eReport("manager", { serial: true })
+  twice.run.serialGroups.push(structuredClone(twice.run.serialGroups[0]))
+  fails(twice, "manager", /appears twice/)
+  // A member that passed in a group with the wrong file or a repeat is refused.
+  const file = e2eReport("manager", { serial: true })
+  file.run.serialGroups[0].file = "staff.e2e.ts"
+  fails(file, "manager", /serial group comes from staff\.e2e\.ts/)
+})
+
 test("staff without a live agent.act, or layout without a live agent.assert at every target, fails", () => {
   fails(e2eReport("staff", { agent: false }), "staff", /no passed live agent\.act/)
   fails(e2eReport("staff", { agent: false }), "staff", /no model tokens/)
-  const noCalls = e2eReport("staff")
-  noCalls.run.results[0].attempts[0].steps[1].metrics.modelCalls = 0
-  fails(noCalls, "staff", /no passed live agent\.act/)
-  const cached = e2eReport("staff", { serial: true })
-  cached.run.serialGroups[0].attempts[0].members[0].steps[1].cache.mode = "self-finalized"
-  fails(cached, "staff", /replayed from the cache/)
-  const failedAct = e2eReport("staff")
-  failedAct.run.results[0].attempts[0].steps[1].status = "failed"
-  fails(failedAct, "staff", /no passed live agent\.act/)
-  const wrongKind = e2eReport("staff")
-  wrongKind.run.results[0].attempts[0].steps[1].api = "agent.assert"
-  fails(wrongKind, "staff", /no passed live agent\.act/)
+  const step = (report, at = 0) => report.run.results[at].attempts[0].steps[1]
+  const variants = [
+    [(s) => (s.metrics.modelCalls = 0), /no passed live agent\.act/],
+    [(s) => (s.metrics.modelCalls = 1.5), /no passed live agent\.act/],
+    [(s) => (s.model.calls = 0), /no passed live agent\.act/],
+    [(s) => delete s.model, /no passed live agent\.act/],
+    [(s) => ((s.model.inputTokens = 0), (s.model.outputTokens = 0)), /no passed live agent\.act/],
+    [(s) => (s.model.outputTokens = Number.POSITIVE_INFINITY), /no passed live agent\.act/],
+    [(s) => (s.model.model = "gpt-5"), /no passed live agent\.act/],
+    [(s) => (s.model.provider = "openai.responses"), /no passed live agent\.act/],
+    [(s) => (s.status = "failed"), /no passed live agent\.act/],
+    [(s) => (s.api = "agent.assert"), /no passed live agent\.act/],
+    [(s) => (s.cache = { mode: "self-finalized", replayedActions: 1, totalActions: 1 }), /replayed from the cache/],
+    [(s) => (s.cache = { mode: "missed", reason: "no-entry", replayedActions: 1, totalActions: 2 }), /replayed from the cache/],
+  ]
+  for (const [mutate, message] of variants) {
+    const report = e2eReport("staff")
+    mutate(step(report))
+    fails(report, "staff", message)
+  }
+  assert.equal(liveModelWork(agentStep("agent.act")), null)
+  assert.match(liveModelWork(agentStep("agent.act", { model: { ...agentStep("x").model, model: "other" } })), /not the saved route/)
+  const usage = e2eReport("staff")
+  usage.run.usage.modelTokens = 0
+  fails(usage, "staff", /no model tokens/)
   const missing375 = e2eReport("layout")
   missing375.run.results.find((r) => r.targetId === "phone-375").attempts[0].steps.pop()
-  fails(missing375, "layout", /no passed live agent\.assert with model calls at phone-375/)
+  fails(missing375, "layout", /no passed live agent\.assert with model calls and tokens at phone-375/)
   const twoAt320 = e2eReport("layout")
   twoAt320.run.results.find((r) => r.targetId === "phone-375").targetId = "phone-320"
   fails(twoAt320, "layout", /phone-320 has 2 results, expected 1/)
   fails(twoAt320, "layout", /phone-375 has 0 results/)
+  // A live step whose measured viewport is another target's is refused.
+  const viewport = e2eReport("layout")
+  viewport.run.results.find((r) => r.targetId === "phone-320").attempts[0].steps[1].viewport = { width: 375, height: 667, scale: 2 }
+  fails(viewport, "layout", /agent\.assert at phone-320 measured 375x667, not 320x568/)
+  const measured = e2eReport("layout")
+  measured.run.results.find((r) => r.targetId === "phone-390").attempts[0].steps[1].viewport = { width: 390, height: 844, scale: 3 }
+  assert.deepEqual(verdict(measured, "layout").problems, [])
   // Manager and recovery need no agent work: zero is fine there.
   assert.equal(verdict(e2eReport("recovery", { agent: false }), "recovery").ok, true)
 })
 
-function pwReport({ listing = false } = {}) {
+function pwReport({ listing = false, version = "1.64.1" } = {}) {
   const spec = (title) => ({
     title,
     file: "charters.playwright.ts",
-    tests: [{ expectedStatus: "passed", status: listing ? undefined : "expected", annotations: [], projectName: "chromium", results: listing ? [] : [{ status: "passed", retry: 0 }] }],
+    tests: [{ expectedStatus: "passed", status: listing ? "skipped" : "expected", annotations: [], projectName: "chromium-desktop", projectId: "chromium-desktop", results: listing ? [] : [{ status: "passed", retry: 0 }] }],
   })
   return {
-    config: { webServer: null, projects: [{ name: "chromium", retries: 0 }] },
-    suites: [{ title: "charters.playwright.ts", file: "charters.playwright.ts", specs: [spec("B02-06-A interrupted upload"), spec("B02-06-B offline draft")], suites: [] }],
+    config: { webServer: null, version, projects: [{ name: "chromium-desktop", id: "chromium-desktop", retries: 0 }] },
+    suites: [{ title: "charters.playwright.ts", file: "charters.playwright.ts", specs: CHARTER_TITLES.map(spec), suites: [] }],
     errors: [],
-    ...(listing ? {} : { stats: { startTime: new Date(START + 500).toISOString(), expected: 2, unexpected: 0, flaky: 0, skipped: 0 } }),
+    stats: listing
+      ? { startTime: new Date(START - 500).toISOString(), expected: 0, skipped: 2, unexpected: 0, flaky: 0 }
+      : { startTime: new Date(START + 500).toISOString(), expected: 2, unexpected: 0, flaky: 0, skipped: 0 },
   }
 }
-const pwFails = (report, message, options = { startedAtMs: START }) => {
+const pwFails = (report, message, options = { startedAtMs: START, version: "1.64.1" }) => {
   const v = validatePlaywrightReport(report, options)
   assert.equal(v.ok, false)
   assert.ok(v.problems.some((p) => message.test(p)), `${message} not in ${JSON.stringify(v.problems)}`)
 }
 
-test("the charters' Playwright report must show exactly two fresh passes and no webServer", () => {
-  assert.deepEqual(validatePlaywrightReport(pwReport(), { startedAtMs: START }).problems, [])
-  assert.deepEqual(validatePlaywrightReport(pwReport({ listing: true }), { listing: true }).problems, [])
+test("the charters' Playwright report must show exactly the two titled charters in chromium-desktop, passing fresh, no webServer", () => {
+  assert.deepEqual(validatePlaywrightReport(pwReport(), { startedAtMs: START, version: "1.64.1" }).problems, [])
+  assert.deepEqual(validatePlaywrightReport(pwReport({ listing: true }), { listing: true, version: "1.64.1" }).problems, [])
   const cases = [
     [(r) => (r.config.webServer = { command: "next start" }), /webServer/],
     [(r) => r.errors.push({ message: "boom" }), /top-level errors/],
     [(r) => r.suites[0].specs.pop(), /1 tests, expected 2/],
     [(r) => (r.suites[0].specs[1].title = r.suites[0].specs[0].title), /not distinct/],
+    [(r) => (r.suites[0].specs[0].title = "B02-06-A: something else"), /is not a planned charter title/],
+    [(r) => (r.suites[0].specs[0].title = "B02-06-A: something else"), /charter "B02-06-A: an upload interrupted.*" is missing/],
+    [(r) => (r.suites[0].specs[0].tests[0].projectName = "chromium"), /ran in project chromium, not chromium-desktop/],
+    [(r) => (r.config.projects[0].name = "webkit"), /expected only chromium-desktop/],
+    [(r) => r.config.projects.push({ name: "firefox", retries: 0 }), /expected only chromium-desktop/],
+    [(r) => (r.config.version = "1.65.0"), /not the candidate's 1\.64\.1/],
     [(r) => (r.suites[0].specs[0].file = "other.spec.ts"), /not charters\.playwright\.ts/],
     [(r) => (r.suites[0].specs[0].tests[0].status = "skipped"), /is skipped/],
     [(r) => (r.suites[0].specs[0].tests[0].status = "flaky"), /is flaky/],
@@ -855,6 +1347,13 @@ test("the charters' Playwright report must show exactly two fresh passes and no 
     mutate(report)
     pwFails(report, message)
   }
+  // Collection checks the same titles and project.
+  const listedProject = pwReport({ listing: true })
+  listedProject.suites[0].specs[1].tests[0].projectName = "chromium"
+  pwFails(listedProject, /ran in project chromium/, { listing: true, version: "1.64.1" })
+  const listedTitle = pwReport({ listing: true })
+  listedTitle.suites[0].specs[1].title = "B02-06-B: renamed"
+  pwFails(listedTitle, /is not a planned charter title/, { listing: true, version: "1.64.1" })
   pwFails(null, /not a Playwright JSON report/)
   pwFails({ suites: [] }, /not a Playwright JSON report/)
   // Nested describe blocks still count once each.
@@ -863,55 +1362,108 @@ test("the charters' Playwright report must show exactly two fresh passes and no 
   assert.equal(validatePlaywrightReport(nested, { startedAtMs: START }).ok, true)
 })
 
-test("collection pairs must match the plan exactly per target", () => {
-  const pairs = (suite) =>
-    Object.entries(PLAN[suite].targets).flatMap(([target, n]) =>
-      Array.from({ length: n }, (_, i) => ({ file: PLAN[suite].file, title: `case ${i}`, titlePath: ["s", `case ${i}`], kind: "test", tags: [], target, disposition: "run" }))
-    )
-  assert.equal(validateListedPairs(pairs("layout"), "layout").ok, true)
-  assert.equal(validateListedPairs(pairs("manager"), "manager").count, 8)
-  const skipped = pairs("staff")
+test("collection pairs must match the plan exactly per target, once each", () => {
+  assert.equal(validateListedPairs(pairsOf("layout"), "layout").ok, true)
+  assert.equal(validateListedPairs(pairsOf("manager"), "manager").count, 8)
+  const skipped = pairsOf("staff")
   skipped[0].disposition = "skip"
   assert.match(validateListedPairs(skipped, "staff").problems.join(), /would be skipped/)
-  assert.match(validateListedPairs(pairs("manager").slice(1), "manager").problems.join(), /7 collected, expected 8/)
-  const setup = pairs("recovery")
+  assert.match(validateListedPairs(pairsOf("manager").slice(1), "manager").problems.join(), /7 collected, expected 8/)
+  const setup = pairsOf("recovery")
   setup[0].kind = "setup"
   assert.match(validateListedPairs(setup, "recovery").problems.join(), /is a setup/)
+  const twice = pairsOf("manager")
+  twice[1] = { ...twice[0] }
+  assert.match(validateListedPairs(twice, "manager").problems.join(), /collected twice/)
+  const elsewhere = pairsOf("staff")
+  elsewhere[0].file = "nested/staff.e2e.ts"
+  assert.match(validateListedPairs(elsewhere, "staff").problems.join(), /comes from nested\/staff\.e2e\.ts/)
   assert.equal(validateListedPairs(undefined, "staff").ok, false)
+})
+
+test("a suite's verdict combines the actual exit with the report: a nonzero exit always fails it", () => {
+  const good = verdict(e2eReport("manager"), "manager")
+  assert.equal(good.ok, true)
+  const nonzero = combine("manager", { code: 1, settled: true }, good, "e2e")
+  assert.equal(nonzero.ok, false)
+  assert.equal(nonzero.counts.passed, 0, "a fresh passing report never counts with a nonzero exit")
+  assert.equal(nonzero.counts.reportedPassed, 8)
+  assert.deepEqual(nonzero.problems, ["e2e exited 1"])
+  const unsettled = combine("manager", { code: 0, settled: false }, good, "e2e")
+  assert.equal(unsettled.ok, false)
+  assert.deepEqual(unsettled.problems, ["e2e's process group did not settle"])
+  const passing = combine("manager", { code: 0, settled: true }, good, "e2e")
+  assert.equal(passing.ok, true)
+  assert.equal(passing.counts.passed, 8)
 })
 
 test("the summary counts only fully passing selected suites; a partial run is never completion", () => {
   const pass = { ok: true }
+  const settled = { settled: true, reasons: [] }
   const all = Object.fromEntries(SUITES.map((s) => [s, pass]))
-  const full = summarise({ id: "x", pin: PINNED, harness: {}, suites: [...SUITES], results: all, scrub: { redacted: [], binary: [], symlinks: [] } })
+  const clean = { redacted: [], binary: [], symlinks: [], unsafe: [] }
+  const full = summarise({ id: "x", pin: PINNED, harness: {}, suites: [...SUITES], results: all, scrub: clean, settlement: settled })
   assert.equal(full.ok, true)
   assert.equal(full.complete, true)
+  assert.equal(full.qualification, "full")
   assert.deepEqual(full.instances, { planned: 20, selected: 20, passed: 20 })
-  const partial = summarise({ id: "x", pin: PINNED, harness: {}, suites: ["staff"], results: { staff: pass }, scrub: {} })
+  const partial = summarise({ id: "x", pin: PINNED, harness: {}, suites: ["staff"], results: { staff: pass }, scrub: {}, settlement: settled })
   assert.equal(partial.complete, false)
+  assert.equal(partial.ok, true)
+  assert.equal(partial.qualification, "partial (never completion)")
   assert.equal(partial.suites.manager.status, "not selected")
-  const failed = summarise({ id: "x", pin: PINNED, harness: {}, suites: [...SUITES], results: { ...all, layout: { ok: false } }, scrub: {} })
+  const failed = summarise({ id: "x", pin: PINNED, harness: {}, suites: [...SUITES], results: { ...all, layout: { ok: false } }, scrub: {}, settlement: settled })
   assert.equal(failed.ok, false)
+  assert.equal(failed.qualification, "failed")
   assert.equal(failed.instances.passed, 16)
-  assert.equal(summarise({ id: "x", pin: PINNED, harness: {}, suites: [...SUITES], results: all, scrub: {}, error: "boom" }).ok, false)
+  assert.equal(summarise({ id: "x", pin: PINNED, harness: {}, suites: [...SUITES], results: all, scrub: {}, settlement: settled, error: "boom" }).ok, false)
+  assert.equal(summarise({ id: "x", pin: PINNED, harness: {}, suites: [...SUITES], results: all, scrub: {}, settlement: settled, interrupted: "signal" }).ok, false)
+  // Without proven settlement, or with an unscrubbed run, nothing qualifies.
+  assert.equal(summarise({ id: "x", pin: PINNED, harness: {}, suites: [...SUITES], results: all, scrub: {}, settlement: { settled: false, reasons: ["x"] } }).ok, false)
+  assert.equal(summarise({ id: "x", pin: PINNED, harness: {}, suites: [...SUITES], results: all, scrub: {} }).ok, false)
+  const unscrubbed = summarise({ id: "x", pin: PINNED, harness: {}, suites: [...SUITES], results: all, scrub: { skipped: "uncertain" }, settlement: settled })
+  assert.equal(unscrubbed.ok, false)
+  assert.deepEqual(unscrubbed.scrub.problems, ["artifacts were not scrubbed: uncertain"])
 })
 
 // ---- Partner files and the charters' config ---------------------------------------------------------
 
-test("missing partner files are reported per suite; a charters config may not declare a webServer", () => {
+test("the charters config is checked statically: the integrated partner config passes, a real webServer is refused", () => {
+  // The actual partner config mentions webServer in a comment only.
+  const partner = readFileSync(join(HARNESS, "charters.config.ts"), "utf8")
+  assert.match(partner, /There is no webServer/)
+  assert.equal(declaresWebServer(partner), false)
+  requireNoWebServer(HARNESS)
+  const declared = [
+    "export default defineConfig({ webServer: { command: 'next start', port: 3000 } })",
+    "export default { 'webServer': { command: 'next start' } }",
+    'export default { ["webServer"]: { command: "next start" } }',
+    "const config = {}; config.webServer = { command: 'next start' }; export default config",
+    "export default { ...base, webServer }",
+    "export default defineConfig({ use: { baseURL: `${app}` }, webServer: [{ command: `next start --port ${port}` }] })",
+  ]
+  for (const source of declared) assert.equal(declaresWebServer(source), true, source)
+  const mentioned = [
+    "// webServer: none, the runner owns the app\nexport default {}",
+    "/* a webServer would start a second app */ export default {}",
+    "export default { name: 'no webServer here' }",
+    "export default { name: `webServer ${'is off'}` }",
+    "const re = /webServer/; export default { re }",
+  ]
+  for (const source of mentioned) assert.equal(declaresWebServer(source), false, source)
   const dir = temp()
   assert.deepEqual(suiteFiles("charters", dir).missing, ["charters.playwright.ts", "charters.config.ts"])
-  writeFileSync(join(dir, "charters.config.ts"), "export default { use: { baseURL: process.env.APP_URL } }\n")
+  writeFileSync(join(dir, "charters.config.ts"), "// webServer is never declared here\nexport default { use: { baseURL: process.env.APP_URL } }\n")
   requireNoWebServer(dir)
   writeFileSync(join(dir, "charters.config.ts"), "export default { webServer: { command: 'next start' } }\n")
-  assert.throws(() => requireNoWebServer(dir), /webServer/)
+  assert.throws(() => requireNoWebServer(dir), /declares a webServer/)
   assert.deepEqual(suiteFiles("staff", dir).missing, ["staff.e2e.ts"])
   rmSync(dir, { recursive: true, force: true })
 })
 
 // ---- Seed against the candidate's helpers ----------------------------------------------------------------
 
-test("every repository helper and fixture seed.ts uses exists in the pinned candidate", () => {
+test("every repository helper, RPC and fixture seed.ts uses exists in the pinned candidate, journalled before it writes", () => {
   const show = (path) => {
     const r = spawnSync("git", ["-C", REPO, "show", `${PINNED.commit}:${path}`], { encoding: "utf8" })
     assert.equal(r.status, 0, path)
@@ -931,17 +1483,46 @@ test("every repository helper and fixture seed.ts uses exists in the pinned cand
     for (const name of names) assert.match(source, new RegExp(`export (async )?function ${name}\\b`), `${path} ${name}`)
   }
   assert.match(show("tests/e2e/helpers/world.ts"), /`e2e-\$\{label\}-\$\{tag\}@nabalens\.test`/)
+  assert.match(show("tests/e2e/helpers/coverage-world.ts"), /purpose\?: "general" \| "amenity"/)
   spawnSync("git", ["-C", REPO, "cat-file", "-e", `${PINNED.commit}:tests/fixtures/media/synthetic.mp4`]).status === 0 || assert.fail("synthetic.mp4")
+  // The replacement path is the candidate's own home-todo path, and its RPCs exist at the pin.
+  const homeTodo = show("tests/e2e/home-todo.spec.ts")
+  for (const rpc of ["save_coverage_requirement", "set_coverage_requirement_assignees", "submit_coverage_photos", "review_coverage_item"]) {
+    assert.match(homeTodo, new RegExp(`"${rpc}"`), rpc)
+    const defined = spawnSync("git", ["-C", REPO, "grep", "-l", "-i", "-F", `function public.${rpc}(`, PINNED.commit, "--", "supabase/migrations"], { encoding: "utf8" })
+    assert.equal(defined.status, 0, rpc)
+  }
+  assert.match(homeTodo, /p_decision: "needs_another_photo"/)
+  const groups = show("supabase/migrations/20261110095910_knowledge_b02c_group_visibility_repair.sql")
+  assert.match(groups, /raise exception 'contribution_group_not_found' using errcode = 'P0002'/)
+  assert.match(groups, /'mediaType', a\.media_type/)
+  assert.match(show("supabase/migrations/20261102110000_staff_departments.sql"), /check \(department in \('foh', 'boh'\)\)/)
   const seed = readFileSync(join(HARNESS, "seed.ts"), "utf8")
   assert.match(seed, /appendJournal\(dir, \{ kind: "intent"/)
   // The journal intent precedes every helper write in each step.
   assert.ok(seed.indexOf('appendJournal(dir, { kind: "tag"') < seed.indexOf("worldHelpers.createVenues("))
+  // Each replacement write happens inside its own journalled step (intent first).
+  for (const [name, write] of [
+    ["replacement photo", "coverage.seedImages(staffReplacement"],
+    ["replacement requirement", '"save_coverage_requirement"'],
+    ["replacement assignee", '"set_coverage_requirement_assignees"'],
+    ["replacement submission", '"submit_coverage_photos"'],
+    ["replacement review", '"review_coverage_item"'],
+  ]) {
+    const stepAt = seed.indexOf(`step(\n  "${name}"`) >= 0 ? seed.indexOf(`step(\n  "${name}"`) : seed.indexOf(`step("${name}"`)
+    const at = seed.indexOf(write, stepAt)
+    const next = seed.indexOf("await step(", stepAt + 1)
+    assert.ok(stepAt > 0 && at > stepAt && (next < 0 || at < next), `${write} is inside the journalled step "${name}"`)
+  }
+  assert.match(seed, /staffReplacement: person\(staffReplacement\)/)
+  assert.match(seed, /jobTitle: "Curry Chef", department: "boh"/)
+  assert.match(seed, /replacement: await jpeg\(`b02-replacement-\$\{tag\}\.jpg`/)
 })
 
 // ---- Geometry sources ---------------------------------------------------------------------------------------
 
-test("the page geometry sources are callable function expressions, never invoked expressions", async () => {
-  const evaluation = join(process.env.B02_E2E_HOME ?? homedir(), "node_modules", "@e2e-dev", "web", "dist", "evaluation.js")
+test("the page geometry sources are callable function expressions, never invoked expressions", { skip: !realE2E && "no standalone e2e" }, async () => {
+  const evaluation = join(dirname(E2E_INSTALL.root), "@e2e-dev", "web", "dist", "evaluation.js")
   const { compileEvaluation } = await import(pathToFileURL(evaluation).href)
   const fixture = await freshFixture()
   try {
@@ -960,82 +1541,809 @@ test("the page geometry sources are callable function expressions, never invoked
   }
 })
 
-// ---- Children --------------------------------------------------------------------------------------------------
+// ---- Process groups and settlement --------------------------------------------------------------------------------
 
 /** Real terminateGroup/onTerminate, recording which groups were stopped and hooks left behind. */
-function recordingStack() {
+function recordingStack({ falseSuccess = false } = {}) {
   const stopped = []
-  let hooks = 0
+  const hooks = []
   return {
     stopped,
-    hooks: () => hooks,
+    hooks,
     async terminateGroup(pid) {
       stopped.push(pid)
-      await realStack.terminateGroup(pid, 500)
+      // A false success: resolves at once and removes nothing.
+      if (!falseSuccess) await realStack.terminateGroup(pid, 300)
     },
     onTerminate(hook) {
-      hooks++
-      const unhook = realStack.onTerminate(hook)
-      return () => {
-        hooks--
-        unhook()
-      }
+      hooks.push(hook)
+      return () => hooks.splice(hooks.indexOf(hook), 1)
+    },
+    /** What stack.mjs's terminate() does on a signal, without exiting: every hook, newest first. */
+    async fire() {
+      for (const hook of [...hooks].reverse()) await hook()
     },
   }
 }
-const groupAlive = (pid) => {
-  try {
-    process.kill(-pid, 0)
-    return true
-  } catch (error) {
-    return error.code === "EPERM"
-  }
-}
-const sink = () => {
-  let text = ""
-  return { write: (t) => (text += t), text: () => text }
-}
+const quiet = () => {}
+/** An offline process table showing no descendant outside its group (ps is unavailable in the sandbox). */
+const noEscapes = () => []
 
-test("bounded: spawn failure resolves without signalling anything", async () => {
-  const stack = recordingStack()
-  const code = await bounded(stack, "missing", "/nonexistent/b02-no-such-binary", [], { stdio: "ignore" }, 60_000)
-  assert.equal(code, 127)
-  assert.deepEqual(stack.stopped, [])
-  assert.equal(stack.hooks(), 0)
+test("probeGroup is the kernel's answer: absent only on ESRCH, ambiguous on EPERM", () => {
+  const raise = (code) => () => {
+    throw Object.assign(new Error(code), { code })
+  }
+  assert.equal(probeGroup(4242, () => true), "alive")
+  assert.equal(probeGroup(4242, raise("ESRCH")), "absent")
+  assert.equal(probeGroup(4242, raise("EPERM")), "ambiguous")
+  assert.equal(probeGroup(4242, raise("EINVAL")), "unknown")
+  assert.equal(probeGroup(undefined), "unknown")
+  assert.equal(probeGroup(1), "unknown", "never the init group")
 })
 
-test("bounded: normal exit returns the code after settling its own group, output redacted", async () => {
+test("supervisor: a spawn failure resolves 127 without signalling anything", async () => {
   const stack = recordingStack()
+  const sup = createSupervisor({ table: noEscapes, stack, log: quiet })
+  const r = await sup.run("missing", "/nonexistent/b02-no-such-binary", [], {}, 60_000)
+  assert.equal(r.code, 127)
+  assert.equal(r.settled, true)
+  assert.deepEqual(stack.stopped, [])
+  assert.deepEqual(sup.report(), { settled: true, interrupted: null, groups: [], reasons: [] })
+})
+
+test("supervisor: normal exit returns the code after settling its own group, output redacted", async () => {
+  const stack = recordingStack()
+  const sup = createSupervisor({ table: noEscapes, stack, log: quiet })
   const out = sink()
   const err = sink()
   const env = { PATH: process.env.PATH, KEY: "service-role-secret-value" }
   const script = 'echo "key $KEY"; echo "err $KEY" >&2; exit 3'
-  assert.equal(await bounded(stack, "three", "/bin/sh", ["-c", script], { env }, 60_000, SECRETS, out, err), 3)
+  const three = await sup.run("three", "/bin/sh", ["-c", script], { env }, 60_000, { secrets: SECRETS, out, err })
+  assert.deepEqual([three.code, three.settled], [3, true])
   assert.equal(out.text(), "key [redacted:SERVICE]\n")
   assert.equal(err.text(), "err [redacted:SERVICE]\n")
-  assert.equal(await bounded(stack, "zero", "/bin/sh", ["-c", "exit 0"], { stdio: "ignore" }, 60_000), 0)
+  const captured = await sup.run("capture", "/bin/sh", ["-c", "echo '{\"files\": 1}'; echo service-role-secret-value"], { env }, 60_000, { secrets: SECRETS, capture: true })
+  assert.equal(captured.output, '{"files": 1}\n[redacted:SERVICE]\n')
   assert.ok(stack.stopped.every((pid) => !groupAlive(pid)))
-  assert.equal(stack.hooks(), 0)
+  assert.equal(sup.report().settled, true)
+  assert.deepEqual(sup.report().groups.map((g) => [g.role, g.state, g.evidence.group]), [
+    ["three", "settled", "absent"],
+    ["capture", "settled", "absent"],
+  ])
 })
 
-test("bounded: an abnormal leader exit cleans up surviving descendants before resolving", async () => {
+test("supervisor: a normal exit with a lingering descendant settles only after that descendant's group is gone", async () => {
   const stack = recordingStack()
-  const code = await bounded(stack, "orphan", "/bin/sh", ["-c", "sleep 30 & exit 3"], { stdio: "ignore" }, 60_000)
-  assert.equal(code, 3)
+  const sup = createSupervisor({ table: noEscapes, stack, log: quiet })
+  // The leader exits 0 at once; its sleeping child keeps the group and stdout open.
+  const r = await sup.run("lingering", "/bin/sh", ["-c", "sleep 30 & exit 0"], {}, 60_000)
+  assert.deepEqual([r.code, r.settled], [0, true])
   assert.equal(stack.stopped.length, 1)
   assert.equal(groupAlive(stack.stopped[0]), false)
-  assert.equal(stack.hooks(), 0)
+  const abnormal = await sup.run("orphan", "/bin/sh", ["-c", "sleep 30 & exit 3"], {}, 60_000)
+  assert.deepEqual([abnormal.code, abnormal.settled], [3, true])
+  assert.equal(groupAlive(stack.stopped[1]), false)
 })
 
-test("bounded: a timeout resolves only after its own group is gone", async () => {
+test("supervisor: a timeout resolves only after its own group is gone", async () => {
   const stack = recordingStack()
-  // The leader ignores SIGTERM and keeps a grandchild in its group, so cleanup
-  // must escalate and outlast the leader's own exit.
+  const sup = createSupervisor({ table: noEscapes, stack, log: quiet })
+  // The leader ignores SIGTERM and keeps a grandchild in its group, so cleanup must escalate.
   const started = Date.now()
-  const code = await bounded(stack, "hang", "/bin/sh", ["-c", "trap '' TERM; sleep 30 & wait"], { stdio: "ignore" }, 200)
-  assert.equal(code, 124)
+  const r = await sup.run("hang", "/bin/sh", ["-c", "trap '' TERM; sleep 30 & wait"], {}, 200)
+  assert.deepEqual([r.code, r.settled], [124, true])
   assert.equal(stack.stopped.length, 1)
-  assert.equal(groupAlive(stack.stopped[0]), false, "child group still alive after bounded resolved")
+  assert.equal(groupAlive(stack.stopped[0]), false, "child group still alive after the run resolved")
   assert.ok(Date.now() - started < 15_000)
-  assert.equal(stack.hooks(), 0)
+})
+
+test("supervisor: a stop helper that resolves without removing the group is uncertain, recorded in the receipt", async () => {
+  const dir = temp()
+  const receipt = createReceipt(join(dir, "receipt.json"), { runId: "guard-false", runner: { pid: process.pid } })
+  const stack = recordingStack({ falseSuccess: true })
+  const sup = createSupervisor({ table: noEscapes, stack, receipt, log: quiet, absenceMs: 300, outputMs: 300 })
+  const r = await sup.run("seed", "/bin/sh", ["-c", "sleep 30 & exit 0"], {}, 60_000)
+  const pgid = stack.stopped[0]
+  try {
+    assert.equal(r.code, 0)
+    assert.equal(r.settled, false)
+    assert.equal(groupAlive(pgid), true, "the helper's false success left the group")
+    const report = sup.report()
+    assert.equal(report.settled, false)
+    assert.match(report.reasons.join("\n"), new RegExp(`seed \\(process group ${pgid}\\): the group is alive after the stop helper returned`))
+    const recorded = JSON.parse(readFileSync(receipt.path, "utf8"))
+    assert.equal(recorded.state, "in-progress")
+    assert.deepEqual(recorded.groups.map((g) => [g.role, g.pgid, g.state, g.evidence.group, g.evidence.stopHelper]), [["seed", pgid, "uncertain", "alive", "returned"]])
+    // Missing or ambiguous evidence is just as uncertain.
+    const ambiguous = createSupervisor({ table: noEscapes, stack: recordingStack(), log: quiet, probe: () => "ambiguous", absenceMs: 100 })
+    const a = await ambiguous.run("build", "/bin/sh", ["-c", "exit 0"], {}, 60_000)
+    assert.equal(a.settled, false)
+    assert.match(ambiguous.report().reasons[0], /the group is ambiguous after the stop helper returned/)
+    // A helper that never returns is not trusted either.
+    const hanging = createSupervisor({ table: noEscapes, stack: { terminateGroup: () => new Promise(() => {}) }, log: quiet, stopHelperMs: 100, absenceMs: 100, outputMs: 100 })
+    const h = await hanging.run("scan", "/bin/sh", ["-c", "sleep 30 & exit 0"], {}, 60_000)
+    assert.equal(h.settled, false)
+    assert.match(hanging.report().reasons.join("\n"), /scan .*the group is alive after the stop helper did not return/)
+    await realStack.terminateGroup(hanging.report().groups[0].pgid, 200)
+  } finally {
+    await realStack.terminateGroup(pgid, 200)
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test("supervisor: an interrupt stops every owned group, refuses new work and resolves after all are checked", async () => {
+  const stack = recordingStack()
+  const sup = createSupervisor({ table: noEscapes, stack, log: quiet })
+  const app = sup.service("app", "/bin/sh", ["-c", "sleep 30"], {})
+  const suite = sup.run("e2e staff", "/bin/sh", ["-c", "sleep 30"], {}, 60_000)
+  await sleep(100)
+  await sup.interrupt("signal")
+  assert.equal(groupAlive(app.pid), false)
+  const r = await suite
+  assert.deepEqual([r.code, r.settled], [130, true])
+  assert.throws(() => sup.ensureActive("manager"), /Interrupted \(signal\); manager was not started/)
+  await assert.rejects(async () => sup.run("next", "/bin/sh", ["-c", "exit 0"], {}, 1000), /Interrupted/)
+  assert.throws(() => sup.service("again", "/bin/sh", ["-c", "exit 0"], {}), /Interrupted/)
+  const report = await sup.settle()
+  assert.equal(report.settled, true)
+  assert.equal(report.interrupted, "signal")
+  assert.deepEqual(report.groups.map((g) => g.state), ["settled", "settled"])
+})
+
+// ---- The blocking receipt ------------------------------------------------------------------------------------------
+
+test("the receipt is created exclusively and privately, updated atomically, and refuses every later run while it remains", () => {
+  const dir = temp()
+  const path = join(dir, "spare6.b02-acceptance.receipt.json")
+  requireNoReceipt(path)
+  const receipt = createReceipt(path, { runId: "guard-r", label: "b02 agentic acceptance guard-r", runner: { pid: 4242, pgid: 4242 } })
+  assert.equal(statSync(path).mode & 0o777, 0o600)
+  assert.throws(() => createReceipt(path, { runId: "again" }), /EEXIST/)
+  assert.throws(() => requireNoReceipt(path), /blocked by an earlier B02 run's receipt .*in-progress receipt of run guard-r, runner pid 4242/)
+  receipt.update({ runRoot: "/abs/run", note: `marker ${MARKER}` })
+  assert.equal(JSON.parse(readFileSync(path, "utf8")).runRoot, "/abs/run")
+  assert.ok(!readFileSync(path, "utf8").includes(MARKER), "the receipt is redacted")
+  receipt.block(["seed (process group 4242): the group is alive after the stop helper returned"])
+  const blocked = JSON.parse(readFileSync(path, "utf8"))
+  assert.equal(blocked.state, "blocked")
+  assert.equal(blocked.schema, "b02-acceptance-receipt-1")
+  assert.equal(readdirSync(dir).length, 1, "no temp file is left")
+  assert.throws(() => requireNoReceipt(path), /blocked receipt of run guard-r/)
+  receipt.clear()
+  requireNoReceipt(path)
+  // A link at the receipt path blocks too, and is never followed or replaced.
+  symlinkSync(join(dir, "elsewhere"), path)
+  assert.throws(() => requireNoReceipt(path), /\(a link\)/)
+  assert.throws(() => createReceipt(path, {}), /EEXIST/)
+  rmSync(dir, { recursive: true, force: true })
+})
+
+// ---- Exact product inputs -------------------------------------------------------------------------------------------
+
+const FAKE_SCANNER = `import { readFileSync } from "node:fs"
+import { join } from "node:path"
+const root = process.argv[process.argv.indexOf("--root") + 1]
+let mode = "clean"
+try { mode = readFileSync(join(root, "node_modules", ".scan-mode"), "utf8").trim() } catch {}
+const rules = ["secret-name", ...((process.env.SUPABASE_SERVICE_ROLE_KEY ?? "").length >= 16 ? ["secret-value:SUPABASE_SERVICE_ROLE_KEY"] : [])]
+const findings = mode === "finding" ? [{ rule: "secret-name", file: ".next/static/a.js", offset: 1, match: "SUPABASE_SERVICE_ROLE_KEY" }] : []
+console.log(JSON.stringify({ files: 3, bytesScanned: 300, rules, findings }, null, 2))
+process.exit(findings.length ? 1 : 0)
+`
+const FAKE_NEXT = `#!/bin/sh
+if [ "$1" = build ]; then mkdir -p .next/static && printf 'build-%s' "$$" > .next/BUILD_ID && exit 0; fi
+exec sleep 30
+`
+
+/**
+ * A clean candidate checkout at its own pin (migrations, a committed fake
+ * scanner, ignored fake next), spare6's workdir copy and revision.json, a fake
+ * stack and a fake ledger: everything verifyProductInputs reads, offline.
+ */
+function productWorld() {
+  const repo = gitRepo({ "scripts/ci/scan-bundle.mjs": FAKE_SCANNER })
+  const { dir, pin } = repo
+  mkdirSync(join(dir, "node_modules", ".bin"), { recursive: true })
+  writeFileSync(join(dir, "node_modules", ".bin", "next"), FAKE_NEXT, { mode: 0o755 })
+  const workdir = temp("b02-workdir-")
+  mkdirSync(join(workdir, "supabase", "migrations"), { recursive: true })
+  const pinned = pinnedMigrations(dir, pin)
+  for (const file of pinned.files) copyFileSync(join(dir, "supabase", "migrations", file), join(workdir, "supabase", "migrations", file))
+  const revision = { from: dir, commit: pin.commit, branch: "main", dirty: false, migrationsDigest: pin.migrationsDigest, migrationFiles: [...pinned.files], fixtures: "none", resetAt: new Date().toISOString() }
+  writeFileSync(join(workdir, "revision.json"), JSON.stringify(revision))
+  const ledger = { versions: [...pinned.versions] }
+  const stack = { ...recordingStack(), stackSpec: () => SPEC, statusOf: () => goodStatus(pin, dir), stackEnv: () => stackEnvOf() }
+  const context = {
+    pin,
+    pinned,
+    checkout: dir,
+    stack,
+    spec: SPEC,
+    stackWorkdir: workdir,
+    ledger: () => ledger.versions,
+    stackEnv: STACK_VALUES.env,
+    secrets: STACK_VALUES.secrets,
+    harness: { commit: "a".repeat(40), tree: "b".repeat(40), clean: true },
+    e2e: null,
+  }
+  return { ...repo, workdir, revision, ledger, ctx: context, cleanup: () => [dir, workdir].forEach((d) => rmSync(d, { recursive: true, force: true })) }
+}
+
+test("product inputs: the exact pinned files, bytes, manifest and ledger, under every check", () => {
+  const world = productWorld()
+  const { ctx: c, workdir, dir } = world
+  const migrations = join(workdir, "supabase", "migrations")
+  assert.deepEqual(verifyProductInputs(c).files, ["20260101000000_one.sql", "20260102000000_two.sql"])
+  // Workdir byte drift: same names, different SQL bytes.
+  writeFileSync(join(migrations, "20260102000000_two.sql"), "select 22;\n")
+  assert.throws(() => verifyProductInputs(c), /spare6's workdir migrations differ in content/)
+  copyFileSync(join(dir, "supabase", "migrations", "20260102000000_two.sql"), join(migrations, "20260102000000_two.sql"))
+  // Same-version filename drift: the version matches, the file name does not.
+  renameSync(join(migrations, "20260101000000_one.sql"), join(migrations, "20260101000000_uno.sql"))
+  assert.throws(() => verifyProductInputs(c), /spare6's workdir migrations are not the pinned 2 migration files .*20260101000000_uno\.sql where the pin has 20260101000000_one\.sql/)
+  renameSync(join(migrations, "20260101000000_uno.sql"), join(migrations, "20260101000000_one.sql"))
+  // A linked migration in the workdir is refused.
+  rmSync(join(migrations, "20260101000000_one.sql"))
+  symlinkSync(join(dir, "supabase", "migrations", "20260101000000_one.sql"), join(migrations, "20260101000000_one.sql"))
+  assert.throws(() => verifyProductInputs(c), /link or special file/)
+  rmSync(join(migrations, "20260101000000_one.sql"))
+  copyFileSync(join(dir, "supabase", "migrations", "20260101000000_one.sql"), join(migrations, "20260101000000_one.sql"))
+  verifyProductInputs(c)
+  // revision.json (the reset's manifest) must name exactly the pinned files, digest, commit and checkout.
+  const manifest = (patch) => writeFileSync(join(workdir, "revision.json"), JSON.stringify({ ...world.revision, ...patch }))
+  for (const [patch, message] of [
+    [{ migrationFiles: ["20260101000000_uno.sql", "20260102000000_two.sql"] }, /revision\.json migration files are not the pinned files/],
+    [{ migrationFiles: ["20260101000000_one.sql"] }, /revision\.json migration files are not the pinned files/],
+    [{ migrationsDigest: "e".repeat(64) }, /revision\.json migrations digest is not the pinned one/],
+    [{ commit: "0".repeat(40) }, /revision\.json records 0{40}/],
+    [{ dirty: true }, /revision\.json records .*\(dirty\)/],
+    [{ from: workdir }, /revision\.json records another checkout/],
+  ]) {
+    manifest(patch)
+    assert.throws(() => verifyProductInputs(c), message)
+  }
+  manifest({})
+  rmSync(join(workdir, "revision.json"))
+  symlinkSync(join(dir, ".gitignore"), join(workdir, "revision.json"))
+  assert.throws(() => verifyProductInputs(c), /revision\.json is a link/)
+  rmSync(join(workdir, "revision.json"))
+  manifest({})
+  // The applied ordered version ledger.
+  world.ledger.versions = ["20260101000000"]
+  assert.throws(() => verifyProductInputs(c), /applied ledger has 1 versions, not the pinned 2/)
+  world.ledger.versions = ["20260102000000", "20260101000000"]
+  assert.throws(() => verifyProductInputs(c), /first difference at 0/)
+  world.ledger.versions = null
+  assert.throws(() => verifyProductInputs(c), /ledger could not be read/)
+  world.ledger.versions = [...c.pinned.versions]
+  verifyProductInputs(c)
+  // A product source change after the seed.
+  writeFileSync(join(dir, ".env.example"), "EXAMPLE=2\n")
+  assert.throws(() => verifyProductInputs(c), /tracked changes/)
+  world.cleanup()
+})
+
+test("psqlLedger reads the applied versions read-only, with the URL in libpq variables only", () => {
+  const dir = temp()
+  fakePsql(dir, { stdout: "20260101000000\n20260102000000\n" })
+  const versions = withPath(dir, () => psqlLedger({ stackEnv: STACK_VALUES.env }))
+  assert.deepEqual(versions, ["20260101000000", "20260102000000"])
+  assert.equal(readFileSync(join(dir, "args"), "utf8"), "-X\n-qAt\n-v\nON_ERROR_STOP=1\n")
+  assert.match(readFileSync(join(dir, "stdin"), "utf8"), /^select version from supabase_migrations\.schema_migrations order by version;/)
+  assert.match(readFileSync(join(dir, "env"), "utf8"), /PGOPTIONS=-c default_transaction_read_only=on\nPGPASSWORD=dummy-db-password\nPGPORT=64622/)
+  fakePsql(dir, { stderr: "connection refused", status: 2 })
+  assert.equal(withPath(dir, () => psqlLedger({ stackEnv: STACK_VALUES.env })), null)
+  rmSync(dir, { recursive: true, force: true })
+})
+function withPath(dir, fn) {
+  const saved = process.env.PATH
+  process.env.PATH = `${dir}:${saved}`
+  try {
+    return fn()
+  } finally {
+    process.env.PATH = saved
+  }
+}
+
+test("scanOutcome accepts only a clean scan that looked for spare6's service key", () => {
+  const clean = { code: 0, settled: true, overflow: false, output: JSON.stringify({ files: 57, bytesScanned: 1000, rules: ["secret-name", "secret-value:SUPABASE_SERVICE_ROLE_KEY"], findings: [] }) }
+  assert.deepEqual(scanOutcome(clean, "b1"), { ok: true, problems: [], evidence: { buildId: "b1", files: 57, bytesScanned: 1000, rules: 2, findings: 0 } })
+  const finding = { ...clean, code: 1, output: JSON.stringify({ files: 57, rules: ["secret-value:SUPABASE_SERVICE_ROLE_KEY"], findings: [{ rule: "jwt" }] }) }
+  assert.deepEqual(scanOutcome(finding, "b1").problems, ["it exited 1", "it reported 1 finding(s)"])
+  assert.match(scanOutcome({ ...clean, output: "scan-bundle: no findings." }, "b1").problems.join(), /not scan-bundle JSON/)
+  assert.match(scanOutcome({ ...clean, output: JSON.stringify({ files: 0, rules: [], findings: [] }) }, "b1").problems.join(), /scanned no files.*did not look for spare6's service key/)
+  assert.match(scanOutcome({ ...clean, settled: false }, "b1").problems.join(), /did not settle/)
+})
+
+// ---- The locked run, offline ----------------------------------------------------------------------------------------
+
+/**
+ * lockedRun with every live dependency replaced by an offline fake: a fake
+ * stack (its withLock writes owner.json in a temporary lock directory), a
+ * temporary receipt path and .results, and the given phases.
+ */
+function offlineRun(world, phases = {}, { stack = world.ctx.stack } = {}) {
+  const root = temp("b02-run-")
+  const lockDir = join(root, "spare6.lock")
+  stack.withLock = async (spec, what, seconds, fn) => {
+    mkdirSync(lockDir)
+    writeFileSync(join(lockDir, "owner.json"), JSON.stringify({ pid: process.pid, what, since: new Date().toISOString() }))
+    try {
+      return await fn()
+    } finally {
+      rmSync(lockDir, { recursive: true, force: true })
+    }
+  }
+  const calls = []
+  const seedWorld = async (c, sup) => {
+    calls.push("seed")
+    const r = await sup.run("seed", "/bin/sh", ["-c", "exit 0"], {}, 60_000)
+    if (r.code !== 0 || !r.settled) throw new Error(`Seed exited ${r.code}${r.settled ? "" : " and its process group did not settle"}.`)
+    writeFileSync(join(c.runDir, "world.json"), "{}\n")
+  }
+  const overrides = {
+    check: async () => ({ ...world.ctx, stack }),
+    recheck: async (c, label, d) => {
+      d.verifyLockOwner(label, d.lockDir)
+      verifyProductInputs(c)
+    },
+    seed: seedWorld,
+    build: async () => (calls.push("build"), { buildId: "fake" }),
+    scan: async () => (calls.push("scan"), { files: 1 }),
+    startApp: async (c, sup) => (calls.push("app"), sup.service("app", "/bin/sh", ["-c", "sleep 30"], {})),
+    runSuite: async (c, suite) => (calls.push(suite), { ok: true, exit: 0, settled: true, problems: [], counts: { passed: expectedInstances(suite) } }),
+    verifyServerOwner: () => {},
+    lockDir,
+    receiptPath: join(root, "spare6.b02-acceptance.receipt.json"),
+    results: join(root, ".results"),
+    table: noEscapes,
+    absenceMs: 500,
+    outputMs: 500,
+    finalizeMs: 30_000,
+    ...phases,
+  }
+  // A phase given as undefined uses lockedRun's own live phase.
+  for (const [key, value] of Object.entries(overrides)) if (value === undefined) delete overrides[key]
+  const run =(id, flags = { build: true, suites: "staff" }, seedOnly = false) => lockedRun(flags, seedOnly, { ...overrides, env: { B02_RUN_ID: id } })
+  const summaryOf = (id) => JSON.parse(readFileSync(join(overrides.results, id, "summary.json"), "utf8"))
+  return { root, calls, overrides, run, summaryOf, stack, cleanup: () => rmSync(root, { recursive: true, force: true }) }
+}
+
+test("locked run: a passing partial selection is never completion, and its receipt is cleared after settlement", async () => {
+  const world = productWorld()
+  const off = offlineRun(world)
+  assert.equal(await off.run("guard-partial", { build: true, suites: "staff,charters" }), 0)
+  assert.deepEqual(off.calls, ["seed", "build", "scan", "app", "staff", "charters"])
+  const summary = off.summaryOf("guard-partial")
+  assert.equal(summary.ok, true)
+  assert.equal(summary.complete, false)
+  assert.equal(summary.qualification, "partial (never completion)")
+  assert.deepEqual(summary.instances, { planned: 20, selected: 6, passed: 6 })
+  assert.equal(summary.settlement.settled, true)
+  assert.deepEqual(summary.settlement.groups.map((g) => [g.role, g.state]), [
+    ["seed", "settled"],
+    ["app", "settled"],
+  ])
+  assert.deepEqual(summary.evidence, { build: { buildId: "fake" }, scan: { files: 1 } })
+  assert.equal(existsSync(off.overrides.receiptPath), false, "a settled run clears its own receipt")
+  assert.equal(existsSync(off.overrides.lockDir), false)
+  assert.equal(statSync(join(off.overrides.results, "guard-partial", "summary.json")).mode & 0o777, 0o600)
+  off.cleanup()
+  world.cleanup()
+})
+
+test("locked run: interrupted during a suite while the app's shutdown is pending, nothing else starts and nothing finalises early", async () => {
+  const world = productWorld()
+  const stack = { ...world.ctx.stack, ...recordingStack() }
+  let appPid = null
+  let appGone = null
+  const realTerminate = stack.terminateGroup
+  stack.terminateGroup = async (pid) => {
+    if (pid === appPid) {
+      await sleep(600) // the app's shutdown is still pending when the suite's group is already gone
+      await realStack.terminateGroup(pid, 300)
+      appGone = Date.now()
+      return
+    }
+    await realTerminate(pid)
+  }
+  let summarySeenWhileAppAlive = false
+  let hookDone = null
+  const off = offlineRun(
+    world,
+    {
+      startApp: async (c, sup) => {
+        const app = sup.service("app", "/bin/sh", ["-c", "sleep 30"], {})
+        appPid = app.pid
+        return app
+      },
+      runSuite: async (c, suite, sup) => {
+        off.calls.push(suite)
+        const running = sup.run(`e2e ${suite}`, "/bin/sh", ["-c", "sleep 30"], {}, 60_000)
+        setTimeout(() => stack.fire().then(() => (hookDone = Date.now())), 150)
+        const r = await running
+        return combine(suite, r, { ok: true, problems: [], counts: {} }, "e2e")
+      },
+    },
+    { stack }
+  )
+  const outcome = off.run("guard-interrupt", { build: true, suites: "staff,manager,charters" })
+  const summaryFile = join(off.overrides.results, "guard-interrupt", "summary.json")
+  const watcher = (async () => {
+    await waitFor(() => existsSync(summaryFile), 30_000)
+    summarySeenWhileAppAlive = groupAlive(appPid)
+  })()
+  assert.equal(await outcome, 130)
+  await watcher
+  await waitFor(() => hookDone !== null)
+  assert.deepEqual(off.calls.filter((c) => SUITES.includes(c)), ["staff"], "no suite starts after the interrupt")
+  assert.equal(summarySeenWhileAppAlive, false, "the summary appeared only after the app group was gone")
+  assert.ok(appGone !== null && hookDone >= appGone, "the signal hook returned only after the app's group was gone")
+  const summary = off.summaryOf("guard-interrupt")
+  assert.equal(summary.ok, false)
+  assert.equal(summary.interrupted, "signal")
+  assert.match(summary.error, /Interrupted \(signal\); manager was not started/)
+  assert.equal(summary.settlement.settled, true)
+  assert.equal(summary.suites.staff.exit, 130)
+  assert.equal(summary.suites.manager.status, "not run")
+  assert.equal(summary.instances.passed, 0)
+  assert.equal(existsSync(off.overrides.receiptPath), false, "every group was proven gone")
+  off.cleanup()
+  world.cleanup()
+})
+
+test("locked run: a stop helper's false success leaves a blocking receipt, unscrubbed output and a refused later run", async () => {
+  const world = productWorld()
+  const stack = { ...world.ctx.stack, ...recordingStack({ falseSuccess: true }) }
+  const off = offlineRun(
+    world,
+    {
+      seed: async (c, sup) => {
+        off.calls.push("seed")
+        const r = await sup.run("seed", "/bin/sh", ["-c", "sleep 30 & exit 0"], {}, 60_000)
+        if (r.code !== 0 || !r.settled) throw new Error(`Seed exited ${r.code}${r.settled ? "" : " and its process group did not settle"}.`)
+      },
+    },
+    { stack }
+  )
+  const pgid = () => stack.stopped[0]
+  try {
+    assert.equal(await off.run("guard-uncertain"), 1)
+    assert.deepEqual(off.calls, ["seed"], "nothing runs after an unsettled seed")
+    const receipt = JSON.parse(readFileSync(off.overrides.receiptPath, "utf8"))
+    assert.equal(receipt.state, "blocked")
+    assert.equal(receipt.runId, "guard-uncertain")
+    assert.equal(receipt.label, "b02 agentic acceptance guard-uncertain")
+    assert.equal(receipt.runner.pid, process.pid)
+    assert.equal(receipt.runRoot, join(off.overrides.results, "guard-uncertain"))
+    assert.deepEqual(receipt.groups.map((g) => [g.role, g.pgid, g.state, g.evidence.group]), [["seed", pgid(), "uncertain", "alive"]])
+    assert.match(receipt.reasons.join("\n"), /the group is alive after the stop helper returned/)
+    const summary = off.summaryOf("guard-uncertain")
+    assert.equal(summary.ok, false)
+    assert.equal(summary.settlement.settled, false)
+    assert.match(summary.scrub.problems.join(), /artifacts were not scrubbed: process settlement is uncertain/)
+    // A later run under the same lock refuses while the receipt remains, even with a fresh id.
+    await assert.rejects(off.run("guard-fresh-id"), /spare6 is blocked by an earlier B02 run's receipt .*blocked receipt of run guard-uncertain/)
+    assert.deepEqual(off.calls, ["seed"])
+    assert.equal(existsSync(join(off.overrides.results, "guard-fresh-id")), false)
+    assert.ok(existsSync(off.overrides.receiptPath), "only the coordinator clears it")
+  } finally {
+    await realStack.terminateGroup(pgid(), 200)
+    off.cleanup()
+    world.cleanup()
+  }
+})
+
+test("locked run: a product source change after the seed stops the run before the build", async () => {
+  const world = productWorld()
+  const off = offlineRun(world, {
+    seed: async (c, sup) => {
+      off.calls.push("seed")
+      await sup.run("seed", "/bin/sh", ["-c", "exit 0"], {}, 60_000)
+      writeFileSync(join(c.runDir, "world.json"), "{}\n")
+      writeFileSync(join(c.checkout, "supabase", "migrations", "20260101000000_one.sql"), "select 'changed';\n")
+    },
+  })
+  assert.equal(await off.run("guard-moved"), 1)
+  assert.deepEqual(off.calls, ["seed"])
+  const summary = off.summaryOf("guard-moved")
+  assert.match(summary.error, /B02_CHECKOUT has tracked changes/)
+  assert.equal(summary.settlement.settled, true)
+  assert.equal(existsSync(off.overrides.receiptPath), false)
+  off.cleanup()
+  world.cleanup()
+})
+
+test("locked run: one fresh guarded build is scanned before the app starts; a failed scan stops the run first", async () => {
+  const world = productWorld()
+  // The live build and scan phases, on the fake next and the committed fake scanner.
+  const off = offlineRun(world, { build: undefined, scan: undefined })
+  writeFileSync(join(world.dir, "node_modules", ".scan-mode"), "finding")
+  assert.equal(await off.run("guard-scan-finding"), 1)
+  assert.deepEqual(off.calls, ["seed"], "the app never starts after a failed scan")
+  const failed = off.summaryOf("guard-scan-finding")
+  assert.match(failed.error, /The bundle scan of build build-\d+ failed: it exited 1; it reported 1 finding\(s\)/)
+  assert.equal(failed.evidence.build.buildId.startsWith("build-"), true)
+  assert.deepEqual(failed.evidence.build.switches, { NABALENS_HOME_LAYOUT: "b02", NABALENS_CONTRIBUTION_ENTRY: "b02", NABALENS_MY_CONTRIBUTIONS: "b02", NABALENS_MANAGER_TRIAGE: "b02" })
+  assert.equal(failed.settlement.groups.map((g) => g.role).join(","), "seed,build,scan")
+  writeFileSync(join(world.dir, "node_modules", ".scan-mode"), "clean")
+  assert.equal(await off.run("guard-scan-clean"), 0)
+  const passed = off.summaryOf("guard-scan-clean")
+  assert.deepEqual(off.calls.slice(1), ["seed", "app", "staff"])
+  assert.deepEqual(passed.evidence.scan, { buildId: passed.evidence.build.buildId, files: 3, bytesScanned: 300, rules: 2, findings: 0 })
+  off.cleanup()
+  world.cleanup()
+})
+
+// ---- The suite wrappers, offline -------------------------------------------------------------------------------------
+
+/** A fake e2e installation whose CLI answers `list` and `run` from a scenario file beside it. */
+function fakeE2E() {
+  const script = `#!/usr/bin/env node
+const fs = require("fs"), path = require("path")
+const scenario = JSON.parse(fs.readFileSync(path.join(__dirname, "scenario.json"), "utf8"))
+const suite = process.env.B02_SUITE
+const s = scenario[suite] || {}
+if (process.argv[2] === "list") { process.stdout.write(JSON.stringify({ pairs: s.pairs })); process.exit(s.listExit || 0) }
+const out = path.join(path.dirname(process.env.B02_RUN_DIR), suite)
+fs.mkdirSync(out, { recursive: true })
+if (s.report) fs.writeFileSync(path.join(out, "report.json"), JSON.stringify(s.report).split("__NOW__").join(new Date().toISOString()))
+if (s.raw !== undefined) fs.writeFileSync(path.join(out, "report.json"), s.raw)
+process.exit(s.exit || 0)
+`
+  const fake = fakeInstall({ script })
+  const scenarioFile = join(fake.install.root, "dist", "cli", "scenario.json")
+  return { ...fake, set: (scenario) => writeFileSync(scenarioFile, JSON.stringify(scenario)) }
+}
+/** A fake candidate Playwright: --list prints `listing`, a run writes `report` to PLAYWRIGHT_JSON_OUTPUT_FILE. */
+function fakePlaywright(checkout) {
+  const pkg = join(checkout, "node_modules", "@playwright", "test")
+  mkdirSync(pkg, { recursive: true })
+  writeFileSync(join(pkg, "package.json"), JSON.stringify({ name: "@playwright/test", version: "1.64.1" }))
+  writeFileSync(
+    join(pkg, "cli.js"),
+    `#!/usr/bin/env node
+const fs = require("fs"), path = require("path")
+const s = JSON.parse(fs.readFileSync(path.join(__dirname, "scenario.json"), "utf8"))
+if (process.argv.includes("--list")) { process.stdout.write(JSON.stringify(s.listing)); process.exit(s.listExit || 0) }
+if (s.report) fs.writeFileSync(process.env.PLAYWRIGHT_JSON_OUTPUT_FILE, JSON.stringify(s.report).split("__NOW__").join(new Date().toISOString()))
+process.exit(s.exit || 0)
+`,
+    { mode: 0o755 }
+  )
+  mkdirSync(join(checkout, "node_modules", ".bin"), { recursive: true })
+  rmSync(join(checkout, "node_modules", ".bin", "playwright"), { force: true })
+  symlinkSync(join(pkg, "cli.js"), join(checkout, "node_modules", ".bin", "playwright"))
+  return { set: (scenario) => writeFileSync(join(pkg, "scenario.json"), JSON.stringify(scenario)) }
+}
+const nowReport = (report) => {
+  if (report.run) report.run.startedAt = "__NOW__"
+  if (report.stats) report.stats.startTime = "__NOW__"
+  return report
+}
+
+test("both suite wrappers fail a zero exit with an invalid, stale, missing, skipped or failed report, and any nonzero exit", async () => {
+  const fake = fakeE2E()
+  const checkout = temp("b02-pw-")
+  const pw = fakePlaywright(checkout)
+  const stack = recordingStack()
+  const runOnce = async (kind, scenario) => {
+    const root = temp("b02-wrap-")
+    const { runRoot, world } = prepareRunRoot("guard-wrap", join(root, ".results"))
+    const c = { id: "guard-wrap", runRoot, runDir: world, stackEnv: STACK_VALUES.env, secrets: STACK_VALUES.secrets, checkout, e2eInstall: fake.install, e2e: resolveE2E(fake.install, {}) }
+    const sup = createSupervisor({ table: noEscapes, stack, log: quiet })
+    try {
+      if (kind === "e2e") {
+        fake.set({ manager: { pairs: pairsOf("manager"), ...scenario } })
+        return await runE2E(c, "manager", sup)
+      }
+      pw.set({ listing: pwReport({ listing: true }), ...scenario })
+      return await runCharters(c, sup)
+    } finally {
+      assert.equal(sup.report().settled, true)
+      rmSync(root, { recursive: true, force: true })
+    }
+  }
+  const fresh = () => nowReport(e2eReport("manager"))
+  const pass = await runOnce("e2e", { report: fresh() })
+  assert.equal(pass.ok, true, JSON.stringify(pass.problems))
+  assert.equal(pass.counts.passed, 8)
+  const e2eCases = [
+    [{ report: fresh(), exit: 1 }, /e2e exited 1/],
+    [{ raw: "{ not json" }, /report\.json is malformed/],
+    [{}, /report\.json is missing/],
+    [{ report: e2eReport("manager", { startedAt: new Date(Date.now() - 600_000).toISOString() }) }, /predates/],
+    [{ report: (() => ((r) => ((r.run.results[0].status = "skipped"), r))(fresh()))() }, /is skipped/],
+    [{ report: (() => ((r) => ((r.run.status = "failed"), (r.run.results[0].status = "failed"), r))(fresh()))() }, /run status is failed/],
+    [{ pairs: pairsOf("manager").slice(1) }, /collection: desktop: 7 collected, expected 8/],
+    [{ listExit: 2 }, /e2e list manager exited 2/],
+  ]
+  for (const [scenario, message] of e2eCases) {
+    const r = await runOnce("e2e", scenario)
+    assert.equal(r.ok, false, String(message))
+    assert.equal(r.counts.passed, 0)
+    assert.ok(r.problems.some((p) => message.test(p)), `${message} not in ${JSON.stringify(r.problems)}`)
+  }
+  const pwFresh = () => nowReport(pwReport())
+  const pwPass = await runOnce("pw", { report: pwFresh() })
+  assert.equal(pwPass.ok, true, JSON.stringify(pwPass.problems))
+  assert.equal(pwPass.counts.passed, 2)
+  const pwCases = [
+    [{ report: pwFresh(), exit: 1 }, /playwright exited 1/],
+    [{}, /report\.json is missing/],
+    [{ report: (() => ((r) => ((r.stats.startTime = new Date(Date.now() - 600_000).toISOString()), r))(pwReport()))() }, /predates/],
+    [{ report: (() => ((r) => ((r.suites[0].specs[0].tests[0].status = "skipped"), (r.stats.skipped = 1), (r.stats.expected = 1), r))(pwFresh()))() }, /is skipped/],
+    [{ report: (() => ((r) => ((r.suites[0].specs[1].tests[0].results = [{ status: "failed", retry: 0 }]), (r.suites[0].specs[1].tests[0].status = "unexpected"), r))(pwFresh()))() }, /did not pass on its one attempt/],
+    [{ listing: (() => ((r) => ((r.suites[0].specs[0].tests[0].projectName = "chromium"), r))(pwReport({ listing: true })))() }, /collection: .*ran in project chromium/],
+    [{ listing: (() => ((r) => ((r.config.webServer = { command: "next start" }), r))(pwReport({ listing: true })))() }, /collection: the charters config declares a webServer/],
+  ]
+  for (const [scenario, message] of pwCases) {
+    const r = await runOnce("pw", scenario)
+    assert.equal(r.ok, false, String(message))
+    assert.equal(r.counts.passed, 0)
+    assert.ok(r.problems.some((p) => message.test(p)), `${message} not in ${JSON.stringify(r.problems)}`)
+  }
+  // A substituted e2e executable after the guards is refused before it runs.
+  const root = temp("b02-wrap-")
+  const { runRoot, world } = prepareRunRoot("guard-swap", join(root, ".results"))
+  const c = { id: "guard-swap", runRoot, runDir: world, stackEnv: STACK_VALUES.env, secrets: [], checkout, e2eInstall: fake.install, e2e: { ...resolveE2E(fake.install, {}), entrySha256: "0".repeat(64) } }
+  await assert.rejects(runE2E(c, "manager", createSupervisor({ table: noEscapes, stack, log: quiet })), /The e2e installation changed during the run \(entrySha256\)/)
+  assert.equal(existsSync(join(runRoot, "manager")), false)
+  rmSync(root, { recursive: true, force: true })
+  rmSync(checkout, { recursive: true, force: true })
+  rmSync(fake.dir, { recursive: true, force: true })
+})
+
+test("locked run: the final exit and summary combine both child types' exits with their reports", async () => {
+  const world = productWorld()
+  const fake = fakeE2E()
+  const pw = fakePlaywright(world.dir)
+  // The live suite wrappers, on the fake e2e installation and the candidate's fake Playwright.
+  const off = offlineRun(world, { runSuite: undefined })
+  world.ctx.e2eInstall = fake.install
+  world.ctx.e2e = resolveE2E(fake.install, {})
+  fake.set({ staff: { pairs: pairsOf("staff"), report: nowReport(e2eReport("staff")), exit: 1 } })
+  pw.set({ listing: pwReport({ listing: true }), report: (() => ((r) => ((r.suites[0].specs[0].tests[0].status = "skipped"), r))(nowReport(pwReport())))() })
+  assert.equal(await off.run("guard-combined", { build: true, suites: "staff,charters" }), 1)
+  const summary = off.summaryOf("guard-combined")
+  assert.equal(summary.ok, false)
+  assert.equal(summary.qualification, "failed")
+  assert.deepEqual(summary.instances, { planned: 20, selected: 6, passed: 0 })
+  assert.equal(summary.suites.staff.exit, 1)
+  assert.equal(summary.suites.staff.counts.passed, 0)
+  assert.equal(summary.suites.staff.counts.reportedPassed, 4)
+  assert.match(summary.suites.staff.problems.join(), /e2e exited 1/)
+  assert.equal(summary.suites.charters.exit, 0)
+  assert.match(summary.suites.charters.problems.join(), /is skipped/)
+  // Both passing: exit 0, a partial pass that is still not completion.
+  fake.set({ staff: { pairs: pairsOf("staff"), report: nowReport(e2eReport("staff")) } })
+  pw.set({ listing: pwReport({ listing: true }), report: nowReport(pwReport()) })
+  assert.equal(await off.run("guard-combined-pass", { build: true, suites: "staff,charters" }), 0)
+  const passed = off.summaryOf("guard-combined-pass")
+  assert.deepEqual(passed.instances, { planned: 20, selected: 6, passed: 6 })
+  assert.equal(passed.qualification, "partial (never completion)")
+  assert.equal(passed.e2e.version, "0.16.0")
+  off.cleanup()
+  world.cleanup()
+  rmSync(fake.dir, { recursive: true, force: true })
+})
+
+// ---- Review repairs: escaped descendants, hidden checkout state, late app output ------------------------------------
+
+test("escapedDescendants follows every member and child of a group to the processes that left it", () => {
+  const rows = [
+    { pid: 100, ppid: 1, pgid: 100 }, // leader
+    { pid: 101, ppid: 100, pgid: 100 }, // member
+    { pid: 200, ppid: 101, pgid: 200 }, // a detached browser, its own group
+    { pid: 201, ppid: 200, pgid: 200 }, // the browser's child
+    { pid: 300, ppid: 201, pgid: 300 }, // a grandchild in yet another group
+    { pid: 400, ppid: 1, pgid: 400 }, // unrelated
+  ]
+  assert.deepEqual([...escapedDescendants(rows, 100)].sort((a, b) => a[0] - b[0]), [
+    [200, 200],
+    [201, 200],
+    [300, 300],
+  ])
+  assert.deepEqual([...escapedDescendants(rows, 999)], [])
+})
+
+/** A child that starts a detached grandchild (as Playwright starts a browser) and reports its pid. */
+const DETACHED = `const { spawn } = require("child_process"); const c = spawn("sleep", ["30"], { detached: true, stdio: "ignore" }); c.unref(); console.log(c.pid); setTimeout(() => {}, 30000)`
+
+test("supervisor: a descendant that left the group is recorded, stopped and proven gone before the run settles", async () => {
+  const stack = recordingStack()
+  let leader = null
+  let escaped = null
+  // The process table as it would be read while the child runs (ps is unavailable in the sandbox).
+  const table = () => (leader && escaped ? [{ pid: leader, ppid: process.pid, pgid: leader }, { pid: escaped, ppid: leader, pgid: escaped }] : [])
+  const dir = temp()
+  const receipt = createReceipt(join(dir, "receipt.json"), { runId: "guard-escape" })
+  const sup = createSupervisor({ stack, table, receipt, log: quiet, watchMs: 20 })
+  const out = { write: (t) => (escaped ??= Number(t.trim())) }
+  const running = sup.run("playwright charters", process.execPath, ["-e", DETACHED], {}, 1500, { out })
+  await waitFor(() => escaped !== null)
+  leader = stack.stopped.length ? null : sup.report().groups[0].pgid
+  await waitFor(() => JSON.parse(readFileSync(receipt.path, "utf8")).groups[0]?.escaped?.includes(escaped), 5000)
+  const r = await running
+  assert.equal(r.code, 124)
+  assert.equal(r.settled, true, JSON.stringify(sup.report().reasons))
+  assert.equal(groupAlive(escaped), false, "the escaped browser group is gone")
+  assert.deepEqual(stack.stopped, [leader, escaped])
+  assert.deepEqual(sup.report().groups[0].evidence.escaped, { [escaped]: "absent" })
+  rmSync(dir, { recursive: true, force: true })
+})
+
+test("supervisor: an escaped group not proven this run's, or an unreadable process table, is uncertain and never killed", async () => {
+  // A recorded group whose live members are not pids this run recorded (the pgid was reused).
+  const stack = recordingStack()
+  const stranger = spawnSync(process.execPath, ["-e", "const c=require('child_process').spawn('sleep',['30'],{detached:true,stdio:'ignore'});c.unref();console.log(c.pid)"], { encoding: "utf8" })
+  const other = Number(stranger.stdout.trim())
+  let leader = null
+  let reused = false
+  // While the child runs it has a descendant 424242 in group `other`; by stop time that pid is gone
+  // and `other` holds only an unrelated process, so the group is not proven this run's.
+  const table = () =>
+    !leader ? [] : reused ? [{ pid: leader, ppid: 1, pgid: leader }, { pid: other, ppid: 1, pgid: other }] : [{ pid: leader, ppid: 1, pgid: leader }, { pid: 424242, ppid: leader, pgid: other }]
+  const sup = createSupervisor({ stack, table, log: quiet, watchMs: 20, absenceMs: 200 })
+  const running = sup.run("e2e staff", "/bin/sh", ["-c", "sleep 30"], {}, 60_000)
+  leader = sup.report().groups[0].pgid
+  await sleep(100)
+  reused = true
+  await sup.interrupt("signal")
+  const r = await running
+  try {
+    assert.equal(r.settled, false)
+    assert.match(sup.report().reasons.join("\n"), new RegExp(`escaped descendant groups remain: ${other} not proven this run's`))
+    assert.equal(groupAlive(other), true, "a group not proven ours is never signalled")
+    assert.deepEqual(stack.stopped, [leader])
+  } finally {
+    process.kill(-other, "SIGKILL")
+  }
+  // Without a process table, escaped descendants are unknown: uncertain.
+  const blind = createSupervisor({ stack: recordingStack(), table: () => null, log: quiet, watchMs: 20 })
+  const b = await blind.run("build", "/bin/sh", ["-c", "exit 0"], {}, 60_000)
+  assert.equal(b.settled, false)
+  assert.match(blind.report().reasons[0], /process table could not be read/)
+})
+
+test("verifyCheckout refuses repository state that hides source from status", () => {
+  const cases = [
+    [({ dir, g }) => (writeFileSync(join(dir, ".env.example"), "EXAMPLE=evil\n"), g("update-index", "--skip-worktree", ".env.example")), /skip-worktree or assume-unchanged/],
+    [({ dir, g }) => (writeFileSync(join(dir, ".env.example"), "EXAMPLE=evil\n"), g("update-index", "--assume-unchanged", ".env.example")), /skip-worktree or assume-unchanged/],
+    [({ dir }) => (mkdirSync(join(dir, "app"), { recursive: true }), writeFileSync(join(dir, "app", "evil.ts"), "x"), writeFileSync(join(dir, ".git", "info", "exclude"), "app/evil.ts\n")), /no tracked \.gitignore ignores \(app\/evil\.ts\)/],
+    [({ dir }) => (mkdirSync(join(dir, "app", "route"), { recursive: true }), writeFileSync(join(dir, "app", "route", "page.ts"), "x"), writeFileSync(join(dir, "app", "route", ".gitignore"), "*\n")), /no tracked \.gitignore ignores \(app\/route\//],
+    [({ g }) => g("config", "--local", "filter.hide.clean", "cat"), /local git config sets filter\.hide\.clean/],
+    [({ g }) => g("config", "--local", "core.attributesFile", "/dev/null"), /local git config sets core\.attributesfile/],
+  ]
+  for (const [mutate, message] of cases) {
+    const repo = gitRepo()
+    mkdirSync(join(repo.dir, ".git", "info"), { recursive: true })
+    verifyCheckout(repo.dir, repo.pin)
+    mutate(repo)
+    assert.throws(() => verifyCheckout(repo.dir, repo.pin), message)
+    rmSync(repo.dir, { recursive: true, force: true })
+  }
+  // Ignored build output and Claude tooling state stay acceptable.
+  const repo = gitRepo()
+  mkdirSync(join(repo.dir, "node_modules", "x"), { recursive: true })
+  writeFileSync(join(repo.dir, "node_modules", "x", "index.js"), "x")
+  mkdirSync(join(repo.dir, ".claude", "worktrees"), { recursive: true })
+  writeFileSync(join(repo.dir, ".claude", "worktrees", "state"), "x")
+  mkdirSync(join(repo.dir, ".git", "info"), { recursive: true })
+  writeFileSync(join(repo.dir, ".git", "info", "exclude"), "# tooling\n.claude/\n")
+  verifyCheckout(repo.dir, repo.pin)
+  rmSync(repo.dir, { recursive: true, force: true })
+})
+
+test("late app output after app.log is closed is dropped, never a crash", async () => {
+  const dir = temp()
+  const log = privateStream(join(dir, "app.log"))
+  log.write("ready\n")
+  await log.close()
+  log.write("late line from a group that never settled\n")
+  await sleep(50)
+  assert.equal(readFileSync(join(dir, "app.log"), "utf8"), "ready\n")
+  assert.equal(statSync(join(dir, "app.log")).mode & 0o777, 0o600)
+  assert.throws(() => privateStream(join(dir, "app.log")), /EEXIST/)
+  rmSync(dir, { recursive: true, force: true })
 })

@@ -14,6 +14,7 @@
 // line with the ids it created, so the coordinator can always find what a
 // failed or interrupted seed left behind. world.json is written last,
 // atomically. Ids, names, emails and media paths only; nothing secret.
+import { randomUUID } from "node:crypto"
 import { copyFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { pathToFileURL } from "node:url"
@@ -21,6 +22,7 @@ import { pathToFileURL } from "node:url"
 import {
   appendJournal,
   DISH,
+  json,
   LAYOUT_TARGETS,
   PILOT_KEYS,
   pin,
@@ -29,6 +31,7 @@ import {
   runId,
   STACK,
   target,
+  uuid,
   writeDurable,
   type LayoutTarget,
   type MenuItems,
@@ -114,29 +117,36 @@ const [venueA, venueB, venueSolo, venueStaff, venueLayout, venueRecovery] = (awa
   (vs: Venue[]) => vs.map(venue)
 )) as Venue[]
 
-type Spec = { label: string; role: "staff" | "admin"; venueId: string | null; jobTitle?: string }
+// Every job title is distinct, and each staff account has a supported
+// department (profiles_department_check: 'boh' or 'foh'): kitchen personas
+// are back of house, front-of-house, bar and manager personas front of house.
+type Department = "boh" | "foh"
+type Spec = { label: string; role: "staff" | "admin"; venueId: string | null; jobTitle?: string; department?: Department }
+const LAYOUT_TITLES: Record<LayoutTarget, string> = { "phone-320": "Food Runner", "phone-375": "Head Waiter", "phone-390": "Barback", desktop: "Sommelier" }
 const specs: Spec[] = [
   { label: "B02 Admin", role: "admin", venueId: null },
-  { label: "B02 Tandoor Chef", role: "staff", venueId: venueStaff!.id, jobTitle: "Tandoor Chef" },
-  { label: "B02 Front of House", role: "staff", venueId: venueA!.id, jobTitle: "Server" },
-  { label: "B02 Granted Staff", role: "staff", venueId: venueA!.id, jobTitle: "Supervisor" },
+  { label: "B02 Tandoor Chef", role: "staff", venueId: venueStaff!.id, jobTitle: "Tandoor Chef", department: "boh" },
+  { label: "B02 Front of House", role: "staff", venueId: venueA!.id, jobTitle: "Server", department: "foh" },
+  { label: "B02 Granted Staff", role: "staff", venueId: venueA!.id, jobTitle: "Shift Supervisor", department: "foh" },
   // Staff first: each is converted to a manager account below.
-  { label: "B02 Manager A", role: "staff", venueId: venueA!.id, jobTitle: "General Manager" },
-  { label: "B02 Manager B", role: "staff", venueId: venueB!.id, jobTitle: "General Manager" },
-  { label: "B02 Manager Solo", role: "staff", venueId: venueSolo!.id, jobTitle: "General Manager" },
-  { label: "B02 Staff B", role: "staff", venueId: venueB!.id, jobTitle: "Chef" },
-  { label: "B02 Recovery", role: "staff", venueId: venueRecovery!.id, jobTitle: "Bartender" },
-  { label: "B02 Manager Revoked", role: "staff", venueId: venueB!.id, jobTitle: "Assistant Manager" },
-  { label: "B02 Host", role: "staff", venueId: venueStaff!.id, jobTitle: "Host" },
-  { label: "B02 Bartender", role: "staff", venueId: venueStaff!.id, jobTitle: "Bartender" },
-  { label: "B02 Recovery Draft", role: "staff", venueId: venueRecovery!.id, jobTitle: "Server" },
-  ...LAYOUT_TARGETS.map((t) => ({ label: `B02 Layout ${t}`, role: "staff" as const, venueId: venueLayout!.id, jobTitle: "Server" })),
+  { label: "B02 Manager A", role: "staff", venueId: venueA!.id, jobTitle: "General Manager", department: "foh" },
+  { label: "B02 Manager B", role: "staff", venueId: venueB!.id, jobTitle: "Venue Manager", department: "foh" },
+  { label: "B02 Manager Solo", role: "staff", venueId: venueSolo!.id, jobTitle: "Operations Manager", department: "foh" },
+  { label: "B02 Staff B", role: "staff", venueId: venueB!.id, jobTitle: "Line Chef", department: "boh" },
+  { label: "B02 Recovery", role: "staff", venueId: venueRecovery!.id, jobTitle: "Cocktail Bartender", department: "foh" },
+  { label: "B02 Manager Revoked", role: "staff", venueId: venueB!.id, jobTitle: "Assistant Manager", department: "foh" },
+  { label: "B02 Host", role: "staff", venueId: venueStaff!.id, jobTitle: "Host", department: "foh" },
+  { label: "B02 Bartender", role: "staff", venueId: venueStaff!.id, jobTitle: "Bartender", department: "foh" },
+  { label: "B02 Recovery Draft", role: "staff", venueId: venueRecovery!.id, jobTitle: "Waiter", department: "foh" },
+  { label: "B02 Curry Chef", role: "staff", venueId: venueStaff!.id, jobTitle: "Curry Chef", department: "boh" },
+  ...LAYOUT_TARGETS.map((t) => ({ label: `B02 Layout ${t}`, role: "staff" as const, venueId: venueLayout!.id, jobTitle: LAYOUT_TITLES[t], department: "foh" as const })),
 ]
+if (new Set(specs.flatMap((s) => (s.jobTitle ? [s.jobTitle] : []))).size !== specs.length - 1) throw new Error("Fixture job titles must be distinct.")
 const people = (await step(
   "people",
   // createPeople's own email rule (tests/e2e/helpers/world.ts fixtureEmail).
   specs.map((s) => worldHelpers.fixtureEmail(s.label.toLowerCase().replace(/\s+/g, "-"), tag)),
-  () => worldHelpers.createPeople(tag, specs),
+  () => worldHelpers.createPeople(tag, specs.map(({ department: _, ...s }) => s)),
   (ps: Person[]) => ps.map((p) => ({ id: p.id, email: p.email }))
 )) as Person[]
 const [
@@ -153,14 +163,21 @@ const [
   staffFoh,
   staffBar,
   recoveryDraft,
+  staffReplacement,
   ...layoutPeople
-] = people as [Person, Person, Person, Person, Person, Person, Person, Person, Person, Person, Person, Person, Person, ...Person[]]
+] = people as [Person, Person, Person, Person, Person, Person, Person, Person, Person, Person, Person, Person, Person, Person, ...Person[]]
 const staffLayout = Object.fromEntries(LAYOUT_TARGETS.map((t, i) => [t, person(layoutPeople[i]!)])) as Record<LayoutTarget, Person>
 
 // Complete profiles, so staff land on Home rather than setup.
-const quoted = people.filter((p) => p.id !== admin.id).map((p) => `'${p.id}'::uuid`).join(", ")
-await step("profiles", { department: "boh", count: people.length - 1 }, () =>
-  stack.psql(`update public.profiles set department = 'boh' where id in (${quoted});`)
+const byDepartment = (d: Department) => people.filter((_, i) => specs[i]!.department === d).map((p) => p.id)
+const departments = { boh: byDepartment("boh"), foh: byDepartment("foh") }
+if (departments.boh.length + departments.foh.length !== people.length - 1) throw new Error("Every staff persona needs a department.")
+const quoted = (ids: string[]) => ids.map((id) => `'${id}'::uuid`).join(", ")
+await step("profiles", departments, () =>
+  stack.psql(
+    `update public.profiles set department = 'boh' where id in (${quoted(departments.boh)});
+     update public.profiles set department = 'foh' where id in (${quoted(departments.foh)});`
+  )
 )
 
 // ---- Menus (as the admin) ----------------------------------------------------
@@ -345,6 +362,102 @@ await step("assign toilets", { check: checksStaff.guest_toilets, assignee: staff
   amenities.readyCheck(minimal, venueStaff, "guest_toilets", staffSet)
 )
 
+// ---- staffReplacement's open request for another photo ----------------------------
+
+// The path of the candidate's tests/e2e/home-todo.spec.ts ("an old request
+// for another photo stays in To do"): a venue-specific coverage requirement,
+// assigned to staffReplacement alone, one submitted photo and a reviewer's
+// needs_another_photo decision. The reviewer is the admin (can_manage_venue
+// at any venue), so no staff persona at scopes.staff gains a grant, and an
+// assignment counts only for its assignee, so staffSet, staffFoh and staffBar
+// keep their To do. The submitted photo is amenity evidence (never labelled),
+// so the replacement card is staffReplacement's only To do.
+const replacementPrefix = `DEV-FIXTURE-b02-replacement-${tag}`
+const replacementTitle = `DEV FIXTURE B02 replacement shelf ${tag}`
+const replacementReason = `DEV FIXTURE B02: the shelf photo is out of focus (${tag})`
+const requestKey = (what: string) => `b02-${what}-${tag}-${randomUUID()}`
+const [replacementAsset] = (await step(
+  "replacement photo",
+  { uploader: staffReplacement.id, venue: venueStaff!.id, prefix: replacementPrefix, purpose: "amenity" },
+  () => coverage.seedImages(staffReplacement, venueStaff, 1, { prefix: replacementPrefix, colour: "#b5651d", uploaderRole: "staff", purpose: "amenity" }),
+  (ids: string[]) => ids
+)) as string[]
+const requirementId = (await step(
+  "replacement requirement",
+  { venue: venueStaff!.id, title: replacementTitle, by: admin.id },
+  async () => {
+    const rows = (await menus.ok(
+      adminDb.rpc("save_coverage_requirement", {
+        p_venue_id: venueStaff!.id,
+        p_requirement_id: null,
+        p_expected_revision: null,
+        p_kind: "venue_specific",
+        p_title: replacementTitle,
+        p_guidance: "DEV FIXTURE: bottles facing out.",
+        p_photo_target: 2,
+        p_due_on: null,
+        p_client_request_key: requestKey("requirement"),
+      })
+    )) as { requirement_id: string }[]
+    if (rows.length !== 1 || !rows[0]!.requirement_id) throw new Error("save_coverage_requirement returned no requirement.")
+    return rows[0]!.requirement_id
+  },
+  (id) => ({ requirement: id })
+)) as string
+await step("replacement assignee", { requirement: requirementId, staff: [staffReplacement.id] }, () =>
+  menus.ok(adminDb.rpc("set_coverage_requirement_assignees", { p_requirement_id: requirementId, p_staff_ids: [staffReplacement.id] }))
+)
+const replacementDb = await identities.signIn(stack.provisioner(), staffReplacement.email)
+const submitted = (await step(
+  "replacement submission",
+  { requirement: requirementId, asset: replacementAsset, by: staffReplacement.id },
+  async () => {
+    const items = (await menus.ok(
+      replacementDb.rpc("submit_coverage_photos", {
+        p_asset_ids: [replacementAsset],
+        p_requirement_id: requirementId,
+        p_client_request_key: requestKey("submit"),
+      })
+    )) as { item_id: string; revision: number }[]
+    if (items.length !== 1 || !items[0]!.item_id) throw new Error(`submit_coverage_photos returned ${items.length} items, expected 1.`)
+    return items[0]!
+  },
+  (item) => ({ item: item.item_id, revision: item.revision })
+)) as { item_id: string; revision: number }
+await step("replacement review", { item: submitted.item_id, decision: "needs_another_photo", reason: replacementReason, by: admin.id }, () =>
+  menus.ok(
+    adminDb.rpc("review_coverage_item", {
+      p_item_id: submitted.item_id,
+      p_expected_revision: submitted.revision,
+      p_decision: "needs_another_photo",
+      p_reason: replacementReason,
+      p_client_request_key: requestKey("review"),
+    })
+  )
+)
+// Read back (read-only) the decided item exactly as it now is: still open (no
+// later item replaces it), its reason and the revision the review moved it to.
+const replacement = (await step(
+  "replacement read-back",
+  { requirement: requirementId, item: submitted.item_id },
+  () => {
+    const rows = json<{ itemId: string; revision: number; reason: string; title: string }[]>(`select coalesce(json_agg(json_build_object(
+        'itemId', i.id, 'revision', i.revision, 'reason', i.decision_reason, 'title', r.title) order by i.decided_at desc), '[]')
+      from public.coverage_submission_items i
+      join public.coverage_requirements r on r.id = i.requirement_id
+      where i.requirement_id = ${uuid(requirementId)} and i.author_id = ${uuid(staffReplacement.id)}
+        and i.state = 'needs_another_photo' and i.archived_at is null
+        and not exists (select 1 from public.coverage_submission_items n where n.replaces_item_id = i.id)`)
+    const [row] = rows
+    if (rows.length !== 1 || row!.itemId !== submitted.item_id || row!.reason !== replacementReason || row!.title !== replacementTitle) {
+      throw new Error("The replacement request did not read back as the one open request seeded.")
+    }
+    if (!Number.isInteger(row!.revision) || row!.revision <= submitted.revision) throw new Error("The reviewed item's revision did not advance.")
+    return { requirementId, itemId: row!.itemId, title: row!.title, reason: row!.reason, revision: row!.revision }
+  },
+  (r) => r
+)) as World["seeded"]["replacement"]
+
 // ---- Generated media for uploads (local files only) ------------------------------
 
 // Distinct small JPEGs (sharp, the checkout's dependency) and the candidate's
@@ -378,6 +491,7 @@ const media: World["media"] = await step(
       recover: await jpeg(`b02-recover-${tag}.jpg`, [90, 160, 80]),
       bar: await jpeg(`b02-bar-${tag}.jpg`, [200, 160, 40]),
       layout: await jpeg(`b02-layout-${tag}.jpg`, [140, 140, 60]),
+      replacement: await jpeg(`b02-replacement-${tag}.jpg`, [120, 80, 30]),
     } as World["media"]
   },
   (m) => m
@@ -409,6 +523,7 @@ const world: World = {
   managerRevoked: person(managerRevoked),
   staffFoh: person(staffFoh),
   staffBar: person(staffBar),
+  staffReplacement: person(staffReplacement),
   staffLayout,
   items,
   scopes: {
@@ -416,7 +531,7 @@ const world: World = {
     layout: scope(venueLayout!, itemsLayout, checksLayout),
     recovery: scope(venueRecovery!, itemsRecovery, checksRecovery),
   },
-  seeded: { staffEraAsset: staffEraAsset!, waitingPhotoA, waitingPhotoB, revokedAsset: revokedAsset!, unlabelledAsset: unlabelledAsset! },
+  seeded: { staffEraAsset: staffEraAsset!, waitingPhotoA, waitingPhotoB, revokedAsset: revokedAsset!, unlabelledAsset: unlabelledAsset!, replacement },
   layoutTodoCount: LAYOUT_TODO,
   checks: { A: checksA, solo: checksSolo },
   media,
