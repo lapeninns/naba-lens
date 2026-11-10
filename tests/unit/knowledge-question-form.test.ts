@@ -94,15 +94,27 @@ describe("questionForm", () => {
     ).toEqual({ kind: "accessibility", features: [] })
   })
 
-  it("never renders a form for a schema or version it doesn't know", () => {
+  it("gives policy version 1 its editor, with whether areas are required", () => {
     expect(
       questionForm(
         question({
           family: "policy",
           valueSchema: { name: "policy", version: 1 },
+          requiresZones: true,
         })
       )
-    ).toEqual({ kind: "unknown", schema: "policy", version: 1 })
+    ).toEqual({ kind: "policy", requiresZones: true })
+  })
+
+  it("never renders a form for a schema or version it doesn't know", () => {
+    expect(
+      questionForm(
+        question({
+          family: "service",
+          valueSchema: { name: "service", version: 1 },
+        })
+      )
+    ).toEqual({ kind: "unknown", schema: "service", version: 1 })
     expect(
       questionForm(question({ valueSchema: { name: "presence", version: 2 } }))
     ).toEqual({ kind: "unknown", schema: "presence", version: 2 })

@@ -76,6 +76,7 @@ const knowledge = vi.hoisted(() => ({
   listKnowledgeAssets: vi.fn(),
   getQuestion: vi.fn(),
   listPlaces: vi.fn(),
+  getValueList: vi.fn(),
 }))
 vi.mock("@/lib/knowledge-client/services", () => ({
   knowledgeServices: knowledge,
@@ -271,7 +272,7 @@ describe("capture routes and the question registry (B03 UI §2.1)", () => {
         view: inScope(),
       })
       knowledge.getQuestion.mockResolvedValue(
-        registry({ valueSchema: { name: "policy", version: 1 } })
+        registry({ valueSchema: { name: "service", version: 1 } })
       )
       await show(pages[name]())
       expect(
@@ -356,6 +357,51 @@ describe("capture routes and the question registry (B03 UI §2.1)", () => {
         )
       ).toBeTruthy()
       expect(screen.queryByText("Features")).toBeNull()
+    }
+  )
+
+  it.each([
+    ["staff", "The rule you saw"],
+    ["manager", "The rule"],
+    ["admin", "The rule"],
+  ] as const)(
+    "%s capture of a policy question gets its form, with the owner's lists",
+    async (name, legend) => {
+      knowledge.getKnowledgeCheck.mockResolvedValue({
+        ok: true,
+        view: inScope(),
+      })
+      knowledge.getQuestion.mockResolvedValue(
+        registry({ valueSchema: { name: "policy", version: 1 } })
+      )
+      knowledge.listPlaces.mockResolvedValue({
+        ok: true,
+        venueId: VENUE.id,
+        places: [],
+      })
+      knowledge.getValueList.mockResolvedValue({ ok: true, items: [] })
+      await show(pages[name]())
+      expect(screen.getByRole("group", { name: legend })).toBeTruthy()
+      if (name === "staff") {
+        expect(knowledge.getValueList).toHaveBeenCalledTimes(2)
+        return
+      }
+      expect(knowledge.getValueList).toHaveBeenCalledWith(expect.anything(), {
+        list: "policy_condition_types",
+      })
+      expect(knowledge.getValueList).toHaveBeenCalledWith(expect.anything(), {
+        list: "policy_exception_types",
+      })
+      fireEvent.click(screen.getByRole("radio", { name: "Allowed" }))
+      expect(
+        screen.getByText(
+          name === "admin" ? "You, as admin" : "You, as venue manager"
+        )
+      ).toBeTruthy()
+      if (name === "admin")
+        expect(screen.getByRole("group", { name: "Applies to" })).toBeTruthy()
+      else
+        expect(screen.queryByRole("group", { name: "Applies to" })).toBeNull()
     }
   )
 

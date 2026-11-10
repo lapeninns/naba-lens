@@ -54,7 +54,9 @@ export function PolicyRuleField({
   conditionsAvailable,
   error,
   disabled,
+  fieldsetRef,
 }: {
+  fieldsetRef?: React.Ref<HTMLFieldSetElement>
   id: string
   value: PolicyStance | null
   onChange: (stance: PolicyStance) => void
@@ -66,6 +68,7 @@ export function PolicyRuleField({
   const blocked = !staff && !conditionsAvailable
   return (
     <fieldset
+      ref={fieldsetRef}
       className="grid min-w-0 gap-1"
       disabled={disabled}
       aria-describedby={describedBy(
@@ -631,9 +634,16 @@ export function PolicyNeedsPanel({
   admin?: boolean
 }) {
   const words = policyNeedWords(needs, { admin })
+  const titleId = React.useId()
   return (
-    <div role="note" className="grid min-w-0 gap-2 rounded-card bg-well p-3">
-      <p className={LABEL}>{COPY.needsTitle}</p>
+    <div
+      role="note"
+      aria-labelledby={titleId}
+      className="grid min-w-0 gap-2 rounded-card bg-well p-3"
+    >
+      <p id={titleId} className={LABEL}>
+        {COPY.needsTitle}
+      </p>
       {words.length ? (
         <ul className="grid list-disc gap-1 pl-5 text-body-touch text-ink md:text-body">
           {words.map((w) => (

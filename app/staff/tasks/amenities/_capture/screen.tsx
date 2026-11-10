@@ -43,7 +43,9 @@ async function knowledgeFor(
   actor: MediaActor,
   checkId: string,
   role: KnowledgeProps["role"],
-  venueName: string
+  venueName: string,
+  /** An admin capturing: states a policy as admin (B03-c). */
+  admin = false
 ): Promise<{
   props: KnowledgeProps
   capture: CaptureCheck
@@ -62,6 +64,32 @@ async function knowledgeFor(
     .catch(() => null)
   const form = questionForm(question?.ok ? question.question : null)
   const props = fromView(view.view, draft?.ok ? draft.draft : null, role)
+  if (form.kind === "policy") {
+    // Places for Areas and the owner's lists for conditions and exceptions;
+    // each reads as none when it can't be read (the editor says so).
+    const [result, conditions, exceptions] = await Promise.all([
+      knowledgeServices
+        .listPlaces(actor, { venueId: view.view.venue.id })
+        .catch(() => null),
+      knowledgeServices
+        .getValueList(actor, { list: "policy_condition_types" })
+        .catch(() => null),
+      knowledgeServices
+        .getValueList(actor, { list: "policy_exception_types" })
+        .catch(() => null),
+    ])
+    props.detailForm = {
+      schema: "policy",
+      places: result?.ok ? (result.places ?? []).filter((p) => p.active) : [],
+      conditionTypes: conditions?.ok ? conditions.items : [],
+      exceptionTypes: exceptions?.ok ? exceptions.items : [],
+      requiresZones: form.requiresZones,
+      // Staff observe; a manager or an admin states it, on their own basis
+      // (A35: until the server says canStatePolicy and canStateOrgPolicy).
+      basis: admin ? "admin" : role === "manager" ? "venue_manager" : null,
+      canStateOrgPolicy: admin,
+    }
+  }
   if (form.kind === "facility" || form.kind === "accessibility") {
     // The venue's places for "Where is it?" and "What did you check?"; none
     // when they can't be read (the person can still name a place, and
@@ -191,7 +219,7 @@ export async function CaptureScreen({
     mode === "staff"
       ? await staffReads(actor, checkId, venue)
       : await Promise.all([
-          knowledgeFor(actor, checkId, "manager", venue),
+          knowledgeFor(actor, checkId, "manager", venue, mode === "admin"),
           getCheck(actor, { checkId }),
           listSubmittableAssets(actor, { checkId }),
         ])

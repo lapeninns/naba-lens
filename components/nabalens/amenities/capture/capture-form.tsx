@@ -56,6 +56,7 @@ import {
   KNOWLEDGE_FAILURE_COPY,
   captureContextLines,
   dockNote,
+  policyNeedWords,
   recognitionLine,
   replacedOwnLine,
   SEND_PROGRESS_COPY,
@@ -85,11 +86,27 @@ import {
   NO_DETAIL_ERRORS,
   partsFromDetail,
   partsTouched,
+  policyOf,
   showsAccess,
   showsFacility,
+  usesCheckedOn,
   type DetailErrors,
   type DetailForm,
 } from "../../knowledge/detail-form"
+import {
+  firstBadCondition,
+  firstBadException,
+  firstBadZone,
+  POLICY_COPY,
+  policyNeeds,
+  policySentCopy,
+  stanceAnswer,
+} from "../../knowledge/policy-detail"
+import {
+  PolicyDetailFields,
+  PolicyNeedsPanel,
+  PolicyRuleField,
+} from "../../knowledge/policy-detail-fields"
 import { emptyFacility } from "../../knowledge/facility-detail"
 import { FacilityDetailFields } from "../../knowledge/facility-detail-fields"
 import { Notice } from "../../notice"
@@ -714,7 +731,7 @@ export function CaptureForm({
       let next = change(current)
       // The form's Checked on date is stamped at the first edit, so a draft
       // reopened later can tell it from a chosen one.
-      if (detailForm && next.checkedOn === undefined)
+      if (usesCheckedOn(detailForm) && next.checkedOn === undefined)
         next = { ...next, checkedOn: newCheckedOn(londonToday()) }
       if (!sameIds(next.assetIds, current.assetIds))
         next = { ...next, redactionConfirmed: false, redactionAssetIds: [] }
@@ -967,7 +984,7 @@ export function CaptureForm({
         })
       : NO_DETAIL_ERRORS
     const checkedOnErrNow =
-      detailForm && draft.answer
+      usesCheckedOn(detailForm) && draft.answer
         ? (checkedOnError(checkedOnValue, today) ?? undefined)
         : undefined
     const detailBad = hasDetailErrors(detailErrs) || Boolean(checkedOnErrNow)
@@ -979,8 +996,12 @@ export function CaptureForm({
       const detail = detailToSend(detailForm, draft, draft.answer)
       Object.assign(checked.input, {
         ...(detail ? { detail } : {}),
-        observedOn: checkedOnValue.date!,
-        observedOnSource: checkedOnValue.source!,
+        ...(usesCheckedOn(detailForm)
+          ? {
+              observedOn: checkedOnValue.date!,
+              observedOnSource: checkedOnValue.source!,
+            }
+          : {}),
       })
     }
     // Knowledge evidence must be ready to attach: with uploads from this form
@@ -1168,7 +1189,7 @@ export function CaptureForm({
         document.getElementById(`${ids}-checked-on`)?.focus()
         return
       }
-      const access = accessTarget(errs.access)
+      const access = accessTarget(errs.access) ?? policyTarget(errs.policy)
       if (access) {
         access.focus()
         return
@@ -1223,6 +1244,47 @@ export function CaptureForm({
         document.getElementById(`${ids}-access-m0-feature`)
       )
     }
+    return null
+  }
+
+  /** The policy control an error belongs to, in screen order. */
+  function policyTarget(errs: DetailErrors["policy"]): HTMLElement | null {
+    if (detailForm?.schema !== "policy") return null
+    const policy = policyOf(draft, draft.answer, detailForm.requiresZones)
+    const row = (
+      prefix: string,
+      bad: { index: number; part: string } | null
+    ) =>
+      bad
+        ? document.getElementById(
+            bad.part === "value"
+              ? `${ids}-policy-${prefix}${bad.index}-value`
+              : `${ids}-policy-${prefix}${bad.index}-first`
+          )
+        : null
+    const byName = (name: string) =>
+      document.querySelector<HTMLElement>(`input[name="${ids}-policy-${name}"]`)
+    if (errs.stance) return byName("rule")
+    if (errs.zones)
+      return (
+        row("z", firstBadZone(policy)) ??
+        document.getElementById(`${ids}-policy-zones-add`)
+      )
+    if (errs.conditions)
+      return (
+        row("c", firstBadCondition(policy, detailForm)) ??
+        document.getElementById(`${ids}-policy-conditions-add`)
+      )
+    if (errs.exceptions)
+      return (
+        row("e", firstBadException(policy)) ??
+        document.getElementById(`${ids}-policy-exceptions-add`)
+      )
+    if (errs.policyScope) return byName("scope")
+    if (errs.statedOn) return document.getElementById(`${ids}-policy-stated-on`)
+    if (errs.source) return byName("source")
+    if (errs.reference)
+      return document.getElementById(`${ids}-policy-reference`)
     return null
   }
 
@@ -1281,8 +1343,28 @@ export function CaptureForm({
             leftForOthers: input.confirmOwn === false,
           })
     const recognition = recognitionLine(sent.recognition, input.answer)
+    // A policy statement says what it still needs, or that it's confirmed.
+    const policy =
+      detailForm?.schema === "policy" &&
+      detailForm.basis &&
+      input.kind !== "detail" &&
+      input.answer !== "unknown"
+        ? policySentCopy({
+            needs: policyNeedWords(
+              policyNeeds(
+                policyOf(draft, input.answer, detailForm.requiresZones),
+                {
+                  requiresZones: detailForm.requiresZones,
+                }
+              )
+            ),
+            selfConfirmed:
+              input.confirmOwn === true && sent.outcome === "current",
+            venueName: knowledge?.venueName ?? "the venue",
+          })
+        : null
     return {
-      copy,
+      copy: policy ?? copy,
       extra: [
         ...(sent.replacedOwn ? [replacedOwnLine(sent.replacedOwn.sentAt)] : []),
         ...(recognition ? [recognition] : []),
@@ -1673,6 +1755,16 @@ export function CaptureForm({
     errors[field] ? `${ids}-${field}-error` : undefined
 
   const answer = draft.answer
+  // B03-c policy versions: the rule stands for the answer (§4.2).
+  const policyForm = detailForm?.schema === "policy" ? detailForm : null
+  const policyDraft = policyForm
+    ? policyOf(draft, answer, policyForm.requiresZones)
+    : null
+  // A statement's guide to what's still missing; the server's list follows.
+  const policyNeedsNow =
+    policyForm?.basis && policyDraft
+      ? policyNeeds(policyDraft, { requiresZones: policyForm.requiresZones })
+      : null
   // Read-only while sending, while waiting for uploads to send by itself, and
   // after a send that left late uploads out.
   const locked = sending || waiting || afterSend !== null
@@ -1785,71 +1877,99 @@ export function CaptureForm({
         />
       ) : null}
 
-      <fieldset
-        ref={answerGroupRef}
-        className="flex min-w-0 flex-col gap-2"
-        aria-describedby={errorId("answer")}
-        disabled={locked}
-      >
-        <legend className={cn(LABEL, "mb-2")}>{entry.question}</legend>
-        {knowledge ? (
-          <div className="grid gap-2 min-[360px]:grid-cols-2 sm:grid-cols-4">
-            {KNOWLEDGE_ANSWERS.map((option: KnowledgeAnswer) => (
-              <label
-                key={option}
-                className="flex min-h-13 cursor-pointer items-start gap-3 rounded-control border border-line-control bg-panel px-4 py-3 text-label-touch text-ink has-checked:border-ink has-checked:bg-accent-soft has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus md:min-h-11 md:text-label"
-              >
-                <input
-                  type="radio"
-                  name={`${ids}-answer`}
-                  value={option}
-                  checked={answer === option}
-                  onChange={() => setField("answer", option)}
-                  aria-labelledby={`${ids}-answer-${option}`}
-                  aria-describedby={`${ids}-answer-${option}-hint`}
-                  className="mt-0.5 size-5 shrink-0 accent-primary"
-                />
-                <span className="grid gap-0.5">
-                  <span id={`${ids}-answer-${option}`}>
-                    {KNOWLEDGE_ANSWER_LABEL[option]}
+      {policyForm ? (
+        <PolicyRuleField
+          fieldsetRef={answerGroupRef}
+          id={`${ids}-policy-rule`}
+          value={policyDraft?.stance ?? null}
+          onChange={(stance) => {
+            edit((d) => ({
+              ...d,
+              answer: stanceAnswer(stance),
+              policy: {
+                ...policyOf(d, d.answer, policyForm.requiresZones),
+                stance,
+              },
+            }))
+            if (errors.answer) setErrors((e) => ({ ...e, answer: undefined }))
+            setDetailErrors((e) => ({ ...e, policy: {} }))
+          }}
+          staff={policyForm.basis === null}
+          conditionsAvailable={policyForm.conditionTypes.length > 0}
+          error={
+            errors.answer
+              ? POLICY_COPY.stanceRequired
+              : detailErrors.policy.stance
+          }
+          disabled={locked}
+        />
+      ) : (
+        <fieldset
+          ref={answerGroupRef}
+          className="flex min-w-0 flex-col gap-2"
+          aria-describedby={errorId("answer")}
+          disabled={locked}
+        >
+          <legend className={cn(LABEL, "mb-2")}>{entry.question}</legend>
+          {knowledge ? (
+            <div className="grid gap-2 min-[360px]:grid-cols-2 sm:grid-cols-4">
+              {KNOWLEDGE_ANSWERS.map((option: KnowledgeAnswer) => (
+                <label
+                  key={option}
+                  className="flex min-h-13 cursor-pointer items-start gap-3 rounded-control border border-line-control bg-panel px-4 py-3 text-label-touch text-ink has-checked:border-ink has-checked:bg-accent-soft has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus md:min-h-11 md:text-label"
+                >
+                  <input
+                    type="radio"
+                    name={`${ids}-answer`}
+                    value={option}
+                    checked={answer === option}
+                    onChange={() => setField("answer", option)}
+                    aria-labelledby={`${ids}-answer-${option}`}
+                    aria-describedby={`${ids}-answer-${option}-hint`}
+                    className="mt-0.5 size-5 shrink-0 accent-primary"
+                  />
+                  <span className="grid gap-0.5">
+                    <span id={`${ids}-answer-${option}`}>
+                      {KNOWLEDGE_ANSWER_LABEL[option]}
+                    </span>
+                    <span
+                      id={`${ids}-answer-${option}-hint`}
+                      className="text-meta-touch font-normal text-ink-muted md:text-meta"
+                    >
+                      {option === "yes" && yesRefused
+                        ? yesRefused
+                        : ANSWER_HINT[option]}
+                    </span>
                   </span>
-                  <span
-                    id={`${ids}-answer-${option}-hint`}
-                    className="text-meta-touch font-normal text-ink-muted md:text-meta"
-                  >
-                    {option === "yes" && yesRefused
-                      ? yesRefused
-                      : ANSWER_HINT[option]}
-                  </span>
-                </span>
-              </label>
-            ))}
-          </div>
-        ) : (
-          <div className="grid gap-2 sm:grid-cols-3">
-            {SUBMIT_ANSWERS.map((option) => (
-              <label
-                key={option}
-                className="flex min-h-13 cursor-pointer items-center gap-3 rounded-control border border-line-control bg-panel px-4 text-label-touch text-ink has-checked:border-ink has-checked:bg-accent-soft has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus md:min-h-11 md:text-label"
-              >
-                <input
-                  type="radio"
-                  name={`${ids}-answer`}
-                  value={option}
-                  checked={answer === option}
-                  onChange={() => setField("answer", option)}
-                  className="size-5 shrink-0 accent-primary"
-                />
-                {ANSWER_LABEL[option]}
-              </label>
-            ))}
-          </div>
-        )}
-        {yesRefused && !knowledge ? (
-          <p className={MUTED}>{yesRefused}</p>
-        ) : null}
-        <FieldMessage id={`${ids}-answer-error`} error={errors.answer} />
-      </fieldset>
+                </label>
+              ))}
+            </div>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-3">
+              {SUBMIT_ANSWERS.map((option) => (
+                <label
+                  key={option}
+                  className="flex min-h-13 cursor-pointer items-center gap-3 rounded-control border border-line-control bg-panel px-4 text-label-touch text-ink has-checked:border-ink has-checked:bg-accent-soft has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus md:min-h-11 md:text-label"
+                >
+                  <input
+                    type="radio"
+                    name={`${ids}-answer`}
+                    value={option}
+                    checked={answer === option}
+                    onChange={() => setField("answer", option)}
+                    className="size-5 shrink-0 accent-primary"
+                  />
+                  {ANSWER_LABEL[option]}
+                </label>
+              ))}
+            </div>
+          )}
+          {yesRefused && !knowledge ? (
+            <p className={MUTED}>{yesRefused}</p>
+          ) : null}
+          <FieldMessage id={`${ids}-answer-error`} error={errors.answer} />
+        </fieldset>
+      )}
 
       {knowledge && answer === "unknown" ? (
         <UnknownFields
@@ -1884,6 +2004,25 @@ export function CaptureForm({
           disabled={locked}
         />
       ) : null}
+      {policyForm && policyDraft?.stance && policyDraft.stance !== "unknown" ? (
+        <PolicyDetailFields
+          id={`${ids}-policy`}
+          value={policyDraft}
+          onChange={(next) => {
+            edit((d) => ({ ...d, policy: next }))
+            setDetailErrors((e) => ({ ...e, policy: {} }))
+          }}
+          places={policyForm.places}
+          conditionTypes={policyForm.conditionTypes}
+          exceptionTypes={policyForm.exceptionTypes}
+          requiresZones={policyForm.requiresZones}
+          basis={policyForm.basis}
+          canStateOrgPolicy={policyForm.canStateOrgPolicy}
+          errors={detailErrors.policy}
+          today={londonToday()}
+          disabled={locked}
+        />
+      ) : null}
       {detailForm && showsFacility(detailForm, answer) ? (
         <FacilityDetailFields
           id={`${ids}-facility`}
@@ -1899,7 +2038,7 @@ export function CaptureForm({
           disabled={locked}
         />
       ) : null}
-      {detailForm && answer ? (
+      {usesCheckedOn(detailForm) && answer ? (
         <CheckedOnField
           id={`${ids}-checked-on`}
           value={draft.checkedOn ?? newCheckedOn(londonToday())}
@@ -1963,6 +2102,9 @@ export function CaptureForm({
         >
           Evidence
         </h2>
+        {policyForm ? (
+          <p className={MUTED}>{POLICY_COPY.evidenceHelp}</p>
+        ) : null}
         <p aria-live="polite" className="sr-only">
           {ruleAnnouncement}
         </p>
@@ -2164,6 +2306,13 @@ export function CaptureForm({
         />
       ) : null}
 
+      {policyForm?.basis && policyNeedsNow ? (
+        <PolicyNeedsPanel
+          needs={policyNeedsNow}
+          admin={policyForm.basis === "admin"}
+        />
+      ) : null}
+
       {/* Notices sit in the page flow; only the buttons stay sticky, so a
           notice never covers the fields it is about on a phone (CA-22). */}
       {waiting || outcome?.kind === "uploads_pending" ? (
@@ -2269,9 +2418,11 @@ export function CaptureForm({
                       ? "Send detail"
                       : findingKind === "change_report"
                         ? "Send change report"
-                        : askConfirmOwn && draft.confirmOwn === true
-                          ? "Submit and confirm"
-                          : UI_TEXT.submit}
+                        : policyNeedsNow?.length
+                          ? "Save policy (not confirmed)"
+                          : askConfirmOwn && draft.confirmOwn === true
+                            ? "Submit and confirm"
+                            : UI_TEXT.submit}
             </Button>
           </div>
         )}

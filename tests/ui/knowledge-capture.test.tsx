@@ -1415,6 +1415,180 @@ describe("knowledge capture: accessibility detail (B03 UI §3.2, §3.3)", () => 
     )
   })
 })
+describe("knowledge capture: policy (B03 UI §4)", () => {
+  const BAR = {
+    subjectId: "5a000000-0000-4000-8000-000000000001",
+    kind: "area" as const,
+    label: "⟨Back bar⟩",
+    active: true,
+  }
+  const statement = (over: Record<string, unknown> = {}) => ({
+    schema: "policy" as const,
+    places: [BAR],
+    conditionTypes: [],
+    exceptionTypes: [],
+    requiresZones: false,
+    basis: "venue_manager" as const,
+    canStateOrgPolicy: false,
+    ...over,
+  })
+  const today = londonToday()
+
+  it("asks the rule instead of the answers, with no Checked on, and saves an incomplete policy as not confirmed", async () => {
+    const submit = vi.fn<Submit>(async () =>
+      sent({ outcome: "awaiting_confirmation" })
+    )
+    const { user } = setup({ submit, role: "manager", detailForm: statement() })
+    expect(screen.queryByRole("radio", { name: /^Yes/ })).toBeNull()
+    await user.click(screen.getByRole("radio", { name: "Allowed" }))
+    expect(screen.queryByLabelText("When did you check?")).toBeNull()
+    const note = screen.getByRole("note", {
+      name: "What this policy still needs",
+    })
+    expect(
+      within(note).getByText(
+        "confirmation by a venue manager, with where it was stated"
+      )
+    ).toBeTruthy()
+    await user.click(photoBox())
+    await user.click(
+      screen.getByRole("button", { name: "Save policy (not confirmed)" })
+    )
+    const input = lastInput(submit)
+    expect(input).toMatchObject({
+      answer: "yes",
+      detail: {
+        stance: "allowed",
+        policyScope: "venue",
+        authority: { basis: "venue_manager" },
+      },
+    })
+    expect(input).not.toHaveProperty("observedOn")
+    expect(
+      await screen.findByText(
+        "Recorded. Not confirmed yet: it still needs confirmation by a venue manager, with where it was stated and the date it was stated."
+      )
+    ).toBeTruthy()
+  })
+
+  it("sends who stated it, and says nothing is missing once it's complete", async () => {
+    const submit = vi.fn<Submit>(async () =>
+      sent({ outcome: "awaiting_confirmation" })
+    )
+    const { user } = setup({ submit, role: "manager", detailForm: statement() })
+    await user.click(screen.getByRole("radio", { name: "Not allowed" }))
+    const date = screen.getByLabelText("Stated on")
+    await user.type(date, today)
+    await user.click(screen.getByRole("radio", { name: "Written policy" }))
+    expect(screen.getByText("Nothing is missing.")).toBeTruthy()
+    await user.type(screen.getByLabelText(/Reason/), "⟨Reason⟩")
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    expect(lastInput(submit)).toMatchObject({
+      answer: "no",
+      detail: {
+        stance: "not_allowed",
+        authority: {
+          basis: "venue_manager",
+          statedOn: today,
+          source: "written_policy",
+        },
+      },
+    })
+  })
+
+  it("keeps Allowed with conditions unavailable while no condition types are set up", async () => {
+    const { user } = setup({ role: "manager", detailForm: statement() })
+    const conditional = screen.getByRole("radio", {
+      name: "Allowed with conditions",
+    })
+    expect(conditional.getAttribute("aria-disabled")).toBe("true")
+    await user.click(conditional)
+    expect((conditional as HTMLInputElement).checked).toBe(false)
+  })
+
+  it("marks Areas required and lists them as missing when the version requires them", async () => {
+    const { user } = setup({
+      role: "manager",
+      detailForm: statement({ requiresZones: true }),
+    })
+    await user.click(screen.getByRole("radio", { name: "Allowed" }))
+    expect(screen.getByRole("group", { name: "Areas (required)" })).toBeTruthy()
+    expect(screen.getByText("at least one area with its rule")).toBeTruthy()
+  })
+
+  it("stops a send for a half-filled area and focuses it", async () => {
+    const submit = vi.fn<Submit>(async () => sent())
+    const { user } = setup({ submit, role: "manager", detailForm: statement() })
+    await user.click(screen.getByRole("radio", { name: "Allowed" }))
+    await user.click(screen.getByRole("button", { name: "Add an area" }))
+    await user.click(
+      within(screen.getByRole("group", { name: "Rule here" })).getByRole(
+        "radio",
+        { name: "Allowed" }
+      )
+    )
+    await user.click(photoBox())
+    await user.click(
+      screen.getByRole("button", { name: "Save policy (not confirmed)" })
+    )
+    expect(submit).not.toHaveBeenCalled()
+    expect(screen.getByText("Choose the area, or name it.")).toBeTruthy()
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByLabelText("Place"))
+    )
+  })
+
+  it("puts the server's policy errors on their sections", async () => {
+    const submit = vi.fn<Submit>(async () => ({
+      ok: false as const,
+      code: "invalid_input" as const,
+      status: 400 as const,
+      message: "Check the highlighted answers.",
+      fieldErrors: { "detail.authority.statedOn": "⟨Date problem⟩" },
+    }))
+    const { user } = setup({ submit, role: "manager", detailForm: statement() })
+    await user.click(screen.getByRole("radio", { name: "Allowed" }))
+    await user.click(photoBox())
+    await user.click(
+      screen.getByRole("button", { name: "Save policy (not confirmed)" })
+    )
+    expect(await screen.findByText("⟨Date problem⟩")).toBeTruthy()
+  })
+
+  it("gives staff the observation form: the rule seen and areas, never who stated it", async () => {
+    const submit = vi.fn<Submit>(async () =>
+      sent({ outcome: "awaiting_confirmation" })
+    )
+    const { user } = setup({
+      submit,
+      detailForm: statement({ basis: null }),
+    })
+    expect(screen.getByRole("group", { name: "The rule you saw" })).toBeTruthy()
+    expect(
+      screen.getByText(
+        "A manager or an admin states the policy. What you send helps them; it doesn't set the rule."
+      )
+    ).toBeTruthy()
+    await user.click(screen.getByRole("radio", { name: "Allowed" }))
+    expect(screen.queryByLabelText("Stated on")).toBeNull()
+    expect(screen.queryByText("What this policy still needs")).toBeNull()
+    expect(
+      screen.getByText(
+        "A photo can show what's there, such as a sign or a bowl. It doesn't confirm the policy."
+      )
+    ).toBeTruthy()
+    await user.click(photoBox())
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    expect(lastInput(submit).detail).toEqual({ stance: "allowed" })
+  })
+
+  it("records Couldn't establish with its reason and no policy sections", async () => {
+    const { user } = setup({ role: "manager", detailForm: statement() })
+    await user.click(screen.getByRole("radio", { name: "Couldn't establish" }))
+    expect(screen.queryByRole("group", { name: "Areas" })).toBeNull()
+    expect(screen.getByText("a rule (not Couldn't establish)")).toBeTruthy()
+  })
+})
 describe("knowledge capture: a qualified answer's reason (B03 UI §2.6)", () => {
   it("doesn't say a manager asked for the recheck", () => {
     render(

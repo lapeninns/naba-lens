@@ -17,6 +17,8 @@ export type QuestionForm =
   | { kind: "facility" }
   /** The B01 form plus what was checked, the version's features, and Checked on. */
   | { kind: "accessibility"; features: QuestionFeature[] }
+  /** The policy editor (statements) or observation form (staff), B03-c. */
+  | { kind: "policy"; requiresZones: boolean }
   /** A schema or version this build has no form for. */
   | { kind: "unknown"; schema: string; version: number }
   /** The question isn't asked any more (registry lifecycle). */
@@ -55,6 +57,8 @@ export function questionForm(question: RegistryQuestion | null): QuestionForm {
   if (name === "facility" && version === 1) return { kind: "facility" }
   if (name === "accessibility" && version === 1)
     return { kind: "accessibility", features: question.features ?? [] }
+  if (name === "policy" && version === 1)
+    return { kind: "policy", requiresZones: question.requiresZones === true }
   return { kind: "unknown", schema: name as ValueSchemaName, version }
 }
 

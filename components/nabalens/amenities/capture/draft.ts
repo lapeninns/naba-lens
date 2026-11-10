@@ -11,6 +11,10 @@ import {
 } from "../../knowledge/accessibility-detail"
 import type { CheckedOn } from "../../knowledge/checked-on"
 import {
+  policyFromDraft,
+  type PolicyDraft,
+} from "../../knowledge/policy-detail"
+import {
   emptyFacility,
   type FacilityDraft,
 } from "../../knowledge/facility-detail"
@@ -79,12 +83,13 @@ export type CaptureDraft = {
    */
   uploadsPending?: { count: number; after: string | null } | null
   /**
-   * B03-b detail forms only: the facility and accessibility details as
+   * B03 detail forms only: the facility, accessibility and policy details as
    * typed, and Checked on (the form's date is stamped at the first edit, so a
    * later reopen can tell it from a chosen one). Absent on every other form.
    */
   facility?: FacilityDraft | null
   access?: AccessDraft | null
+  policy?: PolicyDraft | null
   checkedOn?: CheckedOn | null
 }
 
@@ -230,6 +235,9 @@ export function loadDraft(owner: DraftOwner): CaptureDraft | null {
         : {}),
       ...(d.access && typeof d.access === "object"
         ? { access: accessFromDraft(d.access) }
+        : {}),
+      ...(d.policy && typeof d.policy === "object"
+        ? { policy: policyFromDraft(d.policy) }
         : {}),
       ...checkedOnOf(d.checkedOn),
     }

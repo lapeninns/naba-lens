@@ -13,6 +13,8 @@ import type {
   ValueListItem,
 } from "@/lib/knowledge-client/contract"
 
+import { joinWords } from "./copy"
+
 export type PolicyStance =
   "allowed" | "not_allowed" | "conditional" | "not_applicable" | "unknown"
 export type ZoneStance = "allowed" | "not_allowed" | "conditional"
@@ -434,4 +436,98 @@ export function zonePlaceName(ref: PlaceRef, places: Place[]): string {
   return (
     places.find((p) => p.subjectId === ref.subjectId)?.label ?? "that place"
   )
+}
+
+/** A restored draft's rule when only its headline was kept. */
+export function answerStance(
+  answer: KnowledgeAnswer | null
+): PolicyStance | null {
+  switch (answer) {
+    case "yes":
+      return "allowed"
+    case "no":
+      return "not_allowed"
+    case "not_applicable":
+      return "not_applicable"
+    case "unknown":
+      return "unknown"
+    default:
+      return null
+  }
+}
+
+/** A device draft's policy part (the form's own model), defensively. */
+export function policyFromDraft(
+  v: unknown,
+  { requiresZones = false }: { requiresZones?: boolean } = {}
+): PolicyDraft {
+  const draft = emptyPolicy({ requiresZones })
+  if (!isRecord(v)) return draft
+  draft.stance = oneOf(v.stance, POLICY_STANCES)
+  if (Array.isArray(v.zones))
+    draft.zones = v.zones.filter(isRecord).map((z): ZoneDraft => ({
+      place: isRecord(z.place)
+        ? typeof z.place.subjectId === "string"
+          ? { subjectId: z.place.subjectId }
+          : { label: str(z.place.label) }
+        : null,
+      stance: oneOf(z.stance, ZONE_STANCES) ?? "",
+    }))
+  if (Array.isArray(v.conditions))
+    draft.conditions = v.conditions.filter(isRecord).map((c) => ({
+      type: str(c.type),
+      value: str(c.value),
+      note: str(c.note),
+    }))
+  if (Array.isArray(v.exceptions))
+    draft.exceptions = v.exceptions.filter(isRecord).map((e) => ({
+      type: str(e.type),
+      note: str(e.note),
+    }))
+  draft.policyScope =
+    oneOf(v.policyScope, ["venue", "organisation"] as const) ?? "venue"
+  draft.statedOn = /^\d{4}-\d{2}-\d{2}$/.test(str(v.statedOn))
+    ? str(v.statedOn)
+    : ""
+  draft.source = oneOf(v.source, ["in_person", "written_policy"] as const) ?? ""
+  draft.reference = str(v.reference)
+  return draft
+}
+
+/**
+ * A statement's outcome (§4.3), or null for the general words: recorded but
+ * not confirmed while something is missing; confirmed by the sender when
+ * they confirmed it themselves.
+ */
+export function policySentCopy({
+  needs,
+  selfConfirmed,
+  venueName,
+}: {
+  needs: string[]
+  selfConfirmed: boolean
+  venueName: string
+}): {
+  status: string
+  title: string
+  body: string
+  tone: "positive" | "plain"
+} | null {
+  if (needs.length) {
+    const line = `Not confirmed yet: it still needs ${joinWords(needs)}.`
+    return {
+      status: `Recorded. ${line}`,
+      title: "Policy recorded",
+      body: line,
+      tone: "plain",
+    }
+  }
+  if (selfConfirmed)
+    return {
+      status: `Policy confirmed by you. It's now ${venueName}'s answer.`,
+      title: "Policy confirmed",
+      body: `Confirmed by you. It's now ${venueName}'s answer.`,
+      tone: "positive",
+    }
+  return null
 }
