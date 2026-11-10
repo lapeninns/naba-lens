@@ -31,6 +31,7 @@ let withdrawnAt: World
 let delisted: World
 let lapsed: World
 let corrected: World
+let imported: World
 
 function attach(contributionId: string, schema: string, detail: object) {
   psql(`insert into public.knowledge_contribution_details
@@ -67,14 +68,16 @@ const WITHHELD = {
 }
 
 beforeAll(async () => {
-  ;[w, disputed, withdrawnAt, delisted, lapsed, corrected] = await Promise.all([
-    world("kn-b03-api"),
-    world("kn-b03-api-dispute"),
-    world("kn-b03-api-withdraw"),
-    world("kn-b03-api-delisted"),
-    world("kn-b03-api-lapsed"),
-    world("kn-b03-api-correct"),
-  ])
+  ;[w, disputed, withdrawnAt, delisted, lapsed, corrected, imported] =
+    await Promise.all([
+      world("kn-b03-api"),
+      world("kn-b03-api-dispute"),
+      world("kn-b03-api-withdraw"),
+      world("kn-b03-api-delisted"),
+      world("kn-b03-api-lapsed"),
+      world("kn-b03-api-correct"),
+      world("kn-b03-api-import"),
+    ])
   vi.stubEnv("KNOWLEDGE_READER_ENABLED", "true")
   vi.stubEnv(
     "KNOWLEDGE_READER_CONSUMERS",
@@ -91,6 +94,7 @@ beforeAll(async () => {
           delisted.venue,
           lapsed.venue,
           corrected.venue,
+          imported.venue,
         ],
         audiences: ["internal"],
         purposes: ["operations_lookup"],
@@ -274,5 +278,82 @@ describe("internal reader over B03-e to B03-g answers", () => {
       freshness: { observedAt: null, nextCheckDue: null, state: "unrated" },
     })
     expect(raw).not.toContain(corrected.manager.id)
+  })
+})
+
+// B03-f imports (review lows 2 and 3, b03-defg-implementation-review.md): an
+// adopted external import's excerpt is the source's own words and stays in
+// its internal provenance, never in reader output; and the reader reports
+// where the answer came from. Both fail until WS1's repair lands (the excerpt
+// moves out of limitations; the wrapper gains source_origin).
+describe("internal reader over adopted B03-f imports", () => {
+  const EXCERPT = "TEST excerpt: no customer toilets, ask at the bar"
+
+  async function adoptedImport() {
+    const v = imported
+    const source = await json<{ sourceId: string }>(
+      v.admin,
+      "knowledge_source_declare",
+      {
+        p_kind: "venue_website",
+        p_label: "TEST website",
+        p_venue_id: v.venue,
+        p_idempotency_key: crypto.randomUUID(),
+      }
+    )
+    await json(v.admin, "knowledge_source_import", {
+      p_source_id: source.sourceId,
+      p_source_revision: "r1",
+      p_retrieved_at: new Date(Date.now() - 3_600_000).toISOString(),
+      p_assertions: [
+        {
+          venueId: v.venue,
+          questionKey: "guest_toilets",
+          headline: "no",
+          excerpt: EXCERPT,
+        },
+      ],
+      p_idempotency_key: crypto.randomUUID(),
+    })
+    for (const mode of ["dry_run", "apply"])
+      await json(v.admin, "knowledge_reconcile", {
+        p_kind: "external",
+        p_mode: mode,
+        p_venue_id: v.venue,
+      })
+    const id = psql(
+      `select x.id from public.knowledge_contributions x where x.check_id = '${v.checks.guest_toilets}'`
+    )
+    const decided = await call(v.manager, "knowledge_decide", {
+      p_target_type: "contribution",
+      p_target_id: id,
+      p_decision: "confirm",
+      p_slot_revision: slotRevision(v.venue, "guest_toilets"),
+      p_idempotency_key: crypto.randomUUID(),
+      p_note: null,
+    })
+    expect(decided.error).toBeNull()
+    return one(v, "guest_toilets")
+  }
+
+  let adopted: Awaited<ReturnType<typeof adoptedImport>>
+
+  beforeAll(async () => {
+    adopted = await adoptedImport()
+    expect(adopted.answer).toMatchObject({
+      status: "available",
+      value: { type: "yes_no_na", answer: "no" },
+    })
+  })
+
+  it("never returns the source's excerpt", () => {
+    expect(adopted.raw).not.toContain(EXCERPT)
+    expect(adopted.raw).not.toContain("TEST website")
+  })
+
+  it("reports the answer's origin as external_source", () => {
+    expect(adopted.answer.provenance).toMatchObject({
+      sourceKind: "external_source",
+    })
   })
 })

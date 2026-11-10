@@ -4,6 +4,7 @@ import {
   ANSWER_VALUES,
   REDACTION_KEYS,
   SOURCE_KINDS,
+  SOURCE_ORIGINS,
   STAFF_TEXT_AUDIENCES,
   UNAVAILABLE_DETAILS,
   UNRECORDED_SOURCE_KIND,
@@ -28,6 +29,11 @@ export type ResolverRow = {
   /** Which ID names the current answer; null when there is no current answer. */
   contribution_kind: "contribution" | "submission" | null
   source_basis: "staff" | "venue_manager" | "admin" | null
+  /**
+   * Where an imported answer came from (B03-f). Optional: null or absent for
+   * every answer a person observed.
+   */
+  source_origin: (typeof SOURCE_ORIGINS)[number] | null
   finding: string | null
   limitations: string | null
   reason_text: string | null
@@ -108,6 +114,7 @@ export function parseResolverRow(raw: unknown): ResolverRow | null {
       "contribution",
       "submission",
     ] as const),
+    source_origin: oneOf(raw.source_origin, SOURCE_ORIGINS),
     source_basis: oneOf(raw.source_basis, [
       "staff",
       "venue_manager",
@@ -277,9 +284,13 @@ export function toAnswer(
     summary: withText ? row.finding : null,
     conditions,
     provenance: {
-      sourceKind: row.source_basis
-        ? SOURCE_KINDS[row.source_basis]
-        : UNRECORDED_SOURCE_KIND,
+      // An import is stored with basis admin (the admin ran it); its origin,
+      // not that basis, says where the answer came from.
+      sourceKind:
+        row.source_origin ??
+        (row.source_basis
+          ? SOURCE_KINDS[row.source_basis]
+          : UNRECORDED_SOURCE_KIND),
       contributionId,
       idKind,
       confirmation,

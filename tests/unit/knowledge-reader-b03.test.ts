@@ -280,3 +280,37 @@ describe("snapshot ETag across B03 details", () => {
     )
   })
 })
+
+describe("B03-f import provenance", () => {
+  it.each(["legacy_fact", "external_source"])(
+    "reports an adopted %s import by its origin, not the admin who ran it",
+    (origin) => {
+      expect(
+        read({
+          ...plainYes("guest_toilets"),
+          source_basis: "admin",
+          source_origin: origin,
+        })?.provenance?.sourceKind
+      ).toBe(origin)
+    }
+  )
+
+  it("keeps the basis mapping when there is no origin, or the column is absent", () => {
+    expect(
+      read({ ...plainYes("guest_toilets"), source_origin: null })?.provenance
+        ?.sourceKind
+    ).toBe("staff_observation")
+    expect(read(plainYes("guest_toilets"))?.provenance?.sourceKind).toBe(
+      "staff_observation"
+    )
+  })
+
+  it.each(["website", "booking_site", "legacy", ""])(
+    "fails closed on an unknown origin %j",
+    (origin) => {
+      expect(
+        read({ ...plainYes("guest_toilets"), source_origin: origin })
+      ).toBeNull()
+    }
+  )
+})

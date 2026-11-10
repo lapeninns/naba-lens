@@ -73,6 +73,8 @@ export const SOURCE_KINDS = {
 } as const
 /** Submissions saved before B01 never recorded their author's role. */
 export const UNRECORDED_SOURCE_KIND = "observation"
+/** Import origins (B03-f), reported as the sourceKind of an adopted import. */
+export const SOURCE_ORIGINS = ["legacy_fact", "external_source"] as const
 
 export type ReaderAnswer = {
   key: string
