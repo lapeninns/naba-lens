@@ -52,7 +52,12 @@ import {
   type UpcomingRead,
 } from "@/components/nabalens/knowledge/schedule-section"
 import { SPORT_LINES } from "@/components/nabalens/knowledge/service-detail"
-import { findingKey, type QuestionView } from "@/lib/knowledge-client/contract"
+import { CheckDatesSection } from "@/components/nabalens/knowledge/check-dates"
+import {
+  findingKey,
+  type QuestionView,
+  type RecheckTask,
+} from "@/lib/knowledge-client/contract"
 
 import { FINDING_SENT_PARAM } from "../capture/finding-sent"
 import {
@@ -175,6 +180,8 @@ export function AmenityCheckDetail({
     handlers: DecisionHandlers
     /** A policy question (B03-c): State the policy, and its cards' rows. */
     policy?: PolicyContext | null
+    /** B03-e: the check's open rechecks; null when they couldn't be read. */
+    rechecks?: { count: number; tasks: RecheckTask[] } | null
     /** A schedule in use (B03-d): Upcoming, and a change for one date. */
     schedule?: {
       read: UpcomingRead
@@ -565,6 +572,16 @@ export function AmenityCheckDetail({
           </p>
         ) : null}
       </CoverageSection>
+
+      {knowledge?.view.slot.freshness ? (
+        <CheckDatesSection
+          freshness={knowledge.view.slot.freshness}
+          rechecks={knowledge.rechecks ?? null}
+          assignee={check.assignee?.displayName ?? null}
+          findingWaiting={knowledge.view.pending.length > 0}
+          policy={statesPolicy}
+        />
+      ) : null}
 
       {knowledge?.schedule ? (
         <>

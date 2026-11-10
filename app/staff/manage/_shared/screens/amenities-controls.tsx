@@ -23,6 +23,7 @@ import {
 import { PlacesManager } from "@/components/nabalens/knowledge/places-manager"
 import type { PolicyContext } from "@/components/nabalens/knowledge/policy-detail"
 import type { UpcomingRead } from "@/components/nabalens/knowledge/schedule-section"
+import type { RecheckTask } from "@/lib/knowledge-client/contract"
 import {
   AmenitiesOverview,
   AmenityCheckDetail,
@@ -76,6 +77,7 @@ export function AmenityCheckControl({
   knowledge = null,
   policy = null,
   schedule = null,
+  rechecks = null,
 }: {
   detail: CheckDetail
   basePath: string
@@ -83,6 +85,8 @@ export function AmenityCheckControl({
   knowledge?: Extract<QuestionView, { inScope: true }> | null
   /** A policy question (B03-c): its places and value lists. */
   policy?: PolicyContext | null
+  /** B03-e: the check's open rechecks; null when unreadable. */
+  rechecks?: { count: number; tasks: RecheckTask[] } | null
   /** A schedule in use (B03-d): what Upcoming read. */
   schedule?: {
     read: UpcomingRead
@@ -102,6 +106,7 @@ export function AmenityCheckControl({
           ? {
               view: knowledge,
               policy,
+              rechecks,
               schedule: schedule
                 ? { ...schedule, addException: addScheduleExceptionAction }
                 : null,

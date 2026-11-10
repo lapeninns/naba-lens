@@ -192,6 +192,18 @@ async function policyContextFor(
   }
 }
 
+/** B03-e: a check's open rechecks; null when they can't be read. */
+async function rechecksFor(ctx: ManageContext, checkId: string) {
+  try {
+    const result = await knowledgeServices.getCheckRechecks(ctx.actor, {
+      checkId,
+    })
+    return result.ok ? { count: result.count, tasks: result.tasks } : null
+  } catch {
+    return null
+  }
+}
+
 const UPCOMING_DAYS = 91
 
 /**
@@ -261,6 +273,7 @@ export async function AmenityCheckScreen({
         upcomingFor(ctx, inScope),
       ])
     : [null, null]
+  const rechecks = inScope ? await rechecksFor(ctx, inScope.slot.checkId) : null
 
   return (
     <AmenitiesFrame
@@ -295,6 +308,7 @@ export async function AmenityCheckScreen({
         }
         policy={policy}
         schedule={schedule}
+        rechecks={rechecks}
       />
     </AmenitiesFrame>
   )

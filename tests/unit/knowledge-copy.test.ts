@@ -2,6 +2,8 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
 
 import {
   answerInUseLines,
+  checkDateBasis,
+  checkDateLine,
   captureContextLines,
   dateAndTime,
   dockNote,
@@ -27,6 +29,7 @@ import {
   knowledgeAssetsResult,
   type KnowledgeErrorCode,
   type AnswerInUse,
+  type FreshnessEntry,
   type FindingSummary,
   type WorkingSlot,
 } from "@/lib/knowledge-client/contract"
@@ -777,6 +780,51 @@ describe("recheck causes (B03 UI §6.2)", () => {
     )
     expect(line("scope_changed")).toBe(
       "A new entrance was listed after this answer was sent. Check it."
+    )
+  })
+})
+
+describe("check dates (B03 UI design §6.1)", () => {
+  const entry = (over: Partial<FreshnessEntry> = {}): FreshnessEntry => ({
+    use: "internal",
+    state: "current",
+    nextCheckDue: "2027-02-08",
+    basis: "observed_on",
+    basisDate: "2026-11-10",
+    ...over,
+  })
+
+  it("words each state for staff and internal tools, and never the public use", () => {
+    expect(checkDateLine(entry())).toBe(
+      "For staff and internal tools: up to date. Next check due 8 Feb 2027."
+    )
+    expect(checkDateLine(entry({ state: "due_soon" }))).toBe(
+      "For staff and internal tools: due for a check by 8 Feb 2027."
+    )
+    expect(checkDateLine(entry({ state: "expired" }))).toBe(
+      "For staff and internal tools: past its check date since 8 Feb 2027. Not in use for this until it's checked again."
+    )
+    expect(checkDateLine(entry({ state: "basis_missing" }))).toBe(
+      "For staff and internal tools: not in use, because it was sent without the day it was checked."
+    )
+    expect(
+      checkDateLine(entry({ state: "basis_missing" }), { policy: true })
+    ).toBe(
+      "For staff and internal tools: not in use, because it was sent without the date the policy was stated."
+    )
+    expect(checkDateLine(entry({ use: "public" }))).toBeNull()
+    expect(checkDateLine(entry({ state: "unrated" }))).toBeNull()
+  })
+
+  it("says what it counts from", () => {
+    expect(checkDateBasis(entry())).toBe(
+      "Counted from the day it was checked (10 Nov 2026)"
+    )
+    expect(checkDateBasis(entry({ basis: "stated_on" }))).toBe(
+      "Counted from the day the policy was stated (10 Nov 2026)"
+    )
+    expect(checkDateBasis(entry({ basis: "event_end" }))).toBe(
+      "Ends when the event ends"
     )
   })
 })

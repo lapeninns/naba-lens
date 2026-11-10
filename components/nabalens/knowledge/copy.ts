@@ -6,6 +6,7 @@
 import { ANSWER_LABEL, type SubmitAnswer } from "@/lib/amenities/contract"
 import type {
   AnswerInUse,
+  FreshnessEntry,
   QualifiedAnswer,
   RecheckTask,
   FindingState,
@@ -1126,4 +1127,64 @@ export const RECHECK_COPY = {
   done: "Recheck done.",
   sentOpen:
     "Recheck sent. It stays open until a manager or an admin confirms your finding.",
+} as const
+
+// ---- Check dates (B03 UI design §6.1, §6.3) --------------------------------------------
+
+const INTERNAL = "For staff and internal tools"
+
+/** The check page's line for one use's freshness; null when unrated or public. */
+export function checkDateLine(
+  entry: FreshnessEntry,
+  { policy = false }: { policy?: boolean } = {}
+): string | null {
+  // Public use gets no line until B06 grants one for the key (D-B3-7).
+  if (entry.use !== "internal") return null
+  const date = entry.nextCheckDue ? longDate(entry.nextCheckDue) : null
+  switch (entry.state) {
+    case "current":
+      return date
+        ? `${INTERNAL}: up to date. Next check due ${date}.`
+        : `${INTERNAL}: up to date.`
+    case "due_soon":
+      return date
+        ? `${INTERNAL}: due for a check by ${date}.`
+        : `${INTERNAL}: due for a check soon.`
+    case "expired":
+      return `${INTERNAL}: past its check date${date ? ` since ${date}` : ""}. Not in use for this until it's checked again.`
+    case "basis_missing":
+      return policy
+        ? `${INTERNAL}: not in use, because it was sent without the date the policy was stated.`
+        : `${INTERNAL}: not in use, because it was sent without the day it was checked.`
+    default:
+      return null
+  }
+}
+
+/** What a check date counts from (§6.1); a schedule's last day is never one. */
+export function checkDateBasis(entry: FreshnessEntry): string | null {
+  const on = entry.basisDate ? ` (${longDate(entry.basisDate)})` : ""
+  switch (entry.basis) {
+    case "observed_on":
+      return `Counted from the day it was checked${on}`
+    case "stated_on":
+      return `Counted from the day the policy was stated${on}`
+    case "event_end":
+      return "Ends when the event ends"
+    default:
+      return null
+  }
+}
+
+export const CHECK_DATES_COPY = {
+  title: "Check dates",
+  noRule: "This question has no check-date rule.",
+  waitingFinding:
+    "A finding is waiting for you to confirm; the recheck closes once it's confirmed.",
+  opensWithinHour: "Past its check date. A recheck opens within the hour.",
+  recheckOpen: (cause: string, assignee: string | null) =>
+    `Recheck open: ${cause} ${assignee ? `Assigned to ${assignee}.` : "Not assigned."}`,
+  rechecksCount: (n: number) =>
+    n === 1 ? "1 recheck is open." : `${n} rechecks are open.`,
+  rechecksFailed: "Open rechecks couldn't be loaded.",
 } as const
