@@ -1,7 +1,8 @@
 # B02 server design (WS1): reads and writes for coherent staff and manager work
 
-Owner: WS1 (knowledge domain). Status: **draft 1, for review**. Docs only: no
-B02 code or migration exists.
+Owner: WS1 (knowledge domain). Status: **draft 3 (amended), approved for
+build**. Batches B02-a and B02-b are built from this design; B02-c waits for
+owner decisions Q1 and Q4.
 
 - **Baseline:** `codex/b01-knowledge-pilot` at `a86bdba8`.
 - **Inputs:**
@@ -652,20 +653,20 @@ device copy.
 
 **Edge cases.**
 
-| Case                                                                                      | Result                                                                                                                                                                                              |
-| ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Person sends, then starts a new draft on the same question (fresh page or refreshed form) | The form's base is that send's `sentAt`, so nothing is newer and the save is allowed. **Not blocked.**                                                                                              |
-| Same form stays open after sending and the person starts again                            | The client takes `sentAt` from the send's own result (additive key) and uses it as the new base                                                                                                     |
-| The person's proposal is adopted later by a manager                                       | The adoption's submission has `source_contribution_id` and is not a send, so a draft with base = the proposal's `sentAt` (or the reloaded `mySentAt`) is allowed                                    |
-| A manager confirms or declines the person's finding                                       | Decisions are not sends; nothing changes                                                                                                                                                            |
-| A save sent before the send but processed after it (L-b)                                  | Its base predates the send → `newer_send` → refused; nothing is written                                                                                                                             |
-| A save carrying the send's own key (the form saved, then sent with the same key)          | `key_sent` → refused                                                                                                                                                                                |
-| A second device sends while this device has the form open                                 | This device's next save is refused `newer_send` with the other send's `sentAt`. WS2 says it was sent from another device and offers "Start a new draft", which saves with that `sentAt` as the base |
-| The send was replayed (same key)                                                          | No new contribution, so no new time; nothing changes                                                                                                                                                |
-| Someone else sends on the question                                                        | Not counted: only the caller's own sends are compared                                                                                                                                               |
-| The caller answered through the legacy path (question off the list)                       | Counted as a send (CA-01 also deletes the draft there)                                                                                                                                              |
-| Clock or ordering                                                                         | Times are the database's own `created_at` for both the send and the base, never the device clock. Equal times count as not newer                                                                    |
-| Transfer to another venue                                                                 | Unchanged: the check is not found for the caller, as today                                                                                                                                          |
+| Case                                                                                      | Result                                                                                                                                                                                                                |
+| ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Person sends, then starts a new draft on the same question (fresh page or refreshed form) | The form's base is that send's `sentAt`, so nothing is newer and the save is allowed. **Not blocked.**                                                                                                                |
+| Same form stays open after sending and the person starts again                            | The client takes `sentAt` from the send's own result (additive key) and uses it as the new base                                                                                                                       |
+| The person's proposal is adopted later by a manager                                       | The adoption's submission has `source_contribution_id` and is not a send, so a draft with base = the proposal's `sentAt` (or the reloaded `mySentAt`) is allowed                                                      |
+| A manager confirms or declines the person's finding                                       | Decisions are not sends; nothing changes                                                                                                                                                                              |
+| A save sent before the send but processed after it (L-b)                                  | Its base predates the send → `newer_send` → refused; nothing is written                                                                                                                                               |
+| A save carrying the send's own key (the form saved, then sent with the same key)          | `key_sent` → refused; the UI says "This finding was already sent."                                                                                                                                                    |
+| A second device sends while this device has the form open                                 | This device's next save is refused `newer_send` with the other send's `sentAt`. The UI says "You sent a finding on {date}. Start a new draft to change it."; "Start a new draft" saves with that `sentAt` as the base |
+| The send was replayed (same key)                                                          | No new contribution, so no new time; nothing changes                                                                                                                                                                  |
+| Someone else sends on the question                                                        | Not counted: only the caller's own sends are compared                                                                                                                                                                 |
+| The caller answered through the legacy path (question off the list)                       | Counted as a send (CA-01 also deletes the draft there)                                                                                                                                                                |
+| Clock or ordering                                                                         | Times are the database's own `created_at` for both the send and the base, never the device clock. Equal times count as not newer                                                                                      |
+| Transfer to another venue                                                                 | Unchanged: the check is not found for the caller, as today                                                                                                                                                            |
 
 **Migration and rollback.** In batch B02-a, in a new migration:
 
@@ -1088,3 +1089,6 @@ revision 1 and the B02-03 account matrix, at pilot head `a86bdba8`.
   adds them to the T9b-style catalogue assertion.
 - R4 and §7.1 state the visible order change for `evidence_withdrawn` and
   `confirmation_revoked` rows.
+
+**Approved for build (10 Nov 2026):** the R11 edge cases quote the UI copy
+for `key_sent` and `newer_send` (WS2 revision 5).
