@@ -820,3 +820,118 @@ describe("To confirm: each finding is an article with two headed lists (MG-15)",
     }
   })
 })
+
+describe("To confirm: a policy that still needs something (B03 UI §4.4)", () => {
+  const photo = {
+    assetId: "a1",
+    kind: "photo" as const,
+    available: true,
+    thumbUrl: null,
+    previewUrl: null,
+    streamUrl: null,
+  }
+
+  it("keeps Confirm unavailable while content is missing, saying why, and still offers more detail", async () => {
+    const { user, handlers } = setup(
+      view([finding({ answer: "yes", policyMissing: ["zones", "authority"] })])
+    )
+    const confirm = screen.getByRole("button", { name: "Confirm" })
+    expect(confirm.getAttribute("aria-disabled")).toBe("true")
+    const why = document.getElementById(
+      confirm.getAttribute("aria-describedby")!
+    )
+    expect(why?.textContent).toBe(
+      "Can't confirm yet: it still needs at least one area with its rule."
+    )
+    await user.click(confirm)
+    expect(handlers.decide).not.toHaveBeenCalled()
+    expect(
+      screen.getByRole("button", { name: "Ask for more detail" })
+    ).toBeTruthy()
+  })
+
+  it("lets Confirm supply the confirmation when that's all it needs", async () => {
+    const { user, handlers } = setup(
+      view([finding({ answer: "yes", policyMissing: ["authority"] })])
+    )
+    const confirm = screen.getByRole("button", { name: "Confirm" })
+    expect(confirm.getAttribute("aria-disabled")).toBeNull()
+    await user.click(confirm)
+    await waitFor(() => expect(handlers.decide).toHaveBeenCalled())
+  })
+
+  it("says a staff photo doesn't confirm the policy", () => {
+    setup(
+      view([
+        finding({
+          answer: "yes",
+          evidence: [photo],
+          policyMissing: ["authority", "stated_on"],
+        }),
+      ])
+    )
+    expect(
+      screen.getByText(
+        "This photo shows what Sam saw. It doesn't confirm the policy."
+      )
+    ).toBeTruthy()
+  })
+
+  it("says nothing of policies on other questions", () => {
+    setup(view([finding({ answer: "yes", evidence: [photo] })]))
+    expect(screen.queryByText(/doesn't confirm the policy/)).toBeNull()
+    expect(
+      screen
+        .getByRole("button", { name: "Confirm" })
+        .getAttribute("aria-disabled")
+    ).toBeNull()
+  })
+})
+
+describe("the check page on an incomplete policy (B03 UI §4.3)", () => {
+  it("never shows it as confirmed, and lists what it still needs", async () => {
+    const { AmenityCheckDetail } =
+      await import("@/components/nabalens/amenities/manage")
+    const { detail, WIFI_CHECK } = await import("./amenities-manage-fixtures")
+    const incomplete: AnswerInUse = {
+      ...YES,
+      status: "unavailable",
+      reason: "not_confirmed",
+      detail: "policy_incomplete",
+      policyMissing: ["conditions", "stated_on"],
+    }
+    render(
+      <AmenityCheckDetail
+        detail={detail({
+          check: { ...WIFI_CHECK, progress: "complete", answer: "yes" },
+        })}
+        basePath="/manager"
+        handlers={{
+          assign: vi.fn(),
+          setNotes: vi.fn(),
+          archive: vi.fn(),
+          restore: vi.fn(),
+          reopen: vi.fn(),
+        }}
+        knowledge={{
+          view: view([], incomplete),
+          handlers: { decide: vi.fn(), onResolveConflict: vi.fn() },
+        }}
+      />
+    )
+    const note = screen.getByRole("note", {
+      name: "What this policy still needs",
+    })
+    expect(
+      within(note)
+        .getAllByRole("listitem")
+        .map((li) => li.textContent)
+    ).toEqual(["at least one condition", "the date it was stated"])
+    expect(
+      screen.getByText(
+        "Not confirmed: it still needs at least one condition and the date it was stated."
+      )
+    ).toBeTruthy()
+    expect(screen.queryByText(/^Current answer/)).toBeNull()
+  })
+})

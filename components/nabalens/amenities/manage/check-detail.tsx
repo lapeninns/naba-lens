@@ -41,6 +41,7 @@ import {
   answerInUseLines,
   managerSentNoticeFor,
 } from "@/components/nabalens/knowledge/copy"
+import { PolicyNeedsPanel } from "@/components/nabalens/knowledge/policy-detail-fields"
 import type { QuestionView } from "@/lib/knowledge-client/contract"
 
 import { FINDING_SENT_PARAM } from "../capture/finding-sent"
@@ -316,6 +317,9 @@ export function AmenityCheckDetail({
   }
 
   const answered = answeredText(check)
+  // An incomplete policy is never shown as the current answer (B03 UI §4.3).
+  const notConfirmed =
+    knowledge?.view.slot.answerInUse.detail === "policy_incomplete"
   // "Capture myself" came back here naming this check (CA-15): say what
   // happened to the finding, from this page's read, never the URL alone.
   const sentId = React.useSyncExternalStore(
@@ -386,13 +390,18 @@ export function AmenityCheckDetail({
       ) : null}
 
       <CoverageSection id="amenity-status" title="Where it stands">
+        {knowledge?.view.slot.answerInUse.policyMissing?.length ? (
+          <PolicyNeedsPanel
+            needs={knowledge.view.slot.answerInUse.policyMissing}
+          />
+        ) : null}
         <dl className="grid gap-3 sm:grid-cols-2">
           <div className="grid gap-1">
             <dt className="text-meta-touch text-ink-muted md:text-meta">
               Progress
             </dt>
             <dd>
-              <ProgressChip check={check} />
+              <ProgressChip check={check} notConfirmed={notConfirmed} />
             </dd>
           </div>
           <div className="grid gap-1">
@@ -658,7 +667,10 @@ export function AmenityCheckDetail({
         </CoverageSection>
       ) : null}
 
-      <SubmissionHistory submissions={detail.submissions} />
+      <SubmissionHistory
+        submissions={detail.submissions}
+        currentNotConfirmed={notConfirmed}
+      />
       <EventHistory events={detail.events} people={people} />
 
       {canReopen ? (

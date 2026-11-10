@@ -29,9 +29,20 @@ const PROGRESS_ICON = {
 } as const
 
 /** Needs capture / Needs recheck / Complete, with Archived for archived checks. */
-export function ProgressChip({ check }: { check: CheckSummary }) {
+export function ProgressChip({
+  check,
+  notConfirmed = false,
+}: {
+  check: CheckSummary
+  /**
+   * The knowledge view says the answer isn't confirmed (an incomplete
+   * policy, B03 UI §4.3): never shown as the current answer.
+   */
+  notConfirmed?: boolean
+}) {
   if (check.status === "archived")
     return <StatusChip tone="closed">Archived</StatusChip>
+  if (notConfirmed) return <StatusChip state="not_confirmed" />
   // A qualified answer reads needs recheck but is an answer in use (§2.6).
   if (check.qualification)
     return (

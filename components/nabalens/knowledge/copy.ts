@@ -208,6 +208,24 @@ export function joinWords(words: readonly string[]): string {
     : (words[0] ?? "")
 }
 
+/**
+ * Why Confirm is unavailable on a policy item (§4.4): anything missing but
+ * the confirmation itself, which confirming supplies. Null when it may be
+ * confirmed.
+ */
+export function policyConfirmBlock(
+  needs: readonly PolicyNeed[] | undefined
+): string | null {
+  const content = (needs ?? []).filter((need) => need !== "authority")
+  if (!content.length) return null
+  return `Can't confirm yet: it still needs ${joinWords(policyNeedWords(content))}.`
+}
+
+/** Under a staff photo on a policy question (§4.4, S§5.3). */
+export function policyPhotoLine(firstName: string): string {
+  return `This photo shows what ${firstName} saw. It doesn't confirm the policy.`
+}
+
 /** "Not confirmed: it still needs …" (§4.3), or null when nothing is missing. */
 export function policyNotConfirmedLine(
   needs: readonly PolicyNeed[] | undefined,
@@ -274,8 +292,7 @@ export function answerInUseLines(
       return answer.qualified
         ? [qualifiedLine(answer.qualified)]
         : ["No answer in use: needs checking.", ...priorAnswer(answer, slot)]
-    case "policy_incomplete": // Never shown as confirmed while something is missing (§4.3).
-    // Without the list (an older server shape) it stays needs checking.
+    case "policy_incomplete": // Without the list (an older server shape) it stays needs checking. // Never shown as confirmed while something is missing (§4.3).
     {
       const line = policyNotConfirmedLine(answer.policyMissing)
       return line

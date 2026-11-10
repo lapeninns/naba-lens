@@ -54,6 +54,8 @@ import {
   KNOWLEDGE_ANSWER_LABEL,
   KNOWLEDGE_FAILURE_COPY,
   longDate,
+  policyConfirmBlock,
+  policyPhotoLine,
   UNKNOWN_PRESET_LABEL,
 } from "./copy"
 
@@ -443,6 +445,28 @@ export function DecisionPanel({
     )
   }
 
+  /**
+   * Confirm, or on a policy that still needs content an unavailable Confirm
+   * that says why (§4.4); Ask for more detail stays offered.
+   */
+  const confirmButton = (finding: PendingFinding) => {
+    const blocked = policyConfirmBlock(finding.policyMissing)
+    return (
+      <Button
+        size="touch"
+        disabled={decision.pending}
+        aria-disabled={blocked ? true : undefined}
+        aria-describedby={blocked ? `${cardId(finding)}-policy` : undefined}
+        onClick={() => {
+          if (!blocked) confirm(finding)
+        }}
+      >
+        <CheckIcon aria-hidden />
+        Confirm
+      </Button>
+    )
+  }
+
   const actionsFor = (finding: PendingFinding): React.ReactNode => {
     if (finding.mine && !permissions.canSelfConfirm)
       return (
@@ -494,16 +518,7 @@ export function DecisionPanel({
               Don&apos;t confirm
             </Button>
           ) : null}
-          {permissions.canConfirm ? (
-            <Button
-              size="touch"
-              disabled={decision.pending}
-              onClick={() => confirm(finding)}
-            >
-              <CheckIcon aria-hidden />
-              Confirm
-            </Button>
-          ) : null}
+          {permissions.canConfirm ? confirmButton(finding) : null}
         </>
       )
     if (finding.answer === "unknown") {
@@ -574,16 +589,7 @@ export function DecisionPanel({
             {finding.disputes ? "Keep the answer in use" : "Don't confirm"}
           </Button>
         ) : null}
-        {permissions.canConfirm ? (
-          <Button
-            size="touch"
-            disabled={decision.pending}
-            onClick={() => confirm(finding)}
-          >
-            <CheckIcon aria-hidden />
-            Confirm
-          </Button>
-        ) : null}
+        {permissions.canConfirm ? confirmButton(finding) : null}
       </>
     )
   }
@@ -899,6 +905,10 @@ function confirmationText(answer: AnswerInUse): string {
   }
 }
 
+/** A card's heading id, and the stem of the ids inside it. */
+const cardId = (finding: PendingFinding) =>
+  `finding-${findingKey(finding.findingRef).replace(":", "-")}`
+
 function FindingCard({
   finding,
   answer,
@@ -910,7 +920,8 @@ function FindingCard({
   note: string | null
   actions: React.ReactNode
 }) {
-  const titleId = `finding-${findingKey(finding.findingRef).replace(":", "-")}`
+  const titleId = cardId(finding)
+  const policyBlock = policyConfirmBlock(finding.policyMissing)
   const sender = finding.sender?.displayName ?? "a former team member"
   const isCurrent =
     finding.kind === "answer_unconfirmed" || finding.kind === "evidence_removed"
@@ -1035,8 +1046,21 @@ function FindingCard({
               : "."}
           </p>
         ) : null}
+        {finding.policyMissing && finding.evidence.length && !isCurrent ? (
+          <p className="text-body-touch text-ink md:text-body">
+            {policyPhotoLine(firstName(finding.sender))}
+          </p>
+        ) : null}
         {note ? (
           <p className="text-body-touch text-ink md:text-body">{note}</p>
+        ) : null}
+        {policyBlock ? (
+          <p
+            id={`${titleId}-policy`}
+            className="text-body-touch text-ink md:text-body"
+          >
+            {policyBlock}
+          </p>
         ) : null}
         <div className="flex flex-wrap gap-2 *:flex-auto sm:*:flex-none">
           {actions}
