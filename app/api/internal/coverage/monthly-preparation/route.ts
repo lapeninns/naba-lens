@@ -1,3 +1,5 @@
+import { startJobRun } from "@/lib/ops/heartbeat-writer"
+import { monthlyPreparationResult } from "@/lib/ops/heartbeats"
 import { archiveBearerAuthorized } from "@/lib/server/archive/authorization"
 import { runScheduledPreparation } from "@/lib/server/coverage/preparation"
 import { createAdminClient } from "@/lib/supabase/admin"
@@ -27,10 +29,13 @@ async function runAuthorised(request: Request) {
       { error: auth === "unconfigured" ? "not_configured" : "unauthorized" },
       { status: auth === "unconfigured" ? 503 : 401, headers }
     )
+  // The job is admitted: from here every invocation leaves one receipt.
+  const run = startJobRun("monthly_preparation")
   try {
     const result = await runScheduledPreparation(createAdminClient())
     if (!result.ok) {
       console.error("coverage monthly preparation failed")
+      await run.finish({ outcome: "failed", errorCode: "preparation_failed" })
       return Response.json(
         { error: "preparation_failed" },
         { status: 500, headers }
@@ -51,6 +56,7 @@ async function runAuthorised(request: Request) {
       console.error("coverage monthly preparation failed", {
         errorCodes: runs.map((r) => r.errorCode).filter(Boolean),
       })
+    await run.finish(() => monthlyPreparationResult(result.runs))
     // A failure status makes the cron history show the run as failed; the
     // next hourly run retries.
     return Response.json(
@@ -59,6 +65,7 @@ async function runAuthorised(request: Request) {
     )
   } catch {
     console.error("coverage monthly preparation failed")
+    await run.finish({ outcome: "failed", errorCode: "preparation_failed" })
     return Response.json(
       { error: "preparation_failed" },
       { status: 500, headers }

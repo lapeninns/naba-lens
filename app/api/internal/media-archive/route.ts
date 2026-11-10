@@ -1,3 +1,5 @@
+import { startJobRun, type JobRun } from "@/lib/ops/heartbeat-writer"
+import { archiveAuditResult } from "@/lib/ops/heartbeats"
 import { archiveBearerAuthorized } from "@/lib/server/archive/authorization"
 import { runArchiveAudit } from "@/lib/server/archive/audit"
 import { readArchiveConfig } from "@/lib/server/archive/config"
@@ -16,6 +18,8 @@ export async function GET(request: Request) {
         headers,
       }
     )
+  // Set once the configuration admits the job; guard exits leave no receipt.
+  let run: JobRun | null = null
   try {
     const config = readArchiveConfig()
     if (!config) {
@@ -26,7 +30,9 @@ export async function GET(request: Request) {
         return Response.json({ status: "disabled", skipped: true }, { headers })
       throw new Error("archive_disabled")
     }
+    run = startJobRun("media_archive")
     const report = await runArchiveAudit(createAdminClient())
+    await run.finish(() => archiveAuditResult(report))
     // partial, locked and idle are normal for a cycle that spans invocations.
     if (report.outcome === "failed") {
       console.error("media archive audit failed")
@@ -44,6 +50,7 @@ export async function GET(request: Request) {
   } catch {
     // Provider details, source names, object keys and credentials stay out of logs.
     console.error("media archive audit failed")
+    await run?.finish({ outcome: "failed", errorCode: "archive_audit_failed" })
     return Response.json(
       { error: "archive_audit_failed" },
       { status: 500, headers }

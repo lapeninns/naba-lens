@@ -1,5 +1,7 @@
 import { createHash, timingSafeEqual } from "node:crypto"
 
+import { startJobRun } from "@/lib/ops/heartbeat-writer"
+import { cleanupResult } from "@/lib/ops/heartbeats"
 import { runCleanup } from "@/lib/server/lifecycle"
 
 // Storage removals for up to ten batches; the next run continues if cut short.
@@ -50,6 +52,8 @@ async function runAuthorised(request: Request) {
     )
   }
 
+  // The job is admitted: from here every invocation leaves one receipt.
+  const run = startJobRun("cleanup")
   try {
     const report = await runCleanup()
     // Counts only: asset ids and object keys stay out of logs.
@@ -58,6 +62,7 @@ async function runAuthorised(request: Request) {
       failed,
       more: "more" in report ? report.more : false,
     })
+    await run.finish(() => cleanupResult(report))
     // A failure status makes Vercel Cron / CI history show the run as failed;
     // the next run retries those removals.
     return Response.json(report, {
@@ -66,6 +71,7 @@ async function runAuthorised(request: Request) {
     })
   } catch (error) {
     console.error("media cleanup failed", error)
+    await run.finish({ outcome: "failed", errorCode: "cleanup_failed" })
     return Response.json(
       { error: "cleanup_failed" },
       { status: 500, headers: NO_STORE }

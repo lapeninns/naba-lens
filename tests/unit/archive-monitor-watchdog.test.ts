@@ -2,6 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 const admin = vi.hoisted(() => vi.fn())
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: admin }))
+// The B10 job receipt has its own tests (ops-heartbeats.test.ts).
+vi.mock("@/lib/ops/heartbeat-writer", () => ({
+  startJobRun: () => ({ finish: async () => "recorded" }),
+}))
 
 import {
   createWatchdogEmailSender,
