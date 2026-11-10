@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto"
 
-import { expect, test, type Page } from "@playwright/test"
+import { expect, test, type Locator, type Page } from "@playwright/test"
 
 import { staffCaptureHref } from "../../lib/amenities/contract"
 import { signIn, type Db } from "../support/identities"
@@ -22,7 +22,13 @@ import {
   seedImages,
 } from "./helpers/coverage-world"
 import { provisioner, psql } from "./helpers/stack"
-import { escape, STAFF_LANDING } from "./helpers/ui"
+import {
+  escape,
+  expectTodoCheck,
+  STAFF_LANDING,
+  startTodoCheck,
+  todoRegion,
+} from "./helpers/ui"
 import { signedInPage } from "./helpers/world"
 
 /**
@@ -76,19 +82,50 @@ const manageLink = (page: Page) =>
     .getByRole("navigation", { name: "Staff" })
     .getByRole("link", { name: /^Manage\b/ })
 
-/** Visits each page and returns the accessible name of `link` there. */
-async function namesAcross(
+/** "Home , 103 things to do": browsers may put a space either side of the comma. */
+const homeName = (count: string) =>
+  new RegExp(`^Home ?, ?${count} things? to do$`)
+const manageName = (count: string) =>
+  new RegExp(`^Manage ?, ?${count} to review$`)
+
+/** The link's accessible name, as Playwright's accessibility snapshot has it. */
+async function accessibleName(link: Locator) {
+  const quoted = /^- link ("(?:[^"\\]|\\.)*")/.exec(await link.ariaSnapshot())
+  expect(quoted, "the link has an accessible name").not.toBeNull()
+  return JSON.parse(quoted![1]!) as string
+}
+
+/**
+ * Visits each page and asserts `link` there has the same accessible name,
+ * `name(count)` for the full count read on the first page. A badge over 9
+ * shows "9+" (aria-hidden) and keeps the full count in assistive text, so
+ * the DOM text is not the name. With `visible`, each page's badge also shows
+ * exactly that.
+ */
+async function sameCountAcross(
   page: Page,
   paths: string[],
-  link: (page: Page) => ReturnType<typeof homeTab>
+  link: (page: Page) => Locator,
+  name: (count: string) => RegExp,
+  visible?: string
 ) {
-  const names: string[] = []
+  let count: string | undefined
   for (const path of paths) {
     await page.goto(path)
     await expect(link(page)).toBeVisible()
-    names.push((await link(page).textContent())?.replace(/\s+/g, " ") ?? "")
+    if (count === undefined) {
+      const first = await accessibleName(link(page))
+      expect(first).toMatch(name("\\d+"))
+      count = name("(\\d+)").exec(first)![1]!
+    }
+    await expect(link(page), path).toHaveAccessibleName(name(count))
+    if (visible !== undefined)
+      await expect(
+        link(page).getByText(visible, { exact: true }),
+        path
+      ).toBeVisible()
   }
-  return names
+  return Number(count)
 }
 
 test.describe("Home: truthful To do and badges", () => {
@@ -99,7 +136,7 @@ test.describe("Home: truthful To do and badges", () => {
   }) => {
     const w = await provisionAmenitiesWorld()
     // Two checks, both photo evidence; no coverage task or target.
-    await readyCheck(w, w.venueA, "darts", w.staffA)
+    const darts = await readyCheck(w, w.venueA, "darts", w.staffA)
     const toilets = checkId(w.venueA, "guest_toilets")
     await amenityOk(await sessionOf(w.admin), "amenity_assign_check", {
       p_check_id: toilets,
@@ -115,15 +152,28 @@ test.describe("Home: truthful To do and badges", () => {
 
     const page = await signedInPage(browser, w.staffA, PHONE)
     await expect(page).toHaveURL(STAFF_LANDING)
-    const todo = page.getByRole("region", { name: /^To do/ })
+    const todo = todoRegion(page)
     await expect(todo).toHaveAccessibleName(/^To do, 2 things to do$/)
     await expect(page.getByText("Nothing to do right now.")).toHaveCount(0)
+    // Each check has its own card and exact action, opening that check.
+    const checks = new Map([
+      [darts, question("darts")],
+      [toilets, question("guest_toilets")],
+    ])
+    for (const [id, q] of checks) await expectTodoCheck(page, q, id)
 
     // The lead card starts the first check in one tap.
-    await todo.getByRole("link", { name: /^Start check: / }).tap()
-    await expect(page).toHaveURL(/\/staff\/tasks\/amenities\/[0-9a-f-]+$/)
-    const sent = page.url().split("/").pop()!
-    const left = sent === toilets ? checkId(w.venueA, "darts") : toilets
+    const leadHref = await todo
+      .getByRole("listitem")
+      .first()
+      .getByRole("link", { name: /^Start check: / })
+      .getAttribute("href")
+    const sent = [...checks.keys()].find(
+      (id) => staffCaptureHref(id) === leadHref
+    )
+    if (!sent) throw new Error(`The lead card opens ${leadHref}, not a check`)
+    await startTodoCheck(page, checks.get(sent)!, sent, "tap")
+    const left = sent === toilets ? darts : toilets
     const form = captureForm(page)
     await form.answer("yes")
     await form.attach(photo)
@@ -136,12 +186,12 @@ test.describe("Home: truthful To do and badges", () => {
     const notice = page.getByRole("status").filter({ hasText: "Finding sent" })
     await expect(notice).toBeVisible()
     await expect(notice).toBeFocused()
-    const sentKey = sent === toilets ? "guest_toilets" : "darts"
-    await expect(notice).toContainText(question(sentKey))
+    await expect(notice).toContainText(checks.get(sent)!)
     await expect(todo).toHaveAccessibleName(/^To do, 1 things? to do$/)
     await expect(
       todo.getByRole("link", { name: /^Start check: / })
-    ).toHaveAttribute("href", staffCaptureHref(left))
+    ).toHaveCount(1)
+    await expectTodoCheck(page, checks.get(left)!, left)
 
     await page.reload()
     await expect(notice).toBeVisible()
@@ -157,11 +207,7 @@ test.describe("Home: truthful To do and badges", () => {
     ).toHaveCount(0)
 
     // The remaining check keeps the Home badge on every other tab.
-    const names = await namesAcross(page, BADGE_PAGES, homeTab)
-    expect(
-      names.every((n) => /^Home, ?1 thing to do$/.test(n)),
-      names.join(" | ")
-    ).toBe(true)
+    expect(await sameCountAcross(page, BADGE_PAGES, homeTab, homeName)).toBe(1)
   })
 
   test("an old request for another photo stays in To do, and badges match on every page at 390 and 1280", async ({
@@ -226,22 +272,24 @@ test.describe("Home: truthful To do and badges", () => {
 
     const page = await signedInPage(browser, w.staffA, PHONE)
     await expect(page).toHaveURL(STAFF_LANDING)
-    const todo = page.getByRole("region", { name: /^To do/ })
+    const todo = todoRegion(page)
     await expect(todo.getByText(reason)).toBeVisible()
     await expect(
       todo.getByRole("link", { name: `Send another photo for ${title}` })
     ).toBeVisible()
-    const staffNames = await namesAcross(
+    // Over 9: the phone badge shows "9+" and reads the full count.
+    const staffCount = await sameCountAcross(
       page,
       [...BADGE_PAGES, `/staff/people/${w.staffB.id}`, "/staff/profile"],
-      homeTab
+      homeTab,
+      homeName,
+      "9+"
     )
-    expect(new Set(staffNames).size, staffNames.join(" | ")).toBe(1)
-    expect(staffNames[0]).toMatch(/^Home, ?\d+ things? to do$/)
+    expect(staffCount).toBeGreaterThan(9)
 
     // A staff-held venue manager at 1280: the same Manage badge everywhere.
     const desk = await signedInPage(browser, w.manager, DESKTOP)
-    const managerNames = await namesAcross(
+    const reviewCount = await sameCountAcross(
       desk,
       [
         "/staff/tasks",
@@ -252,10 +300,10 @@ test.describe("Home: truthful To do and badges", () => {
         "/staff/tasks/month",
         `/staff/tasks/${task!.requirement_id}`,
       ],
-      manageLink
+      manageLink,
+      manageName
     )
-    expect(new Set(managerNames).size, managerNames.join(" | ")).toBe(1)
     // 101 photos wait for review; the number itself is the summary's.
-    expect(managerNames[0]).toMatch(/^Manage, ?[1-9]\d* to review$/)
+    expect(reviewCount).toBeGreaterThan(0)
   })
 })

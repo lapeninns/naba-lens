@@ -1,6 +1,5 @@
 import { expect, test } from "@playwright/test"
 
-import { UI_TEXT } from "../../lib/amenities/contract"
 import {
   amenityOk,
   captureForm,
@@ -15,6 +14,7 @@ import {
 import { activeItemId, labelledPhoto } from "./helpers/manager-world"
 import { activateMenu, createMenuDraft, ok } from "./helpers/menus"
 import { psql } from "./helpers/stack"
+import { startTodoCheck } from "./helpers/ui"
 import { signedInPage } from "./helpers/world"
 
 test("a staff target combines distinct menu items and completed amenity checks", async ({
@@ -90,10 +90,7 @@ test("a staff target combines distinct menu items and completed amenity checks",
     await staff
       .getByRole("link", { name: "See assigned checks on Home" })
       .click()
-    await staff
-      .getByRole("region", { name: UI_TEXT.staffSection })
-      .getByRole("link", { name: question("darts"), exact: true })
-      .click()
+    await startTodoCheck(staff, question("darts"), darts)
     const form = captureForm(staff)
     await form.answer("yes")
     await form.attach(photo)

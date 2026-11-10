@@ -296,23 +296,16 @@ const EDIT_CONFLICT = "Someone else changed this a moment ago."
 /**
  * D21: after a conflict the dialog is gone, the page notice (a focusable
  * `role="status"` CoverageNotice) is the one place the message appears, no
- * `role="alert"` repeats it, and focus is on the notice.
+ * `role="alert"` repeats it, and focus is on that status itself (the visual
+ * `data-slot="notice"` is its child).
  */
 async function expectConflictNotice(page: Page, conflict = REVIEW_CONFLICT) {
-  await expect(
-    page.getByRole("status").filter({ hasText: conflict })
-  ).toHaveCount(1)
+  const notice = page.getByRole("status").filter({ hasText: conflict })
+  await expect(notice).toHaveCount(1)
   await expect(
     page.getByRole("alert").filter({ hasText: conflict })
   ).toHaveCount(0)
-  await expect
-    .poll(() =>
-      page.evaluate((text) => {
-        const notice = document.activeElement?.closest('[data-slot="notice"]')
-        return !!notice && (notice.textContent ?? "").includes(text)
-      }, conflict)
-    )
-    .toBe(true)
+  await expect(notice).toBeFocused()
 }
 
 test.describe("coverage acceptance: menus, completion and lifecycle (WS5)", () => {

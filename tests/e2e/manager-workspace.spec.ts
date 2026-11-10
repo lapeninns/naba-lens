@@ -3,7 +3,6 @@ import {
   expect,
   test,
   type BrowserContextOptions,
-  type Locator,
   type Page,
   type TestInfo,
 } from "@playwright/test"
@@ -109,15 +108,6 @@ const card = (page: Page, label: string, who: Person) =>
     .getByRole("article")
     .filter({ hasText: label })
     .filter({ hasText: who.name })
-
-/** Clicks a card action, opening "More actions" first when it is tucked away. */
-async function cardAction(page: Page, scope: Locator, name: string) {
-  const button = scope.getByRole("button", { name, exact: true })
-  if (!(await button.isVisible())) {
-    await scope.getByRole("button", { name: "More actions" }).click()
-  }
-  await button.click()
-}
 
 async function statusFilter(page: Page, name: string) {
   await page
@@ -525,12 +515,15 @@ test.describe("venue manager workspace (Phase 2)", () => {
     ).toBeVisible()
 
     // Withdraw the relinked acceptance with a reason: Lager needs a photo again.
+    // The accepted Lager card offers Withdraw acceptance directly at both
+    // widths; the click waits for it while the list switches to Accepted.
     await statusFilter(mgr, "Accepted")
-    await cardAction(
-      mgr,
-      card(mgr, "Labelled: Salad", w.staffA1),
-      "Withdraw acceptance"
-    )
+    const accepted = card(mgr, "Labelled: Salad", w.staffA1).filter({
+      has: mgr.getByRole("heading", { level: 3, name: "Lager", exact: true }),
+    })
+    await accepted
+      .getByRole("button", { name: "Withdraw acceptance", exact: true })
+      .click()
     const withdraw = mgr.getByRole("dialog", {
       name: "Withdraw acceptance for Lager",
     })
