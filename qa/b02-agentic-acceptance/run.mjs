@@ -37,12 +37,14 @@ import {
   fsyncSync,
   lstatSync,
   mkdirSync,
+  mkdtempSync,
   openSync,
   readdirSync,
   readFileSync,
   readSync,
   realpathSync,
   renameSync,
+  rmSync,
   unlinkSync,
   writeSync,
 } from "node:fs"
@@ -506,6 +508,52 @@ export function requirePrivateDir(path, name) {
   if (stat.mode & 0o077) fail(`${name} is not private (mode ${(stat.mode & 0o777).toString(8)}).`)
 }
 
+/**
+ * Every directory from the private results root down to `dir` (inclusive):
+ * each a real private directory of this user's, checked with lstat so a
+ * replaced parent (a link anywhere in the chain) is refused rather than
+ * followed, and the physical path exactly that chain. Run before every read
+ * or write in a run's output; a leaf O_NOFOLLOW alone cannot see a parent link.
+ */
+export function requirePrivateChain(root, dir) {
+  const rel = relative(root, dir)
+  if (rel.startsWith("..") || isAbsolute(rel)) fail(`${dir} is outside the private results directory.`)
+  requirePrivateDir(root, "The results directory")
+  let at = root
+  for (const part of rel ? rel.split(sep) : []) {
+    at = join(at, part)
+    requirePrivateDir(at, `${relative(dirname(root), at)}`)
+  }
+  const physical = real(root)
+  if (!physical || real(dir) !== (rel ? join(physical, rel) : physical)) fail(`${relative(dirname(root), dir) || dir} does not resolve inside the private results directory.`)
+}
+
+/**
+ * readJson inside the private chain: the chain is checked before the file is
+ * opened (never following a link) and again after it is read, and the
+ * descriptor actually read must be the file at the verified path both times;
+ * anything replaced meanwhile is a problem, not a value.
+ */
+export function readPrivateJson(root, file, max = REPORT_MAX) {
+  try {
+    requirePrivateChain(root, dirname(file))
+  } catch {
+    return { problem: "in a directory that is not this run's private output (a link or replaced parent)" }
+  }
+  const before = lstatSync(file, { throwIfNoEntry: false })
+  const { identity, ...read } = readJsonWithIdentity(file, max)
+  try {
+    requirePrivateChain(root, dirname(file))
+  } catch {
+    return { problem: "in a directory replaced while it was read" }
+  }
+  const after = lstatSync(file, { throwIfNoEntry: false })
+  // The descriptor read must be the file at the verified path before and after: a parent swapped in and back is caught here.
+  const same = (stat) => stat && identity && stat.ino === identity.ino && stat.dev === identity.dev
+  if ((before || after || identity) && !(same(before) && same(after))) return { problem: "replaced while it was read" }
+  return read
+}
+
 /** Creates `path` exclusively (an existing file or link is refused, never followed), private and durable. */
 export function createPrivateFile(path, text) {
   const fd = openSync(path, FS.O_WRONLY | FS.O_CREAT | FS.O_EXCL | NOFOLLOW, 0o600)
@@ -540,6 +588,13 @@ const REPORT_MAX = 64 * 1024 * 1024
  * throws: { value } or { problem } ("missing", "a link", "malformed", ...).
  */
 export function readJson(file, max = REPORT_MAX) {
+  const read = readJsonWithIdentity(file, max)
+  delete read.identity
+  return read
+}
+
+/** readJson, plus the dev/ino of the file descriptor actually read (when one was opened). */
+function readJsonWithIdentity(file, max = REPORT_MAX) {
   let stat
   try {
     stat = lstatSync(file)
@@ -555,8 +610,11 @@ export function readJson(file, max = REPORT_MAX) {
   } catch {
     return { problem: "unreadable" }
   }
+  let identity
   try {
-    const size = Math.min(fstatSync(fd).size, max)
+    const opened = fstatSync(fd)
+    identity = { dev: opened.dev, ino: opened.ino }
+    const size = Math.min(opened.size, max)
     const bytes = Buffer.alloc(size)
     let read = 0
     while (read < size) {
@@ -564,9 +622,9 @@ export function readJson(file, max = REPORT_MAX) {
       if (n === 0) break
       read += n
     }
-    return { value: JSON.parse(bytes.subarray(0, read).toString("utf8")) }
+    return { value: JSON.parse(bytes.subarray(0, read).toString("utf8")), identity }
   } catch {
-    return { problem: "malformed" }
+    return { problem: "malformed", identity }
   } finally {
     closeSync(fd)
   }
@@ -734,7 +792,7 @@ export function prepareRunRoot(id, results = RESULTS) {
 /** A suite's output directory: inside the private run, and new (no earlier report can be read as this run's). */
 export function freshOutput(runRoot, suite) {
   if (!isSuite(suite)) fail(`${String(suite)} is not a suite.`)
-  requirePrivateDir(runRoot, "The run directory")
+  requirePrivateChain(dirname(runRoot), runRoot)
   const dir = join(runRoot, suite)
   let exists = true
   try {
@@ -757,7 +815,7 @@ export function startJournal(worldDir, header) {
 /** The summary, created exclusively in the private run directory and redacted as it is serialised. */
 export function writeSummary(runRoot, summary, secrets = []) {
   try {
-    requirePrivateDir(runRoot, "The run directory")
+    requirePrivateChain(dirname(runRoot), runRoot)
     const text = redact(redact(JSON.stringify(summary, null, 2), secrets), OUTGOING) + "\n"
     createPrivateFile(join(runRoot, "summary.json"), text)
     return { ok: true }
@@ -840,6 +898,8 @@ export function createReceipt(path, identity) {
 // ---- Process groups --------------------------------------------------------------------------
 
 export class Interrupted extends Error {}
+/** A phase refused because an earlier process group's settlement is uncertain. */
+export class Uncertain extends Error {}
 
 /**
  * Kernel evidence for a process group, independent of any stop helper:
@@ -860,41 +920,100 @@ export function probeGroup(pgid, kill = process.kill.bind(process)) {
 }
 
 /**
- * The process table as { pid, ppid, pgid } rows (ps), or null when it cannot
- * be read: missing evidence, which the supervisor treats as uncertain.
+ * Whether a process's command line or environment text names one of
+ * `markers` (a child's private TMPDIR) as that path itself, not as part of a
+ * longer path.
  */
-export function processTable() {
-  const r = spawnSync("ps", ["-axo", "pid=,ppid=,pgid="], { encoding: "utf8", timeout: 30_000, maxBuffer: 16 * 1024 * 1024 })
+export function carriesMarker(text, markers) {
+  if (typeof text !== "string") return false
+  for (const marker of markers) {
+    if (!marker) continue
+    for (let at = text.indexOf(marker); at >= 0; at = text.indexOf(marker, at + 1)) {
+      const before = at === 0 ? "" : text[at - 1]
+      const after = text[at + marker.length] ?? ""
+      if (!/[A-Za-z0-9._/-]/.test(before) && (after === "" || /[/\s"'=:]/.test(after))) return true
+    }
+  }
+  return false
+}
+
+/** The runner's own app command on the app port (next start ... --port 3646), as the coordinator's scan names it. */
+export const APP_COMMAND = new RegExp(`(?:next(?:[\\s-]|\\/)|node[^\\n]*next)[^\\n]*\\bstart\\b[^\\n]*--port(?:=| )${STACK.appPort}(?:\\s|$)`)
+
+/** A row carries one of `markers`: from the live table's flag, or an offline row's text. */
+const isMarked = (row, markers) => row.marked === true || carriesMarker(row.command, markers)
+
+/**
+ * The process table as { pid, ppid, pgid, marked, app } rows (ps), or null
+ * when it cannot be read: missing evidence, which the supervisor treats as
+ * uncertain. -E adds each of this user's processes' environment, so a
+ * detached descendant still shows the private TMPDIR it inherited after its
+ * parent has gone. That text holds credentials: it never leaves this
+ * function, only the two flags derived from it (`marked`: it names one of
+ * `markers`; `app`: it is the app command on the app port).
+ */
+export function processTable(markers = []) {
+  const r = spawnSync("ps", ["-axwwE", "-o", "pid=,ppid=,pgid=,command="], { encoding: "utf8", timeout: 30_000, maxBuffer: 256 * 1024 * 1024 })
   if (r.error || r.status !== 0) return null
   const rows = []
   for (const line of r.stdout.split("\n")) {
-    const [pid, ppid, pgid] = line.trim().split(/\s+/).map(Number)
-    if ([pid, ppid, pgid].every((n) => Number.isInteger(n) && n >= 0)) rows.push({ pid, ppid, pgid })
+    const m = /^\s*(\d+)\s+(\d+)\s+(\d+)(?:\s(.*))?$/.exec(line)
+    if (!m) continue
+    const text = m[4] ?? ""
+    rows.push({ pid: Number(m[1]), ppid: Number(m[2]), pgid: Number(m[3]), marked: carriesMarker(text, markers), app: APP_COMMAND.test(text) })
   }
   return rows
 }
 
-/** Every process descending from group `pgid` (its members and their children, any depth) that has left it, pid -> pgid. */
-export function escapedDescendants(rows, pgid) {
+/**
+ * Every process this child demonstrably owns in one fresh table: the members
+ * of its own group (a group id is never reused while it has a member), every
+ * process carrying its private path, and every current child of an owned
+ * process, at any depth. A pid recorded earlier proves nothing by itself
+ * (it may have been reused); only these present facts count. Once the own
+ * group is proven empty its id may be reused, so `group: false` drops that
+ * seed and only the private path proves ownership.
+ */
+export function ownedProcesses(rows, pgid, markers = [], { group = true } = {}) {
   const children = new Map()
   for (const row of rows) {
     if (!children.has(row.ppid)) children.set(row.ppid, [])
     children.get(row.ppid).push(row)
   }
-  const out = new Map()
-  const queue = rows.filter((row) => row.pgid === pgid)
-  const seen = new Set(queue.map((row) => row.pid))
+  const queue = rows.filter((row) => (group && row.pgid === pgid) || isMarked(row, markers))
+  const owned = new Set(queue.map((row) => row.pid))
   while (queue.length) {
     const row = queue.shift()
-    if (row.pgid !== pgid) out.set(row.pid, row.pgid)
     for (const child of children.get(row.pid) ?? []) {
-      if (seen.has(child.pid)) continue
-      seen.add(child.pid)
+      if (owned.has(child.pid)) continue
+      owned.add(child.pid)
       queue.push(child)
     }
   }
-  return out
+  return owned
 }
+
+/** Every owned process (ownedProcesses) that has left group `pgid`, pid -> pgid. */
+export function escapedDescendants(rows, pgid, markers = [], options = {}) {
+  const owned = ownedProcesses(rows, pgid, markers, options)
+  return new Map(rows.filter((row) => owned.has(row.pid) && row.pgid !== pgid).map((row) => [row.pid, row.pgid]))
+}
+
+/** A listener lookup that answers null (unknown) instead of throwing. */
+const listenersOrNull = (port) => {
+  try {
+    return listeners(port)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Where each child's private TMPDIR is made: short (Chromium's socket paths
+ * under a profile must stay below the macOS limit), as in the coordinator's
+ * runner. The directory names the child's processes in the process table.
+ */
+export const SCRATCH_ROOT = "/tmp"
 
 async function absence(pgid, probe, ms) {
   const deadline = Date.now() + ms
@@ -913,20 +1032,34 @@ const CAPTURE_LIMIT = 16 * 1024 * 1024
 
 /**
  * Owns every process group a run starts: seed, build, scan, app, collection,
- * e2e runners and Playwright. Each child is its own group. A group counts as
- * settled only when the stop helper has returned and the kernel then shows
- * no member (probeGroup), and its output has closed; anything else (a helper
- * that returns or throws while members remain, missing or ambiguous
+ * e2e runners and Playwright. Each child is its own group with its own
+ * private TMPDIR (made under `scratchRoot`), which every descendant inherits,
+ * so the process table can name the child's processes even after a detached
+ * one has left the group and lost its parent. A group counts as settled only
+ * when the stop helper has returned and the kernel then shows no member
+ * (probeGroup), every escaped group it owned is gone, no process carrying its
+ * private path (or, for the app, its command or a listener on its port)
+ * remains, and its output has closed; anything else (a helper that returns,
+ * throws or never returns while members remain, missing or ambiguous
  * evidence, output that never closes) is uncertain and recorded with the
- * group's identity in the receipt. Once interrupted, no phase or child starts
- * again (ensureActive), and interrupt() resolves only when every group has
- * been stopped and checked.
+ * group's identity in the receipt. A child is never awaited past a timeout or
+ * an interrupt: its result is the bounded stop's verdict, whether or not its
+ * leader ever exits. A group other than the child's own is signalled only
+ * when every member is freshly proven this child's (ownedProcesses); a mixed
+ * or unproven group is left alone and uncertain. Once interrupted, or once
+ * any settlement is uncertain, no phase or child starts again (ensureActive),
+ * and interrupt() resolves only when every group has been stopped and
+ * checked. settle() is the one teardown: it stops what still runs, sweeps the
+ * process table for every private path and the app port, and removes the
+ * private TMPDIRs only when the whole run settled.
  */
 export function createSupervisor({
   stack,
   receipt = null,
   probe = probeGroup,
   table = processTable,
+  listeners: listenersOf = listenersOrNull,
+  scratchRoot = SCRATCH_ROOT,
   log = say,
   stopHelperMs = STOP_HELPER_MS,
   absenceMs = ABSENCE_MS,
@@ -937,47 +1070,82 @@ export function createSupervisor({
   const reasons = []
   let interrupted = null
   let interrupting = null
+  let swept = false
 
   const view = (e) => ({
     role: e.role,
     pgid: e.pgid,
     command: e.command,
+    scratch: e.scratch,
+    ...(e.port ? { port: e.port } : {}),
     startedAt: e.startedAt,
     state: e.state,
     stoppedAt: e.stoppedAt ?? null,
     escaped: [...new Set(e.escaped.values())],
     evidence: e.evidence ?? null,
   })
+  /** A private TMPDIR for one child; its two spellings (/tmp is a link) are the child's markers. */
+  const privateScratch = () => {
+    const dir = mkdtempSync(join(scratchRoot, "nb02-"))
+    return { dir, markers: [...new Set([dir, real(dir) ?? dir])] }
+  }
+  const removeScratch = (dir) => {
+    try {
+      if (dir) rmSync(dir, { recursive: true, force: true })
+    } catch {
+      // Left for the coordinator; it holds no evidence.
+    }
+  }
+  const withScratch = (opts, scratch) => ({ ...opts, env: { ...(opts.env ?? process.env), TMPDIR: scratch.dir } })
   /**
-   * Descendants that leave the group (Playwright launches each browser
+   * Owned descendants that leave the group (Playwright launches each browser
    * detached, in its own group) are recorded from the process table while
    * the group lives, so they can be stopped and checked too.
    */
   const watch = (entry) => {
-    const rows = table()
+    const rows = table(entry.markers)
     if (!rows) {
       entry.tableMissing = true
       return
     }
     let added = false
-    for (const [pid, pgid] of escapedDescendants(rows, entry.pgid)) {
+    for (const [pid, pgid] of escapedDescendants(rows, entry.pgid, entry.markers)) {
       if (!entry.escaped.has(pid)) added = true
       entry.escaped.set(pid, pgid)
     }
     if (added) persist()
   }
-  /** Stops each recorded escaped group whose live members are pids this run recorded; anything else is uncertain. */
+  /**
+   * Stops each escaped group (recorded, or found now by the child's private
+   * path) only when a fresh table, read immediately before the signal, shows
+   * every one of its members owned by this child; anything else is uncertain
+   * and never signalled.
+   */
   const stopEscaped = async (entry) => {
     const states = []
+    const seeds = { group: entry.ownAbsent !== true }
+    const now = table(entry.markers)
+    if (!now) entry.tableMissing = true
+    else for (const [pid, pgid] of escapedDescendants(now, entry.pgid, entry.markers, seeds)) entry.escaped.set(pid, pgid)
     for (const pgid of new Set(entry.escaped.values())) {
       if (probe(pgid) === "absent") {
         states.push([pgid, "absent"])
         continue
       }
-      const rows = table()
-      const members = rows ? rows.filter((row) => row.pgid === pgid) : null
-      if (!members || (members.length && !members.some((row) => entry.escaped.has(row.pid)))) {
-        states.push([pgid, members ? "not proven this run's" : "unknown"])
+      const rows = table(entry.markers)
+      if (!rows) {
+        states.push([pgid, "unknown"])
+        continue
+      }
+      const members = rows.filter((row) => row.pgid === pgid)
+      if (members.length === 0) {
+        states.push([pgid, probe(pgid) === "absent" ? "absent" : "not proven this run's (no visible member)"])
+        continue
+      }
+      const owned = ownedProcesses(rows, entry.pgid, entry.markers, seeds)
+      const ours = members.filter((row) => owned.has(row.pid)).length
+      if (ours !== members.length) {
+        states.push([pgid, ours ? "not proven this run's (mixed membership)" : "not proven this run's"])
         continue
       }
       try {
@@ -1002,8 +1170,8 @@ export function createSupervisor({
     reasons.push(entry ? `${entry.role} (process group ${entry.pgid}): ${why}` : why)
     persist()
   }
-  const track = (role, pid, cmd) => {
-    const entry = { role, pgid: pid, command: basename(String(cmd)), startedAt: iso(), state: "running", escaped: new Map() }
+  const track = (role, pid, cmd, scratch, port = null) => {
+    const entry = { role, pgid: pid, command: basename(String(cmd)), scratch: scratch.dir, markers: scratch.markers, port, startedAt: iso(), state: "running", escaped: new Map() }
     groups.push(entry)
     persist()
     entry.watcher = setInterval(() => watch(entry), watchMs)
@@ -1016,19 +1184,38 @@ export function createSupervisor({
       clearInterval(entry.watcher)
       watch(entry)
       let helper = "returned"
-      try {
-        if ((await within(Promise.resolve().then(() => stack.terminateGroup(entry.pgid)), stopHelperMs)) === DEADLINE) helper = "did not return"
-      } catch {
-        helper = "threw"
+      // A group already proven empty is never signalled: its id may be reused by then.
+      if (probe(entry.pgid) === "absent") helper = "not needed (already absent)"
+      else {
+        try {
+          if ((await within(Promise.resolve().then(() => stack.terminateGroup(entry.pgid)), stopHelperMs)) === DEADLINE) helper = "did not return"
+        } catch {
+          helper = "threw"
+        }
       }
       const group = await absence(entry.pgid, probe, absenceMs)
+      if (group === "absent") entry.ownAbsent = true
       const escaped = await stopEscaped(entry)
+      // What is left now: processes carrying its private path or (the app) its command, and listeners on its port.
+      const after = table(entry.markers)
+      const lingering = after ? after.filter((row) => isMarked(row, entry.markers) || (entry.port && row.app === true)).length : null
+      const held = entry.port ? listenersOf(entry.port) : []
       entry.stoppedAt = iso()
-      entry.evidence = { stopHelper: helper, group, escaped: Object.fromEntries(escaped), processTable: entry.tableMissing ? "unavailable" : "read" }
+      entry.evidence = {
+        stopHelper: helper,
+        group,
+        escaped: Object.fromEntries(escaped),
+        processTable: entry.tableMissing || !after ? "unavailable" : "read",
+        lingering: lingering ?? "unknown",
+        ...(entry.port ? { listeners: held ? held.length : "unknown" } : {}),
+      }
       const left = escaped.filter(([, state]) => state !== "absent")
       if (group !== "absent") doubt(entry, `the group is ${group} after the stop helper ${helper}`)
       else if (left.length) doubt(entry, `escaped descendant groups remain: ${left.map(([pgid, state]) => `${pgid} ${state}`).join(", ")}`)
-      else if (entry.tableMissing) doubt(entry, "the process table could not be read, so escaped descendants are unknown")
+      else if (entry.tableMissing || !after) doubt(entry, "the process table could not be read, so escaped descendants are unknown")
+      else if (lingering) doubt(entry, `${lingering} process(es) carrying its private path${entry.port ? " or the app command" : ""} remain`)
+      else if (!held) doubt(entry, `the listeners on port ${entry.port} could not be read`)
+      else if (held.length) doubt(entry, `port ${entry.port} still has ${held.length} listener(s) after the group stopped`)
       else {
         entry.state = "settled"
         persist()
@@ -1042,21 +1229,39 @@ export function createSupervisor({
     const drains = []
     let captured = ""
     let overflow = false
+    let muted = false
+    let quiet = false
+    const echo = (stream) => (text) => quiet || stream.write(text)
     const keep = (text) => {
       if (captured.length + text.length > CAPTURE_LIMIT) overflow = true
       else captured += text
     }
     for (const [stream, write] of [
-      [child.stdout, capture ? keep : (text) => out.write(text)],
-      [child.stderr, (text) => err.write(text)],
+      [child.stdout, capture ? keep : echo(out)],
+      [child.stderr, echo(err)],
     ]) {
       if (!stream) continue
-      const redactor = lineRedactor(secrets, write)
+      const redactor = lineRedactor(secrets, (text) => muted || write(text))
       stream.setEncoding("utf8")
       stream.on("data", (chunk) => redactor.push(chunk))
       drains.push(new Promise((done) => stream.once("close", () => (redactor.end(), done()))))
     }
-    return { drained: () => Promise.all(drains), captured: () => ({ text: captured, overflow }) }
+    return {
+      drained: () => Promise.all(drains),
+      captured: () => ({ text: captured, overflow }),
+      /** After a timeout or interrupt: nothing more is shown (echoed) while the bounded stop decides. */
+      mute: () => {
+        quiet = true
+      },
+      /** An unsettled child: nothing more of its output is read, kept or shown, and it no longer holds the runner open. */
+      release: () => {
+        muted = true
+        captured = ""
+        child.stdout?.destroy()
+        child.stderr?.destroy()
+        child.unref?.()
+      },
+    }
   }
 
   function outputSettled(entry, output) {
@@ -1070,63 +1275,94 @@ export function createSupervisor({
     return entry.outputCheck
   }
 
+  /** The first reason settlement is uncertain, or null. */
+  const uncertainty = () => reasons[0] ?? (groups.some((e) => e.state === "uncertain") ? "a process group is uncertain" : null)
+
   function ensureActive(phase) {
     if (interrupted) throw new Interrupted(`Interrupted (${interrupted}); ${phase} was not started.`)
+    const why = uncertainty()
+    if (why) throw new Uncertain(`Process settlement is uncertain (${why}); ${phase} was not started.`)
   }
 
   /**
    * One bounded child in its own group: resolves { code, settled, output }
-   * only after the group is stopped and checked and its output has closed.
-   * 124 after the timeout, 130 after an interrupt, 127 when it cannot start.
+   * once the group is stopped and checked and its output has closed, or, after
+   * a timeout or an interrupt, once the bounded stop has decided, even if the
+   * leader never exits. 124 after the timeout, 130 after an interrupt, 127
+   * when it cannot start. An unsettled child's output is withheld (released,
+   * never returned) and the caller must not read anything it wrote.
    */
   function run(role, cmd, args, opts, ms, io = {}) {
     ensureActive(role)
+    const scratch = privateScratch()
     return new Promise((resolve) => {
       let child
       try {
-        child = spawn(cmd, args, { ...opts, stdio: ["ignore", "pipe", "pipe"], detached: true })
+        child = spawn(cmd, args, { ...withScratch(opts, scratch), stdio: ["ignore", "pipe", "pipe"], detached: true })
       } catch {
+        removeScratch(scratch.dir)
         resolve({ code: 127, settled: true, output: "", overflow: false })
         return
       }
-      const entry = child.pid ? track(role, child.pid, cmd) : null
+      const entry = child.pid ? track(role, child.pid, cmd, scratch) : null
       const output = attach(child, io)
       let cause = null
+      let wake
+      const woken = new Promise((done) => (wake = done))
+      const exited = new Promise((done) => {
+        child.on("error", () => done({ code: 127, spawnFailed: !child.pid }))
+        child.on("exit", (code, signal) => done({ code: code ?? (signal ? 124 : 1) }))
+      })
       if (entry) {
         entry.output = output
-        entry.cause = (why) => (cause ??= why)
+        entry.cause = (why) => {
+          cause ??= why
+          // Its settlement is now in doubt until the stop decides: show nothing more of it.
+          output.mute()
+          wake()
+        }
       }
       const timer = setTimeout(() => {
         if (!entry) return
-        cause ??= "timeout"
         log(`${role} exceeded ${Math.round(ms / 1000)}s; stopping its process group`)
-        stop(entry)
+        entry.cause("timeout")
       }, ms)
-      let finished = false
-      const finish = async (code, spawnFailed) => {
-        if (finished) return
-        finished = true
+      ;(async () => {
+        // The child's own exit, or the timeout or interrupt: never the leader's exit alone after either.
+        const first = await Promise.race([exited, woken.then(() => null)])
         clearTimeout(timer)
         let settled = true
         if (entry) settled = await stop(entry)
-        else if (!spawnFailed) {
+        else if (first?.spawnFailed) removeScratch(scratch.dir)
+        else {
           settled = false
           doubt(null, `${role} started without a process id`)
         }
         if (!(await outputSettled(entry, output))) settled = false
+        if (!settled) output.release()
         const { text, overflow } = output.captured()
-        resolve({ code: cause === "timeout" ? 124 : cause === "interrupt" ? 130 : code, settled, output: text, overflow })
-      }
-      child.on("error", () => finish(127, !child.pid))
-      child.on("exit", (code, signal) => finish(code ?? (signal ? 124 : 1), false))
+        const code = cause === "timeout" ? 124 : cause === "interrupt" ? 130 : first.code
+        resolve({ code, settled, output: settled ? text : "", overflow: settled && overflow, ...(settled ? {} : { withheld: true }) })
+      })()
     })
   }
 
-  /** A long-lived group (the app). Its stop() resolves true only when it is proven gone and its output closed. */
-  function service(role, cmd, args, opts, io = {}) {
+  /**
+   * A long-lived group (the app). `port` is the port it serves: once stopped,
+   * nothing may listen there and no app command may remain. Its stop()
+   * resolves true only when it is proven gone and its output closed.
+   */
+  function service(role, cmd, args, opts, io = {}, { port = null } = {}) {
     ensureActive(role)
-    const child = spawn(cmd, args, { ...opts, stdio: ["ignore", "pipe", "pipe"], detached: true })
-    const entry = child.pid ? track(role, child.pid, cmd) : null
+    const scratch = privateScratch()
+    let child
+    try {
+      child = spawn(cmd, args, { ...withScratch(opts, scratch), stdio: ["ignore", "pipe", "pipe"], detached: true })
+    } catch (error) {
+      removeScratch(scratch.dir)
+      throw error
+    }
+    const entry = child.pid ? track(role, child.pid, cmd, scratch, port) : null
     const output = attach(child, io)
     if (entry) entry.output = output
     let exited = null
@@ -1135,7 +1371,11 @@ export function createSupervisor({
     return {
       pid: child.pid,
       exited: () => exited,
-      stop: async () => (entry ? (await stop(entry)) && (await outputSettled(entry, output)) : outputSettled(null, output)),
+      stop: async () => {
+        const settled = entry ? (await stop(entry)) && (await outputSettled(entry, output)) : await outputSettled(null, output)
+        if (!settled) output.release()
+        return settled
+      },
     }
   }
 
@@ -1150,14 +1390,38 @@ export function createSupervisor({
     return interrupting
   }
 
-  /** Stops whatever still runs and checks every group and its output; the run is settled only if all of it is. */
+  /** The whole run's last look: no process with any of its private paths, no app command, nothing on the app's port. */
+  function sweep() {
+    if (swept || groups.length === 0) return
+    swept = true
+    const markers = groups.flatMap((e) => e.markers)
+    const ports = [...new Set(groups.map((e) => e.port).filter(Boolean))]
+    const rows = table(markers)
+    if (!rows) {
+      doubt(null, "the final process sweep could not read the process table")
+      return
+    }
+    const left = rows.filter((row) => isMarked(row, markers) || (ports.length > 0 && row.app === true)).length
+    if (left) doubt(null, `the final process sweep found ${left} process(es) carrying this run's private paths${ports.length ? " or the app command" : ""}`)
+    for (const port of ports) {
+      const held = listenersOf(port)
+      if (!held) doubt(null, `the final process sweep could not read the listeners on port ${port}`)
+      else if (held.length) doubt(null, `port ${port} still has ${held.length} listener(s) at the end of the run`)
+    }
+  }
+
+  /** The one teardown: stops whatever still runs, checks every group and its output, then sweeps; settled only if all of it is. */
   async function settle() {
     if (interrupting) await interrupting
     for (const entry of groups) {
       await stop(entry)
-      if (entry.output) await outputSettled(entry, entry.output)
+      if (entry.output && !(await outputSettled(entry, entry.output))) entry.output.release()
     }
-    return report()
+    sweep()
+    const outcome = report()
+    // Private TMPDIRs are scratch, not evidence: kept for the coordinator while anything is uncertain.
+    if (outcome.settled) for (const entry of groups) removeScratch(entry.scratch)
+    return outcome
   }
 
   const report = () => ({
@@ -1471,11 +1735,61 @@ export function verifyProductInputs(ctx) {
   compareMigrations(migrationDirectory(join(ctx.checkout, "supabase", "migrations"), "B02_CHECKOUT's supabase/migrations"), pinned, "B02_CHECKOUT's supabase/migrations")
   const spec = ctx.stack.stackSpec(STACK.name)
   verifyStack(ctx.stack, spec, ctx.checkout, ctx.pin)
-  const workdirMigrations = join(ctx.stackWorkdir, "supabase", "migrations")
+  // The physical workdir and its full supabase/migrations path, before any byte in it is hashed or the ledger read.
+  const workdirMigrations = join(verifyPhysicalWorkdir(ctx.stackWorkdir, ctx.stackAnchor), "supabase", "migrations")
   compareMigrations(migrationDirectory(workdirMigrations, `${STACK.name}'s workdir migrations`), pinned, `${STACK.name}'s workdir migrations`)
-  verifyRevisionRecord(ctx.stackWorkdir, ctx.checkout, ctx.pin, pinned)
+  verifyRevisionRecord(dirname(dirname(workdirMigrations)), ctx.checkout, ctx.pin, pinned)
   verifyLedger(ctx.ledger(ctx), pinned)
   return pinned
+}
+
+/**
+ * spare6's workdir as it physically is, checked before anything in it is
+ * read: below the trusted system anchor (/tmp, which the system links to
+ * /private/tmp), every component down to supabase/migrations is a real
+ * directory (lstat, never a link) this user owns that nobody else may write,
+ * and the workdir and its migrations resolve to exactly that physical chain.
+ * Returns the physical workdir. `anchor` is an offline test seam only.
+ */
+export function verifyPhysicalWorkdir(workdir, anchor = dirname(dirname(STACK.workdir))) {
+  const rel = typeof workdir === "string" && isAbsolute(workdir) ? relative(anchor, workdir) : ".."
+  if (!rel || rel.startsWith("..") || isAbsolute(rel)) fail(`${STACK.name}'s workdir is not below ${anchor}.`)
+  const base = real(anchor)
+  if (!base) fail(`${anchor} does not exist.`)
+  const uid = ownUid()
+  let physical = base
+  for (const part of [...rel.split(sep), "supabase", "migrations"]) {
+    physical = join(physical, part)
+    const name = `${STACK.name}'s ${relative(base, physical)}`
+    const stat = lstatSync(physical, { throwIfNoEntry: false })
+    if (!stat) fail(`${name} is missing.`)
+    if (stat.isSymbolicLink() || !stat.isDirectory()) fail(`${name} must be a real directory, not a link.`)
+    if (uid !== undefined && stat.uid !== uid) fail(`${name} belongs to another user.`)
+    if (stat.mode & 0o022) fail(`${name} is writable by others.`)
+  }
+  const root = join(base, rel)
+  if (real(workdir) !== root || real(join(workdir, "supabase", "migrations")) !== physical) fail(`${STACK.name}'s workdir does not resolve to its physical path ${root}.`)
+  return root
+}
+
+/**
+ * A fresh `supabase status` for exactly this workdir (stack.mjs's own
+ * command), parsed, or null when it cannot be read. Its output holds the keys:
+ * it stays in memory and is never printed.
+ */
+export function freshStackStatus(workdir) {
+  const r = spawnSync("supabase", ["--workdir", workdir, "status", "-o", "json"], {
+    encoding: "utf8",
+    env: { ...inherit(process.env, ["PATH", "HOME", "TMPDIR"]), SUPABASE_INTERNAL_NO_UPDATE_CHECK: "1" },
+    timeout: 60_000,
+    maxBuffer: 4 * 1024 * 1024,
+  })
+  if (r.error || r.status !== 0) return null
+  try {
+    return JSON.parse(r.stdout.slice(r.stdout.indexOf("{"), r.stdout.lastIndexOf("}") + 1))
+  } catch {
+    return null
+  }
 }
 
 function requireLoopback(raw, port, name, protocols = ["http:"]) {
@@ -1494,9 +1808,12 @@ function requireLoopback(raw, port, name, protocols = ["http:"]) {
 /**
  * spare6's env from stack.mjs, read fresh: the four values children need,
  * each validated, and every credential value it holds (needed or not) for
- * redaction. Values stay in memory.
+ * redaction. stack.mjs reads them from the workdir's cached status.json, so
+ * each endpoint and key must also equal a fresh `supabase status` for that
+ * exact (physically verified) workdir. Values stay in memory; a mismatch
+ * names the field, never a value. `fresh` is an offline test seam only.
  */
-export function validatedStackEnvironment(stack, spec) {
+export function validatedStackEnvironment(stack, spec, fresh = freshStackStatus, workdir = spec.workdir) {
   const all = stack.stackEnv(spec)
   requireLoopback(all.NEXT_PUBLIC_SUPABASE_URL, STACK.apiPort, "NEXT_PUBLIC_SUPABASE_URL")
   requireLoopback(all.E2E_DB_URL, STACK.dbPort, "E2E_DB_URL", ["postgresql:", "postgres:"])
@@ -1506,6 +1823,20 @@ export function validatedStackEnvironment(stack, spec) {
     if (typeof all[name] !== "string" || all[name].length < SECRET_MIN) fail(`${STACK.name} status has no ${name}.`)
   }
   if (all.SUPABASE_SERVICE_ROLE_KEY === all.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) fail(`${STACK.name}'s service and publishable keys are the same.`)
+  if (all.E2E_SUPABASE_WORKDIR !== undefined && all.E2E_SUPABASE_WORKDIR !== spec.workdir) fail(`${STACK.name}'s env names another workdir.`)
+  const status = fresh(workdir)
+  if (!isRecord(status)) fail(`A fresh supabase status for ${STACK.name}'s workdir could not be read; the coordinator must check the stack.`)
+  for (const [name, now, cached, required] of [
+    ["API_URL", status.API_URL, all.NEXT_PUBLIC_SUPABASE_URL, true],
+    ["DB_URL", status.DB_URL, all.E2E_DB_URL, true],
+    ["DB_URL", status.DB_URL, all.SUPABASE_DB_URL ?? status.DB_URL, true],
+    ["PUBLISHABLE_KEY", status.PUBLISHABLE_KEY ?? status.ANON_KEY, all.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, true],
+    ["SERVICE_ROLE_KEY", status.SERVICE_ROLE_KEY ?? status.SECRET_KEY, all.SUPABASE_SERVICE_ROLE_KEY, true],
+    ["JWT_SECRET", status.JWT_SECRET, all.SUPABASE_JWT_SECRET, false],
+    ["MAILPIT_URL", status.MAILPIT_URL ?? status.INBUCKET_URL, all.MAILPIT_URL, false],
+  ]) {
+    if ((required && typeof now !== "string") || now !== cached) fail(`${STACK.name}'s cached status does not match a fresh supabase status for its workdir (${name}).`)
+  }
   const env = Object.freeze({
     NEXT_PUBLIC_SUPABASE_URL: all.NEXT_PUBLIC_SUPABASE_URL,
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: all.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
@@ -1927,122 +2258,39 @@ export function suiteFiles(suite, dir = HARNESS) {
   return { files, missing: files.filter((f) => !existsSync(join(dir, f))) }
 }
 
-const REGEX_MAY_FOLLOW = new Set(["", "(", ",", "=", ":", "[", "!", "&", "|", "?", "{", "}", ";", "+", "-", "*", "%", "<", ">", "~", "^"])
 /**
- * A TypeScript source split into code (comments removed, string and
- * template text replaced by "") and the text of its string literals, without
- * executing anything.
+ * The independently reviewed charters config, by its exact bytes. A source
+ * reading cannot prove what Playwright will start (a webServer can arrive
+ * through a spread, a helper or a plugin, and the JSON reporter does not
+ * serialise plugin servers), so the config is pinned instead and checked
+ * immediately before every list and run, before Playwright loads it. The
+ * coordinator verifies and updates this pin when it integrates a reviewed
+ * journey candidate.
  */
-export function lexSource(source) {
-  let code = ""
-  const strings = []
-  const resume = []
-  let depth = 0
-  let last = ""
-  let i = 0
-  const template = () => {
-    let text = ""
-    while (i < source.length) {
-      const c = source[i]
-      if (c === "\\") {
-        text += source[i + 1] ?? ""
-        i += 2
-      } else if (c === "`") {
-        i++
-        strings.push(text)
-        code += '""'
-        last = '"'
-        return
-      } else if (c === "$" && source[i + 1] === "{") {
-        i += 2
-        strings.push(text)
-        code += '"" + ('
-        resume.push(depth)
-        depth++
-        last = "("
-        return
-      } else {
-        text += c
-        i++
-      }
-    }
-    strings.push(text)
-  }
-  while (i < source.length) {
-    const c = source[i]
-    const d = source[i + 1]
-    if (c === "/" && d === "/") {
-      const end = source.indexOf("\n", i)
-      i = end < 0 ? source.length : end
-      code += " "
-    } else if (c === "/" && d === "*") {
-      const end = source.indexOf("*/", i + 2)
-      i = end < 0 ? source.length : end + 2
-      code += " "
-    } else if (c === "'" || c === '"') {
-      let text = ""
-      i++
-      while (i < source.length && source[i] !== c && source[i] !== "\n") {
-        if (source[i] === "\\") {
-          text += source[i + 1] ?? ""
-          i += 2
-        } else text += source[i++]
-      }
-      i++
-      strings.push(text)
-      code += '""'
-      last = '"'
-    } else if (c === "`") {
-      i++
-      template()
-    } else if (c === "}" && resume.length && depth - 1 === resume.at(-1)) {
-      depth--
-      resume.pop()
-      code += ") + "
-      i++
-      template()
-    } else if (c === "/" && REGEX_MAY_FOLLOW.has(last)) {
-      let inClass = false
-      i++
-      while (i < source.length && source[i] !== "\n") {
-        const r = source[i]
-        if (r === "\\") i += 2
-        else {
-          i++
-          if (r === "[") inClass = true
-          else if (r === "]") inClass = false
-          else if (r === "/" && !inClass) break
-        }
-      }
-      while (i < source.length && /[a-z]/i.test(source[i])) i++
-      code += " /re/ "
-      last = "/"
-    } else {
-      if (c === "{") depth++
-      else if (c === "}") depth--
-      code += c
-      if (!/\s/.test(c)) last = c
-      i++
-    }
-  }
-  return { code, strings }
-}
+export const CHARTERS_CONFIG_SHA256 = "d9e6284d5225ba9388dad843c4b6a43111e319b5ffea5ce00a226fcfca25313f"
+export const REVIEWED_CHARTERS_CONFIG = Object.freeze({ dir: HARNESS, sha256: CHARTERS_CONFIG_SHA256 })
 
 /**
- * Whether a config source actually declares a webServer, read statically
- * (never executed): the identifier in code, or a string (or template part)
- * that is exactly "webServer", as a quoted or computed key would be. A
- * mention in a comment or inside other string text is not one.
+ * charters.config.ts is the reviewed config: a regular file this user owns
+ * that nobody else may write, read without following a link, whose bytes
+ * hash to the pin. Returns the path Playwright is given. `reviewed` is an
+ * offline test seam only.
  */
-export function declaresWebServer(source) {
-  const { code, strings } = lexSource(source)
-  return /\bwebServer\b/.test(code) || strings.includes("webServer")
-}
-
-/** The charters run against this run's app only: their config may not start a server of its own. */
-export function requireNoWebServer(dir = HARNESS) {
-  const source = readFileSync(join(dir, PLAN.charters.config), "utf8")
-  if (declaresWebServer(source)) fail(`${PLAN.charters.config} declares a webServer; the charters use run.mjs's app only.`)
+export function requireReviewedChartersConfig(reviewed = REVIEWED_CHARTERS_CONFIG) {
+  const file = join(reviewed.dir, PLAN.charters.config)
+  trustedFile(file, PLAN.charters.config)
+  const fd = openSync(file, FS.O_RDONLY | NOFOLLOW)
+  let bytes
+  try {
+    bytes = readFileSync(fd)
+  } finally {
+    closeSync(fd)
+  }
+  const actual = createHash("sha256").update(bytes).digest("hex")
+  if (actual !== reviewed.sha256) {
+    fail(`${PLAN.charters.config} is not the independently reviewed config (sha256 ${actual}, reviewed ${reviewed.sha256}); Playwright is not started. The coordinator verifies and updates the pin.`)
+  }
+  return file
 }
 
 // ---- The phases ---------------------------------------------------------------------------------
@@ -2079,8 +2327,10 @@ async function check({ suites = [...SUITES], requireFiles = false, requireCleanH
   const e2e = resolveE2E()
   const stack = await import(pathToFileURL(join(checkout, "scripts", "ci", "stack.mjs")).href)
   const spec = stack.stackSpec(STACK.name)
+  if (spec.workdir !== STACK.workdir) fail(`stack.mjs workdir for ${STACK.name} is ${spec.workdir}, expected ${STACK.workdir}.`)
   const ctx = { pin, pinned, checkout, stack, spec, stackWorkdir: spec.workdir, ledger: psqlLedger, harness, e2e, id: null, runRoot: null, runDir: null }
-  ;({ env: ctx.stackEnv, secrets: ctx.secrets } = validatedStackEnvironment(stack, spec))
+  // Nothing in the workdir (its cached status.json included) is read before its physical path is proven.
+  ;({ env: ctx.stackEnv, secrets: ctx.secrets } = validatedStackEnvironment(stack, spec, freshStackStatus, verifyPhysicalWorkdir(spec.workdir)))
   registerSecrets(ctx.secrets)
   verifyProductInputs(ctx)
   await requireFreePort()
@@ -2089,7 +2339,7 @@ async function check({ suites = [...SUITES], requireFiles = false, requireCleanH
   if (suites.includes("charters")) ctx.playwright = requirePlaywright(checkout)
   const awaiting = suites.flatMap((s) => suiteFiles(s).missing)
   if (requireFiles && awaiting.length) fail(`Selected suites are awaiting integration: ${awaiting.join(", ")}.`)
-  if (suites.includes("charters") && suiteFiles("charters").missing.length === 0) requireNoWebServer()
+  if (suites.includes("charters") && suiteFiles("charters").missing.length === 0) requireReviewedChartersConfig()
   say(`checkout ${pin.commit} (tree ${pin.tree}) clean; ${STACK.name} running as ${STACK.project} with the pinned ${pin.migrationCount} migrations on disk, in revision.json and in its ledger; app port ${STACK.appPort} free`)
   say(`harness ${harness.commit} (tree ${harness.tree}) ${harness.clean ? "clean" : "with uncommitted changes"}; e2e ${e2e.version} at ${e2e.entry}${awaiting.length ? `; awaiting integration: ${awaiting.join(", ")}` : ""}`)
   return ctx
@@ -2103,7 +2353,9 @@ async function recheck(ctx, label, d) {
   if (JSON.stringify(pin) !== JSON.stringify(ctx.pin)) fail("candidate.json changed during the run.")
   const harness = harnessState()
   if (harness.commit !== ctx.harness.commit || harness.tree !== ctx.harness.tree || harness.clean !== ctx.harness.clean) fail("The harness changed during the run.")
-  ;({ env: ctx.stackEnv, secrets: ctx.secrets } = validatedStackEnvironment(ctx.stack, ctx.stack.stackSpec(STACK.name)))
+  const spec = ctx.stack.stackSpec(STACK.name)
+  if (spec.workdir !== STACK.workdir) fail(`stack.mjs workdir for ${STACK.name} changed to ${spec.workdir}.`)
+  ;({ env: ctx.stackEnv, secrets: ctx.secrets } = validatedStackEnvironment(ctx.stack, spec, freshStackStatus, verifyPhysicalWorkdir(spec.workdir)))
   registerSecrets(ctx.secrets)
   verifyProductInputs(ctx)
   requireSameE2E(ctx)
@@ -2114,6 +2366,7 @@ async function recheck(ctx, label, d) {
 async function seedPhase(ctx, sup) {
   const r = await sup.run("seed", tool(ctx.checkout, "tsx"), [join(HARNESS, "seed.ts")], { cwd: ctx.checkout, env: seedEnv(process.env, ctx) }, SEED_MS, { secrets: ctx.secrets })
   if (r.code !== 0 || !r.settled) fail(`Seed exited ${r.code}${r.settled ? "" : " and its process group did not settle"}; ${JOURNAL} in ${ctx.runDir} lists what was created.`)
+  requirePrivateChain(dirname(ctx.runRoot), ctx.runDir)
   const world = lstatSync(join(ctx.runDir, "world.json"), { throwIfNoEntry: false })
   if (!world || world.isSymbolicLink() || !world.isFile()) fail("Seed exited 0 without writing world.json.")
 }
@@ -2160,10 +2413,13 @@ export function scanOutcome(child, buildId) {
   const problems = []
   let parsed = null
   if (child.overflow) problems.push("its output was larger than the capture limit")
-  try {
-    parsed = JSON.parse(child.output)
-  } catch {
-    problems.push("its output is not scan-bundle JSON")
+  // An unsettled child's output is withheld and never read.
+  if (child.settled) {
+    try {
+      parsed = JSON.parse(child.output)
+    } catch {
+      problems.push("its output is not scan-bundle JSON")
+    }
   }
   if (child.code !== 0) problems.push(`it exited ${child.code}`)
   if (!child.settled) problems.push("its process group did not settle")
@@ -2199,13 +2455,17 @@ async function scanPhase(ctx, sup) {
 async function startApp(ctx, sup) {
   requireSameBuild(ctx)
   await requireFreePort()
+  requirePrivateChain(dirname(ctx.runRoot), ctx.runRoot)
   const log = privateStream(join(ctx.runRoot, "app.log"))
   ctx.appLog = log
-  const app = sup.service("app", tool(ctx.checkout, "next"), ["start", "--hostname", "127.0.0.1", "--port", String(STACK.appPort)], { cwd: ctx.checkout, env: serverEnv(process.env, ctx) }, {
-    secrets: ctx.secrets,
-    out: log,
-    err: log,
-  })
+  const app = sup.service(
+    "app",
+    tool(ctx.checkout, "next"),
+    ["start", "--hostname", "127.0.0.1", "--port", String(STACK.appPort)],
+    { cwd: ctx.checkout, env: serverEnv(process.env, ctx) },
+    { secrets: ctx.secrets, out: log, err: log },
+    { port: STACK.appPort }
+  )
   const deadline = Date.now() + READY_MS
   for (;;) {
     sup.ensureActive("app readiness")
@@ -2235,15 +2495,24 @@ export function combine(suite, child, verdict, label) {
   return { ok, exit: child.code, settled: child.settled === true, problems: boundProblems(problems), counts: { ...verdict.counts, passed: ok ? expectedInstances(suite) : 0 } }
 }
 const failedVerdict = (suite, problem) => ({ ok: false, problems: [problem], counts: { expected: expectedInstances(suite) } })
+/** An unsettled child's output and files are never read: the verdict says so and nothing else. */
+const unsettledVerdict = (suite, what) => failedVerdict(suite, `${what} was not read: its process group did not settle`)
 
 const E2E_RUN_ARGS = ["--no-cache", "--retries", "0", "--workers", "1", "--trace=off", "--video=off"]
 
-/** One e2e suite: collect it, check the collection, run it, then judge the exit and the report together. */
+/**
+ * One e2e suite: collect it, check the collection, run it, then judge the
+ * exit and the report together. Collection sees only listEnv's fixed
+ * loopback values and placeholders; spare6's credentials reach only the run.
+ */
 export async function runE2E(ctx, suite, sup) {
   const e2e = requireSameE2E(ctx)
-  const env = e2eEnv(process.env, ctx, suite)
   const out = freshOutput(ctx.runRoot, suite)
-  const listed = await sup.run(`e2e list ${suite}`, e2e.entry, ["list", "--config", CONFIG, "--reporter", "json"], { cwd: HARNESS, env }, LIST_MS, { secrets: ctx.secrets, capture: true })
+  const listed = await sup.run(`e2e list ${suite}`, e2e.entry, ["list", "--config", CONFIG, "--reporter", "json"], { cwd: HARNESS, env: listEnv(suite, process.env) }, LIST_MS, {
+    secrets: ctx.secrets,
+    capture: true,
+  })
+  if (!listed.settled) return combine(suite, listed, unsettledVerdict(suite, "the collection"), `e2e list ${suite}`)
   let pairs
   try {
     pairs = listed.overflow ? undefined : JSON.parse(listed.output).pairs
@@ -2251,14 +2520,14 @@ export async function runE2E(ctx, suite, sup) {
     pairs = undefined
   }
   const collection = validateListedPairs(pairs, suite)
-  if (listed.code !== 0 || !listed.settled || !collection.ok) {
+  if (listed.code !== 0 || !collection.ok) {
     return combine(suite, listed, { ok: false, problems: collection.problems.map((p) => `collection: ${p}`), counts: { expected: expectedInstances(suite) } }, `e2e list ${suite}`)
   }
   sup.ensureActive(`e2e ${suite}`)
   const startedAtMs = Date.now()
-  const r = await sup.run(`e2e ${suite}`, e2e.entry, ["run", "--config", CONFIG, ...E2E_RUN_ARGS], { cwd: HARNESS, env }, SUITE_MS, { secrets: ctx.secrets })
-  const outStat = lstatSync(out, { throwIfNoEntry: false })
-  const read = outStat?.isSymbolicLink() ? { problem: "in a linked directory" } : readJson(join(out, "report.json"))
+  const r = await sup.run(`e2e ${suite}`, e2e.entry, ["run", "--config", CONFIG, ...E2E_RUN_ARGS], { cwd: HARNESS, env: e2eEnv(process.env, ctx, suite) }, SUITE_MS, { secrets: ctx.secrets })
+  if (!r.settled) return combine(suite, r, unsettledVerdict(suite, "report.json"), "e2e")
+  const read = readPrivateJson(dirname(ctx.runRoot), join(out, "report.json"))
   const verdict = read.problem ? failedVerdict(suite, `report.json is ${read.problem}`) : validateE2EReport(read.value, suite, { startedAtMs, collected: collection.pairs, runner: e2e })
   return combine(suite, r, verdict, "e2e")
 }
@@ -2267,20 +2536,24 @@ const CHARTER_ARGS = (out) => ["--reporter=list,json", "--retries=0", "--workers
 
 /**
  * The two charters on the candidate's own Playwright, on this run's app and
- * world: the config is checked statically (never executed) for a server,
- * then collected (exact titles, project and version, no webServer), then run;
- * the exit and the report decide together.
+ * world: the config must be the reviewed bytes before Playwright loads it,
+ * then it is collected with listEnv's placeholders only (exact titles,
+ * project and version, no webServer), checked again and run with spare6's
+ * values; the exit and the report decide together.
  */
 export async function runCharters(ctx, sup) {
   const pw = requirePlaywright(ctx.checkout)
-  const config = join(HARNESS, PLAN.charters.config)
-  requireNoWebServer()
+  const reviewed = ctx.chartersConfig ?? REVIEWED_CHARTERS_CONFIG
+  const config = requireReviewedChartersConfig(reviewed)
+  const results = dirname(ctx.runRoot)
   const out = freshOutput(ctx.runRoot, "charters")
   mkdirSync(out, { mode: 0o700 })
-  const listed = await sup.run("playwright list charters", pw.bin, ["test", "--list", "--reporter=json", "--config", config], { cwd: HARNESS, env: playwrightEnv(process.env, ctx, null) }, LIST_MS, {
+  requirePrivateChain(results, out)
+  const listed = await sup.run("playwright list charters", pw.bin, ["test", "--list", "--reporter=json", "--config", config], { cwd: HARNESS, env: listEnv("charters", process.env, ctx.checkout) }, LIST_MS, {
     secrets: ctx.secrets,
     capture: true,
   })
+  if (!listed.settled) return combine("charters", listed, unsettledVerdict("charters", "the collection"), "playwright --list")
   let listing
   try {
     listing = listed.overflow ? undefined : JSON.parse(listed.output)
@@ -2288,16 +2561,19 @@ export async function runCharters(ctx, sup) {
     listing = undefined
   }
   const collection = validatePlaywrightReport(listing, { listing: true, version: pw.version })
-  if (listed.code !== 0 || !listed.settled || !collection.ok) {
+  if (listed.code !== 0 || !collection.ok) {
     return combine("charters", listed, { ok: false, problems: collection.problems.map((p) => `collection: ${p}`), counts: { expected: PLAN.charters.tests } }, "playwright --list")
   }
   sup.ensureActive("charters")
+  requireReviewedChartersConfig(reviewed)
+  requirePrivateChain(results, out)
   const reportFile = join(out, "report.json")
   const startedAtMs = Date.now()
   const r = await sup.run("playwright charters", pw.bin, ["test", "--config", config, ...CHARTER_ARGS(out)], { cwd: HARNESS, env: playwrightEnv(process.env, ctx, reportFile) }, CHARTERS_MS, {
     secrets: ctx.secrets,
   })
-  const read = readJson(reportFile)
+  if (!r.settled) return combine("charters", r, unsettledVerdict("charters", "report.json"), "playwright")
+  const read = readPrivateJson(results, reportFile)
   const verdict = read.problem ? failedVerdict("charters", `report.json is ${read.problem}`) : validatePlaywrightReport(read.value, { startedAtMs, version: pw.version })
   return combine("charters", r, verdict, "playwright")
 }
@@ -2370,6 +2646,8 @@ const LIVE = Object.freeze({
   results: RESULTS,
   probe: probeGroup,
   table: processTable,
+  listeners: listenersOrNull,
+  scratchRoot: SCRATCH_ROOT,
   stopHelperMs: STOP_HELPER_MS,
   absenceMs: ABSENCE_MS,
   outputMs: OUTPUT_MS,
@@ -2389,7 +2667,17 @@ async function underLock(ctx, label, suites, seedOnly, d) {
   d.verifyLockOwner(label, d.lockDir)
   requireNoReceipt(d.receiptPath)
   const receipt = createReceipt(d.receiptPath, receiptIdentity(ctx, label))
-  const sup = createSupervisor({ stack: ctx.stack, receipt, probe: d.probe, table: d.table, stopHelperMs: d.stopHelperMs, absenceMs: d.absenceMs, outputMs: d.outputMs })
+  const sup = createSupervisor({
+    stack: ctx.stack,
+    receipt,
+    probe: d.probe,
+    table: d.table,
+    listeners: d.listeners,
+    scratchRoot: d.scratchRoot,
+    stopHelperMs: d.stopHelperMs,
+    absenceMs: d.absenceMs,
+    outputMs: d.outputMs,
+  })
   let finalised
   const final = new Promise((resolve) => (finalised = resolve))
   const unhook = ctx.stack.onTerminate(async () => {
@@ -2411,6 +2699,7 @@ async function underLock(ctx, label, suites, seedOnly, d) {
     ctx.runRoot = runRoot
     ctx.runDir = world
     receipt.update({ runRoot })
+    requirePrivateChain(d.results, world)
     startJournal(world, {
       runId: ctx.id,
       candidate: ctx.pin.commit,
@@ -2438,11 +2727,13 @@ async function underLock(ctx, label, suites, seedOnly, d) {
       d.verifyInputs(ctx)
       const app = await d.startApp(ctx, sup)
       for (const suite of suites) {
+        // An unsettled suite (or any uncertain group) stops the sequence here: ensureActive refuses.
         sup.ensureActive(suite)
         d.verifyLockOwner(label, d.lockDir)
         d.verifyServerOwner(STACK.appPort, app.pid)
         say(`${PLAN[suite].kind} ${suite}`)
         results[suite] = await d.runSuite(ctx, suite, sup)
+        if (results[suite]?.settled !== true) throw new Uncertain(`${suite}'s process group did not settle; no further suite starts.`)
       }
     }
     sup.ensureActive("the summary")
@@ -2456,6 +2747,7 @@ async function underLock(ctx, label, suites, seedOnly, d) {
   if (ctx.runRoot) {
     let scrub
     try {
+      if (settlement.settled) requirePrivateChain(dirname(ctx.runRoot), ctx.runRoot)
       scrub = settlement.settled ? scrubArtifacts(ctx.runRoot, ctx.secrets ?? []) : { skipped: "process settlement is uncertain; the coordinator inspects the run directory" }
     } catch (caught) {
       scrub = { unsafe: [`the scrub stopped (${caught.code ?? caught.message})`] }
@@ -2550,7 +2842,7 @@ function listCommand(flags) {
       verdict = r.status === 0 ? validateListedPairs(pairs, suite) : { ok: false, problems: [`e2e list exited ${r.status}: ${String(r.stderr || r.stdout).trim().split("\n").slice(-3).join(" | ")}`], count: 0 }
     } else {
       try {
-        requireNoWebServer()
+        requireReviewedChartersConfig()
         if (!checkout || !isAbsolute(checkout)) fail("set B02_CHECKOUT to the candidate checkout to collect the charters with its Playwright")
         const pw = requirePlaywright(checkout)
         const r = spawnSync(pw.bin, ["test", "--list", "--reporter=json", "--config", join(HARNESS, PLAN.charters.config)], { ...bounded, env: listEnv(suite, process.env, checkout) })

@@ -98,8 +98,8 @@ The `report.json` must then show all of these:
 - **Agent steps:** a cache replay fails the suite. A live step's measured
   `viewport`, when the report gives one, must be its target's.
 
-**charters:** the config is checked statically first and never executed for
-the check (see "Charters"). `playwright test --list` must then collect
+**charters:** the config's exact bytes must first match the reviewed pin, before
+Playwright loads it (see "Charters"). `playwright test --list` must then collect
 exactly the two titles. The JSON `report.json` must show all of these:
 
 - **Version and config:** it was written by the candidate's installed
@@ -191,7 +191,11 @@ These additions from the earlier split remain:
   not-found answer (`P0002 contribution_group_not_found`: no such group, or
   none of it visible to the viewer). Any other error throws and fails the
   assertion, including `not_active_user`, permission errors and an invalid
-  uuid. `GroupRead` exposes only these safe fields:
+  uuid. `mine` must be an actual boolean on the group and on every member,
+  and is returned exactly as the function gave it. A missing or malformed
+  `mine` (absent, `null`, a string or a number) throws, so an absent flag can
+  never pass an assertion that it is `false`. `GroupRead` exposes only these
+  safe fields:
 
   ```ts
   type GroupRead = {
@@ -294,6 +298,11 @@ immediately before the build and immediately before the app starts:
   actual bytes;
 - `stack.mjs` status: running as `nabalens-ws-spare6`, last reset clean from
   this checkout at the pin, and applied count and latest equal to the pin;
+- spare6's physical path, before anything in it is read or hashed. Below
+  `/tmp` (a system link to `/private/tmp`), each of `nabalens-ws`, `spare6`,
+  `supabase` and `migrations` must be a real directory (never a link) owned by
+  this user and not writable by others. The workdir and its migrations must
+  resolve to exactly that physical chain;
 - spare6's actual workdir migrations (`/tmp/nabalens-ws/spare6/supabase/migrations`):
   exactly the pinned ordered file names, every one a regular file (no link),
   and the digest of their actual SQL bytes equal to the pin;
@@ -305,8 +314,8 @@ immediately before the build and immediately before the app starts:
   variables: exactly the pinned versions, in order.
 
 Same-version filename drift, workdir byte drift, a manifest mismatch, a
-ledger mismatch and a product source change after the seed each fail before
-the next phase.
+ledger mismatch, a linked or replaced workdir component and a product source
+change after the seed each fail before the next phase.
 
 **Build and scan.** `run` makes one fresh production `next build` of the
 clean pin. It uses spare6's public env, `NEXT_PUBLIC_SITE_URL` and the four
@@ -336,9 +345,15 @@ an executable. `e2e.config.ts` keeps the saved model route
 must be canonical (`/tmp/nabalens-ws/spare6` and its ports), so the lock is
 `/tmp/nabalens-ws/spare6.lock`.
 
-**Environment.** The stack env is read fresh under the lock. URLs must be
-loopback on spare6's ports, the keys must be present, and the service and
-publishable keys must differ.
+**Environment.** The stack env is read fresh under the lock, and only after
+the workdir's physical path is proven. URLs must be loopback on spare6's
+ports, the keys must be present, and the service and publishable keys must
+differ. `stack.mjs` reads these values from the workdir's cached
+`status.json`. So the API URL, DB URL, publishable key, service key, JWT secret
+and Mailpit URL must also equal a fresh
+`supabase --workdir <physical workdir> status -o json`. A mismatch, or a
+status that cannot be read, fails the guard. The message names the field,
+never a value.
 
 **Lock.** Inside `withLock`, `owner.json` must show this process's pid and
 this run's label. This is checked before the seed, the build, the scan, the
@@ -358,49 +373,113 @@ and `ps -o pgid`). If `lsof` is missing, the check fails closed.
 `.results` must be a real directory owned by this user, and it is made
 private. `.results/<id>` is created exclusively and privately (0700), so a
 run id is never reused. Each suite directory must be new, and a link there
-counts as existing. Reports are read without following links, and only up
-to 64 MiB.
+counts as existing. A leaf `O_NOFOLLOW` cannot see a replaced parent
+directory. So before every read or write in a run's output, the whole chain is
+checked with `lstat`: `.results`, `.results/<id>` and down to the directory
+holding the file. That covers the journal, `world.json`, `app.log`, each
+report, the summary and the scrub. Every link in it must be a real private
+directory of this user's, and the physical path must be exactly that chain. A
+report is read only up to 64 MiB, and only if the chain still holds after the
+read with the same file in place. A replaced parent fails the suite, and
+nothing is read, written or scrubbed through it.
 
-**Charters.** `charters.config.ts` is read statically, never executed for the
-check. Comments are removed, and string and template text is separated from
-code. The config is refused if code names `webServer`, or if a string or
-template part is exactly `"webServer"`, as a quoted or computed key would be.
-A mention in a comment or other string text is accepted. That is how the
-integrated config is accepted: it says "There is no webServer" in a comment.
-Collection (`--list`) and the report must still show no `webServer`. There is
-never a second server.
+**Charters.** `charters.config.ts` must be the independently reviewed config,
+by its exact bytes. Its sha256 must be `CHARTERS_CONFIG_SHA256`
+(`d9e6284d5225ba9388dad843c4b6a43111e319b5ffea5ce00a226fcfca25313f`, the
+config as integrated). It must also be a regular file of this user's that
+nobody else may write, read without following a link. This is checked at the
+guards, before `list`, before the collection and again before the run. On any
+other bytes, Playwright is never started, so it never loads the config. A
+source reading cannot prove there is no server: one can arrive through a
+spread, a helper or a plugin, and the installed JSON reporter does not
+serialise plugin servers. Collection (`--list`) and the report must still show
+no `webServer`, and there is never a second server. The coordinator updates
+the pin when it integrates a reviewed journey candidate. Candidate `e2a1e48d`'s
+config has sha256
+`3721d32a79310184caecf5f1ccf2974412eb8655aaf58f15387a673a2c1b50e6`. It is not
+accepted until the pin is changed to it.
 
 ### Settlement and the blocking receipt
 
 **Process groups.** One supervisor owns every process group the run starts:
 seed, build, scan, the app, each collection, each e2e runner and Playwright.
-A group counts as settled only when all of these hold:
+Each child is its own group and gets its own private `TMPDIR`
+(`/tmp/nb02-XXXXXX`, 0700), which every descendant inherits. This follows
+the coordinator's private-profile pattern: Playwright puts each browser
+profile under it, and it stays short for Chromium's socket paths. The process
+table is read with `ps -axwwE -o pid,ppid,pgid,command`. `-E` adds each of
+this user's processes' environment, so a detached descendant still shows the
+private path after its parent has gone. That text holds credentials. It never
+leaves the table reader: only two flags are kept, "carries this child's
+private path" and "is the app command on port 3646". A group counts as settled
+only when all of these hold:
 
 - the stop helper (`stack.terminateGroup`) has returned;
 - the kernel then shows the group empty: `kill(-pgid, 0)` fails with ESRCH,
   checked by `run.mjs` itself;
-- every descendant that left the group is gone. Playwright starts each
-  browser detached, in its own group. While a group lives, `run.mjs` reads
-  the process table (`ps -axo pid,ppid,pgid`) every second and at stop. It
-  records each descendant outside the group, in the receipt too. After the
-  leader's group is gone, each recorded group is stopped and checked the
-  same way. A recorded group is signalled only while its live members
-  include a pid this run recorded. Otherwise it is "not proven this run's"
-  and uncertain, never killed;
+- every escaped group this child owns is gone. Playwright starts each browser
+  detached, in its own group. The table is read every second while the group
+  lives and again at stop. It finds owned processes outside the group by
+  current ancestry, or by the private path. The second catches a child that
+  detached with its own stdio and lost its parent before any poll. Each such
+  group is recorded in the receipt;
+- an escaped group is signalled only after a fresh table, read just before
+  the signal, shows every one of its members owned. Owned means a member of
+  the child's own group, a process carrying its private path, or a current
+  child of an owned process. A pid recorded earlier proves nothing by itself.
+  Once the child's own group is proven empty, its id may be reused, so it is
+  never signalled again and ancestry from it no longer counts: only the
+  private path proves ownership.
+  A group with any other member is "not proven this run's (mixed
+  membership)". A group with no visible member is "not proven this run's".
+  Both are left alone and uncertain, never killed;
+- afterwards no process carries the child's private path. For the app, no
+  `next start … --port 3646` command remains and nothing listens on 3646
+  (`lsof`);
 - its output has closed.
 
+From a timeout or interrupt on, nothing more of the child is echoed while its
+bounded stop decides. A report is accepted only if the file descriptor read is
+the file at the verified path both before and after the read.
+
 A group is uncertain, and the run fails, when the stop helper returns, throws
-or hangs while members remain. Missing evidence (including an unreadable
-process table), ambiguous evidence (EPERM) and output that never closes are
+or hangs while members remain. Missing evidence (an unreadable process table
+or `lsof`), ambiguous evidence (EPERM) and output that never closes are
 uncertain too. Output that arrives after `app.log` has closed is dropped,
-never a crash. A normal exit with a
-lingering descendant still stops and checks the whole group before the
-result counts.
+never a crash. A normal exit with a lingering descendant still stops and
+checks the whole group before the result counts.
+
+**Bounded settlement.** A child is never awaited past its timeout or an
+interrupt. Its result is the bounded stop's verdict (stop helper, absence
+probe, escaped groups, output), even when the helper refuses and the leader
+never exits. Exit codes are 124 after a timeout and 130 after an interrupt.
+
+When settlement is uncertain:
+
+- the child's output is withheld: never returned, kept or shown;
+- its streams are released, so the runner can still finish;
+- nothing it wrote (collection, report) is read;
+- no further phase, suite or child starts. `ensureActive` refuses once any
+  group is uncertain, and the suite loop stops after an unsettled suite, so
+  an unsettled journey never leads into the charters.
+
+The run then writes only its own redacted `summary.json` and blocks the
+receipt. Raw output stays unscrubbed in the private run directory, and the
+uncertain children's private `TMPDIR`s stay for the coordinator. A settled
+ordinary failure still writes its real failure summary and clears the
+receipt.
+
+**The one teardown.** `settle()` is the only teardown. It stops whatever
+still runs and checks every group and its output. Then it makes a final sweep
+of the process table, covering every private path of the run and the app
+command, and of the app port's listeners. It removes the private `TMPDIR`s
+only when the whole run settled.
 
 **Interrupts.** On SIGINT or SIGTERM (`stack.onTerminate`), no phase, suite
-or child starts again, and every owned group is stopped and checked. The
-signal hook returns only after the run has settled and finalised, so the
-lock is released last. An interrupted run exits 130 and never qualifies.
+or child starts again, and every owned group is stopped and checked within
+the same bounds. The signal hook returns only after the run has settled and
+finalised, or after its own deadline with the receipt blocked, so the lock
+is released last. An interrupted run exits 130 and never qualifies.
 
 **The receipt.** It lives at
 `/tmp/nabalens-ws/spare6.b02-acceptance.receipt.json`, beside the canonical
@@ -413,7 +492,8 @@ lock.
     version;
   - the harness and candidate identities, the e2e identity and the run
     directory;
-  - every owned group: role, pgid, command name, times, state and evidence.
+  - every owned group: role, pgid, command name, private `TMPDIR`, port
+    (app), times, state, escaped groups and evidence.
 - **Updates.** It is rewritten atomically as groups start and settle.
 - **A settled run.** It removes its own receipt only when every group is
   proven gone.
@@ -430,7 +510,8 @@ lock.
 
 You set `B02_CHECKOUT` (required, absolute) and, optionally, `B02_RUN_ID`.
 Every child inherits only these: `PATH`, `HOME`, `USER`, `LOGNAME`, `SHELL`,
-`LANG`, `LC_*`, `TERM`, `TMPDIR` and the proxy variables. The browser runners
+`LANG`, `LC_*`, `TERM` and the proxy variables. `TMPDIR` is always the child's
+own private directory (see "Settlement"). The browser runners
 also inherit `PLAYWRIGHT_BROWSERS_PATH`. Anything else is dropped, including
 `DATABASE_URL`, Vercel tokens, the B01 per-venue lists, `CI`, `GIT_*` and
 `B02_E2E_HOME`.
@@ -441,8 +522,9 @@ also inherit `PLAYWRIGHT_BROWSERS_PATH`. Anything else is dropped, including
 | `next build` | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `NEXT_PUBLIC_SITE_URL=http://127.0.0.1:3646`, `NEXT_TELEMETRY_DISABLED=1`, the four `NABALENS_*=b02` switches. No server secret. |
 | `scan-bundle.mjs` | `SUPABASE_SERVICE_ROLE_KEY` only (the value it searches the bundle for) |
 | `next start` | the build's values plus `SUPABASE_SERVICE_ROLE_KEY` (admin and media routes) |
-| e2e list and run | `NEXT_PUBLIC_SUPABASE_URL` (target guard), `SUPABASE_SERVICE_ROLE_KEY` (fixture sign-in links), `E2E_DB_URL` (read-only read-back), `B02_SUITE`, `B02_STACK`, `APP_URL`, `B02_RUN_ID`, `B02_RUN_DIR`. No publishable key, JWT secret, `SUPABASE_DB_URL`, Mailpit or checkout path. |
-| Playwright charters | the e2e values with `B02_SUITE=charters`, plus `B02_CHECKOUT` (the candidate's Playwright) and, for the run only, `PLAYWRIGHT_JSON_OUTPUT_FILE` |
+| e2e and Playwright collection (`list`, `--list`, locked or not) | `listEnv` only: fixed spare6 loopback `NEXT_PUBLIC_SUPABASE_URL` and a password-less `E2E_DB_URL`, `SUPABASE_SERVICE_ROLE_KEY=list-only-placeholder`, `B02_LIST_ONLY=1`, `B02_RUN_ID=list-only`, `B02_SUITE`, `B02_STACK`, `APP_URL` and, for the charters, `B02_CHECKOUT`. No live credential and no run directory. |
+| e2e run | `NEXT_PUBLIC_SUPABASE_URL` (target guard), `SUPABASE_SERVICE_ROLE_KEY` (fixture sign-in links), `E2E_DB_URL` (read-only read-back), `B02_SUITE`, `B02_STACK`, `APP_URL`, `B02_RUN_ID`, `B02_RUN_DIR`. No publishable key, JWT secret, `SUPABASE_DB_URL`, Mailpit or checkout path. |
+| Playwright charters run | the e2e run values with `B02_SUITE=charters`, plus `B02_CHECKOUT` (the candidate's Playwright) and `PLAYWRIGHT_JSON_OUTPUT_FILE` |
 
 The e2e config registers the service key and the DB URL as runner `secrets`,
 so the runner redacts them wherever it writes. The model never sees them,
@@ -499,6 +581,12 @@ and names this run and candidate. Every step then appends these lines:
   venue names, planned fixture emails, prefixes and ids it is about to
   change;
 - `done` with the ids it created, or `failed` with a scrubbed message.
+
+The step is `fixture.ts`'s `journalStep`. Anything a step begins happens
+inside its callback, after the intent is on disk. That includes the
+replacement identity's real sign-in, which runs inside the
+"replacement submission" step, before `submit_coverage_photos`. Its intent
+names the actor's id, and no credential is journalled.
 
 `world.json` is written last, atomically (temp file, fsync, rename, directory
 fsync), and a final `complete` line follows. If the seed fails or is
@@ -577,19 +665,17 @@ any mismatch.
 
 ## Offline checks run for this commit
 
-- `node --test run.test.mjs`: 67 of 67 passed. They used temporary git
-  repos, fake `psql`, fake e2e, Playwright, `next` and scanner executables, a
-  fake stack object and short-lived local process groups only.
-- `node run.mjs list`, with inert dummy loopback values and `B02_CHECKOUT`
-  set to the team3 checkout for its installed Playwright, collected 20 of 20:
-  - `staff` 4, `manager` 8, `recovery` 2 and `layout` 4;
-  - `charters` 2, with both exact titles in `chromium-desktop`.
-
-  The integrated `charters.config.ts` was accepted. That checkout's HEAD is
-  not the pin, so this is collection evidence only.
-- The candidate's `tsc` 5.9.3 (`--strict --noUncheckedIndexedAccess`) exited
-  0 on `fixture.ts`, `seed.ts`, `e2e.config.ts` and the four partner
-  `*.e2e.ts` files.
+- `node --test run.test.mjs`: 81 of 81 passed. They used temporary git
+  repos, fake `psql`, fake `supabase status` answers, fake e2e, Playwright,
+  `next` and scanner executables, a fake stack object, injected process
+  tables and listeners, and short-lived local process groups only.
+- `tsc --noEmit -p tsconfig.json` and `eslint` on the four changed files ran
+  with the main checkout's `node_modules`. They found no new error.
+  `fixture.ts`'s `readOnly` reports the same TS2769 at the base commit
+  (`763cdb66`), because Next's `ProcessEnv` requires `NODE_ENV`.
+- `node run.mjs list` was not rerun for this repair, and nothing in it
+  collected. The coordinator runs final collection against the integrated
+  files.
 
 ## Limitations
 
@@ -602,12 +688,15 @@ any mismatch.
   - all 20 instances;
   - `db.groupFor` against the real function;
   - the scrub's behaviour on real artifacts.
-- An escaped descendant is caught only if the process table showed it while
-  its group lived, at most a second before stop. One that leaves and loses
-  its parent within that gap is seen only as output that never closes, which
-  is treated as uncertain. The offline tests inject the process table
-  because `ps` is unavailable in their sandbox. The real table reader runs
-  only in the coordinator's environment.
+- A descendant that detaches and loses its parent is found by its private
+  `TMPDIR` in `ps -E`, or by a Chromium profile under it. A process that clears
+  its whole environment and carries no such path in its arguments is not
+  found that way. It is still caught as output that never closes, if it kept
+  the pipe, but not if it closed its stdio as well. The offline tests inject
+  the process table and listeners, because `ps` is unavailable in their
+  sandbox and the machine's real ports are not this run's. The real `ps -E`
+  reader, the fresh `supabase status` and the physical `/tmp` chain run only
+  in the coordinator's environment.
 - Fixture sign-in mints a local magic-link token with the service key and
   posts it to the app's real `/auth/confirm/verify`. Inbox delivery and
   interactive sign-in are outside the run.

@@ -22,6 +22,7 @@ import { pathToFileURL } from "node:url"
 import {
   appendJournal,
   DISH,
+  journalStep,
   json,
   LAYOUT_TARGETS,
   PILOT_KEYS,
@@ -73,19 +74,8 @@ const scrub = (message: string) =>
     .filter((v): v is string => typeof v === "string" && v.length >= 8)
     .reduce((text, value) => text.split(value).join("[redacted]"), message)
 
-/** Journals `planned` before `run` writes anything, and what it created after. */
-async function step<T>(name: string, planned: unknown, run: () => Promise<T> | T, created: (result: T) => unknown = () => null) {
-  appendJournal(dir, { kind: "intent", step: name, planned })
-  let result: T
-  try {
-    result = await run()
-  } catch (error) {
-    appendJournal(dir, { kind: "failed", step: name, message: scrub(String((error as Error)?.message ?? error)) })
-    throw error
-  }
-  appendJournal(dir, { kind: "done", step: name, created: created(result) })
-  return result
-}
+/** Journals `planned` before `run` writes anything (or signs in), and what it created after. */
+const step = journalStep(dir, scrub)
 
 const repo = (path: string) => import(pathToFileURL(join(checkout, path)).href)
 const worldHelpers = await repo("tests/e2e/helpers/world.ts")
@@ -407,11 +397,13 @@ const requirementId = (await step(
 await step("replacement assignee", { requirement: requirementId, staff: [staffReplacement.id] }, () =>
   menus.ok(adminDb.rpc("set_coverage_requirement_assignees", { p_requirement_id: requirementId, p_staff_ids: [staffReplacement.id] }))
 )
-const replacementDb = await identities.signIn(stack.provisioner(), staffReplacement.email)
+// The replacement identity's real sign-in begins inside the journalled step,
+// after its intent (with the actor's id, never a credential) is on disk.
 const submitted = (await step(
   "replacement submission",
   { requirement: requirementId, asset: replacementAsset, by: staffReplacement.id },
   async () => {
+    const replacementDb = await identities.signIn(stack.provisioner(), staffReplacement.email)
     const items = (await menus.ok(
       replacementDb.rpc("submit_coverage_photos", {
         p_asset_ids: [replacementAsset],

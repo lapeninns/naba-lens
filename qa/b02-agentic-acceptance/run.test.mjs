@@ -27,20 +27,21 @@ import {
   writeFileSync,
 } from "node:fs"
 import { tmpdir } from "node:os"
-import { dirname, join } from "node:path"
-import { test } from "node:test"
+import { dirname, join, sep } from "node:path"
+import { after, test } from "node:test"
 import { fileURLToPath, pathToFileURL } from "node:url"
 
 import * as realStack from "../../scripts/ci/stack.mjs"
 import {
   APP,
   buildEnv,
+  carriesMarker,
   CHARTER_TITLES,
+  CHARTERS_CONFIG_SHA256,
   combine,
   commitMigrations,
   createReceipt,
   createSupervisor,
-  declaresWebServer,
   escapedDescendants,
   privateStream,
   e2eEnv,
@@ -58,6 +59,7 @@ import {
   lockedRun,
   outgoing,
   outwardFailure,
+  ownedProcesses,
   parse,
   pinnedMigrations,
   PLAN,
@@ -66,14 +68,17 @@ import {
   probeGroup,
   psqlLedger,
   readJson,
+  readPrivateJson,
   redact,
   registerSecrets,
   requireCanonicalRoot,
   requireDistinctIdentities,
   requireFreePort,
   requireNoReceipt,
-  requireNoWebServer,
   requirePlaywright,
+  requirePrivateChain,
+  requireReviewedChartersConfig,
+  REVIEWED_CHARTERS_CONFIG,
   resolveE2E,
   runCharters,
   runE2E,
@@ -90,12 +95,14 @@ import {
   summarise,
   SUITES,
   TOTAL_INSTANCES,
+  Uncertain,
   validatedStackEnvironment,
   validateE2EReport,
   validateListedPairs,
   validatePlaywrightReport,
   verifyCheckout,
   verifyLockOwner,
+  verifyPhysicalWorkdir,
   verifyPinnedMigrations,
   verifyProductInputs,
   verifyServerOwner,
@@ -376,17 +383,33 @@ const stackEnvOf = (overrides = {}) => ({
   ...overrides,
 })
 
+/** `supabase status -o json` as it would answer for the workdir stack.mjs cached `env` from. */
+const freshOf = (env, overrides = {}) => ({
+  API_URL: env.NEXT_PUBLIC_SUPABASE_URL,
+  DB_URL: env.E2E_DB_URL,
+  PUBLISHABLE_KEY: env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+  SERVICE_ROLE_KEY: env.SUPABASE_SERVICE_ROLE_KEY,
+  JWT_SECRET: env.SUPABASE_JWT_SECRET,
+  MAILPIT_URL: env.MAILPIT_URL,
+  ...overrides,
+})
+/** A fresh status that agrees with whatever the stack's cached env says now. */
+const agreeing = (stack) => () => freshOf(stack.stackEnv())
+
 test("the stack environment is read fresh, validated, narrowed to four values and its credentials collected", () => {
   let generation = 1
   const stack = { stackEnv: () => stackEnvOf({ SUPABASE_SERVICE_ROLE_KEY: `dummy-service-role-${generation}` }) }
-  const before = validatedStackEnvironment(stack, SPEC)
+  const before = validatedStackEnvironment(stack, SPEC, agreeing(stack))
   generation++
-  const after = validatedStackEnvironment(stack, SPEC)
+  const after = validatedStackEnvironment(stack, SPEC, agreeing(stack))
   assert.notEqual(after.env.SUPABASE_SERVICE_ROLE_KEY, before.env.SUPABASE_SERVICE_ROLE_KEY)
   assert.deepEqual(Object.keys(after.env).sort(), ["E2E_DB_URL", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"])
   const names = after.secrets.map((s) => s.name).sort()
   assert.deepEqual(names, ["DB_PASSWORD", "E2E_DB_URL", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "SUPABASE_DB_URL", "SUPABASE_JWT_SECRET", "SUPABASE_SERVICE_ROLE_KEY"])
-  const bad = (overrides, message) => assert.throws(() => validatedStackEnvironment({ stackEnv: () => stackEnvOf(overrides) }, SPEC), message)
+  const bad = (overrides, message) => {
+    const s = { stackEnv: () => stackEnvOf(overrides) }
+    assert.throws(() => validatedStackEnvironment(s, SPEC, agreeing(s)), message)
+  }
   bad({ E2E_DB_URL: "postgresql://postgres@db.example.invalid:64622/postgres" }, /127\.0\.0\.1/)
   bad({ NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321" }, /64621/)
   bad({ SUPABASE_DB_URL: "postgresql://postgres@127.0.0.1:54322/postgres" }, /SUPABASE_DB_URL/)
@@ -395,11 +418,39 @@ test("the stack environment is read fresh, validated, narrowed to four values an
   bad({ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: undefined }, /PUBLISHABLE_KEY/)
   bad({ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "dummy-service-role-value" }, /same/)
   bad({ E2E_DB_URL: "not a url" }, /not a URL/)
+  bad({ E2E_SUPABASE_WORKDIR: "/tmp/nabalens-ws/spare5" }, /names another workdir/)
+})
+
+test("the cached stack env must equal a fresh supabase status for that exact workdir, naming only the field that differs", () => {
+  const stack = { stackEnv: () => stackEnvOf() }
+  const cached = stackEnvOf()
+  const asked = []
+  validatedStackEnvironment(stack, SPEC, (workdir) => (asked.push(workdir), freshOf(cached)), "/private/tmp/nabalens-ws/spare6")
+  assert.deepEqual(asked, ["/private/tmp/nabalens-ws/spare6"], "the fresh status is read for the physically verified workdir")
+  // Some CLI versions name the keys ANON_KEY / SECRET_KEY / INBUCKET_URL.
+  const legacy = freshOf(cached, { PUBLISHABLE_KEY: undefined, ANON_KEY: cached.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, SERVICE_ROLE_KEY: undefined, SECRET_KEY: cached.SUPABASE_SERVICE_ROLE_KEY, MAILPIT_URL: undefined, INBUCKET_URL: cached.MAILPIT_URL })
+  validatedStackEnvironment(stack, SPEC, () => legacy)
+  for (const [overrides, field] of [
+    [{ API_URL: "http://127.0.0.1:64631" }, "API_URL"],
+    [{ DB_URL: "postgresql://postgres:other-db-password@127.0.0.1:64622/postgres" }, "DB_URL"],
+    [{ PUBLISHABLE_KEY: "rotated-publishable-value" }, "PUBLISHABLE_KEY"],
+    [{ SERVICE_ROLE_KEY: "rotated-service-role-value" }, "SERVICE_ROLE_KEY"],
+    [{ SERVICE_ROLE_KEY: undefined }, "SERVICE_ROLE_KEY"],
+    [{ JWT_SECRET: "rotated-jwt-secret-value" }, "JWT_SECRET"],
+    [{ MAILPIT_URL: "http://127.0.0.1:64634" }, "MAILPIT_URL"],
+  ]) {
+    let message = ""
+    assert.throws(() => validatedStackEnvironment(stack, SPEC, () => freshOf(cached, overrides)), (error) => ((message = error.message), true))
+    assert.match(message, new RegExp(`cached status does not match a fresh supabase status for its workdir \\(${field}\\)`), field)
+    for (const value of [...Object.values(overrides), ...Object.values(cached)]) if (typeof value === "string" && value.length >= 12) assert.ok(!message.includes(value), `${field}: no value is named`)
+  }
+  assert.throws(() => validatedStackEnvironment(stack, SPEC, () => null), /fresh supabase status for spare6's workdir could not be read/)
+  assert.throws(() => validatedStackEnvironment(stack, SPEC, () => []), /could not be read/)
 })
 
 // ---- Child environments ------------------------------------------------------------------
 
-const STACK_VALUES = validatedStackEnvironment({ stackEnv: () => stackEnvOf() }, SPEC)
+const STACK_VALUES = validatedStackEnvironment({ stackEnv: () => stackEnvOf() }, SPEC, () => freshOf(stackEnvOf()))
 const ctx = {
   stackEnv: STACK_VALUES.env,
   checkout: "/abs/candidate",
@@ -787,6 +838,33 @@ test("db.groupFor reads contribution_group as the viewer: safe fields, null only
     assert.match(sql, /\\set VERBOSITY verbose/)
     assert.throws(() => fixture.db.groupFor("not-a-uuid", UUID1), /not a uuid/)
   })
+  // `mine` comes back verbatim: true stays true on the group and on each member.
+  const owner = { ...raw, mine: true, members: [{ ...raw.members[0], mine: true }, { assetId: UUID2, position: 2, mediaType: "image", uploadState: "ready", mine: false }] }
+  fakePsql(dir, { stdout: `f\n${JSON.stringify(owner)}` })
+  await withEnv({ ...TARGET_ENV, PATH: `${dir}:${process.env.PATH}` }, async () => {
+    const fixture = await freshFixture()
+    const group = fixture.db.groupFor(UUID2, UUID1)
+    assert.equal(group.mine, true)
+    assert.deepEqual(group.members.map((m) => m.mine), [true, false])
+  })
+  // A missing or malformed `mine` on the group or any member is refused, never read as false.
+  const malformed = [
+    [{ ...raw, mine: undefined }, /no boolean mine for the group/],
+    [{ ...raw, mine: null }, /no boolean mine for the group/],
+    [{ ...raw, mine: "false" }, /no boolean mine for the group/],
+    [{ ...raw, mine: 0 }, /no boolean mine for the group/],
+    [{ ...raw, members: [{ ...raw.members[0], mine: undefined }] }, /no boolean mine for member 0/],
+    [{ ...raw, members: [raw.members[0], { ...raw.members[0], assetId: UUID2, mine: "true" }] }, /no boolean mine for member 1/],
+    [{ ...raw, members: [{ ...raw.members[0], mine: null }] }, /no boolean mine for member 0/],
+    [{ ...raw, members: [null] }, /no boolean mine for member 0/],
+  ]
+  for (const [answer, message] of malformed) {
+    fakePsql(dir, { stdout: `f\n${JSON.stringify(answer)}` })
+    await withEnv({ ...TARGET_ENV, PATH: `${dir}:${process.env.PATH}` }, async () => {
+      const fixture = await freshFixture()
+      assert.throws(() => fixture.db.groupFor(UUID2, UUID1), message, JSON.stringify(answer))
+    })
+  }
   fakePsql(dir, { stderr: "psql:<stdin>:5: ERROR:  P0002: contribution_group_not_found", status: 3 })
   await withEnv({ ...TARGET_ENV, PATH: `${dir}:${process.env.PATH}` }, async () => {
     const fixture = await freshFixture()
@@ -979,6 +1057,44 @@ test("the summary is created exclusively in the private run directory, redacted,
   chmodSync(other, 0o755)
   assert.match(writeSummary(other, summary, SECRETS).problem, /not private/)
   rmSync(root, { recursive: true, force: true })
+})
+
+test("the private output chain: every directory from .results down is real and private; a replaced parent is refused, never followed", () => {
+  const root = temp()
+  const results = join(root, ".results")
+  const { runRoot } = prepareRunRoot("guard-chain", results)
+  const suite = join(runRoot, "staff")
+  mkdirSync(suite, { mode: 0o700 })
+  writeFileSync(join(suite, "report.json"), '{"ok":true}')
+  requirePrivateChain(results, suite)
+  requirePrivateChain(results, results)
+  assert.deepEqual(readPrivateJson(results, join(suite, "report.json")), { value: { ok: true } })
+  assert.deepEqual(readPrivateJson(results, join(suite, "missing.json")), { problem: "missing" })
+  assert.throws(() => requirePrivateChain(results, root), /outside the private results directory/)
+  assert.throws(() => requirePrivateChain(results, "/etc"), /outside the private results directory/)
+  // The run directory replaced by a link to an exact copy holding its own report: refused, and the copy is untouched.
+  const outside = temp("b02-outside-")
+  renameSync(runRoot, join(outside, "run"))
+  symlinkSync(join(outside, "run"), runRoot)
+  writeFileSync(join(outside, "run", "staff", "report.json"), '{"ok":"external"}')
+  assert.throws(() => requirePrivateChain(results, suite), /\.results\/guard-chain must be a real directory, not a link/)
+  assert.match(readPrivateJson(results, join(suite, "report.json")).problem, /not this run's private output/)
+  assert.equal(writeSummary(runRoot, { ok: true }, []).ok, false)
+  assert.equal(existsSync(join(outside, "run", "summary.json")), false)
+  assert.equal(readFileSync(join(outside, "run", "staff", "report.json"), "utf8"), '{"ok":"external"}')
+  rmSync(runRoot)
+  renameSync(join(outside, "run"), runRoot)
+  requirePrivateChain(results, suite)
+  // A suite directory others may enter, or a linked .results, is refused too.
+  chmodSync(suite, 0o755)
+  assert.throws(() => requirePrivateChain(results, suite), /\.results\/guard-chain\/staff is not private/)
+  chmodSync(suite, 0o700)
+  const linked = join(root, "linked-results")
+  symlinkSync(results, linked)
+  assert.throws(() => requirePrivateChain(linked, suite), /outside|not a link/)
+  assert.throws(() => requirePrivateChain(linked, join(linked, "guard-chain")), /The results directory must be a real directory, not a link/)
+  rmSync(root, { recursive: true, force: true })
+  rmSync(outside, { recursive: true, force: true })
 })
 
 // ---- Report validation ---------------------------------------------------------------------------
@@ -1428,35 +1544,37 @@ test("the summary counts only fully passing selected suites; a partial run is ne
 
 // ---- Partner files and the charters' config ---------------------------------------------------------
 
-test("the charters config is checked statically: the integrated partner config passes, a real webServer is refused", () => {
-  // The actual partner config mentions webServer in a comment only.
-  const partner = readFileSync(join(HARNESS, "charters.config.ts"), "utf8")
-  assert.match(partner, /There is no webServer/)
-  assert.equal(declaresWebServer(partner), false)
-  requireNoWebServer(HARNESS)
-  const declared = [
-    "export default defineConfig({ webServer: { command: 'next start', port: 3000 } })",
-    "export default { 'webServer': { command: 'next start' } }",
-    'export default { ["webServer"]: { command: "next start" } }',
-    "const config = {}; config.webServer = { command: 'next start' }; export default config",
-    "export default { ...base, webServer }",
-    "export default defineConfig({ use: { baseURL: `${app}` }, webServer: [{ command: `next start --port ${port}` }] })",
-  ]
-  for (const source of declared) assert.equal(declaresWebServer(source), true, source)
-  const mentioned = [
-    "// webServer: none, the runner owns the app\nexport default {}",
-    "/* a webServer would start a second app */ export default {}",
-    "export default { name: 'no webServer here' }",
-    "export default { name: `webServer ${'is off'}` }",
-    "const re = /webServer/; export default { re }",
-  ]
-  for (const source of mentioned) assert.equal(declaresWebServer(source), false, source)
+test("the charters config is pinned by its exact reviewed bytes: the integrated config passes, any other bytes are refused", () => {
+  // The independently reviewed config, as integrated.
+  assert.equal(CHARTERS_CONFIG_SHA256, "d9e6284d5225ba9388dad843c4b6a43111e319b5ffea5ce00a226fcfca25313f")
+  assert.deepEqual({ ...REVIEWED_CHARTERS_CONFIG }, { dir: HARNESS, sha256: CHARTERS_CONFIG_SHA256 })
+  assert.equal(sha(readFileSync(join(HARNESS, "charters.config.ts"))), CHARTERS_CONFIG_SHA256)
+  assert.equal(requireReviewedChartersConfig(), join(HARNESS, "charters.config.ts"))
   const dir = temp()
   assert.deepEqual(suiteFiles("charters", dir).missing, ["charters.playwright.ts", "charters.config.ts"])
-  writeFileSync(join(dir, "charters.config.ts"), "// webServer is never declared here\nexport default { use: { baseURL: process.env.APP_URL } }\n")
-  requireNoWebServer(dir)
-  writeFileSync(join(dir, "charters.config.ts"), "export default { webServer: { command: 'next start' } }\n")
-  assert.throws(() => requireNoWebServer(dir), /declares a webServer/)
+  const original = readFileSync(join(HARNESS, "charters.config.ts"))
+  const reviewed = { dir, sha256: CHARTERS_CONFIG_SHA256 }
+  writeFileSync(join(dir, "charters.config.ts"), original)
+  assert.equal(requireReviewedChartersConfig(reviewed), join(dir, "charters.config.ts"))
+  // A server arriving by a route no source reading or report shows, a one-byte change, or nothing at all.
+  for (const altered of [
+    Buffer.concat([original, Buffer.from("\nconst plugin = { setup: () => import('node:child_process').then((c) => c.spawn('next', ['start'])) }\n")]),
+    Buffer.concat([original.subarray(0, -1), Buffer.from(original.at(-1) === 0x0a ? " " : "\n")]),
+    Buffer.alloc(0),
+  ]) {
+    writeFileSync(join(dir, "charters.config.ts"), altered)
+    assert.throws(() => requireReviewedChartersConfig(reviewed), /is not the independently reviewed config \(sha256 [0-9a-f]{64}, reviewed d9e6284d/)
+  }
+  // A link to the reviewed bytes, or a file others may write, is refused too.
+  rmSync(join(dir, "charters.config.ts"))
+  symlinkSync(join(HARNESS, "charters.config.ts"), join(dir, "charters.config.ts"))
+  assert.throws(() => requireReviewedChartersConfig(reviewed), /must be a regular file, not a link/)
+  rmSync(join(dir, "charters.config.ts"))
+  writeFileSync(join(dir, "charters.config.ts"), original)
+  chmodSync(join(dir, "charters.config.ts"), 0o666)
+  assert.throws(() => requireReviewedChartersConfig(reviewed), /writable by others/)
+  rmSync(join(dir, "charters.config.ts"))
+  assert.throws(() => requireReviewedChartersConfig(reviewed), /is missing/)
   assert.deepEqual(suiteFiles("staff", dir).missing, ["staff.e2e.ts"])
   rmSync(dir, { recursive: true, force: true })
 })
@@ -1498,7 +1616,9 @@ test("every repository helper, RPC and fixture seed.ts uses exists in the pinned
   assert.match(groups, /'mediaType', a\.media_type/)
   assert.match(show("supabase/migrations/20261102110000_staff_departments.sql"), /check \(department in \('foh', 'boh'\)\)/)
   const seed = readFileSync(join(HARNESS, "seed.ts"), "utf8")
-  assert.match(seed, /appendJournal\(dir, \{ kind: "intent"/)
+  // seed.ts's step is fixture.ts's journalStep (intent appended, fsynced, before `run` starts).
+  assert.match(seed, /^const step = journalStep\(dir, scrub\)$/m)
+  assert.match(readFileSync(join(HARNESS, "fixture.ts"), "utf8"), /appendJournal\(dir, \{ kind: "intent", step: name, planned \}\)\n {4}let result: T\n {4}try \{\n {6}result = await run\(\)/)
   // The journal intent precedes every helper write in each step.
   assert.ok(seed.indexOf('appendJournal(dir, { kind: "tag"') < seed.indexOf("worldHelpers.createVenues("))
   // Each replacement write happens inside its own journalled step (intent first).
@@ -1517,6 +1637,51 @@ test("every repository helper, RPC and fixture seed.ts uses exists in the pinned
   assert.match(seed, /staffReplacement: person\(staffReplacement\)/)
   assert.match(seed, /jobTitle: "Curry Chef", department: "boh"/)
   assert.match(seed, /replacement: await jpeg\(`b02-replacement-\$\{tag\}\.jpg`/)
+  // The replacement identity's real sign-in begins inside its submission step's
+  // callback, after the intent naming the actor's id, and before the RPC; it
+  // happens nowhere else, and its planned intent carries no credential.
+  const signIn = "identities.signIn(stack.provisioner(), staffReplacement.email)"
+  assert.equal(seed.split(signIn).length - 1, 1, "one replacement sign-in")
+  const submissionAt = seed.indexOf('step(\n  "replacement submission"')
+  const callbackAt = seed.indexOf("async () => {", submissionAt)
+  const rpcAt = seed.indexOf('"submit_coverage_photos"', submissionAt)
+  assert.ok(submissionAt > 0 && callbackAt > submissionAt && seed.indexOf(signIn) > callbackAt && seed.indexOf(signIn) < rpcAt, "the sign-in is in the step's callback, before the RPC")
+  const planned = seed.slice(seed.indexOf("{", submissionAt), callbackAt)
+  assert.match(planned, /by: staffReplacement\.id/)
+  assert.doesNotMatch(planned, /provisioner|email|key|token|password/i)
+})
+
+test("a journalled step's intent is durable on disk when its callback begins (the replacement sign-in), and a failure is scrubbed", async () => {
+  const dir = temp()
+  startJournal(dir, { runId: "guard-step", candidate: PINNED.commit })
+  const fixture = await freshFixture()
+  const step = fixture.journalStep(dir, (message) => message.split("service-role-secret-value").join("[redacted]"))
+  const planned = { requirement: UUID1, asset: UUID2, by: "00000000-0000-4000-8000-000000000003" }
+  let seenAtSignIn = null
+  const item = await step(
+    "replacement submission",
+    planned,
+    async () => {
+      // What a crash at the very start of the sign-in would leave: read from disk, not memory.
+      seenAtSignIn = readFileSync(join(dir, JOURNAL), "utf8").trim().split("\n").map((line) => JSON.parse(line))
+      return { item_id: UUID1, revision: 1 }
+    },
+    (r) => ({ item: r.item_id, revision: r.revision })
+  )
+  assert.deepEqual(item, { item_id: UUID1, revision: 1 })
+  assert.deepEqual(seenAtSignIn.map((l) => l.kind), ["header", "intent"])
+  assert.deepEqual(seenAtSignIn[1], { at: seenAtSignIn[1].at, kind: "intent", step: "replacement submission", planned })
+  const lines = fixture.readJournal(dir)
+  assert.deepEqual(lines.map((l) => l.kind), ["header", "intent", "done"])
+  assert.deepEqual(lines[2].created, { item: UUID1, revision: 1 })
+  // A sign-in that fails: recorded as failed with the credential scrubbed, and the error still propagates.
+  await assert.rejects(step("replacement submission", planned, async () => {
+    throw new Error("signIn failed with service-role-secret-value")
+  }), /signIn failed/)
+  const failed = fixture.readJournal(dir).at(-1)
+  assert.deepEqual([failed.kind, failed.message], ["failed", "signIn failed with [redacted]"])
+  assert.ok(!readFileSync(join(dir, JOURNAL), "utf8").includes("service-role-secret-value"))
+  rmSync(dir, { recursive: true, force: true })
 })
 
 // ---- Geometry sources ---------------------------------------------------------------------------------------
@@ -1568,6 +1733,13 @@ function recordingStack({ falseSuccess = false } = {}) {
 const quiet = () => {}
 /** An offline process table showing no descendant outside its group (ps is unavailable in the sandbox). */
 const noEscapes = () => []
+/** Where offline children get their private TMPDIRs (the live root is /tmp). */
+const SCRATCH = temp("b02-scratch-")
+after(() => rmSync(SCRATCH, { recursive: true, force: true }))
+/** No listener on any port (lsof would see the machine's real ports). */
+const noListeners = () => []
+/** A supervisor with offline scratch and listeners, everything else as given. */
+const supervise = (opts) => createSupervisor({ scratchRoot: SCRATCH, listeners: noListeners, log: quiet, ...opts })
 
 test("probeGroup is the kernel's answer: absent only on ESRCH, ambiguous on EPERM", () => {
   const raise = (code) => () => {
@@ -1583,7 +1755,7 @@ test("probeGroup is the kernel's answer: absent only on ESRCH, ambiguous on EPER
 
 test("supervisor: a spawn failure resolves 127 without signalling anything", async () => {
   const stack = recordingStack()
-  const sup = createSupervisor({ table: noEscapes, stack, log: quiet })
+  const sup = supervise({ table: noEscapes, stack, log: quiet })
   const r = await sup.run("missing", "/nonexistent/b02-no-such-binary", [], {}, 60_000)
   assert.equal(r.code, 127)
   assert.equal(r.settled, true)
@@ -1593,7 +1765,7 @@ test("supervisor: a spawn failure resolves 127 without signalling anything", asy
 
 test("supervisor: normal exit returns the code after settling its own group, output redacted", async () => {
   const stack = recordingStack()
-  const sup = createSupervisor({ table: noEscapes, stack, log: quiet })
+  const sup = supervise({ table: noEscapes, stack, log: quiet })
   const out = sink()
   const err = sink()
   const env = { PATH: process.env.PATH, KEY: "service-role-secret-value" }
@@ -1614,7 +1786,7 @@ test("supervisor: normal exit returns the code after settling its own group, out
 
 test("supervisor: a normal exit with a lingering descendant settles only after that descendant's group is gone", async () => {
   const stack = recordingStack()
-  const sup = createSupervisor({ table: noEscapes, stack, log: quiet })
+  const sup = supervise({ table: noEscapes, stack, log: quiet })
   // The leader exits 0 at once; its sleeping child keeps the group and stdout open.
   const r = await sup.run("lingering", "/bin/sh", ["-c", "sleep 30 & exit 0"], {}, 60_000)
   assert.deepEqual([r.code, r.settled], [0, true])
@@ -1627,7 +1799,7 @@ test("supervisor: a normal exit with a lingering descendant settles only after t
 
 test("supervisor: a timeout resolves only after its own group is gone", async () => {
   const stack = recordingStack()
-  const sup = createSupervisor({ table: noEscapes, stack, log: quiet })
+  const sup = supervise({ table: noEscapes, stack, log: quiet })
   // The leader ignores SIGTERM and keeps a grandchild in its group, so cleanup must escalate.
   const started = Date.now()
   const r = await sup.run("hang", "/bin/sh", ["-c", "trap '' TERM; sleep 30 & wait"], {}, 200)
@@ -1641,7 +1813,7 @@ test("supervisor: a stop helper that resolves without removing the group is unce
   const dir = temp()
   const receipt = createReceipt(join(dir, "receipt.json"), { runId: "guard-false", runner: { pid: process.pid } })
   const stack = recordingStack({ falseSuccess: true })
-  const sup = createSupervisor({ table: noEscapes, stack, receipt, log: quiet, absenceMs: 300, outputMs: 300 })
+  const sup = supervise({ table: noEscapes, stack, receipt, log: quiet, absenceMs: 300, outputMs: 300 })
   const r = await sup.run("seed", "/bin/sh", ["-c", "sleep 30 & exit 0"], {}, 60_000)
   const pgid = stack.stopped[0]
   try {
@@ -1655,12 +1827,12 @@ test("supervisor: a stop helper that resolves without removing the group is unce
     assert.equal(recorded.state, "in-progress")
     assert.deepEqual(recorded.groups.map((g) => [g.role, g.pgid, g.state, g.evidence.group, g.evidence.stopHelper]), [["seed", pgid, "uncertain", "alive", "returned"]])
     // Missing or ambiguous evidence is just as uncertain.
-    const ambiguous = createSupervisor({ table: noEscapes, stack: recordingStack(), log: quiet, probe: () => "ambiguous", absenceMs: 100 })
+    const ambiguous = supervise({ table: noEscapes, stack: recordingStack(), log: quiet, probe: () => "ambiguous", absenceMs: 100 })
     const a = await ambiguous.run("build", "/bin/sh", ["-c", "exit 0"], {}, 60_000)
     assert.equal(a.settled, false)
     assert.match(ambiguous.report().reasons[0], /the group is ambiguous after the stop helper returned/)
     // A helper that never returns is not trusted either.
-    const hanging = createSupervisor({ table: noEscapes, stack: { terminateGroup: () => new Promise(() => {}) }, log: quiet, stopHelperMs: 100, absenceMs: 100, outputMs: 100 })
+    const hanging = supervise({ table: noEscapes, stack: { terminateGroup: () => new Promise(() => {}) }, log: quiet, stopHelperMs: 100, absenceMs: 100, outputMs: 100 })
     const h = await hanging.run("scan", "/bin/sh", ["-c", "sleep 30 & exit 0"], {}, 60_000)
     assert.equal(h.settled, false)
     assert.match(hanging.report().reasons.join("\n"), /scan .*the group is alive after the stop helper did not return/)
@@ -1673,7 +1845,7 @@ test("supervisor: a stop helper that resolves without removing the group is unce
 
 test("supervisor: an interrupt stops every owned group, refuses new work and resolves after all are checked", async () => {
   const stack = recordingStack()
-  const sup = createSupervisor({ table: noEscapes, stack, log: quiet })
+  const sup = supervise({ table: noEscapes, stack, log: quiet })
   const app = sup.service("app", "/bin/sh", ["-c", "sleep 30"], {})
   const suite = sup.run("e2e staff", "/bin/sh", ["-c", "sleep 30"], {}, 60_000)
   await sleep(100)
@@ -1688,6 +1860,219 @@ test("supervisor: an interrupt stops every owned group, refuses new work and res
   assert.equal(report.settled, true)
   assert.equal(report.interrupted, "signal")
   assert.deepEqual(report.groups.map((g) => g.state), ["settled", "settled"])
+})
+
+/** A leader that ignores TERM and INT and never exits on its own. */
+const IMMORTAL = "trap '' TERM INT; echo started service-role-secret-value; while :; do sleep 1; done"
+
+test("supervisor: a leader that never exits after its timeout or a signal resolves within the bound, uncertain, its output withheld", async () => {
+  const pgids = []
+  try {
+    for (const [helper, terminateGroup] of [
+      ["false success", async () => {}],
+      ["refusal", async () => {
+        throw new Error("refused")
+      }],
+      ["no return", () => new Promise(() => {})],
+    ]) {
+      const sup = supervise({ table: noEscapes, stack: { terminateGroup }, stopHelperMs: 200, absenceMs: 200, outputMs: 200 })
+      const started = Date.now()
+      const r = await sup.run("seed", "/bin/sh", ["-c", IMMORTAL], {}, 300, { secrets: SECRETS, capture: true })
+      const pgid = sup.report().groups[0].pgid
+      pgids.push(pgid)
+      assert.ok(Date.now() - started < 5000, `${helper}: resolved within the bound`)
+      assert.deepEqual([r.code, r.settled, r.output, r.withheld], [124, false, "", true], helper)
+      assert.equal(groupAlive(pgid), true, `${helper}: the leader is still alive`)
+      assert.match(sup.report().reasons.join("\n"), /seed \(process group \d+\): the group is alive after the stop helper (returned|threw|did not return)/)
+      // No phase starts after an uncertain one.
+      assert.throws(() => sup.ensureActive("build"), Uncertain)
+      assert.throws(() => sup.run("build", "/bin/sh", ["-c", "exit 0"], {}, 1000), /Process settlement is uncertain \(seed .*\); build was not started/)
+      assert.throws(() => sup.service("app", "/bin/sh", ["-c", "exit 0"], {}), /Process settlement is uncertain/)
+    }
+    // After a signal: the interrupt and the child's result both resolve within the bound; settle() too.
+    const sup = supervise({ table: noEscapes, stack: { terminateGroup: async () => {} }, stopHelperMs: 200, absenceMs: 200, outputMs: 200 })
+    const out = sink()
+    const running = sup.run("e2e staff", "/bin/sh", ["-c", IMMORTAL], {}, 60_000, { secrets: SECRETS, out })
+    pgids.push(sup.report().groups[0].pgid)
+    await waitFor(() => out.text().includes("started"))
+    const started = Date.now()
+    await sup.interrupt("signal")
+    const r = await running
+    assert.ok(Date.now() - started < 5000)
+    assert.deepEqual([r.code, r.settled, r.withheld], [130, false, true])
+    assert.equal(out.text(), "started [redacted:SERVICE]\n", "output was redacted while it ran and nothing more is shown after")
+    const report = await sup.settle()
+    assert.equal(report.settled, false)
+    assert.equal(report.groups[0].state, "uncertain")
+    assert.ok(existsSync(report.groups[0].scratch), "an uncertain child's private TMPDIR is kept for the coordinator")
+  } finally {
+    for (const pgid of pgids) await realStack.terminateGroup(pgid, 200)
+  }
+})
+
+test("supervisor: each child gets its own private TMPDIR, removed only when the whole run settled", async () => {
+  const sup = supervise({ table: noEscapes, stack: recordingStack() })
+  const r = await sup.run("seed", "/bin/sh", ["-c", 'printf %s "$TMPDIR"'], { env: { PATH: process.env.PATH, TMPDIR: "/inherited" } }, 60_000, { capture: true })
+  const scratch = sup.report().groups[0].scratch
+  assert.equal(r.output, scratch)
+  assert.equal(dirname(scratch), SCRATCH)
+  assert.match(scratch, /\/nb02-[A-Za-z0-9]{6}$/)
+  assert.equal(statSync(scratch).mode & 0o777, 0o700)
+  assert.equal((await sup.settle()).settled, true)
+  assert.equal(existsSync(scratch), false)
+  // A process still carrying any of the run's private paths at the end: the final sweep keeps the run uncertain.
+  let late = false
+  let first = null
+  const swept = supervise({ table: () => (late ? [{ pid: 4244, ppid: 1, pgid: 4244, command: `node child.js TMPDIR=${first}` }] : []), stack: recordingStack() })
+  assert.equal((await swept.run("build", "/bin/sh", ["-c", "exit 0"], {}, 60_000)).settled, true)
+  first = swept.report().groups[0].scratch
+  late = true
+  const report = await swept.settle()
+  assert.equal(report.settled, false)
+  assert.match(report.reasons.join("\n"), /the final process sweep found 1 process\(es\) carrying this run's private paths/)
+  assert.ok(existsSync(first))
+  const blind = supervise({ table: () => (late ? null : []), stack: recordingStack() })
+  late = false
+  await blind.run("scan", "/bin/sh", ["-c", "exit 0"], {}, 60_000)
+  late = true
+  assert.match((await blind.settle()).reasons.join("\n"), /the final process sweep could not read the process table/)
+  // Markers match a path itself, never a longer path that merely starts or ends with it.
+  assert.equal(carriesMarker("sleep 30 TMPDIR=/tmp/nb02-abc123", ["/tmp/nb02-abc123"]), true)
+  assert.equal(carriesMarker("chrome --user-data-dir=/tmp/nb02-abc123/playwright_chromiumdev_profile-x", ["/tmp/nb02-abc123"]), true)
+  assert.equal(carriesMarker("sleep 30 TMPDIR=/tmp/nb02-abc1234", ["/tmp/nb02-abc123"]), false)
+  assert.equal(carriesMarker("sleep 30 TMPDIR=/private/tmp/nb02-abc123", ["/tmp/nb02-abc123"]), false)
+  assert.equal(carriesMarker("sleep 30 TMPDIR=/private/tmp/nb02-abc123", ["/tmp/nb02-abc123", "/private/tmp/nb02-abc123"]), true)
+  assert.equal(carriesMarker(undefined, ["/tmp/nb02-abc123"]), false)
+})
+
+test("supervisor: a detached child that leaves at once with its own stdio is found by its private path, stopped, and proven gone", async () => {
+  const stack = recordingStack()
+  const dir = temp()
+  const handoff = join(dir, "grandchild.json")
+  // The leader starts a detached grandchild with independent stdio, records it synchronously and exits at once.
+  const leader = `const { spawn } = require("child_process"); const fs = require("fs"); const c = spawn("sleep", ["30"], { detached: true, stdio: "ignore" }); c.unref(); fs.writeFileSync(${JSON.stringify(handoff)}, JSON.stringify({ pid: c.pid, tmpdir: process.env.TMPDIR }))`
+  // ps -E after the leader is gone: the grandchild reparented to launchd, alone in its own group, its environment carrying the private TMPDIR.
+  const table = () => {
+    if (!existsSync(handoff)) return []
+    const g = JSON.parse(readFileSync(handoff, "utf8"))
+    return groupAlive(g.pid) ? [{ pid: g.pid, ppid: 1, pgid: g.pid, command: `sleep 30 PATH=/usr/bin TMPDIR=${g.tmpdir}` }] : []
+  }
+  // No ancestry poll ever runs before the stop: only the private path can find it.
+  const sup = supervise({ stack, table, watchMs: 600_000 })
+  let grandchild = null
+  try {
+    const r = await sup.run("playwright charters", process.execPath, ["-e", leader], {}, 60_000)
+    grandchild = JSON.parse(readFileSync(handoff, "utf8")).pid
+    assert.equal(r.code, 0)
+    assert.equal(r.settled, true, JSON.stringify(sup.report().reasons))
+    assert.equal(groupAlive(grandchild), false, "the detached grandchild's group is gone")
+    const [entry] = sup.report().groups
+    // The leader's group was already empty, so its id (perhaps reused by then) was never signalled.
+    assert.deepEqual(stack.stopped, [grandchild])
+    assert.equal(entry.evidence.stopHelper, "not needed (already absent)")
+    assert.deepEqual(entry.evidence.escaped, { [grandchild]: "absent" })
+    assert.equal(JSON.parse(readFileSync(handoff, "utf8")).tmpdir, entry.scratch)
+  } finally {
+    if (grandchild && groupAlive(grandchild)) process.kill(-grandchild, "SIGKILL")
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test("supervisor: a group mixing this child's process with a stranger's is never signalled; the run is uncertain", async () => {
+  const stack = recordingStack()
+  const stranger = spawnSync(process.execPath, ["-e", "const c=require('child_process').spawn('sleep',['30'],{detached:true,stdio:'ignore'});c.unref();console.log(c.pid)"], { encoding: "utf8" })
+  const other = Number(stranger.stdout.trim())
+  let leader = null
+  let scratch = null
+  // A fresh table: this child's own escaped process (by ancestry, and by its private path) shares group `other` with a stranger.
+  const table = () =>
+    !leader
+      ? []
+      : [
+          { pid: leader, ppid: process.pid, pgid: leader },
+          { pid: 424242, ppid: leader, pgid: other, command: `node TMPDIR=${scratch}` },
+          { pid: other, ppid: 1, pgid: other, command: "sleep 30" },
+        ]
+  const sup = supervise({ stack, table, watchMs: 20, absenceMs: 200 })
+  const running = sup.run("e2e staff", "/bin/sh", ["-c", "sleep 30"], {}, 60_000)
+  ;({ pgid: leader, scratch } = sup.report().groups[0])
+  try {
+    await sleep(100)
+    await sup.interrupt("signal")
+    const r = await running
+    assert.equal(r.settled, false)
+    assert.match(sup.report().reasons.join("\n"), new RegExp(`escaped descendant groups remain: ${other} not proven this run's \\(mixed membership\\)`))
+    assert.equal(groupAlive(other), true, "a mixed group is never signalled")
+    assert.deepEqual(stack.stopped, [leader])
+  } finally {
+    process.kill(-other, "SIGKILL")
+  }
+  // ownedProcesses: members, private-path carriers and their current children; a stranger is not.
+  const rows = [
+    { pid: 10, ppid: 1, pgid: 10 },
+    { pid: 11, ppid: 10, pgid: 20 },
+    { pid: 30, ppid: 1, pgid: 30, command: "chrome --user-data-dir=/tmp/nb02-zzzzzz/profile" },
+    { pid: 31, ppid: 30, pgid: 30 },
+    { pid: 40, ppid: 1, pgid: 30 },
+  ]
+  assert.deepEqual([...ownedProcesses(rows, 10, ["/tmp/nb02-zzzzzz"])].sort((a, b) => a - b), [10, 11, 30, 31])
+  assert.deepEqual([...escapedDescendants(rows, 10, ["/tmp/nb02-zzzzzz"])].sort((a, b) => a[0] - b[0]), [
+    [11, 20],
+    [30, 30],
+    [31, 30],
+  ])
+})
+
+test("supervisor: once its own group is proven empty, a reused group id proves nothing: the stranger is never signalled", async () => {
+  const stack = recordingStack()
+  const stranger = spawnSync(process.execPath, ["-e", "const c=require('child_process').spawn('sleep',['30'],{detached:true,stdio:'ignore'});c.unref();console.log(c.pid)"], { encoding: "utf8" })
+  const other = Number(stranger.stdout.trim())
+  let leader = null
+  // After the child exits and its group empties, an unrelated process S takes the same id and leads it,
+  // with its own child in group `other`. No member carries this child's private path.
+  const table = () => (leader ? [{ pid: leader, ppid: 1, pgid: leader, command: "stranger" }, { pid: other, ppid: leader, pgid: other, command: "sleep 30" }] : [])
+  const sup = supervise({ stack, table, watchMs: 600_000, absenceMs: 200 })
+  const running = sup.run("build", "/bin/sh", ["-c", "exit 0"], {}, 60_000)
+  leader = sup.report().groups[0].pgid
+  try {
+    const r = await running
+    assert.equal(r.settled, false)
+    assert.match(sup.report().reasons.join("\n"), new RegExp(`escaped descendant groups remain: ${other} not proven this run's`))
+    assert.deepEqual(stack.stopped, [], "neither the reused id nor the stranger's group is signalled")
+    assert.equal(groupAlive(other), true)
+  } finally {
+    process.kill(-other, "SIGKILL")
+  }
+})
+
+test("supervisor: after a timeout nothing more of the child is shown while its stop is pending", async () => {
+  const out = sink()
+  // A slow stop helper: the child keeps writing for most of a second after its timeout.
+  const stack = { terminateGroup: async (pid) => (await sleep(800), realStack.terminateGroup(pid, 200)) }
+  const sup = supervise({ table: noEscapes, stack })
+  const r = await sup.run("seed", "/bin/sh", ["-c", "trap '' TERM; echo first; sleep 1; while :; do echo late; sleep 0.05; done"], {}, 300, { out })
+  assert.deepEqual([r.code, r.settled], [124, true])
+  assert.equal(out.text(), "first\n")
+})
+
+test("supervisor: the app is settled only when nothing listens on its port and no app command or private path remains", async () => {
+  for (const [label, opts, message] of [
+    ["listener", { listeners: () => [4242] }, /app \(process group \d+\): port 3646 still has 1 listener\(s\) after the group stopped/],
+    ["unknown listeners", { listeners: () => null }, /app \(process group \d+\): the listeners on port 3646 could not be read/],
+    ["app command", { table: () => [{ pid: 4243, ppid: 1, pgid: 4243, app: true }] }, /app \(process group \d+\): 1 process\(es\) carrying its private path or the app command remain/],
+  ]) {
+    const sup = supervise({ table: noEscapes, stack: recordingStack(), ...opts })
+    const app = sup.service("app", "/bin/sh", ["-c", "sleep 30"], {}, {}, { port: 3646 })
+    assert.equal(await app.stop(), false, label)
+    assert.match(sup.report().reasons.join("\n"), message, label)
+    assert.equal(groupAlive(app.pid), false, label)
+    assert.equal(sup.report().groups[0].port, 3646)
+  }
+  const sup = supervise({ table: noEscapes, stack: recordingStack() })
+  const app = sup.service("app", "/bin/sh", ["-c", "sleep 30"], {}, {}, { port: 3646 })
+  assert.equal(await app.stop(), true)
+  assert.deepEqual(sup.report().groups[0].evidence.listeners, 0)
+  assert.equal((await sup.settle()).settled, true)
 })
 
 // ---- The blocking receipt ------------------------------------------------------------------------------------------
@@ -1745,7 +2130,9 @@ function productWorld() {
   const { dir, pin } = repo
   mkdirSync(join(dir, "node_modules", ".bin"), { recursive: true })
   writeFileSync(join(dir, "node_modules", ".bin", "next"), FAKE_NEXT, { mode: 0o755 })
-  const workdir = temp("b02-workdir-")
+  // anchor/nabalens-ws/spare6, as /tmp/nabalens-ws/spare6 is below /tmp.
+  const anchor = temp("b02-anchor-")
+  const workdir = join(anchor, "nabalens-ws", "spare6")
   mkdirSync(join(workdir, "supabase", "migrations"), { recursive: true })
   const pinned = pinnedMigrations(dir, pin)
   for (const file of pinned.files) copyFileSync(join(dir, "supabase", "migrations", file), join(workdir, "supabase", "migrations", file))
@@ -1760,14 +2147,55 @@ function productWorld() {
     stack,
     spec: SPEC,
     stackWorkdir: workdir,
+    stackAnchor: anchor,
     ledger: () => ledger.versions,
     stackEnv: STACK_VALUES.env,
     secrets: STACK_VALUES.secrets,
     harness: { commit: "a".repeat(40), tree: "b".repeat(40), clean: true },
     e2e: null,
   }
-  return { ...repo, workdir, revision, ledger, ctx: context, cleanup: () => [dir, workdir].forEach((d) => rmSync(d, { recursive: true, force: true })) }
+  return { ...repo, anchor, workdir, revision, ledger, ctx: context, cleanup: () => [dir, anchor].forEach((d) => rmSync(d, { recursive: true, force: true })) }
 }
+
+test("spare6's physical workdir: every component below the anchor a real private-to-write directory, before anything in it is hashed", () => {
+  const world = productWorld()
+  const { ctx: c, anchor, workdir } = world
+  assert.equal(verifyPhysicalWorkdir(workdir, anchor), workdir)
+  verifyProductInputs(c)
+  // The live anchor is /tmp, itself a system link: only it may resolve elsewhere.
+  if (existsSync("/tmp") && lstatSync("/tmp").isSymbolicLink()) {
+    assert.throws(() => verifyPhysicalWorkdir("/tmp/b02-no-such-workdir-for-guard"), /spare6's b02-no-such-workdir-for-guard is missing/)
+  }
+  assert.throws(() => verifyPhysicalWorkdir("/elsewhere/nabalens-ws/spare6", anchor), /not below/)
+  assert.throws(() => verifyPhysicalWorkdir(anchor, anchor), /not below/)
+  assert.throws(() => verifyPhysicalWorkdir("relative/spare6", anchor), /not below/)
+  // Each component in turn replaced by a link to an exact copy: refused before any byte is hashed.
+  const decoy = temp("b02-decoy-")
+  for (const rel of ["nabalens-ws", join("nabalens-ws", "spare6"), join("nabalens-ws", "spare6", "supabase"), join("nabalens-ws", "spare6", "supabase", "migrations")]) {
+    const real = join(anchor, rel)
+    const copy = join(decoy, rel.replaceAll(sep, "-"))
+    renameSync(real, copy)
+    symlinkSync(copy, real)
+    let hashed = false
+    const counted = { ...c, ledger: () => ((hashed = true), c.ledger()) }
+    assert.throws(() => verifyProductInputs(counted), new RegExp(`spare6's ${rel.replaceAll(sep, "/")} must be a real directory, not a link`), rel)
+    assert.equal(hashed, false, `${rel}: the ledger is never read through a link`)
+    assert.throws(() => verifyPhysicalWorkdir(workdir, anchor), /must be a real directory, not a link/)
+    rmSync(real)
+    renameSync(copy, real)
+  }
+  verifyProductInputs(c)
+  // A component others may write, or a missing migrations directory.
+  chmodSync(join(anchor, "nabalens-ws"), 0o777)
+  assert.throws(() => verifyPhysicalWorkdir(workdir, anchor), /spare6's nabalens-ws is writable by others/)
+  chmodSync(join(anchor, "nabalens-ws"), 0o755)
+  renameSync(join(workdir, "supabase", "migrations"), join(decoy, "gone"))
+  assert.throws(() => verifyPhysicalWorkdir(workdir, anchor), /supabase\/migrations is missing/)
+  renameSync(join(decoy, "gone"), join(workdir, "supabase", "migrations"))
+  verifyProductInputs(c)
+  rmSync(decoy, { recursive: true, force: true })
+  world.cleanup()
+})
 
 test("product inputs: the exact pinned files, bytes, manifest and ledger, under every check", () => {
   const world = productWorld()
@@ -1897,6 +2325,8 @@ function offlineRun(world, phases = {}, { stack = world.ctx.stack } = {}) {
     receiptPath: join(root, "spare6.b02-acceptance.receipt.json"),
     results: join(root, ".results"),
     table: noEscapes,
+    listeners: noListeners,
+    scratchRoot: SCRATCH,
     absenceMs: 500,
     outputMs: 500,
     finalizeMs: 30_000,
@@ -2034,6 +2464,65 @@ test("locked run: a stop helper's false success leaves a blocking receipt, unscr
   }
 })
 
+test("locked run: an unsettled journey suite stops the sequence before the charters; the receipt blocks and nothing is read or scrubbed", async () => {
+  for (const how of ["timeout", "signal"]) {
+    const world = productWorld()
+    const stack = { ...world.ctx.stack, ...recordingStack() }
+    let suitePgid = null
+    let hookDone = null
+    const realTerminate = stack.terminateGroup
+    // The stop helper refuses the suite's group only (a false success), so its never-exiting leader stays.
+    stack.terminateGroup = async (pid) => (pid === suitePgid ? undefined : realTerminate(pid))
+    const off = offlineRun(
+      world,
+      {
+        runSuite: async (c, suite, sup) => {
+          off.calls.push(suite)
+          const running = sup.run(`e2e ${suite}`, "/bin/sh", ["-c", IMMORTAL], {}, how === "timeout" ? 300 : 60_000, { secrets: c.secrets, capture: true })
+          suitePgid = sup.report().groups.at(-1).pgid
+          if (how === "signal") setTimeout(() => stack.fire().then(() => (hookDone = Date.now())), 150)
+          const r = await running
+          assert.equal(r.output, "", "an unsettled child's output is withheld")
+          return combine(suite, r, { ok: true, problems: [], counts: {} }, "e2e")
+        },
+      },
+      { stack }
+    )
+    try {
+      const started = Date.now()
+      const id = `guard-unsettled-${how}`
+      assert.equal(await off.run(id, { build: true, suites: "staff,charters" }), how === "signal" ? 130 : 1, how)
+      assert.ok(Date.now() - started < 20_000, `${how}: bounded`)
+      if (how === "signal") {
+        await waitFor(() => hookDone !== null)
+        assert.ok(hookDone - started < 20_000, "the signal hook returned within its bound")
+      }
+      assert.deepEqual(off.calls.filter((c) => SUITES.includes(c)), ["staff"], `${how}: the charters never start`)
+      assert.equal(groupAlive(suitePgid), true, "the refused group was left alone, never claimed gone")
+      const receipt = JSON.parse(readFileSync(off.overrides.receiptPath, "utf8"))
+      assert.equal(receipt.state, "blocked")
+      assert.match(receipt.reasons.join("\n"), new RegExp(`e2e staff \\(process group ${suitePgid}\\): the group is alive after the stop helper returned`))
+      const staff = receipt.groups.find((g) => g.pgid === suitePgid)
+      assert.equal(staff.state, "uncertain")
+      assert.ok(staff.scratch && existsSync(staff.scratch), "the uncertain child's private TMPDIR is recorded and kept")
+      const summary = off.summaryOf(id)
+      assert.equal(summary.ok, false)
+      assert.equal(summary.settlement.settled, false)
+      assert.match(summary.error, how === "signal" ? /Interrupted \(signal\)|staff's process group did not settle/ : /staff's process group did not settle; no further suite starts/)
+      assert.equal(summary.suites.charters.status, "not run")
+      assert.equal(summary.suites.staff.settled, false)
+      assert.equal(summary.suites.staff.counts.passed, 0)
+      assert.match(summary.scrub.problems.join(), /artifacts were not scrubbed: process settlement is uncertain/)
+      assert.ok(!readFileSync(join(off.overrides.results, id, "summary.json"), "utf8").includes("service-role"), "the summary is runner-owned and sanitized")
+      await assert.rejects(off.run(`${id}-again`), /spare6 is blocked by an earlier B02 run's receipt/)
+    } finally {
+      await realStack.terminateGroup(suitePgid, 200)
+      off.cleanup()
+      world.cleanup()
+    }
+  }
+})
+
 test("locked run: a product source change after the seed stops the run before the build", async () => {
   const world = productWorld()
   const off = offlineRun(world, {
@@ -2077,25 +2566,45 @@ test("locked run: one fresh guarded build is scanned before the app starts; a fa
 
 // ---- The suite wrappers, offline -------------------------------------------------------------------------------------
 
-/** A fake e2e installation whose CLI answers `list` and `run` from a scenario file beside it. */
+/** What a fake child records of its environment for each invocation (dummy values only). */
+const RECORDED_ENV = `const seen = ["SUPABASE_SERVICE_ROLE_KEY", "E2E_DB_URL", "NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "B02_RUN_ID", "B02_RUN_DIR", "B02_LIST_ONLY", "B02_SUITE", "PLAYWRIGHT_JSON_OUTPUT_FILE", "TMPDIR"]
+const record = (kind) => fs.appendFileSync(path.join(__dirname, "invocations.jsonl"), JSON.stringify({ kind, argv: process.argv.slice(2), env: Object.fromEntries(seen.map((k) => [k, process.env[k]])) }) + "\\n")`
+const invocationsOf = (dir) => (existsSync(join(dir, "invocations.jsonl")) ? readFileSync(join(dir, "invocations.jsonl"), "utf8").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l)) : [])
+
+/**
+ * A fake e2e installation whose CLI answers `list` and `run` from a scenario
+ * file beside it, records each invocation, writes its output privately (as
+ * under the runner's umask) and, when asked, replaces the suite directory
+ * (`linkSuiteTo`) or the run directory (`moveRunTo`) with a link after writing.
+ */
 function fakeE2E() {
   const script = `#!/usr/bin/env node
 const fs = require("fs"), path = require("path")
+${RECORDED_ENV}
 const scenario = JSON.parse(fs.readFileSync(path.join(__dirname, "scenario.json"), "utf8"))
 const suite = process.env.B02_SUITE
 const s = scenario[suite] || {}
+record(process.argv[2])
 if (process.argv[2] === "list") { process.stdout.write(JSON.stringify({ pairs: s.pairs })); process.exit(s.listExit || 0) }
-const out = path.join(path.dirname(process.env.B02_RUN_DIR), suite)
-fs.mkdirSync(out, { recursive: true })
+const runRoot = path.dirname(process.env.B02_RUN_DIR)
+const out = path.join(runRoot, suite)
+fs.mkdirSync(out, { recursive: true, mode: 0o700 })
 if (s.report) fs.writeFileSync(path.join(out, "report.json"), JSON.stringify(s.report).split("__NOW__").join(new Date().toISOString()))
 if (s.raw !== undefined) fs.writeFileSync(path.join(out, "report.json"), s.raw)
+if (s.linkSuiteTo) { fs.rmSync(out, { recursive: true }); fs.symlinkSync(s.linkSuiteTo, out) }
+if (s.moveRunTo) { fs.renameSync(runRoot, s.moveRunTo); fs.symlinkSync(s.moveRunTo, runRoot) }
 process.exit(s.exit || 0)
 `
   const fake = fakeInstall({ script })
-  const scenarioFile = join(fake.install.root, "dist", "cli", "scenario.json")
-  return { ...fake, set: (scenario) => writeFileSync(scenarioFile, JSON.stringify(scenario)) }
+  const cli = join(fake.install.root, "dist", "cli")
+  return { ...fake, cli, set: (scenario) => writeFileSync(join(cli, "scenario.json"), JSON.stringify(scenario)), invocations: () => invocationsOf(cli) }
 }
-/** A fake candidate Playwright: --list prints `listing`, a run writes `report` to PLAYWRIGHT_JSON_OUTPUT_FILE. */
+/**
+ * A fake candidate Playwright: --list prints `listing`, a run writes `report`
+ * to PLAYWRIGHT_JSON_OUTPUT_FILE; each invocation is recorded. `linkSuiteTo`
+ * replaces the charters directory with a link after writing; `alterOnList`
+ * appends to that file while collecting.
+ */
 function fakePlaywright(checkout) {
   const pkg = join(checkout, "node_modules", "@playwright", "test")
   mkdirSync(pkg, { recursive: true })
@@ -2104,9 +2613,12 @@ function fakePlaywright(checkout) {
     join(pkg, "cli.js"),
     `#!/usr/bin/env node
 const fs = require("fs"), path = require("path")
+${RECORDED_ENV}
 const s = JSON.parse(fs.readFileSync(path.join(__dirname, "scenario.json"), "utf8"))
-if (process.argv.includes("--list")) { process.stdout.write(JSON.stringify(s.listing)); process.exit(s.listExit || 0) }
+record(process.argv.includes("--list") ? "list" : "run")
+if (process.argv.includes("--list")) { if (s.alterOnList) fs.appendFileSync(s.alterOnList, "\\n// altered\\n"); process.stdout.write(JSON.stringify(s.listing)); process.exit(s.listExit || 0) }
 if (s.report) fs.writeFileSync(process.env.PLAYWRIGHT_JSON_OUTPUT_FILE, JSON.stringify(s.report).split("__NOW__").join(new Date().toISOString()))
+if (s.linkSuiteTo) { const out = path.dirname(process.env.PLAYWRIGHT_JSON_OUTPUT_FILE); fs.rmSync(out, { recursive: true }); fs.symlinkSync(s.linkSuiteTo, out) }
 process.exit(s.exit || 0)
 `,
     { mode: 0o755 }
@@ -2114,7 +2626,8 @@ process.exit(s.exit || 0)
   mkdirSync(join(checkout, "node_modules", ".bin"), { recursive: true })
   rmSync(join(checkout, "node_modules", ".bin", "playwright"), { force: true })
   symlinkSync(join(pkg, "cli.js"), join(checkout, "node_modules", ".bin", "playwright"))
-  return { set: (scenario) => writeFileSync(join(pkg, "scenario.json"), JSON.stringify(scenario)) }
+  rmSync(join(pkg, "invocations.jsonl"), { force: true })
+  return { set: (scenario) => writeFileSync(join(pkg, "scenario.json"), JSON.stringify(scenario)), invocations: () => invocationsOf(pkg), reset: () => rmSync(join(pkg, "invocations.jsonl"), { force: true }) }
 }
 const nowReport = (report) => {
   if (report.run) report.run.startedAt = "__NOW__"
@@ -2131,7 +2644,7 @@ test("both suite wrappers fail a zero exit with an invalid, stale, missing, skip
     const root = temp("b02-wrap-")
     const { runRoot, world } = prepareRunRoot("guard-wrap", join(root, ".results"))
     const c = { id: "guard-wrap", runRoot, runDir: world, stackEnv: STACK_VALUES.env, secrets: STACK_VALUES.secrets, checkout, e2eInstall: fake.install, e2e: resolveE2E(fake.install, {}) }
-    const sup = createSupervisor({ table: noEscapes, stack, log: quiet })
+    const sup = supervise({ table: noEscapes, stack, log: quiet })
     try {
       if (kind === "e2e") {
         fake.set({ manager: { pairs: pairsOf("manager"), ...scenario } })
@@ -2187,11 +2700,173 @@ test("both suite wrappers fail a zero exit with an invalid, stale, missing, skip
   const root = temp("b02-wrap-")
   const { runRoot, world } = prepareRunRoot("guard-swap", join(root, ".results"))
   const c = { id: "guard-swap", runRoot, runDir: world, stackEnv: STACK_VALUES.env, secrets: [], checkout, e2eInstall: fake.install, e2e: { ...resolveE2E(fake.install, {}), entrySha256: "0".repeat(64) } }
-  await assert.rejects(runE2E(c, "manager", createSupervisor({ table: noEscapes, stack, log: quiet })), /The e2e installation changed during the run \(entrySha256\)/)
+  await assert.rejects(runE2E(c, "manager", supervise({ table: noEscapes, stack, log: quiet })), /The e2e installation changed during the run \(entrySha256\)/)
   assert.equal(existsSync(join(runRoot, "manager")), false)
   rmSync(root, { recursive: true, force: true })
   rmSync(checkout, { recursive: true, force: true })
   rmSync(fake.dir, { recursive: true, force: true })
+})
+
+test("suite wrappers: collection gets no live credential, a replaced output parent is never followed, an altered charters config never loads", async () => {
+  const fake = fakeE2E()
+  const checkout = temp("b02-pw-")
+  const pw = fakePlaywright(checkout)
+  const stack = recordingStack()
+  const roots = []
+  const context = (id) => {
+    const root = temp("b02-wrap-")
+    roots.push(root)
+    const { runRoot, world } = prepareRunRoot(id, join(root, ".results"))
+    return { root, runRoot, c: { id, runRoot, runDir: world, stackEnv: STACK_VALUES.env, secrets: STACK_VALUES.secrets, checkout, e2eInstall: fake.install, e2e: resolveE2E(fake.install, {}) } }
+  }
+  const live = STACK_VALUES.env
+  const placeholders = (env, suite) => {
+    assert.equal(env.SUPABASE_SERVICE_ROLE_KEY, "list-only-placeholder", suite)
+    assert.equal(env.E2E_DB_URL, "postgresql://postgres@127.0.0.1:64622/postgres", suite)
+    assert.equal(env.B02_LIST_ONLY, "1")
+    assert.equal(env.B02_RUN_ID, "list-only")
+    assert.equal(env.B02_RUN_DIR, undefined)
+    assert.equal(env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, undefined)
+    // The loopback API URL is the same public endpoint by design; no credential value appears anywhere.
+    for (const { name, value } of STACK_VALUES.secrets) assert.ok(!Object.values(env).some((v) => typeof v === "string" && v.includes(value)), `${suite} collection saw ${name}`)
+  }
+
+  // e2e: the collection sees placeholders only; the run alone gets spare6's service key and database URL.
+  {
+    const { c } = context("guard-creds")
+    fake.set({ manager: { pairs: pairsOf("manager"), report: nowReport(e2eReport("manager")) } })
+    const r = await runE2E(c, "manager", supervise({ table: noEscapes, stack }))
+    assert.equal(r.ok, true, JSON.stringify(r.problems))
+    const [list, run] = fake.invocations()
+    assert.deepEqual([list.kind, run.kind], ["list", "run"])
+    placeholders(list.env, "manager")
+    assert.equal(run.env.SUPABASE_SERVICE_ROLE_KEY, live.SUPABASE_SERVICE_ROLE_KEY)
+    assert.equal(run.env.E2E_DB_URL, live.E2E_DB_URL)
+    assert.equal(run.env.B02_RUN_ID, "guard-creds")
+    assert.ok(list.env.TMPDIR.startsWith(join(SCRATCH, "nb02-")) && run.env.TMPDIR.startsWith(join(SCRATCH, "nb02-")) && list.env.TMPDIR !== run.env.TMPDIR, "each child has its own private TMPDIR")
+  }
+  // Playwright: the same split.
+  {
+    const { c } = context("guard-pw-creds")
+    pw.set({ listing: pwReport({ listing: true }), report: nowReport(pwReport()) })
+    const r = await runCharters(c, supervise({ table: noEscapes, stack }))
+    assert.equal(r.ok, true, JSON.stringify(r.problems))
+    const [list, run] = pw.invocations()
+    assert.deepEqual([list.kind, run.kind], ["list", "run"])
+    placeholders(list.env, "charters")
+    assert.equal(list.env.PLAYWRIGHT_JSON_OUTPUT_FILE, undefined)
+    assert.equal(run.env.SUPABASE_SERVICE_ROLE_KEY, live.SUPABASE_SERVICE_ROLE_KEY)
+    assert.equal(run.env.PLAYWRIGHT_JSON_OUTPUT_FILE, join(c.runRoot, "charters", "report.json"))
+    pw.reset()
+  }
+
+  // A replaced output parent holding a fresh, passing report: refused without following it; the external sentinel is unchanged.
+  const sentinel = (report) => {
+    const dir = temp("b02-external-")
+    roots.push(dir)
+    writeFileSync(join(dir, "report.json"), JSON.stringify(report).split("__NOW__").join(new Date().toISOString()))
+    chmodSync(join(dir, "report.json"), 0o644)
+    const bytes = readFileSync(join(dir, "report.json"))
+    const check = () => {
+      assert.deepEqual(readFileSync(join(dir, "report.json")), bytes, "the external sentinel's bytes are unchanged")
+      assert.equal(statSync(join(dir, "report.json")).mode & 0o777, 0o644, "the external sentinel's mode is unchanged")
+    }
+    return { dir, bytes, check }
+  }
+  {
+    const { c, runRoot } = context("guard-link-suite")
+    const outside = sentinel(nowReport(e2eReport("manager")))
+    fake.set({ manager: { pairs: pairsOf("manager"), report: nowReport(e2eReport("manager")), linkSuiteTo: outside.dir } })
+    const r = await runE2E(c, "manager", supervise({ table: noEscapes, stack }))
+    assert.equal(r.ok, false)
+    assert.match(r.problems.join(), /report\.json is in a directory that is not this run's private output/)
+    assert.deepEqual(readFileSync(join(outside.dir, "report.json")), outside.bytes)
+    outside.check()
+    // The scrub after settlement records the link and never walks or rewrites through it.
+    assert.deepEqual(scrubArtifacts(runRoot, [{ name: "SERVICE", value: "dummy-service-role-value" }]).symlinks, ["manager"])
+    assert.deepEqual(readFileSync(join(outside.dir, "report.json")), outside.bytes)
+    outside.check()
+  }
+  {
+    const { c, root } = context("guard-move-run")
+    const moved = join(temp("b02-moved-"), "run")
+    roots.push(dirname(moved))
+    fake.set({ manager: { pairs: pairsOf("manager"), report: nowReport(e2eReport("manager")), moveRunTo: moved } })
+    const r = await runE2E(c, "manager", supervise({ table: noEscapes, stack }))
+    assert.equal(r.ok, false)
+    assert.match(r.problems.join(), /report\.json is in a directory that is not this run's private output/)
+    assert.ok(lstatSync(join(root, ".results", "guard-move-run")).isSymbolicLink())
+    assert.equal(writeSummary(c.runRoot, { ok: true }, []).ok, false, "no summary is written through the replaced run directory")
+    assert.equal(existsSync(join(moved, "summary.json")), false)
+  }
+  {
+    const { c } = context("guard-pw-link")
+    const outside = sentinel(nowReport(pwReport()))
+    pw.set({ listing: pwReport({ listing: true }), report: nowReport(pwReport()), linkSuiteTo: outside.dir })
+    const r = await runCharters(c, supervise({ table: noEscapes, stack }))
+    assert.equal(r.ok, false)
+    assert.match(r.problems.join(), /report\.json is in a directory that is not this run's private output/)
+    assert.deepEqual(readFileSync(join(outside.dir, "report.json")), outside.bytes)
+    outside.check()
+    pw.reset()
+  }
+
+  // An altered charters config is refused before Playwright is started at all, for the collection or (altered meanwhile) the run.
+  {
+    const { c, runRoot } = context("guard-pw-config")
+    const dir = temp("b02-config-")
+    roots.push(dir)
+    writeFileSync(join(dir, "charters.config.ts"), Buffer.concat([readFileSync(join(HARNESS, "charters.config.ts")), Buffer.from("\n// a plugin that starts a server\n")]))
+    c.chartersConfig = { dir, sha256: CHARTERS_CONFIG_SHA256 }
+    pw.set({ listing: pwReport({ listing: true }), report: nowReport(pwReport()) })
+    await assert.rejects(runCharters(c, supervise({ table: noEscapes, stack })), /charters\.config\.ts is not the independently reviewed config/)
+    assert.deepEqual(pw.invocations(), [], "Playwright never loaded the altered config")
+    assert.equal(existsSync(join(runRoot, "charters")), false)
+    // Reviewed at collection, altered before the run: the run never starts.
+    writeFileSync(join(dir, "charters.config.ts"), readFileSync(join(HARNESS, "charters.config.ts")))
+    const second = context("guard-pw-config-run")
+    second.c.chartersConfig = { dir, sha256: CHARTERS_CONFIG_SHA256 }
+    pw.set({ listing: pwReport({ listing: true }), report: nowReport(pwReport()), alterOnList: join(dir, "charters.config.ts") })
+    await assert.rejects(runCharters(second.c, supervise({ table: noEscapes, stack })), /not the independently reviewed config/)
+    assert.deepEqual(pw.invocations().map((i) => i.kind), ["list"], "only the collection ran, on the reviewed bytes")
+    pw.reset()
+  }
+  for (const dir of [...roots, checkout, fake.dir]) rmSync(dir, { recursive: true, force: true })
+})
+
+test("suite wrappers: an unsettled child's output and report are never read", async () => {
+  const fake = fakeE2E()
+  const checkout = temp("b02-pw-")
+  const pw = fakePlaywright(checkout)
+  const root = temp("b02-wrap-")
+  const pgids = []
+  // The stop helper's false success for every group: each child is left alive and uncertain.
+  const stack = recordingStack({ falseSuccess: true })
+  try {
+    for (const [kind, scenario] of [
+      ["e2e", { manager: { pairs: pairsOf("manager"), report: nowReport(e2eReport("manager")) } }],
+      ["pw", { listing: pwReport({ listing: true }), report: nowReport(pwReport()) }],
+    ]) {
+      const { runRoot, world } = prepareRunRoot(`guard-unsettled-${kind}`, join(root, ".results"))
+      const c = { id: `guard-unsettled-${kind}`, runRoot, runDir: world, stackEnv: STACK_VALUES.env, secrets: STACK_VALUES.secrets, checkout, e2eInstall: fake.install, e2e: resolveE2E(fake.install, {}) }
+      // A lingering sleeper keeps each child's group alive after its leader exits.
+      const sup = supervise({ table: noEscapes, stack, absenceMs: 200, outputMs: 200 })
+      const realRun = sup.run
+      sup.run = (role, cmd, args, opts, ms, io) => realRun("wrapped " + role, "/bin/sh", ["-c", '"$0" "$@"; s=$?; (sleep 30 &); exit $s', cmd, ...args], opts, ms, io)
+      if (kind === "e2e") fake.set(scenario)
+      else pw.set(scenario)
+      const r = kind === "e2e" ? await runE2E(c, "manager", sup) : await runCharters(c, sup)
+      pgids.push(...sup.report().groups.map((g) => g.pgid))
+      assert.equal(r.ok, false)
+      assert.equal(r.settled, false)
+      assert.match(r.problems.join(), /the collection was not read: its process group did not settle/)
+      assert.equal((kind === "e2e" ? fake.invocations() : pw.invocations()).filter((i) => i.kind === "run").length, 0, "nothing runs after an unsettled collection")
+      assert.throws(() => sup.ensureActive("the next suite"), /Process settlement is uncertain/)
+    }
+  } finally {
+    for (const pgid of pgids) await realStack.terminateGroup(pgid, 200)
+    for (const dir of [root, checkout, fake.dir]) rmSync(dir, { recursive: true, force: true })
+  }
 })
 
 test("locked run: the final exit and summary combine both child types' exits with their reports", async () => {
@@ -2254,14 +2929,17 @@ test("supervisor: a descendant that left the group is recorded, stopped and prov
   const stack = recordingStack()
   let leader = null
   let escaped = null
-  // The process table as it would be read while the child runs (ps is unavailable in the sandbox).
-  const table = () => (leader && escaped ? [{ pid: leader, ppid: process.pid, pgid: leader }, { pid: escaped, ppid: leader, pgid: escaped }] : [])
+  let scratch = null
+  // The process table as ps -E would read it while the child runs (ps is unavailable in the sandbox): the
+  // detached browser inherited the child's private TMPDIR, which still proves it ours once the leader is gone.
+  const table = () => (leader && escaped && groupAlive(escaped) ? [{ pid: leader, ppid: process.pid, pgid: leader }, { pid: escaped, ppid: leader, pgid: escaped, command: `sleep 30 TMPDIR=${scratch}` }] : [])
   const dir = temp()
   const receipt = createReceipt(join(dir, "receipt.json"), { runId: "guard-escape" })
-  const sup = createSupervisor({ stack, table, receipt, log: quiet, watchMs: 20 })
+  const sup = supervise({ stack, table, receipt, log: quiet, watchMs: 20 })
   const out = { write: (t) => (escaped ??= Number(t.trim())) }
   const running = sup.run("playwright charters", process.execPath, ["-e", DETACHED], {}, 1500, { out })
   await waitFor(() => escaped !== null)
+  scratch = sup.report().groups[0].scratch
   leader = stack.stopped.length ? null : sup.report().groups[0].pgid
   await waitFor(() => JSON.parse(readFileSync(receipt.path, "utf8")).groups[0]?.escaped?.includes(escaped), 5000)
   const r = await running
@@ -2284,7 +2962,7 @@ test("supervisor: an escaped group not proven this run's, or an unreadable proce
   // and `other` holds only an unrelated process, so the group is not proven this run's.
   const table = () =>
     !leader ? [] : reused ? [{ pid: leader, ppid: 1, pgid: leader }, { pid: other, ppid: 1, pgid: other }] : [{ pid: leader, ppid: 1, pgid: leader }, { pid: 424242, ppid: leader, pgid: other }]
-  const sup = createSupervisor({ stack, table, log: quiet, watchMs: 20, absenceMs: 200 })
+  const sup = supervise({ stack, table, log: quiet, watchMs: 20, absenceMs: 200 })
   const running = sup.run("e2e staff", "/bin/sh", ["-c", "sleep 30"], {}, 60_000)
   leader = sup.report().groups[0].pgid
   await sleep(100)
@@ -2300,7 +2978,7 @@ test("supervisor: an escaped group not proven this run's, or an unreadable proce
     process.kill(-other, "SIGKILL")
   }
   // Without a process table, escaped descendants are unknown: uncertain.
-  const blind = createSupervisor({ stack: recordingStack(), table: () => null, log: quiet, watchMs: 20 })
+  const blind = supervise({ stack: recordingStack(), table: () => null, log: quiet, watchMs: 20 })
   const b = await blind.run("build", "/bin/sh", ["-c", "exit 0"], {}, 60_000)
   assert.equal(b.settled, false)
   assert.match(blind.report().reasons[0], /process table could not be read/)

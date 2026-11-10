@@ -298,6 +298,28 @@ export function appendJournal(dir: string, entry: JournalEntry) {
   }
 }
 
+/**
+ * seed.ts's journalled step, bound to one world directory: `planned` is
+ * appended (fsynced) as an intent line before `run` starts, so whatever `run`
+ * begins (a write, or a real sign-in) is already on record; then a "done"
+ * line with what it created, or a "failed" line with the scrubbed message.
+ * Ids, names, emails and paths only: `planned` never holds a credential.
+ */
+export function journalStep(dir: string, scrub: (message: string) => string) {
+  return async function step<T>(name: string, planned: unknown, run: () => Promise<T> | T, created: (result: T) => unknown = () => null): Promise<T> {
+    appendJournal(dir, { kind: "intent", step: name, planned })
+    let result: T
+    try {
+      result = await run()
+    } catch (error) {
+      appendJournal(dir, { kind: "failed", step: name, message: scrub(String((error as Error)?.message ?? error)) })
+      throw error
+    }
+    appendJournal(dir, { kind: "done", step: name, created: created(result) })
+    return result
+  }
+}
+
 export function readJournal(dir: string): JournalEntry[] {
   return readFileSync(join(dir, JOURNAL), "utf8")
     .split("\n")
@@ -563,16 +585,30 @@ export const db = {
       if (error instanceof ReadOnlyError && GROUP_NOT_FOUND.test(error.pgError)) return null
       throw error
     }
-    const g = JSON.parse(out) as Record<string, unknown> & { subject?: GroupRead["subject"]; members?: GroupRead["members"] }
+    const g = JSON.parse(out) as Record<string, unknown> & { subject?: GroupRead["subject"]; members?: unknown }
     if (typeof g.groupId !== "string" || !Array.isArray(g.members) || typeof g.subject !== "object" || g.subject === null) {
       throw new Error("contribution_group returned an unexpected shape.")
     }
+    // `mine` is the proof an owner, reviewer or unauthorized viewer asserts on:
+    // an actual boolean on the group and on every member, returned verbatim, so
+    // an absent or malformed flag can never read as false.
+    if (typeof g.mine !== "boolean") throw new Error("contribution_group returned no boolean mine for the group.")
+    const members = g.members as Record<string, unknown>[]
+    members.forEach((m, i) => {
+      if (typeof m !== "object" || m === null || typeof m.mine !== "boolean") throw new Error(`contribution_group returned no boolean mine for member ${i}.`)
+    })
     return {
       groupId: g.groupId,
       venueId: String(g.venueId),
-      mine: g.mine === true,
+      mine: g.mine,
       subject: { kind: g.subject.kind, id: g.subject.id ?? null, name: g.subject.name ?? null },
-      members: g.members.map((m) => ({ assetId: m.assetId, position: m.position, mediaType: m.mediaType, uploadState: m.uploadState, mine: m.mine === true })),
+      members: members.map((m) => ({
+        assetId: m.assetId as string,
+        position: m.position as number,
+        mediaType: m.mediaType as GroupRead["members"][number]["mediaType"],
+        uploadState: m.uploadState as string,
+        mine: m.mine as boolean,
+      })),
     }
   },
   /** Every group holding any of `assetIds`, with all its members and each member's asset state. */
