@@ -780,6 +780,18 @@ individually.
 
 - **OD-7:** one group per asset, and the maximum group size. The proposal is
   one group per asset and 10, the batch size.
+- **OD-7 privacy default (task subjects), pending owner confirmation before
+  enablement:** a member can be visible across venues (organisation Photos
+  shows eligible general staff photos to all active staff), but the task
+  behind a group is not. `contribution_group` returns a task subject's id
+  and title only when the viewer may read that task row at the group's
+  venue under the existing task read rules (`coverage_requirements_select`
+  and `coverage_requirement_progress`: admin, the venue's effective manager,
+  the venue's current staff, or the viewer's own photos on that task).
+  Otherwise the subject reads `{ kind: "none", id: null, name: null }`. The
+  visible members, the batch lookup and the menu item, question and none
+  subjects are unchanged. Migration
+  `20261110095910_knowledge_b02c_group_visibility_repair.sql`.
 - **Table owner:** WS1.
 
 ### W2. `from` return parameter
@@ -1147,4 +1159,16 @@ out its staff-era uploads (default 13), as the B02-c policies already do:
 (so `contribution_groups_for_assets` and `contribution_group`) and
 `contribution_group_add` (refused `not_own`). Migration
 `20261110095909_knowledge_b02c_manager_own_media_reads.sql`; test in
+`tests/security/manager-uploads.test.ts`.
+
+**B02-c group read repair (10 Nov 2026):** `private.viewer_sees_asset`
+refuses a manager account its own upload whose `uploader_role` is not
+`manager` (staff or null) before any other gate is asked, so the amenity
+evidence gate's uploader arm no longer shows it a staff-era group member.
+`contribution_group` names a task subject only to viewers who may read the
+task (the OD-7 privacy default in W1, pending owner confirmation before
+enablement). Group reads only; other viewers, B01 gates, credit and
+triggers are unchanged. Migration
+`20261110095910_knowledge_b02c_group_visibility_repair.sql`; tests in
+`tests/security/knowledge-b02-groups.test.ts` and
 `tests/security/manager-uploads.test.ts`.

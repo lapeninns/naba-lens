@@ -77,6 +77,15 @@ async function putByToken(who: TestIdentity, path: string) {
     })
 }
 
+/** Mints a signed upload token as `who`, as the reserve route does. */
+const mintAs = (who: TestIdentity, path: string) =>
+  who.client.storage.from("media").createSignedUploadUrl(path)
+
+async function stored(path: string) {
+  const { data } = await service.storage.from("media").download(path)
+  return data
+}
+
 const seen = async (who: TestIdentity, id: string) =>
   (await ok(who.client.from("media_assets").select("id").eq("id", id))).length
 
@@ -183,6 +192,9 @@ describe("uploads (W3)", () => {
     const open = await reserveAs(v.manager)
     const sent = await reserveAs(v.manager)
     const ready = await readyUpload(v.manager)
+    // A token issued for the open reservation while the grant holds.
+    const issued = await mintAs(v.manager, open.original_path)
+    expect(issued.error).toBeNull()
     // Bytes stored before the grant ends, finalised after.
     expect((await putByToken(v.manager, sent.original_path)).error).toBeNull()
     expect(
@@ -204,8 +216,21 @@ describe("uploads (W3)", () => {
         p_reason: "TEST grant ended",
       })
     )
-    const put = await putByToken(v.manager, open.original_path)
+    // The already issued token no longer writes.
+    const put = await v.manager.client.storage
+      .from("media")
+      .uploadToSignedUrl(open.original_path, issued.data!.token, TINY_BYTES, {
+        contentType: "image/jpeg",
+      })
     expect(put.error).not.toBeNull()
+    expect(await stored(open.original_path)).toBeNull()
+    expect(
+      psql(
+        `select upload_state from public.media_assets where id = '${open.id}'`
+      )
+    ).toBe("uploading")
+    // Nor can a new token be minted.
+    expect((await mintAs(v.manager, open.original_path)).error).not.toBeNull()
     await refused(
       v.manager,
       "reserve_media_asset",
@@ -480,15 +505,29 @@ describe("visibility", () => {
       "evidence_not_eligible"
     )
     expect(JSON.parse(e.details!)).toMatchObject({ reason: "not_own" })
+    // A pre-manager upload recorded as a staff upload, as well as the one
+    // from before roles were recorded (null).
+    const staffRole = randomUUID()
+    psql(
+      `insert into public.media_assets (id, uploader_id, venue_id, original_path,
+         original_filename, media_type, size_bytes, client_upload_key, uploader_role)
+       values ('${staffRole}', '${v.manager.id}', '${v.venue}',
+         '${v.manager.id}/${staffRole}/original.jpg', 'TEST staff era.jpg', 'image', 4,
+         '${randomUUID()}', 'staff')`
+    )
+    await markReady(service, staffRole, "image/jpeg")
+    expect(uploaderRole(staffRole)).toBe("staff")
     psql(
       `insert into public.media_contribution_group_members (group_id, venue_id, asset_id, position)
-       values ('${g}', '${v.venue}', '${staffEra}', 2)`
+       values ('${g}', '${v.venue}', '${staffEra}', 2), ('${g}', '${v.venue}', '${staffRole}', 3)`
     )
+    // Whatever other gate would admit them, neither read shows the manager
+    // account its pre-manager uploads; the manager-era member stays.
     expect(
       await json<{ asset_id: string }[]>(
         v.manager,
         "contribution_groups_for_assets",
-        { p_asset_ids: [staffEra, managerEra] }
+        { p_asset_ids: [staffEra, staffRole, managerEra] }
       )
     ).toEqual([{ asset_id: managerEra, group_id: g }])
     const group = await json<{ members: { assetId: string }[] }>(
@@ -497,6 +536,28 @@ describe("visibility", () => {
       { p_group_id: g }
     )
     expect(group.members.map((x) => x.assetId)).toEqual([managerEra])
+    // Other viewers keep their reads: an admin sees every member.
+    const all = [managerEra, staffEra, staffRole]
+    expect(
+      (
+        await json<{ asset_id: string; group_id: string }[]>(
+          v.admin,
+          "contribution_groups_for_assets",
+          { p_asset_ids: all }
+        )
+      )
+        .map((r) => [r.asset_id, r.group_id])
+        .sort()
+    ).toEqual(all.map((id) => [id, g]).sort())
+    expect(
+      (
+        await json<{ members: { assetId: string }[] }>(
+          v.admin,
+          "contribution_group",
+          { p_group_id: g }
+        )
+      ).members.map((x) => x.assetId)
+    ).toEqual(all)
 
     // Staff: every own upload, whatever its recorded role.
     expect(
