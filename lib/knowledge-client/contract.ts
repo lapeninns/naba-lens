@@ -24,6 +24,7 @@ import type {
   KnowledgeAsset,
   KnowledgeErrorCode,
   KnowledgeResult,
+  ObservedOnSource,
   Recognition,
   SlotReason,
   SubmitOutcome,
@@ -39,6 +40,7 @@ export {
 export type {
   ObservedOnSource,
   PlaceKind,
+  PlaceRef,
   SubjectView as Place,
   QuestionView as RegistryQuestion,
   QuestionLifecycle,
@@ -329,6 +331,14 @@ export type SubmitKnowledgeInput = {
   redactionConfirmed?: boolean
   /** Managers on a confirmation-required key: confirm it themselves now. */
   confirmOwn?: boolean
+  /**
+   * B03-b: structured detail for the question's schema, and the day the
+   * person says they checked with whether it was the form's date or chosen.
+   * Sent only by forms for detail schemas; the database checks the shape.
+   */
+  detail?: Record<string, unknown> | null
+  observedOn?: string
+  observedOnSource?: ObservedOnSource
 }
 
 export type SubmittedFinding = {
