@@ -27,6 +27,13 @@ export const CONTRIBUTION_KINDS = [
   "detail",
 ] as const
 export type ContributionKind = (typeof CONTRIBUTION_KINDS)[number]
+/**
+ * B03-g: a "correction" contribution is recorded by knowledge_correct only and
+ * is adopted at once, so it is never pending; the corrector's own history and
+ * feed can show it. Screens widen their kind maps with this when they adopt
+ * B03-g (kept separate so existing exhaustive maps still compile).
+ */
+export type ContributionKindB03 = ContributionKind | "correction"
 
 /** Couldn't establish: why not (WS2 §3.4). "other" needs the tried text only. */
 export const UNKNOWN_PRESETS = [
@@ -533,6 +540,11 @@ export type VenueCapabilities = {
   canBeAssigned: boolean
   /** B03-b (A1): manager or admin at the venue. */
   canManagePlaces?: boolean
+  /** B03-g (A1, §9.1): a manager account or an admin, never staff with a grant. */
+  canCorrect?: boolean
+  canWithdraw?: boolean
+  /** B03-g (A16): manager or admin at the venue. */
+  canReadHistory?: boolean
 }
 
 export type DeleteImpactKind =
@@ -842,6 +854,65 @@ export type RecheckTaskView = {
   cause: RecheckCause
   use: "internal" | "public"
   dueAt: string
+}
+
+// ---- Corrections and history (B03-g, b03-design §9, A15, A16) -------------------
+
+/**
+ * B03-g (A15): stateReason also reads "corrected" or "withdrawn" when a
+ * material correction or a withdrawal took the author's answer out of use
+ * (managerNote carries the reason). Screens widen their stateReason maps with
+ * this when they adopt B03-g.
+ */
+export type StateReasonB03 =
+  NonNullable<MyFindingView["stateReason"]> | "corrected" | "withdrawn"
+
+export type CorrectionValue = {
+  headline: SubmitAnswer
+  detail: KnowledgeDetail | null
+}
+
+export type CorrectResult = {
+  decisionId: string
+  /** False: a detail fix on the answer in use; no new submission. */
+  material: boolean
+  submissionId: string | null
+  slotRevision: number
+  replayed: boolean
+  rechecksClosed?: RecheckClosed[]
+}
+
+export type SlotHistoryView = {
+  checkId: string
+  at: string
+  answerInUse: {
+    submissionId: string
+    answer: SubmitAnswer
+    sentAt: string
+    confirmationState: ConfirmationState
+    withdrawn: boolean
+    detail: KnowledgeDetail | null
+    questionVersion: number
+    selectionRule:
+      | "adopted"
+      | "confirmation"
+      | "conflict_choice"
+      | "correction"
+      | "withdrawal"
+  } | null
+}
+
+export type SlotEventView = {
+  eventId: number
+  at: string
+  kind: string
+  actor: { id: string; name: string | null; basis: string | null } | null
+  answer: KnowledgeAnswer | null
+  before: CorrectionValue | null
+  after: CorrectionValue | null
+  material: boolean | null
+  selectionRule: string | null
+  reason: string | null
 }
 
 // ---- Reconciliation (B03-f, b03-design §8, A13) -------------------------------
@@ -1170,6 +1241,41 @@ export type KnowledgeRpcs = {
   knowledge_value_list: {
     args: { p_list: ValueListName }
     returns: ValueListView
+  }
+  knowledge_correct: {
+    args: {
+      p_check_id: string
+      p_slot_revision: number
+      p_idempotency_key: string
+      p_headline: SubmitAnswer
+      p_detail: KnowledgeDetail | null
+      p_reason: string
+    }
+    returns: CorrectResult
+  }
+  knowledge_withdraw: {
+    args: {
+      p_check_id: string
+      p_slot_revision: number
+      p_idempotency_key: string
+      p_reason: string
+    }
+    returns: { decisionId: string; slotRevision: number; replayed: boolean }
+  }
+  knowledge_upgrade_run: {
+    args: { p_key: string; p_mode: "dry_run" | "apply" }
+    returns: Record<string, unknown> & {
+      runId: string
+      mode: "dry_run" | "apply"
+    }
+  }
+  knowledge_slot_history: {
+    args: { p_check_id: string; p_at: string }
+    returns: SlotHistoryView
+  }
+  knowledge_slot_events: {
+    args: { p_check_id: string; p_cursor: string | null; p_limit: number }
+    returns: { items: SlotEventView[]; nextCursor: string | null }
   }
   knowledge_source_declare: {
     args: {

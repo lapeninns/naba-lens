@@ -185,6 +185,10 @@ const FIELD_ERRORS: Record<string, [field: string, message: string]> = {
   invalid_timezone: ["timezone", "Reload the page and try again."],
   invalid_source_kind: ["kind", "Choose what kind of source this is."],
   invalid_mapping_kind: ["kind", "Choose exact, candidate or none."],
+  nothing_to_correct: [
+    "headline",
+    "Nothing has changed. Change the answer or its details.",
+  ],
 }
 
 function detailOf(error: DbError): Record<string, unknown> {

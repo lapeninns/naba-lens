@@ -56,6 +56,13 @@ export {
 export { expandScheduleOccurrences } from "./schedules"
 export { getCheckRechecks, listMyRechecks, previewFreshness } from "./rechecks"
 export {
+  correctAnswer,
+  getSlotHistory,
+  listSlotEvents,
+  runSchemaUpgrade,
+  withdrawAnswer,
+} from "./corrections"
+export {
   declareSource,
   getLegacyNarrative,
   getReconciliationRun,

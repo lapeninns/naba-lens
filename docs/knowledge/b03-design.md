@@ -1369,3 +1369,37 @@ expired` or `basis_missing`. Precedence for an otherwise available slot:
   answer afresh. Owner to confirm with OD-17 and OD-19.
 - `knowledge_write_commands.venue_id` became nullable for an
   organisation-wide source.
+
+**B03-g as built (10 Nov 2026), flagged for WS5 and the reviewer:**
+corrections, withdrawals, schema upgrades and history (§9, A1, A15, A16).
+
+- The v1 reader reads a withdrawn answer as `unavailable / withdrawn /
+answer_withdrawn` (ahead of every reason but `not_enabled`) and an answer
+  under a replaced schema without a lossless rule as `stale /
+schema_changed`. Nothing is withdrawn and no schema version exists, so
+  nothing changes today. The B01 resolver is unchanged; the wrapper reads a
+  `withdrawn` decision on the answer in use.
+- `knowledge_correct` and `knowledge_withdraw`: a manager account or an
+  admin; staff and staff holding a legacy grant get `not_venue_manager`
+  (C-B03-2). A material correction carries the answer's evidence and
+  observation date onto a `correction` contribution adopted through B01's
+  `knowledge_adopt`, without its confirmation; the decision's new `detail`
+  column records `before`, `after`, `material` and `selectionRule`. A
+  non-material correction (a detail field outside `material_fields`) adds a
+  `knowledge_detail_corrections` row that every read overlays; an unchanged
+  value is `nothing_to_correct`. Credit (§9.6) was checked as designed: in
+  the open month the author's unit moves to the corrector, who is not a
+  participant (`private.completion_staff_venue_memberships` holds staff
+  memberships only); a withdrawal moves nothing.
+- `knowledge_upgrade_run` (admin): dry run then apply within 24 hours; a
+  lossless rule adds one derived detail row (`derived_from_version`), a
+  needs-checking answer gets one `schema_changed` recheck for that key only.
+- `knowledge_slot_history(p_check_id, p_at)` and `knowledge_slot_events`
+  for managers and admins (`canReadHistory`); `canCorrect` and
+  `canWithdraw` added to the capabilities read.
+- **For WS2:** the database now returns `stateReason` `corrected` and
+  `withdrawn`, and a corrector's own feed can show kind `correction`. The
+  TypeScript unions are unchanged so existing exhaustive maps compile; the
+  wider types are `StateReasonB03` and `ContributionKindB03`.
+- Decision detail is written at insert (`knowledge_decisions` stays
+  append-only).
