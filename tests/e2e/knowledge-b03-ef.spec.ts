@@ -118,6 +118,18 @@ async function expectNone(page: Page, secrets: string[], label: string) {
     expect(html, `${label} leaks ${secret}`).not.toContain(secret)
 }
 
+/** A refused RPC, by its exact SQLSTATE and exception message. */
+function expectRefusal(
+  result: { error: { code: string; message: string } | null },
+  refusal: { code: string; message: string },
+  label: string
+) {
+  expect(
+    result.error && { code: result.error.code, message: result.error.message },
+    label
+  ).toEqual(refusal)
+}
+
 /** History (CoverageSection id amenity-history), for readers allowed it. */
 const history = (page: Page) => page.locator("#amenity-history")
 /** See the answer on a date (CoverageSection id amenity-at-date). */
@@ -369,6 +381,8 @@ test.describe("knowledge B03 E and F", () => {
     await expect(facts).not.toContainText(TOILETS_NOTE)
     await expect(facts).not.toContainText(OLDER_NOTE)
     expect(slotRead(w.venueA, parking).currentSubmissionId).toBeNull()
+    // The revision the held-open card was rendered at.
+    const staleRevision = slotRevision(w.venueA, "onsite_parking")
 
     const COMPETING_REASON = `DEV FIXTURE B03-E no guest parking now ${w.tag}`
     await admin.goto(ADMIN.capture(parking))
@@ -386,15 +400,29 @@ test.describe("knowledge B03 E and F", () => {
       progress: "complete",
     })
     expect(recorded.sourceContributionId).not.toBe(parkingImport.contributionId)
+    expect(slotRevision(w.venueA, "onsite_parking")).not.toBe(staleRevision)
 
-    // The stale card is refused; the page re-reads and the import can no
-    // longer be confirmed. Nothing about the recorded answer moves.
+    // What the browser can show, and what it cannot. knowledge_decide checks
+    // the slot revision (amenity_conflict) before the recorded-answer rule
+    // (NLK14, import_slot_has_answer), so a card held open across a competing
+    // answer always meets the revision check first: the person sees the
+    // generic stale words, never the dedicated NLK14 toast. The refreshed card
+    // then carries the dedicated recorded-answer wording and no Confirm. The
+    // NLK14 branch is proven separately below, by RPC at the CURRENT revision
+    // in the manager's own session; a dedicated stale-action toast in the
+    // browser stays unproven by this spec. Nothing about the answer moves.
     await staleConfirm.click()
     await expect(
       toConfirm(manager).getByText(KNOWLEDGE_FAILURE_COPY.decision.stale, {
         exact: true,
       })
     ).toBeVisible()
+    await expect(
+      manager.getByText(KNOWLEDGE_FAILURE_COPY.decision.importSlotHasAnswer, {
+        exact: true,
+      }),
+      "the stale card meets the revision check, not NLK14"
+    ).toHaveCount(0)
     await expect(
       parkingCard.getByText(IMPORT_TEXT.notAdoptable, { exact: true })
     ).toBeVisible()
@@ -408,24 +436,43 @@ test.describe("knowledge B03 E and F", () => {
       /(Current|Recorded) answer: No\./
     )
     expect(slotRead(w.venueA, parking)).toEqual(recorded)
+    expect(importOf(w.venueA, parkingFact)).toEqual(parkingImport)
 
-    // The dedicated recorded-answer refusal (NLK14): the same manager, in
-    // their own session, at the slot's CURRENT revision. A stale card meets
-    // the revision check first, so the browser cannot reach this branch.
-    const refused = await knowledgeCall(
-      await sessionOf(w.managerA),
-      "knowledge_decide",
-      {
+    // The two server branches, each in the same manager's own session. At
+    // the card's stale revision: the generic conflict the browser showed. At
+    // the CURRENT revision: the dedicated recorded-answer refusal (NLK14).
+    const managerDb = await sessionOf(w.managerA)
+    const confirmImportAt = (revision: number) =>
+      knowledgeCall(managerDb, "knowledge_decide", {
         p_target_type: "contribution",
         p_target_id: parkingImport.contributionId,
         p_decision: "confirm",
-        p_slot_revision: slotRevision(w.venueA, "onsite_parking"),
+        p_slot_revision: revision,
         p_idempotency_key: randomUUID(),
         p_note: null,
-      }
+      })
+    expectRefusal(
+      await confirmImportAt(staleRevision),
+      { code: "P0001", message: "amenity_conflict" },
+      "import confirm at the card's stale revision"
     )
-    expect(refused.error?.message).toBe("import_slot_has_answer")
+    expectRefusal(
+      await confirmImportAt(slotRevision(w.venueA, "onsite_parking")),
+      { code: "NLK14", message: "import_slot_has_answer" },
+      "import confirm at the current revision"
+    )
+    // Persisted state after both refusals: the recorded answer, its
+    // decisions and revision, and the import's provenance, all as they were.
     expect(slotRead(w.venueA, parking)).toEqual(recorded)
+    expect(
+      recorded.decisions.filter(
+        (d) =>
+          d.contributionId === parkingImport.contributionId &&
+          (d.decision === "adopted" || d.decision === "confirmed")
+      ),
+      "the refused import was never adopted"
+    ).toEqual([])
+    expect(importOf(w.venueA, parkingFact)).toEqual(parkingImport)
 
     // ---- 4. Staff at 390: the approved source attribution, no private notes.
     const staff = await signedInPage(browser, w.staffA, PHONE)
@@ -501,23 +548,27 @@ test.describe("knowledge B03 E and F", () => {
       admin,
       (body) => body.includes('"dry_run"') && body.includes(w.venueA.id)
     )
-    await startForm
-      .getByRole("button", { name: RECONCILE_COPY.startSubmit })
-      .click()
-    await held.arrived
-    const running = startForm.getByRole("button", {
-      name: RECONCILE_COPY.running,
-    })
-    await expect(running).toBeDisabled()
-    await expect(running).toHaveAttribute("aria-busy", "true")
-    await expect(
-      startForm.getByRole("radio", { name: RECONCILE_COPY.runKind.legacy })
-    ).toBeDisabled()
-    await expect(
-      startForm.getByLabel(RECONCILE_COPY.scopeVenue, { exact: true })
-    ).toBeDisabled()
-    expect(runsAt(w.venueA), "nothing runs while held").toBe(runsBefore)
-    held.release()
+    // Released and passed on even if a pending assertion fails.
+    try {
+      await startForm
+        .getByRole("button", { name: RECONCILE_COPY.startSubmit })
+        .click()
+      await held.arrived
+      const running = startForm.getByRole("button", {
+        name: RECONCILE_COPY.running,
+      })
+      await expect(running).toBeDisabled()
+      await expect(running).toHaveAttribute("aria-busy", "true")
+      await expect(
+        startForm.getByRole("radio", { name: RECONCILE_COPY.runKind.legacy })
+      ).toBeDisabled()
+      await expect(
+        startForm.getByLabel(RECONCILE_COPY.scopeVenue, { exact: true })
+      ).toBeDisabled()
+      expect(runsAt(w.venueA), "nothing runs while held").toBe(runsBefore)
+    } finally {
+      await held.settle()
+    }
     await expect(admin).toHaveURL(
       /\/admin\/knowledge\/runs\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
     )
@@ -529,7 +580,6 @@ test.describe("knowledge B03 E and F", () => {
     ).toBeVisible()
     expect(held.count(), "one dry run request").toBe(1)
     expect(runsAt(w.venueA)).toBe(runsBefore + 1)
-    await held.dispose()
   })
 
   test("B03-F correction and withdrawal keep authorized historical answers", async ({
@@ -693,38 +743,53 @@ test.describe("knowledge B03 E and F", () => {
       await expectNone(managerB, venueASecrets, `manager B ${path}`)
     }
 
-    // Denied mutations and history reads in each person's own session.
+    // Denied mutations and history reads in each person's own session, by
+    // the exact contract (B03-g knowledge_correct as replaced by A40,
+    // knowledge_withdraw; history as replaced by the B03 review repairs).
+    // knowledge_corrector_basis refuses a same-venue staff account, with or
+    // without a legacy grant: 42501 not_venue_manager. A person with no basis
+    // at the venue, and a staff reader asking for history, are told the
+    // check isn't there: P0002 amenity_check_not_found.
+    const NOT_MANAGER = { code: "42501", message: "not_venue_manager" }
+    const NOT_FOUND = { code: "P0002", message: "amenity_check_not_found" }
     const quiet = slotRead(w.venueA, a)
-    for (const [person, readsHistory] of [
-      [w.staffA2, true],
-      [reader, false],
-      [w.managerB, false],
-      [w.staffB, false],
+    for (const [person, mutation, historyRead] of [
+      [w.staffA2, NOT_MANAGER, null],
+      [reader, NOT_MANAGER, NOT_FOUND],
+      [w.managerB, NOT_FOUND, NOT_FOUND],
+      [w.staffB, NOT_FOUND, NOT_FOUND],
     ] as const) {
       const db = await sessionOf(person)
-      const correct = await knowledgeCall(db, "knowledge_correct", {
-        p_check_id: a,
-        p_slot_revision: slotRevision(w.venueA, KEY),
-        p_idempotency_key: randomUUID(),
-        p_headline: "no",
-        p_detail: null,
-        p_reason: `DEV FIXTURE B03-F denied ${w.tag}`,
-      })
-      expect(correct.error, `${person.name} correct`).not.toBeNull()
-      const withdraw = await knowledgeCall(db, "knowledge_withdraw", {
-        p_check_id: a,
-        p_slot_revision: slotRevision(w.venueA, KEY),
-        p_idempotency_key: randomUUID(),
-        p_reason: `DEV FIXTURE B03-F denied ${w.tag}`,
-      })
-      expect(withdraw.error, `${person.name} withdraw`).not.toBeNull()
+      expectRefusal(
+        await knowledgeCall(db, "knowledge_correct", {
+          p_check_id: a,
+          p_slot_revision: slotRevision(w.venueA, KEY),
+          p_idempotency_key: randomUUID(),
+          p_headline: "no",
+          p_detail: null,
+          p_reason: `DEV FIXTURE B03-F denied ${w.tag}`,
+        }),
+        mutation,
+        `${person.name} correct`
+      )
+      expectRefusal(
+        await knowledgeCall(db, "knowledge_withdraw", {
+          p_check_id: a,
+          p_slot_revision: slotRevision(w.venueA, KEY),
+          p_idempotency_key: randomUUID(),
+          p_reason: `DEV FIXTURE B03-F denied ${w.tag}`,
+        }),
+        mutation,
+        `${person.name} withdraw`
+      )
       const read = await knowledgeCall(db, "knowledge_slot_history", {
         p_check_id: a,
         p_at: new Date().toISOString(),
       })
-      if (readsHistory) expect(read.error, `${person.name} history`).toBeNull()
+      if (historyRead === null)
+        expect(read.error, `${person.name} history`).toBeNull()
       else {
-        expect(read.error, `${person.name} history`).not.toBeNull()
+        expectRefusal(read, historyRead, `${person.name} history`)
         expect(JSON.stringify(read.data ?? null)).not.toContain(video)
       }
     }
@@ -766,29 +831,33 @@ test.describe("knowledge B03 E and F", () => {
       body.includes(CORRECTION_REASON)
     )
     const save = correction.getByRole("button", { name: CORRECT_COPY.save })
-    await save.click()
-    await heldCorrection.arrived
-    await expect(save).toBeDisabled()
-    await expect(save).toHaveAttribute("aria-busy", "true")
-    await expect(
-      correction.getByRole("radio", { name: ANSWER_LABEL.no, exact: true })
-    ).toBeDisabled()
-    await expect(why).toBeDisabled()
-    expect(slotRead(w.venueA, a), "nothing saved while held").toEqual(
-      beforeCorrection
-    )
-    heldCorrection.release()
+    // Released and passed on even if a pending assertion fails.
+    try {
+      await save.click()
+      await heldCorrection.arrived
+      await expect(save).toBeDisabled()
+      await expect(save).toHaveAttribute("aria-busy", "true")
+      await expect(
+        correction.getByRole("radio", { name: ANSWER_LABEL.no, exact: true })
+      ).toBeDisabled()
+      await expect(why).toBeDisabled()
+      expect(slotRead(w.venueA, a), "nothing saved while held").toEqual(
+        beforeCorrection
+      )
+    } finally {
+      await heldCorrection.settle()
+    }
     await expect(
       manager.getByText(CORRECT_COPY.doneMaterial, { exact: true })
     ).toBeVisible()
     const back = manager.getByRole("link", { name: "Back to the check" })
     await expect(back).toBeVisible()
     // The saved form is gone: focus must land somewhere usable, not the body.
+    // This is the app's own focus, before the test moves it anywhere.
     await expect
       .soft(manager.locator("body"), "focus after the correction is saved")
       .not.toBeFocused()
     expect(heldCorrection.count(), "one correction request").toBe(1)
-    await heldCorrection.dispose()
 
     await expect
       .poll(
@@ -825,6 +894,8 @@ test.describe("knowledge B03 E and F", () => {
     // Headline-only: the material path adds a submission, never an overlay.
     expect(detailCorrections(w.venueA, a)).toBe(0)
 
+    // Keyboard activation of Back. The test places focus itself here, so this
+    // proves the link works from the keyboard, not that the app restored focus.
     await back.focus()
     await manager.keyboard.press("Enter")
     await expect(manager).toHaveURL(new RegExp(`${MANAGER.check(a)}(\\?|$)`))
@@ -888,19 +959,25 @@ test.describe("knowledge B03 E and F", () => {
     const heldWithdraw = await holdServerAction(admin, (body) =>
       body.includes(WITHDRAW_REASON)
     )
-    await dialog.getByRole("button", { name: WITHDRAW_COPY.confirm }).click()
-    await heldWithdraw.arrived
-    const withdrawing = dialog.getByRole("button", {
-      name: WITHDRAW_COPY.pending,
-    })
-    await expect(withdrawing).toBeDisabled()
-    await expect(withdrawing).toHaveAttribute("aria-busy", "true")
-    await expect(dialog.getByRole("button", { name: "Cancel" })).toBeDisabled()
-    await expect(reason).toBeDisabled()
-    expect(slotRead(w.venueA, a), "nothing withdrawn while held").toEqual(
-      beforeWithdraw
-    )
-    heldWithdraw.release()
+    // Released and passed on even if a pending assertion fails.
+    try {
+      await dialog.getByRole("button", { name: WITHDRAW_COPY.confirm }).click()
+      await heldWithdraw.arrived
+      const withdrawing = dialog.getByRole("button", {
+        name: WITHDRAW_COPY.pending,
+      })
+      await expect(withdrawing).toBeDisabled()
+      await expect(withdrawing).toHaveAttribute("aria-busy", "true")
+      await expect(
+        dialog.getByRole("button", { name: "Cancel" })
+      ).toBeDisabled()
+      await expect(reason).toBeDisabled()
+      expect(slotRead(w.venueA, a), "nothing withdrawn while held").toEqual(
+        beforeWithdraw
+      )
+    } finally {
+      await heldWithdraw.settle()
+    }
     await expect(dialog).toBeHidden()
     // WithdrawControl's declared focus target is Where it stands' heading.
     await expect
@@ -915,7 +992,6 @@ test.describe("knowledge B03 E and F", () => {
       )
       .toBe(1)
     expect(heldWithdraw.count(), "one withdrawal request").toBe(1)
-    await heldWithdraw.dispose()
     const withdrawnSlot = slotRead(w.venueA, a)
     const withdrawal = withdrawnSlot.decisions.find(
       (d) => d.decision === "withdrawn"

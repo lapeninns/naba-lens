@@ -359,7 +359,11 @@ export type HeldAction = {
   count: () => number
   /** Lets the held request(s) continue to the real server. */
   release: () => void
-  dispose: () => Promise<void>
+  /**
+   * Releases, waits until every held request has been passed on, then
+   * removes the route. Idempotent; never throws, so it is safe in `finally`.
+   */
+  settle: () => Promise<void>
 }
 
 /**
@@ -376,6 +380,7 @@ export async function holdServerAction(
   let arrive!: () => void
   const arrived = new Promise<void>((resolve) => (arrive = resolve))
   let count = 0
+  const passing = new Set<Promise<void>>()
   const handler = async (route: Route) => {
     const request = route.request()
     if (
@@ -386,15 +391,26 @@ export async function holdServerAction(
       return route.fallback()
     count++
     arrive()
-    await gate
-    await route.continue()
+    const passed = gate.then(() => route.continue())
+    passing.add(passed)
+    try {
+      await passed
+    } finally {
+      passing.delete(passed)
+    }
   }
   await page.route("**/*", handler)
+  let settled: Promise<void> | null = null
   return {
     arrived,
     count: () => count,
     release,
-    dispose: () => page.unroute("**/*", handler),
+    settle: () =>
+      (settled ??= (async () => {
+        release()
+        await Promise.allSettled([...passing])
+        await page.unroute("**/*", handler).catch(() => undefined)
+      })()),
   }
 }
 
