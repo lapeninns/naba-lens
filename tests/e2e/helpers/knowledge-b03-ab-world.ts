@@ -309,3 +309,106 @@ export async function expectFocusWithin(scope: Locator) {
     .poll(() => scope.evaluate((el) => el.contains(document.activeElement)))
     .toBe(true)
 }
+
+// ---- Policy value lists and a legacy statement (B03-B) -----------------------
+
+export type ValueItem = { code: string; label: string }
+
+/**
+ * One synthetic item on a policy value list (global by list, so the code and
+ * label carry the tag). Items are never deleted, only retired.
+ */
+export function seedValueItem(opts: {
+  tag: string
+  list: "policy_condition_types" | "policy_exception_types"
+  name: string
+  label: string
+  valueKind?: "number" | "text" | "time"
+}): ValueItem {
+  const code = `b03ab_${opts.name}_${opts.tag}`
+  if (!/^[a-z][a-z0-9_]{0,39}$/.test(code)) throw new Error(`bad code ${code}`)
+  const label = `DEV FIXTURE ${opts.label} ${opts.tag}`
+  psql(`
+    insert into public.knowledge_value_list_items
+      (list, code, label, needs_value, value_kind, position)
+    values (${text(opts.list)}, ${text(code)}, ${text(label)},
+      ${opts.valueKind ? "true" : "false"},
+      ${opts.valueKind ? text(opts.valueKind) : "null"}, 9000)`)
+  return { code, label }
+}
+
+/** Retires a synthetic item: kept, readable on old answers, never offered. */
+export function retireValueItem(
+  list: "policy_condition_types" | "policy_exception_types",
+  item: ValueItem
+) {
+  if (!item.code.startsWith("b03ab_")) throw new Error("synthetic items only")
+  psql(`
+    update public.knowledge_value_list_items set retired_at = now()
+    where list = ${text(list)} and code = ${text(item.code)} and retired_at is null`)
+}
+
+/**
+ * A policy statement sent through knowledge_submit in `who`'s own session
+ * and left for another manager to confirm, with `detail` as given (an
+ * incomplete one is accepted when sent, A36).
+ */
+export async function sendStatement(
+  who: Pick<Person, "email">,
+  venue: Pick<Venue, "id">,
+  check: { id: string; key: string },
+  detail: Record<string, unknown>,
+  assetIds: string[]
+): Promise<string> {
+  const revision = Number(
+    psql(
+      `select private.knowledge_slot_revision(${uuid(venue.id)}, ${synthetic(check.key)})`
+    )
+  )
+  const out = await knowledgeRpc<{ contributionId: string }>(
+    await sessionOf(who),
+    "knowledge_submit",
+    {
+      p_check_id: check.id,
+      p_slot_revision: revision,
+      p_idempotency_key: randomUUID(),
+      p_kind: "finding",
+      p_answer: "yes",
+      p_finding: null,
+      p_limitations: null,
+      p_reason: null,
+      p_unknown_preset: null,
+      p_tried_text: null,
+      p_change_reason: null,
+      p_responds_to: null,
+      p_asset_ids: assetIds,
+      p_internal_metadata: null,
+      p_redaction_confirmed: false,
+      p_confirm_own: false,
+      p_detail: detail,
+      p_observed_on: null,
+      p_observed_on_source: null,
+    }
+  )
+  return out.contributionId
+}
+
+/** What the answer in use at a check still needs to be a complete policy. */
+export function policyMissing(checkId: string): string[] {
+  return JSON.parse(
+    psql(
+      `select coalesce(private.knowledge_policy_complete(${uuid(checkId)}), '[]'::jsonb)::text`
+    )
+  ) as string[]
+}
+
+/** Detail rows naming an organisation-wide scope on these keys, anywhere. */
+export function organisationScopeRows(keys: string[]): number {
+  return Number(
+    psql(`
+      select count(*) from public.knowledge_contribution_details d
+      join public.knowledge_contributions c on c.id = d.contribution_id
+      where c.question_key in (${keys.map(synthetic).join(", ")})
+        and d.detail ->> 'policyScope' = 'organisation'`)
+  )
+}
