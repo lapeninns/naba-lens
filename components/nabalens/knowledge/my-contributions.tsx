@@ -56,6 +56,8 @@ export const MY_CONTRIBUTIONS_COPY = {
           : `${line.item}: Asked for a better photo`
       case "needs_recheck":
         return `${line.item}: Needs a recheck`
+      case "waiting":
+        return `${line.item}: Waiting`
     }
   },
   offMenu: "This item isn't on the current menu, so no new photo is needed",
@@ -389,7 +391,7 @@ function PhotoLines({ row }: { row: PhotoContributionRow }) {
       <li>{copy.upload[row.upload]}</li>
       {row.labels ? <li>{copy.labels[row.labels]}</li> : null}
       {row.reviews.map((line) => (
-        <li key={line.photoId}>
+        <li key={line.key}>
           {copy.menuReview(line)}
           {line.offMenu ? (
             <span className="block text-meta text-ink-muted">

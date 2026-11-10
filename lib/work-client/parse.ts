@@ -168,10 +168,13 @@ function feedItemReadable(raw: Json): boolean {
         Array.isArray(raw.menuDecisions) &&
         raw.menuDecisions.every((entry) => {
           const decision = record(entry)
+          if (!decision || !text(decision.itemId) || !text(decision.itemName))
+            return false
+          // A labelled item still waiting has no decision row (no photoId).
+          if (decision.state === "waiting") return decision.photoId === null
           return (
-            decision !== null &&
-            text(decision.itemName) &&
-            oneOf(DECISION_STATES, decision.state) !== null
+            oneOf(DECISION_STATES, decision.state) !== null &&
+            text(decision.photoId)
           )
         })
       )

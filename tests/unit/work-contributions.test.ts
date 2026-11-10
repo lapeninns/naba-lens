@@ -45,9 +45,7 @@ function photo(over: Partial<FeedPhotoItem> = {}): FeedPhotoItem {
   }
 }
 
-function taskSend(
-  over: Partial<FeedTaskSendItem> = {}
-): FeedTaskSendItem {
+function taskSend(over: Partial<FeedTaskSendItem> = {}): FeedTaskSendItem {
   return {
     type: "task_send",
     key: "t:s1",
@@ -375,5 +373,86 @@ describe("Review kind filter (§6.2)", () => {
     )
     expect(entries.map((e) => e.value.id)).toEqual(["f1", "p1"])
     expect(heldBack).toBe(1)
+  })
+})
+
+describe("R5 waiting review lines (§6.1)", () => {
+  const decided = {
+    photoId: "ph1",
+    itemId: "i1",
+    itemName: "Fish pie",
+    variantName: null,
+    state: "accepted" as const,
+    reason: null,
+    decidedAt: "2026-11-06T12:00:00.000Z",
+  }
+  const waiting = {
+    photoId: null,
+    itemId: "i2",
+    itemName: "Burger",
+    variantName: "Large",
+    state: "waiting" as const,
+    reason: null,
+    decidedAt: null,
+  }
+
+  it("reads a labelled item still waiting, and refuses mixed shapes", () => {
+    const ok = parseContributionsPage({
+      items: [photo({ menuDecisions: [decided, waiting] })],
+      nextCursor: null,
+    })
+    expect(ok?.items).toHaveLength(1)
+    for (const bad of [
+      { ...waiting, photoId: "ph9" },
+      { ...decided, photoId: null },
+      { ...waiting, itemId: undefined },
+    ])
+      expect(
+        parseContributionsPage({
+          items: [photo({ menuDecisions: [bad as never] })],
+          nextCursor: null,
+        })
+      ).toBeNull()
+  })
+
+  it("gives the waiting item its own line, never off the menu", () => {
+    const [row] = contributionRows(
+      [photo({ menuDecisions: [decided, waiting] })],
+      new Set(["ph1"])
+    )
+    expect(row).toMatchObject({
+      items: ["Fish pie", "Burger"],
+      reviews: [
+        { item: "Fish pie", state: "accepted", photoId: "ph1" },
+        {
+          item: "Burger (Large)",
+          state: "waiting",
+          photoId: null,
+          offMenu: false,
+        },
+      ],
+    })
+    if (row.type !== "photo") throw new Error("photo row")
+    expect(new Set(row.reviews.map((line) => line.key)).size).toBe(2)
+  })
+
+  it("matches a renamed item by its id, not its name", () => {
+    // The decided row keeps the name at decision time; the waiting row (a
+    // second variant of the same item) has the current name.
+    const [row] = contributionRows([
+      photo({
+        menuDecisions: [
+          { ...decided, itemName: "Fish pie" },
+          { ...waiting, itemId: "i1", itemName: "Fisherman's pie" },
+          { ...waiting, itemId: "i3", itemName: "Fish pie" },
+        ],
+      }),
+    ])
+    expect(row.type === "photo" && row.items).toEqual(["Fish pie", "Fish pie"])
+    expect(row.type === "photo" && row.reviews.map((l) => l.itemId)).toEqual([
+      "i1",
+      "i1",
+      "i3",
+    ])
   })
 })

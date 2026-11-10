@@ -280,7 +280,9 @@ describe("My contributions: paging (HM-06, HM-09)", () => {
         loadMore={vi.fn()}
       />
     )
-    expect(screen.queryByRole("heading", { level: 3, name: "Photo" })).toBeNull()
+    expect(
+      screen.queryByRole("heading", { level: 3, name: "Photo" })
+    ).toBeNull()
     expect(rowOf("Bar at opening")).toBeTruthy()
   })
 
@@ -288,5 +290,41 @@ describe("My contributions: paging (HM-06, HM-09)", () => {
     show(null)
     expect(screen.getByText(MY_CONTRIBUTIONS_COPY.failed)).toBeTruthy()
     expect(screen.queryByText(MY_CONTRIBUTIONS_COPY.empty)).toBeNull()
+  })
+})
+
+describe("My contributions: labelled photos still waiting (R5)", () => {
+  it("says {item}: Waiting beside the decided lines", () => {
+    show(
+      page([
+        photo({
+          menuDecisions: [
+            {
+              photoId: "ph1",
+              itemId: "i1",
+              itemName: "Fish pie",
+              variantName: null,
+              state: "accepted",
+              reason: null,
+              decidedAt: "2026-11-06T12:00:00.000Z",
+            },
+            {
+              photoId: null,
+              itemId: "i2",
+              itemName: "Burger",
+              variantName: null,
+              state: "waiting",
+              reason: null,
+              decidedAt: null,
+            },
+          ],
+        }),
+      ])
+    )
+    const row = rowOf("Fish pie, Burger")
+    expect(within(row).getByText("Burger: Waiting")).toBeTruthy()
+    expect(
+      within(row).getByText("Fish pie: Accepted for menu use")
+    ).toBeTruthy()
   })
 })

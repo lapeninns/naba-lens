@@ -14,9 +14,14 @@ import type { FindingSummary } from "@/lib/knowledge-client/contract"
 export type UploadDimension = "saving" | "not_finished" | "saved"
 export type LabelsDimension = "needs_labels" | "labelled" | "needs_attention"
 
-/** One live menu decision on a photo: its own review line. */
+/**
+ * One menu review line on a photo: a live decision, or a labelled item still
+ * waiting for one (no photoId). `key` is stable within the photo's row.
+ */
 export type MenuReviewLine = {
-  photoId: string
+  key: string
+  itemId: string
+  photoId: string | null
   item: string
   state: FeedMenuDecision["state"]
   reason: string | null
@@ -99,6 +104,17 @@ const itemName = (decision: FeedMenuDecision) =>
     ? `${decision.itemName} (${decision.variantName})`
     : decision.itemName
 
+// One title per menu item. A waiting row carries the item's current name and
+// a decided row the name at decision time, so a renamed item is matched by
+// its id, keeping the first name (live decisions come first).
+function titlesOf(decisions: readonly FeedMenuDecision[]): string[] {
+  const names = new Map<string, string>()
+  for (const decision of decisions)
+    if (!names.has(decision.itemId))
+      names.set(decision.itemId, decision.itemName)
+  return [...names.values()]
+}
+
 function photoRow(
   item: FeedPhotoItem,
   offMenu: ReadonlySet<string>
@@ -110,11 +126,13 @@ function photoRow(
     venueId: item.venueId,
     venueName: item.venueName,
     mediaType: item.mediaType,
-    items: [...new Set(item.menuDecisions.map((d) => d.itemName))],
+    items: titlesOf(item.menuDecisions),
     sentAt: item.sentAt ?? item.at,
     upload: UPLOAD[item.uploadState],
     labels: labelsOf(item.labels),
-    reviews: item.menuDecisions.map((decision) => ({
+    reviews: item.menuDecisions.map((decision, index) => ({
+      key: `${index}:${decision.photoId ?? decision.itemId}`,
+      itemId: decision.itemId,
       photoId: decision.photoId,
       item: itemName(decision),
       state: decision.state,
