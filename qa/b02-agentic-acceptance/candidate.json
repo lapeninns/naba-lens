@@ -1,8 +1,8 @@
 {
-  "comment": "The one B02 head this harness accepts. The coordinator replaces all five values together when the final head lands (README.md, 'Updating the pinned head'). Nothing reads a head from the caller.",
-  "commit": "5ed8178bacd791ccf50e351c1d9a6830aac0624d",
-  "tree": "cc82d2ac6f9d5a0c9ded305b32e767e4f1447ea1",
-  "migrationsDigest": "476ef09b2d1ca851df2fc3c818811b5b379c068c8d7e80dce4591e1e3a882e28",
-  "migrationCount": 48,
-  "latestMigration": "20261110095910"
+  "comment": "The one B02 application head this harness accepts (never the harness snapshot). The coordinator replaces all five values together, from the new head's own git objects, when the final head lands (README.md, 'Updating the pinned head'). Nothing reads a head from the caller.",
+  "commit": "1c5389497f15d4aec04bad77568223ec82537cd1",
+  "tree": "bb009c741c3269dc367e8788b4e2eba64968a316",
+  "migrationsDigest": "22f8296906983c88bc214c08c28b8c669914f41a321e16f7af0360bfe8359caf",
+  "migrationCount": 49,
+  "latestMigration": "20261110095911"
 }
