@@ -81,10 +81,14 @@ export function countSlotStatuses(
   return counts
 }
 
+/** The uses a B03 freshness entry can name. */
+export const FRESHNESS_USES = ["internal", "public"] as const
+export type FreshnessUse = (typeof FRESHNESS_USES)[number]
+
 export type FreshnessEntry = { use: string; state: string }
 
 export type FreshnessCounts = {
-  byUse: Record<string, Partial<Record<FreshnessState, number>>>
+  byUse: Partial<Record<FreshnessUse, Partial<Record<FreshnessState, number>>>>
   contractBreaches: Record<string, number>
 }
 
@@ -93,8 +97,11 @@ export function countFreshness(
 ): FreshnessCounts {
   const counts: FreshnessCounts = { byUse: {}, contractBreaches: {} }
   for (const { use, state } of entries) {
-    if ((FRESHNESS_STATES as readonly string[]).includes(state)) {
-      const byState = (counts.byUse[use] ??= {})
+    if (
+      (FRESHNESS_USES as readonly string[]).includes(use) &&
+      (FRESHNESS_STATES as readonly string[]).includes(state)
+    ) {
+      const byState = (counts.byUse[use as FreshnessUse] ??= {})
       const key = state as FreshnessState
       byState[key] = (byState[key] ?? 0) + 1
     } else {
