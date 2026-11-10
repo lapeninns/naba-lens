@@ -56,7 +56,7 @@ import type { MediaActor } from "../../lib/server/media/types"
 const MIGRATION = readFileSync(
   join(
     __dirname,
-    "../../supabase/migrations/20261110150000_menu_b04a_sources_crosswalk.sql"
+    "../../supabase/migrations/20261110200000_menu_b04a_sources_crosswalk.sql"
   ),
   "utf8"
 )
