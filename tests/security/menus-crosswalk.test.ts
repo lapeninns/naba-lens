@@ -2391,6 +2391,21 @@ describe("TS/SQL parity of the name key and content hash", () => {
     "½ Pint",
     "Ünïcödé — Dish",
     "",
+    // Unicode numbers beyond decimal digits (No, Nl) and other scripts' Nd.
+    "Pint",
+    "Ⅻ Course ⅲ \u{10140}",
+    "٣ Kebabs ३ Samosa",
+    // NFC composes several marks; a mark with no composed form is removed.
+    "Phở Bò",
+    "x́ y⃝",
+    // Whole-string lower case: a final sigma and a dotted capital I.
+    "ΟΔΟΣ ΣΟΣ",
+    "İstanbul",
+    // JavaScript whitespace collapses; a zero width space is not whitespace.
+    " Fish and　Chips Tea​Cake﻿ ",
+    "A-B (Large), £5!",
+    // Numeric-looking symbols outside N.
+    "№ 5 #1 ℅",
   ]
   it("normalises names alike", () => {
     const got = rows<{
@@ -2420,6 +2435,61 @@ describe("TS/SQL parity of the name key and content hash", () => {
       order by n`)
     expect(got.map((r) => r.h)).toEqual(
       await Promise.all(entries.map((e) => sha256Hex(contentHashInput(e))))
+    )
+  })
+})
+
+describe("name key: Unicode numbers keep names apart (§4.2 #4)", () => {
+  it("proposes '½ Pint' and 'Pint' each to its own item, as the TypeScript matcher does", async () => {
+    const venue = (await createVenue(service, "crosswalk-pint")).id
+    const doc = await readDocument(
+      service,
+      await publishMenu(
+        admin,
+        venue,
+        menu("TEST pints", [
+          section("beer", "Beer", [
+            item("beer--half-pint", "½ Pint"),
+            item("beer--pint", "Pint"),
+          ]),
+        ])
+      )
+    )
+    const source = await declare(venue, "venue_website", "TEST synthetic pints")
+    const entries: SnapshotEntry[] = [
+      { locator: "beer#½ Pint", name: "½ Pint", priceText: "3.20" },
+      { locator: "beer#Pint", name: "Pint", priceText: "5.90" },
+    ]
+    const snap = await snapshot(source, "p1", entries)
+    const result = await ok<{ counts: Record<string, number> }>(propose(snap))
+    expect(result.counts).toMatchObject({ proposed: 2, ambiguous: 0 })
+    const half = doc.byKey["beer--half-pint"]!.itemId
+    const pint = doc.byKey["beer--pint"]!.itemId
+    expect(
+      heads(source).map((h) => [h.locator, h.status, h.item_id, h.candidates])
+    ).toEqual([
+      ["beer#Pint", "proposed", pint, [pint]],
+      ["beer#½ Pint", "proposed", half, [half]],
+    ])
+    const expected = proposeCrosswalk({
+      snapshotId: snap,
+      sourceKind: "venue_website",
+      entries,
+      contentHashes: await Promise.all(
+        entries.map((e) => sha256Hex(contentHashInput(e)))
+      ),
+      catalogue: catalogueOf(doc),
+      heads: [],
+    })
+    expect(rowsFrom(source, snap, 0)).toEqual(
+      expected.rows.map((r) => [
+        r.locator,
+        r.status,
+        r.itemId,
+        r.variantId,
+        r.candidates,
+        r.contentHash,
+      ])
     )
   })
 })
