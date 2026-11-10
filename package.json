@@ -33,7 +33,7 @@
     "verify:change": "node scripts/verification/cli.mjs focused",
     "verify:batch": "node scripts/verification/cli.mjs",
     "verify:release": "node scripts/verification/cli.mjs release",
-    "test:verification": "node --test scripts/verification/*.test.mjs scripts/ci/common-receipt.test.mjs"
+    "test:verification": "node --test scripts/verification/*.test.mjs scripts/ci/common-receipt.test.mjs scripts/ci/run-suites.test.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1159.0",
