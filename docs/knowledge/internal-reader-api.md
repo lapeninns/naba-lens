@@ -229,16 +229,16 @@ cannot present a stale or unconfirmed answer as current. It keeps `key`,
 `questionVersion` (when known) and `revision`, so a newer unavailable state
 supersedes an older available one.
 
-| Reason                | Meaning                                                                                                                           | `detail` values (v1)                                             |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `unknown`             | No answer is established, or the question is not on the venue's open working list (`not_enabled`, which hides every other state). | `not_checked`, `unable_to_establish`, `not_enabled`              |
-| `not_confirmed`       | A contribution exists, but the confirmation this question requires is pending or was declined.                                    | `pending`, `declined`                                            |
-| `stale`               | The answer expired at read time, or a recheck was requested.                                                                      | `expired`, `recheck_requested`, `evidence_lost`                  |
-| `disputed`            | Supported sources conflict and no resolution has been made.                                                                       | `conflict`                                                       |
-| `withdrawn`           | The answer, its confirmation or its evidence was withdrawn.                                                                       | `answer_withdrawn`, `confirmation_revoked`, `evidence_withdrawn` |
-| `not_permitted`       | The credential, audience or purpose may not read this question. Nothing about its state is revealed.                              | none                                                             |
-| `unsupported_version` | The answer uses a question version or value type newer than the declared `schema` can represent.                                  | none                                                             |
-| `venue_not_found`     | Used only as the request-level error below; never inside `answers`.                                                               | none                                                             |
+| Reason                | Meaning                                                                                                                                  | `detail` values (v1)                                                                                                             |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `unknown`             | No answer is established, or the question is not on the venue's open working list (`not_enabled`, which hides every other state).        | `not_checked`, `unable_to_establish`, `not_enabled`                                                                              |
+| `not_confirmed`       | A contribution exists, but the confirmation this question requires is pending or was declined, or a policy answer is incomplete.         | `pending`, `declined`, `policy_incomplete`                                                                                       |
+| `stale`               | The answer needs checking: it expired at read time, a recheck was requested or is due, or its qualifier is withheld in v1 (section 5.5). | `expired`, `recheck_requested`, `evidence_lost`, `qualified_answer`, `basis_missing`, `schema_changed`, `temporary_until_passed` |
+| `disputed`            | Supported sources conflict and no resolution has been made.                                                                              | `conflict`                                                                                                                       |
+| `withdrawn`           | The answer, its confirmation or its evidence was withdrawn.                                                                              | `answer_withdrawn`, `confirmation_revoked`, `evidence_withdrawn`                                                                 |
+| `not_permitted`       | The credential, audience or purpose may not read this question. Nothing about its state is revealed.                                     | none                                                                                                                             |
+| `unsupported_version` | The answer uses a question version or value type newer than the declared `schema` can represent.                                         | none                                                                                                                             |
+| `venue_not_found`     | Used only as the request-level error below; never inside `answers`.                                                                      | none                                                                                                                             |
 
 When several reasons apply, the first in this order wins:
 
@@ -389,6 +389,40 @@ A confirmation is exposed only with a role as its authority (`venue_manager`
 or `admin`). The decisions table also allows the bases `self` and `rule`; a
 confirmed answer that arrives with either breaks the resolver contract, and
 the reader answers `500 internal_error` rather than present it.
+
+#### B03 details
+
+B03 adds details under the existing reasons and no new reason
+([B03 design §3.8, §5.2, §7.3, §9.3](b03-design.md)). Each detail belongs to
+one reason; the reader accepts it only with that reason.
+
+| Slot                                                                                                  | Reader result                         | Emitted from  |
+| ----------------------------------------------------------------------------------------------------- | ------------------------------------- | ------------- |
+| A Yes qualified as Conditional (policy) or temporarily unavailable (facility, service, accessibility) | `stale` / `qualified_answer`          | B03-c         |
+| A policy answer missing a stance, condition, zones, statement date, source or the named confirmation  | `not_confirmed` / `policy_incomplete` | B03-c         |
+| A key with a freshness policy, and an answer with no basis date (`observed_on` or `statedOn`)         | `stale` / `basis_missing`             | B03-e         |
+| A key with a freshness policy, and an answer past its maximum age, at read time                       | `stale` / `expired`                   | B03-e         |
+| A schema upgrade that is not lossless                                                                 | `stale` / `schema_changed`            | B03-g         |
+| A temporarily unavailable answer whose `until` date has passed                                        | `stale` / `temporary_until_passed`    | B03-e         |
+| A recheck requested                                                                                   | `stale` / `recheck_requested`         | B01 and later |
+
+- **Withheld, not reported.** v1 never reports a qualified answer as Yes: the
+  value, staff text, provenance and freshness are all absent, as for any
+  unavailable answer. The qualifier and its detail reach consumers only in a
+  later reader version (B06).
+- **Precedence.** `qualified_answer` is the weakest: a slot that is also
+  withdrawn, disputed, stale for another cause or incomplete reads with that
+  reason (B03 design A22).
+- **Fail closed.** A detail under a different reason, or a detail not listed
+  in section 4, is a resolver contract break and the whole response is
+  `500 internal_error`. Recheck causes that are not slot details
+  (`scope_changed`, `schedule_ended`, `due_soon`) are refused the same way
+  until WS1 makes one a detail and this table lists it.
+- **Read-time states.** `expired`, `basis_missing` and
+  `temporary_until_passed` can appear without a new revision, because nothing
+  was written. The `ETag` covers reason and detail, so `If-None-Match` never
+  hides the change, and consumers must compare state as well as revision
+  (section 11).
 
 Confirmation rules for the pilot keys
 ([access and rights §6](access-and-rights.md#6-confirmation-rules)):
@@ -543,6 +577,12 @@ implementation. Known limits of the v1 limiter:
   consumer uses.
 - `meta` lists the supported `schema` versions so consumers can check before
   they read.
+- **B03 needs no version change.** It adds `detail` values under the existing
+  reasons (section 5.5) and no field, reason or value type, so the response
+  shape and `schema` `1.0` are unchanged. A qualified answer that read
+  available before B03-c now reads unavailable: that withholds information,
+  which every v1 consumer already handles. Returning the qualifier itself is a
+  new field and a new value type, so it waits for a later schema minor (B06).
 
 ## 11. Compatibility with the public projection and the website snapshot (B06)
 
@@ -556,7 +596,10 @@ additive:
 - **Revisions and tombstones.** B06 publication revisions are built from the
   answer `revision` defined here. Because an unavailable answer keeps its rising
   revision, a withdrawal is itself a revision. A delayed older publish cannot
-  replace it, and the website can store it as a tombstone.
+  replace it, and the website can store it as a tombstone. Read-time states
+  from B03 (`expired`, `basis_missing`, `temporary_until_passed`) change the
+  answer at the same revision, so B06 delivery must treat a changed reason or
+  detail at an equal revision as a change.
 - **`not_enabled` revisions.** v1 returns the revision of an out-of-scope slot
   (`unknown` / `not_enabled`) so an internal consumer sees an older answer
   superseded when a question leaves the working list. For the `public` audience
@@ -635,6 +678,15 @@ deterministic tests unless stated.
 - **Timestamps (V12):** fixtures with different save, confirmation and
   migration times return them only under `savedAt` and
   `confirmation.savedAt`; `observedAt` stays `null`.
+- **B03 details (V12):** every detail in section 5.5 reads unavailable under
+  its reason, with no value, text, provenance or freshness; the same detail
+  under another reason, a recheck cause and an invented detail each fail the
+  response closed; a response mixing a qualified answer, an incomplete policy
+  and a plain Yes is `200`. Over the database (spare6), a temporarily
+  unavailable facility and an incomplete Conditional policy read
+  `stale` / `qualified_answer` and `not_confirmed` / `policy_incomplete`
+  through the route with none of their text, qualifier or IDs in the body,
+  and a dispute wins over the qualifier.
 - **Versions (V12):** `schema=2.0` on `/v1/`, a future minor and a question
   version newer than the declared schema.
 - **Fixture journey (B01 step 6 to 9):** after a confirmation, reopen, conflict

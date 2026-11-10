@@ -37,10 +37,24 @@ export const LIMITS = {
   sourceTimeoutMs: 5000,
 } as const
 
+/**
+ * Each detail belongs to exactly one reason; a pair outside this table breaks
+ * the resolver contract and fails closed. B03 details (b03-design §3.8, §5.2,
+ * §7.3, §9.3) are listed before the batch that emits them, so turning one on
+ * never turns a whole response into a 500.
+ */
 export const UNAVAILABLE_DETAILS = {
   unknown: ["not_checked", "unable_to_establish", "not_enabled"],
-  not_confirmed: ["pending", "declined"],
-  stale: ["expired", "recheck_requested", "evidence_lost"],
+  not_confirmed: ["pending", "declined", "policy_incomplete"],
+  stale: [
+    "expired",
+    "recheck_requested",
+    "evidence_lost",
+    "qualified_answer",
+    "basis_missing",
+    "schema_changed",
+    "temporary_until_passed",
+  ],
   disputed: ["conflict"],
   withdrawn: ["answer_withdrawn", "confirmation_revoked", "evidence_withdrawn"],
 } as const satisfies Record<string, readonly string[]>
