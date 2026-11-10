@@ -46,9 +46,9 @@ describe("From the old facts list", () => {
     ).toBeTruthy()
   })
 
-  it("says so when the list can't be read, and is absent when there's nothing", () => {
-    const { container, rerender } = render(<OldFactsSection items={[]} />)
-    expect(container.textContent).toBe("")
+  it("says so when the list can't be read, and when none are for this question (A44)", () => {
+    const { rerender } = render(<OldFactsSection items={[]} />)
+    expect(screen.getByText("No old facts for this question.")).toBeTruthy()
     rerender(<OldFactsSection items={null} />)
     expect(
       screen.getByText("The old facts list couldn't be read.")

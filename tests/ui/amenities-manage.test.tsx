@@ -12,12 +12,14 @@ import {
 import { manageHrefs } from "@/components/nabalens/coverage"
 import { ManageNav } from "@/components/nabalens/coverage/manage-nav"
 import { UI_TEXT, type AmenityFailure } from "@/lib/amenities/contract"
+import type { RecheckTask } from "@/lib/knowledge-client/contract"
 
 import {
   ARCHIVED,
   BASE,
   CATALOGUE,
   DARTS,
+  STAFF,
   WIFI_CHECK,
   view,
 } from "./amenities-manage-fixtures"
@@ -409,5 +411,91 @@ describe("Amenities overview: a withdrawn answer or an incomplete policy (B03 re
       within(recheck).getByText("Recheck: ⟨Withdrawal reason⟩")
     ).toBeTruthy()
     expect(within(recheck).queryByText(/Answer: Yes/)).toBeNull()
+  })
+})
+
+describe("Amenities overview: rechecks (B03 UI §6.3, A41)", () => {
+  const ASSIGNED = { ...WIFI_CHECK, assignee: STAFF }
+  const task = (over: Partial<RecheckTask> = {}): RecheckTask => ({
+    taskId: "t1",
+    checkId: ASSIGNED.id,
+    venueId: ASSIGNED.venueId,
+    questionKey: ASSIGNED.entry.key,
+    question: ASSIGNED.entry.question,
+    cause: "schema_changed",
+    use: "internal",
+    dueAt: "2099-11-20T12:00:00.000Z",
+    ...over,
+  })
+
+  function renderWith(rechecks: RecheckTask[] | null | undefined) {
+    render(
+      <AmenitiesOverview
+        view={view({
+          active: [DARTS, ASSIGNED],
+          counts: { needs_capture: 2, needs_recheck: 0, complete: 0 },
+        })}
+        catalogue={CATALOGUE}
+        basePath={BASE}
+        handlers={handlers()}
+        rechecks={rechecks}
+      />
+    )
+  }
+
+  it("lists each open recheck above the checks, in the server's order, with its cause, due date and the check's assignee", () => {
+    renderWith([
+      task(),
+      task({
+        taskId: "t2",
+        checkId: DARTS.id,
+        questionKey: DARTS.entry.key,
+        question: DARTS.entry.question,
+        cause: "evidence_lost",
+        dueAt: "2099-11-21T12:00:00.000Z",
+      }),
+    ])
+    const group = screen.getByRole("region", { name: /^Rechecks/ })
+    const rows = within(group).getAllByRole("listitem")
+    expect(rows).toHaveLength(2)
+    expect(within(rows[0]).getByText(ASSIGNED.entry.question)).toBeTruthy()
+    expect(
+      within(rows[0]).getByText(
+        "This question now asks for more detail. Check it again."
+      )
+    ).toBeTruthy()
+    expect(
+      within(rows[0]).getByText(
+        `Due 20 Nov 2099 · Assigned to ${STAFF.displayName}`
+      )
+    ).toBeTruthy()
+    expect(
+      within(rows[1]).getByText("Due 21 Nov 2099 · Not assigned")
+    ).toBeTruthy()
+    // Assign goes to the check's own assignment, which the recheck follows.
+    expect(
+      within(rows[1])
+        .getByRole("link", { name: `Assign: ${DARTS.entry.question}` })
+        .getAttribute("href")
+    ).toBe(`${BASE}/amenities/${DARTS.id}#amenity-assignee`)
+    // Above the progress groups.
+    const sections = screen.getAllByRole("region").map((r) => r.id)
+    expect(sections.indexOf("amenities-rechecks")).toBeLessThan(
+      sections.indexOf("amenities-needs_capture")
+    )
+  })
+
+  it("says when the rechecks couldn't be read, and shows no group when none are open or not read", () => {
+    renderWith(null)
+    expect(
+      screen.getByText("Open rechecks couldn't be loaded.")
+    ).toBeTruthy()
+    cleanup()
+    renderWith([])
+    expect(screen.queryByRole("region", { name: /^Rechecks/ })).toBeNull()
+    cleanup()
+    renderWith(undefined)
+    expect(screen.queryByRole("region", { name: /^Rechecks/ })).toBeNull()
+    expect(screen.queryByText("Open rechecks couldn't be loaded.")).toBeNull()
   })
 })

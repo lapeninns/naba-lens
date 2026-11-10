@@ -19,7 +19,7 @@ import {
   TallyItem,
 } from "@/components/nabalens/coverage"
 import { Notice } from "@/components/nabalens/notice"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import {
   PROGRESS_LABEL,
   UI_TEXT,
@@ -33,19 +33,22 @@ import {
 
 import {
   KNOWLEDGE_ANSWER_LABEL,
+  recheckCauseLine,
   shortDate,
   TO_CONFIRM_COPY,
+  VENUE_RECHECKS_COPY,
   toConfirmLine,
   qualifiedInUse,
 } from "@/components/nabalens/knowledge/copy"
 import { StatusChip } from "@/components/nabalens/status-chip"
 import type {
+  RecheckTask,
   ToConfirmList,
   ToConfirmRow,
 } from "@/lib/knowledge-client/contract"
 
 import { CataloguePicker, type AddOutcome } from "./catalogue-picker"
-import { CheckRow } from "./check-row"
+import { assigneeText, CheckRow } from "./check-row"
 import { useAmenityAction } from "./use-amenity-action"
 
 export type AmenitiesOverviewHandlers = {
@@ -105,6 +108,7 @@ export function AmenitiesOverview({
   handlers,
   toConfirm = null,
   toConfirmFailed = false,
+  rechecks,
 }: {
   view: VenueAmenitiesView
   /** Null when the catalogue could not be read (or Amenities are off). */
@@ -115,6 +119,11 @@ export function AmenitiesOverview({
   toConfirm?: ToConfirmList | null
   /** The findings to confirm couldn't be read: say so (MG-03). */
   toConfirmFailed?: boolean
+  /**
+   * A41: the venue's open rechecks, oldest due first (the tasks the triage
+   * row counts); null when they couldn't be read, undefined when not read.
+   */
+  rechecks?: readonly RecheckTask[] | null
 }) {
   const hrefs = amenityHrefs(basePath)
   const action = useAmenityAction()
@@ -274,6 +283,11 @@ export function AmenitiesOverview({
       row,
     ])
   const confirmCount = toConfirm?.count ?? 0
+  // §6.3: a recheck's assignee is always its check's, read from the check.
+  const assigneeOf = (checkId: string) => {
+    const check = view.active.find((c) => c.id === checkId)
+    return check?.assignee ? assigneeText(check) : null
+  }
 
   return (
     <div ref={rootRef} className="grid gap-6 md:gap-8">
@@ -415,6 +429,62 @@ export function AmenitiesOverview({
                 </Link>
               </li>
             ))}
+          </ul>
+        </CoverageSection>
+      ) : null}
+
+      {rechecks === null ? (
+        <Notice tone="negative" role="alert">
+          {VENUE_RECHECKS_COPY.failed}
+        </Notice>
+      ) : rechecks && rechecks.length > 0 ? (
+        <CoverageSection
+          id="amenities-rechecks"
+          title={VENUE_RECHECKS_COPY.title}
+          count={rechecks.length}
+        >
+          <ul className="grid min-w-0 divide-y divide-line">
+            {rechecks.map((task) => {
+              const assignee = assigneeOf(task.checkId)
+              return (
+                <li
+                  key={task.taskId}
+                  data-check-id={task.checkId}
+                  className="grid min-w-0 gap-2 py-3"
+                >
+                  <Link
+                    href={hrefs.check(task.checkId)}
+                    className="grid min-h-11 min-w-0 gap-1 outline-none hover:bg-surface-2 focus-visible:outline-3 focus-visible:-outline-offset-3 focus-visible:outline-focus focus-visible:outline-solid"
+                  >
+                    <span className="text-item-title [overflow-wrap:anywhere] text-ink">
+                      {task.question}
+                    </span>
+                    <span className="text-body-touch text-ink md:text-body">
+                      {recheckCauseLine(task)}
+                    </span>
+                    <span className="text-meta-touch text-ink-muted md:text-meta">
+                      {[
+                        VENUE_RECHECKS_COPY.due(task.dueAt),
+                        assignee ?? VENUE_RECHECKS_COPY.notAssigned,
+                      ].join(" · ")}
+                    </span>
+                  </Link>
+                  <div>
+                    {/* Assigns the check; the recheck follows it (§6.3). */}
+                    <Link
+                      href={`${hrefs.check(task.checkId)}#amenity-assignee`}
+                      aria-label={`${VENUE_RECHECKS_COPY.assign}: ${task.question}`}
+                      className={buttonVariants({
+                        variant: "secondary",
+                        size: "sm",
+                      })}
+                    >
+                      {VENUE_RECHECKS_COPY.assign}
+                    </Link>
+                  </div>
+                </li>
+              )
+            })}
           </ul>
         </CoverageSection>
       ) : null}

@@ -52,12 +52,15 @@ export function AmenitiesOverviewControl({
   basePath,
   toConfirm = null,
   toConfirmFailed = false,
+  rechecks,
 }: {
   view: VenueAmenitiesView
   catalogue: CatalogueOption[] | null
   basePath: string
   toConfirm?: ToConfirmList | null
   toConfirmFailed?: boolean
+  /** A41: the venue's open rechecks; null when unreadable. */
+  rechecks?: RecheckTask[] | null
 }) {
   const venueId = view.venue.id
   return (
@@ -67,6 +70,7 @@ export function AmenitiesOverviewControl({
       basePath={basePath}
       toConfirm={toConfirm}
       toConfirmFailed={toConfirmFailed}
+      rechecks={rechecks}
       handlers={{
         enable: () => enableAmenitiesAction({ venueId }),
         addChecks: (keys, idempotencyKey) =>

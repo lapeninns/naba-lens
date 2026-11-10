@@ -635,7 +635,10 @@ describe("qualified answers (B03 UI design §2.5)", () => {
     ])
     expect(
       lines({ ...AWAY, reason: "withdrawn", detail: "answer_withdrawn" })
-    ).toEqual(["Recorded answer: Temporarily unavailable. Not in use."])
+    ).toEqual([
+      "Withdrawn by a manager or an admin.",
+      "Previous answer: Temporarily unavailable.",
+    ])
     expect(lines({ ...COND, reason: "disputed", detail: "conflict" })).toEqual([
       "Recorded answer: Allowed with conditions. Being checked: a finding disagrees with it.",
     ])
@@ -851,6 +854,74 @@ describe("an author's answer that was corrected or withdrawn (B03 UI §8.2, A15)
         })
       )
     ).toBe("No longer in use: a manager or an admin withdrew it.")
+  })
+
+  it("names an admin or a manager from the read's basis, never a person", () => {
+    expect(
+      findingExplanation(
+        finding({
+          state: "no_longer_used",
+          noLongerUsed: "withdrawn",
+          stateReason: "⟨Reason⟩",
+          stateReasonBasis: "admin",
+          stateReasonAt: "2026-11-08T09:30:00.000Z",
+        })
+      )
+    ).toBe("No longer in use: an admin withdrew it. ⟨Reason⟩")
+    expect(
+      findingExplanation(
+        finding({
+          state: "no_longer_used",
+          noLongerUsed: "corrected",
+          stateReason: null,
+          stateReasonBasis: "venue_manager",
+          stateReasonAt: "2026-11-08T09:30:00.000Z",
+        })
+      )
+    ).toBe("No longer in use: a manager corrected it.")
+  })
+})
+
+describe("a withdrawn answer's line (B03 UI §2.2, §8.2, D-B3-18)", () => {
+  const WITHDRAWN: AnswerInUse = {
+    ...YES,
+    status: "unavailable",
+    reason: "withdrawn",
+    detail: "answer_withdrawn",
+  }
+
+  it("names the role from the actor's basis and the withdrawal's own date", () => {
+    expect(
+      answerInUseLines(
+        {
+          ...WITHDRAWN,
+          withdrawal: { at: "2026-11-08T09:30:00.000Z", basis: "admin" },
+        },
+        slot()
+      )
+    ).toEqual(["Withdrawn by an admin on 8 Nov 2026.", "Previous answer: Yes."])
+    expect(
+      answerInUseLines(
+        {
+          ...WITHDRAWN,
+          withdrawal: {
+            at: "2026-11-08T09:30:00.000Z",
+            basis: "venue_manager",
+          },
+        },
+        slot()
+      )[0]
+    ).toBe("Withdrawn by a manager on 8 Nov 2026.")
+  })
+
+  it("without the read's withdrawal, says a manager or an admin and no date", () => {
+    // The save date (3 Nov) never stands in for the withdrawal's.
+    const text = answerInUseLines(WITHDRAWN, slot())
+    expect(text).toEqual([
+      "Withdrawn by a manager or an admin.",
+      "Previous answer: Yes.",
+    ])
+    expect(text.join(" ")).not.toMatch(/Nov|Recorded/)
   })
 })
 

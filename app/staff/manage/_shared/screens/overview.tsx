@@ -135,7 +135,7 @@ export async function OverviewScreen({ ctx }: { ctx: ManageContext }) {
                 : hrefs.menuItems,
             findings: `${hrefs.amenities}#amenities-to-confirm`,
             checklist: hrefs.review,
-            rechecks: hrefs.amenities,
+            rechecks: `${hrefs.amenities}#amenities-rechecks`,
             suggestions: `${hrefs.amenities}#amenities-to-confirm`,
           }}
         />

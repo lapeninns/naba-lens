@@ -4,7 +4,12 @@ import type { ToConfirmItem } from "@/lib/knowledge/contract"
 import * as server from "@/lib/server/knowledge"
 import { knowledgeInvalid } from "@/lib/server/knowledge/errors"
 import { knowledgeRpc } from "@/lib/server/knowledge/rpc"
-import { isObject, isUuid, parseCheckId } from "@/lib/server/knowledge/validate"
+import {
+  isObject,
+  isUuid,
+  optionalVenueId,
+  parseCheckId,
+} from "@/lib/server/knowledge/validate"
 import type { MediaActor } from "@/lib/server/media/types"
 
 import {
@@ -24,11 +29,13 @@ import type {
   KnowledgeFailure,
   KnowledgeResult,
   CorrectResult,
+  FreshnessPolicyView,
   FreshnessPreviewView,
   LegacyMappingsView,
   SlotEventView,
   SlotHistoryView,
   LegacyNarrativeItem,
+  QuestionLegacyNarrativeItem,
   MyPending,
   ReconcileResult,
   ReconciliationRunView,
@@ -160,6 +167,17 @@ export type KnowledgeServices = {
     actor: MediaActor,
     input: unknown
   ): Promise<KnowledgeResult<{ count: number; tasks: RecheckTask[] }>>
+  /**
+   * A41: every open recheck at the venue (open tasks on active checks), for
+   * managers and admins, oldest due first; staff are refused. The same tasks
+   * the triage rechecks row counts. `input`: `{ venueId? }`.
+   */
+  listVenueRechecks(
+    actor: MediaActor,
+    input: unknown
+  ): Promise<
+    KnowledgeResult<{ venueId: string; count: number; tasks: RecheckTask[] }>
+  >
   /** B03-g (§9.1): a manager account or an admin corrects the answer in use. */
   correctAnswer(
     actor: MediaActor,
@@ -235,6 +253,20 @@ export type KnowledgeServices = {
     actor: MediaActor,
     input: unknown
   ): Promise<KnowledgeResult<{ venueId: string; items: LegacyNarrativeItem[] }>>
+  /**
+   * A44: the old facts reviewed for one question at their current revision.
+   * `input`: `{ questionKey, venueId? }`.
+   */
+  getQuestionLegacyNarrative(
+    actor: MediaActor,
+    input: unknown
+  ): Promise<
+    KnowledgeResult<{
+      venueId: string
+      questionKey: string
+      items: QuestionLegacyNarrativeItem[]
+    }>
+  >
   /** Admins: every question with its latest version (B03-a). */
   listQuestionRegistry(
     actor: MediaActor,
@@ -245,6 +277,10 @@ export type KnowledgeServices = {
     actor: MediaActor,
     input: unknown
   ): Promise<KnowledgeResult<{ preview: FreshnessPreviewView }>>
+  /** A42, admins: each freshness policy's latest version per use. */
+  listFreshnessPolicies(
+    actor: MediaActor
+  ): Promise<KnowledgeResult<{ policies: FreshnessPolicyView[] }>>
   /** B03-d: the schedule in use's occurrences, from..to (≤ 92 days). */
   getOccurrences(
     actor: MediaActor,
@@ -346,12 +382,40 @@ export const knowledgeServices: KnowledgeServices = {
 
   getCheckRechecks: (actor, input) => server.getCheckRechecks(actor, input),
 
+  async listVenueRechecks(actor, input) {
+    const venueId = optionalVenueId(input)
+    if (!venueId.ok) return venueId
+    // Read here for the database's code: before A41 there is no venue-wide
+    // list, which reads as none open (as my_rechecks before B03-e).
+    const { data, error } = await knowledgeRpc(
+      actor.db,
+      "knowledge_venue_rechecks",
+      { p_venue_id: venueId.value }
+    )
+    if (error) {
+      if (MISSING_FUNCTION.has(error.code ?? ""))
+        return { ok: true, venueId: venueId.value ?? "", count: 0, tasks: [] }
+      return server.knowledgeRpcFailure(error, "knowledge venue rechecks")
+    }
+    return {
+      ok: true,
+      venueId: data.venueId,
+      count: data.count,
+      tasks: data.items,
+    }
+  },
+
   previewFreshness: (actor, input) => server.previewFreshness(actor, input),
+
+  listFreshnessPolicies: (actor) => server.listFreshnessPolicies(actor),
 
   listQuestionRegistry: (actor, input) =>
     server.listQuestionRegistry(actor, input),
 
   getLegacyNarrative: (actor, input) => server.getLegacyNarrative(actor, input),
+
+  getQuestionLegacyNarrative: (actor, input) =>
+    server.getQuestionLegacyNarrative(actor, input),
 
   correctAnswer: (actor, input) => server.correctAnswer(actor, input),
   withdrawAnswer: (actor, input) => server.withdrawAnswer(actor, input),

@@ -22,7 +22,9 @@ import {
 } from "@/lib/knowledge/contract"
 
 import type {
+  ActorBasis,
   AnswerInUse,
+  AnswerWithdrawal,
   DecisionResult,
   DraftPayload,
   FindingSummary,
@@ -126,6 +128,39 @@ function qualifiedOf(answer: unknown): QualifiedAnswer | null {
   }
 }
 
+const ACTOR_BASES = ["venue_manager", "admin"] as const
+
+/** A manager's or an admin's basis, read defensively; anything else is unknown. */
+function basisOf(value: unknown): ActorBasis | null {
+  return (ACTOR_BASES as readonly unknown[]).includes(value)
+    ? (value as ActorBasis)
+    : null
+}
+
+/**
+ * `answerInUse.withdrawal` (UI §8.2): kept only whole, so the screen never
+ * names a role without its date or a date without its role.
+ */
+function withdrawalOf(answer: unknown): AnswerWithdrawal | null {
+  if (!answer || typeof answer !== "object") return null
+  const w = (answer as { withdrawal?: unknown }).withdrawal
+  if (!w || typeof w !== "object") return null
+  const { at, basis } = w as { at?: unknown; basis?: unknown }
+  const known = basisOf(basis)
+  return typeof at === "string" && at && known ? { at, basis: known } : null
+}
+
+const withWithdrawal = (withdrawal: AnswerWithdrawal | null) =>
+  withdrawal ? { withdrawal } : {}
+
+/** The author's corrected or withdrawn line: basis and time, only together. */
+function stateReasonActor(view: MyFindingView) {
+  const basis = basisOf(view.stateReasonBasis)
+  return basis && typeof view.stateReasonAt === "string" && view.stateReasonAt
+    ? { stateReasonBasis: basis, stateReasonAt: view.stateReasonAt }
+    : {}
+}
+
 export function adaptAnswerInUse(slot: KnowledgeSlotView): AnswerInUse {
   const answer = slot.answerInUse
   return {
@@ -146,6 +181,7 @@ export function adaptAnswerInUse(slot: KnowledgeSlotView): AnswerInUse {
       ? { scheduleId: answer.scheduleId }
       : {}),
     ...withoutAdoptable(sourceOf(answer ?? {})),
+    ...withWithdrawal(withdrawalOf(answer)),
     confirmation: {
       state: answer?.confirmationState ?? "not_required",
       // Managers and admins only: staff get no confirmer.
@@ -181,6 +217,7 @@ export function adaptFinding(view: MyFindingView): FindingSummary {
         ? (NO_LONGER_USED[view.stateReason as StateReasonB03] ?? null)
         : null,
     stateReason: view.managerNote ?? null,
+    ...stateReasonActor(view),
     managerNote: view.managerNote ?? null,
     detailRequestId: view.detailRequestId ?? null,
     unknownPreset: view.unknownPreset ?? null,

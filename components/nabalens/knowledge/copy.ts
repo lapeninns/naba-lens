@@ -9,8 +9,11 @@ import {
   type SubmitAnswer,
 } from "@/lib/amenities/contract"
 import type {
+  ActorBasis,
   AnswerInUse,
+  AnswerWithdrawal,
   FreshnessEntry,
+  FreshnessPolicyView,
   QualifiedAnswer,
   RecheckTask,
   FindingState,
@@ -257,6 +260,31 @@ export function policyNotConfirmedLine(
   return `Not confirmed: it still needs ${joinWords(policyNeedWords(needs, options))}.`
 }
 
+/** "a manager" or "an admin" from the actor's basis; never a name (D3). */
+export function actorRole(basis: ActorBasis | null | undefined): string {
+  return basis === "admin"
+    ? "an admin"
+    : basis === "venue_manager"
+      ? "a manager"
+      : "a manager or an admin"
+}
+
+/**
+ * A withdrawn answer (UI §2.2, §8.2, D-B3-18): the role and the withdrawal's
+ * own date. Without them (an older read) the role falls back to "a manager or
+ * an admin" and no date is shown: a save, send or decision date never stands
+ * in for it.
+ */
+function withdrawnLines(
+  withdrawal: AnswerWithdrawal | null | undefined,
+  value: string | null
+): string[] {
+  const head = withdrawal
+    ? `Withdrawn by ${actorRole(withdrawal.basis)} on ${longDate(withdrawal.at)}.`
+    : `Withdrawn by ${actorRole(null)}.`
+  return value ? [head, `Previous answer: ${value}.`] : [head]
+}
+
 export function answerInUseLines(
   answer: AnswerInUse,
   slot: Pick<WorkingSlot, "previousAnswer" | "latestAttempt">
@@ -301,7 +329,7 @@ export function answerInUseLines(
         `Recorded answer: ${value ?? "none"}. Not in use: its confirmation was withdrawn.`,
       ]
     case "answer_withdrawn":
-      return [`Recorded answer: ${value ?? "none"}. Not in use.`]
+      return withdrawnLines(answer.withdrawal, value)
     case "expired":
       return [
         "No answer in use: it needs checking again.",
@@ -385,7 +413,8 @@ const NO_LONGER_USED: Record<
   evidence_deleted: () => "Its photo was deleted",
   replaced_by_detail: () => "Replaced by your added detail",
   replaced_by_own: () => "Replaced by your newer finding",
-  // B03-g (A15): the role only; the read carries no basis, and no name (D3).
+  // B03-g (A15): findingExplanation words these with the actor's basis when
+  // the read carries it; these are the no-basis fallback. Never a name (D3).
   corrected: () => "A manager or an admin corrected it",
   withdrawn: () => "A manager or an admin withdrew it",
 }
@@ -401,6 +430,7 @@ export function findingExplanation(
     | "answer"
     | "noLongerUsed"
     | "stateReason"
+    | "stateReasonBasis"
     | "managerNote"
     | "answeredBy"
     | "answeredAt"
@@ -428,12 +458,13 @@ export function findingExplanation(
         ? `Your manager didn't use this: ${finding.stateReason}`
         : "Your manager didn't use this."
     case "no_longer_used": {
-      // B03-g (§8.2): "No longer in use: …" with the reason they gave.
+      // B03-g (§8.2): "No longer in use: …" with the reason they gave. The
+      // role from the actor's basis when the read carries it, never a name.
       if (
         finding.noLongerUsed === "corrected" ||
         finding.noLongerUsed === "withdrawn"
       )
-        return `No longer in use: a manager or an admin ${finding.noLongerUsed === "corrected" ? "corrected" : "withdrew"} it.${finding.stateReason ? ` ${finding.stateReason}` : ""}`
+        return `No longer in use: ${actorRole(finding.stateReasonBasis)} ${finding.noLongerUsed === "corrected" ? "corrected" : "withdrew"} it.${finding.stateReason ? ` ${finding.stateReason}` : ""}`
       const why = finding.noLongerUsed
         ? NO_LONGER_USED[finding.noLongerUsed](finding.stateReason)
         : "It isn't used any more"
@@ -738,6 +769,9 @@ export const KNOWLEDGE_FAILURE_COPY = {
     lost: "We couldn't confirm your decision was saved. Check your connection and try again; nothing is decided twice.",
     outOfScope:
       "This question was taken off the question list, so nothing was changed. Reload to see it.",
+    /** A43, NLK14 (§7.1, §10): any recorded answer counts. */
+    importSlotHasAnswer:
+      "This import can't be used: this question already has a recorded answer (in use, withdrawn or past its check date). Nothing was changed.",
   },
 } as const
 
@@ -1237,6 +1271,15 @@ export const CHECK_DATES_COPY = {
   rechecksFailed: "Open rechecks couldn't be loaded.",
 } as const
 
+/** The Amenities list's Rechecks group (§6.3, A41). */
+export const VENUE_RECHECKS_COPY = {
+  title: "Rechecks",
+  due: (iso: string) => `Due ${longDate(iso)}`,
+  notAssigned: "Not assigned",
+  assign: "Assign",
+  failed: "Open rechecks couldn't be loaded.",
+} as const
+
 // ---- Admin: what enabling check dates would do (B03 UI design §6.4) ----------------
 
 const plural = (n: number, one: string, many: string) =>
@@ -1249,7 +1292,11 @@ export const FRESHNESS_PREVIEW_COPY = {
   question: "Question",
   internal: "Rule for staff and internal tools (optional)",
   public: "Rule for guests (optional)",
-  ruleHelp: "The rule's id, for example ⟨offering_90⟩.",
+  ruleHelp:
+    "Only the rules set up for each use are offered. The question's rules in force are chosen first.",
+  noRule: "None",
+  noPolicies: "The check-date rules couldn't be read. Reload the page to try again.",
+  nonePolicies: "No check-date rules have been set up yet.",
   show: "Show what it would do",
   use: { internal: "For staff and internal tools", public: "For guests" },
   expired: (n: number) =>
@@ -1264,6 +1311,26 @@ export const FRESHNESS_PREVIEW_COPY = {
   noRegistry: "The question list couldn't be read.",
   aVenue: "A venue",
 } as const
+
+/** "P90D" as "90 days"; any other ISO 8601 duration as the server wrote it. */
+function durationWords(iso: string): string {
+  const days = /^P(\d+)D$/.exec(iso)
+  if (days) return plural(Number(days[1]), "day", "days")
+  const weeks = /^P(\d+)W$/.exec(iso)
+  if (weeks) return plural(Number(weeks[1]), "week", "weeks")
+  return iso
+}
+
+/** A42: a listed rule, by its id and what it does (§6.4). */
+export function freshnessPolicyLabel(
+  policy: Pick<FreshnessPolicyView, "policyId" | "maxAge" | "basis">
+): string {
+  const age =
+    policy.basis === "event_end" || !policy.maxAge
+      ? "until the event ends"
+      : `due for a check after ${durationWords(policy.maxAge)}`
+  return `${policy.policyId} (${age})`
+}
 
 /** The recheck tasks a preview row would open: due soon, expired, no date. */
 export const previewRechecks = (item: {

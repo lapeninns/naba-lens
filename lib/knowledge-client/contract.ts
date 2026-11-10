@@ -16,6 +16,8 @@ import type {
   WifiMetadata,
 } from "@/lib/amenities/contract"
 import type {
+  ActorBasis,
+  AnswerWithdrawal,
   ConfirmationState,
   ContributionKind,
   Decision,
@@ -45,6 +47,8 @@ export {
 export { SCHEDULE_EXCEPTION_KINDS, VALUE_LISTS } from "@/lib/knowledge/contract"
 export { SOURCE_KINDS } from "@/lib/knowledge/contract"
 export type {
+  ActorBasis,
+  AnswerWithdrawal,
   CorrectResult,
   CorrectionValue,
   SlotEventView,
@@ -59,7 +63,9 @@ export type {
   SourceView,
   FindingSource,
   FreshnessEntry,
+  FreshnessPolicyView,
   FreshnessPreviewView,
+  QuestionLegacyNarrativeItem,
   RecheckCause,
   RecheckClosed,
   RecheckTaskView as RecheckTask,
@@ -175,6 +181,12 @@ export type AnswerInUse = {
   source?: FindingSource
   /** Imports only: the source's label (null for the old facts list). */
   sourceLabel?: string | null
+  /**
+   * While it reads withdrawn (UI §8.2, D-B3-18): when it was withdrawn and
+   * whether a manager or an admin acted. Never who or why. Absent on servers
+   * that don't send it.
+   */
+  withdrawal?: AnswerWithdrawal | null
   confirmation: {
     state: ConfirmationState
     self: boolean
@@ -224,6 +236,12 @@ export type FindingSummary = {
   noLongerUsed: NoLongerUsedReason | null
   /** Reason given by the manager (not confirmed, reopened). */
   stateReason: string | null
+  /**
+   * Corrected or withdrawn (A15, UI §8.2): whether a manager or an admin took
+   * it out of use, and when. Never a name. Null when the read doesn't say.
+   */
+  stateReasonBasis?: ActorBasis | null
+  stateReasonAt?: Instant | null
   /** A request for more detail, or why it wasn't confirmed. */
   managerNote: string | null
   /** The open request for more detail this finding answers. */

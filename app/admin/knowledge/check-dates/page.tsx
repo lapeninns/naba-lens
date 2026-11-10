@@ -6,6 +6,7 @@ import { AppShell } from "@/components/nabalens/app-shell"
 import { CoverageSection } from "@/components/nabalens/coverage"
 import {
   FRESHNESS_PREVIEW_COPY as COPY,
+  freshnessPolicyLabel,
   previewRechecks,
 } from "@/components/nabalens/knowledge/copy"
 import { Notice } from "@/components/nabalens/notice"
@@ -65,31 +66,39 @@ export default async function CheckDatesPreviewPage({
   const actor = auth.actor
   const search = await searchParams
   const key = one(search.key)
-  const internal = one(search.internal)
-  const publicRule = one(search.public)
+  const [registry, policies] = await Promise.all([
+    knowledgeServices.listQuestionRegistry(actor, {}).catch(() => null),
+    // A42: only the rules the server lists are offered, per use.
+    knowledgeServices.listFreshnessPolicies(actor).catch(() => null),
+  ])
+  const questions = registry?.ok ? registry.questions : []
+  // Until the form names rules, start from the question's rules in force.
+  const named = search.internal !== undefined || search.public !== undefined
+  const current = named
+    ? null
+    : (questions.find((q) => q.key === key)?.freshness ?? null)
+  const internal = current ? (current.internal ?? "") : one(search.internal)
+  const publicRule = current ? (current.public ?? "") : one(search.public)
   const asked =
     KEY.test(key) &&
     (!internal || RULE.test(internal)) &&
     (!publicRule || RULE.test(publicRule)) &&
     Boolean(internal || publicRule)
 
-  const [registry, preview] = await Promise.all([
-    knowledgeServices.listQuestionRegistry(actor, {}).catch(() => null),
-    asked
-      ? knowledgeServices
-          .previewFreshness(actor, {
-            key,
-            policy: { internal: internal || null, public: publicRule || null },
-          })
-          .catch(() => null)
-      : null,
-  ])
+  const preview = asked
+    ? await knowledgeServices
+        .previewFreshness(actor, {
+          key,
+          policy: { internal: internal || null, public: publicRule || null },
+        })
+        .catch(() => null)
+    : null
   const names = preview?.ok
     ? await venueNames(actor, [
         ...new Set(preview.preview.items.map((item) => item.venueId)),
       ])
     : new Map<string, string>()
-  const questions = registry?.ok ? registry.questions : []
+  const listed = policies?.ok ? policies.policies : []
 
   return (
     <AppShell variant="admin" active="coverage" userName={profile.displayName}>
@@ -100,6 +109,11 @@ export default async function CheckDatesPreviewPage({
         </Notice>
         {registry && !registry.ok ? (
           <Notice tone="negative">{COPY.noRegistry}</Notice>
+        ) : null}
+        {!policies?.ok ? (
+          <Notice tone="negative">{COPY.noPolicies}</Notice>
+        ) : listed.length === 0 ? (
+          <Notice tone="plain">{COPY.nonePolicies}</Notice>
         ) : null}
         <form method="get" action={PATH} className="grid min-w-0 gap-4">
           <div className="grid min-w-0 gap-1.5">
@@ -120,21 +134,35 @@ export default async function CheckDatesPreviewPage({
               ["internal", COPY.internal, internal],
               ["public", COPY.public, publicRule],
             ] as const
-          ).map(([name, label, value]) => (
-            <div key={name} className="grid min-w-0 gap-1.5">
-              <label htmlFor={name} className={LABEL}>
-                {label}
-              </label>
-              <input
-                id={name}
-                name={name}
-                defaultValue={value}
-                maxLength={40}
-                className={INPUT}
-                aria-describedby="rule-help"
-              />
-            </div>
-          ))}
+          ).map(([name, label, value]) => {
+            const options = listed.filter((policy) => policy.use === name)
+            return (
+              <div key={name} className="grid min-w-0 gap-1.5">
+                <label htmlFor={name} className={LABEL}>
+                  {label}
+                </label>
+                <select
+                  id={name}
+                  name={name}
+                  // Only a listed rule can be chosen; anything else reads None.
+                  defaultValue={
+                    options.some((policy) => policy.policyId === value)
+                      ? value
+                      : ""
+                  }
+                  className={INPUT}
+                  aria-describedby="rule-help"
+                >
+                  <option value="">{COPY.noRule}</option>
+                  {options.map((policy) => (
+                    <option key={policy.policyId} value={policy.policyId}>
+                      {freshnessPolicyLabel(policy)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )
+          })}
           <p id="rule-help" className={MUTED}>
             {COPY.ruleHelp}
           </p>

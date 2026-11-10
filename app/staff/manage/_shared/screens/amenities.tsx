@@ -117,12 +117,16 @@ function amenityFailed(
 }
 
 export async function AmenitiesScreen({ ctx }: { ctx: ManageContext }) {
-  const [result, toConfirm] = await Promise.all([
+  const [result, toConfirm, rechecks] = await Promise.all([
     getVenueAmenities(ctx.actor, { venueId: ctx.venueId }),
     // A failed read leaves the checks usable and says the findings to
     // confirm couldn't be loaded (MG-03), never that nothing is waiting.
     knowledgeServices
       .listToConfirm(ctx.actor, { venueId: ctx.venueId })
+      .catch(() => null),
+    // A41: the open rechecks the triage row counts; a failed read says so.
+    knowledgeServices
+      .listVenueRechecks(ctx.actor, { venueId: ctx.venueId })
       .catch(() => null),
   ])
   if (!result.ok) return amenityFailed(ctx, result, UI_TEXT.navTab)
@@ -156,6 +160,7 @@ export async function AmenitiesScreen({ ctx }: { ctx: ManageContext }) {
         basePath={ctx.basePath}
         toConfirm={toConfirm?.ok ? toConfirm.view : null}
         toConfirmFailed={!toConfirm?.ok}
+        rechecks={rechecks?.ok ? rechecks.tasks : null}
       />
     </AmenitiesFrame>
   )
@@ -250,12 +255,16 @@ async function correctionsFor(ctx: ManageContext, checkId: string) {
   }
 }
 
-/** B03-f: the venue's old facts as history; null when they can't be read. */
-async function oldFactsFor(ctx: ManageContext) {
+/**
+ * B03-f, A44: the old facts reviewed for this question, as history; null when
+ * they can't be read. Unreviewed facts stay out of every question's page.
+ */
+async function oldFactsFor(ctx: ManageContext, questionKey: string) {
   try {
-    const result = await knowledgeServices.getLegacyNarrative(ctx.actor, {
-      venueId: ctx.venueId,
-    })
+    const result = await knowledgeServices.getQuestionLegacyNarrative(
+      ctx.actor,
+      { questionKey, venueId: ctx.venueId }
+    )
     return result.ok ? result.items : null
   } catch {
     return null
@@ -334,7 +343,7 @@ export async function AmenityCheckScreen({
   const [rechecks, oldFacts, corrections] = inScope
     ? await Promise.all([
         rechecksFor(ctx, inScope.slot.checkId),
-        oldFactsFor(ctx),
+        oldFactsFor(ctx, inScope.slot.key),
         correctionsFor(ctx, inScope.slot.checkId),
       ])
     : [null, undefined, null]

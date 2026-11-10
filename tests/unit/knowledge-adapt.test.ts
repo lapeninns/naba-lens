@@ -553,6 +553,74 @@ describe("adaptAnswerInUse and newer server details (B03 UI §2.5)", () => {
   })
 })
 
+describe("the withdrawal on the read (B03 UI §8.2, D-B3-18)", () => {
+  const withdrawn = (withdrawal: unknown) =>
+    adaptAnswerInUse(
+      slot({
+        status: "unavailable",
+        reason: "withdrawn",
+        detail: "answer_withdrawn",
+        answerInUse: { ...slot().answerInUse!, withdrawal } as never,
+      })
+    )
+
+  it("passes on when it was withdrawn and whether a manager or an admin acted", () => {
+    expect(
+      withdrawn({ at: "2026-11-08T09:30:00.000Z", basis: "admin" }).withdrawal
+    ).toEqual({ at: "2026-11-08T09:30:00.000Z", basis: "admin" })
+  })
+
+  it("keeps it only whole and known, never a name or a reason", () => {
+    for (const bad of [
+      null,
+      undefined,
+      { at: "2026-11-08T09:30:00.000Z" },
+      { basis: "admin" },
+      { at: "2026-11-08T09:30:00.000Z", basis: "staff" },
+    ])
+      expect(withdrawn(bad)).not.toHaveProperty("withdrawal")
+    const view = withdrawn({
+      at: "2026-11-08T09:30:00.000Z",
+      basis: "venue_manager",
+      name: "⟨Manager⟩",
+      reason: "⟨Reason⟩",
+    })
+    expect(view.withdrawal).toEqual({
+      at: "2026-11-08T09:30:00.000Z",
+      basis: "venue_manager",
+    })
+    expect(JSON.stringify(view)).not.toMatch(/⟨Manager⟩|⟨Reason⟩/)
+  })
+
+  it("gives the author the basis and time of a correction or withdrawal, only together", () => {
+    const finding = adaptFinding(
+      mine({
+        state: "no_longer_used",
+        stateReason: "withdrawn",
+        managerNote: "⟨Reason⟩",
+        stateReasonBasis: "admin",
+        stateReasonAt: "2026-11-08T09:30:00.000Z",
+        decidedAt: "2026-11-01T09:00:00.000Z",
+      })
+    )
+    expect(finding).toMatchObject({
+      noLongerUsed: "withdrawn",
+      stateReason: "⟨Reason⟩",
+      stateReasonBasis: "admin",
+      stateReasonAt: "2026-11-08T09:30:00.000Z",
+    })
+    const partial = adaptFinding(
+      mine({
+        state: "no_longer_used",
+        stateReason: "corrected",
+        stateReasonBasis: "admin",
+      })
+    )
+    expect(partial).not.toHaveProperty("stateReasonBasis")
+    expect(partial).not.toHaveProperty("stateReasonAt")
+  })
+})
+
 describe("policyMissing (B03-c, A5)", () => {
   it("reads it on the answer in use, keeping policy_incomplete", () => {
     const view = adaptAnswerInUse(

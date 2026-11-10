@@ -136,6 +136,8 @@ const STALE = new Set<KnowledgeFailure["code"]>([
   "not_permitted",
   "wrong_venue",
   "state_conflict",
+  // A43: NLK14 is its own code now; the card it refused is out of date.
+  "import_slot_has_answer",
 ])
 
 /** The person's words for a refused decision (§6.6). Never "Try again". */
@@ -152,6 +154,8 @@ export function decisionFailureText(failure: KnowledgeFailure): string {
       return copy.evidenceGone
     case "knowledge_slot_out_of_scope":
       return copy.outOfScope
+    case "import_slot_has_answer":
+      return copy.importSlotHasAnswer
     default:
       return failure.message
   }

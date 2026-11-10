@@ -102,7 +102,7 @@ export default async function ManagerOverviewPage() {
                 menu_photos: managerHrefs.review(),
                 findings: `${amenityHrefs(managerHrefs.overview).list}#amenities-to-confirm`,
                 checklist: managerHrefs.review(),
-                rechecks: amenityHrefs(managerHrefs.overview).list,
+                rechecks: `${amenityHrefs(managerHrefs.overview).list}#amenities-rechecks`,
                 suggestions: `${amenityHrefs(managerHrefs.overview).list}#amenities-to-confirm`,
               }}
               ownWaiting={(n) => ({

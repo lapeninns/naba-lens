@@ -633,6 +633,35 @@ describe("To confirm: refusals (§6.6)", () => {
     expect(screen.queryByRole("button", { name: "Try again" })).toBeNull()
   })
 
+  it("says an import met a recorded answer, and re-reads the page (A43, NLK14)", async () => {
+    nav.refresh.mockClear()
+    const { user } = setup(
+      view([
+        finding({
+          source: "external_source",
+          sourceLabel: "⟨Source label⟩",
+          adoptable: true,
+        }),
+      ]),
+      {
+        decide: vi.fn(async () => ({
+          ok: false as const,
+          code: "import_slot_has_answer" as const,
+          status: 409 as const,
+          message: "x",
+        })),
+      }
+    )
+    await user.click(screen.getByRole("button", { name: "Confirm" }))
+    expect(
+      screen.getByText(
+        "This import can't be used: this question already has a recorded answer (in use, withdrawn or past its check date). Nothing was changed."
+      )
+    ).toBeTruthy()
+    expect(nav.refresh).toHaveBeenCalled()
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull()
+  })
+
   it("offers Try again with the same request after a lost reply", async () => {
     const decide = vi
       .fn<DecisionHandlers["decide"]>()
