@@ -57,6 +57,76 @@ describe("recheck reads (A11)", () => {
   })
 })
 
+describe("venue rechecks (A41)", () => {
+  it("list the venue's open tasks for the caller's venue or a named one", async () => {
+    const venueId = TASK.venueId
+    const { actor, rpc } = actorWith({
+      knowledge_venue_rechecks: () => ({
+        data: { venueId, count: 1, items: [TASK] },
+      }),
+    })
+    expect(await knowledge.listVenueRechecks(actor)).toEqual({
+      ok: true,
+      venueId,
+      count: 1,
+      tasks: [TASK],
+    })
+    expect(rpc.mock.calls[0]![1]).toEqual({ p_venue_id: null })
+    await knowledge.listVenueRechecks(actor, { venueId })
+    expect(rpc.mock.calls[1]![1]).toEqual({ p_venue_id: venueId })
+    expect(
+      await knowledge.listVenueRechecks(actor, { venueId: "v" })
+    ).toMatchObject({ code: "invalid_input" })
+    expect(rpc).toHaveBeenCalledTimes(2)
+  })
+
+  it("refuse staff as not permitted", async () => {
+    const { actor } = actorWith({
+      knowledge_venue_rechecks: () => ({
+        error: { code: "42501", message: "not_venue_manager" },
+      }),
+    })
+    expect(await knowledge.listVenueRechecks(actor)).toMatchObject({
+      ok: false,
+      code: "not_permitted",
+      status: 403,
+    })
+  })
+})
+
+describe("freshness policies (A42)", () => {
+  it("list each policy's latest version, and refuse non-admins", async () => {
+    const policy = {
+      policyId: "offering_internal",
+      version: 2,
+      claimClass: "offering",
+      use: "internal",
+      maxAge: "P90D",
+      recheckLead: "P14D",
+      basis: "observed_on",
+      note: null,
+      createdAt: "2026-11-10T10:00:00Z",
+    }
+    const { actor, rpc } = actorWith({
+      knowledge_freshness_policies: () => ({ data: { items: [policy] } }),
+    })
+    expect(await knowledge.listFreshnessPolicies(actor)).toEqual({
+      ok: true,
+      policies: [policy],
+    })
+    expect(rpc.mock.calls[0]).toEqual(["knowledge_freshness_policies", {}])
+    const refused = actorWith({
+      knowledge_freshness_policies: () => ({
+        error: { code: "42501", message: "not_active_admin" },
+      }),
+    })
+    expect(await knowledge.listFreshnessPolicies(refused.actor)).toMatchObject({
+      ok: false,
+      code: "not_permitted",
+    })
+  })
+})
+
 describe("freshness preview (§7.3)", () => {
   it("sends a key and a policy per use, refusing anything else without a call", async () => {
     const preview = { key: "guest_toilets", items: [] }

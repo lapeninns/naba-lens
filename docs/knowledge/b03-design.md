@@ -1174,7 +1174,7 @@ None of these is retryable; only `unavailable` (503) is.
 | `knowledge_key_not_supported`             | NLK11    | `state_conflict`                                 | 409  | `{ key, lifecycle }`              |
 | `reconcile_source_changed`                | NLK12    | `state_conflict`                                 | 409  | `{ changed: [source refs] }`      |
 | `place_exists`                            | NLK13    | `state_conflict`                                 | 409  | `{ subjectId }`                   |
-| `import_slot_has_answer`                  | NLK14    | `state_conflict`                                 | 409  | —                                 |
+| `import_slot_has_answer`                  | NLK14    | `import_slot_has_answer` (A43)                   | 409  | —                                 |
 | `idempotency_key_reused`                  | P0001    | `state_conflict`                                 | 409  | —                                 |
 | A staff account correcting or withdrawing | 42501    | `not_permitted`                                  | 403  | —                                 |
 
@@ -1507,3 +1507,51 @@ part of B03.
   `private.knowledge_answer_at` now says history read. `freshness` is
   computed for the answer in use even when `withdrawn` is true, and scope is
   not applied: consumers read `withdrawn` first.
+
+**UI asks A41 to A44 and the staff withdrawal line (10 Nov 2026):**
+migration `20261110151000_knowledge_b03_ui_asks_a41_a44` (after R-L1). From
+the pool review of `b9fa1f6d`; A40 (what a Not offered answer sends) awaits
+an owner answer and is not here.
+
+- **A41:** `knowledge_venue_rechecks(p_venue_id uuid default null) returns
+jsonb` `{ venueId, count, items: RecheckTaskView[] }`, managers and admins
+  (the triage row's gate: `manager_read_venue`, then basis `venue_manager`
+  or `admin`; staff get `not_venue_manager`), ordered by `dueAt` then
+  `taskId`. Items are `knowledge_recheck_json`; the assignee is the check's.
+  One filter, `private.knowledge_venue_open_rechecks(venue)`: open tasks on
+  active checks, as `my_rechecks` already applies. The triage `rechecks` row
+  now counts through it, so `waiting` is the list's length and
+  `oldest_waiting_at` its first `dueAt`; it no longer counts tasks on
+  archived checks.
+- **A42:** `knowledge_freshness_policies() returns jsonb` `{ items:
+FreshnessPolicyView[] }`, admins only (`not_active_admin`): the latest
+  version of each policy per (id, use), the version
+  `knowledge_freshness_preview` validates and uses. Fields `policyId`,
+  `version`, `claimClass`, `use`, `maxAge`, `recheckLead` (ISO 8601, for
+  example `P90D`; null when unset), `basis`, `note`, `createdAt`. Not
+  filtered by claim class. Empty until OD-15.
+- **A43:** NLK14 maps to its own `KnowledgeErrorCode`,
+  `import_slot_has_answer` (409, not retryable), with the UI design §7.1 and
+  §10 copy: "This import can't be used: this question already has a recorded
+  answer (in use, withdrawn or past its check date). Nothing was changed."
+  The database message and SQLSTATE are unchanged.
+- **A44:** `knowledge_legacy_narrative_for_question(p_question_key text,
+p_venue_id uuid default null) returns jsonb` `{ venueId, questionKey,
+items }`, managers and admins as the venue-wide narrative. An item is the
+  venue-wide narrative's item plus `mappingKind`, for each legacy fact whose
+  latest review for its **current revision** maps it to the question
+  (`exact`, `candidate` or `none`, §7.2 of the UI design). Unreviewed facts,
+  and facts reviewed only at an older revision, are attributed to no
+  question and stay in `knowledge_legacy_narrative`, unchanged. No reviewer
+  name or reason. An unknown key is `knowledge_question_not_found`.
+- **Staff withdrawal line:** `answerInUse.withdrawal: { at, basis } | null`
+  from `private.knowledge_slot_json` (so `knowledge_check` and the working
+  list), set while the answer reads withdrawn (in scope); `basis` is the
+  withdrawal decision's `decider_basis` (`venue_manager` or `admin`). Never a
+  name or the reason. The author's view (`myLatest`, My contributions) gains
+  `stateReasonBasis` and `stateReasonAt` for `corrected` and `withdrawn`;
+  the reason stays in `managerNote`, for the author only.
+- **Defaults, owner to confirm:** A41 uses the existing active-check
+  eligibility everywhere a venue's open rechecks are counted or listed; A44
+  counts reviews of the current fact revision only, and an unreviewed fact
+  is never attributed to a question.

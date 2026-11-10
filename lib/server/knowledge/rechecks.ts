@@ -1,6 +1,7 @@
 import "server-only"
 
 import type {
+  FreshnessPolicyView,
   FreshnessPreviewView,
   KnowledgeResult,
   RecheckTaskView,
@@ -9,7 +10,7 @@ import type { MediaActor } from "@/lib/server/media/types"
 
 import { knowledgeInvalid, knowledgeRpcFailure } from "./errors"
 import { knowledgeRpc } from "./rpc"
-import { isObject, isUuid, NOT_FOUND } from "./validate"
+import { isObject, isUuid, NOT_FOUND, optionalVenueId } from "./validate"
 
 // Recheck tasks and freshness (B03-e, b03-design §7, A11). Tasks are opened
 // by the hourly job and closed when the answer reads current again; these
@@ -43,6 +44,49 @@ export async function getCheckRechecks(
   )
   if (error) return knowledgeRpcFailure(error, "knowledge check rechecks")
   return { ok: true, count: data.count, tasks: data.items }
+}
+
+/**
+ * A41: every open task at the venue, for managers and admins (the triage
+ * row's gate; staff are refused), oldest due first. The same tasks the triage
+ * rechecks row counts. The assignee is the check's.
+ */
+export async function listVenueRechecks(
+  actor: MediaActor,
+  input: unknown = {}
+): Promise<
+  KnowledgeResult<{ venueId: string; count: number; tasks: RecheckTaskView[] }>
+> {
+  const venueId = optionalVenueId(input)
+  if (!venueId.ok) return venueId
+  const { data, error } = await knowledgeRpc(
+    actor.db,
+    "knowledge_venue_rechecks",
+    { p_venue_id: venueId.value }
+  )
+  if (error) return knowledgeRpcFailure(error, "knowledge venue rechecks")
+  return {
+    ok: true,
+    venueId: data.venueId,
+    count: data.count,
+    tasks: data.items,
+  }
+}
+
+/**
+ * A42, admins only: the latest version of each freshness policy per use, the
+ * version the preview uses. Empty until OD-15 supplies policies.
+ */
+export async function listFreshnessPolicies(
+  actor: MediaActor
+): Promise<KnowledgeResult<{ policies: FreshnessPolicyView[] }>> {
+  const { data, error } = await knowledgeRpc(
+    actor.db,
+    "knowledge_freshness_policies",
+    {}
+  )
+  if (error) return knowledgeRpcFailure(error, "knowledge freshness policies")
+  return { ok: true, policies: data.items }
 }
 
 /** Admin, no write: what naming these policies for a key would do (§7.3). */

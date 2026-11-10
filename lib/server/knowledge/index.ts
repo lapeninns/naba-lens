@@ -54,7 +54,13 @@ export {
   previewSchedule,
 } from "./schedule-services"
 export { expandScheduleOccurrences } from "./schedules"
-export { getCheckRechecks, listMyRechecks, previewFreshness } from "./rechecks"
+export {
+  getCheckRechecks,
+  listFreshnessPolicies,
+  listMyRechecks,
+  listVenueRechecks,
+  previewFreshness,
+} from "./rechecks"
 export {
   correctAnswer,
   getSlotHistory,
@@ -65,6 +71,7 @@ export {
 export {
   declareSource,
   getLegacyNarrative,
+  getQuestionLegacyNarrative,
   getReconciliationRun,
   importSourceAssertions,
   listLegacyMappings,

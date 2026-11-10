@@ -167,9 +167,20 @@ export type MyFindingView = {
   stateReason?:
     "archived" | "replaced_by_newer" | "reopened" | "replaced_by_own" | null
   managerNote?: string | null
+  /**
+   * B03 (UI §8.2): for the corrected and withdrawn reasons, the basis of
+   * whoever took the answer out of use, and when. Never a name.
+   */
+  stateReasonBasis?: ActorBasis | null
+  stateReasonAt?: string | null
   detailRequestId?: string | null
   recognition: Recognition
 }
+
+/** The basis a manager-side action was taken on; staff words name only this. */
+export type ActorBasis = "venue_manager" | "admin"
+
+export type AnswerWithdrawal = { at: string; basis: ActorBasis }
 
 export type ClosedAssignmentView = {
   kind: "assignment_closed"
@@ -235,6 +246,12 @@ export type KnowledgeSlotView = {
     /** Review low 2: where the answer in use came from; imports name their source. */
     source?: FindingSource
     sourceLabel?: string | null
+    /**
+     * Staff withdrawal line (UI §8.2, D-B3-18): set while the answer reads
+     * withdrawn. When, and whether a manager or an admin acted; never who or
+     * why.
+     */
+    withdrawal?: AnswerWithdrawal | null
   } | null
   previousAnswer: SubmitAnswer | null
   requiresConfirmation: boolean
@@ -1056,6 +1073,32 @@ export type LegacyNarrativeItem = {
   updatedAt: string
 }
 
+/**
+ * A44: a legacy fact whose latest review for its current revision maps it to
+ * the question, with that review's kind. Unreviewed facts are only in the
+ * venue-wide narrative.
+ */
+export type QuestionLegacyNarrativeItem = LegacyNarrativeItem & {
+  mappingKind: MappingKind
+}
+
+/**
+ * A42: the latest version of a freshness policy for one use. Durations are
+ * ISO 8601 ("P90D"); `maxAge` is null for `event_end`.
+ */
+export type FreshnessPolicyView = {
+  policyId: string
+  version: number
+  claimClass:
+    "fixture" | "offering" | "schedule" | "policy" | "accessibility" | "event"
+  use: "internal" | "public"
+  maxAge: string | null
+  recheckLead: string | null
+  basis: "observed_on" | "stated_on" | "event_end"
+  note: string | null
+  createdAt: string
+}
+
 /** B03-e (§7.3): what naming a policy would do, per venue and use. */
 export type FreshnessPreviewView = {
   key: string
@@ -1082,6 +1125,8 @@ export type KnowledgeErrorCode =
   | "self_confirmation_not_permitted"
   | "draft_conflict"
   | "draft_already_sent"
+  /** A43: NLK14, an import decided on a check that has a recorded answer. */
+  | "import_slot_has_answer"
 
 export type KnowledgeFailure = Omit<AmenityFailure, "code"> & {
   code: KnowledgeErrorCode
@@ -1380,6 +1425,14 @@ export type KnowledgeRpcs = {
     args: { p_venue_id: string | null }
     returns: { venueId: string; items: LegacyNarrativeItem[] }
   }
+  knowledge_legacy_narrative_for_question: {
+    args: { p_question_key: string; p_venue_id: string | null }
+    returns: {
+      venueId: string
+      questionKey: string
+      items: QuestionLegacyNarrativeItem[]
+    }
+  }
   my_rechecks: {
     args: Record<string, never>
     returns: { items: RecheckTaskView[] }
@@ -1387,6 +1440,14 @@ export type KnowledgeRpcs = {
   knowledge_check_rechecks: {
     args: { p_check_id: string }
     returns: { count: number; items: RecheckTaskView[] }
+  }
+  knowledge_venue_rechecks: {
+    args: { p_venue_id: string | null }
+    returns: { venueId: string; count: number; items: RecheckTaskView[] }
+  }
+  knowledge_freshness_policies: {
+    args: Record<string, never>
+    returns: { items: FreshnessPolicyView[] }
   }
   knowledge_freshness_preview: {
     args: {

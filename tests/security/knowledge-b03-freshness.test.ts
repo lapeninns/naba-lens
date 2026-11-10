@@ -391,6 +391,137 @@ describe("recheck tasks (§7.4, A11, A24)", () => {
   })
 })
 
+describe("the venue's open rechecks (A41)", () => {
+  it("list what triage counts, oldest due first, to managers and admins only, without archived checks", async () => {
+    const v = await world("kn-b03-venue-rechecks")
+    // Direct tasks on checks with no answer: the job never closes them.
+    const task = (key: string, due: string) =>
+      psql(`insert into public.knowledge_recheck_tasks (venue_id, check_id, question_key, cause, use, due_at)
+        values ('${v.venue}', '${v.checks[key]}', '${key}', 'scope_changed', 'internal', '${due}')
+        returning id`)
+    const later = task("onsite_parking", "2026-10-02 00:00+00")
+    const sooner = task("step_free_entrance", "2026-10-01 00:00+00")
+    const archived = task("guest_wifi", "2026-09-01 00:00+00")
+    const revision = psql(
+      `select revision from public.venue_amenity_checks where id = '${v.checks.guest_wifi}'`
+    )
+    await json(v.manager, "amenity_archive_check", {
+      p_check_id: v.checks.guest_wifi,
+      p_revision: Number(revision),
+      p_idempotency_key: randomUUID(),
+    })
+    type Listed = {
+      venueId: string
+      count: number
+      items: { taskId: string; dueAt: string }[]
+    }
+    const list = await json<Listed>(v.manager, "knowledge_venue_rechecks", {
+      p_venue_id: null,
+    })
+    expect(list.venueId).toBe(v.venue)
+    expect(list.items.map((t) => t.taskId)).toEqual([sooner, later])
+    expect(list.items.map((t) => t.taskId)).not.toContain(archived)
+    expect(list.count).toBe(2)
+    expect(Object.keys(list.items[0]!).sort()).toEqual(
+      [
+        "taskId",
+        "checkId",
+        "venueId",
+        "questionKey",
+        "question",
+        "cause",
+        "use",
+        "dueAt",
+      ].sort()
+    )
+    const triage = await json<
+      { queue: string; waiting: number; oldest_waiting_at: string }[]
+    >(v.manager, "manager_triage_summary", { p_venue_id: null })
+    const row = triage.find((q) => q.queue === "rechecks")!
+    expect(row.waiting).toBe(list.count)
+    expect(new Date(row.oldest_waiting_at).getTime()).toBe(
+      new Date(list.items[0]!.dueAt).getTime()
+    )
+    // Admins name the venue; a legacy grant keeps its manager reads.
+    expect(
+      await json<Listed>(v.admin, "knowledge_venue_rechecks", {
+        p_venue_id: v.venue,
+      })
+    ).toEqual(list)
+    expect(
+      (
+        await json<Listed>(v.staffManager, "knowledge_venue_rechecks", {
+          p_venue_id: null,
+        })
+      ).count
+    ).toBe(2)
+    expect(
+      (
+        await call(v.admin, "knowledge_venue_rechecks", {
+          p_venue_id: null,
+        })
+      ).error?.message
+    ).toBe("venue_required")
+    for (const who of [v.staffA, v.staffB]) {
+      const { error } = await call(who, "knowledge_venue_rechecks", {
+        p_venue_id: null,
+      })
+      expect(error?.message, who.id).toBe("not_venue_manager")
+    }
+    const other = await world("kn-b03-venue-rechecks-other")
+    expect(
+      (
+        await call(other.manager, "knowledge_venue_rechecks", {
+          p_venue_id: v.venue,
+        })
+      ).error?.message
+    ).toBe("wrong_venue")
+  })
+})
+
+describe("freshness policies (A42)", () => {
+  it("list each policy's latest version per use to admins, in ISO 8601", async () => {
+    const id = `test_${randomUUID().replace(/-/g, "").slice(0, 20)}`
+    // Unused by any version, so inert for every other read.
+    psql(`insert into public.knowledge_freshness_policies (id, version, claim_class, use, max_age, recheck_lead, basis, note)
+      values ('${id}', 1, 'offering', 'internal', interval '90 days', interval '14 days', 'observed_on', null),
+             ('${id}', 2, 'offering', 'internal', interval '3 days', interval '1 day', 'observed_on', 'TEST shorter'),
+             ('${id}', 3, 'offering', 'public', interval '60 days', null, 'observed_on', null)`)
+    const w = await world("kn-b03-policy-list")
+    const { items } = await json<{
+      items: { policyId: string; use: string }[]
+    }>(w.admin, "knowledge_freshness_policies")
+    expect(items.filter((p) => p.policyId === id)).toEqual([
+      {
+        policyId: id,
+        version: 2,
+        claimClass: "offering",
+        use: "internal",
+        maxAge: "P3D",
+        recheckLead: "P1D",
+        basis: "observed_on",
+        note: "TEST shorter",
+        createdAt: expect.any(String),
+      },
+      {
+        policyId: id,
+        version: 3,
+        claimClass: "offering",
+        use: "public",
+        maxAge: "P60D",
+        recheckLead: null,
+        basis: "observed_on",
+        note: null,
+        createdAt: expect.any(String),
+      },
+    ])
+    for (const who of [w.manager, w.staffManager, w.staffA]) {
+      const { error } = await call(who, "knowledge_freshness_policies")
+      expect(error?.message, who.id).toBe("not_active_admin")
+    }
+  })
+})
+
 describe("WS4 asks (A29, A31)", () => {
   it("K2: no version allows public media yet, and a redaction key never does", async () => {
     const w = await world("kn-b03-k2")
@@ -453,6 +584,7 @@ describe("guards", () => {
       "private.knowledge_public_media_eligible(uuid,text,timestamptz)",
       "private.asset_evidence_events(uuid)",
       "private.knowledge_slot_state_b03(uuid,text[],timestamptz)",
+      "private.knowledge_venue_open_rechecks(uuid)",
     ])
       expect(
         psql(
@@ -465,6 +597,17 @@ describe("guards", () => {
         `select has_function_privilege('authenticated', 'public.knowledge_run_rechecks()', 'execute')`
       )
     ).toBe("f")
+    for (const fn of [
+      "public.knowledge_venue_rechecks(uuid)",
+      "public.knowledge_freshness_policies()",
+    ])
+      expect(
+        psql(
+          `select has_function_privilege('anon', '${fn}', 'execute') || ':' ||
+            has_function_privilege('authenticated', '${fn}', 'execute')`
+        ),
+        fn
+      ).toBe("false:true")
   })
 
   it("leave the credit function, both evidence triggers and the B01 resolver byte-identical", () => {

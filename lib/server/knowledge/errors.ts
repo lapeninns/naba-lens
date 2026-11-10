@@ -28,6 +28,7 @@ const STATUS: Record<KnowledgeErrorCode, KnowledgeFailure["status"]> = {
   self_confirmation_not_permitted: 403,
   draft_conflict: 409,
   draft_already_sent: 409,
+  import_slot_has_answer: 409,
   unavailable: 503,
 }
 
@@ -129,9 +130,11 @@ const KNOWLEDGE: Record<string, Mapping> = {
     "state_conflict",
     "Run a dry run for this scope first.",
   ],
+  // A43: its own code, with the approved copy (UI design §7.1, §10): any
+  // recorded answer counts, including a withdrawn or expired one.
   import_slot_has_answer: [
-    "state_conflict",
-    "This question already has an answer in use, so an imported suggestion can't replace it.",
+    "import_slot_has_answer",
+    "This import can't be used: this question already has a recorded answer (in use, withdrawn or past its check date). Nothing was changed.",
   ],
   knowledge_source_not_found: ["not_found", "This source could not be found."],
   legacy_fact_not_found: [

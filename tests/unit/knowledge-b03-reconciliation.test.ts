@@ -190,7 +190,6 @@ describe("reconciliation errors", () => {
     for (const [message, code] of [
       ["reconcile_source_changed", "state_conflict"],
       ["reconcile_dry_run_required", "state_conflict"],
-      ["import_slot_has_answer", "state_conflict"],
       ["knowledge_source_not_found", "not_found"],
       ["legacy_fact_not_found", "not_found"],
       ["knowledge_run_not_found", "not_found"],
@@ -198,11 +197,18 @@ describe("reconciliation errors", () => {
       expect(
         knowledgeRpcFailure({ code: "P0001", message }, "t")
       ).toMatchObject({ code })
-    expect(
-      knowledgeRpcFailure({ code: "NLK14", message: "x" }, "t")
-    ).toMatchObject({
-      code: "state_conflict",
-    })
+    // A43: NLK14 has its own code and the approved copy (UI §7.1, §10).
+    for (const error of [
+      { code: "NLK14", message: "x" },
+      { code: "P0001", message: "import_slot_has_answer" },
+    ])
+      expect(knowledgeRpcFailure(error, "t")).toEqual({
+        ok: false,
+        code: "import_slot_has_answer",
+        status: 409,
+        message:
+          "This import can't be used: this question already has a recorded answer (in use, withdrawn or past its check date). Nothing was changed.",
+      })
     expect(
       knowledgeRpcFailure(
         { code: "22023", message: "invalid_source_kind" },
@@ -212,5 +218,63 @@ describe("reconciliation errors", () => {
       code: "invalid_input",
       fieldErrors: { kind: expect.any(String) },
     })
+  })
+})
+
+describe("old facts for one question (A44)", () => {
+  const ITEM = {
+    legacyKey: "toilets",
+    label: "Toilets",
+    presence: "present",
+    facts: "Two cubicles",
+    policy: null,
+    savedAsConfirmedAt: null,
+    updatedAt: "2026-11-01T10:00:00Z",
+    mappingKind: "candidate",
+  }
+
+  it("sends the question key and venue, refusing a bad key or venue without a call", async () => {
+    const { actor, rpc } = actorWith({
+      knowledge_legacy_narrative_for_question: () => ({
+        data: { venueId: VENUE, questionKey: "guest_toilets", items: [ITEM] },
+      }),
+    })
+    expect(
+      await knowledge.getQuestionLegacyNarrative(actor, {
+        questionKey: "guest_toilets",
+      })
+    ).toEqual({
+      ok: true,
+      venueId: VENUE,
+      questionKey: "guest_toilets",
+      items: [ITEM],
+    })
+    expect(rpc.mock.calls[0]![1]).toEqual({
+      p_question_key: "guest_toilets",
+      p_venue_id: null,
+    })
+    for (const bad of [
+      {},
+      { questionKey: "Guest Toilets" },
+      { questionKey: "guest_toilets", venueId: "v" },
+    ])
+      expect(
+        await knowledge.getQuestionLegacyNarrative(actor, bad)
+      ).toMatchObject({ code: "invalid_input" })
+    expect(rpc).toHaveBeenCalledTimes(1)
+  })
+
+  it("maps an unknown question to not_found", async () => {
+    const { actor } = actorWith({
+      knowledge_legacy_narrative_for_question: () => ({
+        error: { code: "P0002", message: "knowledge_question_not_found" },
+      }),
+    })
+    expect(
+      await knowledge.getQuestionLegacyNarrative(actor, {
+        questionKey: "no_such_key",
+        venueId: VENUE,
+      })
+    ).toMatchObject({ ok: false, code: "not_found" })
   })
 })

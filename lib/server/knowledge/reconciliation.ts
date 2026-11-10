@@ -6,6 +6,7 @@ import {
   type LegacyMappingsView,
   type LegacyNarrativeItem,
   type MappingKind,
+  type QuestionLegacyNarrativeItem,
   type ReconcileResult,
   type ReconciliationRunView,
   type SourceAssertionInput,
@@ -278,4 +279,42 @@ export async function getLegacyNarrative(
   )
   if (error) return knowledgeRpcFailure(error, "knowledge legacy narrative")
   return { ok: true, venueId: data.venueId, items: data.items }
+}
+
+/**
+ * A44: the old facts reviewed for one question at their current revision
+ * (exact, candidate or none), with the review's kind. Unreviewed facts stay in
+ * the venue-wide narrative. No reviewer name or reason.
+ */
+export async function getQuestionLegacyNarrative(
+  actor: MediaActor,
+  input: unknown
+): Promise<
+  KnowledgeResult<{
+    venueId: string
+    questionKey: string
+    items: QuestionLegacyNarrativeItem[]
+  }>
+> {
+  if (
+    !isObject(input) ||
+    typeof input.questionKey !== "string" ||
+    !KEY.test(input.questionKey)
+  )
+    return knowledgeInvalid({ questionKey: "Choose a question." })
+  const venueId = optionalVenueId(input)
+  if (!venueId.ok) return venueId
+  const { data, error } = await knowledgeRpc(
+    actor.db,
+    "knowledge_legacy_narrative_for_question",
+    { p_question_key: input.questionKey, p_venue_id: venueId.value }
+  )
+  if (error)
+    return knowledgeRpcFailure(error, "knowledge question legacy narrative")
+  return {
+    ok: true,
+    venueId: data.venueId,
+    questionKey: data.questionKey,
+    items: data.items,
+  }
 }

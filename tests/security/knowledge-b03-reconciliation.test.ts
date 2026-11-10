@@ -227,6 +227,127 @@ describe("legacy facts (§8.2)", () => {
   })
 })
 
+describe("old facts for one question (A44)", () => {
+  it("list facts reviewed for the question at their current revision, any kind, latest review in force", async () => {
+    const v = await world("kn-b03-legacy-question")
+    const [toiletsFact, accessible, parking] = [
+      randomUUID(),
+      randomUUID(),
+      randomUUID(),
+    ]
+    psql(`insert into public.venue_amenity_facts (id, venue_id, amenity_key, presence, facts) values
+      ('${toiletsFact}', '${v.venue}', 'toilets', 'present', 'TEST two toilets'),
+      ('${accessible}', '${v.venue}', 'accessible_toilet', 'absent', null),
+      ('${parking}', '${v.venue}', 'parking', 'present', 'TEST car park')`)
+    const review = (fact: string, key: string, kind: string) =>
+      json(v.admin, "knowledge_mapping_review", {
+        p_legacy_fact_id: fact,
+        p_legacy_revision: 1,
+        p_question_key: key,
+        p_kind: kind,
+        p_reason: "TEST reviewer reason",
+        p_idempotency_key: randomUUID(),
+      })
+    await review(toiletsFact, "guest_toilets", "candidate")
+    await review(toiletsFact, "guest_toilets", "exact")
+    await review(accessible, "guest_toilets", "none")
+    await review(parking, "onsite_parking", "exact")
+    type Listed = {
+      venueId: string
+      questionKey: string
+      items: Record<string, unknown>[]
+    }
+    const forKey = (who: World["manager"], key: string) =>
+      json<Listed>(who, "knowledge_legacy_narrative_for_question", {
+        p_question_key: key,
+        p_venue_id: null,
+      })
+    const toilets = await forKey(v.manager, "guest_toilets")
+    expect(toilets).toMatchObject({
+      venueId: v.venue,
+      questionKey: "guest_toilets",
+    })
+    expect(
+      toilets.items.map((i) => [i.legacyKey, i.mappingKind]).sort()
+    ).toEqual([
+      ["accessible_toilet", "none"],
+      ["toilets", "exact"],
+    ])
+    // The venue-wide narrative's fields plus the kind; no reviewer or reason.
+    expect(Object.keys(toilets.items[0]!).sort()).toEqual(
+      [
+        "legacyKey",
+        "label",
+        "presence",
+        "facts",
+        "policy",
+        "savedAsConfirmedAt",
+        "updatedAt",
+        "mappingKind",
+      ].sort()
+    )
+    expect(JSON.stringify(toilets)).not.toContain("TEST reviewer reason")
+    expect(
+      (await forKey(v.manager, "onsite_parking")).items.map((i) => i.legacyKey)
+    ).toEqual(["parking"])
+    // No review for the question: none, while the venue-wide list keeps all.
+    expect((await forKey(v.manager, "guest_wifi")).items).toEqual([])
+    // A review of an older revision no longer counts.
+    psql(
+      `update public.venue_amenity_facts set revision = revision + 1 where id = '${accessible}'`
+    )
+    expect(
+      (await forKey(v.manager, "guest_toilets")).items.map((i) => i.legacyKey)
+    ).toEqual(["toilets"])
+    expect(
+      (
+        await json<{ items: { legacyKey: string }[] }>(
+          v.manager,
+          "knowledge_legacy_narrative",
+          { p_venue_id: null }
+        )
+      ).items
+        .map((i) => i.legacyKey)
+        .sort()
+    ).toEqual(["accessible_toilet", "parking", "toilets"])
+    // Admins name the venue; a legacy grant keeps its manager reads.
+    expect(
+      (
+        await json<Listed>(v.admin, "knowledge_legacy_narrative_for_question", {
+          p_question_key: "guest_toilets",
+          p_venue_id: v.venue,
+        })
+      ).items
+    ).toHaveLength(1)
+    expect((await forKey(v.staffManager, "guest_toilets")).items).toHaveLength(
+      1
+    )
+    for (const who of [v.staffA, v.staffB])
+      expect(
+        (
+          await call(who, "knowledge_legacy_narrative_for_question", {
+            p_question_key: "guest_toilets",
+            p_venue_id: null,
+          })
+        ).error?.message,
+        who.id
+      ).toBe("not_venue_manager")
+    const unknown = await call(
+      v.manager,
+      "knowledge_legacy_narrative_for_question",
+      { p_question_key: "no_such_question", p_venue_id: null }
+    )
+    expect(unknown.error).toMatchObject({
+      message: "knowledge_question_not_found",
+      code: "P0002",
+    })
+    expect(
+      psql(`select has_function_privilege('anon', 'public.knowledge_legacy_narrative_for_question(text,uuid)', 'execute')
+        || ':' || has_function_privilege('authenticated', 'public.knowledge_legacy_narrative_for_question(text,uuid)', 'execute')`)
+    ).toBe("false:true")
+  })
+})
+
 describe("external sources (§8.2)", () => {
   it("corroborate an agreeing answer, dispute a disagreeing one, and never replace the answer in use", async () => {
     const v = await world("kn-b03-reconcile-ext")

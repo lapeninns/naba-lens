@@ -244,21 +244,68 @@ describe("withdrawals (§9.2, C-B03-3)", () => {
       detail: "answer_withdrawn",
       value: null,
     })
-    for (const who of [w.staffA, w.manager])
-      expect(
-        await json(who, "knowledge_check", {
-          p_check_id: w.checks.onsite_parking,
-        })
-      ).toMatchObject({ status: "unavailable", reason: "withdrawn" })
+    const withdrawnAt =
+      psql(`select to_json(created_at) #>> '{}' from public.knowledge_decisions
+      where check_id = '${w.checks.onsite_parking}' and decision = 'withdrawn'`)
+    for (const who of [w.staffA, w.staffB, w.manager]) {
+      const check = await json<{
+        answerInUse: { withdrawal: { at: string; basis: string } | null }
+      }>(who, "knowledge_check", { p_check_id: w.checks.onsite_parking })
+      expect(check).toMatchObject({
+        status: "unavailable",
+        reason: "withdrawn",
+      })
+      // Staff withdrawal line: when and on which basis, never who or why.
+      expect(check.answerInUse.withdrawal).toEqual({
+        at: expect.any(String),
+        basis: "venue_manager",
+      })
+      expect(new Date(check.answerInUse.withdrawal!.at).getTime()).toBe(
+        new Date(withdrawnAt).getTime()
+      )
+      expect(JSON.stringify(check.answerInUse), who.id).not.toContain(
+        "TEST withdrawn"
+      )
+    }
+    // The non-author's working-list row carries the same line, no reason.
+    const rows = await json<{
+      items: {
+        checkId: string
+        answerInUse: { withdrawal: unknown } | null
+        myLatest: unknown
+      }[]
+    }>(w.staffB, "knowledge_working_list")
+    const staffRow = rows.items.find(
+      (r) => r.checkId === w.checks.onsite_parking
+    )!
+    expect(staffRow.answerInUse?.withdrawal).toEqual({
+      at: expect.any(String),
+      basis: "venue_manager",
+    })
+    expect(JSON.stringify(staffRow)).not.toContain("TEST withdrawn")
     const [view] = (
       await json<{
-        items: { findingRef: { id: string }; stateReason: string }[]
+        items: {
+          findingRef: { id: string }
+          stateReason: string
+          managerNote: string | null
+          stateReasonBasis: string | null
+          stateReasonAt: string | null
+        }[]
       }>(w.staffA, "knowledge_my_contributions", {
         p_cursor: null,
         p_limit: 20,
       })
     ).items.filter((i) => i.findingRef.id === sent.contributionId)
-    expect(view).toMatchObject({ stateReason: "withdrawn" })
+    // The author alone reads why, with the basis and time of the withdrawal.
+    expect(view).toMatchObject({
+      stateReason: "withdrawn",
+      managerNote: "TEST withdrawn",
+      stateReasonBasis: "venue_manager",
+    })
+    expect(new Date(view!.stateReasonAt!).getTime()).toBe(
+      new Date(withdrawnAt).getTime()
+    )
 
     const again = await yes(w.staffB, w, "onsite_parking")
     if (again.outcome === "awaiting_confirmation")
@@ -277,7 +324,17 @@ describe("withdrawals (§9.2, C-B03-3)", () => {
       await json(w.manager, "knowledge_check", {
         p_check_id: w.checks.onsite_parking,
       })
-    ).toMatchObject({ status: "available" })
+    ).toMatchObject({ status: "available", answerInUse: { withdrawal: null } })
+  })
+
+  it("name an admin's withdrawal as an admin's to staff", async () => {
+    const w = await world("kn-b03-g-withdraw-admin")
+    await yes(w.staffA, w, "onsite_parking")
+    expect((await withdraw(w.admin, w, "onsite_parking")).error).toBeNull()
+    const check = await json<{
+      answerInUse: { withdrawal: { basis: string } | null }
+    }>(w.staffB, "knowledge_check", { p_check_id: w.checks.onsite_parking })
+    expect(check.answerInUse.withdrawal?.basis).toBe("admin")
   })
 })
 
@@ -303,6 +360,11 @@ describe("a withdrawn answer off the working list (WS5 item 1)", () => {
       reason: "unknown",
       detail: "not_enabled",
     })
+    // Off the list the withdrawal line goes with the withdrawn reading.
+    const check = await json<{
+      answerInUse: { withdrawal: unknown } | null
+    }>(w.manager, "knowledge_check", { p_check_id: w.checks.onsite_parking })
+    expect(check.answerInUse?.withdrawal ?? null).toBeNull()
   })
 })
 
