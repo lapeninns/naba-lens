@@ -150,11 +150,12 @@ describe("one snapshot per B02 read (T9b)", () => {
             'my_label_work', 'manager_triage_summary', 'my_contributions_feed',
             'my_venue_capabilities', 'my_asset_delete_impact', 'my_menu_waiting_items',
             'knowledge_to_confirm', 'knowledge_check', 'manager_menu_photo_overview',
-            'venue_coverage_summary'))
+            'venue_coverage_summary', 'contribution_groups_for_assets', 'contribution_group'))
           or (n.nspname = 'private' and p.proname in (
             'manager_read_venue', 'asset_needs_labels', 'feed_photo_json',
             'feed_task_send_json', 'feed_legacy_finding_json', 'feed_closed_assignment_json',
-            'asset_removal_effects', 'knowledge_latest_send'))`)
+            'asset_removal_effects', 'knowledge_latest_send', 'viewer_sees_asset',
+            'contribution_subject_exists'))`)
     ) as { name: string; volatility: string; definer: boolean }[]
     expect(rows.map((r) => r.name)).toEqual(
       expect.arrayContaining([
@@ -167,7 +168,7 @@ describe("one snapshot per B02 read (T9b)", () => {
         "private.asset_removal_effects(uuid,uuid)",
       ])
     )
-    expect(rows).toHaveLength(18)
+    expect(rows).toHaveLength(22)
     for (const fn of rows) {
       expect(fn.volatility, fn.name).toBe("s")
       expect(fn.definer, fn.name).toBe(true)
