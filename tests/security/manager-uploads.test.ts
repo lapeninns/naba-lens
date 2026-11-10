@@ -10,8 +10,10 @@ import { randomUUID } from "node:crypto"
 
 import { beforeAll, describe, expect, it } from "vitest"
 
+import { finaliseAsset } from "../../lib/server/media/finalise"
+import { actorFor } from "../slice/media-actor"
 import { markReady, TINY_BYTES, type TestIdentity } from "../support/identities"
-import { insertAsset, ok, psql } from "./coverage-fixtures"
+import { insertAsset, ok, psql, requestKey } from "./coverage-fixtures"
 import {
   call,
   count,
@@ -176,10 +178,20 @@ describe("uploads (W3)", () => {
     )
   })
 
-  it("stops when the grant ends: no new reservation, no open-token write, no labels", async () => {
+  it("stops when the grant ends: no reservation, token write, staging, finalise or labels; its own stay readable", async () => {
     const v = await world("mgr-upload-revoke")
     const open = await reserveAs(v.manager)
+    const sent = await reserveAs(v.manager)
     const ready = await readyUpload(v.manager)
+    // Bytes stored before the grant ends, finalised after.
+    expect((await putByToken(v.manager, sent.original_path)).error).toBeNull()
+    expect(
+      await json<string>(v.manager, "stage_media_labels", {
+        p_asset_id: sent.id,
+        p_venue_id: v.venue,
+        p_input: { assetId: sent.id, contentTypes: ["dish"] },
+      })
+    ).toBe("pending")
     const { data: grant } = await service
       .from("venue_manager_grants")
       .select("id")
@@ -208,6 +220,31 @@ describe("uploads (W3)", () => {
     )
     await refused(
       v.manager,
+      "stage_media_labels",
+      {
+        p_asset_id: open.id,
+        p_venue_id: v.venue,
+        p_input: { assetId: open.id, contentTypes: ["dish"] },
+      },
+      "media_asset_not_found",
+      "P0002"
+    )
+    const key = psql(
+      `select client_upload_key from public.media_assets where id = '${sent.id}'`
+    )
+    expect(
+      await finaliseAsset(await actorFor(v.manager), {
+        assetId: sent.id,
+        idempotencyKey: key,
+      })
+    ).toMatchObject({ ok: false, status: 403 })
+    expect(
+      psql(
+        `select upload_state from public.media_assets where id = '${sent.id}'`
+      )
+    ).toBe("uploading")
+    await refused(
+      v.manager,
       "save_media_labels",
       {
         p_asset_id: ready,
@@ -219,6 +256,23 @@ describe("uploads (W3)", () => {
       "media_asset_not_found",
       "P0002"
     )
+    // It still reads its own uploads and its own draft, and may discard it.
+    expect(await seen(v.manager, ready)).toBe(1)
+    const drafts = await ok(
+      v.manager.client.from("media_pending_labels").select("asset_id")
+    )
+    expect(drafts.map((d) => d.asset_id)).toEqual([sent.id])
+    await ok(
+      v.manager.client
+        .from("media_pending_labels")
+        .delete()
+        .eq("asset_id", sent.id)
+    )
+    expect(
+      count(
+        `select count(*) from public.media_pending_labels where asset_id = '${sent.id}'`
+      )
+    ).toBe(0)
   })
 })
 
@@ -327,16 +381,92 @@ describe("visibility", () => {
       ).toBe(n)
   })
 
-  it("keeps a manager account's staff-era uploads hidden from it", async () => {
+  it("keeps a manager account's staff-era uploads and drafts out of its reach and its label count", async () => {
+    const v = await world("mgr-upload-staff-era")
     const staffEra = (
-      await insertAsset(service, { uploader: w.manager.id, venue: w.venue })
+      await insertAsset(service, { uploader: v.manager.id, venue: v.venue })
     ).id
-    expect(await seen(w.manager, staffEra)).toBe(0)
+    expect(await seen(v.manager, staffEra)).toBe(0)
     expect(
       psql(
         `select uploader_role is null from public.media_assets where id = '${staffEra}'`
       )
     ).toBe("t")
+    expect(await json(v.manager, "my_label_work")).toEqual([
+      { needs_labels: 0, needs_attention: 0 },
+    ])
+    const uploading = (
+      await insertAsset(service, {
+        uploader: v.manager.id,
+        venue: v.venue,
+        ready: false,
+      })
+    ).id
+    await ok(
+      service.from("media_pending_labels").insert({
+        asset_id: uploading,
+        uploader_id: v.manager.id,
+        venue_id: v.venue,
+        input: { assetId: uploading },
+      })
+    )
+    expect(
+      await ok(v.manager.client.from("media_pending_labels").select("asset_id"))
+    ).toEqual([])
+  })
+
+  it("keeps manager-era uploads out of colleagues' Photos after the account becomes staff (OD-9)", async () => {
+    const v = await world("mgr-upload-convert")
+    const mine = await readyUpload(v.manager)
+    const colleague = await readyUpload(v.staffB)
+    await ok(
+      v.admin.client.rpc("convert_manager_to_staff", {
+        p_profile_id: v.manager.id,
+        p_venue_id: v.venue,
+        p_reason: "TEST back to staff",
+        p_client_request_key: requestKey(),
+      })
+    )
+    expect(
+      psql(`select role from public.profiles where id = '${v.manager.id}'`)
+    ).toBe("staff")
+    expect(
+      await json(v.staffA, "community_readable_assets", { p_asset_ids: [mine] })
+    ).toEqual([])
+    expect(await seen(v.staffA, mine)).toBe(0)
+    expect(
+      await json(v.staffA, "community_media_page", { p_uploader: v.manager.id })
+    ).toEqual([])
+    const [member] = await json<{ id: string; media_count: number }[]>(
+      v.staffA,
+      "community_members",
+      { p_member: v.manager.id }
+    )
+    expect(Number(member!.media_count)).toBe(0)
+    // Staff uploads read as before.
+    expect(
+      (
+        await json<{ id: string }[]>(v.staffA, "community_readable_assets", {
+          p_asset_ids: [colleague],
+        })
+      ).map((r) => r.id)
+    ).toEqual([colleague])
+    expect(
+      (
+        await json<{ id: string }[]>(v.staffA, "community_media_page", {
+          p_uploader: v.staffB.id,
+        })
+      ).map((r) => r.id)
+    ).toContain(colleague)
+    // The uploader and admins keep their own access.
+    for (const who of [v.manager, v.admin])
+      expect(
+        (
+          await json<{ id: string }[]>(who, "community_readable_assets", {
+            p_asset_ids: [mine],
+          })
+        ).map((r) => r.id)
+      ).toEqual([mine])
   })
 })
 
@@ -366,7 +496,7 @@ describe("groups", () => {
 })
 
 describe("uploader role column", () => {
-  it("is fixed once recorded", () => {
+  it("is fixed once recorded, on any update", () => {
     const id = psql(
       `select id from public.media_assets where uploader_role = 'manager' limit 1`
     )
@@ -375,5 +505,14 @@ describe("uploader role column", () => {
         `update public.media_assets set uploader_role = 'staff' where id = '${id}'`
       )
     ).toThrow()
+    // Also when the column is changed along with another one, or cleared.
+    expect(() =>
+      psql(
+        `update public.media_assets set uploader_role = null, updated_at = now() where id = '${id}'`
+      )
+    ).toThrow()
+    expect(
+      psql(`select uploader_role from public.media_assets where id = '${id}'`)
+    ).toBe("manager")
   })
 })
