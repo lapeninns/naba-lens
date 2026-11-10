@@ -462,6 +462,43 @@ describe("B10-m1 migration matches the receipt vocabulary", () => {
     expect(body).not.toMatch(/(public|private)\.knowledge_/)
   })
 
+  it("puts no bare CASE in a PL/pgSQL IF condition", () => {
+    // PL/pgSQL ends an IF condition at the first THEN outside parentheses,
+    // which would be the CASE's own.
+    const conditions = [
+      "private.ops_job_counts_valid",
+      "private.ops_record_job_run",
+      "private.ops_metrics",
+    ].flatMap((name) => [
+      ...functionBody(name).matchAll(
+        /(?<!\bend\s+)\b(?:if|elsif)\b([\s\S]*?)\bthen\b/g
+      ),
+    ])
+    expect(conditions.length).toBeGreaterThanOrEqual(5)
+    for (const [condition, text] of conditions)
+      expect(text, condition).not.toMatch(/\bcase\b/)
+    expect(functionBody("private.ops_job_counts_valid")).toMatch(
+      /v_max := case when v_key = 'bytes_verified'\s+then \d+ else \d+ end;\s+if [^;]*v_number > v_max then/
+    )
+  })
+
+  it("orders M-JB-2 receipts one way and measures 7 days as elapsed time", () => {
+    const body = functionBody("private.ops_metrics")
+    const order =
+      "order by r.finished_at desc, r.started_at desc, r.run_id desc"
+    // The latest receipt and the latest ok receipt, both by the full tuple.
+    expect(body.split(order)).toHaveLength(3)
+    expect(body.replace(/\s+/g, " ")).toContain(
+      "(r.finished_at, r.started_at, r.run_id) > (o.finished_at, o.started_at, o.run_id)"
+    )
+    expect(body).not.toMatch(/finished_at > o\.last_ok/)
+    // A calendar-day interval follows the session time zone across DST.
+    expect(body).not.toMatch(/interval '\d+ days?'/)
+    expect(body.match(/p_now - interval '168 hours'/g)).toHaveLength(2)
+    // M-JB-3 keeps its London calendar month.
+    expect(body).toContain("v_month := private.london_month(p_now);")
+  })
+
   it("gives every catalogue metric exactly one entry with the reason the adapter expects", () => {
     const body = functionBody("private.ops_metrics")
     const computedIds = [

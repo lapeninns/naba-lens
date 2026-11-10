@@ -25,6 +25,9 @@ import {
 } from "../support/identities"
 import { psql } from "./coverage-fixtures"
 
+// The fields these tests read. The real PostgREST response also carries
+// success, count, status and statusText, so exact checks compare
+// `outcome(...)`, not the whole response.
 type RpcResult = {
   data: unknown
   error: { code: string; message: string } | null
@@ -32,6 +35,7 @@ type RpcResult = {
 type RpcClient = { rpc(fn: string, args?: object): PromiseLike<RpcResult> }
 const rpc = (client: unknown, fn: string, args: object) =>
   (client as RpcClient).rpc(fn, args)
+const outcome = ({ data, error }: RpcResult) => ({ data, error })
 
 const service = serviceClient()
 const lit = (value: string) => `'${value.replace(/'/g, "''")}'`
@@ -156,11 +160,11 @@ describe("B10-m1 access control", () => {
 describe("B10-m1 writer", () => {
   it("records once, replays harmlessly and refuses a conflicting replay", async () => {
     const args = receipt()
-    expect(await rpc(service, "ops_record_job_run", args)).toEqual({
+    expect(outcome(await rpc(service, "ops_record_job_run", args))).toEqual({
       data: "recorded",
       error: null,
     })
-    expect(await rpc(service, "ops_record_job_run", args)).toMatchObject({
+    expect(outcome(await rpc(service, "ops_record_job_run", args))).toEqual({
       data: "replayed",
       error: null,
     })
@@ -281,7 +285,17 @@ const P_NOW = "2040-01-15 12:00:00+00"
 const A = randomUUID()
 const B = randomUUID()
 const EMPTY = randomUUID()
-const STAFF = { a1: randomUUID(), a2: randomUUID(), b1: randomUUID() }
+// R holds one asset that fails and is retried; D holds the rows for the
+// seven-day windows across the London autumn DST change.
+const R = randomUUID()
+const D = randomUUID()
+const STAFF = {
+  a1: randomUUID(),
+  a2: randomUUID(),
+  b1: randomUUID(),
+  r1: randomUUID(),
+  d1: randomUUID(),
+}
 const asset = (key: string) => ({ key, id: randomUUID() })
 const ASSETS = {
   a1: asset("a1"),
@@ -295,12 +309,26 @@ const ASSETS = {
   b1: asset("b1"),
   b2: asset("b2"),
   b3: asset("b3"),
+  r1: asset("r1"),
+  d1: asset("d1"),
+  d2: asset("d2"),
+  d3: asset("d3"),
 }
 const CHECK = randomUUID()
+const DST_CHECKS = [randomUUID(), randomUUID()]
+// Monthly preparation receipts that all finish at the ok receipt's time, with
+// run IDs in a known order (uuid order is the order of the lowercase text).
+const TIE_IDS = [randomUUID(), randomUUID(), randomUUID(), randomUUID()].sort()
 
 /** `P_NOW - interval` as SQL. */
 const ago = (interval: string) =>
   `(${lit(P_NOW)}::timestamptz - interval ${lit(interval)})`
+
+// Four days after the London clocks went back (2026-10-25 01:00 UTC), so
+// "7 days" by the London calendar would be 169 h and by UTC 168 h. The
+// elapsed cutoff is 2026-10-22T12:00:00Z in every session time zone.
+const DST_NOW = "2026-10-29T12:00:00Z"
+const at = (instant: string) => `${lit(instant)}::timestamptz`
 
 function fixtureSql(reads: string[]) {
   const mediaRow = (
@@ -323,9 +351,25 @@ function fixtureSql(reads: string[]) {
     outcome: string,
     finished: string,
     code: string | null,
-    counts = "{}"
+    counts = "{}",
+    { runId = randomUUID(), startedBefore = "5 seconds" } = {}
   ) =>
-    `(${lit(randomUUID())}, ${lit(jobId)}, ${finished} - interval '5 seconds', ${finished}, ${lit(outcome)}, ${lit(counts)}::jsonb, ${code ? lit(code) : "null"})`
+    `(${lit(runId)}, ${lit(jobId)}, ${finished} - interval ${lit(startedBefore)}, ${finished}, ${lit(outcome)}, ${lit(counts)}::jsonb, ${code ? lit(code) : "null"})`
+  const PREP_OK = ago("53 minutes")
+  const prepTie = (outcome: string, opts: Parameters<typeof job>[5]) =>
+    job(
+      "monthly_preparation",
+      outcome,
+      PREP_OK,
+      "preparation_failed",
+      "{}",
+      opts
+    )
+  const label = (
+    key: keyof typeof ASSETS,
+    updated: string
+  ) => `(${lit(ASSETS[key].id)}, ${lit(STAFF.d1)}, ${lit(D)}, '{}'::jsonb,
+        'needs_attention', 'conflict', ${lit(SENSITIVE[5])}, ${updated} - interval '1 day', ${updated})`
   const submission = (
     key: keyof typeof ASSETS,
     venue: string,
@@ -346,11 +390,15 @@ function fixtureSql(reads: string[]) {
     set local session_replication_role = replica;
     insert into public.venues (id, name, slug, active) values
       (${lit(A)}, ${lit(`${SENSITIVE[0]} Arms ${A.slice(0, 8)}`)}, ${lit(`ops-a-${A.slice(0, 8)}`)}, true),
-      (${lit(B)}, ${lit(`Wifi ${SENSITIVE[3]} ${B.slice(0, 8)}`)}, ${lit(`ops-b-${B.slice(0, 8)}`)}, true);
+      (${lit(B)}, ${lit(`Wifi ${SENSITIVE[3]} ${B.slice(0, 8)}`)}, ${lit(`ops-b-${B.slice(0, 8)}`)}, true),
+      (${lit(R)}, ${lit(`Retry ${R.slice(0, 8)}`)}, ${lit(`ops-r-${R.slice(0, 8)}`)}, true),
+      (${lit(D)}, ${lit(`Clocks ${D.slice(0, 8)}`)}, ${lit(`ops-d-${D.slice(0, 8)}`)}, true);
     insert into public.profiles (id, display_name, role, venue_id, active) values
       (${lit(STAFF.a1)}, ${lit(SENSITIVE[0])}, 'staff', ${lit(A)}, true),
       (${lit(STAFF.a2)}, ${lit(SENSITIVE[1])}, 'staff', ${lit(A)}, true),
-      (${lit(STAFF.b1)}, ${lit(SENSITIVE[0])}, 'staff', ${lit(B)}, true);
+      (${lit(STAFF.b1)}, ${lit(SENSITIVE[0])}, 'staff', ${lit(B)}, true),
+      (${lit(STAFF.r1)}, ${lit(SENSITIVE[0])}, 'staff', ${lit(R)}, false),
+      (${lit(STAFF.d1)}, ${lit(SENSITIVE[0])}, 'staff', ${lit(D)}, false);
     insert into public.monthly_targets (staff_id, venue_id, period_month, target_count, due_on, source) values
       (${lit(STAFF.b1)}, ${lit(B)}, '2040-01-01', null, '2040-01-31', 'placeholder');
     insert into public.coverage_preparation_runs (period_month, run_trigger, started_at, finished_at, status, error_code, error_message) values
@@ -369,7 +417,11 @@ function fixtureSql(reads: string[]) {
       ${mediaRow("a8", A, STAFF.a1, "ready", ago("2 hours"), ago("2 hours"))},
       ${mediaRow("b1", B, STAFF.b1, "ready", ago("10 days"))},
       ${mediaRow("b2", B, STAFF.b1, "ready", ago("10 days"))},
-      ${mediaRow("b3", B, STAFF.b1, "ready", ago("3 hours"), ago("3 hours"))};
+      ${mediaRow("b3", B, STAFF.b1, "ready", ago("3 hours"), ago("3 hours"))},
+      ${mediaRow("r1", R, STAFF.r1, "failed", ago("2 hours"))},
+      ${mediaRow("d1", D, STAFF.d1, "ready", at("2026-10-20T09:00:00Z"))},
+      ${mediaRow("d2", D, STAFF.d1, "ready", at("2026-10-20T09:00:00Z"))},
+      ${mediaRow("d3", D, STAFF.d1, "ready", at("2026-10-20T09:00:00Z"))};
     insert into storage.objects (bucket_id, name) values
       ('media', ${lit(`${STAFF.a1}/${ASSETS.a7.id}/preview.webp`)}),
       ('media', ${lit(`${STAFF.b1}/${ASSETS.b3.id}/original.jpg`)});
@@ -378,7 +430,12 @@ function fixtureSql(reads: string[]) {
         'needs_attention', 'conflict', ${lit(SENSITIVE[5])}, ${ago("9 days")}, ${ago("8 days")}),
       (${lit(ASSETS.a6.id)}, ${lit(STAFF.a1)}, ${lit(A)}, ${lit(JSON.stringify({ note: SENSITIVE[4] }))}::jsonb,
         'pending', null, null, ${ago("1 hour")}, ${ago("1 hour")}),
-      (${lit(ASSETS.a3.id)}, ${lit(STAFF.a2)}, ${lit(A)}, '{}'::jsonb, 'pending', null, null, ${ago("5 minutes")}, ${ago("5 minutes")});
+      (${lit(ASSETS.a3.id)}, ${lit(STAFF.a2)}, ${lit(A)}, '{}'::jsonb, 'pending', null, null, ${ago("5 minutes")}, ${ago("5 minutes")}),
+      -- D: older than the elapsed cutoff (inside the London-calendar one), at
+      -- the cutoff, and inside the window.
+      ${label("d1", at("2026-10-22T11:30:00Z"))},
+      ${label("d2", at("2026-10-22T12:00:00Z"))},
+      ${label("d3", at("2026-10-22T12:30:00Z"))};
     ${submission("a1", A, STAFF.a1, ago("1 day"))}
     ${submission("b1", B, STAFF.b1, ago("9 days"))}
     ${submission("a7", A, STAFF.a1, ago("1 day"))}
@@ -386,7 +443,11 @@ function fixtureSql(reads: string[]) {
       (${lit(CHECK)}, ${lit(A)}, 'evidence_lost', ${lit(SENSITIVE[2])}, ${lit(JSON.stringify({ wifi: SENSITIVE[3] }))}::jsonb, ${ago("1 day")}),
       (${lit(CHECK)}, ${lit(A)}, 'evidence_lost', null, '{}'::jsonb, ${ago("2 days")}),
       (${lit(CHECK)}, ${lit(A)}, 'evidence_lost', null, '{}'::jsonb, ${ago("8 days")}),
-      (${lit(CHECK)}, ${lit(A)}, 'notes_updated', ${lit(SENSITIVE[1])}, '{}'::jsonb, ${ago("1 hour")});
+      (${lit(CHECK)}, ${lit(A)}, 'notes_updated', ${lit(SENSITIVE[1])}, '{}'::jsonb, ${ago("1 hour")}),
+      (${lit(DST_CHECKS[0])}, ${lit(D)}, 'evidence_lost', null, '{}'::jsonb, ${at("2026-10-22T11:30:00Z")}),
+      (${lit(DST_CHECKS[0])}, ${lit(D)}, 'evidence_lost', null, '{}'::jsonb, ${at("2026-10-22T12:00:00Z")}),
+      (${lit(DST_CHECKS[0])}, ${lit(D)}, 'evidence_lost', null, '{}'::jsonb, ${at("2026-10-22T12:30:00Z")}),
+      (${lit(DST_CHECKS[1])}, ${lit(D)}, 'evidence_lost', null, '{}'::jsonb, ${at("2026-10-28T09:00:00Z")});
     insert into private.ops_job_runs (run_id, job, started_at, finished_at, outcome, counts, error_code) values
       ${job("cleanup", "ok", ago("50 minutes"), null, '{"removed_assets": 3}')},
       ${job("cleanup", "failed", ago("30 hours"), "cleanup_failed")},
@@ -395,7 +456,15 @@ function fixtureSql(reads: string[]) {
       ${job("media_archive", "failed", ago("20 minutes"), "archive_audit_timeout")},
       ${job("media_archive", "failed", ago("10 minutes"), "archive_lease_lost")},
       ${job("monthly_preparation", "partial", ago("2 hours"), "preparation_failed", '{"succeeded_runs": 1, "failed_runs": 1}')},
-      ${job("monthly_preparation", "ok", ago("53 minutes"), null)};
+      ${job("monthly_preparation", "ok", PREP_OK, null, "{}", { runId: TIE_IDS[1] })},
+      -- Same finish as the ok receipt. Before it: an earlier start, and the
+      -- same start with a lower run ID. After it: the same start with higher
+      -- run IDs, and a later start (the latest receipt).
+      ${prepTie("failed", { startedBefore: "10 seconds" })},
+      ${prepTie("failed", { runId: TIE_IDS[0] })},
+      ${prepTie("failed", { runId: TIE_IDS[2] })},
+      ${prepTie("partial", { runId: TIE_IDS[3] })},
+      ${prepTie("failed", { startedBefore: "1 second" })};
     set local session_replication_role = origin;
     ${reads.join("\n")}
     rollback;`
@@ -403,6 +472,9 @@ function fixtureSql(reads: string[]) {
 
 type Json = Record<string, unknown>
 let readings: Json[] = []
+// R before and after its retry; D with the session in UTC, then London.
+let retryReadings: Json[] = []
+let dstReadings: Json[] = []
 let watchdogRowsBefore = 0
 
 function readFixture(): Json[] {
@@ -412,16 +484,35 @@ function readFixture(): Json[] {
       `select count(*) from private.ops_job_runs where job = 'archive_watchdog' and outcome = 'ok' and finished_at <= ${lit(P_NOW)}`
     )
   )
+  const r1 = lit(ASSETS.r1.id)
   const out = psql(
     fixtureSql([
       `select private.ops_metrics(${lit(P_NOW)}, ${lit(A)})::text;`,
       `select private.ops_metrics(${lit(P_NOW)}, ${lit(B)})::text;`,
       `select private.ops_metrics(${lit(P_NOW)}, ${lit(EMPTY)})::text;`,
       `select private.ops_metrics(${lit(P_NOW)}, null)::text;`,
+      `select private.ops_metrics(${lit(P_NOW)}, ${lit(R)})::text;`,
+      // The failed asset is retried and finalised under the same ID, through
+      // the supported states failed -> uploading -> processing -> ready. No
+      // history of the failure or the finalisation is kept anywhere.
+      `set local session_replication_role = replica;
+      update public.media_assets set upload_state = 'uploading', updated_at = ${ago("90 minutes")} where id = ${r1};
+      update public.media_assets set upload_state = 'processing', updated_at = ${ago("80 minutes")} where id = ${r1};
+      update public.media_assets set upload_state = 'ready', validated_mime_type = 'image/jpeg', size_bytes = 4,
+        updated_at = ${ago("70 minutes")} where id = ${r1};
+      set local session_replication_role = origin;`,
+      `select private.ops_metrics(${lit(P_NOW)}, ${lit(R)})::text;`,
+      `set local time zone 'UTC';`,
+      `select private.ops_metrics(${at(DST_NOW)}, ${lit(D)})::text;`,
+      `set local time zone 'Europe/London';`,
+      `select private.ops_metrics(${at(DST_NOW)}, ${lit(D)})::text;`,
     ])
   )
-  readings = out.split("\n").map((line) => JSON.parse(line) as Json)
-  expect(readings).toHaveLength(4)
+  const all = out.split("\n").map((line) => JSON.parse(line) as Json)
+  expect(all).toHaveLength(8)
+  readings = all.slice(0, 4)
+  retryReadings = all.slice(4, 6)
+  dstReadings = all.slice(6)
   return readings
 }
 const metricsOf = (reading: Json) => reading.metrics as Record<string, Json>
@@ -430,7 +521,7 @@ afterAll(() => {
   // The fixture transaction left nothing behind.
   expect(
     psql(
-      `select count(*) from public.venues where id in (${lit(A)}, ${lit(B)})`
+      `select count(*) from public.venues where id in (${[A, B, R, D].map(lit).join(", ")})`
     )
   ).toBe("0")
 })
@@ -512,13 +603,17 @@ describe("T-B10-05 ops_metrics on known rows", () => {
       lastErrorCode: "archive_lease_lost",
       lastFinishedAt: "2040-01-15T11:50:00.000000Z",
     })
+    // Six receipts finish with the ok one at 11:07:00. By (finished_at,
+    // started_at, run_id) two come before it and three after; the latest is
+    // the one that started last. The partial run two hours earlier is reset
+    // by the ok receipt, as cleanup's failure 30 h ago is by its later ok.
     expect(failures[3]).toEqual({
       job: "monthly_preparation",
-      failed24h: 0,
-      partial24h: 1,
-      consecutiveFailures: 0,
-      lastOutcome: "ok",
-      lastErrorCode: null,
+      failed24h: 4,
+      partial24h: 2,
+      consecutiveFailures: 3,
+      lastOutcome: "failed",
+      lastErrorCode: "preparation_failed",
       lastFinishedAt: "2040-01-15T11:07:00.000000Z",
     })
   })
@@ -687,15 +782,102 @@ describe("T-B10-05 ops_metrics on known rows", () => {
     }
   })
 
+  it("follows a failed asset through its retry and still derives no failure rate", () => {
+    readFixture()
+    for (const reading of retryReadings)
+      expect(() => parseOpsMetrics(reading)).not.toThrow()
+    const [failed, ready] = retryReadings.map(metricsOf)
+    expect(failed["M-UP-1"]).toEqual({
+      availability: "available",
+      scope: "venue",
+      totals: { uploading: 0, processing: 0, ready: 0, failed: 1 },
+      venues: [
+        { venueId: R, uploading: 0, processing: 0, ready: 0, failed: 1 },
+      ],
+    })
+    expect(ready["M-UP-1"]).toEqual({
+      availability: "available",
+      scope: "venue",
+      totals: { uploading: 0, processing: 0, ready: 1, failed: 0 },
+      venues: [
+        { venueId: R, uploading: 0, processing: 0, ready: 1, failed: 0 },
+      ],
+    })
+    // Neither the failure nor the finalisation left a trusted record, before
+    // or after the retry: no count, denominator or rate.
+    for (const m of [failed, ready])
+      expect(m["M-UP-4"]).toEqual({
+        availability: "not_available",
+        reason: "missing_history",
+        missing: ["failed_transition_history", "finalisation_history"],
+      })
+  })
+
+  it("measures the seven-day windows the same in any session time zone", () => {
+    readFixture()
+    const [utc, london] = dstReadings
+    expect(london).toEqual(utc)
+    for (const reading of [utc, london]) {
+      expect(() => parseOpsMetrics(reading)).not.toThrow()
+      expect(reading.asOf).toBe("2026-10-29T12:00:00.000000Z")
+      const m = metricsOf(reading)
+      // Cutoff 2026-10-22T12:00:00Z, exclusive: only the 11:30 label is older.
+      expect(m["M-UP-6"]).toEqual({
+        availability: "available",
+        scope: "venue",
+        totals: {
+          needsAttention: 3,
+          needsAttentionOlderThan7d: 1,
+          stalePending: 0,
+        },
+        venues: [
+          {
+            venueId: D,
+            needsAttention: 3,
+            needsAttentionOlderThan7d: 1,
+            oldestNeedsAttentionAgeSeconds: 606600,
+            stalePending: 0,
+            oldestStalePendingAgeSeconds: null,
+          },
+        ],
+      })
+      // The events at 11:30 and at the cutoff are outside the window.
+      expect(m["M-WD-4"]).toEqual({
+        availability: "partial",
+        scope: "venue",
+        parts: {
+          amenity_evidence_lost: {
+            availability: "available",
+            totals: { events: 2, checks: 2 },
+            venues: [{ venueId: D, events: 2, checks: 2 }],
+          },
+          knowledge_evidence_withdrawn: {
+            availability: "not_available",
+            reason: "not_in_slice",
+          },
+        },
+      })
+      // M-JB-3 keeps the London calendar month.
+      expect(m["M-JB-3"]).toMatchObject({
+        period: "2026-10-01",
+        successDueAt: "2026-10-02T23:00:00.000000Z",
+      })
+    }
+  })
+
   it("T-B10-04: holds no upstream names, emails, notes, Wi-Fi data, paths, URLs or error text", () => {
-    const text = JSON.stringify(readFixture())
+    const text = JSON.stringify([
+      ...readFixture(),
+      ...retryReadings,
+      ...dstReadings,
+    ])
     for (const value of SENSITIVE) expect(text).not.toContain(value)
     expect(text).not.toMatch(
       /@|https?:|original\.jpg|preview\.webp|P0001|conflict/
     )
     for (const id of Object.values(ASSETS).map((a) => a.id))
       expect(text).not.toContain(id)
-    for (const id of [...Object.values(STAFF), CHECK])
+    for (const id of [...Object.values(STAFF), CHECK, ...DST_CHECKS])
       expect(text).not.toContain(id)
   })
 

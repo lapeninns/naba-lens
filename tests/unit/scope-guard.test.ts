@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto"
 import { readdirSync, readFileSync, statSync } from "node:fs"
 import { join, relative, sep } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -359,6 +360,54 @@ const ALLOWED_HITS: { file: string; text: string; reason: string }[] = [
   },
 ]
 
+/**
+ * Whole lines allowed to match one feature's pattern in one file, by the UTF-8
+ * SHA-256 of the trimmed line. Unlike a substring, any change to the line
+ * (including code appended to it) makes it a hit again.
+ */
+const ALLOWED_LINES: {
+  file: string
+  feature: string
+  sha256: string
+  reason: string
+}[] = [
+  {
+    file: "lib/ops/metrics.ts",
+    feature: "approval workflow",
+    sha256: "26eb5e11bcb1b0e2bb9699c60729d4c3c49ab7f91db91f9dca643975184396d2",
+    reason:
+      "M-DL-8 definition text naming the closed B07 provider receipt kinds (provider_awaiting_review, provider_approved) that NabaLens only reads; no approval action",
+  },
+]
+
+const lineSha256 = (line: string) =>
+  createHash("sha256").update(line.trim(), "utf8").digest("hex")
+
+/** Forbidden-term hits in one file's comment-stripped text. */
+function hitsIn(rel: string, text: string) {
+  const hits: string[] = []
+  text.split("\n").forEach((line, i) => {
+    for (const { feature, pattern } of FORBIDDEN) {
+      if (!pattern.test(line)) continue
+      if (ALLOWED_HITS.some((a) => a.file === rel && line.includes(a.text))) {
+        continue
+      }
+      if (
+        ALLOWED_LINES.some(
+          (a) =>
+            a.file === rel &&
+            a.feature === feature &&
+            a.sha256 === lineSha256(line)
+        )
+      ) {
+        continue
+      }
+      hits.push(`${rel}:${i + 1} [${feature}] ${line.trim().slice(0, 120)}`)
+    }
+  })
+  return hits
+}
+
 function scan() {
   const files = [
     ...SOURCE_DIRS.flatMap((d) => walk(join(root, d))).filter((f) =>
@@ -367,22 +416,14 @@ function scan() {
     ...SOURCE_FILES.map((f) => join(root, f)),
   ]
   const sql = walk(join(root, SQL_DIR)).filter((f) => f.endsWith(".sql"))
-  const hits: string[] = []
-  const check = (file: string, text: string) => {
-    text.split("\n").forEach((line, i) => {
-      for (const { feature, pattern } of FORBIDDEN) {
-        const match = line.match(pattern)
-        if (!match) continue
-        const rel = relative(root, file)
-        if (ALLOWED_HITS.some((a) => a.file === rel && line.includes(a.text))) {
-          continue
-        }
-        hits.push(`${rel}:${i + 1} [${feature}] ${line.trim().slice(0, 120)}`)
-      }
-    })
-  }
-  for (const f of files) check(f, stripTsComments(readFileSync(f, "utf8")))
-  for (const f of sql) check(f, stripSqlComments(readFileSync(f, "utf8")))
+  const hits = [
+    ...files.flatMap((f) =>
+      hitsIn(relative(root, f), stripTsComments(readFileSync(f, "utf8")))
+    ),
+    ...sql.flatMap((f) =>
+      hitsIn(relative(root, f), stripSqlComments(readFileSync(f, "utf8")))
+    ),
+  ]
   return { hits, scanned: files.length + sql.length }
 }
 
@@ -418,6 +459,30 @@ describe("scope guard: no excluded features in application source", () => {
     expect(stripTsComments('const u = "https://x.test/a"')).toContain(
       "https://x.test/a"
     )
+  })
+
+  it("allows only the exact pinned M-DL-8 line and still detects approval code beside it", () => {
+    const rel = "lib/ops/metrics.ts"
+    const source = stripTsComments(readFileSync(join(root, rel), "utf8"))
+    const approvalLines = source
+      .split("\n")
+      .filter((line) => /approv/i.test(line))
+    // The pinned definition is the file's only approval-term line, the
+    // pattern still matches it, and it alone is let through.
+    expect(approvalLines).toHaveLength(1)
+    const [pinned] = approvalLines
+    expect(lineSha256(pinned)).toBe(ALLOWED_LINES[0].sha256)
+    expect(hitsIn(rel, source)).toEqual([])
+    // Real approval code in the same file is a hit, also appended to the line.
+    const action = "export async function approvePublication(id: string) {}"
+    expect(hitsIn(rel, `${source}\n${action}`)).toHaveLength(1)
+    expect(hitsIn(rel, `${pinned} approvePublication(id)`)).toHaveLength(1)
+    expect(hitsIn(rel, `${pinned}; const approved = true`)).toHaveLength(1)
+    // Pinned to its file and its feature.
+    expect(hitsIn("lib/ops/heartbeats.ts", pinned)).toHaveLength(1)
+    expect(
+      ALLOWED_LINES.filter((a) => a.feature === "approval workflow")
+    ).toHaveLength(1)
   })
 
   it("allows v0.4 review vocabulary and still detects the new exclusions", () => {
