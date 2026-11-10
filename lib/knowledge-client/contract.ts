@@ -24,6 +24,7 @@ import type {
   KnowledgeAsset,
   KnowledgeErrorCode,
   KnowledgeResult,
+  FindingSource,
   FreshnessEntry,
   ObservedOnSource,
   PolicyMissing,
@@ -43,6 +44,7 @@ export {
 } from "@/lib/knowledge/contract"
 export { SCHEDULE_EXCEPTION_KINDS, VALUE_LISTS } from "@/lib/knowledge/contract"
 export type {
+  FindingSource,
   FreshnessEntry,
   FreshnessPreviewView,
   RecheckCause,
@@ -303,6 +305,15 @@ export type PendingFinding = {
   policyMissing?: PolicyNeed[]
   /** B03-c: a policy finding's stored detail, as sent (read with policyFacts). */
   policyDetail?: unknown
+  /** B03-f (A12): where it came from; absent before B03-f. */
+  source?: FindingSource
+  /** B03-f: imports only, the source's label. */
+  sourceLabel?: string
+  /**
+   * B03-f (A23): imports only; whether it may be confirmed. Missing is read as
+   * false, so Confirm is never offered on a guess.
+   */
+  adoptable?: boolean
 }
 
 export type KnowledgePermissions = {
@@ -488,6 +499,9 @@ export type ToConfirmRow = {
   waitingSince?: Instant | null
   /** B03-c: policy items only. */
   policyMissing?: PolicyNeed[]
+  /** B03-f (A12): where it came from; imports carry their label. */
+  source?: FindingSource
+  sourceLabel?: string
 }
 
 export type ToConfirmList = { items: ToConfirmRow[]; count: number }

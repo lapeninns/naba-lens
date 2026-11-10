@@ -1137,3 +1137,104 @@ describe("the check page of a schedule in use (B03 UI §5.2, §5.3, §5.5)", () 
     ).toBeTruthy()
   })
 })
+
+describe("To confirm: imports (B03 UI §7.1)", () => {
+  const imported = (over: Partial<PendingFinding> = {}) =>
+    finding({
+      answer: "yes",
+      source: "external_source",
+      sourceLabel: "⟨Source label⟩",
+      sender: { id: "a1", displayName: "⟨Admin⟩" },
+      ...over,
+    })
+
+  it("says where it came from, that it's never used unconfirmed, and offers Confirm and Don't use when it can be used", () => {
+    setup(view([imported({ adoptable: true })]))
+    const card = screen.getByRole("article", {
+      name: "Imported from ⟨Source label⟩ by ⟨Admin⟩",
+    })
+    expect(within(card).getByText("Not recorded")).toBeTruthy()
+    expect(
+      within(card).getByText(
+        "Imported records are never used until someone confirms them."
+      )
+    ).toBeTruthy()
+    expect(within(card).getByRole("button", { name: "Confirm" })).toBeTruthy()
+    expect(within(card).getByRole("button", { name: "Don't use" })).toBeTruthy()
+    expect(
+      within(card).queryByRole("button", { name: "Ask for more detail" })
+    ).toBeNull()
+    expect(
+      screen.getByText(
+        "Listed newest on-site finding first, then manager statements, other sources and the old facts list."
+      )
+    ).toBeTruthy()
+  })
+
+  it("never offers Confirm when the server says it can't be used, or doesn't say", () => {
+    for (const adoptable of [false, undefined]) {
+      render(
+        <DecisionPanel
+          view={view([imported({ adoptable })])}
+          handlers={{ decide: vi.fn(), onResolveConflict: vi.fn() }}
+          stateHref="/manager/amenities/c1/capture"
+        />
+      )
+      expect(screen.queryByRole("button", { name: "Confirm" })).toBeNull()
+      expect(
+        screen.getByText(
+          /^This import can't be used: this question already has a recorded answer/
+        )
+      ).toBeTruthy()
+      expect(
+        screen
+          .getByRole("link", { name: "State the answer" })
+          .getAttribute("href")
+      ).toBe("/manager/amenities/c1/capture")
+      cleanup()
+    }
+  })
+
+  it("can't be chosen over findings that disagree", () => {
+    setup(view([imported({ adoptable: true }), finding({ answer: "no" })]))
+    const card = screen.getByRole("article", {
+      name: "Imported from ⟨Source label⟩ by ⟨Admin⟩",
+    })
+    expect(
+      within(card).queryByRole("button", { name: "Use this answer" })
+    ).toBeNull()
+    expect(
+      within(card).getByText(
+        "An import can't replace the answer in use. Keep the answer in use, or reopen the question."
+      )
+    ).toBeTruthy()
+  })
+
+  it("asks why before not using it, recorded in the history", async () => {
+    const { user } = setup(view([imported({ adoptable: true })]))
+    await user.click(screen.getByRole("button", { name: "Don't use" }))
+    const dialog = await screen.findByRole("dialog", {
+      name: "Don't use this import?",
+    })
+    expect(
+      within(dialog).getByText("Recorded in this question's history.")
+    ).toBeTruthy()
+  })
+
+  it("names the old facts list when there's no source label", () => {
+    setup(
+      view([
+        imported({
+          source: "legacy_fact",
+          sourceLabel: undefined,
+          adoptable: true,
+        }),
+      ])
+    )
+    expect(
+      screen.getByRole("article", {
+        name: "Imported from the old facts list by ⟨Admin⟩",
+      })
+    ).toBeTruthy()
+  })
+})

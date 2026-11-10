@@ -662,3 +662,53 @@ describe("schedules on the check (B03-d)", () => {
     expect(plain.slot.answerInUse).not.toHaveProperty("scheduleId")
   })
 })
+
+describe("imports (B03-f, A12, A23)", () => {
+  it("reads where a finding came from, and adoptable only on the card", () => {
+    const view = adaptCheck(
+      check({
+        pending: [
+          pending({
+            source: "external_source",
+            sourceLabel: "⟨Source⟩",
+            adoptable: true,
+          }),
+          pending({
+            findingRef: { type: "contribution", id: "f2" },
+            source: "something_new" as never,
+          }),
+        ],
+      }),
+      "The Old Crown"
+    )
+    if (!view.inScope) throw new Error("in scope")
+    expect(view.pending[0]).toMatchObject({
+      source: "external_source",
+      sourceLabel: "⟨Source⟩",
+      adoptable: true,
+    })
+    expect(view.pending[1]).not.toHaveProperty("source")
+    const rows = adaptToConfirm(
+      [
+        {
+          checkId: CHECK,
+          questionKey: "onsite_parking",
+          question: "⟨Question⟩",
+          findingRef: { type: "contribution", id: "f9" },
+          kind: "finding",
+          answer: "yes",
+          senderName: null,
+          sentAt: null,
+          slotRevision: 9,
+          conflict: false,
+          disputes: false,
+          source: "legacy_fact",
+          adoptable: true,
+        },
+      ],
+      1
+    ).items
+    expect(rows[0]).toMatchObject({ source: "legacy_fact" })
+    expect(rows[0]).not.toHaveProperty("adoptable")
+  })
+})

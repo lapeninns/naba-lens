@@ -416,6 +416,11 @@ export function AmenityCheckDetail({
           handlers={knowledge.handlers}
           onReopen={canReopen ? () => setReopenOpen(true) : undefined}
           policy={knowledge.policy ?? null}
+          stateHref={
+            permissions.canSubmit && active
+              ? hrefs.capture(check.id)
+              : undefined
+          }
           completeHref={
             statesPolicy
               ? (finding) =>

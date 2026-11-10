@@ -77,6 +77,27 @@ function firstName(person: PendingFinding["sender"]): string {
   return name ? name.split(/\s+/)[0] : "They"
 }
 
+/** B03-f (A12): a proposal from the old facts list or another source. */
+const isImport = (finding: PendingFinding) =>
+  finding.source === "legacy_fact" || finding.source === "external_source"
+
+export const IMPORT_COPY = {
+  title: (label: string | null, by: string | null) =>
+    `Imported from ${label ?? "the old facts list"}${by ? ` by ${by}` : ""}`,
+  checkedOn: "Not recorded",
+  never: "Imported records are never used until someone confirms them.",
+  notAdoptable:
+    "This import can't be used: this question already has a recorded answer (in use, withdrawn or past its check date). To change the answer, send a new finding or state it as a manager or an admin.",
+  inConflict:
+    "An import can't replace the answer in use. Keep the answer in use, or reopen the question.",
+  order:
+    "Listed newest on-site finding first, then manager statements, other sources and the old facts list.",
+  dontUse: "Don't use",
+  dontUseTitle: "Don't use this import?",
+  dontUseHelp: "Recorded in this question's history.",
+  stateAnswer: "State the answer",
+} as const
+
 const KIND_TITLE: Record<PendingFinding["kind"], string> = {
   finding: "Finding",
   change_report: "Change report",
@@ -368,7 +389,10 @@ export function DecisionPanel({
   onReopen,
   policy = null,
   completeHref,
+  stateHref,
 }: {
+  /** B03-f: where a manager or an admin states the answer themselves. */
+  stateHref?: string
   view: InScope
   handlers: DecisionHandlers
   /** Opens the check's existing reopen dialog. */
@@ -581,6 +605,41 @@ export function DecisionPanel({
           {POLICY_COPY.completePolicy}
         </Link>
       ) : null
+    // B03-f (§7.1): an import is confirmed or not used, never asked about;
+    // Confirm only where the server says it can be used. Among findings
+    // that disagree it can't be chosen over the answer in use.
+    if (isImport(finding)) {
+      const dontUse = permissions.canDecline ? (
+        <Button
+          variant="secondary"
+          size="touch"
+          disabled={decision.pending}
+          onClick={() => setAsk({ kind: "decline", finding })}
+        >
+          <XIcon aria-hidden />
+          {IMPORT_COPY.dontUse}
+        </Button>
+      ) : null
+      if (conflict) return dontUse
+      return finding.adoptable === true ? (
+        <>
+          {dontUse}
+          {permissions.canConfirm ? confirmButton(finding) : null}
+        </>
+      ) : (
+        <>
+          {dontUse}
+          {stateHref ? (
+            <Link
+              href={stateHref}
+              className={buttonVariants({ variant: "quiet", size: "touch" })}
+            >
+              {IMPORT_COPY.stateAnswer}
+            </Link>
+          ) : null}
+        </>
+      )
+    }
     if (conflict) {
       // Choosing adopts it too: a policy that still needs content can't be
       // chosen any more than confirmed (§4.4).
@@ -649,6 +708,15 @@ export function DecisionPanel({
       note={unknownNote(finding)}
       actions={actionsFor(finding)}
       policy={policy}
+      importNote={
+        !isImport(finding)
+          ? null
+          : conflict
+            ? IMPORT_COPY.inConflict
+            : finding.adoptable === true
+              ? null
+              : IMPORT_COPY.notAdoptable
+      }
     />
   )
 
@@ -683,6 +751,11 @@ export function DecisionPanel({
       ) : null}
       {readers ? (
         <p className="text-body-touch text-ink md:text-body">{readers}</p>
+      ) : null}
+      {pending.some(isImport) ? (
+        <p className="text-meta-touch text-ink-muted md:text-meta">
+          {IMPORT_COPY.order}
+        </p>
       ) : null}
       {conflict ? (
         <Notice tone="attention" role="note">
@@ -762,16 +835,20 @@ export function DecisionPanel({
         open={ask?.kind === "decline" || ask?.kind === "keep_single"}
         onOpenChange={(open) => !open && setAsk(null)}
         title={
-          ask &&
-          "finding" in ask &&
-          (ask.kind === "keep_single" || ask.finding.disputes)
-            ? "Keep the answer in use?"
-            : "Don't confirm this finding?"
+          ask && "finding" in ask && isImport(ask.finding)
+            ? IMPORT_COPY.dontUseTitle
+            : ask &&
+                "finding" in ask &&
+                (ask.kind === "keep_single" || ask.finding.disputes)
+              ? "Keep the answer in use?"
+              : "Don't confirm this finding?"
         }
         label="Why not?"
         help={
           ask && "finding" in ask
-            ? `${name(ask.finding)} sees this.`
+            ? isImport(ask.finding)
+              ? IMPORT_COPY.dontUseHelp
+              : `${name(ask.finding)} sees this.`
             : undefined
         }
         emptyError="Say why."
@@ -787,11 +864,13 @@ export function DecisionPanel({
             : undefined
         }
         confirmLabel={
-          ask &&
-          "finding" in ask &&
-          (ask.kind === "keep_single" || ask.finding.disputes)
-            ? "Keep the answer in use"
-            : "Don't confirm"
+          ask && "finding" in ask && isImport(ask.finding)
+            ? IMPORT_COPY.dontUse
+            : ask &&
+                "finding" in ask &&
+                (ask.kind === "keep_single" || ask.finding.disputes)
+              ? "Keep the answer in use"
+              : "Don't confirm"
         }
         pendingLabel="Saving…"
         reportFocus={panelHeading}
@@ -954,12 +1033,15 @@ function FindingCard({
   note,
   actions,
   policy,
+  importNote,
 }: {
   finding: PendingFinding
   answer: AnswerInUse
   note: string | null
   actions: React.ReactNode
   policy: PolicyContext | null
+  /** B03-f: why an import can't be used here, when it can't. */
+  importNote: string | null
 }) {
   const titleId = cardId(finding)
   const policyBlock = policyConfirmBlock(finding.policyMissing)
@@ -983,7 +1065,12 @@ function FindingCard({
           >
             {isCurrent
               ? KIND_TITLE[finding.kind]
-              : `${KIND_TITLE[finding.kind]} from ${sender}${finding.senderIsAssignee ? " (assigned)" : ""}`}
+              : isImport(finding)
+                ? IMPORT_COPY.title(
+                    finding.sourceLabel ?? null,
+                    finding.sender?.displayName ?? null
+                  )
+                : `${KIND_TITLE[finding.kind]} from ${sender}${finding.senderIsAssignee ? " (assigned)" : ""}`}
           </h3>
           <StatusChip state="awaiting_confirmation" />
         </div>
@@ -1045,6 +1132,9 @@ function FindingCard({
                       </Fact>
                     ))
                   : null}
+                {isImport(finding) ? (
+                  <Fact term="Checked on">{IMPORT_COPY.checkedOn}</Fact>
+                ) : null}
                 {finding.changeReason ? (
                   <Fact term="What changed">{finding.changeReason}</Fact>
                 ) : null}
@@ -1098,6 +1188,14 @@ function FindingCard({
           <p className="text-body-touch text-ink md:text-body">
             {policyPhotoLine(firstName(finding.sender))}
           </p>
+        ) : null}
+        {isImport(finding) ? (
+          <p className="text-body-touch text-ink md:text-body">
+            {IMPORT_COPY.never}
+          </p>
+        ) : null}
+        {importNote ? (
+          <p className="text-body-touch text-ink md:text-body">{importNote}</p>
         ) : null}
         {note ? (
           <p className="text-body-touch text-ink md:text-body">{note}</p>

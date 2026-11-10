@@ -28,6 +28,7 @@ import type {
   FindingsPage,
   KnowledgeAnswer,
   NoLongerUsedReason,
+  FindingSource,
   PendingFinding,
   PolicyNeed,
   QuestionView,
@@ -310,6 +311,38 @@ function adaptPending(
     ...(Array.isArray(view.policyMissing) && view.detail
       ? { policyDetail: view.detail }
       : {}),
+    ...sourceOf(view),
+  }
+}
+
+const FINDING_SOURCES: readonly FindingSource[] = [
+  "staff_finding",
+  "manager_statement",
+  "legacy_fact",
+  "external_source",
+]
+
+const withoutAdoptable = (s: ReturnType<typeof sourceOf>) => ({
+  ...(s.source ? { source: s.source } : {}),
+  ...(s.sourceLabel ? { sourceLabel: s.sourceLabel } : {}),
+})
+
+/** B03-f: where a finding came from, read defensively (A12, A23). */
+function sourceOf(v: {
+  source?: unknown
+  sourceLabel?: unknown
+  adoptable?: unknown
+}): { source?: FindingSource; sourceLabel?: string; adoptable?: boolean } {
+  const source = (FINDING_SOURCES as readonly unknown[]).includes(v.source)
+    ? (v.source as FindingSource)
+    : undefined
+  if (!source) return {}
+  return {
+    source,
+    ...(typeof v.sourceLabel === "string" && v.sourceLabel
+      ? { sourceLabel: v.sourceLabel }
+      : {}),
+    ...(typeof v.adoptable === "boolean" ? { adoptable: v.adoptable } : {}),
   }
 }
 
@@ -419,6 +452,8 @@ export function adaptToConfirm(
       slotRevision: item.slotRevision,
       waitingSince: item.waitingSince ?? null,
       ...withPolicyMissing(item.policyMissing),
+      // A row only says where it came from; Confirm is the card's to gate.
+      ...withoutAdoptable(sourceOf(item)),
     })),
   }
 }
