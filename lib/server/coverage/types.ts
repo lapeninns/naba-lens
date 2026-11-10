@@ -645,6 +645,11 @@ export type OurMenuItem = {
   /** Pass as `expectedRevision` to review, withdraw or set a primary for this item. */
   itemRevision: number
   review: { candidates: number; oldestCandidateAt: Instant | null } | null
+  /**
+   * The caller's own photos of this item waiting for a decision or a recheck
+   * (any viewer, own photos only). Always set by listOurMenuItems.
+   */
+  myWaiting?: number
 }
 
 /** A labelled photo a reviewer can decide for one item (and variant). */

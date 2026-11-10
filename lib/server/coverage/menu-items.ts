@@ -313,10 +313,47 @@ export async function listOurMenuItems(
   const rows = data ?? []
   const page = rows.slice(0, ITEMS_PAGE)
   const last = rows.length > ITEMS_PAGE ? page[page.length - 1] : null
+  const mine = await myWaitingByItem(
+    actor,
+    venue.venueId,
+    page.map((r) => r.item_id)
+  )
+  if (!mine.ok) return mine
   return {
     ok: true,
-    items: page.map((r) => itemView(r, venue.canReview)),
+    items: page.map((r) => ({
+      ...itemView(r, venue.canReview),
+      myWaiting: mine.byItem.get(r.item_id) ?? 0,
+    })),
     nextCursor: last ? encodeItemCursor(last) : null,
+  }
+}
+
+type WaitingRpc = {
+  rpc(
+    fn: "my_menu_waiting_items",
+    args: { p_venue_id: string; p_item_ids: string[] }
+  ): PromiseLike<{
+    data: { item_id: string; waiting: number }[] | null
+    error: { message?: string; code?: string; details?: string | null } | null
+  }>
+}
+
+/** The caller's own waiting photos per listed item (my_menu_waiting_items). */
+async function myWaitingByItem(
+  actor: MediaActor,
+  venueId: string,
+  itemIds: string[]
+): Promise<CoverageResult<{ byItem: Map<string, number> }>> {
+  if (itemIds.length === 0) return { ok: true, byItem: new Map() }
+  const { data, error } = await (actor.db as unknown as WaitingRpc).rpc(
+    "my_menu_waiting_items",
+    { p_venue_id: venueId, p_item_ids: itemIds }
+  )
+  if (error) return coverageRpcFailure(error, "our menu own waiting")
+  return {
+    ok: true,
+    byItem: new Map((data ?? []).map((r) => [r.item_id, r.waiting])),
   }
 }
 
