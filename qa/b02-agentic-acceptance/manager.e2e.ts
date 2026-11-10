@@ -36,9 +36,21 @@ const OWN_WAITING = '3 of your earlier photos are waiting for an admin';
 const reason = (what: string) => `DEV FIXTURE ${what} (B02 acceptance ${world().tag})`;
 /** The Add host's own library picker; the dish button's click owns what is picked next. */
 const LIBRARY = 'input[type="file"][data-photo-source="library"]';
-/** Local read-only fact the shared Asset row does not carry. */
-const mediaType = (assetId: string) =>
-  json<string>(`select to_json(media_type) from public.media_assets where id = ${uuid(assetId)}`);
+/**
+ * Local read-only fact: a check's contributions with each attached evidence
+ * asset (knowledge_contribution_assets), its author, outcome and venue, and
+ * the asset's own uploader, role and venue. Ids and states only.
+ */
+const evidenceOf = (checkId: string) =>
+  json<{ asset: string; kind: string; by: string; answer: string; outcome: string; venue: string; assetVenue: string; uploader: string; role: string | null }[]>(
+    `select coalesce(json_agg(json_build_object('asset', ca.asset_id, 'kind', ca.evidence_kind, 'by', c.contributed_by,
+        'answer', c.answer, 'outcome', c.initial_outcome, 'venue', c.venue_id, 'assetVenue', a.venue_id,
+        'uploader', a.uploader_id, 'role', a.uploader_role) order by c.created_at, ca.asset_id), '[]')
+      from public.knowledge_contributions c
+      join public.knowledge_contribution_assets ca on ca.contribution_id = c.id and ca.venue_id = c.venue_id
+      join public.media_assets a on a.id = ca.asset_id
+      where c.check_id = ${uuid(checkId)}`,
+  );
 
 describe('B02 manager scope and triage', { serial: true }, () => {
   test('a dedicated manager adds two photos of one dish as a set; they stay private to it until review', async ({ app, browser, screen }) => {
@@ -82,6 +94,28 @@ describe('B02 manager scope and triage', { serial: true }, () => {
     expect(db.rlsVisible(w.managerB.id, ids)).toEqual([]);
     expect(db.acceptedEvents(w.venueA.id, w.managerA.id)).toBe(0);
 
+    // The same group through the actor-scoped read (public.contribution_group
+    // as each viewer): the uploader and an admin get the exact group, venue,
+    // subject and both ready image members in position order, with owner-
+    // relative mine flags; an ordinary colleague, another venue's staff and
+    // another venue's manager get not-found from that same read.
+    const groupId = groups[0]!.id;
+    const ordered = groups[0]!.members.map((m) => m.asset);
+    const seenAs = (mine: boolean) => ({
+      groupId,
+      venueId: w.venueA.id,
+      mine,
+      subject: { kind: 'menu_item', id: w.items.A.lager, name: DISH.lager },
+      members: ordered.map((assetId, i) => ({ assetId, position: i + 1, mediaType: 'image', uploadState: 'ready', mine })),
+    });
+    expect(db.groupFor(w.managerA.id, groupId)).toMatchObject(seenAs(true));
+    expect(db.groupFor(w.managerA.id, groupId)!.members).toHaveLength(2);
+    expect(db.groupFor(w.admin.id, groupId)).toMatchObject(seenAs(false));
+    expect(db.groupFor(w.admin.id, groupId)!.members).toHaveLength(2);
+    for (const outsider of [w.staffTriage, w.staffB, w.managerB]) {
+      expect(db.groupFor(outsider.id, groupId)).toBeNull();
+    }
+
     // My uploads lists the two; its staff-era photo (Garlic Naan) stays hidden.
     await app.open('/manager/uploads');
     await expect(screen.getByRole('heading', 'My uploads', { level: 1 })).toBeVisible();
@@ -112,16 +146,18 @@ describe('B02 manager scope and triage', { serial: true }, () => {
     await sheet.getByRole('button', 'Done', { exact: true }).tap();
 
     const [video] = db.assets(w.managerA.id, file);
-    expect(db.assets(w.managerA.id, file).map(({ state, role, venue, deleted }) => ({ state, role, venue, deleted }))).toEqual([
-      { state: 'ready', role: 'manager', venue: w.venueA.id, deleted: false },
+    // Stored as a video (the shared row's mediaType), in the manager role, at venue A.
+    expect(db.assets(w.managerA.id, file).map(({ mediaType, state, role, venue, deleted }) => ({ mediaType, state, role, venue, deleted }))).toEqual([
+      { mediaType: 'video', state: 'ready', role: 'manager', venue: w.venueA.id, deleted: false },
     ]);
-    expect(mediaType(video!.id)).toBe('video');
     expect(db.groupsOf([video!.id])).toEqual([]);
 
     // -- Own label, from My uploads.
     await app.open('/manager/uploads');
     const mine = screen.getByRole('list', 'My uploads');
-    const row = mine.getByRole('listitem').filter({ has: mine.getByRole('heading', 'Video', { level: 3 }) });
+    // Page-relative inner heading: filter({ has }) resolves it from each row.
+    const row = mine.getByRole('listitem').filter({ has: screen.getByRole('heading', 'Video', { level: 3 }) });
+    await expect(row).toHaveCount(1);
     await expect(row.getByText('Labels: Needs labels')).toBeVisible();
     await row.getByRole('button', 'Add labels').tap();
     const editor = screen.getByRole('dialog', 'Labels');
@@ -256,7 +292,7 @@ describe('B02 manager scope and triage', { serial: true }, () => {
     await expect(ad.getByText(/of your earlier photos/)).toHaveCount(0);
   });
 
-  test('the one-account venue\'s manager confirms its own step-free finding', async ({ app, browser, screen }) => {
+  test('the one-account venue\'s manager confirms its own step-free finding, and answers Yes for toilets only with its own new photo', async ({ app, browser, screen }) => {
     const w = world();
     const check = w.checks.solo.step_free_entrance;
     await signInAs(app, browser, w.managerSolo);
@@ -284,6 +320,70 @@ describe('B02 manager scope and triage', { serial: true }, () => {
     // The submission is the manager's own; a manager account is no target
     // participant, so no staff completion credit follows from it.
     expect(db.submissions(check)).toEqual([{ answer: 'no', by: w.managerSolo.id }]);
+    expect(evidenceOf(check)).toEqual([]);
+
+    // -- An eligible check with actual manager-era evidence: guest toilets.
+    // Its catalogue rule needs a photo for Yes (any role) and no confirmation,
+    // so a manager's Yes is current at once (amenity_catalogue.csv; B01
+    // question policy). The file is the run's own fixture, uploaded here by
+    // this account for the first time (a unique actor and file name).
+    const toilets = w.checks.solo.guest_toilets;
+    const photo = w.media.manager[1];
+    const photoName = basename(photo);
+    expect(db.assets(w.managerSolo.id, photoName)).toEqual([]);
+    await app.open(`/manager/amenities/${toilets}/capture`);
+    await expect(screen.getByRole('heading', QUESTION.guest_toilets, { level: 1 })).toBeVisible();
+    await expect(screen.getByText('What you send becomes the venue\'s answer straight away.')).toBeVisible();
+    await expect(screen.getByRole('radio', 'I confirm it now')).toHaveCount(0);
+    await screen.getByRole('radio', 'Yes').check();
+
+    // Refused without evidence, in place: nothing is sent or persisted.
+    await screen.getByRole('button', 'Submit finding').tap();
+    await expect(screen.getByText('Add a photo to answer Yes. Required: Photo.', { exact: true })).toBeVisible();
+    await expect(browser).toHaveURL(`/manager/amenities/${toilets}/capture`);
+    expect(db.contributions(toilets)).toEqual([]);
+    expect(db.submissions(toilets)).toEqual([]);
+    expect(db.drafts(toilets)).toBe(0);
+    expect(evidenceOf(toilets)).toEqual([]);
+
+    // The manager's own new photo, uploaded from the form; ready, it is selected.
+    await screen.getByRole('button', 'Choose from your photos').tap();
+    await browser.locator(LIBRARY).setInputFiles(photo);
+    const sheet = screen.getByRole('dialog', 'Saving 1 photo');
+    await expect(sheet.getByRole('status')).toHaveText('1 saved', { timeout: 120000 });
+    await sheet.getByRole('button', 'Done', { exact: true }).tap();
+    const uploaded = db.assets(w.managerSolo.id, photoName);
+    expect(uploaded.map(({ mediaType, state, role, venue, deleted }) => ({ mediaType, state, role, venue, deleted }))).toEqual([
+      { mediaType: 'image', state: 'ready', role: 'manager', venue: w.venueSolo.id, deleted: false },
+    ]);
+    const evidence = uploaded[0]!.id;
+    const picker = screen.getByRole('list', 'Your photos and videos');
+    await expect(picker.getByRole('checkbox', /^Photo added /)).toHaveCount(1);
+    await expect(picker.getByRole('checkbox', /^Photo added /)).toBeChecked({ timeout: 30000 });
+    // The visible rule line (an sr-only live region repeats the same words).
+    await expect(screen.getByTestId('evidence-rule-status')).toHaveText('Evidence rule met: Photo.');
+
+    // Sent once, with that exact photo as its evidence.
+    await screen.getByRole('button', 'Submit finding').tap();
+    await expect(browser).toHaveURL(`/manager/amenities/${toilets}?finding_sent=${toilets}`, { timeout: 30000 });
+    const sent = screen.getByRole('status').filter({ hasText: 'Finding sent' });
+    await expect(sent).toContainText(`${QUESTION.guest_toilets} It's now the venue's answer.`);
+    expect(db.contributions(toilets)).toEqual([{ by: w.managerSolo.id, kind: 'finding', answer: 'yes', outcome: 'current' }]);
+    expect(evidenceOf(toilets)).toEqual([
+      {
+        asset: evidence,
+        kind: 'photo',
+        by: w.managerSolo.id,
+        answer: 'yes',
+        outcome: 'current',
+        venue: w.venueSolo.id,
+        assetVenue: w.venueSolo.id,
+        uploader: w.managerSolo.id,
+        role: 'manager',
+      },
+    ]);
+    expect(db.submissions(toilets)).toEqual([{ answer: 'yes', by: w.managerSolo.id }]);
+    expect(db.slot(w.venueSolo.id, 'guest_toilets')).toMatchObject({ status: 'available', value: 'yes', confirmation_state: 'not_required' });
 
     // Nothing waits at a venue with no one else.
     await app.open('/manager');
