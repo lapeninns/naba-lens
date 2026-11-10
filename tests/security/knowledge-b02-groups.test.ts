@@ -262,25 +262,21 @@ describe("contribution groups (W1)", () => {
     expect(
       (await view(w.staffA, g)).members.map((m) => m.assetId).sort()
     ).toEqual([general, evidence].sort())
-    // A colleague sees exactly what community Photos already shows them.
-    const after = await communityVisible(w.staffB, [general, evidence])
-    expect(after).toEqual(before)
-    const colleague = await call(w.staffB, "contribution_group", {
-      p_group_id: g,
-    })
-    if (after.size === 0) {
-      expect(colleague.error?.message).toBe("contribution_group_not_found")
-    } else {
-      expect(
-        (colleague.data as GroupView).members.map((m) => m.assetId).sort()
-      ).toEqual([...after].sort())
-    }
+    // A colleague sees the general photo, as community Photos already
+    // shows it, and never the amenity evidence; grouping changed neither.
+    expect([...before]).toEqual([general])
+    expect([
+      ...(await communityVisible(w.staffB, [general, evidence])),
+    ]).toEqual([general])
+    const colleague = await view(w.staffB, g)
+    expect(colleague.members.map((m) => m.assetId)).toEqual([general])
+    expect(colleague.mine).toBe(false)
     const lookup = await json<{ asset_id: string; group_id: string }[]>(
       w.staffB,
       "contribution_groups_for_assets",
       { p_asset_ids: [general, evidence] }
     )
-    expect(lookup.map((r) => r.asset_id).sort()).toEqual([...after].sort())
+    expect(lookup).toEqual([{ asset_id: general, group_id: g }])
 
     // Another venue's staff see nothing.
     await refused(
