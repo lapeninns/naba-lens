@@ -687,7 +687,7 @@ export const METRICS: readonly MetricDefinition[] = [
     family: "delivery",
     title: "NabaPresence states",
     definition:
-      "Latest provider receipt per destination, venue, field key and publication revision, from knowledge_publication_events provider kinds written through POST /api/knowledge/v1/receipts (B07-05 §7.2). These mirror NabaPresence's suggestion statuses and closing states (B07 §7.1). Also the open source-withdrawn review items (B07 §7.3). NabaLens never queries NabaPresence's database.",
+      "Latest provider receipt per destination, venue, field key and publication revision, from knowledge_publication_events provider kinds written through POST /api/knowledge/v1/receipts (B07-05 §7.7): provider_received, provider_awaiting_review, provider_approved, provider_sent, provider_confirmed, provider_rejected, provider_failed, provider_uncertain, provider_closed. These mirror NabaPresence's suggestion statuses and closing states (B07 §7.1). Only provider_confirmed means NabaPresence's readback showed the value; provider_sent and the earlier kinds are queued or sent work, not confirmation. A receipt may carry providerDetail: behind_in_flight, source_changed_during_flight or source_withdrawn_during_flight. provider_closed carries closeReason: already_satisfied, unsupported, not_linked, superseded, withdrawn_at_source or epoch_reset. Also the open source-withdrawn review items (B07 §7.5). NabaLens never queries NabaPresence's database.",
     headline:
       "Uncertain receipts past the confirmation window, failed receipts and source-withdrawn items older than 7 days",
     unit: "count",
@@ -697,7 +697,7 @@ export const METRICS: readonly MetricDefinition[] = [
       ref: "knowledge_publication_events provider kinds (B07-05)",
     },
     availableFrom: "B07",
-    ownerInputs: ["B07 draft 2 final receipt states", "X6"],
+    ownerInputs: ["X6"],
     owners: ["WS5"],
     threshold: {
       text: "Uncertain past the confirmation window, any failed, or a source-withdrawn item older than 7 days: warning",
