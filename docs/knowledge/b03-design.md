@@ -39,7 +39,7 @@ owner decisions (§11); B01 and B02 sections are cited as "B01 §n" and
 
 | Task   | Proposal                                                                                                                                                                                                                     | New database objects                                                              | Behaviour change by default                                       |
 | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| B03-01 | A versioned question registry: one row per question key, one per version (value schema, guidance, evidence and confirmation rule, sensitivity, freshness, ownership). All 39 catalogue keys mapped, plus four proposed keys. | 2 tables, 1 validation function, seed                                             | None: version 1 of every key restates today's catalogue and rules |
+| B03-01 | A versioned question registry: one row per question key, one per version (value schema, guidance, evidence and confirmation rule, sensitivity, freshness, ownership). All 39 catalogue keys mapped, plus five proposed keys. | 2 tables, 1 validation function, seed                                             | None: version 1 of every key restates today's catalogue and rules |
 | B03-02 | Facility and accessibility detail on a contribution: scope (which entrance or area), availability, fees, measurements only when supplied, limitations. No key certifies a whole venue.                                       | Subjects table, contribution detail table, schema validators                      | Only for keys moved to a detail version (OD-12)                   |
 | B03-03 | Policy values with zones, typed conditions, exceptions and the confirming authority. A policy missing a required condition or authority can't become publishable.                                                            | Policy schema, publishability check, error `policy_incomplete`                    | Only for policy keys moved to version 2                           |
 | B03-04 | Services and schedules in a venue timezone, with effective dates, weekly or monthly recurrence and dated exceptions. Sport is split into screens, subscriptions and fixture showings.                                        | Schedules, schedule exceptions, occurrence read, 4 proposed keys                  | None until the new keys are enabled                               |
@@ -100,8 +100,6 @@ public.knowledge_questions                        -- one row per key; never dele
   family text in ('presence', 'facility', 'accessibility', 'policy',
                   'service', 'schedule_event', 'connectivity')
   subject_type text in ('venue')                  -- §2; widened per key later
-  lifecycle text in ('supported', 'presence_only', 'unsupported', 'superseded', 'retired')
-  superseded_by text[]                            -- keys that replace it, when superseded
   owner_role text in ('venue_manager', 'admin')   -- who keeps the answer current
   created_at, created_by
 
@@ -117,7 +115,10 @@ public.knowledge_question_versions                -- append-only
   sensitivity text in ('ordinary', 'sensitive_claim', 'restricted_detail')
   freshness jsonb                                 -- { internal: policy id | null, public: policy id | null } (§7)
   publishable_fields text[] not null default '{}' -- empty until B06 grants (access-and-rights §8)
-  material_fields text[]                          -- fields whose change invalidates a confirmation (§9.2)
+  material_fields text[]                          -- fields whose change invalidates a confirmation (§9.1)
+  requires_zones boolean not null default false   -- policy keys: zones needed for completeness (§5.2)
+  lifecycle text in ('supported', 'presence_only', 'unsupported', 'superseded', 'retired')
+  superseded_by text[] null                       -- keys that replace it, when superseded
   effective_from timestamptz
   change_kind text in ('initial', 'wording', 'rule', 'schema', 'lifecycle')
   change_note text, created_at, created_by
@@ -131,7 +132,16 @@ public.knowledge_question_versions                -- append-only
 - `knowledge_question_rules` stays the confirmation source the B01 functions
   read. A registry version records which `rule_version` it restates. B03
   migrations that change a rule add both rows in one migration, and a test
-  pins that they agree (§3.6).
+  pins that they agree (§3.7).
+- **Confirmation mapping.** The B01 functions read only
+  `knowledge_question_rules.confirmation` (`none` or `venue_manager`).
+  Registry `none` and `venue_manager` map to the same rule value.
+  `policy_authority` maps to `venue_manager` in the rule row, and the
+  policy completeness check (§5.2) adds the recorded authority on top.
+  `admin` needs a new rule value `admin`: B03-c adds it to the rule
+  table's check and re-creates `knowledge_decide` and
+  `knowledge_resolve_conflict` so a venue manager's confirmation is refused
+  where the rule names an admin. A test pins the mapping for every key.
 - **Proposed keys** (B03-04 and B03-02) are added to `amenity_catalogue`
   through its CSV first, so every registry key is a catalogue key. Adding a
   key is an owner decision (OD-11).
@@ -145,9 +155,11 @@ public.knowledge_question_versions                -- append-only
     answers stay readable under their version; new contributions go to the
     new keys.
   - `retired`: no longer asked anywhere; history kept.
-    Moving a key to `unsupported`, `superseded` or `retired` is an owner
-    decision and a migration (OD-11). The working-list function refuses keys
-    that are not `supported` or `presence_only`.
+    Lifecycle and `superseded_by` are fields of the version, so moving a
+    key to `unsupported`, `superseded` or `retired` is a new version
+    (`change_kind = 'lifecycle'`), an owner decision and a migration
+    (OD-11). The working-list function refuses keys whose latest version is
+    not `supported` or `presence_only`.
 
 ### 3.3 Value schemas (closed set, versioned in code and SQL)
 
@@ -170,8 +182,9 @@ public.knowledge_question_versions                -- append-only
   a B01 answer plus detail, so no enum or check constraint on
   `amenity_submissions` changes (B01 §2.2): Conditional is answer `yes` with
   `detail.stance = 'conditional'`; Temporarily unavailable is answer `yes`
-  with `detail.availability.state = 'temporarily_unavailable'`. The resolver
-  reads the detail; the legacy check value stays meaningful for old readers.
+  with `detail.availability.state = 'temporarily_unavailable'`. The stored
+  `yes` is therefore not safe to show on its own: §3.8 specifies what each
+  existing consumer returns for these qualified answers.
 - Free text stays internal (`staff_text_internal`) until a reviewed public
   field exists (B06).
 
@@ -266,8 +279,8 @@ supersede.
   `publishable_fields`. Nothing reads the registry yet, so behaviour is
   unchanged.
 - Later batches add version 2 rows per key as each family is enabled
-  (§12). The lifecycle column changes only through a version row with
-  `change_kind = 'lifecycle'`, never by update.
+  (§12). Version rows are never updated; a lifecycle change is a new version
+  with `change_kind = 'lifecycle'`.
 - Rollback: the tables are additive; dropping the B03 readers returns to
   the B01 view. Version rows are never deleted.
 
@@ -283,6 +296,41 @@ supersede.
   fixture set, including every invalid case.
 - A working-list enable of an `unsupported`, `superseded` or `retired` key
   is refused (`knowledge_key_not_supported`, new `NL` code).
+
+### 3.8 Qualified answers and existing consumers (review M1)
+
+A **qualified answer** is a current answer stored as B01 `yes` whose detail
+narrows it: a policy with `stance = 'conditional'`, or a facility or service
+with `availability.state = 'temporarily_unavailable'`. Every other B03
+headline has an exact B01 equivalent (Not offered and Not committed are
+`no`; Cancelled is `no` with detail), so only these two need a rule. The
+resolver gains a `qualifier` column (`conditional`,
+`temporarily_unavailable` or null); no stored row changes.
+
+What each existing consumer returns for a qualified answer:
+
+| Consumer                                                                                                                                              | Today                                 | For a qualified answer                                                                                                                                                                                                                                                                                                                                                          |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `public.knowledge_reader_answers_v1` (internal reader, WS5)                                                                                           | `status = available`, `value = yes`   | **Withheld:** `status = 'unavailable'`, `reason = 'stale'`, `detail = 'qualified_answer'`, `value` null and no detail fields. v1 never reports a qualified answer as Yes. A later reader version (WS5, B06) returns the qualifier and detail.                                                                                                                                   |
+| `private.knowledge_slot_json`, so `knowledge_working_list`, `knowledge_check` and `knowledge_to_confirm` (staff and manager screens)                  | `answerInUse.value = yes`, available  | The B01 fields read as **needs checking**: `status = 'unavailable'`, `reason = 'stale'`, `detail = 'qualified_answer'`, `answerInUse.available = false`. A new `answerInUse.qualified` object (`{ qualifier, detail }`, audience-filtered as §4.5) carries the real answer for B03-aware screens. A screen that ignores the new object shows needs checking, never a plain Yes. |
+| Legacy check reads: `amenity_venue_state`, `amenity_checks_for_venue`, `amenity_check`, `amenity_check_submissions`, and `lib/server/amenities` views | `answer = yes`, `progress = complete` | Stored rows unchanged (`answer = 'yes'`, `progress = 'complete'`; no credit input moves). The read functions are re-created to present the check as `progress = 'needs_recheck'` with `recheck_reason` "This answer has conditions. Open it under Knowledge." Only the presented value changes.                                                                                 |
+| Coverage, menus, credit                                                                                                                               | Do not read answer values             | Unchanged.                                                                                                                                                                                                                                                                                                                                                                      |
+
+- **Gate.** A key may move to a version whose schema allows a qualifier
+  (`policy.v1`, `facility.v1`, `accessibility.v1`, `service.v1`) only in a
+  migration that also re-creates the three consumers above, or after one
+  already has. Until then the validator refuses `conditional` and
+  `temporarily_unavailable` for that key.
+- **Tests.** For a Conditional `dogs_inside` and a temporarily unavailable
+  `outdoor_heating`:
+  - the v1 reader returns unavailable / stale / `qualified_answer` with a
+    null value;
+  - `knowledge_check` shows needs checking in the B01 fields and the
+    qualifier in `answerInUse.qualified`;
+  - every legacy read presents `needs_recheck` while psql shows the stored
+    row still `yes` / `complete`;
+  - the credit hash and C-tests are unchanged;
+  - a plain Yes on the same keys reads exactly as today in all three.
 
 ---
 
@@ -332,12 +380,20 @@ public.knowledge_subjects                         -- append-only; retire, never 
   toilets, seating or other entrances. Readers (internal now, public in B06)
   must show the scope with the answer; the reader allowlist carries `scope`
   wherever it carries the value.
-- A Yes on `step_free_entrance` never changes any other accessibility key,
-  and a No on one entrance does not mean no entrance is step-free when other
-  entrances exist: the headline is "at least one observed entrance is
-  step-free" (Yes), "every entrance the venue lists was observed with steps"
-  (No, requires every entrance subject to be in the detail), otherwise
-  Unknown. A test pins this.
+- A Yes on `step_free_entrance` never changes any other accessibility key.
+- **The headline is checked when it is sent**, never overridden later.
+  `knowledge_submit` (and `knowledge_correct`) validate a
+  `step_free_entrance` value against the venue's active entrance subjects
+  at send time:
+  - **Yes** needs at least one entrance in the detail observed step-free;
+  - **No** needs at least one active entrance subject at the venue, and
+    every active entrance subject listed in the detail as observed with
+    steps;
+  - **Unknown** is always accepted;
+  - anything else is refused with `invalid_value` naming `entrances`.
+- The resolver reports the headline as sent. If a manager adds an entrance
+  subject after a No, the No is not rewritten: a `scope_changed` recheck
+  opens (§7.4).
 
 ### 4.4 Storage
 
@@ -374,8 +430,11 @@ public.knowledge_contribution_details             -- append-only
 - Tests:
   - an entrance-only observation never changes another accessibility key and
     no reader output contains a venue-wide accessibility value;
-  - the No rule needs every listed entrance; with an entrance missing from the
-    detail the headline is Unknown;
+  - a No is refused when the venue has no entrance subject, or when any
+    active entrance subject is missing from the detail; a Yes is refused
+    without a step-free entrance in the detail; Unknown is accepted;
+  - adding an entrance subject after a No leaves the No as sent and opens one
+    `scope_changed` recheck;
   - a measurement without `measuredOn` and `method` is refused;
   - "Not checked" survives a round trip and is not shown as No;
   - an old answer without detail reads as `not_recorded`;
@@ -414,7 +473,7 @@ missing for the answer in use:
 
 - a stance other than Unknown;
 - for `conditional`, at least one condition;
-- every zone the question version requires (`requires_zones`, per key);
+- zones, when the question version sets `requires_zones`;
 - a confirmation by the authority the version names (`policy_authority`:
   venue manager by default, admin when `policyScope = 'organisation'`;
   OD-14);
@@ -439,6 +498,8 @@ contribution with a photo on `dogs_inside` stays awaiting confirmation, and
   `knowledge_decisions.decider_basis`, `self_confirmed`) plus
   `authority.source`. A manager's own statement may be self-confirmed where
   the rule allows (B01 default for dogs keys).
+- `policy_authority` maps to the B01 rule as §3.2 describes: venue
+  manager in `knowledge_question_rules`, plus the recorded authority.
 - Organisation-level policies (a group-wide rule) need an admin and apply to
   every venue only when each venue's slot adopts the same contribution; there
   is no cascading write (OD-14).
@@ -483,6 +544,9 @@ public.knowledge_schedule_exceptions              -- append-only
   expands a schedule with its exceptions in the schedule's timezone, so a
   window crossing a clock change keeps its local times. At most 92 days per
   call.
+- **`effective_to` has one meaning:** the last local date the service is
+  offered. From the next day the service reads Not offered, as the venue
+  stated. It is never staleness and never drives freshness (§7.1).
 - A schedule is stated by a contribution and becomes current with it, so the
   B01 decisions (confirm, decline, dispute) apply. A changed schedule is a
   new version that supersedes the old one from its `effective_from`; the old
@@ -493,8 +557,10 @@ public.knowledge_schedule_exceptions              -- append-only
 `sunday_roast` (when added): `service.v1` Offered, with a weekly schedule on
 Sundays, the window the venue states, `effective_from` the date it starts,
 optionally `effective_to`. A dated exception (`cancelled` on one Sunday)
-removes that occurrence only. After `effective_to` the service reads as
-"Not offered from {date}" and opens a recheck (§7) rather than going silent.
+removes that occurrence only. From the day after `effective_to` the service
+reads Not offered (§6.1). A `schedule_ended` recheck task asks the manager
+whether it continues under a new schedule; until someone answers, the
+reading stays Not offered, which is what the venue said.
 The times, start date and exceptions are all venue-supplied (§10).
 
 ### 6.3 Takeaway and entertainment
@@ -557,7 +623,7 @@ public.knowledge_freshness_policies               -- append-only versions
   claim_class text in ('fixture', 'offering', 'schedule', 'policy', 'accessibility', 'event')
   use text in ('internal', 'public')
   max_age interval, recheck_lead interval
-  basis text in ('observed_on', 'confirmed_at', 'effective_to', 'event_end')
+  basis text in ('observed_on', 'stated_on', 'event_end')
   created_at, created_by, note
 ```
 
@@ -567,13 +633,15 @@ Proposed defaults, all **owner to confirm** (OD-15); none is a venue fact:
 | --------------- | ---------------------------------- | ----------------- | ----------------- | ------------ |
 | `fixture`       | `observed_on`                      | 365 days          | 180 days          | 30 days      |
 | `offering`      | `observed_on`                      | 90 days           | 60 days           | 14 days      |
-| `schedule`      | `effective_to`, else `observed_on` | 90 days           | 30 days           | 14 days      |
-| `policy`        | `confirmed_at`                     | 180 days          | 90 days           | 30 days      |
+| `schedule`      | `observed_on`                      | 90 days           | 30 days           | 14 days      |
+| `policy`        | `stated_on` (`authority.statedOn`) | 180 days          | 90 days           | 30 days      |
 | `accessibility` | `observed_on`                      | 180 days          | 90 days           | 30 days      |
 | `event`         | `event_end`                        | ends at the event | ends at the event | none         |
 
 A question version names one policy per use, or none (`unrated`, today's
-behaviour for every key).
+behaviour for every key). A policy's freshness runs from the date the
+authority stated it (`authority.statedOn`), not from when a manager pressed
+confirm. `effective_to` never drives freshness: it ends a service (§6.1).
 
 ### 7.2 Observation date
 
@@ -582,9 +650,15 @@ behaviour for every key).
   choose an earlier date up to 30 days back (OD-15). It is recorded as
   stated, by the person, never inferred from upload, save, file metadata or
   migration times (plan §16).
-- Without `observed_on`, a policy based on it treats the answer as
-  `unrated` for that use: no expiry, and the reader says so. It never falls
-  back to a save time.
+- The contribution also records `observed_on_source`: `form_default`
+  when the person left today's date, `chosen` when they set it. Both count
+  as the basis by default; OD-15 decides whether `form_default` should.
+- **A missing basis never means "never expires".** On a key whose version
+  names a freshness policy for a use, an answer without its basis date
+  (`observed_on`, or `authority.statedOn` for policies) reads
+  `unavailable / stale / basis_missing` for that use, and a
+  `basis_missing` recheck opens. This includes answers given before the key
+  gained a policy. Only keys with no policy for that use are `unrated`.
 
 ### 7.3 Read-time computation
 
@@ -593,7 +667,8 @@ behaviour for every key).
   version, the policy and the dates, at read time. A late job can never keep
   an expired answer eligible.
 - An expired answer for a use reads as `unavailable / stale / expired` for
-  that use. The value is kept and shown to managers as the previous answer;
+  that use, and an answer with no basis date reads
+  `unavailable / stale / basis_missing` (§7.2). The value is kept and shown to managers as the previous answer;
   nothing is cleared or deleted.
 - The B01 reader's `freshness_state` and `next_check_due` columns already
   exist and are `unrated`/null. Filling them, and expiry changing status,
@@ -606,7 +681,8 @@ behaviour for every key).
 ```text
 public.knowledge_recheck_tasks
   id uuid pk, venue_id, check_id
-  cause text in ('due_soon', 'expired', 'schedule_ended', 'temporary_until_passed', 'evidence_lost', 'schema_changed')
+  cause text in ('due_soon', 'expired', 'basis_missing', 'schedule_ended', 'temporary_until_passed',
+                 'evidence_lost', 'schema_changed', 'scope_changed')
   due_at timestamptz, use text
   owner_role text, assignee_id uuid null           -- the existing assignment flow assigns it
   state text in ('open', 'done', 'cancelled'), closed_by uuid null, closed_at null
@@ -616,8 +692,13 @@ public.knowledge_recheck_tasks
 
 - A scheduled job (the existing internal cleanup route's pattern, run by the
   same scheduler) calls `private.knowledge_open_rechecks(p_now)` every hour;
-  it is idempotent by the unique key. A new contribution on the check closes
-  open tasks (`done`), recording which contribution closed them.
+  it is idempotent by the unique key.
+- **Closing (review M4).** A task closes (`done`) only when the resolver
+  reads the slot current and fresh again for the task's use, checked by
+  `private.knowledge_close_rechecks(p_check_id)` after every adoption,
+  confirmation and reaffirmation, and by the hourly job. A contribution that
+  is still awaiting confirmation, or that is declined, leaves the task open.
+  The task records the decision that satisfied it.
 - Tasks are owned by the question's `owner_role` at the venue (venue manager
   by default) and appear in B02's manager triage as a fourth queue
   (`rechecks`), which re-creates B02's `manager_triage_summary` in a new
@@ -630,8 +711,14 @@ public.knowledge_recheck_tasks
 - An answer one second past `max_age` reads expired with the job stopped.
 - Expiry keeps the value for managers and opens exactly one task, even when
   the job runs twice.
-- A contribution closes the task and makes the answer current again.
-- No `observed_on`: unrated, never expired by save time.
+- A contribution awaiting confirmation leaves the task open; when it is
+  declined the task stays open; when it is confirmed (or adopted on a key
+  needing no confirmation) and fresh, the task closes.
+- No basis date on a key with a policy: `basis_missing` for that use and one
+  recheck, never "never expires"; on a key without a policy: unrated.
+- A policy's age runs from `authority.statedOn`, not from its confirmation
+  time.
+- `observed_on_source` is recorded as `form_default` or `chosen`.
 - Internal current while public expired for the same answer.
 - The four pilot keys are unchanged (no policy).
 
@@ -666,12 +753,23 @@ public.knowledge_reconciliation_runs
 ### 8.2 Rules
 
 - **Nothing becomes current by itself.** An applied mapping or an imported
-  assertion creates a B01 contribution with `contributor_basis =
-'legacy_fact'` or `'external_source'` (an additive value in the
-  `knowledge_contributions` check, in a new migration), answer from the
-  source, `observed_on` null, awaiting confirmation. A manager decides it
-  with B01's decisions. A confirmation is never copied from the source
-  (`identities.md` §7).
+  assertion creates a B01 contribution with `contributor_basis` set to
+  `legacy_fact` or `external_source` (additive values in the
+  `knowledge_contributions` check, in a new migration), the answer from the
+  source and `observed_on` null. A confirmation is never copied from the
+  source (`identities.md` §7).
+- **Always awaiting confirmation (review L4).** An imported proposal never
+  completes automatically, whatever the key's rule says
+  (`unassigned_auto_complete` never applies). A manager or admin decides it
+  with B01's decisions.
+- **Sender and D3.** The contribution's `contributed_by` is the admin who
+  ran the apply. Staff see "Imported from {source label}" with no person's
+  name; managers and admins also see the admin's name and the run.
+- **Only onto an empty slot (review M3).** An import can be adopted only on
+  a slot with no current answer. Where the slot has one, an agreeing import
+  is recorded as `seen` (corroboration) and a disagreeing one opens the
+  dispute (below); choosing the import over the answer in use is refused by
+  default (OD-19). This keeps imports out of credit (§9.6).
 - **Legacy facts.**
   - `presence = 'unknown'` maps to nothing ("not checked", not "unable to
     establish").
@@ -684,6 +782,12 @@ public.knowledge_reconciliation_runs
     proposal (`limitations`), never structured detail.
   - Legacy keys with no knowledge meaning (`exterior_signage`, `entrance`,
     `dining_area`, `service_area`, `bar_area`) are `none`.
+  - **Every legacy row stays readable (review L5).**
+    `public.knowledge_legacy_narrative(p_venue_id)` (manager or admin)
+    returns each legacy fact as historical narrative, whatever its mapping
+    (`exact`, `candidate` or `none`): key, presence, `facts` and
+    `policy` text, and `confirmed_at` labelled "saved as confirmed in
+    Coverage", never as a knowledge confirmation.
 - **External sources.** An import reads a declared source, records each
   assertion with its `source_revision`, and proposes it. A second import of
   the same revision is a no-op; a changed revision adds new assertions and
@@ -718,8 +822,13 @@ public.knowledge_reconciliation_runs
 - Apply twice creates the proposals once.
 - A source and a finding that disagree read as disputed until decided; both
   remain in history after the decision.
-- Credit hash and C-tests unchanged (proposals are not credit inputs; only
-  B01 adoption is).
+- An imported proposal on a confirmation-free key still awaits
+  confirmation; staff see the source label and no name.
+- An import on a slot with a current answer cannot be adopted (C-B03-4);
+  an agreeing one is recorded as seen.
+- A `none` mapping's legacy text is returned by
+  `knowledge_legacy_narrative`.
+- Credit hash and C-tests unchanged (C-B03-4, §9.6).
 
 ---
 
@@ -728,15 +837,20 @@ public.knowledge_reconciliation_runs
 ### 9.1 Corrections
 
 - `public.knowledge_correct(p_check_id, p_slot_revision, p_idempotency_key, p_headline, p_detail, p_reason)`:
-  manager or admin. Creates a contribution of kind `correction` and adopts
-  it through B01's path, with a decision that records `before` and `after`
-  (headline and detail) and `selection_rule = 'correction'`.
+  a manager account or an admin. Staff, including staff holding a legacy
+  grant, cannot correct; they send a change report (B01). The grant holders
+  are excluded because they are credit participants (§9.6).
 - A correction to a **material field** (`material_fields` of the version;
-  the headline is always material) invalidates the previous confirmation:
-  the new answer needs confirmation by its rule. A correction to a
-  non-material field (a typo in internal text) keeps the confirmation and
-  records `material = false`.
-- Staff cannot correct; they send a change report (B01).
+  the headline is always material) creates a contribution of kind
+  `correction` and adopts it through B01's path, with a decision recording
+  `before` and `after` (headline and detail) and
+  `selection_rule = 'correction'`. It invalidates the previous
+  confirmation: the new answer needs confirmation by its rule. The new
+  submission's `submitted_by` is the corrector.
+- A correction to a non-material field (a typo in internal text) creates no
+  submission: a decision with `material = false`, `before` and `after`,
+  and a detail row the resolver reads for the current answer. The
+  confirmation stays.
 - Schema: `correction` is an additive value in the `knowledge_contributions`
   kind check, and `before`, `after`, `material` and `selection_rule` go
   in the decision's `detail`, both in a new migration.
@@ -746,8 +860,8 @@ public.knowledge_reconciliation_runs
 - `public.knowledge_withdraw(p_check_id, p_slot_revision, p_idempotency_key, p_reason)`:
   manager or admin. Records a `withdrawn` decision; the resolver reads the
   slot as `unavailable / withdrawn / answer_withdrawn` (B01's state) without
-  changing `amenity_submissions` or the check's progress, so no credit input
-  moves. The value stays in history. A later contribution can make a new
+  changing `amenity_submissions`, the check's progress or
+  `amenity_check_events`, so no credit input moves (§9.6). The value stays in history. A later contribution can make a new
   answer current.
 - Schema: `withdrawn` is an additive value in the `knowledge_decisions`
   decision check, and the resolver gains one branch for it, in a new
@@ -785,12 +899,47 @@ public.knowledge_reconciliation_runs
   `amenity_conflict`; a retry with the same key replays.
 - Lock order is B01's (profile, key, assets, check).
 
-### 9.6 Tests
+### 9.6 Credit effects (review M3)
+
+The credit count gives one unit per check per London month to the
+`submitted_by` of the check's latest `submitted` answer in that month
+(`private.monthly_venue_completion_counts`, unchanged; hash
+`b78b9daeb8ede1fec0b7224d99348659`). Only staff with a venue membership in
+the month are participants. B03 does not change that function, so each path
+is designed around it:
+
+| Path                                    | Creates a submission?                 | `submitted_by`                               | New unit for anyone                                                                                                 | Effect on the earlier answer's author                                                                                                                                           |
+| --------------------------------------- | ------------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Material correction (§9.1)              | Yes, through B01 adoption             | The corrector: a manager account or an admin | None: neither is a participant. Staff holding a legacy grant may not correct (§9.1), because they are participants. | Closed months unchanged. In the same London month the author's unit for that check moves off them, as for any later answer today. **OD-20** decides whether that is acceptable. |
+| Non-material correction (§9.1)          | No (a decision and a detail row only) | —                                            | None                                                                                                                | None                                                                                                                                                                            |
+| Withdrawal (§9.2)                       | No, and no `amenity_check_events` row | —                                            | None                                                                                                                | None: the author's unit stands                                                                                                                                                  |
+| Legacy or external import, adopted (§8) | Yes, through B01 adoption             | The admin who ran the import                 | None: admins are not participants                                                                                   | None: an import can be adopted only on a slot with no current answer (§8.2), so nobody is displaced                                                                             |
+| Schema upgrade (§9.3)                   | No (a derived detail row)             | —                                            | None                                                                                                                | None                                                                                                                                                                            |
+
+Edge case recorded for B08: a manager account converted from staff during a
+month can still count in that month (B02 F8), so its correction in that
+month could score. OD-20 covers it.
+
+C-tests added (with the credit-function hash check on every batch):
+
+- **C-B03-1:** a material correction by a manager account and one by an
+  admin create no unit for the corrector; the author's unit in a closed
+  month is unchanged; in the open month it moves exactly as a manager
+  re-answer does today (pinned, so OD-20 can change it deliberately).
+- **C-B03-2:** a staff account with a legacy grant is refused
+  `knowledge_correct`.
+- **C-B03-3:** a non-material correction, a withdrawal and a schema upgrade
+  leave every participant's counts unchanged.
+- **C-B03-4:** an adopted import (legacy and external) creates no unit and
+  is refused on a slot with a current answer.
+
+### 9.7 Tests
 
 - Before and after values and the selection rule are recorded for a
   correction; a material correction drops the confirmation, a non-material
   one keeps it.
 - A withdrawal reads withdrawn for every audience and moves no credit input.
+- C-B03-1 to C-B03-4 (§9.6).
 - Lossless and needs-checking upgrades; an old answer still reads under its
   own version after a schema change.
 - History at each event time equals a snapshot taken at that time.
@@ -829,7 +978,9 @@ WS1 supplies structure only. These come from people:
 | OD-15 | Freshness durations per class and use; observation-date rules; when expiry may change v1 reader status                           | No freshness policy on any key; pilot keys unrated                                         |
 | OD-16 | Venue timezone source (a venue column or a fixed estate timezone); the broadcaster list                                          | `Europe/London` for every venue (the estate's helpers already use it); no broadcaster list |
 | OD-17 | Which legacy mappings are exact; precedence order for suggestions; which external sources may be declared                        | No exact mappings; precedence as §8.2 for ordering only; no sources                        |
-| OD-18 | Who may correct and withdraw; whether a withdrawal needs a second person                                                         | Manager or admin, one person, reason required                                              |
+| OD-18 | Who may correct and withdraw; whether a withdrawal needs a second person                                                         | Manager account or admin (not legacy grant holders), one person, reason required           |
+| OD-19 | Whether an import may be chosen over a current answer                                                                            | No: imports are adopted only onto an empty slot                                            |
+| OD-20 | Whether a material correction in the same month should move the author's unit (today's rule for any later answer)                | Today's rule applies; B08 may change the credit policy                                     |
 
 B02's open decisions (OD-2 to OD-10) and the matrix questions (Q1 to Q14) are
 unchanged by this design.
@@ -857,10 +1008,33 @@ B02 §7.1. Expected: `private.knowledge_slot_state` (B03-b, B03-e),
 `private.knowledge_slot_json`, `public.knowledge_check` and
 `public.knowledge_reader_answers_v1` (additive columns),
 `public.knowledge_set_working_list` (lifecycle check) and
-`public.knowledge_submit` (overload only, old signature kept). Never
+`public.knowledge_submit` (overload only, old signature kept); the legacy
+check reads `amenity_venue_state`, `amenity_checks_for_venue`,
+`amenity_check` and `amenity_check_submissions` (presented value only,
+§3.8; B03-c); `knowledge_decide` and `knowledge_resolve_conflict` (admin
+rule value, B03-c); B02's `manager_triage_summary` (rechecks queue,
+B03-e). Never
 re-created: the credit trigger `media_assets_amenity_evidence_lost`, the
 credit functions, the menu and coverage write paths.
 
+### 12.1 Owner decisions by batch
+
+| Batch | Needs before it is built                                          |
+| ----- | ----------------------------------------------------------------- |
+| B03-a | Nothing                                                           |
+| B03-b | OD-12, OD-13                                                      |
+| B03-c | OD-14 (and OD-12 for the keys moved to a policy version)          |
+| B03-d | OD-11, OD-16, OD-14                                               |
+| B03-e | OD-15, and WS5's agreement for v1 reader changes                  |
+| B03-f | OD-17 (and OD-19 for imports)                                     |
+| B03-g | Nothing to build; OD-18 and OD-20 before the commands are enabled |
+
+### 12.2 Exit gate (plan §8)
+
+The B03 exit gate needs OD-11, OD-14, OD-15 and OD-17 decided, the §10
+venue data supplied for the reconciled records, and X2 (contact with Old
+Crown staff and manager) for the real records. Until then, every family is
+built and tested on fixtures only, and no venue record is reconciled.
 ---
 
 ## 13. Required semantic cases (plan §8) and where each is covered
@@ -877,9 +1051,32 @@ credit functions, the menu and coverage write paths.
 | A sports subscription without a promise to show every fixture     | §6.4                       | `sports_subscription` separate from `sports_fixture_showing`        | Venue manager                 | §6.6                   |
 | Different internal and public views of Wi-Fi information          | §3.3, access-and-rights §4 | `restricted_detail`; internal notes never public; per-use freshness | Admin grants public use (B06) | B01 reader tests, §7.5 |
 | Old source versions retained through question-schema changes      | §9.3                       | Per-contribution schema version; upgrade runs                       | Admin runs upgrades           | §9.6                   |
-| An entrance observation never becomes whole-venue certification   | §4.3                       | Required `scope`; no venue-wide key                                 | Manager confirms              | §4.5                   |
+| An entrance observation never becomes whole-venue certification   | §4.3                       | Required `scope`; no venue-wide key; No checked at send time        | Manager confirms              | §4.5                   |
+| A conditional policy or temporary outage never reads as plain Yes | §3.8                       | `qualifier`; v1 withheld, B01 fields needs checking                 | Manager                       | §3.8                   |
 
 ## 14. Changelog
 
 **Draft 1 (10 Nov 2026):** first B03 server design from plan §8, the B01 and
 B02 designs and the knowledge docs, at `ebd41c48`.
+
+**Draft 2 (10 Nov 2026):** the review's requested changes.
+
+- **M1:** §3.8 specifies each existing consumer's output for Conditional
+  and temporarily unavailable answers (v1 reader withholds; screens' B01
+  fields read needs checking; legacy reads present needs recheck without
+  changing stored rows), with a gate and tests. The step-free headline is
+  validated when sent (§4.3).
+- **M2:** policy freshness runs from `authority.statedOn`; a missing basis
+  date on a key with a policy reads `basis_missing`, never "never expires";
+  `observed_on_source` is recorded.
+- **M3:** §9.6 states `submitted_by` and the credit effect of corrections,
+  withdrawals, imports and upgrades; corrections by legacy grant holders
+  are refused, imports adopt only onto an empty slot; C-B03-1 to C-B03-4;
+  OD-19 and OD-20.
+- **M4:** recheck tasks close only when the slot is current and fresh again.
+- **Lows:** five proposed keys; lifecycle, `superseded_by` and
+  `requires_zones` on the version; `policy_authority` and `admin` mapped to
+  `knowledge_question_rules`; one meaning for `effective_to`; the step-free
+  No needs a listed entrance; imports always await confirmation with the D3
+  sender rule; legacy rows stay readable as narrative; OD-to-batch table and
+  exit gate (§12.1, §12.2).
