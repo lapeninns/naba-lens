@@ -124,8 +124,7 @@ export function HomeOverview({
   // a screen; its checks are all To do cards, so it keeps what's left.
   const legacy = workingList
     ? []
-    : withoutTodo(amenityTasks ?? [], (task) => checkKey(task.id), actions)
-        .rows
+    : withoutTodo(amenityTasks ?? [], (task) => checkKey(task.id), actions).rows
   const inTodo = tasksInTodo(actions)
   const others = assignments.filter(
     (a) => !inTodo.has(taskKey(a.requirement.id))
@@ -185,17 +184,11 @@ export function HomeOverview({
       />
 
       {workingList && listed ? (
-        <>
-          <WorkingListSection
-            list={{ ...workingList, slots: listed.rows }}
-            onDismiss={onDismissClosed}
-          />
-          {listed.rows.length > 0 && listed.inTodo > 0 ? (
-            <p className="max-w-(--size-reading) px-1 text-body text-ink-muted">
-              {moreInTodo(listed.inTodo)}
-            </p>
-          ) : null}
-        </>
+        <WorkingListSection
+          list={{ ...workingList, slots: listed.rows }}
+          onDismiss={onDismissClosed}
+          inTodo={listed.inTodo}
+        />
       ) : null}
 
       <AmenityTaskList tasks={legacy} />

@@ -19,6 +19,7 @@ import {
 } from "@/components/nabalens/home/this-month-card"
 import { AddProvider } from "@/components/nabalens/shell/add-context"
 import { HomeOverview } from "@/components/nabalens/tasks/home-overview"
+import { TasksOverview } from "@/components/nabalens/tasks/tasks-overview"
 
 import { amenityCheck, slot } from "./home-b02-fixtures"
 import {
@@ -37,7 +38,9 @@ vi.mock("next/navigation", () => ({
   notFound: vi.fn(),
 }))
 vi.mock("next/headers", () => ({ cookies: async () => ({ has: () => false }) }))
-const shell = vi.hoisted(() => ({ props: null as Record<string, unknown> | null }))
+const shell = vi.hoisted(() => ({
+  props: null as Record<string, unknown> | null,
+}))
 vi.mock("@/components/nabalens/app-shell", () => ({
   AppShell: ({
     children,
@@ -124,7 +127,8 @@ const base = {
 }
 
 function todo() {
-  return screen.getByRole("heading", { level: 2, name: /^To do/ })
+  return screen
+    .getByRole("heading", { level: 2, name: /^To do/ })
     .closest("section") as HTMLElement
 }
 
@@ -304,7 +308,12 @@ describe("B02 one home per piece of work", () => {
     const list = screen.getByRole("list", { name: "Amenity checks" })
     expect(within(list).queryByText("Slot s1?")).toBeNull()
     expect(within(list).getByText("Slot s2?")).toBeTruthy()
-    expect(screen.getByText("1 more is in To do.")).toBeTruthy()
+    // Said in the list's own intro, under its heading.
+    expect(
+      screen.getByText(
+        /Anyone working here can help answer them\. 1 more is in To do\.$/
+      )
+    ).toBeTruthy()
     // Never two Amenity checks headings.
     expect(
       screen.getAllByRole("heading", { level: 2, name: /^Amenity checks/ })
@@ -345,26 +354,35 @@ describe("B02 This month", () => {
     const card = screen
       .getByRole("heading", { level: 2, name: "This month" })
       .closest("section") as HTMLElement
-    expect(within(card).getByRole("progressbar").getAttribute("aria-label")).toBe(
-      "3 of 5 photos accepted"
-    )
+    expect(
+      within(card).getByRole("progressbar").getAttribute("aria-label")
+    ).toBe("3 of 5 photos accepted")
     expect(card.textContent).toContain("3 of 5 accepted")
     expect(card.textContent).toContain(
       "12 of 40 menu items have an accepted photo"
     )
     expect(card.textContent).not.toContain("replacing")
     expect(
-      within(card).getByRole("link", { name: "See this month" }).getAttribute("href")
+      within(card)
+        .getByRole("link", { name: "See this month" })
+        .getAttribute("href")
     ).toBe("/staff/tasks/month")
     expect(
-      within(card).getByRole("link", { name: "Browse our menu" }).getAttribute("href")
+      within(card)
+        .getByRole("link", { name: "Browse our menu" })
+        .getAttribute("href")
     ).toBe("/staff/menu")
     expect(screen.queryByRole("heading", { name: "Our menu" })).toBeNull()
-    expect(screen.queryByRole("heading", { name: /^Your photos for/ })).toBeNull()
+    expect(
+      screen.queryByRole("heading", { name: /^Your photos for/ })
+    ).toBeNull()
   })
 
   it("streams the Also this month lines", async () => {
-    let resolve!: (v: { awaitingConfirmation: number; unknownRecorded: number }) => void
+    let resolve!: (v: {
+      awaitingConfirmation: number
+      unknownRecorded: number
+    }) => void
     const pending = new Promise<{
       awaitingConfirmation: number
       unknownRecorded: number
@@ -384,7 +402,9 @@ describe("B02 This month", () => {
       )
     })
     expect(screen.getByText("loading lines")).toBeTruthy()
-    await act(async () => resolve({ awaitingConfirmation: 2, unknownRecorded: 0 }))
+    await act(async () =>
+      resolve({ awaitingConfirmation: 2, unknownRecorded: 0 })
+    )
     expect(
       await screen.findByText(/Also this month: 2 findings waiting/)
     ).toBeTruthy()
@@ -406,7 +426,10 @@ describe("Home switch (homeLayout)", () => {
         totals: { eligible: 40, covered: 12, gaps: 28, needsRecheck: 0 },
       },
     })
-    coverage.listMyMenuPhotoDecisions.mockResolvedValue({ ok: true, states: [] })
+    coverage.listMyMenuPhotoDecisions.mockResolvedValue({
+      ok: true,
+      states: [],
+    })
     amenities.getMyAmenityTasks.mockResolvedValue({
       ok: true,
       tasks: [amenityCheck("c1")],
@@ -491,5 +514,41 @@ describe("Home switch (homeLayout)", () => {
     vi.stubEnv("NABALENS_HOME_LAYOUT", "b01")
     render(<TasksLoading />)
     expect(screen.getByRole("heading", { name: "All tasks" })).toBeTruthy()
+  })
+})
+
+describe("B01 Home: two lists of checks are named apart (HM-11)", () => {
+  it("calls the legacy list Other amenity checks next to the working list", () => {
+    render(
+      <TasksOverview
+        {...base}
+        tasks={tasksView()}
+        workingList={{
+          venue: { id: "v1", name: "TEST Inn" },
+          slots: [slot("s2")],
+        }}
+        amenityTasks={[amenityCheck("x9")]}
+      />
+    )
+    expect(
+      screen.getByRole("heading", { level: 2, name: /^Amenity checks/ })
+    ).toBeTruthy()
+    expect(
+      screen.getByRole("heading", { name: /^Other amenity checks/ })
+    ).toBeTruthy()
+  })
+
+  it("keeps the legacy heading when there is no working list", () => {
+    render(
+      <TasksOverview
+        {...base}
+        tasks={tasksView()}
+        amenityTasks={[amenityCheck("x9")]}
+      />
+    )
+    expect(
+      screen.getByRole("heading", { name: /^Amenity checks/ })
+    ).toBeTruthy()
+    expect(screen.queryByRole("heading", { name: /^Other amenity/ })).toBeNull()
   })
 })

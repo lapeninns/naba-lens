@@ -178,7 +178,11 @@ export function TasksOverview({
         <WorkingListSection list={workingList} onDismiss={onDismissClosed} />
       ) : null}
 
-      <AmenityTaskList tasks={offList} />
+      {/* Two lists of checks can share this screen: name them apart (HM-11). */}
+      <AmenityTaskList
+        tasks={offList}
+        heading={workingList ? "Other amenity checks" : undefined}
+      />
 
       <div className="mt-3 grid gap-(--gutter)">
         <MonthlyProgressCard
