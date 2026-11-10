@@ -1615,6 +1615,60 @@ commit;`
     ).toBe("0")
   })
 
+  it("re-reads authority after the request-key wait: a venue deactivated meanwhile refuses with the field's reason", async () => {
+    // The fence covers the caller's profile and grant, not the venue: a
+    // legacy grant needs an active venue, so deactivating it while a second
+    // command waits on the same request key leaves only the re-read to see
+    // that the holder is now plain staff.
+    const venueH = (await createVenue(service, "trading-h")).id
+    const holderH = await createIdentity(service, {
+      label: "tr-holder-h",
+      role: "staff",
+      venueId: venueH,
+    })
+    await legacyStaffGrant(service, admin, holderH.id, venueH)
+    const docH = await readDocument(
+      service,
+      await publishMenu(
+        admin,
+        venueH,
+        menu("TEST trading H", [
+          section("mains", "Mains", [item("mains--hotpot", "Hotpot")]),
+        ])
+      )
+    )
+    const hotpot = docH.byKey["mains--hotpot"]!.itemId
+    const key = randomUUID()
+    const value = { state: "always" }
+    const name = `b04-key-${randomUUID().slice(0, 8)}`
+    // The first holds the request key, then rolls back (nothing recorded).
+    const first = psqlBackground(
+      name,
+      `begin;
+${as(holderH)}
+select public.menu_trading_propose(null, ${literal(hotpot)}, null, null, null, 'availability',
+  ${sqlJson(value)}, null, null, null, null, null, ${literal(key)}) ->> 'state';
+reset role;
+select pg_sleep(1.5);
+rollback;`
+    )
+    await untilSleeping(name)
+    const second = Promise.resolve(
+      propose(holderH, { item: hotpot, field: "availability", value, key })
+    )
+    await untilLockWaiting("menu_trading_propose")
+    psql(
+      `update public.venues set active = false where id = ${literal(venueH)}`
+    )
+    expect(await first).toContain("proposed")
+    await fails(second, "staff_field_not_allowed", "42501")
+    expect(
+      psql(
+        `select count(*) from public.menu_trading_commands where request_key = ${literal(key)}`
+      )
+    ).toBe("0")
+  })
+
   it("prices only the scope the cited entry is: a ½ Pint entry stays distinct from the Pint, nothing inherited", async () => {
     const source = await ok<{ sourceId: string }>(
       rpc(admin, "menu_declare_source", {
@@ -2893,6 +2947,7 @@ describe("catalogue assertions (T9b) and privileges", () => {
       "private.menu_service_occurrences(uuid,timestamptz,date,date,timestamptz)",
       "private.menu_trading_lock_actor(uuid)",
       "private.menu_trading_assert_role(uuid,text,text)",
+      "private.menu_trading_assert_propose_role(uuid,text,text,boolean)",
       "private.menu_close_rechecks(uuid,timestamptz)",
       "private.menu_trading_field_state(uuid,text,timestamptz)",
       "private.menu_parse_price(jsonb,text)",
