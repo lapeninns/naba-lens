@@ -169,15 +169,28 @@ describe("contribution groups (W1)", () => {
     )
   })
 
-  it("lets only staff who can upload start a group", async () => {
-    for (const who of [w.manager, w.admin])
-      await refused(
-        who,
-        "contribution_group_start",
-        { p_key: key(), p_subject_kind: "none", p_subject_id: null },
-        "not_active_staff",
-        "42501"
-      )
+  it("lets accounts that upload start a group: staff, and a manager account at its venue (B02-c)", async () => {
+    await refused(
+      w.admin,
+      "contribution_group_start",
+      { p_key: key(), p_subject_kind: "none", p_subject_id: null },
+      "not_active_staff",
+      "42501"
+    )
+    const g = await start(w.manager, key(), "question", w.checks.guest_toilets!)
+    expect((await view(w.manager, g)).venueId).toBe(w.venue)
+    // Its venue's subjects only.
+    await refused(
+      w.manager,
+      "contribution_group_start",
+      {
+        p_key: key(),
+        p_subject_kind: "question",
+        p_subject_id: other.checks.guest_toilets,
+      },
+      "contribution_subject_not_found",
+      "P0002"
+    )
   })
 
   it("adds the creator's own assets idempotently, one group per asset, at most 10", async () => {
@@ -262,25 +275,21 @@ describe("contribution groups (W1)", () => {
     expect(
       (await view(w.staffA, g)).members.map((m) => m.assetId).sort()
     ).toEqual([general, evidence].sort())
-    // A colleague sees exactly what community Photos already shows them.
-    const after = await communityVisible(w.staffB, [general, evidence])
-    expect(after).toEqual(before)
-    const colleague = await call(w.staffB, "contribution_group", {
-      p_group_id: g,
-    })
-    if (after.size === 0) {
-      expect(colleague.error?.message).toBe("contribution_group_not_found")
-    } else {
-      expect(
-        (colleague.data as GroupView).members.map((m) => m.assetId).sort()
-      ).toEqual([...after].sort())
-    }
+    // A colleague sees the general photo, as community Photos already
+    // shows it, and never the amenity evidence; grouping changed neither.
+    expect([...before]).toEqual([general])
+    expect([
+      ...(await communityVisible(w.staffB, [general, evidence])),
+    ]).toEqual([general])
+    const colleague = await view(w.staffB, g)
+    expect(colleague.members.map((m) => m.assetId)).toEqual([general])
+    expect(colleague.mine).toBe(false)
     const lookup = await json<{ asset_id: string; group_id: string }[]>(
       w.staffB,
       "contribution_groups_for_assets",
       { p_asset_ids: [general, evidence] }
     )
-    expect(lookup.map((r) => r.asset_id).sort()).toEqual([...after].sort())
+    expect(lookup).toEqual([{ asset_id: general, group_id: g }])
 
     // Another venue's staff see nothing.
     await refused(

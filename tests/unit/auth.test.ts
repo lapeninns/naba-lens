@@ -106,6 +106,8 @@ describe("uploadBlockReason", () => {
 
   it("blocks admins, missing venues and inactive venues", () => {
     expect(uploadBlockReason({ ...base, role: "admin" })).toBe("not_staff")
+    // Manager accounts upload at their managed venue (B02-c).
+    expect(uploadBlockReason({ ...base, role: "manager" })).toBeNull()
     expect(uploadBlockReason({ ...base, venueId: null, venue: null })).toBe(
       "no_venue"
     )

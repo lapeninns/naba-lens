@@ -139,7 +139,9 @@ export type UploadBlockReason = "not_staff" | "no_venue" | "venue_inactive"
 export function uploadBlockReason(
   profile: CurrentProfile
 ): UploadBlockReason | null {
-  if (profile.role !== "staff") return "not_staff"
+  // Manager accounts upload at their managed venue (B02-c); the database
+  // checks the grant.
+  if (profile.role !== "staff" && profile.role !== "manager") return "not_staff"
   if (!profile.venueId || !profile.venue) return "no_venue"
   if (!profile.venue.active) return "venue_inactive"
   return null

@@ -88,7 +88,8 @@ const notFound: Outcome<never> = {
 }
 
 async function readOwnAsset(actor: MediaActor, assetId: string) {
-  // RLS: active staff read only their own, non-deleted rows.
+  // RLS: active staff read only their own, non-deleted rows; a manager
+  // account only its own manager-era rows.
   const { data, error } = await actor.db
     .from("media_assets")
     .select(
@@ -248,8 +249,12 @@ export async function finaliseAsset(
   actor: MediaActor,
   input: FinaliseRequest
 ): Promise<Outcome<FinaliseResponse>> {
-  if (actor.profile.role !== "staff") {
-    return { ok: false, status: 403, message: "Only staff can upload." }
+  if (actor.profile.role !== "staff" && actor.profile.role !== "manager") {
+    return {
+      ok: false,
+      status: 403,
+      message: "Only staff and venue manager accounts can upload.",
+    }
   }
   if (typeof input?.assetId !== "string" || !UUID.test(input.assetId)) {
     return notFound

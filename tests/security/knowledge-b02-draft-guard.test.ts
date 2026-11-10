@@ -12,6 +12,8 @@ import {
   decide,
   json,
   refused,
+  sessionAs,
+  sleep,
   submitArgs,
   world,
   yes,
@@ -354,5 +356,80 @@ describe("mySentAt and sentAt (R11)", () => {
       )
     )
     sameTime(await mySentAt(v.staffA, v), first.sentAt)
+  })
+})
+
+function submitSql(args: Record<string, unknown>) {
+  const lit = (v: unknown) =>
+    v === null || v === undefined
+      ? "null"
+      : Array.isArray(v)
+        ? v.length
+          ? `array['${v.join("','")}']::uuid[]`
+          : "'{}'::uuid[]"
+        : typeof v === "boolean" || typeof v === "number"
+          ? String(v)
+          : typeof v === "object"
+            ? `'${JSON.stringify(v)}'::jsonb`
+            : `'${String(v).replace(/'/g, "''")}'`
+  const order = [
+    "p_check_id",
+    "p_slot_revision",
+    "p_idempotency_key",
+    "p_kind",
+    "p_answer",
+    "p_finding",
+    "p_limitations",
+    "p_reason",
+    "p_unknown_preset",
+    "p_tried_text",
+    "p_change_reason",
+    "p_responds_to",
+    "p_asset_ids",
+    "p_internal_metadata",
+    "p_redaction_confirmed",
+    "p_confirm_own",
+  ]
+  return `select public.knowledge_submit(${order.map((k) => lit(args[k])).join(", ")});`
+}
+
+describe("a save overlapping a send (R11, two sessions)", () => {
+  it("waits for the send's check lock, then is refused newer_send", async () => {
+    const v = await world("kn-guard-overlap")
+    // The form loaded before any send, so its base is null.
+    await save(v.staffA, v, randomUUID(), null)
+    const args = submitArgs(v, Q, { answer: "unknown", key: randomUUID() })
+    // The send holds the check row FOR UPDATE until it commits.
+    const sending = sessionAs(
+      v.staffA.id,
+      `${submitSql(args)}\nselect pg_sleep(1.5);`
+    )
+    await sleep(400)
+    const started = Date.now()
+    const late = await call(
+      v.staffA,
+      "knowledge_save_draft",
+      saveArgs(v, randomUUID(), null, 1)
+    )
+    const waited = Date.now() - started
+    const sent = await sending
+    expect(sent.code, sent.err).toBe(0)
+    expect(waited).toBeGreaterThan(700)
+    expect(late.error?.message).toBe("draft_already_sent")
+    expect(late.error?.code).toBe("NLK09")
+    const detail = JSON.parse(late.error!.details!) as AlreadySent
+    expect(detail.reason).toBe("newer_send")
+    sameTime(
+      detail.sentAt,
+      psql(
+        `select to_jsonb(created_at) #>> '{}' from public.knowledge_contributions where idempotency_key = '${args.p_idempotency_key}'`
+      )
+    )
+    // The send deleted the draft and the late save wrote nothing.
+    expect(
+      count(
+        `select count(*) from public.knowledge_drafts where user_id = '${v.staffA.id}' and check_id = '${v.checks[Q]}'`
+      )
+    ).toBe(0)
   })
 })

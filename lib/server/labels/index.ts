@@ -49,19 +49,6 @@ const unavailable: Outcome<never> = {
   message: "Labels could not be loaded right now. Try again in a moment.",
 }
 
-const MANAGER_REFUSED = "Labels are edited by staff and admins."
-
-/**
- * Defence in depth: venue managers never read or edit labels, whichever actor
- * a caller built (the database refuses them too: `save_media_labels` admits
- * staff and admins only, and the label tables have no manager policies).
- */
-function refuseManager(actor: MediaActor): Outcome<never> | null {
-  return actor.profile.role === "manager"
-    ? { ok: false, status: 403, message: MANAGER_REFUSED }
-    : null
-}
-
 type DbError = {
   message?: string
   code?: string
@@ -142,8 +129,6 @@ export async function getLabellingCatalogue(
   actor: MediaActor,
   venueId: string
 ): Promise<Outcome<{ catalogue: LabelCatalogue }>> {
-  const refused = refuseManager(actor)
-  if (refused) return refused
   if (!isUuid(venueId)) return notFound
 
   const venueRead = await actor.db
@@ -303,8 +288,6 @@ export async function getAssetLabelContext(
   actor: MediaActor,
   assetIds: string[]
 ): Promise<Outcome<{ assets: LabelEditorAsset[]; missing: string[] }>> {
-  const refused = refuseManager(actor)
-  if (refused) return refused
   if (
     !Array.isArray(assetIds) ||
     assetIds.length === 0 ||
@@ -523,14 +506,6 @@ export async function saveAssetLabels(
     input && typeof input === "object" && typeof input.assetId === "string"
       ? input.assetId
       : ""
-  if (refuseManager(actor)) {
-    return {
-      ok: false,
-      assetId: rawId,
-      code: "forbidden",
-      message: MANAGER_REFUSED,
-    }
-  }
   const valid = validateInput(input)
   if (!valid) return failure(rawId, "invalid")
 
@@ -607,17 +582,6 @@ export async function stageAssetLabels(
     input && typeof input === "object" && typeof input.assetId === "string"
       ? input.assetId
       : ""
-  if (refuseManager(actor)) {
-    return {
-      status: 403,
-      result: {
-        ok: false,
-        assetId: rawId,
-        code: "forbidden",
-        message: MANAGER_REFUSED,
-      },
-    }
-  }
   const valid = validateInput(input)
   if (!valid) return { status: 200, result: failure(rawId, "invalid") }
   if (!isUuid(venueId)) {
@@ -713,9 +677,6 @@ const isErrorCode = (value: string | null): value is SaveLabelsErrorCode =>
 export async function listPendingLabels(
   actor: MediaActor
 ): Promise<Outcome<{ items: PendingLabelItem[] }>> {
-  const refused = refuseManager(actor)
-  if (refused) return refused
-
   const read = await actor.db
     .from("media_pending_labels")
     .select("asset_id, venue_id, status, code, input, updated_at")
@@ -794,8 +755,6 @@ export async function discardPendingLabels(
   actor: MediaActor,
   assetId: string
 ): Promise<Outcome<UploadLabelDiscardResult>> {
-  const refused = refuseManager(actor)
-  if (refused) return refused
   if (!isUuid(assetId)) return notFound
   // A finalise applying this draft holds its row lock: the delete waits for
   // it, then matches nothing.

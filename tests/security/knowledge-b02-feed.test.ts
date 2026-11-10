@@ -478,6 +478,101 @@ describe("photo items (R5, R6, R7)", () => {
       assetAvailable: false,
     })
   })
+
+  it("lists each labelled item still waiting for a first decision as waiting (own photos only)", async () => {
+    const w = await world("feed-waiting")
+    const version = await publishMenu(
+      w.admin,
+      w.venue,
+      menu("TEST feed waiting", [
+        section("mains", "Mains", [
+          item("mains--korma", "Korma", { variants: ["Small", "Large"] }),
+          item("mains--dal", "Dal"),
+        ]),
+      ])
+    )
+    const rows = (await readDocument(service, version)).byKey
+    const korma = rows["mains--korma"]!
+    const small = {
+      itemId: korma.itemId,
+      variantId: korma.variants[0]!.variantId,
+    }
+    const large = {
+      itemId: korma.itemId,
+      variantId: korma.variants[1]!.variantId,
+    }
+    const dal = t(rows["mains--dal"]!)
+
+    const both = await labelled(w.staffA, version, [small, large])
+    const plain = await labelled(w.staffA, version, [dal])
+    const theirs = await labelled(w.staffB, version, [dal])
+    const waiting = (
+      itemId: string,
+      itemName: string,
+      variantName: string | null
+    ) => ({
+      photoId: null,
+      itemId,
+      itemName,
+      variantName,
+      state: "waiting",
+      reason: null,
+      decidedAt: null,
+    })
+
+    let feed = await all(w.staffA)
+    expect(feed.map((i) => i.assetId)).not.toContain(theirs.id)
+    const decisions = (id: string) =>
+      byKey(feed, `p:${id}`).menuDecisions as Record<string, unknown>[]
+    for (const d of [...decisions(both.id), ...decisions(plain.id)])
+      expect(Object.keys(d).sort()).toEqual(DECISION_KEYS)
+    expect(decisions(both.id)).toEqual(
+      expect.arrayContaining([
+        waiting(korma.itemId, "Korma", "Large"),
+        waiting(korma.itemId, "Korma", "Small"),
+      ])
+    )
+    expect(decisions(both.id)).toHaveLength(2)
+    expect(decisions(plain.id)).toEqual([waiting(dal.itemId, "Dal", null)])
+    expect(byKey(feed, `p:${both.id}`).menuUseAccepted).toBe(false)
+    // The colleague sees their own waiting photo, never staffA's.
+    const other = await all(w.staffB)
+    expect(
+      other.filter((i) => i.type === "photo").map((i) => i.assetId)
+    ).toEqual([theirs.id])
+    expect(byKey(other, `p:${theirs.id}`).menuDecisions).toEqual([
+      waiting(dal.itemId, "Dal", null),
+    ])
+
+    // A decision replaces the waiting row for its variant only, listed first.
+    await reviewPhoto(w.manager, both.id, small, "accepted")
+    await reviewPhoto(
+      w.manager,
+      plain.id,
+      dal,
+      "better_photo_requested",
+      "TEST blurry"
+    )
+    feed = await all(w.staffA)
+    expect(decisions(both.id)).toEqual([
+      expect.objectContaining({
+        state: "accepted",
+        itemId: korma.itemId,
+        variantName: "Small",
+      }),
+      waiting(korma.itemId, "Korma", "Large"),
+    ])
+    expect((decisions(both.id)[0] as { photoId: unknown }).photoId).toEqual(
+      expect.any(String)
+    )
+    expect(byKey(feed, `p:${both.id}`).menuUseAccepted).toBe(true)
+    expect(decisions(plain.id)).toEqual([
+      expect.objectContaining({
+        state: "better_photo_requested",
+        reason: "TEST blurry",
+      }),
+    ])
+  })
 })
 
 describe("task send items (R5, R6)", () => {
