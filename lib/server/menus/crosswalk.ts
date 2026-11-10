@@ -10,6 +10,8 @@ import "server-only"
 
 import {
   CROSSWALK_DECISIONS,
+  CROSSWALK_ROWS_PAGE,
+  CROSSWALK_STATUSES,
   FIELD_AUTHORITIES,
   MENU_CHANNELS,
   MENU_FIELDS,
@@ -18,6 +20,9 @@ import {
   snapshotDocumentError,
   type CrosswalkDecision,
   type CrosswalkDecisionStatus,
+  type CrosswalkRow,
+  type CrosswalkRowsCursor,
+  type CrosswalkStatus,
   type FieldAuthority,
   type MenuChannel,
   type MenuField,
@@ -45,7 +50,8 @@ type CrosswalkRpc = {
       | "menu_crosswalk_propose"
       | "menu_crosswalk_decide"
       | "menu_set_field_authority"
-      | "menu_manifest",
+      | "menu_manifest"
+      | "menu_crosswalk_rows",
     args: Record<string, unknown>
   ): PromiseLike<{ data: unknown; error: DbError }>
 }
@@ -103,6 +109,15 @@ const CODES: Record<string, [MenuFailure["status"], string]> = {
     409,
     "This row changed elsewhere. Reload the review list and try again.",
   ],
+  crosswalk_reconcile_pending: [
+    409,
+    "A newer snapshot of this source has not been matched yet. Run the matcher on it, then review.",
+  ],
+  crosswalk_not_on_source: [
+    409,
+    "This entry is not in the source's newest snapshot as shown. Reload the review list.",
+  ],
+  invalid_crosswalk_cursor: [400, "Reload the list and try again."],
   crosswalk_parent_not_confirmed: [409, "Confirm the dish before its options."],
   menu_item_not_on_active_menu: [
     409,
@@ -519,4 +534,81 @@ export async function readMenuManifest(
   )
     return crosswalkRpcFailure(null, "manifest (unexpected shape)")
   return { ok: true, manifest: data as unknown as MenuManifest }
+}
+
+const isCursor = (v: unknown): v is CrosswalkRowsCursor =>
+  isObject(v) &&
+  isUuid(v.sourceId) &&
+  typeof v.locator === "string" &&
+  v.locator.length > 0
+
+/**
+ * One page of a venue's crosswalk rows in force (admin). With no `statuses`
+ * it continues the manifest's review list (`reviewNext` is the first
+ * `after`); with `["confirmed", "carried"]` it finds the current mappings,
+ * each with the row id and revision `decideMenuCrosswalk` needs to reject
+ * one. `next` is null on the last page.
+ */
+export async function listMenuCrosswalkRows(
+  actor: MediaActor,
+  input: {
+    venueId: string
+    statuses?: CrosswalkStatus[] | null
+    sourceId?: string | null
+    itemId?: string | null
+    after?: CrosswalkRowsCursor | null
+    limit?: number | null
+  }
+): Promise<
+  Outcome<{ rows: CrosswalkRow[]; next: CrosswalkRowsCursor | null }>
+> {
+  if (!isAdmin(actor)) return ADMIN_ONLY
+  if (!isUuid(input?.venueId))
+    return fail(404, "This venue could not be found.")
+  const statuses = input.statuses ?? null
+  if (
+    statuses !== null &&
+    (!Array.isArray(statuses) ||
+      statuses.length === 0 ||
+      !statuses.every((s) => oneOf(CROSSWALK_STATUSES, s)))
+  )
+    return fail(400, "Choose the row statuses to list.")
+  const sourceId = input.sourceId ?? null
+  if (sourceId !== null && !isUuid(sourceId))
+    return fail(404, "This menu source could not be found.")
+  const itemId = input.itemId ?? null
+  if (itemId !== null && !isUuid(itemId))
+    return fail(400, "Choose a dish on the venue's menu.")
+  const after = input.after ?? null
+  if (after !== null && !isCursor(after))
+    return fail(400, CODES.invalid_crosswalk_cursor[1])
+  const limit = input.limit ?? null
+  if (
+    limit !== null &&
+    (!Number.isInteger(limit) || limit < 1 || limit > CROSSWALK_ROWS_PAGE.max)
+  )
+    return fail(400, `Ask for 1 to ${CROSSWALK_ROWS_PAGE.max} rows at a time.`)
+
+  const { data, error } = await call(actor).rpc("menu_crosswalk_rows", {
+    p_venue: input.venueId,
+    p_statuses: statuses,
+    p_source: sourceId,
+    p_item: itemId,
+    p_after_source: after?.sourceId ?? null,
+    p_after_locator: after?.locator ?? null,
+    p_limit: limit,
+  })
+  if (error) return crosswalkRpcFailure(error, "rows")
+  if (
+    !isObject(data) ||
+    data.venueId !== input.venueId ||
+    !Array.isArray(data.rows) ||
+    !(data.next === null || isCursor(data.next))
+  )
+    return crosswalkRpcFailure(null, "rows (unexpected shape)")
+  return {
+    ok: true,
+    rows: data.rows as CrosswalkRow[],
+    next: data.next,
+  }
 }

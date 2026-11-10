@@ -11,15 +11,19 @@ import { describe, expect, it, vi } from "vitest"
 import { sha256Hex } from "../../lib/menus/import"
 import {
   CROSSWALK_BASES,
+  CROSSWALK_LOCATOR_MAX,
+  CROSSWALK_REVIEW_STATUSES,
   CROSSWALK_STATUSES,
   DEFAULT_FIELD_AUTHORITY,
   FIELD_AUTHORITIES,
+  MANIFEST_REVIEW_LIMIT,
   MENU_CHANNELS,
   MENU_FIELDS,
   MENU_SOURCE_KINDS,
   NABALENS_FIELDS_NOW,
   contentHashInput,
   crosswalkDecisionError,
+  crosswalkProvenanceError,
   manifestCsv,
   manifestOutcome,
   proposeCrosswalk,
@@ -28,6 +32,9 @@ import {
   websiteLocators,
   type CatalogueEntry,
   type CrosswalkHead,
+  type CrosswalkRow,
+  type CrosswalkRowsCursor,
+  type CurrentSnapshot,
   type MenuManifest,
   type ProposeInput,
   type SnapshotEntry,
@@ -36,6 +43,7 @@ import {
   crosswalkRpcFailure,
   declareMenuSource,
   decideMenuCrosswalk,
+  listMenuCrosswalkRows,
   readMenuManifest,
   recordMenuSnapshot,
   setMenuFieldAuthority,
@@ -141,8 +149,8 @@ function headsAfter(
   return [...map.values()]
 }
 
-const byLocator = (rows: { locator: string }[]) =>
-  Object.fromEntries(rows.map((r) => [r.locator, r]))
+const byLocator = <T extends { locator: string }>(rows: T[]) =>
+  Object.fromEntries(rows.map((r) => [r.locator, r])) as Record<string, T>
 
 describe("same-name ambiguity (§4.2 #4)", () => {
   it("lists every candidate and confirms nothing for two Chicken Tikka entries", async () => {
@@ -352,11 +360,13 @@ describe("revision change: carry by locator and hash (§4.2 #6)", () => {
       itemId: KORMA,
       candidates: [KORMA],
     })
-    // The entry is no longer mapped, so its mapped variant goes back to review.
+    // The entry is no longer mapped, so its mapped variant goes back to review,
+    // on the new snapshot's evidence.
     expect(rows[`${korma.locator}#variant=Chicken`]).toMatchObject({
       status: "needs_review",
       variantId: KORMA_CHICKEN,
       candidates: [KORMA_CHICKEN],
+      contentHash: rows[korma.locator].contentHash,
     })
     expect(rows[gone.locator]).toMatchObject({
       status: "not_on_source",
@@ -379,20 +389,24 @@ describe("revision change: carry by locator and hash (§4.2 #6)", () => {
     ])
   })
 
-  it("marks a removed variant not_on_source while its entry stays mapped", async () => {
+  it("marks a removed variant not_on_source even while its entry awaits review", async () => {
     const heads = await confirmedBase()
-    // Same content except the variant list, so the entry needs review too:
-    // its variant goes back to review with it, not off the source.
+    // The variant list changed, so the entry needs review; the variant the
+    // source no longer lists is off the source, not back in review.
     const changed = proposeCrosswalk(
       await input([chips, { ...korma, variants: [] }, gone], {
         snapshotId: S2,
         heads,
       })
     )
+    expect(byLocator(changed.rows)[korma.locator]).toMatchObject({
+      status: "needs_review",
+    })
     expect(
       byLocator(changed.rows)[`${korma.locator}#variant=Chicken`]
     ).toMatchObject({
-      status: "needs_review",
+      status: "not_on_source",
+      variantId: KORMA_CHICKEN,
     })
     // An entry that disappears takes its variants off the source.
     const removed = proposeCrosswalk(
@@ -429,6 +443,356 @@ describe("revision change: carry by locator and hash (§4.2 #6)", () => {
       rows: [],
       skipped: 2,
     })
+  })
+})
+
+const S3 = id(903)
+const confirmTo = (itemId: string, variantId: string | null = null) =>
+  ({ status: "confirmed", itemId, variantId, channel: "all" }) as const
+const variantOf = (v: string) =>
+  ({
+    [KORMA_CHICKEN]: KORMA,
+    [KORMA_LAMB]: KORMA,
+    [TIKKA_CHICKEN]: TIKKA_MAINS,
+  })[v] ?? null
+async function snapshotOf(
+  entries: SnapshotEntry[],
+  processed = true
+): Promise<CurrentSnapshot> {
+  return {
+    processed,
+    entries,
+    contentHashes: await Promise.all(
+      entries.map((e) => sha256Hex(contentHashInput(e)))
+    ),
+  }
+}
+
+describe("decision provenance: only current source evidence is decided", () => {
+  const chips: SnapshotEntry = {
+    locator: "sides.json#name=Chips",
+    name: "Chips",
+    priceText: "3.5",
+  }
+
+  async function confirmedOnS1() {
+    const s1 = proposeCrosswalk(await input([chips]))
+    return headsAfter(s1.rows, S1, { [chips.locator]: { itemId: CHIPS } })
+  }
+
+  it("refuses to confirm (or decide) a tombstone, and the S2 matcher run again leaves it removed", async () => {
+    const heads = await confirmedOnS1()
+    const s2 = proposeCrosswalk(await input([], { snapshotId: S2, heads }))
+    expect(s2.rows).toMatchObject([
+      { locator: chips.locator, status: "not_on_source", itemId: CHIPS },
+    ])
+    const after = headsAfter(s2.rows, S2, {}, heads)
+    const tomb = byLocator(after)[chips.locator]
+    const current = await snapshotOf([])
+    for (const decision of [
+      confirmTo(CHIPS),
+      { status: "rejected" as const },
+      { status: "unmatched" as const },
+    ]) {
+      expect(
+        crosswalkDecisionError(after, chips.locator, decision, variantOf)
+      ).toBe("crosswalk_not_on_source")
+      expect(crosswalkProvenanceError(tomb, decision, current)).toBe(
+        "crosswalk_not_on_source"
+      )
+    }
+    // Retrying the S2 matcher after the refused decision changes nothing.
+    expect(
+      proposeCrosswalk(await input([], { snapshotId: S2, heads: after }))
+    ).toEqual({ rows: [], skipped: 0 })
+    // A mapped head the snapshot does not list is removed whichever snapshot
+    // wrote it (the head the old decide path could leave stamped S2).
+    const forged = after.map((h) =>
+      h.locator === chips.locator ? { ...h, status: "confirmed" as const } : h
+    )
+    expect(
+      proposeCrosswalk(await input([], { snapshotId: S2, heads: forged })).rows
+    ).toMatchObject([{ locator: chips.locator, status: "not_on_source" }])
+  })
+
+  it("refuses every decision while a newer snapshot awaits the matcher", async () => {
+    const s1 = proposeCrosswalk(await input([chips]))
+    const proposed = byLocator(headsAfter(s1.rows, S1))[chips.locator]
+    // S2 is recorded (without Chips) but the matcher has not run on it.
+    const pending = await snapshotOf([], false)
+    for (const decision of [
+      confirmTo(CHIPS),
+      { status: "rejected" as const },
+      { status: "unmatched" as const },
+    ])
+      expect(crosswalkProvenanceError(proposed, decision, pending)).toBe(
+        "crosswalk_reconcile_pending"
+      )
+    // Even when S2 still lists it unchanged.
+    expect(
+      crosswalkProvenanceError(
+        proposed,
+        confirmTo(CHIPS),
+        await snapshotOf([chips], false)
+      )
+    ).toBe("crosswalk_reconcile_pending")
+    // Once the matcher has run on S2 the row decides on S2's evidence.
+    expect(
+      crosswalkProvenanceError(
+        proposed,
+        confirmTo(CHIPS),
+        await snapshotOf([chips])
+      )
+    ).toBeNull()
+  })
+
+  it("confirms only the listed content; rejects on presence alone", async () => {
+    const s1 = proposeCrosswalk(await input([chips]))
+    const proposed = byLocator(headsAfter(s1.rows, S1))[chips.locator]
+    const changed = await snapshotOf([{ ...chips, priceText: "4" }])
+    expect(crosswalkProvenanceError(proposed, confirmTo(CHIPS), changed)).toBe(
+      "crosswalk_not_on_source"
+    )
+    expect(
+      crosswalkProvenanceError(proposed, { status: "rejected" }, changed)
+    ).toBeNull()
+  })
+
+  it("checks a variant occurrence, not just its entry", async () => {
+    const entry: SnapshotEntry = {
+      locator: "k",
+      name: "Korma",
+      variants: ["Chicken"],
+    }
+    const head = {
+      locator: "k#variant=Lamb",
+      entryLocator: "k",
+      status: "proposed" as const,
+      contentHash: (await snapshotOf([entry])).contentHashes[0],
+    }
+    expect(
+      crosswalkProvenanceError(
+        head,
+        { status: "rejected" },
+        await snapshotOf([entry])
+      )
+    ).toBe("crosswalk_not_on_source")
+    expect(
+      crosswalkProvenanceError(
+        { ...head, locator: "k#variant=Chicken" },
+        confirmTo(KORMA, KORMA_CHICKEN),
+        await snapshotOf([entry])
+      )
+    ).toBeNull()
+  })
+})
+
+describe("variant transitions: retained, removed and remapped", () => {
+  const korma: SnapshotEntry = {
+    locator: "curries.json#name=Korma",
+    name: "Korma",
+    variants: ["Chicken", "Lamb"],
+    priceText: "10.5",
+  }
+  const chickenAt = `${korma.locator}#variant=Chicken`
+  const lambAt = `${korma.locator}#variant=Lamb`
+
+  /** Korma confirmed on S1 with both variants confirmed. */
+  async function mapped() {
+    const first = proposeCrosswalk(await input([korma]))
+    const heads = headsAfter(first.rows, S1, {
+      [korma.locator]: { itemId: KORMA },
+    })
+    const variants = proposeCrosswalk(await input([korma], { heads }))
+    return headsAfter(
+      variants.rows,
+      S1,
+      {
+        [chickenAt]: { variantId: KORMA_CHICKEN },
+        [lambAt]: { variantId: KORMA_LAMB },
+      },
+      heads
+    )
+  }
+
+  it("re-reviews a retained variant on new evidence and removes a dropped one while the entry is pending", async () => {
+    const heads = await mapped()
+    const next: SnapshotEntry = {
+      ...korma,
+      variants: ["Chicken"],
+      priceText: "11",
+    }
+    const s2 = proposeCrosswalk(await input([next], { snapshotId: S2, heads }))
+    const rows = byLocator(s2.rows)
+    expect(rows[korma.locator]).toMatchObject({ status: "needs_review" })
+    expect(rows[chickenAt]).toMatchObject({
+      status: "needs_review",
+      itemId: KORMA,
+      variantId: KORMA_CHICKEN,
+      candidates: [KORMA_CHICKEN],
+      contentHash: rows[korma.locator].contentHash,
+    })
+    expect(rows[lambAt]).toMatchObject({
+      status: "not_on_source",
+      variantId: KORMA_LAMB,
+    })
+
+    // The entry is reconfirmed on S2 and the matcher runs again: the retained
+    // variant stays in review (current), the removed one stays removed.
+    const after = headsAfter(
+      s2.rows,
+      S2,
+      { [korma.locator]: { itemId: KORMA } },
+      heads
+    )
+    expect(
+      proposeCrosswalk(await input([next], { snapshotId: S2, heads: after }))
+    ).toEqual({ rows: [], skipped: 2 })
+    const current = await snapshotOf([next])
+    const at = byLocator(after)
+    expect(
+      crosswalkProvenanceError(
+        at[chickenAt],
+        confirmTo(KORMA, KORMA_CHICKEN),
+        current
+      )
+    ).toBeNull()
+    expect(
+      crosswalkDecisionError(
+        after,
+        chickenAt,
+        confirmTo(KORMA, KORMA_CHICKEN),
+        variantOf
+      )
+    ).toBeNull()
+    expect(
+      crosswalkProvenanceError(
+        at[lambAt],
+        confirmTo(KORMA, KORMA_LAMB),
+        current
+      )
+    ).toBe("crosswalk_not_on_source")
+  })
+
+  it("puts a variant back in review when it reappears while its entry is pending", async () => {
+    const heads = await mapped()
+    const s2 = proposeCrosswalk(
+      await input([{ ...korma, variants: ["Chicken"] }], {
+        snapshotId: S2,
+        heads,
+      })
+    )
+    const h2 = headsAfter(s2.rows, S2, {}, heads)
+    expect(byLocator(h2)[lambAt].status).toBe("not_on_source")
+    const s3 = proposeCrosswalk(
+      await input([korma], { snapshotId: S3, heads: h2 })
+    )
+    expect(byLocator(s3.rows)[lambAt]).toMatchObject({
+      status: "needs_review",
+      variantId: KORMA_LAMB,
+      candidates: [KORMA_LAMB],
+    })
+    // Chicken is open already (needs review from S2) and is not re-proposed
+    // until its entry is mapped again.
+    expect(byLocator(s3.rows)[chickenAt]).toBeUndefined()
+    const h3 = headsAfter(
+      s3.rows,
+      S3,
+      { [korma.locator]: { itemId: KORMA } },
+      h2
+    )
+    const again = proposeCrosswalk(
+      await input([korma], { snapshotId: S3, heads: h3 })
+    )
+    expect(again.rows).toMatchObject([
+      {
+        locator: chickenAt,
+        status: "proposed",
+        variantId: KORMA_CHICKEN,
+        contentHash: byLocator(s3.rows)[korma.locator].contentHash,
+      },
+    ])
+  })
+
+  it("re-proposes variant rows inside the item an entry is mapped to again in the same snapshot", async () => {
+    const first = proposeCrosswalk(await input([korma]))
+    let heads = headsAfter(first.rows, S1, {
+      [korma.locator]: { itemId: KORMA },
+    })
+    const variants = proposeCrosswalk(await input([korma], { heads }))
+    expect(byLocator(variants.rows)[chickenAt]).toMatchObject({
+      itemId: KORMA,
+      variantId: KORMA_CHICKEN,
+    })
+    heads = headsAfter(variants.rows, S1, {}, heads)
+    // The reviewer rejects the entry, then confirms it to another dish.
+    heads = headsAfter(
+      [],
+      S1,
+      { [korma.locator]: { status: "rejected" } },
+      heads
+    )
+    heads = headsAfter(
+      [],
+      S1,
+      { [korma.locator]: { itemId: TIKKA_MAINS } },
+      heads
+    )
+    const again = proposeCrosswalk(await input([korma], { heads }))
+    expect(again.skipped).toBe(1)
+    const rows = byLocator(again.rows)
+    expect(Object.keys(rows)).toEqual([chickenAt, lambAt])
+    expect(rows[chickenAt]).toMatchObject({
+      status: "proposed",
+      itemId: TIKKA_MAINS,
+      variantId: TIKKA_CHICKEN,
+      candidates: [TIKKA_CHICKEN],
+    })
+    expect(rows[lambAt]).toMatchObject({
+      status: "proposed",
+      itemId: TIKKA_MAINS,
+      variantId: null,
+      candidates: [],
+    })
+    expect(again.rows.flatMap((r) => r.candidates)).not.toContain(KORMA_CHICKEN)
+    expect(
+      proposeCrosswalk(
+        await input([korma], { heads: headsAfter(again.rows, S1, {}, heads) })
+      )
+    ).toEqual({ rows: [], skipped: 3 })
+  })
+
+  it("keeps a variant decision under the same item and re-proposes it under another", async () => {
+    const first = proposeCrosswalk(await input([korma]))
+    let heads = headsAfter(first.rows, S1, {
+      [korma.locator]: { itemId: KORMA },
+    })
+    const variants = proposeCrosswalk(await input([korma], { heads }))
+    // Lamb marked unmatched on S1: the row keeps the item it was matched inside.
+    heads = headsAfter(
+      variants.rows,
+      S1,
+      { [lambAt]: { status: "unmatched", variantId: null } },
+      heads
+    )
+    const s2 = proposeCrosswalk(await input([korma], { snapshotId: S2, heads }))
+    expect(byLocator(s2.rows)[korma.locator]).toMatchObject({
+      status: "carried",
+    })
+    expect(byLocator(s2.rows)[lambAt]).toBeUndefined()
+    heads = headsAfter(s2.rows, S2, {}, heads)
+    // The entry is mapped to another dish (rejected, then confirmed) on S2.
+    heads = headsAfter(
+      [],
+      S2,
+      { [korma.locator]: { itemId: TIKKA_MAINS } },
+      heads
+    )
+    expect(
+      byLocator(
+        proposeCrosswalk(await input([korma], { snapshotId: S2, heads })).rows
+      )[lambAt]
+    ).toMatchObject({ status: "proposed", itemId: TIKKA_MAINS })
   })
 })
 
@@ -648,6 +1012,108 @@ describe("locators and content hash (§4.3)", () => {
     ).toEqual(["l#variant=Lamb", "l#variant=lamb#2"])
   })
 
+  it("keeps repeats and literal #2 suffixes apart", () => {
+    const names = ["Dish", "Dish", "Dish#2"]
+    const entries = websiteLocators(
+      names.map((name) => ({ file: "f.json", name }))
+    )
+    expect(entries).toEqual([
+      "f.json#name=Dish",
+      "f.json#name=Dish#2",
+      "f.json#name=Dish%232",
+    ])
+    // A snapshot generated from them passes the duplicate check.
+    expect(
+      snapshotDocumentError(
+        entries.map((locator, i) => ({ locator, name: names[i] }))
+      )
+    ).toBeNull()
+    expect(
+      variantLocators({
+        locator: "l",
+        name: "K",
+        variants: ["Regular", "Regular", "Regular#2"],
+      })
+    ).toEqual([
+      "l#variant=Regular",
+      "l#variant=Regular#2",
+      "l#variant=Regular%232",
+    ])
+  })
+
+  it("encodes delimiter and escape characters in files, categories and names", () => {
+    const sources = [
+      { file: "m.json", category: "Mains#name=Pie", name: "X" },
+      { file: "m.json", category: "Mains", name: "Pie#name=X" },
+      { file: "m.json", category: "Mains", name: "Pie%23name=X" },
+      { file: "m.json#category=Mains", name: "Pie" },
+      { file: "m.json", category: "Mains", name: "Pie" },
+      { file: "m.json", name: "A#variant=B" },
+      { file: "m.json", name: "100% Beef" },
+    ]
+    const got = websiteLocators(sources)
+    expect(new Set(got).size).toBe(sources.length)
+    expect(got.slice(0, 3)).toEqual([
+      "m.json#category=Mains%23name=Pie#name=X",
+      "m.json#category=Mains#name=Pie%23name=X",
+      "m.json#category=Mains#name=Pie%2523name=X",
+    ])
+    expect(got.filter((l) => l.includes("#variant="))).toEqual([])
+    expect(
+      snapshotDocumentError(got.map((locator) => ({ locator, name: "N" })))
+    ).toBeNull()
+    const variants = variantLocators({
+      locator: "e",
+      name: "N",
+      variants: ["a#2", "a", "a", "a%232", "#", "%"],
+    })
+    expect(variants).toEqual([
+      "e#variant=a%232",
+      "e#variant=a",
+      "e#variant=a#2",
+      "e#variant=a%25232",
+      "e#variant=%23",
+      "e#variant=%25",
+    ])
+    expect(new Set(variants).size).toBe(variants.length)
+  })
+
+  it("bounds the longest variant locator as the migration does", () => {
+    const worst: SnapshotEntry = {
+      locator: "x".repeat(300),
+      name: "N",
+      variants: Array(12).fill("#".repeat(80)),
+    }
+    expect(snapshotDocumentError([worst])).toBeNull()
+    const lengths = variantLocators(worst).map((l) => [...l].length)
+    expect(Math.max(...lengths)).toBe(CROSSWALK_LOCATOR_MAX)
+    expect(CROSSWALK_LOCATOR_MAX).toBe(552)
+    expect(MIGRATION).toContain(
+      `locator text not null check (length(locator) between 1 and ${CROSSWALK_LOCATOR_MAX})`
+    )
+    expect(MIGRATION).toContain(
+      "select replace(replace(p_text, '%', '%25'), '#', '%23');"
+    )
+  })
+
+  it("proposes every listed variant once, literal suffixes included", async () => {
+    const entry: SnapshotEntry = {
+      locator: "curries.json#name=Korma",
+      name: "Korma",
+      variants: ["Chicken", "Chicken", "Chicken#2"],
+    }
+    const first = proposeCrosswalk(await input([entry]))
+    const heads = headsAfter(first.rows, S1, {
+      [entry.locator]: { itemId: KORMA },
+    })
+    const { rows } = proposeCrosswalk(await input([entry], { heads }))
+    expect(rows.map((r) => [r.locator, r.status, r.variantId])).toEqual([
+      ["curries.json#name=Korma#variant=Chicken", "proposed", KORMA_CHICKEN],
+      ["curries.json#name=Korma#variant=Chicken#2", "ambiguous", null],
+      ["curries.json#name=Korma#variant=Chicken%232", "proposed", null],
+    ])
+  })
+
   it("writes the hash input as Postgres prints jsonb_build_array", async () => {
     expect(
       contentHashInput({
@@ -775,6 +1241,18 @@ describe("closed sets match the migration", () => {
     ])
   })
 
+  it("reviews the same statuses and page sizes as the manifest and rows reads", () => {
+    const review = `array[${CROSSWALK_REVIEW_STATUSES.map((s) => `'${s}'`).join(", ")}]`
+    expect(MIGRATION).toContain(review)
+    expect(MIGRATION).toContain(
+      `where v_admin and h.status in (${CROSSWALK_REVIEW_STATUSES.map((s) => `'${s}'`).join(", ")})`
+    )
+    expect(MIGRATION).toContain(`limit ${MANIFEST_REVIEW_LIMIT}`)
+    expect(MIGRATION).toContain(
+      "v_limit integer := greatest(1, least(coalesce(p_limit, 100), 1000));"
+    )
+  })
+
   it("seeds the §4.4 defaults and switches nothing to NabaLens", () => {
     expect(DEFAULT_FIELD_AUTHORITY).toEqual({
       identity: "nabalens",
@@ -872,6 +1350,7 @@ describe("server functions", () => {
           reason: null,
           requestKey: KEY,
         }),
+        listMenuCrosswalkRows(a, { venueId: id(1) }),
       ])
       for (const r of results)
         expect(r).toMatchObject({ ok: false, status: 403 })
@@ -971,6 +1450,276 @@ describe("server functions", () => {
         "t"
       ).status
     ).toBe(400)
+    for (const [message, status] of [
+      ["crosswalk_reconcile_pending", 409],
+      ["crosswalk_not_on_source", 409],
+      ["invalid_crosswalk_cursor", 400],
+    ] as const) {
+      const failure = crosswalkRpcFailure({ message, code: "P0001" }, "t")
+      expect(failure.status, message).toBe(status)
+      expect(failure.message, message).not.toContain("_")
+    }
+  })
+
+  it("checks a rows request before calling the database and passes the cursor through", async () => {
+    const { rpc, actor: a } = actor("admin", {
+      data: { venueId: id(1), rows: [], next: null },
+      error: null,
+    })
+    for (const bad of [
+      { venueId: "x" },
+      { venueId: id(1), statuses: [] },
+      { venueId: id(1), statuses: ["confirmed", "deleted"] },
+      { venueId: id(1), sourceId: "x" },
+      { venueId: id(1), itemId: "x" },
+      { venueId: id(1), after: { sourceId: id(2), locator: "" } },
+      { venueId: id(1), after: { sourceId: "x", locator: "a" } },
+      { venueId: id(1), limit: 0 },
+      { venueId: id(1), limit: 1001 },
+      { venueId: id(1), limit: 2.5 },
+    ])
+      expect(
+        (
+          await listMenuCrosswalkRows(
+            a,
+            bad as Parameters<typeof listMenuCrosswalkRows>[1]
+          )
+        ).ok,
+        JSON.stringify(bad)
+      ).toBe(false)
+    expect(rpc).not.toHaveBeenCalled()
+    expect(
+      await listMenuCrosswalkRows(a, {
+        venueId: id(1),
+        statuses: ["confirmed", "carried"],
+        itemId: CHIPS,
+        after: { sourceId: id(2), locator: "a#name=B" },
+        limit: 50,
+      })
+    ).toEqual({ ok: true, rows: [], next: null })
+    expect(rpc).toHaveBeenCalledWith("menu_crosswalk_rows", {
+      p_venue: id(1),
+      p_statuses: ["confirmed", "carried"],
+      p_source: null,
+      p_item: CHIPS,
+      p_after_source: id(2),
+      p_after_locator: "a#name=B",
+      p_limit: 50,
+    })
+    const { actor: wrong } = actor("admin", {
+      data: { venueId: id(2), rows: [], next: null },
+      error: null,
+    })
+    expect((await listMenuCrosswalkRows(wrong, { venueId: id(1) })).ok).toBe(
+      false
+    )
+  })
+
+  /**
+   * A stand-in for the database's rows in force: menu_crosswalk_rows ordered
+   * by (source order, locator), with the cursor and page size, and
+   * menu_crosswalk_decide's row id / revision compare-and-set and
+   * one-identity rule. The SQL itself is covered by the security suite.
+   */
+  function fakeCrosswalk(
+    initial: (Pick<CrosswalkRow, "sourceId" | "locator" | "status"> & {
+      itemId?: string | null
+    })[]
+  ) {
+    const order = [...new Set(initial.map((r) => r.sourceId))]
+    let next = 0
+    const rows = new Map<string, CrosswalkRow>(
+      initial.map((r) => [
+        `${r.sourceId} ${r.locator}`,
+        {
+          rowId: id(1000 + next++),
+          revision: 1,
+          entryLocator: null,
+          basis: "name_candidate",
+          variantId: null,
+          channel: "all",
+          candidates: [],
+          evidence: {},
+          proposedAt: "2026-11-10T00:00:00Z",
+          reviewedBy: null,
+          reviewedAt: null,
+          reason: null,
+          itemId: null,
+          ...r,
+        },
+      ])
+    )
+    const sorted = () =>
+      [...rows.values()].sort(
+        (x, y) =>
+          order.indexOf(x.sourceId) - order.indexOf(y.sourceId) ||
+          (x.locator < y.locator ? -1 : x.locator > y.locator ? 1 : 0)
+      )
+    const calls: Record<string, unknown>[] = []
+    const rpc = vi.fn(async (fn: string, args: Record<string, unknown>) => {
+      calls.push({ fn, ...args })
+      if (fn === "menu_crosswalk_rows") {
+        const statuses = (args.p_statuses as string[] | null) ?? [
+          ...CROSSWALK_REVIEW_STATUSES,
+        ]
+        const limit = (args.p_limit as number | null) ?? 100
+        let list = sorted().filter((r) => statuses.includes(r.status))
+        if (args.p_after_source) {
+          const at = list.findIndex(
+            (r) =>
+              r.sourceId === args.p_after_source &&
+              r.locator === args.p_after_locator
+          )
+          list = list.slice(at + 1)
+        }
+        const page = list.slice(0, limit)
+        return {
+          data: {
+            venueId: args.p_venue,
+            rows: page,
+            next:
+              list.length > limit
+                ? {
+                    sourceId: page[limit - 1].sourceId,
+                    locator: page[limit - 1].locator,
+                  }
+                : null,
+          },
+          error: null,
+        }
+      }
+      // menu_crosswalk_decide
+      const head = [...rows.values()].find((r) => r.rowId === args.p_row)
+      if (!head || head.revision !== args.p_expected)
+        return { data: null, error: { message: "crosswalk_stale" } }
+      if (
+        args.p_status === "confirmed" &&
+        (head.status === "confirmed" || head.status === "carried") &&
+        head.itemId !== args.p_item
+      )
+        return { data: null, error: { message: "crosswalk_conflict" } }
+      head.rowId = id(1000 + next++)
+      head.revision += 1
+      head.status = args.p_status as CrosswalkRow["status"]
+      head.itemId =
+        args.p_status === "confirmed" ? (args.p_item as string) : head.itemId
+      return {
+        data: {
+          rowId: head.rowId,
+          status: head.status,
+          revision: head.revision,
+          replayed: false,
+        },
+        error: null,
+      }
+    })
+    const fresh = () =>
+      ({
+        profile: {
+          id: id(77),
+          role: "admin",
+          active: true,
+          venueId: null,
+          displayName: "TEST",
+        },
+        db: { rpc },
+        service: {},
+        storage: {},
+      }) as unknown as MediaActor
+    return { fresh, calls }
+  }
+
+  it("lets a reviewer find, reject and reconfirm a current mapping after a reload", async () => {
+    const db = fakeCrosswalk([
+      {
+        sourceId: S1,
+        locator: "sides.json#name=Chips",
+        status: "confirmed",
+        itemId: CHIPS,
+      },
+      { sourceId: S1, locator: "sides.json#name=Rice", status: "proposed" },
+    ])
+    // A new request: the review list does not show the confirmed row.
+    const review = await listMenuCrosswalkRows(db.fresh(), { venueId: id(1) })
+    expect(review.ok && review.rows.map((r) => r.locator)).toEqual([
+      "sides.json#name=Rice",
+    ])
+    const mapped = await listMenuCrosswalkRows(db.fresh(), {
+      venueId: id(1),
+      statuses: ["confirmed", "carried"],
+      itemId: CHIPS,
+    })
+    if (!mapped.ok) throw new Error(mapped.message)
+    const [row] = mapped.rows
+    expect(row).toMatchObject({ status: "confirmed", itemId: CHIPS })
+    const decide = (
+      rowId: string,
+      expectedRevision: number,
+      decision: Parameters<typeof decideMenuCrosswalk>[1]["decision"]
+    ) =>
+      decideMenuCrosswalk(db.fresh(), {
+        rowId,
+        expectedRevision,
+        decision,
+        reason: null,
+        requestKey: id(600 + db.calls.length),
+      })
+    expect(
+      await decide(row.rowId, row.revision, confirmTo(KORMA))
+    ).toMatchObject({ ok: false, status: 409 })
+    const rejected = await decide(row.rowId, row.revision, {
+      status: "rejected",
+    })
+    if (!rejected.ok) throw new Error(rejected.message)
+    expect(
+      await decide(rejected.rowId, rejected.revision, confirmTo(KORMA))
+    ).toMatchObject({ ok: true, status: "confirmed", revision: 3 })
+    const now = await listMenuCrosswalkRows(db.fresh(), {
+      venueId: id(1),
+      statuses: ["confirmed"],
+    })
+    expect(now.ok && now.rows.map((r) => [r.locator, r.itemId])).toEqual([
+      ["sides.json#name=Chips", KORMA],
+    ])
+  })
+
+  it("pages the whole review queue past retained removed rows", async () => {
+    const db = fakeCrosswalk([
+      ...["a", "b", "c", "d", "e"].map((l) => ({
+        sourceId: S1,
+        locator: `gone#${l}`,
+        status: "not_on_source" as const,
+      })),
+      { sourceId: S1, locator: "open#a", status: "proposed" },
+      { sourceId: S1, locator: "kept#a", status: "confirmed", itemId: CHIPS },
+      { sourceId: S2, locator: "gone#a", status: "not_on_source" },
+      { sourceId: S2, locator: "open#b", status: "needs_review" },
+    ])
+    const seen: string[] = []
+    let after: CrosswalkRowsCursor | null = null
+    let pages = 0
+    do {
+      const page = await listMenuCrosswalkRows(db.fresh(), {
+        venueId: id(1),
+        after,
+        limit: 2,
+      })
+      if (!page.ok) throw new Error(page.message)
+      seen.push(...page.rows.map((r) => `${r.sourceId} ${r.locator}`))
+      after = page.next
+      pages++
+    } while (after && pages < 10)
+    expect(pages).toBe(4)
+    expect(seen).toEqual([
+      `${S1} gone#a`,
+      `${S1} gone#b`,
+      `${S1} gone#c`,
+      `${S1} gone#d`,
+      `${S1} gone#e`,
+      `${S1} open#a`,
+      `${S2} gone#a`,
+      `${S2} open#b`,
+    ])
   })
 
   it("lets the database decide manifest access and checks the shape", async () => {

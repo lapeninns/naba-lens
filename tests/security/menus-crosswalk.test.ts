@@ -17,7 +17,9 @@ import {
   contentHashInput,
   proposeCrosswalk,
   snapshotDocumentError,
+  variantLocators,
   type CatalogueEntry,
+  type CrosswalkHead,
   type SnapshotEntry,
 } from "../../lib/menus/trading/crosswalk"
 import { nameKey } from "../../lib/menus/import/matching"
@@ -249,6 +251,86 @@ function decide(
 const manifest = (who: TestIdentity, venueId: string) =>
   rpc(who, "menu_manifest", { p_venue: venueId })
 
+type Cursor = { sourceId: string; locator: string }
+type Page = {
+  rows: {
+    rowId: string
+    revision: number
+    sourceId: string
+    locator: string
+    status: string
+    itemId: string | null
+    reviewedBy: string | null
+  }[]
+  next: Cursor | null
+}
+const listRows = (
+  who: TestIdentity,
+  venueId: string,
+  opts: {
+    statuses?: string[]
+    source?: string
+    item?: string
+    after?: Cursor | null
+    limit?: number
+  } = {}
+) =>
+  rpc(who, "menu_crosswalk_rows", {
+    p_venue: venueId,
+    p_statuses: opts.statuses ?? null,
+    p_source: opts.source ?? null,
+    p_item: opts.item ?? null,
+    p_after_source: opts.after?.sourceId ?? null,
+    p_after_locator: opts.after?.locator ?? null,
+    p_limit: opts.limit ?? null,
+  })
+
+/** Venue A's active version as the TypeScript matcher's catalogue. */
+const catalogueA = (): CatalogueEntry[] =>
+  docA.sections.flatMap((s) =>
+    s.items.map((i) => ({
+      itemId: i.itemId!,
+      sourceKey: i.sourceKey,
+      name: i.name,
+      aliases: i.aliases,
+      sectionName: s.name,
+      variants: i.variants.map((v) => ({
+        variantId: v.variantId!,
+        name: v.name,
+      })),
+    }))
+  )
+
+const asTsHeads = (list: Head[]): CrosswalkHead[] =>
+  list.map((h) => ({
+    locator: h.locator,
+    entryLocator: h.entry_locator,
+    status: h.status as CrosswalkHead["status"],
+    itemId: h.item_id,
+    variantId: h.variant_id,
+    channel: h.channel as CrosswalkHead["channel"],
+    contentHash: h.content_hash,
+    snapshotId: h.snapshot_id,
+  }))
+
+/** The rows one run wrote, in write order, as the matcher's rows. */
+const rowsFrom = (sourceId: string, snapshotId: string, afterSeq: number) =>
+  rows<Head>(`select r.locator, r.entry_locator, r.status, r.item_id, r.variant_id,
+      r.channel, r.content_hash, r.candidates
+    from public.menu_crosswalk r
+    where r.source_id = ${literal(sourceId)} and r.snapshot_id = ${literal(snapshotId)}
+      and r.seq > ${afterSeq}
+    order by r.seq`).map((r) => [
+    r.locator,
+    r.status,
+    r.item_id,
+    r.variant_id,
+    r.candidates,
+    r.content_hash,
+  ])
+const lastSeq = () =>
+  Number(psql("select coalesce(max(seq), 0) from public.menu_crosswalk"))
+
 // ---------------------------------------------------------------------------
 
 describe("roles and privileges (§10, OD-B4-2 default)", () => {
@@ -327,6 +409,7 @@ describe("roles and privileges (§10, OD-B4-2 default)", () => {
       "menu_crosswalk",
       "menu_crosswalk_heads",
       "menu_source_commands",
+      "menu_crosswalk_runs",
     ]) {
       const client = admin.client as unknown as {
         from(t: string): {
@@ -541,19 +624,6 @@ describe("crosswalk proposals (§4.2 #2, #4, #5)", () => {
 
   it("matches the TypeScript matcher row for row", async () => {
     // Recomputed from the same inputs the database saw (no prior heads).
-    const catalogue: CatalogueEntry[] = docA.sections.flatMap((s) =>
-      s.items.map((i) => ({
-        itemId: i.itemId!,
-        sourceKey: i.sourceKey,
-        name: i.name,
-        aliases: i.aliases,
-        sectionName: s.name,
-        variants: i.variants.map((v) => ({
-          variantId: v.variantId!,
-          name: v.name,
-        })),
-      }))
-    )
     const expected = proposeCrosswalk({
       snapshotId: snap,
       sourceKind: "venue_website",
@@ -561,7 +631,7 @@ describe("crosswalk proposals (§4.2 #2, #4, #5)", () => {
       contentHashes: await Promise.all(
         entries.map((e) => sha256Hex(contentHashInput(e)))
       ),
-      catalogue,
+      catalogue: catalogueA(),
       heads: [],
     })
     const got =
@@ -781,6 +851,478 @@ describe("revision change: carry by locator and hash (§4.2 #6)", () => {
   })
 })
 
+describe("decision provenance: only current source evidence is decided (§4.2 #2, #6)", () => {
+  const chips: SnapshotEntry = { locator: "s#Chips", name: "Chips" }
+  const rice: SnapshotEntry = { locator: "s#Rice", name: "Rice" }
+
+  it("refuses decisions while a recorded snapshot awaits the matcher, and still replays a committed one", async () => {
+    const source = await declare(
+      venueA,
+      "venue_website",
+      `TEST site ${randomUUID()}`
+    )
+    await ok(propose(await snapshot(source, "r1", [chips, rice])))
+    await ok(
+      decide(headAt(source, chips.locator), "confirmed", {
+        item: A("sides--chips").itemId,
+      })
+    )
+    const riceHead = headAt(source, rice.locator)
+    const committed = {
+      p_row: riceHead.row_id,
+      p_expected: riceHead.revision,
+      p_status: "unmatched",
+      p_item: null,
+      p_variant: null,
+      p_channel: "all",
+      p_reason: null,
+      p_request_key: randomUUID(),
+    }
+    const first = await ok<{ revision: number }>(
+      rpc(admin, "menu_crosswalk_decide", committed)
+    )
+
+    // S2 drops Chips; it is recorded but not proposed.
+    await snapshot(source, "r2", [rice])
+    await fails(
+      decide(headAt(source, chips.locator), "rejected"),
+      "crosswalk_reconcile_pending",
+      "P0001"
+    )
+    await fails(
+      decide(headAt(source, chips.locator), "confirmed", {
+        item: A("sides--chips").itemId,
+      }),
+      "crosswalk_reconcile_pending",
+      "P0001"
+    )
+    // The decision that committed before S2 replays.
+    expect(await ok(rpc(admin, "menu_crosswalk_decide", committed))).toEqual({
+      rowId: headAt(source, rice.locator).row_id,
+      status: "unmatched",
+      revision: first.revision,
+      replayed: true,
+    })
+
+    type Src = {
+      sourceId: string
+      latestSnapshot: { revision: string; snapshotId?: string }
+      reconciledSnapshot: { revision: string; snapshotId?: string } | null
+      reconciliationPending: boolean
+    }
+    const adminView = await ok<{ sources: Src[] }>(manifest(admin, venueA))
+    expect(adminView.sources.find((s) => s.sourceId === source)).toMatchObject({
+      latestSnapshot: { revision: "r2" },
+      reconciledSnapshot: { revision: "r1" },
+      reconciliationPending: true,
+    })
+    const managerView = await ok<{ sources: Src[] }>(manifest(managerA, venueA))
+    const seen = managerView.sources.find((s) => s.sourceId === source)!
+    expect(seen.reconciliationPending).toBe(true)
+    expect(seen.reconciledSnapshot).not.toHaveProperty("snapshotId")
+  })
+
+  it("refuses to confirm an S2 tombstone, and retrying the S2 matcher leaves it removed", async () => {
+    const source = await declare(
+      venueA,
+      "venue_website",
+      `TEST site ${randomUUID()}`
+    )
+    await ok(propose(await snapshot(source, "r1", [chips, rice])))
+    await ok(
+      decide(headAt(source, chips.locator), "confirmed", {
+        item: A("sides--chips").itemId,
+      })
+    )
+    const s2 = await snapshot(source, "r2", [rice])
+    await ok(propose(s2))
+    const tomb = headAt(source, chips.locator)
+    expect(tomb).toMatchObject({ status: "not_on_source", snapshot_id: s2 })
+    for (const status of ["confirmed", "rejected", "unmatched"] as const)
+      await fails(
+        decide(tomb, status, {
+          item: status === "confirmed" ? A("sides--chips").itemId : undefined,
+        }),
+        "crosswalk_not_on_source",
+        "P0001"
+      )
+    const retry = await ok<{ counts: Record<string, number> }>(propose(s2))
+    expect(retry.counts).toMatchObject({
+      proposed: 0,
+      ambiguous: 0,
+      carried: 0,
+      needsReview: 0,
+      notOnSource: 0,
+    })
+    expect(headAt(source, chips.locator)).toMatchObject({
+      status: "not_on_source",
+      row_id: tomb.row_id,
+      revision: tomb.revision,
+    })
+    const m = await ok<{
+      entries: {
+        itemId: string
+        outcomes: { sourceId: string; outcome: string }[]
+      }[]
+    }>(manifest(admin, venueA))
+    expect(
+      m.entries
+        .find((e) => e.itemId === A("sides--chips").itemId)!
+        .outcomes.find((o) => o.sourceId === source)!.outcome
+    ).toBe("not_on_source")
+  })
+})
+
+describe("variant transitions: retained, removed and remapped (§4.2 #5, #6)", () => {
+  const korma: SnapshotEntry = {
+    locator: "c#Korma",
+    name: "Korma",
+    variants: ["Chicken", "Lamb"],
+    priceText: "10.5",
+  }
+  const chickenAt = `${korma.locator}#variant=Chicken`
+  const lambAt = `${korma.locator}#variant=Lamb`
+
+  it("re-reviews a retained variant, removes a dropped one while the entry is pending, as the TypeScript matcher does", async () => {
+    const source = await declare(
+      venueA,
+      "venue_website",
+      `TEST site ${randomUUID()}`
+    )
+    const kormaId = A("mains--korma").itemId
+    const [kChicken, kLamb] = A("mains--korma").variants.map(
+      (v) => v.variantId!
+    )
+    const s1 = await snapshot(source, "r1", [korma])
+    await ok(propose(s1))
+    await ok(
+      decide(headAt(source, korma.locator), "confirmed", { item: kormaId })
+    )
+    await ok(propose(s1))
+    await ok(
+      decide(headAt(source, chickenAt), "confirmed", {
+        item: kormaId,
+        variant: kChicken,
+      })
+    )
+    await ok(
+      decide(headAt(source, lambAt), "confirmed", {
+        item: kormaId,
+        variant: kLamb,
+      })
+    )
+
+    const next: SnapshotEntry = {
+      ...korma,
+      variants: ["Chicken"],
+      priceText: "11",
+    }
+    const before = heads(source)
+    const seq = lastSeq()
+    const s2 = await snapshot(source, "r2", [next])
+    await ok(propose(s2))
+    const expected = proposeCrosswalk({
+      snapshotId: s2,
+      sourceKind: "venue_website",
+      entries: [next],
+      contentHashes: [await sha256Hex(contentHashInput(next))],
+      catalogue: catalogueA(),
+      heads: asTsHeads(before),
+    })
+    expect(rowsFrom(source, s2, seq)).toEqual(
+      expected.rows.map((r) => [
+        r.locator,
+        r.status,
+        r.itemId,
+        r.variantId,
+        r.candidates,
+        r.contentHash,
+      ])
+    )
+    const kormaHead = headAt(source, korma.locator)
+    expect(kormaHead.status).toBe("needs_review")
+    expect(headAt(source, chickenAt)).toMatchObject({
+      status: "needs_review",
+      variant_id: kChicken,
+      content_hash: kormaHead.content_hash,
+      snapshot_id: s2,
+    })
+    expect(headAt(source, lambAt)).toMatchObject({
+      status: "not_on_source",
+      variant_id: kLamb,
+    })
+
+    // The entry is reconfirmed on S2 and the matcher runs again.
+    await ok(decide(kormaHead, "confirmed", { item: kormaId }))
+    const chickenBefore = headAt(source, chickenAt)
+    expect(
+      (await ok<{ counts: Record<string, number> }>(propose(s2))).counts
+    ).toMatchObject({ proposed: 0, needsReview: 0, notOnSource: 0 })
+    expect(headAt(source, chickenAt)).toMatchObject({
+      row_id: chickenBefore.row_id,
+      status: "needs_review",
+    })
+    await ok(
+      decide(headAt(source, chickenAt), "confirmed", {
+        item: kormaId,
+        variant: kChicken,
+      })
+    )
+    await fails(
+      decide(headAt(source, lambAt), "confirmed", {
+        item: kormaId,
+        variant: kLamb,
+      }),
+      "crosswalk_not_on_source"
+    )
+  })
+
+  it("re-proposes variant rows inside the item an entry is remapped to in the same snapshot", async () => {
+    const source = await declare(
+      venueA,
+      "venue_website",
+      `TEST site ${randomUUID()}`
+    )
+    const kormaId = A("mains--korma").itemId
+    const tikkaId = A("mains--chicken-tikka").itemId
+    const tikkaChicken = A("mains--chicken-tikka").variants[0]!.variantId!
+    const snap = await snapshot(source, "r1", [korma])
+    await ok(propose(snap))
+    await ok(
+      decide(headAt(source, korma.locator), "confirmed", { item: kormaId })
+    )
+    await ok(propose(snap))
+    expect(headAt(source, chickenAt)).toMatchObject({ item_id: kormaId })
+    await ok(decide(headAt(source, korma.locator), "rejected"))
+    await ok(
+      decide(headAt(source, korma.locator), "confirmed", { item: tikkaId })
+    )
+    await ok(propose(snap))
+    expect(headAt(source, chickenAt)).toMatchObject({
+      status: "proposed",
+      item_id: tikkaId,
+      variant_id: tikkaChicken,
+      candidates: [tikkaChicken],
+    })
+    expect(headAt(source, lambAt)).toMatchObject({
+      status: "proposed",
+      item_id: tikkaId,
+      variant_id: null,
+      candidates: [],
+    })
+    const kormaVariants = A("mains--korma").variants.map((v) => v.variantId)
+    expect(
+      heads(source)
+        .flatMap((h) => h.candidates)
+        .filter((c) => kormaVariants.includes(c))
+    ).toEqual([])
+    await ok(
+      decide(headAt(source, chickenAt), "confirmed", {
+        item: tikkaId,
+        variant: tikkaChicken,
+      })
+    )
+  })
+})
+
+describe("variant locators: duplicates and literal suffixes (§4.3)", () => {
+  const fixtures: SnapshotEntry[] = [
+    {
+      locator: "x#name=Chips",
+      name: "Chips",
+      variants: ["Regular", "Regular", "Regular#2"],
+    },
+    {
+      locator: "x#name=Odd",
+      name: "Odd",
+      variants: ["a#2", "a", "a", "a%232", "#", "%", "x#variant=y"],
+    },
+  ]
+
+  it("writes the TypeScript locators and finds each occurrence", () => {
+    for (const entry of fixtures) {
+      const got = rows<{ locator: string }>(`select v.locator
+        from private.menu_crosswalk_variants(${literal(JSON.stringify(entry))}::jsonb) v
+        order by v.ord`).map((r) => r.locator)
+      expect(got).toEqual(variantLocators(entry))
+      for (const locator of got)
+        expect(
+          psql(`select private.menu_crosswalk_occurrence(
+            ${literal(JSON.stringify(fixtures))}::jsonb, ${literal(locator)}, ${literal(entry.locator)}) ->> 'locator'`)
+        ).toBe(entry.locator)
+      expect(
+        psql(`select private.menu_crosswalk_occurrence(
+          ${literal(JSON.stringify(fixtures))}::jsonb,
+          ${literal(`${entry.locator}#variant=Missing`)}, ${literal(entry.locator)}) is null`)
+      ).toBe("t")
+    }
+  })
+
+  it("proposes one row for every listed variant, literal suffixes included", async () => {
+    const source = await declare(
+      venueA,
+      "venue_website",
+      `TEST site ${randomUUID()}`
+    )
+    const snap = await snapshot(source, "r1", [fixtures[0]!])
+    await ok(propose(snap))
+    await ok(
+      decide(headAt(source, fixtures[0]!.locator), "confirmed", {
+        item: A("sides--chips").itemId,
+      })
+    )
+    const again = await ok<{ counts: Record<string, number> }>(propose(snap))
+    expect(again.counts).toMatchObject({ proposed: 3 })
+    expect(
+      heads(source)
+        .filter((h) => h.entry_locator === fixtures[0]!.locator)
+        .map((h) => h.locator)
+        .sort()
+    ).toEqual([...variantLocators(fixtures[0]!)].sort())
+  })
+})
+
+describe("admin rows read: current mappings and review paging (§4.2 #3, B04-01d)", () => {
+  it("finds a current mapping after a reload so it can be rejected and remapped", async () => {
+    const source = await declare(
+      venueA,
+      "venue_website",
+      `TEST site ${randomUUID()}`
+    )
+    const chips = A("sides--chips").itemId
+    await ok(
+      propose(
+        await snapshot(source, "r1", [{ locator: "s#Chips", name: "Chips" }])
+      )
+    )
+    await ok(decide(headAt(source, "s#Chips"), "confirmed", { item: chips }))
+    // A fresh request: the review list no longer shows the confirmed row.
+    const review = await ok<Page>(listRows(admin, venueA, { source }))
+    expect(review.rows).toEqual([])
+    const mapped = await ok<Page>(
+      listRows(admin, venueA, {
+        source,
+        statuses: ["confirmed", "carried"],
+        item: chips,
+      })
+    )
+    expect(mapped.rows).toHaveLength(1)
+    const row = mapped.rows[0]!
+    expect(row).toMatchObject({ status: "confirmed", reviewedBy: admin.id })
+    const rice = A("sides--rice").itemId
+    await fails(
+      decide(
+        {
+          ...headAt(source, "s#Chips"),
+          row_id: row.rowId,
+          revision: row.revision,
+        },
+        "confirmed",
+        { item: rice }
+      ),
+      "crosswalk_conflict"
+    )
+    await ok(
+      decide(
+        {
+          ...headAt(source, "s#Chips"),
+          row_id: row.rowId,
+          revision: row.revision,
+        },
+        "rejected"
+      )
+    )
+    const rejected = await ok<Page>(
+      listRows(admin, venueA, { source, statuses: ["rejected"] })
+    )
+    await ok(
+      decide(
+        {
+          ...headAt(source, "s#Chips"),
+          row_id: rejected.rows[0]!.rowId,
+          revision: rejected.rows[0]!.revision,
+        },
+        "confirmed",
+        { item: rice }
+      )
+    )
+    expect(
+      (
+        await ok<Page>(
+          listRows(admin, venueA, { source, statuses: ["confirmed"] })
+        )
+      ).rows.map((r) => r.itemId)
+    ).toEqual([rice])
+  })
+
+  it("pages the review queue past retained removed rows, admin only", async () => {
+    const source = await declare(
+      venueA,
+      "venue_website",
+      `TEST site ${randomUUID()}`
+    )
+    const names = ["A1", "A2", "A3", "A4", "A5", "B1", "B2"]
+    await ok(
+      propose(
+        await snapshot(
+          source,
+          "r1",
+          names.map((n) => ({ locator: `s#${n}`, name: `TEST ${n}` }))
+        )
+      )
+    )
+    await ok(
+      propose(
+        await snapshot(
+          source,
+          "r2",
+          ["B1", "B2"].map((n) => ({ locator: `s#${n}`, name: `TEST ${n}` }))
+        )
+      )
+    )
+    const seen: string[] = []
+    let after: Cursor | null = null
+    let pages = 0
+    do {
+      const page: Page = await ok<Page>(
+        listRows(admin, venueA, { source, after, limit: 2 })
+      )
+      seen.push(...page.rows.map((r) => `${r.locator} ${r.status}`))
+      after = page.next
+      pages++
+    } while (after && pages < 10)
+    expect(pages).toBe(4)
+    expect(seen).toEqual([
+      ...["A1", "A2", "A3", "A4", "A5"].map((n) => `s#${n} not_on_source`),
+      "s#B1 proposed",
+      "s#B2 proposed",
+    ])
+
+    await fails(listRows(managerA, venueA), "not_active_admin", "42501")
+    await fails(listRows(staffA, venueA), "not_active_admin", "42501")
+    await fails(
+      listRows(admin, venueB, { source }),
+      "menu_source_not_found",
+      "P0002"
+    )
+    await fails(
+      listRows(admin, venueB, { after: { sourceId: source, locator: "s#A1" } }),
+      "invalid_crosswalk_cursor"
+    )
+    await fails(
+      listRows(admin, venueA, { statuses: ["deleted"] }),
+      "invalid_crosswalk_status"
+    )
+    const m = await ok<{ reviewTruncated: boolean; reviewNext: unknown }>(
+      manifest(admin, venueA)
+    )
+    expect(m).toMatchObject({ reviewTruncated: false, reviewNext: null })
+    expect(
+      await ok<{ reviewNext: unknown }>(manifest(managerA, venueA))
+    ).toMatchObject({ reviewNext: null })
+  })
+})
+
 describe("field authority (§4.4, OD-B4-1: inert defaults)", () => {
   it("reads the §4.4 defaults, awaiting the owner, for a venue with no rows", async () => {
     const m = await ok<{
@@ -973,6 +1515,8 @@ describe("immutable provenance and untouched credit (§3, §13.2)", () => {
       "delete from public.menu_crosswalk_heads",
       "update public.menu_crosswalk_heads set status = 'confirmed'",
       "update public.menu_sources set label = 'x'",
+      "update public.menu_crosswalk_runs set run_at = now()",
+      "delete from public.menu_crosswalk_runs",
       "truncate public.menu_crosswalk cascade",
     ])
       expect(() => psql(sql), sql).toThrow()
@@ -1003,11 +1547,13 @@ describe("immutable provenance and untouched credit (§3, §13.2)", () => {
         p.provolatile as volatility, p.prosecdef as definer
       from pg_proc p join pg_namespace n on n.oid = p.pronamespace
       where n.nspname = 'public' and p.proname in ('menu_manifest', 'menu_declare_source',
-        'menu_record_snapshot', 'menu_crosswalk_propose', 'menu_crosswalk_decide', 'menu_set_field_authority')
+        'menu_record_snapshot', 'menu_crosswalk_propose', 'menu_crosswalk_decide', 'menu_set_field_authority',
+        'menu_crosswalk_rows')
       order by 1`)
     expect(fns).toEqual([
       { name: "menu_crosswalk_decide", volatility: "v", definer: true },
       { name: "menu_crosswalk_propose", volatility: "v", definer: true },
+      { name: "menu_crosswalk_rows", volatility: "s", definer: true },
       { name: "menu_declare_source", volatility: "v", definer: true },
       { name: "menu_manifest", volatility: "s", definer: true },
       { name: "menu_record_snapshot", volatility: "v", definer: true },
