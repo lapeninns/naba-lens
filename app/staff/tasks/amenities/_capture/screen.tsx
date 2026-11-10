@@ -60,11 +60,20 @@ async function knowledgeFor(
   const question = await knowledgeServices
     .getQuestion(actor, { key: view.view.slot.key })
     .catch(() => null)
-  return {
-    props: fromView(view.view, draft?.ok ? draft.draft : null, role),
-    capture: view.view.capture,
-    form: questionForm(question?.ok ? question.question : null),
+  const form = questionForm(question?.ok ? question.question : null)
+  const props = fromView(view.view, draft?.ok ? draft.draft : null, role)
+  if (form.kind === "facility") {
+    // The venue's places for "Where is it?"; none when they can't be read
+    // (the person can still name a place).
+    const places = await knowledgeServices
+      .listPlaces(actor, { venueId: view.view.venue.id })
+      .catch(() => null)
+    props.detailForm = {
+      schema: "facility",
+      places: places?.ok ? (places.places ?? []).filter((p) => p.active) : [],
+    }
   }
+  return { props, capture: view.view.capture, form }
 }
 
 function fromView(
@@ -244,7 +253,10 @@ export async function CaptureScreen({
           </span>
         }
       />
-      {open && knowledgeRead && knowledgeRead.form.kind !== "b01" ? (
+      {open &&
+      knowledgeRead &&
+      (knowledgeRead.form.kind === "unknown" ||
+        knowledgeRead.form.kind === "not_asked") ? (
         <QuestionFormNotice form={knowledgeRead.form} />
       ) : open ? (
         latest ? (

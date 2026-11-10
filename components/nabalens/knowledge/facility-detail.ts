@@ -189,10 +189,11 @@ export function facilityFieldOf(path: string): FacilityField | null {
 
 /** Server field errors (keyed by path) onto the form's fields. */
 export function facilityFieldErrors(
-  fieldErrors: Record<string, string> | undefined
+  fieldErrors: Partial<Record<string, string>> | undefined
 ): Partial<Record<FacilityField, string>> {
   const out: Partial<Record<FacilityField, string>> = {}
   for (const [path, message] of Object.entries(fieldErrors ?? {})) {
+    if (!message) continue
     const field = facilityFieldOf(path)
     if (field && !out[field]) out[field] = message
   }

@@ -12,6 +12,8 @@ import type {
 export type QuestionForm =
   /** Today's B01 form (no registry yet, or a schema it already covers). */
   | { kind: "b01" }
+  /** The B01 form plus the facility detail and Checked on (B03-b). */
+  | { kind: "facility" }
   /** A schema or version this build has no form for. */
   | { kind: "unknown"; schema: string; version: number }
   /** The question isn't asked any more (registry lifecycle). */
@@ -47,6 +49,7 @@ export function questionForm(question: RegistryQuestion | null): QuestionForm {
     }
   const { name, version } = question.valueSchema
   if (B01_FORMS.has(`${name}@${version}`)) return { kind: "b01" }
+  if (name === "facility" && version === 1) return { kind: "facility" }
   return { kind: "unknown", schema: name as ValueSchemaName, version }
 }
 

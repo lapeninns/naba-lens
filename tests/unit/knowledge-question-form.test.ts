@@ -60,6 +60,17 @@ describe("questionForm", () => {
     )
   })
 
+  it("gives facility version 1 its detail form", () => {
+    expect(
+      questionForm(
+        question({
+          family: "facility",
+          valueSchema: { name: "facility", version: 1 },
+        })
+      )
+    ).toEqual({ kind: "facility" })
+  })
+
   it("never renders a form for a schema or version it doesn't know", () => {
     expect(
       questionForm(

@@ -285,14 +285,9 @@ export function FacilityDetailFields({
         </fieldset>
       </details>
 
+      {/* Limitations is the capture form's own field, so it isn't asked twice. */}
       {(
         [
-          [
-            "limitations",
-            COPY.limitations,
-            COPY.limitationsHelp,
-            FACILITY_LIMITS.limitations,
-          ],
           [
             "howToRequest",
             COPY.howToRequest,

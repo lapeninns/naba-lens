@@ -371,6 +371,9 @@ export type DraftPayload = {
   }
   /** Set once a send was attempted: replays resend the same revision. */
   sentSlotRevision: number | null
+  /** B03-b detail forms: the detail as it would be sent, and Checked on. */
+  detail?: Record<string, unknown> | null
+  checkedOn?: { date: string | null; source: ObservedOnSource | null } | null
 }
 
 export type ServerDraft = {

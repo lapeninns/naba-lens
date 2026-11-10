@@ -15,7 +15,7 @@ import { QUESTION_FORM_COPY, type QuestionForm } from "./question-form"
 export function QuestionFormNotice({
   form,
 }: {
-  form: Exclude<QuestionForm, { kind: "b01" }>
+  form: Exclude<QuestionForm, { kind: "b01" } | { kind: "facility" }>
 }) {
   if (form.kind === "not_asked")
     return <Notice tone="plain">{QUESTION_FORM_COPY.notAsked}</Notice>

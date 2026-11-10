@@ -33,6 +33,9 @@ import type {
   SubmittedFinding,
   WorkingSlot,
 } from "@/lib/knowledge-client/contract"
+import { londonToday } from "@/components/nabalens/amenities/capture/validate"
+import { daysBefore } from "@/components/nabalens/knowledge/checked-on"
+import { longDate } from "@/components/nabalens/knowledge/copy"
 
 const CHECK_ID = "8a000000-0000-4000-8000-000000000002"
 const VIEWER_ID = "1a2b3c4d-0000-4aaa-8bbb-00000000000b"
@@ -155,6 +158,7 @@ function setup({
   })),
   discardDraft = vi.fn<DiscardDraft>(async () => ({ ok: true })),
   prefill = null,
+  detailForm = null,
 }: {
   knowledgeSlot?: WorkingSlot
   submit?: ReturnType<typeof vi.fn<Submit>>
@@ -164,6 +168,7 @@ function setup({
   saveDraft?: ReturnType<typeof vi.fn<SaveDraft>>
   discardDraft?: ReturnType<typeof vi.fn<DiscardDraft>>
   prefill?: KnowledgeCapture["prefill"]
+  detailForm?: KnowledgeCapture["detailForm"]
 } = {}) {
   const onDone = vi.fn()
   const onReload = vi.fn()
@@ -193,6 +198,7 @@ function setup({
         onDiscardDraft: discardDraft,
         serverDraft,
         prefill,
+        detailForm,
       }}
     />
   )
@@ -1044,5 +1050,130 @@ describe("knowledge capture: a send removes the saved draft (CA-01, CA-02, CA-04
     await user.click(screen.getByRole("button", { name: "Discard" }))
     expect(status()).toContain("Draft discarded.")
     await waitFor(() => expect(document.activeElement).toBe(radio("Yes")))
+  })
+})
+
+describe("knowledge capture: facility detail and Checked on (B03-b)", () => {
+  const BAR = {
+    subjectId: "5a000000-0000-4000-8000-000000000001",
+    kind: "area" as const,
+    label: "⟨Back bar⟩",
+    active: true,
+  }
+  const FACILITY = { schema: "facility" as const, places: [BAR] }
+  const today = londonToday()
+
+  it("keeps today's form, with no detail or Checked on, without a detail form", async () => {
+    const { user } = setup()
+    await user.click(radio("Yes"))
+    expect(screen.queryByRole("group", { name: "Where is it?" })).toBeNull()
+    expect(screen.queryByLabelText("When did you check?")).toBeNull()
+  })
+
+  it("sends the facility detail and the form's date, left as the form's", async () => {
+    const submit = vi.fn<Submit>(async () => sent())
+    const { user } = setup({ submit, detailForm: FACILITY })
+    await user.click(radio("Yes"))
+    await user.click(screen.getByRole("checkbox", { name: "⟨Back bar⟩" }))
+    await user.click(photoBox())
+    expect(
+      (screen.getByLabelText("When did you check?") as HTMLInputElement).value
+    ).toBe(today)
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    expect(lastInput(submit)).toMatchObject({
+      answer: "yes",
+      detail: { locations: [{ subjectId: BAR.subjectId }] },
+      observedOn: today,
+      observedOnSource: "form_default",
+    })
+  })
+
+  it("sends a changed date as chosen, and no detail for No", async () => {
+    const submit = vi.fn<Submit>(async () => sent())
+    const { user } = setup({ submit, detailForm: FACILITY })
+    await user.click(radio("No"))
+    expect(screen.queryByRole("group", { name: "Where is it?" })).toBeNull()
+    const date = screen.getByLabelText("When did you check?")
+    await user.clear(date)
+    await user.type(date, daysBefore(today, 2))
+    await user.type(screen.getByLabelText(/Reason/), "⟨Reason⟩")
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    const input = lastInput(submit)
+    expect(input).toMatchObject({
+      answer: "no",
+      observedOn: daysBefore(today, 2),
+      observedOnSource: "chosen",
+    })
+    expect(input).not.toHaveProperty("detail")
+  })
+
+  it("puts the server's detail and date errors on their fields", async () => {
+    const submit = vi.fn<Submit>(async () => ({
+      ok: false as const,
+      code: "invalid_input" as const,
+      status: 400 as const,
+      message: "Check the highlighted answers.",
+      fieldErrors: {
+        "detail.locations[0]": "Choose a place at this venue.",
+        observedOn: "Choose a date in the last 30 days.",
+      },
+    }))
+    const { user } = setup({ submit, detailForm: FACILITY })
+    await user.click(radio("Yes"))
+    await user.click(screen.getByRole("checkbox", { name: "⟨Back bar⟩" }))
+    await user.click(photoBox())
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    expect(
+      await screen.findByText("Choose a place at this venue.")
+    ).toBeTruthy()
+    expect(screen.getByText("Choose a date in the last 30 days.")).toBeTruthy()
+    expect(
+      screen.getByLabelText("When did you check?").getAttribute("aria-invalid")
+    ).toBe("true")
+    expect(
+      screen.getByText("Nothing was sent. Check the highlighted answers.")
+    ).toBeTruthy()
+  })
+
+  it("clears a draft's form date from an earlier day and needs a choice (D-B3-12)", async () => {
+    const started = daysBefore(today, 3)
+    window.localStorage.setItem(
+      `nabalens.amenity-draft.v2:${VIEWER_ID}:${CHECK_ID}`,
+      JSON.stringify({
+        idempotencyKey: "stored-key",
+        attempted: false,
+        revision: 7,
+        answer: "no",
+        reason: "⟨Reason⟩",
+        checkedOn: { date: started, source: "form_default" },
+      })
+    )
+    const submit = vi.fn<Submit>(async () => sent())
+    const { user } = setup({ submit, detailForm: FACILITY })
+    const date = (await screen.findByLabelText(
+      "When did you check?"
+    )) as HTMLInputElement
+    expect(date.value).toBe("")
+    expect(
+      screen.getByText(
+        `This draft was started on ${longDate(started)}. Choose the day you checked.`
+      )
+    ).toBeTruthy()
+    await user.click(screen.getByRole("button", { name: "Submit finding" }))
+    expect(submit).not.toHaveBeenCalled()
+    expect(screen.getByText("Choose the day you checked.")).toBeTruthy()
+    await waitFor(() => expect(document.activeElement).toBe(date))
+  })
+
+  it("saves the detail and Checked on with the account draft", async () => {
+    const { user, saveDraft } = setup({ detailForm: FACILITY })
+    await user.click(radio("Yes"))
+    await user.click(screen.getByRole("checkbox", { name: "⟨Back bar⟩" }))
+    await user.click(screen.getByRole("button", { name: "Save for later" }))
+    expect(saveDraft.mock.lastCall?.[0].payload).toMatchObject({
+      answer: "yes",
+      detail: { locations: [{ subjectId: BAR.subjectId }] },
+      checkedOn: { date: today, source: "form_default" },
+    })
   })
 })

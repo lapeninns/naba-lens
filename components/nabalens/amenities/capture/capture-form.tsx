@@ -35,6 +35,7 @@ import {
   type UnknownPreset,
   type KnowledgeFailure,
   type KnowledgeResult,
+  type Place,
   type SaveDraftInput,
   type ServerDraft,
   type SubmitKnowledgeInput,
@@ -65,6 +66,22 @@ import {
   type SentCopy,
   type UploadKinds,
 } from "../../knowledge/copy"
+import {
+  checkedOnError,
+  newCheckedOn,
+  reopenCheckedOn,
+} from "../../knowledge/checked-on"
+import { CheckedOnField } from "../../knowledge/checked-on-field"
+import {
+  emptyFacility,
+  facilityDetail,
+  facilityErrors,
+  facilityFieldErrors,
+  facilityFromDetail,
+  facilityTouched,
+  type FacilityField,
+} from "../../knowledge/facility-detail"
+import { FacilityDetailFields } from "../../knowledge/facility-detail-fields"
 import { Notice } from "../../notice"
 import { useOnline } from "../../offline-notice"
 import {
@@ -144,6 +161,11 @@ export type KnowledgeCapture = {
     answer: KnowledgeAnswer | null
     unknownPreset: UnknownPreset | null
   } | null
+  /**
+   * B03-b: the question's version has a detail form this build renders
+   * (only facility so far), with the venue's active places for it.
+   */
+  detailForm?: { schema: "facility"; places: Place[] } | null
 }
 
 type Outcome =
@@ -245,7 +267,9 @@ function isDirty(draft: CaptureDraft): boolean {
     draft.assetIds.length ||
     draft.redactionConfirmed ||
     draft.uploadsPending?.count ||
-    Object.values(draft.wifi).some(Boolean)
+    Object.values(draft.wifi).some(Boolean) ||
+    (draft.facility && facilityTouched(draft.facility)) ||
+    draft.checkedOn?.source === "chosen"
   )
 }
 
@@ -318,6 +342,8 @@ function fromServerDraft(server: ServerDraft): CaptureDraft {
     sentSlotRevision: payload.sentSlotRevision,
     wifi: { ...payload.wifi },
     assetIds: [...server.assetIds],
+    ...(payload.detail ? { facility: facilityFromDetail(payload.detail) } : {}),
+    ...(payload.checkedOn ? { checkedOn: payload.checkedOn } : {}),
   }
 }
 
@@ -450,6 +476,16 @@ export function CaptureForm({
     () => new Map()
   )
   const [errors, setErrors] = React.useState<CaptureErrors>({})
+  // B03-b detail forms: facility and Checked on errors, and why a reopened
+  // draft's Checked on was cleared.
+  const detailForm = knowledge?.detailForm ?? null
+  const [detailErrors, setDetailErrors] = React.useState<
+    Partial<Record<FacilityField, string>>
+  >({})
+  const [checkedOnErr, setCheckedOnErr] = React.useState<string | undefined>()
+  const [checkedOnNotice, setCheckedOnNotice] = React.useState<string | null>(
+    null
+  )
   const [extraErrors, setExtraErrors] = React.useState<string[]>([])
   const [outcome, setOutcome] = React.useState<Outcome | null>(null)
   const [sending, setSending] = React.useState(false)
@@ -551,10 +587,21 @@ export function CaptureForm({
     // This device's draft is the newest; otherwise the account's saved one.
     const fromServer =
       !stored && serverDraft ? fromServerDraft(serverDraft) : null
+    // A form's Checked on date from an earlier day is cleared (D-B3-12).
+    const saved = stored ?? fromServer
+    const reopened = saved?.checkedOn
+      ? reopenCheckedOn(saved.checkedOn, londonToday())
+      : null
     // eslint-disable-next-line react-hooks/set-state-in-effect -- restore from storage
-    setDraft((current) =>
-      reconcileDraft(stored ?? fromServer ?? current, revision, newKey)
-    )
+    setCheckedOnNotice(reopened?.notice ?? null)
+    setDraft((current) => {
+      const next = reconcileDraft(
+        stored ?? fromServer ?? current,
+        revision,
+        newKey
+      )
+      return reopened ? { ...next, checkedOn: reopened.value } : next
+    })
     setLastSendUnsure(Boolean((stored ?? fromServer)?.attempted))
     // Uploads still saving when the person left: newer unticked ones listed
     // now finished after they went, and aren't attached by themselves.
@@ -656,6 +703,10 @@ export function CaptureForm({
     setOutcome((o) => (o?.kind === "sent" ? o : null))
     setDraft((current) => {
       let next = change(current)
+      // The form's Checked on date is stamped at the first edit, so a draft
+      // reopened later can tell it from a chosen one.
+      if (detailForm && next.checkedOn === undefined)
+        next = { ...next, checkedOn: newCheckedOn(londonToday()) }
       if (!sameIds(next.assetIds, current.assetIds))
         next = { ...next, redactionConfirmed: false, redactionAssetIds: [] }
       return current.attempted && !sameIntent
@@ -896,21 +947,50 @@ export function CaptureForm({
         })
       : validateDraft({ ...common, revision: check.revision })
     setExtraErrors([])
+    // B03-b detail forms: the facility detail and Checked on, checked here
+    // (the database checks them again against the question's version).
+    const today = londonToday()
+    const facility = draft.facility ?? emptyFacility()
+    const checkedOnValue = draft.checkedOn ?? newCheckedOn(today)
+    const facilityErrs =
+      detailForm && draft.answer === "yes" ? facilityErrors(facility) : {}
+    const checkedOnErrNow =
+      detailForm && draft.answer
+        ? (checkedOnError(checkedOnValue, today) ?? undefined)
+        : undefined
+    const detailBad =
+      Object.values(facilityErrs).some(Boolean) || Boolean(checkedOnErrNow)
+    if (detailForm) {
+      setDetailErrors(facilityErrs)
+      setCheckedOnErr(checkedOnErrNow)
+    }
+    if (detailForm && checked.ok && !detailBad) {
+      const detail = draft.answer === "yes" ? facilityDetail(facility) : null
+      Object.assign(checked.input, {
+        ...(detail ? { detail } : {}),
+        observedOn: checkedOnValue.date!,
+        observedOnSource: checkedOnValue.source!,
+      })
+    }
     // Knowledge evidence must be ready to attach: with uploads from this form
     // still saving, nothing is sent until the person waits or goes without.
     const waitable = knowledge !== null && pendingUploads > 0 && !ignorePending
-    if (!checked.ok) {
-      const onlyEvidence = Object.entries(checked.errors).every(
-        ([field, message]) => !message || field === "assetIds"
-      )
-      if (waitable && onlyEvidence) {
+    if (!checked.ok || detailBad) {
+      const errs = checked.ok ? {} : checked.errors
+      const onlyEvidence =
+        !detailBad &&
+        Object.entries(errs).every(
+          ([field, message]) => !message || field === "assetIds"
+        )
+      if (!checked.ok && waitable && onlyEvidence) {
         setErrors({})
         setOutcome({ kind: "uploads_pending", canSendWithout: false })
         return
       }
-      setErrors(checked.errors)
+      setErrors(errs)
       setOutcome(null)
-      focusFirstInvalid(checked.errors)
+      if (Object.values(errs).some(Boolean)) focusFirstInvalid(errs)
+      else focusDetailError(facilityErrs, checkedOnErrNow)
       return
     }
     if (waitable) {
@@ -1067,6 +1147,42 @@ export function CaptureForm({
   }
 
   /** Focus the first invalid control; its message is in its description. */
+  /** The first invalid detail control: Checked on, else the facility field. */
+  function focusDetailError(
+    facilityErrs: Partial<Record<FacilityField, string>>,
+    checkedOn: string | undefined
+  ) {
+    requestAnimationFrame(() => {
+      if (checkedOn) {
+        document.getElementById(`${ids}-checked-on`)?.focus()
+        return
+      }
+      const field = (
+        [
+          "locations",
+          "availability",
+          "fees",
+          "limitations",
+          "howToRequest",
+        ] as const
+      ).find((f) => facilityErrs[f])
+      const target =
+        field === "locations"
+          ? document.getElementById(`${ids}-facility-label`)
+          : field === "availability"
+            ? (document.getElementsByName(`${ids}-facility-availability`)[0] as
+                HTMLElement | undefined)
+            : field === "fees"
+              ? (document.getElementById(`${ids}-facility-amount`) ??
+                (document.getElementsByName(`${ids}-facility-fees`)[0] as
+                  HTMLElement | undefined))
+              : field
+                ? document.getElementById(`${ids}-facility-${field}`)
+                : null
+      target?.focus()
+    })
+  }
+
   function focusFirstInvalid(errs: CaptureErrors) {
     const field = FIELD_ORDER.find((name) => errs[name])
     if (!field) return
@@ -1214,8 +1330,16 @@ export function CaptureForm({
     if (result.fieldErrors) {
       const known: CaptureErrors = {}
       const other: string[] = []
+      // B03-b: detail paths and the observation date go to their fields.
+      const detailErrs = facilityFieldErrors(result.fieldErrors)
+      if (Object.keys(detailErrs).length) setDetailErrors(detailErrs)
+      const observed =
+        result.fieldErrors.observedOn ?? result.fieldErrors.observedOnSource
+      if (observed) setCheckedOnErr(observed)
       for (const [field, message] of Object.entries(result.fieldErrors)) {
         if (!message) continue
+        if (field.startsWith("detail.") || field.startsWith("observedOn"))
+          continue
         if (FIELD_NAMES.has(field)) known[field as CaptureField] = message
         else if (field === "wifi" || field.startsWith("wifi"))
           known["wifi.testSpot"] ??= message
@@ -1279,6 +1403,12 @@ export function CaptureForm({
           changeReason: draft.changeReason,
           wifi: { ...draft.wifi },
           sentSlotRevision: draft.attempted ? draft.sentSlotRevision : null,
+          ...(detailForm
+            ? {
+                detail: draft.facility ? facilityDetail(draft.facility) : null,
+                checkedOn: draft.checkedOn ?? null,
+              }
+            : {}),
         },
         assetIds: selected,
         idempotencyKey: draft.idempotencyKey,
@@ -1682,6 +1812,36 @@ export function CaptureForm({
           onTried={(value) => setField("triedText", value)}
           presetError={errors.unknownPreset}
           triedError={errors.triedText}
+          disabled={locked}
+        />
+      ) : null}
+
+      {detailForm && answer === "yes" ? (
+        <FacilityDetailFields
+          id={`${ids}-facility`}
+          value={draft.facility ?? emptyFacility()}
+          onChange={(next) => {
+            edit((d) => ({ ...d, facility: next }))
+            setDetailErrors({})
+          }}
+          places={detailForm.places}
+          venueName={knowledge?.venueName ?? ""}
+          errors={detailErrors}
+          disabled={locked}
+        />
+      ) : null}
+      {detailForm && answer ? (
+        <CheckedOnField
+          id={`${ids}-checked-on`}
+          value={draft.checkedOn ?? newCheckedOn(londonToday())}
+          today={londonToday()}
+          onChange={(next) => {
+            edit((d) => ({ ...d, checkedOn: next }))
+            setCheckedOnErr(undefined)
+            setCheckedOnNotice(null)
+          }}
+          error={checkedOnErr}
+          notice={checkedOnNotice}
           disabled={locked}
         />
       ) : null}

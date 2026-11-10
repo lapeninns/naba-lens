@@ -450,6 +450,10 @@ export function adaptDraft(view: DraftView): ServerDraft {
       Number.isInteger(p.sentSlotRevision)
         ? p.sentSlotRevision
         : null,
+    ...(p.detail && typeof p.detail === "object" && !Array.isArray(p.detail)
+      ? { detail: p.detail as Record<string, unknown> }
+      : {}),
+    ...draftCheckedOnOf(p.checkedOn),
   }
   return {
     draftRevision: view.draftRevision,
@@ -485,5 +489,21 @@ export function adaptDecision(
     slotRevision: result.slotRevision,
     replayed: result.replayed,
     replacedAnswer: "replacedAnswer" in result ? result.replacedAnswer : null,
+  }
+}
+
+/** A draft's Checked on, defensively (drafts are free-form JSON). */
+function draftCheckedOnOf(v: unknown): Pick<DraftPayload, "checkedOn"> {
+  if (!v || typeof v !== "object") return {}
+  const c = v as Record<string, unknown>
+  return {
+    checkedOn: {
+      date:
+        typeof c.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(c.date)
+          ? c.date
+          : null,
+      source:
+        c.source === "form_default" || c.source === "chosen" ? c.source : null,
+    },
   }
 }

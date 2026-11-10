@@ -3,7 +3,13 @@
 // form (staff, manager account, legacy grant, admin), and every route keeps
 // the legacy form for a question that isn't on a working list. Renders the
 // real capture screen and form.
-import { cleanup, render, screen, within } from "@testing-library/react"
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { cloneElement, isValidElement, type ReactNode } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -69,6 +75,7 @@ const knowledge = vi.hoisted(() => ({
   getDraft: vi.fn(),
   listKnowledgeAssets: vi.fn(),
   getQuestion: vi.fn(),
+  listPlaces: vi.fn(),
 }))
 vi.mock("@/lib/knowledge-client/services", () => ({
   knowledgeServices: knowledge,
@@ -280,6 +287,42 @@ describe("capture routes and the question registry (B03 UI §2.1)", () => {
       ).toBeNull()
     }
   )
+
+  it("loads the venue's places for a facility question and shows its detail after Yes", async () => {
+    knowledge.getKnowledgeCheck.mockResolvedValue({ ok: true, view: inScope() })
+    knowledge.getQuestion.mockResolvedValue(
+      registry({ valueSchema: { name: "facility", version: 1 } })
+    )
+    knowledge.listPlaces.mockResolvedValue({
+      ok: true,
+      venueId: VENUE.id,
+      places: [
+        {
+          subjectId: "5a000000-0000-4000-8000-000000000001",
+          kind: "area",
+          label: "⟨Back bar⟩",
+          active: true,
+        },
+        {
+          subjectId: "5a000000-0000-4000-8000-000000000002",
+          kind: "area",
+          label: "⟨Old room⟩",
+          active: false,
+        },
+      ],
+    })
+    await show(pages.staff())
+    expect(knowledge.listPlaces).toHaveBeenCalledWith(expect.anything(), {
+      venueId: VENUE.id,
+    })
+    fireEvent.click(screen.getByRole("radio", { name: "Yes" }))
+    const where = screen.getByRole("group", { name: "Where is it?" })
+    expect(
+      within(where).getByRole("checkbox", { name: "⟨Back bar⟩" })
+    ).toBeTruthy()
+    expect(within(where).queryByText("⟨Old room⟩")).toBeNull()
+    expect(screen.getByLabelText("When did you check?")).toBeTruthy()
+  })
 
   it("says a question isn't asked any more, with no form", async () => {
     knowledge.getKnowledgeCheck.mockResolvedValue({ ok: true, view: inScope() })
