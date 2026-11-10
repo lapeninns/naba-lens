@@ -246,7 +246,11 @@ export type CheckSummary = {
 }
 
 /** A Yes narrowed by its knowledge detail (b03-design §3.8). */
-export type Qualification = "conditional" | "temporarily_unavailable"
+export type Qualification =
+  | "conditional"
+  | "temporarily_unavailable"
+  /** A39: a policy answer in use that is not complete yet. */
+  | "policy_incomplete"
 
 export type EvidenceItem = {
   assetId: string

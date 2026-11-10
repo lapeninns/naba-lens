@@ -545,6 +545,14 @@ export type VenueCapabilities = {
   canWithdraw?: boolean
   /** B03-g (A16): manager or admin at the venue. */
   canReadHistory?: boolean
+  /**
+   * A35: who may state a policy with authority (manager, staff holding a
+   * grant, or admin) and on which basis; only an admin states one for every
+   * venue. The server refuses any other authority or scope (A37).
+   */
+  canStatePolicy?: boolean
+  canStateOrgPolicy?: boolean
+  policyBasis?: "venue_manager" | "admin" | null
 }
 
 export type DeleteImpactKind =
@@ -745,6 +753,8 @@ export type ValueListView = {
     needsValue: boolean
     valueKind: "number" | "text" | "time" | null
   }[]
+  /** A38: retired items, never offered, so an old answer can still name them. */
+  retired?: (ValueListView["items"][number] & { retiredAt: string })[]
 }
 
 /** A33: an accessibility feature a question version asks about. */

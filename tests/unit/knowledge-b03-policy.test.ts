@@ -98,6 +98,20 @@ describe("legacy check views for a qualified answer (A19, A21)", () => {
     ).toBe(false)
   })
 
+  it("treat an incomplete policy in use like a qualified answer (A39)", () => {
+    const incomplete = row({
+      progress: "needs_recheck",
+      recheck_reason:
+        "The policy in use is not complete yet. Open the check to see what it still needs.",
+      qualification: "policy_incomplete",
+    })
+    expect(checkPermissions(incomplete, manager).canReopen).toBe(true)
+    expect(myTasks([incomplete], USER)).toEqual([])
+    expect(checkSummary(incomplete)).toMatchObject({
+      qualification: "policy_incomplete",
+    })
+  })
+
   it("never make a qualified answer a staff task", () => {
     expect(myTasks([qualified], USER)).toEqual([])
     expect(myTasks([row({ progress: "needs_recheck" })], USER)).toHaveLength(1)
