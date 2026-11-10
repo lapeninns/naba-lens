@@ -12,7 +12,9 @@ import type {
   TriageQueue,
 } from "@/lib/knowledge/contract"
 
-export { TRIAGE_QUEUES } from "@/lib/knowledge/contract"
+import { TRIAGE_QUEUES } from "@/lib/knowledge/contract"
+
+export { TRIAGE_QUEUES }
 export type {
   AccountKind,
   DeleteImpactEffect,
@@ -29,11 +31,22 @@ export const ACCOUNT_KINDS = [
   "admin",
 ] as const
 
+/**
+ * R3 rows this client reads: the B02 queues, then B03's open rechecks
+ * (B03-e) and imports to decide (`suggestions`, B03-f, A12).
+ */
+export const TRIAGE_ROWS = [
+  ...TRIAGE_QUEUES,
+  "rechecks",
+  "suggestions",
+] as const
+export type TriageRowQueue = (typeof TRIAGE_ROWS)[number]
+
 /** One R3 queue as a screen shows it: numbers only when it is available. */
 export type TriageRow =
-  | { queue: TriageQueue; available: false }
+  | { queue: TriageRowQueue; available: false }
   | {
-      queue: TriageQueue
+      queue: TriageRowQueue
       available: true
       waiting: number
       oldestWaitingAt: string | null

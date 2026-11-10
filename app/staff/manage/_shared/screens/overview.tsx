@@ -23,11 +23,7 @@ import {
 } from "@/lib/server/coverage"
 import { periodView, shiftPeriod } from "@/lib/server/coverage/time"
 
-import {
-  readVenueTriage,
-  venueCoverage,
-  type ManageContext,
-} from "../context"
+import { readVenueTriage, venueCoverage, type ManageContext } from "../context"
 import { ManageFrame } from "../frame"
 import { PrepareActionControl, RetryLoadButton } from "../overview-controls"
 
@@ -139,6 +135,8 @@ export async function OverviewScreen({ ctx }: { ctx: ManageContext }) {
                 : hrefs.menuItems,
             findings: `${hrefs.amenities}#amenities-to-confirm`,
             checklist: hrefs.review,
+            rechecks: hrefs.amenities,
+            suggestions: `${hrefs.amenities}#amenities-to-confirm`,
           }}
         />
       ) : null}

@@ -7,7 +7,7 @@ import {
   ACCOUNT_KINDS,
   IMPACT_EFFECTS,
   IMPACT_KINDS,
-  TRIAGE_QUEUES,
+  TRIAGE_ROWS,
   type AccountKind,
   type AssetGroup,
   type DeleteImpact,
@@ -15,7 +15,7 @@ import {
   type DeleteImpactKind,
   type ImpactLine,
   type LabelWork,
-  type TriageQueue,
+  type TriageRowQueue,
   type TriageRow,
   type VenueCapabilities,
 } from "./contract"
@@ -98,11 +98,11 @@ export function parseLabelWork(value: unknown): LabelWork | null {
  */
 export function parseTriage(value: unknown): TriageRow[] | null {
   if (!Array.isArray(value)) return null
-  const rows = new Map<TriageQueue, TriageRow>()
+  const rows = new Map<TriageRowQueue, TriageRow>()
   for (const item of value) {
     const raw = record(item)
     if (!raw) return null
-    const queue = oneOf<TriageQueue>(TRIAGE_QUEUES, raw.queue)
+    const queue = oneOf<TriageRowQueue>(TRIAGE_ROWS, raw.queue)
     if (!queue || rows.has(queue)) continue
     if (raw.available !== true) {
       rows.set(queue, { queue, available: false })
@@ -118,7 +118,7 @@ export function parseTriage(value: unknown): TriageRow[] | null {
       ownWaiting: count(raw.own_waiting ?? raw.ownWaiting) ?? 0,
     })
   }
-  return TRIAGE_QUEUES.flatMap((queue) => rows.get(queue) ?? [])
+  return TRIAGE_ROWS.flatMap((queue) => rows.get(queue) ?? [])
 }
 
 /** R9 `my_asset_delete_impact`. Null when the read itself is unusable. */
