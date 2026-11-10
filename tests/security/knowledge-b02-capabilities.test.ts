@@ -13,6 +13,7 @@ import {
   anonClient,
   createIdentity,
   createVenue,
+  markReady,
   type TestIdentity,
 } from "../support/identities"
 import {
@@ -69,10 +70,12 @@ type Flag = Exclude<keyof Caps, "accountKind" | "venueId" | "canSelfConfirm">
 
 // Matrix §3 as the gates stand today. A gate change updates this table and
 // the read together; the equivalence assertions catch one without the other.
+// B02-c (owner decisions Q1, Q4): manager accounts upload and label their own
+// uploads at their managed venue.
 const TODAY: Record<Kind, Record<Flag, boolean>> = {
   manager: {
-    canUpload: false,
-    canLabel: false,
+    canUpload: true,
+    canLabel: true,
     canSendFindings: true,
     canConfirmFindings: true,
     canReviewMenuPhotos: true,
@@ -217,24 +220,28 @@ async function matrix(p: Place, who: TestIdentity, kind: Kind) {
   )
   const wrote = {} as Record<Flag, boolean>
 
-  const upload = await attempt(
-    call(who, "reserve_media_asset", {
-      p_media_type: "image",
-      p_extension: "jpg",
-      p_original_filename: "TEST capability.jpg",
-      p_size_bytes: 4,
-      p_client_upload_key: randomUUID(),
-      p_purpose: "general",
-    })
-  )
-  wrote.canUpload = upload.ok
-  if (!upload.ok) expect(upload.message).toBe("not_active_staff")
+  const upload = await call(who, "reserve_media_asset", {
+    p_media_type: "image",
+    p_extension: "jpg",
+    p_original_filename: "TEST capability.jpg",
+    p_size_bytes: 4,
+    p_client_upload_key: randomUUID(),
+    p_purpose: "general",
+  })
+  wrote.canUpload = upload.error === null
+  if (upload.error) expect(upload.error.message).toBe("not_active_staff")
 
-  // Staff label their own uploads; an admin labels any library photo.
+  // Staff label their own uploads; a manager account its own manager-era
+  // upload (the one it just reserved); an admin any library photo.
+  let ownUpload: string
+  if (kind === "admin") ownUpload = p.libraryPhoto
+  else if (kind === "manager" && upload.error === null) {
+    ownUpload = (upload.data as { id: string }[])[0]!.id
+    await markReady(service, ownUpload, "image/jpeg")
+  } else ownUpload = await photo(who.id, p.w.venue)
   const label = await attempt(
     call(who, "save_media_labels", {
-      p_asset_id:
-        kind === "admin" ? p.libraryPhoto : await photo(who.id, p.w.venue),
+      p_asset_id: ownUpload,
       p_expected_revision: 0,
       p_content_types: ["venue"],
       p_note: null,

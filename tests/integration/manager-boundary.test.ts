@@ -1,8 +1,10 @@
 // Venue manager boundary through the app's real Server Functions and Route
 // Handlers (docs/plans/venue-manager-workspace.md, spec §3): a converted
-// manager account gets none of the staff or admin media surfaces. Uploads,
-// own media, labels, community, legacy coverage, deletion and every media,
-// avatar and evidence route refuse it, and nothing changes in the database.
+// manager account gets none of the staff or admin media surfaces beyond its
+// own manager-era uploads (B02-c: it uploads and labels its own at its
+// managed venue). Its staff-era media, colleagues' media, the portfolio,
+// community, legacy coverage, deletion and every media, avatar and evidence
+// route for those assets refuse it, and nothing else changes in the database.
 import { createHash, randomUUID } from "node:crypto"
 
 import { beforeAll, describe, expect, it, vi } from "vitest"
@@ -126,7 +128,7 @@ const assetParams = (assetId: string) => ({
 async function assetRow(id: string) {
   const { data } = await service
     .from("media_assets")
-    .select("deleted_at, uploader_id")
+    .select("deleted_at, uploader_id, venue_id")
     .eq("id", id)
     .single()
   return data!
@@ -168,7 +170,7 @@ describe("venue manager boundary", () => {
     expect((await run(() => getMediaActor("manager"))).ok).toBe(true)
   })
 
-  it("uploads and own media are refused", async () => {
+  it("uploads only as a manager upload; staff-era media and the portfolio stay closed (B02-c)", async () => {
     const reserve = await run(() =>
       reserveUpload({
         idempotencyKey: randomUUID(),
@@ -179,7 +181,10 @@ describe("venue manager boundary", () => {
         preferResumable: false,
       })
     )
-    expect(reserve).toMatchObject({ ok: false, status: 403 })
+    expect(reserve).toMatchObject({ ok: true })
+    const reserved = reserve.ok ? reserve.reservation.assetId : ""
+    expect((await assetRow(reserved)).venue_id).toBe(venue.id)
+    // Its staff-era upload is not its manager-era one: finalise can't read it.
     expect(
       await run(() =>
         finaliseUpload({
@@ -187,24 +192,23 @@ describe("venue manager boundary", () => {
           idempotencyKey: randomUUID(),
         })
       )
-    ).toMatchObject({ ok: false, status: 403 })
+    ).toMatchObject({ ok: false, status: 404 })
     expect(await run(() => loadMyMedia(null))).toMatchObject({ ok: false })
     const { count } = await service
       .from("media_assets")
       .select("id", { count: "exact", head: true })
       .eq("uploader_id", manager.id)
-    expect(count).toBe(1)
+    expect(count).toBe(2)
   })
 
-  it("labels are refused: editor context, catalogue and save", async () => {
-    expect(
-      await run(() => loadLabelEditorContext([colleagueAsset.assetId]))
-    ).toMatchObject({ ok: false, status: 403 })
-    expect(
-      await run(() => loadLabelEditorContext([ownStaffEraAsset.assetId]))
-    ).toMatchObject({ ok: false, status: 403 })
+  it("labels: a colleague's or its staff-era photo is never its to label (B02-c)", async () => {
+    for (const asset of [colleagueAsset, ownStaffEraAsset])
+      expect(
+        await run(() => loadLabelEditorContext([asset.assetId]))
+      ).toMatchObject({ ok: true, assets: [], missing: [asset.assetId] })
+    // Its managed venue's catalogue is readable for its own uploads.
     expect(await run(() => loadLabelCatalogue(venue.id))).toMatchObject({
-      ok: false,
+      ok: true,
     })
     const saved = await run(() =>
       saveLabelBatch([
@@ -212,7 +216,7 @@ describe("venue manager boundary", () => {
           assetId: ownStaffEraAsset.assetId,
           expectedRevision: 0,
           catalogueVersionId: null,
-          contentTypes: ["food"],
+          contentTypes: ["dish"],
           note: null,
           items: [],
           missingItem: null,
@@ -220,7 +224,7 @@ describe("venue manager boundary", () => {
       ])
     )
     expect(saved).toEqual([
-      expect.objectContaining({ ok: false, code: "forbidden" }),
+      expect.objectContaining({ ok: false, code: "not_found" }),
     ])
     const { data: labels } = await service
       .from("media_labels")
@@ -248,11 +252,13 @@ describe("venue manager boundary", () => {
 
   it("media, avatar and evidence routes refuse and send no bytes", async () => {
     for (const asset of [colleagueAsset, ownStaffEraAsset]) {
-      // Download answers non-admins with the unknown-asset 404 by design.
+      // The own-media routes admit a manager account for its manager-era
+      // uploads only (B02-c), so these answer as unknown assets. Download
+      // answers non-admins with the unknown-asset 404 by design.
       for (const [route, status] of [
-        [thumbRoute, 403],
-        [previewRoute, 403],
-        [streamRoute, 403],
+        [thumbRoute, 404],
+        [previewRoute, 404],
+        [streamRoute, 404],
         [downloadRoute, 404],
       ] as const) {
         const res = await run(() =>

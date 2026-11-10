@@ -1,8 +1,8 @@
 # B02 server design (WS1): reads and writes for coherent staff and manager work
 
 Owner: WS1 (knowledge domain). Status: **draft 3 (amended), approved for
-build**. Batches B02-a and B02-b are built from this design; B02-c waits for
-owner decisions Q1 and Q4.
+build**. Batches B02-a, B02-b and B02-c are built from this design; the owner
+decided Q1 and Q4 for B02-c (§7.2a).
 
 - **Baseline:** `codex/b01-knowledge-pilot` at `a86bdba8`.
 - **Inputs:**
@@ -1014,6 +1014,34 @@ The manager-account refusal tests (`manager-denials.test.ts:181`, `:197`,
 `tests/integration/manager-boundary.test.ts:171`, `:199`) are updated
 explicitly, in the same change, to the owner's decision.
 
+### 7.2a Owner decision for B02-c (10 Nov 2026)
+
+The owner decided Q1 and Q4: a dedicated manager account may upload photos
+and videos, label its own uploads and group them, at its managed venue, for
+menu items and venue-question evidence. New manager uploads are visible to
+the uploader and to authorised reviewers until reviewed.
+
+Not decided by this approval, so unchanged: menu self-review (a manager
+account still never decides its own menu photo, Q2, Q9), target credit and
+manager recognition (Q3, Q5), admin capture (Q11) and cross-venue visibility
+(Q10 beyond the uploader and reviewers). Manager accounts still cannot delete
+media.
+
+As built (migration `…_knowledge_b02c_manager_upload_and_labels.sql`):
+
+- OD-8 takes its default: `media_assets.uploader_role` records the role at
+  reservation and is fixed afterwards. Every new manager rule requires
+  `uploader_role = 'manager'`, so a manager account's staff-era uploads keep
+  today's rules (hidden from it, not labelled by it).
+- OD-9 takes its default: community reads still need a staff uploader, so a
+  manager's uploads never appear in colleagues' Photos.
+- The gates in §7.2 change together for manager accounts only; the label
+  catalogue helpers (`staff_can_label_venue`, `staff_can_read_menu_item` and
+  `_variant`) and `can_read_asset_labels` gain the same manager rule, and a
+  new `media_assets` select policy lets a manager account read its own
+  manager-era rows. R1 and R8 follow the gates.
+- Staff, staff holding a grant and admins are unchanged.
+
 ### 7.3 Checks for every batch
 
 Every batch runs, on a spare stack after a full-chain reset:
@@ -1099,6 +1127,9 @@ revision 1 and the B02-03 account matrix, at pilot head `a86bdba8`.
   adds them to the T9b-style catalogue assertion.
 - R4 and §7.1 state the visible order change for `evidence_withdrawn` and
   `confirmation_revoked` rows.
+
+**B02-c approved (10 Nov 2026):** the owner decided Q1 and Q4; §7.2a records
+the scope and how it was built.
 
 **Approved for build (10 Nov 2026):** the R11 edge cases quote the UI copy
 for `key_sent` and `newer_send` (WS2 revision 5).

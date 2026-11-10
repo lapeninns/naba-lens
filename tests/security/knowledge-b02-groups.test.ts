@@ -169,15 +169,28 @@ describe("contribution groups (W1)", () => {
     )
   })
 
-  it("lets only staff who can upload start a group", async () => {
-    for (const who of [w.manager, w.admin])
-      await refused(
-        who,
-        "contribution_group_start",
-        { p_key: key(), p_subject_kind: "none", p_subject_id: null },
-        "not_active_staff",
-        "42501"
-      )
+  it("lets accounts that upload start a group: staff, and a manager account at its venue (B02-c)", async () => {
+    await refused(
+      w.admin,
+      "contribution_group_start",
+      { p_key: key(), p_subject_kind: "none", p_subject_id: null },
+      "not_active_staff",
+      "42501"
+    )
+    const g = await start(w.manager, key(), "question", w.checks.guest_toilets!)
+    expect((await view(w.manager, g)).venueId).toBe(w.venue)
+    // Its venue's subjects only.
+    await refused(
+      w.manager,
+      "contribution_group_start",
+      {
+        p_key: key(),
+        p_subject_kind: "question",
+        p_subject_id: other.checks.guest_toilets,
+      },
+      "contribution_subject_not_found",
+      "P0002"
+    )
   })
 
   it("adds the creator's own assets idempotently, one group per asset, at most 10", async () => {
