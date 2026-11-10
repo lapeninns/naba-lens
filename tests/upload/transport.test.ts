@@ -519,3 +519,195 @@ describe("beforeunload guard", () => {
     expect(upload.activeCount()).toBe(0)
   })
 })
+
+/** A promise the test opens by hand, and one telling it the code got there. */
+function gate() {
+  let reach!: () => void
+  let open!: () => void
+  const reached = new Promise<void>((r) => (reach = r))
+  const opened = new Promise<void>((r) => (open = r))
+  return {
+    reached,
+    open,
+    pass: async () => {
+      reach()
+      await opened
+    },
+  }
+}
+
+describe("beforeunload guard: work that leaving would stop", () => {
+  function unloadTarget(isActive: () => boolean) {
+    const target = new EventTarget()
+    const dispose = guardBeforeUnload(isActive, target as Window)
+    const asks = () => {
+      const event = new Event("beforeunload", { cancelable: true })
+      target.dispatchEvent(event)
+      return event.defaultPrevented
+    }
+    return { asks, dispose }
+  }
+
+  it("a held finalise does not ask; a held reservation or transfer beside it does", async () => {
+    const finalising = gate()
+    const reserving = gate()
+    const transferring = gate()
+    const upload = makeUploader({
+      reserve: async (input) => {
+        if (input.idempotencyKey === "second") await reserving.pass()
+        return backend.reserve(input)
+      },
+      finalise: async (input) => {
+        if (input.idempotencyKey === "first") await finalising.pass()
+        return backend.finalise(input)
+      },
+    })
+    const guard = unloadTarget(() => upload.stoppableCount() > 0)
+
+    // The first photo is stored; only the server's finalise answer is held.
+    const first = upload(photo(), { idempotencyKey: "first" })
+    await finalising.reached
+    expect(upload.activeCount()).toBe(1)
+    expect(upload.stoppableCount()).toBe(0)
+    expect(guard.asks()).toBe(false)
+
+    // The second waits on its reservation: leaving would stop it.
+    storage.fault = async (req): Promise<Fault> => {
+      if (req.method === "PUT") await transferring.pass()
+      return "pass"
+    }
+    const second = upload(photo(), { idempotencyKey: "second" })
+    await reserving.reached
+    expect(upload.activeCount()).toBe(2)
+    expect(upload.stoppableCount()).toBe(1)
+    expect(guard.asks()).toBe(true)
+
+    // ...and still would while its bytes are in flight.
+    reserving.open()
+    await transferring.reached
+    expect(upload.activeCount()).toBe(2)
+    expect(upload.stoppableCount()).toBe(1)
+    expect(guard.asks()).toBe(true)
+
+    transferring.open()
+    expect(await second).toEqual({ assetId: "asset-2", state: "ready" })
+    expect(upload.activeCount()).toBe(1)
+    expect(upload.stoppableCount()).toBe(0)
+    expect(guard.asks()).toBe(false)
+
+    finalising.open()
+    expect(await first).toEqual({ assetId: "asset-1", state: "ready" })
+    expect(upload.activeCount()).toBe(0)
+    expect(upload.stoppableCount()).toBe(0)
+    guard.dispose()
+  })
+
+  it("an asset already ready or processing on the server is not stoppable", async () => {
+    let held = gate()
+    const upload = makeUploader({
+      finalise: async (input) => {
+        await held.pass()
+        return backend.finalise(input)
+      },
+    })
+    held.open()
+    await upload(photo(), { idempotencyKey: "k1" })
+
+    // Reserve answers ready: finalise only reports its labels.
+    held = gate()
+    const again = upload(photo(), { idempotencyKey: "k1" })
+    await held.reached
+    expect(upload.activeCount()).toBe(1)
+    expect(upload.stoppableCount()).toBe(0)
+    held.open()
+    expect(await again).toEqual({ assetId: "asset-1", state: "ready" })
+
+    // Reserve answers processing: the bytes are stored, no transfer runs.
+    backend.assets.get("asset-1")!.state = "processing"
+    held = gate()
+    const resumed = upload(photo(), { idempotencyKey: "k1" })
+    await held.reached
+    expect(upload.activeCount()).toBe(1)
+    expect(upload.stoppableCount()).toBe(0)
+    held.open()
+    expect((await resumed).state).toBe("ready")
+    expect(upload.activeCount()).toBe(0)
+    expect(upload.stoppableCount()).toBe(0)
+  })
+
+  it("settles exactly once on every failure and cancellation", async () => {
+    const late = new AbortController()
+    const reserving = gate()
+    // One uploader throughout, so a count taken down twice would show.
+    const upload = makeUploader({
+      retryDelays: [],
+      reserve: async (input) => {
+        if (input.idempotencyKey === "reserve-throws")
+          throw new Error("Your venue is inactive.")
+        if (input.idempotencyKey === "held") await reserving.pass()
+        const result = await backend.reserve(input)
+        if (input.idempotencyKey === "cancel-after-reserve") late.abort()
+        return result
+      },
+      finalise: async (input) => {
+        if (input.idempotencyKey === "finalise-throws")
+          throw new TypeError("Failed to fetch")
+        if (input.idempotencyKey === "not-a-photo")
+          return { state: "failed", error: "Not a real photo" }
+        return backend.finalise(input)
+      },
+    })
+    const counts = () => [upload.activeCount(), upload.stoppableCount()]
+    const code = async (key: string, file = photo(), signal?: AbortSignal) =>
+      (await upload(file, { idempotencyKey: key, signal })).error?.code
+
+    // Preflight rejection never counts.
+    expect(
+      await code("empty", new File([], "e.jpg", { type: "image/jpeg" }))
+    ).toBe("empty_file")
+    expect(counts()).toEqual([0, 0])
+
+    expect(await code("reserve-throws")).toBe("reserve_failed")
+    expect(counts()).toEqual([0, 0])
+
+    storage.fault = (req) => (req.method === "PUT" ? "fail-500" : "pass")
+    expect(await code("transfer-fails")).toBe("transfer_failed")
+    expect(counts()).toEqual([0, 0])
+
+    // Cancelled while the bytes are in flight.
+    const controller = new AbortController()
+    const transferring = gate()
+    storage.fault = async (req): Promise<Fault> => {
+      if (req.method === "PUT") await transferring.pass()
+      return "pass"
+    }
+    const cancelled = code("cancel-in-transfer", photo(), controller.signal)
+    await transferring.reached
+    expect(counts()).toEqual([1, 1])
+    controller.abort()
+    expect(await cancelled).toBe("aborted")
+    expect(counts()).toEqual([0, 0])
+    transferring.open()
+    storage.fault = () => "pass"
+
+    // Cancelled once reserve answers, before any transfer.
+    expect(await code("cancel-after-reserve", photo(), late.signal)).toBe(
+      "aborted"
+    )
+    expect(counts()).toEqual([0, 0])
+
+    // Handed to the server, then finalise throws or the file is refused.
+    expect(await code("finalise-throws")).toBe("finalise_failed")
+    expect(counts()).toEqual([0, 0])
+    expect(await code("not-a-photo")).toBe("processing_failed")
+    expect(counts()).toEqual([0, 0])
+
+    // Nothing went below zero: a held reservation now counts as one.
+    const held = upload(photo(), { idempotencyKey: "held" })
+    await reserving.reached
+    expect(counts()).toEqual([1, 1])
+    reserving.open()
+    expect((await held).state).toBe("ready")
+    expect(counts()).toEqual([0, 0])
+  })
+})

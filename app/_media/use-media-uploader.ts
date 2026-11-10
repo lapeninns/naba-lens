@@ -58,8 +58,10 @@ export function useMediaUploader(): Uploader {
     })
   }, [supabase])
 
+  // Only reserving or transferring stops when the page goes; a file the
+  // server is finalising is saved either way.
   React.useEffect(
-    () => guardBeforeUnload(() => upload.activeCount() > 0),
+    () => guardBeforeUnload(() => upload.stoppableCount() > 0),
     [upload]
   )
 
