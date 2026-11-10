@@ -1457,13 +1457,14 @@ b03-defg-implementation-review.md).
   `greatest(created_at, effective_from)`, never backdated) and
   `private.knowledge_policy_as_of(id, use, at)` (`created_at`). Both tables
   are append-only, so a past answer always reads the same.
-  **Stable interface for WS3 (B08 R2):** `private.knowledge_answer_at(check,
+  **History read (superseded wording, see R-L2 below):** `private.knowledge_answer_at(check,
 at) returns jsonb` (definer; callers gate; not granted to clients) returns
   `{ checkId, at, answerInUse: null | { submissionId, answer, sentAt,
 confirmationState, withdrawn, detail, questionVersion, registryVersion,
 selectionRule, freshness: [{ use, state, nextCheckDue, basis, basisDate,
 policyId?, policyVersion? }] } }`. "Current and fresh at adoption" is
-  `answerInUse.freshness` for the use at the adoption instant.
+  `answerInUse.freshness` for the use at the adoption instant (B08 R2
+  no longer reads this; see R-L2).
   `public.knowledge_slot_history` (managers and admins) returns the same.
 - **WS5 item 1:** a withdrawal reads withdrawn only while the key is in scope;
   off the working list the B01 `unknown / not_enabled` wins (state model
@@ -1488,3 +1489,20 @@ task; a closed task refuses a second closure, a new `closed_at`, a new
 `created_at` and reopening; delete and truncate are refused. B08 §5.4's
 `knowledge_submission_scored` re-creation is a WS1 item for B08-c and is not
 part of B03.
+
+**Reviewer lows R-L1 and R-L2 (10 Nov 2026):** migration
+`20261110115911_knowledge_b03_review_low_schema_change_due`.
+
+- **R-L1:** a `schema_changed` recheck task is due from the version in force
+  at `p_now`, the version the resolver compares the answer with, through
+  `private.knowledge_schema_change_due(key, at)`: the moment that version
+  took effect, `greatest(created_at, effective_from)`. It was dated from the
+  latest version, which could be a future-effective one.
+  `private.knowledge_open_rechecks` is otherwise unchanged.
+- **R-L2:** `private.knowledge_answer_at` and `knowledge_slot_history` are the
+  history read: what a check showed at a time, for display and audit. B08 R2
+  does not use them; it reads stored, write-once facts (B08 §6.2a, §7.4
+  "Write-once times"), so there is one R2 definition. The "stable interface
+  for WS3 (B08 R2)" wording in "Review repairs, second part" is replaced by
+  this. `freshness` is computed for the answer in use even when `withdrawn`
+  is true, and scope is not applied: consumers read `withdrawn` first.
