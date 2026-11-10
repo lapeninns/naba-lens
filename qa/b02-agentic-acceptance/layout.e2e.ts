@@ -84,6 +84,23 @@ const ON_SCREEN = `(selector) => {
 type OnScreen = { onScreen: boolean; underTabbar: boolean };
 
 /**
+ * The To do card holding the one h3 whose trimmed text is exactly the
+ * argument (its list item), measured like ON_SCREEN, without scrolling.
+ */
+const CARD_ON_SCREEN = `(text) => {
+  const found = Array.from(document.querySelectorAll('section[aria-labelledby="todo-heading"] h3')).filter((h) => (h.textContent ?? '').trim() === text)
+  if (found.length !== 1) throw new Error(found.length + ' To do h3 elements read "' + text + '".')
+  const card = found[0].closest('li')
+  if (!card) throw new Error('"' + text + '" is not in a To do card.')
+  const r = card.getBoundingClientRect()
+  const bar = Array.from(document.querySelectorAll('[data-slot="tabbar"]')).map((b) => b.getBoundingClientRect()).find((b) => b.width > 0 && b.height > 0)
+  return {
+    onScreen: r.width > 0 && r.height > 0 && r.top >= 0 && r.left >= 0 && r.bottom <= window.innerHeight && r.right <= document.documentElement.clientWidth,
+    underTabbar: Boolean(bar) && bar.left < r.right && bar.right > r.left && bar.top < r.bottom && bar.bottom > r.top,
+  }
+}`;
+
+/**
  * The focused element after keyboard navigation: tag, accessible text, a
  * visible focus outline (the app's focus-visible outline, at least 2px), and
  * whether it is wholly in the viewport and clear of the phone tab bar (unless
@@ -184,7 +201,10 @@ test('B02 narrow layout: real viewport, no sideways scroll, failed upload, two-d
   await expect(screen.getByRole('heading', FAILED_CARD, { level: 3 })).toBeVisible();
   expect(await browser.evaluate<TodoBadge>(TODO_BADGE)).toEqual({ digits: String(n + 1), fitsWidth: true, clipped: false });
   await browser.evaluate<number, string>(CENTRE_H3, FAILED_CARD);
+  // Everything the judgment names is measured in view first: the heading
+  // with its badge, the whole card, and the card's button (five-point hit).
   expect(await browser.evaluate<OnScreen, string>(ON_SCREEN, '#todo-heading')).toEqual({ onScreen: true, underTabbar: false });
+  expect(await browser.evaluate<OnScreen, string>(CARD_ON_SCREEN, FAILED_CARD)).toEqual({ onScreen: true, underTabbar: false });
   expect(await browser.evaluate<ControlInView, string>(CONTROL_IN_VIEW, 'See them')).toMatchObject({
     inViewport: true,
     topmost: 'self',

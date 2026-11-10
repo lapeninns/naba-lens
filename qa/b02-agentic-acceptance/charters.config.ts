@@ -6,8 +6,8 @@
 //
 //   $B02_CHECKOUT/node_modules/.bin/playwright test --config charters.config.ts
 //
-// There is no webServer: run.mjs's `next start` on spare6 is the app under
-// test, and starting another would test something else. Playwright is the
+// The config declares no server of its own: run.mjs's `next start` on spare6
+// is the app under test, and starting another would test something else. Playwright is the
 // candidate checkout's installed @playwright/test, resolved from B02_CHECKOUT,
 // never a copy in $HOME or a second installation; the CLI must be that same
 // package so the test file and the runner share one instance. Fixed loopback
@@ -17,7 +17,7 @@ import { createRequire } from "node:module"
 import { basename, dirname, isAbsolute, join, sep } from "node:path"
 import { fileURLToPath } from "node:url"
 
-import { target, VIEWPORT } from "./fixture"
+import { runId, target, VIEWPORT } from "./fixture"
 
 type PlaywrightTest = typeof import("@playwright/test")
 
@@ -47,11 +47,13 @@ export function candidatePlaywright(env = process.env): PlaywrightTest {
   return require(entry) as PlaywrightTest
 }
 
-/** The run id e2e.config.ts accepts, so both write under one .results/<run>/. */
-export function charterRunId(env = process.env): string {
-  const id = env.B02_RUN_ID ?? ""
-  if (!/^[A-Za-z0-9._-]{1,64}$/.test(id) || id.startsWith(".")) throw new Error("B02_RUN_ID is required.")
-  return id
+/**
+ * The run id, by the fixture's own guard (RUN_ID: one plain segment, no
+ * dots), so the charters, the e2e suites and world() accept exactly the same
+ * runs and write under one .results/<run>/.
+ */
+export function charterRunId(): string {
+  return runId()
 }
 
 /** The two charter titles: run.mjs checks exactly these passed, once each. */
@@ -62,8 +64,8 @@ export const CHARTERS = [
 
 const { defineConfig } = candidatePlaywright()
 const { app } = target()
-const runId = charterRunId()
-const out = join(HERE, ".results", runId, "charters")
+const run = charterRunId()
+const out = join(HERE, ".results", run, "charters")
 
 export default defineConfig({
   testDir: HERE,
@@ -74,9 +76,12 @@ export default defineConfig({
   forbidOnly: true,
   timeout: 600_000,
   expect: { timeout: 20_000 },
-  outputDir: join(out, "artifacts"),
+  // The same per-run paths run.mjs passes (--output, PLAYWRIGHT_JSON_OUTPUT_FILE),
+  // so a bare CLI call writes where the wrapper's receipt check reads.
+  outputDir: join(out, "test-results"),
   // Private like the e2e reports (run.mjs sets umask 077): identities only, no
   // cookies or keys, and no trace or video, which would hold the session.
+  // The JSON report is this run's receipt; run.mjs checks it names exactly CHARTERS.
   reporter: [["list"], ["json", { outputFile: join(out, "report.json") }]],
   use: {
     baseURL: app,
