@@ -1,15 +1,26 @@
-// Shared by the B02 agentic acceptance config, seed and tests (README.md).
-// DEV FIXTURE data on the coordinator-owned spare6 stack only: every URL is
-// checked against loopback and spare6's ports before anything is contacted.
-// Nothing here prints or stores a key, a token or a cookie.
+// Shared by the B02 agentic acceptance config, seed, e2e suites and the two
+// Playwright charters (README.md). DEV FIXTURE data on the coordinator-owned
+// spare6 stack only: every URL is checked against loopback and spare6's ports
+// before anything is contacted, and the world is bound to one run id and the
+// pinned candidate. Nothing here prints or stores a key, a token or a cookie.
 import { execFileSync } from "node:child_process"
-import { existsSync, readFileSync } from "node:fs"
-import { dirname, join } from "node:path"
-import { fileURLToPath } from "node:url"
+import {
+  closeSync,
+  existsSync,
+  fsyncSync,
+  lstatSync,
+  openSync,
+  readFileSync,
+  realpathSync,
+  renameSync,
+  writeSync,
+} from "node:fs"
+import { dirname, isAbsolute, join } from "node:path"
+import { fileURLToPath, pathToFileURL } from "node:url"
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 
-/** candidate.json: the one head this harness accepts (run.mjs validates it). */
+/** candidate.json: the one application head this harness accepts (run.mjs validates it too). */
 export type Pin = {
   commit: string
   tree: string
@@ -17,10 +28,22 @@ export type Pin = {
   migrationCount: number
   latestMigration: string
 }
+const PIN_KEYS = ["comment", "commit", "tree", "migrationsDigest", "migrationCount", "latestMigration"]
 export function pin(): Pin {
-  const p = JSON.parse(readFileSync(join(HERE, "candidate.json"), "utf8")) as Pin
-  if (!/^[0-9a-f]{40}$/.test(p.commit)) throw new Error("candidate.json commit must be a full SHA.")
-  return p
+  const p = JSON.parse(readFileSync(join(HERE, "candidate.json"), "utf8")) as Pin & Record<string, unknown>
+  for (const key of Object.keys(p)) if (!PIN_KEYS.includes(key)) throw new Error(`candidate.json has an unknown key ${key}.`)
+  if (!/^[0-9a-f]{40}$/.test(p.commit ?? "")) throw new Error("candidate.json commit must be a full SHA.")
+  if (!/^[0-9a-f]{40}$/.test(p.tree ?? "")) throw new Error("candidate.json tree must be a full SHA.")
+  if (!/^[0-9a-f]{64}$/.test(p.migrationsDigest ?? "")) throw new Error("candidate.json migrationsDigest must be sha256 hex.")
+  if (!Number.isInteger(p.migrationCount) || p.migrationCount < 1) throw new Error("candidate.json migrationCount must be a count.")
+  if (!/^\d{14}$/.test(p.latestMigration ?? "")) throw new Error("candidate.json latestMigration must be a migration version.")
+  return {
+    commit: p.commit,
+    tree: p.tree,
+    migrationsDigest: p.migrationsDigest,
+    migrationCount: p.migrationCount,
+    latestMigration: p.latestMigration,
+  }
 }
 
 /** spare6 as scripts/ci/stack.mjs names it (block 646). */
@@ -43,26 +66,44 @@ export const SWITCHES = [
 export type Person = { id: string; email: string; name: string }
 export type Venue = { id: string; name: string }
 
+/** One isolated venue with its own active menu and enabled four-question working list. */
+export type Scope = {
+  venue: Venue
+  items: MenuItems
+  checks: Record<PilotKey, string>
+}
+
 /**
- * One run's world (seed.ts). Personas follow the qualification plan §9:
- * staff-only (SO), staff with a legacy manager grant (SG), a dedicated
- * manager converted from staff (MO, with a staff-era photo), admin (AD),
- * a second venue with its own manager, and a one-account venue whose only
- * account is its manager. Each suite uses its own people, so a failure in
- * one does not cascade into another.
+ * One run's world (seed.ts), bound to B02_RUN_ID and the pinned candidate.
+ * Personas follow the qualification plan's acceptance map: staff-only (SO),
+ * staff with a legacy manager grant (SG), a dedicated manager converted from
+ * staff (MO, with a staff-era photo), admin (AD), a second venue with its own
+ * manager, and a one-account venue whose only account is its manager.
+ *
+ * The manager suite works at venue A (venueA, items.A, checks.A), B and the
+ * solo venue. Staff, layout and recovery each have their own venue (scopes),
+ * so no suite's writes reach another suite's counts, queues or To do.
  */
 export type World = {
+  /** The run this world belongs to (B02_RUN_ID); world() refuses any other. */
+  runId: string
+  /** Six hex characters in every fixture name, email and file of this world. */
   tag: string
+  /** The pinned candidate the world was seeded for. */
   candidate: string
+  tree: string
+  migrationsDigest: string
   stack: string
   appUrl: string
+  /** Written last: a world without it never finished seeding. */
+  complete: true
   venueA: Venue
   venueB: Venue
   venueSolo: Venue
   admin: Person
-  /** Staff suite: Home, shared entry, the three-photo set. */
+  /** Staff suite (scopes.staff): Home, labels card, the three-photo set. */
   staffSet: Person
-  /** Manager suite: SO whose finding and photo wait for triage. */
+  /** Manager suite: SO at A whose finding and photo wait for triage. */
   staffTriage: Person
   /** SG: staff at venue A holding a legacy manager grant. */
   staffGrant: Person
@@ -74,18 +115,22 @@ export type World = {
   managerSolo: Person
   /** Venue B staff, whose waiting photo A's manager must never see. */
   staffB: Person
-  /** Recovery suite. */
+  /** Recovery suite (scopes.recovery): interrupted upload and retry. */
   staffRecover: Person
+  /** Recovery suite (scopes.recovery): draft, offline and stale-draft guard. */
+  recoveryDraft: Person
   /** MO at venue B whose grant was revoked after one manager-era upload. */
   managerRevoked: Person
-  /** Staff suite: front of house (shared entry, Couldn't establish, change report). */
+  /** Staff suite (scopes.staff): front of house (shared entry, Couldn't establish, change report). */
   staffFoh: Person
-  /** Staff suite: bartender (A dish or drink). */
+  /** Staff suite (scopes.staff): bartender (A dish or drink). */
   staffBar: Person
-  /** Layout suite, one per viewport so each target has its own state. */
+  /** Layout suite (scopes.layout), one per viewport so each target has its own state. */
   staffLayout: Record<LayoutTarget, Person>
-  /** Active menu items by short name, per venue. */
+  /** Active menu items by short name, per manager-suite venue. */
   items: { A: MenuItems; B: MenuItems; solo: MenuItems }
+  /** The other suites' isolated venues. */
+  scopes: { staff: Scope; layout: Scope; recovery: Scope }
   /** Seeded rows the tests read back. */
   seeded: {
     /** managerA's photo from its staff era (uploader_role null). */
@@ -96,13 +141,28 @@ export type World = {
     waitingPhotoB: string
     /** managerRevoked's manager-era photo from before the revoke. */
     revokedAsset: string
-    /** staffSet's ready photo with no labels (Home's labels card). */
+    /** staffSet's ready photo with no labels (Home's labels card), at scopes.staff. */
     unlabelledAsset: string
   }
+  /**
+   * Server-side To do members each staffLayout persona starts with: that many
+   * ready, unlabelled photos of its own (the labels card) and nothing else
+   * assigned, so the To do badge reads this two-digit number before the
+   * browser adds anything (a failed upload on the device adds one).
+   */
+  layoutTodoCount: number
   /** Working-list check ids by key: venue A and the solo venue. */
   checks: { A: Record<PilotKey, string>; solo: Record<PilotKey, string> }
-  /** Generated JPEG files for uploads, absolute paths in the run directory. */
-  media: { set: [string, string, string]; manager: [string, string]; recover: string; bar: string; layout: string }
+  /** Generated upload files, absolute paths in the private run directory. */
+  media: {
+    set: [string, string, string]
+    manager: [string, string]
+    /** The candidate's own small H.264 fixture (tests/fixtures/media/synthetic.mp4), run-named. */
+    managerVideo: string
+    recover: string
+    bar: string
+    layout: string
+  }
 }
 
 /** The four pilot questions on every working list (supabase/seed/amenity_catalogue.csv). */
@@ -142,6 +202,19 @@ function loopback(raw: string | undefined, port: number, name: string) {
   return url.origin
 }
 
+function databaseUrl(): URL {
+  let db: URL
+  try {
+    db = new URL(process.env.E2E_DB_URL ?? "missing://")
+  } catch {
+    throw new Error("E2E_DB_URL is not a URL.")
+  }
+  if (!["postgresql:", "postgres:"].includes(db.protocol) || db.hostname !== "127.0.0.1" || db.port !== String(STACK.dbPort)) {
+    throw new Error(`E2E_DB_URL must be spare6's database (127.0.0.1:${STACK.dbPort}).`)
+  }
+  return db
+}
+
 /**
  * The run's target, validated: the loopback app on spare6's app port and
  * spare6's API and database. The config calls this, so every command (list
@@ -152,32 +225,133 @@ export function target() {
   const app = loopback(process.env.APP_URL, STACK.appPort, "APP_URL")
   if (process.env.APP_URL !== app) throw new Error(`APP_URL must be exactly ${app}, with no path.`)
   const api = loopback(process.env.NEXT_PUBLIC_SUPABASE_URL, STACK.apiPort, "NEXT_PUBLIC_SUPABASE_URL")
-  const db = new URL(process.env.E2E_DB_URL ?? "missing://")
-  if (!["postgresql:", "postgres:"].includes(db.protocol) || db.hostname !== "127.0.0.1" || db.port !== String(STACK.dbPort)) {
-    throw new Error(`E2E_DB_URL must be spare6's database (127.0.0.1:${STACK.dbPort}).`)
-  }
+  databaseUrl()
   return { app, api }
 }
 
+// ---- Run binding -----------------------------------------------------------------
+
+/** A run id: one plain path segment (no dots, so never "." or ".."). run.mjs uses the same rule. */
+export const RUN_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/
+/** The journal run.mjs starts and seed.ts appends to before every write (README.md, "Seed"). */
+export const JOURNAL = "world.journal.jsonl"
+
+export function runId(): string {
+  const id = process.env.B02_RUN_ID ?? ""
+  if (!RUN_ID.test(id)) throw new Error("B02_RUN_ID must be one plain segment matching [A-Za-z0-9][A-Za-z0-9_-]{0,63}.")
+  return id
+}
+
+/** Where run.mjs puts the world of run `id`: .results/<id>/world beside this file. */
+export function expectedRunDir(id: string): string {
+  if (!RUN_ID.test(id)) throw new Error("not a run id")
+  return join(HERE, ".results", id, "world")
+}
+
+/**
+ * This run's world directory: B02_RUN_DIR must be exactly
+ * .results/<B02_RUN_ID>/world beside this file, already created by run.mjs,
+ * with no symlink on the way, so a caller cannot point a run at another
+ * run's world or outside the harness.
+ */
 export function runDir(): string {
+  const id = runId()
   const dir = process.env.B02_RUN_DIR
-  if (!dir) throw new Error("B02_RUN_DIR is required.")
-  return dir
+  if (!dir || !isAbsolute(dir)) throw new Error("B02_RUN_DIR is required (an absolute path set by run.mjs).")
+  const want = expectedRunDir(id)
+  for (const path of [join(HERE, ".results"), join(HERE, ".results", id), want]) {
+    if (!existsSync(path) || lstatSync(path).isSymbolicLink() || !lstatSync(path).isDirectory()) {
+      throw new Error(`${path} is not this run's own directory (missing, or a symlink).`)
+    }
+  }
+  if (!existsSync(dir) || realpathSync(dir) !== realpathSync(want)) {
+    throw new Error("B02_RUN_DIR is not this run's world directory (.results/<B02_RUN_ID>/world).")
+  }
+  return want
+}
+
+export type JournalEntry = Record<string, unknown>
+
+/** Appends one line to the run's journal and fsyncs it before returning. */
+export function appendJournal(dir: string, entry: JournalEntry) {
+  const fd = openSync(join(dir, JOURNAL), "a", 0o600)
+  try {
+    writeSync(fd, JSON.stringify({ at: new Date().toISOString(), ...entry }) + "\n")
+    fsyncSync(fd)
+  } finally {
+    closeSync(fd)
+  }
+}
+
+export function readJournal(dir: string): JournalEntry[] {
+  return readFileSync(join(dir, JOURNAL), "utf8")
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => JSON.parse(line) as JournalEntry)
+}
+
+/** Writes `name` whole or not at all: a private temp file, fsync, rename, directory fsync. */
+export function writeDurable(dir: string, name: string, value: unknown) {
+  const temp = join(dir, `.${name}.${process.pid}.tmp`)
+  const fd = openSync(temp, "wx", 0o600)
+  try {
+    writeSync(fd, JSON.stringify(value, null, 2) + "\n")
+    fsyncSync(fd)
+  } finally {
+    closeSync(fd)
+  }
+  renameSync(temp, join(dir, name))
+  const dirFd = openSync(dir, "r")
+  try {
+    fsyncSync(dirFd)
+  } finally {
+    closeSync(dirFd)
+  }
 }
 
 let cachedWorld: World | null = null
-/** The world seed.ts wrote for this run, checked against the pin and target. */
+/**
+ * The world seed.ts wrote for this run: complete, for this run id (and its
+ * journal), the pinned candidate (commit, tree and migrations digest), spare6
+ * and the validated app URL.
+ */
 export function world(): World {
   if (cachedWorld) return cachedWorld
-  const file = join(runDir(), "world.json")
+  const dir = runDir()
+  const file = join(dir, "world.json")
   if (!existsSync(file)) throw new Error("No world.json: run seed first.")
   const w = JSON.parse(readFileSync(file, "utf8")) as World
-  if (w.candidate !== pin().commit || w.stack !== STACK.name) {
-    throw new Error("world.json belongs to another candidate or stack.")
+  const p = pin()
+  if (w.complete !== true) throw new Error("world.json is not complete.")
+  if (w.runId !== runId()) throw new Error("world.json belongs to another run.")
+  const header = readJournal(dir)[0]
+  if (header?.kind !== "header" || header.runId !== w.runId || header.candidate !== p.commit) {
+    throw new Error("world.json does not match this run's journal.")
   }
+  if (w.candidate !== p.commit || w.tree !== p.tree || w.migrationsDigest !== p.migrationsDigest) {
+    throw new Error("world.json belongs to another candidate.")
+  }
+  if (w.stack !== STACK.name) throw new Error("world.json belongs to another stack.")
   if (w.appUrl !== target().app) throw new Error("world.json was seeded for another app URL.")
+  if (!/^[0-9a-f]{6}$/.test(w.tag ?? "")) throw new Error("world.json has no fixture tag.")
+  for (const name of ["staff", "layout", "recovery"] as const) {
+    if (!w.scopes?.[name]?.venue?.id) throw new Error(`world.json has no ${name} scope.`)
+  }
   cachedWorld = w
   return w
+}
+
+/**
+ * The candidate checkout's installed @playwright/test entry as a file URL, for
+ * the charters (import it, rather than a bare specifier that would resolve
+ * from the harness directory). B02_CHECKOUT is set by run.mjs.
+ */
+export function candidatePlaywrightTest(): string {
+  const checkout = process.env.B02_CHECKOUT
+  if (!checkout || !isAbsolute(checkout)) throw new Error("B02_CHECKOUT is required (set by run.mjs).")
+  const entry = join(checkout, "node_modules", "@playwright", "test", "index.mjs")
+  if (!existsSync(entry)) throw new Error("The candidate checkout has no installed @playwright/test.")
+  return pathToFileURL(realpathSync(entry)).href
 }
 
 /**
@@ -236,20 +410,45 @@ export const uuid = (id: string) => {
 }
 export const text = (v: string) => `'${v.replace(/'/g, "''")}'`
 
+/**
+ * libpq settings for spare6's database, from the validated E2E_DB_URL. The
+ * URL (and its password) never goes on a command line, so a failing psql
+ * cannot echo it into a report.
+ */
+export function pgEnv(): Record<string, string> {
+  target()
+  const db = databaseUrl()
+  return {
+    PGHOST: db.hostname,
+    PGPORT: db.port,
+    PGUSER: decodeURIComponent(db.username) || "postgres",
+    PGDATABASE: decodeURIComponent(db.pathname.slice(1)) || "postgres",
+    ...(db.password ? { PGPASSWORD: decodeURIComponent(db.password) } : {}),
+    PGCONNECT_TIMEOUT: "10",
+    PGOPTIONS: "-c default_transaction_read_only=on",
+  }
+}
+
 /** One read-only query on spare6 (default_transaction_read_only), SQL on stdin. */
 export function readOnly(sql: string): string {
-  target()
-  return execFileSync("psql", [process.env.E2E_DB_URL!, "-X", "-qAt", "-v", "ON_ERROR_STOP=1"], {
-    input: sql,
-    encoding: "utf8",
-    env: { ...process.env, PGOPTIONS: "-c default_transaction_read_only=on" },
-  }).trim()
+  const env = { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", ...pgEnv() }
+  try {
+    return execFileSync("psql", ["-X", "-qAt", "-v", "ON_ERROR_STOP=1"], {
+      input: sql,
+      encoding: "utf8",
+      env,
+      stdio: ["pipe", "pipe", "pipe"],
+    }).trim()
+  } catch (error) {
+    const stderr = String((error as { stderr?: unknown }).stderr ?? "").trim().split("\n")[0] ?? ""
+    throw new Error(`Read-only query failed: ${stderr || "psql exited non-zero"}`)
+  }
 }
 export const json = <T>(sql: string): T => JSON.parse(readOnly(sql) || "null") as T
 
 /**
  * A read-only query as `userId` under RLS, the way
- * tests/security/knowledge-fixtures.ts asUser() sets the session
+ * tests/security/knowledge-fixtures.ts sessionAs() sets the session
  * (role authenticated and request.jwt.claims, local to one transaction).
  */
 export function asUser(userId: string, sql: string): string {
@@ -279,12 +478,17 @@ export type Group = {
   venue: string
   subjectKind: string
   subjectId: string | null
-  members: { asset: string; position: number }[]
+  /** Each member's own asset state: a group adds no state of its own. */
+  members: { asset: string; position: number; state: string; deleted: boolean }[]
 }
 export type PhotoRow = { item: string; state: string; decidedBy: string | null; author: string }
 
 const ids = (list: string[]) => `array[${list.map(uuid).join(", ")}]::uuid[]`
 
+/**
+ * Exact read-back for assertions. Rows are ids, states, names and counts only,
+ * never a credential. Schema: the candidate's supabase/migrations.
+ */
 export const db = {
   /** Assets `uploaderId` uploaded whose file name starts with `prefix`, oldest first. */
   assets(uploaderId: string, prefix: string): Asset[] {
@@ -294,19 +498,22 @@ export const db = {
       from public.media_assets where uploader_id = ${uuid(uploaderId)}
         and starts_with(original_filename, ${text(prefix)})`)
   },
-  /** Every group holding any of `assetIds`, with all its members. */
+  /** Every group holding any of `assetIds`, with all its members and each member's asset state. */
   groupsOf(assetIds: string[]): Group[] {
     if (assetIds.length === 0) return []
     return json<Group[]>(`select coalesce(json_agg(json_build_object(
         'id', g.id, 'createdBy', g.created_by, 'venue', g.venue_id,
         'subjectKind', g.subject_kind, 'subjectId', g.subject_id,
-        'members', (select json_agg(json_build_object('asset', m.asset_id, 'position', m.position) order by m.position)
-                    from public.media_contribution_group_members m where m.group_id = g.id)
-      ) order by g.created_at), '[]')
+        'members', (select json_agg(json_build_object('asset', m.asset_id, 'position', m.position,
+                      'state', a.upload_state, 'deleted', a.deleted_at is not null) order by m.position)
+                    from public.media_contribution_group_members m
+                    join public.media_assets a on a.id = m.asset_id
+                    where m.group_id = g.id)
+      ) order by g.created_at, g.id), '[]')
       from public.media_contribution_groups g
       where g.id in (select group_id from public.media_contribution_group_members where asset_id = any(${ids(assetIds)}))`)
   },
-  /** Dish names labelled on an asset, sorted. */
+  /** Dish names labelled on an asset (the snapshot saved with the label), sorted. */
   labelItems(assetId: string): string[] {
     return json<string[]>(`select coalesce(json_agg(item_name order by item_name), '[]')
       from public.media_label_items where asset_id = ${uuid(assetId)}`)
@@ -328,9 +535,12 @@ export const db = {
       from private.monthly_venue_completion_counts(${uuid(venueId)}, ${uuid(staffId)},
         date_trunc('month', (now() at time zone 'Europe/London'))::date)`)
   },
-  /** Which of `assetIds` `viewerId` may see in Photos (community_readable_assets, as the viewer). */
+  /** Which of `assetIds` `viewerId` may see in Photos (community_readable_assets, as the viewer), sorted ids. */
   communityReadable(viewerId: string, assetIds: string[]): string[] {
-    const out = asUser(viewerId, `select coalesce(json_agg(x order by x), '[]') from public.community_readable_assets(${ids(assetIds)}) x;`)
+    const out = asUser(
+      viewerId,
+      `select coalesce(json_agg(x.id order by x.id), '[]') from public.community_readable_assets(${ids(assetIds)}) x;`
+    )
     return JSON.parse(out || "[]") as string[]
   },
   /** Which of `assetIds` `viewerId` can select from media_assets under RLS. */
@@ -344,9 +554,10 @@ export const db = {
         'by', contributed_by, 'kind', kind, 'answer', answer, 'outcome', initial_outcome
       ) order by created_at, id), '[]') from public.knowledge_contributions where check_id = ${uuid(checkId)}`)
   },
-  /** Saved account drafts on a check (anyone's). */
-  drafts(checkId: string): number {
-    return Number(readOnly(`select count(*) from public.knowledge_drafts where check_id = ${uuid(checkId)}`))
+  /** Saved account drafts on a check: anyone's, or only `userId`'s. */
+  drafts(checkId: string, userId?: string): number {
+    const mine = userId === undefined ? "" : ` and user_id = ${uuid(userId)}`
+    return Number(readOnly(`select count(*) from public.knowledge_drafts where check_id = ${uuid(checkId)}${mine}`))
   },
   /** The one resolver's row, as tests/security/knowledge-fixtures.ts slot() reads it. */
   slot(venueId: string, key: PilotKey): Record<string, unknown> {
