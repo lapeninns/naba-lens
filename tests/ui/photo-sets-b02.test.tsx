@@ -85,7 +85,13 @@ import type {
   UploadContext,
   Uploader,
 } from "@/components/nabalens/upload-queue"
-import { GUIDE_RULES, GUIDE_SAFETY } from "@/lib/guide/dish-guide"
+import { PhotoTips } from "@/components/nabalens/guide/photo-tips"
+import { PHOTO_TIPS_TITLE } from "@/components/nabalens/guide/photo-tips-copy"
+import {
+  GUIDE_RULES,
+  GUIDE_SAFETY,
+  GUIDE_SUBJECT_TIPS,
+} from "@/lib/guide/dish-guide"
 import type { FeedPhotoItem } from "@/lib/knowledge/contract"
 import type { DecisionOutcome, QueueCard } from "@/lib/server/menu-photos/types"
 import type { EntryMenu } from "@/lib/work-client/entry"
@@ -314,35 +320,10 @@ describe("Add: a set of photos of one dish", () => {
   })
 })
 
-describe("Add: the guidance step before a dish's picker", () => {
-  it("shows only the dish guide's words, and its picker is one tap", async () => {
-    const user = userEvent.setup()
+describe("Photo tips are optional (D8)", () => {
+  it("opens the dish's picker straight away, with no step in between", () => {
     const menu = Promise.resolve(MENU)
-    host(menu, { ...DISH, source: "camera", guide: true })
-    await menu
-    fireEvent.click(screen.getByRole("button", { name: "Soup photos" }))
-    const step = await screen.findByRole("dialog", {
-      name: ENTRY_COPY.guideTitle,
-    })
-    for (const rule of GUIDE_RULES)
-      expect(within(step).getByText(rule)).toBeTruthy()
-    expect(within(step).getByText(GUIDE_SAFETY)).toBeTruthy()
-    expect(within(step).queryByText(/don't show/i)).toBeNull()
-    const take = within(step).getByRole("button", { name: "Take a photo" })
-    const camera = step.querySelector<HTMLInputElement>(
-      'input[data-photo-source="camera"]'
-    )!
-    const click = vi.spyOn(camera, "click")
-    await user.click(take)
-    expect(click).toHaveBeenCalledTimes(1)
-    await user.upload(camera, [jpeg("shot.jpg")])
-    expect(
-      await screen.findByRole("dialog", { name: "Saving 1 photo" })
-    ).toBeTruthy()
-  })
-
-  it("opens the picker straight away with the entry off", () => {
-    host(null, { ...DISH, source: "camera", guide: true })
+    host(menu, { ...DISH, source: "camera" })
     const camera = document.querySelector<HTMLInputElement>(
       'input[data-photo-source="camera"]'
     )!
@@ -350,6 +331,42 @@ describe("Add: the guidance step before a dish's picker", () => {
     fireEvent.click(screen.getByRole("button", { name: "Soup photos" }))
     expect(click).toHaveBeenCalledTimes(1)
     expect(screen.queryByRole("dialog")).toBeNull()
+  })
+
+  it("keeps the tips closed until asked, with the guide's words, the subject tips and the safety line", async () => {
+    const user = userEvent.setup()
+    render(<PhotoTips guideHref="/staff/tasks/guide" />)
+    const summary = screen.getByText(PHOTO_TIPS_TITLE)
+    const details = summary.closest("details")!
+    expect(details.open).toBe(false)
+    await user.click(summary)
+    expect(details.open).toBe(true)
+    for (const rule of GUIDE_RULES)
+      expect(within(details).getByText(rule)).toBeTruthy()
+    expect(GUIDE_SUBJECT_TIPS.map((tip) => tip.title)).toEqual([
+      "Tandoor and grilled dishes",
+      "Bread",
+      "Drinks",
+    ])
+    for (const tip of GUIDE_SUBJECT_TIPS) {
+      expect(
+        within(details).getByRole("heading", { name: tip.title })
+      ).toBeTruthy()
+      expect(within(details).getByText(tip.text)).toBeTruthy()
+    }
+    expect(within(details).getByText(GUIDE_SAFETY)).toBeTruthy()
+    expect(
+      within(details)
+        .getByRole("link", { name: "See the full photo guide" })
+        .getAttribute("href")
+    ).toBe("/staff/tasks/guide")
+  })
+
+  it("makes no claim beyond the tips", () => {
+    const words = GUIDE_SUBJECT_TIPS.map((tip) => tip.text).join(" ")
+    expect(words).not.toMatch(
+      /allergen|ingredient|available|price|policy|review|credit|count|must|at least/i
+    )
   })
 })
 

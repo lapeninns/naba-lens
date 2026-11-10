@@ -4,6 +4,8 @@ import * as React from "react"
 import Link from "next/link"
 import { CaretLeftIcon, CaretRightIcon } from "@phosphor-icons/react"
 
+import { PhotoTips } from "@/components/nabalens/guide/photo-tips"
+import { GUIDE_PATH } from "@/components/nabalens/guide/task-photo-guide"
 import { Button } from "@/components/ui/button"
 import type { EntryIntent, EntryMenu } from "@/lib/work-client/entry"
 
@@ -128,6 +130,10 @@ export function EntryFlow({
             </li>
           ))}
         </ul>
+        {/* Optional (D8): closed, so nobody passes through it to a choice. */}
+        {menu.intents.includes("dish") || menu.intents.includes("photos") ? (
+          <PhotoTips guideHref={role === "staff" ? GUIDE_PATH : null} />
+        ) : null}
       </div>
     )
 

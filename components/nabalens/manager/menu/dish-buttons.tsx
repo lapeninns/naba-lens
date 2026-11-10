@@ -1,5 +1,6 @@
 "use client"
 
+import { PhotoTips } from "@/components/nabalens/guide/photo-tips"
 import { DishAddButtons } from "@/components/nabalens/menu-photos/item-row"
 import { useAdd, useAddDish } from "@/components/nabalens/shell/add-context"
 
@@ -23,4 +24,11 @@ export function ManagerDishButtons({
       <DishAddButtons openAdd={openAdd} item={item} describedBy={describedBy} />
     </div>
   )
+}
+
+/** Optional photo tips on Menu while Add offers a dish (D8); no guide link. */
+export function ManagerPhotoTips() {
+  const openAdd = useAdd()
+  const dish = useAddDish()
+  return openAdd && dish ? <PhotoTips /> : null
 }

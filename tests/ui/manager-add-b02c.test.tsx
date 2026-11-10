@@ -202,7 +202,6 @@ describe("a Menu row's dish buttons", () => {
         itemName: "Onion Bhaji",
         variantName: null,
       },
-      guide: true,
     })
   })
 })

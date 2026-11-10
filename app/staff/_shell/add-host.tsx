@@ -29,10 +29,7 @@ import type {
 } from "@/components/nabalens/upload-queue"
 import { SessionGuardProvider } from "@/components/nabalens/session-guard"
 import { useBrowserSessionGuard } from "@/components/nabalens/session-guard-host"
-import {
-  usePhotoSource,
-  type PhotoSource,
-} from "@/components/nabalens/photo-source"
+import { usePhotoSource } from "@/components/nabalens/photo-source"
 import {
   AddProvider,
   type AddLabelPreset,
@@ -43,7 +40,6 @@ import {
 import { ENTRY_COPY } from "@/components/nabalens/shell/entry-copy"
 import type { EntryStep } from "@/components/nabalens/shell/entry-flow"
 import { EntrySheet } from "@/components/nabalens/shell/entry-sheet"
-import { GuideStep } from "@/components/nabalens/shell/guide-step"
 import {
   PhotoSets,
   sessionSetKeys,
@@ -230,13 +226,6 @@ export function AddHost({
   // join it. Any other Add call ends it.
   const setOwner = React.useRef<PickOwner | null>(null)
   const [addingToSet, setAddingToSet] = React.useState(false)
-  // "What a useful photo shows" before a dish's picker (B02-05).
-  const [guide, setGuide] = React.useState<{
-    owner: PickOwner
-    source: PhotoSource
-    imagesOnly: boolean
-  } | null>(null)
-  const [guideOpen, setGuideOpen] = React.useState(false)
 
   // The Add queue's unfinished server assets: any other own upload the
   // server still has uploading has stopped (see useUploadStopped).
@@ -530,13 +519,6 @@ export function AddHost({
         sheetOwner.current = toPicker ? null : owner
         const only = opts.imagesOnly ?? false
         setImagesOnly(only)
-        if (opts.source && !blocked && opts.guide && entry) {
-          // The guidance step opens the picker from its own button.
-          pickerOwner.current = null
-          setGuide({ owner, source: opts.source, imagesOnly: only })
-          setGuideOpen(true)
-          return
-        }
         if (opts.source && !blocked) {
           // Synchronous: the picker needs this click's user activation. The
           // accept list is set for this call before the click.
@@ -746,19 +728,6 @@ export function AddHost({
                   onUnavailable={entryUnavailable}
                   hrefs={role === "manager" ? MANAGER_ENTRY_HREFS : undefined}
                   role={role}
-                />
-              ) : null}
-              {entry ? (
-                <GuideStep
-                  open={guideOpen}
-                  onOpenChange={setGuideOpen}
-                  source={guide?.source ?? "camera"}
-                  imagesOnly={guide?.imagesOnly ?? false}
-                  onFiles={(files) => {
-                    setGuideOpen(false)
-                    claim(files, guide?.owner ?? null)
-                    queueFiles(files)
-                  }}
                 />
               ) : null}
               <AddSheet

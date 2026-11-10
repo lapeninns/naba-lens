@@ -165,7 +165,6 @@ export function DishAddButtons({
             source: "camera",
             imagesOnly: true,
             preset: dishPreset(item),
-            guide: true,
           })
         }
       >
@@ -181,7 +180,6 @@ export function DishAddButtons({
             source: "library",
             imagesOnly: true,
             preset: dishPreset(item),
-            guide: true,
           })
         }
       >

@@ -84,12 +84,6 @@ export type OpenAddOptions = {
    * is on; each photo keeps its own state.
    */
   subject?: AddSubject | null
-  /**
-   * With `source`: show "What a useful photo shows" before the picker (a
-   * dish or drink) where the shared entry is on. The picker is its primary
-   * action, so it costs one tap.
-   */
-  guide?: boolean
 }
 
 /** A subject Add can make a set of photos for, named for its notice. */

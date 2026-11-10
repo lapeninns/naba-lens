@@ -22,6 +22,7 @@ import {
   type CheckDetailHandlers,
 } from "@/components/nabalens/amenities/manage"
 import { FINDING_SENT_PARAM } from "@/components/nabalens/amenities/capture/finding-sent"
+import { PHOTO_TIPS_TITLE } from "@/components/nabalens/guide/photo-tips-copy"
 import { ContributeCard } from "@/components/nabalens/home/contribute-card"
 import { AddTrigger } from "@/components/nabalens/shell/add-context"
 import { ENTRY_COPY } from "@/components/nabalens/shell/entry-copy"
@@ -106,10 +107,13 @@ describe("Add with the shared entry on", () => {
       name: ENTRY_COPY.title,
     })
     expect(within(dialog).getByText("For Lakeside")).toBeTruthy()
-    const names = within(dialog)
+    const names = within(within(dialog).getAllByRole("list")[0])
       .getAllByRole("listitem")
       .map((item) => item.textContent)
     expect(names).toHaveLength(5)
+    // Photo tips are offered, closed: nothing stands between Add and a choice (D8).
+    const tips = within(dialog).getByText(PHOTO_TIPS_TITLE).closest("details")!
+    expect(tips.open).toBe(false)
     expect(names[0]).toContain("A dish or drink")
     expect(names[0]).toContain(ENTRY_COPY.dishAudience)
     expect(
