@@ -115,8 +115,9 @@ async function sameCountAcross(
     await expect(link(page)).toBeVisible()
     if (count === undefined) {
       const first = await accessibleName(link(page))
-      expect(first).toMatch(name("\\d+"))
-      count = name("(\\d+)").exec(first)![1]!
+      const match = /\d+/.exec(first)
+      expect(match, "the accessible name includes a count").not.toBeNull()
+      count = match![0]
     }
     await expect(link(page), path).toHaveAccessibleName(name(count))
     if (visible !== undefined)
