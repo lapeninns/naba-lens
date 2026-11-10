@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test"
 
+import { addJustPhotos } from "./helpers/add-entry"
 import {
   adminPages,
   managerPages,
@@ -102,10 +103,12 @@ for (const size of SIZES) {
       size,
       "Add sheet",
       () =>
-        staff
-          .locator('[data-slot="tabbar"]')
-          .getByRole("button", { name: "Add", exact: true })
-          .click(),
+        addJustPhotos(
+          staff,
+          staff
+            .locator('[data-slot="tabbar"]')
+            .getByRole("button", { name: "Add", exact: true })
+        ),
       staff.getByRole("dialog", { name: "Add photos" })
     )
     await reflow(staff, size, "/staff/tasks/guide")

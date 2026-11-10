@@ -38,6 +38,7 @@ import {
   modalsOpened,
   phone,
   pickFiles,
+  recordBudget,
   resetModals,
   savingSheet,
   seedUploadingAsset,
@@ -330,6 +331,10 @@ test("c menu changed mid-upload: Needs attention, Fix labels re-picks and saves 
 // ---------------------------------------------------------------------------
 // d, e. Taps and modals at phone widths (J5, J1, J3)
 // ---------------------------------------------------------------------------
+// e1 and e2 enter through the global Add, which now asks "What are you
+// adding?" first (B02-02); their counts include that tap and dialog. Their
+// limits are the earlier acceptance criteria, unchanged until the owner
+// decides otherwise; recordBudget keeps the measured totals either way.
 
 for (const width of [360, 412]) {
   test(`d @${width}: known dish from Our menu in at most 2 taps and 1 modal (J5)`, async ({
@@ -405,7 +410,7 @@ for (const width of [360, 412]) {
 
   test(`e1 @${width}: Add with one dish in at most 5 taps and 2 modals`, async ({
     browser,
-  }) => {
+  }, testInfo) => {
     test.setTimeout(180_000)
     const page = await signedInPage(browser, world.staffA, phone(width))
     await countModals(page)
@@ -421,6 +426,10 @@ for (const width of [360, 412]) {
     await expect(sheet).toBeHidden()
 
     const modals = await modalsOpened(page)
+    await recordBudget(testInfo, `e1-${width}`, taps, modals, {
+      taps: 5,
+      modals: 2,
+    })
     expect(taps.taps, taps.steps.join(" > ")).toBeLessThanOrEqual(5)
     expect(modals.count, modals.names.join(", ")).toBeLessThanOrEqual(2)
     const id = await assetIdFor(photo.name)
@@ -431,7 +440,7 @@ for (const width of [360, 412]) {
 
   test(`e2 @${width}: batch of 3 with one exception in at most 8 taps`, async ({
     browser,
-  }) => {
+  }, testInfo) => {
     test.setTimeout(240_000)
     const page = await signedInPage(browser, world.staffA, phone(width))
     await countModals(page)
@@ -471,6 +480,10 @@ for (const width of [360, 412]) {
     await expect(sheet).toBeHidden()
 
     const modals = await modalsOpened(page)
+    await recordBudget(testInfo, `e2-${width}`, taps, modals, {
+      taps: 8,
+      modals: 2,
+    })
     expect(taps.taps, taps.steps.join(" > ")).toBeLessThanOrEqual(8)
     expect(modals.count, modals.names.join(", ")).toBeLessThanOrEqual(2)
     const ids = await Promise.all(photos.map((p) => assetIdFor(p.name)))

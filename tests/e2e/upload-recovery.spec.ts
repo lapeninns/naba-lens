@@ -27,6 +27,11 @@ import {
   openUploadDialog,
   row,
 } from "../fixtures/uploads/support"
+import {
+  addJustPhotos,
+  intentDialog,
+  visibleBadgeText,
+} from "./helpers/add-entry"
 import { firefoxLaunchOptions } from "./helpers/firefox"
 import { mailboxIds, SUBJECTS, waitForLink } from "./helpers/mailpit"
 import {
@@ -1029,7 +1034,7 @@ test.describe("session ends mid-queue", () => {
       "You were signed out after a while away. 1 photo finished uploading and is safe. 2 stopped."
     )
     await expect(e7).toContainText(
-      `We'll send a sign-in link to ${staff.email}.`
+      `We'll send a sign-in link and code to ${staff.email}.`
     )
     // Same page, same queue: nothing navigated to /login.
     expect(page.url()).toBe(url)
@@ -1164,10 +1169,11 @@ test.describe("leaving while uploads run", () => {
       held.push(route)
     })
 
-    await page
-      .getByRole("banner")
-      .getByRole("button", { name: "Add photos" })
-      .click()
+    // Idle Add asks what is being added; Just photos opens the upload dialog.
+    await addJustPhotos(
+      page,
+      page.getByRole("banner").getByRole("button", { name: "Add photos" })
+    )
     const queue = uploadSheet(page)
     await expect(queue).toHaveAccessibleName("Upload photos or videos")
     // They start uploading as soon as they are picked.
@@ -1209,6 +1215,7 @@ test.describe("leaving while uploads run", () => {
     await expect(addPhotos).toHaveAccessibleName("Add photos, 2 in progress")
     await addPhotos.click()
     await expect(queue).toHaveAccessibleName("Saving 2 photos")
+    await expect(intentDialog(page)).toBeHidden()
     await expect(queue.getByRole("status").last()).toHaveText(
       "0 saved · 2 saving"
     )
@@ -1266,7 +1273,11 @@ test.describe("leaving while uploads run", () => {
     const tabbar = page.locator('[data-slot="tabbar"]')
     const sheet = page.getByRole("dialog", { name: "Add photos" })
     const queue = uploadSheet(page)
-    await tabbar.getByRole("button", { name: "Add", exact: true }).click()
+    // Idle Add asks what is being added; Just photos opens the Add sheet.
+    await addJustPhotos(
+      page,
+      tabbar.getByRole("button", { name: "Add", exact: true })
+    )
     await expect(sheet).toBeVisible()
     await expect(sheet).toContainText(
       "Photos start saving as soon as you pick them."
@@ -1282,7 +1293,10 @@ test.describe("leaving while uploads run", () => {
     await expect(queue).toBeHidden()
     const add = tabbar.getByRole("button", { name: /^Add\b/ })
     await expect(add).toHaveAccessibleName("Add, 2 in progress")
-    await expect(add.locator('[data-slot="add-busy"]')).toHaveText("2")
+    // The badge's own words are assistive-only; on screen it shows the digit.
+    const badge = add.locator('[data-slot="add-busy"] [data-slot="count"]')
+    await expect(badge).toBeVisible()
+    await expect.poll(() => visibleBadgeText(badge)).toBe("2")
 
     // One transfer drops while the queue is hidden.
     failing = true
@@ -1291,9 +1305,11 @@ test.describe("leaving while uploads run", () => {
       timeout: 90_000,
     })
 
+    // Busy, Add goes straight to the queue: neither entry dialog opens.
     await add.click()
     await expect(queue).toBeVisible()
     await expect(sheet).toBeHidden()
+    await expect(intentDialog(page)).toBeHidden()
     await expect(queue).toHaveAccessibleName("Saving 2 photos")
     await expect(queue.getByRole("status").last()).toHaveText(
       "0 saved · 1 saving · 1 need attention"
