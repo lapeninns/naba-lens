@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  adaptAnswerInUse,
   adaptCheck,
   adaptDecision,
   adaptDraft,
@@ -496,5 +497,56 @@ describe("knowledge adapter: the capture screen's check (F1)", () => {
         evidenceRule: "photo",
       },
     })
+  })
+})
+
+describe("adaptAnswerInUse and newer server details (B03 UI §2.5)", () => {
+  it("keeps a detail it doesn't know as unrecognised, never as nothing to check", () => {
+    const view = adaptAnswerInUse(
+      slot({ status: "unavailable", reason: "stale", detail: "basis_missing" })
+    )
+    expect(view.detail).toBe("unrecognised")
+  })
+
+  it("reads qualified_answer and its qualified object", () => {
+    const view = adaptAnswerInUse(
+      slot({
+        status: "unavailable",
+        reason: "stale",
+        detail: "qualified_answer",
+        answerInUse: {
+          ...slot().answerInUse!,
+          qualified: {
+            qualifier: "temporarily_unavailable",
+            detail: {
+              availability: {
+                state: "temporarily_unavailable",
+                until: "2026-11-20",
+              },
+            },
+          },
+        } as never,
+      })
+    )
+    expect(view.detail).toBe("qualified_answer")
+    expect(view.qualified).toEqual({
+      qualifier: "temporarily_unavailable",
+      until: "2026-11-20",
+      note: null,
+    })
+  })
+
+  it("ignores a qualified object it can't read, and its absence", () => {
+    expect(
+      adaptAnswerInUse(
+        slot({
+          answerInUse: {
+            ...slot().answerInUse!,
+            qualified: { qualifier: "something_new" },
+          } as never,
+        })
+      ).qualified
+    ).toBeNull()
+    expect(adaptAnswerInUse(slot()).qualified).toBeNull()
   })
 })

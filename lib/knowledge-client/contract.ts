@@ -81,6 +81,23 @@ export type SlotDetail =
   | "declined"
   | "unable_to_establish"
   | "not_checked"
+  /** B03: the answer in use is qualified; see `AnswerInUse.qualified`. */
+  | "qualified_answer"
+  /** A detail from a newer server this build doesn't know: needs checking. */
+  | "unrecognised"
+
+/**
+ * A current answer stored as Yes whose detail narrows it (b03-design §3.8):
+ * a policy allowed with conditions, or something temporarily unavailable.
+ * Read from `answerInUse.qualified`; the B01 fields then say needs checking.
+ */
+export type QualifiedAnswer = {
+  qualifier: "conditional" | "temporarily_unavailable"
+  /** Temporarily unavailable: the London date it's back, when given. */
+  until: string | null
+  /** Temporarily unavailable: what's happening, when given (internal). */
+  note: string | null
+}
 
 export type AnswerInUse = {
   /** `available` is the only status a reader may present as an answer. */
@@ -93,6 +110,11 @@ export type AnswerInUse = {
   savedAt: Instant | null
   /** When its finding was sent, if known. */
   sentAt: Instant | null
+  /**
+   * The real answer behind a `qualified_answer` status (B03); absent or null
+   * otherwise, and on servers before B03.
+   */
+  qualified?: QualifiedAnswer | null
   confirmation: {
     state: ConfirmationState
     self: boolean

@@ -6,6 +6,7 @@
 import { ANSWER_LABEL, type SubmitAnswer } from "@/lib/amenities/contract"
 import type {
   AnswerInUse,
+  QualifiedAnswer,
   FindingState,
   FindingSummary,
   KnowledgeAnswer,
@@ -133,6 +134,42 @@ function previous(value: SubmitAnswer | null): string[] {
   return value ? [`Previous answer: ${ANSWER_LABEL[value]}.`] : []
 }
 
+/** Words for a qualified answer's qualifier (B03 UI design §2.2, §2.5). */
+export const QUALIFIER_WORD: Record<QualifiedAnswer["qualifier"], string> = {
+  conditional: "Allowed with conditions",
+  temporarily_unavailable: "Temporarily unavailable",
+}
+
+/** "Temporarily unavailable until 3 Nov 2026." / "Allowed with conditions." */
+export function qualifiedLine(q: QualifiedAnswer): string {
+  if (q.qualifier === "temporarily_unavailable") {
+    if (q.until) return `Temporarily unavailable until ${longDate(q.until)}.`
+    if (q.note) return `Temporarily unavailable: ${q.note}`
+    return "Temporarily unavailable."
+  }
+  return "Current answer: Allowed with conditions."
+}
+
+/** The answer's word: its qualifier when it has one, never a bare Yes (§2.5). */
+export function inUseWord(answer: AnswerInUse): string | null {
+  if (answer.qualified) return QUALIFIER_WORD[answer.qualified.qualifier]
+  return answer.value ? ANSWER_LABEL[answer.value] : null
+}
+
+/**
+ * The previous answer, worded by its qualifier when it had one: a stale,
+ * withdrawn or disputed status wins over the qualifier (§2.5 Q1), and the
+ * qualified answer is what was there before.
+ */
+function priorAnswer(
+  answer: AnswerInUse,
+  slot: Pick<WorkingSlot, "previousAnswer">
+): string[] {
+  if (answer.qualified)
+    return [`Previous answer: ${QUALIFIER_WORD[answer.qualified.qualifier]}.`]
+  return previous(slot.previousAnswer)
+}
+
 /**
  * The venue's answer in staff and manager words, one sentence per line. Dates
  * are save dates ("Recorded"), never observation times.
@@ -141,7 +178,7 @@ export function answerInUseLines(
   answer: AnswerInUse,
   slot: Pick<WorkingSlot, "previousAnswer" | "latestAttempt">
 ): string[] {
-  const value = answer.value ? ANSWER_LABEL[answer.value] : null
+  const value = inUseWord(answer)
   const recorded = answer.savedAt
     ? ` Recorded ${longDate(answer.savedAt)}.`
     : ""
@@ -159,11 +196,11 @@ export function answerInUseLines(
     case "declined":
       return ["To check. The last finding wasn't confirmed."]
     case "recheck_requested":
-      return ["No answer in use: reopened.", ...previous(slot.previousAnswer)]
+      return ["No answer in use: reopened.", ...priorAnswer(answer, slot)]
     case "evidence_lost":
       return [
         "No answer in use: its photo was deleted.",
-        ...previous(slot.previousAnswer),
+        ...priorAnswer(answer, slot),
       ]
     case "evidence_withdrawn":
       return [
@@ -178,7 +215,7 @@ export function answerInUseLines(
     case "expired":
       return [
         "No answer in use: it needs checking again.",
-        ...previous(slot.previousAnswer),
+        ...priorAnswer(answer, slot),
       ]
     case "unable_to_establish":
       return slot.latestAttempt
@@ -188,17 +225,21 @@ export function answerInUseLines(
               : "To check. Last try: couldn't establish.",
           ]
         : ["To check."]
+    case "qualified_answer":
+      // §2.5 Q1: only this status is set aside for the qualifier. Without the
+      // qualified object (an older server shape) it stays needs checking.
+      return answer.qualified
+        ? [qualifiedLine(answer.qualified)]
+        : ["No answer in use: needs checking.", ...priorAnswer(answer, slot)]
     case "not_checked":
     case "not_enabled":
     case null:
       return ["To check."]
+    case "unrecognised":
     default:
       // A detail this build doesn't know yet (a newer server: qualified
       // answers, check dates, form changes). Never blank and never "Yes".
-      return [
-        "No answer in use: needs checking.",
-        ...previous(slot.previousAnswer),
-      ]
+      return ["No answer in use: needs checking.", ...priorAnswer(answer, slot)]
   }
 }
 
@@ -743,7 +784,7 @@ export function captureContextLines({
       ? `, recorded ${longDate(answer.savedAt)}`
       : ""
     lines.push(
-      `Current answer: ${ANSWER_LABEL[answer.value]}${recorded}. If you send a different answer, it's marked as being checked until your manager decides. It isn't replaced unless your manager confirms your change.`
+      `Current answer: ${inUseWord(answer)}${recorded}. If you send a different answer, it's marked as being checked until your manager decides. It isn't replaced unless your manager confirms your change.`
     )
   } else if (answer.reason === "disputed" || answer.detail === "pending") {
     lines.push(
@@ -853,7 +894,7 @@ export function slotRow(slot: WorkingSlot): SlotRow {
       chip: { state: "awaiting_confirmation" },
       status:
         answer.reason === "disputed"
-          ? `Recorded answer: ${answer.value ? ANSWER_LABEL[answer.value] : "none"}. Being checked: a finding disagrees with it.`
+          ? `Recorded answer: ${inUseWord(answer) ?? "none"}. Being checked: a finding disagrees with it.`
           : answer.value && latest.answer === answer.value
             ? "You sent a finding. It agrees with the recorded answer; your manager confirms it."
             : "You sent a finding. Your manager confirms it before it's used.",
@@ -869,6 +910,28 @@ export function slotRow(slot: WorkingSlot): SlotRow {
       status: `Not sent yet. Saved ${dateAndTime(slot.myDraft.savedAt)}.`,
       action: "Finish",
       needsMe: mine,
+      dismissable: false,
+    }
+  // A qualified answer in use (§2.5 Q3): its qualifier, never "Needs
+  // capture"; an assignee is asked to check it again. Never To do (Q4).
+  if (answer.detail === "qualified_answer" && answer.qualified)
+    return {
+      chip: {
+        word: QUALIFIER_WORD[answer.qualified.qualifier],
+        tone: "attention",
+      },
+      status: [
+        qualifiedLine(answer.qualified),
+        mine ? "Assigned to you." : null,
+      ]
+        .filter(Boolean)
+        .join(" "),
+      action: mine
+        ? "Check again"
+        : slot.mode === "change"
+          ? "Report a change"
+          : "View",
+      needsMe: false,
       dismissable: false,
     }
   if (mine && slot.progress === "needs_recheck")

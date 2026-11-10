@@ -31,6 +31,7 @@ import type {
   PendingFinding,
   QuestionView,
   ServerDraft,
+  QualifiedAnswer,
   SlotDetail,
   SubmittedFinding,
   ToConfirmList,
@@ -53,12 +54,43 @@ const DETAILS: readonly SlotDetail[] = [
   "declined",
   "unable_to_establish",
   "not_checked",
+  "qualified_answer",
 ]
 
 function detailOf(slot: KnowledgeSlotView): SlotDetail | null {
   if (slot.detail && (DETAILS as readonly string[]).includes(slot.detail))
     return slot.detail as SlotDetail
+  // A newer server's reason no answer is in use: kept as unrecognised, so the
+  // screens say needs checking instead of reading it as nothing to check.
+  if (slot.detail && slot.status === "unavailable") return "unrecognised"
   return slot.reason === "not_enabled" ? "not_enabled" : null
+}
+
+const QUALIFIERS = ["conditional", "temporarily_unavailable"] as const
+
+/** `answerInUse.qualified` (b03-design §3.8), read defensively. */
+function qualifiedOf(answer: unknown): QualifiedAnswer | null {
+  if (!answer || typeof answer !== "object") return null
+  const q = (answer as { qualified?: unknown }).qualified
+  if (!q || typeof q !== "object") return null
+  const { qualifier, detail } = q as { qualifier?: unknown; detail?: unknown }
+  if (!(QUALIFIERS as readonly unknown[]).includes(qualifier)) return null
+  const availability =
+    detail && typeof detail === "object"
+      ? (detail as { availability?: unknown }).availability
+      : null
+  const field = (key: "until" | "note") => {
+    const v =
+      availability && typeof availability === "object"
+        ? (availability as Record<string, unknown>)[key]
+        : null
+    return typeof v === "string" && v ? v : null
+  }
+  return {
+    qualifier: qualifier as QualifiedAnswer["qualifier"],
+    until: field("until"),
+    note: field("note"),
+  }
 }
 
 export function adaptAnswerInUse(slot: KnowledgeSlotView): AnswerInUse {
@@ -70,6 +102,7 @@ export function adaptAnswerInUse(slot: KnowledgeSlotView): AnswerInUse {
     value: answer?.value ?? null,
     savedAt: answer?.savedAt ?? null,
     sentAt: answer?.sentAt ?? null,
+    qualified: qualifiedOf(answer),
     confirmation: {
       state: answer?.confirmationState ?? "not_required",
       // Managers and admins only: staff get no confirmer.

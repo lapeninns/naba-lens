@@ -580,3 +580,103 @@ describe("slotRow: an assignee who already sent (HM-01, HM-02)", () => {
     expect(todoCount(items)).toBe(1)
   })
 })
+
+describe("qualified answers (B03 UI design §2.5)", () => {
+  const COND: AnswerInUse = {
+    ...YES,
+    status: "unavailable",
+    reason: "stale",
+    detail: "qualified_answer",
+    qualified: { qualifier: "conditional", until: null, note: null },
+  }
+  const AWAY: AnswerInUse = {
+    ...COND,
+    qualified: {
+      qualifier: "temporarily_unavailable",
+      until: "2026-11-20",
+      note: null,
+    },
+  }
+  const lines = (answer: AnswerInUse, over: Partial<WorkingSlot> = {}) =>
+    answerInUseLines(answer, slot({ previousAnswer: "yes", ...over }))
+
+  it("shows the qualifier only for a qualified_answer status, never a bare Yes", () => {
+    expect(lines(COND)).toEqual(["Current answer: Allowed with conditions."])
+    expect(lines(AWAY)).toEqual(["Temporarily unavailable until 20 Nov 2026."])
+    expect(
+      lines({
+        ...AWAY,
+        qualified: { ...AWAY.qualified!, until: null, note: "⟨Note⟩" },
+      })
+    ).toEqual(["Temporarily unavailable: ⟨Note⟩"])
+    expect(lines(COND).join(" ")).not.toMatch(/\bYes\b/)
+  })
+
+  it("keeps needs checking when the qualified object is missing", () => {
+    expect(lines({ ...COND, qualified: null })).toEqual([
+      "No answer in use: needs checking.",
+      "Previous answer: Yes.",
+    ])
+  })
+
+  it("lets any other status win, with the qualified answer as the previous answer", () => {
+    // A qualified answer that is also past its check date.
+    expect(lines({ ...COND, detail: "expired" })).toEqual([
+      "No answer in use: it needs checking again.",
+      "Previous answer: Allowed with conditions.",
+    ])
+    expect(
+      lines({ ...AWAY, reason: "withdrawn", detail: "answer_withdrawn" })
+    ).toEqual(["Recorded answer: Temporarily unavailable. Not in use."])
+    expect(lines({ ...COND, reason: "disputed", detail: "conflict" })).toEqual([
+      "Recorded answer: Allowed with conditions. Being checked: a finding disagrees with it.",
+    ])
+    for (const detail of ["expired", "answer_withdrawn", "conflict"] as const)
+      expect(lines({ ...COND, detail }).join(" ")).not.toMatch(
+        /Current answer|\bYes\b/
+      )
+  })
+
+  it("a staff row says Check again for an assignee and is never To do", () => {
+    const mine = slotRow(
+      slot({
+        answerInUse: COND,
+        progress: "needs_recheck",
+        assignee: { firstName: "⟨Name⟩", isMe: true },
+      })
+    )
+    expect(mine).toMatchObject({
+      chip: { word: "Allowed with conditions", tone: "attention" },
+      status: "Current answer: Allowed with conditions. Assigned to you.",
+      action: "Check again",
+      needsMe: false,
+    })
+    const theirs = slotRow(slot({ answerInUse: AWAY, mode: "change" }))
+    expect(theirs).toMatchObject({
+      chip: { word: "Temporarily unavailable" },
+      action: "Report a change",
+      needsMe: false,
+    })
+    // Another status wins: no qualifier chip.
+    const expired = slotRow(
+      slot({
+        answerInUse: { ...COND, detail: "expired" },
+        previousAnswer: "yes",
+      })
+    )
+    expect(expired.chip).not.toMatchObject({ word: "Allowed with conditions" })
+    expect(expired.status).toContain(
+      "Previous answer: Allowed with conditions."
+    )
+  })
+
+  it("the change-mode capture context names the qualifier, not Yes", () => {
+    const text = captureContextLines({
+      venueName: "⟨Venue⟩",
+      slot: slot({ answerInUse: COND, mode: "change" }),
+      role: "staff",
+    }).join(" ")
+    expect(text).toContain("Current answer: Allowed with conditions")
+    expect(text).not.toMatch(/Current answer: Yes/)
+  })
+})
