@@ -16,9 +16,10 @@ const env = { ...process.env, NEXT_PUBLIC_SUPABASE_URL: status.API_URL,
   MAILPIT_URL: status.MAILPIT_URL ?? status.INBUCKET_URL,
   // Playwright's resolver: isolated-stack checks, E2E_DB_URL for fixtures.
   E2E_SUPABASE_WORKDIR: work }
-const secrets = [env.SUPABASE_SERVICE_ROLE_KEY, env.SUPABASE_JWT_SECRET,
-  env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, status.SECRET_KEY, process.env.CLEANUP_SECRET,
-  process.env.SUPABASE_SECRET_KEY]
+// Every credential-like value the stack reports (service, S3, JWT secrets), not a fixed list.
+const secrets = [...Object.entries(status).filter(([k]) => /KEY|SECRET|TOKEN|PASSWORD/i.test(k)).map(([, v]) => v),
+  env.SUPABASE_SERVICE_ROLE_KEY, env.SUPABASE_JWT_SECRET, env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+  process.env.CLEANUP_SECRET, process.env.SUPABASE_SECRET_KEY]
 // The same directory local-ci.sh logs to, so lci keeps the raw suite logs
 // with its run; hosted CI uploads only the scrubbed copies.
 const logDir = process.env.CI_LOG_DIR || `${work}/logs`
@@ -61,12 +62,14 @@ for (const args of [['test:integration'], ['test:lifecycle', work], ['test:secur
   results.push({ label: args[0], passed, exit, file, raw })
 }
 const failed = results.filter((r) => !r.passed)
-// Printed last and kept short: local-ci.sh shows only the tail of this step's log.
+// Printed last: local-ci.sh shows only the last 35 lines of this step's log.
+// The table takes 6 lines and each failed suite a header line, so the
+// excerpts share the remaining 28 lines.
 console.log('\nrun-suites summary (each sub-suite\'s own result):')
 for (const r of results) console.log(`  ${r.label.padEnd(17)} ${r.passed ? 'PASS' : 'FAIL'}  ${r.exit}`)
 for (const r of failed) {
   console.log(`Failure excerpt, ${r.label} (scrubbed; full log ${r.file}):`)
-  const lines = failureExcerpt(r.raw, { maxLines: Math.max(6, Math.floor(22 / failed.length)), secrets })
+  const lines = failureExcerpt(r.raw, { maxLines: Math.floor(28 / failed.length) - 1, secrets })
   for (const line of lines.length ? lines : ['(no failure lines found; see the suite log)']) console.log(`  ${line}`)
 }
 process.exit(failed.length ? 1 : 0)
