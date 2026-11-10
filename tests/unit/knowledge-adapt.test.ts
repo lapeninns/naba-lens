@@ -596,7 +596,7 @@ describe("the withdrawal on the read (B03 UI §8.2, D-B3-18)", () => {
     const finding = adaptFinding(
       mine({
         state: "no_longer_used",
-        stateReason: "withdrawn" as never,
+        stateReason: "withdrawn",
         managerNote: "⟨Reason⟩",
         stateReasonBasis: "admin",
         stateReasonAt: "2026-11-08T09:30:00.000Z",
@@ -612,7 +612,7 @@ describe("the withdrawal on the read (B03 UI §8.2, D-B3-18)", () => {
     const partial = adaptFinding(
       mine({
         state: "no_longer_used",
-        stateReason: "corrected" as never,
+        stateReason: "corrected",
         stateReasonBasis: "admin",
       })
     )
@@ -787,7 +787,7 @@ describe("corrected and withdrawn findings (B03-g, A15)", () => {
     const corrected = adaptFinding(
       mine({
         state: "no_longer_used",
-        stateReason: "corrected" as never,
+        stateReason: "corrected",
         managerNote: "⟨Reason⟩",
       })
     )
@@ -796,9 +796,8 @@ describe("corrected and withdrawn findings (B03-g, A15)", () => {
       stateReason: "⟨Reason⟩",
     })
     expect(
-      adaptFinding(
-        mine({ state: "no_longer_used", stateReason: "withdrawn" as never })
-      ).noLongerUsed
+      adaptFinding(mine({ state: "no_longer_used", stateReason: "withdrawn" }))
+        .noLongerUsed
     ).toBe("withdrawn")
     expect(
       adaptFinding(

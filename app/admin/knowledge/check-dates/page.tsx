@@ -13,6 +13,7 @@ import { Notice } from "@/components/nabalens/notice"
 import { PageHeader } from "@/components/nabalens/page-header"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { requireActiveAdmin } from "@/lib/auth"
+import type { RegistryQuestion } from "@/lib/knowledge-client/contract"
 import { knowledgeServices } from "@/lib/knowledge-client/services"
 import { getCoverageActor } from "@/lib/server/coverage"
 import type { MediaActor } from "@/lib/server/media/types"
@@ -51,6 +52,34 @@ async function venueNames(actor: MediaActor, ids: string[]) {
   }
 }
 
+type Rules = RegistryQuestion["freshness"]
+const NO_RULES: Rules = { internal: null, public: null }
+
+/**
+ * The question's check-date rules in force now. The registry lists each
+ * question's latest version, which may only take effect later; earlier
+ * versions are read until one is in force (a version is never backdated, so
+ * one with no or a past effective date is). Null when a read fails.
+ */
+async function rulesInForce(
+  actor: MediaActor,
+  latest: RegistryQuestion | undefined
+): Promise<Rules | null> {
+  if (!latest) return NO_RULES
+  const now = Date.now()
+  const inForce = (q: Pick<RegistryQuestion, "effectiveFrom">) =>
+    !q.effectiveFrom || Date.parse(q.effectiveFrom) <= now
+  if (inForce(latest)) return latest.freshness
+  for (let version = latest.version - 1; version >= 1; version--) {
+    const read = await knowledgeServices
+      .getQuestion(actor, { key: latest.key, version })
+      .catch(() => null)
+    if (!read?.ok || !read.question) return null
+    if (inForce(read.question)) return read.question.freshness
+  }
+  return NO_RULES
+}
+
 /**
  * Admin, read only (B03 UI design §6.4): for a question and proposed check
  * date rules, what each venue's answers would read as. Nothing is saved.
@@ -72,13 +101,24 @@ export default async function CheckDatesPreviewPage({
     knowledgeServices.listFreshnessPolicies(actor).catch(() => null),
   ])
   const questions = registry?.ok ? registry.questions : []
-  // Until the form names rules, start from the question's rules in force.
-  const named = search.internal !== undefined || search.public !== undefined
-  const current = named
-    ? null
-    : (questions.find((q) => q.key === key)?.freshness ?? null)
-  const internal = current ? (current.internal ?? "") : one(search.internal)
-  const publicRule = current ? (current.public ?? "") : one(search.public)
+  // The form says which question its rule controls were shown for. Another
+  // one (the question was just chosen or changed) starts from the new
+  // question's rules in force, never the last question's; a link without it
+  // names its rules directly. Until the form names rules, start from those
+  // in force.
+  const shownFor = search.for === undefined ? key : one(search.for)
+  const named =
+    shownFor === key &&
+    (search.internal !== undefined || search.public !== undefined)
+  const current =
+    named || !KEY.test(key)
+      ? NO_RULES
+      : await rulesInForce(
+          actor,
+          questions.find((q) => q.key === key)
+        )
+  const internal = named ? one(search.internal) : (current?.internal ?? "")
+  const publicRule = named ? one(search.public) : (current?.public ?? "")
   const asked =
     KEY.test(key) &&
     (!internal || RULE.test(internal)) &&
@@ -115,7 +155,11 @@ export default async function CheckDatesPreviewPage({
         ) : listed.length === 0 ? (
           <Notice tone="plain">{COPY.nonePolicies}</Notice>
         ) : null}
+        {current === null ? (
+          <Notice tone="negative">{COPY.noRulesInForce}</Notice>
+        ) : null}
         <form method="get" action={PATH} className="grid min-w-0 gap-4">
+          <input type="hidden" name="for" value={key} />
           <div className="grid min-w-0 gap-1.5">
             <label htmlFor="key" className={LABEL}>
               {COPY.question}
@@ -179,7 +223,7 @@ export default async function CheckDatesPreviewPage({
             action={
               !preview || preview.code === "unavailable" ? (
                 <Link
-                  href={`${PATH}?${new URLSearchParams({ key, internal, public: publicRule })}`}
+                  href={`${PATH}?${new URLSearchParams({ key, for: key, internal, public: publicRule })}`}
                   className={buttonVariants({
                     variant: "secondary",
                     size: "touch",

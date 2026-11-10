@@ -44,6 +44,7 @@ vi.mock("@/lib/server/coverage", () => ({
 }))
 const knowledge = vi.hoisted(() => ({
   listQuestionRegistry: vi.fn(),
+  getQuestion: vi.fn(),
   listFreshnessPolicies: vi.fn(),
   previewFreshness: vi.fn(),
 }))
@@ -226,6 +227,182 @@ describe("admin check dates preview", () => {
       ).value
     ).toBe("")
     expect(knowledge.previewFreshness).not.toHaveBeenCalled()
+  })
+
+  it("starts from the version in force now, not a later one (review 2)", async () => {
+    knowledge.listQuestionRegistry.mockResolvedValue({
+      ok: true,
+      questions: [
+        {
+          key: "guest_wifi",
+          version: 3,
+          guidance: { question: "⟨Wi-Fi question⟩" },
+          effectiveFrom: "2999-01-01T00:00:00.000Z",
+          freshness: { internal: "offering_90", public: "offering_public" },
+        },
+      ],
+    })
+    knowledge.getQuestion.mockImplementation(
+      async (_actor: unknown, { version }: { version: number }) => ({
+        ok: true,
+        question:
+          version === 2
+            ? {
+                key: "guest_wifi",
+                version: 2,
+                effectiveFrom: "2998-01-01T00:00:00.000Z",
+                freshness: { internal: "offering_90", public: null },
+              }
+            : {
+                key: "guest_wifi",
+                version: 1,
+                effectiveFrom: null,
+                freshness: { internal: "fixture_365", public: null },
+              },
+      })
+    )
+    knowledge.previewFreshness.mockResolvedValue({
+      ok: true,
+      preview: { key: "guest_wifi", items: [] },
+    })
+    await show({ key: "guest_wifi" })
+    expect(knowledge.getQuestion.mock.calls.map((c) => c[1])).toEqual([
+      { key: "guest_wifi", version: 2 },
+      { key: "guest_wifi", version: 1 },
+    ])
+    expect(knowledge.previewFreshness).toHaveBeenCalledWith(expect.anything(), {
+      key: "guest_wifi",
+      policy: { internal: "fixture_365", public: null },
+    })
+    expect(
+      (screen.getByLabelText("Rule for guests (optional)") as HTMLSelectElement)
+        .value
+    ).toBe("")
+    cleanup()
+    vi.clearAllMocks()
+    // An earlier version that can't be read: no rules are guessed, and it says so.
+    knowledge.getQuestion.mockResolvedValue({
+      ok: false,
+      code: "unavailable",
+      status: 503,
+      message: "down",
+    })
+    await show({ key: "guest_wifi" })
+    expect(
+      screen.getByText(
+        "This question's rules in force couldn't be read. Choose the rules to preview, or reload the page."
+      )
+    ).toBeTruthy()
+    expect(knowledge.previewFreshness).not.toHaveBeenCalled()
+  })
+
+  it("reads no earlier version when the latest is in force", async () => {
+    knowledge.listQuestionRegistry.mockResolvedValue({
+      ok: true,
+      questions: [
+        {
+          key: "guest_wifi",
+          version: 2,
+          guidance: { question: "⟨Wi-Fi question⟩" },
+          effectiveFrom: "2026-01-01T00:00:00.000Z",
+          freshness: { internal: "fixture_365", public: null },
+        },
+      ],
+    })
+    knowledge.previewFreshness.mockResolvedValue({
+      ok: true,
+      preview: { key: "guest_wifi", items: [] },
+    })
+    await show({ key: "guest_wifi" })
+    expect(knowledge.getQuestion).not.toHaveBeenCalled()
+    expect(knowledge.previewFreshness).toHaveBeenCalledWith(expect.anything(), {
+      key: "guest_wifi",
+      policy: { internal: "fixture_365", public: null },
+    })
+  })
+
+  it("starts a newly chosen question from its own rules, not the last one's (review 2)", async () => {
+    knowledge.previewFreshness.mockResolvedValue({
+      ok: true,
+      preview: { key: "guest_wifi", items: [] },
+    })
+    const internal = () =>
+      (
+        screen.getByLabelText(
+          "Rule for staff and internal tools (optional)"
+        ) as HTMLSelectElement
+      ).value
+    // First choice: the form sent its empty rule controls with it.
+    await show({ key: "guest_wifi", for: "", internal: "", public: "" })
+    expect(internal()).toBe("fixture_365")
+    expect(knowledge.previewFreshness).toHaveBeenLastCalledWith(
+      expect.anything(),
+      { key: "guest_wifi", policy: { internal: "fixture_365", public: null } }
+    )
+    expect(
+      (document.querySelector('input[name="for"]') as HTMLInputElement).value
+    ).toBe("guest_wifi")
+    cleanup()
+    // Changed from parking with offering_90 chosen there: not carried over.
+    await show({
+      key: "guest_wifi",
+      for: "onsite_parking",
+      internal: "offering_90",
+      public: "",
+    })
+    expect(internal()).toBe("fixture_365")
+    expect(knowledge.previewFreshness).toHaveBeenLastCalledWith(
+      expect.anything(),
+      { key: "guest_wifi", policy: { internal: "fixture_365", public: null } }
+    )
+    cleanup()
+    // To parking, which has no rules in force: nothing carried, nothing read.
+    knowledge.previewFreshness.mockClear()
+    await show({
+      key: "onsite_parking",
+      for: "guest_wifi",
+      internal: "fixture_365",
+      public: "",
+    })
+    expect(internal()).toBe("")
+    expect(knowledge.previewFreshness).not.toHaveBeenCalled()
+    cleanup()
+    // Chosen for this question: the choice wins over the rules in force.
+    await show({
+      key: "guest_wifi",
+      for: "guest_wifi",
+      internal: "offering_90",
+      public: "",
+    })
+    expect(internal()).toBe("offering_90")
+    expect(knowledge.previewFreshness).toHaveBeenLastCalledWith(
+      expect.anything(),
+      { key: "guest_wifi", policy: { internal: "offering_90", public: null } }
+    )
+    expect(knowledge.getQuestion).not.toHaveBeenCalled()
+  })
+
+  it("keeps the chosen rules on Try again", async () => {
+    knowledge.previewFreshness.mockResolvedValue({
+      ok: false,
+      code: "unavailable",
+      status: 503,
+      message: "down",
+    })
+    await show({
+      key: "guest_wifi",
+      for: "guest_wifi",
+      internal: "offering_90",
+    })
+    const href = screen
+      .getByRole("link", { name: "Try again" })
+      .getAttribute("href")!
+    expect(Object.fromEntries(new URL(href, "http://x").searchParams)).toEqual({
+      key: "guest_wifi",
+      for: "guest_wifi",
+      internal: "offering_90",
+      public: "",
+    })
   })
 
   it("says when no rules are set up, or they can't be read", async () => {

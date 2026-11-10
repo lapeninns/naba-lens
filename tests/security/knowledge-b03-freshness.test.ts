@@ -215,19 +215,29 @@ select (jsonb_populate_record(null::public.knowledge_question_versions, to_jsonb
 from public.knowledge_question_versions v where v.key = 'guest_toilets' and v.version = 1;
 create temp table l1_before on commit drop as select private.knowledge_open_rechecks(now()) as opened,
   private.knowledge_schema_change_due('guest_toilets', now()) as due_now;
+create temp table l1_before_tasks on commit drop as select count(*)::int as tasks
+  from public.knowledge_recheck_tasks t where t.check_id = '${check}' and t.cause = 'schema_changed';
 create temp table l1_after on commit drop as select private.knowledge_open_rechecks(now() + interval '20 days') as opened;
-select concat_ws('|',
-  (select due_now = (select greatest(v.created_at, coalesce(v.effective_from, v.created_at))
+select jsonb_build_object(
+  'dueBeforeIsV1', (select due_now = (select greatest(v.created_at, coalesce(v.effective_from, v.created_at))
      from public.knowledge_question_versions v where v.key = 'guest_toilets' and v.version = 1) from l1_before),
-  private.knowledge_schema_change_due('guest_toilets', now() + interval '20 days') = now() + interval '10 days',
-  (select count(*) from public.knowledge_recheck_tasks t where t.check_id = '${check}' and t.cause = 'schema_changed'),
-  (select bool_and(t.due_at = now() + interval '10 days') from public.knowledge_recheck_tasks t
+  'tasksBefore', (select tasks from l1_before_tasks),
+  'dueAfterIsV2', private.knowledge_schema_change_due('guest_toilets', now() + interval '20 days') = now() + interval '10 days',
+  'tasksAfter', (select count(*) from public.knowledge_recheck_tasks t where t.check_id = '${check}' and t.cause = 'schema_changed'),
+  'tasksDueFromV2', (select bool_and(t.due_at = now() + interval '10 days') from public.knowledge_recheck_tasks t
      where t.check_id = '${check}' and t.cause = 'schema_changed'));
 rollback;`)
-    // Before it takes effect version 1 is in force: no schema change, and the
-    // due date is version 1's. Once in force the one task is due from when
-    // version 2 took effect, not when it was written.
-    expect(out.split("\n").pop()).toBe("true|true|1|true")
+    // Before it takes effect version 1 is in force: the job opens no schema
+    // change task (counted in its own statement, after the first job and
+    // before the second), and the due date is version 1's. Once in force the
+    // one task is due from when version 2 took effect, not when it was written.
+    expect(JSON.parse(out.split("\n").pop()!)).toEqual({
+      dueBeforeIsV1: true,
+      tasksBefore: 0,
+      dueAfterIsV2: true,
+      tasksAfter: 1,
+      tasksDueFromV2: true,
+    })
     expect(
       psql(
         `select count(*) from public.knowledge_question_versions where key = 'guest_toilets' and change_note = 'R-L1 fixture'`

@@ -214,7 +214,8 @@ export function adaptFinding(view: MyFindingView): FindingSummary {
     state: view.state,
     noLongerUsed:
       view.state === "no_longer_used" && view.stateReason
-        ? (NO_LONGER_USED[view.stateReason as StateReasonB03] ?? null)
+        ? // A reason added after this build reads as none.
+          (NO_LONGER_USED[view.stateReason] ?? null)
         : null,
     stateReason: view.managerNote ?? null,
     ...stateReasonActor(view),

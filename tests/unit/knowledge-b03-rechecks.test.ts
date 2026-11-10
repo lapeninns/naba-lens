@@ -92,6 +92,23 @@ describe("venue rechecks (A41)", () => {
       status: 403,
     })
   })
+
+  // Review: tasks can exist before the A41 function does, and the function
+  // can fail calling a missing one inside it; neither reads as none open.
+  it.each(["PGRST202", "42883"])(
+    "read a missing function (%s) as unavailable, not an empty queue",
+    async (code) => {
+      const { actor } = actorWith({
+        knowledge_venue_rechecks: () => ({
+          error: { code, message: "function not found" },
+        }),
+      })
+      expect(await knowledge.listVenueRechecks(actor)).toMatchObject({
+        ok: false,
+        code: "unavailable",
+      })
+    }
+  )
 })
 
 describe("freshness policies (A42)", () => {

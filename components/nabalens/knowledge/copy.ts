@@ -1310,6 +1310,8 @@ export const FRESHNESS_PREVIEW_COPY = {
   failed: "We couldn't work out what this rule would do.",
   tryAgain: "Try again",
   noRegistry: "The question list couldn't be read.",
+  noRulesInForce:
+    "This question's rules in force couldn't be read. Choose the rules to preview, or reload the page.",
   aVenue: "A venue",
 } as const
 

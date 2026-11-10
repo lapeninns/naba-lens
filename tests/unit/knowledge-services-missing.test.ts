@@ -12,6 +12,7 @@ const server = vi.hoisted(() => ({
   declineFinding: vi.fn(),
   markUnknownSeen: vi.fn(),
   knowledgeRpcFailure: vi.fn(),
+  listVenueRechecks: vi.fn(),
 }))
 vi.mock("@/lib/server/knowledge", () => server)
 const rpc = vi.hoisted(() => ({ knowledgeRpc: vi.fn() }))
@@ -343,5 +344,18 @@ describe("retired value-list items (A38)", () => {
     await expect(
       knowledgeServices.getValueList(actor, { list: "policy_condition_types" })
     ).resolves.toEqual({ ok: true, items: [], retired })
+  })
+})
+
+describe("venue rechecks (A41 review)", () => {
+  it("are the server read, so a failure is never an empty queue", async () => {
+    server.listVenueRechecks.mockResolvedValueOnce(DOWN)
+    expect(
+      await knowledgeServices.listVenueRechecks(actor, { venueId: VENUE })
+    ).toBe(DOWN)
+    expect(server.listVenueRechecks).toHaveBeenCalledWith(actor, {
+      venueId: VENUE,
+    })
+    expect(rpc.knowledgeRpc).not.toHaveBeenCalled()
   })
 })

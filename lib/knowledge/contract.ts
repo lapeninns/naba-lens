@@ -164,8 +164,8 @@ export type MyFindingView = {
   sentAt: string
   decidedAt?: string | null
   state: ContributionState
-  stateReason?:
-    "archived" | "replaced_by_newer" | "reopened" | "replaced_by_own" | null
+  /** B03-g (A15) adds corrected and withdrawn; readers keep a fallback. */
+  stateReason?: StateReasonB03 | null
   managerNote?: string | null
   /**
    * B03 (UI §8.2): for the corrected and withdrawn reasons, the basis of
@@ -904,11 +904,13 @@ export type RecheckTaskView = {
 /**
  * B03-g (A15): stateReason also reads "corrected" or "withdrawn" when a
  * material correction or a withdrawal took the author's answer out of use
- * (managerNote carries the reason). Screens widen their stateReason maps with
- * this when they adopt B03-g.
+ * (managerNote carries the reason). MyFindingView.stateReason carries it.
  */
-export type StateReasonB03 =
-  NonNullable<MyFindingView["stateReason"]> | "corrected" | "withdrawn"
+export type StateReasonB03 = StateReasonB01 | "corrected" | "withdrawn"
+
+/** The B01 reasons an author's finding is no longer used. */
+export type StateReasonB01 =
+  "archived" | "replaced_by_newer" | "reopened" | "replaced_by_own"
 
 export type CorrectionValue = {
   headline: SubmitAnswer
