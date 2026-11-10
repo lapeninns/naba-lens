@@ -1332,10 +1332,11 @@ describe("deferred variant proposals: open variants while the entry is pending (
     candidates: string[]
     evidence: Record<string, unknown> & { deferredProposal?: unknown }
     supersedes: string | null
+    reviewed_by: string | null
   }
   const rowById = (rowId: string) =>
     rows<Row>(`select r.id, r.snapshot_id, r.status, r.basis, r.item_id, r.variant_id,
-        r.candidates, r.evidence, r.supersedes
+        r.candidates, r.evidence, r.supersedes, r.reviewed_by
       from public.menu_crosswalk r where r.id = ${literal(rowId)}`)[0]!
   const headsBy = (sourceId: string) =>
     Object.fromEntries(heads(sourceId).map((h) => [h.locator, h])) as Record<
@@ -1681,15 +1682,23 @@ describe("deferred variant proposals: open variants while the entry is pending (
     await ok(
       decide(h4[lambAt]!, "confirmed", { item: v.itemId, variant: newLamb })
     )
+    // A rematched proposal confirmed to its candidate keeps its basis.
+    expect(headAt(v.source, lambAt)).toMatchObject({
+      status: "confirmed",
+      basis: "name_candidate",
+      variant_id: newLamb,
+      revision: h4[lambAt]!.revision + 1,
+    })
   })
 
-  it("keeps decisions on deferred rows and an ordinary review, and rematches the rest on the same S2 item", async () => {
+  it("keeps decisions on deferred rows and an ordinary review, confirms a deferred row directly, and rematches the rest on the same S2 item", async () => {
     const v = await bhunaVenue("crosswalk-deferred-decided")
     const entry: SnapshotEntry = {
       ...bhuna,
-      variants: ["Chicken", "Lamb", "Chicken", "Lamb"],
+      variants: ["Chicken", "Lamb", "Chicken", "Lamb", "Chicken"],
     }
     const lamb2At = `${bhuna.locator}#variant=Lamb#2`
+    const chicken3At = `${bhuna.locator}#variant=Chicken#3`
     const catalogue = catalogueOf(v.doc)
     const s1 = await snapshot(v.source, "r1", [entry])
     await ok(propose(s1))
@@ -1697,6 +1706,14 @@ describe("deferred variant proposals: open variants while the entry is pending (
       decide(headAt(v.source, bhuna.locator), "confirmed", { item: v.itemId })
     )
     await ok(propose(s1))
+    const h1 = headsBy(v.source)
+    expect(h1[chicken3At]).toMatchObject({
+      status: "ambiguous",
+      basis: "name_candidate",
+      variant_id: null,
+      candidates: [v.chicken],
+      snapshot_id: s1,
+    })
     await ok(
       decide(headAt(v.source, chickenAt), "confirmed", {
         item: v.itemId,
@@ -1717,7 +1734,7 @@ describe("deferred variant proposals: open variants while the entry is pending (
       snapshot_id: s2,
     })
     // ...the open proposals are deferred.
-    for (const at of [lambAt, chicken2At, lamb2At])
+    for (const at of [lambAt, chicken2At, lamb2At, chicken3At])
       expect(h[at]).toMatchObject({
         status: "needs_review",
         basis: "name_candidate",
@@ -1743,16 +1760,71 @@ describe("deferred variant proposals: open variants while the entry is pending (
       snapshot_id: s2,
     })
 
-    // Bhuna is reconfirmed to the same item on S2: the decisions hold, the
-    // ordinary review still awaits the reviewer, and only Lamb#2 (deferred)
-    // is matched afresh.
+    // Bhuna is reconfirmed to the same item on S2.
     await ok(decide(h[bhuna.locator]!, "confirmed", { item: v.itemId }))
+
+    // Before any rematch, the reviewer confirms the still-deferred Chicken#3
+    // to Lamb, a variant its S1 proposal never named: chosen, not matched.
+    const deferred = headAt(v.source, chicken3At)
+    expect(deferred).toMatchObject({
+      row_id: h[chicken3At]!.row_id,
+      revision: h[chicken3At]!.revision,
+      status: "needs_review",
+      basis: "name_candidate",
+      candidates: [],
+    })
+    await ok(decide(deferred, "confirmed", { item: v.itemId, variant: v.lamb }))
+    const direct = headAt(v.source, chicken3At)
+    expect(direct).toMatchObject({
+      status: "confirmed",
+      basis: "manual",
+      entry_locator: bhuna.locator,
+      item_id: v.itemId,
+      variant_id: v.lamb,
+      channel: "all",
+      candidates: [],
+      snapshot_id: s2,
+      revision: deferred.revision + 1,
+    })
+    const directRow = rowById(direct.row_id)
+    expect(directRow).toMatchObject({
+      supersedes: deferred.row_id,
+      reviewed_by: admin.id,
+    })
+    // S2 evidence, with the S1 proposal still only as history.
+    expect(directRow.evidence).toEqual({
+      entry: {
+        name: "Bhuna",
+        variants: ["Chicken", "Lamb", "Chicken", "Lamb", "Chicken"],
+        priceText: "9.5",
+      },
+      variant: "Chicken",
+      deferredProposal: {
+        role: "historical",
+        rowId: h1[chicken3At]!.row_id,
+        snapshotId: s1,
+        status: "ambiguous",
+        itemId: v.itemId,
+        candidates: [v.chicken],
+        candidateCount: 1,
+      },
+    })
+    expect(directRow.evidence.deferredProposal).toEqual(
+      rowById(deferred.row_id).evidence.deferredProposal
+    )
+
+    // The decisions hold, the ordinary review still awaits the reviewer, and
+    // only Lamb#2 (deferred) is matched afresh.
     expect(await proposeLikeTs(v.source, s2, s2Entry, catalogue)).toMatchObject(
       {
-        counts: { proposed: 0, ambiguous: 1, needsReview: 0, skipped: 4 },
+        counts: { proposed: 0, ambiguous: 1, needsReview: 0, skipped: 5 },
       }
     )
     const after = headsBy(v.source)
+    expect(after[chicken3At]).toMatchObject({
+      row_id: direct.row_id,
+      revision: direct.revision,
+    })
     for (const at of [chickenAt, lambAt, chicken2At])
       expect(after[at]).toMatchObject({
         row_id: h[at]!.row_id,
@@ -1773,6 +1845,13 @@ describe("deferred variant proposals: open variants while the entry is pending (
         variant: v.chicken,
       })
     )
+    // An ordinary review is a manual decision.
+    expect(headAt(v.source, chickenAt)).toMatchObject({
+      status: "confirmed",
+      basis: "manual",
+      variant_id: v.chicken,
+      revision: after[chickenAt]!.revision + 1,
+    })
   })
 })
 

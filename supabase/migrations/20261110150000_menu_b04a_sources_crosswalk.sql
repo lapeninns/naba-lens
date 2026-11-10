@@ -1489,7 +1489,12 @@ begin
     end if;
     v_item := p_item;
     v_variant := p_variant;
+    -- A deferred variant proposal names no candidate, so a variant chosen on
+    -- it was not name-matched.
     v_basis := case
+      when v_row.entry_locator is not null and v_row.status = 'needs_review'
+        and v_row.basis = 'name_candidate'
+        then 'manual'
       when v_row.basis <> 'carried'
         and (p_item = v_row.item_id or p_item = any (v_row.candidates)
              or (v_row.entry_locator is not null and p_variant = any (v_row.candidates)))
