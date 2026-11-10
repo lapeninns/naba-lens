@@ -380,15 +380,26 @@ type FeedKeys = {
   at: string
 }
 
-export type FeedMenuDecision = {
-  photoId: string
-  itemId: string
-  itemName: string
-  variantName: string | null
-  state: "accepted" | "better_photo_requested" | "needs_recheck"
-  reason: string | null
-  decidedAt: string
-}
+export type FeedMenuDecision =
+  | {
+      photoId: string
+      itemId: string
+      itemName: string
+      variantName: string | null
+      state: "accepted" | "better_photo_requested" | "needs_recheck"
+      reason: string | null
+      decidedAt: string
+    }
+  | {
+      /** A labelled item and variant of the photo with no decision yet. */
+      photoId: null
+      itemId: string
+      itemName: string
+      variantName: string | null
+      state: "waiting"
+      reason: null
+      decidedAt: null
+    }
 
 /** R5 `photo`: one of the caller's own general-purpose uploads. */
 export type FeedPhotoItem = FeedKeys & {
@@ -400,7 +411,10 @@ export type FeedPhotoItem = FeedKeys & {
   uploadState: "uploading" | "processing" | "ready" | "failed"
   sentAt: string
   labels: { hasLabels: boolean; needsLabels: boolean; needsAttention: boolean }
-  /** Live decisions only; withdrawn and invalidated ones are history. */
+  /**
+   * Live decisions, then labelled items still waiting for a first decision
+   * (`state: "waiting"`). Withdrawn and invalidated decisions are history.
+   */
   menuDecisions: FeedMenuDecision[]
   /** R7: a live accepted menu decision. The only use claim in B02. */
   menuUseAccepted: boolean
