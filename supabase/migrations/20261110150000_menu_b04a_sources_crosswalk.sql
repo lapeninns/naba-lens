@@ -159,9 +159,15 @@ begin
         return jsonb_build_object('path', v_path || '.' || v_key, 'message', 'Unknown field');
       end if;
     end loop;
-    if not private.menu_snapshot_text_ok(v_entry -> 'locator', 300, false) then
+    -- 900 characters and 1200 bytes: a generated locator whose unencoded form
+    -- fit 300 characters, with % and # encoded (SNAPSHOT_LIMITS in
+    -- crosswalk.ts gives the derivation).
+    if not private.menu_snapshot_text_ok(v_entry -> 'locator', 900, false) then
       return jsonb_build_object('path', v_path || '.locator',
-        'message', '1 to 300 characters, no outer spaces');
+        'message', '1 to 900 characters, no outer spaces');
+    end if;
+    if octet_length(v_entry ->> 'locator') > 1200 then
+      return jsonb_build_object('path', v_path || '.locator', 'message', 'At most 1200 bytes');
     end if;
     if strpos(v_entry ->> 'locator', '#variant=') > 0 then
       return jsonb_build_object('path', v_path || '.locator',
@@ -377,11 +383,14 @@ create table public.menu_crosswalk (
   venue_id uuid not null,
   source_id uuid not null,
   snapshot_id uuid not null,
-  -- An entry locator (300), #variant= (9), an encoded variant name (3 x 80)
-  -- and a repeat suffix (#12): CROSSWALK_LOCATOR_MAX in crosswalk.ts.
-  locator text not null check (length(locator) between 1 and 552),
+  -- An entry locator (900), #variant= (9), an encoded variant name (3 x 80)
+  -- and a repeat suffix (#12): CROSSWALK_LOCATOR_MAX in crosswalk.ts. In
+  -- bytes 1200 + 9 + 4 x 80 + 3 (CROSSWALK_LOCATOR_BYTES_MAX), inside a btree
+  -- key with the source id and seq.
+  locator text not null check (length(locator) between 1 and 1152 and octet_length(locator) <= 1532),
   -- Set on variant rows: the locator of the source entry the variant is part of.
-  entry_locator text check (entry_locator is null or length(entry_locator) between 1 and 300),
+  entry_locator text check (entry_locator is null
+    or (length(entry_locator) between 1 and 900 and octet_length(entry_locator) <= 1200)),
   content_hash text not null check (content_hash ~ '^[0-9a-f]{64}$'),
   item_id uuid,
   variant_id uuid,
@@ -948,8 +957,9 @@ $$;
 --      name and alias candidates from the active version, and several
 --      candidates, or a name the source repeats, make the row ambiguous.
 --   2. Variant rows. Every variant the snapshot lists is on the source. While
---      its entry is not mapped, a mapped or removed variant head needs review
---      on this snapshot's evidence and nothing is proposed. Under an entry
+--      its entry is not mapped, a mapped or removed variant head, or one
+--      still in review on other content, needs review on this snapshot's
+--      evidence and nothing is proposed. Under an entry
 --      mapped to an item, a head from this snapshot inside that item is
 --      skipped; a mapped head is carried or needs review as entries are; a
 --      rejected or unmatched head with the same hash and item keeps its
@@ -1189,9 +1199,11 @@ begin
 
       if v_parent_item is null then
         -- The entry is not mapped: a mapping (or a removal) the variant had is
-        -- reviewed again on this snapshot's evidence; nothing is proposed.
+        -- reviewed again on this snapshot's evidence, as is a review still
+        -- open on older evidence; nothing is proposed.
         if v_has_head and not v_current
-           and v_vhead.status in ('confirmed', 'carried', 'not_on_source') then
+           and (v_vhead.status in ('confirmed', 'carried', 'not_on_source')
+                or (v_vhead.status = 'needs_review' and v_vhead.content_hash <> v_content)) then
           perform private.menu_crosswalk_append(
             v_source.venue_id, v_source.id, p_snapshot, v_variant.locator, v_locator, v_content,
             v_vhead.item_id, v_vhead.variant_id, v_vhead.channel, 'needs_review', 'carried',
