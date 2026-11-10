@@ -104,6 +104,7 @@ jobs:
       - name: Run shared local and hosted gate
         env:
           CI_COMMON_RECEIPT: ${{ runner.temp }}/common/common-receipt.json
+          CI_LOG_DIR: ${{ runner.temp }}/ci-logs
         run: |
           if [[ "$CI_BROWSER" == webkit ]]; then
             # Give streamed React pages a normal frame clock in Linux WebKit.
@@ -119,6 +120,15 @@ jobs:
           path: |
             test-results/
             playwright-report/
+          retention-days: 7
+          if-no-files-found: ignore
+      # Artifacts of this public repository are public: scrubbed suite logs only.
+      - name: Upload scrubbed suite logs
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: suite-logs-${{ matrix.lane }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ci-logs/*.scrubbed.log
           retention-days: 7
           if-no-files-found: ignore
 
