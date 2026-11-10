@@ -23,7 +23,9 @@ import {
   refused,
   service,
   slotRevision,
+  submit,
   submitArgs,
+  video,
   world,
   type SubmitOpts,
   type World,
@@ -487,10 +489,12 @@ describe("detail and observation date on knowledge_submit (A20)", () => {
 })
 
 describe("venue checks on detail (§4.3, A18, A26)", () => {
+  // As an accessibility answer would be checked (B03-b review M1: version 1
+  // is presence, which gets no venue check at all).
   const problems = (venue: string, headline: string, detail: object) =>
     JSON.parse(
-      psql(`select private.knowledge_detail_venue_problems('${venue}', 'step_free_entrance',
-        '${headline}', '${JSON.stringify(detail).replace(/'/g, "''")}'::jsonb)`)
+      psql(`select private.knowledge_detail_venue_problems_for('${venue}', 'step_free_entrance',
+        'accessibility', '[]'::jsonb, '${headline}', '${JSON.stringify(detail).replace(/'/g, "''")}'::jsonb)`)
     ) as unknown
 
   it("needs the venue's active places and a listed step-free entrance", async () => {
@@ -542,6 +546,51 @@ describe("venue checks on detail (§4.3, A18, A26)", () => {
   })
 })
 
+describe("version 1 stays inert (B03-b review M1)", () => {
+  it("sends a step-free Yes and No with no detail through the 19-argument overload exactly as through the 16-argument one", async () => {
+    const [v16, v19] = await Promise.all([
+      world("kn-b03-m1-16"),
+      world("kn-b03-m1-19"),
+    ])
+    const outcomes = async (at: World, nineteen: boolean) => {
+      const out: unknown[] = []
+      for (const answer of ["yes", "no"] as const) {
+        const o: SubmitOpts =
+          answer === "yes"
+            ? { answer, assets: [await video(at.staffA.id, at.venue)] }
+            : { answer }
+        const sent = nineteen
+          ? await submit19(at.staffA, "step_free_entrance", o, at)
+          : {
+              data: await submit(at.staffA, at, "step_free_entrance", o),
+              error: null,
+            }
+        expect(sent.error, `${answer} ${nineteen ? 19 : 16}`).toBeNull()
+        const r = sent.data as Sent & { replacedOwn: string | null }
+        out.push({
+          answer,
+          outcome: r.outcome,
+          replacedOwn: r.replacedOwn !== null,
+        })
+      }
+      return out
+    }
+    const sixteen = await outcomes(v16, false)
+    expect(await outcomes(v19, true)).toEqual(sixteen)
+    expect(sixteen.map((s) => (s as { outcome: string }).outcome)).toEqual([
+      "awaiting_confirmation",
+      "awaiting_confirmation",
+    ])
+    expect(
+      JSON.parse(
+        psql(
+          `select private.knowledge_detail_venue_problems('${v19.venue}', 'step_free_entrance', 'no', null)`
+        )
+      )
+    ).toEqual([])
+  })
+})
+
 describe("guards", () => {
   it("keep the new functions private or signed-in only, and the reads STABLE (T9b)", () => {
     for (const fn of [
@@ -549,6 +598,7 @@ describe("guards", () => {
       "private.knowledge_place_ref_problem(jsonb)",
       "private.knowledge_detail_problems(text,jsonb)",
       "private.knowledge_detail_venue_problems(uuid,text,text,jsonb)",
+      "private.knowledge_detail_venue_problems_for(uuid,text,text,jsonb,text,jsonb)",
       "private.knowledge_place_venue(uuid)",
       "private.knowledge_write_replay(uuid,uuid,text,text)",
     ])

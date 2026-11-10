@@ -1266,3 +1266,11 @@ available (policy incomplete first, then qualified), so every other reason
 keeps precedence (A22). Value lists are seeded empty. Also K1's shape (A28),
 K3 (A30), A33 and A34, and `private.knowledge_detail_venue_problems` reads
 only arrays (a malformed list in a facility detail was a database error).
+
+**B03-b review M1 fixed (10 Nov 2026):** the venue check behind the
+19-argument send ran the step-free rule on `step_free_entrance` whatever the
+version's schema, so on version 1 a plain Yes or No with no detail was
+refused there but accepted by the 16-argument send. The check now takes the
+version's schema: presence and Wi-Fi get none, place checks run for facility,
+accessibility and policy details, and the step-free rule and feature checks
+for accessibility only (`private.knowledge_detail_venue_problems_for`).
