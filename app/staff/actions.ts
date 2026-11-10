@@ -9,6 +9,7 @@ import {
   type WorkProfileOutcome,
 } from "@/lib/server/accounts/work-profile"
 import { getMediaActor } from "@/lib/server/media/context"
+import { UPLOADER_ROLES } from "@/lib/server/media/roles"
 import {
   finaliseAsset,
   type FinaliseResponse,
@@ -26,7 +27,7 @@ type Result<T> =
 export async function reserveUpload(
   input: unknown
 ): Promise<Result<{ reservation: ReserveResponse }>> {
-  const auth = await getMediaActor("staff")
+  const auth = await getMediaActor(UPLOADER_ROLES)
   if (!auth.ok) return { ok: false, message: auth.message, status: auth.status }
   const result = await reserveAsset(
     auth.actor,
@@ -43,7 +44,7 @@ export async function reserveUpload(
 export async function finaliseUpload(
   input: unknown
 ): Promise<Result<{ result: FinaliseResponse }>> {
-  const auth = await getMediaActor("staff")
+  const auth = await getMediaActor(UPLOADER_ROLES)
   if (!auth.ok) return { ok: false, message: auth.message, status: auth.status }
   const result = await finaliseAsset(
     auth.actor,

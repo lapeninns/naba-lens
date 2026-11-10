@@ -1,5 +1,6 @@
 import { getReadableAsset, streamOriginal } from "@/lib/server/media/access"
 import { getMediaActor } from "@/lib/server/media/context"
+import { OWN_MEDIA_ROLES } from "@/lib/server/media/roles"
 
 import { fail } from "../../_respond"
 
@@ -17,7 +18,7 @@ export async function GET(
   request: Request,
   ctx: { params: Promise<{ id: string }> }
 ) {
-  const auth = await getMediaActor()
+  const auth = await getMediaActor(OWN_MEDIA_ROLES)
   if (!auth.ok) return fail(auth.status, auth.message)
   const { id } = await ctx.params
   const found = await getReadableAsset(auth.actor, id)

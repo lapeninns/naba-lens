@@ -15,9 +15,11 @@ import {
 } from "@/lib/server/labels"
 import { redactError } from "@/lib/server/log/redact"
 import { getMediaActor } from "@/lib/server/media/context"
+import { OWN_MEDIA_ROLES } from "@/lib/server/media/roles"
 import type { MediaActor } from "@/lib/server/media/types"
 
-// Label editor Server Functions for both roles. Each one authorises the caller
+// Label editor Server Functions for staff, manager accounts (their own uploads,
+// B02-c) and admins. Each one authorises the caller
 // itself (fresh profile read); lib/server/labels and the database re-check the
 // asset, owner and venue. Expected failures are returned, never thrown: Next
 // replaces thrown messages in production.
@@ -67,7 +69,7 @@ const MIXED_VENUES =
 export async function loadLabelEditorContext(
   assetIds: string[]
 ): Promise<LabelEditorContextResult> {
-  const auth = await getMediaActor()
+  const auth = await getMediaActor(OWN_MEDIA_ROLES)
   if (!auth.ok) return { ok: false, message: auth.message, status: auth.status }
   const context = await getAssetLabelContext(auth.actor, assetIds)
   if (!context.ok)
@@ -131,7 +133,7 @@ export async function loadLabelCatalogue(
 ): Promise<
   { ok: true; catalogue: LabelCatalogue } | { ok: false; message: string }
 > {
-  const auth = await getMediaActor()
+  const auth = await getMediaActor(OWN_MEDIA_ROLES)
   if (!auth.ok) return { ok: false, message: auth.message }
   const found = await getLabellingCatalogue(auth.actor, venueId)
   if (found.ok) return { ok: true, catalogue: found.catalogue }
@@ -175,7 +177,7 @@ export async function saveLabelBatch(
   }
   if (list.length === 0) return []
 
-  const auth = await getMediaActor()
+  const auth = await getMediaActor(OWN_MEDIA_ROLES)
   if (!auth.ok) {
     return fail(auth.status === 503 ? "unavailable" : "forbidden", auth.message)
   }

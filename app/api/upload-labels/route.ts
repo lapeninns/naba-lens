@@ -7,6 +7,7 @@ import {
   stageAssetLabels,
 } from "@/lib/server/labels"
 import { getMediaActor } from "@/lib/server/media/context"
+import { UPLOADER_ROLES } from "@/lib/server/media/roles"
 import { isUuid } from "@/lib/server/menus/validate"
 
 const headers = { "Cache-Control": "private, no-store" }
@@ -17,7 +18,7 @@ const headers = { "Cache-Control": "private, no-store" }
  * stored upload drafts (PendingLabelItem[]).
  */
 export async function GET(request: Request) {
-  const auth = await getMediaActor("staff")
+  const auth = await getMediaActor(UPLOADER_ROLES)
   if (!auth.ok)
     return Response.json(
       { ok: false, message: auth.message },
@@ -87,9 +88,9 @@ export async function POST(request: Request) {
   // can match it to the file.
   const assetId = isUuid(input?.assetId) ? input.assetId : ""
 
-  const auth = await getMediaActor("staff")
+  const auth = await getMediaActor(UPLOADER_ROLES)
   if (!auth.ok)
-    // Not allowed (inactive account, not staff) is final: no Retry can work.
+    // Not allowed (inactive account, not an uploader) is final: no Retry can work.
     // Signed out (401) and an unreachable server (503) are worth retrying.
     return auth.status === 403
       ? fail(assetId, "forbidden", auth.message, 403)
@@ -113,7 +114,7 @@ export async function POST(request: Request) {
  * UploadLabelDiscardResult, `already_applied` when finalise applied it first.
  */
 export async function DELETE(request: Request) {
-  const auth = await getMediaActor("staff")
+  const auth = await getMediaActor(UPLOADER_ROLES)
   if (!auth.ok)
     return Response.json(
       { ok: false, message: auth.message },

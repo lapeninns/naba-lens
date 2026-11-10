@@ -22,6 +22,8 @@ vi.mock("@/lib/supabase/env", () => ({
 
 const { getMediaActor, DEFAULT_MEDIA_ROLES } =
   await import("@/lib/server/media/context")
+const { OWN_MEDIA_ROLES, UPLOADER_ROLES } =
+  await import("@/lib/server/media/roles")
 
 function signedInAs(role: AppRole) {
   getAuthState.mockResolvedValue({
@@ -56,6 +58,15 @@ describe("getMediaActor roles", () => {
     }
     signedInAs("manager")
     expect(await getMediaActor()).toEqual(denied)
+  })
+
+  it("names the uploader and own-media roles (B02-c)", async () => {
+    expect(UPLOADER_ROLES).toEqual(["staff", "manager"])
+    expect(OWN_MEDIA_ROLES).toEqual(["staff", "manager", "admin"])
+    signedInAs("manager")
+    expect((await getMediaActor(UPLOADER_ROLES)).ok).toBe(true)
+    signedInAs("admin")
+    expect(await getMediaActor(UPLOADER_ROLES)).toEqual(denied)
   })
 
   it("still accepts a single role", async () => {
