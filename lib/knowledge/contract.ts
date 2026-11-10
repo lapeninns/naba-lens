@@ -8,6 +8,7 @@ import type {
   CheckProgress,
   CheckStatus,
   EvidenceRule,
+  ReopenPreset,
   SubmitAnswer,
   WifiMetadata,
 } from "@/lib/amenities/contract"
@@ -254,6 +255,11 @@ export type KnowledgeCheckView = KnowledgeSlotView & {
     canDecline: boolean
   }
   pending: PendingFindingView[]
+  /**
+   * The caller's own latest send on this question (B02 R11): the draft base.
+   * Always returned once the B02 migration is applied.
+   */
+  mySentAt?: string | null
 }
 
 export type WorkingListView = {
@@ -274,6 +280,12 @@ export type ToConfirmItem = {
   conflict: boolean
   /** This finding disputes the answer in use (the resolver's dispute test). */
   disputes: boolean
+  /**
+   * When it started waiting, the order of the list: the send time, or the
+   * withdrawal or revoke time for evidence_withdrawn and revoked rows (B02 R4).
+   * Always returned once the B02 migration is applied.
+   */
+  waitingSince?: string
 }
 
 /**
@@ -340,6 +352,144 @@ export type PilotPreviewRow = {
   relatedLegacyFacts: number
 }
 
+// ---- B02 reads (docs/knowledge/b02-design.md §3, §3a) --------------------------
+
+/** R1. The caller's own label work. Only active staff label their uploads today. */
+export type LabelWork = { needsLabels: number; needsAttention: number }
+
+export const TRIAGE_QUEUES = ["menu_photos", "findings", "checklist"] as const
+export type TriageQueue = (typeof TRIAGE_QUEUES)[number]
+
+/**
+ * R3. One manager queue. A queue the caller can't act on is `available: false`
+ * with null numbers. Queues are shown side by side and never summed.
+ */
+export type TriageQueueSummary = {
+  queue: TriageQueue
+  available: boolean
+  waiting: number | null
+  oldestWaitingAt: string | null
+  /** Menu photos only: the caller's own photos waiting for another reviewer. */
+  ownWaiting: number | null
+}
+
+type FeedKeys = {
+  /** Opaque, unique across types; the cursor's tie-break. */
+  key: string
+  /** Creation (send) time: the order, which never changes. */
+  at: string
+}
+
+export type FeedMenuDecision = {
+  photoId: string
+  itemId: string
+  itemName: string
+  variantName: string | null
+  state: "accepted" | "better_photo_requested" | "needs_recheck"
+  reason: string | null
+  decidedAt: string
+}
+
+/** R5 `photo`: one of the caller's own general-purpose uploads. */
+export type FeedPhotoItem = FeedKeys & {
+  type: "photo"
+  assetId: string
+  venueId: string
+  venueName: string
+  mediaType: "image" | "video"
+  uploadState: "uploading" | "processing" | "ready" | "failed"
+  sentAt: string
+  labels: { hasLabels: boolean; needsLabels: boolean; needsAttention: boolean }
+  /** Live decisions only; withdrawn and invalidated ones are history. */
+  menuDecisions: FeedMenuDecision[]
+  /** R7: a live accepted menu decision. The only use claim in B02. */
+  menuUseAccepted: boolean
+}
+
+/** R5 `task_send`: one of the caller's own task photo sends. */
+export type FeedTaskSendItem = FeedKeys & {
+  type: "task_send"
+  itemId: string
+  submissionId: string
+  requirementId: string | null
+  requirementTitle: string | null
+  venueId: string
+  venueName: string
+  assetId: string
+  assetAvailable: boolean
+  state: "submitted" | "accepted" | "needs_another_photo"
+  reason: string | null
+  decidedAt: string | null
+  archived: boolean
+  sentAt: string
+  replacesItemId: string | null
+  replacesSentAt: string | null
+  /** R6: position in the replacement chain, 1 for an original. */
+  revision: number
+}
+
+export type FeedFindingItem = FeedKeys & MyFindingView & { type: "finding" }
+export type FeedClosedAssignmentItem = FeedKeys &
+  ClosedAssignmentView & { type: "assignment_closed" }
+
+export type ContributionsFeedItem =
+  FeedPhotoItem | FeedTaskSendItem | FeedFindingItem | FeedClosedAssignmentItem
+
+export type ContributionsFeedPage = {
+  items: ContributionsFeedItem[]
+  /** Opaque; pass it back as `cursor` for the next page. */
+  nextCursor: string | null
+}
+
+export type AccountKind = "manager" | "staff" | "staff_with_grant" | "admin"
+
+/**
+ * R8. What the caller may do at the venue, computed from the write gates'
+ * own predicates. It hides choices; it never grants one.
+ */
+export type VenueCapabilities = {
+  accountKind: AccountKind
+  /** Grant venue (manager, staff with grant), own venue (staff), the named venue (admin). */
+  venueId: string | null
+  canUpload: boolean
+  canLabel: boolean
+  canSendFindings: boolean
+  canConfirmFindings: boolean
+  /** Per working-list question key. */
+  canSelfConfirm: Record<string, boolean>
+  canReviewMenuPhotos: boolean
+  canDecideOwnMenuPhoto: boolean
+  canReviewChecklist: boolean
+  canBeAssigned: boolean
+}
+
+export type DeleteImpactKind =
+  "answer_in_use" | "pending_finding" | "earlier_answer"
+export type DeleteImpactEffect =
+  "withdrawn" | "needs_recheck" | "none" | "pending_loses_evidence"
+
+/**
+ * R9. One answer or finding a photo's deletion would affect. Never names a
+ * person or carries an answer value, finding text or note.
+ */
+export type DeleteImpactItem = {
+  kind: DeleteImpactKind
+  effect: DeleteImpactEffect
+  venueId: string
+  venueName: string
+  checkId: string
+  questionKey: string
+  question: string
+  /** The answer or finding is the caller's own. */
+  yours: boolean
+  /** The caller's own pending finding only. */
+  findingRef?: FindingRef
+}
+
+export type AssetDeleteImpact = { assetId: string; impacts: DeleteImpactItem[] }
+
+/** R11. Why a draft save was refused as already sent. */
+export type DraftSentReason = "key_sent" | "newer_send"
 // ---- Command results -----------------------------------------------------------
 
 export type SubmitKnowledgeResult = {
@@ -352,6 +502,11 @@ export type SubmitKnowledgeResult = {
   slotRevision: number
   replayed: boolean
   recognition: Recognition
+  /**
+   * The finding's send time (B02 R11): the next draft base for this form.
+   * Always returned once the B02 migration is applied.
+   */
+  sentAt?: string
 }
 
 export type DecideResult = {
@@ -381,11 +536,15 @@ export type KnowledgeErrorCode =
   | "already_decided"
   | "self_confirmation_not_permitted"
   | "draft_conflict"
+  | "draft_already_sent"
 
 export type KnowledgeFailure = Omit<AmenityFailure, "code"> & {
   code: KnowledgeErrorCode
   /** draft_conflict: the draft revision now stored (null: none). */
   draftRevision?: number | null
+  /** draft_already_sent: why, and the send time (the next draft base). */
+  sentReason?: DraftSentReason
+  sentAt?: string | null
 }
 
 export type KnowledgeResult<T> = ({ ok: true } & T) | KnowledgeFailure
@@ -400,6 +559,7 @@ export const KNOWLEDGE_SQLSTATES = {
   NLK06: "knowledge_venue_not_found",
   NLK07: "knowledge_not_adoptable",
   NLK08: "knowledge_not_current",
+  NLK09: "draft_already_sent",
 } as const
 
 // ---- RPC signatures ------------------------------------------------------------
@@ -497,10 +657,88 @@ export type KnowledgeRpcs = {
       p_payload: Record<string, unknown>
       p_asset_ids: string[]
       p_idempotency_key: string
+      /** Present: the B02 overload, which refuses a save of work already sent. */
+      p_base_sent_at?: string | null
     }
     returns: { draftRevision: number; savedAt: string }
   }
   knowledge_discard_draft: { args: { p_check_id: string }; returns: boolean }
   knowledge_dismiss_outcome: { args: { p_event_id: number }; returns: boolean }
+  my_label_work: {
+    args: Record<string, never>
+    returns: { needs_labels: number; needs_attention: number }[]
+  }
+  manager_triage_summary: {
+    args: { p_venue_id: string | null }
+    returns: {
+      queue: TriageQueue
+      available: boolean
+      waiting: number | null
+      oldest_waiting_at: string | null
+      own_waiting: number | null
+    }[]
+  }
+  my_contributions_feed: {
+    args: { p_cursor: string | null; p_limit: number }
+    returns: ContributionsFeedPage
+  }
+  my_venue_capabilities: {
+    args: { p_venue_id: string | null }
+    returns: VenueCapabilities
+  }
+  my_asset_delete_impact: {
+    args: { p_asset_id: string }
+    returns: AssetDeleteImpact
+  }
 }
 export type KnowledgeRpcName = keyof KnowledgeRpcs
+
+/**
+ * R10. Keyed overloads of the legacy check writes. A repeated key from the
+ * same person with the same request returns the first result with
+ * `replayed: true`; the old signatures (AmenityRpcs) are unchanged.
+ */
+type KeyedResult = { revision: number; replayed: boolean }
+export type AmenityKeyedRpcs = {
+  amenity_assign_check: {
+    args: {
+      p_check_id: string
+      p_assignee_id: string | null
+      p_revision: number
+      p_idempotency_key: string
+    }
+    returns: KeyedResult
+  }
+  amenity_set_check_notes: {
+    args: {
+      p_check_id: string
+      p_notes: string
+      p_revision: number
+      p_idempotency_key: string
+    }
+    returns: KeyedResult
+  }
+  amenity_reopen_check: {
+    args: {
+      p_check_id: string
+      p_revision: number
+      p_preset: ReopenPreset
+      p_reason: string | null
+      p_idempotency_key: string
+    }
+    returns: KeyedResult
+  }
+  amenity_archive_check: {
+    args: { p_check_id: string; p_revision: number; p_idempotency_key: string }
+    returns: KeyedResult
+  }
+  amenity_restore_check: {
+    args: { p_check_id: string; p_revision: number; p_idempotency_key: string }
+    returns: KeyedResult
+  }
+  amenity_add_checks: {
+    args: { p_venue_id: string; p_keys: string[]; p_idempotency_key: string }
+    returns: { checkIds: string[]; replayed: boolean }
+  }
+}
+export type AmenityKeyedRpcName = keyof AmenityKeyedRpcs

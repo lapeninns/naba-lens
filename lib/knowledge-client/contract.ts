@@ -424,7 +424,7 @@ export function stateConflictKind(failure: {
 
 /**
  * Staff's own attachable media on a working-list question (F1), in the
- * capture form's list shape. Its failures are amenity codes but for the three
+ * capture form's list shape. Its failures are amenity codes but for the
  * knowledge-only ones, which can't come from this read; they read as a state
  * conflict if they ever do. The form shows only the message.
  */
@@ -438,7 +438,8 @@ export function knowledgeAssetsResult(
     code:
       code === "already_decided" ||
       code === "self_confirmation_not_permitted" ||
-      code === "draft_conflict"
+      code === "draft_conflict" ||
+      code === "draft_already_sent"
         ? "state_conflict"
         : code,
   }
