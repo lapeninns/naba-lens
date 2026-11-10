@@ -959,12 +959,16 @@ $$;
 --   2. Variant rows. Every variant the snapshot lists is on the source. While
 --      its entry is not mapped, a mapped or removed variant head, or one
 --      still in review on other content, needs review on this snapshot's
---      evidence and nothing is proposed. Under an entry
---      mapped to an item, a head from this snapshot inside that item is
---      skipped; a mapped head is carried or needs review as entries are; a
---      rejected or unmatched head with the same hash and item keeps its
---      decision; anything else is matched afresh among that item's variants
---      on the active version.
+--      evidence and nothing is proposed; an open proposal (proposed,
+--      ambiguous or deferred before) on other content is deferred:
+--      needs_review on name_candidate inside its item, no variant, no
+--      candidates, and the proposal it supersedes copied into the evidence
+--      as deferredProposal (role historical). Under an entry mapped to an
+--      item, a head from this snapshot inside that item is skipped unless it
+--      is a deferred proposal; a mapped head is carried or needs review as
+--      entries are; a rejected or unmatched head with the same hash and item
+--      keeps its decision; anything else is matched afresh among that item's
+--      variants on the active version.
 --   3. not_on_source rows for every locator the snapshot no longer lists.
 -- The run is recorded in menu_crosswalk_runs; decisions need it.
 create function public.menu_crosswalk_propose(p_snapshot uuid, p_request_key uuid)
@@ -999,6 +1003,8 @@ declare
   v_listed text[] := '{}';
   v_variant record;
   v_vhead public.menu_crosswalk_heads;
+  v_vrow public.menu_crosswalk;
+  v_deferred boolean;
   v_parent public.menu_crosswalk_heads;
   v_parent_item uuid;
   v_current boolean;
@@ -1194,14 +1200,45 @@ begin
       where h.source_id = v_source.id and h.locator = v_variant.locator
       for update;
       v_has_head := found;
+      v_vrow := null;
+      if v_has_head then
+        select r.* into v_vrow from public.menu_crosswalk r where r.id = v_vhead.row_id;
+      end if;
+      -- A variant proposal deferred while its entry awaited review.
+      v_deferred := v_has_head and v_vhead.status = 'needs_review' and v_vrow.basis = 'name_candidate';
       -- Written from this snapshot's evidence already.
       v_current := v_has_head and v_vhead.snapshot_id = p_snapshot and v_vhead.content_hash = v_content;
 
       if v_parent_item is null then
         -- The entry is not mapped: a mapping (or a removal) the variant had is
         -- reviewed again on this snapshot's evidence, as is a review still
-        -- open on older evidence; nothing is proposed.
-        if v_has_head and not v_current
+        -- open on older evidence; an open proposal on older evidence is
+        -- deferred. Nothing is proposed.
+        if v_has_head and v_vhead.content_hash <> v_content
+           and (v_vhead.status in ('proposed', 'ambiguous') or v_deferred) then
+          perform private.menu_crosswalk_append(
+            v_source.venue_id, v_source.id, p_snapshot, v_variant.locator, v_locator, v_content,
+            v_vhead.item_id, null, v_vhead.channel, 'needs_review', 'name_candidate', '{}'::uuid[],
+            jsonb_build_object('entry', private.menu_crosswalk_entry_evidence(v_entry),
+              'variant', v_variant.name,
+              -- What was proposed, on the snapshot it was proposed from: not
+              -- a candidate on this snapshot. A deferral deferred again keeps
+              -- the original proposal.
+              'deferredProposal', case
+                when v_deferred then v_vrow.evidence -> 'deferredProposal'
+                else jsonb_build_object(
+                  'role', 'historical',
+                  'rowId', v_vrow.id,
+                  'snapshotId', v_vrow.snapshot_id,
+                  'status', v_vrow.status,
+                  'itemId', v_vrow.item_id,
+                  'candidates', to_jsonb(v_vrow.candidates),
+                  'candidateCount', coalesce(v_vrow.evidence -> 'candidateCount',
+                    to_jsonb(cardinality(v_vrow.candidates))))
+              end),
+            v_uid, null, null, null);
+          n_review := n_review + 1;
+        elsif v_has_head and not v_current
            and (v_vhead.status in ('confirmed', 'carried', 'not_on_source')
                 or (v_vhead.status = 'needs_review' and v_vhead.content_hash <> v_content)) then
           perform private.menu_crosswalk_append(
@@ -1217,7 +1254,8 @@ begin
       end if;
 
       v_same_item := v_has_head and v_vhead.item_id is not distinct from v_parent_item;
-      if v_current and v_same_item then
+      -- A deferred proposal is matched afresh once its entry is mapped.
+      if v_current and v_same_item and not v_deferred then
         n_skipped := n_skipped + 1;
         continue;
       end if;
@@ -1252,9 +1290,10 @@ begin
         continue;
       end if;
 
-      -- New, removed and back, decided on other content, or proposed inside
-      -- another item (the entry was mapped again): matched afresh, only among
-      -- the variants of the mapped item on the active version.
+      -- New, removed and back, decided on other content, proposed inside
+      -- another item (the entry was mapped again), or deferred while the
+      -- entry awaited review: matched afresh, only among the variants of the
+      -- mapped item on the active version.
       select coalesce(array_agg(ev.variant_id order by ev.position), '{}') into v_ids
       from public.menu_entry_variants ev
       join public.menu_entries e on e.id = ev.entry_id

@@ -215,6 +215,8 @@ type Head = {
   locator: string
   entry_locator: string | null
   status: string
+  /** The basis of the head's row. */
+  basis: string
   item_id: string | null
   variant_id: string | null
   channel: string
@@ -225,7 +227,8 @@ type Head = {
   revision: number
 }
 const heads = (sourceId: string) =>
-  rows<Head>(`select h.* from public.menu_crosswalk_heads h
+  rows<Head>(`select h.*, r.basis from public.menu_crosswalk_heads h
+    join public.menu_crosswalk r on r.id = h.row_id
     where h.source_id = ${literal(sourceId)} order by h.locator collate "C"`)
 const headAt = (sourceId: string, locator: string) =>
   heads(sourceId).find((h) => h.locator === locator)!
@@ -289,9 +292,11 @@ const listRows = (
     p_limit: opts.limit ?? null,
   })
 
-/** Venue A's active version as the TypeScript matcher's catalogue. */
-const catalogueA = (): CatalogueEntry[] =>
-  docA.sections.flatMap((s) =>
+/** A version read back as the TypeScript matcher's catalogue. */
+const catalogueOf = (
+  doc: Awaited<ReturnType<typeof readDocument>>
+): CatalogueEntry[] =>
+  doc.sections.flatMap((s) =>
     s.items.map((i) => ({
       itemId: i.itemId!,
       sourceKey: i.sourceKey,
@@ -304,12 +309,15 @@ const catalogueA = (): CatalogueEntry[] =>
       })),
     }))
   )
+/** Venue A's active version as the TypeScript matcher's catalogue. */
+const catalogueA = () => catalogueOf(docA)
 
 const asTsHeads = (list: Head[]): CrosswalkHead[] =>
   list.map((h) => ({
     locator: h.locator,
     entryLocator: h.entry_locator,
     status: h.status as CrosswalkHead["status"],
+    basis: h.basis as CrosswalkHead["basis"],
     itemId: h.item_id,
     variantId: h.variant_id,
     channel: h.channel as CrosswalkHead["channel"],
@@ -1297,6 +1305,472 @@ describe("variant transitions: retained, removed and remapped (§4.2 #5, #6)", (
       decide(headAt(source, chickenAt), "confirmed", {
         item: tikkaId,
         variant: tikkaChicken,
+      })
+    )
+  })
+})
+
+describe("deferred variant proposals: open variants while the entry is pending (§4.2 #5, #6)", () => {
+  const bhuna: SnapshotEntry = {
+    locator: "c#Bhuna",
+    name: "Bhuna",
+    variants: ["Chicken", "Lamb", "Chicken"],
+    priceText: "9",
+  }
+  const chickenAt = `${bhuna.locator}#variant=Chicken`
+  const lambAt = `${bhuna.locator}#variant=Lamb`
+  const chicken2At = `${bhuna.locator}#variant=Chicken#2`
+  const variantAts = [chickenAt, lambAt, chicken2At]
+
+  type Row = {
+    id: string
+    snapshot_id: string
+    status: string
+    basis: string
+    item_id: string | null
+    variant_id: string | null
+    candidates: string[]
+    evidence: Record<string, unknown> & { deferredProposal?: unknown }
+    supersedes: string | null
+  }
+  const rowById = (rowId: string) =>
+    rows<Row>(`select r.id, r.snapshot_id, r.status, r.basis, r.item_id, r.variant_id,
+        r.candidates, r.evidence, r.supersedes
+      from public.menu_crosswalk r where r.id = ${literal(rowId)}`)[0]!
+  const headsBy = (sourceId: string) =>
+    Object.fromEntries(heads(sourceId).map((h) => [h.locator, h])) as Record<
+      string,
+      Head
+    >
+
+  /** A venue whose active menu lists Bhuna with Chicken and Lamb. */
+  async function bhunaVenue(label: string) {
+    const venue = (await createVenue(service, label)).id
+    const version = await publishMenu(
+      admin,
+      venue,
+      menu(`TEST ${label}`, [
+        section("mains", "Mains", [
+          item("mains--bhuna", "Bhuna", { variants: ["Chicken", "Lamb"] }),
+        ]),
+      ])
+    )
+    const doc = await readDocument(service, version)
+    const bhunaRow = doc.byKey["mains--bhuna"]!
+    return {
+      venue,
+      version,
+      doc,
+      source: await declare(
+        venue,
+        "venue_website",
+        `TEST site ${randomUUID()}`
+      ),
+      itemId: bhunaRow.itemId,
+      chicken: bhunaRow.variants[0]!.variantId,
+      lamb: bhunaRow.variants[1]!.variantId,
+    }
+  }
+
+  /**
+   * Runs the matcher on a snapshot of one entry and checks it wrote what the
+   * TypeScript matcher computes from the heads it read, basis and channel
+   * included.
+   */
+  async function proposeLikeTs(
+    sourceId: string,
+    snapshotId: string,
+    entry: SnapshotEntry,
+    catalogue: CatalogueEntry[]
+  ) {
+    const before = heads(sourceId)
+    const seq = lastSeq()
+    const result = await ok<{ counts: Record<string, number> }>(
+      propose(snapshotId)
+    )
+    const expected = proposeCrosswalk({
+      snapshotId,
+      sourceKind: "venue_website",
+      entries: [entry],
+      contentHashes: [await sha256Hex(contentHashInput(entry))],
+      catalogue,
+      heads: asTsHeads(before),
+    })
+    expect(
+      rows<
+        Head & { basis: string }
+      >(`select r.locator, r.status, r.basis, r.item_id,
+          r.variant_id, r.channel, r.candidates, r.content_hash
+        from public.menu_crosswalk r
+        where r.source_id = ${literal(sourceId)} and r.snapshot_id = ${literal(snapshotId)}
+          and r.seq > ${seq}
+        order by r.seq`).map((r) => [
+        r.locator,
+        r.status,
+        r.basis,
+        r.item_id,
+        r.variant_id,
+        r.channel,
+        r.candidates,
+        r.content_hash,
+      ])
+    ).toEqual(
+      expected.rows.map((r) => [
+        r.locator,
+        r.status,
+        r.basis,
+        r.itemId,
+        r.variantId,
+        r.channel,
+        r.candidates,
+        r.contentHash,
+      ])
+    )
+    return result
+  }
+
+  it("defers S1 proposals to S2 evidence, refuses the S1 decision, defers again on S3 and rematches after reconfirmation in the active catalogue", async () => {
+    const v = await bhunaVenue("crosswalk-deferred")
+    const s1 = await snapshot(v.source, "r1", [bhuna])
+    await proposeLikeTs(v.source, s1, bhuna, catalogueOf(v.doc))
+    await ok(
+      decide(headAt(v.source, bhuna.locator), "confirmed", { item: v.itemId })
+    )
+    await proposeLikeTs(v.source, s1, bhuna, catalogueOf(v.doc))
+    const h1 = headsBy(v.source)
+    // A single candidate, a single candidate, a repeated occurrence.
+    const proposals = [
+      [chickenAt, "proposed", v.chicken, [v.chicken]],
+      [lambAt, "proposed", v.lamb, [v.lamb]],
+      [chicken2At, "ambiguous", null, [v.chicken]],
+    ] as const
+    for (const [at, status, variantId, candidates] of proposals)
+      expect(h1[at]).toMatchObject({
+        status,
+        basis: "name_candidate",
+        item_id: v.itemId,
+        variant_id: variantId,
+        candidates,
+        snapshot_id: s1,
+      })
+
+    // S2 changes the price and keeps the variants; nobody reviews Bhuna.
+    const s2Entry: SnapshotEntry = { ...bhuna, priceText: "9.5" }
+    const s2Hash = await sha256Hex(contentHashInput(s2Entry))
+    const s2 = await snapshot(v.source, "r2", [s2Entry])
+    expect(
+      await proposeLikeTs(v.source, s2, s2Entry, catalogueOf(v.doc))
+    ).toMatchObject({
+      counts: {
+        proposed: 0,
+        ambiguous: 0,
+        carried: 0,
+        needsReview: 4,
+        notOnSource: 0,
+      },
+    })
+    const h2 = headsBy(v.source)
+    expect(h2[bhuna.locator]).toMatchObject({
+      status: "needs_review",
+      snapshot_id: s2,
+    })
+    for (const [at, status, , candidates] of proposals) {
+      expect(h2[at]).toMatchObject({
+        status: "needs_review",
+        basis: "name_candidate",
+        entry_locator: bhuna.locator,
+        item_id: v.itemId,
+        variant_id: null,
+        channel: "all",
+        candidates: [],
+        content_hash: s2Hash,
+        snapshot_id: s2,
+        revision: h1[at]!.revision + 1,
+      })
+      const row = rowById(h2[at]!.row_id)
+      expect(row.supersedes).toBe(h1[at]!.row_id)
+      // Latest entry and variant evidence; the proposal only as history.
+      expect(row.evidence).toEqual({
+        entry: {
+          name: "Bhuna",
+          variants: ["Chicken", "Lamb", "Chicken"],
+          priceText: "9.5",
+        },
+        variant: at === lambAt ? "Lamb" : "Chicken",
+        deferredProposal: {
+          role: "historical",
+          rowId: h1[at]!.row_id,
+          snapshotId: s1,
+          status,
+          itemId: v.itemId,
+          candidates,
+          candidateCount: 1,
+        },
+      })
+      // The superseded S1 proposal is intact.
+      expect(rowById(h1[at]!.row_id)).toMatchObject({
+        snapshot_id: s1,
+        status,
+        candidates,
+        evidence: { candidateCount: 1, entry: { priceText: "9" } },
+      })
+    }
+
+    // The admin queue gives the S2 rows and revisions.
+    const queue = await ok<{
+      rows: {
+        rowId: string
+        revision: number
+        locator: string
+        status: string
+        basis: string
+        candidates: string[]
+        evidence: { entry: { priceText?: string } }
+      }[]
+    }>(listRows(admin, v.venue, { source: v.source }))
+    for (const at of variantAts)
+      expect(queue.rows.find((r) => r.locator === at)).toMatchObject({
+        rowId: h2[at]!.row_id,
+        revision: h2[at]!.revision,
+        status: "needs_review",
+        basis: "name_candidate",
+        candidates: [],
+        evidence: { entry: { priceText: "9.5" } },
+      })
+
+    // A decision on an S1 proposal is stale; the S2 row waits for its entry.
+    await fails(decide(h1[chicken2At]!, "rejected"), "crosswalk_stale", "40001")
+    await fails(
+      decide(h1[chickenAt]!, "confirmed", {
+        item: v.itemId,
+        variant: v.chicken,
+      }),
+      "crosswalk_stale",
+      "40001"
+    )
+    await fails(
+      decide(h2[chickenAt]!, "confirmed", {
+        item: v.itemId,
+        variant: v.chicken,
+      }),
+      "crosswalk_parent_not_confirmed",
+      "P0001"
+    )
+
+    // S2 again writes nothing.
+    expect(
+      (await ok<{ counts: Record<string, number> }>(propose(s2))).counts
+    ).toMatchObject({
+      proposed: 0,
+      ambiguous: 0,
+      carried: 0,
+      needsReview: 0,
+      notOnSource: 0,
+    })
+    for (const at of variantAts)
+      expect(headAt(v.source, at)).toMatchObject({
+        row_id: h2[at]!.row_id,
+        revision: h2[at]!.revision,
+      })
+
+    // S3 changes the price again: deferred again, keeping the S1 proposal.
+    const s3Entry: SnapshotEntry = { ...bhuna, priceText: "10" }
+    const s3Hash = await sha256Hex(contentHashInput(s3Entry))
+    const s3 = await snapshot(v.source, "r3", [s3Entry])
+    await proposeLikeTs(v.source, s3, s3Entry, catalogueOf(v.doc))
+    const h3 = headsBy(v.source)
+    for (const at of variantAts) {
+      expect(h3[at]).toMatchObject({
+        status: "needs_review",
+        basis: "name_candidate",
+        variant_id: null,
+        candidates: [],
+        content_hash: s3Hash,
+        snapshot_id: s3,
+        revision: h2[at]!.revision + 1,
+      })
+      const row = rowById(h3[at]!.row_id)
+      expect(row).toMatchObject({
+        supersedes: h2[at]!.row_id,
+        evidence: { entry: { priceText: "10" } },
+      })
+      expect(row.evidence.deferredProposal).toEqual(
+        rowById(h2[at]!.row_id).evidence.deferredProposal
+      )
+      expect(row.evidence.deferredProposal).toMatchObject({
+        rowId: h1[at]!.row_id,
+        snapshotId: s1,
+      })
+    }
+    expect(
+      (await ok<{ counts: Record<string, number> }>(propose(s3))).counts
+    ).toMatchObject({ proposed: 0, ambiguous: 0, needsReview: 0 })
+
+    // The active version changes before the rematch: Lamb is a new variant.
+    const doc2 = await readDocument(
+      service,
+      await publishMenu(
+        admin,
+        v.venue,
+        menu("TEST crosswalk-deferred 2", [
+          section("mains", "Mains", [
+            item("mains--bhuna", "Bhuna", {
+              itemId: v.itemId,
+              variants: [
+                { variantId: v.chicken, name: "Chicken" },
+                { variantId: null, name: "Lamb" },
+              ],
+            }),
+          ]),
+        ]),
+        v.version
+      )
+    )
+    const newLamb = doc2.byKey["mains--bhuna"]!.variants[1]!.variantId
+    expect(newLamb).not.toBe(v.lamb)
+
+    // Bhuna is confirmed on S3 to the same item: the variants are matched
+    // afresh, exactly as the TypeScript matcher does, on S3's evidence.
+    expect(headAt(v.source, bhuna.locator)).toMatchObject({
+      status: "proposed",
+      item_id: v.itemId,
+      snapshot_id: s3,
+    })
+    await ok(
+      decide(headAt(v.source, bhuna.locator), "confirmed", { item: v.itemId })
+    )
+    expect(
+      await proposeLikeTs(v.source, s3, s3Entry, catalogueOf(doc2))
+    ).toMatchObject({
+      counts: { proposed: 2, ambiguous: 1, needsReview: 0, skipped: 1 },
+    })
+    const h4 = headsBy(v.source)
+    expect(h4[chickenAt]).toMatchObject({
+      status: "proposed",
+      basis: "name_candidate",
+      variant_id: v.chicken,
+      candidates: [v.chicken],
+      content_hash: s3Hash,
+      snapshot_id: s3,
+    })
+    expect(h4[lambAt]).toMatchObject({
+      status: "proposed",
+      variant_id: newLamb,
+      candidates: [newLamb],
+    })
+    expect(h4[chicken2At]).toMatchObject({
+      status: "ambiguous",
+      variant_id: null,
+      candidates: [v.chicken],
+    })
+    const lambRow = rowById(h4[lambAt]!.row_id)
+    expect(lambRow.evidence).toMatchObject({
+      candidateCount: 1,
+      entry: { priceText: "10" },
+    })
+    expect(lambRow.evidence).not.toHaveProperty("deferredProposal")
+
+    // S3 again: nothing new.
+    expect(
+      (await ok<{ counts: Record<string, number> }>(propose(s3))).counts
+    ).toMatchObject({ proposed: 0, ambiguous: 0, needsReview: 0, skipped: 4 })
+    await fails(
+      decide(h4[lambAt]!, "confirmed", { item: v.itemId, variant: v.lamb }),
+      "crosswalk_variant_wrong_item"
+    )
+    await ok(
+      decide(h4[lambAt]!, "confirmed", { item: v.itemId, variant: newLamb })
+    )
+  })
+
+  it("keeps decisions on deferred rows and an ordinary review, and rematches the rest on the same S2 item", async () => {
+    const v = await bhunaVenue("crosswalk-deferred-decided")
+    const entry: SnapshotEntry = {
+      ...bhuna,
+      variants: ["Chicken", "Lamb", "Chicken", "Lamb"],
+    }
+    const lamb2At = `${bhuna.locator}#variant=Lamb#2`
+    const catalogue = catalogueOf(v.doc)
+    const s1 = await snapshot(v.source, "r1", [entry])
+    await ok(propose(s1))
+    await ok(
+      decide(headAt(v.source, bhuna.locator), "confirmed", { item: v.itemId })
+    )
+    await ok(propose(s1))
+    await ok(
+      decide(headAt(v.source, chickenAt), "confirmed", {
+        item: v.itemId,
+        variant: v.chicken,
+      })
+    )
+
+    const s2Entry: SnapshotEntry = { ...entry, priceText: "9.5" }
+    const s2 = await snapshot(v.source, "r2", [s2Entry])
+    await proposeLikeTs(v.source, s2, s2Entry, catalogue)
+    let h = headsBy(v.source)
+    // The confirmed variant is an ordinary review of its mapping...
+    expect(h[chickenAt]).toMatchObject({
+      status: "needs_review",
+      basis: "carried",
+      variant_id: v.chicken,
+      candidates: [v.chicken],
+      snapshot_id: s2,
+    })
+    // ...the open proposals are deferred.
+    for (const at of [lambAt, chicken2At, lamb2At])
+      expect(h[at]).toMatchObject({
+        status: "needs_review",
+        basis: "name_candidate",
+        variant_id: null,
+        candidates: [],
+        snapshot_id: s2,
+      })
+
+    // While Bhuna is pending, the reviewer rejects Lamb and marks Chicken#2
+    // unmatched on their S2 rows.
+    await ok(decide(h[lambAt]!, "rejected"))
+    await ok(decide(h[chicken2At]!, "unmatched"))
+    h = headsBy(v.source)
+    expect(h[lambAt]).toMatchObject({
+      status: "rejected",
+      item_id: v.itemId,
+      variant_id: null,
+      snapshot_id: s2,
+    })
+    expect(h[chicken2At]).toMatchObject({
+      status: "unmatched",
+      item_id: v.itemId,
+      snapshot_id: s2,
+    })
+
+    // Bhuna is reconfirmed to the same item on S2: the decisions hold, the
+    // ordinary review still awaits the reviewer, and only Lamb#2 (deferred)
+    // is matched afresh.
+    await ok(decide(h[bhuna.locator]!, "confirmed", { item: v.itemId }))
+    expect(await proposeLikeTs(v.source, s2, s2Entry, catalogue)).toMatchObject(
+      {
+        counts: { proposed: 0, ambiguous: 1, needsReview: 0, skipped: 4 },
+      }
+    )
+    const after = headsBy(v.source)
+    for (const at of [chickenAt, lambAt, chicken2At])
+      expect(after[at]).toMatchObject({
+        row_id: h[at]!.row_id,
+        revision: h[at]!.revision,
+      })
+    expect(after[lamb2At]).toMatchObject({
+      status: "ambiguous",
+      basis: "name_candidate",
+      item_id: v.itemId,
+      variant_id: null,
+      candidates: [v.lamb],
+      snapshot_id: s2,
+      revision: h[lamb2At]!.revision + 1,
+    })
+    await ok(
+      decide(after[chickenAt]!, "confirmed", {
+        item: v.itemId,
+        variant: v.chicken,
       })
     )
   })
