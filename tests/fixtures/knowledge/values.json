@@ -1149,6 +1149,227 @@
       }
     },
     {
+      "name": "service stopped from a later date, the schedule ending on the last day (A40)",
+      "schema": "service",
+      "version": 1,
+      "headline": "yes",
+      "detail": {
+        "lastDayOffered": "2099-11-29",
+        "schedule": {
+          "effectiveFrom": "2026-11-01",
+          "effectiveTo": "2099-11-29",
+          "recurrence": {
+            "kind": "weekly",
+            "days": ["sun"]
+          },
+          "windows": [
+            {
+              "start": "12:00",
+              "end": "15:00"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": true,
+        "detail": {
+          "lastDayOffered": "2099-11-29",
+          "schedule": {
+            "effectiveFrom": "2026-11-01",
+            "effectiveTo": "2099-11-29",
+            "recurrence": {
+              "kind": "weekly",
+              "days": ["sun"]
+            },
+            "windows": [
+              {
+                "start": "12:00",
+                "end": "15:00"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "service stop date without a schedule (A40)",
+      "schema": "service",
+      "version": 1,
+      "headline": "yes",
+      "detail": {
+        "lastDayOffered": "2099-11-29",
+        "fees": {
+          "kind": "free"
+        }
+      },
+      "expect": {
+        "ok": true,
+        "detail": {
+          "lastDayOffered": "2099-11-29",
+          "fees": {
+            "kind": "free"
+          }
+        }
+      }
+    },
+    {
+      "name": "service stop date and schedule only on an Offered answer (A40)",
+      "schema": "service",
+      "version": 1,
+      "headline": "no",
+      "detail": {
+        "lastDayOffered": "2020-01-31",
+        "schedule": {
+          "effectiveFrom": "2020-01-01",
+          "effectiveTo": "2020-01-31",
+          "recurrence": {
+            "kind": "weekly",
+            "days": ["sun"]
+          },
+          "windows": [
+            {
+              "start": "12:00",
+              "end": "15:00"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "fields": [
+          {
+            "path": "detail.lastDayOffered",
+            "problem": "not_allowed"
+          },
+          {
+            "path": "detail.schedule",
+            "problem": "not_allowed"
+          }
+        ]
+      }
+    },
+    {
+      "name": "service schedule on a Not applicable answer (A40)",
+      "schema": "service",
+      "version": 1,
+      "headline": "not_applicable",
+      "detail": {
+        "schedule": {
+          "effectiveFrom": "2026-11-01",
+          "recurrence": {
+            "kind": "weekly",
+            "days": ["sun"]
+          },
+          "windows": [
+            {
+              "start": "12:00",
+              "end": "15:00"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "fields": [
+          {
+            "path": "detail.schedule",
+            "problem": "not_allowed"
+          }
+        ]
+      }
+    },
+    {
+      "name": "service stop date not a date (A40)",
+      "schema": "service",
+      "version": 1,
+      "headline": "yes",
+      "detail": {
+        "lastDayOffered": "2099-02-30"
+      },
+      "expect": {
+        "fields": [
+          {
+            "path": "detail.lastDayOffered",
+            "problem": "invalid"
+          }
+        ]
+      }
+    },
+    {
+      "name": "service stop date with a schedule that has no last day (A40)",
+      "schema": "service",
+      "version": 1,
+      "headline": "yes",
+      "detail": {
+        "lastDayOffered": "2099-11-29",
+        "schedule": {
+          "effectiveFrom": "2026-11-01",
+          "recurrence": {
+            "kind": "weekly",
+            "days": ["sun"]
+          },
+          "windows": [
+            {
+              "start": "12:00",
+              "end": "15:00"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "fields": [
+          {
+            "path": "detail.schedule.effectiveTo",
+            "problem": "required"
+          }
+        ]
+      }
+    },
+    {
+      "name": "service stop date different from the schedule's last day (A40)",
+      "schema": "service",
+      "version": 1,
+      "headline": "yes",
+      "detail": {
+        "lastDayOffered": "2099-11-29",
+        "schedule": {
+          "effectiveFrom": "2026-11-01",
+          "effectiveTo": "2099-11-22",
+          "recurrence": {
+            "kind": "weekly",
+            "days": ["sun"]
+          },
+          "windows": [
+            {
+              "start": "12:00",
+              "end": "15:00"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "fields": [
+          {
+            "path": "detail.schedule.effectiveTo",
+            "problem": "out_of_range"
+          }
+        ]
+      }
+    },
+    {
+      "name": "service stop date in the past is the venue check's, not the validator's (A40)",
+      "schema": "service",
+      "version": 1,
+      "headline": "yes",
+      "detail": {
+        "lastDayOffered": "2020-01-31"
+      },
+      "expect": {
+        "ok": true,
+        "detail": {
+          "lastDayOffered": "2020-01-31"
+        }
+      }
+    },
+    {
       "name": "fixture showing committed",
       "schema": "schedule_event",
       "version": 1,

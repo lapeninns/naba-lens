@@ -295,7 +295,12 @@ export function toAnswer(
   }
 }
 
-/** Changes whenever any answer's status, reason or revision changes. */
+/**
+ * Changes whenever any answer's status, reason, revision or value changes.
+ * The value is included because it can change with no write: a service with
+ * a later stop date reads Yes, then No from that date at the same revision
+ * (B03 A40), and that must never answer 304.
+ */
 export function snapshotEtag(parts: {
   venueId: string
   audience: string
@@ -314,6 +319,7 @@ export function snapshotEtag(parts: {
           a.unavailable?.reason ?? null,
           a.unavailable?.detail ?? null,
           a.revision,
+          a.value?.answer ?? null,
         ]),
       ])
     )

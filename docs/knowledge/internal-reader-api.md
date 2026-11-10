@@ -521,7 +521,10 @@ implementation. Known limits of the v1 limiter:
 - Freshness is evaluated at read time. A late or missed scheduler run can never
   keep an expired answer `available`.
 - `ETag` is a digest of the venue, audience, schema and each answer's key,
-  status, reason and revision. `If-None-Match` returns `304` when it matches.
+  status, reason, revision and value. `If-None-Match` returns `304` when it
+  matches. The value is included because it can change with no write: a
+  service with a later stop date reads `yes`, then `no` from that date, at the
+  same revision (B03 A40).
 - `Cache-Control: private, no-store` on every response. Shared caches never
   hold internal answers.
 - `revision` never decreases for a venue and question, including after
