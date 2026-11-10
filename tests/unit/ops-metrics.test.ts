@@ -86,6 +86,33 @@ describe("T-B10-01 metric registry", () => {
     }
   })
 
+  it("describes M-DL-8 with B07 §7.7's receipt kinds and optional fields", () => {
+    const { definition } = metric("M-DL-8")
+    for (const value of [
+      "provider_received",
+      "provider_awaiting_review",
+      "provider_approved",
+      "provider_sent",
+      "provider_confirmed",
+      "provider_rejected",
+      "provider_failed",
+      "provider_uncertain",
+      "provider_closed",
+      "providerDetail",
+      "behind_in_flight",
+      "source_changed_during_flight",
+      "source_withdrawn_during_flight",
+      "closeReason",
+      "already_satisfied",
+      "unsupported",
+      "not_linked",
+      "superseded",
+      "withdrawn_at_source",
+      "epoch_reset",
+    ])
+      expect(definition, value).toContain(value)
+  })
+
   it("reads the knowledge metrics from the B03 status view only", () => {
     for (const id of ["M-KN-1", "M-KN-2", "M-KN-3"])
       expect(metric(id).source.ref).toContain(
