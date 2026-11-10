@@ -1,6 +1,12 @@
 import { randomUUID } from "node:crypto"
 
-import { expect, type Locator, type Page } from "@playwright/test"
+import {
+  expect,
+  type APIResponse,
+  type Locator,
+  type Page,
+  type Route,
+} from "@playwright/test"
 
 import type { Db } from "../../support/identities"
 import { sessionOf, type AmenitiesWorld } from "./amenities-world"
@@ -266,41 +272,122 @@ export function londonDaysAgo(days: number): string {
   return new Date(Date.UTC(y!, m! - 1, d! - days)).toISOString().slice(0, 10)
 }
 
+/** `promise`, or a rejection naming `what` once `ms` pass first. */
+async function within<T>(promise: Promise<T>, ms: number, what: string) {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`${what} within ${ms} ms`)),
+      ms
+    )
+  })
+  try {
+    return await Promise.race([promise, deadline])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 /**
  * Holds the next real knowledge submit (a server action POST from `path`
- * whose body carries observedOnSource or authority) until `release()`: the
- * request reaches the server and its real response is delivered only then.
- * Later submits pass through. `count()` is how many submits left the page.
+ * whose body carries `marker`) while `held` runs: the request reaches the
+ * server and its real response is delivered only after. Later submits pass
+ * through; `held` gets how many submits left the page.
+ *
+ * `send` is started, not awaited, so it can never wait on the release. The
+ * submit must arrive within `arrivalMs`, and a failed `send` or route fetch
+ * fails the hold at once. Whatever happens, the hold is then released, the
+ * held route settled and only this handler removed; the first failure is the
+ * one thrown.
  */
-export async function holdNextSubmit(page: Page, path: string, marker: string) {
+export async function holdNextSubmit(
+  page: Page,
+  path: string,
+  marker: string,
+  steps: {
+    send: () => Promise<unknown>
+    held: (count: () => number) => Promise<void>
+    arrivalMs?: number
+    settleMs?: number
+  }
+) {
+  const { send, held, arrivalMs = 30_000, settleMs = 15_000 } = steps
   let release!: () => void
   const gate = new Promise<void>((resolve) => (release = resolve))
   let arrived!: () => void
   const reached = new Promise<void>((resolve) => (arrived = resolve))
+  let fail!: (cause: unknown) => void
+  const failed = new Promise<never>((_, reject) => (fail = reject))
+  failed.catch(() => {})
+  /** The held route's handling; resolves to its failure, never rejects. */
+  let settled: Promise<unknown> | undefined
   let submits = 0
-  await page.route(
-    (url) => url.pathname === path,
-    async (route) => {
-      const request = route.request()
-      const isSubmit =
-        request.method() === "POST" &&
-        Boolean(request.headers()["next-action"]) &&
-        (request.postData() ?? "").includes(marker)
-      if (!isSubmit) return route.fallback()
-      submits++
-      if (submits > 1) return route.fallback()
-      const response = await route.fetch()
+
+  const matcher = (url: URL) => url.pathname === path
+  const handler = async (route: Route) => {
+    const request = route.request()
+    const isSubmit =
+      request.method() === "POST" &&
+      Boolean(request.headers()["next-action"]) &&
+      (request.postData() ?? "").includes(marker)
+    if (!isSubmit) return route.fallback()
+    submits++
+    if (submits > 1) return route.fallback()
+    settled = (async () => {
+      let response: APIResponse
+      try {
+        response = await route.fetch()
+      } catch (cause) {
+        await route.abort().catch(() => {})
+        throw new Error(`held submit to ${path}: route.fetch failed`, {
+          cause,
+        })
+      }
       arrived()
       await gate
       await route.fulfill({ response })
-    }
-  )
-  return {
-    /** Resolves once the held request has had its real response. */
-    reached,
-    release,
-    count: () => submits,
+    })().then(
+      () => undefined,
+      (cause: unknown) => {
+        fail(cause)
+        return cause
+      }
+    )
+    await settled
   }
+
+  let first: { cause: unknown } | undefined
+  const keep = (cause: unknown) => {
+    first ??= { cause }
+  }
+  await page.route(matcher, handler)
+  let sending: Promise<unknown> | undefined
+  try {
+    sending = Promise.resolve().then(send)
+    sending.catch(fail)
+    await within(
+      Promise.race([reached, failed]),
+      arrivalMs,
+      `held submit to ${path} did not arrive`
+    )
+    const holding = held(() => submits)
+    holding.catch(() => {})
+    await Promise.race([holding, failed])
+  } catch (cause) {
+    keep(cause)
+  } finally {
+    release()
+    if (settled)
+      await within(settled, settleMs, `held submit to ${path} did not settle`)
+        .then((cause) => cause && keep(cause))
+        .catch(keep)
+    await page.unroute(matcher, handler).catch(keep)
+    if (sending)
+      await within(sending, settleMs, `send for ${path} did not finish`).catch(
+        keep
+      )
+  }
+  if (first) throw first.cause
 }
 
 /** The focused element sits inside `scope`. */

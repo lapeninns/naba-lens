@@ -231,21 +231,18 @@ test.describe("B03 venue knowledge: scoped answers and policy authority", () => 
 
     // The real submit is held: the controls say it's sending and can't send
     // twice; the real response is then released.
-    const hold = await holdNextSubmit(
-      staff,
-      staffCaptureHref(id),
-      '"observedOnSource"'
-    )
-    await s.submit.click()
-    await hold.reached
-    await expect(s.submit).toHaveAttribute("aria-busy", "true")
-    await expect(s.submit).toHaveAttribute("aria-disabled", "true")
-    await expect(s.submit).toHaveText(SEND_PROGRESS_COPY.sending)
-    await expect(s.checkedOn).toBeDisabled()
-    await expect(s.result(sideLabel, "yes")).toBeDisabled()
-    await s.submit.click({ force: true })
-    expect(hold.count(), "one submit left the page").toBe(1)
-    hold.release()
+    await holdNextSubmit(staff, staffCaptureHref(id), '"observedOnSource"', {
+      send: () => s.submit.click(),
+      held: async (count) => {
+        await expect(s.submit).toHaveAttribute("aria-busy", "true")
+        await expect(s.submit).toHaveAttribute("aria-disabled", "true")
+        await expect(s.submit).toHaveText(SEND_PROGRESS_COPY.sending)
+        await expect(s.checkedOn).toBeDisabled()
+        await expect(s.result(sideLabel, "yes")).toBeDisabled()
+        await s.submit.click({ force: true })
+        expect(count(), "one submit left the page").toBe(1)
+      },
+    })
     await expect(staff).toHaveURL(new RegExp(`finding_sent=${id}`))
     await expect(
       staff.getByRole("status").filter({ hasText: ask })
