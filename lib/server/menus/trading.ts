@@ -163,6 +163,10 @@ const CODES: Record<string, [MenuFailure["status"], string]> = {
     409,
     "That source entry is matched to another dish, option or channel.",
   ],
+  menu_source_price_scope_unverified: [
+    409,
+    "That source entry prices the whole dish, not this option or portion. Enter the price instead.",
+  ],
   invalid_effective_dates: [
     400,
     "Choose dates from today on, with the end on or after the start.",

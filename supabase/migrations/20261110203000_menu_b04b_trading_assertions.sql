@@ -27,7 +27,13 @@
 -- by the source's reviewed crosswalk head for that locator (confirmed or
 -- carried, same content hash as the cited entry) naming the line's item,
 -- variant and channel; anything else fails closed
--- (menu_source_mapping_unverified / menu_source_mapping_mismatch). S1 is
+-- (menu_source_mapping_unverified / menu_source_mapping_mismatch). A snapshot
+-- entry carries one priceText and only the names of its variants, and the
+-- crosswalk has no portion identity, so the text is evidence only for the
+-- entry itself: a variant row, a line with a portion, or a variant line cited
+-- by an entry that lists variants reads menu_source_price_scope_unverified
+-- (no inherited price; a "½ Pint" priced apart is its own entry). The stored
+-- snapshot, entry locator and raw text name the exact priced scope. S1 is
 -- unchanged.
 --
 -- Resolution (§5.5, A1-6) at an instant t, per line and field: an assertion
@@ -76,14 +82,16 @@
 -- stays proposed, writes no credit input, and the command returns the line's
 -- confirmed value separately (L4).
 --
--- Lock order (§3): the caller's profile row (share, as B03 §4.4), the venue
--- menu lock (shared, so catalogue activation is serialised), then, re-read
--- under those locks, the action's current authority (role, field, source)
--- and the exact active catalogue identity (item, variant, line); only then
--- the request key (replay or record), the source's crosswalk lock
--- (source-mapped proposals), line rows by id, and a compare-and-set on the
--- line revision (menu_trading_conflict, 40001). A key replays only for an
--- actor still allowed that action on a still-active target.
+-- Lock order (§3): the caller's profile row and open legacy manager grants
+-- (share, as B03 §4.4, so a demotion or a grant-only revocation serialises
+-- with the command), the venue menu lock (shared, so catalogue activation is
+-- serialised), then, re-read under those locks, the action's current
+-- authority (role, field, source) and the exact active catalogue identity
+-- (item, variant, live line); only then the request key (replay or record),
+-- the source's crosswalk lock (source-mapped proposals), line rows by id, and
+-- a compare-and-set on the line revision (menu_trading_conflict, 40001). The
+-- authority is re-read again after the request key and line row waits. A key
+-- replays only for an actor still allowed that action on a still-live target.
 --
 -- Rechecks (A1-4, A1-5): public.menu_trading_recheck_tasks; the b1 cause is
 -- temporary_until_passed. private.menu_open_rechecks(p_now, p_venue_ids)
@@ -738,7 +746,12 @@ $$;
 
 -- Lock order step 1 (as B03 §4.4): the caller's profile row FOR SHARE, so a
 -- role, venue or activation change of the account serialises with the
--- command. The venue menu lock (shared) follows.
+-- command, then the caller's open legacy manager grants FOR SHARE, so a
+-- grant-only revocation (public.revoke_venue_manager locks that row FOR
+-- UPDATE without touching the profile) waits for the command, or the command
+-- waits for it and re-reads the revoked grant. Same order as
+-- public.grant_venue_manager (profile, then grant). The venue menu lock
+-- (shared) follows.
 create function private.menu_trading_lock_actor(p_uid uuid)
 returns void
 language plpgsql
@@ -748,6 +761,27 @@ set search_path = ''
 as $$
 begin
   perform 1 from public.profiles p where p.id = p_uid for share;
+  perform 1 from public.venue_manager_grants g
+  where g.staff_id = p_uid and g.revoked_at is null
+  order by g.id
+  for share;
+end;
+$$;
+
+-- After a wait (the request key, a crosswalk or line row lock): the caller's
+-- authority re-read in a fresh snapshot (volatile, so not the caller's
+-- statement snapshot) must still be the one checked before the wait.
+create function private.menu_trading_assert_role(p_venue_id uuid, p_role text, p_error text)
+returns void
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+begin
+  if private.menu_trading_role(p_venue_id, true) is distinct from p_role then
+    raise exception '%', p_error using errcode = '42501';
+  end if;
 end;
 $$;
 
@@ -1577,20 +1611,8 @@ begin
   if v_variant is not null and not private.menu_trading_item_active(v_item_id, v_variant) then
     raise exception 'menu_variant_not_on_active_menu' using errcode = 'P0001';
   end if;
-  if p_line is not null and exists (
-    select 1 from public.menu_trading_lines l where l.id = p_line and l.retired_at is not null) then
-    raise exception 'menu_trading_line_retired' using errcode = 'P0001';
-  end if;
-  v_hash := private.menu_source_request_hash(jsonb_build_object(
-    'line', p_line, 'item', p_item, 'variant', p_variant, 'portion', p_portion, 'channel', p_channel,
-    'field', p_field, 'value', p_value, 'effectiveFrom', p_effective_from, 'effectiveTo', p_effective_to,
-    'observedOn', p_observed_on, 'reason', v_reason, 'source', p_source));
-  v_prior := private.menu_trading_replay(p_request_key, v_uid, 'propose', v_hash);
-  if v_prior is not null then
-    return v_prior;
-  end if;
-
-  -- The line identity (a new line only).
+  -- The line identity (a tuple names it), so the same current line
+  -- eligibility applies before a replay as to a direct line.
   if p_line is null then
     if v_channel not in ('all', 'dine_in', 'takeaway') then
       raise exception 'invalid_trading_channel' using errcode = '22023';
@@ -1616,6 +1638,24 @@ begin
         raise exception 'invalid_portion' using errcode = '22023';
       end if;
     end if;
+  end if;
+  if exists (
+    select 1 from public.menu_trading_lines l
+    where l.retired_at is not null
+      and case when p_line is not null then l.id = p_line
+          else l.item_id = v_item_id and l.variant_id is not distinct from v_variant
+            and l.portion_label is not distinct from v_label and l.channel = v_channel
+            and l.modifier_option_id is null end) then
+    raise exception 'menu_trading_line_retired' using errcode = 'P0001';
+  end if;
+  v_hash := private.menu_source_request_hash(jsonb_build_object(
+    'line', p_line, 'item', p_item, 'variant', p_variant, 'portion', p_portion, 'channel', p_channel,
+    'field', p_field, 'value', p_value, 'effectiveFrom', p_effective_from, 'effectiveTo', p_effective_to,
+    'observedOn', p_observed_on, 'reason', v_reason, 'source', p_source));
+  v_prior := private.menu_trading_replay(p_request_key, v_uid, 'propose', v_hash);
+  perform private.menu_trading_assert_role(v_venue, v_role, 'not_venue_member');
+  if v_prior is not null then
+    return v_prior;
   end if;
 
   -- The value.
@@ -1662,6 +1702,17 @@ begin
     if v_mapping.item_id is distinct from v_item_id or v_mapping.variant_id is distinct from v_variant
        or v_mapping.channel is distinct from v_channel then
       raise exception 'menu_source_mapping_mismatch' using errcode = 'P0001';
+    end if;
+    -- The snapshot prices an entry as a whole: one priceText, variant names
+    -- only, and the crosswalk has no portion identity. So the cited text is
+    -- evidence only for the line the entry itself is: an entry row (never a
+    -- variant row, whose text is the parent's), no portion, and a variant
+    -- only when the entry is that variant alone (lists no variants, as a
+    -- separate "½ Pint" entry). Any other scope is not inherited.
+    if v_entry ->> 'locator' <> v_locator
+       or coalesce(v_line.portion_label, v_label) is not null
+       or (v_variant is not null and jsonb_array_length(coalesce(v_entry -> 'variants', '[]'::jsonb)) > 0) then
+      raise exception 'menu_source_price_scope_unverified' using errcode = 'P0001';
     end if;
     v_raw := v_entry ->> 'priceText';
     if v_raw is null then
@@ -1784,6 +1835,7 @@ begin
   if v_line.retired_at is not null then
     raise exception 'menu_trading_line_retired' using errcode = 'P0001';
   end if;
+  perform private.menu_trading_assert_role(v_venue, v_role, 'not_venue_member');
 
   v_head := private.menu_trading_head(v_line.id, p_field);
   insert into public.menu_trading_assertions (
@@ -1838,6 +1890,7 @@ declare
   v_uid uuid := auth.uid();
   v_assertion public.menu_trading_assertions;
   v_line public.menu_trading_lines;
+  v_role text;
   v_reason text := nullif(btrim(p_reason), '');
   v_hash text;
   v_prior jsonb;
@@ -1859,14 +1912,18 @@ begin
   -- exact active item and variant, all before any replay.
   perform private.menu_trading_lock_actor(v_uid);
   perform private.lock_venue_menu(v_assertion.venue_id, true);
-  if coalesce(private.menu_trading_role(v_assertion.venue_id, true), 'none') not in ('admin', 'manager') then
+  v_role := private.menu_trading_role(v_assertion.venue_id, true);
+  if coalesce(v_role, 'none') not in ('admin', 'manager') then
     raise exception 'not_venue_manager' using errcode = '42501';
   end if;
   if p_decision is null or p_decision not in ('confirmed', 'declined', 'withdrawn') then
     raise exception 'invalid_trading_decision' using errcode = '22023';
   end if;
+  select l.* into v_line from public.menu_trading_lines l where l.id = v_assertion.line_id;
+  if v_line.retired_at is not null then
+    raise exception 'menu_trading_line_retired' using errcode = 'P0001';
+  end if;
   if p_decision = 'confirmed' then
-    select l.* into v_line from public.menu_trading_lines l where l.id = v_assertion.line_id;
     if not private.menu_trading_item_active(v_line.item_id, null) then
       raise exception 'menu_item_not_on_active_menu' using errcode = 'P0001';
     end if;
@@ -1878,6 +1935,7 @@ begin
     'assertion', p_assertion, 'expected', p_expected_line_revision, 'decision', p_decision,
     'reason', v_reason, 'statedOn', p_stated_on));
   v_prior := private.menu_trading_replay(p_request_key, v_uid, 'decide', v_hash);
+  perform private.menu_trading_assert_role(v_assertion.venue_id, v_role, 'not_venue_manager');
   if v_prior is not null then
     return v_prior;
   end if;
@@ -1896,6 +1954,7 @@ begin
   if v_line.retired_at is not null then
     raise exception 'menu_trading_line_retired' using errcode = 'P0001';
   end if;
+  perform private.menu_trading_assert_role(v_assertion.venue_id, v_role, 'not_venue_manager');
 
   v_today := private.menu_venue_date(v_assertion.venue_id, now());
   if p_decision in ('confirmed', 'declined') then
@@ -2015,9 +2074,23 @@ begin
   if p_variant is not null and not private.menu_trading_item_active(p_item, p_variant) then
     raise exception 'menu_variant_not_on_active_menu' using errcode = 'P0001';
   end if;
+  -- Current line eligibility before a replay: a live line the statement
+  -- covers, or a plain line it may still create (not a retired one).
+  if not exists (
+       select 1 from public.menu_trading_lines l
+       where l.item_id = p_item and l.retired_at is null
+         and (p_variant is null or l.variant_id = p_variant)
+         and (l.variant_id is null or private.menu_trading_item_active(p_item, l.variant_id)))
+     and exists (
+       select 1 from public.menu_trading_lines l
+       where l.item_id = p_item and l.variant_id is not distinct from p_variant
+         and l.portion_label is null and l.channel = 'all' and l.modifier_option_id is null) then
+    raise exception 'menu_trading_line_retired' using errcode = 'P0001';
+  end if;
   v_hash := private.menu_source_request_hash(jsonb_build_object(
     'item', p_item, 'variant', p_variant, 'until', p_until, 'reason', v_reason));
   v_prior := private.menu_trading_replay(p_request_key, v_uid, 'set_temporarily_unavailable', v_hash);
+  perform private.menu_trading_assert_role(v_item.venue_id, v_role, 'not_venue_manager');
   if v_prior is not null then
     return v_prior;
   end if;
@@ -2047,6 +2120,7 @@ begin
     order by l.id
     for update
   loop
+    perform private.menu_trading_assert_role(v_item.venue_id, v_role, 'not_venue_manager');
     insert into public.menu_trading_assertions (
       line_id, venue_id, field, value, basis, stated_by, reason, supersedes, command_key
     )
@@ -2507,6 +2581,7 @@ revoke all on function
   private.menu_trading_item_active(uuid, uuid),
   private.menu_venue_date(uuid, timestamptz),
   private.menu_trading_lock_actor(uuid),
+  private.menu_trading_assert_role(uuid, text, text),
   private.menu_trading_replay(uuid, uuid, text, text),
   private.menu_trading_record(uuid, uuid, text, text, uuid, jsonb),
   private.menu_trading_field_state(uuid, text, timestamptz),
