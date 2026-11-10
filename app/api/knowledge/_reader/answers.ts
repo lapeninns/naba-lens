@@ -43,7 +43,8 @@ export type ResolverRow = {
   saved_at: string | null
   observed_at: string | null
   next_check_due: string | null
-  freshness_state: "current" | "due_soon" | "unrated"
+  /** Null on unavailable rows; required on available ones (B03-e fills it). */
+  freshness_state: "current" | "due_soon" | "unrated" | null
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> =>
@@ -146,14 +147,14 @@ export function parseResolverRow(raw: unknown): ResolverRow | null {
     saved_at: time(raw.saved_at),
     observed_at: time(raw.observed_at),
     next_check_due: time(raw.next_check_due),
-    freshness_state: oneOf(raw.freshness_state ?? "unrated", [
+    freshness_state: oneOf(raw.freshness_state, [
       "current",
       "due_soon",
       "unrated",
     ] as const),
   }
   if (Object.values(row).some((v) => v === undefined)) return null
-  if (row.status === null || row.freshness_state === null) return null
+  if (row.status === null) return null
   return row as ResolverRow
 }
 
@@ -229,6 +230,7 @@ export function toAnswer(
         ? row.current_submission_id
         : null
   if (!idKind || !contributionId || !row.saved_at) return null
+  if (row.freshness_state === null) return null
 
   let confirmation: NonNullable<ReaderAnswer["provenance"]>["confirmation"] =
     null

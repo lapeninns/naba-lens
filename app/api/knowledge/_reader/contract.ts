@@ -39,9 +39,9 @@ export const LIMITS = {
 
 /**
  * Each detail belongs to exactly one reason; a pair outside this table breaks
- * the resolver contract and fails closed. B03 details (b03-design §3.8, §5.2,
- * §7.3, §9.3) are listed before the batch that emits them, so turning one on
- * never turns a whole response into a 500.
+ * the resolver contract and fails closed. The B03 details are exactly those
+ * the final B03 resolver view emits (b03-design §3.8, §5.2, §7.3, §9.2, §9.3);
+ * recheck causes such as temporary_until_passed are not slot details.
  */
 export const UNAVAILABLE_DETAILS = {
   unknown: ["not_checked", "unable_to_establish", "not_enabled"],
@@ -53,7 +53,6 @@ export const UNAVAILABLE_DETAILS = {
     "qualified_answer",
     "basis_missing",
     "schema_changed",
-    "temporary_until_passed",
   ],
   disputed: ["conflict"],
   withdrawn: ["answer_withdrawn", "confirmation_revoked", "evidence_withdrawn"],

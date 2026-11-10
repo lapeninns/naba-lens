@@ -87,8 +87,9 @@ const B03_DETAILS: [string, string][] = [
   ["stale", "basis_missing"],
   ["stale", "expired"],
   ["stale", "schema_changed"],
-  ["stale", "temporary_until_passed"],
   ["stale", "recheck_requested"],
+  // B03-g knowledge_withdraw: ahead of every reason but not_enabled.
+  ["withdrawn", "answer_withdrawn"],
 ]
 
 const read = (raw: unknown) => {
@@ -125,10 +126,11 @@ describe("B03 details keep the v1 reasons", () => {
     ["basis_missing under unknown", "unknown", "basis_missing"],
     ["schema_changed under withdrawn", "withdrawn", "schema_changed"],
     [
-      "temporary_until_passed under disputed",
-      "disputed",
+      "temporary_until_passed, a recheck cause the final resolver never emits as a detail",
+      "stale",
       "temporary_until_passed",
     ],
+    ["answer_withdrawn under stale", "stale", "answer_withdrawn"],
     ["a recheck cause that is not a detail", "stale", "scope_changed"],
     ["another recheck cause", "stale", "schedule_ended"],
     ["a freshness state, not a detail", "stale", "due_soon"],
@@ -143,6 +145,37 @@ describe("B03 details keep the v1 reasons", () => {
     // and an available status; the detail alone never makes it available.
     expect(
       read({ ...plainYes("onsite_parking"), detail: "qualified_answer" })
+    ).toBeNull()
+  })
+})
+
+describe("B03-e freshness on available answers", () => {
+  it.each([
+    ["current", "2027-02-01T00:00:00+00:00", "2027-02-01T00:00:00.000Z"],
+    ["due_soon", "2026-11-25T00:00:00+00:00", "2026-11-25T00:00:00.000Z"],
+    ["unrated", null, null],
+  ])("reads %s with its next check date", (state, due, expected) => {
+    expect(
+      read({
+        ...plainYes("onsite_parking"),
+        freshness_state: state,
+        next_check_due: due,
+      })?.freshness
+    ).toEqual({
+      savedAt: "2026-11-18T14:02:11.000Z",
+      observedAt: null,
+      nextCheckDue: expected,
+      state,
+    })
+  })
+
+  // Expired and basis-missing answers are never available; "stale" is not a
+  // freshness state; an available row must carry its freshness.
+  it.each([["expired"], ["basis_missing"], ["stale"], [null]] as [
+    string | null,
+  ][])("fails closed on freshness_state %s", (state) => {
+    expect(
+      read({ ...plainYes("onsite_parking"), freshness_state: state })
     ).toBeNull()
   })
 })
