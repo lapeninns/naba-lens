@@ -1303,3 +1303,34 @@ for accessibility only (`private.knowledge_detail_venue_problems_for`).
   added under OD-11.
 - B03-c review low: the legacy presented `recheck_reason` takes the UI
   design's per-qualifier wording (b03-ui-design §2.6).
+
+**B03-e as built (10 Nov 2026), flagged for WS5 and the reviewer:**
+freshness and rechecks (§7, A10, A11, A24), with WS4's K1 values, K2 and K4
+(A28, A29, A31).
+
+- `knowledge_freshness_policies` is seeded empty and no version names a
+  policy (OD-15), so every answer still reads `unrated` and the v1 reader's
+  output is unchanged today. For a key whose latest version names a policy,
+  the reader fills `freshness_state` and `next_check_due` (internal use)
+  and an expired or basis-missing answer reads `unavailable / stale /
+expired` or `basis_missing`. Precedence for an otherwise available slot:
+  expired, basis_missing, policy_incomplete, qualified_answer (A22).
+- Due is local midnight of the basis date plus `max_age` (the event's end for
+  `event_end`); `due_soon` from due minus the lead. The computation is one
+  pure function, `private.knowledge_freshness_entry`.
+- Recheck tasks: `due_soon`, `expired` (not when that due date already has an
+  open task), `basis_missing`, `temporary_until_passed` and
+  `schedule_ended` are opened by `private.knowledge_open_rechecks`;
+  `evidence_lost`, `schema_changed` and `scope_changed` are reserved for
+  B03-g. A task closes only when the slot reads available and current (or
+  unrated) for its use, from triggers on adoption, confirmation, reaffirmation
+  and a stored detail row, and from the job. `rechecksClosed` lists the tasks
+  the command closed; a replay returns none.
+- **The job's schedule is not added.** `public.knowledge_run_rechecks()`
+  (service role) is the entry; the internal route and its cron entry are
+  added when OD-15 enables freshness, with the scope guard's handler list.
+- The manager triage read returns a `rechecks` row; the TypeScript
+  `getManagerTriage` keeps B02's three queues and adds a separate
+  `rechecks` summary, so B02 screens are unchanged.
+- `private.knowledge_slot_state_b03` gained `p_now` (default `now()`) so
+  K2 and the job can read at a given time.

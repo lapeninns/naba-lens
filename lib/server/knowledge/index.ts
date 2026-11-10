@@ -54,5 +54,6 @@ export {
   previewSchedule,
 } from "./schedule-services"
 export { expandScheduleOccurrences } from "./schedules"
+export { getCheckRechecks, listMyRechecks, previewFreshness } from "./rechecks"
 export { readKnowledgeAnswers, type KnowledgeReaderResult } from "./reader"
 export { knowledgeRpcFailure } from "./errors"

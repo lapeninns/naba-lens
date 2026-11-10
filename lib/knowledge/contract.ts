@@ -392,6 +392,8 @@ export type LabelWork = { needsLabels: number; needsAttention: number }
 
 export const TRIAGE_QUEUES = ["menu_photos", "findings", "checklist"] as const
 export type TriageQueue = (typeof TRIAGE_QUEUES)[number]
+/** B03-e (§7.4): open recheck tasks, returned beside the B02 queues. */
+export type TriageRow = TriageQueue | "rechecks"
 
 /**
  * R3. One manager queue. A queue the caller can't act on is `available: false`
@@ -782,8 +784,8 @@ export type SubmitKnowledgeResult = {
   /** B03-b, when detail or an observation date was sent. */
   detail?: KnowledgeDetail | null
   observedOn?: string | null
-  /** A24: the recheck tasks this send closed; empty until B03-e. */
-  rechecksClosed?: { taskId: string; use: "internal" | "public" }[]
+  /** A24: the recheck tasks this send closed (none on a replay). */
+  rechecksClosed?: RecheckClosed[]
 }
 
 export type DecideResult = {
@@ -792,6 +794,8 @@ export type DecideResult = {
   replacedAnswer: SubmitAnswer | null
   slotRevision: number
   replayed: boolean
+  /** B03-e (A24): the recheck tasks this decision closed. */
+  rechecksClosed?: RecheckClosed[]
 }
 
 export type ResolveConflictResult = {
@@ -799,6 +803,45 @@ export type ResolveConflictResult = {
   settled: number
   slotRevision: number
   replayed: boolean
+  /** B03-e (A24): the recheck tasks this decision closed. */
+  rechecksClosed?: RecheckClosed[]
+}
+
+export type RecheckClosed = { taskId: string; use: "internal" | "public" }
+
+export type RecheckCause =
+  | "due_soon"
+  | "expired"
+  | "basis_missing"
+  | "schedule_ended"
+  | "temporary_until_passed"
+  | "evidence_lost"
+  | "schema_changed"
+  | "scope_changed"
+
+/** B03-e (A11): an open recheck task; its assignee is the check's. */
+export type RecheckTaskView = {
+  taskId: string
+  checkId: string
+  venueId: string
+  questionKey: string
+  question: string
+  cause: RecheckCause
+  use: "internal" | "public"
+  dueAt: string
+}
+
+/** B03-e (§7.3): what naming a policy would do, per venue and use. */
+export type FreshnessPreviewView = {
+  key: string
+  items: {
+    venueId: string
+    use: "internal" | "public"
+    answers: number
+    dueSoon: number
+    expired: number
+    basisMissing: number
+  }[]
 }
 
 // ---- Errors (§4.1) -------------------------------------------------------------
@@ -955,7 +998,7 @@ export type KnowledgeRpcs = {
   manager_triage_summary: {
     args: { p_venue_id: string | null }
     returns: {
-      queue: TriageQueue
+      queue: TriageRow
       available: boolean
       waiting: number | null
       oldest_waiting_at: string | null
@@ -1005,6 +1048,21 @@ export type KnowledgeRpcs = {
   knowledge_value_list: {
     args: { p_list: ValueListName }
     returns: ValueListView
+  }
+  my_rechecks: {
+    args: Record<string, never>
+    returns: { items: RecheckTaskView[] }
+  }
+  knowledge_check_rechecks: {
+    args: { p_check_id: string }
+    returns: { count: number; items: RecheckTaskView[] }
+  }
+  knowledge_freshness_preview: {
+    args: {
+      p_key: string
+      p_policy: { internal?: string | null; public?: string | null }
+    }
+    returns: FreshnessPreviewView
   }
   knowledge_occurrences: {
     args: { p_check_id: string; p_from: string; p_to: string }
