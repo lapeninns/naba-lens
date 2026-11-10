@@ -74,7 +74,8 @@ const manager: Access = {
 describe("legacy check views for a qualified answer (A19, A21)", () => {
   const qualified = row({
     progress: "needs_recheck",
-    recheck_reason: "Temporarily unavailable. Check whether it is back.",
+    recheck_reason:
+      "The answer in use is temporarily unavailable. Open the check to see until when.",
     qualification: "temporarily_unavailable",
   })
 

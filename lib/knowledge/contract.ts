@@ -218,6 +218,8 @@ export type KnowledgeSlotView = {
     qualified?: QualifiedAnswer | null
     /** B03-c (A5): policy keys only; empty means complete. */
     policyMissing?: PolicyMissing[]
+    /** B03-d (A25): the schedule version in use, for a schedule exception. */
+    scheduleId?: string | null
   } | null
   previousAnswer: SubmitAnswer | null
   requiresConfirmation: boolean
@@ -287,6 +289,8 @@ export type KnowledgeCheckView = KnowledgeSlotView & {
    * Always returned once the B02 migration is applied.
    */
   mySentAt?: string | null
+  /** B03-d (A6): the venue's IANA timezone for schedules (OD-16 default). */
+  timezone?: string
 }
 
 export type WorkingListView = {
@@ -723,6 +727,21 @@ export type QuestionFeature = {
   measurable: boolean
 }
 
+/** B03-d (§6.1): one occurrence of a schedule; instants are UTC. */
+export type OccurrenceRow = {
+  local_date: string
+  starts_at: string
+  ends_at: string
+  state: "scheduled" | "cancelled" | "changed" | "extra"
+}
+
+export const SCHEDULE_EXCEPTION_KINDS = [
+  "cancelled",
+  "changed_window",
+  "extra",
+] as const
+export type ScheduleExceptionKind = (typeof SCHEDULE_EXCEPTION_KINDS)[number]
+
 export type FreshnessEntry = {
   use: "internal" | "public"
   state: "current" | "due_soon" | "expired" | "basis_missing" | "unrated"
@@ -986,6 +1005,32 @@ export type KnowledgeRpcs = {
   knowledge_value_list: {
     args: { p_list: ValueListName }
     returns: ValueListView
+  }
+  knowledge_occurrences: {
+    args: { p_check_id: string; p_from: string; p_to: string }
+    returns: OccurrenceRow[]
+  }
+  knowledge_schedule_preview: {
+    args: {
+      p_schedule: Record<string, unknown>
+      p_timezone: string | null
+      p_from: string
+      p_to: string
+    }
+    returns: OccurrenceRow[]
+  }
+  knowledge_schedule_exception: {
+    args: {
+      p_check_id: string
+      p_slot_revision: number
+      p_idempotency_key: string
+      p_schedule_id: string
+      p_local_date: string
+      p_kind: ScheduleExceptionKind
+      p_windows: { start: string; end: string }[] | null
+      p_note: string | null
+    }
+    returns: { exceptionId: string; slotRevision: number; replayed: boolean }
   }
   knowledge_subjects: {
     args: { p_venue_id: string | null }

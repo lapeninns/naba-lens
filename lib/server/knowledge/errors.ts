@@ -117,6 +117,10 @@ const KNOWLEDGE: Record<string, Mapping> = {
     "not_found",
     "This place could not be found. Reload the page.",
   ],
+  schedule_exception_exists: [
+    "state_conflict",
+    "This date already has a change. Reload the page.",
+  ],
 }
 
 const BY_SQLSTATE: Record<string, string> = {
@@ -157,6 +161,8 @@ const FIELD_ERRORS: Record<string, [field: string, message: string]> = {
   invalid_place_kind: ["kind", "Choose what kind of place this is."],
   invalid_label: ["label", "Enter a name of up to 80 characters."],
   invalid_value_list: ["list", "Choose a list."],
+  invalid_range: ["to", "Choose up to 92 days."],
+  invalid_timezone: ["timezone", "Reload the page and try again."],
 }
 
 function detailOf(error: DbError): Record<string, unknown> {

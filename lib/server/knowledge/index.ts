@@ -48,5 +48,11 @@ export {
   listQuestionRegistry,
 } from "./registry"
 export { addPlace, listPlaces, retirePlace } from "./places"
+export {
+  addScheduleException,
+  getOccurrences,
+  previewSchedule,
+} from "./schedule-services"
+export { expandScheduleOccurrences } from "./schedules"
 export { readKnowledgeAnswers, type KnowledgeReaderResult } from "./reader"
 export { knowledgeRpcFailure } from "./errors"
